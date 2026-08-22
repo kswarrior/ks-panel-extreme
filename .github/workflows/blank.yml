@@ -1,0 +1,60 @@
+name: Sync from Hugging Face Bucket
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout GitHub Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install Hugging Face CLI
+        run: |
+          pip install -U huggingface_hub
+
+      - name: Sync from Hugging Face Bucket
+        run: |
+          # Download everything inside ks-panel
+          # Exclude npm-installed packages
+          hf sync hf://buckets/kswarrior/opencode-storage/ks-panel ./hf_temp \
+            --exclude "*node_modules*"
+
+      - name: Remove npm packages
+        run: |
+          # Extra safety: make sure node_modules is never copied
+          find ./hf_temp -type d -name "node_modules" -prune -exec rm -rf {} +
+
+      - name: Sync Files to Repository Root
+        run: |
+          # Copy the CONTENTS of ks-panel directly into repository root
+          rsync -av \
+            --exclude=".git" \
+            --exclude="node_modules" \
+            hf_temp/ ./
+
+          rm -rf hf_temp
+
+      - name: Commit and Push Changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add .
+
+          if git diff --staged --quiet; then
+            echo "No changes detected. Skipping commit."
+          else
+            git commit -m "Sync from Hugging Face ks-panel"
+            git push origin HEAD
+          fi
