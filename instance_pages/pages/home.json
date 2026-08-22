@@ -1,0 +1,12 @@
+{
+  "name": "Home",
+  "slug": ".",
+  "kind": "builtin",
+  "category": "overview",
+  "description": "Instance overview with status, resource metrics, and quick actions",
+  "content_type": "blocks",
+  "content_html": "",
+  "content_markdown": "",
+  "content_blocks": "[\n  {\n    \"type\": \"heading\",\n    \"value\": \"Instance Dashboard\",\n    \"level\": 1,\n    \"align\": \"left\"\n  },\n  {\n    \"type\": \"text\",\n    \"value\": \"Welcome to your instance control panel. Monitor resources, manage services, and deploy updates.\",\n    \"align\": \"left\"\n  },\n  {\n    \"type\": \"divider\"\n  },\n  {\n    \"type\": \"heading\",\n    \"value\": \"System Status\",\n    \"level\": 2\n  },\n  {\n    \"type\": \"text\",\n    \"value\": \"**Instance:** {{instance.name}}  |  **Status:** <span class=\\\"text-emerald-400\\\">● {{instance.status}}</span>  |  **Uptime:** {{instance.uptime}}\\n**Node:** {{instance.node_name}}  |  **Template:** {{instance.template_name}}  |  **IP:** {{instance.primary_ip}}\"\n  },\n  {\n    \"type\": \"divider\"\n  },\n  {\n    \"type\": \"heading\",\n    \"value\": \"Resource Usage\",\n    \"level\": 2\n  },\n  {\n    \"type\": \"text\",\n    \"value\": \"**CPU Usage:** {{metrics.cpu_percent}}% ({{metrics.cpu_used}} / {{metrics.cpu_total}} cores)\\n\\n**Memory:** {{metrics.mem_used_gb}} GB / {{metrics.mem_total_gb}} GB ({{metrics.mem_percent}}%)\\n\\n**Disk:** {{metrics.disk_used_gb}} GB / {{metrics.disk_total_gb}} GB ({{metrics.disk_percent}}%)\\n\\n**Network:** ↑ {{metrics.net_up_mbps}} MB/s  ↓ {{metrics.net_down_mbps}} MB/s\"\n  },\n  {\n    \"type\": \"divider\"\n  },\n  {\n    \"type\": \"heading\",\n    \"value\": \"Quick Actions\",\n    \"level\": 2\n  },\n  {\n    \"type\": \"button\",\n    \"value\": \"Restart Instance\",\n    \"href\": \"#action:restart\"\n  },\n  {\n    \"type\": \"button\",\n    \"value\": \"View Logs\",\n    \"href\": \"#page:logs\"\n  },\n  {\n    \"type\": \"button\",\n    \"value\": \"Open Terminal\",\n    \"href\": \"#page:terminal\"\n  },\n  {\n    \"type\": \"button\",\n    \"value\": \"Create Backup\",\n    \"href\": \"#action:backup\"\n  },\n  {\n    \"type\": \"divider\"\n  },\n  {\n    \"type\": \"heading\",\n    \"value\": \"Recent Activity\",\n    \"level\": 2\n  },\n  {\n    \"type\": \"text\",\n    \"value\": \"{{activity_recent}}\"\n  }\n]",
+  "icon_svg": "<path d=\"M3 9.5 12 3l9 6.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z\"/>"
+}

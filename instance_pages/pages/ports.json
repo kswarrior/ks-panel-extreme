@@ -1,0 +1,12 @@
+{
+  "name": "Ports",
+  "slug": "ports",
+  "kind": "builtin",
+  "category": "networking",
+  "description": "Listening sockets and network connections",
+  "content_type": "",
+  "content_html": "",
+  "content_markdown": "",
+  "content_blocks": "",
+  "icon_svg": "<rect x=\"4\" y=\"4\" width=\"16\" height=\"16\" rx=\"2\"/><path d=\"M9 4v16M15 4v16M4 9h16M4 15h16\"/>"
+}

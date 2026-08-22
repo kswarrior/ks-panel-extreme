@@ -1,0 +1,12 @@
+{
+  "name": "Files",
+  "slug": "files",
+  "kind": "builtin",
+  "category": "tools",
+  "description": "File manager with upload, edit, and directory navigation",
+  "content_type": "",
+  "content_html": "",
+  "content_markdown": "",
+  "content_blocks": "",
+  "icon_svg": "<path d=\"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z\"/><path d=\"M14 2v6h6\"/><line x1=\"12\" y1=\"18\" x2=\"12\" y2=\"12\"/><line x1=\"9\" y1=\"15\" x2=\"15\" y2=\"15\"/>"
+}

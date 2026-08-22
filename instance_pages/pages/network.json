@@ -1,0 +1,12 @@
+{
+  "name": "Network",
+  "slug": "network",
+  "kind": "builtin",
+  "category": "networking",
+  "description": "Port forwarding and network configuration overview",
+  "content_type": "",
+  "content_html": "",
+  "content_markdown": "",
+  "content_blocks": "",
+  "icon_svg": "<path d=\"M22 12h-4l-3 9L9 3l-3 9H2\"/>"
+}

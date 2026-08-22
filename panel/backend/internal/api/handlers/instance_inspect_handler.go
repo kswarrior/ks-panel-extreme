@@ -1,0 +1,441 @@
+// Package handlers: instance_inspect_handler.go owns the rpc-and-cache
+// endpoints that proxy edge inspect/snapshot to the per-instance Processes,
+// Metrics, Ports, Snapshots and Audit pages. Each "read" endpoint refreshes
+// the cached live state from the edge; each "action" endpoint issues a
+// snapshot RPC and persists the returned reference.
+
+package handlers
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"strconv"
+	"time"
+
+	"github.com/example/kspanel/internal/edge"
+	"github.com/example/kspanel/internal/models"
+	"github.com/example/kspanel/internal/repository"
+	"github.com/go-chi/chi/v5"
+)
+
+// inspectTimeout caps how long the panel will wait on the edge's
+// /api/edge/inspect before giving up. The SPA's axios client aborts at 15s
+// (see web/src/api/client.ts); if the edge hasn't answered by ~10s it is
+// wedged and we'd otherwise let the browser give up first, surfacing the
+// operator-hostile "timeout of 15000ms exceeded" banner then piling up
+// overlapping slow requests on the 5s poll. Aborting at 10s lets us fall
+// back to the cached live state and return a fast, complete response so the
+// page keeps painting the last-known metrics instead of an eternal spinner.
+const inspectTimeout = 10 * time.Second
+
+// refreshLiveState dials the edge's /api/edge/inspect for the instance and
+// returns the cached live state. It builds its own short-timeout edge client
+// (inspectTimeout) so a wedged edge aborts well before the SPA's 15s cutoff;
+// the ec passed in by loadInstNode (30s) is only used when a custom timeout
+// isn't applicable. On edge failure it falls back to returning the
+// previously cached state (if any) so the page still paints.
+func refreshLiveState(inst *models.Instance, ec *edge.Client) *models.InstanceLiveState {
+	con, err := repository.OpenDB()
+	if err != nil {
+		return nil
+	}
+	defer con.Close()
+	liveRepo := repository.NewLiveStateRepository(con)
+
+	// Build a short-timeout client so a slow/hung edge aborts fast and we
+	// can serve the cache instead of letting the SPA time out first.
+	inspectClient := ec
+	nodeRepo := repository.NewNodeRepository(con)
+	if node, nerr := nodeRepo.GetNode(inst.NodeID); nerr == nil {
+		if token, terr := nodeRepo.PlainToken(inst.NodeID); terr == nil && token != "" {
+			inspectClient = edge.NewWithTimeout(*node, token, inspectTimeout)
+		}
+	}
+
+	resp, err := inspectClient.Inspect(edge.InspectRequest{Kind: inst.Kind, Name: workloadName(inst)})
+	// The previous cache is the fallback while the edge is unreachable or
+	// reports an inspect failure (ok:false, which edge.Client.Inspect now
+	// surfaces as an error). Serving the cache keeps the page painting the
+	// last-known metrics instead of blanking every tile to "—".
+	prev, _ := liveRepo.Get(inst.ID)
+	if err != nil {
+		return prev
+	}
+	// Build the fresh live state. Only overwrite each blob when the edge
+	// actually supplied one; an empty blob (edge returned ok:true but the
+	// driver had nothing to report for that channel) must NOT replace a
+	// previously-good cached value, otherwise a single transient empty
+	// poll wipes real metrics/processes/ports and the page shows "—"
+	// until the next successful poll — exactly the symptom operators hit
+	// when the container was running (docker ps ok) but the metrics page
+	// was blank.
+	ls := models.InstanceLiveState{InstanceID: inst.ID}
+	if prev != nil {
+		ls = *prev
+	}
+	if len(resp.Metrics) > 0 {
+		ls.Metrics = string(resp.Metrics)
+	}
+	if len(resp.Processes) > 0 {
+		ls.Processes = string(resp.Processes)
+	}
+	if len(resp.Ports) > 0 {
+		ls.Ports = string(resp.Ports)
+	}
+	if len(resp.Info) > 0 {
+		ls.Info = string(resp.Info)
+	}
+	if ls.Metrics == "" {
+		ls.Metrics = "{}"
+	}
+	if ls.Processes == "" {
+		ls.Processes = "[]"
+	}
+	if ls.Ports == "" {
+		ls.Ports = "[]"
+	}
+	if ls.Info == "" {
+		ls.Info = "{}"
+	}
+	_ = liveRepo.Save(ls)
+	ls.UpdatedAt = time.Now()
+	return &ls
+}
+
+// ExternalIDOr returns the edge-side workload name for a bare instance,
+// preferring the edge-reported external_id and falling back to the supplied
+// fallback. A package-level helper (not a method on models.Instance) because
+// Go forbids defining new methods on a type from another package; kept here
+// so callers that hold a bare instance can resolve the edge name without
+// re-implementing the fallback that workloadName uses.
+func ExternalIDOr(in models.Instance, fallback string) string {
+	if in.ExternalID != "" {
+		return in.ExternalID
+	}
+	return fallback
+}
+
+// workloadName returns the edge-side name of a workload, preferring the
+// edge-reported external_id and falling back to the panel logical name.
+func workloadName(inst *models.Instance) string {
+	if inst.ExternalID != "" {
+		return inst.ExternalID
+	}
+	return inst.Name
+}
+
+// ----- Process list --------------------------------------------------------
+
+func ListProcessesHandler(w http.ResponseWriter, r *http.Request) {
+	if !guardInstancePage(w, r, "processes") {
+		return
+	}
+	inst, ec, _, ok := loadInstNode(w, r)
+	if !ok {
+		return
+	}
+	ls := refreshLiveState(inst, ec)
+	if ls == nil {
+		writeJSON(w, map[string]any{"processes": []any{}, "cached": false})
+		return
+	}
+	// Forward raw JSON so the SPA decodes the driver-specific fields.
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(ls.Processes))
+}
+
+// KillProcessHandler POSTs a kill by pid to the edge. We reuse Exec since the
+// edge's exec-rpc is the only panel-routed shell.
+func KillProcessHandler(w http.ResponseWriter, r *http.Request) {
+	if !guardInstancePage(w, r, "processes") {
+		return
+	}
+	inst, ec, name, ok := loadInstNode(w, r)
+	if !ok {
+		return
+	}
+	pid := r.URL.Query().Get("pid")
+	signal := r.URL.Query().Get("signal")
+	if signal == "" {
+		signal = "TERM"
+	}
+	cmd := fmt.Sprintf("kill -%s %s 2>/dev/null || true", signal, pid)
+	resp, err := ec.Exec(edge.ExecRequest{Kind: inst.Kind, Name: name, Command: cmd, TimeoutSec: 10})
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadGateway)
+		json.NewEncoder(w).Encode(map[string]any{"error": "edge exec failed: " + err.Error()})
+		return
+	}
+	auditInst(r, inst.ID, "process.kill", fmt.Sprintf("sent %s to pid %s (exit=%d)", signal, pid, resp.ExitCode))
+	writeJSON(w, map[string]any{"ok": true, "exit_code": resp.ExitCode})
+}
+
+// ----- Metrics --------------------------------------------------------------
+
+func MetricsHandler(w http.ResponseWriter, r *http.Request) {
+	if !guardInstancePage(w, r, "metrics") {
+		return
+	}
+	inst, ec, _, ok := loadInstNode(w, r)
+	if !ok {
+		return
+	}
+	ls := refreshLiveState(inst, ec)
+	if ls == nil {
+		writeJSON(w, map[string]any{})
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(ls.Metrics))
+}
+
+// ----- Ports ----------------------------------------------------------------
+
+func ListPortsHandler(w http.ResponseWriter, r *http.Request) {
+	if !guardInstancePage(w, r, "ports") {
+		return
+	}
+	inst, ec, _, ok := loadInstNode(w, r)
+	if !ok {
+		return
+	}
+	ls := refreshLiveState(inst, ec)
+	if ls == nil {
+		writeJSON(w, []any{})
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(ls.Ports))
+}
+
+// ----- Snapshots ------------------------------------------------------------
+
+func ListSnapshotsHandler(w http.ResponseWriter, r *http.Request) {
+	if !guardInstancePage(w, r, "backups") {
+		return
+	}
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil || id <= 0 {
+		http.Error(w, "invalid instance id", http.StatusBadRequest)
+		return
+	}
+	con, err := repository.OpenDB()
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	defer con.Close()
+	snaps, err := repository.NewSnapshotRepository(con).List(id)
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, snaps)
+}
+
+type snapshotCreateRequest struct {
+	Name string `json:"name"`
+	Note string `json:"note"`
+	Type string `json:"type"` // e.g., "zip", "tar", "docker", "lxd"
+	Location string `json:"location"` // e.g., "/mc/", "/tmp/snapshots/"
+}
+
+func CreateSnapshotHandler(w http.ResponseWriter, r *http.Request) {
+	if !guardInstancePage(w, r, "backups") {
+		return
+	}
+	inst, ec, name, ok := loadInstNode(w, r)
+	if !ok {
+		return
+	}
+	var req snapshotCreateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Name == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
+		return
+	}
+	resp, err := ec.Snapshot(edge.SnapshotRequest{
+		Kind: inst.Kind, Name: name, Action: "create", SnapName: req.Name,
+		Type: req.Type, Location: req.Location,
+	})
+	if err != nil {
+		writeJSONStatus(w, http.StatusBadGateway, map[string]any{
+			"error": "edge rejected snapshot: " + err.Error(),
+		})
+		return
+	}
+	con, err := repository.OpenDB()
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	defer con.Close()
+	snapID, _ := repository.NewSnapshotRepository(con).Create(models.InstanceSnapshot{
+		InstanceID: inst.ID, Name: req.Name, ExternalRef: resp.ExternalRef, SizeBytes: resp.SizeBytes, Note: req.Note,
+	})
+	auditInst(r, inst.ID, "snapshot.create", fmt.Sprintf("created snapshot %q (ref=%s)", req.Name, resp.ExternalRef))
+	writeJSONStatus(w, http.StatusCreated, map[string]any{"id": snapID, "external_ref": resp.ExternalRef})
+}
+
+func RestoreSnapshotHandler(w http.ResponseWriter, r *http.Request) {
+	if !guardInstancePage(w, r, "backups") {
+		return
+	}
+	inst, ec, name, ok := loadInstNode(w, r)
+	if !ok {
+		return
+	}
+	snapName := chi.URLParam(r, "snap_name")
+	if snapName == "" {
+		http.Error(w, "snapshot name is required", http.StatusBadRequest)
+		return
+	}
+	_, err := ec.Snapshot(edge.SnapshotRequest{
+		Kind: inst.Kind, Name: name, Action: "restore", SnapName: snapName,
+	})
+	if err != nil {
+		writeJSONStatus(w, http.StatusBadGateway, map[string]any{
+			"error": "edge rejected restore: " + err.Error(),
+		})
+		return
+	}
+	auditInst(r, inst.ID, "snapshot.restore", fmt.Sprintf("restored %q", snapName))
+	writeJSON(w, map[string]any{"ok": true})
+}
+
+func DeleteSnapshotHandler(w http.ResponseWriter, r *http.Request) {
+	if !guardInstancePage(w, r, "backups") {
+		return
+	}
+	inst, ec, name, ok := loadInstNode(w, r)
+	if !ok {
+		return
+	}
+	snapName := chi.URLParam(r, "snap_name")
+	if snapName == "" {
+		http.Error(w, "snapshot name is required", http.StatusBadRequest)
+		return
+	}
+	_, _ = ec.Snapshot(edge.SnapshotRequest{
+		Kind: inst.Kind, Name: name, Action: "delete", SnapName: snapName,
+	})
+	con, err := repository.OpenDB()
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	defer con.Close()
+	_ = repository.NewSnapshotRepository(con).Delete(inst.ID, snapName)
+	auditInst(r, inst.ID, "snapshot.delete", fmt.Sprintf("deleted %q", snapName))
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ----- Cached live-state (bulk read, no edge dial) --------------------------
+
+// CachedResourcesItem is the shape the SPA's InstanceCard reads when its own
+// stored config has no `limits` block. Keys are panel-friendly metric names
+// so the card can show the workload's reported reservation (mem_total /
+// disk_total) or "—" when the cache is empty.
+type CachedResourcesItem struct {
+	ID        int64   `json:"id"`
+	CPUPct    float64 `json:"cpu_pct"`
+	MemUsed   int64   `json:"mem_used"`
+	MemTotal  int64   `json:"mem_total"`
+	DiskUsed  int64   `json:"disk_used"`
+	DiskTotal int64   `json:"disk_total"`
+	UpdatedAt string  `json:"updated_at"`
+}
+
+// ListCachedResourcesHandler returns the cached live-state resource snapshot
+// for every instance in one DB read, with no per-instance edge dial. The
+// InstanceCard uses this as a fallback when its instance row's stored config
+// has no `limits` block — the cached values are then displayed as the
+// workload's reported reservation until the user actually re-deploys with
+// explicit limits.
+//
+// A failure to read a single row's metrics blob (malformed JSON) is treated
+// as "no data" for that row; the response is best-effort, never 5xx, so a
+// noisy cache can't break the listing page.
+func ListCachedResourcesHandler(w http.ResponseWriter, r *http.Request) {
+	con, err := repository.OpenDB()
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	defer con.Close()
+
+	rows, err := con.Query(`SELECT instance_id, updated_at, metrics FROM instance_live_state`)
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	out := []CachedResourcesItem{}
+	for rows.Next() {
+		var id int64
+		var updated string
+		var metricsBlob string
+		if err := rows.Scan(&id, &updated, &metricsBlob); err != nil {
+			continue
+		}
+		item := CachedResourcesItem{ID: id, UpdatedAt: updated}
+		var m map[string]any
+		if json.Unmarshal([]byte(metricsBlob), &m) == nil {
+			if v, ok := m["cpu_pct"].(float64); ok {
+				item.CPUPct = v
+			}
+			if v, ok := m["mem_used"].(float64); ok {
+				item.MemUsed = int64(v)
+			} else if v, ok := m["mem_used"].(int64); ok {
+				item.MemUsed = v
+			}
+			if v, ok := m["mem_total"].(float64); ok {
+				item.MemTotal = int64(v)
+			} else if v, ok := m["mem_total"].(int64); ok {
+				item.MemTotal = v
+			}
+			if v, ok := m["disk_used"].(float64); ok {
+				item.DiskUsed = int64(v)
+			} else if v, ok := m["disk_used"].(int64); ok {
+				item.DiskUsed = v
+			}
+			if v, ok := m["disk_total"].(float64); ok {
+				item.DiskTotal = int64(v)
+			} else if v, ok := m["disk_total"].(int64); ok {
+				item.DiskTotal = v
+			}
+		}
+		out = append(out, item)
+	}
+	writeJSON(w, out)
+}
+
+// ----- Per-instance audit ---------------------------------------------------
+
+func ListInstanceAuditHandler(w http.ResponseWriter, r *http.Request) {
+	if !guardInstancePage(w, r, "audit") {
+		return
+	}
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil || id <= 0 {
+		http.Error(w, "invalid instance id", http.StatusBadRequest)
+		return
+	}
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	con, err := repository.OpenDB()
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	defer con.Close()
+	rows, err := repository.NewInstanceAuditRepository(con).List(id, limit)
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, rows)
+}

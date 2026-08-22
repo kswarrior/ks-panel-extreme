@@ -1,0 +1,12 @@
+{
+  "name": "Automation",
+  "slug": "automation",
+  "kind": "builtin",
+  "category": "operations",
+  "description": "Scheduled tasks and automation rules",
+  "content_type": "blocks",
+  "content_html": "",
+  "content_markdown": "",
+  "content_blocks": "[\n  {\n    \"type\": \"heading\",\n    \"value\": \"Automation & Scheduled Tasks\",\n    \"level\": 1\n  },\n  {\n    \"type\": \"text\",\n    \"value\": \"Configure automated tasks like backups, restarts, and maintenance scripts.\"\n  },\n  {\n    \"type\": \"divider\"\n  },\n  {\n    \"type\": \"heading\",\n    \"value\": \"Scheduled Tasks\",\n    \"level\": 2\n  },\n  {\n    \"type\": \"text\",\n    \"value\": \"{{scheduled_tasks}}\"\n  },\n  {\n    \"type\": \"divider\"\n  },\n  {\n    \"type\": \"heading\",\n    \"value\": \"Event Rules\",\n    \"level\": 2\n  },\n  {\n    \"type\": \"text\",\n    \"value\": \"| Event | Condition | Action | Status |\\n|-------|-----------|--------|--------|\\n| Instance Start | Always | Notify Admin | ✅ Active |\\n| High CPU (>90%) | 5 min sustained | Auto-restart | ✅ Active |\\n| Disk Full (>95%) | Immediate | Alert + Cleanup | ✅ Active |\\n| Backup Complete | Success | Log & Notify | ✅ Active |\\n| Instance Crash | Any | Auto-restart (max 3) | ✅ Active |\"\n  },\n  {\n    \"type\": \"divider\"\n  },\n  {\n    \"type\": \"heading\",\n    \"value\": \"Backup Schedule\",\n    \"level\": 2\n  },\n  {\n    \"type\": \"text\",\n    \"value\": \"| Schedule | Retention | Next Run | Status |\\n|----------|-----------|----------|--------|\\n| Daily 02:00 UTC | 7 days | {{backup.next_daily}} | ✅ Active |\\n| Weekly Sunday 03:00 | 4 weeks | {{backup.next_weekly}} | ✅ Active |\\n| Monthly 1st 04:00 | 12 months | {{backup.next_monthly}} | ✅ Active |\"\n  },\n  {\n    \"type\": \"divider\"\n  },\n  {\n    \"type\": \"heading\",\n    \"value\": \"Quick Actions\",\n    \"level\": 2\n  },\n  {\n    \"type\": \"button\",\n    \"value\": \"Create Backup Now\",\n    \"href\": \"#action:backup\"\n  },\n  {\n    \"type\": \"button\",\n    \"value\": \"Run Maintenance\",\n    \"href\": \"#action:maintenance\"\n  },\n  {\n    \"type\": \"button\",\n    \"value\": \"Test Notifications\",\n    \"href\": \"#action:test_notify\"\n  }\n]",
+  "icon_svg": "<path d=\"M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z\"/><path d=\"M8 12l2 2 4-4\"/>"
+}

@@ -1,0 +1,285 @@
+// Custom Page SDK — provides a runtime API for custom instance pages.
+// Uses the unified action system (shell, read_file, write_file, list_files, docker, kvm, lxd)
+// All operations go through executeAction() - no per-endpoint methods.
+
+export interface InstanceContext {
+  id: number;
+  name: string;
+  kind: string;
+  status: string;
+  template_id: number;
+  template_name: string | null;
+  node_id: number;
+  node_name: string | null;
+  owner_id: number | null;
+  owner_name: string | null;
+  config: Record<string, any>;
+  external_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ActionType = 
+  | 'shell' 
+  | 'read_file' 
+  | 'write_file' 
+  | 'list_files' 
+  | 'docker' 
+  | 'kvm' 
+  | 'lxd';
+
+export interface PageAction {
+  type: ActionType;
+  command?: string;      // for shell, docker, kvm, lxd
+  path?: string;         // for read_file, write_file, list_files
+  content?: string;      // for write_file
+  args?: string[];       // for shell, docker, kvm, lxd
+  env?: Record<string, string>;
+  timeout?: number;      // seconds
+}
+
+export interface ActionResult {
+  ok: boolean;
+  exit_code?: number;
+  stdout?: string;
+  stderr?: string;
+  error?: string;
+  data?: any;
+}
+
+export interface FileEntry {
+  name: string;
+  size: number;
+  is_dir: boolean;
+  mod_time: number;
+  mode?: string;
+}
+
+export interface CustomPageAPI {
+  // Instance context
+  instance: InstanceContext;
+  
+  // ==================== UNIFIED ACTION EXECUTION ====================
+  // Execute any action on the edge (inside the instance container)
+  // All instance operations go through this single method
+  executeAction: (action: PageAction) => Promise<ActionResult>;
+  
+  // ==================== CONVENIENCE HELPERS ====================
+  // These are thin wrappers around executeAction for common operations
+  
+  // Shell commands
+  shell: (command: string, args?: string[], env?: Record<string, string>, timeout?: number) => Promise<ActionResult>;
+  
+  // File operations
+  readFile: (path: string) => Promise<string>;
+  writeFile: (path: string, content: string) => Promise<ActionResult>;
+  listFiles: (path: string) => Promise<FileEntry[]>;
+  deleteFile: (path: string) => Promise<ActionResult>;
+  createDirectory: (path: string) => Promise<ActionResult>;
+  
+  // Driver-specific commands
+  docker: (command: string, args?: string[]) => Promise<ActionResult>;
+  kvm: (command: string, args?: string[]) => Promise<ActionResult>;
+  lxd: (command: string, args?: string[]) => Promise<ActionResult>;
+  
+  // ==================== REAL-TIME / SUBSCRIPTIONS ====================
+  // Polling-based subscriptions (since edge doesn't push)
+  subscribe: (action: PageAction, callback: (result: ActionResult) => void, intervalMs?: number) => () => void;
+  
+  // ==================== UTILITIES ====================
+  toast: (message: string, type?: 'success' | 'error' | 'info' | 'warning') => void;
+  confirm: (message: string) => Promise<boolean>;
+  prompt: (message: string, defaultValue?: string) => Promise<string | null>;
+  modal: (options: { title: string; content: string; buttons?: Array<{ label: string; action: () => void; variant?: 'primary' | 'secondary' | 'danger' }> }) => void;
+  
+  // ==================== EVENT SYSTEM ====================
+  on: (event: string, callback: (data: any) => void) => () => void;
+  emit: (event: string, data: any) => void;
+  once: (event: string, callback: (data: any) => void) => () => void;
+  
+  // ==================== PERSISTENT STORAGE ====================
+  storage: {
+    get: (key: string) => Promise<string | null>;
+    set: (key: string, value: string) => Promise<void>;
+    delete: (key: string) => Promise<void>;
+    clear: () => Promise<void>;
+    keys: () => Promise<string[]>;
+  };
+  
+  // ==================== WEBSOCKET ====================
+  // Raw WebSocket for terminal/streaming
+  connectWS: (protocols?: string[]) => WebSocket;
+}
+
+// Global SDK instance (set by CustomPageView)
+declare global {
+  interface Window {
+    KSPageSDK: CustomPageAPI | null;
+  }
+}
+
+window.KSPageSDK = null;
+
+// ============================================================================
+// SDK IMPLEMENTATION
+// ============================================================================
+
+export function createCustomPageSDK(instanceContext: InstanceContext): CustomPageAPI {
+  const apiBase = `/api/instances/${instanceContext.id}`;
+  const eventListeners: Map<string, Set<(data: any) => void>> = new Map();
+  
+  // --- Fetch helper ---
+  async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
+    const res = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options?.headers || {}),
+      },
+      credentials: 'include',
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || `HTTP ${res.status}`);
+    }
+    return res.json();
+  }
+  
+  async function fetchText(url: string, options?: RequestInit): Promise<string> {
+    const res = await fetch(url, {
+      ...options,
+      credentials: 'include',
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.text();
+  }
+  
+  // --- Core action executor ---
+  async function executeAction(action: PageAction): Promise<ActionResult> {
+    return fetchJSON<ActionResult>(`/api/instance-pages/execute-action`, {
+      method: 'POST',
+      body: JSON.stringify({
+        instance_id: instanceContext.id,
+        ...action,
+      }),
+    });
+  }
+  
+  // --- Event system ---
+  function on(event: string, callback: (data: any) => void) {
+    if (!eventListeners.has(event)) eventListeners.set(event, new Set());
+    eventListeners.get(event)!.add(callback);
+    return () => eventListeners.get(event)?.delete(callback);
+  }
+  
+  function emit(event: string, data: any) {
+    eventListeners.get(event)?.forEach(cb => {
+      try { cb(data); } catch (e) { console.error('Event callback error:', e); }
+    });
+  }
+  
+  function once(event: string, callback: (data: any) => void) {
+    const unsub = on(event, (data) => { unsub(); callback(data); });
+    return unsub;
+  }
+  
+  // --- Storage (localStorage per instance/page) ---
+  const storagePrefix = `ks_page_${instanceContext.id}_`;
+  const storage = {
+    get: (key: string) => Promise.resolve(localStorage.getItem(storagePrefix + key)),
+    set: (key: string, value: string) => Promise.resolve(localStorage.setItem(storagePrefix + key, value)),
+    delete: (key: string) => Promise.resolve(localStorage.removeItem(storagePrefix + key)),
+    clear: () => Promise.resolve(Object.keys(localStorage).filter(k => k.startsWith(storagePrefix)).forEach(k => localStorage.removeItem(k))),
+    keys: () => Promise.resolve(Object.keys(localStorage).filter(k => k.startsWith(storagePrefix)).map(k => k.slice(storagePrefix.length))),
+  };
+  
+  // --- WebSocket ---
+  function connectWS(protocols?: string[]) {
+    const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/instances/${instanceContext.id}/ws`;
+    return new WebSocket(wsUrl, protocols);
+  }
+  
+  // --- Toast/Modal ---
+  function toast(message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') {
+    window.dispatchEvent(new CustomEvent('ks-toast', { detail: { message, type } }));
+  }
+  
+  function modal(options: { title: string; content: string; buttons?: Array<{ label: string; action: () => void; variant?: 'primary' | 'secondary' | 'danger' }> }) {
+    window.dispatchEvent(new CustomEvent('ks-modal', { detail: options }));
+  }
+  
+  // --- Subscription helper ---
+  function subscribe(action: PageAction, callback: (result: ActionResult) => void, intervalMs = 5000) {
+    let cancelled = false;
+    async function poll() {
+      if (cancelled) return;
+      try {
+        const result = await executeAction(action);
+        if (!cancelled) callback(result);
+      } catch (e) {
+        if (!cancelled) callback({ ok: false, error: e instanceof Error ? e.message : String(e) });
+      }
+      if (!cancelled) setTimeout(poll, intervalMs);
+    }
+    poll();
+    return () => { cancelled = true; };
+  }
+  
+  // --- SDK API ---
+  const sdk: CustomPageAPI = {
+    instance: instanceContext,
+    
+    // Core action
+    executeAction,
+    
+    // Convenience helpers (all delegate to executeAction)
+    shell: (command, args, env, timeout) => executeAction({ type: 'shell', command, args, env, timeout }),
+    
+    readFile: (path) => executeAction({ type: 'read_file', path }).then(r => r.ok ? r.data ?? r.stdout ?? '' : Promise.reject(new Error(r.error ?? r.stderr ?? 'Read failed'))),
+    
+    writeFile: (path, content) => executeAction({ type: 'write_file', path, content }),
+    
+    listFiles: (path) => executeAction({ type: 'list_files', path }).then(r => r.ok ? r.data ?? [] : Promise.reject(new Error(r.error ?? r.stderr ?? 'List failed'))),
+    
+    deleteFile: (path) => executeAction({ type: 'shell', command: `rm -rf ${path}` }),
+    
+    createDirectory: (path) => executeAction({ type: 'shell', command: `mkdir -p ${path}` }),
+    
+    docker: (command, args) => executeAction({ type: 'docker', command, args }),
+    
+    kvm: (command, args) => executeAction({ type: 'kvm', command, args }),
+    
+    lxd: (command, args) => executeAction({ type: 'lxd', command, args }),
+    
+    subscribe,
+    
+    // Utilities
+    toast,
+    confirm: (msg) => Promise.resolve(window.confirm(msg)),
+    prompt: (msg, def = '') => Promise.resolve(window.prompt(msg, def)),
+    modal,
+    
+    // Events
+    on,
+    emit,
+    once,
+    
+    // Storage
+    storage,
+    
+    // WebSocket
+    connectWS,
+  };
+  
+  return sdk;
+}
+
+// Helper to inject SDK into a page's iframe or directly into window
+export function injectSDK(instanceContext: InstanceContext): CustomPageAPI {
+  const sdk = createCustomPageSDK(instanceContext);
+  window.KSPageSDK = sdk;
+  return sdk;
+}
+
+// Type export for TypeScript support in custom page code
+export type { CustomPageAPI as KSPageSDK };

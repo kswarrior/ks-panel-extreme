@@ -1,0 +1,138 @@
+# golangci-lint configuration for security-focused linting
+run:
+  timeout: 5m
+  issues-exit-code: 1
+  tests: false
+  skip-dirs:
+    - vendor
+    - node_modules
+  skip-files:
+    - "_test\.go$"
+
+output:
+  format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
+
+linters:
+  enable:
+    # Security-focused linters
+    - gosec
+    - govulncheck
+    # Code quality
+    - errcheck
+    - staticcheck
+    - goimports
+    - golint
+    - misspell
+    - unconvert
+    - unparam
+    - unused
+    - whitespace
+    # Best practices
+    - bodyclose
+    - contextcheck
+    - durationcheck
+    - errorlint
+    - exhaustive
+    - gocritic
+    - gocyclo
+    - goconst
+    - gosec
+    - makezero
+    - nestif
+    - nilnil
+    - prealloc
+    - predeclared
+    - revive
+    - rowserrcheck
+    - sqlclosecheck
+    - thelper
+    - tparallel
+    - wastedassign
+
+linters-settings:
+  gosec:
+    # Exclude G104 (errors unhandled) as we handle errors explicitly
+    excludes:
+      - G104
+    # Only run security-focused rules
+    includes:
+      - G101
+      - G102
+      - G103
+      - G106
+      - G107
+      - G108
+      - G109
+      - G110
+      - G111
+      - G112
+      - G113
+      - G114
+      - G115
+      - G201
+      - G202
+      - G203
+      - G204
+      - G301
+      - G302
+      - G303
+      - G304
+      - G305
+      - G306
+      - G307
+      - G401
+      - G402
+      - G403
+      - G404
+      - G501
+      - G502
+      - G503
+      - G504
+      - G505
+      - G601
+
+  govulncheck:
+    # Check for known vulnerabilities in dependencies
+    mode: extract
+
+  gocyclo:
+    min-complexity: 15
+
+  goconst:
+    min-len: 3
+    min-occurrences: 3
+
+  revive:
+    rules:
+      - name: exported
+        severity: warning
+        disabled: false
+      - name: unused-parameter
+        severity: warning
+        disabled: false
+
+issues:
+  # Exclude generated files
+  exclude-rules:
+    - path: "_test\.go$"
+      linters:
+        - gosec
+        - gocyclo
+    - path: "vendor/"
+      linters:
+        - all
+    - path: "node_modules/"
+      linters:
+        - all
+  # Only report high-severity issues by default
+  max-issues-per-linter: 50
+  max-same-issues: 10
+
+# Severity levels for each linter
+severity:
+  default: warning
+  gosec: error
+  govulncheck: error
+  staticcheck: error

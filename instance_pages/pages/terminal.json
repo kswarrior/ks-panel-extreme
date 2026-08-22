@@ -1,0 +1,12 @@
+{
+  "name": "Terminal",
+  "slug": "terminal",
+  "kind": "builtin",
+  "category": "tools",
+  "description": "Interactive terminal with VS Code-style interface",
+  "content_type": "",
+  "content_html": "",
+  "content_markdown": "",
+  "content_blocks": "",
+  "icon_svg": "<path d=\"m4 17 6-6-6-6\"/><path d=\"M12 19h8\"/>"
+}
