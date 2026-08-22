@@ -5,7 +5,6 @@ on:
 
 permissions:
   contents: write
-  workflows: write
 
 jobs:
   sync:
@@ -26,21 +25,19 @@ jobs:
 
       - name: Sync from Hugging Face Bucket
         run: |
-          # Download everything inside ks-panel
-          # Exclude npm-installed packages
           hf sync hf://buckets/kswarrior/opencode-storage/ks-panel ./hf_temp \
             --exclude "*node_modules*"
 
-      - name: Remove npm packages
+      - name: Remove unwanted files
         run: |
-          # Extra safety: make sure node_modules is never copied
           find ./hf_temp -type d -name "node_modules" -prune -exec rm -rf {} +
+          rm -rf ./hf_temp/.github
 
       - name: Sync Files to Repository Root
         run: |
-          # Copy the CONTENTS of ks-panel directly into repository root
           rsync -av \
             --exclude=".git" \
+            --exclude=".github" \
             --exclude="node_modules" \
             hf_temp/ ./
 
