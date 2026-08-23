@@ -1,23 +1,20 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  AUTHORITY_SECRET_KEEP,
   getAuthority,
   regenerateAppSecret,
-  secretKeepOr,
   updateAuthority,
   type AuthorityConfig,
   type AuthorityProvider,
-  type AuthorityRegistrationMode,
 } from '@/features/authority/api/authority';
-import { listRoles } from '@/shared/api/admin';
-import type { Role } from '@/shared/types/user';
-import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
-import NumberInput from '@/shared/components/ui/NumberInput';
-import ToggleRow from '@/shared/components/ui/ToggleRow';
 import TextInput from '@/shared/components/ui/TextInput';
+import ToggleRow from '@/shared/components/ui/ToggleRow';
+import Modal from '@/shared/components/ui/Modal';
 
-const SMTP_PASSWORD_KEEP = AUTHORITY_SECRET_KEEP;
-
+// Authority tab: application secrets and external authentication/message
+// providers ONLY. Authentication POLICY (password rules, lockout,
+// registration, MFA/TOTP behaviour, OTP policy) lives on the Security
+// page's Authentication tab; both write through the same /api/authority
+// round-trip, each patching only its own fields.
 type ProviderKind = 'oauth' | 'channel';
 interface ProviderDef {
   id: string;
@@ -72,7 +69,7 @@ const PROVIDER_DEFS: ProviderDef[] = [
   {
     id: 'totp',
     label: 'TOTP / Authenticator app',
-    description: 'RFC 6238 auto-rotating PIN backed by the Authority app connection shared secret. Pairs with Google / 2FAS / Aegis.',
+    description: 'RFC 6238 auto-rotating PIN backed by the Authority app connection shared secret below.',
     kind: 'channel',
   },
   {
@@ -82,6 +79,94 @@ const PROVIDER_DEFS: ProviderDef[] = [
     kind: 'channel',
   },
 ];
+
+// ── Per-provider OAuth configuration schema ────────────────────────────
+// Each provider needs a DIFFERENT set of credentials; this table is what
+// the "Config" modal renders field-by-field. Secret fields follow the
+// page-wide keep-blank contract: blank input = keep the stored value.
+type OAuthFieldKey =
+  | 'client_id'
+  | 'client_secret'
+  | 'tenant'
+  | 'team_id'
+  | 'key_id'
+  | 'private_key'
+  | 'scopes'
+  | 'redirect_uri';
+
+interface OAuthFieldDef {
+  key: OAuthFieldKey;
+  label: string;
+  placeholder?: string;
+  secret?: boolean;
+  area?: boolean;
+  hint?: string;
+}
+
+const REDIRECT_HINT = 'Leave blank to auto-derive from the panel address';
+
+const OAUTH_CONFIG_FIELDS: Record<string, OAuthFieldDef[]> = {
+  google: [
+    { key: 'client_id', label: 'Client ID', placeholder: '…apps.googleusercontent.com' },
+    { key: 'client_secret', label: 'Client Secret', secret: true },
+    { key: 'scopes', label: 'Scopes (space-separated)', placeholder: 'openid email profile' },
+    { key: 'redirect_uri', label: 'Redirect URI override', placeholder: REDIRECT_HINT },
+  ],
+  microsoft: [
+    { key: 'client_id', label: 'Application (client) ID', placeholder: 'Azure app registration id' },
+    { key: 'client_secret', label: 'Client Secret', secret: true },
+    { key: 'tenant', label: 'Tenant', placeholder: 'common / organizations / consumers / tenant id' },
+    { key: 'scopes', label: 'Scopes (space-separated)', placeholder: 'openid email profile' },
+    { key: 'redirect_uri', label: 'Redirect URI override', placeholder: REDIRECT_HINT },
+  ],
+  apple: [
+    { key: 'client_id', label: 'Services ID', placeholder: 'e.g. com.example.panel.signin' },
+    { key: 'team_id', label: 'Team ID', placeholder: '10-character Apple developer team id' },
+    { key: 'key_id', label: 'Key ID', placeholder: '10-character key id for the .p8 key' },
+    {
+      key: 'private_key',
+      label: 'Private Key (.p8 contents)',
+      area: true,
+      hint: 'Paste the full .p8 file including BEGIN/END lines. The client secret is minted server-side per sign-in — none is stored.',
+    },
+    { key: 'redirect_uri', label: 'Redirect URI override', placeholder: REDIRECT_HINT },
+  ],
+  discord: [
+    { key: 'client_id', label: 'Client ID', placeholder: 'Discord application id' },
+    { key: 'client_secret', label: 'Client Secret', secret: true },
+    { key: 'scopes', label: 'Scopes (space-separated)', placeholder: 'identify email' },
+    { key: 'redirect_uri', label: 'Redirect URI override', placeholder: REDIRECT_HINT },
+  ],
+  github: [
+    { key: 'client_id', label: 'Client ID', placeholder: 'GitHub OAuth App Client ID' },
+    { key: 'client_secret', label: 'Client Secret', secret: true },
+    { key: 'scopes', label: 'Scopes (space-separated)', placeholder: 'read:user user:email' },
+    { key: 'redirect_uri', label: 'Redirect URI override', placeholder: REDIRECT_HINT },
+  ],
+};
+
+// Required-for-signin keys, mirrored from the backend's MissingRequired —
+// used for the live badge when the server-side `configured` flag is absent.
+const OAUTH_REQUIRED_KEYS: Record<string, OAuthFieldKey[]> = {
+  google: ['client_id', 'client_secret'],
+  microsoft: ['client_id', 'client_secret'],
+  apple: ['client_id', 'team_id', 'key_id', 'private_key'],
+  discord: ['client_id', 'client_secret'],
+  github: ['client_id', 'client_secret'],
+};
+
+const OAUTH_SECRET_KEYS: ReadonlySet<string> = new Set(['client_secret', 'private_key']);
+
+function oauthMissingFields(p: AuthorityProvider): string[] {
+  const required = OAUTH_REQUIRED_KEYS[p.id];
+  if (!required) return [];
+  return required.filter((k) => {
+    const v = String((p as unknown as Record<string, unknown>)[k] ?? '').trim();
+    if (v) return false;
+    // A stored secret the server refuses to echo still counts as present.
+    return !OAUTH_SECRET_KEYS.has(k) || !p.configured;
+  });
+}
 
 function providerLabel(id: string): string {
   const def = PROVIDER_DEFS.find((p) => p.id === id);
@@ -99,41 +184,30 @@ const Authority: React.FC<AuthorityProps> = ({ onConfigChange }) => {
   const [authSuccess, setAuthSuccess] = useState('');
   const [appSecretToast, setAppSecretToast] = useState('');
 
+  // SMTP delivery credentials.
   const [smtpHost, setSmtpHost] = useState('');
   const [smtpPort, setSmtpPort] = useState('');
   const [smtpUser, setSmtpUser] = useState('');
   const [smtpPassword, setSmtpPassword] = useState('');
   const [smtpFrom, setSmtpFrom] = useState('');
 
-  const [registerAllow, setRegisterAllow] = useState(false);
-  const [verifyRequired, setVerifyRequired] = useState(false);
-  const [registerRole, setRegisterRole] = useState('user');
-  const [deviceAccountLimit, setDeviceAccountLimit] = useState('0');
-  const [roles, setRoles] = useState<Role[]>([]);
-
+  // Provider inventory + OAuth credentials.
   const [providers, setProviders] = useState<AuthorityProvider[]>([]);
+  // Which OAuth provider's config modal is open (id), if any.
+  const [configProviderId, setConfigProviderId] = useState<string | null>(null);
+  const [copiedRedirect, setCopiedRedirect] = useState(false);
 
-  const [registrationMode, setRegistrationMode] = useState<AuthorityRegistrationMode>('any');
-  const [registrationN, setRegistrationN] = useState(1);
-  const [registrationAllowed, setRegistrationAllowed] = useState<string[]>([]);
-
-  const [otpEmailEnabled, setOtpEmailEnabled] = useState(false);
-  const [otpPhoneEnabled, setOtpPhoneEnabled] = useState(false);
-  const [magicLinkEmail, setMagicLinkEmail] = useState(false);
-  const [codeLength, setCodeLength] = useState(6);
-  const [ttlSeconds, setTtlSeconds] = useState(300);
+  // SMS gateway credentials (SMS Providers).
   const [smsGateway, setSmsGateway] = useState('');
   const [smsAccountSid, setSmsAccountSid] = useState('');
   const [smsApiToken, setSmsApiToken] = useState('');
   const [smsFromNumber, setSmsFromNumber] = useState('');
 
-  const [appEnabled, setAppEnabled] = useState(false);
-  const [appSecretMasked, setAppSecretMasked] = useState('');
+  // Authority App shared secret (App Secrets).
   const [appSecretDraft, setAppSecretDraft] = useState('');
-  const [appIssuer, setAppIssuer] = useState('KS Panel');
-  const [appPinSize, setAppPinSize] = useState(6);
-  const [appRotationSeconds, setAppRotationSeconds] = useState(30);
-  const [appDigitsInWindow, setAppDigitsInWindow] = useState(1);
+  const [appSecretMasked, setAppSecretMasked] = useState('');
+
+  const cfgRef = useRef<AuthorityConfig | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -145,44 +219,23 @@ const Authority: React.FC<AuthorityProps> = ({ onConfigChange }) => {
       } finally {
         setAuthLoading(false);
       }
-      try {
-        const rs = await listRoles();
-        setRoles(rs.filter((r) => r.name !== 'admin'));
-      } catch {
-      }
     })();
   }, []);
 
   function hydrate(cfg: AuthorityConfig) {
+    cfgRef.current = cfg;
     setSmtpHost(cfg.smtp_host || '');
     setSmtpPort(cfg.smtp_port || '');
     setSmtpUser(cfg.smtp_user || '');
     setSmtpFrom(cfg.smtp_from || '');
     setSmtpPassword('');
-    setRegisterAllow(cfg.register_allow === '1');
-    setVerifyRequired(cfg.verify_required === '1');
-    setRegisterRole(cfg.register_role || 'user');
-    setDeviceAccountLimit(String(cfg.device_account_limit ?? '0'));
     setProviders(sanitizeProviders(cfg.providers ?? []));
-    setRegistrationMode(cfg.registration_mode ?? 'any');
-    setRegistrationN(Number(cfg.registration_minimum_n) || 1);
-    setRegistrationAllowed(cfg.registration_allowed_providers ?? []);
-    setOtpEmailEnabled(!!cfg.otp?.email_enabled);
-    setOtpPhoneEnabled(!!cfg.otp?.phone_enabled);
-    setMagicLinkEmail(!!cfg.otp?.magic_link_email);
-    setCodeLength(Number(cfg.otp?.code_length) || 6);
-    setTtlSeconds(Number(cfg.otp?.ttl_seconds) || 300);
     setSmsGateway(cfg.otp?.sms_gateway || '');
     setSmsAccountSid(cfg.otp?.sms_account_sid || '');
     setSmsApiToken('');
     setSmsFromNumber(cfg.otp?.sms_from_number || '');
-    setAppEnabled(!!cfg.app_connect?.enabled);
     setAppSecretMasked(cfg.app_connect?.secret || '');
     setAppSecretDraft('');
-    setAppIssuer(cfg.app_connect?.issuer || 'KS Panel');
-    setAppPinSize(Number(cfg.app_connect?.pin_size) || 6);
-    setAppRotationSeconds(Number(cfg.app_connect?.rotation_seconds) || 30);
-    setAppDigitsInWindow(Number(cfg.app_connect?.digits_in_window) || 1);
   }
 
   function sanitizeProviders(src: AuthorityProvider[]): AuthorityProvider[] {
@@ -226,83 +279,50 @@ const Authority: React.FC<AuthorityProps> = ({ onConfigChange }) => {
     );
   }
 
-  const enabledProviders = useMemo(
-    () => providers.filter((p) => p.enabled),
-    [providers],
-  );
-
-  function toggleInAllowed(id: string) {
-    setRegistrationAllowed((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
-  }
-
-  function collectBody(): AuthorityConfig {
-    const body: AuthorityConfig = {
-      smtp_host: smtpHost.trim(),
-      smtp_port: smtpPort.trim(),
-      smtp_user: smtpUser.trim(),
-      smtp_password: smtpPassword ? smtpPassword : SMTP_PASSWORD_KEEP,
-      smtp_from: smtpFrom.trim(),
-      register_allow: registerAllow ? '1' : '0',
-      register_role: registerRole,
-      device_account_limit: (deviceAccountLimit || '0').trim(),
-      verify_required: verifyRequired ? '1' : '0',
-      providers: providers.map((p) => ({
-        ...p,
-        client_secret: p.client_secret ? p.client_secret : secretKeepOr(p.client_secret),
-      })),
-      registration_mode: registrationMode,
-      registration_minimum_n: registrationN,
-      registration_allowed_providers: registrationAllowed,
-      otp: {
-        email_enabled: otpEmailEnabled,
-        phone_enabled: otpPhoneEnabled,
-        magic_link_email: magicLinkEmail,
-        code_length: codeLength,
-        ttl_seconds: ttlSeconds,
-        sms_gateway: smsGateway.trim(),
-        sms_account_sid: smsAccountSid.trim(),
-        sms_api_token: smsApiToken ? smsApiToken : secretKeepOr(smsApiToken),
-        sms_from_number: smsFromNumber.trim(),
-      },
-      app_connect: {
-        enabled: appEnabled,
-        secret: appSecretDraft ? appSecretDraft : AUTHORITY_SECRET_KEEP,
-        issuer: appIssuer.trim() || 'KS Panel',
-        pin_size: appPinSize,
-        rotation_seconds: appRotationSeconds,
-        digits_in_window: appDigitsInWindow,
-      },
-    };
-    return body;
-  }
-
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setAuthSaving(true);
     setAuthError('');
     setAuthSuccess('');
     setAppSecretToast('');
+
+    const base = cfgRef.current;
+    if (!base) {
+      setAuthError('Configuration not loaded yet.');
+      setAuthSaving(false);
+      return;
+    }
+
+    // Patch ONLY secrets/providers fields onto the freshly loaded config;
+    // authentication-policy settings flow through untouched so this save
+    // cannot clobber what the Authentication tab owns.
+    const body: AuthorityConfig = {
+      ...base,
+      smtp_host: smtpHost.trim(),
+      smtp_port: smtpPort.trim(),
+      smtp_user: smtpUser.trim(),
+      smtp_password: smtpPassword ? smtpPassword : base.smtp_password ?? '',
+      smtp_from: smtpFrom.trim(),
+      providers: providers.map((p) => ({
+        ...p,
+        // Blank secret = keep stored value (server-side preserveSecrets).
+        client_secret: p.client_secret || '',
+      })),
+      otp: {
+        ...base.otp!,
+        sms_gateway: smsGateway.trim(),
+        sms_account_sid: smsAccountSid.trim(),
+        sms_api_token: smsApiToken ? smsApiToken : base.otp?.sms_api_token ?? '',
+        sms_from_number: smsFromNumber.trim(),
+      },
+      app_connect: {
+        ...base.app_connect!,
+        secret: appSecretDraft ? appSecretDraft : base.app_connect?.secret ?? '',
+      },
+    };
+
     try {
-      const limitStr = (deviceAccountLimit || '0').trim();
-      if (!/^\d+$/.test(limitStr)) {
-        setAuthError('Accounts per device must be a non-negative number (0 = unlimited)');
-        setAuthSaving(false);
-        return;
-      }
-      if (registrationMode === 'n') {
-        const allowedCount =
-          registrationAllowed.length || enabledProviders.length;
-        if (registrationN < 1 || registrationN > allowedCount) {
-          setAuthError(
-            `When "N of allowed" is selected, the count must be between 1 and ${allowedCount}.`,
-          );
-          setAuthSaving(false);
-          return;
-        }
-      }
-      const cfg = await updateAuthority(collectBody());
+      const cfg = await updateAuthority(body);
       hydrate(cfg);
       setAuthSuccess('Saved.');
       onConfigChange?.();
@@ -324,22 +344,13 @@ const Authority: React.FC<AuthorityProps> = ({ onConfigChange }) => {
       setAppSecretDraft('');
       setAppSecretMasked('configured');
       setAppSecretToast(newSecret);
-      setAppEnabled(true);
     } catch (e: any) {
       setAuthError(e?.response?.data || 'Failed to regenerate app secret');
     }
   }
 
-  if (authLoading) {
-    return (
-      <div>
-        <h2 className="text-xl font-semibold text-white mb-4">Authority</h2>
-        <SkeletonGrid count={6} />
-      </div>
-    );
-  }
-
   return (
+    <>
     <form
       onSubmit={submit}
       className="glass-card rounded-xl space-y-10 max-w-3xl"
@@ -360,16 +371,16 @@ const Authority: React.FC<AuthorityProps> = ({ onConfigChange }) => {
 
       <section>
         <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">
-          Auth — SMTP
+          SMTP
         </h3>
         <p className="text-xs text-gray-500 mb-4">
           The mail server the panel uses to send email verification codes
-          and email OTP magic links. Configure this before enabling
-          "Email Verification Required" or email OTP below.
+          and email OTP magic links. Configure this before enabling Email
+          Verification or Email OTP (Authentication tab).
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <TextInput id="smtp-host" label="SMTP Host" value={smtpHost} onChange={setSmtpHost} placeholder="smtp.example.com" />
-          <TextInput id="smtp-port" label="SMTP Port" value={smtpPort} onChange={setSmtpPort} placeholder="587 (or 465 for implicit TLS)" />
+          <TextInput id="smtp-port-v" label="SMTP Port" value={smtpPort} onChange={setSmtpPort} placeholder="587 (or 465 for implicit TLS)" />
           <TextInput id="smtp-user" label="SMTP Username" value={smtpUser} onChange={setSmtpUser} placeholder="apikey or username (leave blank for no auth)" />
           <TextInput id="smtp-password" label="SMTP Password" type="password" value={smtpPassword} onChange={setSmtpPassword} placeholder="leave blank to keep current" />
           <div className="sm:col-span-2">
@@ -380,155 +391,70 @@ const Authority: React.FC<AuthorityProps> = ({ onConfigChange }) => {
 
       <section>
         <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">
-          Registration & access
-        </h3>
-        <p className="text-xs text-gray-500 mb-4">
-          Control who can create accounts, which role they land in, how
-          many accounts a single device may spawn, and whether new
-          accounts must confirm their email before signing in.
-        </p>
-        <div className="space-y-4">
-          <ToggleRow
-            id="register-allow"
-            label="Allow Registration"
-            description="When enabled the login page shows a 'Create new account' link and self-service accounts can be registered. Provider gates below further restrict who can land an account."
-            checked={registerAllow}
-            onChange={setRegisterAllow}
-          />
-          <div className={registerAllow ? '' : 'opacity-50 pointer-events-none'}>
-            <label className="block text-sm font-medium text-gray-300 mb-1" htmlFor="register-role">
-              Default Role for New Accounts
-            </label>
-            <p className="text-xs text-gray-500 mb-2">
-              The role self-registered users are assigned. The "admin" role is intentionally hidden — admins can only be minted through the Users admin page.
-            </p>
-            <select
-              id="register-role"
-              value={registerRole}
-              onChange={(e) => setRegisterRole(e.target.value)}
-              className="w-full bg-black/30 backdrop-blur-md text-white border border-white/10 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-white/60 focus:border-white/40 transition-colors duration-150"
-            >
-              <option value="user">user</option>
-              {roles.map((r) => (
-                <option key={r.id} value={r.name}>
-                  {r.name}
-                  {r.display_name ? ` — ${r.display_name}` : ''}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className={registerAllow ? '' : 'opacity-50 pointer-events-none'}>
-            <label className="block text-sm font-medium text-gray-300 mb-1" htmlFor="device-account-limit">
-              Accounts per Device
-            </label>
-            <p className="text-xs text-gray-500 mb-2">
-              Max self-registered accounts a single browser/device may create. Set to <code className="text-gray-400">0</code> for unlimited. A device is identified by a cookie the panel sets on first registration, so wiping cookies resets the count.
-            </p>
-            <input
-              id="device-account-limit"
-              type="number"
-              min={0}
-              step={1}
-              inputMode="numeric"
-              value={deviceAccountLimit}
-              onChange={(e) => setDeviceAccountLimit(e.target.value)}
-              placeholder="0 (unlimited)"
-              className="w-full bg-black/30 backdrop-blur-md text-white border border-white/10 placeholder-gray-500 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-white/60 focus:border-white/40 transition-colors duration-150"
-            />
-          </div>
-          <ToggleRow
-            id="verify-required"
-            label="Email Verification Required"
-            description="When enabled, freshly-registered accounts must verify the email they signed up with before they can sign in. Requires SMTP to be configured above."
-            checked={verifyRequired}
-            onChange={setVerifyRequired}
-          />
-        </div>
-      </section>
-
-      <section>
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">
-          Identity providers & channels
+          OAuth Providers &amp; Channels
         </h3>
         <p className="text-xs text-gray-500 mb-4">
           Toggle on each provider you want to expose on the registration
-          and login pages. OAuth providers (Google / Microsoft / Apple /
-          Discord / GitHub) ship client ID + secret; the channel rows
-          (Email OTP / Phone / TOTP / Password) just need an enable.
-          Secrets are never echoed back; send them once when wiring,
-          afterwards leave the field blank to keep the stored value.
+          and login pages, then press <span className="text-gray-300">Config</span> to enter
+          everything that provider requires — a provider can only be
+          enabled once its full credential set is saved. Once configured,
+          it shows up as a &quot;Continue with …&quot; button on the login page.
+          Secrets are never echoed back; leave those fields blank to keep
+          the stored value. Behaviour policies for these channels live on
+          the Authentication tab.
         </p>
         <div className="space-y-3">
           {providers.map((p) => {
             const def = PROVIDER_DEFS.find((d) => d.id === p.id);
             const label = providerLabel(p.id);
-            const secretPlaceholder = p.client_id
-              ? 'leave blank to keep current secret'
-              : 'paste your OAuth client secret';
+            const isOAuth = p.kind === 'oauth';
+            const missing = isOAuth ? oauthMissingFields(p) : [];
+            const configured = missing.length === 0;
             return (
               <div
                 key={p.id}
                 className="rounded-md border border-white/[0.06] bg-black/20 p-4 space-y-3"
               >
-                <div className="flex items-start justify-between gap-3 flex-wrap">
-                  <div className="flex-1 min-w-[200px]">
-                    <div className="flex items-center gap-2">
-                      <h4 className="text-sm font-medium text-white">{label}</h4>
-                      <span
-                        className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded ${
-                          p.enabled
-                            ? 'bg-emerald-800/40 text-emerald-300'
-                            : 'bg-neutral-800 text-gray-400'
-                        }`}
-                      >
-                        {p.enabled ? 'Enabled' : 'Disabled'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {def?.description ?? ''}
-                    </p>
-                  </div>
-                  <label className="flex items-center gap-2 cursor-pointer shrink-0">
-                    <input
-                      type="checkbox"
+                <div className="flex items-start gap-3">
+                  <div className="flex-1 min-w-0">
+                    <ToggleRow
+                      id={`provider-${p.id}-enable`}
+                      label={label}
+                      description={def?.description ?? ''}
                       checked={p.enabled}
-                      onChange={(e) => setProviderField(p.id, { enabled: e.target.checked })}
-                      className="accent-emerald-500"
+                      onChange={(v) => setProviderField(p.id, { enabled: v })}
                     />
-                    <span className="text-sm text-gray-300">Enable</span>
-                  </label>
+                  </div>
+                  {isOAuth && p.enabled && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setConfigProviderId(p.id);
+                        setCopiedRedirect(false);
+                      }}
+                      className="shrink-0 inline-flex items-center gap-2 bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-gray-200 px-3 py-1.5 rounded text-xs transition-colors mt-0.5"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                      Config
+                    </button>
+                  )}
                 </div>
-                {p.kind === 'oauth' && p.enabled && (
-                  <div className="space-y-2 pt-2 border-t border-white/[0.03]">
-                    <TextInput
-                      id={`provider-${p.id}-client-id`}
-                      label="Client ID"
-                      value={p.client_id || ''}
-                      onChange={(v) => setProviderField(p.id, { client_id: v })}
-                      placeholder="OAuth client ID"
+                {isOAuth && p.enabled && (
+                  <div
+                    className={`flex items-center gap-2 text-xs pt-2 border-t border-white/[0.03] ${
+                      configured ? 'text-emerald-400' : 'text-amber-400'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block w-2 h-2 rounded-full ${
+                        configured ? 'bg-emerald-400' : 'bg-amber-400'
+                      }`}
                     />
-                    <TextInput
-                      id={`provider-${p.id}-client-secret`}
-                      label="Client Secret"
-                      type="password"
-                      value={p.client_secret || ''}
-                      onChange={(v) => setProviderField(p.id, { client_secret: v })}
-                      placeholder={secretPlaceholder}
-                    />
-                    <TextInput
-                      id={`provider-${p.id}-scopes`}
-                      label="Scopes (space-separated)"
-                      value={p.scopes || ''}
-                      onChange={(v) => setProviderField(p.id, { scopes: v })}
-                      placeholder="openid email profile"
-                    />
-                    <TextInput
-                      id={`provider-${p.id}-redirect-uri`}
-                      label="Redirect URI"
-                      value={p.redirect_uri || ''}
-                      onChange={(v) => setProviderField(p.id, { redirect_uri: v })}
-                      placeholder="https://your-panel.com/auth/callback"
-                    />
+                    {configured ? (
+                      <>Configured — sign-in enabled on the login page</>
+                    ) : (
+                      <>Setup required: missing {missing.join(', ')}</>
+                    )}
                   </div>
                 )}
               </div>
@@ -539,218 +465,61 @@ const Authority: React.FC<AuthorityProps> = ({ onConfigChange }) => {
 
       <section>
         <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">
-          Registration policy
+          SMS Providers
         </h3>
         <p className="text-xs text-gray-500 mb-4">
-          When registration is allowed, control how many identity providers
-          a new account must complete, and which providers are permitted.
+          Gateway credentials for SMS-delivered one-time codes. Twilio /
+          Plivo / Vonage use their official SDKs; Custom sends a POST to your
+          URL with JSON: {'{to, code, ttl}'}. Enable the Phone channel above
+          and tune code behaviour on the Authentication tab.
         </p>
         <div className="space-y-3">
-          <label className="block text-sm font-medium text-gray-300 mb-1" htmlFor="registration-mode">
-            Registration Mode
+          <label className="block text-sm font-medium text-gray-300 mb-1" htmlFor="sms-gateway">
+            SMS Gateway
           </label>
           <select
-            id="registration-mode"
-            value={registrationMode}
-            onChange={(e) => setRegistrationMode(e.target.value as AuthorityRegistrationMode)}
+            id="sms-gateway"
+            value={smsGateway}
+            onChange={(e) => setSmsGateway(e.target.value)}
             className="w-full max-w-xs bg-black/30 backdrop-blur-md text-white border border-white/10 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-white/60 focus:border-white/40 transition-colors duration-150"
           >
-            <option value="any">Any enabled provider (default)</option>
-            <option value="n">N of allowed providers</option>
-            <option value="all">All allowed providers</option>
+            <option value="">None / Disabled</option>
+            <option value="twilio">Twilio</option>
+            <option value="plivo">Plivo</option>
+            <option value="vonage">Vonage (Nexmo)</option>
+            <option value="custom">Custom HTTP</option>
           </select>
-
-          {(registrationMode === 'n' || registrationMode === 'all') && (
-            <>
-              <label className="block text-sm font-medium text-gray-300 mb-1" htmlFor="registration-n">
-                Minimum N (for "N of allowed")
-              </label>
-              <input
-                id="registration-n"
-                type="number"
-                min={1}
-                step={1}
-                inputMode="numeric"
-                value={registrationN}
-                onChange={(e) => setRegistrationN(Number(e.target.value))}
-                className="w-full max-w-xs bg-black/30 backdrop-blur-md text-white border border-white/10 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-white/60 focus:border-white/40 transition-colors duration-150"
-              />
-              <label className="block text-sm font-medium text-gray-300 mb-1" htmlFor="registration-allowed">
-                Allowed Providers
-              </label>
-              <div className="rounded border border-white/[0.06] bg-black/20 p-3">
-                <p className="text-xs text-gray-400 mb-2">
-                  Select which enabled providers count toward the requirement. Unselected providers are ignored for registration but may still be available for existing users.
-                </p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {enabledProviders.map((p) => (
-                    <label
-                      key={p.id}
-                      className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm cursor-pointer select-none transition-colors ${
-                        registrationAllowed.includes(p.id)
-                          ? 'border-emerald-600/60 bg-emerald-800/20 text-emerald-200'
-                          : 'border-white/[0.06] bg-black/20 text-gray-300'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={registrationAllowed.includes(p.id)}
-                        onChange={() => toggleInAllowed(p.id)}
-                        className="accent-emerald-500"
-                      />
-                      <span className="truncate">{providerLabel(p.id)}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      </section>
-
-      <section>
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">
-          OTP / One-time codes
-        </h3>
-        <p className="text-xs text-gray-500 mb-4">
-          Configure one-time passcode behavior for email and SMS channels.
-          TOTP / Authenticator app uses the Authority app connection below.
-        </p>
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <ToggleRow
-              id="otp-email-enabled"
-              label="Email OTP Enabled"
-              description="Allow one-time codes to be sent via email (requires SMTP above)."
-              checked={otpEmailEnabled}
-              onChange={setOtpEmailEnabled}
-            />
-            <ToggleRow
-              id="otp-phone-enabled"
-              label="Phone (SMS) OTP Enabled"
-              description="Allow one-time codes to be sent via SMS (requires gateway below)."
-              checked={otpPhoneEnabled}
-              onChange={setOtpPhoneEnabled}
-            />
-          </div>
-          <ToggleRow
-            id="magic-link-email"
-            label="Email Magic Links"
-            description="Send clickable magic links instead of numeric codes for email OTP."
-            checked={magicLinkEmail}
-            onChange={setMagicLinkEmail}
-          />
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <NumberInput
-              id="code-length"
-              label="Code Length"
-              value={codeLength}
-              onChange={setCodeLength}
-              min={4}
-              max={10}
-            />
-            <NumberInput
-              id="ttl-seconds"
-              label="TTL (seconds)"
-              value={ttlSeconds}
-              onChange={setTtlSeconds}
-              min={30}
-              max={3600}
-            />
-          </div>
-          <div className="pt-2 border-t border-white/[0.03]">
-            <label className="block text-sm font-medium text-gray-300 mb-1" htmlFor="sms-gateway">
-              SMS Gateway
-            </label>
-            <select
-              id="sms-gateway"
-              value={smsGateway}
-              onChange={(e) => setSmsGateway(e.target.value)}
-              className="w-full max-w-xs bg-black/30 backdrop-blur-md text-white border border-white/10 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-white/60 focus:border-white/40 transition-colors duration-150"
-            >
-              <option value="">None / Disabled</option>
-              <option value="twilio">Twilio</option>
-              <option value="plivo">Plivo</option>
-              <option value="vonage">Vonage (Nexmo)</option>
-              <option value="custom">Custom HTTP</option>
-            </select>
-<p className="text-xs text-gray-500 mt-1">
-              Twilio / Plivo / Vonage use their official SDKs. Custom sends a POST to your URL with JSON: {'{to, code, ttl}'}.
-           </p>
-            <div className="space-y-3 mt-3">
-              <TextInput id="sms-account-sid" label="Account SID / Key" value={smsAccountSid} onChange={setSmsAccountSid} placeholder="Your provider account identifier" />
-              <TextInput id="sms-api-token" label="Auth Token / Secret" type="password" value={smsApiToken} onChange={setSmsApiToken} placeholder="leave blank to keep current" />
-              <TextInput id="sms-from-number" label="From Number" value={smsFromNumber} onChange={setSmsFromNumber} placeholder="+15551234567" />
-            </div>
+          <div className="space-y-3 mt-3">
+            <TextInput id="sms-account-sid" label="Account SID / Key" value={smsAccountSid} onChange={setSmsAccountSid} placeholder="Your provider account identifier" />
+            <TextInput id="sms-api-token" label="Auth Token / Secret" type="password" value={smsApiToken} onChange={setSmsApiToken} placeholder="leave blank to keep current" />
+            <TextInput id="sms-from-number" label="From Number" value={smsFromNumber} onChange={setSmsFromNumber} placeholder="+15551234567" />
           </div>
         </div>
       </section>
 
       <section>
         <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">
-          Authority App (TOTP)
+          App Secrets
         </h3>
         <p className="text-xs text-gray-500 mb-4">
-          Built-in RFC 6238 TOTP for authenticator apps (Google Authenticator, 2FAS, Aegis, etc.).
-          Users scan the QR code from their profile to link the app.
+          Shared secret behind the built-in TOTP authenticator-app connection.
+          Regenerate rotates it — existing linked authenticator apps must be
+          re-scanned. TOTP behaviour (PIN size, rotation, issuer) is tuned on
+          the Authentication tab.
         </p>
-        <div className="space-y-4">
-          <ToggleRow
-            id="app-enabled"
-            label="Enable Authority App"
-            description="When on, users can link an authenticator app from their profile page."
-            checked={appEnabled}
-            onChange={setAppEnabled}
-          />
-          <div className={appEnabled ? '' : 'opacity-50 pointer-events-none space-y-4'}>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <NumberInput
-                id="app-pin-size"
-                label="PIN Size (digits)"
-                value={appPinSize}
-                onChange={setAppPinSize}
-                min={6}
-                max={8}
-              />
-              <NumberInput
-                id="app-rotation-seconds"
-                label="Rotation Interval (seconds)"
-                value={appRotationSeconds}
-                onChange={setAppRotationSeconds}
-                min={15}
-                max={120}
-              />
-            </div>
-            <NumberInput
-              id="app-digits-in-window"
-              label="Valid Digits in Window (±N rotations)"
-              value={appDigitsInWindow}
-              onChange={setAppDigitsInWindow}
-              min={1}
-              max={3}
-            />
-            <TextInput
-              id="app-issuer"
-              label="Issuer Name"
-              value={appIssuer}
-              onChange={setAppIssuer}
-              placeholder="KS Panel"
-            />
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-medium text-gray-300">Shared Secret</span>
-              <code className="flex-1 bg-black/40 px-3 py-2 rounded font-mono text-xs text-gray-300 break-all">
-                {appSecretMasked || 'not configured'}
-              </code>
-              <button
-                type="button"
-                onClick={regenerateSecret}
-                className="inline-flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded text-sm"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/></svg>
-                Regenerate
-              </button>
-            </div>
-          </div>
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-sm font-medium text-gray-300 shrink-0">Authority App Secret</span>
+          <code className="flex-1 min-w-[160px] bg-black/40 px-3 py-2 rounded font-mono text-xs text-gray-300 break-all">
+            {appSecretMasked || 'not configured'}
+          </code>
+          <button
+            type="button"
+            onClick={regenerateSecret}
+            className="inline-flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded text-sm"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/></svg>
+            Regenerate
+          </button>
         </div>
       </section>
 
@@ -768,6 +537,145 @@ const Authority: React.FC<AuthorityProps> = ({ onConfigChange }) => {
         </button>
       </div>
     </form>
+
+    {/* OAuth provider config modal. Sits OUTSIDE the <form> so its buttons
+        can never submit the page; edits bind straight into the same
+        providers state the Save button persists. */}
+    {(() => {
+      const p = providers.find((x) => x.id === configProviderId);
+      if (!p) return null;
+      const def = PROVIDER_DEFS.find((d) => d.id === p.id);
+      const label = providerLabel(p.id);
+      const fields = OAUTH_CONFIG_FIELDS[p.id] ?? [];
+      const missing = oauthMissingFields(p);
+      const callbackUrl = `${window.location.origin}/api/auth/oauth/${p.id}/callback`;
+      return (
+        <Modal
+          open
+          onClose={() => setConfigProviderId(null)}
+          title={`${label} configuration`}
+          footer={
+            <>
+              <button
+                type="button"
+                onClick={() => setConfigProviderId(null)}
+                className="bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-gray-200 px-4 py-2 rounded text-sm transition-colors"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfigProviderId(null)}
+                disabled={authSaving}
+                className="ks-primary-btn inline-flex items-center gap-2 bg-white text-black px-4 py-2 rounded hover:bg-gray-200 text-sm disabled:opacity-60"
+              >
+                Done
+              </button>
+            </>
+          }
+        >
+          <p className="text-xs text-gray-500">
+            Enter everything {label} requires for sign-in. Secret-style
+            fields stay blank to keep the value already stored on the
+            server. Changes apply when you press{' '}
+            <span className="text-gray-300">Save</span> on the main form.
+          </p>
+
+          <div className="rounded-md border border-white/[0.08] bg-black/30 p-3 space-y-1">
+            <div className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold">
+              Redirect URI — paste this into your {label} app settings
+            </div>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 min-w-0 bg-black/40 px-2 py-1 rounded font-mono text-[11px] text-gray-300 break-all select-all">
+                {callbackUrl}
+              </code>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard?.writeText(p.redirect_uri || callbackUrl).then(() => {
+                    setCopiedRedirect(true);
+                    window.setTimeout(() => setCopiedRedirect(false), 1500);
+                  }).catch(() => {});
+                }}
+                className="shrink-0 text-[11px] bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-gray-300 px-2 py-1 rounded transition-colors"
+              >
+                {copiedRedirect ? 'Copied' : 'Copy'}
+              </button>
+            </div>
+            {p.redirect_uri && (
+              <div className="text-[11px] text-amber-400/90">
+                An override below takes precedence over this URL.
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-3">
+            {fields.map((f) => {
+              const id = `provider-${p.id}-${f.key}`;
+              const value = String(
+                (p as unknown as Record<string, unknown>)[f.key] ?? '',
+              );
+              const isSecret = !!f.secret;
+              const placeholder = isSecret && (p.configured || value)
+                ? 'leave blank to keep current'
+                : f.placeholder;
+              return (
+                <div key={f.key}>
+                  <label htmlFor={id} className="block text-sm font-medium text-gray-300 mb-1">
+                    {f.label}
+                  </label>
+                  {f.area ? (
+                    <textarea
+                      id={id}
+                      rows={6}
+                      value={value}
+                      onChange={(e) =>
+                        setProviderField(p.id, {
+                          [f.key]: e.target.value,
+                        } as Partial<AuthorityProvider>)
+                      }
+                      placeholder={placeholder}
+                      spellCheck={false}
+                      className="ks-input w-full bg-black/30 backdrop-blur-md text-white border border-white/10 placeholder-gray-500 rounded-md px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-white/60 focus:border-white/40 transition-colors duration-150"
+                    />
+                  ) : (
+                    <input
+                      id={id}
+                      type={isSecret ? 'password' : 'text'}
+                      value={value}
+                      autoComplete="off"
+                      onChange={(e) =>
+                        setProviderField(p.id, {
+                          [f.key]: e.target.value,
+                        } as Partial<AuthorityProvider>)
+                      }
+                      placeholder={placeholder}
+                      className="w-full bg-black/30 backdrop-blur-md text-white border border-white/10 placeholder-gray-500 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-white/60 focus:border-white/40 transition-colors duration-150"
+                    />
+                  )}
+                  {f.hint && (
+                    <p className="text-[11px] text-gray-500 mt-1">{f.hint}</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <p className={`text-xs ${missing.length ? 'text-amber-400' : 'text-emerald-400'}`}>
+            {missing.length
+              ? `Still missing: ${missing.join(', ')}`
+              : 'All required fields are in — press Save to persist.'}
+          </p>
+          {def && !missing.length && (
+            <p className="text-[11px] text-gray-500">
+              Once saved, a &quot;Continue with {label}&quot; button appears on the login and
+              register pages.
+            </p>
+          )}
+        </Modal>
+      );
+    })()}
+    </>
   );
 };
 

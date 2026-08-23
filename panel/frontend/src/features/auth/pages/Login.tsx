@@ -29,9 +29,22 @@ const Login: React.FC = () => {
   // /api/auth/flags endpoint (no auth) so the login page can show the
   // "Create new account" link when the operator turned the toggle on.
   const [registerAllowed, setRegisterAllowed] = useState(false);
+  // Enabled+configured OAuth providers (ids/labels only) so the login
+  // page renders one "Continue with …" button per provider.
+  const [oauthProviders, setOauthProviders] = useState<{ id: string; label: string }[]>([]);
 
   React.useEffect(() => {
     let cancelled = false;
+    // Surface an OAuth callback failure (redirected back with ?oauth_error)
+    // in the same banner password login uses, then strip the query so a
+    // refresh doesn't replay the message.
+    const params = new URLSearchParams(window.location.search);
+    const oauthError = params.get('oauth_error');
+    if (oauthError) {
+      setError(oauthError);
+      params.delete('oauth_error');
+      window.history.replaceState({}, '', window.location.pathname + (params.toString() ? `?${params}` : ''));
+    }
     (async () => {
       try {
         // Settings fetch is intentionally redundant with the index.html
@@ -58,9 +71,14 @@ const Login: React.FC = () => {
         // public (no auth) and tolerant of failures — both flags default to
         // false when the fetch throws, so a transiently-unavailable server
         // can't open the register page as a 404.
-        const flags = await client.get<{ register_allow: boolean; verify_required: boolean }>('/api/auth/flags');
+        const flags = await client.get<{
+          register_allow: boolean;
+          verify_required: boolean;
+          oauth_providers?: { id: string; label: string }[];
+        }>('/api/auth/flags');
         if (!cancelled) {
           setRegisterAllowed(!!flags.data?.register_allow);
+          setOauthProviders(flags.data?.oauth_providers ?? []);
         }
       } catch {
         /* fallback to default name silently */
@@ -329,6 +347,32 @@ const Login: React.FC = () => {
                 )}
               </span>
             </button>
+
+            {/* OAuth "Continue with ..." — one button per provider the
+                admin enabled AND fully configured on the Security page.
+                Plain anchors: they leave for the provider and come back
+                through /api/auth/oauth/{id}/callback, which lands here or
+                straight into the panel with a session cookie. */}
+            {oauthProviders.length > 0 && (
+              <>
+                <div className="animate-slide-up [animation-delay:0.35s] [animation-fill-mode:backwards] flex items-center gap-3 pt-1">
+                  <span className="flex-1 h-px bg-neutral-700/70" />
+                  <span className="text-[11px] uppercase tracking-wider text-gray-500">or continue with</span>
+                  <span className="flex-1 h-px bg-neutral-700/70" />
+                </div>
+                <div className="animate-slide-up [animation-delay:0.4s] [animation-fill-mode:backwards] space-y-2">
+                  {oauthProviders.map((p) => (
+                    <a
+                      key={p.id}
+                      href={`/api/auth/oauth/${p.id}/start`}
+                      className="flex items-center justify-center gap-2 w-full py-2 rounded-lg border border-neutral-700 bg-black/30 hover:bg-white/10 hover:border-neutral-500 text-gray-200 text-sm transition-all duration-200"
+                    >
+                      Continue with {p.label}
+                    </a>
+                  ))}
+                </div>
+              </>
+            )}
 
             {/* Footer hint */}
             <p className="text-center text-xs text-gray-600 pt-1">

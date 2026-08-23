@@ -258,21 +258,21 @@ func (r *InstanceRepository) Get(id int64) (*models.Instance, error) {
 // CreateInput is the shape the deploy handler passes when a deploy RPC
 // returns successfully.
 type InstanceCreateInput struct {
-	NodeID         int64
-	TemplateID     int64
-	OwnerID        int64
-	Name           string
-	DisplayName    string
-	Icon           string
-	Color          string
-	Kind           string
-	Status         string
-	ExternalID     string
-	Config         string
-	InstallState   string // "running" when deploy has install workflow, else ""
-	InstallID      string // "<kind>:<name>" key
-	InstallStep    int    // -1 = not started
-	InstallError   string
+	NodeID           int64
+	TemplateID       int64
+	OwnerID          int64
+	Name             string
+	DisplayName      string
+	Icon             string
+	Color            string
+	Kind             string
+	Status           string
+	ExternalID       string
+	Config           string
+	InstallState     string // "running" when deploy has install workflow, else ""
+	InstallID        string // "<kind>:<name>" key
+	InstallStep      int    // -1 = not started
+	InstallError     string
 	InstallStepsJSON string
 }
 
@@ -332,7 +332,7 @@ func (r *InstanceRepository) UpdateInstallStatus(id int64, state, installID stri
 // InvokeActionHandler when an action is invoked so the install sweep loop can
 // distinguish an action-driven workflow from a template install workflow,
 // and decide on completion whether to stop the container based on the
-// action's auto_stop_on_exit flag. Pass kind='' to reset to "install" mode
+// action's auto_stop_on_exit flag. Pass kind=” to reset to "install" mode
 // (default deploy workflow) and autoStop=0.
 func (r *InstanceRepository) SetInstallKind(id int64, kind string, autoStop int) error {
 	res, err := r.db.Exec(`UPDATE instances SET install_kind = ?, install_auto_stop = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
@@ -378,11 +378,11 @@ func (r *InstanceRepository) Delete(id int64) error {
 
 // SuspensionRecord represents a single suspension entry in the history.
 type InstanceSuspensionRecord struct {
-	Timestamp   string `json:"timestamp"`
-	Reason      string `json:"reason"`
-	Duration    string `json:"duration"` // "until_admin" or "auto:YYYY-MM-DD HH:MM:SS"
-	AdminID     int64  `json:"admin_id"`
-	AdminName   string `json:"admin_name"`
+	Timestamp string `json:"timestamp"`
+	Reason    string `json:"reason"`
+	Duration  string `json:"duration"` // "until_admin" or "auto:YYYY-MM-DD HH:MM:SS"
+	AdminID   int64  `json:"admin_id"`
+	AdminName string `json:"admin_name"`
 }
 
 // SuspendInstance suspends an instance with optional auto-unsuspend time.

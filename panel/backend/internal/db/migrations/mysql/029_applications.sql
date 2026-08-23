@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS applications (
     entrypoint      TEXT    NOT NULL DEFAULT '',
     config_schema   TEXT    NOT NULL DEFAULT '{}',
     permissions     TEXT    NOT NULL DEFAULT '[]',
-    env             JSON    NOT NULL DEFAULT '{}',
+    env             TEXT    NOT NULL DEFAULT '{}',
     active          INTEGER NOT NULL DEFAULT 0,
     uploaded_by     INTEGER,
     source          TEXT    NOT NULL DEFAULT 'file',

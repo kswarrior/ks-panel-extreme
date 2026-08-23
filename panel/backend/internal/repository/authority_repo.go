@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/example/kspanel/internal/models"
+	"github.com/example/kspanel/internal/oauth"
 )
 
 type AuthorityRepository struct {
@@ -75,8 +76,18 @@ func (r *AuthorityRepository) Update(cfg *models.AuthorityConfig) error {
 	if cfg == nil {
 		return fmt.Errorf("nothing to update")
 	}
-	if err := r.preserveSecrets(cfg); err != nil {
+	prev, err := r.GetRaw()
+	if err != nil {
 		return err
+	}
+	preserveSecrets(prev, cfg)
+	if err := enforceProviderRequirements(prev, cfg); err != nil {
+		return err
+	}
+	// Configured is a read-time computation only — never persist what the
+	// client echoed back.
+	for i := range cfg.Providers {
+		cfg.Providers[i].Configured = false
 	}
 	cfg.RegistrationMinimumN = clampInt(cfg.RegistrationMinimumN, 1)
 	if cfg.OTP.CodeLength < 4 {
@@ -93,6 +104,14 @@ func (r *AuthorityRepository) Update(cfg *models.AuthorityConfig) error {
 	}
 	if cfg.AppConnect.DigitsInWindow < 1 {
 		cfg.AppConnect.DigitsInWindow = 1
+	}
+	if cfg.PasswordHistory != nil {
+		if cfg.PasswordHistory.MaxHistory < 1 {
+			cfg.PasswordHistory.MaxHistory = 5
+		}
+		if cfg.PasswordHistory.MaxHistory > 24 {
+			cfg.PasswordHistory.MaxHistory = 24
+		}
 	}
 	blob, err := json.Marshal(cfg)
 	if err != nil {
@@ -155,11 +174,10 @@ func (r *AuthorityRepository) persistRaw(cfg *models.AuthorityConfig) error {
 	return r.setString(AuthorityConfigKey, string(blob))
 }
 
-func (r *AuthorityRepository) preserveSecrets(cfg *models.AuthorityConfig) error {
-	prev, err := r.GetRaw()
-	if err != nil {
-		return err
-	}
+// preserveSecrets restores the previously stored values for every secret
+// the caller sent blank or as the keep-marker "*", so a masked read
+// round-trip never wipes a credential. Includes Apple's .p8 private key.
+func preserveSecrets(prev *models.AuthorityConfig, cfg *models.AuthorityConfig) {
 	if cfg.SMTPPassword == "" || cfg.SMTPPassword == "*" {
 		cfg.SMTPPassword = prev.SMTPPassword
 	}
@@ -170,10 +188,46 @@ func (r *AuthorityRepository) preserveSecrets(cfg *models.AuthorityConfig) error
 		cfg.AppConnect.Secret = prev.AppConnect.Secret
 	}
 	for i := range cfg.Providers {
-		if cfg.Providers[i].ClientSecret == "" || cfg.Providers[i].ClientSecret == "*" {
-			if prevP := prev.ProviderByID(cfg.Providers[i].ID); prevP != nil {
-				cfg.Providers[i].ClientSecret = prevP.ClientSecret
+		p := &cfg.Providers[i]
+		prevP := prev.ProviderByID(p.ID)
+		if p.ClientSecret == "" || p.ClientSecret == "*" {
+			if prevP != nil {
+				p.ClientSecret = prevP.ClientSecret
 			}
+		}
+		// Apple's .p8 private key follows the same keep-blank contract as
+		// every other secret on this page.
+		if p.PrivateKey == "" || p.PrivateKey == "*" {
+			if prevP != nil {
+				p.PrivateKey = prevP.PrivateKey
+			}
+		}
+	}
+}
+
+// enforceProviderRequirements rejects a save that turns an OAuth provider ON
+// without its full credential set (the Security UI's "Config" modal collects
+// exactly these fields). Enforcement is transition-only: a provider that was
+// ALREADY enabled in the stored blob keeps working so legacy installs and
+// sibling-tab saves never get bricked — but you cannot NEWLY enable a
+// half-configured provider, failing closed at the gate that matters.
+func enforceProviderRequirements(prev *models.AuthorityConfig, cfg *models.AuthorityConfig) error {
+	for _, p := range cfg.Providers {
+		if !p.Enabled || !oauth.Known(p.ID) {
+			continue
+		}
+		var wasEnabled bool
+		if prevP := prev.ProviderByID(p.ID); prevP != nil {
+			wasEnabled = prevP.Enabled
+		}
+		if wasEnabled {
+			continue
+		}
+		if missing := oauth.MissingRequired(p); len(missing) > 0 {
+			return fmt.Errorf(
+				"cannot enable %s: missing %s",
+				oauth.Label(p.ID), strings.Join(missing, ", "),
+			)
 		}
 	}
 	return nil
@@ -220,6 +274,34 @@ func backfillDefaults(cfg *models.AuthorityConfig) *models.AuthorityConfig {
 	if cfg.AppConnect.Issuer == "" {
 		cfg.AppConnect.Issuer = "KS Panel"
 	}
+	if cfg.PasswordPolicy == nil {
+		cfg.PasswordPolicy = &models.AuthorityPasswordPolicy{
+			MinLength:     12,
+			MaxLength:     128,
+			RequireUpper:  true,
+			MinUpper:      1,
+			RequireLower:  true,
+			MinLower:      1,
+			RequireNumber: true,
+			MinNumber:     1,
+			RequireSymbol: true,
+			MinSymbol:     1,
+			NoCommon:      true,
+			NoPersonal:    true,
+		}
+	}
+	if cfg.PasswordHistory == nil {
+		cfg.PasswordHistory = &models.AuthorityPasswordHistory{
+			Enabled:    true,
+			MaxHistory: 5,
+		}
+	}
+	if cfg.PasswordHistory.MaxHistory < 1 {
+		cfg.PasswordHistory.MaxHistory = 5
+	}
+	if cfg.PasswordHistory.MaxHistory > 24 {
+		cfg.PasswordHistory.MaxHistory = 24
+	}
 	return cfg
 }
 
@@ -231,7 +313,11 @@ func maskSecrets(cfg *models.AuthorityConfig) *models.AuthorityConfig {
 	cfg.OTP.SMSAPIToken = ""
 	cfg.AppConnect.Secret = ""
 	for i := range cfg.Providers {
+		// Compute the configured badge while the secrets are still in
+		// memory — this is the only place that can see both halves.
+		cfg.Providers[i].Configured = oauth.Configured(cfg.Providers[i])
 		cfg.Providers[i].ClientSecret = ""
+		cfg.Providers[i].PrivateKey = ""
 	}
 	return cfg
 }

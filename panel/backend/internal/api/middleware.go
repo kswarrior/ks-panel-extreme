@@ -11,6 +11,7 @@ import (
 	"github.com/example/kspanel/internal/auth"
 	"github.com/example/kspanel/internal/permissions"
 	"github.com/example/kspanel/internal/repository"
+	"github.com/example/kspanel/internal/security"
 )
 
 // ctxKey is a private type to avoid context value collisions.
@@ -18,13 +19,6 @@ type ctxKey string
 
 // expiryKey stores the absolute expiry time alongside userID.
 const expiryKey ctxKey = "sessionExpiry"
-
-// sessionTTL is intentionally kept in sync with auth.SessionTTL so the
-// context-carried expiry and the cookie's Expires agree. We don't read
-// auth.SessionTTL directly here only to keep the two packages loosely
-// coupled for the few call sites that still import this constant; the
-// cookie helper (the real source of truth) uses auth.SessionTTL.
-const sessionTTL = auth.SessionTTL
 
 // AuthMiddleware reads the HMAC-signed session credentials — either the
 // session_id cookie or an `Authorization: Bearer <token>` header — verifies
@@ -70,17 +64,32 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		}
 
 		now := time.Now()
+		policy := auth.CurrentSessionPolicy()
 
 		// Enforce a server-side max age independent of the cookie's
 		// Expires/MaxAge (which a client can strip). A legacy token with
 		// no embedded issued-at reports the Unix epoch, so it lands here
 		// and is treated as expired — forcing a single re-login rather
 		// than honouring an unbounded bearer.
-		if !issuedAt.IsZero() && now.Sub(issuedAt) > auth.SessionTTL {
+		if !issuedAt.IsZero() && now.Sub(issuedAt) > policy.Lifetime {
 			if fromCookie {
 				http.SetCookie(w, auth.ClearSessionCookie(r))
 			}
 			http.Error(w, "session expired", http.StatusUnauthorized)
+			return
+		}
+
+		// Consult the session manager's revocation list: a tracked
+		// session that an admin revoked (or that idled out past the
+		// Sessions-tab idle timeout) is rejected here. Untracked tokens
+		// still pass — they remain bounded by the absolute lifetime
+		// above. This is what makes the Security page's "Revoke"
+		// actions effective rather than cosmetic.
+		if !auth.SessionManagerInstance.TrackedSessionValid(rawToken, policy.IdleTimeout) {
+			if fromCookie {
+				http.SetCookie(w, auth.ClearSessionCookie(r))
+			}
+			http.Error(w, "session revoked", http.StatusUnauthorized)
 			return
 		}
 
@@ -90,9 +99,9 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		// back to a fresh TTL when the token carried no issued-at.
 		var expiry time.Time
 		if issuedAt.IsZero() {
-			expiry = now.Add(auth.SessionTTL)
+			expiry = now.Add(policy.Lifetime)
 		} else {
-			expiry = issuedAt.Add(auth.SessionTTL)
+			expiry = issuedAt.Add(policy.Lifetime)
 		}
 
 		// Sliding expiry on the cookie only. The SPA is in charge of the
@@ -100,8 +109,13 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		// leave those untouched — minting a fresh one would desync the
 		// value the SPA stored with the one the server now expects.
 		if fromCookie && auth.ShouldRotate(expiry) {
-			newExpiry := now.Add(auth.SessionTTL)
+			newExpiry := now.Add(policy.Lifetime)
 			newValue := auth.GenerateSessionToken(uid, now)
+			// Keep the manager in lockstep with rotation: register the
+			// replacement token and retire the old value so the admin
+			// Sessions list shows exactly the live credentials.
+			auth.SessionManagerInstance.CreateSession(uid, newValue, r.RemoteAddr, r.UserAgent())
+			auth.SessionManagerInstance.InvalidateSession(rawToken)
 			http.SetCookie(w, auth.NewSessionCookie(r, newValue, newExpiry))
 			expiry = newExpiry
 		}
@@ -189,7 +203,8 @@ func requirePermission(perm string) func(http.Handler) http.Handler {
 // per-action keys without forcing a migration of existing role grants.
 //
 // Example:
-//   r.With(requireAnyPermission(permissions.ManageUsersKey, permissions.UsersCreateKey)).Post("/", ...)
+//
+//	r.With(requireAnyPermission(permissions.ManageUsersKey, permissions.UsersCreateKey)).Post("/", ...)
 func requireAnyPermission(keys ...string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -233,6 +248,25 @@ func MaxBodySize(maxBytes int64) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Limit the request body size
 			r.Body = io.NopCloser(io.LimitReader(r.Body, maxBytes))
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// DynamicMaxBodySize is the router-level companion of MaxBodySize that
+// reads the per-request cap from the live security config (Firewall tab's
+// "Request Size Limit") instead of a compile-time constant. The state
+// singleton is captured once at chain construction; each request only
+// pays an atomic pointer load.
+func DynamicMaxBodySize() func(http.Handler) http.Handler {
+	state := security.Get()
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			limit := int64(10 << 20)
+			if c := state.Cfg(); c != nil && c.MaxBodySizeBytes > 0 {
+				limit = c.MaxBodySizeBytes
+			}
+			r.Body = io.NopCloser(io.LimitReader(r.Body, limit))
 			next.ServeHTTP(w, r)
 		})
 	}

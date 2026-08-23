@@ -448,8 +448,8 @@ func InstallTemplateFromURLHandler(w http.ResponseWriter, r *http.Request) {
 
 // URL fetch infrastructure (template-specific to avoid conflicts with mod_handler)
 const (
-	templateURLFetchMaxBytes  = 8 << 20 // 8 MiB
-	templateURLFetchTimeout   = 15 * time.Second
+	templateURLFetchMaxBytes   = 8 << 20 // 8 MiB
+	templateURLFetchTimeout    = 15 * time.Second
 	templateURLFetchDNSTimeout = 5 * time.Second
 )
 

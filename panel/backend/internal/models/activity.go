@@ -6,20 +6,20 @@ import "time"
 type ActivityCategory string
 
 const (
-	ActivityCategoryUser     ActivityCategory = "user"
-	ActivityCategoryRole     ActivityCategory = "role"
-	ActivityCategoryNode     ActivityCategory = "node"
-	ActivityCategoryTemplate ActivityCategory = "template"
-	ActivityCategoryInstance ActivityCategory = "instance"
-	ActivityCategoryAPIKey   ActivityCategory = "api_key"
-	ActivityCategorySettings ActivityCategory = "settings"
-	ActivityCategoryAuth     ActivityCategory = "auth"
-	ActivityCategorySystem   ActivityCategory = "system"
-	ActivityCategoryMod      ActivityCategory = "mod"
-	ActivityCategorySecret   ActivityCategory = "secret"
+	ActivityCategoryUser               ActivityCategory = "user"
+	ActivityCategoryRole               ActivityCategory = "role"
+	ActivityCategoryNode               ActivityCategory = "node"
+	ActivityCategoryTemplate           ActivityCategory = "template"
+	ActivityCategoryInstance           ActivityCategory = "instance"
+	ActivityCategoryAPIKey             ActivityCategory = "api_key"
+	ActivityCategorySettings           ActivityCategory = "settings"
+	ActivityCategoryAuth               ActivityCategory = "auth"
+	ActivityCategorySystem             ActivityCategory = "system"
+	ActivityCategoryMod                ActivityCategory = "mod"
+	ActivityCategorySecret             ActivityCategory = "secret"
 	ActivityCategoryAutomationCategory ActivityCategory = "automation"
-	ActivityCategorySnapshot ActivityCategory = "snapshot"
-	ActivityCategorySecurity ActivityCategory = "security"
+	ActivityCategorySnapshot           ActivityCategory = "snapshot"
+	ActivityCategorySecurity           ActivityCategory = "security"
 )
 
 // ActivityLog is one row of the admin audit timeline.

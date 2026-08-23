@@ -32,13 +32,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
 	"path"
 	"strconv"
 	"strings"
-	"log"
 	"time"
 
 	"github.com/example/kspanel/internal/edge"
@@ -230,7 +230,7 @@ func proxyToEdge(w http.ResponseWriter, r *http.Request, id int64, op, path, con
 		return
 	}
 
-// Pass status and selected headers through. We rewrite Content-Type only
+	// Pass status and selected headers through. We rewrite Content-Type only
 	// for the JSON ops (list/stat) so the SPA can rely on it; for read we
 	// trust the edge's Content-Type/Content-Disposition pair.
 	//
@@ -310,9 +310,9 @@ var _ = edge.Client{}
 // templates still get the host-path File Manager browse instead of silently
 // falling back to docker exec.
 type mountSpec struct {
-	Host      string `json:"host"`
-	Container string `json:"container"`
-	Mode      string `json:"mode"`
+	Host        string `json:"host"`
+	Container   string `json:"container"`
+	Mode        string `json:"mode"`
 	Source      string `json:"source"`
 	Target      string `json:"target"`
 	Destination string `json:"destination"`

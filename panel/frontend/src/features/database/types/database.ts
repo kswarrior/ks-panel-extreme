@@ -1,5 +1,13 @@
 // Database types - extracted from Database.tsx
 
+// The switch-engine contracts live in one place (shared/api/admin.ts) so the
+// wire shape can't drift between the API layer and this feature. Re-exported
+// here for the components that still import them from '../types/database'.
+export type {
+  DatabaseEngineInfo,
+  DatabaseEngineSwitchResponse,
+} from '@/shared/api/admin';
+
 export const HISTORY_WINDOW = 60;
 export const REFRESH_MS = 5000;
 
@@ -52,21 +60,6 @@ export interface DatabaseTable {
   size_delta: number;
   autoincr_value: number;
   without_rowid: boolean;
-}
-
-export interface DatabaseEngineInfo {
-  name: string;
-  label: string;
-  supports_url: boolean;
-  default_port: number;
-}
-
-export interface DatabaseEngineSwitchResponse {
-  ok: boolean;
-  engine: string;
-  dsn: string;
-  message: string;
-  requires_restart: boolean;
 }
 
 export type DatabaseTabId = 'overview' | 'change';

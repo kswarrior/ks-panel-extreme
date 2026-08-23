@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { securitySnapshot, securityDDOSReset, securityDDOSManualStop, securityGetConfig, securityUpdateConfig } from '@/shared/api/admin';
+import { securitySnapshot, securityToggleAttack, securityDDOSReset, securityDDOSManualStop, securityGetConfig, securityUpdateConfig } from '@/shared/api/admin';
 import type { SecuritySnapshot as SecuritySnapshotT, SecurityConfig } from '@/features/security/types/security';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import NumberInput from '@/shared/components/ui/NumberInput';
@@ -9,12 +9,31 @@ interface DDoSProps {
   initialSnapshot?: SecuritySnapshotT | null;
   initialConfig?: SecurityConfig | null;
   onConfigChange?: () => void;
+  onAttackToggle?: (next: boolean) => void;
 }
+
+// Reaction modes offered by the DDoS tab. Mirrors models.DDOSMode* on the
+// backend: "stop" refuses new requests during cooldown, "port_switch"
+// moves the panel onto ddos_alt_port so attackers keep hitting a dead
+// port while the panel stays reachable on the alternate one.
+const DDOS_MODES: Array<{ id: 'stop' | 'port_switch'; title: string; desc: string }> = [
+  {
+    id: 'stop',
+    title: 'Stop Requests',
+    desc: 'Refuse new requests for the cooldown window. Strongest shedding; the admin page stays reachable for reset.',
+  },
+  {
+    id: 'port_switch',
+    title: 'Port Switcher',
+    desc: 'Close the attacked panel port and reopen the panel on the alternate port, so even a massive flood cannot take the panel down.',
+  },
+];
 
 const DDoS: React.FC<DDoSProps> = ({
   initialSnapshot,
   initialConfig,
   onConfigChange,
+  onAttackToggle,
 }) => {
   const [snap, setSnap] = useState<SecuritySnapshotT | null>(initialSnapshot ?? null);
   const [loading, setLoading] = useState(!initialSnapshot);
@@ -25,15 +44,24 @@ const DDoS: React.FC<DDoSProps> = ({
   const [actionError, setActionError] = useState('');
   const [actionSuccess, setActionSuccess] = useState('');
 
+  const [underAttack, setUnderAttack] = useState(initialSnapshot?.under_attack ?? false);
+
   const [ddosAutoStopEnabled, setDdosAutoStopEnabled] = useState(initialConfig?.ddos_auto_stop_enabled ?? false);
   const [ddosStopMinutes, setDdosStopMinutes] = useState(initialConfig?.ddos_stop_minutes ?? 5);
   const [ddosMaxStopCount, setDdosMaxStopCount] = useState(initialConfig?.ddos_max_stop_count ?? 0);
+  const [ddosMode, setDdosMode] = useState<'stop' | 'port_switch'>(initialConfig?.ddos_mode ?? 'stop');
+  const [ddosAltPort, setDdosAltPort] = useState(initialConfig?.ddos_alt_port ?? 5050);
+  const [ddosGlobalHits, setDdosGlobalHits] = useState(initialConfig?.ddos_global_trigger_hits ?? 0);
+  const [ddosGlobalWindow, setDdosGlobalWindow] = useState(initialConfig?.ddos_global_trigger_window ?? 10);
+  // Global traffic limit (RPM ceiling enforced while Under Attack is on).
+  const [globalRpmLimit, setGlobalRpmLimit] = useState(initialConfig?.global_rpm_limit ?? 0);
 
   const loadSnapshot = useCallback(async () => {
     if (initialSnapshot) return;
     try {
       const s = await securitySnapshot();
       setSnap(s);
+      setUnderAttack(s.under_attack);
     } catch {
       // Silent fail - snapshot is loaded by parent
     } finally {
@@ -50,6 +78,11 @@ const DDoS: React.FC<DDoSProps> = ({
       setDdosAutoStopEnabled(cfg.ddos_auto_stop_enabled);
       setDdosStopMinutes(cfg.ddos_stop_minutes);
       setDdosMaxStopCount(cfg.ddos_max_stop_count);
+      setDdosMode(cfg.ddos_mode);
+      setDdosAltPort(cfg.ddos_alt_port);
+      setDdosGlobalHits(cfg.ddos_global_trigger_hits);
+      setDdosGlobalWindow(cfg.ddos_global_trigger_window);
+      setGlobalRpmLimit(cfg.global_rpm_limit);
     } catch (e: any) {
       setConfigError(e?.response?.data || 'Failed to load DDoS config');
     } finally {
@@ -57,20 +90,52 @@ const DDoS: React.FC<DDoSProps> = ({
     }
   }, [initialConfig]);
 
+  const toggleAttack = useCallback(async (next: boolean) => {
+    try {
+      const res = await securityToggleAttack(next);
+      setUnderAttack(res.under_attack);
+      if (snap) setSnap({ ...snap, under_attack: res.under_attack });
+      onAttackToggle?.(res.under_attack);
+    } catch (e: any) {
+      setActionError(e?.response?.data || 'Failed to toggle attack status');
+    }
+  }, [snap, onAttackToggle]);
+
   const saveConfig = async (e: React.FormEvent) => {
     e.preventDefault();
     setConfigSaving(true);
     setConfigError('');
     setConfigSuccess('');
+    if (ddosMode === 'port_switch' && (ddosAltPort < 1 || ddosAltPort > 65535)) {
+      setConfigError('Alternate port must be between 1 and 65535.');
+      setConfigSaving(false);
+      return;
+    }
     try {
       const cfg: SecurityConfig = {
-        requests_per_minute_limit: 600,
-        window_seconds_limit: 60,
-        global_rpm_limit: 0,
-        block_unknown_ua: false,
+        // Firewall-owned fields are preserved from the loaded config —
+        // hardcoding them here used to silently reset the firewall
+        // limits every time this form was saved.
+        requests_per_minute_limit: initialConfig?.requests_per_minute_limit ?? 600,
+        window_seconds_limit: initialConfig?.window_seconds_limit ?? 60,
+        ip_allowlist: initialConfig?.ip_allowlist ?? [],
+        ip_denylist: initialConfig?.ip_denylist ?? [],
+        max_body_size_mb: initialConfig?.max_body_size_mb ?? 10,
+        allowed_http_methods: initialConfig?.allowed_http_methods ?? '',
+        block_suspicious_paths: initialConfig?.block_suspicious_paths ?? false,
+        block_unknown_ua: initialConfig?.block_unknown_ua ?? false,
         ddos_auto_stop_enabled: ddosAutoStopEnabled,
         ddos_stop_minutes: ddosStopMinutes,
         ddos_max_stop_count: ddosMaxStopCount,
+        ddos_mode: ddosMode,
+        ddos_alt_port: ddosAltPort,
+        ddos_global_trigger_hits: ddosGlobalHits,
+        ddos_global_trigger_window: ddosGlobalWindow,
+        global_rpm_limit: globalRpmLimit < 0 ? 0 : Math.floor(globalRpmLimit),
+        // Session-owned fields are preserved (Sessions tab owns them).
+        session_lifetime_minutes: initialConfig?.session_lifetime_minutes ?? 480,
+        session_idle_timeout_minutes: initialConfig?.session_idle_timeout_minutes ?? 1440,
+        session_max_per_user: initialConfig?.session_max_per_user ?? 0,
       };
       await securityUpdateConfig(cfg);
       const s = await securitySnapshot();
@@ -94,15 +159,19 @@ const DDoS: React.FC<DDoSProps> = ({
       await securityDDOSReset();
       const s = await securitySnapshot();
       setSnap(s);
+      setUnderAttack(s.under_attack);
+      onAttackToggle?.(s.under_attack);
       loadConfig();
-      setActionSuccess('DDoS state reset.');
+      setActionSuccess('DDoS state reset — panel resumed.');
     } catch (e: any) {
       setActionError(e?.response?.data || 'Failed to reset DDoS state');
     }
   };
 
   const handleDDOSManualStop = async () => {
-    if (!confirm('Manually trigger DDoS auto-stop? This will stop the panel from accepting new requests for the configured cooldown period.')) {
+    if (!confirm(ddosMode === 'port_switch'
+      ? `Manually trigger the DDoS reaction? The panel will move from its current port to :${ddosAltPort} for the configured cooldown period.`
+      : 'Manually trigger DDoS auto-stop? This will stop the panel from accepting new requests for the configured cooldown period.')) {
       return;
     }
     setActionError('');
@@ -111,14 +180,22 @@ const DDoS: React.FC<DDoSProps> = ({
       const res = await securityDDOSManualStop();
       const s = await securitySnapshot();
       setSnap(s);
+      setUnderAttack(s.under_attack);
+      onAttackToggle?.(s.under_attack);
       loadConfig();
-      setActionSuccess(`DDoS auto-stop triggered. Stop count: ${res.stop_count}, cooldown until: ${res.cooldown_until}`);
+      setActionSuccess(`DDoS reaction triggered. Stop count: ${res.stop_count}, cooldown until: ${res.cooldown_until}`);
     } catch (e: any) {
       setActionError(e?.response?.data || 'Failed to trigger DDoS stop');
     }
   };
 
   if (loading) return <SkeletonGrid count={4} />;
+
+  const statusLabel = snap?.ddos_active
+    ? snap.ddos_port_switched
+      ? `ACTIVE — Panel moved to :${snap.ddos_active_port}`
+      : 'ACTIVE — Panel Stopped'
+    : 'Normal';
 
   return (
     <div>
@@ -130,37 +207,104 @@ const DDoS: React.FC<DDoSProps> = ({
           <SkeletonGrid count={4} />
         ) : (
           <>
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+              <div className="flex items-center gap-3 flex-wrap">
                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                   snap?.ddos_active ? 'bg-red-900/50 text-red-300' : 'bg-emerald-900/50 text-emerald-300'
                 }`}>
-                  {snap?.ddos_active ? 'ACTIVE — Panel Stopped' : 'Normal'}
+                  {statusLabel}
                 </span>
                 {snap?.ddos_cooldown_until && (
                   <span className="text-xs text-gray-400 font-mono">
                     Cooldown until: {new Date(snap.ddos_cooldown_until).toLocaleString()}
                   </span>
                 )}
+                {typeof snap?.ddos_active_port === 'number' && snap.ddos_active_port > 0 && (
+                  <span className={`text-xs font-mono px-2 py-0.5 rounded-full ${
+                    snap.ddos_port_switched ? 'bg-amber-900/50 text-amber-300' : 'bg-neutral-800/80 text-gray-300'
+                  }`}>
+                    Serving on :{snap.ddos_active_port}
+                  </span>
+                )}
               </div>
             </div>
 
+            {snap?.ddos_port_error && (
+              <p className="text-xs text-red-400">
+                Port switch problem: {snap.ddos_port_error}
+              </p>
+            )}
+
             <section>
               <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-3">
-                Auto-Stop Configuration
+                Under Attack Mode
+              </h3>
+              <ToggleRow
+                id="ddos-under-attack"
+                label="Under Attack Mode"
+                description="Challenges every inbound request against the global traffic limit below. Enable while an attack is in progress; leave off during normal operation so the panel doesn't self-throttle."
+                checked={underAttack}
+                onChange={toggleAttack}
+              />
+              <div className="mt-4">
+                <NumberInput
+                  id="ddos-global-rpm"
+                  label="Global Traffic Limit (requests/min, 0 = off)"
+                  value={globalRpmLimit}
+                  onChange={setGlobalRpmLimit}
+                  min={0}
+                  max={100000}
+                />
+                <p className="text-xs text-gray-500 mt-2">
+                  Total requests-per-minute across the whole panel. Only enforced while Under Attack
+                  Mode is enabled above; extra requests get a 429 and are counted as blocked.
+                </p>
+              </div>
+            </section>
+
+            <section>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-3">
+                Reaction Mode
+              </h3>
+              <p className="text-xs text-gray-500 mb-3">
+                Choose what happens automatically the moment a DDoS attack is detected.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {DDOS_MODES.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => setDdosMode(m.id)}
+                    aria-pressed={ddosMode === m.id}
+                    className={`text-left rounded-xl border p-4 transition-colors duration-150 ${
+                      ddosMode === m.id
+                        ? 'border-white/40 bg-white/10'
+                        : 'border-white/10 bg-black/20 hover:border-white/25 opacity-75'
+                    }`}
+                  >
+                    <span className="block text-sm font-medium text-gray-100">{m.title}</span>
+                    <span className="block text-xs text-gray-500 mt-1">{m.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-3">
+                Detection &amp; Cooldown
               </h3>
               <ToggleRow
                 id="ddos-auto-stop"
-                label="Enable DDoS Auto-Stop"
-                description="Automatically stop accepting new requests when DDoS is detected."
+                label="Enable DDoS Protection"
+                description="Automatically apply the reaction mode above when an attack is detected (per-IP limit breach or global burst)."
                 checked={ddosAutoStopEnabled}
                 onChange={setDdosAutoStopEnabled}
               />
               <div className={ddosAutoStopEnabled ? '' : 'opacity-50 pointer-events-none mt-4 space-y-4'}>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <NumberInput
                     id="ddos-stop-minutes"
-                    label="Cooldown Minutes"
+                    label="Auto-stop Cooldown Minutes"
                     value={ddosStopMinutes}
                     onChange={setDdosStopMinutes}
                     min={1}
@@ -168,24 +312,93 @@ const DDoS: React.FC<DDoSProps> = ({
                   />
                   <NumberInput
                     id="ddos-max-stop-count"
-                    label="Max Auto-Stop Count (0 = unlimited)"
+                    label="Maximum Auto-stop Count (0 = unlimited)"
                     value={ddosMaxStopCount}
                     onChange={setDdosMaxStopCount}
                     min={0}
                     max={100}
                   />
                 </div>
+
+                {ddosMode === 'port_switch' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <NumberInput
+                      id="ddos-alt-port"
+                      label="Alternate Panel Port"
+                      value={ddosAltPort}
+                      onChange={setDdosAltPort}
+                      min={1}
+                      max={65535}
+                    />
+                    <div className="flex items-end">
+                      <p className="text-xs text-gray-500 pb-2">
+                        While under attack the panel closes its current port and serves here instead. Bookmark it — must differ from the current panel port.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-white/5 mt-2">
+                  <NumberInput
+                    id="ddos-global-trigger-hits"
+                    label="Traffic Threshold (requests, 0 = off)"
+                    value={ddosGlobalHits}
+                    onChange={setDdosGlobalHits}
+                    min={0}
+                    max={1000000}
+                  />
+                  <NumberInput
+                    id="ddos-global-trigger-window"
+                    label="Threshold Window (seconds)"
+                    value={ddosGlobalWindow}
+                    onChange={setDdosGlobalWindow}
+                    min={5}
+                    max={60}
+                  />
+                </div>
+                <p className="text-xs text-gray-500">
+                  Global burst detector catches distributed floods spread over many IPs that no single-IP limit would trip.
+                </p>
               </div>
             </section>
 
-            <div className="flex justify-start">
+            <section>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-3">
+                Attack History
+              </h3>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="rounded-md border border-white/[0.06] bg-black/20 p-3">
+                  <div className="text-lg font-semibold text-white">{snap?.ddos_stop_count ?? 0}</div>
+                  <div className="text-[11px] text-gray-500 uppercase tracking-wide">Reactions triggered</div>
+                </div>
+                <div className="rounded-md border border-white/[0.06] bg-black/20 p-3">
+                  <div className="text-lg font-semibold text-white">{snap?.ddos_tcp_dropped ?? 0}</div>
+                  <div className="text-[11px] text-gray-500 uppercase tracking-wide">TCP connections dropped</div>
+                </div>
+                <div className="rounded-md border border-white/[0.06] bg-black/20 p-3">
+                  <div className="text-lg font-semibold text-white">
+                    {snap?.blocked_requests ?? 0}
+                  </div>
+                  <div className="text-[11px] text-gray-500 uppercase tracking-wide">Blocked requests (window)</div>
+                </div>
+              </div>
+            </section>
+
+            <div className="flex justify-start gap-2">
               <button
                 type="button"
                 onClick={handleDDOSManualStop}
                 className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded text-sm disabled:opacity-60"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect x="2" y="2" width="20" height="20" rx="2"/><line x1="6" y1="10" x2="18" y2="10"/></svg>
-                Test
+                Test Reaction
+              </button>
+              <button
+                type="button"
+                onClick={handleDDOSReset}
+                className="inline-flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded text-sm disabled:opacity-60"
+              >
+                Resume / Reset State
               </button>
             </div>
 

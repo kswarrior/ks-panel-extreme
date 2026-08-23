@@ -14,7 +14,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useInstance, parseConfig, extractConfig } from '@/shared/hooks/useInstance';
 import type { Instance, DriverKind } from '@/shared/types/instance';
-import { listTemplates } from '@/shared/api/admin';
 import { isPageAllowed } from '@/shared/utils/instancePages';
 import {
   parseBytes, joinPath, timeAgo,
@@ -30,21 +29,21 @@ import type { BuiltinPageManifestEntry } from './types';
 
 export const InstanceSettings: React.FC = () => {
   const { instance, loading, error } = useInstanceFromParams();
-  const [templates, setTemplates] = useState<Awaited<ReturnType<typeof listTemplates>>>([]);
-  const [tplLoading, setTplLoading] = useState(true);
-  useEffect(() => {
-    let cancelled = false;
-    listTemplates().then((ts) => { if (!cancelled) setTemplates(ts); }).finally(() => { if (!cancelled) setTplLoading(false); });
-    return () => { cancelled = true; };
-  }, []);
   if (loading || error || !instance) return <LoadingOrError loading={loading} error={error} kind="settings" />;
-  if (tplLoading) return <LoadingOrError loading={true} error="" kind="settings" />;
-  const t = templates.find((x) => x.id === instance.template_id);
-  const spec = t ? parseConfig(t.spec) : null;
+  // Resolve the spec from the INSTANCE's own stored config (the deploy-time
+  // snapshot that already includes the deploy form's page overrides) — NOT
+  // from the live template. This is what makes each instance's page set
+  // independent: a Settings page added at deploy time shows up here, even
+  // when the live template spec doesn't list it yet (the user hasn't saved
+  // the template back). Without this, every Settings tab opened on a
+  // freshly-deployed instance showed "This page is not part of this
+  // instance's template." because the live `t.spec` is whatever the
+  // template author shipped, not what the deploy form appended.
+  const spec = parseConfig(instance.config);
   if (!isPageAllowed('settings', spec)) {
     return <div className="glass-card rounded-xl text-center text-gray-400"><p className="text-sm">This page is not part of this instance's template.</p></div>;
   }
-  const cfg = extractConfig(parseConfig(instance.config));
+  const cfg = extractConfig(spec);
 
   return (
     <div className="space-y-4">

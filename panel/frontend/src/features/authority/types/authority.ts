@@ -7,6 +7,14 @@ export interface AuthorityProvider {
   client_secret?: string;
   scopes?: string;
   redirect_uri?: string;
+  // Provider-specific extras (Security → Authority tab config modal):
+  tenant?: string;      // Microsoft: tenant id / domain / common|organizations|consumers
+  team_id?: string;     // Apple developer team id
+  key_id?: string;      // Apple .p8 key id
+  private_key?: string; // Apple .p8 contents — write-only, never echoed back
+  // Computed server-side on read: every credential this provider's sign-in
+  // flow needs is present. Write-ignored.
+  configured?: boolean;
   kind?: 'oauth' | 'channel';
 }
 
@@ -47,6 +55,30 @@ export interface AuthorityConfig {
   registration_allowed_providers?: string[];
   otp?: AuthorityOTPOptions;
   app_connect?: AuthorityAppConnection;
+  password_policy?: AuthorityPasswordPolicy;
+  password_history?: AuthorityPasswordHistory;
+}
+
+export interface AuthorityPasswordPolicy {
+  min_length: number;
+  max_length: number;
+  require_upper: boolean;
+  min_upper: number;
+  require_lower: boolean;
+  min_lower: number;
+  require_number: boolean;
+  min_number: number;
+  require_symbol: boolean;
+  min_symbol: number;
+  no_common: boolean;
+  no_personal: boolean;
+}
+
+// Mirrors models.AuthorityPasswordHistory — reuse rejection for changed
+// passwords (Security page → Authentication tab).
+export interface AuthorityPasswordHistory {
+  enabled: boolean;
+  max_history: number;
 }
 
 export const AUTHORITY_SECRET_KEEP = '*';

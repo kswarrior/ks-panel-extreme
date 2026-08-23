@@ -27,14 +27,17 @@ import (
 	"time"
 
 	"github.com/example/ksedge/internal/drivers"
+	"github.com/example/ksedge/internal/execstage"
 )
 
 // Request matches the wire format the panel's edge.ExecRequest emits.
 // Command is a single shell string the edge runs through /bin/sh -c; Env is
 // an optional map of variables to export at the top of that script so an
 // automation job can reference vaulted secrets without hard-coding them.
-// TimeoutSec caps the run; 0 means "use the edge default" (5 minutes), the
-// same convention the panel's edge client documents.
+// Files optionally stages {path,content} entries into a fresh temp dir the
+// command starts in (application runs). TimeoutSec caps the run; 0 means
+// "use the edge default" (5 minutes), the same convention the panel's edge
+// client documents.
 type Request struct {
 	Token      string            `json:"token"`
 	Action     string            `json:"action"` // "exec" (kept for symmetry)
@@ -42,6 +45,7 @@ type Request struct {
 	Name       string            `json:"name"`
 	Command    string            `json:"command"`
 	Env        map[string]string `json:"env,omitempty"`
+	Files      []execstage.File  `json:"files,omitempty"`
 	TimeoutSec int               `json:"timeout_sec,omitempty"`
 }
 
@@ -108,13 +112,17 @@ func Handler(token string) http.Handler {
 		ctx, cancel := context.WithTimeout(r.Context(), timeout)
 		defer cancel()
 
-		// Fold the requested env into the shell script: exporting at the top
-		// of the /bin/sh -c invocation keeps every driver on the same path
-		// (no per-driver -e flag plumbing) and lets a job reference vaulted
-		// secrets by name. Keys are restricted to shell-safe identifiers so a
-		// hostile key can't terminate the export block early; values are
-		// single-quoted with embedded quotes escaped.
-		script := buildScript(req.Env, req.Command)
+		// Build the /bin/sh program via the shared staging package: env
+		// exports, optional file staging into a fresh temp dir, then the
+		// command. Keys are restricted to shell-safe identifiers, values
+		// are single-quote escaped and file contents travel inside quoted
+		// heredocs so a hostile payload can't break out of the script.
+		script, serr := execstage.Script(req.Env, req.Files, req.Command)
+		if serr != nil {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(Response{OK: false, Error: serr.Error()})
+			return
+		}
 
 		sess, err := drv.Exec(ctx, req.Name, false, 0, 0, []string{"/bin/sh", "-c", script})
 		if err != nil {
@@ -174,50 +182,6 @@ func Handler(token string) http.Handler {
 			ExitCode: exitCode,
 		})
 	})
-}
-
-// buildScript returns a /bin/sh -c script that exports the requested env and
-// then runs command. Keys are validated against the POSIX env-var identifier
-// rule ([A-Za-z_][A-Za-z0-9_]*) so a malformed key can't inject shell markup;
-// values are single-quoted, with embedded single quotes escaped as '\”
-// (closing the quote, escaping the literal, reopening). The trailing newline
-// guarantees the export block stays a separate statement from `command` even
-// when command starts on the same logical line.
-func buildScript(env map[string]string, command string) string {
-	var b strings.Builder
-	for k, v := range env {
-		if !isEnvName(k) {
-			continue
-		}
-		b.WriteString("export ")
-		b.WriteString(k)
-		b.WriteByte('=')
-		b.WriteByte('\'')
-		b.WriteString(strings.ReplaceAll(v, "'", "'\\''"))
-		b.WriteString("'\n")
-	}
-	b.WriteString(command)
-	return b.String()
-}
-
-// isEnvName reports whether s is a valid POSIX env-var identifier. We accept
-// the leading-underscore-but-not-digit rule so the export line can't be
-// subverted by a key that the shell would re-tokenise.
-func isEnvName(s string) bool {
-	if s == "" {
-		return false
-	}
-	for i, r := range s {
-		if r == '_' {
-			continue
-		}
-		if r < 'A' || (r > 'Z' && r < 'a') || r > 'z' {
-			if r < '0' || r > '9' || i == 0 {
-				return false
-			}
-		}
-	}
-	return true
 }
 
 // writeErr emits Response{OK:false, Error: msg} with the chosen HTTP status.

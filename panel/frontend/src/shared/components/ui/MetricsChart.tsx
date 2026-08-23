@@ -100,7 +100,7 @@ export const AreaChart: React.FC<AreaChartProps> = ({
   heightClass = 'h-44',
   optimistic = true,
   threshold,
-  thresholdColor = '#fbbf24',
+  thresholdColor = 'var(--ks-accent-warning, #fbbf24)',
 }) => {
   // Down-sample for the polyline — keep up to ~80 points for a clean path
   // but render whatever the parent gives us (the 5s poll caps samples at
@@ -200,7 +200,7 @@ export const AreaChart: React.FC<AreaChartProps> = ({
               y1={t.y}
               x2={VIEW_W}
               y2={t.y}
-              stroke="rgba(255,255,255,0.06)"
+              stroke="var(--ks-chart-grid, rgba(255,255,255,0.06))"
               strokeWidth="0.2"
               vectorEffect="non-scaling-stroke"
             /> 
@@ -265,7 +265,7 @@ export const AreaChart: React.FC<AreaChartProps> = ({
               strokeWidth="0.2"
               vectorEffect="non-scaling-stroke"
             />
-            <circle cx={dots[hover].x} cy={dots[hover].y} r="0.9" fill="#ffffff" /> 
+            <circle cx={dots[hover].x} cy={dots[hover].y} r="0.9" fill="var(--ks-chart-dot, #ffffff)" />
           </g>
         )} 
       </svg>
@@ -325,8 +325,8 @@ export const DonutChart: React.FC<DonutChartProps> = ({
   size = 132,
   warnAt = 75,
   dangerAt = 90,
-  warnColor = '#fbbf24',
-  dangerColor = '#f87171',
+  warnColor = 'var(--ks-accent-warning, #fbbf24)',
+  dangerColor = 'var(--ks-accent-danger, #f87171)',
 }) => {
   const safe = clamp(pct, 0, 100);
   const arcColor = safe >= dangerAt ? dangerColor : safe >= warnAt ? warnColor : color;

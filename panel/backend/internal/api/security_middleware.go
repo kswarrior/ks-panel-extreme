@@ -2,12 +2,15 @@ package api
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/example/kspanel/internal/api/handlers"
+	"github.com/example/kspanel/internal/models"
 	"github.com/example/kspanel/internal/repository"
 	"github.com/example/kspanel/internal/security"
 )
@@ -39,41 +42,48 @@ func SecurityMiddleware(next http.Handler) http.Handler {
 		isAsset := isStaticAsset(path)
 		cfg := state.Cfg()
 		clientIP := securityClientIP(r)
+		// The IP allow/deny matchers work on a bare address, while
+		// clientIP may carry the RemoteAddr port suffix ("1.2.3.4:5678").
+		clientHost := clientIP
+		if h, _, err := net.SplitHostPort(clientIP); err == nil && h != "" {
+			clientHost = h
+		}
 
 		// Exempt security endpoints from DDoS blocking so admin can always
 		// access the panel to disable DDoS or view status.
 		isSecurityEndpoint := strings.HasPrefix(path, "/api/security")
 
-		// Check DDoS auto-stop cooldown: if active and cooldown expired, clear it.
-		if !isAsset && !isSecurityEndpoint {
-			if state.DDOSActive() {
-				stopAt := state.DDOSStopAt()
-				if !stopAt.IsZero() && time.Now().After(stopAt) {
-					state.ClearDDOSAutoStop()
-					// Also clear UnderAttack in DB (async, best effort)
-					go func() {
-						con, err := repository.OpenDB()
-						if err != nil {
-							return
-						}
-						defer con.Close()
-						repo := repository.NewSecurityRepository(con)
-						_ = repo.SetUnderAttack(false)
-						security.Get().Reload()
-					}()
-				}
-			}
+		// 0a) Firewall deny list: an explicit admin decision, so it wins
+		//     over every other check (including static assets).
+		ipDenied := cfg.IPDenied(clientHost)
+
+		// 0b) HTTP-method allowlist + suspicious-path block (WAF /
+		//     Request Filtering section of the Firewall tab). Skipped for
+		//     static assets like every other content check.
+		methodBlocked := !isAsset && !cfg.MethodAllowed(r.Method)
+		suspiciousBlocked := !isAsset && cfg.BlockSuspiciousPaths && isSuspiciousPath(path)
+
+		// Check DDoS auto-stop cooldown: if active and cooldown expired, clear
+		// it (shared helper — the port switcher's poller clears the same way
+		// when no legitimate traffic ever arrives to run this branch).
+		if !isAsset && !isSecurityEndpoint && state.ClearDDOSIfExpired() {
+			go func() {
+				security.ClearUnderAttackFlag()
+				security.Get().Reload()
+			}()
 		}
 
-		// DDoS auto-stop enforcement: when the DDoS auto-stop is active,
-		// refuse every request that is not a security endpoint or static
-		// asset so the panel actually stops forwarding traffic to the
-		// downstream handlers. Without this short-circuit the UI badge
-		// would flip to "Panel Stopped" but the panel would still serve
-		// the next refresh normally. Security endpoints stay reachable
-		// so the admin can hit the reset endpoint to lift the stop.
+		// DDoS stop-mode enforcement: when auto-stop is active AND the
+		// configured reaction mode is "stop", refuse every request that is
+		// not a security endpoint or static asset so the panel actually
+		// stops forwarding traffic to the downstream handlers. In
+		// "port_switch" mode the defense is relocating the listener
+		// (internal/security/portswitch.go) — traffic that DOES arrive on
+		// the live port must be served so the panel stays usable during
+		// the attack. Security endpoints stay reachable in both modes so
+		// the admin can hit the reset endpoint.
 		ddosBlocked := false
-		if !isAsset && !isSecurityEndpoint && state.DDOSActive() {
+		if !isAsset && !isSecurityEndpoint && state.DDOSActive() && cfg.DDOSMode == models.DDOSModeStop {
 			ddosBlocked = true
 		}
 
@@ -83,16 +93,21 @@ func SecurityMiddleware(next http.Handler) http.Handler {
 
 		// 2) Per-IP rate limit. Skipped entirely for static assets so
 		//    the page-load CSS/JS bundles can never be throttled under
-		//    the same cap as API traffic.
+		//    the same cap as API traffic, and for IPs on the Firewall
+		//    allowlist (that list's whole purpose is bypassing throttle).
 		ipBlocked := false
-		if !isAsset && cfg.PerMinuteLimit > 0 {
+		if !isAsset && cfg.PerMinuteLimit > 0 && !cfg.IPAllowlisted(clientHost) {
 			if !state.IPAllowed(clientIP) {
 				ipBlocked = true
 
-				// 2b) DDoS auto-stop trigger: if UnderAttack is on and DDoS
-				// auto-stop is enabled, and this IP got rate-limited,
-				// trigger the auto-stop (panel stops accepting new requests).
-				if !isSecurityEndpoint && cfg.UnderAttack && cfg.DDOSAutoStopEnabled {
+				// 2b) DDoS auto-stop trigger: if auto protection is enabled
+				//     and this IP got rate-limited, trigger the reaction
+				//     configured by ddos_mode (stop requests / move port).
+				//     Detection is autonomous — it deliberately does NOT
+				//     require the manual Under-Attack toggle, which is an
+				//     operator choice for the global RPM ceiling, not a
+				//     precondition for DDoS defense.
+				if !isSecurityEndpoint && cfg.DDOSAutoStopEnabled {
 					triggerDDOSAutoStop(state, cfg)
 				}
 			}
@@ -116,12 +131,32 @@ func SecurityMiddleware(next http.Handler) http.Handler {
 			}
 		}
 
+		// 3b) Global burst detector: a distributed flood spread across
+		//     thousands of client IPs can stay under every per-IP cap
+		//     while the panel as a whole drowns. When armed (hits > 0)
+		//     and auto protection is on, crossing the rolling total for
+		//     the configured window trips the same reaction as the
+		//     per-IP path. Skipped while a stop is already active so the
+		//     flood can't keep re-arming during cooldown.
+		if !isAsset && !isSecurityEndpoint && cfg.DDOSAutoStopEnabled &&
+			cfg.DDOSGlobalTriggerHits > 0 && !state.DDOSActive() {
+			win := int(cfg.DDOSGlobalTriggerWindow)
+			if win < 1 || win > 60 {
+				win = 10 // mirrors the PUT handler clamp; defensive only
+			}
+			if state.RecentHits(win)+1 >= cfg.DDOSGlobalTriggerHits {
+				triggerDDOSAutoStop(state, cfg)
+			}
+		}
+
 		// Decide on a status BEFORE we hand off to the handler. Pick the
 		// most informative one: UA-empty policy uses 403 (hard policy),
-		// per-IP / global rate limits use 429 (temporary throttle), and
-		// the DDoS auto-stop uses 503 (Service Unavailable) so it is
-		// distinguishable from a generic throttle.
-		blocked := uaBlocked || ipBlocked || globalBlocked || ddosBlocked
+		// per-IP / global rate limits use 429 (temporary throttle), the
+		// DDoS auto-stop uses 503 (Service Unavailable) so it is
+		// distinguishable from a generic throttle, and the Firewall
+		// deny-list / suspicious-path blocks use 403 while a disallowed
+		// method answers 405.
+		blocked := uaBlocked || ipBlocked || globalBlocked || ddosBlocked || ipDenied || methodBlocked || suspiciousBlocked
 		sbw := &statusBytesWriter{ResponseWriter: w, status: http.StatusOK}
 		if blocked {
 			status := http.StatusTooManyRequests
@@ -130,6 +165,10 @@ func SecurityMiddleware(next http.Handler) http.Handler {
 				status = http.StatusForbidden
 			case ddosBlocked:
 				status = http.StatusServiceUnavailable
+			case methodBlocked:
+				status = http.StatusMethodNotAllowed
+			case ipDenied, suspiciousBlocked:
+				status = http.StatusForbidden
 			}
 			sbw.status = status
 			w.Header().Set("Retry-After", "60")
@@ -201,6 +240,39 @@ func stripQuery(p string) string {
 		return p[:i]
 	}
 	return p
+}
+
+// suspiciousProbePaths are the well-known scanner/probe targets blocked
+// when the Firewall tab's "Block Suspicious Requests" knob is on. Kept as
+// a prefix list: real exploit kits probe dozens of variants under each of
+// these roots, and an exact-match table would age badly.
+var suspiciousProbePaths = []string{
+	"/.env",
+	"/.git",
+	"/.aws",
+	"/wp-admin",
+	"/wp-login.php",
+	"/wordpress/",
+	"/phpmyadmin",
+	"/pma/",
+	"/vendor/phpunit",
+	"/actuator",
+	"/cgi-bin/",
+	"/config.json",
+	"/backup.sql",
+	"/dump.sql",
+}
+
+// isSuspiciousPath reports whether a request path looks like an automated
+// vulnerability scan rather than legitimate panel traffic.
+func isSuspiciousPath(p string) bool {
+	lower := strings.ToLower(p)
+	for _, prefix := range suspiciousProbePaths {
+		if strings.HasPrefix(lower, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // isStaticAsset reports whether the request path targets a bundled SPA
@@ -285,52 +357,51 @@ func (s *statusBytesWriter) contentLengthHeader() int64 {
 	return 0
 }
 
-// triggerDDOSAutoStop attempts to trigger the DDoS auto-stop mechanism.
-// It checks if max stop count has been reached, increments the counter,
-// sets the cooldown, and flips UnderAttack to true.
-// This runs in a goroutine so it doesn't block the request that triggered it.
-func triggerDDOSAutoStop(state *security.State, cfg *security.Cfg) {
-	// Check max stop count (0 = unlimited)
-	if cfg.DDOSMaxStopCount > 0 {
-		count := state.DDOSStopCount()
-		if count >= cfg.DDOSMaxStopCount {
-			return
-		}
-	}
+// ddosTriggerInFlight collapses bursts of simultaneous trigger attempts
+// (a flood trips hundreds of blocked requests per second) into a single
+// in-flight attempt, so the hot path never queues goroutines and the
+// settings KV is never hammered by parallel increments.
+var ddosTriggerInFlight atomic.Bool
 
-	// Only trigger once per DDoS event - check if already active
-	if state.DDOSActive() {
+// triggerDDOSAutoStop activates the configured DDoS reaction (stop
+// requests or port switch). It enforces the operator's max-stop-count cap
+// (0 = unlimited), increments the trigger counter, sets the cooldown and
+// flips the persisted Under-Attack flag so the UI reflects why the panel
+// stopped answering normally.
+//
+// All database work happens on one goroutine at a time: the previous
+// version read the stop count synchronously per blocked request and let
+// every blocked request spawn its own increment goroutine, which both
+// slowed the hot path under exactly the load it was built for and let
+// concurrent increments overshoot the max-stop-count cap.
+func triggerDDOSAutoStop(state *security.State, cfg *security.Cfg) {
+	// Cheap gate first: already stopped, or another attempt is mid-flight
+	// (it re-reads fresh state from the DB when it finishes).
+	if state.DDOSActive() || !ddosTriggerInFlight.CompareAndSwap(false, true) {
 		return
 	}
-
 	go func() {
+		defer ddosTriggerInFlight.Store(false)
+
 		con, err := repository.OpenDB()
 		if err != nil {
 			return
 		}
 		defer con.Close()
-
 		repo := repository.NewSecurityRepository(con)
 
-		// Increment stop count
 		newCount, err := repo.IncrementDDOSStopCount()
 		if err != nil {
 			return
 		}
-
-		// Check max again after increment (race condition protection)
 		if cfg.DDOSMaxStopCount > 0 && newCount > cfg.DDOSMaxStopCount {
 			return
 		}
 
-		// Set cooldown
 		stopAt := time.Now().Add(time.Duration(cfg.DDOSStopMinutes) * time.Minute)
 		_ = repo.SetDDOSCooldownUntil(stopAt)
-
-		// Set UnderAttack = true in DB
 		_ = repo.SetUnderAttack(true)
 
-		// Update live state
 		state.SetDDOSActive(true, stopAt)
 		security.Get().Reload()
 	}()

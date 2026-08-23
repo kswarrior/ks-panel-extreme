@@ -4,7 +4,7 @@ import { useInstanceNav } from '@/shared/components/layout/InstanceNavContext';
 import { createPortal } from 'react-dom';
 
 const InstanceTabs: React.FC = () => {
-  const { nav, instanceId } = useInstanceNav();
+  const { nav, instanceId, loading } = useInstanceNav();
   const location = useLocation();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showFade, setShowFade] = useState(false);
@@ -85,8 +85,41 @@ const InstanceTabs: React.FC = () => {
     };
   }, [showAllPagesDropdown]);
 
-  if (!instanceId || nav.length === 0) {
+  if (!instanceId) {
     return null;
+  }
+
+  // While the instance fetch is in flight (or the spec has been parsed but
+  // resolveInstanceNav hasn't produced entries yet) render a shimmering
+  // skeleton placeholder instead of `null`. Without this the tab bar would
+  // flicker to empty for a few hundred ms on every navigation — the user
+  // landed on the sub-page without a header, looking like the whole
+  // nav had disappeared.
+  if (loading || nav.length === 0) {
+    return (
+      <div className="w-full flex-shrink-0 relative bg-transparent">
+        <div className="relative">
+          <nav
+            className="flex items-center gap-1 px-0 py-2 overflow-x-auto"
+            aria-label="Instance pages"
+            aria-busy="true"
+          >
+            <div className="shrink-0 w-8 h-8 rounded bg-neutral-800/60 animate-pulse" />
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div
+                key={i}
+                className="shrink-0 h-7 w-20 rounded-md bg-neutral-800/60 animate-pulse"
+                style={{ animationDelay: `${i * 80}ms` }}
+              />
+            ))}
+          </nav>
+        </div>
+        <div
+          className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-t from-white/10 via-transparent to-transparent pointer-events-none instance-tabs-scroll-indicator"
+          aria-hidden="true"
+        />
+      </div>
+    );
   }
 
   // All Pages Dropdown Portal

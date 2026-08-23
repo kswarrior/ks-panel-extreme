@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	appURLFetchMaxBytes  = 8 << 20
-	appURLFetchTimeout   = 15 * time.Second
+	appURLFetchMaxBytes   = 8 << 20
+	appURLFetchTimeout    = 15 * time.Second
 	appURLFetchDNSTimeout = 5 * time.Second
 )
 
@@ -41,24 +41,26 @@ type appResponse struct {
 	Runtime       string                      `json:"runtime"`
 	Entrypoint    string                      `json:"entrypoint"`
 	ConfigSchema  json.RawMessage             `json:"config_schema"`
+	Files         json.RawMessage             `json:"files"`
+	Env           json.RawMessage             `json:"env"`
 	Permissions   json.RawMessage             `json:"permissions"`
-	Active        bool                        `json:"active"`
-	UploadedBy    *int64                      `json:"uploaded_by,omitempty"`
-	OwnerName     string                      `json:"owner_name,omitempty"`
-	Source        string                      `json:"source"`
-	SourceURL     string                      `json:"source_url,omitempty"`
-	PermissionRows []appPermissionView        `json:"permission_rows"`
-	Pending       int                         `json:"pending"`
-	CreatedAt     string                      `json:"created_at"`
-	UpdatedAt     string                      `json:"updated_at"`
+	Active         bool                `json:"active"`
+	UploadedBy     *int64              `json:"uploaded_by,omitempty"`
+	OwnerName      string              `json:"owner_name,omitempty"`
+	Source         string              `json:"source"`
+	SourceURL      string              `json:"source_url,omitempty"`
+	PermissionRows []appPermissionView `json:"permission_rows"`
+	Pending        int                 `json:"pending"`
+	CreatedAt      string              `json:"created_at"`
+	UpdatedAt      string              `json:"updated_at"`
 }
 
 type appPermissionView struct {
-	ID           int64  `json:"id"`
-	ApplicationID int64 `json:"application_id"`
-	Capability   string `json:"capability"`
-	AccessLevel  string `json:"access_level"`
-	Granted      bool   `json:"granted"`
+	ID            int64  `json:"id"`
+	ApplicationID int64  `json:"application_id"`
+	Capability    string `json:"capability"`
+	AccessLevel   string `json:"access_level"`
+	Granted       bool   `json:"granted"`
 }
 
 func openAppRepo() (*repository.ApplicationRepository, func()) {
@@ -100,16 +102,18 @@ func toAppResponse(repo *repository.ApplicationRepository, app *models.Applicati
 		Runtime:       app.Runtime,
 		Entrypoint:    app.Entrypoint,
 		ConfigSchema:  app.ConfigSchema,
+		Files:         app.Files,
+		Env:           app.Env,
 		Permissions:   app.Permissions,
-		Active:        app.Active,
-		UploadedBy:    app.UploadedBy,
-		OwnerName:     app.OwnerName,
-		Source:        source,
-		SourceURL:     app.SourceURL,
+		Active:         app.Active,
+		UploadedBy:     app.UploadedBy,
+		OwnerName:      app.OwnerName,
+		Source:         source,
+		SourceURL:      app.SourceURL,
 		PermissionRows: out,
-		Pending:       pending,
-		CreatedAt:     isoString(app.CreatedAt),
-		UpdatedAt:     isoString(app.UpdatedAt),
+		Pending:        pending,
+		CreatedAt:      isoString(app.CreatedAt),
+		UpdatedAt:      isoString(app.UpdatedAt),
 	}
 }
 
@@ -163,6 +167,7 @@ type appUpsertDTO struct {
 	Runtime        string                     `json:"runtime"`
 	Entrypoint     string                     `json:"entrypoint"`
 	ConfigSchema   json.RawMessage            `json:"config_schema"`
+	Files          json.RawMessage            `json:"files"`
 	PermissionsReq []repository.ApplicationPermissionReq `json:"permissionsRequested"`
 }
 
@@ -245,6 +250,7 @@ func CreateApplicationHandler(w http.ResponseWriter, r *http.Request) {
 		Runtime:        in.Runtime,
 		Entrypoint:     in.Entrypoint,
 		ConfigSchema:   in.ConfigSchema,
+		Files:          in.Files,
 		PermissionsReq: in.PermissionsReq,
 		UploadedBy:     uid,
 		Source:         source,
@@ -377,6 +383,7 @@ func UpdateApplicationHandler(w http.ResponseWriter, r *http.Request) {
 		Runtime:      dto.Runtime,
 		Entrypoint:   dto.Entrypoint,
 		ConfigSchema: dto.ConfigSchema,
+		Files:        dto.Files,
 	})
 	if err != nil {
 		http.Error(w, "application not found", http.StatusNotFound)
@@ -467,9 +474,9 @@ func SetApplicationGrantsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 type appActivateConflict struct {
-	Error      string            `json:"error"`
-	Message    string            `json:"message"`
-	Pending    int               `json:"pending"`
+	Error       string              `json:"error"`
+	Message     string              `json:"message"`
+	Pending     int                 `json:"pending"`
 	Permissions []appPermissionView `json:"permissions"`
 }
 

@@ -47,13 +47,17 @@ const Modal: React.FC<ModalProps> = ({
   if (!open) return null;
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center
+      className="ks-modal-overlay fixed inset-0 z-50 flex items-center justify-center
                 bg-black/60 backdrop-blur-sm p-4"
       role="dialog"
       aria-modal="true"
       aria-label={title}
     >
-      <div className={`glass-strong ${modifier} rounded-xl w-full ${maxWidth} max-h-[90dvh] overflow-y-auto`}>
+      {/* ks-modal-panel lets the Theme Studio's Components section restyle
+          the dialog surface (fill / border / shadow / radius / blur). The
+          glass-strong base stays so the panel renders identically before
+          any customisation. */}
+      <div className={`ks-modal-panel glass-strong ${modifier} rounded-xl w-full ${maxWidth} max-h-[90dvh] overflow-y-auto`}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 sticky top-0 bg-white/[0.05] backdrop-blur-xl z-10">
           <h3 className="text-lg font-semibold text-white">{title}</h3>
           <button

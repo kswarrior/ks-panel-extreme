@@ -14,8 +14,8 @@ const ALLOWED_LOGO_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif',
 // The Settings page is now the BRAND panel — only the panel name + logo
 // live here. Everything auth-related (SMTP, registration gates, OAuth
 // providers, OTP/SMS channels, the TOTP authenticator-app connection,
-// and the configurable registration requirement policy) moved to the
-// dedicated Authority admin page (admin/authority). The SettingsHandler
+// and the configurable registration requirement policy) moved to
+// Security > Authority. The SettingsHandler
 // backend still accepts the auth fields, but Settings no longer sends
 // them — leaving their persisted values intact for the Authority page
 // to read + write.
@@ -60,7 +60,7 @@ const Settings: React.FC = () => {
     setSuccess('');
     try {
       // We only send the brand fields — auth-related fields (SMTP, allow
-      // registration, verify_required, etc) live on the Authority page
+      // registration, verify_required, etc) live on Security > Authority
       // now and must not be wiped here.
       const snap = await updateSettings({ panel_name: name.trim() });
       setName(snap.panel_name);

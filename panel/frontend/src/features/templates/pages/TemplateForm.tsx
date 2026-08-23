@@ -91,8 +91,14 @@ const TemplatePagesImportModal: React.FC<TemplatePagesImportModalProps> = ({
 }) => {
   const q = search.trim().toLowerCase();
   const filteredInstance = useMemo(() => {
-    if (!q) return instancePages;
-    return instancePages.filter(
+    // /api/instance-pages/ returns BOTH `kind: 'builtin'` and `kind: 'custom'`
+    // rows from the on-disk library. The "Built-in pages" section above
+    // already lists the static BUILTIN_PAGE_MANIFEST entries, so the
+    // "Custom pages" section must exclude any `kind: 'builtin'` row to
+    // avoid duplicating built-ins between the two sections.
+    const customOnly = instancePages.filter((p) => p.kind !== 'builtin');
+    if (!q) return customOnly;
+    return customOnly.filter(
       (p) =>
         p.name.toLowerCase().includes(q) ||
         p.slug.toLowerCase().includes(q) ||
@@ -109,9 +115,18 @@ const TemplatePagesImportModal: React.FC<TemplatePagesImportModalProps> = ({
 
   const handleAdd = () => {
     const additions: PageOverride[] = [];
-    // Built-in selections: resolve to manifest entries.
+    // Slugs already on the parent's pages array — skip those to avoid
+    // adding the same page twice. We also accumulate additions inline so
+    // the second loop doesn't add a duplicate of a slug the first loop
+    // already resolved (the on-disk `instance_pages/` directory can ship
+    // both a `kind: 'builtin'` and a `kind: 'custom'` row for the same
+    // slug; without this guard both rows would land in the result and the
+    // page card would render twice — once as builtin, once as custom).
+    const skip = new Set<string>(existingSlugs);
+    // 1. Built-in selections: resolve to manifest entries (Home / Files /
+    //    Network / …).
     for (const slug of Array.from(selected)) {
-      if (existingSlugs.has(slug)) continue;
+      if (skip.has(slug)) continue;
       const entry = BUILTIN_PAGE_MANIFEST.bySlug[slug];
       if (entry) {
         additions.push({
@@ -122,11 +137,16 @@ const TemplatePagesImportModal: React.FC<TemplatePagesImportModalProps> = ({
           icon_svg: entry.iconSvg,
           kind: 'builtin',
         });
+        skip.add(slug);
       }
     }
-    // Custom selections: resolve to Instance Pages library entries.
+    // 2. Custom selections: resolve to Instance Pages library entries.
     for (const p of instancePages) {
-      if (!selected.has(p.slug) || existingSlugs.has(p.slug)) continue;
+      if (!selected.has(p.slug) || skip.has(p.slug)) continue;
+      // `instance_pages/` ships both builtin + custom rows; skip builtin
+      // entries here so a slug already added as a builtin (by loop 1) is
+      // never also added as a "custom" row from the same source.
+      if (p.kind === 'builtin') continue;
       additions.push({
         slug: p.slug,
         original_slug: '',
@@ -139,6 +159,7 @@ const TemplatePagesImportModal: React.FC<TemplatePagesImportModalProps> = ({
         content_markdown: p.content_markdown || '',
         content_blocks: p.content_blocks || '',
       });
+      skip.add(p.slug);
     }
     if (additions.length > 0) {
       onAddPages(additions);
@@ -600,37 +621,39 @@ const TemplateForm: React.FC = () => {
       onSubmit={submit}
       maxWidth="max-w-4xl"
     >
-      <div className="space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4">
         <TemplateTabs tab={tab} onChange={setTab} />
+        <div className="space-y-4">
 
         {tab === 'general' && (
-          <>
-          <GlassField label="Name" htmlFor="name">
-            <input id="name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="my-template" required />
-          </GlassField>
-          <GlassField label="Description" htmlFor="description">
-            <textarea id="description" rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Brief description of this template" />
-          </GlassField>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <GlassField label="Kind" htmlFor="kind">
-              <select id="kind" value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value as DriverKind })} className="glass-field">
-                <option value="docker">Docker</option>
-                <option value="lxd">LXD</option>
-                <option value="kvm">KVM</option>
-                <option value="multipass">Multipass</option>
-              </select>
+          <div className={sectionCls}>
+            <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">Section A · General Information</h4>
+            <GlassField label="Name" htmlFor="name">
+              <input id="name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="my-template" required />
             </GlassField>
-            <GlassField label="Image" htmlFor="image">
-              <input id="image" value={form.image} onChange={(e) => setForm({ ...form, image: e.target.value })} placeholder="e.g. itzg/minecraft-server:latest" required />
+            <GlassField label="Description" htmlFor="description">
+              <textarea id="description" rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Brief description of this template" />
             </GlassField>
-            <GlassField label="Category" htmlFor="category">
-              <TagPicker value={form.category} options={['game', 'web', 'database', 'proxy', 'bot', 'other']} placeholder="game" onChange={(v) => setForm({ ...form, category: v })} onAdd={(v) => setForm({ ...form, category: v })} onDelete={() => setForm({ ...form, category: '' })} />
-            </GlassField>
-            <GlassField label="Type" htmlFor="type">
-              <TagPicker value={form.type} options={['minecraft', 'nginx', 'postgres', 'redis', 'generic']} placeholder="minecraft" onChange={(v) => setForm({ ...form, type: v })} onAdd={(v) => setForm({ ...form, type: v })} onDelete={() => setForm({ ...form, type: '' })} />
-            </GlassField>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <GlassField label="Kind" htmlFor="kind">
+                <select id="kind" value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value as DriverKind })} className="glass-field">
+                  <option value="docker">Docker</option>
+                  <option value="lxd">LXD</option>
+                  <option value="kvm">KVM</option>
+                  <option value="multipass">Multipass</option>
+                </select>
+              </GlassField>
+              <GlassField label="Image" htmlFor="image">
+                <input id="image" value={form.image} onChange={(e) => setForm({ ...form, image: e.target.value })} placeholder="e.g. itzg/minecraft-server:latest" required />
+              </GlassField>
+              <GlassField label="Category" htmlFor="category">
+                <TagPicker value={form.category} options={['game', 'web', 'database', 'proxy', 'bot', 'other']} placeholder="game" onChange={(v) => setForm({ ...form, category: v })} onAdd={(v) => setForm({ ...form, category: v })} onDelete={() => setForm({ ...form, category: '' })} />
+              </GlassField>
+              <GlassField label="Type" htmlFor="type">
+                <TagPicker value={form.type} options={['minecraft', 'nginx', 'postgres', 'redis', 'generic']} placeholder="minecraft" onChange={(v) => setForm({ ...form, type: v })} onAdd={(v) => setForm({ ...form, type: v })} onDelete={() => setForm({ ...form, type: '' })} />
+              </GlassField>
+            </div>
           </div>
-          </>
         )}
 
         {tab === 'environment' && (
@@ -665,6 +688,7 @@ const TemplateForm: React.FC = () => {
             onEnvUpdate={(i, patch) => setForm((f) => { const e = [...f.env]; e[i] = { ...e[i], ...patch }; return { ...f, env: e }; })}
             onEnvAdd={() => setForm((f) => ({ ...f, env: [...f.env, { name: '', label: '', description: '', default: '', user_viewable: true, user_editable: true, required: false, rule: '', display: 'text', options: '', append: false, prepend: '', append_value: '' }] }))}
             onEnvDelete={(i) => setForm((f) => ({ ...f, env: f.env.filter((_, j) => j !== i) }))}
+            onEnvMove={(i, dir) => setForm((f) => { const e = [...f.env]; const j = i + dir; if (j < 0 || j >= e.length) return f; [e[i], e[j]] = [e[j], e[i]]; return { ...f, env: e }; })}
             sectionCls={sectionCls}
             labelCls={labelCls}
             monoCls={monoCls}
@@ -680,6 +704,7 @@ const TemplateForm: React.FC = () => {
             onActionUpdate={(i, patch) => setForm((f) => { const a = [...f.actions]; a[i] = { ...a[i], ...patch }; return { ...f, actions: a }; })}
             onActionAdd={() => setForm((f) => ({ ...f, actions: [...f.actions, { id: '', name: '', description: '', allowed_states: '', requires_online: false, async_run: false, run_on_create: false, cooldown_s: '0', user_invokable: false, session: 'long_running', auto_start_instance: false, auto_stop_on_exit: false, restart_on_failure: false, allowed_commands: '', blocked_commands: '', max_runtime_s: '0', stop_command: '', stop_mode: 'different', steps: [] }] }))}
             onActionDelete={(i) => setForm((f) => ({ ...f, actions: f.actions.filter((_, j) => j !== i) }))}
+            onActionMove={(i, dir) => setForm((f) => { const a = [...f.actions]; const j = i + dir; if (j < 0 || j >= a.length) return f; [a[i], a[j]] = [a[j], a[i]]; return { ...f, actions: a }; })}
             onActionStepUpdate={(actionIdx, stepIdx, patch) => setForm((f) => { const a = [...f.actions]; const s = [...a[actionIdx].steps]; s[stepIdx] = { ...s[stepIdx], ...patch }; a[actionIdx] = { ...a[actionIdx], steps: s }; return { ...f, actions: a }; })}
             onActionStepAdd={(actionIdx) => setForm((f) => { const a = [...f.actions]; a[actionIdx] = { ...a[actionIdx], steps: [...a[actionIdx].steps, { action: 'shell', command: '', url: '', filename: '', archive: '', dest: '', from: '', to: '', path: '', content: '', branch: 'main', retries: '0', ignore_errors: false }] }; return { ...f, actions: a }; })}
             onActionStepDelete={(actionIdx, stepIdx) => setForm((f) => { const a = [...f.actions]; a[actionIdx] = { ...a[actionIdx], steps: a[actionIdx].steps.filter((_, j) => j !== stepIdx) }; return { ...f, actions: a }; })}
@@ -695,9 +720,12 @@ const TemplateForm: React.FC = () => {
           <>
           <TemplateInstallSection
             install={form.install}
+            installTimeoutS={form.install_timeout_s}
+            onInstallTimeoutUpdate={(v) => setForm((f) => ({ ...f, install_timeout_s: v.replace(/[^0-9]/g, '') }))}
             onInstallUpdate={(i, patch) => setForm((f) => { const s = [...f.install]; s[i] = { ...s[i], ...patch }; return { ...f, install: s }; })}
             onInstallAdd={() => setForm((f) => ({ ...f, install: [...f.install, { action: 'shell', command: '', url: '', filename: '', archive: '', dest: '', from: '', to: '', path: '', content: '', branch: 'main', retries: '0', ignore_errors: false }] }))}
             onInstallDelete={(i) => setForm((f) => ({ ...f, install: f.install.filter((_, j) => j !== i) }))}
+            onInstallMove={(i, dir) => setForm((f) => { const s = [...f.install]; const j = i + dir; if (j < 0 || j >= s.length) return f; [s[i], s[j]] = [s[j], s[i]]; return { ...f, install: s }; })}
             sectionCls={sectionCls}
             labelCls={labelCls}
             monoCls={monoCls}
@@ -922,6 +950,7 @@ const TemplateForm: React.FC = () => {
 
         {error && <p className="text-sm text-red-400">{error}</p>}
       </div>
+    </div>
     </FormPage>
   );
 };

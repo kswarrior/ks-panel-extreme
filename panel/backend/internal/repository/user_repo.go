@@ -371,11 +371,11 @@ func (r *UserRepository) MarkEmailVerified(id int64) error {
 
 // SuspensionRecord represents a single suspension entry in the history.
 type SuspensionRecord struct {
-	Timestamp   string `json:"timestamp"`
-	Reason      string `json:"reason"`
-	Duration    string `json:"duration"` // "until_admin" or "auto:YYYY-MM-DD HH:MM:SS"
-	AdminID     int64  `json:"admin_id"`
-	AdminName   string `json:"admin_name"`
+	Timestamp string `json:"timestamp"`
+	Reason    string `json:"reason"`
+	Duration  string `json:"duration"` // "until_admin" or "auto:YYYY-MM-DD HH:MM:SS"
+	AdminID   int64  `json:"admin_id"`
+	AdminName string `json:"admin_name"`
 }
 
 // SuspendUser suspends a user with optional auto-unsuspend time.

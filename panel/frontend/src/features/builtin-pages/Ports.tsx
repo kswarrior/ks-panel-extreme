@@ -71,8 +71,8 @@ export const InstancePorts: React.FC = () => {
 
   useEffect(() => { const t = setInterval(load, 5000); load(); return () => clearInterval(t); }, [load]);
 
-  if (!instance) return <LoadingOrError loading={false} error="Instance not found" kind="panel" />;
-  if (tplLoading) return <LoadingOrError loading={true} error="" kind="panel" />;
+  if (!instance) return <LoadingOrError loading={false} error="Instance not found" kind="ports" />;
+  if (tplLoading) return <LoadingOrError loading={true} error="" kind="ports" />;
   const spec = parseConfig(instance?.config);
   if (!isPageAllowed('ports', spec)) {
     return <div className="glass-card rounded-xl text-center text-gray-400"><p className="text-sm">This page is not part of this instance's template.</p></div>;

@@ -499,12 +499,12 @@ func TriggerRunHandler(w http.ResponseWriter, r *http.Request) {
 	})
 	auditInst(r, id, "automation.run", fmt.Sprintf("manually fired %q (exit=%d)", job.Name, exitCode))
 	writeJSON(w, map[string]any{
-		"run_id":    runID,
-		"exit_code": exitCode,
+		"run_id":      runID,
+		"exit_code":   exitCode,
 		"duration_ms": finished.Sub(started).Milliseconds(),
-		"stdout":    stdout,
-		"stderr":    stderr,
-		"error":     errMsg,
+		"stdout":      stdout,
+		"stderr":      stderr,
+		"error":       errMsg,
 	})
 }
 

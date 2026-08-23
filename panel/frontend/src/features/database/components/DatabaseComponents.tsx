@@ -1,8 +1,9 @@
 // Database UI components - extracted from Database.tsx
 
 import React, { useState, useEffect } from 'react';
-import type { DatabaseInfo, DatabaseTable, DatabaseEngineInfo, DatabaseEngineSwitchResponse, DatabaseTabId } from '../types/database';
-import { formatBytes, formatSigned, ago, autoVacuumLabel, tableTypeLabel, tableTypeBadge, HISTORY_WINDOW } from '../utils/databaseUtils';
+import type { DatabaseEngineInfo, DatabaseEngineSwitchResponse } from '../types/database';
+import type { DatabaseTableSyncResult } from '@/shared/api/admin';
+import { formatBytes, formatSigned, tableTypeLabel, tableTypeBadge } from '../utils/databaseUtils';
 import { listDatabaseEngines, switchDatabaseEngine } from '@/shared/api/admin';
 
 // MetaRow renders one labelled key+value line
@@ -70,6 +71,111 @@ export const PragmaTile: React.FC<{ label: string; value: React.ReactNode; mono?
   </div>
 );
 
+// OptionToggle is one labelled checkbox row of the sync-options grid.
+const OptionToggle: React.FC<{
+  label: string;
+  hint: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+}> = ({ label, hint, checked, onChange, disabled }) => (
+  <label className={`flex items-start gap-2 rounded-md p-2 ${disabled ? 'opacity-40' : 'hover:bg-white/5'} cursor-pointer`}>
+    <input
+      type="checkbox"
+      checked={checked}
+      onChange={(e) => onChange(e.target.checked)}
+      disabled={disabled}
+      className="mt-0.5 h-3.5 w-3.5 accent-emerald-600"
+    />
+    <span className="min-w-0">
+      <span className="block text-xs text-gray-200">{label}</span>
+      <span className="block text-[10px] text-gray-500">{hint}</span>
+    </span>
+  </label>
+);
+
+// SyncResultDetails renders everything the backend reported about the sync
+// pipeline: step log, per-table copy results, backup coordinates and the
+// post-sync recheck outcome.
+const SyncResultDetails: React.FC<{ result: DatabaseEngineSwitchResponse }> = ({ result }) => {
+  if (!result.synced && !result.rolled_back && !result.backup_id) return null;
+  const warnTables = (result.tables || []).filter((t) => t.status !== 'ok');
+  return (
+    <div className="mt-2 space-y-2">
+      {(result.rows_copied > 0 || result.tables?.length > 0) && (
+        <div className="text-xs text-gray-300">
+          synced <span className="font-semibold text-emerald-300 tabular-nums">{(result.rows_copied ?? 0).toLocaleString()}</span> rows across{' '}
+          <span className="font-semibold text-emerald-300 tabular-nums">{result.tables?.length ?? 0}</span> tables
+          {result.duration_ms > 0 && <span className="text-gray-500"> · {(result.duration_ms / 1000).toFixed(1)}s</span>}
+          {result.verified && <span className="ml-2 text-emerald-300">✓ recheck passed</span>}
+        </div>
+      )}
+
+      {result.backup_id && (
+        <div className="text-[11px] text-gray-400 font-mono break-all">
+          backup: {result.backup_id} · {formatBytes(result.backup_bytes || 0)} · <span className="text-gray-500">{result.backup_path}</span>
+        </div>
+      )}
+
+      {!!result.verify_warnings?.length && (
+        <div className="rounded-md bg-amber-900/20 border border-amber-700/40 p-2 text-[11px] text-amber-200 space-y-0.5">
+          {result.verify_warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}
+        </div>
+      )}
+      {warnTables.length > 0 && (
+        <div className="rounded-md bg-amber-900/20 border border-amber-700/40 p-2 text-[11px] text-amber-200 space-y-0.5">
+          {warnTables.map((t) => (
+            <div key={t.table}>
+              ⚠ {t.table}: source {t.source_rows} vs target {t.target_rows} rows (panel kept writing during sync)
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!!result.tables?.length && (
+        <details className="group">
+          <summary className="cursor-pointer select-none text-[11px] uppercase tracking-wide text-gray-500 hover:text-gray-300">
+            Per-table results ({result.tables.length})
+          </summary>
+          <div className="mt-1 max-h-48 overflow-y-auto rounded-md border border-white/10">
+            <table className="w-full text-[11px]">
+              <thead className="sticky top-0 bg-neutral-900/95 text-gray-500 uppercase tracking-wide">
+                <tr>
+                  <th className="text-left px-2 py-1 font-medium">Table</th>
+                  <th className="text-right px-2 py-1 font-medium">Copied</th>
+                  <th className="text-right px-2 py-1 font-medium">Target</th>
+                  <th className="text-right px-2 py-1 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody className="font-mono tabular-nums">
+                {result.tables.map((t: DatabaseTableSyncResult) => (
+                  <tr key={t.table} className="border-t border-white/5">
+                    <td className="px-2 py-1 text-gray-300 truncate max-w-[14rem]" title={t.table}>{t.table}</td>
+                    <td className="px-2 py-1 text-right text-gray-400">{t.rows_copied.toLocaleString()}</td>
+                    <td className="px-2 py-1 text-right text-gray-400">{t.target_rows.toLocaleString()}</td>
+                    <td className={`px-2 py-1 text-right ${t.status === 'ok' ? 'text-emerald-400' : 'text-amber-300'}`}>
+                      {t.status === 'ok' ? 'ok' : 'drift'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      )}
+
+      {!!result.steps?.length && (
+        <details>
+          <summary className="cursor-pointer select-none text-[11px] uppercase tracking-wide text-gray-500 hover:text-gray-300">
+            Step log ({result.steps.length})
+          </summary>
+          <pre className="mt-1 max-h-40 overflow-y-auto rounded-md bg-black/30 p-2 text-[10px] leading-relaxed text-gray-400 whitespace-pre-wrap">{result.steps.join('\n')}</pre>
+        </details>
+      )}
+    </div>
+  );
+};
+
 // ChangeDatabaseCard
 export const ChangeDatabaseCard: React.FC<{ currentEngine?: string; currentPath?: string }> = ({ currentEngine, currentPath }) => {
   const [engines, setEngines] = useState<DatabaseEngineInfo[]>([]);
@@ -83,6 +189,13 @@ export const ChangeDatabaseCard: React.FC<{ currentEngine?: string; currentPath?
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<DatabaseEngineSwitchResponse | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  // ── Sync pipeline options (all operator-configurable) ──
+  const [syncData, setSyncData] = useState(true);
+  const [createBackup, setCreateBackup] = useState(true);
+  const [verifyAfter, setVerifyAfter] = useState(true);
+  const [clearTarget, setClearTarget] = useState(true);
+  const [batchSize, setBatchSize] = useState(500);
+  const [tablesFilter, setTablesFilter] = useState('');
 
   useEffect(() => {
     let mounted = true;
@@ -96,6 +209,58 @@ export const ChangeDatabaseCard: React.FC<{ currentEngine?: string; currentPath?
     })();
     return () => { mounted = false; };
   }, []);
+
+  const engineMeta = engines.find((e) => e.name === engine);
+
+  const submit = async () => {
+    setSubmitting(true);
+    setResult(null);
+    try {
+      const payload: Parameters<typeof switchDatabaseEngine>[0] = {
+        engine,
+        sync_data: syncData,
+        create_backup: createBackup,
+        verify: verifyAfter,
+        clear_target: clearTarget,
+      };
+      if (engineMeta?.supports_url && usingURL) {
+        payload.url = url;
+        payload.user = user;
+        payload.password = password;
+        payload.database = database;
+      } else if (dsn.trim()) {
+        payload.dsn = dsn.trim();
+      }
+      if (batchSize > 0) payload.batch_size = batchSize;
+      const tables = tablesFilter.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
+      if (tables.length > 0) payload.tables = tables;
+      const resp = await switchDatabaseEngine(payload);
+      setResult(resp);
+    } catch (e: any) {
+      const msg =
+        typeof e?.response?.data === 'string'
+          ? e.response.data
+          : e?.response?.data?.message || e?.message || 'Request failed';
+      setResult({
+        ok: false,
+        engine,
+        dsn: '',
+        message: msg,
+        requires_restart: false,
+        synced: false,
+        rows_copied: 0,
+        tables: [],
+        steps: [],
+        duration_ms: 0,
+        rolled_back: false,
+        verified: false,
+        verify_issues: [],
+        verify_warnings: [],
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="glass-card rounded-xl p-4 space-y-4">
@@ -133,15 +298,17 @@ export const ChangeDatabaseCard: React.FC<{ currentEngine?: string; currentPath?
           </select>
         </div>
 
-        {engines.find((e) => e.name === engine)?.supports_url && (
+        {engineMeta?.supports_url && (
           <div className="lg:col-span-4 flex items-end">
             <div className="inline-flex rounded-md border border-white/10 overflow-hidden text-xs">
               <button
                 onClick={() => setUsingURL(true)}
+                disabled={submitting}
                 className={`px-3 py-1.5 ${usingURL ? 'bg-emerald-700/60 text-white' : 'text-gray-400 hover:bg-white/5'}`}
               >Host : Port</button>
               <button
                 onClick={() => setUsingURL(false)}
+                disabled={submitting}
                 className={`px-3 py-1.5 ${!usingURL ? 'bg-emerald-700/60 text-white' : 'text-gray-400 hover:bg-white/5'}`}
               >Full DSN</button>
             </div>
@@ -149,11 +316,11 @@ export const ChangeDatabaseCard: React.FC<{ currentEngine?: string; currentPath?
         )}
       </div>
 
-      {(!engines.find((e) => e.name === engine)?.supports_url || !usingURL) ? (
+      {(!engineMeta?.supports_url || !usingURL) ? (
         <div className="mt-3">
           <label className="text-[11px] uppercase tracking-wide text-gray-500">
-            {engines.find((e) => e.name === engine)?.supports_url ? 'Full DSN' : 'File path'}
-            {!engines.find((e) => e.name === engine)?.supports_url && <span className="text-gray-600 ml-1 normal-case">(SQLite — uses default if blank)</span>}
+            {engineMeta?.supports_url ? 'Full DSN' : 'File path'}
+            {!engineMeta?.supports_url && <span className="text-gray-600 ml-1 normal-case">(SQLite — uses default if blank)</span>}
           </label>
           <input
             type="text"
@@ -161,7 +328,7 @@ export const ChangeDatabaseCard: React.FC<{ currentEngine?: string; currentPath?
             onChange={(e) => setDsn(e.target.value)}
             disabled={submitting}
             placeholder={
-              engines.find((e) => e.name === engine)?.supports_url
+              engineMeta?.supports_url
                 ? engine === 'postgres'
                   ? "postgres://user:pass@host:5432/dbname?sslmode=disable"
                   : "kspanel:pass@tcp(host:3306)/kspanel?parseTime=true&loc=UTC"
@@ -179,7 +346,7 @@ export const ChangeDatabaseCard: React.FC<{ currentEngine?: string; currentPath?
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               disabled={submitting}
-              placeholder="localhost:5432"
+              placeholder={engine === 'mysql' ? 'localhost:3306' : 'localhost:5432'}
               className="glass w-full text-sm rounded-md text-white font-mono placeholder-gray-600 focus:outline-none focus:border-white/30 disabled:opacity-50"
             />
           </div>
@@ -227,25 +394,92 @@ export const ChangeDatabaseCard: React.FC<{ currentEngine?: string; currentPath?
         </div>
       )}
 
+      {/* ── Sync & safety options ─────────────────────────────────────── */}
+      <div className={`ks-card rounded-lg p-3 space-y-2 ${submitting ? 'opacity-70 pointer-events-none' : ''}`}>
+        <div className="text-[11px] uppercase tracking-wide text-gray-500">Sync &amp; Safety Options</div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+          <OptionToggle
+            label="Sync all data into the new database"
+            hint="Copy every table's rows before switching (otherwise the new DB starts empty)"
+            checked={syncData}
+            onChange={setSyncData}
+            disabled={submitting}
+          />
+          <OptionToggle
+            label="Backup before switching"
+            hint="Snapshot the current database first — restorable from this page"
+            checked={createBackup}
+            onChange={setCreateBackup}
+            disabled={submitting || !syncData}
+          />
+          <OptionToggle
+            label="Recheck everything after sync"
+            hint="Compare row counts per table and run integrity checks on the target"
+            checked={verifyAfter}
+            onChange={setVerifyAfter}
+            disabled={submitting || !syncData}
+          />
+          <OptionToggle
+            label="Clear target tables before copying"
+            hint="Avoids primary-key collisions with freshly seeded rows (recommended)"
+            checked={clearTarget}
+            onChange={setClearTarget}
+            disabled={submitting || !syncData}
+          />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+          <div>
+            <label className="text-[11px] uppercase tracking-wide text-gray-500">Insert batch size</label>
+            <input
+              type="number"
+              min={1}
+              max={10000}
+              value={batchSize}
+              onChange={(e) => setBatchSize(Number(e.target.value))}
+              disabled={submitting || !syncData}
+              className="glass w-full text-sm rounded-md text-white font-mono focus:outline-none focus:border-white/30 disabled:opacity-50"
+            />
+          </div>
+          <div>
+            <label className="text-[11px] uppercase tracking-wide text-gray-500">
+              Tables <span className="text-gray-600 normal-case">(comma-separated — blank = all)</span>
+            </label>
+            <input
+              type="text"
+              value={tablesFilter}
+              onChange={(e) => setTablesFilter(e.target.value)}
+              disabled={submitting || !syncData}
+              placeholder="users, roles, instances"
+              className="glass w-full text-sm rounded-md text-white font-mono placeholder-gray-600 focus:outline-none focus:border-white/30 disabled:opacity-50"
+            />
+          </div>
+        </div>
+        {syncData && (
+          <p className="text-[10px] text-gray-500">
+            On any error the new database is restored to its previous state and your current setup stays active.
+          </p>
+        )}
+      </div>
+
       <div className="mt-3 flex items-center justify-between gap-3 flex-wrap">
         <p className="text-[11px] text-gray-500 max-w-xl">
           The panel tests connectivity against the target engine before persisting.
-          {engines.find((e) => e.name === engine)?.supports_url && usingURL && ' Coordinates are stored in '}
-          {engines.find((e) => e.name === engine)?.supports_url && usingURL && <code className="font-mono text-gray-400">kspanel.env</code>}
-          {engines.find((e) => e.name === engine)?.supports_url && usingURL && ' next to your SQLite file; passwords travel as part of the DSN.'}
+          {engineMeta?.supports_url && usingURL && ' Coordinates are stored in '}
+          {engineMeta?.supports_url && usingURL && <code className="font-mono text-gray-400">kspanel.env</code>}
+          {engineMeta?.supports_url && usingURL && ' next to your SQLite file; passwords travel as part of the DSN.'}
         </p>
         <button
-          onClick={() => {}} // submit function would go here
+          onClick={submit}
           disabled={submitting}
           className="inline-flex items-center gap-2 bg-emerald-700/70 hover:bg-emerald-700 text-white px-4 py-1.5 rounded-md text-sm disabled:opacity-40"
-          title="Test the new database connection and persist it"
+          title="Test the new database connection, optionally sync all data, then persist it"
         >
           {submitting && (
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 animate-spin">
               <path d="M21 12a9 9 0 1 1-6.22-8.55" strokeLinecap="round" />
              </svg>
           )}
-          Test & Save
+          {syncData ? 'Test, Sync & Save' : 'Test & Save'}
         </button>
       </div>
 
@@ -262,7 +496,11 @@ export const ChangeDatabaseCard: React.FC<{ currentEngine?: string; currentPath?
               {result.ok ? '✓' : '✕'}
             </span>
             <div className="min-w-0 flex-1">
-              <div className="font-medium">{result.ok ? 'Database updated' : 'Switch failed'}</div>
+              <div className="font-medium">
+                {result.ok
+                  ? result.synced ? 'Database switched & data synced' : 'Database updated'
+                  : result.rolled_back ? 'Switch failed — restored' : 'Switch failed'}
+              </div>
               <div className="text-xs opacity-90 mt-0.5 break-words">{result.message}</div>
               {result.ok && (
                 <div className="text-xs mt-1 font-mono opacity-80">
@@ -272,6 +510,7 @@ export const ChangeDatabaseCard: React.FC<{ currentEngine?: string; currentPath?
                   )}
                 </div>
               )}
+              <SyncResultDetails result={result} />
             </div>
           </div>
         </div>

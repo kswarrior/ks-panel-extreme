@@ -46,8 +46,9 @@ export interface Mod {
 }
 
 // Install provenance tags the backend stamps on every mod row. Keep in sync
-// with models.ModSource* constants in internal/models/mod.go.
-export type ModSource = 'file' | 'url' | 'studio' | 'json';
+// with models.ModSource* constants in internal/models/mod.go. "sample" marks
+// mods installed from the panel's built-in sample catalog.
+export type ModSource = 'file' | 'url' | 'studio' | 'json' | 'sample';
 
 // Human-readable label + dot colour for the install-source chip the Mods
 // page renders on each card. The dot mirrors the chip colour of the
@@ -64,6 +65,7 @@ export const MOD_SOURCES: ModSourceMeta[] = [
   { key: 'url',    label: 'Installed from URL', dot: 'bg-violet-400', badge: 'bg-violet-900/40 text-violet-200 border-violet-700/50' },
   { key: 'studio', label: 'Built in Mod Studio', dot: 'bg-emerald-400', badge: 'bg-emerald-900/40 text-emerald-200 border-emerald-700/50' },
   { key: 'json',   label: 'Posted as JSON', dot: 'bg-amber-400', badge: 'bg-amber-900/40 text-amber-200 border-amber-700/50' },
+  { key: 'sample', label: 'Built-in sample', dot: 'bg-teal-400', badge: 'bg-teal-900/40 text-teal-200 border-teal-700/50' },
 ];
 
 export const modSourceMeta = (key: string | undefined): ModSourceMeta | undefined =>
@@ -261,10 +263,64 @@ export interface RegisteredSlot {
 // the UI can warn "scripts not executing" when the panel ships in noop mode.
 export type ModEngineMode = 'noop' | 'goja';
 
-// Shape of the /api/mods/v1/slots response.
+// Shape of the /api/mods/v1/slots response. `enabled` mirrors the engine
+// kill switch (additive field; absent on older backends).
 export interface SlotRegistryResponse {
   mode: ModEngineMode;
+  enabled?: boolean;
   slots: RegisteredSlot[];
+}
+
+// ---------------------------------------------------------------------------
+// Mod Engine diagnostics + kill-switch types (GET/PUT /api/mods/engine,
+// GET /api/mods/{id}/logs).
+// ---------------------------------------------------------------------------
+
+// One lifecycle state a mod's runtime can be in, as tracked by the engine's
+// diagnostics registry.
+export type ModRuntimeState = 'running' | 'error' | 'stopped';
+
+// One line a mod (or the engine on its behalf) logged into the per-mod ring.
+export interface ModLogEntry {
+  ts: string;
+  level: string; // "info" | "warn" | "error" | "debug"
+  message: string;
+}
+
+// Engine-side status record for one mod slug.
+export interface ModRuntimeStatus {
+  slug: string;
+  state: ModRuntimeState;
+  started_at?: string;
+  last_error?: string;
+  updated_at: string;
+}
+
+// Shape of GET /api/mods/engine — runtime mode, kill-switch state and the
+// per-mod status table.
+export interface ModEngineDiagnostics {
+  mode: ModEngineMode;
+  enabled: boolean;
+  mods: ModRuntimeStatus[];
+}
+
+// Shape of PUT /api/mods/engine's response.
+export interface ModEngineToggleResponse {
+  enabled: boolean;
+  mode: ModEngineMode;
+}
+
+// One built-in sample mod advertised by GET /api/mods/samples. `permissions`
+// previews the approval flow before installing; `has_script` says whether
+// the sample ships an inline v2 backend script.
+export interface ModSample {
+  key: string;
+  name: string;
+  description: string;
+  icon: string;
+  engine_version: number;
+  permissions: PermissionRequest[];
+  has_script: boolean;
 }
 
 // The browser-side plugin component registry shape mounted on window.KS. A mod

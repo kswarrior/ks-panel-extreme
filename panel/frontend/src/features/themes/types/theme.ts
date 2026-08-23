@@ -188,6 +188,7 @@ export interface ThemeAccent {
   danger: string;
   success: string;
   warning: string;
+  info: string;              // sky/blue family (links, info chips, terminal blue)
 }
 
 export interface ThemeShape {
@@ -278,6 +279,154 @@ export interface ThemeCustomCSS {
   scopes: Record<string, string>;
 }
 
+// ThemeForms drives every form control on the panel (the `.ks-input` /
+// `.ks-select` / `.ks-textarea` / `.ks-checkbox` / `.ks-radio` / `.ks-toggle`
+// primitives plus the GlassField wrapper used by every create/edit page and
+// list filter bar). Values mirror the panel's stock Tailwind look so the
+// Default theme renders pixel-identical to the pre-theme baseline.
+export interface ThemeForms {
+  // Text inputs.
+  input_background: string;
+  input_text_color: string;
+  input_placeholder_color: string;
+  input_border_color: string;
+  input_focus_border_color: string;
+  input_focus_ring_color: string;
+  input_border_radius: number;   // px
+  input_padding_x: number;       // px
+  input_padding_y: number;       // px
+  input_font_size: number;       // px
+  // Native selects.
+  select_background: string;
+  select_text_color: string;
+  select_border_color: string;
+  select_arrow_color: string;    // hex — recolours the .ks-select chevron
+  select_border_radius: number;
+  select_padding_x: number;
+  select_padding_y: number;
+  select_font_size: number;
+  // Textareas.
+  textarea_background: string;
+  textarea_text_color: string;
+  textarea_border_color: string;
+  textarea_border_radius: number;
+  textarea_padding_x: number;
+  textarea_padding_y: number;
+  textarea_font_size: number;
+  // Checkboxes (accent-color based).
+  checkbox_bg_unchecked: string;
+  checkbox_bg_checked: string;   // accent-color when checked
+  checkbox_border_unchecked: string;
+  checkbox_checkmark_color: string; // glyph colour on custom check chips (.rich-check)
+  checkbox_border_radius: number;
+  checkbox_size: number;         // px
+  // Radios.
+  radio_bg_checked: string;      // accent-color when checked
+  radio_size: number;            // px
+  // Toggle switches (.ks-toggle).
+  toggle_track_off: string;
+  toggle_track_on: string;
+  toggle_thumb_color: string;
+  toggle_track_height: number;   // px — width derives from height
+  toggle_thumb_size: number;     // px
+  toggle_border_radius: number;  // px (9999 = pill)
+  // Labels + hints (.ks-label / .ks-hint).
+  label_text_color: string;
+  label_hint_color: string;
+  label_font_size: number;
+  label_font_weight: number;     // 100..900
+  hint_text_color: string;
+  hint_error_color: string;
+  hint_success_color: string;
+  hint_font_size: number;
+  // Field wrapper (.ks-field).
+  field_gap: number;             // px between label/hint/input
+  field_margin_bottom: number;   // px below the wrapper
+  // Focus ring shared by inputs/selects/textareas.
+  focus_ring_width: number;      // px
+  focus_ring_offset: number;     // px
+}
+
+// ThemeComponents styles the floating surfaces that aren't covered by a
+// dedicated tab: modal dialogs (.ks-modal-panel), the modal overlay scrim,
+// the "strong" glass surface modals render on (.glass-strong) and the app
+// chrome surface (.glass-chrome — excluding the sidebar/header which own
+// their themed sections). Defaults mirror today's rendered look exactly so
+// the Default theme stays pixel-identical.
+export interface ThemeComponents {
+  glass_strong_background: string;
+  glass_strong_border_color: string;
+  glass_strong_shadow: string;
+  glass_strong_border_radius: number;  // px
+  glass_strong_backdrop_blur: number;  // px
+  modal_background: string;            // .ks-modal-panel fill
+  modal_border_color: string;
+  modal_shadow: string;
+  modal_overlay_color: string;         // backdrop scrim behind the dialog
+  modal_border_radius: number;         // px
+  modal_backdrop_blur: number;         // px
+  modal_max_width: number;             // px; 512 = keep each caller's own default
+  glass_chrome_background: string;
+  glass_chrome_backdrop_blur: number;  // px
+  glass_chrome_border_color: string;
+}
+
+// ThemeUtilities exposes design tokens as CSS custom properties for custom-CSS
+// authors and drives the transition speeds used by the themed components.
+// They never restyle anything on their own (zero visual delta by default).
+export interface ThemeUtilities {
+  color_primary: string;
+  color_secondary: string;
+  color_success: string;
+  color_warning: string;
+  color_danger: string;
+  color_muted: string;
+  spacing_base: number;          // px — --ks-space-base token
+  radius_none: number;           // px
+  radius_sm: number;
+  radius_md: number;
+  radius_lg: number;
+  radius_full: number;           // px (9999 ≈ pill)
+  shadow_1: number;              // blur px — composed into --ks-elev-1..4
+  shadow_2: number;
+  shadow_3: number;
+  shadow_4: number;
+  transition_fast: number;       // ms
+  transition_normal: number;     // ms
+  transition_slow: number;       // ms
+  transition_very_slow: number;  // ms
+  z_dropdown: number;
+  z_modal: number;
+  z_tooltip: number;
+  z_toast: number;
+  z_overlay: number;
+}
+
+// ThemeCards styles the semantic card variants layered on top of the base
+// card look: list rows (.ks-list-card), stat strips (.ks-stat-card) and
+// form sections (.ks-form-card). Defaults inherit the base card appearance,
+// matching today's rendering.
+export interface ThemeCards {
+  list_background: string;
+  list_border_color: string;
+  list_hover_border_color: string;
+  list_shadow: string;
+  list_border_radius: number;    // px
+  list_backdrop_blur: number;    // px
+  list_padding: number;          // px
+  stat_background: string;
+  stat_border_color: string;
+  stat_icon_color: string;
+  stat_border_radius: number;    // px
+  stat_padding_x: number;        // px
+  stat_padding_y: number;        // px
+  form_background: string;
+  form_border_color: string;
+  form_shadow: string;
+  form_border_radius: number;    // px
+  form_padding: number;          // px
+}
+
 export interface Theme {
   id: string;                // stable id; 'default' is reserved for the seed
   name: string;
@@ -297,8 +446,13 @@ export interface Theme {
   loading: ThemeLoading;
   tabs: ThemeTabs;
   dropdowns: ThemeDropdown;
+  forms: ThemeForms;
+  components: ThemeComponents;
+  utilities: ThemeUtilities;
+  cards: ThemeCards;
   customCSS: ThemeCustomCSS;
 }
 
 export type ThemeKey = keyof Pick<Theme,
-  'background' | 'card' | 'sidebar' | 'button' | 'header' | 'typography' | 'accent' | 'shape' | 'loading' | 'tabs' | 'dropdowns' | 'customCSS'>;
+  'background' | 'card' | 'sidebar' | 'button' | 'header' | 'typography' | 'accent' | 'shape'
+  | 'loading' | 'tabs' | 'dropdowns' | 'forms' | 'components' | 'utilities' | 'cards' | 'customCSS'>;

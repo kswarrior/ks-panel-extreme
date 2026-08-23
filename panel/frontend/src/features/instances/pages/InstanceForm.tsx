@@ -1,9 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { listNodes, listTemplates, listUsers, listRoles, deployInstance } from '@/shared/api/admin';
-import type { Node } from '@/shared/types/node';
-import type { Template, DeployRequest } from '@/shared/types/instance';
-import type { User, Role } from '@/shared/types/user';
+import type { DeployRequest } from '@/shared/types/instance';
 import FormPage from '@/shared/components/forms/FormPage';
 import GlassCard from '@/shared/components/ui/Card';
 import { SearchableSelect, type SearchableOption } from '@/shared/components/ui/SearchableSelect';
@@ -15,39 +13,34 @@ import {
 } from '../components/InstanceFormComponents';
 import ThemedBackground from '@/shared/components/layout/ThemedBackground';
 import { useDeployForm } from '../stores/deployFormStore';
-import type {
-  EnvVariable,
-  PageOverride,
-  IconPreset,
-  ColorSwatch,
-} from '../types/instanceForm';
 import { KIND_META, ICON_PRESETS, COLOR_SWATCHES, driverEnabled, kindKey } from '../types/instanceForm';
 import { buildOverrides } from '../utils/instanceFormUtils';
 
 const monoCls = glassFieldClass + ' font-mono ks-input-mono';
 const labelCls = 'block text-sm font-medium text-gray-300 mb-1 ks-label';
-const sectionCls = 'border border-white/10 rounded-lg p-4 space-y-4 bg-black/20 ks-form-group';
-const addBtn = 'text-xs text-sky-300 hover:text-sky-200 underline';
 
 const InstanceForm: React.FC = () => {
   const navigate = useNavigate();
-  const [nodes, setNodes] = useState<Node[]>([]);
-  const [templates, setTemplates] = useState<Template[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [roles, setRoles] = useState<Role[]>([]);
-  const [templateId, setTemplateId] = useState(0);
-  const [nodeId, setNodeId] = useState(0);
-  const [ownerId, setOwnerId] = useState(0);
-  const [name, setName] = useState('');
-  const [displayName, setDisplayName] = useState('');
-  const [icon, setIcon] = useState('');
-  const [color, setColor] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [deploying, setDeploying] = useState(false);
-  const [error, setError] = useState<string>('');
-  const [envValues, setEnvValues] = useState<Record<string, string>>({});
-
-  const deployCtx = useDeployForm();
+  const {
+    templateId, setTemplateId,
+    nodeId, setNodeId,
+    ownerId, setOwnerId,
+    name, setName,
+    displayName, setDisplayName,
+    icon, setIcon,
+    color, setColor,
+    editor,
+    envValues,
+    setEnvValues,
+    baseline,
+    nodes, setNodes,
+    templates, setTemplates,
+    users, setUsers,
+    roles, setRoles,
+    loading, setLoading,
+    deploying, setDeploying,
+    error, setError,
+  } = useDeployForm();
 
   useEffect(() => {
     let cancelled = false;
@@ -67,20 +60,10 @@ const InstanceForm: React.FC = () => {
       }
     })();
     return () => { cancelled = true; };
-  }, []);
-
-  // Local editors mirror the deploy form store so the local General section
-  // sees the SAME pages/ports/env/etc. that the Advance Option page sees.
-  // The store's seed-once-per-template behaviour seeds the editor whenever
-  // the templateId changes — and every edit on either side flows back into
-  // the shared store so navigating between Main and Advance preserves the
-  // user's work in both directions.
-  const editor = deployCtx.editor;
-  const baseline = deployCtx.baseline;
+  }, [setNodes, setTemplates, setUsers, setRoles, setOwnerId, setError, setLoading]);
 
   const selectTemplate = (tid: number) => {
     setTemplateId(tid);
-    deployCtx.setTemplateId(tid);
   };
 
   const roleForId = (id: number) => roles.find((r) => r.id === id);
@@ -130,61 +113,6 @@ const InstanceForm: React.FC = () => {
     );
   };
 
-  const updateEnv = (i: number, patch: Partial<EnvVariable>) =>
-    setEditor((f) => { const e = [...f.env]; e[i] = { ...e[i], ...patch }; return { ...f, env: e }; });
-  const addEnv = () => setEditor((f) => ({ ...f, env: [...f.env, { name: '', label: '', description: '', default: '', user_viewable: true, user_editable: true, required: false, rule: '', display: 'text', options: '', prepend: '', append: false, append_value: '' }] }));
-  const delEnv = (i: number) => setEditor((f) => ({ ...f, env: f.env.filter((_, j) => j !== i) }));
-
-  const updatePort = (i: number, patch: Partial<any>) =>
-    setEditor((f) => { const p = [...f.ports]; p[i] = { ...p[i], ...patch }; return { ...f, ports: p }; });
-  const addPort = () => setEditor((f) => ({ ...f, ports: [...f.ports, { host: '', guest: '', protocol: 'tcp' }] }));
-  const delPort = (i: number) => setEditor((f) => ({ ...f, ports: f.ports.filter((_, j) => j !== i) }));
-
-  const updateMount = (i: number, patch: Partial<any>) =>
-    setEditor((f) => { const m = [...f.mounts]; m[i] = { ...m[i], ...patch }; return { ...f, mounts: m }; });
-  const addMount = () => setEditor((f) => ({ ...f, mounts: [...f.mounts, { source: '', target: '', mode: 'rw' }] }));
-  const delMount = (i: number) => setEditor((f) => ({ ...f, mounts: f.mounts.filter((_, j) => j !== i) }));
-
-  const updateLimits = (patch: Partial<any>) =>
-    setEditor((f) => ({ ...f, limits: { ...f.limits, ...patch } }));
-  const updateCaps = (patch: Partial<any>) =>
-    setEditor((f) => ({ ...f, caps: { ...f.caps, ...patch } }));
-
-  const updatePage = (i: number, patch: Partial<PageOverride>) =>
-    setEditor((f) => { const p = [...f.pages]; p[i] = { ...p[i], ...patch }; return { ...f, pages: p }; });
-  const removePage = (i: number) =>
-    setEditor((f) => ({ ...f, pages: f.pages.filter((_, j) => j !== i) }));
-  const movePage = (i: number, dir: -1 | 1) =>
-    setEditor((f) => {
-      const j = i + dir;
-      if (j < 0 || j >= f.pages.length) return f;
-      const p = [...f.pages];
-      [p[i], p[j]] = [p[j], p[i]];
-      return { ...f, pages: p };
-    });
-
-  // Actions: the inline form keeps the same simple inline-handlers the
-  // earlier non-store version had — the Advance Option page uses the
-  // equivalent handlers through the store for its own re-renders.
-  const updateAction = (i: number, patch: any) =>
-    setEditor((f) => { const a = [...f.actions]; a[i] = { ...a[i], ...patch }; return { ...f, actions: a }; });
-  const addAction = () =>
-    setEditor((f) => ({
-      ...f,
-      actions: [...f.actions, {
-        id: '', name: '', description: '', allowed_states: '', requires_online: false, async_run: false,
-        run_on_create: false, cooldown_s: '0', user_invokable: false, session: 'long_running',
-        auto_start_instance: false, auto_stop_on_exit: false, restart_on_failure: false,
-        allowed_commands: '', blocked_commands: '', max_runtime_s: '0', stop_command: '',
-        stop_mode: 'different', steps: [],
-      }],
-    }));
-  const delAction = (i: number) =>
-    setEditor((f) => ({ ...f, actions: f.actions.filter((_, j) => j !== i) }));
-
-  const updateHealthcheck = (patch: any) =>
-    setEditor((f) => ({ ...f, healthcheck: { ...f.healthcheck, ...patch } }));
-
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) { setError('Instance name is required'); return; }
@@ -221,8 +149,12 @@ const InstanceForm: React.FC = () => {
       env_vars: Object.keys(envVarPayload).length ? envVarPayload : undefined,
     };
     try {
-      await deployInstance(payload);
-      navigate('/instances');
+      const created = await deployInstance(payload);
+      // Jump straight to the new instance's home page: while status is
+      // "creating"/"installing" it renders the live install banner
+      // (per-step transcript), so the operator watches the install log
+      // instead of landing back on a static list.
+      navigate(created?.id ? `/instances/${created.id}` : '/instances');
     } catch (e: any) {
       const d = e?.response?.data;
       let msg = 'Deployment failed.';

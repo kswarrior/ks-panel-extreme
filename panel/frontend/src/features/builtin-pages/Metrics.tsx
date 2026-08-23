@@ -232,8 +232,8 @@ export const InstanceMetrics: React.FC = () => {
   }, []);
 
   // ---- early returns (after ALL hooks) -------------------------------------
-  if (!instance) return <LoadingOrError loading={false} error="Instance not found" kind="panel" />;
-  if (tplLoading) return <LoadingOrError loading={true} error="" kind="panel" />;
+  if (!instance) return <LoadingOrError loading={false} error="Instance not found" kind="metrics" />;
+  if (tplLoading) return <LoadingOrError loading={true} error="" kind="metrics" />;
   const spec = parseConfig(instance?.config);
   if (!isPageAllowed('metrics', spec)) {
     return <div className="glass-card rounded-xl text-center text-gray-400"><p className="text-sm">This page is not part of this instance's template.</p></div>;

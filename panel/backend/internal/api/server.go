@@ -90,8 +90,10 @@ func NewRouter() http.Handler {
 	// failure never blocks or breaks the response it observed.
 	r.Use(SecurityMiddleware)
 
-	// Request body size limit to prevent DoS attacks
-	r.Use(MaxBodySize(10 << 20)) // 10 MB
+	// Request body size limit to prevent DoS attacks. Reads the
+	// operator-configured cap (Firewall tab → Request Size Limit) from
+	// the live security state instead of a hardcoded constant.
+	r.Use(DynamicMaxBodySize())
 
 	// API routes – set JSON content type for these only
 	r.Group(func(r chi.Router) {
@@ -119,6 +121,16 @@ func NewRouter() http.Handler {
 		// flow to enforce the per-device account limit. Public (no auth) since
 		// the device id isn't an authentication secret.
 		r.Get("/api/auth/device-id", handlers.DeviceIdHandler)
+
+		// OAuth "Sign in with ..." flows. All public: the browser carries no
+		// session yet. /providers tells the login page which buttons to
+		// render; /start 302s to the provider; /callback completes the code
+		// exchange and issues the standard session cookie. The callback also
+		// accepts POST because Apple answers form_post.
+		r.Get("/api/auth/oauth/providers", handlers.OAuthPublicProvidersHandler)
+		r.Get("/api/auth/oauth/{provider}/start", handlers.OAuthStartHandler)
+		r.Get("/api/auth/oauth/{provider}/callback", handlers.OAuthCallbackHandler)
+		r.Post("/api/auth/oauth/{provider}/callback", handlers.OAuthCallbackHandler)
 
 		// Public brand endpoint used by the login page (and the in-app layout
 		// header) so they can render the configured panel name without needing
@@ -406,6 +418,19 @@ func NewRouter() http.Handler {
 			r.With(requireUmbrellaOrAction(modsG, permissions.ActionEdit)).Put("/{id}/grants", handlers.SetModGrantsHandler)
 			r.With(requireUmbrellaOrAction(modsG, permissions.ActionEdit)).Post("/{id}/activate", handlers.ActivateModHandler)
 			r.With(requireUmbrellaOrAction(modsG, permissions.ActionEdit)).Post("/{id}/deactivate", handlers.DeactivateModHandler)
+			// Per-mod runtime log ring (ks.log output + engine lifecycle
+			// events). View-gated like the mod itself.
+			r.With(requireUmbrellaOrAction(modsG, permissions.ActionView)).Get("/{id}/logs", handlers.ModLogsHandler)
+			// Built-in sample mods ("test mods"): the catalog is read-only;
+			// installing creates a real (inactive) mod row through the same
+			// validated pipeline as an upload, so CREATE gates it.
+			r.With(requireUmbrellaOrAction(modsG, permissions.ActionView)).Get("/samples", handlers.ListSampleModsHandler)
+			r.With(requireUmbrellaOrAction(modsG, permissions.ActionCreate)).Post("/samples/{key}", handlers.InstallSampleModHandler)
+			// Engine diagnostics + kill switch. Status is view-gated; the
+			// toggle stops every running runtime panel-wide, so it is
+			// edit-gated like activation.
+			r.With(requireUmbrellaOrAction(modsG, permissions.ActionView)).Get("/engine", handlers.ModEngineStatusHandler)
+			r.With(requireUmbrellaOrAction(modsG, permissions.ActionEdit)).Put("/engine", handlers.SetModEngineEnabledHandler)
 		})
 
 		// Admin: Applications management. MANAGE_APPLICATIONS (umbrella) implies every action;
@@ -431,6 +456,12 @@ func NewRouter() http.Handler {
 			r.With(requireUmbrellaOrAction(appsG, permissions.ActionEdit)).Post("/{id}/activate", handlers.ActivateApplicationHandler)
 			r.With(requireUmbrellaOrAction(appsG, permissions.ActionEdit)).Post("/{id}/deactivate", handlers.DeactivateApplicationHandler)
             r.With(requireUmbrellaOrAction(appsG, permissions.ActionEdit)).Post("/{id}/env", handlers.UpdateApplicationEnvHandler)
+			// One-shot execution of the application's script on a chosen
+			// target (registered node / panel host via its local node or
+			// direct shell; host or container/VM exec mode). EDIT-gated like
+			// activation because a run executes arbitrary staged code.
+			r.With(requireUmbrellaOrAction(appsG, permissions.ActionEdit)).Post("/{id}/run", handlers.RunApplicationHandler)
+			r.With(requireUmbrellaOrAction(appsG, permissions.ActionView)).Get("/{id}/runs", handlers.ListApplicationRunsHandler)
 		})
 
 		// Admin: Instance Pages management. MANAGE_INSTANCE_PAGES (umbrella) implies every action;
@@ -451,12 +482,12 @@ func NewRouter() http.Handler {
 			// edge's page-action endpoint which runs the command inside the
 			// instance container.
 			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionEdit)).Post("/{id}/actions", handlers.ExecutePageActionHandler)
-// Execute an action from a custom page (called by the page's JS SDK).
-		// Gated by VIEW_INSTANCES since the page runs in the instance panel.
-		r.With(requirePermission("VIEW_INSTANCES")).Post("/execute-action", handlers.ExecuteCustomPageActionHandler)
-		// Execute an action from a module-based page (called by the page's JS SDK).
-		// Gated by VIEW_INSTANCES since the page runs in the instance panel.
-		r.With(requirePermission("VIEW_INSTANCES")).Post("/execute-module-action", handlers.ExecuteModulePageActionHandler)
+			// Execute an action from a custom page (called by the page's JS SDK).
+			// Gated by VIEW_INSTANCES since the page runs in the instance panel.
+			r.With(requirePermission("VIEW_INSTANCES")).Post("/execute-action", handlers.ExecuteCustomPageActionHandler)
+			// Execute an action from a module-based page (called by the page's JS SDK).
+			// Gated by VIEW_INSTANCES since the page runs in the instance panel.
+			r.With(requirePermission("VIEW_INSTANCES")).Post("/execute-module-action", handlers.ExecuteModulePageActionHandler)
 
 			// Import endpoints
 			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionCreate)).Post("/import", handlers.ImportInstancePageHandler)
@@ -637,6 +668,22 @@ func NewRouter() http.Handler {
 		r.Put("/api/security/config", handlers.SecurityUpdateConfigHandler)
 		r.Post("/api/security/ddos/reset", handlers.SecurityDDOSResetHandler)
 		r.Post("/api/security/ddos/stop", handlers.SecurityDDOSManualStopHandler)
+
+		// Security page → Sessions tab. The list is the SessionManager's
+		// tracked sessions across all users; revocation is enforced by
+		// AuthMiddleware's TrackedSessionValid check on the next request.
+		r.Get("/api/security/status", handlers.SecurityStatusHandler)
+		r.Get("/api/security/sessions", handlers.SecurityListSessionsHandler)
+		r.Delete("/api/security/sessions/{id}", handlers.SecurityRevokeSessionHandler)
+		r.Post("/api/security/sessions/revoke-all", handlers.SecurityRevokeAllSessionsHandler)
+
+		// Security page → Authentication tab: login-protection status
+		// (in-memory lockout) + MFA recovery-code management.
+		r.Get("/api/security/authentication/lockout", handlers.SecurityLockoutStatusHandler)
+		r.Post("/api/security/authentication/unlock", handlers.SecurityUnlockAccountHandler)
+		r.Get("/api/security/authentication/recovery-codes", handlers.SecurityRecoveryCodesStatusHandler)
+		r.Post("/api/security/authentication/recovery-codes/generate", handlers.SecurityRecoveryCodesGenerateHandler)
+		r.Post("/api/security/authentication/recovery-codes/consume", handlers.SecurityRecoveryCodesConsumeHandler)
 	})
 
 	// Serve SPA from embedded UI – any route not matched above falls through to UI
@@ -670,5 +717,3 @@ func NewRouter() http.Handler {
 
 	return r
 }
-
-

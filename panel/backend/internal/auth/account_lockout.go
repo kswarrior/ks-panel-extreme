@@ -10,28 +10,28 @@ import (
 
 // AccountLockout tracks failed login attempts and manages account lockouts
 type AccountLockout struct {
-	mu            sync.RWMutex
-	attempts      map[string]*LoginAttempt
-	lockoutWindow time.Duration
-	maxAttempts   int
+	mu              sync.RWMutex
+	attempts        map[string]*LoginAttempt
+	lockoutWindow   time.Duration
+	maxAttempts     int
 	lockoutDuration time.Duration
 }
 
 // LoginAttempt tracks failed login attempts for a user
 type LoginAttempt struct {
-	Username  string
-	Attempts  int
+	Username    string
+	Attempts    int
 	LastAttempt time.Time
-	LockedAt  time.Time
-	Locked    bool
+	LockedAt    time.Time
+	Locked      bool
 }
 
 // NewAccountLockout creates a new account lockout manager
 func NewAccountLockout() *AccountLockout {
 	return &AccountLockout{
-		attempts:       make(map[string]*LoginAttempt),
-		lockoutWindow:  15 * time.Minute, // Reset attempts after 15 minutes
-		maxAttempts:     5,               // Max attempts before lockout
+		attempts:        make(map[string]*LoginAttempt),
+		lockoutWindow:   15 * time.Minute, // Reset attempts after 15 minutes
+		maxAttempts:     5,                // Max attempts before lockout
 		lockoutDuration: 30 * time.Minute, // Lockout duration
 	}
 }
@@ -46,8 +46,8 @@ func (al *AccountLockout) RecordFailedAttempt(username string) {
 
 	if !exists {
 		attempt = &LoginAttempt{
-			Username: username,
-			Attempts: 1,
+			Username:    username,
+			Attempts:    1,
 			LastAttempt: now,
 		}
 		al.attempts[username] = attempt
@@ -237,20 +237,59 @@ func AccountLockoutMiddleware(al *AccountLockout) func(http.Handler) http.Handle
 	}
 }
 
+// Policy surfaces the effective lockout configuration for the Security
+// page's Authentication tab (read-only: the thresholds are fixed for the
+// process lifetime).
+func (al *AccountLockout) Policy() (maxAttempts int, windowMinutes int, lockoutMinutes int) {
+	al.mu.RLock()
+	defer al.mu.RUnlock()
+	return al.maxAttempts,
+		int(al.lockoutWindow / time.Minute),
+		int(al.lockoutDuration / time.Minute)
+}
+
+// LockedAccount is one currently-locked identifier.
+type LockedAccount struct {
+	Username string
+	LockedAt time.Time
+}
+
+// LockedAccounts lists every identifier currently under an active lockout
+// so an admin can see (and manually unlock) affected accounts.
+func (al *AccountLockout) LockedAccounts() []LockedAccount {
+	al.mu.RLock()
+	defer al.mu.RUnlock()
+
+	out := make([]LockedAccount, 0)
+	now := time.Now()
+	for _, attempt := range al.attempts {
+		if !attempt.Locked {
+			continue
+		}
+		// Report only locks that are still inside their duration; the
+		// lazy expiry in IsAccountLocked clears the rest on next use.
+		if now.Sub(attempt.LockedAt) >= al.lockoutDuration {
+			continue
+		}
+		out = append(out, LockedAccount{Username: attempt.Username, LockedAt: attempt.LockedAt})
+	}
+	return out
+}
+
 // InitializeAccountLockout creates and starts a cleanup goroutine for the account lockout
 func InitializeAccountLockout() *AccountLockout {
 	al := NewAccountLockout()
-	
+
 	// Start cleanup goroutine
 	go func() {
 		ticker := time.NewTicker(1 * time.Hour)
 		defer ticker.Stop()
-		
+
 		for range ticker.C {
 			al.CleanupOldAttempts()
 		}
 	}()
-	
+
 	return al
 }
 

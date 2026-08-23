@@ -22,10 +22,10 @@ import (
 //   - cfg:            the user's currently-persisted config (their
 //     enabled subset + the required-mode / required-N count).
 type userAuthResponse struct {
-	Available    []authProviderInfo           `json:"available"`
-	Cfg          *models.UserAuthorityConfig   `json:"cfg"`
-	RoleAllowed  []string                     `json:"role_allowed"`
-	Unrestricted bool                         `json:"unrestricted"`
+	Available    []authProviderInfo          `json:"available"`
+	Cfg          *models.UserAuthorityConfig `json:"cfg"`
+	RoleAllowed  []string                    `json:"role_allowed"`
+	Unrestricted bool                        `json:"unrestricted"`
 }
 
 // MeAuthHandler backs the "Sign-in authorities" card on the Account page.
@@ -138,8 +138,8 @@ func MeAuthHandler(w http.ResponseWriter, r *http.Request) {
 		// configured). The intersection above keeps it when available.
 		cfg := &models.UserAuthorityConfig{
 			EnabledAuthorities: sanitizeEnabledAuthorities(sanitized),
-			RequiredMode:        req.RequiredMode,
-			RequiredN:           req.RequiredN,
+			RequiredMode:       req.RequiredMode,
+			RequiredN:          req.RequiredN,
 		}
 		if err := authRepo.Update(uid, cfg); err != nil {
 			http.Error(w, "could not update sign-in authorities", http.StatusBadRequest)

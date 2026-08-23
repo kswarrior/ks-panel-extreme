@@ -14,21 +14,31 @@ import { resolveInstanceNav, ResolvedNavEntry } from '@/shared/utils/instancePag
 // who adds/removes/renames pages in the deploy form sees exactly those
 // pages on their instance, and later template edits don't mutate already
 // deployed instances.
+//
+// `loading` reflects whether the underlying instance fetch is still in
+// flight — while it's true the global sidebar / InstanceTabs header shows
+// a shimmering skeleton in place of the resolved entries. Without it the
+// tab bar would render `null` for a few hundred ms before the first
+// payload arrived (the existing "show nothing until nav populates" rule
+// looked like the whole sub-page had disappeared).
 interface InstanceNavContextValue {
   nav: ResolvedNavEntry[];
   instanceId: number | null;
-  setActiveInstance: (id: number | null, spec: Record<string, any> | null) => void;
+  loading: boolean;
+  setActiveInstance: (id: number | null, spec: Record<string, any> | null, loading?: boolean) => void;
 }
 
 const Ctx = createContext<InstanceNavContextValue>({
   nav: [],
   instanceId: null,
+  loading: false,
   setActiveInstance: () => {},
 });
 
 export const InstanceNavProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [instanceId, setInstanceId] = useState<number | null>(null);
   const [spec, setSpec] = useState<Record<string, any> | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
 
   // setActiveInstance must be referentially stable: it's a dependency of the
   // useInstanceNavSync effect and the provider re-renders whenever the spec
@@ -36,9 +46,10 @@ export const InstanceNavProvider: React.FC<{ children: React.ReactNode }> = ({ c
   // effects on every provider render, which — combined with a freshly-parsed
   // spec object — drove an infinite render loop ("Too many re-renders") that
   // blanked the whole app the moment an instance's pages loaded.
-  const setActiveInstance = useCallback((id: number | null, s: Record<string, any> | null) => {
+  const setActiveInstance = useCallback((id: number | null, s: Record<string, any> | null, isLoading?: boolean) => {
     setInstanceId(id);
     setSpec(s);
+    if (typeof isLoading === 'boolean') setLoading(isLoading);
   }, []);
 
   const nav = useMemo<ResolvedNavEntry[]>(() => {
@@ -47,7 +58,7 @@ export const InstanceNavProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, [instanceId, spec]);
 
   return (
-    <Ctx.Provider value={{ nav, instanceId, setActiveInstance }}>
+    <Ctx.Provider value={{ nav, instanceId, loading, setActiveInstance }}>
       {children}
     </Ctx.Provider>
   );
@@ -60,12 +71,19 @@ export const useInstanceNav = (): InstanceNavContextValue => useContext(Ctx);
 // separate from InstanceNavProvider so consumers that don't need
 // /instances/:id/* (e.g. login) don't pay the template-fetch cost.
 // `spec` is the parsed instance config (parseConfig(instance.config)).
-export const useInstanceNavSync = (instanceId: number | null, spec: Record<string, any> | null): void => {
+// `loading` propagates the InstanceDetail loading flag into the context so
+// InstanceTabs / the global sidebar can show a skeleton placeholder
+// instead of an empty tab bar while the first GET is in flight.
+export const useInstanceNavSync = (
+  instanceId: number | null,
+  spec: Record<string, any> | null,
+  loading: boolean = false,
+): void => {
   const { setActiveInstance } = useContext(Ctx);
   const location = useLocation();
   useEffect(() => {
     const m = matchPath('/instances/:id/*', location.pathname);
     const activeId = m && instanceId != null ? instanceId : null;
-    setActiveInstance(activeId, activeId != null ? spec : null);
-  }, [location.pathname, instanceId, spec, setActiveInstance]);
+    setActiveInstance(activeId, activeId != null ? spec : null, activeId != null ? loading : false);
+  }, [location.pathname, instanceId, spec, loading, setActiveInstance]);
 };

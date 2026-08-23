@@ -15,7 +15,7 @@ import (
 // strconvI64 / boolStr are tiny adapters that keep the upsert loop above
 // readable — they take typed values to the wire format the settings KV
 // expects (string-encoded ints + "0"/"1" booleans).
-func strconvI64(n int64) string  { return strconv.FormatInt(n, 10) }
+func strconvI64(n int64) string { return strconv.FormatInt(n, 10) }
 func boolStr(b bool) string {
 	if b {
 		return "1"
@@ -58,10 +58,45 @@ const (
 	SecurityDDOSAutoStopEnabledKey = "security_ddos_auto_stop_enabled"
 	// SecurityDDOSStopMinutesKey is how many minutes to stay stopped.
 	SecurityDDOSStopMinutesKey = "security_ddos_stop_minutes"
+	// SecurityDDOSMaxStopCountKey is the max number of auto-stops before
+	// auto protection disables itself until reset (0 = unlimited).
+	SecurityDDOSMaxStopCountKey = "security_ddos_max_stop_count"
 	// SecurityDDOSStopCountKey tracks how many times auto-stop triggered.
 	SecurityDDOSStopCountKey = "security_ddos_stop_count"
 	// SecurityDDOSCooldownUntilKey stores the RFC3339 cooldown expiry.
 	SecurityDDOSCooldownUntilKey = "security_ddos_cooldown_until"
+	// SecurityDDOSModeKey selects the reaction mode ("stop" or
+	// "port_switch") — see models.DDOSMode* constants.
+	SecurityDDOSModeKey = "security_ddos_mode"
+	// SecurityDDOSAltPortKey is the port the panel moves to in
+	// "port_switch" mode.
+	SecurityDDOSAltPortKey = "security_ddos_alt_port"
+	// SecurityDDOSGlobalTriggerHitsKey arms the all-IP burst detector.
+	SecurityDDOSGlobalTriggerHitsKey = "security_ddos_global_trigger_hits"
+	// SecurityDDOSGlobalTriggerWindowKey is its sliding window in seconds.
+	SecurityDDOSGlobalTriggerWindowKey = "security_ddos_global_trigger_window"
+	// SecurityIPAllowlistKey is a comma-separated list of client IPs /
+	// CIDRs that bypass the per-IP rate limit.
+	SecurityIPAllowlistKey = "security_ip_allowlist"
+	// SecurityIPDenylistKey is a comma-separated list of client IPs /
+	// CIDRs that are hard-rejected.
+	SecurityIPDenylistKey = "security_ip_denylist"
+	// SecurityMaxBodySizeKey caps request body size in megabytes.
+	SecurityMaxBodySizeKey = "security_max_body_size_mb"
+	// SecurityAllowedMethodsKey is a CSV HTTP-method allowlist ("" = all).
+	SecurityAllowedMethodsKey = "security_allowed_http_methods"
+	// SecurityBlockSuspiciousPathsKey toggles blocking of known
+	// scanner/probe paths.
+	SecurityBlockSuspiciousPathsKey = "security_block_suspicious_paths"
+	// SecuritySessionLifetimeKey bounds the absolute session lifetime in
+	// minutes (drives cookie TTL + bearer max-age).
+	SecuritySessionLifetimeKey = "security_session_lifetime_minutes"
+	// SecuritySessionIdleTimeoutKey invalidates tracked sessions unused
+	// for this many minutes.
+	SecuritySessionIdleTimeoutKey = "security_session_idle_timeout_minutes"
+	// SecuritySessionMaxPerUserKey caps concurrent sessions per user
+	// (0 = unlimited).
+	SecuritySessionMaxPerUserKey = "security_session_max_per_user"
 )
 
 // Defaults for every editable knob. Used by GetConfig when the settings row
@@ -75,21 +110,106 @@ const (
 	defaultDDOSAutoStop      = false
 	defaultDDOSStopMinutes   = int64(5)
 	defaultDDOSMaxStopCount  = int64(0) // 0 = unlimited
+	defaultDDOSMode          = models.DDOSModeStop
+	defaultDDOSAltPort       = int64(5050)
+	// defaultDDOSGlobalTriggerHits is 0 (detector off) so a fresh install
+	// behaves exactly like the pre-port-switch builds: detection comes
+	// only from the per-IP rate limit.
+	defaultDDOSGlobalTriggerHits   = int64(0)
+	defaultDDOSGlobalTriggerWindow = int64(10)
+
+	// Firewall / WAF defaults. 10 MB mirrors the previous hardcoded
+	// MaxBodySize constant in internal/api/server.go; empty method
+	// allowlist and disabled suspicious-path block mirror the previous
+	// behaviour where no such checks existed.
+	defaultIPAllowlist          = ""
+	defaultIPDenylist           = ""
+	defaultMaxBodySizeMB        = int64(10)
+	defaultAllowedMethods       = ""
+	defaultBlockSuspiciousPaths = false
+
+	// Session defaults mirror the pre-config constants: 8h lifetime
+	// (auth.SessionTTL), 24h idle cleanup (SessionManager) and no
+	// per-user cap.
+	defaultSessionLifetimeMinutes = int64(480)
+	defaultSessionIdleMinutes     = int64(1440)
+	defaultSessionMaxPerUser      = int64(0)
 )
+
+// getDDOSMode reads the reaction mode, normalizing anything unknown to the
+// safe "stop" default so a hand-edited settings row can't put the panel in
+// a mode this build doesn't understand.
+func (r *SecurityRepository) getDDOSMode() string {
+	m := r.getString(SecurityDDOSModeKey, defaultDDOSMode)
+	if m != models.DDOSModeStop && m != models.DDOSModePortSwitch {
+		return models.DDOSModeStop
+	}
+	return m
+}
 
 // GetConfig returns the persisted security config, applying the defaults
 // above for every missing or invalid row. Never errors so a fresh DB
 // doesn't 500 the Security page on first load.
 func (r *SecurityRepository) GetConfig() models.SecurityConfig {
 	return models.SecurityConfig{
-		RequestsPerMinuteLimit: r.getInt(SecurityRequestsPerMinuteKey, defaultRequestsPerMinute),
-		WindowSecondsLimit:     r.getInt(SecurityWindowSecondsKey, defaultWindowSeconds),
-		GlobalRPMLimit:         r.getInt(SecurityGlobalRPMKey, defaultGlobalRPM),
-		BlockUnknownUA:         r.getBool(SecurityBlockUnknownUAKey, defaultBlockUnknownUA),
-		DDOSAutoStopEnabled:    r.getBool(SecurityDDOSAutoStopEnabledKey, defaultDDOSAutoStop),
-		DDOSStopMinutes:        r.getInt(SecurityDDOSStopMinutesKey, defaultDDOSStopMinutes),
-		DDOSMaxStopCount:       r.getInt(SecurityDDOSStopCountKey, defaultDDOSMaxStopCount),
+		RequestsPerMinuteLimit:  r.getInt(SecurityRequestsPerMinuteKey, defaultRequestsPerMinute),
+		WindowSecondsLimit:      r.getInt(SecurityWindowSecondsKey, defaultWindowSeconds),
+		GlobalRPMLimit:          r.getInt(SecurityGlobalRPMKey, defaultGlobalRPM),
+		BlockUnknownUA:          r.getBool(SecurityBlockUnknownUAKey, defaultBlockUnknownUA),
+		DDOSAutoStopEnabled:     r.getBool(SecurityDDOSAutoStopEnabledKey, defaultDDOSAutoStop),
+		DDOSStopMinutes:         r.getInt(SecurityDDOSStopMinutesKey, defaultDDOSStopMinutes),
+		DDOSMaxStopCount:        r.getInt(SecurityDDOSMaxStopCountKey, defaultDDOSMaxStopCount),
+		DDOSMode:                r.getDDOSMode(),
+		DDOSAltPort:             r.getInt(SecurityDDOSAltPortKey, defaultDDOSAltPort),
+		DDOSGlobalTriggerHits:   r.getInt(SecurityDDOSGlobalTriggerHitsKey, defaultDDOSGlobalTriggerHits),
+		DDOSGlobalTriggerWindow: r.getInt(SecurityDDOSGlobalTriggerWindowKey, defaultDDOSGlobalTriggerWindow),
+
+		IPAllowlist:          r.getCsvList(SecurityIPAllowlistKey, defaultIPAllowlist),
+		IPDenylist:           r.getCsvList(SecurityIPDenylistKey, defaultIPDenylist),
+		MaxBodySizeMB:        clampMin(r.getInt(SecurityMaxBodySizeKey, defaultMaxBodySizeMB), 1),
+		AllowedHTTPMethods:   r.getString(SecurityAllowedMethodsKey, defaultAllowedMethods),
+		BlockSuspiciousPaths: r.getBool(SecurityBlockSuspiciousPathsKey, defaultBlockSuspiciousPaths),
+
+		SessionLifetimeMinutes:    clampMin(r.getInt(SecuritySessionLifetimeKey, defaultSessionLifetimeMinutes), 1),
+		SessionIdleTimeoutMinutes: clampMin(r.getInt(SecuritySessionIdleTimeoutKey, defaultSessionIdleMinutes), 1),
+		SessionMaxPerUser:         r.getInt(SecuritySessionMaxPerUserKey, defaultSessionMaxPerUser),
 	}
+}
+
+// clampMin floors v at min (0 stays a legal "disabled" for counters, but
+// size/lifetime knobs must never end up at zero or the panel would
+// self-DoS).
+func clampMin(v, min int64) int64 {
+	if v < min {
+		return min
+	}
+	return v
+}
+
+// getCsvList reads a comma-separated settings row into a clean string
+// slice (trimmed entries, blanks dropped). A missing row yields an empty
+// (non-nil) slice so JSON consumers always see an array.
+func (r *SecurityRepository) getCsvList(key, def string) []string {
+	raw := r.getString(key, def)
+	out := []string{}
+	for _, part := range strings.Split(raw, ",") {
+		if s := strings.TrimSpace(part); s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// joinCsv serializes an IP / method list back to the comma-separated KV
+// wire format.
+func joinCsv(list []string) string {
+	cleaned := make([]string, 0, len(list))
+	for _, s := range list {
+		if t := strings.TrimSpace(s); t != "" {
+			cleaned = append(cleaned, t)
+		}
+	}
+	return strings.Join(cleaned, ",")
 }
 
 // UpdateConfig upserts every editable field into the settings KV. Zeros are
@@ -106,7 +226,26 @@ func (r *SecurityRepository) UpdateConfig(c models.SecurityConfig) error {
 		{SecurityBlockUnknownUAKey, boolStr(c.BlockUnknownUA)},
 		{SecurityDDOSAutoStopEnabledKey, boolStr(c.DDOSAutoStopEnabled)},
 		{SecurityDDOSStopMinutesKey, strconvI64(c.DDOSStopMinutes)},
-		{SecurityDDOSStopCountKey, strconvI64(c.DDOSMaxStopCount)},
+		// DDOSMaxStopCount gets its own key. It must never be written to
+		// SecurityDDOSStopCountKey: that key tracks how many times
+		// auto-stop HAS triggered (runtime history), while max-stop-count
+		// is an operator preference. Collapsing them used to reset the
+		// trigger history on every config save.
+		{SecurityDDOSMaxStopCountKey, strconvI64(c.DDOSMaxStopCount)},
+		{SecurityDDOSModeKey, c.DDOSMode},
+		{SecurityDDOSAltPortKey, strconvI64(c.DDOSAltPort)},
+		{SecurityDDOSGlobalTriggerHitsKey, strconvI64(c.DDOSGlobalTriggerHits)},
+		{SecurityDDOSGlobalTriggerWindowKey, strconvI64(c.DDOSGlobalTriggerWindow)},
+
+		{SecurityIPAllowlistKey, joinCsv(c.IPAllowlist)},
+		{SecurityIPDenylistKey, joinCsv(c.IPDenylist)},
+		{SecurityMaxBodySizeKey, strconvI64(clampMin(c.MaxBodySizeMB, 1))},
+		{SecurityAllowedMethodsKey, strings.ToUpper(strings.Join(strings.Fields(strings.ReplaceAll(c.AllowedHTTPMethods, ",", " ")), ","))},
+		{SecurityBlockSuspiciousPathsKey, boolStr(c.BlockSuspiciousPaths)},
+
+		{SecuritySessionLifetimeKey, strconvI64(clampMin(c.SessionLifetimeMinutes, 1))},
+		{SecuritySessionIdleTimeoutKey, strconvI64(clampMin(c.SessionIdleTimeoutMinutes, 1))},
+		{SecuritySessionMaxPerUserKey, strconvI64(c.SessionMaxPerUser)},
 	}
 	for _, w := range writes {
 		if _, err := r.db.Exec(
@@ -171,19 +310,19 @@ func (r *SecurityRepository) setString(key, val string) error {
 // maps to its default (NULL user_id, empty strings, zeros) so the logger
 // never blocks a response waiting on a row.
 type SecurityRequestInput struct {
-	ClientIP    string
-	Method      string
-	Path        string
-	Status      int
-	UserID      *int64
-	UserAgent   string
-	Country     string
-	Blocked     bool
-	Challenged  bool
-	IsAPI       bool
-	IsLogin     bool
-	BytesSent   int64
-	DurationMs  int64
+	ClientIP   string
+	Method     string
+	Path       string
+	Status     int
+	UserID     *int64
+	UserAgent  string
+	Country    string
+	Blocked    bool
+	Challenged bool
+	IsAPI      bool
+	IsLogin    bool
+	BytesSent  int64
+	DurationMs int64
 }
 
 // Insert appends one request row. Returns the assigned id (and the error

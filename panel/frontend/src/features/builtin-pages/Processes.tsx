@@ -73,8 +73,8 @@ export const InstanceProcesses: React.FC = () => {
 
   useEffect(() => { load(); }, [load]);
 
-  if (!instance) return <LoadingOrError loading={false} error="Instance not found" kind="panel" />;
-  if (tplLoading) return <LoadingOrError loading={true} error="" kind="panel" />;
+  if (!instance) return <LoadingOrError loading={false} error="Instance not found" kind="processes" />;
+  if (tplLoading) return <LoadingOrError loading={true} error="" kind="processes" />;
   const spec = parseConfig(instance?.config);
   if (!isPageAllowed('processes', spec)) {
     return <div className="glass-card rounded-xl text-center text-gray-400"><p className="text-sm">This page is not part of this instance's template.</p></div>;

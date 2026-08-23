@@ -19,9 +19,11 @@ export interface LocationFieldProps {
   /** ISO-3166 alpha-2 code ("IN", "US", …). Empty string = none. */
   country: string;
   onCountryChange: (code: string) => void;
-  /** Free-text site label ("node-1", "rack-a3", …). */
-  node: string;
-  onNodeChange: (label: string) => void;
+  /** Free-text site label ("node-1", "rack-a3", …). Omit `node` +
+   *  `onNodeChange` to render the country picker alone (the NodeForm now
+   *  manages the site label from its General tab instead). */
+  node?: string;
+  onNodeChange?: (label: string) => void;
   /** Optional input id so an outer <label htmlFor=...> works for a11y. */
   nodeId?: string;
 }
@@ -47,9 +49,10 @@ const LocationField: React.FC<LocationFieldProps> = ({
   );
 
   const selected = country ? countryByCode(country) : undefined;
+  const withSiteLabel = onNodeChange !== undefined;
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <div className={`grid grid-cols-1 ${withSiteLabel ? 'sm:grid-cols-2' : ''} gap-3`}>
       {/* Country picker — search + flag/name list. */}
       <div>
         <label className="block text-sm font-medium text-gray-200 mb-1">
@@ -80,42 +83,45 @@ const LocationField: React.FC<LocationFieldProps> = ({
       {/* Site label — free text. The placeholder shifts along with the
           picked country so the operator sees an example that matches it
           ("India: node-1", "United States: aws-us-east-1", …) — a small
-          affordance that the two inputs are part of the same location. */}
-      <div>
-        <label htmlFor={nodeId} className="block text-sm font-medium text-gray-200 mb-1">
-          Location — Site / Node label
-        </label>
-        <div className="flex items-center gap-2 bg-black/30 border border-white/10 rounded-md px-3 py-1.5 focus-within:border-white/40 transition-colors">
-          {/* Selected-country chip — `[🇮🇳 India]` preview. Greys out
-              when no country is picked so the operator still sees that
-              the picker is empty (vs the input being the country). */}
-          {selected ? (
-            <span
-              className="inline-flex items-center gap-1.5 shrink-0 text-sm text-gray-200 pr-2 border-r border-white/10"
-              title={`${selected.name} (${selected.code})`}
-            >
-              <span className="text-base leading-none">{selected.flag}</span>
-              <span className="truncate max-w-[8rem]">{selected.name}</span>
-            </span>
-          ) : (
-            <span
-              className="inline-flex items-center gap-1.5 shrink-0 text-sm text-gray-600 pr-2 border-r border-white/10"
-              title="No country selected"
-            >
-              <span className="text-base leading-none">🏳️</span>
-              <span>—</span>
-            </span>
-          )}
-          <input
-            id={nodeId}
-            value={node}
-            onChange={(e) => onNodeChange(e.target.value)}
-            placeholder={selected ? `${selected.name}: node-1` : 'e.g. node-1 / rack-a3'}
-            className="flex-1 bg-transparent text-sm text-white placeholder-gray-500 outline-none min-w-0"
-            autoComplete="off"
-          />
+          affordance that the two inputs are part of the same location.
+          Rendered only when the caller wires `onNodeChange`. */}
+      {withSiteLabel && (
+        <div>
+          <label htmlFor={nodeId} className="block text-sm font-medium text-gray-200 mb-1">
+            Location — Site / Node label
+          </label>
+          <div className="flex items-center gap-2 bg-black/30 border border-white/10 rounded-md px-3 py-1.5 focus-within:border-white/40 transition-colors">
+            {/* Selected-country chip — `[🇮🇳 India]` preview. Greys out
+                when no country is picked so the operator still sees that
+                the picker is empty (vs the input being the country). */}
+            {selected ? (
+              <span
+                className="inline-flex items-center gap-1.5 shrink-0 text-sm text-gray-200 pr-2 border-r border-white/10"
+                title={`${selected.name} (${selected.code})`}
+              >
+                <span className="text-base leading-none">{selected.flag}</span>
+                <span className="truncate max-w-[8rem]">{selected.name}</span>
+              </span>
+            ) : (
+              <span
+                className="inline-flex items-center gap-1.5 shrink-0 text-sm text-gray-600 pr-2 border-r border-white/10"
+                title="No country selected"
+              >
+                <span className="text-base leading-none">🏳️</span>
+                <span>—</span>
+              </span>
+            )}
+            <input
+              id={nodeId}
+              value={node ?? ''}
+              onChange={(e) => onNodeChange(e.target.value)}
+              placeholder={selected ? `${selected.name}: node-1` : 'e.g. node-1 / rack-a3'}
+              className="flex-1 bg-transparent text-sm text-white placeholder-gray-500 outline-none min-w-0"
+              autoComplete="off"
+            />
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

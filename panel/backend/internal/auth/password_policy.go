@@ -12,10 +12,14 @@ type PasswordPolicy struct {
 	MinLength      int
 	MaxLength      int
 	RequireUpper   bool
+	MinUpper       int
 	RequireLower   bool
-	RequireNumber   bool
-	RequireSpecial  bool
-	RequireUnique   int // Minimum number of unique characters
+	MinLower       int
+	RequireNumber  bool
+	MinNumber      int
+	RequireSpecial bool
+	MinSpecial     int
+	RequireUnique  int  // Minimum number of unique characters
 	NoCommon       bool // Check against common passwords
 	NoPersonalInfo bool // Check against user info (username, email)
 }
@@ -27,9 +31,9 @@ func DefaultPasswordPolicy() *PasswordPolicy {
 		MaxLength:      128,
 		RequireUpper:   true,
 		RequireLower:   true,
-		RequireNumber:   true,
-		RequireSpecial:  true,
-		RequireUnique:   8,
+		RequireNumber:  true,
+		RequireSpecial: true,
+		RequireUnique:  8,
 		NoCommon:       true,
 		NoPersonalInfo: true,
 	}
@@ -50,7 +54,7 @@ func ValidatePassword(password string, policy *PasswordPolicy, userInfo ...strin
 	}
 
 	// Check character requirements
-	var hasUpper, hasLower, hasNumber, hasSpecial bool
+	var upperCount, lowerCount, numberCount, specialCount int
 	uniqueChars := make(map[rune]bool)
 
 	for _, char := range password {
@@ -58,28 +62,40 @@ func ValidatePassword(password string, policy *PasswordPolicy, userInfo ...strin
 
 		switch {
 		case unicode.IsUpper(char):
-			hasUpper = true
+			upperCount++
 		case unicode.IsLower(char):
-			hasLower = true
+			lowerCount++
 		case unicode.IsNumber(char):
-			hasNumber = true
+			numberCount++
 		case unicode.IsPunct(char) || unicode.IsSymbol(char):
-			hasSpecial = true
+			specialCount++
 		}
 	}
 
 	// Check character class requirements
-	if policy.RequireUpper && !hasUpper {
+	if policy.RequireUpper && upperCount == 0 {
 		return errors.New("password must contain at least one uppercase letter")
 	}
-	if policy.RequireLower && !hasLower {
+	if policy.MinUpper > 0 && upperCount < policy.MinUpper {
+		return errors.New("password must contain at least " + strconv.Itoa(policy.MinUpper) + " uppercase letter(s)")
+	}
+	if policy.RequireLower && lowerCount == 0 {
 		return errors.New("password must contain at least one lowercase letter")
 	}
-	if policy.RequireNumber && !hasNumber {
+	if policy.MinLower > 0 && lowerCount < policy.MinLower {
+		return errors.New("password must contain at least " + strconv.Itoa(policy.MinLower) + " lowercase letter(s)")
+	}
+	if policy.RequireNumber && numberCount == 0 {
 		return errors.New("password must contain at least one number")
 	}
-	if policy.RequireSpecial && !hasSpecial {
+	if policy.MinNumber > 0 && numberCount < policy.MinNumber {
+		return errors.New("password must contain at least " + strconv.Itoa(policy.MinNumber) + " number(s)")
+	}
+	if policy.RequireSpecial && specialCount == 0 {
 		return errors.New("password must contain at least one special character")
+	}
+	if policy.MinSpecial > 0 && specialCount < policy.MinSpecial {
+		return errors.New("password must contain at least " + strconv.Itoa(policy.MinSpecial) + " special character(s)")
 	}
 
 	// Check unique characters

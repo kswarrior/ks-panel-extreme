@@ -377,36 +377,6 @@ const InstanceCard: React.FC<InstanceCardProps> = ({ instance, actions, showOwne
           )}
         </div>
 
-        {/* ── Image row ─────────────────────────────────────────────── */}
-        {cfg.image && (
-          <p className="text-[11px] text-gray-500 font-mono truncate bg-black/20 border border-white/5 rounded px-2 py-1" title={cfg.image}>
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-3 h-3 inline mr-1 -mt-0.5"><rect x="3" y="8" width="18" height="8" rx="1" /><path d="M3 12h18" /> </svg>
-            {cfg.image}
-          </p>
-        )}
-
-        {/* ── Resource limits — compact tinted row ──────────────────── */}
-        <div className="flex flex-wrap gap-1 text-[11px]">
-          {res.ramBytes != null && (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-emerald-700/30 bg-emerald-900/20 text-emerald-300" title="Memory limit">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-3 h-3"><rect x="2" y="8" width="20" height="9" rx="1.5" /><path d="M6 8v3M10 8v3M14 8v3M18 8v3" /> </svg>
-              {formatBytes(res.ramBytes)}
-            </span>
-          )}
-          {res.cpu != null && (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-sky-700/30 bg-sky-900/20 text-sky-300" title="CPU limit">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-3 h-3"><rect x="5" y="5" width="14" height="14" rx="2" /><rect x="9" y="9" width="6" height="6" rx="0.5" /><path d="M2 9h3M2 15h3M19 9h3M19 15h3M9 2v3M15 2v3M9 19v3M15 19v3" /> </svg>
-              {formatCpu(res.cpu)}
-            </span>
-          )}
-          {res.diskBytes != null && (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-amber-700/30 bg-amber-900/20 text-amber-300" title="Disk limit">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-3 h-3"><ellipse cx="12" cy="6" rx="8" ry="3" /><path d="M4 6v6c0 1.66 3.58 3 8 3s8-1.34 8-3V6" /><path d="M4 12v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6" /> </svg>
-              {formatBytes(res.diskBytes)}
-            </span>
-          )}
-        </div>
-
         {instance.error && (
           <p className="text-[11px] text-red-300 truncate bg-red-900/20 border border-red-900/30 rounded px-2 py-1" title={instance.error}>
             ⚠ {instance.error}

@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"runtime"
+	"strconv"
 	"time"
 
 	"github.com/example/kspanel/internal/models"
@@ -57,6 +58,11 @@ func SecuritySnapshotHandler(w http.ResponseWriter, r *http.Request) {
 	// so the admin page can show how many connections were hard-refused
 	// at the socket layer during the current/prior auto-stops.
 	snap.DDOSTCPAccepted, snap.DDOSTCPDropped = security.DDoSListenerStats()
+
+	// Surface the live port-switch state so the admin page can show
+	// which port the panel is actually serving on and whether a DDoS
+	// reaction moved it off the launch port.
+	snap.DDOSActivePort, snap.DDOSPortSwitched, snap.DDOSPortError = security.PortStatus()
 
 	writeJSON(w, snap)
 }
@@ -134,6 +140,12 @@ func SecurityUpdateConfigHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid payload", http.StatusBadRequest)
 		return
 	}
+	con, err := repository.OpenDB()
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	defer con.Close()
 	// Clamp to safe ranges. We only EVER clamp upward/downward toward a
 	// safe value so the admin can never set a window of "0" (which would
 	// make the limiter always block) or a negative number.
@@ -158,12 +170,64 @@ func SecurityUpdateConfigHandler(w http.ResponseWriter, r *http.Request) {
 	if req.DDOSMaxStopCount < 0 {
 		req.DDOSMaxStopCount = 0
 	}
-	con, err := repository.OpenDB()
-	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+	// DDoS reaction mode: anything unknown falls back to the safe
+	// "stop" default so a malformed payload can't arm a mode this build
+	// doesn't implement (fail closed).
+	if req.DDOSMode != models.DDOSModePortSwitch && req.DDOSMode != models.DDOSModeStop {
+		req.DDOSMode = models.DDOSModeStop
+	}
+	// Alternate port must be a real TCP port; in port_switch mode it is
+	// REQUIRED and must differ from the port the panel currently serves,
+	// otherwise the reaction would try to re-bind onto itself.
+	if req.DDOSAltPort < 0 || req.DDOSAltPort > 65535 {
+		http.Error(w, "ddos_alt_port must be between 0 and 65535", http.StatusBadRequest)
 		return
 	}
-	defer con.Close()
+	if req.DDOSGlobalTriggerHits < 0 {
+		req.DDOSGlobalTriggerHits = 0
+	}
+	if req.DDOSGlobalTriggerWindow < 5 {
+		req.DDOSGlobalTriggerWindow = 5
+	}
+	if req.DDOSGlobalTriggerWindow > 60 {
+		req.DDOSGlobalTriggerWindow = 60
+	}
+	// Firewall / WAF knobs. Body size must stay >= 1 MB so a typo cannot
+	// make the panel reject every mutation; sessions must keep a real
+	// lifetime (a 0-minute session would log everyone out instantly).
+	if req.MaxBodySizeMB < 1 {
+		req.MaxBodySizeMB = 1
+	}
+	if req.MaxBodySizeMB > 1024 {
+		req.MaxBodySizeMB = 1024
+	}
+	if req.SessionLifetimeMinutes < 1 {
+		req.SessionLifetimeMinutes = 480
+	}
+	if req.SessionLifetimeMinutes > 10080 {
+		req.SessionLifetimeMinutes = 10080 // max 7 days
+	}
+	if req.SessionIdleTimeoutMinutes < 1 {
+		req.SessionIdleTimeoutMinutes = 1440
+	}
+	if req.SessionIdleTimeoutMinutes > 43200 {
+		req.SessionIdleTimeoutMinutes = 43200 // max 30 days
+	}
+	if req.SessionMaxPerUser < 0 {
+		req.SessionMaxPerUser = 0
+	}
+	if req.DDOSMode == models.DDOSModePortSwitch {
+		if req.DDOSAltPort < 1 {
+			http.Error(w, "ddos_alt_port is required when ddos_mode is port_switch", http.StatusBadRequest)
+			return
+		}
+		settingsRepo := repository.NewSettingsRepository(con)
+		if current := settingsRepo.PanelPort(); current > 0 && int(req.DDOSAltPort) == current {
+			http.Error(w, "ddos_alt_port must differ from the panel's current port ("+strconv.Itoa(current)+")", http.StatusBadRequest)
+			return
+		}
+	}
+
 	repo := repository.NewSecurityRepository(con)
 	if err := repo.UpdateConfig(req); err != nil {
 		log.Println("security update config:", err)

@@ -44,7 +44,7 @@ import (
 //	  "size_bytes": 12345678                  // binary size, informational
 //	}
 const (
-	kspanelBaseURL    = "https://huggingface.co/buckets/kswarrior/opencode-storage/resolve/kspanel/kspanel/release"
+	kspanelBaseURL    = "https://huggingface.co/buckets/kswarrior/opencode-storage/resolve/ks-panel/release"
 	kspanelBinaryURL  = kspanelBaseURL + "/kspanel?download=true"
 	kspanelVersionURL = kspanelBaseURL + "/version.json?download=true"
 )
@@ -65,12 +65,12 @@ type updateVersionManifest struct {
 // "Updates" tab can render "You are running X" without a separate request
 // per field.
 type updateInfoResponse struct {
-	Local        version.Info `json:"local"`
-	UpdateURL    string       `json:"update_url"`
-	VersionURL   string       `json:"version_url"`
-	BinaryPath   string       `json:"binary_path"`
-	LastCheckAt  *string      `json:"last_check_at,omitempty"`
-	LastRemote   *string      `json:"last_remote_version,omitempty"`
+	Local       version.Info `json:"local"`
+	UpdateURL   string       `json:"update_url"`
+	VersionURL  string       `json:"version_url"`
+	BinaryPath  string       `json:"binary_path"`
+	LastCheckAt *string      `json:"last_check_at,omitempty"`
+	LastRemote  *string      `json:"last_remote_version,omitempty"`
 }
 
 // updateCheckResponse is the GET /api/system/update-check payload.
@@ -79,12 +79,12 @@ type updateInfoResponse struct {
 // and the other fields are zero values so the SPA renders a yellow "Could
 // not reach update server" banner without crashing on null fields.
 type updateCheckResponse struct {
-	Available     bool                   `json:"available"`
-	Local         version.Info           `json:"local"`
-	Remote        updateVersionManifest  `json:"remote"`
-	CheckedAt     string                 `json:"checked_at"`
-	UpdateURL     string                 `json:"update_url"`
-	Error         string                 `json:"error,omitempty"`
+	Available bool                  `json:"available"`
+	Local     version.Info          `json:"local"`
+	Remote    updateVersionManifest `json:"remote"`
+	CheckedAt string                `json:"checked_at"`
+	UpdateURL string                `json:"update_url"`
+	Error     string                `json:"error,omitempty"`
 }
 
 // updateApplyResponse is the POST /api/system/update-apply payload.
@@ -283,6 +283,29 @@ func UpdateApplyHandler(w http.ResponseWriter, r *http.Request) {
 	}()
 }
 
+// effectivePanelPort resolves the port the self-update / reinstall flows
+// should (re)bind or health-check against. Precedence mirrors runLaunch in
+// internal/cli/launch.go: KSPANEL_PORT env var > last-persisted panel_port
+// from the settings KV > config.DefaultPort(). The KV lookup is load-bearing:
+// launch.go persists every successfully bound port there, so an operator who
+// started the panel with `kspanel launch --port 4872` (no KSPANEL_PORT set)
+// gets the reinstall script pointed at 4872 instead of silently restarting
+// the panel on DefaultPort() — which left the UI origin dead forever ("panel
+// stops but never starts again") while the new process answered on a port
+// nothing else knew about.
+func effectivePanelPort() string {
+	if p := os.Getenv("KSPANEL_PORT"); p != "" {
+		return p
+	}
+	if con, err := repository.OpenDB(); err == nil {
+		defer con.Close()
+		if saved := repository.NewSettingsRepository(con).PanelPort(); saved > 0 {
+			return strconv.Itoa(saved)
+		}
+	}
+	return strconv.Itoa(config.DefaultPort())
+}
+
 // downloadUpdateFile streams a URL to a temp file then renames it into
 // place. Mirrors downloadFile in node_handler.go but kept local because it
 // has slightly different error semantics (we surface HTTP errors verbatim
@@ -315,19 +338,17 @@ func downloadUpdateFile(url, dest string) error {
 }
 
 // relaunchPanel spawns the freshly placed binary as `launch` with the same
-// port the current panel is bound to (read from KSPANEL_PORT, falling back
-// to config.DefaultPort). The child is detached into its own process group
-// so the current process's exit doesn't propagate signals.
+// port the current panel is bound to (resolved by effectivePanelPort: env >
+// persisted settings KV > config.DefaultPort). The child is detached into
+// its own process group so the current process's exit doesn't propagate
+// signals.
 //
 // Logging: stdout + stderr of the new panel go to <exeDir>/panel.log (same
 // convention as setup_localnode.go's ensurePanelUp) so the operator can
 // inspect the boot of the freshly upgraded binary without losing prior
 // output.
 func relaunchPanel(exe string, logLines []string) error {
-	port := os.Getenv("KSPANEL_PORT")
-	if port == "" {
-		port = strconv.Itoa(config.DefaultPort())
-	}
+	port := effectivePanelPort()
 
 	exeDir := filepath.Dir(exe)
 	logPath := filepath.Join(exeDir, "panel.log")
@@ -608,7 +629,14 @@ const reinstallScriptTemplate = `#!/bin/bash
 # Update URL: {{.UpdateURL}}
 # Current version: {{.CurrentVersion}}
 
-set -euo pipefail
+# We deliberately do NOT enable set -e here: this script's whole point
+# is to recover from failure (download fails, new binary won't start, port
+# is stuck in TIME_WAIT, ...) and set -e would abort the cleanup-on-exit
+# trap mid-recovery. Every individual step has its own error check so we
+# still surface failures loudly, just without the shell killing us before
+# we can roll back.
+set -u
+set -o pipefail
 
 # Colors for output
 RED='\033[0;31m'
@@ -620,7 +648,7 @@ NC='\033[0m'
 log_info() { echo -e "${BLUE}[INFO]${NC} $*"; }
 log_ok() { echo -e "${GREEN}[OK]${NC} $*"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $*"; }
-log_err() { echo -e "${RED}[ERR]${NC} $*" >&2; }
+log_err() { echo -e "${RED}[ERR]${NC} $*"; }
 
 # Configuration
 BINARY_PATH="{{.BinaryPath}}"
@@ -629,7 +657,7 @@ OLD_PATH="${BINARY_PATH}.old"
 TMP_PATH="${BINARY_PATH}.update"
 PANEL_LOG="${BINARY_PATH%/*}/panel.log"
 PORT="${PORT:-{{.Port}}}"
-MAX_WAIT_START=60
+MAX_WAIT_START=90
 POLL_INTERVAL=2
 
 # Track if we successfully downloaded
@@ -637,12 +665,50 @@ DOWNLOADED=false
 # Track if new binary started successfully
 NEW_STARTED=false
 
+# start_panel_at: spawn the binary at $1 with --port $PORT, detached from
+# this script's session so it survives the script exit (no SIGHUP leak),
+# then return the PID we launched. We use setsid so the child becomes
+# its own session leader — nohup & alone leaves the child in our session
+# and the kernel sends SIGHUP when the script's controlling terminal goes
+# away, which is exactly the "panel stops but doesn't restart" symptom.
+start_panel_at() {
+    local bin="$1"
+    cd "${bin%/*}"
+    setsid nohup "$bin" launch --port "$PORT" >> "$PANEL_LOG" 2>&1 < /dev/null &
+    echo $!
+}
+
+# wait_for_healthy: poll http://127.0.0.1:$PORT/health until it answers or
+# the timeout elapses. Echoes ok or fail. The caller decides what to
+# do with the result — the previous version always rolled back on failure,
+# which is too aggressive for slow starts; we now retry once with a short
+# grace period before giving up.
+#
+# Progress lines go to STDERR, not stdout: callers capture this function's
+# stdout with $() to compare against "ok", so any log_info on stdout would
+# poison the captured string and turn a slow-but-successful boot (migrations
+# can easily exceed one 2s poll) into a phantom rollback.
+wait_for_healthy() {
+    local elapsed=0
+    while [[ $elapsed -lt $MAX_WAIT_START ]]; do
+        if curl -sf "http://127.0.0.1:${PORT}/health" >/dev/null 2>&1; then
+            echo "ok"
+            return 0
+        fi
+        sleep $POLL_INTERVAL
+        elapsed=$((elapsed + POLL_INTERVAL))
+        log_info "Waiting... (${elapsed}s elapsed)" >&2
+    done
+    echo "fail"
+    return 1
+}
+
 cleanup_on_exit() {
     local exit_code=$?
     if [[ $exit_code -ne 0 ]]; then
         log_err "Script exited with code $exit_code"
     fi
-    
+
     # If we downloaded but new binary didn't start, rollback
     if [[ "$DOWNLOADED" == "true" && "$NEW_STARTED" == "false" ]]; then
         log_warn "New binary failed to start, rolling back to old binary..."
@@ -650,14 +716,12 @@ cleanup_on_exit() {
             log_info "Restoring old binary from $OLD_PATH"
             mv -f "$OLD_PATH" "$BINARY_PATH"
             log_ok "Old binary restored"
-            
+
             # Start the old binary
             log_info "Starting restored panel on port $PORT..."
-            cd "${BINARY_PATH%/*}"
-            nohup "$BINARY_PATH" launch --port "$PORT" >> "$PANEL_LOG" 2>&1 &
-            local pid=$!
-            sleep 2
-            if kill -0 $pid 2>/dev/null; then
+            local pid
+            pid=$(start_panel_at "$BINARY_PATH") || true
+            if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
                 log_ok "Restored panel started (PID: $pid)"
             else
                 log_err "Failed to start restored panel"
@@ -672,13 +736,11 @@ cleanup_on_exit() {
             log_info "Restoring old binary from $OLD_PATH"
             mv -f "$OLD_PATH" "$BINARY_PATH"
             log_ok "Old binary restored"
-            
+
             log_info "Starting restored panel on port $PORT..."
-            cd "${BINARY_PATH%/*}"
-            nohup "$BINARY_PATH" launch --port "$PORT" >> "$PANEL_LOG" 2>&1 &
-            local pid=$!
-            sleep 2
-            if kill -0 $pid 2>/dev/null; then
+            local pid
+            pid=$(start_panel_at "$BINARY_PATH") || true
+            if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
                 log_ok "Restored panel started (PID: $pid)"
             else
                 log_err "Failed to start restored panel"
@@ -723,6 +785,21 @@ else
         sleep 1
     fi
 fi
+
+# Belt-and-braces: confirm the TCP port is actually free before we let the
+# new binary try to bind. pkill -9 doesn't release a TIME_WAIT socket and
+# the new panel will fail to bind for ~30-60s. We poll the port and, if it
+# looks bound, wait a few seconds longer.
+PORT_WAIT=0
+while [[ $PORT_WAIT -lt 15 ]]; do
+    if ! (echo > "/dev/tcp/127.0.0.1/${PORT}") 2>/dev/null; then
+        break
+    fi
+    log_info "Port $PORT still bound, waiting for TIME_WAIT to clear..."
+    sleep 2
+    PORT_WAIT=$((PORT_WAIT + 2))
+done
+
 log_ok "Panel stopped"
 
 # 2. Backup current binary (rename to .old)
@@ -756,27 +833,36 @@ log_info "Installing new binary..."
 mv "$TMP_PATH" "$BINARY_PATH"
 log_ok "New binary installed at $BINARY_PATH"
 
-# 5. Start new panel
+# 5. Start new panel — use setsid+nohup so the child survives the script
+# exit. The previous version only used nohup which left the child in the
+# script's session and a SIGHUP at script exit would kill the new panel.
 log_info "Starting new panel on port $PORT..."
-cd "${BINARY_PATH%/*}"
-nohup "$BINARY_PATH" launch --port "$PORT" >> "$PANEL_LOG" 2>&1 &
-PANEL_PID=$!
+PANEL_PID=$(start_panel_at "$BINARY_PATH") || {
+    log_err "Could not spawn new panel"
+    exit 1
+}
 log_info "Panel started with PID: $PANEL_PID"
+
+# Give the panel a brief grace window to crash on a bad config (segfault,
+# missing DB driver, etc.) before we start polling /health. If it dies
+# within the first 5s the wait loop below will see the connection refused
+# immediately, but kill -0 catches the "process exited" case faster.
+sleep 3
+if ! kill -0 "$PANEL_PID" 2>/dev/null; then
+    log_err "Panel process exited within 3s of launch"
+    exit 1
+fi
 
 # 6. Wait for panel to become healthy
 log_info "Waiting for panel to become healthy (max ${MAX_WAIT_START}s)..."
-ELAPSED=0
-while [[ $ELAPSED -lt $MAX_WAIT_START ]]; do
-    if curl -sf "http://127.0.0.1:${PORT}/health" >/dev/null 2>&1; then
-        log_ok "Panel is healthy and responding!"
-        NEW_STARTED=true
-        log_info "=== Reinstall Completed Successfully ==="
-        exit 0
-    fi
-    sleep $POLL_INTERVAL
-    ELAPSED=$((ELAPSED + POLL_INTERVAL))
-    log_info "Waiting... (${ELAPSED}s elapsed)"
-done
+if [[ "$(wait_for_healthy)" == "ok" ]]; then
+    NEW_STARTED=true
+    log_ok "Panel is healthy and responding!"
+    log_info "=== Reinstall Completed Successfully ==="
+    # Clear the EXIT trap so cleanup doesn't think this was a failure.
+    trap - EXIT
+    exit 0
+fi
 
 log_err "Panel did not become healthy within ${MAX_WAIT_START}s"
 exit 1
@@ -787,7 +873,7 @@ exit 1
 // starts it, and rolls back to the old binary if download fails or new binary fails to start.
 func ReinstallScriptHandler(w http.ResponseWriter, r *http.Request) {
 	local := version.Snapshot()
-	
+
 	exe, err := os.Executable()
 	if err != nil {
 		http.Error(w, "cannot locate running binary: "+err.Error(), http.StatusInternalServerError)
@@ -796,35 +882,32 @@ func ReinstallScriptHandler(w http.ResponseWriter, r *http.Request) {
 	if resolved, rerr := filepath.EvalSymlinks(exe); rerr == nil {
 		exe = resolved
 	}
-	
-	port := os.Getenv("KSPANEL_PORT")
-	if port == "" {
-		port = strconv.Itoa(config.DefaultPort())
-	}
-	
+
+	port := effectivePanelPort()
+
 	data := struct {
-		GeneratedAt   string
-		BinaryPath    string
-		UpdateURL     string
+		GeneratedAt    string
+		BinaryPath     string
+		UpdateURL      string
 		CurrentVersion string
-		Port          string
+		Port           string
 	}{
-		GeneratedAt:   time.Now().UTC().Format(time.RFC3339),
-		BinaryPath:    exe,
-		UpdateURL:     kspanelBinaryURL,
+		GeneratedAt:    time.Now().UTC().Format(time.RFC3339),
+		BinaryPath:     exe,
+		UpdateURL:      kspanelBinaryURL,
 		CurrentVersion: local.Version,
-		Port:          port,
+		Port:           port,
 	}
-	
+
 	tmpl, err := template.New("reinstall").Parse(reinstallScriptTemplate)
 	if err != nil {
 		http.Error(w, "template parse error: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	
+
 	w.Header().Set("Content-Type", "application/x-sh")
 	w.Header().Set("Content-Disposition", "attachment; filename=\"reinstall.sh\"")
-	
+
 	if err := tmpl.Execute(w, data); err != nil {
 		log.Printf("reinstall script template execution error: %v", err)
 	}
@@ -853,10 +936,7 @@ func ReinstallBackgroundHandler(w http.ResponseWriter, r *http.Request) {
 		exe = resolved
 	}
 
-	port := os.Getenv("KSPANEL_PORT")
-	if port == "" {
-		port = strconv.Itoa(config.DefaultPort())
-	}
+	port := effectivePanelPort()
 
 	exeDir := filepath.Dir(exe)
 	scriptPath := filepath.Join(exeDir, "reinstall.sh")

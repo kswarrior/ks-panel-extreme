@@ -23,16 +23,16 @@ import (
 // the editable profile fields plus the URLs the SPA points its <img> tags at
 // so the frontend never has to know the on-disk layout.
 type profileResponse struct {
-	ID           int64                `json:"id"`
-	Username     string               `json:"username"`
-	Email        string               `json:"email"`
-	RoleID       int64                `json:"role_id"`
-	CreatedAt    string               `json:"created_at"`
-	DisplayName  string               `json:"display_name"`
-	Bio          string               `json:"bio"`
-	Pronouns     string               `json:"pronouns"`
-	AccentColor  string               `json:"accent_color"`
-	AvatarSymbol string               `json:"avatar_symbol"`
+	ID           int64  `json:"id"`
+	Username     string `json:"username"`
+	Email        string `json:"email"`
+	RoleID       int64  `json:"role_id"`
+	CreatedAt    string `json:"created_at"`
+	DisplayName  string `json:"display_name"`
+	Bio          string `json:"bio"`
+	Pronouns     string `json:"pronouns"`
+	AccentColor  string `json:"accent_color"`
+	AvatarSymbol string `json:"avatar_symbol"`
 	// AvatarURL/BannerURL are "" when the user hasn't uploaded one; the SPA
 	// falls back to the avatar symbol (or first-letter tile) in that case.
 	AvatarURL string `json:"avatar_url,omitempty"`
@@ -241,15 +241,15 @@ func UpdateMyProfileHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		for i, l := range links {
 			if l.URL == "" {
-				http.Error(w, "social_links[" + strconv.Itoa(i) + "].url is required", http.StatusBadRequest)
+				http.Error(w, "social_links["+strconv.Itoa(i)+"].url is required", http.StatusBadRequest)
 				return
 			}
 			if len(l.URL) > maxLinkURL {
-				http.Error(w, "social_links[" + strconv.Itoa(i) + "].url is too long", http.StatusBadRequest)
+				http.Error(w, "social_links["+strconv.Itoa(i)+"].url is too long", http.StatusBadRequest)
 				return
 			}
 			if len(l.Label) > maxLinkLabel {
-				http.Error(w, "social_links[" + strconv.Itoa(i) + "].label is too long", http.StatusBadRequest)
+				http.Error(w, "social_links["+strconv.Itoa(i)+"].label is too long", http.StatusBadRequest)
 				return
 			}
 			normalized := strings.ToLower(strings.TrimSpace(l.Type))

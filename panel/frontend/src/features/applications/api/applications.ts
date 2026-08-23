@@ -5,10 +5,19 @@ import type {
   ApplicationUpsertPayload,
   ApplicationActivateConflict,
   ApplicationPermissionReq,
+  ApplicationRun,
+  ApplicationRunRequest,
 } from '@/features/applications/types/application';
 
 // Re-export types for convenience
-export type { Application, ApplicationConfigField, ApplicationActivateConflict, ApplicationPermissionReq };
+export type {
+  Application,
+  ApplicationConfigField,
+  ApplicationActivateConflict,
+  ApplicationPermissionReq,
+  ApplicationRun,
+  ApplicationRunRequest,
+};
 
 export interface GrantDecision {
   capability: string;
@@ -48,7 +57,8 @@ export async function uploadApplicationFile(
 
 export async function updateApplication(
   id: number,
-  payload: Pick<ApplicationUpsertPayload, 'name' | 'category' | 'version' | 'description' | 'icon' | 'runtime' | 'entrypoint' | 'config_schema'>,
+  payload: Pick<ApplicationUpsertPayload, 'name' | 'category' | 'version' | 'description' | 'icon' | 'runtime' | 'entrypoint' | 'config_schema'> &
+    Partial<Pick<ApplicationUpsertPayload, 'files'>>,
 ): Promise<Application> {
   const res = await client.put<Application>(`/api/applications/${id}`, payload);
   return res.data;
@@ -97,4 +107,21 @@ export async function updateApplicationEnv(
   env: Record<string, string>
 ): Promise<void> {
   await client.post(`/api/applications/${id}/env`, { env });
+}
+
+// Executes the application's script once on the chosen target and returns
+// the completed run row (status/output/exit_code). Rejects with an Axios
+// error whose `.response.data` is the plain-text backend reason.
+export async function runApplication(
+  id: number,
+  req: ApplicationRunRequest,
+): Promise<ApplicationRun> {
+  const res = await client.post<ApplicationRun>(`/api/applications/${id}/run`, req);
+  return res.data;
+}
+
+// Recent run history for one application, newest first.
+export async function listApplicationRuns(id: number, limit = 25): Promise<ApplicationRun[]> {
+  const res = await client.get<ApplicationRun[]>(`/api/applications/${id}/runs?limit=${limit}`);
+  return res.data;
 }

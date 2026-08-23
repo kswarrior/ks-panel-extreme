@@ -1,6 +1,6 @@
 import React from 'react';
 import GlassCard from '@/shared/components/ui/Card';
-import { Select, ColorSwatches, Slider, Text } from '@/theme/studioControls';
+import { Select, ColorSwatches, Slider, Text, MediaField } from '@/theme/studioControls';
 import { BACKGROUND_COLOR_PRESETS } from '@/theme/defaults';
 import type { Theme } from '@/features/themes/types/theme';
 
@@ -32,21 +32,19 @@ export const BackgroundTab: React.FC<BackgroundTabProps> = ({ draft, patch }) =>
         />
       )}
       {draft.background.type === 'image' && (
-        <input
-          type="text"
-          className="w-full bg-black/30 border border-white/10 rounded-md px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/60"
+        <MediaField
           label="Image URL or file (png · jpg · gif · webp)"
+          accept="image/png,image/jpeg,image/gif,image/webp"
           value={draft.background.image_url}
-          onChange={(e) => patch('background', { image_url: e.target.value })}
+          onChange={(v) => patch('background', { image_url: v })}
         />
       )}
       {draft.background.type === 'video' && (
-        <input
-          type="text"
-          className="w-full bg-black/30 border border-white/10 rounded-md px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/60"
+        <MediaField
           label="Video URL or file (mp4 · gif)"
+          accept="video/mp4,image/gif"
           value={draft.background.video_url}
-          onChange={(e) => patch('background', { video_url: e.target.value })}
+          onChange={(v) => patch('background', { video_url: v })}
         />
       )}
       {draft.background.type === 'gradient' && (

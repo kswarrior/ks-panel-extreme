@@ -313,13 +313,28 @@ func handleInstallStart(w http.ResponseWriter, r *http.Request, token string, st
 	rec.end = time.Time{}
 	rec.mu.Unlock()
 
-	// Run asynchronously so the RPC returns immediately. The lifecycle
-	// envelope gives us up to 5 min per step but a big workflow (apt
-	// install of a python ML stack) can blow that comfortably — we hand
-	// the panel a per-instance install_id and let it poll, exactly like
-	// the deploy→install split the codebase comment block warns about for
-	// the Cloudflare 15s window.
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	// Run asynchronously so the RPC returns immediately. The workflow budget
+	// is chosen from Input.TimeoutSec (sent by the panel):
+	//   > 0 → operator-configured cap (template action max_runtime_s or the
+	//         template's install_timeout_sec) — a big apt install can blow
+	//         the legacy default comfortably, so the panel decides;
+	//   < 0 → NO deadline: long-running actions ("Start Java") are supposed
+	//         to keep the container alive for days until the operator clicks
+	//         Stop — the old unconditional 30-minute cap silently killed them
+	//         and the panel mislabelled the corpse "install_failed";
+	//   = 0 → legacy 30-minute default so older panels keep the safety net.
+	// We hand the panel a per-instance install_id and let it poll, exactly
+	// like the deploy→install split the codebase comment block warns about
+	// for the Cloudflare 15s window.
+	var ctx context.Context
+	var cancel context.CancelFunc
+	if in.TimeoutSec < 0 {
+		ctx, cancel = context.WithCancel(context.Background())
+	} else if in.TimeoutSec > 0 {
+		ctx, cancel = context.WithTimeout(context.Background(), time.Duration(in.TimeoutSec)*time.Second)
+	} else {
+		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Minute)
+	}
 	store.setCancel(key, cancel)
 
 	// If KeepStdin is requested, we need a SessionExecFn that returns the

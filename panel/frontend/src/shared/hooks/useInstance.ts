@@ -143,25 +143,40 @@ export function useInstance(id: number) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
+  const load = useCallback(async (silent = false) => {
+    if (!silent) {
+      setLoading(true);
+      setError('');
+    }
     try {
       const list = canManage ? await listInstances() : await listMyInstances();
       const found = list.find((i) => i.id === id);
       if (!found) setError('Instance not found.');
       setInstance(found || null);
     } catch (e: any) {
-      setError(e?.response?.data || e?.message || 'Failed to load instance');
+      if (!silent) setError(e?.response?.data || e?.message || 'Failed to load instance');
       setInstance(null);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [id, canManage]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  // While the instance is mid-deploy ("creating") or running its install
+  // workflow ("installing"), poll silently so pages that show install
+  // progress (e.g. the home page's InstallBanner) update live after the
+  // operator lands here straight from the deploy form. Silent = no skeleton
+  // flash; polling stops as soon as the row leaves those statuses.
+  const workflowInFlight =
+    !!instance && (instance.status === 'creating' || instance.status === 'installing');
+  useEffect(() => {
+    if (!workflowInFlight) return;
+    const t = window.setInterval(() => { void load(true); }, 3000);
+    return () => window.clearInterval(t);
+  }, [workflowInFlight, load]);
 
   return { instance, loading, error, reload: load };
 }

@@ -3,6 +3,10 @@ import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import '@xterm/xterm/css/xterm.css';
+import { useThemeStore } from '@/shared/stores/themeStore';
+import { DEFAULT_THEME } from '@/theme/defaults';
+import type { Theme } from '@/features/themes/types/theme';
+import { isHexColor, rgbaAt } from '@/theme/colorUtils';
 
 // Wire-protocol message shapes exchange with the panel's
 // /api/instances/:id/terminal bridge. See kspanel/internal/api/handlers/
@@ -24,6 +28,81 @@ type ConnState = 'connecting' | 'connected' | 'reconnecting' | 'closed' | 'error
 function wsUrlFor(instanceId: number): string {
   const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
   return `${proto}://${window.location.host}/api/instances/${instanceId}/terminal`;
+}
+
+// terminalThemeFor derives the xterm palette from the ACTIVE theme so the
+// terminal follows the Theme Studio like every other surface. Tokens that
+// are still at their default (or unparseable) fall back to the stock
+// VS-Code-ish palette, so the Default theme keeps today's look exactly.
+const STOCK_TERM = {
+  background: '#1e1e1e',
+  foreground: '#d4d4d4',
+  cursor: '#ffffff',
+  selectionBackground: '#264f78',
+  red: '#f48771',
+  green: '#89e789',
+  yellow: '#ffea7c',
+  blue: '#75beff',
+  magenta: '#c586c0',
+  cyan: '#79d7da',
+};
+
+function terminalThemeFor(theme: Theme): {
+  background: string;
+  foreground: string;
+  cursor: string;
+  cursorAccent: string;
+  selectionBackground: string;
+  black: string;
+  red: string;
+  green: string;
+  yellow: string;
+  blue: string;
+  magenta: string;
+  cyan: string;
+  white: string;
+  brightBlack: string;
+  brightRed: string;
+  brightGreen: string;
+  brightYellow: string;
+  brightBlue: string;
+  brightMagenta: string;
+  brightCyan: string;
+  brightWhite: string;
+} {
+  const D = DEFAULT_THEME;
+  const cardBg = String(theme.card?.background || '');
+  const customized = (v: unknown, d: unknown): string | null =>
+    isHexColor(v) && v !== d ? v : null;
+
+  return {
+    // Translucent card fills render fine on canvas — the page background
+    // behind the terminal container shows through.
+    background: cardBg && cardBg !== D.card.background ? cardBg : STOCK_TERM.background,
+    foreground: isHexColor(theme.card?.text_color) ? theme.card.text_color : STOCK_TERM.foreground,
+    cursor: customized(theme.accent?.primary, D.accent.primary) || STOCK_TERM.cursor,
+    cursorAccent: cardBg && cardBg !== D.card.background ? cardBg : STOCK_TERM.background,
+    selectionBackground:
+      isHexColor(theme.accent?.primary)
+        ? rgbaAt(theme.accent.primary, 0.35, STOCK_TERM.selectionBackground)
+        : STOCK_TERM.selectionBackground,
+    black: '#000000',
+    red: customized(theme.accent?.danger, D.accent.danger) || STOCK_TERM.red,
+    green: customized(theme.accent?.success, D.accent.success) || STOCK_TERM.green,
+    yellow: customized(theme.accent?.warning, D.accent.warning) || STOCK_TERM.yellow,
+    blue: customized(theme.accent?.info, D.accent.info) || STOCK_TERM.blue,
+    magenta: STOCK_TERM.magenta,
+    cyan: customized(theme.accent?.info, D.accent.info) || STOCK_TERM.cyan,
+    white: isHexColor(theme.card?.text_color) ? theme.card.text_color : STOCK_TERM.foreground,
+    brightBlack: '#6e6b6b',
+    brightRed: customized(theme.accent?.danger, D.accent.danger) || STOCK_TERM.red,
+    brightGreen: customized(theme.accent?.success, D.accent.success) || STOCK_TERM.green,
+    brightYellow: customized(theme.accent?.warning, D.accent.warning) || STOCK_TERM.yellow,
+    brightBlue: customized(theme.accent?.info, D.accent.info) || STOCK_TERM.blue,
+    brightMagenta: STOCK_TERM.magenta,
+    brightCyan: customized(theme.accent?.info, D.accent.info) || STOCK_TERM.cyan,
+    brightWhite: '#ffffff',
+  };
 }
 
 interface TerminalProps {
@@ -103,29 +182,7 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
       lineHeight: 1.25,
       convertEol: true,
       allowProposedApi: true,
-      theme: {
-        background: '#1e1e1e',
-        foreground: '#d4d4d4',
-        cursor: '#ffffff',
-        cursorAccent: '#1e1e1e',
-        selectionBackground: '#264f78',
-        black: '#000000',
-        red: '#f48771',
-        green: '#89e789',
-        yellow: '#ffea7c',
-        blue: '#75beff',
-        magenta: '#c586c0',
-        cyan: '#79d7da',
-        white: '#d4d4d4',
-        brightBlack: '#6e6b6b',
-        brightRed: '#f48771',
-        brightGreen: '#89e789',
-        brightYellow: '#ffea7c',
-        brightBlue: '#75beff',
-        brightMagenta: '#c586c0',
-        brightCyan: '#79d7da',
-        brightWhite: '#ffffff',
-      },
+      theme: terminalThemeFor(useThemeStore.getState().active()),
     });
     const fit = new FitAddon();
     term.loadAddon(fit);

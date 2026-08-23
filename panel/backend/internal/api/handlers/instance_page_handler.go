@@ -26,7 +26,7 @@ type errString string
 func (e errString) Error() string { return string(e) }
 
 // newErrString returns an error formatted as a string.
-func newErrString(s string) error { return newErrString(s) }
+func newErrString(s string) error { return errString(s) }
 
 // ============================== INSTANCE PAGES ==============================
 //
@@ -45,6 +45,8 @@ type instancePageDTO struct {
 	ContentMarkdown string `json:"content_markdown"`
 	ContentBlocks   string `json:"content_blocks"`
 	IconSVG         string `json:"icon_svg"`
+	// Actions is a JSON array of executable page actions ("" == none).
+	Actions string `json:"actions"`
 }
 
 var validInstancePageKinds = map[string]bool{
@@ -53,10 +55,14 @@ var validInstancePageKinds = map[string]bool{
 }
 
 var validContentTypes = map[string]bool{
-	"html":      true,
-	"markdown":  true,
-	"blocks":    true,
+	"html":     true,
+	"markdown": true,
+	"blocks":   true,
 }
+
+// maxInstancePageActionsBytes caps the persisted actions JSON so a single
+// page definition can't balloon the DB row or the template spec.
+const maxInstancePageActionsBytes = 64 * 1024
 
 func validateInstancePage(req instancePageDTO) (instancePageDTO, error) {
 	if req.Name == "" {
@@ -70,6 +76,15 @@ func validateInstancePage(req instancePageDTO) (instancePageDTO, error) {
 	}
 	if req.ContentType != "" && !validContentTypes[req.ContentType] {
 		return req, newErrString("content_type must be one of: html, markdown, blocks")
+	}
+	if req.Actions != "" {
+		if len(req.Actions) > maxInstancePageActionsBytes {
+			return req, newErrString("actions too large (max 64KB of JSON)")
+		}
+		var arr []json.RawMessage
+		if err := json.Unmarshal([]byte(req.Actions), &arr); err != nil {
+			return req, newErrString("actions must be a JSON array")
+		}
 	}
 	return req, nil
 }
@@ -124,6 +139,7 @@ func CreateInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		ContentMarkdown: req.ContentMarkdown,
 		ContentBlocks:   req.ContentBlocks,
 		IconSVG:         req.IconSVG,
+		Actions:         req.Actions,
 	})
 	if err != nil {
 		log.Println("CreateInstancePage error:", err)
@@ -182,6 +198,7 @@ func UpdateInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		ContentMarkdown: req.ContentMarkdown,
 		ContentBlocks:   req.ContentBlocks,
 		IconSVG:         req.IconSVG,
+		Actions:         req.Actions,
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -322,15 +339,21 @@ func LinkInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		// a page copies the latest lib content into the template, so a stale
 		// spec never lingers.
 		pageEntry := map[string]any{
-			"slug":            page.Slug,
-			"original_slug":  "",
-			"kind":           "custom",
-			"label":          label,
-			"enabled":        enabled,
-			"content_type":   page.ContentType,
-			"content_html":   page.ContentHTML,
+			"slug":             page.Slug,
+			"original_slug":    "",
+			"kind":             "custom",
+			"label":            label,
+			"enabled":          enabled,
+			"content_type":     page.ContentType,
+			"content_html":     page.ContentHTML,
 			"content_markdown": page.ContentMarkdown,
-			"content_blocks": page.ContentBlocks,
+			"content_blocks":   page.ContentBlocks,
+		}
+		if page.Actions != "" {
+			var actionsAny []any
+			if jerr := json.Unmarshal([]byte(page.Actions), &actionsAny); jerr == nil && actionsAny != nil {
+				pageEntry["actions"] = actionsAny
+			}
 		}
 		if req.IconSVG != "" || page.IconSVG != "" {
 			pageEntry["icon_svg"] = req.IconSVG
@@ -405,14 +428,14 @@ func ExecutePageActionHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		InstanceID int64  `json:"instance_id"`
-		Type       string `json:"type"`
-		Command    string `json:"command"`
-		Path       string `json:"path"`
-		Content    string `json:"content"`
-		Args       []string `json:"args"`
+		InstanceID int64             `json:"instance_id"`
+		Type       string            `json:"type"`
+		Command    string            `json:"command"`
+		Path       string            `json:"path"`
+		Content    string            `json:"content"`
+		Args       []string          `json:"args"`
 		Env        map[string]string `json:"env"`
-		Timeout    int    `json:"timeout"`
+		Timeout    int               `json:"timeout"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid payload", http.StatusBadRequest)
@@ -528,14 +551,14 @@ func ExecutePageActionHandler(w http.ResponseWriter, r *http.Request) {
 // has custom pages enabled in its spec, then proxies to the edge.
 func ExecuteCustomPageActionHandler(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		InstanceID int64  `json:"instance_id"`
-		Type       string `json:"type"`
-		Command    string `json:"command"`
-		Path       string `json:"path"`
-		Content    string `json:"content"`
-		Args       []string `json:"args"`
+		InstanceID int64             `json:"instance_id"`
+		Type       string            `json:"type"`
+		Command    string            `json:"command"`
+		Path       string            `json:"path"`
+		Content    string            `json:"content"`
+		Args       []string          `json:"args"`
 		Env        map[string]string `json:"env"`
-		Timeout    int    `json:"timeout"`
+		Timeout    int               `json:"timeout"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid payload", http.StatusBadRequest)
@@ -655,15 +678,15 @@ func ExecuteCustomPageActionHandler(w http.ResponseWriter, r *http.Request) {
 // has the module enabled in its spec, then proxies to the edge.
 func ExecuteModulePageActionHandler(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		InstanceID int64  `json:"instance_id"`
-		ModuleID   string `json:"module_id"`
-		Type       string `json:"type"`
-		Command    string `json:"command"`
-		Path       string `json:"path"`
-		Content    string `json:"content"`
-		Args       []string `json:"args"`
+		InstanceID int64             `json:"instance_id"`
+		ModuleID   string            `json:"module_id"`
+		Type       string            `json:"type"`
+		Command    string            `json:"command"`
+		Path       string            `json:"path"`
+		Content    string            `json:"content"`
+		Args       []string          `json:"args"`
 		Env        map[string]string `json:"env"`
-		Timeout    int    `json:"timeout"`
+		Timeout    int               `json:"timeout"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid payload", http.StatusBadRequest)
@@ -728,17 +751,17 @@ func ExecuteModulePageActionHandler(w http.ResponseWriter, r *http.Request) {
 	ec := edge.New(*node, token)
 
 	edgeReq := map[string]any{
-		"token":   token,
-		"kind":    instance.Kind,
-		"name":    instance.Name,
+		"token":     token,
+		"kind":      instance.Kind,
+		"name":      instance.Name,
 		"module_id": req.ModuleID,
-		"type":    req.Type,
-		"command": req.Command,
-		"path":    req.Path,
-		"content": req.Content,
-		"args":    req.Args,
-		"env":     req.Env,
-		"timeout": req.Timeout,
+		"type":      req.Type,
+		"command":   req.Command,
+		"path":      req.Path,
+		"content":   req.Content,
+		"args":      req.Args,
+		"env":       req.Env,
+		"timeout":   req.Timeout,
 	}
 
 	body, _ := json.Marshal(edgeReq)
@@ -831,6 +854,7 @@ type ImportInstancePageRequest struct {
 	ContentMarkdown string `json:"content_markdown"`
 	ContentBlocks   string `json:"content_blocks"`
 	IconSVG         string `json:"icon_svg"`
+	Actions         string `json:"actions"`
 }
 
 // ImportInstancePageHandler imports an instance page from uploaded JSON.
@@ -867,6 +891,7 @@ func ImportInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		ContentMarkdown: req.ContentMarkdown,
 		ContentBlocks:   req.ContentBlocks,
 		IconSVG:         req.IconSVG,
+		Actions:         req.Actions,
 	}
 	dto, err = validateInstancePage(dto)
 	if err != nil {
@@ -895,6 +920,7 @@ func ImportInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		ContentMarkdown: dto.ContentMarkdown,
 		ContentBlocks:   dto.ContentBlocks,
 		IconSVG:         dto.IconSVG,
+		Actions:         dto.Actions,
 	})
 	if err != nil {
 		log.Println("ImportInstancePage error:", err)
@@ -923,28 +949,28 @@ func ImportInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 // with access to instance context, APIs, sockets, and permissions.
 
 type instancePageModuleManifest struct {
-	ID          string            `json:"id"`
-	Name        string            `json:"name"`
-	Version     string            `json:"version"`
-	Description string            `json:"description"`
-	Author      string            `json:"author"`
-	License     string            `json:"license"`
-	Homepage    string            `json:"homepage"`
-	Repository  string            `json:"repository"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Version     string `json:"version"`
+	Description string `json:"description"`
+	Author      string `json:"author"`
+	License     string `json:"license"`
+	Homepage    string `json:"homepage"`
+	Repository  string `json:"repository"`
 
-	Slug        string            `json:"slug"`
-	Kind        string            `json:"kind"`
-	Category    string            `json:"category"`
+	Slug     string `json:"slug"`
+	Kind     string `json:"kind"`
+	Category string `json:"category"`
 
-	Entry       string            `json:"entry"`
-	Exports     map[string]string   `json:"exports"`
+	Entry   string            `json:"entry"`
+	Exports map[string]string `json:"exports"`
 
-	Permissions map[string][]string `json:"permissions"`
-	Capabilities map[string]interface{} `json:"capabilities"`
+	Permissions         map[string][]string    `json:"permissions"`
+	Capabilities        map[string]interface{} `json:"capabilities"`
 	InstanceConstraints map[string]interface{} `json:"instanceConstraints"`
-	UI          map[string]interface{} `json:"ui"`
-	Configuration map[string]interface{} `json:"configuration"`
-	Dependencies map[string]interface{} `json:"dependencies"`
+	UI                  map[string]interface{} `json:"ui"`
+	Configuration       map[string]interface{} `json:"configuration"`
+	Dependencies        map[string]interface{} `json:"dependencies"`
 }
 
 type installedInstancePageModule struct {
@@ -1122,10 +1148,10 @@ func UploadInstancePageModuleHandler(w http.ResponseWriter, r *http.Request) {
 	})
 
 	writeJSON(w, map[string]any{
-		"id":       manifest.ID,
-		"name":     manifest.Name,
-		"version":  manifest.Version,
-		"message":  "Module uploaded successfully",
+		"id":      manifest.ID,
+		"name":    manifest.Name,
+		"version": manifest.Version,
+		"message": "Module uploaded successfully",
 	})
 }
 
@@ -1338,6 +1364,7 @@ func ImportInstancePageFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		ContentMarkdown: pageReq.ContentMarkdown,
 		ContentBlocks:   pageReq.ContentBlocks,
 		IconSVG:         pageReq.IconSVG,
+		Actions:         pageReq.Actions,
 	}
 	dto, err = validateInstancePage(dto)
 	if err != nil {
@@ -1366,6 +1393,7 @@ func ImportInstancePageFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		ContentMarkdown: dto.ContentMarkdown,
 		ContentBlocks:   dto.ContentBlocks,
 		IconSVG:         dto.IconSVG,
+		Actions:         dto.Actions,
 	})
 	if err != nil {
 		log.Println("ImportInstancePageFromURL error:", err)
@@ -1390,16 +1418,16 @@ func ImportInstancePageFromURLHandler(w http.ResponseWriter, r *http.Request) {
 
 // MarketplacePage represents a page in the marketplace catalog.
 type MarketplacePage struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	Description  string `json:"description"`
-	Category     string `json:"category"`
-	Author       string `json:"author"`
-	Version      string `json:"version"`
+	ID           string   `json:"id"`
+	Name         string   `json:"name"`
+	Description  string   `json:"description"`
+	Category     string   `json:"category"`
+	Author       string   `json:"author"`
+	Version      string   `json:"version"`
 	Tags         []string `json:"tags"`
-	DownloadURL  string `json:"download_url"`
-	IconSVG      string `json:"icon_svg"`
-	PreviewImage string `json:"preview_image"`
+	DownloadURL  string   `json:"download_url"`
+	IconSVG      string   `json:"icon_svg"`
+	PreviewImage string   `json:"preview_image"`
 }
 
 // MarketplaceCatalog represents the marketplace catalog response.
@@ -1506,6 +1534,7 @@ func ImportInstancePageFromMarketplaceHandler(w http.ResponseWriter, r *http.Req
 		ContentMarkdown: pageReq.ContentMarkdown,
 		ContentBlocks:   pageReq.ContentBlocks,
 		IconSVG:         pageReq.IconSVG,
+		Actions:         pageReq.Actions,
 	}
 	dto, err = validateInstancePage(dto)
 	if err != nil {
@@ -1534,6 +1563,7 @@ func ImportInstancePageFromMarketplaceHandler(w http.ResponseWriter, r *http.Req
 		ContentMarkdown: dto.ContentMarkdown,
 		ContentBlocks:   dto.ContentBlocks,
 		IconSVG:         dto.IconSVG,
+		Actions:         dto.Actions,
 	})
 	if err != nil {
 		log.Println("ImportInstancePageFromMarketplace error:", err)
@@ -1636,6 +1666,7 @@ func ImportLocalInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		ContentMarkdown: pageReq.ContentMarkdown,
 		ContentBlocks:   pageReq.ContentBlocks,
 		IconSVG:         pageReq.IconSVG,
+		Actions:         pageReq.Actions,
 	}
 	dto, err = validateInstancePage(dto)
 	if err != nil {
@@ -1664,6 +1695,7 @@ func ImportLocalInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		ContentMarkdown: dto.ContentMarkdown,
 		ContentBlocks:   dto.ContentBlocks,
 		IconSVG:         dto.IconSVG,
+		Actions:         dto.Actions,
 	})
 	if err != nil {
 		log.Println("ImportLocalInstancePage error:", err)

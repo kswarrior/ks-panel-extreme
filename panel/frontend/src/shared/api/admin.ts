@@ -13,8 +13,15 @@ import type {
   UpdateCheckResponse,
   UpdateApplyResponse,
   ReinstallResponse,
+  ReinstallBackgroundResponse,
 } from '@/features/system/types/system';
 import type { SecuritySnapshot, SecurityConfig } from '@/features/security/types/security';
+import type {
+  SecuritySessionsResponse,
+  SecurityStatusResponse,
+  LockoutStatus,
+  RecoveryCodesStatus,
+} from '@/features/security/types/security';
 
 // Admin users API
 export async function listUsers(): Promise<User[]> {
@@ -159,6 +166,10 @@ export interface NodeAdvancedFields {
   category?: string;
   location_country?: string;
   location_node?: string;
+  /** Symbolic icon key from the fixed registry (validated server-side). */
+  icon?: string;
+  /** Accent colour as #rrggbb (validated server-side). */
+  color?: string;
 }
 
 export async function createNode(payload: {
@@ -403,15 +414,43 @@ export interface DatabaseEngineInfo {
   supports_url: boolean;
 }
 
+// One copied table inside a "Change Database" sync. baseline_rows is the
+// source COUNT(*) captured while the table was streamed; target_rows is what
+// the new database holds afterwards.
+export interface DatabaseTableSyncResult {
+  table: string;
+  baseline_rows: number;
+  source_rows: number;
+  target_rows: number;
+  rows_copied: number;
+  status: string;
+}
+
 // Result of a "Change Database" submit. The backend validates connectivity
-// against the new engine before persisting; OK=false surfaces a human error
-// in `message` for the form banner.
+// against the new engine before doing anything else; OK=false surfaces a
+// human error in `message` for the form banner. When sync_data was requested
+// the response also carries the full pipeline outcome: the pre-switch backup
+// coordinates, per-table copy results, step log, post-sync recheck results
+// and whether an error rolled the target back.
 export interface DatabaseEngineSwitchResponse {
   ok: boolean;
   engine: string;
   dsn: string; // Always redacted — safe to render / log.
   message: string;
   requires_restart: boolean;
+  // ── Sync pipeline results ──
+  synced: boolean;
+  rows_copied: number;
+  tables: DatabaseTableSyncResult[];
+  steps: string[];
+  duration_ms: number;
+  backup_id?: string;
+  backup_path?: string;
+  backup_bytes?: number;
+  rolled_back: boolean;
+  verified: boolean;
+  verify_issues: string[];
+  verify_warnings: string[];
 }
 
 export interface DatabaseEngineSwitchPayload {
@@ -421,6 +460,15 @@ export interface DatabaseEngineSwitchPayload {
   user?: string;
   password?: string;
   database?: string;
+  // ── Operator-configurable sync options ──
+  // Copy every row from the current database into the new one before the
+  // coordinates are persisted.
+  sync_data: boolean;
+  create_backup?: boolean;
+  verify?: boolean;
+  batch_size?: number;
+  clear_target?: boolean;
+  tables?: string[];
 }
 
 export async function listDatabaseEngines(): Promise<DatabaseEngineInfo[]> {
@@ -430,14 +478,18 @@ export async function listDatabaseEngines(): Promise<DatabaseEngineInfo[]> {
 
 // Validates the operator's new DB coordinates against the target engine and,
 // on success, persists them to kspanel.env so the next `launch` picks them
-// up. The running panel keeps its current pool — `requires_restart` tells
-// the UI to prompt the user to restart.
+// up. With sync_data enabled the request additionally backs up the current
+// database, migrates every row across, rechecks the result and restores the
+// previous state on any failure — that can take minutes on big databases, so
+// the 15s client default is explicitly lifted for THIS call only (timeout: 0
+// = no client-side abort).
 export async function switchDatabaseEngine(
   payload: DatabaseEngineSwitchPayload,
 ): Promise<DatabaseEngineSwitchResponse> {
   const res = await client.post<DatabaseEngineSwitchResponse>(
     '/api/database/engine',
     payload,
+    { timeout: 0 },
   );
   return res.data;
 }
@@ -493,6 +545,57 @@ export async function securityDDOSManualStop(): Promise<{
     stop_count: number;
     cooldown_until: string;
   }>('/api/security/ddos/stop', {});
+  return res.data;
+}
+
+// Read-only status of the panel-wide network protections (CORS / CSRF /
+// security headers / cookie flags) rendered by the Firewall tab.
+export async function securityGetStatus(): Promise<SecurityStatusResponse> {
+  const res = await client.get<SecurityStatusResponse>('/api/security/status');
+  return res.data;
+}
+
+// ---- Security → Sessions tab -----------------------------------------------
+export async function securityListSessions(): Promise<SecuritySessionsResponse> {
+  const res = await client.get<SecuritySessionsResponse>('/api/security/sessions');
+  return res.data;
+}
+
+// Revoke one tracked session by its non-reversible id.
+export async function securityRevokeSession(id: string): Promise<{ status: string }> {
+  const res = await client.delete<{ status: string }>(`/api/security/sessions/${id}`);
+  return res.data;
+}
+
+// Revoke every active tracked session for all users.
+export async function securityRevokeAllSessions(): Promise<{ status: string; revoked: number }> {
+  const res = await client.post<{ status: string; revoked: number }>('/api/security/sessions/revoke-all', {});
+  return res.data;
+}
+
+// ---- Security → Authentication tab ------------------------------------------
+export async function securityGetLockout(): Promise<LockoutStatus> {
+  const res = await client.get<LockoutStatus>('/api/security/authentication/lockout');
+  return res.data;
+}
+
+export async function securityUnlockAccount(username: string): Promise<{ status: string }> {
+  const res = await client.post<{ status: string }>('/api/security/authentication/unlock', { username });
+  return res.data;
+}
+
+export async function securityRecoveryCodesStatus(): Promise<RecoveryCodesStatus> {
+  const res = await client.get<RecoveryCodesStatus>('/api/security/authentication/recovery-codes');
+  return res.data;
+}
+
+// Mint a replacement recovery-code set for a user. Codes are returned
+// exactly once — the backend stores only bcrypt hashes.
+export async function securityGenerateRecoveryCodes(username: string, count = 8): Promise<{ codes: string[] }> {
+  const res = await client.post<{ codes: string[] }>(
+    '/api/security/authentication/recovery-codes/generate',
+    { username, count },
+  );
   return res.data;
 }
 
@@ -812,12 +915,6 @@ export async function getReinstallScript(): Promise<string> {
 // to the binary directory and execute it in the background. The script
 // stops the panel, downloads the new binary, starts it with the same port,
 // and rolls back on failure. Returns immediately while the script runs detached.
-export interface ReinstallBackgroundResponse {
-  ok: boolean;
-  message: string;
-  script: string;
-}
-
 export async function reinstallBackground(): Promise<ReinstallBackgroundResponse> {
   const res = await client.post<ReinstallBackgroundResponse>('/api/system/reinstall-background');
   return res.data;

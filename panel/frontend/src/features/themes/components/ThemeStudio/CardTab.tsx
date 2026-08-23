@@ -1,6 +1,6 @@
 import React from 'react';
 import GlassCard from '@/shared/components/ui/Card';
-import { Select, ColorField, Slider, Text } from '@/theme/studioControls';
+import { Select, ColorField, Slider, Text, MediaField } from '@/theme/studioControls';
 
 interface CardTabProps {
   draft: any;
@@ -26,21 +26,19 @@ export const CardTab: React.FC<CardTabProps> = ({ draft, patch }) => {
           <ColorField label="Card background" value={draft.card.background} onChange={(v) => patch('card', { background: v })} />
         )}
         {draft.card.bg_type === 'image' && (
-          <input
-            type="text"
-            className="w-full bg-black/30 border border-white/10 rounded-md px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/60"
+          <MediaField
             label="Card image URL or file (png · jpg · gif · webp)"
+            accept="image/png,image/jpeg,image/gif,image/webp"
             value={draft.card.bg_image}
-            onChange={(e) => patch('card', { bg_image: e.target.value })}
+            onChange={(v) => patch('card', { bg_image: v })}
           />
         )}
         {draft.card.bg_type === 'video' && (
-          <input
-            type="text"
-            className="w-full bg-black/30 border border-white/10 rounded-md px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/60"
+          <MediaField
             label="Card video URL or file (mp4 · gif)"
+            accept="video/mp4,image/gif"
             value={draft.card.bg_video}
-            onChange={(e) => patch('card', { bg_video: e.target.value })}
+            onChange={(v) => patch('card', { bg_video: v })}
           />
         )}
         {draft.card.bg_type === 'gradient' && (

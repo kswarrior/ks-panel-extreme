@@ -39,9 +39,19 @@ type SecuritySnapshot struct {
 	UnderAttack         bool  `json:"under_attack"`
 
 	// DDoS runtime state (not editable, surfaced for monitoring).
-	DDOSActive          bool   `json:"ddos_active"`
-	DDOSStopCount       int64  `json:"ddos_stop_count"`
-	DDOSCooldownUntil   string `json:"ddos_cooldown_until"`
+	DDOSActive        bool   `json:"ddos_active"`
+	DDOSStopCount     int64  `json:"ddos_stop_count"`
+	DDOSCooldownUntil string `json:"ddos_cooldown_until"`
+
+	// DDoS port-switch runtime state. DDOSActivePort is the port the
+	// panel is actually bound to right now (equals the launch port when
+	// no switch happened); DDOSPortSwitched is true while the panel is
+	// serving on DDOSAltPort because of an active attack; DDOSPortError
+	// carries the last bind failure so the admin can see WHY a switch
+	// didn't take effect (e.g. alt port already in use).
+	DDOSActivePort   int64  `json:"ddos_active_port"`
+	DDOSPortSwitched bool   `json:"ddos_port_switched"`
+	DDOSPortError    string `json:"ddos_port_error"`
 
 	// DDOSTCPDropped counts how many TCP connections the listener has
 	// refused at the socket layer since launch because the DDoS
@@ -60,10 +70,10 @@ type SecuritySnapshot struct {
 	Config SecurityConfig `json:"config"`
 
 	// --- Top-N lists (already capped server-side) ---
-	TopIPs         []SecurityTopEntry `json:"top_ips"`
-	RequestsPerIP  []SecurityTopEntry `json:"requests_per_ip"`
-	Countries      []SecurityTopEntry `json:"countries"`
-	UserAgents     []SecurityTopEntry `json:"user_agents"`
+	TopIPs        []SecurityTopEntry `json:"top_ips"`
+	RequestsPerIP []SecurityTopEntry `json:"requests_per_ip"`
+	Countries     []SecurityTopEntry `json:"countries"`
+	UserAgents    []SecurityTopEntry `json:"user_agents"`
 }
 
 // SecurityConfig is the operator-editable subset of the security policy. It
@@ -100,7 +110,70 @@ type SecurityConfig struct {
 	// automatically stop. 0 = unlimited. After reaching this count,
 	// auto-stop is disabled until manually reset.
 	DDOSMaxStopCount int64 `json:"ddos_max_stop_count"`
+	// DDOSMode selects what happens when a DDoS attack is detected:
+	//   - "stop": refuse new requests for the cooldown window (default).
+	//   - "port_switch": close the current panel port and re-bind the
+	//     panel on DDOSAltPort, so attackers keep hitting a dead port
+	//     while the panel stays reachable on the alternate one.
+	DDOSMode string `json:"ddos_mode"`
+	// DDOSAltPort is the port the panel moves to when DDOSMode is
+	// "port_switch" and an attack is detected. Must be 1-65535 and must
+	// differ from the port the panel is currently bound to.
+	DDOSAltPort int64 `json:"ddos_alt_port"`
+	// DDOSGlobalTriggerHits triggers auto protection when more than this
+	// many requests arrive across ALL client IPs inside
+	// DDOSGlobalTriggerWindow seconds (a distributed flood that no single
+	// IP trips the per-IP cap). 0 disables the global burst detector and
+	// leaves detection to the per-IP rate limit path.
+	DDOSGlobalTriggerHits int64 `json:"ddos_global_trigger_hits"`
+	// DDOSGlobalTriggerWindow is the sliding window in seconds the global
+	// burst detector evaluates. Clamped to 5-60 by the PUT handler.
+	DDOSGlobalTriggerWindow int64 `json:"ddos_global_trigger_window"`
+
+	// --- Firewall tab: IP allow/deny + WAF request filtering ---
+	// IPAllowlist lists client IPs (exact address or CIDR, e.g.
+	// "10.0.0.5" or "192.168.1.0/24") that bypass the per-IP rate
+	// limit. Empty list = no allowlist; every IP is throttled normally.
+	IPAllowlist []string `json:"ip_allowlist"`
+	// IPDenylist lists client IPs / CIDRs that are hard-rejected with
+	// 403 before any other check runs.
+	IPDenylist []string `json:"ip_denylist"`
+	// MaxBodySizeMB caps how large a single request body may be.
+	// Replaces the previous hardcoded 10 MB middleware constant;
+	// clamped to >= 1 by the PUT handler.
+	MaxBodySizeMB int64 `json:"max_body_size_mb"`
+	// AllowedHTTPMethods is a comma-separated allowlist of HTTP methods
+	// (e.g. "GET,POST,PUT,DELETE"). Empty = every method is allowed.
+	// OPTIONS preflights are always permitted.
+	AllowedHTTPMethods string `json:"allowed_http_methods"`
+	// BlockSuspiciousPaths rejects known scanner/probe paths (/.env,
+	// /wp-admin, ...) with 403 when enabled.
+	BlockSuspiciousPaths bool `json:"block_suspicious_paths"`
+
+	// --- Sessions tab: session policy ---
+	// SessionLifetimeMinutes bounds the absolute life of a session
+	// (cookie TTL, bearer max-age and rotation window derive from it).
+	// 480 mirrors the previous hardcoded 8h auth.SessionTTL.
+	SessionLifetimeMinutes int64 `json:"session_lifetime_minutes"`
+	// SessionIdleTimeoutMinutes invalidates a tracked session that has
+	// not been used for this long. 1440 mirrors the previous hardcoded
+	// 24h cleanup window. Applies only to sessions registered in the
+	// in-memory SessionManager (cookie logins + switch-login tokens).
+	SessionIdleTimeoutMinutes int64 `json:"session_idle_timeout_minutes"`
+	// SessionMaxPerUser caps concurrent active sessions per user;
+	// the oldest session is evicted first. 0 = unlimited (the default,
+	// matching pre-config behaviour).
+	SessionMaxPerUser int64 `json:"session_max_per_user"`
 }
+
+// DDoS protection modes accepted for SecurityConfig.DDOSMode.
+const (
+	// DDOSModeStop refuses new requests while an attack is active.
+	DDOSModeStop = "stop"
+	// DDOSModePortSwitch moves the panel from its current port to
+	// SecurityConfig.DDOSAltPort while an attack is active.
+	DDOSModePortSwitch = "port_switch"
+)
 
 // SecurityTopEntry is one row of any of the Top-N lists (top IPs,
 // requests-per-IP, countries, user agents). The `Label` is the dimension

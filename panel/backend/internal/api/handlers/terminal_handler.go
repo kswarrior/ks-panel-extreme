@@ -6,12 +6,12 @@
 // per-node edge token). The route is gated by VIEW_INSTANCES like the rest
 // of the per-instance endpoints, then:
 //
-//   1. Read instance id from URL, load the row.
-//   2. Resolve {node address, edge token}.
-//   3. Upgrade the panel-side browser connection.
-//   4. Open a server-side WebSocket to ksedge /api/edge/exec?kind=…&name=…&token=….
-//   5. Pump frames between the two connections until either side closes,
-//      preserving order so as not to interleave stdout/stderr/stdin.
+//  1. Read instance id from URL, load the row.
+//  2. Resolve {node address, edge token}.
+//  3. Upgrade the panel-side browser connection.
+//  4. Open a server-side WebSocket to ksedge /api/edge/exec?kind=…&name=…&token=….
+//  5. Pump frames between the two connections until either side closes,
+//     preserving order so as not to interleave stdout/stderr/stdin.
 //
 // Frame protocol: same JSON shape as documented in
 // ksedge/internal/exec/handler.go (stdin/stdout/stderr/resize/exit/ready/error).

@@ -1,4 +1,4 @@
-import type { SeriesSample } from '@/shared/types/system';
+import type { SeriesSample } from '@/features/system/types/system';
 
 const REFRESH_MS = 15_000;
 
@@ -94,7 +94,7 @@ export const Donut: React.FC<{
   });
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0">
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#1f2937" strokeWidth={thickness} />
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--ks-chart-track, #1f2937)" strokeWidth={thickness} />
       <g transform={`rotate(-90 ${size / 2} ${size / 2})`}>
         {total > 0 ? arcs.map((a, i) => (
           <circle key={i} cx={size / 2} cy={size / 2} r={r} fill="none" stroke={a.color} strokeWidth={thickness}
@@ -138,7 +138,7 @@ export const LineChart: React.FC<{ samples: SeriesSample[]; metric: 'cpu_percent
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" preserveAspectRatio="none">
         {[0.25, 0.5, 0.75].map((r) => (
           <line key={r} x1={PAD} x2={W - PAD} y1={PAD + r * usableH} y2={PAD + r * usableH}
-            stroke="#27272a" strokeDasharray="3 4" strokeWidth="0.5" />
+            stroke="var(--ks-chart-track, #27272a)" strokeDasharray="3 4" strokeWidth="0.5" />
         ))}
         {fillPath && <path d={fillPath} fill={color} opacity="0.18" />}
         {path && <path d={path} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />}
@@ -205,7 +205,7 @@ export const Gauge: React.FC<{ value: number; total: number; label: string }> = 
   return (
     <div className="flex flex-col items-center justify-center">
       <svg width="140" height="86" viewBox="0 0 140 86">
-        <path d={`M 14 80 A ${r} ${r} 0 0 1 ${126} 80`} fill="none" stroke="#27272a" strokeWidth="9" strokeLinecap="round" />
+        <path d={`M 14 80 A ${r} ${r} 0 0 1 ${126} 80`} fill="none" stroke="var(--ks-chart-track, #27272a)" strokeWidth="9" strokeLinecap="round" />
         <path d={`M 14 80 A ${r} ${r} 0 0 1 ${126} 80`} fill="none" stroke={color} strokeWidth="9"
           strokeLinecap="round" strokeDasharray={`${dash} ${c}`} />
         <text x="70" y="62" textAnchor="middle" className="fill-white" fontSize="22" fontWeight="600">{pct.toFixed(0)}%</text>

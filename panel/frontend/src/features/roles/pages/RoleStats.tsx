@@ -13,6 +13,10 @@ import {
 } from '@/shared/components/ui/StatDashboard';
 import GlassCard from '@/shared/components/ui/Card';
 
+// Seeded roles the backend creates at first boot (no builtin column exists;
+// see internal/api/handlers/admin_handler.go).
+const BUILTIN_ROLE_NAMES: Set<string> = new Set(['admin', 'moderator', 'user']);
+
 const RoleStats: React.FC = () => {
   const navigate = useNavigate();
   const [roles, setRoles] = useState<Role[]>([]);
@@ -57,7 +61,10 @@ const RoleStats: React.FC = () => {
     const withPerms = roles.filter((r) => (r.permissions || []).length > 0).length;
     const withColor = roles.filter((r) => r.color && r.color.trim() !== '').length;
     const withIcon = roles.filter((r) => r.icon && r.icon.trim() !== '').length;
-    const builtin = roles.filter((r) => r.builtin).length;
+    // The backend Role model carries no builtin flag — the seeded roles are
+    // identified by name (mirrors admin_handler.go's "admin/moderator/user"
+    // switch), so derive the split here instead of reading a phantom field.
+    const builtin = roles.filter((r) => BUILTIN_ROLE_NAMES.has(r.name)).length;
     const custom = total - builtin;
     const totalPerms = roles.reduce((sum, r) => sum + (r.permissions || []).length, 0);
     return { total, withPerms, withColor, withIcon, builtin, custom, totalPerms };

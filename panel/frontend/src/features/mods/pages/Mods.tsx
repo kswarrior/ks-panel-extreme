@@ -17,12 +17,20 @@ import {
   installModFromUrl,
   createModFromStudio,
   extractApiErrorMessage,
+  getEngineStatus,
+  setEngineEnabled,
+  listSampleMods,
+  installSampleMod,
+  getModLogs,
   type GrantDecision,
 } from '@/features/mods/api/mods';
 import {
   Mod,
   ModPermission,
   ModActivateConflict,
+  ModEngineDiagnostics,
+  ModSample,
+  ModLogEntry,
   modCapabilityMeta,
   modSourceMeta,
 } from '@/shared/types/mod';
@@ -51,9 +59,9 @@ const Mods: React.FC = () => {
   const [filterOpen, setFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
 
-  // upload modal — supports three tabs: file upload + URL install + Studio
+  // upload modal — supports four tabs: file upload + URL install + Studio + samples
   const [installOpen, setInstallOpen] = useState(false);
-  const [installTab, setInstallTab] = useState<'file' | 'url' | 'studio'>('file');
+  const [installTab, setInstallTab] = useState<'file' | 'url' | 'studio' | 'samples'>('file');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadError, setUploadError] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -61,6 +69,15 @@ const Mods: React.FC = () => {
   const [urlInput, setUrlInput] = useState('');
   const [urlBusy, setUrlBusy] = useState(false);
   const [urlError, setUrlError] = useState('');
+  // Built-in samples tab state
+  const [samples, setSamples] = useState<ModSample[]>([]);
+  const [samplesLoading, setSamplesLoading] = useState(false);
+  const [samplesError, setSamplesError] = useState('');
+  const [installingKey, setInstallingKey] = useState<string | null>(null);
+
+  // Engine kill-switch state (null = unknown / failed to load)
+  const [engine, setEngine] = useState<ModEngineDiagnostics | null>(null);
+  const [engineBusy, setEngineBusy] = useState(false);
 
   // edit modal
   const [editName, setEditName] = useState('');
@@ -90,6 +107,32 @@ const Mods: React.FC = () => {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Engine diagnostics (kill switch + runtime mode). Non-fatal on failure:
+  // the page stays usable, the toggle just hides while state is unknown.
+  useEffect(() => {
+    let cancelled = false;
+    getEngineStatus()
+      .then((d) => { if (!cancelled) setEngine(d); })
+      .catch(() => { if (!cancelled) setEngine(null); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const toggleEngine = async () => {
+    if (!engine) return;
+    const next = !engine.enabled;
+    if (!next && !confirm('Disable the mod engine? Every running mod runtime stops immediately. Mods stay installed and re-activate explicitly once the engine is re-enabled.')) return;
+    setEngineBusy(true);
+    try {
+      await setEngineEnabled(next);
+      setEngine({ ...engine, enabled: next });
+      await load();
+    } catch (e: any) {
+      alert(extractApiErrorMessage(e, 'Failed to update engine state'));
+    } finally {
+      setEngineBusy(false);
+    }
+  };
 
   // Close filter dropdown when clicking outside
   useEffect(() => {
@@ -160,6 +203,55 @@ const Mods: React.FC = () => {
     setUploadError('');
     setUrlInput('');
     setUrlError('');
+  };
+
+  // ---- built-in samples flow ----------------------------------------------
+  const loadSamples = useCallback(async () => {
+    setSamplesLoading(true);
+    setSamplesError('');
+    try {
+      setSamples(await listSampleMods());
+    } catch (e: any) {
+      setSamplesError(extractApiErrorMessage(e, 'Failed to load samples'));
+    } finally {
+      setSamplesLoading(false);
+    }
+  }, []);
+
+  const openSamplesTab = () => {
+    setInstallTab('samples');
+    if (samples.length === 0 && !samplesLoading) loadSamples();
+  };
+
+  const doInstallSample = async (key: string) => {
+    setInstallingKey(key);
+    setSamplesError('');
+    try {
+      await installSampleMod(key);
+      setInstallOpen(false);
+      await load();
+    } catch (e: any) {
+      setSamplesError(extractApiErrorMessage(e, 'Install failed'));
+    } finally {
+      setInstallingKey(null);
+    }
+  };
+
+  // ---- per-mod log viewer --------------------------------------------------
+  const [logsMod, setLogsMod] = useState<Mod | null>(null);
+  const [logLines, setLogLines] = useState<ModLogEntry[] | null>(null);
+  const [logsError, setLogsError] = useState('');
+
+  const openLogs = async (m: Mod) => {
+    setLogsMod(m);
+    setLogLines(null);
+    setLogsError('');
+    try {
+      const res = await getModLogs(m.id);
+      setLogLines(res.logs || []);
+    } catch (e: any) {
+      setLogsError(extractApiErrorMessage(e, 'Failed to load logs'));
+    }
   };
 
   // ---- edit flow -----------------------------------------------------------
@@ -233,8 +325,10 @@ const Mods: React.FC = () => {
       const result: ModActivateConflict | void = await activateMod(grantMod.id);
       if (result && (result as ModActivateConflict).pending) {
         const refusal = result as ModActivateConflict;
-        await load();
-        const upd = (await listMods()).find((m) => m.id === grantMod.id);
+        // One fetch: refresh the list and re-read the updated row from it.
+        const fresh = await listMods();
+        setMods(fresh);
+        const upd = fresh.find((m) => m.id === grantMod.id);
         if (upd) {
           setGrantMod(upd);
           const init: Record<string, boolean> = {};
@@ -390,6 +484,23 @@ return (
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>
           </Link>
+          {engine && (
+            <button
+              onClick={toggleEngine}
+              disabled={engineBusy}
+              aria-label={engine.enabled ? 'Disable mod engine' : 'Enable mod engine'}
+              aria-pressed={!engine.enabled}
+              className={`ks-btn-header ks-icon-btn ${!engine.enabled ? 'text-red-300' : ''}`}
+              title={engine.enabled ? 'Mod engine running — click to disable (kill switch)' : 'Mod engine DISABLED — click to re-enable'}
+            >
+              {engine.enabled ? (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M18.36 6.64a9 9 0 1 1-12.73 0" /><line x1="12" y1="2" x2="12" y2="12" /></svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
+              )}
+              {!engine.enabled && <span className="w-1.5 h-1.5 rounded-full bg-red-400" />}
+            </button>
+          )}
           <button
             onClick={openInstall}
             aria-label="Install Mod"
@@ -498,6 +609,7 @@ return (
                     <CardMenu
                       ariaLabel={`Actions for mod ${m.name}`}
                       items={[
+                        { key: 'logs', label: 'View logs', tone: 'default', icon: (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="9" y1="13" x2="15" y2="13" /><line x1="9" y1="17" x2="15" y2="17" /> </svg>) },
                         { key: 'edit', label: 'Edit', tone: 'default', icon: (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" /> </svg>) },
                         { key: 'download', label: 'Download .kspm', tone: 'default', icon: (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /> </svg>) },
                         { key: 'delete', label: deletingId === m.id ? 'Deleting…' : 'Delete', tone: 'danger', disabled: deletingId === m.id, icon: (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /> </svg>) },
@@ -506,6 +618,7 @@ return (
                         if (key === 'edit') openEdit(m);
                         else if (key === 'delete') remove(m);
                         else if (key === 'download') downloadPkg(m);
+                        else if (key === 'logs') openLogs(m);
                       }}
                     />
                   </div>
@@ -595,6 +708,13 @@ return (
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" /> </svg>
             Studio
           </button>
+          <button
+            onClick={openSamplesTab}
+            className={`ks-tab flex-1 px-3 py-1.5 rounded text-sm flex items-center justify-center gap-1.5 ${installTab === 'samples' ? 'ks-tab-active' : ''}`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M9 2h6l2 4-3 2 3 2-2 4H9l-2-4 3-2-3-2z" /><path d="M12 14v8" /> </svg>
+            Samples
+          </button>
         </div>
 
         {installTab === 'file' && (
@@ -680,6 +800,53 @@ return (
                 <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Custom Perms</span>
               </div>
             </GlassCard>
+          </>
+        )}
+
+        {installTab === 'samples' && (
+          <>
+            <p className="text-xs text-gray-400">
+              One-click install a built-in test mod. Samples go through the same validated pipeline as uploads — they install
+              <span className="text-amber-300"> inactive</span>, and only run after you approve their requested permissions.
+            </p>
+            {samplesError && <p className="text-red-400 text-xs">{samplesError}</p>}
+            {samplesLoading && <p className="text-gray-400 text-xs animate-pulse">Loading samples…</p>}
+            {!samplesLoading && samples.length === 0 && !samplesError && (
+              <p className="text-gray-500 text-xs">No built-in samples available.</p>
+            )}
+            <div className="grid grid-cols-1 gap-2">
+              {samples.map((s) => (
+                <div key={s.key} className="flex items-start gap-3 p-3 rounded-lg border border-white/10 bg-black/20">
+                  <span className="text-xl leading-none mt-0.5" aria-hidden="true">{s.icon}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-white font-medium flex items-center gap-2 flex-wrap">
+                      {s.name}
+                      <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-white/10 text-gray-300 border border-white/10">
+                        {s.engine_version >= 2 ? 'engine v2' : 'engine v1'}
+                      </span>
+                      {s.has_script && (
+                        <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-white/10 text-gray-300 border border-white/10">script</span>
+                      )}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-0.5">{s.description}</p>
+                    {s.permissions.length > 0 ? (
+                      <p className="text-[11px] text-amber-300 mt-1">
+                        Requests {s.permissions.length} permission{s.permissions.length === 1 ? '' : 's'} — approval required before activation.
+                      </p>
+                    ) : (
+                      <p className="text-[11px] text-emerald-400 mt-1">No permissions requested — safe to activate.</p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => doInstallSample(s.key)}
+                    disabled={installingKey != null}
+                    className="shrink-0 px-2.5 py-1 rounded text-xs border border-emerald-700/40 bg-emerald-900/30 text-emerald-200 hover:bg-emerald-900/50 disabled:opacity-50"
+                  >
+                    {installingKey === s.key ? 'Installing…' : 'Install'}
+                  </button>
+                </div>
+              ))}
+            </div>
           </>
         )}
       </GlassModal>
@@ -770,6 +937,40 @@ return (
           </>
         )}
         {grantError && <p className="text-red-400 text-xs">{grantError}</p>}
+      </GlassModal>
+
+      {/* ---- Logs viewer modal ---- */}
+      <GlassModal
+        open={!!logsMod}
+        onClose={() => setLogsMod(null)}
+        title={logsMod ? `Logs — ${logsMod.name}` : 'Logs'}
+        maxWidth="max-w-2xl"
+        footer={
+          <button onClick={() => setLogsMod(null)} className="px-3 py-1.5 rounded text-sm border border-white/10 text-gray-300 hover:bg-white/10">Close</button>
+        }
+      >
+        <p className="text-xs text-gray-500 mb-2">
+          Runtime log ring for <code className="text-gray-300 font-mono">{logsMod?.slug}</code> (latest 200 lines, oldest first). Captures
+          ks.log output plus engine lifecycle events.
+        </p>
+        {logsError && <p className="text-red-400 text-xs">{logsError}</p>}
+        {logLines === null && !logsError && <p className="text-gray-400 text-xs animate-pulse">Loading logs…</p>}
+        {logLines !== null && logLines.length === 0 && (
+          <div className="rounded-lg border border-white/10 bg-black/20 p-4 text-center">
+            <p className="text-gray-400 text-sm">No log entries yet.</p>
+            <p className="text-gray-500 text-xs mt-1">Entries appear when the mod runs (activate it and trigger its events) or when the engine records lifecycle events.</p>
+          </div>
+        )}
+        {logLines !== null && logLines.length > 0 && (
+          <div className="max-h-[50vh] overflow-y-auto rounded-lg border border-white/10 bg-black/30 p-3 font-mono text-[11px] leading-relaxed space-y-0.5">
+            {logLines.map((l, i) => (
+              <p key={i} className={l.level === 'error' ? 'text-red-300' : l.level === 'warn' ? 'text-amber-300' : 'text-gray-300'}>
+                <span className="text-gray-500">[{new Date(l.ts).toLocaleTimeString()}]</span>{' '}
+                <span className="uppercase text-gray-500">{l.level}</span> {l.message}
+              </p>
+            ))}
+          </div>
+        )}
       </GlassModal>
     </div>
   );

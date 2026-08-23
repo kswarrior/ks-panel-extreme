@@ -9,7 +9,11 @@ export interface ToggleRowProps {
 }
 
 const ToggleRow: React.FC<ToggleRowProps> = ({ id, label, description, checked, onChange }) => (
-  <label htmlFor={id} className="flex items-start gap-3 cursor-pointer select-none">
+  <label htmlFor={id} className="flex items-start justify-between gap-3 cursor-pointer select-none">
+    <span className="flex-1 min-w-0">
+      <span className="block text-sm font-medium text-gray-200">{label}</span>
+      <span className="block text-xs text-gray-500">{description}</span>
+    </span>
     <button
       type="button"
       role="switch"
@@ -26,10 +30,6 @@ const ToggleRow: React.FC<ToggleRowProps> = ({ id, label, description, checked, 
         }`}
       />
     </button>
-    <span className="flex-1">
-      <span className="block text-sm font-medium text-gray-200">{label}</span>
-      <span className="block text-xs text-gray-500">{description}</span>
-    </span>
   </label>
 );
 

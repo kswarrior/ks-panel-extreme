@@ -40,10 +40,10 @@ type Node struct {
 	// AllocMemMiB / AllocDiskMiB are in MiB (1024*1024 bytes);
 	// MemOvercommitPct / DiskOvercommitPct are 0-100 (% the panel tolerates
 	// beyond the configured cap, e.g. 150 = up to 1.5x the cap may deploy).
-	AllocMemMiB       int    `json:"alloc_mem_mib"`
-	MemOvercommitPct  int    `json:"mem_overcommit_pct"`
-	AllocDiskMiB      int    `json:"alloc_disk_mib"`
-	DiskOvercommitPct int    `json:"disk_overcommit_pct"`
+	AllocMemMiB       int `json:"alloc_mem_mib"`
+	MemOvercommitPct  int `json:"mem_overcommit_pct"`
+	AllocDiskMiB      int `json:"alloc_disk_mib"`
+	DiskOvercommitPct int `json:"disk_overcommit_pct"`
 	// InstancesDir is the daemon's instance working-files directory the
 	// panel hands to ksedge (default "./instances"). Empty falls back to
 	// the edge's documented default.
@@ -62,8 +62,19 @@ type Node struct {
 	// LocationNode is the operator's per-site label ("node-1", "rack-a3",
 	// "edge-tokyo-east"). Empty = none. Distinct from `name` so the
 	// human-readable card can render "🇮🇳 India – node-1" without cramming
-	// country info into the host name.
+	// country info into the host name. The API enforces that the
+	// (name, LocationNode) pair is unique across nodes — two edges may
+	// share a name, and two may share a label, but not both.
 	LocationNode string `json:"location_node"`
+	// Icon is a symbolic display key for the node card chip ("server",
+	// "cloud", "shield", …). The panel validates it against its fixed icon
+	// set; anything else is rejected at the API boundary. Empty = default
+	// heartbeat glyph.
+	Icon string `json:"icon"`
+	// Color is the accent hex colour ("#34d399") tinting the icon chip on
+	// cards. Constrained to #rrggbb by the API handler. Empty = theme
+	// default grey.
+	Color string `json:"color"`
 	// ProbeFailCount is how many consecutive active probes failed in a row
 	// since the last success. The sweep loop flips status->"down" once this
 	// crosses HealthRetries, and resets it to 0 on a green probe.

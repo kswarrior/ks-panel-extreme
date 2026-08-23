@@ -5,7 +5,11 @@ import type {
   ModActivateConflict,
   PermissionRequest,
   SlotRegistryResponse,
-} from '@/features/mods/types/mod';
+  ModEngineDiagnostics,
+  ModEngineToggleResponse,
+  ModSample,
+  ModLogEntry,
+} from '@/shared/types/mod';
 
 // Admin Mods API — operates on the /api/mods collection, gated by
 // MANAGE_MODS on the backend (requirePermission middleware). The session is
@@ -185,5 +189,47 @@ export async function deactivateMod(id: number): Promise<void> {
 // so mounting injection points across the layout costs a single round-trip.
 export async function fetchSlots(): Promise<SlotRegistryResponse> {
   const res = await client.get<SlotRegistryResponse>('/api/mods/v1/slots');
+  return res.data;
+}
+
+// ---------------------------------------------------------------------------
+// Mod Engine diagnostics + kill switch.
+// ---------------------------------------------------------------------------
+
+// Fetch the engine snapshot: runtime mode (noop/goja), kill-switch state and
+// one status row per tracked mod slug.
+export async function getEngineStatus(): Promise<ModEngineDiagnostics> {
+  const res = await client.get<ModEngineDiagnostics>('/api/mods/engine');
+  return res.data;
+}
+
+// Flip the panel-wide mod engine kill switch. Disabling stops every running
+// runtime immediately; enabling only lifts the gate — mods must be
+// re-activated explicitly afterwards.
+export async function setEngineEnabled(enabled: boolean): Promise<ModEngineToggleResponse> {
+  const res = await client.put<ModEngineToggleResponse>('/api/mods/engine', { enabled });
+  return res.data;
+}
+
+// Fetch a mod's bounded log ring (ks.log output + engine lifecycle events),
+// oldest line first.
+export async function getModLogs(id: number): Promise<{ slug: string; state: string; logs: ModLogEntry[] }> {
+  const res = await client.get(`/api/mods/${id}/logs`);
+  return res.data;
+}
+
+// ---------------------------------------------------------------------------
+// Built-in sample mods ("test mods").
+// ---------------------------------------------------------------------------
+
+export async function listSampleMods(): Promise<ModSample[]> {
+  const res = await client.get<ModSample[]>('/api/mods/samples');
+  return res.data;
+}
+
+// Install a built-in sample as a real mod row through the same validated
+// pipeline as a file upload (inactive + pending grants until approved).
+export async function installSampleMod(key: string): Promise<Mod> {
+  const res = await client.post<Mod>(`/api/mods/samples/${encodeURIComponent(key)}`);
   return res.data;
 }

@@ -11,7 +11,7 @@ import type {
   UpdateCheckResponse,
   UpdateApplyResponse,
   ReinstallBackgroundResponse,
-} from '@/shared/types/system';
+} from '@/features/system/types/system';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import GlassModal from '@/shared/components/ui/Modal';
 import { useUpdateInfo } from '../hooks/useUpdateInfo';

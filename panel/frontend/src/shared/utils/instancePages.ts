@@ -260,6 +260,25 @@ export interface PageContent {
   markdown?: string;
   /** for type=blocks: JSON-encoded array of BlockRow (visual studio). */
   blocks?: string;
+  /** Persisted executable actions authored with this page (parsed from the
+   *  spec row's `actions`). Empty when the page defines none. */
+  actions?: import('@/features/instance-pages/types/instancePage').PageActionDef[];
+}
+
+// parseSpecActions normalises a spec page row's `actions` field — it may be
+// a JSON-encoded string (legacy) or an inline array (LinkInstancePageHandler
+// writes an inline array) — into PageActionDef[] or undefined.
+function parseSpecActions(raw: unknown): PageContent['actions'] {
+  let list: unknown = raw;
+  if (typeof raw === 'string') {
+    if (!raw.trim()) return undefined;
+    try { list = JSON.parse(raw); } catch { return undefined; }
+  }
+  if (!Array.isArray(list)) return undefined;
+  const defs = list.filter((a): a is NonNullable<PageContent['actions']>[number] =>
+    !!a && typeof a === 'object' && typeof (a as any).name === 'string' && typeof (a as any).type === 'string',
+  );
+  return defs.length > 0 ? defs : undefined;
 }
 
 // getPageContent returns the custom content payload for a resolved slug.
@@ -272,6 +291,7 @@ export function getPageContent(slug: string, spec: Record<string, any> | null | 
     html: typeof p.content_html === 'string' ? p.content_html : undefined,
     markdown: typeof p.content_markdown === 'string' ? p.content_markdown : undefined,
     blocks: typeof p.content_blocks === 'string' ? p.content_blocks : undefined,
+    actions: parseSpecActions(p.actions),
   };
 }
 

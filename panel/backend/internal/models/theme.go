@@ -21,7 +21,7 @@ type Theme struct {
 	Name        string          `json:"name"`
 	Description string          `json:"description"`
 	Builtin     bool            `json:"builtin"`
-	Spec        json.RawMessage `json:"spec,omitempty"`     // the full Theme object
+	Spec        json.RawMessage `json:"spec,omitempty"` // the full Theme object
 	CreatedBy   *int64          `json:"created_by,omitempty"`
 	CreatedAt   time.Time       `json:"created_at"`
 	UpdatedAt   time.Time       `json:"updated_at"`

@@ -73,7 +73,7 @@ export const InstancePanel: React.FC = () => {
   // made in the deploy form) instead of the live template's pages. Passing
   // null when the instance hasn't loaded yet keeps the sidebar empty until
   // we know what to show — better than flashing the wrong tabs.
-  useInstanceNavSync(instanceId, spec);
+  useInstanceNavSync(instanceId, spec, loading);
 
   return (
     <div className="space-y-3">

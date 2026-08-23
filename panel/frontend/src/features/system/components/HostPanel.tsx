@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import type { LocalHost, SeriesSample } from '@/shared/types/system';
+import type { LocalHost, SeriesSample } from '@/features/system/types/system';
 import { Donut, Gauge, LineChart, Sparkline, fmtPct, fmtMB, fmtBytes, fmtGB, fmtUptime } from './SystemCharts';
 import { AreaChart, DonutChart, type MetricSample } from '@/shared/components/ui/MetricsChart';
 

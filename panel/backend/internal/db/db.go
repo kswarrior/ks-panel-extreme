@@ -286,6 +286,18 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				return err
 			}
 			continue
+		case name == "044_node_icon_color.sql":
+			// Per-node display identity (icon key + accent colour, migration
+			// 044). Multi-ALTER and the sqlite/mysql bodies are not
+			// idempotent, so each column is added via the runtime guard —
+			// mirrors 026_node_category_location.sql.
+			if err := guardedAddColumns(d, db, name, "nodes", []columnSpec{
+				{"icon", "TEXT NOT NULL DEFAULT ''"},
+				{"color", "TEXT NOT NULL DEFAULT ''"},
+			}); err != nil {
+				return err
+			}
+			continue
 		case name == "034_api_key_active.sql":
 			if err := guardedAddColumns(d, db, name, "api_keys", []columnSpec{
 				{"active", "INTEGER NOT NULL DEFAULT 1"},
@@ -357,13 +369,40 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				return err
 			}
 			continue
-		case name == "036_mod_package.sql":
-			// .kspm zip packages: track the on-disk package byte size so the
-			// admin UI can show "package: N KB" and the download handler knows
-			// a real zip is present (0 == synthesize from manifest+spec).
-			if err := guardedAddColumns(d, db, name, "mods", []columnSpec{
-				{"package_size", "INTEGER NOT NULL DEFAULT 0"},
+		case name == "041_instance_page_actions.sql":
+			// Instance-page action definitions (a JSON array of executable
+			// page actions) persisted on each instance_pages row so the
+			// Studio can save/reload them and linking a page to a template
+			// ships its actions into spec.pages. Guarded individually so
+			// re-launches stay idempotent — mirrors 036_mod_package.sql.
+			if err := guardedAddColumns(d, db, name, "instance_pages", []columnSpec{
+				{"actions", "TEXT NOT NULL DEFAULT ''"},
 			}); err != nil {
+				return err
+			}
+			continue
+		case name == "045_application_files_runs.sql":
+			// Application script files (JSON array of {path,content}) plus
+			// the application_runs history table. The ALTER is guarded per
+			// dialect and the CREATE INDEX line is stripped from the verbatim
+			// body (MySQL lacks CREATE INDEX IF NOT EXISTS and migrations
+			// re-run every launch); both are applied through runtime guards
+			// below so every engine converges idempotently — mirrors 041.
+			if err := guardedAddColumns(d, db, name, "applications", []columnSpec{
+				{"files", "TEXT NOT NULL DEFAULT '[]'"},
+			}); err != nil {
+				return err
+			}
+			body, rerr := readMigrationsFile(fsys, name)
+			if rerr != nil {
+				return rerr
+			}
+			stripped := stripAlterColumnLines(body, "applications", "files")
+			stripped = stripCreateIndexLines(stripped, "idx_application_runs_app")
+			if _, err := db.Exec(string(stripped)); err != nil {
+				return fmt.Errorf("migration %s failed: %w", name, err)
+			}
+			if err := guardedCreateIndex(d, db, name, "application_runs", "idx_application_runs_app", "application_id"); err != nil {
 				return err
 			}
 			continue
@@ -501,6 +540,68 @@ func stripAlterColumnLines(content []byte, table, column string) []byte {
 		out = append(out, ln)
 	}
 	return []byte(strings.Join(out, "\n"))
+}
+
+// stripCreateIndexLines removes every CREATE INDEX line naming indexName so
+// the guardedCreateIndex runtime check below owns that statement (MySQL has
+// no CREATE INDEX IF NOT EXISTS and migrations re-run on every launch).
+func stripCreateIndexLines(content []byte, indexName string) []byte {
+	lines := strings.Split(string(content), "\n")
+	out := make([]string, 0, len(lines))
+	needle := strings.ToUpper("CREATE INDEX")
+	wantIdx := strings.ToUpper(indexName)
+	for _, ln := range lines {
+		trim := strings.TrimSpace(strings.TrimRight(ln, "\r"))
+		upper := strings.ToUpper(trim)
+		if strings.HasPrefix(upper, needle) && strings.Contains(upper, wantIdx) {
+			continue
+		}
+		out = append(out, ln)
+	}
+	return []byte(strings.Join(out, "\n"))
+}
+
+// guardedCreateIndex creates one index when absent, dialect-aware:
+// sqlite_master for SQLite, pg_indexes for Postgres and
+// information_schema.statistics for MySQL — mirroring hasColumn's shape.
+func guardedCreateIndex(d Dialect, db *sql.DB, migration, table, indexName, column string) error {
+	if hasIndex(d, db, table, indexName) {
+		return nil
+	}
+	stmt := fmt.Sprintf("CREATE INDEX %s ON %s(%s)", indexName, table, column)
+	if _, err := db.Exec(stmt); err != nil {
+		return fmt.Errorf("migration %s failed: %w", migration, err)
+	}
+	return nil
+}
+
+// hasIndex reports whether the named index already exists on the table.
+// Same fail-closed convention as hasColumn: any introspection error returns
+// false, and the subsequent CREATE INDEX surfaces a duplicate-name failure
+// loudly instead of silently skipping.
+func hasIndex(d Dialect, db *sql.DB, table, index string) bool {
+	var q string
+	var err error
+	switch d.Name() {
+	case "sqlite":
+		var cnt int
+		err = db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name = ?`, index).Scan(&cnt)
+		if err != nil {
+			return false
+		}
+		return cnt > 0
+	case "postgres":
+		q = `SELECT COUNT(*) FROM pg_indexes WHERE tablename = $1 AND indexname = $2`
+	case "mysql", "mariadb":
+		q = `SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ?`
+	default:
+		return false
+	}
+	var cnt int
+	if err = db.QueryRow(q, table, index).Scan(&cnt); err != nil {
+		return false
+	}
+	return cnt > 0
 }
 
 // EnsureSchemaAndSeed brings the database up to date for the given dialect:
@@ -721,6 +822,13 @@ type appPermissionReq struct {
 	AccessLevel string `json:"access_level,omitempty"`
 }
 
+// appFile is one script file shipped inside a seeded application
+// (mirrors the {path, content} entries the Studio authors).
+type appFile struct {
+	Path    string `json:"path"`
+	Content string `json:"content"`
+}
+
 // defaultApplication is one row we seed into the catalog on every
 // EnsureSchemaAndSeed call. All shipped defaults start INACTIVE and with no
 // permissions pre-granted — the admin must review and approve each
@@ -736,6 +844,7 @@ type defaultApplication struct {
 	Entrypoint   string
 	ConfigFields []appConfigField
 	Permissions  []appPermissionReq
+	Files        []appFile
 }
 
 // defaultApplications is the fixed catalog the panel seeds for every fresh
@@ -770,6 +879,9 @@ var defaultApplications = []defaultApplication{
 			{Capability: "outbound_http", AccessLevel: "standard"},
 			{Capability: "filesystem", AccessLevel: "read_write"},
 		},
+		Files: []appFile{
+			{Path: "src/bot.js", Content: discordBotScript},
+		},
 	},
 	{
 		Name:        "WhatsApp Bot",
@@ -790,6 +902,9 @@ var defaultApplications = []defaultApplication{
 			{Capability: "outbound_http", AccessLevel: "standard"},
 			{Capability: "network", AccessLevel: "listen"},
 		},
+		Files: []appFile{
+			{Path: "src/bot.js", Content: whatsappBotScript},
+		},
 	},
 	{
 		Name:        "Telegram Bot",
@@ -807,6 +922,9 @@ var defaultApplications = []defaultApplication{
 		Permissions: []appPermissionReq{
 			{Capability: "outbound_http", AccessLevel: "standard"},
 			{Capability: "filesystem", AccessLevel: "read_write"},
+		},
+		Files: []appFile{
+			{Path: "src/bot.js", Content: telegramBotScript},
 		},
 	},
 	{
@@ -829,6 +947,9 @@ var defaultApplications = []defaultApplication{
 			{Capability: "network", AccessLevel: "listen"},
 			{Capability: "filesystem", AccessLevel: "read_write"},
 		},
+		Files: []appFile{
+			{Path: "src/bot.js", Content: slackBotScript},
+		},
 	},
 	{
 		Name:        "Custom Bot",
@@ -848,8 +969,204 @@ var defaultApplications = []defaultApplication{
 			{Capability: "outbound_http", AccessLevel: "standard"},
 			{Capability: "filesystem", AccessLevel: "read_write"},
 		},
+		Files: []appFile{
+			{Path: "src/bot.js", Content: customBotScript},
+		},
 	},
 }
+
+// The starter scripts below are deliberately dependency-free Node.js —
+// every value they need arrives through environment variables (the
+// application's config_schema fields), so an operator configures a bot by
+// filling in the Run form and never edits code. Each script performs one
+// real authenticated call against its platform API and exits 0 on success,
+// 1 on failure, so a Run proves the configured credentials work.
+
+const discordBotScript = `// Discord bot starter — validates BOT_TOKEN against the Discord API.
+// Zero dependencies: uses only Node's built-in https client.
+const https = require('https');
+
+const token = process.env.bot_token || '';
+if (!token) {
+  console.error('bot_token is not set — fill it in on the Run form.');
+  process.exit(1);
+}
+
+https.get({
+  hostname: 'discord.com',
+  path: '/api/v10/users/@me',
+  headers: { Authorization: 'Bot ' + token },
+}, (res) => {
+  let body = '';
+  res.on('data', (c) => { body += c; });
+  res.on('end', () => {
+    if (res.statusCode !== 200) {
+      console.error('Discord API returned HTTP ' + res.statusCode + ': ' + body);
+      process.exit(1);
+    }
+    const me = JSON.parse(body);
+    console.log('Token OK — authenticated as bot "' + me.username + '" (id ' + me.id + ').');
+    const cid = process.env.client_id || '';
+    if (cid && cid !== me.id) {
+      console.log('Note: client_id ' + cid + ' differs from this token application id ' + me.id + '.');
+    }
+  });
+}).on('error', (e) => {
+  console.error('Network error talking to Discord: ' + e.message);
+  process.exit(1);
+});
+`
+
+const whatsappBotScript = `// WhatsApp Cloud API starter — validates access_token + phone_number_id
+// against the Meta Graph API. Zero dependencies.
+const https = require('https');
+
+const token = process.env.access_token || '';
+const phoneId = process.env.phone_number_id || '';
+if (!token || !phoneId) {
+  console.error('access_token and phone_number_id are required — fill them in on the Run form.');
+  process.exit(1);
+}
+
+https.get({
+  hostname: 'graph.facebook.com',
+  path: '/v18.0/' + encodeURIComponent(phoneId) + '?access_token=' + encodeURIComponent(token),
+}, (res) => {
+  let body = '';
+  res.on('data', (c) => { body += c; });
+  res.on('end', () => {
+    if (res.statusCode !== 200) {
+      console.error('Graph API returned HTTP ' + res.statusCode + ': ' + body);
+      process.exit(1);
+    }
+    const info = JSON.parse(body);
+    console.log('Token OK — phone number "' + (info.display_phone_number || '?') +
+      '" verified (id ' + info.id + ', status ' + (info.account_mode || 'unknown') + ').');
+    if (process.env.verify_token) {
+      console.log('verify_token saved for webhook registration.');
+    }
+  });
+}).on('error', (e) => {
+  console.error('Network error talking to Graph API: ' + e.message);
+  process.exit(1);
+});
+`
+
+const telegramBotScript = `// Telegram bot starter — validates BOT_TOKEN via getMe, then does one
+// short getUpdates poll to prove polling works. Zero dependencies.
+const https = require('https');
+
+const token = process.env.bot_token || '';
+if (!token) {
+  console.error('bot_token is not set — fill it in on the Run form.');
+  process.exit(1);
+}
+
+function call(method, qs) {
+  return new Promise((resolve, reject) => {
+    https.get({
+      hostname: 'api.telegram.org',
+      path: '/bot' + token + '/' + method + (qs ? '?' + qs : ''),
+    }, (res) => {
+      let body = '';
+      res.on('data', (c) => { body += c; });
+      res.on('end', () => {
+        try { resolve(JSON.parse(body)); } catch (e) { reject(new Error('bad JSON from Telegram')); }
+      });
+    }).on('error', reject);
+  });
+}
+
+(async () => {
+  const me = await call('getMe');
+  if (!me.ok) {
+    console.error('Telegram rejected the token: ' + JSON.stringify(me));
+    process.exit(1);
+  }
+  console.log('Token OK — authenticated as @' + me.result.username + ' (id ' + me.result.id + ').');
+  const updates = await call('getUpdates', 'timeout=10&limit=10' +
+    (process.env.allowed_updates ? '&allowed_updates=' + encodeURIComponent(process.env.allowed_updates) : ''));
+  if (!updates.ok) {
+    console.error('getUpdates failed: ' + JSON.stringify(updates));
+    process.exit(1);
+  }
+  console.log('Polling works — ' + updates.result.length + ' pending update(s).');
+})().catch((e) => {
+  console.error('Network error talking to Telegram: ' + e.message);
+  process.exit(1);
+});
+`
+
+const slackBotScript = `// Slack bot starter — validates BOT_TOKEN with auth.test. Zero dependencies.
+const https = require('https');
+
+const token = process.env.bot_token || '';
+if (!token) {
+  console.error('bot_token is not set — fill it in on the Run form.');
+  process.exit(1);
+}
+
+const req = https.request({
+  hostname: 'slack.com',
+  path: '/api/auth.test',
+  method: 'POST',
+  headers: {
+    Authorization: 'Bearer ' + token,
+    'Content-Type': 'application/json; charset=utf-8',
+  },
+}, (res) => {
+  let body = '';
+  res.on('data', (c) => { body += c; });
+  res.on('end', () => {
+    const out = JSON.parse(body);
+    if (!out.ok) {
+      console.error('Slack rejected the token: ' + (out.error || body));
+      process.exit(1);
+    }
+    console.log('Token OK — authenticated as "' + out.user + '" on team "' + out.team + '" (' + out.team_id + ').');
+  });
+});
+req.on('error', (e) => {
+  console.error('Network error talking to Slack: ' + e.message);
+  process.exit(1);
+});
+req.end();
+`
+
+const customBotScript = `// Custom bot starter — prints the configuration it received (secrets are
+// never printed, only their presence) and optionally pings api_base_url
+// with the token as a Bearer header. Wire up your own logic below.
+const https = require('https');
+const url = require('url');
+
+const token = process.env.api_token || '';
+if (!token) {
+  console.error('api_token is not set — fill it in on the Run form.');
+  process.exit(1);
+}
+console.log('api_token: present (' + token.length + ' chars)');
+console.log('extra_config:', process.env.extra_config || '(none)');
+
+const base = process.env.api_base_url || '';
+if (!base) {
+  console.log('api_base_url not set — nothing further to do. Edit src/bot.js to add your logic.');
+  process.exit(0);
+}
+
+const parsed = url.parse(base);
+https.get({
+  hostname: parsed.hostname,
+  port: parsed.port,
+  path: parsed.path || '/',
+  headers: { Authorization: 'Bearer ' + token },
+}, (res) => {
+  console.log('GET ' + base + ' -> HTTP ' + res.statusCode);
+  process.exit(res.statusCode < 500 ? 0 : 1);
+}).on('error', (e) => {
+  console.error('Request to api_base_url failed: ' + e.message);
+  process.exit(1);
+});
+`
 
 // SeedDefaultApplications idempotently inserts the catalog the panel ships
 // with — one row per defaultApplication above — into `applications` plus
@@ -883,6 +1200,13 @@ func SeedDefaultApplications(d Dialect, db *sql.DB) error {
 		if len(cfgSchema) == 0 || string(cfgSchema) == "null" {
 			cfgSchema = []byte("[]")
 		}
+		filesJSON, err := json.Marshal(app.Files)
+		if err != nil {
+			return fmt.Errorf("marshal files for %s: %w", app.Slug, err)
+		}
+		if len(filesJSON) == 0 || string(filesJSON) == "null" {
+			filesJSON = []byte("[]")
+		}
 		permsPreview, err := json.Marshal(app.Permissions)
 		if err != nil {
 			return fmt.Errorf("marshal permissions preview for %s: %w", app.Slug, err)
@@ -897,8 +1221,8 @@ func SeedDefaultApplications(d Dialect, db *sql.DB) error {
 		// row with the same slug already exists, which is exactly the
 		// contract we want (an admin who deleted an app keeps it gone).
 		p := d.Placeholder
-		insertSQL := "INSERT INTO applications (name, slug, category, version, description, icon, runtime, entrypoint, config_schema, permissions, created_at, updated_at) VALUES (" +
-			p(1) + "," + p(2) + "," + p(3) + "," + p(4) + "," + p(5) + "," + p(6) + "," + p(7) + "," + p(8) + "," + p(9) + "," + p(10) + "," + p(11) + "," + p(12) + ")"
+		insertSQL := "INSERT INTO applications (name, slug, category, version, description, icon, runtime, entrypoint, config_schema, files, permissions, created_at, updated_at) VALUES (" +
+			p(1) + "," + p(2) + "," + p(3) + "," + p(4) + "," + p(5) + "," + p(6) + "," + p(7) + "," + p(8) + "," + p(9) + "," + p(10) + "," + p(11) + "," + p(12) + "," + p(13) + ")"
 		switch d.Name() {
 		case "postgres":
 			insertSQL += " ON CONFLICT (slug) DO NOTHING"
@@ -910,7 +1234,7 @@ func SeedDefaultApplications(d Dialect, db *sql.DB) error {
 
 		if _, err := db.Exec(insertSQL,
 			app.Name, app.Slug, app.Category, app.Version, app.Description, app.Icon,
-			app.Runtime, app.Entrypoint, string(cfgSchema), string(permsPreview), now, now,
+			app.Runtime, app.Entrypoint, string(cfgSchema), string(filesJSON), string(permsPreview), now, now,
 		); err != nil {
 			return fmt.Errorf("insert default application %s: %w", app.Slug, err)
 		}

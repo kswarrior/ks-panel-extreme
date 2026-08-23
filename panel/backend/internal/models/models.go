@@ -103,52 +103,101 @@ type Permission struct {
 // without a second query, but the canonical grant rows live in
 // application_permissions (mirrors ModPermission).
 type Application struct {
-	ID            int64           `json:"id"`
-	Name          string          `json:"name"`
-	Slug          string          `json:"slug"`
-	Category      string          `json:"category"`
-	Version       string          `json:"version"`
-	Description   string          `json:"description"`
-	Icon          string          `json:"icon"`
-	Runtime       string          `json:"runtime"`
-	Entrypoint    string          `json:"entrypoint"`
-	ConfigSchema  json.RawMessage `json:"config_schema"`
-	Permissions   json.RawMessage `json:"permissions"` // []PermissionReq for preview
-	Active        bool            `json:"active"`
-	UploadedBy    *int64          `json:"uploaded_by,omitempty"`
-	OwnerName     string          `json:"owner_name,omitempty"`
-	Source        string          `json:"source"`
-	SourceURL     string          `json:"source_url,omitempty"`
-	CreatedAt     time.Time       `json:"created_at"`
-	UpdatedAt     time.Time       `json:"updated_at"`
+	ID           int64           `json:"id"`
+	Name         string          `json:"name"`
+	Slug         string          `json:"slug"`
+	Category     string          `json:"category"`
+	Version      string          `json:"version"`
+	Description  string          `json:"description"`
+	Icon         string          `json:"icon"`
+	Runtime      string          `json:"runtime"`
+	Entrypoint   string          `json:"entrypoint"`
+	ConfigSchema json.RawMessage `json:"config_schema"`
+	Files        json.RawMessage `json:"files"` // [{path,content}] staged onto the run target
+	// Env holds saved KEY=VALUE defaults (JSON object) merged into every
+	// Run's environment under the per-run overrides.
+	Env         json.RawMessage `json:"env"`
+	Permissions json.RawMessage `json:"permissions"` // []PermissionReq for preview
+	Active      bool            `json:"active"`
+	UploadedBy  *int64          `json:"uploaded_by,omitempty"`
+	OwnerName   string          `json:"owner_name,omitempty"`
+	Source      string          `json:"source"`
+	SourceURL   string          `json:"source_url,omitempty"`
+	CreatedAt   time.Time       `json:"created_at"`
+	UpdatedAt   time.Time       `json:"updated_at"`
 }
 
 // ApplicationPermission is one capability an application declares it needs
 // (mirrors ModPermission). The admin must explicitly approve each before the
 // application can be activated.
 type ApplicationPermission struct {
-	ID           int64  `json:"id"`
+	ID            int64  `json:"id"`
 	ApplicationID int64  `json:"application_id"`
-	Capability   string `json:"capability"`
-	AccessLevel  string `json:"access_level"`
-	Granted      bool   `json:"granted"`
+	Capability    string `json:"capability"`
+	AccessLevel   string `json:"access_level"`
+	Granted       bool   `json:"granted"`
 }
 
 // ApplicationInstallation is one user-facing bot instance. The user fills in
 // config_values (secrets + plain settings), the panel stores them encrypted
 // for secret fields, and the runtime updates status / last_error.
 type ApplicationInstallation struct {
-	ID             int64     `json:"id"`
-	ApplicationID  int64     `json:"application_id"`
-	OwnerID        int64     `json:"owner_id"`
-	Name           string    `json:"name"`
-	ConfigValues   string    `json:"config_values"` // JSON: {key: value} — secrets encrypted at rest
-	Status         string    `json:"status"`        // running | stopped | error
-	LastError      string    `json:"last_error"`
-	NodeID         int64     `json:"node_id"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	ID            int64     `json:"id"`
+	ApplicationID int64     `json:"application_id"`
+	OwnerID       int64     `json:"owner_id"`
+	Name          string    `json:"name"`
+	ConfigValues  string    `json:"config_values"` // JSON: {key: value} — secrets encrypted at rest
+	Status        string    `json:"status"`        // running | stopped | error
+	LastError     string    `json:"last_error"`
+	NodeID        int64     `json:"node_id"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
+
+// ApplicationRun is one execution of an application's script. Target is
+// "node" (a registered edge) or "panel" (the panel host: via its local node
+// when one exists, otherwise by direct shell from the panel process).
+// ExecMode is "host" (target filesystem) or a driver kind (docker / lxd /
+// kvm / multipass) in which case Workload names the container/VM to exec
+// inside. Output/ErrorOutput carry the captured stdout/stderr.
+type ApplicationRun struct {
+	ID            int64     `json:"id"`
+	ApplicationID int64     `json:"application_id"`
+	TriggeredBy   *int64    `json:"triggered_by,omitempty"`
+	Target        string    `json:"target"`
+	NodeID        int64     `json:"node_id"`
+	NodeName      string    `json:"node_name"`
+	ExecMode      string    `json:"exec_mode"`
+	Workload      string    `json:"workload"`
+	Status        string    `json:"status"` // running | succeeded | failed | error
+	ExitCode      int       `json:"exit_code"`
+	Output        string    `json:"output"`
+	ErrorOutput   string    `json:"error_output"`
+	Error         string    `json:"error"`
+	TimeoutSec    int       `json:"timeout_sec"`
+	CreatedAt     time.Time `json:"created_at"`
+	EndedAt       time.Time `json:"ended_at,omitempty"`
+}
+
+// Application run lifecycle statuses.
+const (
+	AppRunStatusRunning   = "running"
+	AppRunStatusSucceeded = "succeeded"
+	AppRunStatusFailed    = "failed" // script ran, non-zero exit
+	AppRunStatusError     = "error"  // could not start (dial, staging, …)
+)
+
+// Run target + exec-mode codes (wire values shared with the SPA).
+const (
+	AppRunTargetNode  = "node"
+	AppRunTargetPanel = "panel"
+
+	AppExecModeHost      = "host"
+	AppExecModeDocker    = "docker"
+	AppExecModeLXD       = "lxd"
+	AppExecModeKVM       = "kvm"
+	AppExecModeMultipass = "multipass"
+)
 
 // Application install provenance codes. Matches the `applications.source` column.
 const (

@@ -51,7 +51,7 @@ export const DriverRing: React.FC<{ node: Node }> = ({ node }) => {
   return (
     <div className="relative shrink-0" title={`Drivers: ${DRIVER_ARCS.map((a) => `${a.label} ${node[a.key] ? '✓' : '✗'}`).join(' • ')}${driversOk ? '' : ' ⚠ detection failed'}`}>
       <svg width="30" height="30" viewBox="0 0 30 30" className="-rotate-90">
-        <circle cx="15" cy="15" r={r} fill="none" stroke="#1f2937" strokeWidth={stroke} />
+        <circle cx="15" cy="15" r={r} fill="none" stroke="var(--ks-chart-track, #1f2937)" strokeWidth={stroke} />
         {DRIVER_ARCS.map((a, i) => {
           const on = node[a.key] && driversOk;
           return (

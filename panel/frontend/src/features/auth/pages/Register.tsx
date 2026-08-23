@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import client from '@/shared/api/client';
 import { register } from '@/features/auth/api/auth';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
 import ThemedBackground from '@/shared/components/layout/ThemedBackground';
@@ -20,9 +21,29 @@ const Register: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  // Enabled+configured OAuth providers (ids/labels only) so the register
+  // page mirrors the login page's "Continue with ..." section.
+  const [oauthProviders, setOauthProviders] = useState<{ id: string; label: string }[]>([]);
   const navigate = useNavigate();
   const panelName = useSettingsStore((s) => s.panelName);
   const panelLogo = useSettingsStore((s) => s.panelLogo);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const flags = await client.get<{
+          oauth_providers?: { id: string; label: string }[];
+        }>('/api/auth/flags');
+        if (!cancelled) {
+          setOauthProviders(flags.data?.oauth_providers ?? []);
+        }
+      } catch {
+        /* provider list stays empty on failure — form still works */
+      }
+    })();
+    return () => { cancelled = true };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -300,6 +321,31 @@ const Register: React.FC = () => {
                 )}
               </span>
             </button>
+
+            {/* OAuth "Continue with ..." — same list the login page
+                renders; clicking leaves for the provider and returns via
+                /api/auth/oauth/{id}/callback (which may auto-create the
+                account when registration is enabled). */}
+            {oauthProviders.length > 0 && (
+              <>
+                <div className="flex items-center gap-3">
+                  <span className="flex-1 h-px bg-neutral-700/70" />
+                  <span className="text-[11px] uppercase tracking-wider text-gray-500">or continue with</span>
+                  <span className="flex-1 h-px bg-neutral-700/70" />
+                </div>
+                <div className="space-y-2">
+                  {oauthProviders.map((p) => (
+                    <a
+                      key={p.id}
+                      href={`/api/auth/oauth/${p.id}/start`}
+                      className="flex items-center justify-center gap-2 w-full py-2 rounded-lg border border-neutral-700 bg-black/30 hover:bg-white/10 hover:border-neutral-500 text-gray-200 text-sm transition-all duration-200"
+                    >
+                      Continue with {p.label}
+                    </a>
+                  ))}
+                </div>
+              </>
+            )}
 
             {/* Back to login */}
             <p className="text-center text-xs text-gray-400">

@@ -263,7 +263,20 @@ export function withBoundary(name: string, Comp: React.ComponentType): React.FC 
 // LoadingKind enumerates the skeleton variants `LoadingOrError` can render.
 // Each entry mirrors the shape of the actual sub-page so the layout doesn't
 // jump once the real data lands.
-export type LoadingKind = 'panel' | 'home' | 'files' | 'network' | 'terminal' | 'settings';
+export type LoadingKind =
+  | 'panel'
+  | 'home'
+  | 'files'
+  | 'network'
+  | 'terminal'
+  | 'settings'
+  | 'env'
+  | 'automation'
+  | 'audit'
+  | 'backups'
+  | 'metrics'
+  | 'ports'
+  | 'processes';
 
 const SkeletonShell: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div className="space-y-4">{children}</div>
@@ -444,16 +457,83 @@ const PanelSkeleton: React.FC = () => (
   </SkeletonShell>
 );
 
+// HeaderSkeleton — small page-title + optional subtitle placeholder used
+// by every advanced built-in (Env / Automation / Audit / …) before the
+// templates fetch resolves.
+const HeaderSkeleton: React.FC<{ subtitle?: boolean }> = ({ subtitle = true }) => (
+  <div className="space-y-1">
+    <Bar w="w-1/4" h="h-5" />
+    {subtitle && <Bar w="w-1/2" h="h-3" />}
+  </div>
+);
+
+const EnvSkeleton: React.FC = () => (
+  <SkeletonShell>
+    <HeaderSkeleton />
+    <SectionCardSkeleton rows={5} />
+    <SectionCardSkeleton rows={3} />
+  </SkeletonShell>
+);
+
+const AutomationSkeleton: React.FC = () => (
+  <SkeletonShell>
+    <HeaderSkeleton />
+    <CardGridSkeleton count={4} />
+  </SkeletonShell>
+);
+
+const AuditSkeleton: React.FC = () => (
+  <SkeletonShell>
+    <HeaderSkeleton />
+    <TableSkeleton rows={8} cols={5} />
+  </SkeletonShell>
+);
+
+const BackupsSkeleton: React.FC = () => (
+  <SkeletonShell>
+    <HeaderSkeleton />
+    <CardGridSkeleton count={3} />
+  </SkeletonShell>
+);
+
+const MetricsSkeleton: React.FC = () => (
+  <SkeletonShell>
+    <HeaderSkeleton />
+    <TilesSkeleton tiles={6} />
+  </SkeletonShell>
+);
+
+const PortsSkeleton: React.FC = () => (
+  <SkeletonShell>
+    <HeaderSkeleton />
+    <SectionCardSkeleton rows={6} />
+  </SkeletonShell>
+);
+
+const ProcessesSkeleton: React.FC = () => (
+  <SkeletonShell>
+    <HeaderSkeleton />
+    <TableSkeleton rows={8} cols={4} />
+  </SkeletonShell>
+);
+
 export const LoadingOrError: React.FC<{ loading: boolean; error: string; kind?: LoadingKind }> = ({ loading, error, kind = 'panel' }) => {
   if (loading) {
     switch (kind) {
-      case 'home':     return <HomeSkeleton />;
-      case 'files':    return <FilesSkeleton />;
-      case 'network':  return <NetworkSkeleton />;
-      case 'terminal': return <TerminalSkeleton />;
-      case 'settings': return <SettingsSkeleton />;
+      case 'home':       return <HomeSkeleton />;
+      case 'files':      return <FilesSkeleton />;
+      case 'network':    return <NetworkSkeleton />;
+      case 'terminal':   return <TerminalSkeleton />;
+      case 'settings':   return <SettingsSkeleton />;
+      case 'env':        return <EnvSkeleton />;
+      case 'automation': return <AutomationSkeleton />;
+      case 'audit':      return <AuditSkeleton />;
+      case 'backups':    return <BackupsSkeleton />;
+      case 'metrics':    return <MetricsSkeleton />;
+      case 'ports':      return <PortsSkeleton />;
+      case 'processes':  return <ProcessesSkeleton />;
       case 'panel':
-      default:         return <PanelSkeleton />;
+      default:           return <PanelSkeleton />;
     }
   }
   if (error) return <div className="glass-card rounded-xl text-red-400 text-sm">{error}</div>;

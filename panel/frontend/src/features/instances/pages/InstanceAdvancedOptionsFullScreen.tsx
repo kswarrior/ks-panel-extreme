@@ -447,13 +447,26 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
         cancelTo="/instances/new"
         submitLabel={undefined}
         maxWidth="max-w-4xl"
+        headerActions={
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex items-center gap-1.5 text-sm text-gray-300 hover:text-white border border-white/10 bg-white/5 hover:bg-white/10 rounded px-3 py-1.5 transition-colors"
+            aria-label="Back to deploy form"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+              <path d="M19 12H5" />
+              <path d="M12 19l-7-7 7-7" />
+            </svg>
+            <span>Back</span>
+          </button>
+        }
       >
-        <TemplateTabs tab={tab} onChange={setTab} tabs={ADVANCED_TABS} />
-
-        <div className="space-y-4 mt-2">
+        <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4">
+          <TemplateTabs tab={tab} onChange={setTab} tabs={ADVANCED_TABS} />
+          <div className="space-y-4 mt-2">
           {tab === 'environment' && (
-            <div className={sectionCls}>
-              {selectedTemplate ? (
+              selectedTemplate ? (
                 <TemplateEnvironmentSection
                   image={selectedTemplate.image}
                   kind={selectedTemplate.kind}
@@ -478,13 +491,11 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
                 <div className="text-center text-gray-400 text-sm py-6">
                   Pick a template on the General section to reveal its environment options.
                 </div>
-              )}
-            </div>
+              )
           )}
 
           {tab === 'env' && (
-            <div className={sectionCls}>
-              {selectedTemplate ? (
+              selectedTemplate ? (
                 <TemplateEnvVariablesSection
                   env={editor.env}
                   onEnvUpdate={updateEnv}
@@ -499,13 +510,11 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
                 <div className="text-center text-gray-400 text-sm py-6">
                   Pick a template on the General section to reveal its environment variables.
                 </div>
-              )}
-            </div>
+              )
           )}
 
           {tab === 'actions' && (
-            <div className={sectionCls}>
-              {selectedTemplate ? (
+              selectedTemplate ? (
                 <TemplateActionsSection
                   actions={editor.actions}
                   onActionUpdate={updateAction}
@@ -523,13 +532,11 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
                 <div className="text-center text-gray-400 text-sm py-6">
                   Pick a template on the General section to reveal its actions.
                 </div>
-              )}
-            </div>
+              )
           )}
 
           {tab === 'install' && (
-            <div className={sectionCls}>
-              {selectedTemplate ? (
+              selectedTemplate ? (
                 <TemplateInstallSection
                   install={editor.install}
                   onInstallUpdate={updateInstall}
@@ -544,13 +551,11 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
                 <div className="text-center text-gray-400 text-sm py-6">
                   Pick a template on the General section to reveal its install workflow.
                 </div>
-              )}
-            </div>
+              )
           )}
 
           {tab === 'runtime' && (
-            <div className={sectionCls}>
-              {selectedTemplate ? (
+              selectedTemplate ? (
                 <TemplateRuntimeSection
                   kind={selectedTemplate.kind}
                   advanced={editor.advanced}
@@ -567,13 +572,11 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
                 <div className="text-center text-gray-400 text-sm py-6">
                   Pick a template on the General section to reveal its runtime configuration.
                 </div>
-              )}
-            </div>
+              )
           )}
 
           {tab === 'labels' && (
-            <div className={sectionCls}>
-              {selectedTemplate ? (
+              selectedTemplate ? (
                 <TemplateLabelsDevicesSection
                   labels={editor.labels}
                   onLabelUpdate={updateLabel}
@@ -592,13 +595,11 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
                 <div className="text-center text-gray-400 text-sm py-6">
                   Pick a template on the General section to reveal its labels and devices.
                 </div>
-              )}
-            </div>
+              )
           )}
 
           {tab === 'healthcheck' && (
-            <div className={sectionCls}>
-              {selectedTemplate ? (
+              selectedTemplate ? (
                 <TemplateHealthcheckSection
                   healthcheck={editor.healthcheck}
                   onHealthcheckUpdate={updateHealthcheck}
@@ -611,13 +612,11 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
                 <div className="text-center text-gray-400 text-sm py-6">
                   Pick a template on the General section to reveal its healthcheck.
                 </div>
-              )}
-            </div>
+              )
           )}
 
           {tab === 'pages' && (
-            <div className={sectionCls}>
-              {selectedTemplate ? (
+              selectedTemplate ? (
                 <TemplatePagesSection
                   pages={editor.pages}
                   onPageUpdate={updatePage}
@@ -644,13 +643,11 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
                 <div className="text-center text-gray-400 text-sm py-6">
                   Pick a template on the General section to reveal its panel pages.
                 </div>
-              )}
-            </div>
+              )
           )}
 
           {tab === 'spec' && (
-            <div className={sectionCls}>
-              {selectedTemplate ? (
+              selectedTemplate ? (
                 <TemplateSpecPreviewSection
                   specPreview={specPreview}
                   sectionCls={sectionCls}
@@ -661,10 +658,10 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
                 <div className="text-center text-gray-400 text-sm py-6">
                   Pick a template on the General section to inspect the generated spec.
                 </div>
-              )}
-            </div>
+              )
           )}
         </div>
+      </div>
       </FormPage>
     </div>
   );

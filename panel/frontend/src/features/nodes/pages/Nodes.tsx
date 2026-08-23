@@ -23,6 +23,7 @@ import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import { useThemeStore } from '@/shared/stores/themeStore';
 import { countryByCode } from '@/shared/components/forms/LocationField/countries';
 import { HeartbeatIcon, DriverRing, ResourceBar } from '../components/NodesComponents';
+import { NodeIcon } from '../utils/nodeIcons';
 import { resolveState, isLocalAddress, formatBytes, formatBytesPair, formatPercent, withAlpha, buildMonitor, buildEdgeConfig } from '../utils/nodesUtils';
 import type { StateStyle } from '../types/nodes';
 import { STATE_STYLES, MONITOR_BARS } from '../types/nodes';
@@ -362,7 +363,13 @@ const AdminNodes: React.FC = () => {
               <div className="p-3 flex flex-col gap-3">
                 <header className="flex items-start gap-3 min-w-0">
                   <div className="shrink-0 w-10 h-10 rounded-lg flex items-center justify-center border bg-white/[0.05] border-white/10 text-gray-300" aria-hidden="true">
-                    <HeartbeatIcon state={resolved} />
+                    {n.icon ? (
+                      <span style={n.color ? { color: n.color } : undefined}>
+                        <NodeIcon icon={n.icon} className="w-5 h-5" />
+                      </span>
+                    ) : (
+                      <HeartbeatIcon state={resolved} />
+                    )}
                   </div>
                   <div className="min-w-0 flex-1">
                     <h3 className="text-sm font-semibold text-white truncate leading-tight flex items-center gap-1.5" title={n.name}>

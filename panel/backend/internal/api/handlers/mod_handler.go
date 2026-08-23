@@ -154,7 +154,12 @@ func GetModHandler(w http.ResponseWriter, r *http.Request) {
 	defer closeFn()
 	mod, err := repo.GetMod(id)
 	if err != nil {
-		http.Error(w, "mod not found", http.StatusNotFound)
+		if errors.Is(err, repository.ErrModNotFound) {
+			http.Error(w, "mod not found", http.StatusNotFound)
+			return
+		}
+		log.Println("GetMod error:", err)
+		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
 	writeJSON(w, toModResponse(repo, mod))
@@ -672,7 +677,12 @@ func UpdateModHandler(w http.ResponseWriter, r *http.Request) {
 		Spec:        dto.Spec,
 	})
 	if err != nil {
-		http.Error(w, "mod not found", http.StatusNotFound)
+		if errors.Is(err, repository.ErrModNotFound) {
+			http.Error(w, "mod not found", http.StatusNotFound)
+			return
+		}
+		log.Println("UpdateMod error:", err)
+		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
 	RecordActivity(r, repository.ActivityInput{
@@ -713,9 +723,15 @@ func DeleteModHandler(w http.ResponseWriter, r *http.Request) {
 	// Deactivate is idempotent and a no-op when the slug was never booted.
 	if slug != "" {
 		modengine.Default().Deactivate(slug)
+		modengine.Default().ForgetMod(slug) // drop statuses + log ring too
 	}
 	if err := repo.DeleteMod(id); err != nil {
-		http.Error(w, "mod not found", http.StatusNotFound)
+		if errors.Is(err, repository.ErrModNotFound) {
+			http.Error(w, "mod not found", http.StatusNotFound)
+			return
+		}
+		log.Println("DeleteMod error:", err)
+		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
 	// Drop the on-disk .kspm package + extracted workdir so a deleted mod
@@ -768,7 +784,12 @@ func SetModGrantsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer closeFn()
 	if _, gerr := repo.GetMod(id); gerr != nil {
-		http.Error(w, "mod not found", http.StatusNotFound)
+		if errors.Is(gerr, repository.ErrModNotFound) {
+			http.Error(w, "mod not found", http.StatusNotFound)
+			return
+		}
+		log.Println("SetModGrants GetMod error:", gerr)
+		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
 	if err := repo.SetGrants(id, dto.Grants); err != nil {
@@ -806,6 +827,15 @@ func ActivateModHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer closeFn()
+	// Kill switch first: refuse BEFORE flipping the DB flag so "active" rows
+	// and running runtimes never disagree with the engine gate.
+	if !modengine.Default().Enabled() {
+		writeJSONStatus(w, http.StatusConflict, map[string]any{
+			"error":   "engine disabled",
+			"message": "The mod engine is disabled. Re-enable it before activating mods.",
+		})
+		return
+	}
 	if err := repo.Activate(id); err != nil {
 		if errors.Is(err, repository.ErrPermissionsNotGranted) {
 			// Re-fetch the checklist so the client can surface what's still
@@ -826,7 +856,12 @@ func ActivateModHandler(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		http.Error(w, "mod not found", http.StatusNotFound)
+		if errors.Is(err, repository.ErrModNotFound) {
+			http.Error(w, "mod not found", http.StatusNotFound)
+			return
+		}
+		log.Println("ActivateMod error:", err)
+		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
 	RecordActivity(r, repository.ActivityInput{
@@ -887,7 +922,12 @@ func DeactivateModHandler(w http.ResponseWriter, r *http.Request) {
 		modengine.Default().Deactivate(slug)
 	}
 	if dbErr != nil {
-		http.Error(w, "mod not found", http.StatusNotFound)
+		if errors.Is(dbErr, repository.ErrModNotFound) {
+			http.Error(w, "mod not found", http.StatusNotFound)
+			return
+		}
+		log.Println("DeactivateMod error:", dbErr)
+		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
 	RecordActivity(r, repository.ActivityInput{
@@ -902,10 +942,12 @@ func DeactivateModHandler(w http.ResponseWriter, r *http.Request) {
 // slotsResponse is the shape the React slot loader fetches from
 // /api/mods/v1/slots. `mode` tells the client whether active backend scripts
 // execute ("goja") or are parked in manifest-only mode ("noop") so the UI can
-// show a banner / disable slot interactions when no JS is running.
+// show a banner / disable slot interactions when no JS is running. `enabled`
+// mirrors the engine kill switch (additive field; older clients ignore it).
 type slotsResponse struct {
-	Mode  string                     `json:"mode"`  // "noop" | "goja"
-	Slots []modengine.RegisteredSlot `json:"slots"` // every active mod's slots
+	Mode    string                     `json:"mode"` // "noop" | "goja"
+	Enabled bool                       `json:"enabled"`
+	Slots   []modengine.RegisteredSlot `json:"slots"` // every active mod's slots
 }
 
 // SlotsHandler serves the union of every active mod's declared UI slots, so the
@@ -916,8 +958,102 @@ type slotsResponse struct {
 func SlotsHandler(w http.ResponseWriter, r *http.Request) {
 	eng := modengine.Default()
 	writeJSON(w, slotsResponse{
-		Mode:  eng.RunningMode(),
-		Slots: eng.ActiveSlots(),
+		Mode:    eng.RunningMode(),
+		Enabled: eng.Enabled(),
+		Slots:   eng.ActiveSlots(),
+	})
+}
+
+// ModEngineStatusHandler serves the engine diagnostics snapshot: runtime mode,
+// kill-switch state, and one status row per tracked mod slug (running /
+// error / stopped + last activation error). Gated like the rest of the mods
+// collection (MODS_VIEW).
+func ModEngineStatusHandler(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, modengine.Default().Diagnostics())
+}
+
+// modEngineToggleDTO is the PUT /api/mods/engine body.
+type modEngineToggleDTO struct {
+	Enabled *bool `json:"enabled"`
+}
+
+// SetModEngineEnabledHandler flips the panel-wide mod engine kill switch.
+// Disabling tears every running runtime down immediately; enabling only lifts
+// the gate (mods must be re-activated explicitly). The desired state is
+// persisted first so a crash between persist and apply converges on the next
+// boot (Boot re-reads the setting). Edit-gated — it's a panel-wide control.
+func SetModEngineEnabledHandler(w http.ResponseWriter, r *http.Request) {
+	var dto modEngineToggleDTO
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&dto); err != nil || dto.Enabled == nil {
+		http.Error(w, `invalid payload: {"enabled": true|false} required`, http.StatusBadRequest)
+		return
+	}
+	enabled := *dto.Enabled
+
+	repo, closeFn := openModRepo()
+	if repo == nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	defer closeFn()
+	if err := repo.SetModsEnabled(enabled); err != nil {
+		log.Println("SetModsEnabled error:", err)
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	// Apply to the live engine AFTER the persist so the in-memory mirror can't
+	// drift from the DB on a failed write.
+	modengine.Default().SetEnabled(enabled)
+
+	action := "enable"
+	if !enabled {
+		action = "disable"
+	}
+	RecordActivity(r, repository.ActivityInput{
+		Category: models.ActivityCategoryMod,
+		Action:   action,
+		Message:  fmt.Sprintf("%sd the mod engine (all runtimes stopped)", action),
+	})
+	writeJSON(w, map[string]any{"enabled": enabled, "mode": modengine.Default().RunningMode()})
+}
+
+// ModLogsHandler returns the bounded log ring for one mod, oldest line first.
+// The ring captures ks.log output plus engine lifecycle events (activation,
+// hook panics, timeouts) so the admin can debug a mod without SSH + log grep.
+// View-gated; logs never contain secrets (scripts only see their own output).
+func ModLogsHandler(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	repo, closeFn := openModRepo()
+	if repo == nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	defer closeFn()
+	mod, err := repo.GetMod(id)
+	if err != nil {
+		if errors.Is(err, repository.ErrModNotFound) {
+			http.Error(w, "mod not found", http.StatusNotFound)
+			return
+		}
+		log.Println("ModLogs GetMod error:", err)
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	eng := modengine.Default()
+	state := ""
+	if st, ok := eng.ModStatus(mod.Slug); ok {
+		state = st.State
+	}
+	writeJSON(w, map[string]any{
+		"slug":      mod.Slug,
+		"mode":      eng.RunningMode(),
+		"state":     state,
+		"log_count": len(eng.ModLogs(mod.Slug)),
+		"logs":      eng.ModLogs(mod.Slug),
 	})
 }
 
@@ -926,7 +1062,23 @@ func SlotsHandler(w http.ResponseWriter, r *http.Request) {
 // safe to invoke from the panel's launch path. A per-mod boot failure is
 // logged by the engine and does not abort the panel, honouring the Error
 // Isolation contract.
+//
+// The persisted kill switch is reconciled BEFORE boot: when the admin disabled
+// the engine, no runtime starts (the DB may still hold active rows; they stay
+// installed-but-parked until re-enabled and re-activated).
 func BootModEngine(ctx context.Context) {
+	if con, err := repository.OpenDB(); err == nil {
+		enabled := repository.NewModRepository(con).ModsEnabled()
+		_ = con.Close()
+		modengine.Default().SetEnabled(enabled)
+		if !enabled {
+			log.Printf("[modengine] boot: engine disabled by settings, skipping mod start")
+			return
+		}
+	} else {
+		log.Printf("[modengine] boot: read kill switch: %v (defaulting to enabled)", err)
+		modengine.Default().SetEnabled(true)
+	}
 	active, err := modengine.LoadActiveMods()
 	if err != nil {
 		log.Printf("[modengine] boot: load active mods: %v", err)
@@ -958,7 +1110,12 @@ func DownloadModHandler(w http.ResponseWriter, r *http.Request) {
 	defer closeFn()
 	mod, err := repo.GetMod(id)
 	if err != nil {
-		http.Error(w, "mod not found", http.StatusNotFound)
+		if errors.Is(err, repository.ErrModNotFound) {
+			http.Error(w, "mod not found", http.StatusNotFound)
+			return
+		}
+		log.Println("DownloadMod GetMod error:", err)
+		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
 

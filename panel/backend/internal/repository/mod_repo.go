@@ -3,6 +3,7 @@ package repository
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -20,6 +21,49 @@ type ModRepository struct {
 
 func NewModRepository(db *sql.DB) *ModRepository {
 	return &ModRepository{db: db}
+}
+
+// ErrModNotFound is the sentinel every "no such mod" path returns so handlers
+// can map it to 404 while surfacing real DB failures as 500 instead of a
+// misleading "mod not found".
+var ErrModNotFound = errors.New("mod not found")
+
+// ModsEngineSettingKey is the settings-KV key backing the mod engine kill
+// switch ("1" = engine enabled, default; "0" = engine disabled). It reuses the
+// existing settings table, so no migration is required.
+const ModsEngineSettingKey = "mods_engine_enabled"
+
+// ModsEnabled reports whether the mod engine is enabled. A missing row (fresh
+// install) or an unreadable settings table both default to enabled=true — the
+// kill switch must fail open for reads only in the sense of preserving the
+// panel's historical behaviour; writes are explicit admin actions.
+// Fail-closed would silently disable every existing active mod after any DB
+// hiccup, which is a worse failure mode than keeping the previous state.
+func (r *ModRepository) ModsEnabled() bool {
+	var v string
+	err := r.db.QueryRow(`SELECT value FROM settings WHERE key = ?`, ModsEngineSettingKey).Scan(&v)
+	if err != nil {
+		return true
+	}
+	return v != "0"
+}
+
+// SetModsEnabled persists the kill switch. UPDATE-then-fallback-INSERT works
+// across SQLite / PostgreSQL / MySQL (their upsert syntaxes differ).
+func (r *ModRepository) SetModsEnabled(enabled bool) error {
+	val := "0"
+	if enabled {
+		val = "1"
+	}
+	res, err := r.db.Exec(`UPDATE settings SET value = ? WHERE key = ?`, val, ModsEngineSettingKey)
+	if err != nil {
+		return err
+	}
+	if n, e := res.RowsAffected(); e == nil && n > 0 {
+		return nil
+	}
+	_, err = r.db.Exec(`INSERT INTO settings (key, value) VALUES (?, ?)`, ModsEngineSettingKey, val)
+	return err
 }
 
 const modColumns = "id, name, slug, version, description, manifest, spec, active, uploaded_by, engine_version, source, source_url, package_size, created_at, updated_at"
@@ -104,12 +148,37 @@ type CreateModInput struct {
 	PackageSize int64
 }
 
+// validatePermissionRequests rejects unknown capability codes and duplicate
+// requests for the same capability. Duplicates would violate the
+// UNIQUE(mod_id, capability) constraint mid-transaction with an obscure SQL
+// error, so we fail early with a message the admin can act on.
+func validatePermissionRequests(perms []PermissionReq) error {
+	allowed := map[string]struct{}{}
+	for _, c := range models.AllowedCapabilties() {
+		allowed[c] = struct{}{}
+	}
+	seen := map[string]struct{}{}
+	for _, p := range perms {
+		if _, ok := allowed[p.Capability]; !ok {
+			return fmt.Errorf("unknown capability %q", p.Capability)
+		}
+		if _, ok := seen[p.Capability]; ok {
+			return fmt.Errorf("duplicate permission request for capability %q", p.Capability)
+		}
+		seen[p.Capability] = struct{}{}
+	}
+	return nil
+}
+
 // CreateMod inserts a new mod together with its requested-capability rows
 // (all seeded granted = 0, i.e. pending admin approval). Returns the new row.
 // A duplicate slug surfaces as a UNIQUE error the handler turns into 409.
 func (r *ModRepository) CreateMod(in CreateModInput) (*models.Mod, error) {
 	if in.Name == "" || in.Slug == "" {
 		return nil, fmt.Errorf("name and slug are required")
+	}
+	if !models.ValidModSlug(in.Slug) {
+		return nil, fmt.Errorf("invalid slug %q: use lowercase letters, digits and hyphens (max 64 chars)", in.Slug)
 	}
 	manifest := string(in.Manifest)
 	if manifest == "" {
@@ -138,15 +207,10 @@ func (r *ModRepository) CreateMod(in CreateModInput) (*models.Mod, error) {
 
 	// Validate requested capabilities so a malformed / hostile manifest
 	// can't insert an unknown capability string (which the admin modal would
-	// happily render as a checkbox the panel doesn't actually implement).
-	allowed := map[string]struct{}{}
-	for _, c := range models.AllowedCapabilties() {
-		allowed[c] = struct{}{}
-	}
-	for _, p := range in.PermissionsRequested {
-		if _, ok := allowed[p.Capability]; !ok {
-			return nil, fmt.Errorf("unknown capability %q", p.Capability)
-		}
+	// happily render as a checkbox the panel doesn't actually implement),
+	// and reject duplicates that would trip the UNIQUE constraint.
+	if err := validatePermissionRequests(in.PermissionsRequested); err != nil {
+		return nil, err
 	}
 
 	tx, err := r.db.Begin()
@@ -211,7 +275,7 @@ func (r *ModRepository) UpdateMod(id int64, in UpdateModInput) (*models.Mod, err
 		return nil, err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
-		return nil, fmt.Errorf("mod not found")
+		return nil, ErrModNotFound
 	}
 	return r.GetMod(id)
 }
@@ -275,13 +339,13 @@ func (r *ModRepository) ListMods() ([]models.Mod, error) {
 	return out, rows.Err()
 }
 
-// GetMod returns a single mod by id, or fmt.Errorf("mod not found").
+// GetMod returns a single mod by id, or ErrModNotFound.
 func (r *ModRepository) GetMod(id int64) (*models.Mod, error) {
 	row := r.db.QueryRow(`SELECT `+modColumns+` FROM mods WHERE id = ?`, id)
 	m, err := scanMod(row)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("mod not found")
+			return nil, ErrModNotFound
 		}
 		return nil, err
 	}
@@ -393,7 +457,7 @@ func (r *ModRepository) Activate(modID int64) error {
 		return err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
-		return fmt.Errorf("mod not found")
+		return ErrModNotFound
 	}
 	return nil
 }
@@ -407,7 +471,7 @@ func (r *ModRepository) Deactivate(modID int64) error {
 		return err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
-		return fmt.Errorf("mod not found")
+		return ErrModNotFound
 	}
 	return nil
 }
@@ -420,7 +484,7 @@ func (r *ModRepository) DeleteMod(id int64) error {
 		return err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
-		return fmt.Errorf("mod not found")
+		return ErrModNotFound
 	}
 	return nil
 }
@@ -431,8 +495,9 @@ func (r *ModRepository) DeleteMod(id int64) error {
 var ErrPermissionsNotGranted = fmt.Errorf("not all requested permissions have been granted")
 
 // ParseManifest decodes a raw manifest blob into ManifestInput, validating
-// that every capability string is one the panel knows. It is shared by the
-// upload handler and the (optional) re-import path.
+// that every capability string is one the panel knows and that no capability
+// is requested twice. It is shared by the upload handler and the (optional)
+// re-import path.
 func ParseManifest(raw []byte) (ManifestInput, error) {
 	var in ManifestInput
 	if len(raw) == 0 {
@@ -444,14 +509,11 @@ func ParseManifest(raw []byte) (ManifestInput, error) {
 	if in.Name == "" || in.Slug == "" {
 		return in, fmt.Errorf("manifest must declare name and slug")
 	}
-	allowed := map[string]struct{}{}
-	for _, c := range models.AllowedCapabilties() {
-		allowed[c] = struct{}{}
+	if !models.ValidModSlug(in.Slug) {
+		return in, fmt.Errorf("invalid slug %q: use lowercase letters, digits and hyphens (max 64 chars)", in.Slug)
 	}
-	for _, p := range in.PermissionsRequested {
-		if _, ok := allowed[p.Capability]; !ok {
-			return in, fmt.Errorf("manifest requests unknown capability %q", p.Capability)
-		}
+	if err := validatePermissionRequests(in.PermissionsRequested); err != nil {
+		return in, err
 	}
 	return in, nil
 }

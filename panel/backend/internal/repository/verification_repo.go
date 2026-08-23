@@ -82,16 +82,16 @@ func (r *UserRepository) ConsumeVerificationCode(email, code string) (bool, erro
 	var checked int
 	for rows.Next() {
 		checked++
-	var id int64
-	var codeHash string
-	var expiresAtStr, consumedAtStr sql.NullString
-	if err := rows.Scan(&id, &codeHash, &expiresAtStr, &consumedAtStr); err != nil {
-		return false, err
-	}
-	if consumedAtStr.Valid && consumedAtStr.String != "" {
-		continue
-	}
-	expiresAt, _ := time.Parse("2006-01-02 15:04:05", expiresAtStr.String)
+		var id int64
+		var codeHash string
+		var expiresAtStr, consumedAtStr sql.NullString
+		if err := rows.Scan(&id, &codeHash, &expiresAtStr, &consumedAtStr); err != nil {
+			return false, err
+		}
+		if consumedAtStr.Valid && consumedAtStr.String != "" {
+			continue
+		}
+		expiresAt, _ := time.Parse("2006-01-02 15:04:05", expiresAtStr.String)
 		if expiresAt.IsZero() || now.After(expiresAt) {
 			continue
 		}

@@ -418,12 +418,12 @@ const NodeStats: React.FC = () => {
             subLabel={`Used: ${formatBytes(nodeStats.usedRam)}`}
           />
           <StatCard
-            label="Total CPU Cores"
-            value={filteredNodes.reduce((sum, n) => sum + (n.cpu_cores || 0), 0)}
+            label="CPU Usage"
+            value={`${nodeStats.avgCpu.toFixed(1)}%`}
             icon={<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-5 h-5"><rect x="4" y="4" width="16" height="16" rx="2" /><path d="M12 4v4M12 16v4M4 12h4M16 12h4" /></svg>}
             color="text-sky-300"
             dotColor="bg-sky-400"
-            subLabel={`Avg Usage: ${nodeStats.avgCpu.toFixed(1)}%`}
+            subLabel={`${filteredNodes.length} node(s) reporting`}
           />
           <StatCard
             label="Total Disk"

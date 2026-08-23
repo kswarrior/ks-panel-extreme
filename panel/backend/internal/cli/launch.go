@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -51,6 +52,26 @@ func runLaunch(cmd *cobra.Command, args []string) error {
 	port, err := cmd.Flags().GetInt("port")
 	if err != nil {
 		return err
+	}
+
+	// Resolve the effective port with the same precedence as every other
+	// operator-facing surface: explicit --port flag (set above) > KSPANEL_PORT
+	// env var > last-persisted port from the settings KV > DefaultPort().
+	// The KV lookup lets a bare `kspanel launch` (no flags, no env) come back
+	// on the same port the operator was already using — important for the
+	// reinstall script, which can't easily forward --port when it spawns the
+	// new binary from inside its own cleanup chain.
+	if !cmd.Flags().Changed("port") {
+		if envPort := os.Getenv("KSPANEL_PORT"); envPort != "" {
+			if n, perr := strconv.Atoi(envPort); perr == nil && n >= 1 && n <= 65535 {
+				port = n
+			}
+		} else if db, dberr := repository.OpenDB(); dberr == nil {
+			if saved := repository.NewSettingsRepository(db).PanelPort(); saved > 0 {
+				port = saved
+			}
+			db.Close()
+		}
 	}
 
 	// Apply any persisted kspanel.env (admin "Change Database" writes here)
@@ -124,7 +145,8 @@ go nodeSweepLoop(90*time.Second, time.Minute)
 
 	// Start the install workflow poller. Every ~2s we scan instances with
 	// install_state="running" and poll their edge's /api/edge/install endpoint.
-	// On done → status="running"; on failed → status="install_failed".
+	// On done → status="running"; on failed → status="install_failed"
+	// for installs, "errored" for invoked actions.
 	// This decouples the long-running install (apt, big downloads, git clones)
 	// from the 15s deploy RPC window and the 5m lifecycle envelope.
 	go installSweepLoop(2*time.Second)
@@ -198,24 +220,50 @@ go nodeSweepLoop(90*time.Second, time.Minute)
 	print.OK("panel ready", "running")
 
 	// Bind the TCP listener ourselves so we can wrap it with the
-	// DDoS-active gate (internal/api/ddos_listener.go). The wrapper
+	// DDoS-active gate (internal/security/ddoslistener.go). The wrapper
 	// inspects the live security state at the moment each connection
-	// is accepted and closes the socket immediately — without reading
-	// or writing anything — if the DDoS auto-stop is active. This
-	// is the strongest defense the panel can run at the application
-	// layer: under a flood, each refused connection costs us one
-	// atomic load + one Close syscall, so the goroutine count and
-	// memory footprint stay flat regardless of attack volume.
+	// is accepted and sheds sockets without parsing a byte of the
+	// request while a stop-mode auto-stop is active. This is the
+	// strongest defense the panel can run at the application layer:
+	// under a flood, each refused connection costs us one atomic load
+	// plus an immediate EOF close, so the goroutine count and memory
+	// footprint stay flat regardless of attack volume.
 	ln, lerr := net.Listen("tcp", addr)
 	if lerr != nil {
 		print.Error("listen", lerr.Error())
 		return fmt.Errorf("failed to bind port %d: %w", port, lerr)
 	}
-	ln = security.NewDDoSDroppingListener(ln, security.Get())
-	if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
-		print.Error("listen", err.Error())
-		return fmt.Errorf("failed to start server on port %d: %w", port, err)
+	state := security.Get()
+	ln = security.NewDDoSDroppingListener(ln, state)
+
+	// Restore the live auto-stop flag from the persisted cooldown so a
+	// restart mid-cooldown doesn't silently resume normal serving (which
+	// would immediately move the panel back under an ongoing flood).
+	state.SeedDDOSFromDB()
+
+	// Hand serving over to the port switcher: it serves on the listener
+	// above, and when a DDoS reaction in "port_switch" mode fires it
+	// re-binds this same http.Server onto the alternate port at runtime
+	// (and back once the cooldown expires) without dropping in-flight
+	// requests. The returned channel closes after srv.Shutdown, exactly
+	// like the old direct srv.Serve(ln) call did.
+	servingDone := security.StartPortSwitcher(srv, ln, port)
+
+	// Persist the bound port so a follow-up bare `kspanel launch` (no
+	// --port flag, no KSPANEL_PORT env var) reuses the same port the
+	// reinstall script will spawn next. We open a fresh DB connection
+	// here because the migration phase above already closed its handle;
+	// reusing it would race with the listener goroutines that are about
+	// to start below. Errors are intentionally swallowed — the panel
+	// must still start if the KV write fails. (The switcher overwrites
+	// this key whenever a DDoS reaction moves the panel, so restarts
+	// come back on whichever port is actually safe.)
+	if persistDB, perr := repository.OpenDB(); perr == nil {
+		_ = repository.NewSettingsRepository(persistDB).SetPanelPort(port)
+		persistDB.Close()
 	}
+
+	<-servingDone
 	return nil
 }
 
@@ -317,7 +365,8 @@ func localNonLoopback() []string {
 //  2. For each, calls edge.InstallStatus with the stored install_id
 //  3. Updates the instance row with the polled state/step/error
 //  4. On state="done" → sets instance status="running", install_state="done"
-//  5. On state="failed" → sets instance status="install_failed", install_state="failed"
+//  5. On state="failed" → sets instance status="install_failed"
+//     (installs) or "errored" (invoked actions), install_state="failed"
 //  6. On state="unknown" (edge restarted) → marks failed with "edge lost install state"
 //
 // The loop swallows DB/edge errors so a transient blip doesn't kill the
@@ -495,8 +544,18 @@ func installSweepLoop(interval time.Duration) {
 			_ = instRepo2.UpdateInstallStatus(inst.id, "failed", inst.installID, stepIdx, resp.Error, string(stepsJSON))
 			_ = instRepo2.SetInstallKind(inst.id, "", 0)
 			_ = instRepo2.SetInstallActionID(inst.id, "")
-			_ = instRepo2.SetStatus(inst.id, "install_failed", "", resp.Error)
-			log.Printf("install poll: instance %d failed: %s", inst.id, resp.Error)
+			// Status mirrors WHAT failed: a template install workflow that
+			// fails is "install_failed"; an invoked ACTION that fails (or is
+			// killed by its own max_runtime_s budget) reuses the install
+			// engine but is NOT an install — stamping it "install_failed"
+			// made the card claim an install the operator never started.
+			// Actions surface as "errored" with the edge's reason instead.
+			nextStatus := "install_failed"
+			if inst.installKind == "action" {
+				nextStatus = "errored"
+			}
+			_ = instRepo2.SetStatus(inst.id, nextStatus, "", resp.Error)
+			log.Printf("install poll: instance %d failed (kind=%s): %s", inst.id, inst.installKind, resp.Error)
 		case "unknown":
 			// Edge lost the record (restarted mid-install). Mark failed.
 			// Flip install_state first for the same race-window rationale
@@ -504,7 +563,12 @@ func installSweepLoop(interval time.Duration) {
 			_ = instRepo2.UpdateInstallStatus(inst.id, "failed", inst.installID, -1, "edge lost install state (edge restarted?)", string(stepsJSON))
 			_ = instRepo2.SetInstallKind(inst.id, "", 0)
 			_ = instRepo2.SetInstallActionID(inst.id, "")
-			_ = instRepo2.SetStatus(inst.id, "install_failed", "", "edge lost install state")
+			// Same action-vs-install distinction as the "failed" branch.
+			unknownStatus := "install_failed"
+			if inst.installKind == "action" {
+				unknownStatus = "errored"
+			}
+			_ = instRepo2.SetStatus(inst.id, unknownStatus, "", "edge lost install state")
 			log.Printf("install poll: instance %d unknown (edge restart?)", inst.id)
 		case "running":
 			// Update step progress so the UI can show a progress bar.

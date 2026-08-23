@@ -7,7 +7,7 @@ import {
   switchDatabaseEngine,
 } from '@/shared/api/admin';
 import type { DatabaseEngineInfo, DatabaseEngineSwitchResponse } from '@/shared/api/admin';
-import type { DatabaseInfo, DatabaseTable } from '@/shared/types/system';
+import type { DatabaseInfo, DatabaseTable } from '@/features/system/types/system';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import { MetaRow, StatTile, DeltaPill, Meter, Sparkline, PragmaTile, ChangeDatabaseCard } from '../components/DatabaseComponents';
 import type { DatabaseTabId } from '../types/database';

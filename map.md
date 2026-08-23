@@ -51,6 +51,7 @@ panel/backend/
 │   │       ├── admin_handler.go         # Admin users/roles/nodes
 │   │       ├── api_key_handler.go       # API key management
 │   │       ├── application_handler.go   # Applications catalog
+│   │       ├── application_run.go       # One-shot app run engine (node/local-node/host-shell targets)
 │   │       ├── auth_handler.go          # Login/logout/session
 │   │       ├── auth_register_handler.go # Registration/verification
 │   │       ├── authority_handler.go     # Authority (SMTP, OAuth, OTP)
@@ -67,6 +68,9 @@ panel/backend/
 │   │       ├── node_handler.go          # Edge nodes
 │   │       ├── profile_handler.go       # User profile
 │   │       ├── security_handler.go      # Security snapshot/config/DDoS
+│   │       ├── security_status.go       # GET /api/security/status (CORS/CSRF/headers/cookie cards)
+│   │       ├── session_admin_handler.go # Security Sessions tab (list/revoke/revoke-all)
+│   │       ├── authentication_admin_handler.go # Lockout status/unlock + MFA recovery codes
 │   │       ├── settings_handler.go      # Panel settings
 │   │       ├── system_handler.go        # System telemetry/updates
 │   │       ├── template_handler.go      # Templates
@@ -144,7 +148,8 @@ panel/backend/
 │   │       │   ├── 036_mod_package.sql
 │   │       │   ├── 037_user_suspension.sql (postgres/sqlite only)
 │   │       │   ├── 038_instance_suspension.sql (postgres/sqlite only)
-│   │       │   └── 039_ddos_security.sql
+│   │       │   ├── 039_ddos_security.sql
+│   │       │   └── 045_application_files_runs.sql
 │   │       ├── postgres/
 │   │       │   ├── 001_init.sql
 │   │       │   ├── 002_settings.sql
@@ -187,7 +192,8 @@ panel/backend/
 │   │       │   ├── 036_mod_package.sql
 │   │       │   ├── 037_user_suspension.sql
 │   │       │   ├── 038_instance_suspension.sql
-│   │       │   └── 039_ddos_security.sql
+│   │       │   ├── 039_ddos_security.sql
+│   │       │   └── 045_application_files_runs.sql
 │   │       └── sqlite/
 │   │           ├── 001_init.sql
 │   │           ├── 002_settings.sql
@@ -230,7 +236,8 @@ panel/backend/
 │   │           ├── 036_mod_package.sql
 │   │           ├── 037_user_suspension.sql (postgres/sqlite only)
 │   │           ├── 038_instance_suspension.sql (postgres/sqlite only)
-│   │           └── 039_ddos_security.sql
+│   │           ├── 039_ddos_security.sql
+│   │           └── 045_application_files_runs.sql
 │   ├── edge/
 │   │   └── client.go                 # Edge client logic
 │   ├── embed/
@@ -363,7 +370,9 @@ panel/frontend/
 │       │   ├── pages/ApiKeys.tsx             # API keys list
 │       │   └── types/apiKey.ts               # API key types
 │       ├── applications/
-│       │   ├── api/applications.ts           # App API
+│       │   ├── api/applications.ts           # App API (+ run/runs)
+│       │   ├── components/ApplicationRunModal.tsx # Run dialog: target node/panel-host, container/VM/host, env
+│       │   ├── components/ApplicationStudioTab.tsx # Studio: info/permissions/env/script editor
 │       │   ├── pages/ApplicationConfigure.tsx  # App configure
 │       │   ├── pages/ApplicationEdit.tsx        # App edit
 │       │   ├── pages/Applications.tsx            # App list
@@ -408,6 +417,8 @@ panel/frontend/
 │       │   ├── pages/RoleForm.tsx              # Role form
 │       │   └── pages/Roles.tsx                 # Roles list
 │       ├── security/
+│       │   ├── components/Authentication.tsx   # Lockout policy + unlock (Security tab)
+│       │   ├── components/Sessions.tsx         # Active sessions + revocation (Security tab)
 │       │   ├── pages/Security.tsx              # Security page
 │       │   └── types/security.ts               # Security types
 │       ├── settings/
@@ -594,12 +605,16 @@ edge/backend/
     │   └── handler.go               # Execution handler
     ├── execrpc/
     │   └── handler.go               # Execution RPC handler
+    ├── execstage/
+    │   └── stage.go                 # Shared env-export + file-staging script builder (exec-rpc & host-exec)
     ├── files/
     │   └── handler.go               # File handler
     ├── health/
     │   └── health.go                # /health endpoint
     ├── heartbeat/
     │   └── heartbeat.go             # Heartbeat monitoring
+    ├── hostexec/
+    │   └── handler.go               # POST /api/edge/host-exec — one-shot exec on the edge HOST filesystem
     ├── inspect/
     │   └── inspect.go               # Inspection functionality
     ├── install/

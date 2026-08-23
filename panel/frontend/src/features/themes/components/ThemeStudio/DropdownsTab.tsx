@@ -1,6 +1,6 @@
 import React from 'react';
 import GlassCard from '@/shared/components/ui/Card';
-import { Select, ColorField, Label, Text, Slider } from '@/theme/studioControls';
+import { Select, ColorField, Label, Text, Slider, MediaField } from '@/theme/studioControls';
 
 interface DropdownsTabProps {
   draft: any;
@@ -31,21 +31,19 @@ export const DropdownsTab: React.FC<DropdownsTabProps> = ({ draft, patch }) => {
           />
         )}
         {draft.dropdowns.bg_type === 'image' && (
-          <input
-            type="text"
-            className="w-full bg-black/30 border border-white/10 rounded-md px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/60"
-            label="Backdrop image URL or file"
+          <MediaField
+            label="Backdrop image URL or file (png · jpg · gif · webp)"
+            accept="image/png,image/jpeg,image/gif,image/webp"
             value={draft.dropdowns.bg_image || ''}
-            onChange={(e) => patch('dropdowns', { bg_image: e.target.value })}
+            onChange={(v) => patch('dropdowns', { bg_image: v })}
           />
         )}
         {draft.dropdowns.bg_type === 'video' && (
-          <input
-            type="text"
-            className="w-full bg-black/30 border border-white/10 rounded-md px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/60"
-            label="Backdrop video URL or file"
+          <MediaField
+            label="Backdrop video URL or file (mp4 · gif)"
+            accept="video/mp4,image/gif"
             value={draft.dropdowns.bg_video || ''}
-            onChange={(e) => patch('dropdowns', { bg_video: e.target.value })}
+            onChange={(v) => patch('dropdowns', { bg_video: v })}
           />
         )}
         {draft.dropdowns.bg_type === 'gradient' && (

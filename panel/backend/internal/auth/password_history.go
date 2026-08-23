@@ -4,16 +4,16 @@ import (
 	"errors"
 	"strconv"
 	"time"
-	
+
 	"golang.org/x/crypto/bcrypt"
 )
 
 // PasswordHistory represents a password history entry
 type PasswordHistory struct {
-	ID        int64     `json:"id"`
-	UserID    int64     `json:"user_id"`
-	PasswordHash string `json:"password_hash"`
-	CreatedAt time.Time `json:"created_at"`
+	ID           int64     `json:"id"`
+	UserID       int64     `json:"user_id"`
+	PasswordHash string    `json:"password_hash"`
+	CreatedAt    time.Time `json:"created_at"`
 }
 
 // PasswordHistoryManager manages password history
@@ -42,7 +42,7 @@ func (phm *PasswordHistoryManager) IsPasswordInHistory(history []PasswordHistory
 func (phm *PasswordHistoryManager) AddPasswordToHistory(history []PasswordHistory, passwordHash string) []PasswordHistory {
 	newHistory := append([]PasswordHistory{{
 		PasswordHash: passwordHash,
-		CreatedAt:   time.Now(),
+		CreatedAt:    time.Now(),
 	}}, history...)
 
 	// Keep only the most recent passwords
@@ -122,11 +122,11 @@ func (psc *PasswordSimilarityChecker) IsPasswordTooSimilar(history []PasswordHis
 
 // PasswordHistoryConfig defines password history configuration
 type PasswordHistoryConfig struct {
-	Enabled          bool
-	MaxHistory       int
-	CheckSimilarity  bool
-	ReuseAllowed     bool
-	ReuseAfter       int // Number of password changes before reuse is allowed
+	Enabled         bool
+	MaxHistory      int
+	CheckSimilarity bool
+	ReuseAllowed    bool
+	ReuseAfter      int // Number of password changes before reuse is allowed
 }
 
 // DefaultPasswordHistoryConfig returns a secure password history configuration
@@ -154,7 +154,7 @@ func ValidatePasswordWithHistory(password string, policy *PasswordPolicy, histor
 	// Check password history if enabled
 	if config.Enabled {
 		_ = NewPasswordHistoryManager()
-		
+
 		// Convert history to hashes for comparison
 		var historyHashes []string
 		for _, entry := range history {
@@ -175,7 +175,7 @@ func ValidatePasswordWithHistory(password string, policy *PasswordPolicy, histor
 			for _, entry := range history {
 				historyEntries = append(historyEntries, entry)
 			}
-			
+
 			if psc.IsPasswordTooSimilar(historyEntries, password) {
 				return errors.New("password is too similar to a previous one")
 			}
@@ -212,7 +212,7 @@ func GetPasswordHistoryFeedback(history []PasswordHistory, config *PasswordHisto
 
 	if config.Enabled {
 		feedback = append(feedback, "Password history is being tracked")
-		
+
 		if len(history) >= config.MaxHistory {
 			feedback = append(feedback, "Maximum password history reached")
 		} else {

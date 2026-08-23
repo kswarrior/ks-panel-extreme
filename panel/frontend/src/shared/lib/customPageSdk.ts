@@ -47,6 +47,21 @@ export interface ActionResult {
   data?: any;
 }
 
+// PageActionDef is one action persisted with a page definition in the
+// Studio (JSON-encoded on InstancePage.actions). Declared here (not
+// imported from features/) so the SDK stays dependency-free.
+export interface PageActionDef {
+  name: string;
+  type: ActionType;
+  command?: string;
+  path?: string;
+  content?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  timeout?: number;
+  description?: string;
+}
+
 export interface FileEntry {
   name: string;
   size: number;
@@ -59,10 +74,27 @@ export interface CustomPageAPI {
   // Instance context
   instance: InstanceContext;
   
+  // ==================== PERSISTED PAGE ACTIONS ====================
+  // The action definitions authored with this page in the Studio. `name`
+  // is unique per page.
+  actions: PageActionDef[];
+  // Run a persisted action by name, optionally overriding individual
+  // fields (args/env/timeout…). Rejects when no action with that name
+  // exists on this page.
+  runAction: (name: string, overrides?: Partial<PageAction>) => Promise<ActionResult>;
+  
   // ==================== UNIFIED ACTION EXECUTION ====================
   // Execute any action on the edge (inside the instance container)
   // All instance operations go through this single method
   executeAction: (action: PageAction) => Promise<ActionResult>;
+
+  // ==================== PANEL API (instance-scoped) ====================
+  // Fetch a panel API path bound to THIS instance (e.g.
+  // "/processes", "/ports", "/metrics", "/audit", "/secrets", "/automation").
+  // Paths are prefix-validated against /api/instances/<id>/ so a page can
+  // never reach outside its own instance's API surface. Cookies ride along
+  // because the request executes in the panel's own origin.
+  fetchPanel: <T = any>(path: string, init?: RequestInit) => Promise<T>;
   
   // ==================== CONVENIENCE HELPERS ====================
   // These are thin wrappers around executeAction for common operations
@@ -124,7 +156,7 @@ window.KSPageSDK = null;
 // SDK IMPLEMENTATION
 // ============================================================================
 
-export function createCustomPageSDK(instanceContext: InstanceContext): CustomPageAPI {
+export function createCustomPageSDK(instanceContext: InstanceContext, savedActions: PageActionDef[] = []): CustomPageAPI {
   const apiBase = `/api/instances/${instanceContext.id}`;
   const eventListeners: Map<string, Set<(data: any) => void>> = new Map();
   
@@ -163,6 +195,39 @@ export function createCustomPageSDK(instanceContext: InstanceContext): CustomPag
         ...action,
       }),
     });
+  }
+
+  // --- Persisted action runner ---
+  async function runAction(name: string, overrides?: Partial<PageAction>): Promise<ActionResult> {
+    const def = savedActions.find((a) => a.name === name);
+    if (!def) {
+      return { ok: false, error: `No saved action named "${name}" on this page` };
+    }
+    return executeAction({
+      type: def.type,
+      command: def.command,
+      path: def.path,
+      content: def.content,
+      args: def.args ? [...def.args] : undefined,
+      env: def.env ? { ...def.env } : undefined,
+      timeout: def.timeout,
+      ...overrides,
+    });
+  }
+
+  // --- Instance-scoped panel API ---
+  async function fetchPanel<T = any>(path: string, init?: RequestInit): Promise<T> {
+    // Fail closed: only paths under THIS instance's API surface are allowed.
+    // A page can never use the SDK to reach another instance's data or any
+    // admin surface (users, nodes, settings, …).
+    const prefix = `/api/instances/${instanceContext.id}`;
+    if (typeof path !== 'string' || path.length > 2048) {
+      throw new Error('fetchPanel: invalid path');
+    }
+    if (!path.startsWith(prefix) || (path.length > prefix.length && path[prefix.length] !== '/' && path[prefix.length] !== '?')) {
+      throw new Error(`fetchPanel: only ${prefix}/… paths are allowed`);
+    }
+    return fetchJSON<T>(path, init);
   }
   
   // --- Event system ---
@@ -229,8 +294,15 @@ export function createCustomPageSDK(instanceContext: InstanceContext): CustomPag
   const sdk: CustomPageAPI = {
     instance: instanceContext,
     
+    // Persisted page actions
+    actions: savedActions,
+    runAction,
+    
     // Core action
     executeAction,
+    
+    // Instance-scoped panel API
+    fetchPanel,
     
     // Convenience helpers (all delegate to executeAction)
     shell: (command, args, env, timeout) => executeAction({ type: 'shell', command, args, env, timeout }),
@@ -275,8 +347,8 @@ export function createCustomPageSDK(instanceContext: InstanceContext): CustomPag
 }
 
 // Helper to inject SDK into a page's iframe or directly into window
-export function injectSDK(instanceContext: InstanceContext): CustomPageAPI {
-  const sdk = createCustomPageSDK(instanceContext);
+export function injectSDK(instanceContext: InstanceContext, savedActions: PageActionDef[] = []): CustomPageAPI {
+  const sdk = createCustomPageSDK(instanceContext, savedActions);
   window.KSPageSDK = sdk;
   return sdk;
 }

@@ -136,6 +136,13 @@ type InstallStartRequest struct {
 	Steps     []InstallStep     `json:"steps"`
 	EnvVars   map[string]string `json:"env_vars,omitempty"`
 	KeepStdin bool              `json:"keep_stdin,omitempty"`
+	// TimeoutSec caps the whole workflow on the edge (all steps + retries).
+	//   > 0 → deadline of that many seconds,
+	//   < 0 → no deadline (long-running actions that keep a server alive
+	//         until the operator clicks Stop),
+	//   = 0 → omitted from the JSON; the edge applies its own 30-minute
+	//         default, which keeps older callers' behaviour unchanged.
+	TimeoutSec int `json:"timeout_sec,omitempty"`
 }
 
 // InstallStep mirrors the edge's internal/install.Step so the panel can pass
@@ -388,14 +395,27 @@ func (c *Client) Lifecycle(req LifecycleRequest) (LifecycleResponse, error) {
 // captured stdout/stderr/exit-code.
 type ExecRequest struct {
 	Token   string            `json:"token"`
-	Action  string            `json:"action"`            // "exec" (kept for symmetry)
+	Action  string            `json:"action"` // "exec" (kept for symmetry)
 	Kind    string            `json:"kind"`
 	Name    string            `json:"name"`
 	Command string            `json:"command"`
 	Env     map[string]string `json:"env,omitempty"`
+	// Files optionally stages {path,content} entries into a fresh temp dir
+	// inside the workload before `command` runs; the panel prefixes the
+	// command with a cd into that dir. Used by application runs so the
+	// script travels with the request instead of a separate file-manager
+	// round-trip (which only supports docker today).
+	Files []ExecFile `json:"files,omitempty"`
 	// TimeoutSec caps how long the edge will let the command run. 0 is left
 	// to the edge's own default.
 	TimeoutSec int `json:"timeout_sec,omitempty"`
+}
+
+// ExecFile is one script file staged by ExecRequest / HostExecRequest.
+// Path is relative (the edge rejects absolute paths and "..").
+type ExecFile struct {
+	Path    string `json:"path"`
+	Content string `json:"content"`
 }
 
 // ExecResponse carries the captured process I/O.
@@ -431,6 +451,59 @@ func (c *Client) Exec(req ExecRequest) (ExecResponse, error) {
 	var out ExecResponse
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 		return ExecResponse{}, fmt.Errorf("edge returned HTTP %d", resp.StatusCode)
+	}
+	if resp.StatusCode >= 300 {
+		if out.Error != "" {
+			return out, fmt.Errorf("edge rejected: %s", out.Error)
+		}
+		return out, fmt.Errorf("edge returned HTTP %d", resp.StatusCode)
+	}
+	return out, nil
+}
+
+// HostExecRequest POST'd to /api/edge/host-exec. Runs `command` directly on
+// the edge HOST filesystem (no workload), staging Files into a fresh temp
+// dir the command starts in. Used by application runs whose target is the
+// host itself rather than a container/VM.
+type HostExecRequest struct {
+	Token      string            `json:"token"`
+	Command    string            `json:"command"`
+	Env        map[string]string `json:"env,omitempty"`
+	Files      []ExecFile        `json:"files,omitempty"`
+	TimeoutSec int               `json:"timeout_sec,omitempty"`
+}
+
+// HostExecResponse carries the captured process I/O (same shape as
+// ExecResponse so one decode path covers both).
+type HostExecResponse struct {
+	OK       bool   `json:"ok"`
+	Stdout   string `json:"stdout"`
+	Stderr   string `json:"stderr"`
+	ExitCode int    `json:"exit_code"`
+	Error    string `json:"error,omitempty"`
+}
+
+// HostExec runs a one-shot command on the edge host filesystem.
+func (c *Client) HostExec(req HostExecRequest) (HostExecResponse, error) {
+	req.Token = c.token
+	body, err := json.Marshal(req)
+	if err != nil {
+		return HostExecResponse{}, fmt.Errorf("encode request: %w", err)
+	}
+	endpoint := c.baseURL + "/api/edge/host-exec"
+	httpReq, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return HostExecResponse{}, fmt.Errorf("build request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	resp, err := c.http.Do(httpReq)
+	if err != nil {
+		return HostExecResponse{}, fmt.Errorf("dial edge: %w", err)
+	}
+	defer resp.Body.Close()
+	var out HostExecResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return HostExecResponse{}, fmt.Errorf("edge returned HTTP %d", resp.StatusCode)
 	}
 	if resp.StatusCode >= 300 {
 		if out.Error != "" {

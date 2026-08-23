@@ -9,6 +9,38 @@ import LocationField from '@/shared/components/forms/LocationField/LocationField
 import type { Form, NodeFormTabId } from '../types/nodeForm';
 import { emptyForm, KSEDGE_URL, ALL_KINDS, NODEFORM_TABS } from '../types/nodeForm';
 import { buildEdgeConfig, buildBootstrapCmd } from '../utils/nodeFormUtils';
+import { NODE_ICONS, NODE_COLORS, NodeIcon } from '../utils/nodeIcons';
+
+// isValidPortStr reports whether p is a decimal port number in 1..65535.
+const isValidPortStr = (p: string): boolean => {
+  const t = p.trim();
+  if (!/^\d{1,5}$/.test(t)) return false;
+  const n = parseInt(t, 10);
+  return n >= 1 && n <= 65535;
+};
+
+// validateRemoteAddress mirrors the panel server's address rules client-side
+// so bad connection input is caught before it ever leaves the form:
+//   host:port | bare host (Cloudflare-tunnel) | [ipv6][:port]
+// rejecting embedded schemes, whitespace and out-of-range ports.
+const validateRemoteAddress = (raw: string): string => {
+  const a = raw.trim();
+  if (!a) return 'Address is required for remote nodes';
+  if (/^https?:\/\//i.test(a)) return 'Address must not include a scheme (drop http(s)://)';
+  if (/\s/.test(a)) return 'Address must not contain whitespace';
+  if (a.startsWith('[')) {
+    const m = /^\[[^\]]+\](?::(\d{1,5}))?$/.exec(a);
+    if (!m) return 'IPv6 addresses use the [host] or [host]:port form';
+    if (m[1] !== undefined && !isValidPortStr(m[1])) return 'Port must be a number between 1 and 65535';
+    return '';
+  }
+  const idx = a.lastIndexOf(':');
+  if (idx >= 0) {
+    if (!a.slice(0, idx).trim()) return 'Host is required before ":"';
+    if (!isValidPortStr(a.slice(idx + 1))) return 'Port must be a number between 1 and 65535';
+  }
+  return '';
+};
 
 const NodeForm: React.FC = () => {
   const { id } = useParams<{ id?: string }>();
@@ -38,13 +70,19 @@ const NodeForm: React.FC = () => {
     done: boolean;
   } | null>(null);
   const [tab, setTab] = useState<NodeFormTabId>('general');
+  // Every registered node — powers the client-side (name, label) duplicate
+  // pre-check so the operator sees the clash before the server's 409.
+  const [allNodes, setAllNodes] = useState<Node[]>([]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
+        // Fetched in both modes: the duplicate-pair pre-check needs the
+        // existing fleet even when creating a fresh node.
+        const nodes = await listNodes();
+        if (!cancelled) setAllNodes(nodes);
         if (editing) {
-          const nodes = await listNodes();
           const n = nodes.find((x) => x.id === Number(id));
           if (n) {
             const isLocal =
@@ -72,6 +110,8 @@ const NodeForm: React.FC = () => {
               category: n.category || '',
               location_country: n.location_country || '',
               location_node: n.location_node || '',
+              icon: n.icon || '',
+              color: n.color || '',
             });
           } else {
             setError('Node not found');
@@ -128,19 +168,49 @@ const NodeForm: React.FC = () => {
     category: form.category.trim(),
     location_country: form.location_country.trim().toUpperCase(),
     location_node: form.location_node.trim(),
+    icon: form.icon,
+    color: form.color.toUpperCase(),
   });
 
-  const submitAndSetup = async () => {
-    if (!form.name.trim()) {
-      setError('Name is required');
-      return;
+  // duplicatePairError implements the panel's composite uniqueness rule
+  // client-side: two nodes may share a name, and two may share a label,
+  // but no two nodes may share BOTH (compared trimmed + case-insensitive,
+  // exactly like the server). The node being edited is skipped.
+  const duplicatePairError = (): string => {
+    const name = form.name.trim().toLowerCase();
+    const label = form.location_node.trim().toLowerCase();
+    const clash = allNodes.find((n) =>
+      !(editing && n.id === Number(id)) &&
+      n.name.trim().toLowerCase() === name &&
+      (n.location_node || '').trim().toLowerCase() === label,
+    );
+    if (!clash) return '';
+    return `Node "${clash.name}" (label: ${clash.location_node ? `"${clash.location_node}"` : 'none'}) already uses this exact name+label pair — change the name or pick another node label.`;
+  };
+
+  // validateForm runs every connection-safety rule before either submit
+  // path talks to the API. Returns an error message or '' when acceptable.
+  const validateForm = (): string => {
+    if (!form.name.trim()) return 'Name is required';
+    if (form.name.length > 100) return 'Name must be 100 characters or fewer';
+    if (form.location_node.trim().length > 100) return 'Node label must be 100 characters or fewer';
+    if (!form.is_localhost) {
+      const addrErr = validateRemoteAddress(form.address);
+      if (addrErr) return addrErr;
+    } else if (!isValidPortStr(form.port)) {
+      return 'Port must be a number between 1 and 65535';
     }
+    return duplicatePairError();
+  };
+
+  const submitAndSetup = async () => {
     if (!form.is_localhost) {
       setError('Create & setup is only available for localhost nodes');
       return;
     }
-    if (!form.port.trim()) {
-      setError('Port is required for a localhost node');
+    const vErr = validateForm();
+    if (vErr) {
+      setError(vErr);
       return;
     }
     setSaving(true);
@@ -185,16 +255,9 @@ const NodeForm: React.FC = () => {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim()) {
-      setError('Name is required');
-      return;
-    }
-    if (!form.is_localhost && !form.address.trim()) {
-      setError('Address is required for remote nodes');
-      return;
-    }
-    if (form.is_localhost && !form.port.trim()) {
-      setError('Port is required for a localhost node');
+    const vErr = validateForm();
+    if (vErr) {
+      setError(vErr);
       return;
     }
     setSaving(true);
@@ -340,6 +403,100 @@ const NodeForm: React.FC = () => {
               required
             />
           </GlassField>
+
+          <GlassField
+            label="Node label"
+            htmlFor="node_label"
+            hint='Optional display label ("node-1", "rack-a3", …). Two nodes may share a name, and two may share a label — but no two nodes may share both.'
+          >
+            <input
+              id="node_label"
+              value={form.location_node}
+              onChange={(e) => setForm({ ...form, location_node: e.target.value })}
+              placeholder="e.g. rack-a3"
+              autoComplete="off"
+            />
+          </GlassField>
+
+          <div className="rounded-md border border-white/10 bg-black/20 p-3 space-y-3">
+            <div>
+              <p className="text-sm text-gray-200 font-medium">Icon &amp; colour</p>
+              <p className="text-xs text-gray-500">
+                Shown on the node card so this edge is recognisable at a glance. Leave empty for the default look.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {NODE_ICONS.map((ic) => {
+                const on = form.icon === ic.key;
+                return (
+                  <button
+                    type="button"
+                    key={ic.key}
+                    title={ic.label}
+                    aria-label={`Icon: ${ic.label}`}
+                    aria-pressed={on}
+                    onClick={() => setForm((f) => ({ ...f, icon: on ? '' : ic.key }))}
+                    className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border transition ${on ? 'border-white/30 bg-white/10 text-white' : 'border-white/10 bg-white/[0.02] text-gray-400 hover:bg-white/5'}`}
+                  >
+                    <NodeIcon icon={ic.key} className="w-[18px] h-[18px]" />
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {NODE_COLORS.map((c) => {
+                const on = form.color.toLowerCase() === c.toLowerCase();
+                return (
+                  <button
+                    type="button"
+                    key={c}
+                    title={c}
+                    aria-label={`Colour ${c}`}
+                    aria-pressed={on}
+                    onClick={() => setForm((f) => ({ ...f, color: on ? '' : c }))}
+                    className={`h-7 w-7 rounded-full border transition ${on ? 'ring-2 ring-white/70 border-transparent' : 'border-white/10 hover:border-white/30'}`}
+                    style={{ backgroundColor: c }}
+                  />
+                );
+              })}
+              <label className="inline-flex items-center gap-2 text-xs text-gray-400 cursor-pointer select-none" title="Pick a custom colour">
+                <input
+                  type="color"
+                  value={/^#[0-9a-fA-F]{6}$/.test(form.color) ? form.color : '#34d399'}
+                  onChange={(e) => setForm((f) => ({ ...f, color: e.target.value.toUpperCase() }))}
+                  className="h-7 w-9 cursor-pointer rounded border border-white/10 bg-transparent p-0.5"
+                  aria-label="Custom colour"
+                />
+                Custom
+              </label>
+              {(form.icon || form.color) && (
+                <button
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, icon: '', color: '' }))}
+                  className="text-xs text-gray-500 hover:text-gray-300 underline underline-offset-2"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+            <div className="flex items-center gap-3 pt-1 border-t border-white/[0.06]">
+              <span
+                className="shrink-0 w-10 h-10 rounded-lg flex items-center justify-center border bg-white/[0.05] border-white/10"
+                style={form.color ? { color: form.color } : undefined}
+                aria-hidden="true"
+              >
+                {form.icon ? (
+                  <NodeIcon icon={form.icon} className="w-5 h-5" />
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg>
+                )}
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-white truncate">{form.name.trim() || 'Node name'}</p>
+                <p className="text-[11px] text-gray-500 truncate">card preview</p>
+              </div>
+            </div>
+          </div>
 
           {form.is_localhost ? (
             <GlassField
@@ -587,11 +744,11 @@ const NodeForm: React.FC = () => {
                 className={glassFieldClass}
               />
             </div>
+            {/* The site/node label now lives in the General tab under Name
+                so it reads as node identity, not geography. */}
             <LocationField
               country={form.location_country}
               onCountryChange={(v) => setForm((f) => ({ ...f, location_country: v }))}
-              node={form.location_node}
-              onNodeChange={(v) => setForm((f) => ({ ...f, location_node: v }))}
             />
           </div>
           </>

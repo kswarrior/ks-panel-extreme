@@ -11,8 +11,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/example/kspanel/internal/config"
@@ -31,11 +31,11 @@ type createNodeRequest struct {
 	// Advanced per-edge configuration (migration 019). Missing / zero
 	// values fall back to the column DEFAULT so a caller using the legacy
 	// payload shape is unaffected.
-	HealthEnabled  *bool `json:"health_enabled,omitempty"`
-	HealthInterval int   `json:"health_interval,omitempty"`
-	HealthTimeout  int   `json:"health_timeout,omitempty"`
-	HealthRetries  int   `json:"health_retries,omitempty"`
-	SkipTLSVerify  bool  `json:"skip_tls_verify,omitempty"`
+	HealthEnabled  *bool  `json:"health_enabled,omitempty"`
+	HealthInterval int    `json:"health_interval,omitempty"`
+	HealthTimeout  int    `json:"health_timeout,omitempty"`
+	HealthRetries  int    `json:"health_retries,omitempty"`
+	SkipTLSVerify  bool   `json:"skip_tls_verify,omitempty"`
 	Notes          string `json:"notes,omitempty"`
 	InstallDir     string `json:"install_dir,omitempty"`
 	AllowedKinds   string `json:"allowed_kinds,omitempty"`
@@ -53,6 +53,10 @@ type createNodeRequest struct {
 	Category        string `json:"category,omitempty"`
 	LocationCountry string `json:"location_country,omitempty"`
 	LocationNode    string `json:"location_node,omitempty"`
+	// Display identity (migration 044). Icon must be a key from the
+	// panel's fixed icon set; Color must be #rrggbb. Both optional.
+	Icon  string `json:"icon,omitempty"`
+	Color string `json:"color,omitempty"`
 }
 
 type updateNodeRequest struct {
@@ -75,6 +79,8 @@ type updateNodeRequest struct {
 	Category          string `json:"category,omitempty"`
 	LocationCountry   string `json:"location_country,omitempty"`
 	LocationNode      string `json:"location_node,omitempty"`
+	Icon              string `json:"icon,omitempty"`
+	Color             string `json:"color,omitempty"`
 }
 
 // validateNodeAddress accepts any of:
@@ -100,6 +106,65 @@ func validateNodeAddress(addr string) error {
 		return fmt.Errorf("address must not contain whitespace")
 	}
 	return nil
+}
+
+// nodeIconKeys is the fixed set of symbolic icon keys the NodeForm's icon
+// picker can produce. The API validates against exactly this whitelist so
+// nothing arbitrary ever lands in the icon column (fail closed). Must stay
+// in sync with NODE_ICONS in
+// panel/frontend/src/features/nodes/utils/nodeIcons.ts.
+var nodeIconKeys = map[string]bool{
+	"server":   true,
+	"cloud":    true,
+	"globe":    true,
+	"shield":   true,
+	"cpu":      true,
+	"database": true,
+	"drive":    true,
+	"box":      true,
+	"zap":      true,
+	"home":     true,
+	"network":  true,
+	"terminal": true,
+}
+
+// validNodeColorHex reports whether s is a #rrggbb hex colour.
+func validNodeColorHex(s string) bool {
+	if len(s) != 7 || s[0] != '#' {
+		return false
+	}
+	for i := 1; i < len(s); i++ {
+		c := s[i]
+		if !(c >= '0' && c <= '9') && !(c >= 'a' && c <= 'f') && !(c >= 'A' && c <= 'F') {
+			return false
+		}
+	}
+	return true
+}
+
+// validateNodeDisplay enforces the fail-closed rules for the operator-set
+// display metadata: bounded free-text lengths and a whitelisted icon key /
+// #rrggbb colour. Returns a user-facing error string or "" when acceptable.
+func validateNodeDisplay(name, label, category, notes, icon, color string) string {
+	if len(name) > 100 {
+		return "name must be 100 characters or fewer"
+	}
+	if len(label) > 100 {
+		return "node label must be 100 characters or fewer"
+	}
+	if len(category) > 100 {
+		return "category must be 100 characters or fewer"
+	}
+	if len(notes) > 2000 {
+		return "notes must be 2000 characters or fewer"
+	}
+	if icon != "" && !nodeIconKeys[icon] {
+		return "unknown icon"
+	}
+	if color != "" && !validNodeColorHex(color) {
+		return "color must be a #rrggbb hex value"
+	}
+	return ""
 }
 
 // probeResultJSON is what the probe handlers emit per node. reachability is a
@@ -148,6 +213,10 @@ func CreateNodeHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	if msg := validateNodeDisplay(req.Name, req.LocationNode, req.Category, req.Notes, req.Icon, req.Color); msg != "" {
+		http.Error(w, msg, http.StatusBadRequest)
+		return
+	}
 
 	con, err := repository.OpenDB()
 	if err != nil {
@@ -161,18 +230,31 @@ func CreateNodeHandler(w http.ResponseWriter, r *http.Request) {
 		healthEnabled = *req.HealthEnabled
 	}
 	repo := repository.NewNodeRepository(con)
+	// Composite uniqueness: two nodes may share a name and two may share a
+	// label, but no two nodes may share BOTH. Enforced server-side so the
+	// rule holds even for non-UI clients.
+	taken, terr := repo.NameLabelTaken(req.Name, req.LocationNode, 0)
+	if terr != nil {
+		log.Println("NameLabelTaken error:", terr)
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	if taken {
+		http.Error(w, "a node with this name and label pair already exists — change the name or the node label", http.StatusConflict)
+		return
+	}
 	node, token, err := repo.CreateNode(repository.CreateNodeInput{
-		Name:           req.Name,
-		Address:        req.Address,
-		UseTLS:         req.UseTLS,
-		HealthEnabled:  healthEnabled,
-		HealthInterval: req.HealthInterval,
-		HealthTimeout:  req.HealthTimeout,
-		HealthRetries:  req.HealthRetries,
-		SkipTLSVerify:  req.SkipTLSVerify,
-		Notes:          req.Notes,
-		InstallDir:     req.InstallDir,
-		AllowedKinds:   req.AllowedKinds,
+		Name:              req.Name,
+		Address:           req.Address,
+		UseTLS:            req.UseTLS,
+		HealthEnabled:     healthEnabled,
+		HealthInterval:    req.HealthInterval,
+		HealthTimeout:     req.HealthTimeout,
+		HealthRetries:     req.HealthRetries,
+		SkipTLSVerify:     req.SkipTLSVerify,
+		Notes:             req.Notes,
+		InstallDir:        req.InstallDir,
+		AllowedKinds:      req.AllowedKinds,
 		AllocMemMiB:       req.AllocMemMiB,
 		MemOvercommitPct:  req.MemOvercommitPct,
 		AllocDiskMiB:      req.AllocDiskMiB,
@@ -181,6 +263,8 @@ func CreateNodeHandler(w http.ResponseWriter, r *http.Request) {
 		Category:        req.Category,
 		LocationCountry: req.LocationCountry,
 		LocationNode:    req.LocationNode,
+		Icon:            req.Icon,
+		Color:           req.Color,
 	})
 	if err != nil {
 		log.Println("CreateNode error:", err)
@@ -227,6 +311,10 @@ func UpdateNodeHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	if msg := validateNodeDisplay(req.Name, req.LocationNode, req.Category, req.Notes, req.Icon, req.Color); msg != "" {
+		http.Error(w, msg, http.StatusBadRequest)
+		return
+	}
 	con, err := repository.OpenDB()
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
@@ -238,18 +326,30 @@ func UpdateNodeHandler(w http.ResponseWriter, r *http.Request) {
 	if req.HealthEnabled != nil {
 		healthEnabled = *req.HealthEnabled
 	}
+	// Composite (name, label) uniqueness — skip the row being edited via
+	// excludeID so a no-op save doesn't collide with itself.
+	taken, terr := repo.NameLabelTaken(req.Name, req.LocationNode, id)
+	if terr != nil {
+		log.Println("NameLabelTaken error:", terr)
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	if taken {
+		http.Error(w, "a node with this name and label pair already exists — change the name or the node label", http.StatusConflict)
+		return
+	}
 	if err := repo.UpdateNode(id, repository.UpdateNodeInput{
-		Name:           req.Name,
-		Address:        req.Address,
-		UseTLS:         req.UseTLS,
-		HealthEnabled:  healthEnabled,
-		HealthInterval: req.HealthInterval,
-		HealthTimeout:  req.HealthTimeout,
-		HealthRetries:  req.HealthRetries,
-		SkipTLSVerify:  req.SkipTLSVerify,
-		Notes:          req.Notes,
-		InstallDir:     req.InstallDir,
-		AllowedKinds:   req.AllowedKinds,
+		Name:              req.Name,
+		Address:           req.Address,
+		UseTLS:            req.UseTLS,
+		HealthEnabled:     healthEnabled,
+		HealthInterval:    req.HealthInterval,
+		HealthTimeout:     req.HealthTimeout,
+		HealthRetries:     req.HealthRetries,
+		SkipTLSVerify:     req.SkipTLSVerify,
+		Notes:             req.Notes,
+		InstallDir:        req.InstallDir,
+		AllowedKinds:      req.AllowedKinds,
 		AllocMemMiB:       req.AllocMemMiB,
 		MemOvercommitPct:  req.MemOvercommitPct,
 		AllocDiskMiB:      req.AllocDiskMiB,
@@ -258,6 +358,8 @@ func UpdateNodeHandler(w http.ResponseWriter, r *http.Request) {
 		Category:        req.Category,
 		LocationCountry: req.LocationCountry,
 		LocationNode:    req.LocationNode,
+		Icon:            req.Icon,
+		Color:           req.Color,
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -519,10 +621,10 @@ func ProbeAllNodesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type probeResult struct {
-		idx     int
+		idx       int
 		reachable bool
-		seenName string
-		note string
+		seenName  string
+		note      string
 	}
 
 	// Probe nodes with bounded concurrency so we don't spawn thousands of

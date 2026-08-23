@@ -23,8 +23,8 @@ import (
 // returned together so one round-trip is enough for the store to resolve the
 // active route against (local > global > default) and apply the theme.
 type themeStoreResponse struct {
-	Themes      []storedTheme        `json:"themes"`
-	Assignments []assignmentBinding  `json:"assignments"`
+	Themes      []storedTheme       `json:"themes"`
+	Assignments []assignmentBinding `json:"assignments"`
 }
 
 // storedTheme is a server-saved theme as the frontend consumes it. The `spec`
@@ -504,8 +504,8 @@ func InstallThemeFromURLHandler(w http.ResponseWriter, r *http.Request) {
 
 // URL fetch infrastructure (theme-specific to avoid conflicts with other handlers)
 const (
-	themeURLFetchMaxBytes  = 8 << 20 // 8 MiB
-	themeURLFetchTimeout   = 15 * time.Second
+	themeURLFetchMaxBytes   = 8 << 20 // 8 MiB
+	themeURLFetchTimeout    = 15 * time.Second
 	themeURLFetchDNSTimeout = 5 * time.Second
 )
 

@@ -13,17 +13,23 @@ import (
 // Uses __Host- prefix for additional security (requires Secure, Path=/, no Domain)
 const SessionCookieName = "__Host-session_id"
 
-// SessionTTL is how long a freshly-issued (or rotated) session stays valid.
-// 8h balances "an operator leaves the panel open in a tab all day" against
-// the security cost of a long-lived bearer. The cookie's Expires mirror this.
-const SessionTTL = 8 * time.Hour
+// SessionTTL returns how long a freshly-issued (or rotated) session stays
+// valid. It reads the live SessionPolicy (Security page → Sessions tab) so
+// an admin can change the lifetime without a rebuild; the default mirrors
+// the previous hardcoded 8h constant. The cookie's Expires mirrors this.
+func SessionTTL() time.Duration {
+	return CurrentSessionPolicy().Lifetime
+}
 
-// rotationWindow is the fraction of SessionTTL below which we re-issue the
-// cookie (sliding expiry). Concretely, if a request arrives with a cookie
-// whose remaining life is shorter than SessionTTL/2, the middleware rotates
-// it — extending the session for an active user while bounding the life of
-// a stolen/hijacked cookie to at most SessionTTL from its last use.
-const rotationWindow = SessionTTL / 2
+// rotationWindowFor is the fraction of the session lifetime below which we
+// re-issue the cookie (sliding expiry). Concretely, if a request arrives
+// with a cookie whose remaining life is shorter than half the lifetime, the
+// middleware rotates it — extending the session for an active user while
+// bounding the life of a stolen/hijacked cookie to at most one lifetime
+// from its last use.
+func rotationWindowFor(lifetime time.Duration) time.Duration {
+	return lifetime / 2
+}
 
 // IsSecureRequest reports whether the in-flight request was delivered over
 // a scheme where the Secure cookie flag is appropriate (TLS, or a proxy
@@ -58,13 +64,13 @@ func NewSessionCookie(r *http.Request, value string, expiry time.Time) *http.Coo
 		maxAge = 0
 	}
 	isSecure := IsSecureRequest(r)
-	
+
 	// In development, allow non-Secure for localhost
 	isDevelopment := false
 	if host := r.Host; host == "localhost:5050" || host == "127.0.0.1:5050" || strings.HasPrefix(host, "localhost:") || strings.HasPrefix(host, "127.0.0.1:") {
 		isDevelopment = true
 	}
-	
+
 	c := &http.Cookie{
 		Name:     SessionCookieName,
 		Value:    value,
@@ -74,7 +80,7 @@ func NewSessionCookie(r *http.Request, value string, expiry time.Time) *http.Coo
 		Expires:  expiry,
 		MaxAge:   maxAge,
 	}
-	
+
 	// __Host- prefix requires Secure flag
 	// In production, always set Secure. In development, only set if actually secure.
 	if isSecure || isDevelopment {
@@ -85,7 +91,7 @@ func NewSessionCookie(r *http.Request, value string, expiry time.Time) *http.Coo
 		// non-HTTPS requests separately.
 		c.Secure = false
 	}
-	
+
 	return c
 }
 
@@ -96,13 +102,13 @@ func NewSessionCookie(r *http.Request, value string, expiry time.Time) *http.Coo
 // old one around.
 func ClearSessionCookie(r *http.Request) *http.Cookie {
 	isSecure := IsSecureRequest(r)
-	
+
 	// In development, allow non-Secure for localhost
 	isDevelopment := false
 	if host := r.Host; host == "localhost:5050" || host == "127.0.0.1:5050" || strings.HasPrefix(host, "localhost:") || strings.HasPrefix(host, "127.0.0.1:") {
 		isDevelopment = true
 	}
-	
+
 	c := &http.Cookie{
 		Name:     SessionCookieName,
 		Value:    "",
@@ -112,7 +118,7 @@ func ClearSessionCookie(r *http.Request) *http.Cookie {
 		MaxAge:   -1,
 		Expires:  time.Now().Add(-1 * time.Hour),
 	}
-	
+
 	// __Host- prefix requires Secure flag
 	if isSecure || isDevelopment {
 		c.Secure = isSecure
@@ -122,15 +128,15 @@ func ClearSessionCookie(r *http.Request) *http.Cookie {
 		// non-HTTPS requests separately.
 		c.Secure = false
 	}
-	
+
 	return c
 }
 
 // ShouldRotate decides whether a session cookie whose absolute expiry is
 // `currentExpiry` should be re-issued (sliding-expiry rotation) on the
-// current request. We rotate only when less than rotationWindow of life
-// remains, so an active user never loses their session but a hijacked
-// cookie's useful lifetime is bounded.
+// current request. We rotate only when less than half the configured
+// lifetime remains, so an active user never loses their session but a
+// hijacked cookie's useful lifetime is bounded.
 func ShouldRotate(currentExpiry time.Time) bool {
-	return time.Until(currentExpiry) < rotationWindow
+	return time.Until(currentExpiry) < rotationWindowFor(SessionTTL())
 }

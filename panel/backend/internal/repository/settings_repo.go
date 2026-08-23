@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/example/kspanel/internal/config"
@@ -33,15 +34,16 @@ const PanelNameKey = "panel_name"
 // separate rows in the settings table (logo_mime/logo_filename remain
 // columns on the panel_name row, those are special-cased by the Logo path).
 const (
-	RegisterAllowKey       = "register_allow"
-	RegisterRoleKey        = "register_role"
-	DeviceAccountLimitKey  = "device_account_limit"
-	VerifyRequiredKey      = "verify_required"
-	SMTPHostKey            = "smtp_host"
-	SMTPPortKey            = "smtp_port"
-	SMTPUserKey            = "smtp_user"
-	SMTPPasswordKey        = "smtp_password"
-	SMTPFromKey            = "smtp_from"
+	RegisterAllowKey      = "register_allow"
+	RegisterRoleKey       = "register_role"
+	DeviceAccountLimitKey = "device_account_limit"
+	VerifyRequiredKey     = "verify_required"
+	SMTPHostKey           = "smtp_host"
+	SMTPPortKey           = "smtp_port"
+	SMTPUserKey           = "smtp_user"
+	SMTPPasswordKey       = "smtp_password"
+	SMTPFromKey           = "smtp_from"
+	PanelPortKey          = "panel_port"
 )
 
 // logoDirName is the subdirectory under the data directory that stores
@@ -452,6 +454,33 @@ func (r *SettingsRepository) SMTPConfig() (host, port, user, password, from stri
 		r.getString(SMTPUserKey, ""),
 		r.getString(SMTPPasswordKey, ""),
 		r.getString(SMTPFromKey, "")
+}
+
+// PanelPort returns the last port the panel was launched on, or 0 when the
+// value is missing/invalid so callers can fall through to their default
+// chain (CLI flag → env → DefaultPort). We intentionally don't return the
+// fallback port here — the launch command's precedence list owns that
+// decision so the CLI flag and env-var behaviour stays in one place.
+func (r *SettingsRepository) PanelPort() int {
+	v := strings.TrimSpace(r.getString(PanelPortKey, ""))
+	if v == "" {
+		return 0
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 1 || n > 65535 {
+		return 0
+	}
+	return n
+}
+
+// SetPanelPort persists the port the panel just bound to so the next
+// `kspanel launch` (no flags) reuses it. Out-of-range / non-numeric values
+// are rejected so a typo in the API layer can't poison the launch chain.
+func (r *SettingsRepository) SetPanelPort(port int) error {
+	if port < 1 || port > 65535 {
+		return fmt.Errorf("invalid port %d (1-65535)", port)
+	}
+	return r.setString(PanelPortKey, strconv.Itoa(port))
 }
 
 // extensionForMime returns a normalized file extension (including the dot)

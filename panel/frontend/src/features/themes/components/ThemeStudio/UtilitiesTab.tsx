@@ -11,7 +11,7 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({ draft, patch }) => {
   return (
     <GlassCard className="space-y-4">
       <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-4">
-        <Label label="Color Utilities" hint="CSS variable color scale and utility classes." />
+        <Label label="Color Utilities" hint="Semantic colour tokens (--ks-ui-*) available to Custom CSS." />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <ColorField label="Primary" value={draft.utilities?.color_primary ?? '#ffffff'} onChange={(v) => patch('utilities', { color_primary: v })} />
           <ColorField label="Secondary" value={draft.utilities?.color_secondary ?? '#38bdf8'} onChange={(v) => patch('utilities', { color_secondary: v })} />
@@ -20,14 +20,10 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({ draft, patch }) => {
           <ColorField label="Danger" value={draft.utilities?.color_danger ?? '#ef4444'} onChange={(v) => patch('utilities', { color_danger: v })} />
           <ColorField label="Muted" value={draft.utilities?.color_muted ?? '#6b7280'} onChange={(v) => patch('utilities', { color_muted: v })} />
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Slider label="Primary shade steps" min={5} max={20} value={draft.utilities?.primary_steps ?? 10} onChange={(v) => patch('utilities', { primary_steps: v })} />
-          <Slider label="Shade step size" min={5} max={15} value={draft.utilities?.shade_step_size ?? 10} onChange={(v) => patch('utilities', { shade_step_size: v })} />
-        </div>
       </div>
 
       <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-4">
-        <Label label="Spacing Scale" hint="Consistent spacing tokens." />
+        <Label label="Spacing Scale" hint="--ks-space-base token (Custom CSS)." />
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
           <Slider label="Base unit (px)" min={2} max={16} value={draft.utilities?.spacing_base ?? 4} onChange={(v) => patch('utilities', { spacing_base: v })} />
           <Slider label="Max multiplier" min={4} max={24} value={draft.utilities?.spacing_max_multiplier ?? 8} onChange={(v) => patch('utilities', { spacing_max_multiplier: v })} />
@@ -35,7 +31,7 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({ draft, patch }) => {
       </div>
 
       <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-4">
-        <Label label="Border Radius Scale" hint="Consistent radius tokens." />
+        <Label label="Radius Scale" hint="--ks-radius-*-u tokens (Custom CSS)." />
         <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
           <Slider label="None" min={0} max={4} value={draft.utilities?.radius_none ?? 0} onChange={(v) => patch('utilities', { radius_none: v })} />
           <Slider label="Small" min={0} max={12} value={draft.utilities?.radius_sm ?? 4} onChange={(v) => patch('utilities', { radius_sm: v })} />
@@ -46,7 +42,7 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({ draft, patch }) => {
       </div>
 
       <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-4">
-        <Label label="Shadow Scale" hint="Consistent elevation shadows." />
+        <Label label="Shadow Scale" hint="--ks-elev-1..4 elevation tokens (Custom CSS)." />
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
           <Slider label="Level 1" min={0} max={24} value={draft.utilities?.shadow_1 ?? 4} onChange={(v) => patch('utilities', { shadow_1: v })} />
           <Slider label="Level 2" min={0} max={32} value={draft.utilities?.shadow_2 ?? 8} onChange={(v) => patch('utilities', { shadow_2: v })} />
@@ -56,7 +52,7 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({ draft, patch }) => {
       </div>
 
       <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-4">
-        <Label label="Transitions" hint="Global transition timing." />
+        <Label label="Transitions" hint="Drives the themed components' transition speeds (cards, buttons, tabs)." />
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
           <Slider label="Fast (ms)" min={50} max={300} value={draft.utilities?.transition_fast ?? 150} onChange={(v) => patch('utilities', { transition_fast: v })} />
           <Slider label="Normal (ms)" min={100} max={500} value={draft.utilities?.transition_normal ?? 200} onChange={(v) => patch('utilities', { transition_normal: v })} />
@@ -66,7 +62,7 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({ draft, patch }) => {
       </div>
 
       <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-4">
-        <Label label="Z-Index Scale" hint="Layer stacking order." />
+        <Label label="Z-Index Scale" hint="--ks-z-* tokens for Custom CSS layering." />
         <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
           <Slider label="Dropdown" min={10} max={100} value={draft.utilities?.z_dropdown ?? 50} onChange={(v) => patch('utilities', { z_dropdown: v })} />
           <Slider label="Modal" min={10} max={100} value={draft.utilities?.z_modal ?? 60} onChange={(v) => patch('utilities', { z_modal: v })} />
@@ -76,20 +72,10 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({ draft, patch }) => {
         </div>
       </div>
 
-      <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-4">
-        <Label label="Breakpoints" hint="Responsive breakpoints." />
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-          <Slider label="SM (px)" min={480} max={768} value={draft.utilities?.bp_sm ?? 640} onChange={(v) => patch('utilities', { bp_sm: v })} />
-          <Slider label="MD (px)" min={640} max={1024} value={draft.utilities?.bp_md ?? 768} onChange={(v) => patch('utilities', { bp_md: v })} />
-          <Slider label="LG (px)" min={1024} max={1440} value={draft.utilities?.bp_lg ?? 1024} onChange={(v) => patch('utilities', { bp_lg: v })} />
-          <Slider label="XL (px)" min={1280} max={1920} value={draft.utilities?.bp_xl ?? 1280} onChange={(v) => patch('utilities', { bp_xl: v })} />
-        </div>
-      </div>
-
       <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-3">
         <Label label="Preview" hint="Sample utility classes." />
         <div className="flex flex-wrap items-center gap-2">
-          <div className="ks-input w-40" placeholder="Input" />
+          <input className="ks-input w-40" placeholder="Input" readOnly />
           <div className="ks-btn ks-btn-primary">Primary</div>
           <div className="ks-btn ks-btn-ghost">Ghost</div>
           <div className="ks-btn ks-btn-danger">Danger</div>

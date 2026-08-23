@@ -156,7 +156,12 @@ const RoleForm: React.FC = () => {
         {tab === 'permissions' && (
           <RolePermissions
             formPermissions={form.permissions}
-            setFormPermissions={setForm}
+            setFormPermissions={(permsOrUpdater) => setForm(prev => {
+              const perms = typeof permsOrUpdater === 'function'
+                ? (permsOrUpdater as (p: string[]) => string[])(prev.permissions)
+                : permsOrUpdater;
+              return { ...prev, permissions: perms };
+            })}
             permissions={permissions}
           />
         )}

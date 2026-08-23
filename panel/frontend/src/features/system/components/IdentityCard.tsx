@@ -1,5 +1,5 @@
 import React from 'react';
-import type { LocalHost } from '@/shared/types/system';
+import type { LocalHost } from '@/features/system/types/system';
 
 interface IdentityCardProps {
   host: LocalHost;

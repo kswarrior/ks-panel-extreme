@@ -12,7 +12,7 @@ import type {
   UpdateApplyResponse,
   ReinstallBackgroundResponse,
   SeriesSample,
-} from '@/shared/types/system';
+} from '@/features/system/types/system';
 import GlassModal from '@/shared/components/ui/Modal';
 import { Donut, Gauge, fmtPct, fmtMB, fmtUptime, fmtGB } from './SystemCharts';
 import { AreaChart, type MetricSample } from '@/shared/components/ui/MetricsChart';
@@ -82,7 +82,7 @@ const PanelTab: React.FC<PanelTabProps> = ({ snap, info, infoErr, infoLoading, r
             window.clearInterval(tick);
             window.location.reload();
           }
-          if (attempts >= 60) {
+          if (attempts >= 240) {
             window.clearInterval(poll);
           }
         } catch {
@@ -100,6 +100,7 @@ const PanelTab: React.FC<PanelTabProps> = ({ snap, info, infoErr, infoLoading, r
     setReinstallConfirmOpen(false);
     setReinstallBackgroundBusy(true);
     setReinstallBackgroundErr('');
+    setReinstallBackgroundResult(null);
     try {
       const r = await reinstallBackground();
       setReinstallBackgroundResult(r);
@@ -125,7 +126,7 @@ const PanelTab: React.FC<PanelTabProps> = ({ snap, info, infoErr, infoLoading, r
             window.clearInterval(tick);
             window.location.reload();
           }
-          if (attempts >= 60) {
+          if (attempts >= 240) {
             window.clearInterval(poll);
           }
         } catch {
@@ -412,13 +413,24 @@ const PanelTab: React.FC<PanelTabProps> = ({ snap, info, infoErr, infoLoading, r
       {/* Reinstall confirmation modal */}
       <GlassModal
         open={reinstallConfirmOpen}
-        onClose={() => setReinstallConfirmOpen(false)}
+        onClose={() => {
+          if (!reinstallBackgroundBusy) {
+            setReinstallConfirmOpen(false);
+            setReinstallBackgroundErr('');
+            setReinstallBackgroundResult(null);
+          }
+        }}
         title="Reinstall panel binary?"
         maxWidth="max-w-lg"
         footer={
           <>
             <button
-              onClick={() => setReinstallConfirmOpen(false)}
+              onClick={() => {
+                if (reinstallBackgroundBusy) return;
+                setReinstallConfirmOpen(false);
+                setReinstallBackgroundErr('');
+                setReinstallBackgroundResult(null);
+              }}
               className="px-3 py-1.5 rounded text-sm border border-white/10 text-gray-300 hover:bg-white/10"
             >
               Cancel
@@ -445,7 +457,7 @@ const PanelTab: React.FC<PanelTabProps> = ({ snap, info, infoErr, infoLoading, r
             <p className="text-red-400 text-sm mt-3">{reinstallBackgroundErr}</p>
           )}
           {reinstallBackgroundResult && (
-            <p className="text-green-400 text-sm mt-3">Script: <code className="text-gray-200">{reinstallBackgroundResult.script}</code></p>
+            <p className="text-green-400 text-sm mt-3">Script: <code className="text-gray-200">{reinstallBackgroundResult.script_path}</code></p>
           )}
         </div>
       </GlassModal>

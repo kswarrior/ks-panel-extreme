@@ -16,35 +16,35 @@ import (
 
 // TOTPConfig defines TOTP configuration
 type TOTPConfig struct {
-	Issuer      string
-	Algorithm   string
-	Digits      int
-	Period      int
-	Skew        int
+	Issuer    string
+	Algorithm string
+	Digits    int
+	Period    int
+	Skew      int
 }
 
 // DefaultTOTPConfig returns default TOTP configuration
 func DefaultTOTPConfig() *TOTPConfig {
 	return &TOTPConfig{
-		Issuer:     "KS Panel",
-		Algorithm:  "SHA1",
-		Digits:     6,
-		Period:     30,
-		Skew:       1,
+		Issuer:    "KS Panel",
+		Algorithm: "SHA1",
+		Digits:    6,
+		Period:    30,
+		Skew:      1,
 	}
 }
 
 // MFASettings represents a user's MFA settings
 type MFASettings struct {
-	ID           int64     `json:"id"`
-	UserID       int64     `json:"user_id"`
-	Secret       string    `json:"secret"`
-	Enabled      bool      `json:"enabled"`
-	BackupCodes  []string  `json:"backup_codes"`
-	CreatedAt    time.Time `json:"created_at"`
-	LastUsedAt   time.Time `json:"last_used_at"`
-	LastUsedIP   string    `json:"last_used_ip"`
-	LastUsedUserAgent string `json:"last_used_user_agent"`
+	ID                int64     `json:"id"`
+	UserID            int64     `json:"user_id"`
+	Secret            string    `json:"secret"`
+	Enabled           bool      `json:"enabled"`
+	BackupCodes       []string  `json:"backup_codes"`
+	CreatedAt         time.Time `json:"created_at"`
+	LastUsedAt        time.Time `json:"last_used_at"`
+	LastUsedIP        string    `json:"last_used_ip"`
+	LastUsedUserAgent string    `json:"last_used_user_agent"`
 }
 
 // MFAManager manages MFA settings and verification
@@ -91,35 +91,35 @@ func (mfa *MFAManager) GenerateQRCode(secret, username string) string {
 func (mfa *MFAManager) ValidateTOTP(secret, code string) bool {
 	// Clean the code - remove spaces
 	code = strings.ReplaceAll(code, " ", "")
-	
+
 	// Check if code is 6 digits
 	if len(code) != 6 {
 		return false
 	}
-	
+
 	// Verify all characters are digits
 	for _, c := range code {
 		if c < '0' || c > '9' {
 			return false
 		}
 	}
-	
+
 	// Decode the base32 secret
 	key, err := base32.StdEncoding.DecodeString(strings.ToUpper(secret))
 	if err != nil {
 		return false
 	}
-	
+
 	// Get current time step (30-second windows)
 	timeStep := time.Now().Unix() / 30
-	
+
 	// Check current window and adjacent windows (for clock skew)
 	for i := -1; i <= 1; i++ {
 		if mfa.validateTOTPAtTimeStep(key, code, timeStep+int64(i)) {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -128,21 +128,21 @@ func (mfa *MFAManager) validateTOTPAtTimeStep(key []byte, code string, timeStep 
 	// Convert time step to 8-byte big-endian
 	msg := make([]byte, 8)
 	binary.BigEndian.PutUint64(msg, uint64(timeStep))
-	
+
 	// Calculate HMAC-SHA1
 	mac := hmac.New(sha1.New, key)
 	mac.Write(msg)
 	hash := mac.Sum(nil)
-	
+
 	// Dynamic truncation (RFC 4226)
 	offset := hash[len(hash)-1] & 0x0F
-	truncated := binary.BigEndian.Uint32(hash[offset:offset+4])
+	truncated := binary.BigEndian.Uint32(hash[offset : offset+4])
 	truncated &= 0x7FFFFFFF
-	
+
 	// Generate 6-digit code
 	expectedCode := truncated % 1000000
 	expectedCodeStr := fmt.Sprintf("%06d", expectedCode)
-	
+
 	// Constant-time comparison
 	return subtleConstantTimeCompare(code, expectedCodeStr)
 }
@@ -208,8 +208,8 @@ func generateRandomCode(length int) string {
 
 // MFARequest represents an MFA request
 type MFARequest struct {
-	Code        string `json:"code"`
-	Method      string `json:"method"` // "totp" or "backup"
+	Code   string `json:"code"`
+	Method string `json:"method"` // "totp" or "backup"
 }
 
 // MFAResponse represents an MFA response
@@ -236,7 +236,7 @@ func (mfaHandler *MFAHandler) SetupMFAHandler(w http.ResponseWriter, r *http.Req
 	// This would normally be called after password authentication
 	// In a real implementation, the secret would be stored in the database
 	// associated with the user, and only the QR code returned to the client
-	
+
 	secret, err := mfaHandler.mfaManager.GenerateSecret()
 	if err != nil {
 		http.Error(w, "failed to generate MFA secret", http.StatusInternalServerError)
@@ -277,7 +277,7 @@ func (mfaHandler *MFAHandler) VerifyMFAHandler(w http.ResponseWriter, r *http.Re
 	// This is a placeholder - in production, fetch from database
 	// secret = getUserMFASecret(userID)
 	// backupCodes = getUserBackupCodes(userID)
-	
+
 	// For testing purposes, we'll check if secret was provided in request
 	// In production, NEVER accept secret from client - always fetch server-side
 	if req.Method == "totp" {
@@ -329,7 +329,7 @@ func (mfaHandler *MFAHandler) VerifyMFAHandler(w http.ResponseWriter, r *http.Re
 func (mfaHandler *MFAHandler) EnableMFAHandler(w http.ResponseWriter, r *http.Request) {
 	// This would normally be called after successful MFA verification
 	// For now, we'll just return a success response
-	
+
 	response := map[string]interface{}{
 		"success": true,
 		"message": "MFA enabled successfully",
@@ -343,7 +343,7 @@ func (mfaHandler *MFAHandler) EnableMFAHandler(w http.ResponseWriter, r *http.Re
 func (mfaHandler *MFAHandler) DisableMFAHandler(w http.ResponseWriter, r *http.Request) {
 	// This would normally require confirmation or additional verification
 	// For now, we'll just return a success response
-	
+
 	response := map[string]interface{}{
 		"success": true,
 		"message": "MFA disabled successfully",
@@ -357,9 +357,9 @@ func (mfaHandler *MFAHandler) DisableMFAHandler(w http.ResponseWriter, r *http.R
 func (mfaHandler *MFAHandler) GetMFAStatusHandler(w http.ResponseWriter, r *http.Request) {
 	// This would normally check the database for user's MFA status
 	// For now, we'll return a default response
-	
+
 	response := map[string]interface{}{
-		"enabled": false,
+		"enabled":        false,
 		"setup_complete": false,
 	}
 
@@ -379,7 +379,7 @@ func MFAMiddleware(next http.Handler) http.Handler {
 		// Check if user has MFA enabled
 		// This would normally check the database
 		hasMFA := false
-		
+
 		if hasMFA {
 			// Check for MFA token in the request
 			var mfaToken string
@@ -400,7 +400,7 @@ func MFAMiddleware(next http.Handler) http.Handler {
 			// Validate MFA token
 			// This would normally validate against the database
 			isValid := false // Placeholder for actual validation
-			
+
 			if !isValid {
 				http.Error(w, "invalid MFA token", http.StatusUnauthorized)
 				return

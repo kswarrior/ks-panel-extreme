@@ -114,9 +114,46 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
   }, []);
 
   const handleConfirmImport = () => {
-    const additions: PageOverrideInput[] = instancePages
-      .filter((p) => selectedSlugs.has(p.slug) && !alreadyAddedSlugs.has(p.slug))
-      .map((p) => ({
+    const additions: PageOverrideInput[] = [];
+    // Slugs already on the parent's pages array — skip those to avoid
+    // adding the same page twice. We accumulate additions inline so the
+    // second loop never adds a duplicate of a slug the first loop
+    // already resolved (the on-disk `instance_pages/` directory can ship
+    // both a `kind: 'builtin'` and a `kind: 'custom'` row for the same
+    // slug; without this guard both rows would land in the result and
+    // the page card would render twice — once as builtin, once as custom).
+    const skip = new Set<string>(alreadyAddedSlugs);
+    // 1. Built-in selections: resolve to manifest entries (Home / Files /
+    //    Network / …). Without this loop the user picks a built-in entry
+    //    and the modal emits nothing — OR, worse, if the same slug also
+    //    exists in the on-disk `instance_pages/` directory with kind =
+    //    'builtin', the custom-only loop below would resolve it to
+    //    `kind: 'custom'`, the icon would go missing (the API row has
+    //    empty icon_svg), and the resulting card would render with the
+    //    generic placeholder and an "custom" badge — exactly the bug
+    //    the user reported.
+    for (const slug of Array.from(selectedSlugs)) {
+      if (skip.has(slug)) continue;
+      const entry = BUILTIN_PAGE_MANIFEST.bySlug[slug];
+      if (entry) {
+        additions.push({
+          slug,
+          original_slug: slug,
+          enabled: true,
+          label: entry.name,
+          icon_svg: entry.iconSvg,
+          kind: 'builtin',
+        });
+        skip.add(slug);
+      }
+    }
+    // 2. Custom selections: resolve to Instance Pages library entries.
+    //    The picker filters out `kind: 'builtin'` rows from the custom
+    //    section so this loop only sees true operator-authored pages.
+    for (const p of instancePages) {
+      if (!selectedSlugs.has(p.slug) || skip.has(p.slug)) continue;
+      if (p.kind === 'builtin') continue;
+      additions.push({
         slug: p.slug,
         original_slug: '',
         enabled: true,
@@ -127,7 +164,9 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
         content_html: p.content_html || '',
         content_markdown: p.content_markdown || '',
         content_blocks: p.content_blocks || '',
-      }));
+      });
+      skip.add(p.slug);
+    }
     if (additions.length > 0) {
       onAddPages(additions);
     }
@@ -136,8 +175,19 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
 
   const q = importSearch.trim().toLowerCase();
   const filteredInstancePages = useMemo(() => {
-    if (!q) return instancePages;
-    return instancePages.filter(
+    // The /api/instance-pages/ endpoint returns BOTH `kind: 'builtin'` and
+    // `kind: 'custom'` rows because the on-disk library ships both built-in
+    // page definitions (Home / Files / Network / …) and operator-authored
+    // custom pages. The "Built-in pages" section already shows the static
+    // BUILTIN_PAGE_MANIFEST entries, so the "Custom pages" section must
+    // exclude any `kind: 'builtin'` row to avoid duplicating the built-in
+    // list. Without this filter, every built-in entry shows up twice in the
+    // modal — once under the built-in section (sky) and again under the
+    // custom section (emerald) — which is exactly the duplication the user
+    // reported.
+    const customOnly = instancePages.filter((p) => p.kind !== 'builtin');
+    if (!q) return customOnly;
+    return customOnly.filter(
       (p) =>
         p.name.toLowerCase().includes(q) ||
         p.slug.toLowerCase().includes(q) ||

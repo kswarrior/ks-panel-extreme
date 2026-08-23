@@ -21,6 +21,10 @@ interface FormPageProps {
   // Optional secondary action next to Save – used for "Import Pterodactyl"
   // or similar. Rendered as plain buttons the caller supplies.
   secondaryActions?: React.ReactNode;
+  // Optional element rendered INSIDE the title row, right-aligned. Lets
+  // callers add a Back / refresh / contextual button next to the page
+  // title without overriding the whole header layout.
+  headerActions?: React.ReactNode;
   onSubmit?: (e: React.FormEvent) => void;
   disabled?: boolean;
   // Max width style override – the default `max-w-xl` works for the
@@ -46,6 +50,7 @@ const FormPage: React.FC<FormPageProps> = ({
   submitLabel,
   submittingLabel,
   secondaryActions,
+  headerActions,
   onSubmit,
   disabled,
   maxWidth = 'max-w-xl',
@@ -80,6 +85,7 @@ const FormPage: React.FC<FormPageProps> = ({
       </div>
       <div className="flex items-center justify-between gap-3 mb-2">
         <h2 className="text-xl font-semibold text-white">{displayTitle}</h2>
+        {headerActions && <div className="flex items-center gap-2 shrink-0">{headerActions}</div>}
       </div>
 
       {/* Form body — no wrapper.

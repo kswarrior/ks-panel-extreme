@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/example/kspanel/internal/models"
@@ -45,6 +46,13 @@ type ModEngine struct {
 	storage  *StorageRepository
 	slots    []RegisteredSlot // slot registry snapshot (ordered by activation)
 	startCtx context.Context  // base context for VM + hook dispatch
+	// enabled mirrors the persisted kill switch (settings KV). Reads are
+	// atomic so the Activate hot path never takes a lock; SetEnabled does the
+	// teardown under e.mu.
+	enabled atomic.Bool
+	// diag owns per-mod runtime statuses + log rings (own mutex, see
+	// status.go for the lock-order contract).
+	diag *diagnostics
 }
 
 // modEntry is one active mod's runtime + its enrolled hooks/slots so a clean
@@ -85,13 +93,17 @@ const defaultExecTimeout = 5 * time.Second
 
 // New returns a ModEngine wired to its own bus + a stateless storage repo. The
 // caller must Boot() before serving mods (call it once the panel has booted the
-// HTTP server and migrations have run).
+// HTTP server and migrations have run). The engine starts ENABLED; the boot
+// path reconciles the persisted kill-switch value before Boot.
 func New() *ModEngine {
-	return &ModEngine{
+	e := &ModEngine{
 		entries: make(map[string]*modEntry),
 		bus:     NewEventBus(),
 		storage: NewStorageRepository(),
+		diag:    newDiagnostics(),
 	}
+	e.enabled.Store(true)
+	return e
 }
 
 // Bus exposes the underlying event bus so host handlers (instance / node / etc.)
@@ -119,6 +131,11 @@ func (e *ModEngine) RunningMode() string { return RunningMode }
 // the DB's ground truth). Callers pass activeMods pre-resolved to keep this
 // function DB-connection-free (the handlers' connection pool is single-slot).
 func (e *ModEngine) Boot(ctx context.Context, activeMods []*models.Mod) {
+	if !e.Enabled() {
+		log.Printf("[modengine] boot skipped: the mod engine is disabled")
+		e.AppendLog("", "warn", "boot skipped: mod engine disabled")
+		return
+	}
 	for _, m := range activeMods {
 		if m == nil {
 			continue
@@ -149,11 +166,16 @@ func (e *ModEngine) Activate(ctx context.Context, mod *models.Mod) error {
 	if mod == nil || mod.Slug == "" {
 		return fmt.Errorf("modengine: activate requires a mod with a slug")
 	}
+	if !e.Enabled() {
+		e.AppendLog(mod.Slug, "warn", "activation refused: the mod engine is disabled")
+		return ErrEngineDisabled
+	}
 	man := models.ParseV2Manifest(mod.Manifest)
 	if man.EngineVersion < 2 && len(man.Slots) == 0 {
 		// v1 mod, or v2 mod with no v2 surface — nothing to run. We still
 		// record it as active-but-empty so the bus knows it subscribes to
 		// nothing and ActiveSlots() stays consistent with the DB.
+		e.markStopped(mod.Slug)
 		return nil
 	}
 	return e.activate(ctx, mod, man)
@@ -222,8 +244,10 @@ func (e *ModEngine) activate(ctx context.Context, mod *models.Mod, man models.Mo
 		// wouldn't see it — cleanupPartial is the only path that releases
 		// the bus tokens + VM here.
 		e.cleanupPartial(entry, rt)
+		e.markFailed(mod.Slug, err.Error())
 		return fmt.Errorf("start runtime: %w", err)
 	}
+	e.AppendLog(mod.Slug, "info", "runtime started (engine "+RunningMode+")")
 
 	// Enrol every manifest-declared hook. We resolve the JS handler name
 	// through the runtime; when the runtime can't find it (noop, or the
@@ -269,13 +293,24 @@ func (e *ModEngine) activate(ctx context.Context, mod *models.Mod, man models.Mo
 	}
 
 	// Commit under the lock. Stop any concurrently-started duplicate first.
+	// The kill switch is re-checked INSIDE the commit critical section so a
+	// disable that races a long rt.Start can't leave a runtime behind: if the
+	// switch flipped while the VM was booting, we unwind and refuse (fail
+	// closed) instead of committing an entry SetEnabled already tore down.
 	e.mu.Lock()
+	if !e.enabled.Load() {
+		_ = e.stopLocked(entry)
+		e.mu.Unlock()
+		e.AppendLog(mod.Slug, "warn", "activation aborted: engine disabled during start")
+		return ErrEngineDisabled
+	}
 	if dup, ok := e.entries[mod.Slug]; ok {
 		_ = e.stopLocked(dup)
 	}
 	e.entries[mod.Slug] = entry
 	e.rebuildSlotsLocked()
 	e.mu.Unlock()
+	e.markRunning(mod.Slug)
 	return nil
 }
 
@@ -317,14 +352,17 @@ func (e *ModEngine) cleanupPartial(entry *modEntry, rt JSRuntime) {
 // ActiveSlots() no longer references the mod.
 func (e *ModEngine) Deactivate(slug string) {
 	e.mu.Lock()
-	defer e.mu.Unlock()
 	entry, ok := e.entries[slug]
-	if !ok {
-		return
+	if ok {
+		_ = e.stopLocked(entry)
+		delete(e.entries, slug)
+		e.rebuildSlotsLocked()
 	}
-	_ = e.stopLocked(entry)
-	delete(e.entries, slug)
-	e.rebuildSlotsLocked()
+	e.mu.Unlock()
+	if ok {
+		e.AppendLog(slug, "info", "runtime stopped")
+		e.markStopped(slug)
+	}
 }
 
 // stopLocked unwinds one entry's bus subscriptions + runtime. Caller MUST hold

@@ -106,7 +106,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	if err := auth.CheckPassword(user.PasswordHash, req.Password); err != nil {
 		// Record failed attempt
 		auth.AccountLockoutInstance.RecordFailedAttempt(identifier)
-		
+
 		log.Println("Password check error:", err)
 		RecordActivity(r, repository.ActivityInput{
 			Username:    user.Username,
@@ -155,7 +155,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	// Check if user requires MFA
 	// This would normally check the database for MFA settings
 	requiresMFA := false
-	
+
 	if requiresMFA {
 		// Return MFA required response
 		response := map[string]interface{}{
@@ -185,7 +185,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Create session
 	cookieVal := auth.GenerateSessionToken(user.ID, time.Now())
-	http.SetCookie(w, auth.NewSessionCookie(r, cookieVal, time.Now().Add(auth.SessionTTL)))
+	http.SetCookie(w, auth.NewSessionCookie(r, cookieVal, time.Now().Add(auth.SessionTTL())))
 
 	// Record session in session manager
 	auth.SessionManagerInstance.CreateSession(user.ID, cookieVal, r.RemoteAddr, r.UserAgent())
@@ -329,6 +329,10 @@ func SwitchLoginHandler(w http.ResponseWriter, r *http.Request) {
 	})
 
 	tokenVal := auth.GenerateSessionToken(user.ID, time.Now())
+	// Register the switcher bearer with the session manager so it shows
+	// up on the admin Sessions tab and is subject to revocation, the
+	// per-user cap and the idle timeout like any cookie session.
+	auth.SessionManagerInstance.CreateSession(user.ID, tokenVal, r.RemoteAddr, r.UserAgent())
 	writeLoginResponse(w, r, user, perms, tokenVal)
 }
 

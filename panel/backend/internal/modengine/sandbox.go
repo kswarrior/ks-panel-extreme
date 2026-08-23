@@ -133,6 +133,7 @@ func (r *gojaRuntime) makeThunk(fn goja.Callable) eventHandler {
 		defer func() {
 			if exc := recover(); exc != nil {
 				log.Printf("[modengine] mod %q: hook panicked: %v", r.slug, exc)
+				Default().AppendLog(r.slug, "error", fmt.Sprintf("hook panicked: %v", exc))
 			}
 		}()
 		// Bridge the payload. We can't hand an arbitrary Go value to goja
@@ -153,6 +154,7 @@ func (r *gojaRuntime) makeThunk(fn goja.Callable) eventHandler {
 		ret, err := fn(goja.Undefined(), jsPayload)
 		if err != nil {
 			log.Printf("[modengine] mod %q: hook threw: %v", r.slug, err)
+			Default().AppendLog(r.slug, "error", fmt.Sprintf("hook threw: %v", err))
 			return HandleResult{}
 		}
 		return coerceHandleResult(ret)
@@ -291,6 +293,10 @@ func (r *gojaRuntime) logfn(call goja.FunctionCall) goja.Value {
 	default:
 		log.Printf("[mod:%s] %s", r.slug, msg)
 	}
+	// Mirror into the per-mod diagnostics ring so the admin can read script
+	// output from the Mods UI. Lock-order safe: we hold the VM mutex here,
+	// AppendLog only takes the innermost statusMu (see status.go).
+	Default().AppendLog(r.slug, level, msg)
 	return goja.Undefined()
 }
 

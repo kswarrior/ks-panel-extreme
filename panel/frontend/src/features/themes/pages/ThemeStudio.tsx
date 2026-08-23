@@ -205,7 +205,7 @@ function scopeLabelFor(scope: string): string {
 
 // Tabs surfaced in the studio sidebar. Each entry maps to a section key on
 // the Theme object; the panel below renders the matching editor block.
-type TabKey = ThemeKey;
+type TabKey = ThemeKey | 'forms' | 'components' | 'utilities' | 'cards';
 const TABS: Array<{ key: TabKey; label: string; icon: React.ReactNode }> = [
   { key: 'background', label: 'Background', icon: ICON_BG },
   { key: 'card', label: 'Card', icon: ICON_CARD },
@@ -289,7 +289,7 @@ const ThemeStudio: React.FC = () => {
     );
   }
 
-  const patch = (section: TabKey, p: Record<string, any>) => patchDraft(section, p);
+  const patch = (section: TabKey, p: Record<string, any>) => patchDraft(section as ThemeKey, p);
 
   const existingLocal = draft.id && themes.some((t) => t.id === draft.id);
   const existingGlobal = draft.id && globalThemes.some((t) => t.id === draft.id);
@@ -358,41 +358,44 @@ const ThemeStudio: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        <div className="lg:col-span-7 xl:col-span-8 space-y-4">
-          <GlassCard className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <input
-              type="text"
-              className="w-full bg-black/30 border border-white/10 rounded-md px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/60"
-              label="Theme name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="My Theme"
-            />
-            <input
-              type="text"
-              className="w-full bg-black/30 border border-white/10 rounded-md px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/60"
-              label="Description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="A short note about this theme."
-            />
-          </GlassCard>
+        <div className="lg:col-span-7 xl:col-span-8">
+          <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4">
+            <GlassCard className="lg:sticky lg:top-4 self-start">
+              <nav className="flex lg:flex-col gap-1 overflow-x-auto">
+                {TABS.map((t) => (
+                  <button
+                    key={t.key}
+                    type="button"
+                    onClick={() => setTab(t.key)}
+                    className={`ks-tab shrink-0 flex items-center gap-2 transition text-left ${tab === t.key ? 'ks-tab-active' : ''}`}
+                  >
+                    <span className="inline-flex items-center">{t.icon}</span>
+                    <span className="flex flex-col">
+                      <span className="text-sm">{t.label}</span>
+                    </span>
+                  </button>
+                ))}
+              </nav>
+            </GlassCard>
+            <div className="space-y-4">
+              <GlassCard className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <input
+                  type="text"
+                  className="w-full bg-black/30 border border-white/10 rounded-md px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/60"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="My Theme"
+                />
+                <input
+                  type="text"
+                  className="w-full bg-black/30 border border-white/10 rounded-md px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/60"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="A short note about this theme."
+                />
+              </GlassCard>
 
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {TABS.map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => setTab(t.key)}
-                className={`ks-tab shrink-0 flex items-center gap-2 transition ${tab === t.key ? 'ks-tab-active' : ''}`}
-              >
-                <span className="inline-flex items-center">{t.icon}</span>
-                {t.label}
-              </button>
-            ))}
-          </div>
-
-          <GlassCard className="space-y-4">
+              <GlassCard className="space-y-4">
             {tab === 'background' && <BackgroundTab draft={draft} patch={patch} />}
             {tab === 'card' && <CardTab draft={draft} patch={patch} />}
             {tab === 'sidebar' && <SidebarTab draft={draft} patch={patch} />}
@@ -419,6 +422,8 @@ const ThemeStudio: React.FC = () => {
               to the currently-saved theme without saving.
             </p>
           </GlassCard>
+        </div>
+          </div>
         </div>
 
         <div className="lg:col-span-5 xl:col-span-4">

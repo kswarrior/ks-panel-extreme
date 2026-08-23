@@ -6,6 +6,7 @@ import GlassCard from '@/shared/components/ui/Card';
 import GlassModal from '@/shared/components/ui/Modal';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
+import { NodeIcon } from '../utils/nodeIcons';
 // Helper functions duplicated from Nodes page for formatting.
 function formatBytes(bytes: number): string {
   if (!bytes || bytes <= 0 || !Number.isFinite(bytes)) return '0 MB';
@@ -90,7 +91,7 @@ const DriverRing: React.FC<{ node: Node }> = ({ node }) => {
   ];
   return (
     <svg width="30" height="30" viewBox="0 0 30 30" className="-rotate-90">
-      <circle cx="15" cy="15" r={r} fill="none" stroke="#1f2937" strokeWidth={stroke} />
+      <circle cx="15" cy="15" r={r} fill="none" stroke="var(--ks-chart-track, #1f2937)" strokeWidth={stroke} />
       {DRIVER_ARCS.map((a, i) => {
         const on = (node as any)[a.key] && driversOk;
         return (
@@ -192,7 +193,13 @@ const NodeDetail: React.FC = () => {
       <GlassCard className="p-4">
         <header className="flex items-start gap-3">
           <div className="shrink-0 w-10 h-10 flex items-center justify-center bg-white/[0.05] border border-white/10 text-gray-300" aria-hidden="true">
-            <HeartbeatIcon state={node.state as any} />
+            {node.icon ? (
+              <span style={node.color ? { color: node.color } : undefined}>
+                <NodeIcon icon={node.icon} className="w-5 h-5" />
+              </span>
+            ) : (
+              <HeartbeatIcon state={node.state as any} />
+            )}
           </div>
           <div className="flex-1">
             <h3 className="text-sm font-semibold text-white truncate" title={node.name}>{node.name}</h3>
@@ -212,7 +219,7 @@ const NodeDetail: React.FC = () => {
         </header>
         <div className="mt-4 flex flex-col gap-2">
           <ResourceBar label="RAM" pair={ramLabel} pct={node.ram_total ? (node.ram_used / node.ram_total) * 100 : 0} />
-          <ResourceBar label="CPU" pair={cpuLabel} pct={node.cpu_percent} />
+          <ResourceBar label="CPU" pair={cpuPct} pct={node.cpu_percent} />
           <ResourceBar label="DISK" pair={diskLabel} pct={node.disk_total ? (node.disk_used / node.disk_total) * 100 : 0} />
         </div>
         <div className="mt-4">

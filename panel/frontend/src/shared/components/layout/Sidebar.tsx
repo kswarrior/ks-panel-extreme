@@ -218,7 +218,6 @@ const adminSubItems: SubItem[] = [
   { to: '/users', label: 'Users', permission: PermissionKey.MANAGE_USERS, icon: 'Users' },
   { to: '/roles', label: 'Roles', permission: PermissionKey.MANAGE_ROLES, icon: 'Roles' },
   { to: '/settings', label: 'Settings', permission: PermissionKey.VIEW_SETTINGS, icon: 'Settings' },
-  { to: '/authority', label: 'Authority', permission: PermissionKey.VIEW_SETTINGS, icon: 'Authority' },
   { to: '/api-keys', label: 'API Keys', permission: PermissionKey.MANAGE_API_KEYS, icon: 'ApiKeys' },
   { to: '/nodes', label: 'Nodes', permission: PermissionKey.MANAGE_NODES, icon: 'Nodes' },
   { to: '/templates', label: 'Templates', permission: PermissionKey.MANAGE_TEMPLATES, icon: 'Templates' },

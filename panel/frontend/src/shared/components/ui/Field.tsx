@@ -15,7 +15,10 @@ interface FieldProps {
 }
 
 const fieldClass =
-  'w-full bg-black/30 backdrop-blur-md text-white placeholder-gray-500 ' +
+  // ks-input hooks the control into the Theme Studio's Forms section so
+  // every GlassField-rendered input/select/textarea follows the admin's
+  // theme; the Tailwind utilities stay as the stock fallback.
+  'ks-input w-full bg-black/30 backdrop-blur-md text-white placeholder-gray-500 ' +
   'border border-white/10 rounded-md px-3 py-2 text-sm ' +
   'focus:outline-none focus:ring-2 focus:ring-white/60 focus:border-white/40 ' +
   'transition-colors duration-150';

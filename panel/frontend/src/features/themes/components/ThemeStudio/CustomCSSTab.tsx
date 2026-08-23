@@ -182,6 +182,9 @@ export const CustomCSSTab: React.FC<CustomCSSTabProps> = ({ draft, patch }) => {
               <h4 className="text-xs font-semibold text-gray-300 mb-1">Utilities</h4>
               <ul className="text-xs text-gray-400 space-y-1 font-mono leading-relaxed">
                 <li><span className="text-gray-200">--ks-*</span> CSS variables (see other tabs) — themeable tokens</li>
+                <li><span className="text-gray-200">--ks-ui-primary/secondary/success/warning/danger/muted</span> — semantic colours (Utilities tab)</li>
+                <li><span className="text-gray-200">--ks-space-base, --ks-radius-*-u, --ks-elev-1..4, --ks-t-fast/normal/slow/vslow, --ks-z-*</span> — design tokens (Utilities tab)</li>
+                <li><span className="text-gray-200">--ks-chart-grid / --ks-chart-dot / --ks-chart-track</span> — chart hairlines, dots and gauge tracks</li>
                 <li><span className="text-gray-200">.ks-input-mono</span> — monospace input</li>
                 <li><span className="text-gray-200">.ks-card-grid</span> — responsive card grid</li>
               </ul>

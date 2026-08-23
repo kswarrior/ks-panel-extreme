@@ -22,6 +22,8 @@ export interface Form {
   category: string;
   location_country: string;
   location_node: string;
+  icon: string;
+  color: string;
 }
 
 export const emptyForm: Form = {
@@ -46,6 +48,8 @@ export const emptyForm: Form = {
   category: '',
   location_country: '',
   location_node: '',
+  icon: '',
+  color: '',
 };
 
 export const KSEDGE_URL =

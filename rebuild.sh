@@ -86,6 +86,24 @@ log_step() { echo -e "${BLUE}==>${NC} $*"; }
 
 die() { log_err "$*"; exit 1; }
 
+# file_type: print file(1)'s output when the utility is installed; on
+# minimal hosts without file(1), fall back to reading the 4-byte ELF magic
+# (7f 45 4c 46) directly so build verification doesn't false-fail.
+file_type() {
+    if command -v file >/dev/null 2>&1; then
+        file "$1"
+    elif [ "$(head -c 4 "$1" 2>/dev/null | od -An -tx1 | tr -d ' \n')" = "7f454c46" ]; then
+        echo "$1: ELF"
+    else
+        echo "$1: unknown format"
+        return 1
+    fi
+}
+
+# has_file_cmd: true when file(1) is available (needed for checks that grep
+# its detailed output, e.g. "with debug_info").
+has_file_cmd() { command -v file >/dev/null 2>&1; }
+
 show_help() {
     cat <<'EOF'
 KS Panel & KSEdge — Hardened Production Build Script
@@ -379,9 +397,14 @@ strip_binary() {
 
     # Verify binary still executes
     if ! "$bin" --version >/dev/null 2>&1 && ! "$bin" -version >/dev/null 2>&1 && ! "$bin" version >/dev/null 2>&1; then
-        # Try a more generic check - just verify it's a valid ELF
-        if file "$bin" | grep -q "ELF"; then
+        # Try a more generic check - just verify it's a valid ELF.
+        # Prefer file(1); fall back to reading the 4-byte ELF magic
+        # (7f 45 4c 46) directly when file(1) isn't installed, so a
+        # minimal host doesn't false-positive "corrupted after strip".
+        if command -v file >/dev/null 2>&1 && file "$bin" | grep -q "ELF"; then
             log_ok "$name verified as valid ELF binary after strip"
+        elif [ "$(head -c 4 "$bin" 2>/dev/null | od -An -tx1 | tr -d ' \n')" = "7f454c46" ]; then
+            log_ok "$name verified as valid ELF binary after strip (magic bytes)"
         else
             log_err "$name appears corrupted after strip!"
             return 1
@@ -552,18 +575,18 @@ verify_binary() {
     fi
 
     # ELF format
-    if ! file "$bin" | grep -q "ELF"; then
+    if ! file_type "$bin" | grep -q "ELF"; then
         log_err "$name: Not a valid ELF binary"
         return 1
     fi
 
     # Architecture
     local arch_info
-    arch_info=$(file "$bin")
+    arch_info=$(file_type "$bin")
     log_info "$name: $arch_info"
 
     # Check for debug info (production should not have it)
-    if [[ "$BUILD_MODE" == "production" ]]; then
+    if [[ "$BUILD_MODE" == "production" ]] && has_file_cmd; then
         if file "$bin" | grep -q "with debug_info"; then
             log_warn "$name: Binary contains debug info (unexpected for production)"
         else
@@ -684,7 +707,7 @@ security_verification() {
     done
 
     # Verify no debug info in production
-    if [[ "$BUILD_MODE" == "production" ]]; then
+    if [[ "$BUILD_MODE" == "production" ]] && has_file_cmd; then
         for bin in kspanel ksedge; do
             local path="$RELEASE_DIR/$bin"
             if file "$path" | grep -q "with debug_info"; then

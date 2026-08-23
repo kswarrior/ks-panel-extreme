@@ -3,15 +3,19 @@ package handlers
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/example/kspanel/internal/backup"
 	"github.com/example/kspanel/internal/config"
+	"github.com/example/kspanel/internal/datamove"
 	"github.com/example/kspanel/internal/db"
 	"github.com/example/kspanel/internal/repository"
 )
@@ -30,11 +34,11 @@ import (
 // unbounded margin under WAL mode — which is exactly the "size isn't real"
 // symptom this page exists to prevent.
 type DatabaseInfo struct {
-	Engine      string          `json:"engine"`
-	Path        string          `json:"path"`
-	Version     string          `json:"version"`
-	JournalMode string          `json:"journal_mode"`
-	GeneratedAt time.Time      `json:"generated_at"`
+	Engine      string    `json:"engine"`
+	Path        string    `json:"path"`
+	Version     string    `json:"version"`
+	JournalMode string    `json:"journal_mode"`
+	GeneratedAt time.Time `json:"generated_at"`
 
 	// Real-time size accounting. The inspector runs wal_checkpoint(TRUNCATE)
 	// first, so after that checkpoint the on-disk main file is the single
@@ -62,13 +66,13 @@ type DatabaseInfo struct {
 	LastModifiedAgoSec int64 `json:"last_modified_ago_secs"`
 
 	// Health summary. IntegrityOk flips to false if PRAGMA integrity_quick
-	// (or the all-tables foreign_key_check) emitted anything but "ok".    
-	IntegrityOk        bool     `json:"integrity_ok"`
-	IntegrityIssues    []string `json:"integrity_issues"`
-	ForeignKeyOk       bool     `json:"foreign_key_ok"`
-	ForeignKeyIssues   []string `json:"foreign_key_issues"`
-	FragmentsPct   float64 `json:"fragmentation_pct"`
-	LastCheckpoint string  `json:"last_checkpoint"`
+	// (or the all-tables foreign_key_check) emitted anything but "ok".
+	IntegrityOk      bool     `json:"integrity_ok"`
+	IntegrityIssues  []string `json:"integrity_issues"`
+	ForeignKeyOk     bool     `json:"foreign_key_ok"`
+	ForeignKeyIssues []string `json:"foreign_key_issues"`
+	FragmentsPct     float64  `json:"fragmentation_pct"`
+	LastCheckpoint   string   `json:"last_checkpoint"`
 
 	Tables []DatabaseTable `json:"tables"`
 
@@ -87,9 +91,9 @@ type DatabaseInfo struct {
 	// Connection/account stats from PRAGMA — those reported only where the
 	// driver exposes them; zero is the "not available on this build"
 	// sentinel the UI renders as an em-dash.
-	TotalConnections int64 `json:"total_connections"`
-	CacheSizePages   int64 `json:"cache_size_pages"`
-	AutoVacuumMode   int64 `json:"auto_vacuum_mode"`
+	TotalConnections int64  `json:"total_connections"`
+	CacheSizePages   int64  `json:"cache_size_pages"`
+	AutoVacuumMode   int64  `json:"auto_vacuum_mode"`
 	Encoding         string `json:"encoding"`
 	// Bytes written since the previous snapshot of this handler — the
 	// monotonically-growing surface that an operator correlates with "the
@@ -116,25 +120,25 @@ type DatabaseTable struct {
 	// Real-time on-disk bytes used by the table's own b-tree (SUM(pgsize)
 	// from dbstat for the table's pages). Comes straight from the live pager
 	// after the inspector's wal_checkpoint, so it tracks live data growth.
-	SizeBytes  int64  `json:"size_bytes"`
-	IndexBytes int64  `json:"index_bytes"`
-	WithoutRowid bool  `json:"without_rowid"`
-	Type       string `json:"type"`
+	SizeBytes    int64  `json:"size_bytes"`
+	IndexBytes   int64  `json:"index_bytes"`
+	WithoutRowid bool   `json:"without_rowid"`
+	Type         string `json:"type"`
 	// Live-monitor extras. PageCount/LeafPages/InternalPages/OverflowPages
 	// come straight from dbstat aggregations so an operator can see whether a
 	// table is a single root page or has grown into a multi-level b-tree —
 	// the difference is what separates "tiny lookup table" from "needs an
 	// index" at a glance. AvgRowBytes is size_bytes / row_count, capped to
 	// the page_size to keep the divisor sane on empty tables.
-	PageCount    int64 `json:"page_count"`
-	LeafPages    int64 `json:"leaf_pages"`
+	PageCount     int64 `json:"page_count"`
+	LeafPages     int64 `json:"leaf_pages"`
 	InternalPages int64 `json:"internal_pages"`
 	OverflowPages int64 `json:"overflow_pages"`
-	AvgRowBytes  int64 `json:"avg_row_bytes"`
+	AvgRowBytes   int64 `json:"avg_row_bytes"`
 	// Largest cell payload across this table's pages — a high value relative
 	// to the page size flags blob-heavy tables that overflow into side
 	// pages (which is exactly the growth mode an operator wants to watch).
-	MaxPayload   int64 `json:"max_payload"`
+	MaxPayload int64 `json:"max_payload"`
 	// Delta vs the previous snapshot the panel captured on the previous
 	// /api/database request — see DatabaseInfo.SinceLast for the
 	// accounting. Zero on the first snapshot for a given table.
@@ -181,11 +185,11 @@ func DatabaseInfoHandler(w http.ResponseWriter, r *http.Request) {
 	defer con.Close()
 
 	info := DatabaseInfo{
-		Path:        config.DatabasePath(),
-		Engine:      "sqlite",
-		JournalMode: "unknown",
-		GeneratedAt: time.Now().UTC(),
-		Tables:      []DatabaseTable{},
+		Path:             config.DatabasePath(),
+		Engine:           "sqlite",
+		JournalMode:      "unknown",
+		GeneratedAt:      time.Now().UTC(),
+		Tables:           []DatabaseTable{},
 		IntegrityIssues:  []string{},
 		ForeignKeyIssues: []string{},
 	}
@@ -542,6 +546,7 @@ func redactedDSN(dsn string) string {
 	}
 	return dsn
 }
+
 // doesn't exist (the -wal / -shm sidecars are legitimately absent when the
 // DB has just been checkpointed, which happens every time this handler
 // runs).
@@ -606,29 +611,79 @@ func SnapshotStoreResetForTest() {
 // operator picks an engine plus its connection coordinates — either a
 // full DSN or the friendlier host:port + user/pass/db tuple the UI
 // exposes. The handler validates connectivity (against the new engine,
-// never the currently open one) before persisting.
+// never the currently open one) before doing anything else.
+//
+// Beyond the coordinates every behaviour of the switch is operator-
+// configurable so the web UI can drive the full pipeline: optional data
+// sync into the new backend, a pre-switch backup, automatic restore on
+// failure and a post-sync recheck.
 type EngineSwitchRequest struct {
-	Engine   string `json:"engine"`
-	DSN      string `json:"dsn,omitempty"`
+	Engine string `json:"engine"`
+	DSN    string `json:"dsn,omitempty"`
 	// Friendlier form, mirrors `./kspanel seed --url ...`:
 	URL      string `json:"url,omitempty"`
 	User     string `json:"user,omitempty"`
 	Password string `json:"password,omitempty"`
 	Database string `json:"database,omitempty"`
+
+	// ── Sync options ─────────────────────────────────────────────────
+	// SyncData copies every row from the current database into the target
+	// before the new coordinates are persisted. When false the switch is
+	// config-only (the historical behaviour).
+	SyncData bool `json:"sync_data"`
+	// CreateBackup snapshots the CURRENT database before syncing. Pointer
+	// form so "field not sent" defaults to true — the safe choice.
+	CreateBackup *bool `json:"create_backup,omitempty"`
+	// Verify rechecks the synced target after the copy (row parity per
+	// table + engine-level integrity where available). Defaults to true.
+	Verify *bool `json:"verify,omitempty"`
+	// BatchSize rows per multi-row INSERT during the sync. 0 = server
+	// default (datamove.DefaultBatchSize); clamped to [0, 10000].
+	BatchSize int `json:"batch_size,omitempty"`
+	// ClearTarget empties each target table before copying so seeded rows
+	// can't collide with the source's primary keys. Defaults to true.
+	ClearTarget *bool `json:"clear_target,omitempty"`
+	// Tables restricts the sync to specific tables. Empty = all tables.
+	Tables []string `json:"tables,omitempty"`
 }
 
 // EngineSwitchResponse confirms the persisted engine + a redacted DSN so the
 // SPA can paint the post-switch state without leaking the password.
 type EngineSwitchResponse struct {
-	OK       bool   `json:"ok"`
-	Engine   string `json:"engine"`
-	DSN      string `json:"dsn"` // redacted
-	Message  string `json:"message"`
-	// RequiresRestart is always true: the panel keeps its current pool open
-	// until the operator restarts `launch`, exactly like the CLI flags the
-	// env vars. We surface it so the UI can tell the user the next step.
+	OK      bool   `json:"ok"`
+	Engine  string `json:"engine"`
+	DSN     string `json:"dsn"` // redacted
+	Message string `json:"message"`
+	// RequiresRestart is always true on success: the panel keeps its current
+	// pool open until the operator restarts `launch`, exactly like the CLI
+	// flags / env vars. Surfaced so the UI can tell the user the next step.
 	RequiresRestart bool `json:"requires_restart"`
+
+	// ── Sync results (populated when sync_data was requested) ──────────
+	Synced     bool                   `json:"synced"`
+	RowsCopied int64                  `json:"rows_copied"`
+	Tables     []datamove.TableResult `json:"tables"`
+	Steps      []string               `json:"steps"`
+	DurationMs int64                  `json:"duration_ms"`
+	// Backup of the pre-switch database, when one was taken. ID/path let
+	// the UI point the operator at the restorable artifact.
+	BackupID    string `json:"backup_id,omitempty"`
+	BackupPath  string `json:"backup_path,omitempty"`
+	BackupBytes int64  `json:"backup_bytes,omitempty"`
+	// RolledBack reports that an error occurred mid-sync and the target was
+	// restored to its pre-sync state; the panel keeps the OLD configuration.
+	RolledBack bool `json:"rolled_back"`
+	// Verified + issues/warnings from the post-sync recheck.
+	Verified       bool     `json:"verified"`
+	VerifyIssues   []string `json:"verify_issues"`
+	VerifyWarnings []string `json:"verify_warnings"`
 }
+
+// engineSwitchMu serialises engine switches. Two overlapping requests could
+// otherwise interleave backups/syncs against the same live database and
+// produce two half-written targets; a switch is rare but heavyweight, so a
+// plain process-wide mutex is the right shape.
+var engineSwitchMu sync.Mutex
 
 // SetDatabaseEngineHandler validates a database engine switch coming from the
 // admin Database page and, on success, persists it via config.SaveDBConfig so
@@ -637,11 +692,29 @@ type EngineSwitchResponse struct {
 // silently fracture in-flight transactions; safer to make the change durable
 // and ask the operator to restart.
 //
+// With sync_data enabled the handler runs the full migration pipeline BEFORE
+// persisting anything:
+//
+//  1. Backup the current database (SQLite → VACUUM INTO snapshot; Postgres /
+//     MySQL → full dump into an equivalent SQLite snapshot file) so there is
+//     always a restorable artifact on disk.
+//  2. Bring the target schema up to date (migrations + idempotent seed).
+//  3. Copy every table across inside ONE destination transaction — any copy
+//     error rolls the target back to its exact pre-sync state.
+//  4. Recheck everything: per-table row parity against the source plus
+//     integrity/foreign-key checks where the engine exposes them.
+//  5. Only after all of that succeeded are the new coordinates written to
+//     kspanel.env. A failure at ANY step keeps the old engine active,
+//     reports rolled_back=true and hands back the backup coordinates.
+//
 // Privacy note: passwords in the request body are written to kspanel.env as
 // part of the DSN. kspanel.env sits next to kspanel.db in DataDir; an operator
 // who can read one can read the other, so this keeps the existing trust
 // boundary intact. The JSON we return always carries the redacted DSN.
 func SetDatabaseEngineHandler(w http.ResponseWriter, r *http.Request) {
+	engineSwitchMu.Lock()
+	defer engineSwitchMu.Unlock()
+
 	var req EngineSwitchRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -672,44 +745,266 @@ func SetDatabaseEngineHandler(w http.ResponseWriter, r *http.Request) {
 		dsn = config.DatabasePath()
 	}
 
-	// Validate connectivity BEFORE persisting — refuse to write a DSN that
-	// won't open. We use a fresh dialect instance (the running panel keeps
-	// its own pool) and immediately close the probe. For a brand-new
-	// Postgres/MySQL database we tolerate "database does not exist" so the
-	// operator can seed it after the switch (the response surfaces that the
-	// database needs `seed`).
-	probeDB, perr := d.Open(dsn)
-	if perr != nil {
-		writeJSON(w, EngineSwitchResponse{
-			OK:      false,
-			Engine:  d.Name(),
-			DSN:     redactedDSN(dsn),
-			Message: "connection test failed: " + perr.Error(),
-		})
-		return
+	resp := EngineSwitchResponse{
+		Engine:         d.Name(),
+		DSN:            redactedDSN(dsn),
+		Steps:          []string{},
+		Tables:         []datamove.TableResult{},
+		VerifyIssues:   []string{},
+		VerifyWarnings: []string{},
 	}
-	probeDB.Close()
+	started := time.Now()
 
-	// Persist. SaveDBConfig overwrites only the KSPANEL_DB_* trio in
-	// kspanel.env, preserving any other keys the operator keeps there.
-	if err := config.SaveDBConfig(engine, dsn); err != nil {
-		writeJSON(w, EngineSwitchResponse{
-			OK:      false,
-			Engine:  d.Name(),
-			DSN:     redactedDSN(dsn),
-			Message: "persist failed: " + err.Error(),
-		})
-		return
+	// Refuse switching a database onto itself — the copy would read and
+	// write the same rows. SQLite paths compare cleaned; other DSNs verbatim.
+	cur := config.DatabaseConfig()
+	if curD, cerr := db.NewDialect(cur.Engine); cerr == nil && curD.Name() == d.Name() {
+		same := false
+		if d.IsSQLite() {
+			same = filepath.Clean(dsn) == filepath.Clean(cur.DSN)
+		} else {
+			same = strings.TrimSpace(dsn) == strings.TrimSpace(cur.DSN)
+		}
+		if same {
+			resp.Message = "the panel already uses this database"
+			resp.DurationMs = msSince(started)
+			writeJSON(w, resp)
+			return
+		}
 	}
 
-	writeJSON(w, EngineSwitchResponse{
-		OK:              true,
-		Engine:          d.Name(),
-		DSN:             redactedDSN(dsn),
-		Message:         "database engine updated — restart kspanel launch to apply",
-		RequiresRestart: true,
+	// Open + validate the target BEFORE any heavy work. db.Open (rather than
+	// a raw dialect open) also creates missing parent directories for a
+	// brand-new SQLite path instead of failing with a confusing driver error.
+	target, _, terr := db.Open(config.DBConfig{Engine: d.Name(), DSN: dsn})
+	if terr != nil {
+		// Redact before echoing: some drivers embed parts of the DSN
+		// (credentials included) in their error strings.
+		resp.Message = "connection test failed: " + redactedDSN(terr.Error())
+		resp.DurationMs = msSince(started)
+		writeJSON(w, resp)
+		return
+	}
+	defer target.Close()
+
+	// Sync option defaults: backup / verify / clear-target all default ON —
+	// the safe pipeline runs unless the operator explicitly disables parts.
+	createBackup := req.CreateBackup == nil || *req.CreateBackup
+	verifyAfter := req.Verify == nil || *req.Verify
+	clearTarget := req.ClearTarget == nil || *req.ClearTarget
+	batchSize := clampBatchSize(req.BatchSize)
+
+	if !req.SyncData {
+		persistEngineConfig(&resp, engine, dsn,
+			"database engine updated — restart kspanel launch to apply", started)
+		writeJSON(w, resp)
+		return
+	}
+
+	// ── Full pipeline: backup → schema → copy → recheck → persist ──────
+	srcCfg := config.DatabaseConfig()
+	srcD, serr := db.NewDialect(srcCfg.Engine)
+	if serr != nil {
+		resp.Message = "current engine unknown: " + serr.Error()
+		resp.DurationMs = msSince(started)
+		writeJSON(w, resp)
+		return
+	}
+	srcCon, serr := repository.OpenDB()
+	if serr != nil {
+		resp.Message = "cannot open current database for sync: " + serr.Error()
+		resp.DurationMs = msSince(started)
+		writeJSON(w, resp)
+		return
+	}
+	defer srcCon.Close()
+
+	// Step 1 — backup of the current database. Non-SQLite sources are dumped
+	// into a SQLite snapshot via the same mover used for the real copy, so
+	// EVERY switch leaves a restorable .db artifact in the standard backup
+	// directory regardless of engine.
+	if createBackup {
+		b, berr := createPreSwitchBackup(srcD, srcCon, batchSize)
+		if berr != nil {
+			resp.Message = "backup failed: " + berr.Error()
+			resp.DurationMs = msSince(started)
+			writeJSON(w, resp)
+			return
+		}
+		resp.BackupID, resp.BackupPath, resp.BackupBytes = b.ID, b.Path, b.Size
+		resp.Steps = append(resp.Steps,
+			fmt.Sprintf("backup created: %s (%d bytes)", b.Filename, b.Size))
+	} else {
+		resp.Steps = append(resp.Steps, "backup skipped (disabled)")
+	}
+
+	// Step 2 — bring the target schema up to date so every source table has
+	// a destination with identical columns.
+	resp.Steps = append(resp.Steps, "running migrations on target")
+	if err := db.EnsureSchemaAndSeed(d, target); err != nil {
+		resp.Message = "target schema setup failed: " + err.Error()
+		resp.RolledBack = true // nothing copied yet; target left untouched
+		resp.DurationMs = msSince(started)
+		writeJSON(w, resp)
+		return
+	}
+
+	// Step 3 — copy all data. Sync runs inside ONE destination transaction:
+	// on error it returns AND rolls the target back to its pre-sync state in
+	// the same breath (that rollback IS the restore-on-error guarantee).
+	syncOpts := datamove.Options{
+		BatchSize:   batchSize,
+		ClearTarget: clearTarget,
+		Tables:      req.Tables,
+	}
+	res, cerr := datamove.Sync(srcD, srcCon, d, target, syncOpts)
+	if res != nil {
+		resp.Steps = append(resp.Steps, res.Steps...)
+		resp.Tables = res.Tables
+		resp.RowsCopied = res.RowsCopied
+	}
+	if cerr != nil {
+		resp.Message = "sync failed — target restored to its previous state: " + cerr.Error()
+		resp.RolledBack = true
+		resp.DurationMs = msSince(started)
+		log.Printf("database engine switch rolled back: %v", cerr)
+		writeJSON(w, resp)
+		return
+	}
+
+	bl := baselinesFromResult(res)
+	// Step 4 — recheck everything after the sync: row parity per table plus
+	// engine-level integrity where available.
+	if verifyAfter {
+		issues, warnings, verr := datamove.Verify(srcD, srcCon, d, target, bl.order, bl.byTable)
+		resp.VerifyIssues, resp.VerifyWarnings = issues, warnings
+		if verr != nil {
+			resp.VerifyIssues = append(resp.VerifyIssues, verr.Error())
+		}
+		if len(resp.VerifyIssues) > 0 {
+			// Post-commit integrity failure: actively clear what we copied
+			// so the target ends up back at its pre-sync (empty) state and
+			// the operator's old configuration stays authoritative.
+			cleanErr := cleanupCopiedTables(target, d, bl.order)
+			resp.RolledBack = true
+			resp.Message = "verification failed — synced data removed from target: " +
+				strings.Join(resp.VerifyIssues, "; ")
+			if cleanErr != nil {
+				resp.Message += fmt.Sprintf(" (target cleanup incomplete: %v)", cleanErr)
+			}
+			resp.DurationMs = msSince(started)
+			log.Printf("database engine switch failed verification: %s", resp.Message)
+			writeJSON(w, resp)
+			return
+		}
+		resp.Verified = true
+		resp.Steps = append(resp.Steps, "recheck passed: row parity + integrity OK")
+	}
+
+	// Step 5 — everything succeeded; make the new coordinates durable.
+	persistEngineConfig(&resp, engine, dsn,
+		fmt.Sprintf("database switched and %d tables / %d rows synced — restart kspanel launch to apply",
+			len(res.Tables), res.RowsCopied),
+		started)
+	resp.Synced = true
+	writeJSON(w, resp)
+}
+
+// createPreSwitchBackup snapshots the CURRENT database into the standard
+// backup directory. SQLite sources use VACUUM INTO (fast, consistent);
+// Postgres / MySQL sources are dumped through datamove into an equivalent
+// SQLite snapshot file so a restorable artifact always exists.
+func createPreSwitchBackup(srcD db.Dialect, src *sql.DB, batchSize int) (backup.Backup, error) {
+	if srcD.IsSQLite() {
+		return backup.Create("pre-switch")
+	}
+	return backup.CreateWithWriter("pre-switch", func(p string) error {
+		dump, sd, err := db.Open(config.DBConfig{Engine: "sqlite", DSN: p})
+		if err != nil {
+			return err
+		}
+		defer dump.Close()
+		if err := db.EnsureSchemaAndSeed(sd, dump); err != nil {
+			return err
+		}
+		_, err = datamove.Sync(srcD, src, sd, dump, datamove.Options{
+			BatchSize:   batchSize,
+			ClearTarget: true,
+		})
+		return err
 	})
 }
+
+// persistEngineConfig writes the chosen coordinates to kspanel.env and fills
+// the response for the success path. Called only AFTER backup/sync/verify
+// have all succeeded (or when no sync was requested), so a failure anywhere
+// earlier never flips the panel's stored engine.
+func persistEngineConfig(resp *EngineSwitchResponse, engine, dsn, msg string, started time.Time) {
+	if err := config.SaveDBConfig(engine, dsn); err != nil {
+		resp.OK = false
+		resp.Message = "persist failed: " + err.Error()
+		resp.DurationMs = msSince(started)
+		return
+	}
+	resp.OK = true
+	resp.Message = msg
+	resp.RequiresRestart = true
+	resp.DurationMs = msSince(started)
+}
+
+// cleanupCopiedTables removes the rows a failed post-commit verification
+// rejected, children-first so FKs can't block the deletes. Best-effort: the
+// returned error (if any) is surfaced verbatim to the operator.
+func cleanupCopiedTables(target *sql.DB, d db.Dialect, order []string) error {
+	var firstErr error
+	for i := len(order) - 1; i >= 0; i-- {
+		if _, err := target.Exec(`DELETE FROM ` + quoteTableName(d, order[i])); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
+}
+
+// quoteTableName quotes an identifier for the engine's grammar. Kept local
+// because the handlers package has no other cross-engine SQL builder.
+func quoteTableName(d db.Dialect, name string) string {
+	if d.Name() == "mysql" {
+		return "`" + strings.ReplaceAll(name, "`", "``") + "`"
+	}
+	return `"` + strings.ReplaceAll(name, `"`, `""`) + `"`
+}
+
+// clampBatchSize bounds the operator-provided batch to sane values.
+func clampBatchSize(n int) int {
+	if n < 0 {
+		return 0
+	}
+	if n > 10000 {
+		return 10000
+	}
+	return n
+}
+
+type baselineInfo struct {
+	order   []string
+	byTable map[string]int64
+}
+
+// baselinesFromResult extracts the copy order + per-table source baselines
+// a Sync produced, in the shape Verify expects.
+func baselinesFromResult(res *datamove.Result) baselineInfo {
+	info := baselineInfo{byTable: make(map[string]int64)}
+	if res == nil {
+		return info
+	}
+	for _, tr := range res.Tables {
+		info.order = append(info.order, tr.Table)
+		info.byTable[tr.Table] = tr.BaselineRows
+	}
+	return info
+}
+
+func msSince(t time.Time) int64 { return time.Since(t).Milliseconds() }
 
 // DatabaseEnginesHandler lists the engines the panel supports and their
 // default ports so the admin UI can populate the "Change Database" form

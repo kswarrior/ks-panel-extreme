@@ -44,8 +44,15 @@ export interface Node {
   /** ISO-3166 alpha-2 country code the node physically lives in. The UI
    *  resolves emoji + display name from a client-side table. Empty = none. */
   location_country: string;
-  /** Operator's per-site label ("node-1", "rack-a3", …). Empty = none. */
+  /** Operator's per-site label ("node-1", "rack-a3", …). Empty = none.
+   *  The (name, label) pair is unique across nodes: two edges may share a
+   *  name and two may share a label, but never both. */
   location_node: string;
+  /** Symbolic icon key rendered on the card chip ("server", "cloud", …).
+   *  Empty = default heartbeat glyph. Validated server-side. */
+  icon: string;
+  /** Accent hex colour (#rrggbb) tinting the icon chip. Empty = theme grey. */
+  color: string;
   ram_used: number;
   ram_total: number;
   cpu_percent: number;

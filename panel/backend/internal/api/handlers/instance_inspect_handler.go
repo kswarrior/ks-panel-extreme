@@ -237,9 +237,9 @@ func ListSnapshotsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 type snapshotCreateRequest struct {
-	Name string `json:"name"`
-	Note string `json:"note"`
-	Type string `json:"type"` // e.g., "zip", "tar", "docker", "lxd"
+	Name     string `json:"name"`
+	Note     string `json:"note"`
+	Type     string `json:"type"`     // e.g., "zip", "tar", "docker", "lxd"
 	Location string `json:"location"` // e.g., "/mc/", "/tmp/snapshots/"
 }
 

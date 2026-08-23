@@ -12,6 +12,7 @@ import (
 
 	"github.com/example/kspanel/internal/auth"
 	"github.com/example/kspanel/internal/models"
+	"github.com/example/kspanel/internal/oauth"
 	"github.com/example/kspanel/internal/permissions"
 	"github.com/example/kspanel/internal/repository"
 	"github.com/go-chi/chi/v5"
@@ -62,8 +63,8 @@ func CreateUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate password with complexity policy
-	policy := auth.DefaultPasswordPolicy()
+	// Validate password with complexity policy (driven by Authority config)
+	policy := resolvePasswordPolicy()
 	if err := auth.ValidatePassword(req.Password, policy, req.Username, req.Email); err != nil {
 		http.Error(w, "password validation failed: "+err.Error(), http.StatusBadRequest)
 		return
@@ -127,13 +128,32 @@ func UpdateUserHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer con.Close()
 
-	// If password is being updated, validate it with the policy
+	// If password is being updated, validate it with the policy and
+	// against the target user's password history (Authentication tab).
 	var hash string
+	var previousHash string
 	if req.Password != "" {
-		policy := auth.DefaultPasswordPolicy()
+		policy := resolvePasswordPolicy()
 		if err := auth.ValidatePassword(req.Password, policy, req.Username, req.Email); err != nil {
 			http.Error(w, "password validation failed: "+err.Error(), http.StatusBadRequest)
 			return
+		}
+		historyConfig := resolvePasswordHistoryConfig()
+		if historyConfig.Enabled && historyConfig.MaxHistory > 0 {
+			if prev, err := repository.NewUserRepository(con).GetByID(id); err == nil && prev != nil {
+				previousHash = prev.PasswordHash
+				if hashes, herr := repository.NewPasswordHistoryRepository(con).
+					ListHashes(id, historyConfig.MaxHistory); herr == nil {
+					history := []auth.PasswordHistory{}
+					for _, h := range hashes {
+						history = append(history, auth.PasswordHistory{UserID: id, PasswordHash: h})
+					}
+					if verr := auth.ValidatePasswordWithHistory(req.Password, policy, history, historyConfig, req.Username, req.Email); verr != nil {
+						http.Error(w, "password validation failed: "+verr.Error(), http.StatusBadRequest)
+						return
+					}
+				}
+			}
 		}
 		hash, err = auth.HashPassword(req.Password)
 		if err != nil {
@@ -146,6 +166,13 @@ func UpdateUserHandler(w http.ResponseWriter, r *http.Request) {
 		log.Println("UpdateUser error:", err)
 		http.Error(w, "could not update user (username/email may already exist)", http.StatusConflict)
 		return
+	}
+	// Record the replaced hash so reuse checks cover admin resets too.
+	if previousHash != "" && hash != "" {
+		if err := repository.NewPasswordHistoryRepository(con).
+			Add(id, previousHash, resolvePasswordHistoryConfig().MaxHistory); err != nil {
+			log.Println("password_history add:", err)
+		}
 	}
 	RecordActivity(r, repository.ActivityInput{
 		Category:    models.ActivityCategoryUser,
@@ -521,21 +548,15 @@ func ListAuthProvidersHandler(w http.ResponseWriter, r *http.Request) {
 // authProviderLabel / authProviderKind mirror the canonical human
 // label + provider kind the Authority page renders the same ids with.
 // Kept server-side so the Roles form gets the same labels without
-// duplicating the table in the SPA bundle. Unknown ids fall back to
-// their raw id + "channel" so removing / renaming a provider later
-// never breaks the picker.
+// duplicating the table in the SPA bundle. OAuth labels come from the
+// oauth package (single source); unknown ids fall back to their raw id +
+// "channel" so removing / renaming a provider later never breaks the
+// picker.
 func authProviderLabel(id string) string {
+	if l := oauth.Label(id); l != "" {
+		return l
+	}
 	switch id {
-	case models.AuthorityProviderGoogle:
-		return "Google"
-	case models.AuthorityProviderMicrosoft:
-		return "Microsoft"
-	case models.AuthorityProviderApple:
-		return "Apple"
-	case models.AuthorityProviderDiscord:
-		return "Discord"
-	case models.AuthorityProviderGithub:
-		return "GitHub"
 	case models.AuthorityProviderEmail:
 		return "Email"
 	case models.AuthorityProviderPhone:

@@ -136,6 +136,9 @@ func parseSourceFromName(label string) string {
 	if strings.HasSuffix(label, "old") {
 		return "uploaded-from-restore"
 	}
+	if strings.HasSuffix(label, "pre-switch") {
+		return "pre-engine-switch"
+	}
 	return "vacuum-into"
 }
 
@@ -193,6 +196,50 @@ func Create(label string) (Backup, error) {
 		CreatedAt:  time.Now().UTC(),
 		SHA256:     digest,
 		Source:     "vacuum-into",
+		IsLiveSafe: true,
+	}, nil
+}
+
+// CreateWithWriter builds a Backup entry whose content is materialised by
+// fn at the destination path. It handles everything Create handles — the
+// backup directory, the timestamped `<ts>-<label>.db` naming, hashing,
+// failed-run cleanup — while letting the caller produce bytes that don't
+// come from VACUUM INTO. The engine-switch flow uses this to dump a
+// non-SQLite live database (Postgres / MySQL) into an equivalent SQLite
+// snapshot file so every switch leaves a restorable artifact behind.
+//
+// fn must leave a valid SQLite database at dstPath or return an error; a
+// returned error removes the partial file so a half-written snapshot never
+// shows up in List().
+func CreateWithWriter(label string, fn func(dstPath string) error) (Backup, error) {
+	opMu.Lock()
+	defer opMu.Unlock()
+	if err := ensureDir(); err != nil {
+		return Backup{}, err
+	}
+	ts := time.Now().UTC().Format("20060102-150405")
+	if label == "" {
+		label = "snapshot"
+	}
+	name := fileNamePattern + ts + "-" + sanitizeLabel(label) + ".db"
+	dst := filepath.Join(ListDir(), name)
+	if err := fn(dst); err != nil {
+		_ = os.Remove(dst)
+		return Backup{}, err
+	}
+	digest, size, err := hashFile(dst)
+	if err != nil {
+		return Backup{}, err
+	}
+	id := strings.TrimSuffix(strings.TrimPrefix(name, fileNamePattern), ".db")
+	return Backup{
+		ID:         id,
+		Filename:   name,
+		Path:       dst,
+		Size:       size,
+		CreatedAt:  time.Now().UTC(),
+		SHA256:     digest,
+		Source:     parseSourceFromName(sanitizeLabel(label)),
 		IsLiveSafe: true,
 	}, nil
 }

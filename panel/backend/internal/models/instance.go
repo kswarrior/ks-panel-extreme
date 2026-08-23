@@ -9,16 +9,16 @@ type Template struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	// Kind selects the ksedge driver: "docker" | "lxd" | "kvm" | "multipass".
-	Kind        string `json:"kind"`
+	Kind string `json:"kind"`
 	// Image is the driver-specific base (e.g. "alpine:3.19", "ubuntu/22.04",
 	// "debian-12"). Forwarded verbatim to the driver.
-	Image       string `json:"image"`
+	Image string `json:"image"`
 	// Spec is the JSON blob of driver-specific config (env, ports, limits,
 	// mounts, command…). Treated as opaque by the panel beyond validation of
 	// being well-formed JSON.
-	Spec        string `json:"spec"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	Spec      string    `json:"spec"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // InstancePage is a reusable page definition for instance templates.
@@ -28,16 +28,20 @@ type InstancePage struct {
 	ID              int64  `json:"id"`
 	Name            string `json:"name"`
 	Slug            string `json:"slug"`
-	Kind            string `json:"kind"`             // "builtin" | "custom"
+	Kind            string `json:"kind"` // "builtin" | "custom"
 	Category        string `json:"category"`
 	Description     string `json:"description"`
-	ContentType     string `json:"content_type"`      // "html" | "markdown" | "blocks"
+	ContentType     string `json:"content_type"` // "html" | "markdown" | "blocks"
 	ContentHTML     string `json:"content_html"`
 	ContentMarkdown string `json:"content_markdown"`
 	ContentBlocks   string `json:"content_blocks"`
-	IconSVG         string `json:"icon_svg"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	// Actions is a JSON array of executable page actions (shell, file ops,
+	// docker/kvm/lxd) authored in the Instance Page Studio. Empty string ==
+	// no actions. Validated server-side to be a well-formed JSON array.
+	Actions   string    `json:"actions"`
+	IconSVG   string    `json:"icon_svg"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // Instance is one deployed workload living on an edge node.
@@ -57,14 +61,14 @@ type Instance struct {
 	// OwnerName is the denormalised username — joined from users so the
 	// admin table can show "alice" instead of just the integer id.
 	OwnerName string `json:"owner_name,omitempty"`
-	Name       string `json:"name"`
+	Name      string `json:"name"`
 	// DisplayName is the human-readable label shown in the UI.
 	// Falls back to Name when empty.
 	DisplayName string `json:"display_name,omitempty"`
 	// Icon is an optional SVG string rendered on the instance card.
 	Icon string `json:"icon,omitempty"`
 	// Color is an optional hex colour for the icon/accent on the card.
-	Color string `json:"color,omitempty"`
+	Color      string `json:"color,omitempty"`
 	Kind       string `json:"kind"`
 	Status     string `json:"status"`
 	ExternalID string `json:"external_id,omitempty"`
@@ -82,7 +86,7 @@ type Instance struct {
 	// uses this to decide what to do with the container after the workflow
 	// completes (the install workflow always stops the container; an action
 	// respects its auto_stop_on_exit flag).
-	InstallKind     string `json:"install_kind,omitempty"`
+	InstallKind string `json:"install_kind,omitempty"`
 	// InstallAutoStop: when InstallKind=='action', 1 means the sweep loop
 	// should stop the container after the action's process exits (the action's
 	// auto_stop_on_exit flag). 0 means leave the container running.
@@ -104,6 +108,6 @@ type Instance struct {
 	// SuspensionHistory is a JSON array of suspension records for audit trail.
 	SuspensionHistory string `json:"-"`
 
-	CreatedAt        time.Time `json:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }

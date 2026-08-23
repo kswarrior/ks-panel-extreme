@@ -91,18 +91,30 @@ func ChangePasswordHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate new password with complexity policy
-	policy := auth.DefaultPasswordPolicy()
+	// Validate new password with complexity policy (driven by Authority config)
+	policy := resolvePasswordPolicy()
 	if err := auth.ValidatePassword(req.NewPassword, policy, me.Username, me.Email); err != nil {
 		http.Error(w, "password validation failed: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	// Check password history (would normally get this from database)
+	// Check password history against the hashes recorded on previous
+	// changes (Authentication tab → Password History). Before migration
+	// 043 this list was always empty, silently disabling reuse checks.
+	historyConfig := resolvePasswordHistoryConfig()
 	passwordHistory := []auth.PasswordHistory{}
+	if historyConfig.Enabled && historyConfig.MaxHistory > 0 {
+		hashes, err := repository.NewPasswordHistoryRepository(con).
+			ListHashes(uid, historyConfig.MaxHistory)
+		if err == nil {
+			for _, h := range hashes {
+				passwordHistory = append(passwordHistory, auth.PasswordHistory{UserID: uid, PasswordHash: h})
+			}
+		}
+		// A failed read falls through with the empty list: the reuse
+		// check degrades to no-op instead of locking the user out.
+	}
 
-	// Validate against password history
-	historyConfig := auth.DefaultPasswordHistoryConfig()
 	if err := auth.ValidatePasswordWithHistory(req.NewPassword, policy, passwordHistory, historyConfig, me.Username, me.Email); err != nil {
 		http.Error(w, "password validation failed: "+err.Error(), http.StatusBadRequest)
 		return
@@ -122,9 +134,18 @@ func ChangePasswordHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Record the OUTGOING password's hash so it (and the previous N-1
+	// hashes) are rejected as reuse on the next change.
+	if historyConfig.Enabled && historyConfig.MaxHistory > 0 {
+		if err := repository.NewPasswordHistoryRepository(con).
+			Add(uid, me.PasswordHash, historyConfig.MaxHistory); err != nil {
+			log.Println("password_history add:", err)
+		}
+	}
+
 	// Invalidate all user sessions on password change
 	invalidatedCount := auth.InvalidateUserSessions(uid)
-	
+
 	// Record password change activity
 	RecordActivity(r, repository.ActivityInput{
 		Username:    me.Username,

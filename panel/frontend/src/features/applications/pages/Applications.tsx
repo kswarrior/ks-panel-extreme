@@ -14,6 +14,7 @@ import {
   activateApplication,
   deactivateApplication,
   createApplication,
+  updateApplication,
   updateApplicationEnv,
   type GrantDecision,
   type ApplicationActivateConflict,
@@ -28,6 +29,7 @@ import {
   ApplicationConfigField,
 } from '@/features/applications/types/application';
 import ApplicationStudioTab from '@/features/applications/components/ApplicationStudioTab';
+import ApplicationRunModal from '@/features/applications/components/ApplicationRunModal';
 
 // Resolve the human-facing label for a capability code on a card chip / the
 // approval checklist. Falls back to the raw code when unknown.
@@ -103,6 +105,9 @@ const Applications: React.FC = () => {
 
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
+  // run modal — one-shot execution with target + env selection
+  const [runApp, setRunApp] = useState<Application | null>(null);
+
   // studio form state (used by Studio tab in upload modal)
   const [studioTab, setStudioTab] = useState<'general' | 'permission' | 'configure' | 'script'>('general');
   const [studioForm, setStudioForm] = useState({
@@ -122,10 +127,14 @@ const Applications: React.FC = () => {
   });
 
   const handleStudioSave = async () => {
-    // For now, create a new application
-    const { general, permission, configure } = studioForm;
+    const { general, permission, configure, script } = studioForm;
+    if (!general.name.trim()) { setError('Name is required.'); return; }
+    if (general.runtime !== 'custom' && !general.mainFile.trim() && script.files.length > 0) {
+      // Default the entrypoint to the first staged file so a Studio-created
+      // app is immediately runnable.
+      general.mainFile = script.files[0].path;
+    }
     try {
-      // 1. Create application with general and permission data
       const newApp = await createApplication({
         name: general.name,
         slug: general.name.toLowerCase().replace(/\s+/g, '-'),
@@ -134,10 +143,24 @@ const Applications: React.FC = () => {
         description: general.note,
         icon: '',
         runtime: general.runtime,
-        entrypoint: general.mainFile,
+        entrypoint: general.mainFile || (general.runtime === 'custom' ? general.command : ''),
         config_schema: [],
+        files: script.files.filter((f) => f.path.trim() && f.content !== undefined),
         permissionsRequested: permission.map(p => ({ capability: p.capability, access_level: p.access_level })),
       });
+      if (general.runtime === 'custom' && general.command) {
+        // Custom runtime keeps its command line in the entrypoint field.
+        await updateApplication(newApp.id, {
+          name: general.name,
+          category: 'custom',
+          version: general.version,
+          description: general.note,
+          icon: '',
+          runtime: general.runtime,
+          entrypoint: general.command,
+          config_schema: [],
+        });
+      }
       // 2. Update env if any
       if (Object.keys(configure).length > 0) {
         await updateApplicationEnv(newApp.id, configure);
@@ -495,10 +518,31 @@ return (
                   <CardMenu
                     ariaLabel={`Actions for application ${a.name}`}
                     items={[
+                      {
+                        key: 'run', label: 'Run…', tone: 'default',
+                        icon: (
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                        ),
+                      },
+                      {
+                        key: 'edit', label: 'Edit info', tone: 'default',
+                        icon: (
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                        ),
+                      },
+                      {
+                        key: 'configure', label: 'Configure fields', tone: 'default',
+                        icon: (
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" /></svg>
+                        ),
+                      },
                       { key: 'toggle', label: a.active ? 'Deactivate' : 'Activate', tone: 'default', icon: (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>) },
                     ]}
                     onSelect={(key) => {
-                      if (key === 'toggle') {
+                      if (key === 'run') setRunApp(a);
+                      else if (key === 'edit') openEdit(a);
+                      else if (key === 'configure') openConfigure(a);
+                      else if (key === 'toggle') {
                         if (a.active) stop(a);
                         else start(a);
                       }
@@ -707,6 +751,11 @@ return (
         )}
         {grantError && <p className="text-red-400 text-xs">{grantError}</p>}
       </GlassModal>
+
+      {/* ---- Run modal (target + env + one-shot execution) ---- */}
+      {runApp && (
+        <ApplicationRunModal app={runApp} onClose={() => setRunApp(null)} />
+      )}
     </div>
   );
 };

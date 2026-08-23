@@ -1,0 +1,60 @@
+src/features/database/components/DatabaseComponents.tsx(92,33): error TS2345: Argument of type 'DatabaseEngineInfo[]' is not assignable to parameter of type 'SetStateAction<DatabaseEngineInfo[]>'.
+  Type 'import("/test/ks-panel/panel/frontend/src/shared/api/admin").DatabaseEngineInfo[]' is not assignable to type 'import("/test/ks-panel/panel/frontend/src/features/database/types/database").DatabaseEngineInfo[]'.
+    Type 'import("/test/ks-panel/panel/frontend/src/shared/api/admin").DatabaseEngineInfo' is not assignable to type 'import("/test/ks-panel/panel/frontend/src/features/database/types/database").DatabaseEngineInfo'.
+      Types of property 'default_port' are incompatible.
+        Type 'string' is not assignable to type 'number'.
+src/features/instance-pages/pages/InstancePageForm.tsx(80,46): error TS2345: Argument of type 'import("/test/ks-panel/panel/frontend/src/shared/types/instancePage").UpdateInstancePagePayload' is not assignable to parameter of type 'import("/test/ks-panel/panel/frontend/src/features/instance-pages/types/instancePage").UpdateInstancePagePayload'.
+  Types of property 'kind' are incompatible.
+    Type 'import("/test/ks-panel/panel/frontend/src/shared/types/instancePage").InstancePageKind' is not assignable to type 'import("/test/ks-panel/panel/frontend/src/features/instance-pages/types/instancePage").InstancePageKind'.
+      Type '"module"' is not assignable to type 'InstancePageKind'.
+src/features/instance-pages/pages/InstancePageForm.tsx(83,46): error TS2345: Argument of type 'import("/test/ks-panel/panel/frontend/src/shared/types/instancePage").CreateInstancePagePayload' is not assignable to parameter of type 'import("/test/ks-panel/panel/frontend/src/features/instance-pages/types/instancePage").CreateInstancePagePayload'.
+  Types of property 'kind' are incompatible.
+    Type 'import("/test/ks-panel/panel/frontend/src/shared/types/instancePage").InstancePageKind' is not assignable to type 'import("/test/ks-panel/panel/frontend/src/features/instance-pages/types/instancePage").InstancePageKind'.
+      Type '"module"' is not assignable to type 'InstancePageKind'.
+src/features/instance-pages/pages/InstancePageStudio.tsx(197,43): error TS2345: Argument of type 'import("/test/ks-panel/panel/frontend/src/shared/types/instancePage").UpdateInstancePagePayload' is not assignable to parameter of type 'import("/test/ks-panel/panel/frontend/src/features/instance-pages/types/instancePage").UpdateInstancePagePayload'.
+  Types of property 'kind' are incompatible.
+    Type 'import("/test/ks-panel/panel/frontend/src/shared/types/instancePage").InstancePageKind' is not assignable to type 'import("/test/ks-panel/panel/frontend/src/features/instance-pages/types/instancePage").InstancePageKind'.
+      Type '"module"' is not assignable to type 'InstancePageKind'.
+src/features/instance-pages/pages/InstancePageStudio.tsx(199,34): error TS2345: Argument of type 'import("/test/ks-panel/panel/frontend/src/shared/types/instancePage").CreateInstancePagePayload' is not assignable to parameter of type 'import("/test/ks-panel/panel/frontend/src/features/instance-pages/types/instancePage").CreateInstancePagePayload'.
+  Types of property 'kind' are incompatible.
+    Type 'import("/test/ks-panel/panel/frontend/src/shared/types/instancePage").InstancePageKind' is not assignable to type 'import("/test/ks-panel/panel/frontend/src/features/instance-pages/types/instancePage").InstancePageKind'.
+      Type '"module"' is not assignable to type 'InstancePageKind'.
+src/features/nodes/pages/NodeDetail.tsx(215,42): error TS2304: Cannot find name 'cpuLabel'.
+src/features/nodes/pages/NodeStats.tsx(422,62): error TS2339: Property 'cpu_cores' does not exist on type 'Node'.
+src/features/roles/components/RolePermissions.tsx(3,15): error TS2724: '"@/shared/types/permissions"' has no exported member named 'Permission'. Did you mean 'PermissionKey'?
+src/features/roles/components/RolePermissions.tsx(155,6): error TS2746: This JSX tag's 'children' prop expects a single child of type 'ReactElement<any, string | JSXElementConstructor<any>>', but multiple children were provided.
+src/features/roles/pages/RoleForm.tsx(172,69): error TS2322: Type 'SetStateAction<string[] | null>' is not assignable to type 'string[] | null'.
+  Type '(prevState: string[] | null) => string[] | null' is not assignable to type 'string[]'.
+src/features/roles/pages/RoleStats.tsx(60,43): error TS2339: Property 'builtin' does not exist on type 'Role'.
+src/features/system/pages/System.tsx(45,15): error TS2345: Argument of type 'SystemSnapshot' is not assignable to parameter of type 'SetStateAction<SystemSnapshot | null>'.
+  Type 'import("/test/ks-panel/panel/frontend/src/features/system/types/system").SystemSnapshot' is not assignable to type 'import("/test/ks-panel/panel/frontend/src/shared/types/system").SystemSnapshot'.
+    Types of property 'local' are incompatible.
+      Type 'LocalHost' is missing the following properties from type 'LocalHost': pid, panel_cpu_percent, panel_ram_used_mb, panel_ram_total_mb, panel_ram_used_pct
+src/features/templates/utils/templateFormUtils.ts(238,38): error TS2304: Cannot find name 'RestartPolicy'.
+src/features/templates/utils/templateFormUtils.ts(302,43): error TS2304: Cannot find name 'InstallAction'.
+src/features/templates/utils/templateFormUtils.ts(340,47): error TS2304: Cannot find name 'InstallAction'.
+src/features/templates/utils/templateFormUtils.ts(448,55): error TS2304: Cannot find name 'NetworkMode'.
+src/features/templates/utils/templateFormUtils.ts(449,67): error TS2304: Cannot find name 'RestartPolicy'.
+src/features/templates/utils/templateFormUtils.ts(457,45): error TS2304: Cannot find name 'LogLevel'.
+src/features/templates/utils/templateFormUtils.ts(462,14): error TS2304: Cannot find name 'emptyForm'.
+src/features/templates/utils/templateFormUtils.ts(463,20): error TS2304: Cannot find name 'emptyForm'.
+src/features/templates/utils/templateFormUtils.ts(464,14): error TS2304: Cannot find name 'emptyForm'.
+src/features/themes/components/ThemeStudio/BackgroundTab.tsx(38,11): error TS2322: Type '{ type: "text"; className: string; label: string; value: string; onChange: (e: ChangeEvent<HTMLInputElement>) => void; }' is not assignable to type 'DetailedHTMLProps<InputHTMLAttributes<HTMLInputElement>, HTMLInputElement>'.
+  Property 'label' does not exist on type 'DetailedHTMLProps<InputHTMLAttributes<HTMLInputElement>, HTMLInputElement>'.
+src/features/themes/components/ThemeStudio/BackgroundTab.tsx(47,11): error TS2322: Type '{ type: "text"; className: string; label: string; value: string; onChange: (e: ChangeEvent<HTMLInputElement>) => void; }' is not assignable to type 'DetailedHTMLProps<InputHTMLAttributes<HTMLInputElement>, HTMLInputElement>'.
+  Property 'label' does not exist on type 'DetailedHTMLProps<InputHTMLAttributes<HTMLInputElement>, HTMLInputElement>'.
+src/features/themes/components/ThemeStudio/CardTab.tsx(32,13): error TS2322: Type '{ type: "text"; className: string; label: string; value: any; onChange: (e: ChangeEvent<HTMLInputElement>) => void; }' is not assignable to type 'DetailedHTMLProps<InputHTMLAttributes<HTMLInputElement>, HTMLInputElement>'.
+  Property 'label' does not exist on type 'DetailedHTMLProps<InputHTMLAttributes<HTMLInputElement>, HTMLInputElement>'.
+src/features/themes/components/ThemeStudio/CardTab.tsx(41,13): error TS2322: Type '{ type: "text"; className: string; label: string; value: any; onChange: (e: ChangeEvent<HTMLInputElement>) => void; }' is not assignable to type 'DetailedHTMLProps<InputHTMLAttributes<HTMLInputElement>, HTMLInputElement>'.
+  Property 'label' does not exist on type 'DetailedHTMLProps<InputHTMLAttributes<HTMLInputElement>, HTMLInputElement>'.
+src/features/themes/components/ThemeStudio/DropdownsTab.tsx(37,13): error TS2322: Type '{ type: "text"; className: string; label: string; value: any; onChange: (e: ChangeEvent<HTMLInputElement>) => void; }' is not assignable to type 'DetailedHTMLProps<InputHTMLAttributes<HTMLInputElement>, HTMLInputElement>'.
+  Property 'label' does not exist on type 'DetailedHTMLProps<InputHTMLAttributes<HTMLInputElement>, HTMLInputElement>'.
+src/features/themes/components/ThemeStudio/DropdownsTab.tsx(46,13): error TS2322: Type '{ type: "text"; className: string; label: string; value: any; onChange: (e: ChangeEvent<HTMLInputElement>) => void; }' is not assignable to type 'DetailedHTMLProps<InputHTMLAttributes<HTMLInputElement>, HTMLInputElement>'.
+  Property 'label' does not exist on type 'DetailedHTMLProps<InputHTMLAttributes<HTMLInputElement>, HTMLInputElement>'.
+src/features/themes/components/ThemeStudio/LoadingTab.tsx(153,11): error TS2322: Type '{ type: "text"; className: string; label: string; value: any; onChange: (e: ChangeEvent<HTMLInputElement>) => void; }' is not assignable to type 'DetailedHTMLProps<InputHTMLAttributes<HTMLInputElement>, HTMLInputElement>'.
+  Property 'label' does not exist on type 'DetailedHTMLProps<InputHTMLAttributes<HTMLInputElement>, HTMLInputElement>'.
+src/features/themes/components/ThemeStudio/LoadingTab.tsx(162,11): error TS2322: Type '{ type: "text"; className: string; label: string; value: any; onChange: (e: ChangeEvent<HTMLInputElement>) => void; }' is not assignable to type 'DetailedHTMLProps<InputHTMLAttributes<HTMLInputElement>, HTMLInputElement>'.
+  Property 'label' does not exist on type 'DetailedHTMLProps<InputHTMLAttributes<HTMLInputElement>, HTMLInputElement>'.
+src/features/themes/components/ThemeStudio/UtilitiesTab.tsx(92,42): error TS2322: Type '{ className: string; placeholder: string; }' is not assignable to type 'DetailedHTMLProps<HTMLAttributes<HTMLDivElement>, HTMLDivElement>'.
+  Property 'placeholder' does not exist on type 'DetailedHTMLProps<HTMLAttributes<HTMLDivElement>, HTMLDivElement>'.
+src/features/users/pages/UserStats.tsx(61,43): error TS2339: Property 'mfa_enabled' does not exist on type 'User'.

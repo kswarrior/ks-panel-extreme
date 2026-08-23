@@ -2,6 +2,7 @@ package models
 
 import (
 	"encoding/json"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -57,7 +58,25 @@ const (
 	ModSourceURL    = "url"
 	ModSourceStudio = "studio"
 	ModSourceJSON   = "json"
+	// ModSourceSample tags mods installed from the panel's built-in sample
+	// catalog (GET/POST /api/mods/samples). Surfaced like every other source
+	// so the admin can tell a test mod from a real install at a glance.
+	ModSourceSample = "sample"
 )
+
+// modSlugRe is the server-side slug contract: lowercase alphanumerics and
+// hyphens, 1-64 chars, starting with a letter/digit. It matches exactly what
+// the frontend slugify() produces, so anything it rejects was hand-forged.
+// The check lives here (not only in pkgstore.safeSlug) because the DB row +
+// route params are consumed long before any filesystem path is derived.
+var modSlugRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,63}$`)
+
+// ValidModSlug reports whether slug satisfies the panel's slug contract. A
+// hostile slug ("", "../x", "A B", 200 chars) must be rejected at insert time
+// so it can never reach the asset routes or the package store.
+func ValidModSlug(slug string) bool {
+	return modSlugRe.MatchString(slug)
+}
 
 // ModPermission is one capability a mod declared it needs (from its manifest's
 // `permissionsRequested[]`). The panel treats activation as unsafe until every

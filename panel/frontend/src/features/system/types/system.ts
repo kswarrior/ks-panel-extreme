@@ -83,12 +83,18 @@ export interface LocalHost {
   addrs: string[];
   uptime_sec: number;
   process_uptime: number;
+  pid: number;
   go_version: string;
   goroutines: number;
   heap_alloc_mb: number;
   heap_sys_mb: number;
   sys_mb: number;
   num_gc: number;
+  // Panel process metrics (internal/sysinfo/sysinfo.go LocalHost).
+  panel_cpu_percent: number;
+  panel_ram_used_mb: number;
+  panel_ram_total_mb: number;
+  panel_ram_used_pct: number;
 }
 
 export interface DiskMount {
@@ -125,6 +131,10 @@ export interface SeriesSample {
   ram_used_mb: number;
   ram_used_pct: number;
   load1: number;
+  // Panel-process series (internal/sysinfo/sysinfo.go SeriesSample).
+  panel_cpu_percent: number;
+  panel_ram_used_mb: number;
+  panel_ram_used_pct: number;
 }
 
 // VersionInfo is the build-time identity baked into the running binary via
@@ -195,11 +205,13 @@ export interface ReinstallResponse {
   log?: string;
 }
 
-// ReinstallBackgroundResponse is what POST /api/system/reinstall-background returns.
+// ReinstallBackgroundResponse is what POST /api/system/reinstall-background
+// returns. Field names mirror internal/api/handlers/update_handler.go's
+// reinstallBackgroundResponse exactly.
 export interface ReinstallBackgroundResponse {
   ok: boolean;
   message: string;
-  script: string;
+  script_path: string;
 }
 
 // DatabaseInfo is the response shape for the read-only Database admin page.

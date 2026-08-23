@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/example/kspanel/internal/models"
@@ -21,20 +22,22 @@ func NewApplicationRepository(db *sql.DB) *ApplicationRepository {
 }
 
 const applicationColumns = `id, name, slug, category, version, description, icon, runtime, entrypoint,
-	config_schema, permissions, active, uploaded_by, source, source_url, created_at, updated_at`
+	config_schema, files, env, permissions, active, uploaded_by, source, source_url, created_at, updated_at`
 
 func scanApplication(scanner interface{ Scan(...any) error }) (*models.Application, error) {
 	var a models.Application
-	var cfgSchema, perms, source, sourceURL string
+	var cfgSchema, files, env, perms, source, sourceURL string
 	var uploadedBy sql.NullInt64
 	var active int
 	var created, updated string
 	if err := scanner.Scan(&a.ID, &a.Name, &a.Slug, &a.Category, &a.Version, &a.Description,
-		&a.Icon, &a.Runtime, &a.Entrypoint, &cfgSchema, &perms, &active,
+		&a.Icon, &a.Runtime, &a.Entrypoint, &cfgSchema, &files, &env, &perms, &active,
 		&uploadedBy, &source, &sourceURL, &created, &updated); err != nil {
 		return nil, err
 	}
 	a.ConfigSchema = json.RawMessage(cfgSchema)
+	a.Files = json.RawMessage(files)
+	a.Env = json.RawMessage(env)
 	a.Permissions = json.RawMessage(perms)
 	a.Active = active != 0
 	if source == "" {
@@ -57,19 +60,20 @@ type ApplicationPermissionReq struct {
 }
 
 type CreateApplicationInput struct {
-	Name             string
-	Slug             string
-	Category         string
-	Version          string
-	Description      string
-	Icon             string
-	Runtime          string
-	Entrypoint       string
-	ConfigSchema     json.RawMessage
-	PermissionsReq   []ApplicationPermissionReq
-	UploadedBy       int64
-	Source           string
-	SourceURL        string
+	Name           string
+	Slug           string
+	Category       string
+	Version        string
+	Description    string
+	Icon           string
+	Runtime        string
+	Entrypoint     string
+	ConfigSchema   json.RawMessage
+	Files          json.RawMessage
+	PermissionsReq []ApplicationPermissionReq
+	UploadedBy     int64
+	Source         string
+	SourceURL      string
 }
 
 func (r *ApplicationRepository) CreateApplication(in CreateApplicationInput) (*models.Application, error) {
@@ -89,6 +93,10 @@ func (r *ApplicationRepository) CreateApplication(in CreateApplicationInput) (*m
 	if cfgSchema == "" {
 		cfgSchema = "{}"
 	}
+	files := string(in.Files)
+	if files == "" {
+		files = "[]"
+	}
 	perms, _ := json.Marshal(in.PermissionsReq)
 	if string(perms) == "" {
 		perms = []byte("[]")
@@ -107,10 +115,10 @@ func (r *ApplicationRepository) CreateApplication(in CreateApplicationInput) (*m
 
 	res, err := tx.Exec(
 		`INSERT INTO applications (name, slug, category, version, description, icon, runtime, entrypoint,
-			config_schema, permissions, active, uploaded_by, source, source_url, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`,
+			config_schema, files, permissions, active, uploaded_by, source, source_url, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`,
 		in.Name, in.Slug, in.Category, in.Version, in.Description, in.Icon,
-		in.Runtime, in.Entrypoint, cfgSchema, string(perms),
+		in.Runtime, in.Entrypoint, cfgSchema, files, string(perms),
 		in.UploadedBy, source, in.SourceURL, now, now,
 	)
 	if err != nil {
@@ -137,14 +145,17 @@ func (r *ApplicationRepository) CreateApplication(in CreateApplicationInput) (*m
 }
 
 type UpdateApplicationInput struct {
-	Name        string
-	Category    string
-	Version     string
-	Description string
-	Icon        string
-	Runtime     string
-	Entrypoint  string
+	Name         string
+	Category     string
+	Version      string
+	Description  string
+	Icon         string
+	Runtime      string
+	Entrypoint   string
 	ConfigSchema json.RawMessage
+	// Files is optional; nil leaves the stored script files untouched so
+	// partial editors (general-info form) don't wipe Studio files.
+	Files json.RawMessage
 }
 
 func (r *ApplicationRepository) UpdateApplication(id int64, in UpdateApplicationInput) (*models.Application, error) {
@@ -156,12 +167,27 @@ func (r *ApplicationRepository) UpdateApplication(id int64, in UpdateApplication
 		cfgSchema = "{}"
 	}
 	now := time.Now().UTC().Format("2006-01-02 15:04:05")
-	res, err := r.db.Exec(
-		`UPDATE applications SET name = ?, category = ?, version = ?, description = ?,
-		 icon = ?, runtime = ?, entrypoint = ?, config_schema = ?, updated_at = ? WHERE id = ?`,
-		in.Name, in.Category, in.Version, in.Description,
-		in.Icon, in.Runtime, in.Entrypoint, cfgSchema, now, id,
-	)
+	var res sql.Result
+	var err error
+	if in.Files != nil {
+		files := string(in.Files)
+		if files == "" {
+			files = "[]"
+		}
+		res, err = r.db.Exec(
+			`UPDATE applications SET name = ?, category = ?, version = ?, description = ?,
+			 icon = ?, runtime = ?, entrypoint = ?, config_schema = ?, files = ?, updated_at = ? WHERE id = ?`,
+			in.Name, in.Category, in.Version, in.Description,
+			in.Icon, in.Runtime, in.Entrypoint, cfgSchema, files, now, id,
+		)
+	} else {
+		res, err = r.db.Exec(
+			`UPDATE applications SET name = ?, category = ?, version = ?, description = ?,
+			 icon = ?, runtime = ?, entrypoint = ?, config_schema = ?, updated_at = ? WHERE id = ?`,
+			in.Name, in.Category, in.Version, in.Description,
+			in.Icon, in.Runtime, in.Entrypoint, cfgSchema, now, id,
+		)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +208,7 @@ func (r *ApplicationRepository) ListApplications() ([]models.Application, error)
 	}
 	rows, err := r.db.Query(`
 		SELECT a.id, a.name, a.slug, a.category, a.version, a.description, a.icon,
-		       a.runtime, a.entrypoint, a.config_schema, a.permissions, a.active,
+		       a.runtime, a.entrypoint, a.config_schema, a.files, a.env, a.permissions, a.active,
 		       a.uploaded_by, a.source, a.source_url, a.created_at, a.updated_at, u.username
 		FROM applications a
 		LEFT JOIN users u ON u.id = a.uploaded_by
@@ -193,17 +219,19 @@ func (r *ApplicationRepository) ListApplications() ([]models.Application, error)
 	defer rows.Close()
 	for rows.Next() {
 		var a models.Application
-		var cfgSchema, perms, source, sourceURL string
+		var cfgSchema, files, env, perms, source, sourceURL string
 		var uploadedBy sql.NullInt64
 		var active int
 		var created, updated string
 		var owner sql.NullString
 		if err := rows.Scan(&a.ID, &a.Name, &a.Slug, &a.Category, &a.Version, &a.Description,
-			&a.Icon, &a.Runtime, &a.Entrypoint, &cfgSchema, &perms, &active,
+			&a.Icon, &a.Runtime, &a.Entrypoint, &cfgSchema, &files, &env, &perms, &active,
 			&uploadedBy, &source, &sourceURL, &created, &updated, &owner); err != nil {
 			return nil, err
 		}
 		a.ConfigSchema = json.RawMessage(cfgSchema)
+		a.Files = json.RawMessage(files)
+		a.Env = json.RawMessage(env)
 		a.Permissions = json.RawMessage(perms)
 		a.Active = active != 0
 		if source == "" {
@@ -353,4 +381,103 @@ func (r *ApplicationRepository) UpdateApplicationEnv(id int64, envJSON string) e
 	now := time.Now().UTC().Format("2006-01-02 15:04:05")
 	_, err := r.db.Exec(`UPDATE applications SET env = ?, updated_at = ? WHERE id = ?`, envJSON, now, id)
 	return err
+}
+
+// CreateApplicationRun records the start of one execution and returns its id.
+// The triggered_by column is omitted entirely when unset — the bundled
+// modernc sqlite driver rejects nil bindings, so NULL comes from the column
+// default instead of an argument.
+func (r *ApplicationRepository) CreateApplicationRun(run *models.ApplicationRun) (int64, error) {
+	now := time.Now().UTC().Format("2006-01-02 15:04:05")
+	var (
+		res sql.Result
+		err error
+	)
+	if run.TriggeredBy != nil {
+		res, err = r.db.Exec(
+			`INSERT INTO application_runs
+			 (application_id, triggered_by, target, node_id, node_name, exec_mode, workload,
+			  status, timeout_sec, created_at, ended_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '')`,
+			run.ApplicationID, *run.TriggeredBy, run.Target, run.NodeID, run.NodeName,
+			run.ExecMode, run.Workload, models.AppRunStatusRunning, run.TimeoutSec, now,
+		)
+	} else {
+		res, err = r.db.Exec(
+			`INSERT INTO application_runs
+			 (application_id, target, node_id, node_name, exec_mode, workload,
+			  status, timeout_sec, created_at, ended_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '')`,
+			run.ApplicationID, run.Target, run.NodeID, run.NodeName,
+			run.ExecMode, run.Workload, models.AppRunStatusRunning, run.TimeoutSec, now,
+		)
+	}
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
+}
+
+// CompleteApplicationRun stores the final outcome of a run row.
+func (r *ApplicationRepository) CompleteApplicationRun(id int64, status string, exitCode int, output, errorOutput, runErr string) error {
+	now := time.Now().UTC().Format("2006-01-02 15:04:05")
+	_, err := r.db.Exec(
+		`UPDATE application_runs SET status = ?, exit_code = ?, output = ?, error_output = ?, error = ?, ended_at = ? WHERE id = ?`,
+		status, exitCode, output, errorOutput, runErr, now, id,
+	)
+	return err
+}
+
+// ListApplicationRuns returns the most recent runs for an application,
+// newest first.
+func (r *ApplicationRepository) ListApplicationRuns(appID int64, limit int) ([]models.ApplicationRun, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 25
+	}
+	rows, err := r.db.Query(
+		`SELECT `+applicationRunColumns+` FROM application_runs WHERE application_id = ? ORDER BY id DESC LIMIT `+strconv.Itoa(limit),
+		appID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]models.ApplicationRun, 0, limit)
+	for rows.Next() {
+		run, scanErr := scanApplicationRun(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		out = append(out, *run)
+	}
+	return out, rows.Err()
+}
+
+const applicationRunColumns = `id, application_id, triggered_by, target, node_id, node_name,
+	exec_mode, workload, status, exit_code, output, error_output, error, timeout_sec, created_at, ended_at`
+
+func scanApplicationRun(scanner interface{ Scan(...any) error }) (*models.ApplicationRun, error) {
+	var run models.ApplicationRun
+	var triggeredBy sql.NullInt64
+	var nodeName, execMode, workload, status, output, errorOutput, runErr string
+	var created, ended string
+	if err := scanner.Scan(&run.ID, &run.ApplicationID, &triggeredBy, &run.Target, &run.NodeID,
+		&nodeName, &execMode, &workload, &status, &run.ExitCode, &output, &errorOutput,
+		&runErr, &run.TimeoutSec, &created, &ended); err != nil {
+		return nil, err
+	}
+	if triggeredBy.Valid {
+		v := triggeredBy.Int64
+		run.TriggeredBy = &v
+	}
+	run.NodeName = nodeName
+	run.ExecMode = execMode
+	run.Workload = workload
+	run.Status = status
+	run.Output = output
+	run.ErrorOutput = errorOutput
+	run.Error = runErr
+	run.CreatedAt, _ = parseSQLiteTime(created)
+	run.EndedAt, _ = parseSQLiteTime(ended)
+	return &run, nil
 }

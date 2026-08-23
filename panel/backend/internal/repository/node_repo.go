@@ -74,6 +74,10 @@ type CreateNodeInput struct {
 	Category        string
 	LocationCountry string
 	LocationNode    string
+	// Display identity (migration 044). Icon is a validated symbolic key;
+	// Color is a #rrggbb hex string. Both default to '' (theme defaults).
+	Icon  string
+	Color string
 }
 
 // CreateNode returns the new node row and the raw edge token. The token must
@@ -95,15 +99,15 @@ func (r *NodeRepository) CreateNode(in CreateNodeInput) (*models.Node, string, e
 			health_enabled, health_interval, health_timeout, health_retries,
 			skip_tls_verify, notes, install_dir, allowed_kinds,
 			alloc_mem_mib, mem_overcommit_pct, alloc_disk_mib, disk_overcommit_pct, instances_dir,
-			category, location_country, location_node)
-		 VALUES (?, ?, ?, ?, ?, ?, 'down', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			category, location_country, location_node, icon, color)
+		 VALUES (?, ?, ?, ?, ?, ?, 'down', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		in.Name, in.Address, boolToInt(in.UseTLS), hash, prefix, token,
 		boolToInt(in.HealthEnabled), defaultInt(in.HealthInterval, 60),
 		defaultInt(in.HealthTimeout, 4), defaultInt(in.HealthRetries, 3),
 		boolToInt(in.SkipTLSVerify), in.Notes, in.InstallDir, in.AllowedKinds,
 		in.AllocMemMiB, in.MemOvercommitPct, in.AllocDiskMiB, in.DiskOvercommitPct,
 		in.InstancesDir,
-		in.Category, in.LocationCountry, in.LocationNode,
+		in.Category, in.LocationCountry, in.LocationNode, in.Icon, in.Color,
 	)
 	if err != nil {
 		return nil, "", err
@@ -162,7 +166,7 @@ func (r *NodeRepository) ListNodes() ([]models.Node, error) {
 		health_enabled, health_interval, health_timeout, health_retries,
 		skip_tls_verify, notes, install_dir, allowed_kinds,
 		alloc_mem_mib, mem_overcommit_pct, alloc_disk_mib, disk_overcommit_pct, instances_dir,
-		category, location_country, location_node,
+		category, location_country, location_node, icon, color,
 		probe_fail_count, next_probe_at
 		FROM nodes ORDER BY created_at DESC`)
 	if err != nil {
@@ -277,7 +281,7 @@ func (r *NodeRepository) GetNode(id int64) (*models.Node, error) {
 		health_enabled, health_interval, health_timeout, health_retries,
 		skip_tls_verify, notes, install_dir, allowed_kinds,
 		alloc_mem_mib, mem_overcommit_pct, alloc_disk_mib, disk_overcommit_pct, instances_dir,
-		category, location_country, location_node,
+		category, location_country, location_node, icon, color,
 		probe_fail_count, next_probe_at
 		FROM nodes WHERE id = ?`, id)
 	if err != nil {
@@ -312,7 +316,7 @@ func (r *NodeRepository) FindNodeByNameAndAddress(name, address string) (*models
 		health_enabled, health_interval, health_timeout, health_retries,
 		skip_tls_verify, notes, install_dir, allowed_kinds,
 		alloc_mem_mib, mem_overcommit_pct, alloc_disk_mib, disk_overcommit_pct, instances_dir,
-		category, location_country, location_node,
+		category, location_country, location_node, icon, color,
 		probe_fail_count, next_probe_at
 		FROM nodes WHERE name = ? AND address = ? LIMIT 1`, name, address)
 	if err != nil {
@@ -394,6 +398,7 @@ func scanFullNode(rows *sql.Rows, nd *models.Node) error {
 	var nextProbe sql.NullString
 	var allocMemMiB, memOvercommitPct, allocDiskMiB, diskOvercommitPct int
 	var instancesDir, category, locationCountry, locationNode string
+	var icon, color string
 	if err := rows.Scan(&nd.ID, &nd.Name, &nd.Address, &useTLS, &nd.TokenPrefix,
 		&nd.RAMUsed, &nd.RAMTotal, &nd.CPUPercent, &nd.DiskUsed, &nd.DiskTotal,
 		&nd.UptimeSecs, &nd.Status, &nd.UptimePct, &lastSeen, &created,
@@ -403,7 +408,7 @@ func scanFullNode(rows *sql.Rows, nd *models.Node) error {
 		&healthEnabled, &healthInterval, &healthTimeout, &healthRetries,
 		&skipTLSVerify, &nd.Notes, &nd.InstallDir, &nd.AllowedKinds,
 		&allocMemMiB, &memOvercommitPct, &allocDiskMiB, &diskOvercommitPct, &instancesDir,
-		&category, &locationCountry, &locationNode,
+		&category, &locationCountry, &locationNode, &icon, &color,
 		&probeFailCount, &nextProbe); err != nil {
 		return err
 	}
@@ -431,6 +436,8 @@ func scanFullNode(rows *sql.Rows, nd *models.Node) error {
 	nd.Category = category
 	nd.LocationCountry = locationCountry
 	nd.LocationNode = locationNode
+	nd.Icon = icon
+	nd.Color = color
 	if nextProbe.Valid {
 		if t := parseTime(nextProbe); t != nil {
 			nd.NextProbeAt = t
@@ -553,6 +560,9 @@ type UpdateNodeInput struct {
 	Category        string
 	LocationCountry string
 	LocationNode    string
+	// Display identity (migration 044). Mirror CreateNodeInput.
+	Icon  string
+	Color string
 }
 
 // UpdateNode patches the editable columns of an edge. The token
@@ -564,7 +574,7 @@ func (r *NodeRepository) UpdateNode(id int64, in UpdateNodeInput) error {
 			skip_tls_verify = ?, notes = ?, install_dir = ?, allowed_kinds = ?,
 			alloc_mem_mib = ?, mem_overcommit_pct = ?, alloc_disk_mib = ?, disk_overcommit_pct = ?,
 			instances_dir = ?,
-			category = ?, location_country = ?, location_node = ?
+			category = ?, location_country = ?, location_node = ?, icon = ?, color = ?
 		 WHERE id = ?`,
 		in.Name, in.Address, boolToInt(in.UseTLS),
 		boolToInt(in.HealthEnabled), defaultInt(in.HealthInterval, 60),
@@ -572,7 +582,7 @@ func (r *NodeRepository) UpdateNode(id int64, in UpdateNodeInput) error {
 		boolToInt(in.SkipTLSVerify), in.Notes, in.InstallDir, in.AllowedKinds,
 		in.AllocMemMiB, in.MemOvercommitPct, in.AllocDiskMiB, in.DiskOvercommitPct,
 		in.InstancesDir,
-		in.Category, in.LocationCountry, in.LocationNode,
+		in.Category, in.LocationCountry, in.LocationNode, in.Icon, in.Color,
 		id,
 	)
 	if err != nil {
@@ -582,6 +592,25 @@ func (r *NodeRepository) UpdateNode(id int64, in UpdateNodeInput) error {
 		return fmt.Errorf("node not found")
 	}
 	return nil
+}
+
+// NameLabelTaken reports whether ANOTHER node already carries the same
+// (name, location_node) pair, compared case-insensitively and
+// whitespace-trimmed. The panel's uniqueness rule is composite: two nodes
+// may share a name, and two may share a label, but no two nodes may share
+// both. `excludeID` lets the update path skip the row being edited
+// (pass 0 when creating). TRIM/LOWER exist on SQLite, MySQL and Postgres.
+func (r *NodeRepository) NameLabelTaken(name, label string, excludeID int64) (bool, error) {
+	var cnt int
+	err := r.db.QueryRow(
+		`SELECT COUNT(*) FROM nodes
+		 WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))
+		   AND LOWER(TRIM(location_node)) = LOWER(TRIM(?))
+		   AND id != ?`, name, label, excludeID).Scan(&cnt)
+	if err != nil {
+		return false, err
+	}
+	return cnt > 0, nil
 }
 
 // DeleteNode removes a node and its heartbeat history (the FK ON DELETE CASCADE

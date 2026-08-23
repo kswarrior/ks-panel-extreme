@@ -1,7 +1,10 @@
 package auth
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -14,7 +17,7 @@ type Session struct {
 	IssuedAt      time.Time
 	LastUsed      time.Time
 	IPAddress     string
-	UserAgent    string
+	UserAgent     string
 	IsActive      bool
 	InvalidatedAt time.Time
 }
@@ -32,19 +35,37 @@ func NewSessionManager() *SessionManager {
 	}
 }
 
-// CreateSession creates a new session
+// CreateSession creates a new session. When the live SessionPolicy caps
+// sessions per user, the user's oldest active sessions are invalidated
+// first so the newest login always wins.
 func (sm *SessionManager) CreateSession(userID int64, token string, ipAddress, userAgent string) *Session {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
+	max := CurrentSessionPolicy().MaxPerUser
+	if max > 0 {
+		active := make([]*Session, 0, 4)
+		for _, s := range sm.sessions {
+			if s.UserID == userID && s.IsActive {
+				active = append(active, s)
+			}
+		}
+		// Oldest last-use first — the stalest device loses its seat.
+		sort.Slice(active, func(i, j int) bool { return active[i].LastUsed.Before(active[j].LastUsed) })
+		for i := 0; len(active)-i >= int(max); i++ {
+			active[i].IsActive = false
+			active[i].InvalidatedAt = time.Now()
+		}
+	}
+
 	session := &Session{
-		UserID:     userID,
-		Token:      token,
-		IssuedAt:   time.Now(),
-		LastUsed:   time.Now(),
-		IPAddress:  ipAddress,
+		UserID:    userID,
+		Token:     token,
+		IssuedAt:  time.Now(),
+		LastUsed:  time.Now(),
+		IPAddress: ipAddress,
 		UserAgent: userAgent,
-		IsActive:   true,
+		IsActive:  true,
 	}
 
 	sm.sessions[token] = session
@@ -115,6 +136,95 @@ func (sm *SessionManager) InvalidateAllSessionsExceptCurrent(userID int64, curre
 	return count
 }
 
+// TrackedSessionValid reports whether a bearer/cookie token may proceed.
+//
+// Revocation-list semantics: a token the manager has never seen (e.g. a
+// switch-login bearer minted before this process started, or a legacy
+// pre-manager token) is ALLOWED — it still carries a valid HMAC signature
+// and expires by its absolute lifetime. A token that IS tracked and
+// revoked or idle-expired is rejected (fail closed for known-bad).
+//
+// When valid, LastUsed is refreshed so both the idle check and the
+// admin Sessions list stay accurate.
+func (sm *SessionManager) TrackedSessionValid(token string, idleTimeout time.Duration) bool {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	session, exists := sm.sessions[token]
+	if !exists {
+		return true
+	}
+	if !session.IsActive {
+		return false
+	}
+	now := time.Now()
+	if idleTimeout > 0 && now.Sub(session.LastUsed) > idleTimeout {
+		session.IsActive = false
+		session.InvalidatedAt = now
+		return false
+	}
+	session.LastUsed = now
+	return true
+}
+
+// AllActiveSessions returns COPIES of every active session across all
+// users (the admin Sessions tab). Tokens are never exposed by callers —
+// use TokenID to build stable, non-secret identifiers.
+func (sm *SessionManager) AllActiveSessions() []Session {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+
+	out := make([]Session, 0, len(sm.sessions))
+	for _, s := range sm.sessions {
+		if s.IsActive {
+			out = append(out, *s)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].LastUsed.After(out[j].LastUsed) })
+	return out
+}
+
+// TokenID derives a stable, non-reversible identifier for a session token
+// (first 16 hex chars of SHA-256). The admin API uses it as the revoke
+// handle so full tokens never appear in responses or logs.
+func TokenID(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])[:16]
+}
+
+// RevokeByTokenID invalidates the active session whose TokenID matches id.
+func (sm *SessionManager) RevokeByTokenID(id string) bool {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	for _, session := range sm.sessions {
+		if session.IsActive && TokenID(session.Token) == id {
+			session.IsActive = false
+			session.InvalidatedAt = time.Now()
+			return true
+		}
+	}
+	return false
+}
+
+// InvalidateAllSessions invalidates EVERY active session (all users) and
+// returns how many were terminated. Used by the admin "Revoke all
+// sessions" action.
+func (sm *SessionManager) InvalidateAllSessions() int {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	count := 0
+	for _, session := range sm.sessions {
+		if session.IsActive {
+			session.IsActive = false
+			session.InvalidatedAt = time.Now()
+			count++
+		}
+	}
+	return count
+}
+
 // GetActiveSessions returns all active sessions for a user
 func (sm *SessionManager) GetActiveSessions(userID int64) []*Session {
 	sm.mu.RLock()
@@ -130,15 +240,19 @@ func (sm *SessionManager) GetActiveSessions(userID int64) []*Session {
 	return sessions
 }
 
-// CleanupExpiredSessions removes expired sessions
+// CleanupExpiredSessions removes sessions idle beyond the configured
+// SessionPolicy.IdleTimeout (previously a hardcoded 24h).
 func (sm *SessionManager) CleanupExpiredSessions() {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
+	idle := CurrentSessionPolicy().IdleTimeout
+	if idle <= 0 {
+		idle = DefaultSessionPolicy().IdleTimeout
+	}
 	now := time.Now()
 	for token, session := range sm.sessions {
-		// Remove sessions that haven't been used in 24 hours
-		if now.Sub(session.LastUsed) > 24*time.Hour {
+		if now.Sub(session.LastUsed) > idle {
 			delete(sm.sessions, token)
 		}
 	}
@@ -158,7 +272,7 @@ func InitializeSessionManager() {
 	go func() {
 		ticker := time.NewTicker(1 * time.Hour)
 		defer ticker.Stop()
-		
+
 		for range ticker.C {
 			SessionManagerInstance.CleanupExpiredSessions()
 		}
@@ -175,7 +289,7 @@ func SessionMiddleware(next http.Handler) http.Handler {
 		// Get the token from the request
 		var rawToken string
 		var fromCookie bool
-		
+
 		// Check for Bearer token first
 		if tok := extractBearerToken(r); tok != "" {
 			rawToken = tok

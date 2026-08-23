@@ -1,6 +1,10 @@
 // TemplateForm utilities - extracted from TemplateForm.tsx
 
-import type { TemplateFormState, PortMapping, Mount, ResourceLimits, FeatureCaps, EnvVariable, InstallStep, TemplateAction, ActionStep, Label, Device, Healthcheck, Advanced, KvRuntime, MpRuntime, LxdRuntime, PageOverride } from '../types/templateForm';
+import type { TemplateFormState, PortMapping, Mount, ResourceLimits, FeatureCaps, EnvVariable, InstallStep, TemplateAction, ActionStep, Label, Device, Healthcheck, Advanced, KvRuntime, MpRuntime, LxdRuntime, PageOverride, RestartPolicy, NetworkMode, LogLevel, InstallAction } from '../types/templateForm';
+// emptyForm is a runtime value (not a type) — it seeds every partial
+// `advanced` produced below so serializeSpec can keep assuming the full
+// Advanced shape (it reads e.g. f.advanced.dns.split(',') unguarded).
+import { emptyForm } from '../types/templateForm';
 import { BUILTIN_PAGE_MANIFEST, type BuiltinPageManifestEntry } from '@/features/builtin-pages';
 
 function stripUnit(v: string): string {
@@ -56,6 +60,11 @@ export function serializeSpec(f: TemplateFormState): string {
       retries: s.retries,
       ignore_errors: !!s.ignore_errors,
     })),
+    // Whole-workflow budget for the edge's install runner (seconds). The
+    // panel forwards it as InstallStartRequest.timeout_sec; empty = the
+    // edge's 30-minute default, so templates that don't set it are
+    // unaffected.
+    install_timeout_sec: f.install_timeout_s ? Number(f.install_timeout_s) : undefined,
     actions: f.actions.filter((a) => a.id.trim() !== '').map((a) => ({
       id: a.id,
       name: a.name,
@@ -113,9 +122,8 @@ export function serializeSpec(f: TemplateFormState): string {
       const slugRenamed = p.original_slug && p.slug !== p.original_slug;
       const isCustom = p.kind === 'custom';
       const explicitlyAdded = f.pages.some(fp => fp.slug === p.slug && fp.original_slug === p.original_slug);
-      const overridden = isCustom || slugRenamed ||
-        (customLabel !== '' && customLabel !== defLabel) || customIcon !== '' || !p.enabled || explicitlyAdded;
-      if (!overridden) return [];
+      // Always include the page in the spec so it renders in the instance.
+      // Only write overridden fields to keep the spec minimal.
       const out: Record<string, unknown> = { slug: p.slug };
       if (!p.enabled) out.enabled = false;
       if (customLabel !== '' && customLabel !== defLabel) out.label = customLabel;
@@ -229,13 +237,13 @@ export function parseSpec(raw: string): Partial<TemplateFormState> {
         script = argv.join(' ');
       }
       out.advanced = {
-        ...(out.advanced ?? ({} as Advanced)),
+        ...(out.advanced ?? emptyForm.advanced),
         startup_command: script,
       };
     }
     if (typeof s.restart === 'string' && s.restart) {
       out.advanced = {
-        ...(out.advanced ?? ({} as Advanced)),
+        ...(out.advanced ?? emptyForm.advanced),
         restart_policy: s.restart as RestartPolicy,
       };
     }
@@ -314,6 +322,9 @@ export function parseSpec(raw: string): Partial<TemplateFormState> {
         retries: String(st.retries ?? ''),
         ignore_errors: !!st.ignore_errors,
       }));
+    }
+    if (s.install_timeout_sec !== undefined && s.install_timeout_sec !== null) {
+      out.install_timeout_s = String(s.install_timeout_sec);
     }
     if (Array.isArray(s.actions)) {
       out.actions = s.actions.map((a: any) => {

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/example/kspanel/internal/auth"
 	"github.com/example/kspanel/internal/models"
+	"github.com/example/kspanel/internal/oauth"
 	"github.com/example/kspanel/internal/repository"
 )
 
@@ -52,8 +54,8 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "username, email and password are required", http.StatusBadRequest)
 		return
 	}
-	// Validate password with complexity policy
-	policy := auth.DefaultPasswordPolicy()
+	// Validate password with complexity policy (driven by Authority config)
+	policy := resolvePasswordPolicy()
 	if err := auth.ValidatePassword(req.Password, policy, req.Username, req.Email); err != nil {
 		http.Error(w, "password validation failed: "+err.Error(), http.StatusBadRequest)
 		return
@@ -299,13 +301,42 @@ func PublicAuthFlagsHandler(w http.ResponseWriter, r *http.Request) {
 	if deviceID != "" {
 		used = repository.NewDeviceRegistrationRepository(con).CountForDevice(deviceID)
 	}
+	// Enabled + fully configured OAuth providers, so the login page renders
+	// its "Continue with ..." buttons in the same round-trip. Ids/labels
+	// only — never credentials.
+	oauthProviders := []map[string]string{}
+	for _, p := range providerInventory(con) {
+		oauthProviders = append(oauthProviders, map[string]string{"id": p.ID, "label": p.Label})
+	}
 	writeJSON(w, map[string]any{
-		"register_allow":     repo.IsRegisterAllowed(),
+		"register_allow":    repo.IsRegisterAllowed(),
 		"verify_required":   repo.IsVerifyRequired(),
-		"device_limit":       limit,
-		"device_used":        used,
-		"has_device_cookie":  deviceID != "",
+		"device_limit":      limit,
+		"device_used":       used,
+		"has_device_cookie": deviceID != "",
+		"oauth_providers":   oauthProviders,
 	})
+}
+
+// providerInventory returns the usable OAuth providers (enabled +
+// configured) in a shape both this handler and the OAuth routes share.
+func providerInventory(con *sql.DB) []oauthProviderPublic {
+	cfg, err := repository.NewAuthorityRepository(con).GetRaw()
+	if err != nil {
+		return nil
+	}
+	out := make([]oauthProviderPublic, 0, len(cfg.Providers))
+	for _, p := range cfg.Providers {
+		if !p.Enabled || !oauth.Configured(p) {
+			continue
+		}
+		label := oauth.Label(p.ID)
+		if label == "" {
+			continue
+		}
+		out = append(out, oauthProviderPublic{ID: p.ID, Label: label})
+	}
+	return out
 }
 
 // DeviceIdHandler mints a brand-new device id on first visit and Set-Cookies

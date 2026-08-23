@@ -99,17 +99,21 @@ interface ColorProps {
   label: string;
   value: string;
   onChange: (v: string) => void;
+  /** Shown when the value is empty (e.g. "follow the Card tab"). */
+  placeholder?: string;
+  /** Optional helper line under the label. */
+  hint?: string;
 }
 // ColorField blends a native color picker with a hex text input. The native
 // picker is the friendliest UX for solid colours; the text field covers the
 // case where the value is a CSS rgba()/hsl() expression (which the picker
 // can't represent). We fall back to showing the raw value in the text box
 // whenever it isn't a clean hex.
-export const ColorField: React.FC<ColorProps> = ({ label, value, onChange }) => {
+export const ColorField: React.FC<ColorProps> = ({ label, value, onChange, placeholder, hint }) => {
   const isHex = /^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8}|[0-9a-fA-F]{3})$/.test(value);
   return (
     <div>
-      <Label label={label} />
+      <Label label={label} hint={hint} />
       <div className="flex items-center gap-2">
         <div className="relative shrink-0">
           <input
@@ -123,7 +127,7 @@ export const ColorField: React.FC<ColorProps> = ({ label, value, onChange }) => 
         <input
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="#000000 or rgba(...)"
+          placeholder={placeholder || '#000000 or rgba(...)'}
           className={`${inputCls} font-mono text-xs flex-1`}
         />
       </div>

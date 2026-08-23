@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/example/kspanel/internal/edge"
 	"github.com/example/kspanel/internal/models"
+	"github.com/example/kspanel/internal/modengine"
 	"github.com/example/kspanel/internal/repository"
 	"github.com/go-chi/chi/v5"
 )
@@ -37,7 +39,13 @@ type templateActionSpec struct {
 	//   - "different" (default): exec a new shell with the stop_command
 	//   - "same": write stop_command + newline to the running step's stdin pipe
 	StopMode string `json:"stop_mode,omitempty"`
-	Steps    []struct {
+	// MaxRuntimeS is the operator-authored whole-workflow budget in seconds
+	// (TemplateForm's "Max runtime (s)"). Empty/"0" means NO limit — the form
+	// documents that as the default, and long_running actions are supposed
+	// to keep a server alive until the operator clicks Stop. A positive
+	// value becomes the edge workflow's hard deadline.
+	MaxRuntimeS string `json:"max_runtime_s,omitempty"`
+	Steps       []struct {
 		Action       string `json:"action"`
 		Command      string `json:"command"`
 		URL          string `json:"url"`
@@ -91,18 +99,18 @@ type templateActionSpec struct {
 // EnvVars carries the operator's per-deploy values for template-defined env
 // variables (validated against the template's env[] rules).
 type deployRequest struct {
-	TemplateID int64                  `json:"template_id"`
-	NodeID     int64                  `json:"node_id"`
-	OwnerID    int64                  `json:"owner_id"`
-	Name       string                 `json:"name"`
+	TemplateID int64  `json:"template_id"`
+	NodeID     int64  `json:"node_id"`
+	OwnerID    int64  `json:"owner_id"`
+	Name       string `json:"name"`
 	// Display identity fields persisted to the instances row (migration 035).
 	// The admin deploy form ships them at the top level; the card renders
 	// them (InstanceCard) — they must NOT be dropped at decode time.
-	DisplayName string                 `json:"display_name,omitempty"`
-	Icon        string                 `json:"icon,omitempty"`
-	Color       string                 `json:"color,omitempty"`
-	Overrides   map[string]any         `json:"overrides,omitempty"`
-	EnvVars     map[string]string      `json:"env_vars,omitempty"`
+	DisplayName string            `json:"display_name,omitempty"`
+	Icon        string            `json:"icon,omitempty"`
+	Color       string            `json:"color,omitempty"`
+	Overrides   map[string]any    `json:"overrides,omitempty"`
+	EnvVars     map[string]string `json:"env_vars,omitempty"`
 }
 
 // envVarSpec mirrors the template's spec.env[] entry (from TemplateForm).
@@ -505,22 +513,22 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	// panel responds in <100ms (well under any upstream proxy timeout).
 	// The actual edge lifecycle deploy runs in a background goroutine.
 	id, err := instRepo.Create(repository.InstanceCreateInput{
-		NodeID:            req.NodeID,
-		TemplateID:        req.TemplateID,
-		OwnerID:           req.OwnerID,
-		Name:              req.Name,
-		DisplayName:       req.DisplayName,
-		Icon:              req.Icon,
-		Color:             req.Color,
-		Kind:              tmpl.Kind,
-		Status:            "creating",
-		ExternalID:        "",
-		Config:            string(cfgBytes),
-		InstallState:      "",
-		InstallID:         "",
-		InstallStep:       -1,
-		InstallError:      "",
-		InstallStepsJSON:  "",
+		NodeID:           req.NodeID,
+		TemplateID:       req.TemplateID,
+		OwnerID:          req.OwnerID,
+		Name:             req.Name,
+		DisplayName:      req.DisplayName,
+		Icon:             req.Icon,
+		Color:            req.Color,
+		Kind:             tmpl.Kind,
+		Status:           "creating",
+		ExternalID:       "",
+		Config:           string(cfgBytes),
+		InstallState:     "",
+		InstallID:        "",
+		InstallStep:      -1,
+		InstallError:     "",
+		InstallStepsJSON: "",
 	})
 	if err != nil {
 		log.Printf("CRITICAL: failed to create instance row for %q: %v", req.Name, err)
@@ -682,6 +690,10 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 				Name:    req.Name,
 				Steps:   edgeSteps,
 				EnvVars: finalEnv,
+				// Template-authored workflow budget (spec.install_timeout_sec).
+				// 0 = unset → the edge applies its own 30-minute default, so
+				// templates that never set the field behave exactly as before.
+				TimeoutSec: timeoutSecFromSpec(tmplSpec["install_timeout_sec"]),
 			})
 			if err != nil {
 				log.Printf("install kick-off for instance %d failed: %v", id, err)
@@ -730,9 +742,9 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 		Message:     fmt.Sprintf("deployed instance %q (%s) onto %q from template %q", req.Name, tmpl.Kind, node.Name, tmpl.Name),
 	}, r)
 	writeJSON(w, map[string]any{
-		"id":           id,
-		"external_id":  "",
-		"status":       "creating",
+		"id":            id,
+		"external_id":   "",
+		"status":        "creating",
 		"install_state": "",
 	})
 }
@@ -755,6 +767,38 @@ func getBool(m map[string]any, key string) bool {
 		}
 	}
 	return false
+}
+
+// maxWorkflowTimeoutSec caps operator-authored workflow budgets at 30 days so
+// the edge's time.Duration(seconds)*time.Second conversion can never overflow.
+const maxWorkflowTimeoutSec = 2592000
+
+// timeoutSecFromSpec normalises an operator-authored timeout (the template
+// spec's install_timeout_sec number, or an action's max_runtime_s string)
+// into whole seconds for the edge's InstallStartRequest.TimeoutSec. It
+// accepts the JSON-decoded shapes (float64 number or numeric string) and
+// returns 0 when unset/invalid — callers decide whether 0 means "edge
+// default" (install workflows) or "no limit" (actions).
+func timeoutSecFromSpec(v any) int {
+	n := 0
+	switch t := v.(type) {
+	case float64:
+		if t >= 1 {
+			n = int(t)
+		}
+	case string:
+		if p, err := strconv.Atoi(strings.TrimSpace(t)); err == nil && p > 0 {
+			n = p
+		}
+	case int:
+		if t > 0 {
+			n = t
+		}
+	}
+	if n > maxWorkflowTimeoutSec {
+		n = maxWorkflowTimeoutSec
+	}
+	return n
 }
 
 // validInstanceName checks the instance name against docker-compatible rules.
@@ -818,6 +862,24 @@ func instanceAction(w http.ResponseWriter, r *http.Request, action string) {
 		return
 	}
 
+	// Mod engine pre-hook: an active mod may veto the action before any work
+	// happens. Guarded by HasHooks so panels with no listening mods pay
+	// nothing on this hot path. Cancellation surfaces as 409 with the hook's
+	// message so the UI can show WHY the action was refused.
+	preEvent := "pre:instance." + action
+	if modengine.Default().HasHooks(preEvent) {
+		cancelled, msg := modengine.Default().EmitPre(r.Context(), preEvent, map[string]any{
+			"id": id, "name": inst.Name, "kind": inst.Kind, "node": inst.NodeName,
+		})
+		if cancelled {
+			writeJSONStatus(w, http.StatusConflict, map[string]any{
+				"error":   "blocked by a mod",
+				"message": msg,
+			})
+			return
+		}
+	}
+
 	// Try to perform lifecycle action with retries in case the edge is temporarily
 	// unresponsive.
 	var resp edge.LifecycleResponse
@@ -849,10 +911,10 @@ func instanceAction(w http.ResponseWriter, r *http.Request, action string) {
 		// instead of silently dropping the failure.
 		_ = instRepo.SetStatus(id, "errored", inst.ExternalID, err.Error())
 		writeJSON(w, map[string]any{
-			"id":        id,
-			"status":    "errored",
-			"error":     "edge rejected " + action + ": " + err.Error(),
-			"warning":   "edge did not confirm " + action + " after 3 retries: " + loopErr.Error(),
+			"id":      id,
+			"status":  "errored",
+			"error":   "edge rejected " + action + ": " + err.Error(),
+			"warning": "edge did not confirm " + action + " after 3 retries: " + loopErr.Error(),
 		})
 		return
 	}
@@ -865,6 +927,7 @@ func instanceAction(w http.ResponseWriter, r *http.Request, action string) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		emitInstancePost(action, id, inst)
 		RecordActivity(r, repository.ActivityInput{
 			Category:    models.ActivityCategoryInstance,
 			Action:      "destroy",
@@ -884,6 +947,7 @@ func instanceAction(w http.ResponseWriter, r *http.Request, action string) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		emitInstancePost(action, id, inst)
 		RecordActivity(r, repository.ActivityInput{
 			Category:    models.ActivityCategoryInstance,
 			Action:      action,
@@ -893,6 +957,20 @@ func instanceAction(w http.ResponseWriter, r *http.Request, action string) {
 		})
 		writeJSON(w, map[string]any{"id": id, "status": status})
 	}
+}
+
+// emitInstancePost fires the async post:instance.<action> hook for mods that
+// subscribed via the engine bus. HasHooks-guarded: no listeners -> no
+// allocation, no goroutines. Post hooks are fire-and-forget by contract; a
+// slow or crashing hook must never stall or fail the instance action.
+func emitInstancePost(action string, id int64, inst *models.Instance) {
+	postEvent := "post:instance." + action
+	if !modengine.Default().HasHooks(postEvent) {
+		return
+	}
+	modengine.Default().EmitPost(context.Background(), postEvent, map[string]any{
+		"id": id, "name": inst.Name, "kind": inst.Kind, "node": inst.NodeName,
+	})
 }
 
 func StartInstanceHandler(w http.ResponseWriter, r *http.Request)   { instanceAction(w, r, "start") }
@@ -1137,6 +1215,7 @@ func substituteEnvVars(cfg map[string]any, envVars map[string]string) {
 		cfg[k] = walk(v)
 	}
 }
+
 // InvokeActionHandler runs a template-defined "action" against an instance.
 // URL: POST /api/instances/{id}/actions/{actionId}/invoke
 //
@@ -1148,23 +1227,23 @@ func substituteEnvVars(cfg map[string]any, envVars map[string]string) {
 // path on the edge; we never had to invent a second RPC.
 //
 // Lifecycle orchestration panel-side:
-//   1. Load the instance row + the template that produced it.
-//   2. Parse the template's spec JSON, find the action by `id`.
-//   3. Refuse if the install workflow is still in flight
-//      (install_state="running"); actions must not race with an install.
-//   4. If `auto_start_instance` is set and the instance isn't yet running,
-//      send `lifecycle{action:"start"}` to the edge first. Wait briefly.
-//   5. Send InstallStart with the action's steps (freshly re-keyed as
-//      edge.InstallStep). The edge overwrites the existing install record
-//      for this container — always OK because step 3 rejected the race.
-//   6. Mark `instance.install_state="running"` + `install_steps_json=<steps>`
-//      so the home-page InstallBanner can show action progress, and set
-//      `instance.status="running"` so the instance card flips to "running".
-//   7. installSweepLoop already watches install_state="running"; on `done`
-//      it (a) calls `Lifecycle{action:"stop"}` when the action has
-//      `auto_stop_on_exit: true` (so a long_running java step that died
-//      naturally tears down the container), and (b) sets `instance.status`
-//      back to "stopped" or "running" accordingly.
+//  1. Load the instance row + the template that produced it.
+//  2. Parse the template's spec JSON, find the action by `id`.
+//  3. Refuse if the install workflow is still in flight
+//     (install_state="running"); actions must not race with an install.
+//  4. If `auto_start_instance` is set and the instance isn't yet running,
+//     send `lifecycle{action:"start"}` to the edge first. Wait briefly.
+//  5. Send InstallStart with the action's steps (freshly re-keyed as
+//     edge.InstallStep). The edge overwrites the existing install record
+//     for this container — always OK because step 3 rejected the race.
+//  6. Mark `instance.install_state="running"` + `install_steps_json=<steps>`
+//     so the home-page InstallBanner can show action progress, and set
+//     `instance.status="running"` so the instance card flips to "running".
+//  7. installSweepLoop already watches install_state="running"; on `done`
+//     it (a) calls `Lifecycle{action:"stop"}` when the action has
+//     `auto_stop_on_exit: true` (so a long_running java step that died
+//     naturally tears down the container), and (b) sets `instance.status`
+//     back to "stopped" or "running" accordingly.
 //
 // Because the auto_stop_on_exit teardown lives in the sweep loop, this
 // handler stays synchronous & tiny — it just kicks the edge and returns.
@@ -1351,16 +1430,29 @@ func InvokeActionHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Try to start the action with retries in case the edge is temporarily
 	// unresponsive.
+	//
+	// Workflow budget: the TemplateForm's per-action "Max runtime (s)"
+	// (max_runtime_s). Empty/"0" is documented in the form as NO limit — and
+	// long_running actions (e.g. booting a Minecraft server) are meant to
+	// keep the container alive for days until the operator clicks Stop — so
+	// we send -1 (edge: no deadline) unless a positive value is set. Before
+	// this field was wired, every action inherited the edge's hidden 30-minute
+	// cap and died with the panel mislabelling it "install_failed".
+	timeoutSec := timeoutSecFromSpec(action.MaxRuntimeS)
+	if timeoutSec == 0 {
+		timeoutSec = -1
+	}
 	var resp edge.InstallStartResponse
 	var loopErr error
 	for i := 0; i < 3; i++ {
 		resp, loopErr = ec.InstallStart(edge.InstallStartRequest{
-			Token:     token,
-			Kind:      inst.Kind,
-			Name:      inst.Name,
-			Steps:     edgeSteps,
-			EnvVars:   actionEnvVars,
-			KeepStdin: action.StopMode == "same",
+			Token:      token,
+			Kind:       inst.Kind,
+			Name:       inst.Name,
+			Steps:      edgeSteps,
+			EnvVars:    actionEnvVars,
+			KeepStdin:  action.StopMode == "same",
+			TimeoutSec: timeoutSec,
 		})
 		if loopErr == nil {
 			if i > 0 {
@@ -1481,12 +1573,12 @@ func StopActionHandler(w http.ResponseWriter, r *http.Request) {
 		// morphs back to its invoke label.
 		_ = instRepo.SetInstallActionID(id, "")
 		writeJSON(w, map[string]any{
-			"id":          id,
-			"action_id":   clickedActionID,
-			"edge_state":  "already_done",
-			"exit_code":   0,
-			"stdout":      "",
-			"stderr":      "",
+			"id":           id,
+			"action_id":    clickedActionID,
+			"edge_state":   "already_done",
+			"exit_code":    0,
+			"stdout":       "",
+			"stderr":       "",
 			"stop_command": "",
 		})
 		return
@@ -1516,12 +1608,12 @@ func StopActionHandler(w http.ResponseWriter, r *http.Request) {
 		// Wrong-action click: clean no-op, don't touch the other workflow.
 		_ = instRepo.SetInstallActionID(id, "")
 		writeJSON(w, map[string]any{
-			"id":          id,
-			"action_id":   clickedActionID,
-			"edge_state":  "already_done",
-			"exit_code":   0,
-			"stdout":      "",
-			"stderr":      "",
+			"id":           id,
+			"action_id":    clickedActionID,
+			"edge_state":   "already_done",
+			"exit_code":    0,
+			"stdout":       "",
+			"stderr":       "",
 			"stop_command": "",
 		})
 		return
@@ -1610,14 +1702,14 @@ func StopActionHandler(w http.ResponseWriter, r *http.Request) {
 		log.Printf("StopActionHandler: edge install stop unreachable for instance %d after 3 retries (treat as success): %v", id, loopErr)
 		_ = instRepo.SetInstallActionID(id, "")
 		writeJSON(w, map[string]any{
-			"id":          id,
-			"action_id":   clickedActionID,
-			"edge_state":  "edge_unreachable",
-			"exit_code":   -1,
-			"stdout":      "",
-			"stderr":      loopErr.Error(),
+			"id":           id,
+			"action_id":    clickedActionID,
+			"edge_state":   "edge_unreachable",
+			"exit_code":    -1,
+			"stdout":       "",
+			"stderr":       loopErr.Error(),
 			"stop_command": stopCommand,
-			"warning":     "edge did not confirm stop after 3 retries: " + loopErr.Error(),
+			"warning":      "edge did not confirm stop after 3 retries: " + loopErr.Error(),
 		})
 		return
 	}
@@ -1638,12 +1730,12 @@ func StopActionHandler(w http.ResponseWriter, r *http.Request) {
 	})
 
 	writeJSON(w, map[string]any{
-		"id":          id,
-		"action_id":   clickedActionID,
-		"edge_state":  resp.State,
-		"exit_code":   resp.ExitCode,
-		"stdout":      resp.Stdout,
-		"stderr":      resp.Stderr,
+		"id":           id,
+		"action_id":    clickedActionID,
+		"edge_state":   resp.State,
+		"exit_code":    resp.ExitCode,
+		"stdout":       resp.Stdout,
+		"stderr":       resp.Stderr,
 		"stop_command": stopCommand,
 	})
 }

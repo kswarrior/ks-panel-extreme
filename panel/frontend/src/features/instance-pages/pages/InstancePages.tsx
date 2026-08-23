@@ -366,7 +366,12 @@ const InstancePages: React.FC = () => {
                   <div className="p-3 space-y-3">
                     <div>
                       <label className="block text-xs text-gray-400 uppercase tracking-wide mb-1.5">Filter by</label>
-                      <select className="w-full glass-field">
+                      <select
+                        className="w-full glass-field"
+                        value={kindFilter}
+                        onChange={(e) => setKindFilter(e.target.value)}
+                        aria-label="Filter pages by kind"
+                      >
                         <option value="all">All pages</option>
                         <option value="builtin">Built-in</option>
                         <option value="custom">Custom</option>

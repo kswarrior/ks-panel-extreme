@@ -100,13 +100,21 @@ type ExecSession struct {
 // handler can later access to inject a stop command (e.g. "stop\n") into the
 // live process's console instead of exec'ing a separate shell.
 type Input struct {
-	Token       string            `json:"token"`
-	Kind        string            `json:"kind"`
-	Name        string            `json:"name"`
-	Steps       []Step            `json:"steps"`
-	EnvVars     map[string]string `json:"env_vars,omitempty"`
-	KeepStdin   bool              `json:"keep_stdin,omitempty"`
-	SessionExec SessionExecFn     `json:"-"`
+	Token     string            `json:"token"`
+	Kind      string            `json:"kind"`
+	Name      string            `json:"name"`
+	Steps     []Step            `json:"steps"`
+	EnvVars   map[string]string `json:"env_vars,omitempty"`
+	KeepStdin bool              `json:"keep_stdin,omitempty"`
+	// TimeoutSec caps the WHOLE workflow (all steps + retries), not just one
+	// exec. The HTTP handler turns it into the workflow context deadline:
+	//   > 0 → hard deadline of that many seconds,
+	//   < 0 → no deadline at all (long-running template actions that keep a
+	//         server alive until the operator clicks Stop),
+	//   = 0 → the legacy 30-minute default so panels that don't send the
+	//         field keep today's safety net.
+	TimeoutSec  int           `json:"timeout_sec,omitempty"`
+	SessionExec SessionExecFn `json:"-"`
 }
 
 // StepStatus is the per-step result the panel polls back. The shape mirrors

@@ -21,6 +21,7 @@ import (
 	"github.com/example/ksedge/internal/files"
 	"github.com/example/ksedge/internal/health"
 	"github.com/example/ksedge/internal/heartbeat"
+	"github.com/example/ksedge/internal/hostexec"
 	"github.com/example/ksedge/internal/inspect"
 	"github.com/example/ksedge/internal/install"
 	"github.com/example/ksedge/internal/lifecycle"
@@ -217,6 +218,10 @@ func runHealthServer(cfg config.Config, ctx context.Context) error {
 	mux.Handle("/api/edge/lifecycle", lifecycle.Handler(cfg.Token))
 	mux.Handle("/api/edge/exec", exec.Handler(cfg.Token))
 	mux.Handle("/api/edge/exec-rpc", execrpc.Handler(cfg.Token))
+	// Host-level one-shot exec: application runs targeting the HOST itself
+	// (panel host fallback / a node's own filesystem) rather than a
+	// container or VM. Same shared-token gate as every other RPC.
+	mux.Handle("/api/edge/host-exec", hostexec.Handler(cfg.Token))
 	mux.Handle("/api/edge/files", files.Handler(cfg.Token))
 	mux.Handle("/api/edge/inspect", inspect.Handler(cfg.Token))
 	// The install handler is itself a *ServeMux registering BOTH
@@ -346,8 +351,12 @@ func recoverPanic(h http.Handler) http.Handler {
 //     never materialises as a 4 GiB allocation — the cap only bounds
 //     runaway uploads (a hostile body that never ends) so the connection
 //     terminates instead of consuming edge CPU + disk indefinitely.
+//   - /api/edge/host-exec: 8 MiB. The JSON RPC carries the command plus an
+//     optional inline script-file payload (application runs stage their
+//     files through it), so it needs headroom above the plain-RPC tier;
+//     the execstage validator still caps each file at 1 MiB / 4 MiB total.
 //   - everything else: 1 MiB. The JSON RPCs (lifecycle request, inspect
-//     request, exec-rpc request, page-action input, snapshot request,
+//     exec-rpc request, page-action input, snapshot request,
 //     install start []steps) are tiny structured messages; a body bigger
 //     than 1 MiB is unambiguously abusive and rejecting it saves the JSON
 //     decoder from naively decoding a malformed multi-megabyte blob into
@@ -359,8 +368,9 @@ func recoverPanic(h http.Handler) http.Handler {
 // truncation deterministically rather than silently reading until EOF.
 func edgeBodyLimit(h http.Handler) http.Handler {
 	const (
-		smallLimit int64 = 1 << 20 // 1 MiB — every JSON RPC
-		filesLimit int64 = 4 << 30 // 4 GiB — file manager uploads (streamed, not buffered)
+		smallLimit   int64 = 1 << 20 // 1 MiB — every JSON RPC
+		hostExecLim  int64 = 8 << 20 // 8 MiB — host-exec with inline script files
+		filesLimit   int64 = 4 << 30 // 4 GiB — file manager uploads (streamed, not buffered)
 	)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Body == nil {
@@ -368,8 +378,11 @@ func edgeBodyLimit(h http.Handler) http.Handler {
 			return
 		}
 		limit := smallLimit
-		if r.URL.Path == "/api/edge/files" {
+		switch r.URL.Path {
+		case "/api/edge/files":
 			limit = filesLimit
+		case "/api/edge/host-exec":
+			limit = hostExecLim
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, limit)
 		h.ServeHTTP(w, r)

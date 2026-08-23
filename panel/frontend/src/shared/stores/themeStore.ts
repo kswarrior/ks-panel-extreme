@@ -1,6 +1,7 @@
 import create from 'zustand';
 import type { Theme, ThemeKey, ThemeCustomCSS } from '@/features/themes/types/theme';
 import { DEFAULT_THEME } from '@/theme/defaults';
+import { rgbaAt } from '@/theme/colorUtils';
 import { AREAS, CATALOGUE, areaFor, type AreaId } from '@/features/instance-pages/types/pageregistry';
 import {
   fetchThemesStore,
@@ -61,27 +62,9 @@ function loadPersisted(): PersistShape {
     const others = (parsed.themes || [])
       .filter((t) => t.id !== 'default')
       // Forward-migrate custom themes persisted before any newer theme
-      // section was added: backfill every section from DEFAULT so the
+      // section was added: backfill EVERY section from DEFAULT so the
       // studio + applier never read undefined for older themes.
-      .map((t) => ({
-        ...t,
-        card: (() => {
-          const c = { ...DEFAULT_THEME.card, ...(t.card || {}) };
-          if (t.card?.gap != null && t.card.gap_h == null && t.card.gap_v == null) {
-            c.gap_h = t.card.gap;
-            c.gap_v = t.card.gap;
-          }
-          return c;
-        })(),
-        button: { ...DEFAULT_THEME.button, ...(t.button || {}) },
-        tabs: { ...DEFAULT_THEME.tabs, ...(t.tabs || {}) },
-        loading: { ...DEFAULT_THEME.loading, ...(t.loading || {}) },
-        dropdowns: { ...DEFAULT_THEME.dropdowns, ...(t.dropdowns || {}) },
-        // customCSS was added later — backfill so an old persisted theme
-        // (saved before the Custom CSS tab existed) still has a well-shaped
-        // { global: '', scopes: {} } and the applier never reads undefined.
-        customCSS: migrateCustomCSS((t as any).customCSS),
-      }));
+      .map((t) => migrateThemeSections(t));
     const themes = [DEFAULT_THEME, ...others];
 
     // 1. Copy forward any properly-shaped assignment map.
@@ -216,22 +199,24 @@ function buildBgLayer(theme: Theme): string {
   // opacity (the backdrop is its own div, so it can't fade content),
   // but a stray NaN / string from an old theme would still pass through
   // and break the resulting `style=` attribute.
-  const op = Math.max(0, Math.min(1, Number(bg.opacity) || 0));
+  const op = clampNum(bg.opacity, 0, 0, 1);
 
   if (bg.type === 'image' && bg.image_url) {
+    // cssUrl validates the scheme (http(s)/data:image/blob/root-relative),
+    // strips quote/backslash break-out characters and rejects absurd
+    // lengths — a rejected URL renders no layer instead of injecting CSS.
+    const url = cssUrl(bg.image_url);
+    if (!url) return '';
     const rep = bg.repeat === 'repeat' ? 'repeat' : 'no-repeat';
-    // Single quotes escaped so a value containing ' cannot break out of
-    // the url('…') wrapper; this stays inside CSS (no innerHTML), so
-    // no HTML-escape is required.
-    const url = String(bg.image_url).replace(/'/g, "\\'");
-    return `<div id="${BG_ID}" style="${base}opacity:${op};${blurFilter}background-image:url('${url}');background-position:${bg.position || 'center'};background-size:${bg.size || 'cover'};background-repeat:${rep};background-attachment:${bg.attachment};"></div>`;
+    return `<div id="${BG_ID}" style="${base}opacity:${op};${blurFilter}background-image:url('${url}');background-position:${safeCssValue(bg.position, 'center')};background-size:${safeCssValue(bg.size, 'cover')};background-repeat:${rep};background-attachment:${bg.attachment === 'scroll' ? 'scroll' : 'fixed'};"></div>`;
   }
   if (bg.type === 'video' && bg.video_url) {
     // Build the <video><source> tree via the DOM API instead of inlining
-    // the URL into an innerHTML template. The previous implementation did
-    // `bg.video_url.replace(/"/g, '"')` — replacing `"` with `"` — which
-    // was a literal no-op and left a URL containing `"` able to break
-    // out of the src="…" attribute and inject markup.
+    // the URL into an innerHTML template — attribute injection is
+    // structurally impossible this way. The URL itself still goes through
+    // cssUrl so disallowed schemes never reach a src attribute.
+    const src = cssUrl(bg.video_url);
+    if (!src) return '';
     const wrap = document.createElement('div');
     wrap.id = BG_ID;
     wrap.style.cssText = `${base}opacity:${op};${blurFilter}overflow:hidden;`;
@@ -243,13 +228,13 @@ function buildBgLayer(theme: Theme): string {
     video.setAttribute('aria-hidden', 'true');
     video.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
     const source = document.createElement('source');
-    source.src = bg.video_url;
+    source.src = src;
     video.appendChild(source);
     wrap.appendChild(video);
     return wrap.outerHTML;
   }
   if (bg.type === 'gradient' && bg.gradient) {
-    return `<div id="${BG_ID}" style="${base}background-image:${bg.gradient};"></div>`;
+    return `<div id="${BG_ID}" style="${base}background-image:${safeCssValue(bg.gradient)};"></div>`;
   }
   // Solid colour — falls back to using the root's .kspanel-bg-overlay
   // background-color, so we render an empty (transparent) node only when a
@@ -326,6 +311,110 @@ function clamp255(s: string): number {
   return Number.isFinite(n) ? Math.max(0, Math.min(255, n)) : 0;
 }
 
+// ------------------------------------------------------------------
+// Value sanitisation (security)
+// ------------------------------------------------------------------
+// Structured theme fields (colours, gradients, font stacks, shadows,
+// media URLs) are interpolated into ONE shared <style> element. A value
+// containing braces / semicolons / backslashes could close its declaration
+// or the whole :root block early and inject arbitrary CSS rules into
+// EVERY user's panel (anyone who can persist a local theme, and every
+// consumer of an installed global theme, is a potential source). These
+// helpers make that impossible while keeping legitimate values intact.
+//
+// The Custom CSS tab stays raw ON PURPOSE — it is the documented admin
+// escape hatch and is emitted verbatim; these guards cover the structured
+// tokens only.
+
+// safeCssValue strips characters that would break out of a declaration or
+// block ({, }, ;, backslash, angle brackets) plus control characters, and
+// caps length so a pasted payload can't bloat every route's stylesheet.
+function safeCssValue(v: unknown, fallback = ''): string {
+  const s = String(v ?? '')
+    .replace(/[{}<>\\;]/g, '')
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u001f\u007f]/g, '')
+    .trim();
+  if (!s) return fallback;
+  return s.slice(0, 512);
+}
+
+// cssUrl validates a media URL before it reaches a CSS url('…') context.
+// Only http(s), https-style absolute URLs, inline image data: URLs, blob:
+// URLs (the studio uploader) and root-relative paths are allowed — this
+// rejects javascript:, vbscript:, data:text/html and other schemes that
+// have no business in a background layer. Returns '' when rejected; the
+// caller emits 'none' / skips the layer. Quotes are escaped so the value
+// cannot terminate the url('…') wrapper early.
+const CSS_URL_RE = /^(https?:\/\/|data:image\/[a-z0-9.+-]+(;base64)?,|blob:|\/)/i;
+
+function cssUrl(v: unknown): string {
+  const s = String(v ?? '').trim();
+  if (!s || s.length > 4096 || !CSS_URL_RE.test(s)) return '';
+  return s.replace(/['\\]/g, '');
+}
+
+// num coerces a persisted slider value to a finite number, falling back to
+// the default so a corrupt value can't emit "NaNpx" into the stylesheet.
+function num(v: unknown, def: number): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : def;
+}
+
+// clampNum coerces + clamps in one step (used for opacity-style ranges).
+function clampNum(v: unknown, def: number, min: number, max: number): number {
+  const n = num(v, def);
+  return Math.max(min, Math.min(max, n));
+}
+
+// sectionBackfill merges a possibly-missing/partial persisted section onto
+// DEFAULT so every downstream reader sees a well-shaped object. This is the
+// single forward-migration path for theme sections added after a theme was
+// saved (used by localStorage load, server bootstrap and API refresh).
+function sectionBackfill<T extends object>(raw: unknown, base: T): T {
+  if (!raw || typeof raw !== 'object') return { ...base };
+  return { ...base, ...(raw as Partial<T>) };
+}
+
+// migrateThemeSections normalises an entire persisted/fetched Theme onto the
+// CURRENT shape: every section is backfilled from DEFAULT_THEME and the
+// custom-CSS map is cleaned. Older stored themes therefore never leave a
+// hole the studio/applier would read as undefined.
+function migrateThemeSections(t: any): Theme {
+  const card = sectionBackfill(t?.card, DEFAULT_THEME.card);
+  // Legacy single `gap` field folds into the h/v pair — checked against the
+  // RAW persisted values (not the backfilled merge, which always carries
+  // DEFAULT's gap_h/gap_v).
+  if (t?.card?.gap != null && t.card.gap_h == null && t.card.gap_v == null) {
+    card.gap_h = t.card.gap;
+    card.gap_v = t.card.gap;
+  }
+  return {
+    ...(DEFAULT_THEME),
+    ...(t || {}),
+    id: t?.id ?? 'default',
+    name: t?.name ?? DEFAULT_THEME.name,
+    description: t?.description ?? '',
+    builtin: !!t?.builtin,
+    card,
+    button: sectionBackfill(t?.button, DEFAULT_THEME.button),
+    header: sectionBackfill(t?.header, DEFAULT_THEME.header),
+    typography: sectionBackfill(t?.typography, DEFAULT_THEME.typography),
+    accent: sectionBackfill(t?.accent, DEFAULT_THEME.accent),
+    shape: sectionBackfill(t?.shape, DEFAULT_THEME.shape),
+    sidebar: sectionBackfill(t?.sidebar, DEFAULT_THEME.sidebar),
+    background: sectionBackfill(t?.background, DEFAULT_THEME.background),
+    loading: sectionBackfill(t?.loading, DEFAULT_THEME.loading),
+    tabs: sectionBackfill(t?.tabs, DEFAULT_THEME.tabs),
+    dropdowns: sectionBackfill(t?.dropdowns, DEFAULT_THEME.dropdowns),
+    forms: sectionBackfill(t?.forms, DEFAULT_THEME.forms),
+    components: sectionBackfill(t?.components, DEFAULT_THEME.components),
+    utilities: sectionBackfill(t?.utilities, DEFAULT_THEME.utilities),
+    cards: sectionBackfill(t?.cards, DEFAULT_THEME.cards),
+    customCSS: migrateCustomCSS(t?.customCSS),
+  };
+}
+
 // makeDropdownBg composes the `background-color` for .glass-dropdown /
 // .ks-dropdown with the admin's bg_opacity multiplier baked into the alpha
 // channel, so a faded backdrop doesn't ALSO fade the menu's text via an
@@ -373,14 +462,17 @@ function makeDropdownBg(d: any | undefined): string {
 // future React-side painter but emit 'none' here so the surface is still
 // readable until that painter is added.
 function makeDropdownMedia(d: any | undefined): string {
-  const opacity = Math.max(0, Math.min(1, d?.bg_opacity ?? 1));
+  const opacity = clampNum(d?.bg_opacity, 1, 0, 1);
   const scrim = 'rgba(0,0,0,' + (1 - opacity) + ')';
   if (d?.bg_type === 'image' && d?.bg_image) {
-    const img = `url('${String(d.bg_image).replace(/'/g, "\\'")}')`;
+    const url = cssUrl(d.bg_image);
+    if (!url) return 'none';
+    const img = `url('${url}')`;
     return scrim + ' linear-gradient(' + img + ',' + img + ')';
   }
   if (d?.bg_type === 'gradient' && d?.bg_gradient) {
-    return scrim + ' ' + String(d.bg_gradient);
+    const g = safeCssValue(d.bg_gradient);
+    return g ? scrim + ' ' + g : 'none';
   }
   // bg_type === 'video' or 'color' — surface the raw URL on the var so a
   // future in-DOM <video> painter can consume it; for now we render none
@@ -468,10 +560,63 @@ function buildCustomCSSBlock(customCSS: ThemeCustomCSS | undefined, opts?: Apply
   return parts.join('\n\n');
 }
 
+// sanitizeThemeTokens deep-walks the STRUCTURED theme sections and hardens
+// every value before it reaches the stylesheet: strings lose block/decl
+// break-out characters ({ } ; \ < > + control chars) and length cap at 512,
+// numbers are coerced finite. customCSS is deliberately EXCLUDED — it is
+// the documented raw escape hatch. Media URLs are validated at their point
+// of use (cssUrl) rather than here because they need scheme checks, not
+// just character stripping. Running this ONCE at buildVars entry means
+// every downstream `${…}` interpolation — including the legacy `?? fallback`
+// reads for tabs/dropdowns — emits hardened values without touching each
+// template line.
+function sanitizeThemeTokens(theme: Theme): Theme {
+  const cleanSection = (sec: unknown): Record<string, unknown> => {
+    if (!sec || typeof sec !== 'object') return {};
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(sec as Record<string, unknown>)) {
+      if (typeof v === 'string') out[k] = safeCssValue(v);
+      else if (typeof v === 'number') out[k] = Number.isFinite(v) ? v : 0;
+      else if (typeof v === 'boolean') out[k] = v;
+      else out[k] = v;
+    }
+    return out;
+  };
+  const t = theme;
+  return {
+    ...t,
+    background: cleanSection(t.background) as unknown as Theme['background'],
+    card: cleanSection(t.card) as unknown as Theme['card'],
+    sidebar: cleanSection(t.sidebar) as unknown as Theme['sidebar'],
+    header: cleanSection(t.header) as unknown as Theme['header'],
+    typography: cleanSection(t.typography) as unknown as Theme['typography'],
+    accent: cleanSection(t.accent) as unknown as Theme['accent'],
+    shape: cleanSection(t.shape) as unknown as Theme['shape'],
+    loading: cleanSection(t.loading) as unknown as Theme['loading'],
+    button: cleanSection(t.button) as unknown as Theme['button'],
+    tabs: cleanSection(t.tabs) as unknown as Theme['tabs'],
+    dropdowns: cleanSection(t.dropdowns) as unknown as Theme['dropdowns'],
+    forms: cleanSection(t.forms) as unknown as Theme['forms'],
+    components: cleanSection(t.components) as unknown as Theme['components'],
+    utilities: cleanSection(t.utilities) as unknown as Theme['utilities'],
+    cards: cleanSection(t.cards) as unknown as Theme['cards'],
+  };
+}
+
 function buildVars(theme: Theme, opts?: ApplyOpts): string {
-  const cacheKey = `${theme.id}|${opts?.pathname || ''}`;
-  const cached = buildVarsCache.get(cacheKey);
-  if (cached) return cached;
+  // Cache key includes updated_at so an edited/saved theme with the same id
+  // can never serve a stale stylesheet, and preview builds (the studio's
+  // live draft) bypass the cache entirely — every slider tick must repaint.
+  const preview = !!opts?.preview;
+  const cacheKey = `${theme.id}|${theme.updated_at || ''}|${opts?.pathname || ''}`;
+  if (!preview) {
+    const cached = buildVarsCache.get(cacheKey);
+    if (cached) return cached;
+  }
+
+  // Harden every structured token FIRST so nothing below can emit a value
+  // capable of breaking out of its CSS declaration/block.
+  theme = sanitizeThemeTokens(theme);
 
   const c = theme.card;
   const s = theme.sidebar;
@@ -496,7 +641,7 @@ function buildVars(theme: Theme, opts?: ApplyOpts): string {
   // coherent variables components can opt into and ALSO override the .glass*
   // component classes themselves so the existing markup simply *inherits* the
   // theme without a per-component refactor.
-  return `
+  const css = `
 :root {
   --ks-bg-color: ${bg.color};
   --ks-bg-gradient: ${bg.type === 'gradient' ? bg.gradient : 'none'};
@@ -530,7 +675,7 @@ function buildVars(theme: Theme, opts?: ApplyOpts): string {
   // opacity dimming). Video cards aren't supported via CSS background —
   // the field is stored but only color/image/gradient render on cards.
   --ks-card-bg-layer: ${cardBgLayer(c)};
-  --ks-card-bg-video: ${c.bg_type === 'video' && c.bg_video ? c.bg_video.replace(/"/g, '\\"') : ''};
+  --ks-card-bg-video: ${c.bg_type === 'video' ? cssUrl(c.bg_video) : ''};
   --ks-card-bg-opacity: ${c.bg_opacity};
   --ks-card-bg-size: ${c.bg_size || 'cover'};
   --ks-card-bg-position: ${c.bg_position || 'center'};
@@ -542,8 +687,8 @@ function buildVars(theme: Theme, opts?: ApplyOpts): string {
      all of them so the admin gets a single dropdown look everywhere. */
   --ks-dropdown-bg: ${makeDropdownBg((theme as any).dropdowns)};
   --ks-dropdown-bg-type: ${(theme as any).dropdowns?.bg_type ?? 'color'};
-  --ks-dropdown-bg-image: ${(theme as any).dropdowns?.bg_image ?? ''};
-  --ks-dropdown-bg-video: ${(theme as any).dropdowns?.bg_video ?? ''};
+  --ks-dropdown-bg-image: ${(theme as any).dropdowns?.bg_image ? (cssUrl((theme as any).dropdowns.bg_image) || '') : ''};
+  --ks-dropdown-bg-video: ${(theme as any).dropdowns?.bg_video ? (cssUrl((theme as any).dropdowns.bg_video) || '') : ''};
   --ks-dropdown-bg-gradient: ${(theme as any).dropdowns?.bg_gradient ?? ''};
   --ks-dropdown-bg-opacity: ${(theme as any).dropdowns?.bg_opacity ?? 1};
   --ks-dropdown-bg-blur: ${(theme as any).dropdowns?.bg_blur ?? 0}px;
@@ -630,7 +775,8 @@ function buildVars(theme: Theme, opts?: ApplyOpts): string {
   --ks-loading-animation: ${l.animation_speed};
   /* Animation duration derived from the speed preset so the actual Loading
      indicator's animate-* classes can pick it up via a scoped rule below. */
-  --ks-loading-animation-duration: ${l.animation_speed === 'slow' ? '2s' : l.animation_speed === 'fast' ? '0.5s' : '1s'};
+   --ks-loading-animation-duration: ${l.animation_speed === 'slow' ? '2s' : l.animation_speed === 'fast' ? '0.5s' : '1s'};
+${buildSectionVars(theme).vars}
 }
 
 /* ------------------------------------------------------------------
@@ -1017,7 +1163,609 @@ body { color: var(--ks-text-body); }
 .ks-loading-host .animate-pulse {
   animation-duration: var(--ks-loading-animation-duration, 1s) !important;
 }
+${buildSectionRules(theme)}
+${buildUtilityMappings(theme)}
   `.trim() + (customBlock ? '\n\n' + customBlock : '');
+
+  // Store only production builds; unbounded growth is capped by clearing
+  // the map once it exceeds a small working set (one entry per route).
+  if (!preview) {
+    if (buildVarsCache.size > 64) buildVarsCache.clear();
+    buildVarsCache.set(cacheKey, css);
+  }
+  return css;
+}
+
+// ------------------------------------------------------------------
+// Forms / Components / Utilities / Cards — section emission
+// ------------------------------------------------------------------
+// buildSectionVars + buildSectionRules materialise the four studio
+// sections added to the Theme model. They are kept separate from the
+// legacy template above so each surface owns exactly one source of truth:
+//
+//   forms      → every form control (.ks-input/.ks-select/… plus the
+//                stock Tailwind input pattern used across pages)
+//   components → modal dialogs + overlay + strong glass + app chrome
+//   utilities  → design tokens (--ks-ui-*, spacing, radii, elevations,
+//                transition speeds, z-index scale)
+//   cards      → list / stat / form card variants
+//
+// Variant tokens whose value still equals DEFAULT are emitted as the
+// corresponding BASE var (e.g. --ks-card-bg) instead of a literal, so the
+// Card tab keeps cascading to list/stat/form/glass-strong surfaces until
+// an admin explicitly overrides that variant. This preserves the pre-
+// existing behaviour where one Card-tab slider reshaped every surface.
+function buildSectionVars(theme: Theme): { vars: string } {
+  const D = DEFAULT_THEME;
+  const f = theme.forms;
+  const comp = theme.components;
+  const u = theme.utilities;
+  const cd = theme.cards;
+
+  // eqTok resolves a variant token: equal-to-default ⇒ inherit the live
+  // base var; otherwise emit the (already sanitised) literal.
+  const eqTok = (v: unknown, d: unknown, baseVar: string): string =>
+    v === d ? baseVar : String(v || baseVar);
+
+  // ---- toggle geometry (computed once, consumed as vars) ----
+  const tH = clampNum(f.toggle_track_height, D.forms.toggle_track_height, 12, 48);
+  const tT = clampNum(f.toggle_thumb_size, D.forms.toggle_thumb_size, 8, tH - 2);
+  const tW = Math.round(tH * (44 / 24)); // stock ratio w-11/h-6
+  const tOff = Math.round((tH - tT) / 2);
+  const travel = Math.max(2, tW - tT - tOff * 2);
+
+  // ---- focus ring shadow (composed; offset layer only when > 0) ----
+  const ringW = clampNum(f.focus_ring_width, D.forms.focus_ring_width, 0, 8);
+  const ringO = clampNum(f.focus_ring_offset, D.forms.focus_ring_offset, 0, 8);
+  const focusShadowParts = [`0 0 0 ${ringW}px ${safeCssValue(f.input_focus_ring_color, 'transparent')}`];
+  if (ringO > 0) focusShadowParts.push(`0 0 0 ${ringW + ringO}px ${safeCssValue('#0b0d10')}`);
+
+  // ---- elevation composition ----
+  const elev = (n: number) => `0 ${Math.round(n * 0.5)}px ${n}px rgba(0,0,0,0.45)`;
+
+  return {
+    vars: `
+  /* ---------------- Theme Studio: Forms ---------------- */
+  --ks-form-input-bg: ${safeCssValue(f.input_background)};
+  --ks-form-input-text: ${safeCssValue(f.input_text_color, '#ffffff')};
+  --ks-form-placeholder: ${safeCssValue(f.input_placeholder_color)};
+  --ks-form-input-border: ${safeCssValue(f.input_border_color)};
+  --ks-form-focus-border: ${safeCssValue(f.input_focus_border_color)};
+  --ks-form-ring-color: ${safeCssValue(f.input_focus_ring_color)};
+  --ks-form-focus-shadow: ${focusShadowParts.join(', ')};
+  --ks-form-input-radius: ${clampNum(f.input_border_radius, D.forms.input_border_radius, 0, 32)}px;
+  --ks-form-input-px: ${clampNum(f.input_padding_x, D.forms.input_padding_x, 0, 32)}px;
+  --ks-form-input-py: ${clampNum(f.input_padding_y, D.forms.input_padding_y, 0, 32)}px;
+  --ks-form-input-font: ${clampNum(f.input_font_size, D.forms.input_font_size, 8, 24)}px;
+
+  --ks-form-select-bg: ${safeCssValue(f.select_background)};
+  --ks-form-select-text: ${safeCssValue(f.select_text_color, '#ffffff')};
+  --ks-form-select-border: ${safeCssValue(f.select_border_color)};
+  --ks-form-select-radius: ${clampNum(f.select_border_radius, D.forms.select_border_radius, 0, 32)}px;
+  --ks-form-select-px: ${clampNum(f.select_padding_x, D.forms.select_padding_x, 0, 32)}px;
+  --ks-form-select-py: ${clampNum(f.select_padding_y, D.forms.select_padding_y, 0, 32)}px;
+  --ks-form-select-font: ${clampNum(f.select_font_size, D.forms.select_font_size, 8, 24)}px;
+
+  --ks-form-textarea-bg: ${safeCssValue(f.textarea_background)};
+  --ks-form-textarea-text: ${safeCssValue(f.textarea_text_color, '#ffffff')};
+  --ks-form-textarea-border: ${safeCssValue(f.textarea_border_color)};
+  --ks-form-textarea-radius: ${clampNum(f.textarea_border_radius, D.forms.textarea_border_radius, 0, 32)}px;
+  --ks-form-textarea-px: ${clampNum(f.textarea_padding_x, D.forms.textarea_padding_x, 0, 32)}px;
+  --ks-form-textarea-py: ${clampNum(f.textarea_padding_y, D.forms.textarea_padding_y, 0, 32)}px;
+  --ks-form-textarea-font: ${clampNum(f.textarea_font_size, D.forms.textarea_font_size, 8, 24)}px;
+
+  --ks-check-off-bg: ${safeCssValue(f.checkbox_bg_unchecked)};
+  --ks-check-on: ${safeCssValue(f.checkbox_bg_checked, '#10b981')};
+  --ks-check-border: ${safeCssValue(f.checkbox_border_unchecked)};
+  --ks-check-mark: ${safeCssValue(f.checkbox_checkmark_color, '#0b0d10')};
+  --ks-check-size: ${clampNum(f.checkbox_size, D.forms.checkbox_size, 10, 32)}px;
+  --ks-check-radius: ${clampNum(f.checkbox_border_radius, D.forms.checkbox_border_radius, 0, 16)}px;
+  --ks-radio-on: ${safeCssValue(f.radio_bg_checked, '#10b981')};
+  --ks-radio-size: ${clampNum(f.radio_size, D.forms.radio_size, 10, 32)}px;
+
+  --ks-toggle-off: ${safeCssValue(f.toggle_track_off)};
+  --ks-toggle-on: ${safeCssValue(f.toggle_track_on, '#10b981')};
+  --ks-toggle-thumb: ${safeCssValue(f.toggle_thumb_color, '#ffffff')};
+  --ks-toggle-w: ${tW}px;
+  --ks-toggle-h: ${tH}px;
+  --ks-toggle-thumb-size: ${tT}px;
+  --ks-toggle-offset: ${tOff}px;
+  --ks-toggle-travel: ${travel}px;
+  --ks-toggle-radius: ${clampNum(f.toggle_border_radius, D.forms.toggle_border_radius, 0, 9999)}px;
+
+  --ks-label-text: ${safeCssValue(f.label_text_color, '#e5e7eb')};
+  --ks-label-size: ${clampNum(f.label_font_size, D.forms.label_font_size, 8, 24)}px;
+  --ks-label-weight: ${clampNum(f.label_font_weight, D.forms.label_font_weight, 100, 900)};
+  --ks-hint-text: ${safeCssValue(f.hint_text_color)};
+  --ks-hint-error: ${safeCssValue(f.hint_error_color, '#f87171')};
+  --ks-hint-success: ${safeCssValue(f.hint_success_color, '#34d399')};
+  --ks-hint-size: ${clampNum(f.hint_font_size, D.forms.hint_font_size, 8, 20)}px;
+  --ks-field-gap: ${clampNum(f.field_gap, D.forms.field_gap, 0, 32)}px;
+  --ks-field-mb: ${clampNum(f.field_margin_bottom, D.forms.field_margin_bottom, 0, 48)}px;
+
+  /* ---------------- Theme Studio: Components ---------------- */
+  --ks-comp-strong-bg: ${eqTok(comp.glass_strong_background, D.components.glass_strong_background, 'var(--ks-card-bg)')};
+  --ks-comp-strong-border: ${eqTok(comp.glass_strong_border_color, D.components.glass_strong_border_color, 'var(--ks-card-border)')};
+  --ks-comp-strong-shadow: ${eqTok(comp.glass_strong_shadow, D.components.glass_strong_shadow, 'var(--ks-card-shadow)')};
+  --ks-comp-strong-radius: ${eqTok(comp.glass_strong_border_radius, D.components.glass_strong_border_radius, 'var(--ks-card-radius)')};
+  --ks-comp-strong-blur: ${comp.glass_strong_backdrop_blur === D.components.glass_strong_backdrop_blur ? 'var(--ks-card-blur)' : `${num(comp.glass_strong_backdrop_blur, 1)}px`};
+
+  --ks-modal-bg: ${eqTok(comp.modal_background, D.components.modal_background, 'var(--ks-comp-strong-bg)')};
+  --ks-modal-border: ${eqTok(comp.modal_border_color, D.components.modal_border_color, 'var(--ks-comp-strong-border)')};
+  --ks-modal-shadow: ${eqTok(comp.modal_shadow, D.components.modal_shadow, 'var(--ks-comp-strong-shadow)')};
+  --ks-modal-overlay-c: ${safeCssValue(comp.modal_overlay_color, 'rgba(0,0,0,0.60)')};
+  --ks-modal-radius: ${comp.modal_border_radius === D.components.modal_border_radius ? 'var(--ks-comp-strong-radius)' : `${num(comp.modal_border_radius, 5)}px`};
+  --ks-modal-blur: ${comp.modal_backdrop_blur === D.components.modal_backdrop_blur ? 'var(--ks-comp-strong-blur)' : `${num(comp.modal_backdrop_blur, 1)}px`};
+
+  --ks-chrome-bg: ${safeCssValue(comp.glass_chrome_background)};
+  --ks-chrome-blur: ${num(comp.glass_chrome_backdrop_blur, 24)}px;
+  --ks-chrome-border: ${safeCssValue(comp.glass_chrome_border_color)};
+
+  /* ---------------- Theme Studio: Utilities ---------------- */
+  --ks-ui-primary: ${safeCssValue(u.color_primary)};
+  --ks-ui-secondary: ${safeCssValue(u.color_secondary)};
+  --ks-ui-success: ${safeCssValue(u.color_success)};
+  --ks-ui-warning: ${safeCssValue(u.color_warning)};
+  --ks-ui-danger: ${safeCssValue(u.color_danger)};
+  --ks-ui-muted: ${safeCssValue(u.color_muted)};
+  --ks-space-base: ${num(u.spacing_base, 4)}px;
+  --ks-radius-none: ${num(u.radius_none, 0)}px;
+  --ks-radius-sm-u: ${num(u.radius_sm, 4)}px;
+  --ks-radius-md-u: ${num(u.radius_md, 8)}px;
+  --ks-radius-lg-u: ${num(u.radius_lg, 12)}px;
+  --ks-radius-full-u: ${num(u.radius_full, 9999)}px;
+  --ks-elev-1: ${elev(clampNum(u.shadow_1, 4, 0, 64))};
+  --ks-elev-2: ${elev(clampNum(u.shadow_2, 8, 0, 64))};
+  --ks-elev-3: ${elev(clampNum(u.shadow_3, 16, 0, 64))};
+  --ks-elev-4: ${elev(clampNum(u.shadow_4, 24, 0, 64))};
+  --ks-t-fast: ${clampNum(u.transition_fast, 150, 0, 2000)}ms;
+  --ks-t-normal: ${clampNum(u.transition_normal, 200, 0, 2000)}ms;
+  --ks-t-slow: ${clampNum(u.transition_slow, 300, 0, 4000)}ms;
+  --ks-t-vslow: ${clampNum(u.transition_very_slow, 500, 0, 6000)}ms;
+  --ks-z-dropdown: ${clampNum(u.z_dropdown, 50, 0, 9999)};
+  --ks-z-modal: ${clampNum(u.z_modal, 60, 0, 9999)};
+  --ks-z-tooltip: ${clampNum(u.z_tooltip, 70, 0, 9999)};
+  --ks-z-toast: ${clampNum(u.z_toast, 80, 0, 9999)};
+  --ks-z-overlay: ${clampNum(u.z_overlay, 40, 0, 9999)};
+
+  /* ---------------- Theme Studio: Cards ---------------- */
+  --ks-listcard-bg: ${eqTok(cd.list_background, D.cards.list_background, 'var(--ks-card-bg)')};
+  --ks-listcard-border: ${eqTok(cd.list_border_color, D.cards.list_border_color, 'var(--ks-card-border)')};
+  --ks-listcard-hover: ${eqTok(cd.list_hover_border_color, D.cards.list_hover_border_color, 'var(--ks-card-hover-border)')};
+  --ks-listcard-shadow: ${eqTok(cd.list_shadow, D.cards.list_shadow, 'var(--ks-card-shadow)')};
+  --ks-listcard-radius: ${cd.list_border_radius === D.cards.list_border_radius ? 'var(--ks-card-radius)' : `${num(cd.list_border_radius, 5)}px`};
+  --ks-listcard-blur: ${cd.list_backdrop_blur === D.cards.list_backdrop_blur ? 'var(--ks-card-blur)' : `${num(cd.list_backdrop_blur, 1)}px`};
+  --ks-listcard-padding: ${cd.list_padding === D.cards.list_padding ? 'var(--ks-card-padding)' : `${num(cd.list_padding, 15)}px`};
+
+  --ks-statcard-bg: ${eqTok(cd.stat_background, D.cards.stat_background, 'var(--ks-card-bg)')};
+  --ks-statcard-border: ${eqTok(cd.stat_border_color, D.cards.stat_border_color, 'var(--ks-card-border)')};
+  --ks-statcard-icon: ${safeCssValue(cd.stat_icon_color, '#ffffff')};
+  --ks-statcard-radius: ${cd.stat_border_radius === D.cards.stat_border_radius ? 'var(--ks-card-radius)' : `${num(cd.stat_border_radius, 5)}px`};
+  --ks-statcard-px: ${cd.stat_padding_x === D.cards.stat_padding_x ? 'var(--ks-card-padding)' : `${num(cd.stat_padding_x, 15)}px`};
+  --ks-statcard-py: ${cd.stat_padding_y === D.cards.stat_padding_y ? 'var(--ks-card-padding)' : `${num(cd.stat_padding_y, 15)}px`};
+
+  --ks-formcard-bg: ${eqTok(cd.form_background, D.cards.form_background, 'var(--ks-card-bg)')};
+  --ks-formcard-border: ${eqTok(cd.form_border_color, D.cards.form_border_color, 'var(--ks-card-border)')};
+  --ks-formcard-shadow: ${eqTok(cd.form_shadow, D.cards.form_shadow, 'var(--ks-card-shadow)')};
+  --ks-formcard-radius: ${cd.form_border_radius === D.cards.form_border_radius ? 'var(--ks-card-radius)' : `${num(cd.form_border_radius, 5)}px`};
+  --ks-formcard-padding: ${cd.form_padding === D.cards.form_padding ? 'var(--ks-card-padding)' : `${num(cd.form_padding, 15)}px`}`,
+  };
+}
+
+// buildSectionRules emits the rule blocks for the four new sections. They
+// are appended AFTER every legacy component rule so they win same-specificity
+// ties, and BEFORE the admin's Custom CSS block (which therefore always has
+// the final word).
+// ------------------------------------------------------------------
+// Panel-wide utility mappings (the "every page, everything" layer)
+// ------------------------------------------------------------------
+// Pages style their text/status/borders with stock Tailwind utilities
+// (text-gray-400, text-emerald-300, border-red-700/40, …) — thousands of
+// them. Rewriting every className in every page is unmaintainable, so the
+// applier REMAPS those utility classes onto theme tokens instead.
+//
+// Every mapping is GATED: it is emitted only when the corresponding token
+// differs from DEFAULT_THEME's value. Under the Default theme nothing is
+// emitted at all, guaranteeing pixel parity; the moment an admin changes
+// e.g. accent.danger, every red utility across ALL pages follows it.
+function buildUtilityMappings(theme: Theme): string {
+  const D = DEFAULT_THEME;
+  const a = theme.accent;
+  const t = theme.typography;
+  const u = theme.utilities;
+  const blocks: string[] = [];
+
+  // Selector builders ------------------------------------------------
+  // Escaped class lists for one family+shade range, e.g.
+  // `.text-red-300,.text-red-400\/50,…`. Arbitrary-alpha variants are
+  // covered for the common steps so tinted/hover classes map too — but
+  // ONLY via exact class selectors, never substring matching, which would
+  // also hit `hover:` variants permanently.
+  const esc = (s: string) => s.replace(/([.:[\])/g, '\\$1');
+  const shadeSel = (prefix: string, shades: number[], alphas: string[]): string =>
+    shades.flatMap((sh) => alphas.map((al) => `.${esc(`${prefix}-${sh}${al}`)}`)).join(',');
+
+  const TEXT_ALPHAS = ['', '\\/20', '\\/30', '\\/40', '\\/50', '\\/70', '\\/80', '\\/90'];
+  const SHADES_ALL = [100, 200, 300, 400, 500, 600, 700, 800, 900];
+
+  // Status families → their accent token.
+  const statusFamily = (
+    prefix: 'text' | 'bg' | 'border',
+    hues: string[],
+    token: string,
+    opts?: { tintBgShades?: number[]; solidBgShades?: number[]; borderAlpha?: number },
+  ): string | null => {
+    // Unparseable tokens can't drive a mapping — skip rather than emit junk.
+    if (!rgbaAt(token, 1, '')) return null;
+    if (prefix === 'text') {
+      const sel = hues.map((hue) => shadeSel(`text-${hue}`, SHADES_ALL, TEXT_ALPHAS));
+      return `${sel.join(',')} { color: ${token} !important; }`;
+    }
+    const sel: string[] = [];
+    if (prefix === 'border') {
+      for (const hue of hues) sel.push(shadeSel(`border-${hue}`, [200, 300, 400, 500, 600, 700], ['', '\\/30', '\\/40', '\\/60']));
+      return `${sel.join(',')} { border-color: ${rgbaAt(token, opts?.borderAlpha ?? 0.45, token)} !important; }`;
+    }
+    // bg: split solids vs tinted darks so /30 washes stay translucent.
+    const parts: string[] = [];
+    const solidShades = opts?.solidBgShades ?? [300, 400, 500, 600];
+    const tintShades = opts?.tintBgShades ?? [700, 800, 900];
+    for (const hue of hues) {
+      parts.push(shadeSel(`bg-${hue}`, solidShades, ['', '\\/70', '\\/80', '\\/90']));
+    }
+    const solid = parts.join(',');
+    const tintParts: string[] = [];
+    for (const hue of hues) tintParts.push(shadeSel(`bg-${hue}`, tintShades, ['', '\\/20', '\\/30', '\\/40', '\\/50']));
+    return `${solid} { background-color: ${token} !important; }\n${tintParts.join(',')} { background-color: ${rgbaAt(token, 0.18, token)} !important; }`;
+  };
+
+  // --- Muted body copy → typography.body_color ---
+  if (t.body_color !== D.typography.body_color) {
+    blocks.push(`
+/* Utility mapping: muted text → typography.body_color */
+.text-gray-300, .text-gray-400, .text-gray-500, .text-gray-600 {
+  color: var(--ks-text-body) !important;
+}`);
+  }
+
+  // --- Bright headings/titles → typography.heading_color ---
+  let reassert = '';
+  if (t.heading_color !== D.typography.heading_color) {
+    blocks.push(`
+/* Utility mapping: headings & bright text → typography.heading_color */
+h1, h2, h3, h4, h5, h6, .text-gray-100, .text-gray-200, .text-white {
+  color: var(--ks-text-heading) !important;
+}`);
+    // Components that OWN their text colour must win back over the broad
+    // .text-white mapping above (white-on-accent buttons, active nav,
+    // active tabs, checked chips…).
+    reassert = `
+/* Component colour reassertions (after the heading mapping) */
+.ks-primary-btn { color: var(--ks-btn-text) !important; }
+.ks-ghost-btn { color: var(--ks-btn-ghost-text) !important; }
+.ks-icon-btn { color: var(--ks-btn-icon-text) !important; }
+.ks-nav-active { color: var(--ks-sidebar-active-text) !important; }
+.ks-tab-active { color: var(--ks-tab-active-text) !important; }
+.rich-check.is-on { color: var(--ks-check-mark) !important; }
+.glass-dropdown, .ks-dropdown { color: var(--ks-dropdown-item-text) !important; }`;
+  }
+
+  // --- Status colours → accents ---
+  if (a.danger !== D.accent.danger) {
+    const r = statusFamily('text', ['red'], a.danger);
+    if (r) blocks.push(`\n/* Utility mapping: red → accent.danger */\n${r}`);
+    const b = statusFamily('border', ['red'], a.danger);
+    if (b) blocks.push(b);
+    const g = statusFamily('bg', ['red'], a.danger);
+    if (g) blocks.push(g);
+  }
+  if (a.success !== D.accent.success) {
+    for (const hue of ['emerald', 'green']) {
+      const r = statusFamily('text', [hue], a.success);
+      if (r) blocks.push(r);
+      const b = statusFamily('border', [hue], a.success);
+      if (b) blocks.push(b);
+      const g = statusFamily('bg', [hue], a.success);
+      if (g) blocks.push(g);
+    }
+  }
+  if (a.warning !== D.accent.warning) {
+    for (const hue of ['amber', 'yellow', 'orange']) {
+      const r = statusFamily('text', [hue], a.warning);
+      if (r) blocks.push(r);
+      const b = statusFamily('border', [hue], a.warning);
+      if (b) blocks.push(b);
+      const g = statusFamily('bg', [hue], a.warning);
+      if (g) blocks.push(g);
+    }
+  }
+  if ((a.info || D.accent.info) !== D.accent.info) {
+    for (const hue of ['sky', 'blue', 'cyan']) {
+      const r = statusFamily('text', [hue], a.info);
+      if (r) blocks.push(r);
+      const b = statusFamily('border', [hue], a.info);
+      if (b) blocks.push(b);
+      const g = statusFamily('bg', [hue], a.info);
+      if (g) blocks.push(g);
+    }
+  }
+
+  // --- Links → typography.link_color ---
+  if (t.link_color !== D.typography.link_color) {
+    blocks.push(`
+/* Utility mapping: links → typography.link_color */
+a:not([class]) { color: var(--ks-link); }
+a.text-blue-300, a.text-blue-400, a.text-sky-300, a.text-sky-400, a.text-blue-500, a.text-sky-500 {
+  color: var(--ks-link) !important;
+}`);
+  }
+
+  // --- Hairline white borders → card border token ---
+  if (theme.card.border_color !== D.card.border_color) {
+    blocks.push(`
+/* Utility mapping: hairline borders → card.border_color */
+.border-white\\/10, .border-white\\/15, .border-white\\/20, .border-white\\/\\[0\\.06\\], .border-white\\/\\[0\\.08\\] {
+  border-color: var(--ks-card-border) !important;
+}`);
+  }
+
+  // --- Decorative scrollbar + selection follow accents (gated) ---
+  if (u.color_primary !== D.utilities.color_primary && isHexish(u.color_primary)) {
+    blocks.push(`
+/* Utility mapping: nav scrollbar thumb → utilities.color_primary */
+nav.overflow-x-auto::-webkit-scrollbar-thumb { background: ${u.color_primary}; background-clip: content-box; }
+@supports (scrollbar-color: auto) { nav.overflow-x-auto { scrollbar-color: ${u.color_primary} transparent; } }`);
+  }
+  if (a.primary !== D.accent.primary && isHexish(a.primary)) {
+    blocks.push(`
+/* Utility mapping: text selection → accent.primary */
+::selection { background: ${rgbaAt(a.primary, 0.35, 'rgba(255,255,255,0.35)')}; color: #ffffff; }`);
+  }
+
+  // --- Chart hooks (consumed by MetricsChart via var() fallbacks) ---
+  const chartVars: string[] = [];
+  if (theme.card.border_color !== D.card.border_color) {
+    chartVars.push(`--ks-chart-grid: ${rgbaAt(theme.card.border_color, 0.6, 'rgba(255,255,255,0.06)')}`);
+  }
+  if (a.primary !== D.accent.primary && isHexish(a.primary)) {
+    chartVars.push(`--ks-chart-dot: ${a.primary}`);
+  }
+  if (u.color_muted !== D.utilities.color_muted && isHexish(u.color_muted)) {
+    // Gauge/donut track rings (Nodes, System charts).
+    chartVars.push(`--ks-chart-track: ${u.color_muted}`);
+  }
+  if (chartVars.length) {
+    blocks.push(`\n:root { ${chartVars.join('; ')}; }`);
+  }
+
+  if (!blocks.length) return '';
+  return `\n/* ------------------------------------------------------------------
+   Theme Studio → panel-wide utility mappings (gated: emitted only for
+   tokens customised away from the Default theme)
+   ------------------------------------------------------------------ */${blocks.join('\n')}${reassert}`;
+}
+
+function isHexish(v: unknown): boolean {
+  return typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v.trim());
+}
+
+function buildSectionRules(theme: Theme): string {
+  const comp = theme.components;
+  const f = theme.forms;
+  const D = DEFAULT_THEME;
+
+  const modalMaxWidth =
+    num(comp.modal_max_width, 512) !== D.components.modal_max_width
+      ? `\n.ks-modal-panel { max-width: min(${num(comp.modal_max_width, 512)}px, 92vw) !important; }`
+      : '';
+
+  // Select chevron recolour — only emitted for a clean #rrggbb value (the
+  // arrow is an inline SVG data URI; arbitrary colours can't be injected).
+  const arrowHex = /^#[0-9a-fA-F]{6}$/.test(String(f.select_arrow_color));
+  const arrowRule = arrowHex
+    ? `\nselect.ks-select {\n  background-image: url("data:image/svg+xml;charset=utf-8,${encodeURIComponent(
+        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="${f.select_arrow_color}" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>`,
+      )}") !important;\n  background-position: right 0.625rem center !important;\n  background-repeat: no-repeat !important;\n}`
+    : '';
+
+  return `
+/* ------------------------------------------------------------------
+   Theme Studio → Forms. Drives every .ks-* control AND the stock
+   Tailwind input pattern (bg-black/30 + border-white/10) used across
+   the panel's pages, so ALL inputs/selects/textareas follow the Forms
+   tab end-to-end without per-page edits.
+   ------------------------------------------------------------------ */
+input.ks-input,
+#root input[class*="bg-black/30"][class*="border-white/10"] {
+  background-color: var(--ks-form-input-bg) !important;
+  color: var(--ks-form-input-text) !important;
+  border-color: var(--ks-form-input-border) !important;
+  border-radius: var(--ks-form-input-radius) !important;
+  padding-left: var(--ks-form-input-px) !important;
+  padding-right: var(--ks-form-input-px) !important;
+  padding-top: var(--ks-form-input-py) !important;
+  padding-bottom: var(--ks-form-input-py) !important;
+  font-size: var(--ks-form-input-font) !important;
+}
+select.ks-select,
+#root select[class*="bg-black/30"][class*="border-white/10"] {
+  background-color: var(--ks-form-select-bg) !important;
+  color: var(--ks-form-select-text) !important;
+  border-color: var(--ks-form-select-border) !important;
+  border-radius: var(--ks-form-select-radius) !important;
+  padding-left: var(--ks-form-select-px) !important;
+  padding-right: var(--ks-form-select-px) !important;
+  padding-top: var(--ks-form-select-py) !important;
+  padding-bottom: var(--ks-form-select-py) !important;
+  font-size: var(--ks-form-select-font) !important;
+}
+textarea.ks-textarea,
+#root textarea[class*="bg-black/30"][class*="border-white/10"] {
+  background-color: var(--ks-form-textarea-bg) !important;
+  color: var(--ks-form-textarea-text) !important;
+  border-color: var(--ks-form-textarea-border) !important;
+  border-radius: var(--ks-form-textarea-radius) !important;
+  padding-left: var(--ks-form-textarea-px) !important;
+  padding-right: var(--ks-form-textarea-px) !important;
+  padding-top: var(--ks-form-textarea-py) !important;
+  padding-bottom: var(--ks-form-textarea-py) !important;
+  font-size: var(--ks-form-textarea-font) !important;
+}
+input.ks-input:focus,
+select.ks-select:focus,
+textarea.ks-textarea:focus,
+#root input[class*="bg-black/30"][class*="border-white/10"]:focus,
+#root select[class*="bg-black/30"][class*="border-white/10"]:focus,
+#root textarea[class*="bg-black/30"][class*="border-white/10"]:focus {
+  outline: none !important;
+  border-color: var(--ks-form-focus-border) !important;
+  box-shadow: var(--ks-form-focus-shadow) !important;
+}
+input.ks-input::placeholder,
+textarea.ks-textarea::placeholder,
+#root input[class*="bg-black/30"]::placeholder,
+#root textarea[class*="bg-black/30"]::placeholder {
+  color: var(--ks-form-placeholder) !important;
+  opacity: 1 !important;
+}
+input.ks-input:focus,
+select.ks-select:focus,
+textarea.ks-textarea:focus,
+#root input[class*="bg-black/30"][class*="border-white/10"]:focus,
+#root select[class*="bg-black/30"][class*="border-white/10"]:focus,
+#root textarea[class*="bg-black/30"][class*="border-white/10"]:focus {
+  outline: none !important;
+  border-color: var(--ks-form-focus-border) !important;
+  box-shadow: var(--ks-form-focus-shadow) !important;
+}
+.ks-label {
+  color: var(--ks-label-text) !important;
+  font-size: var(--ks-label-size) !important;
+  font-weight: var(--ks-label-weight) !important;
+}
+.ks-hint {
+  color: var(--ks-hint-text) !important;
+  font-size: var(--ks-hint-size) !important;
+}
+.ks-hint-error { color: var(--ks-hint-error) !important; }
+.ks-hint-success { color: var(--ks-hint-success) !important; }
+.ks-field { margin-bottom: var(--ks-field-mb); }
+.ks-field > * + * { margin-top: var(--ks-field-gap) !important; }
+input.ks-checkbox {
+  accent-color: var(--ks-check-on) !important;
+  width: var(--ks-check-size) !important;
+  height: var(--ks-check-size) !important;
+  border-radius: var(--ks-check-radius) !important;
+}
+input.ks-radio {
+  accent-color: var(--ks-radio-on) !important;
+  width: var(--ks-radio-size) !important;
+  height: var(--ks-radio-size) !important;
+}
+.rich-check {
+  background: var(--ks-check-off-bg);
+  border-color: var(--ks-check-border);
+}
+.rich-check.is-on {
+  background: var(--ks-check-on) !important;
+  border-color: var(--ks-check-on) !important;
+  color: var(--ks-check-mark) !important;
+}
+.ks-toggle:not(.ks-toggle-sm):not(.ks-toggle-lg) {
+  width: var(--ks-toggle-w) !important;
+  height: var(--ks-toggle-h) !important;
+  border-radius: var(--ks-toggle-radius) !important;
+  background-color: var(--ks-toggle-off) !important;
+}
+.ks-toggle:not(.ks-toggle-sm):not(.ks-toggle-lg):has(input:checked) {
+  background-color: var(--ks-toggle-on) !important;
+  border-color: var(--ks-toggle-on) !important;
+}
+.ks-toggle:not(.ks-toggle-sm):not(.ks-toggle-lg) .ks-toggle__thumb {
+  width: var(--ks-toggle-thumb-size) !important;
+  height: var(--ks-toggle-thumb-size) !important;
+  top: var(--ks-toggle-offset) !important;
+  left: var(--ks-toggle-offset) !important;
+  background: var(--ks-toggle-thumb) !important;
+}
+.ks-toggle:not(.ks-toggle-sm):not(.ks-toggle-lg):has(input:checked) .ks-toggle__thumb {
+  transform: translateX(var(--ks-toggle-travel)) !important;
+}
+
+/* ------------------------------------------------------------------
+   Theme Studio → Components. Modal dialog + overlay scrim + strong
+   glass + chrome surfaces. The sidebar/header keep their dedicated
+   themed sections (excluded via :not()).
+   ------------------------------------------------------------------ */
+.glass-strong {
+  background-color: var(--ks-comp-strong-bg) !important;
+  border-color: var(--ks-comp-strong-border) !important;
+  box-shadow: var(--ks-comp-strong-shadow) !important;
+  border-radius: var(--ks-comp-strong-radius) !important;
+  backdrop-filter: blur(var(--ks-comp-strong-blur)) !important;
+  -webkit-backdrop-filter: blur(var(--ks-comp-strong-blur)) !important;
+}
+.ks-modal-panel {
+  background-color: var(--ks-modal-bg) !important;
+  border-color: var(--ks-modal-border) !important;
+  box-shadow: var(--ks-modal-shadow) !important;
+  border-radius: var(--ks-modal-radius) !important;
+  backdrop-filter: blur(var(--ks-modal-blur)) !important;
+  -webkit-backdrop-filter: blur(var(--ks-modal-blur)) !important;
+}
+.ks-modal-overlay {
+  background-color: var(--ks-modal-overlay-c) !important;
+}
+.glass-chrome:not(.ks-sidebar-bg):not(.ks-header-bg) {
+  background: var(--ks-chrome-bg) !important;
+  backdrop-filter: blur(var(--ks-chrome-blur)) !important;
+  -webkit-backdrop-filter: blur(var(--ks-chrome-blur)) !important;
+  border-color: var(--ks-chrome-border) !important;
+}${modalMaxWidth}${arrowRule}
+
+/* ------------------------------------------------------------------
+   Theme Studio → Utilities. Token-only surface: semantic colours,
+   spacing base, radius/shadow scales, transition speeds and the z-index
+   ladder. Transition speed vars are consumed by the themed component
+   rules above; the remaining tokens are stable hooks for Custom CSS.
+   ------------------------------------------------------------------ */
+.glass-card { transition-duration: var(--ks-t-normal, 200ms) !important; }
+.ks-ghost-btn { transition-duration: var(--ks-t-fast, 150ms) !important; }
+.ks-icon-btn { transition-duration: var(--ks-t-fast, 150ms) !important; }
+.ks-tab { transition-duration: var(--ks-t-fast, 150ms) !important; }
+
+/* ------------------------------------------------------------------
+   Theme Studio → Cards. Semantic variants layered on the base card;
+   tokens equal-to-default resolve to the live base vars inside
+   buildSectionVars, so these rules only override what the admin set.
+   ------------------------------------------------------------------ */
+.ks-list-card {
+  background-color: var(--ks-listcard-bg) !important;
+  border-color: var(--ks-listcard-border) !important;
+  box-shadow: var(--ks-listcard-shadow) !important;
+  border-radius: var(--ks-listcard-radius) !important;
+  backdrop-filter: blur(var(--ks-listcard-blur)) !important;
+  -webkit-backdrop-filter: blur(var(--ks-listcard-blur)) !important;
+  padding: var(--ks-listcard-padding) !important;
+}
+.ks-list-card:hover { border-color: var(--ks-listcard-hover) !important; }
+.ks-stat-card {
+  background-color: var(--ks-statcard-bg) !important;
+  border-color: var(--ks-statcard-border) !important;
+  border-radius: var(--ks-statcard-radius) !important;
+  padding-left: var(--ks-statcard-px) !important;
+  padding-right: var(--ks-statcard-px) !important;
+  padding-top: var(--ks-statcard-py) !important;
+  padding-bottom: var(--ks-statcard-py) !important;
+}
+.ks-stat-card svg { color: var(--ks-statcard-icon) !important; }
+.ks-form-card {
+  background-color: var(--ks-formcard-bg) !important;
+  border-color: var(--ks-formcard-border) !important;
+  box-shadow: var(--ks-formcard-shadow) !important;
+  border-radius: var(--ks-formcard-radius) !important;
+  padding: var(--ks-formcard-padding) !important;
+}`;
 }
 
 // resolveThemeFromStore is the merged resolver the store uses on every
@@ -1173,26 +1921,21 @@ function loadBootstrapTheme(): void {
   if (typeof window === 'undefined') return;
   const boot = (window as unknown as { __KSPANEL_BOOTSTRAP__?: KsPanelBootstrap }).__KSPANEL_BOOTSTRAP__;
   if (!boot || !boot.theme) return;
-  const themes: Theme[] = (boot.theme.themes || []).map((s) => {
-    // Backfill new fields from DEFAULT so old global themes saved before
-    // e.g. card.glass_style / dropdowns.bg_type existed still resolve
-    // safely — same defence we run in loadGlobal() for the fetched copy.
-    // Without these explicit re-merges a partial spec.dropdowns (with
-    // only background set, for example) would wholesale REPLACE
-    // DEFAULT_THEME.dropdowns via the ...s.spec spread above and the
-    // admin would suddenly see no dropdown backdrop / no border / etc.
-    return {
-      ...DEFAULT_THEME,
+  const themes: Theme[] = (boot.theme.themes || []).map((s) =>
+    // Backfill EVERY section from DEFAULT so old global themes saved before
+    // newer sections existed still resolve safely — same defence we run in
+    // loadGlobal() for the fetched copy. Without this a partial
+    // spec.dropdowns (with only background set, for example) would
+    // wholesale REPLACE DEFAULT_THEME.dropdowns and the admin would
+    // suddenly see no dropdown backdrop / no border / etc.
+    migrateThemeSections({
       ...s.spec,
       id: s.id,
       name: s.name,
       description: s.description,
       builtin: !!s.builtin,
-      card: { ...DEFAULT_THEME.card, ...(s.spec.card || {}), glass_style: (s.spec.card && s.spec.card.glass_style) || DEFAULT_THEME.card.glass_style },
-      dropdowns: { ...DEFAULT_THEME.dropdowns, ...(s.spec.dropdowns || {}) },
-      customCSS: migrateCustomCSS((s.spec as any).customCSS),
-    };
-  });
+    }),
+  );
   const assignments: Partial<Record<Scope, string>> = {};
   for (const a of boot.theme.assignments || []) {
     assignments[a.scope as Scope] = a.theme_id;
@@ -1279,32 +2022,24 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   loadGlobal: async () => {
     try {
       const store = await fetchThemesStore();
-      const globalThemes: Theme[] = (store.themes || []).map((s: StoredTheme) => {
-        const spec = s.spec || ({} as Theme);
+      const globalThemes: Theme[] = (store.themes || []).map((s: StoredTheme) =>
         // Backfill EVERY section from DEFAULT_THEME first so old global
-        // themes saved before a section was added (background / card /
-        // sidebar / button / header / typography / accent / shape / loading)
-        // still resolve safely. This MUST mirror loadBootstrapTheme()'s
-        // ...DEFAULT_THEME, ...s.spec spread — previously loadGlobal only
-        // re-backfilled card, so a refresh that re-fetched /api/themes
-        // would overwrite the bootstrapped (fully-backfilled) theme with a
-        // copy missing newer sections, and applyForRoute() would then read
-        // e.g. theme.loading as undefined and (worse) re-apply a half-empty
-        // theme — the "theme loading not working after edit" symptom.
-        return {
-          ...DEFAULT_THEME,
-          ...spec,
+        // themes saved before a section was added still resolve safely.
+        // This MUST mirror loadBootstrapTheme()'s merge — previously
+        // loadGlobal only re-backfilled card, so a refresh that re-fetched
+        // /api/themes would overwrite the bootstrapped (fully-backfilled)
+        // theme with a copy missing newer sections and applyForRoute()
+        // would read e.g. theme.loading as undefined.
+        migrateThemeSections({
+          ...s.spec,
           id: s.id,
           name: s.name,
           description: s.description,
           builtin: !!s.builtin,
           created_at: s.created_at,
           updated_at: s.updated_at,
-          card: { ...DEFAULT_THEME.card, ...(spec.card || {}), glass_style: (spec.card && spec.card.glass_style) || DEFAULT_THEME.card.glass_style },
-          dropdowns: { ...DEFAULT_THEME.dropdowns, ...(spec.dropdowns || {}) },
-          customCSS: migrateCustomCSS((spec as any).customCSS),
-        };
-      });
+        }),
+      );
       const globalAssignments: Partial<Record<Scope, string>> = {};
       for (const a of store.assignments || []) {
         globalAssignments[a.scope as Scope] = a.theme_id;
@@ -1486,12 +2221,14 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
         name: base.name === 'Default' ? 'My Theme' : base.name,
         builtin: false,
         card: { ...DEFAULT_THEME.card, ...base.card, glass_style: base.card.glass_style || DEFAULT_THEME.card.glass_style },
-        // Backfill customCSS from the seed (or empty when the seed pre-dates
-        // the field) so the studio never reads undefined. The seed's
-        // values are intentionally KEPT — beginDraft's contract is "new
-        // theme starts from the look the admin sees today", and custom
-        // CSS is part of that look. The admin can clear it in the studio
-        // if they want a clean slate.
+        // Backfill every section so a seed that pre-dates a section still
+        // yields a fully-shaped draft (the studio never reads undefined).
+        // The seed's *values* are intentionally KEPT — beginDraft's contract
+        // is "new theme starts from the look the admin sees today".
+        forms: { ...DEFAULT_THEME.forms, ...(base.forms || {}) },
+        components: { ...DEFAULT_THEME.components, ...(base.components || {}) },
+        utilities: { ...DEFAULT_THEME.utilities, ...(base.utilities || {}) },
+        cards: { ...DEFAULT_THEME.cards, ...(base.cards || {}) },
         customCSS: migrateCustomCSS((base as any).customCSS),
       },
     });

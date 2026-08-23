@@ -25,6 +25,13 @@ export interface ApplicationPermission {
   granted: boolean;
 }
 
+// One staged script file inside an application (Studio-authored or shipped
+// with the manifest). Paths are relative; content is plain text.
+export interface ApplicationFile {
+  path: string;
+  content: string;
+}
+
 // A catalog application (admin-owned). Users install this as their own
 // running instance via application_installations.
 export interface Application {
@@ -38,6 +45,8 @@ export interface Application {
   runtime: string;
   entrypoint: string;
   config_schema: ApplicationConfigField[];
+  files?: ApplicationFile[] | null;
+  env?: Record<string, string> | null;
   permissions: ApplicationPermissionReq[]; // preview of requested caps
   active: boolean;
   uploaded_by?: number;
@@ -68,7 +77,48 @@ export interface ApplicationUpsertPayload {
   runtime: string;
   entrypoint: string;
   config_schema: ApplicationConfigField[];
+  files?: ApplicationFile[];
   permissionsRequested: ApplicationPermissionReq[];
+}
+
+// ---- Runs -----------------------------------------------------------------
+
+// Where a run executes. "node" = a registered edge; "panel" = the panel
+// host itself (via its local node when one exists, otherwise direct shell).
+export type ApplicationRunTarget = 'node' | 'panel';
+
+// Where inside the target the script lands. "host" = target filesystem;
+// the driver kinds exec inside an existing workload on that target.
+export type ApplicationRunExecMode = 'host' | 'docker' | 'lxd' | 'kvm' | 'multipass';
+
+// Body of POST /api/applications/{id}/run.
+export interface ApplicationRunRequest {
+  target: ApplicationRunTarget;
+  node_id?: number;
+  exec_mode: ApplicationRunExecMode;
+  workload?: string;
+  timeout_sec?: number;
+  env?: Record<string, string>;
+}
+
+// One recorded execution (mirrors models.ApplicationRun).
+export interface ApplicationRun {
+  id: number;
+  application_id: number;
+  triggered_by?: number;
+  target: ApplicationRunTarget;
+  node_id: number;
+  node_name?: string;
+  exec_mode: ApplicationRunExecMode;
+  workload?: string;
+  status: 'running' | 'succeeded' | 'failed' | 'error';
+  exit_code: number;
+  output: string;
+  error_output: string;
+  error: string;
+  timeout_sec: number;
+  created_at: string;
+  ended_at?: string;
 }
 
 // User-facing installation (one bot instance a user deployed).

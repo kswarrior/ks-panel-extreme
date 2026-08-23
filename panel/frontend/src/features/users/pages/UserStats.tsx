@@ -58,10 +58,9 @@ const UserStats: React.FC = () => {
     const suspended = users.filter((u) => u.suspended).length;
     const active = total - suspended;
     const withHistory = users.filter((u) => (u.suspension_count || 0) > 0).length;
-    const withMfa = users.filter((u) => u.mfa_enabled).length;
     const withAvatar = users.filter((u) => u.has_avatar).length;
     const withBanner = users.filter((u) => u.has_banner).length;
-    return { total, active, suspended, withHistory, withMfa, withAvatar, withBanner };
+    return { total, active, suspended, withHistory, withAvatar, withBanner };
   }, [users]);
 
   const statusSlices = useMemo(() => [
@@ -172,13 +171,6 @@ const UserStats: React.FC = () => {
           icon={<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-5 h-5"><circle cx="12" cy="12" r="10" /><line x1="4.93" y1="4.93" x2="19.07" y2="19.07" /></svg>}
           color="text-red-300"
           dotColor="bg-red-400"
-        />
-        <StatCard
-          label="With MFA"
-          value={stats.withMfa}
-          icon={<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-5 h-5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>}
-          color="text-sky-300"
-          dotColor="bg-sky-400"
         />
       </DashboardGrid>
 

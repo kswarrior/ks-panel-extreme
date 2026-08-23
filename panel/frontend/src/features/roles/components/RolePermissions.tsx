@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useEffect } from 'react';
 import GlassField from '@/shared/components/ui/Field';
-import type { Permission, PermissionArea } from '@/shared/types/permissions';
+import type { PermissionArea } from '@/shared/types/permissions';
+import type { Permission } from '@/shared/types/user';
 import { ALL_ACTIONS, AREA_PERM_KEYS, PERMISSION_AREAS } from '@/shared/types/permissions';
 
 interface RolePermissionsProps {
@@ -197,7 +198,8 @@ const RolePermissions: React.FC<RolePermissionsProps> = ({
             ))}
           </div>
         )}
-      </div>    </GlassField>
+      </div>
+    </GlassField>
   );
 };
 

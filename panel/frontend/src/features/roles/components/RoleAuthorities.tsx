@@ -5,7 +5,9 @@ import { AUTHORITY_PROVIDER } from '@/features/authority/types/authority';
 
 interface RoleAuthoritiesProps {
   formAllowedAuthTypes: string[] | null;
-  setFormAllowedAuthTypes: React.Dispatch<React.SetStateAction<string[] | null>>;
+  // Plain value callback — this component only ever sets concrete arrays
+  // / null (never an updater function), so a Dispatch is over-typed.
+  setFormAllowedAuthTypes: (v: string[] | null) => void;
   authProviders: AuthProviderInfo[];
 }
 
@@ -24,12 +26,7 @@ const RoleAuthorities: React.FC<RoleAuthoritiesProps> = ({
             type="checkbox"
             id="allowed-auth-types-unrestricted"
             checked={formAllowedAuthTypes === null}
-            onChange={(e) =>
-              setFormAllowedAuthTypes((f) => ({
-                ...f,
-                allowed_auth_types: e.target.checked ? null : ALLOWED_AUTH_TYPES_UNRESTRICTED,
-              }))
-            }
+            onChange={(e) => setFormAllowedAuthTypes(e.target.checked ? null : [])}
             className="mt-0.5 accent-indigo-400"
           />
           <span className="flex-1">
@@ -49,7 +46,7 @@ const RoleAuthorities: React.FC<RoleAuthoritiesProps> = ({
             </p>
             {authProviders.length === 0 ? (
               <p className="text-xs text-gray-500">
-                No admin-enabled authorities yet — open the Authority admin page to enable providers first.
+                No admin-enabled authorities yet — enable providers first in Security / Authority.
               </p>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -72,13 +69,13 @@ const RoleAuthorities: React.FC<RoleAuthoritiesProps> = ({
                         checked={checked || isPassword}
                         disabled={isPassword}
                         onChange={() => {
-                          setFormAllowedAuthTypes((f) => {
-                            if (!Array.isArray(f)) return f;
-                            if (checked) {
-                              return { ...f, allowed_auth_types: f.filter((x) => x !== p.id) };
-                            }
-                            return { ...f, allowed_auth_types: [...f, p.id] };
-                          });
+                          if (isPassword) return;
+                          const current = Array.isArray(formAllowedAuthTypes) ? formAllowedAuthTypes : [];
+                          if (checked) {
+                            setFormAllowedAuthTypes(current.filter(x => x !== p.id));
+                          } else {
+                            setFormAllowedAuthTypes([...current, p.id]);
+                          }
                         }}
                         className="accent-emerald-500"
                       />
