@@ -28,7 +28,7 @@ export const LoadingTab: React.FC<LoadingTabProps> = ({ draft, patch, renderLoad
       />
 
       {draft.loading.type === 'skeleton' && (
-        <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-4">
+        <div className="ks-form-card rounded-lg space-y-4">
           <div>
             <Label label="Skeleton options" hint="Placeholder cards/rows shown while data loads." />
           </div>
@@ -226,7 +226,7 @@ export const LoadingTab: React.FC<LoadingTabProps> = ({ draft, patch, renderLoad
             type="checkbox"
             checked={draft.loading.show_text}
             onChange={(e) => patch('loading', { show_text: e.target.checked })}
-            className="w-4 h-4"
+            className="ks-checkbox w-4 h-4"
           />
           Show loading text
         </label>
@@ -235,7 +235,7 @@ export const LoadingTab: React.FC<LoadingTabProps> = ({ draft, patch, renderLoad
             type="checkbox"
             checked={draft.loading.full_screen}
             onChange={(e) => patch('loading', { full_screen: e.target.checked })}
-            className="w-4 h-4"
+            className="ks-checkbox w-4 h-4"
           />
           Full screen overlay
         </label>
@@ -244,7 +244,7 @@ export const LoadingTab: React.FC<LoadingTabProps> = ({ draft, patch, renderLoad
             type="checkbox"
             checked={draft.loading.show_header}
             onChange={(e) => patch('loading', { show_header: e.target.checked })}
-            className="w-4 h-4"
+            className="ks-checkbox w-4 h-4"
           />
           Show header
         </label>
@@ -253,7 +253,7 @@ export const LoadingTab: React.FC<LoadingTabProps> = ({ draft, patch, renderLoad
             type="checkbox"
             checked={draft.loading.show_sidebar}
             onChange={(e) => patch('loading', { show_sidebar: e.target.checked })}
-            className="w-4 h-4"
+            className="ks-checkbox w-4 h-4"
           />
           Show sidebar
         </label>

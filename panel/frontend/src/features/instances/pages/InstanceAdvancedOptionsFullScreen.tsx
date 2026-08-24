@@ -37,7 +37,6 @@ import type {
   LxdRuntime,
 } from '../types/instanceForm';
 import type { DriverKind } from '../types/instance';
-import { BUILTIN_PAGE_MANIFEST } from '@/features/builtin-pages';
 
 interface InstanceAdvancedOptionsFullScreenProps {
   selectedTemplate: { image: string; kind: DriverKind } | null;
@@ -341,27 +340,6 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
     [setEditor],
   );
 
-  const addFromManifestPage = useCallback(
-    (entry: any) =>
-      setEditor((f) => {
-        if (f.pages.some((p) => p.slug === entry.slug)) return f;
-        return {
-          ...f,
-          pages: [
-            ...f.pages,
-            {
-              slug: entry.slug,
-              original_slug: entry.slug,
-              enabled: true,
-              label: entry.name,
-              icon_svg: entry.iconSvg,
-              kind: 'builtin',
-            },
-          ],
-        };
-      }),
-    [setEditor],
-  );
   const addCustomPage = useCallback(
     () =>
       setEditor((f) => ({
@@ -624,10 +602,7 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
                   onPageMove={movePage}
                   onAddPages={(newPages) => {
                     newPages.forEach((np) => {
-                      if (np.kind === 'builtin' && np.original_slug) {
-                        const entry = BUILTIN_PAGE_MANIFEST.bySlug[np.original_slug];
-                        if (entry) addFromManifestPage(entry);
-                      } else if (np.kind === 'custom') {
+                      if (np.kind === 'custom') {
                         addCustomPageWithContent(np);
                       } else {
                         addCustomPage();

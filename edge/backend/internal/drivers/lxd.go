@@ -230,8 +230,11 @@ func (d *lxd) Runner(ctx context.Context, name string) (metrics, processes, port
 	// Override mem_total with LXD's limits.memory if one is set.
 	// lxc config get <name> limits.memory returns e.g. "2GB" or "2147483648"
 	// (bytes). If unset, returns empty. We parse and inject if present.
-	memLimitStr, err := asExec(ctx, "", "lxc", "config", "get", name, "limits.memory")
-	if err == nil {
+	// The config-get failure is deliberately non-fatal: the metrics blob is
+	// already complete from gatherViaShell, so a transient CLI error must
+	// not flip the whole Runner into an error via the named-return err.
+	memLimitStr, ierr := asExec(ctx, "", "lxc", "config", "get", name, "limits.memory")
+	if ierr == nil {
 		memLimitStr = strings.TrimSpace(memLimitStr)
 		if memLimitStr != "" && memLimitStr != "0" {
 			var m map[string]any
@@ -267,10 +270,13 @@ func (d *lxd) Snapshot(ctx context.Context, name string, action string, snapName
 			return "", 0, fmt.Errorf("lxc snapshot failed: %w", err)
 		}
 
-		// If requested, export the snapshot to a tar file
+		// If requested, export the snapshot to a tar file. `lxc export`
+		// takes at most two positionals (<instance> [target]); a snapshot is
+		// addressed as <instance>/<snapshot-name>. The previous three-
+		// positional form made the CLI reject the call outright.
 		if snapType == "tar" && location != "" {
 			tarPath := location + name + "-" + snapName + ".tar"
-			_, err := asExec(ctx, "", "lxc", "export", name, snapName, tarPath)
+			_, err := asExec(ctx, "", "lxc", "export", name+"/"+snapName, tarPath)
 			if err != nil {
 				return "", 0, fmt.Errorf("failed to export snapshot to tar: %w", err)
 			}

@@ -176,13 +176,16 @@ const InstancePageForm: React.FC = () => {
           <div className="ks-form-row">
             <div className="ks-field">
               <span className="ks-label text-xs text-gray-400">Kind</span>
+              {/* Only "custom" exists anymore: the built-in instance pages
+                  were converted to custom library pages and migration 046
+                  purged the legacy rows, so the API rejects kind='builtin'. */}
               <select
-                value={page.kind}
-                onChange={(e) => onChange('kind', e.target.value as 'builtin' | 'custom')}
+                value="custom"
+                disabled
                 className="ks-select"
+                title="All library pages are custom"
               >
                 <option value="custom">Custom</option>
-                <option value="builtin">Builtin</option>
               </select>
             </div>
             <div className="ks-field">
@@ -252,7 +255,7 @@ const InstancePageForm: React.FC = () => {
           {templates.length === 0 ? (
             <p className="text-xs text-gray-500">No templates available to link.</p>
           ) : (
-            <div className="ks-form-group max-h-52 overflow-y-auto rounded-md border border-white/10 bg-black/30 p-2 space-y-1">
+            <div className="ks-form-group max-h-52 overflow-y-auto ks-card ks-form-card rounded-md space-y-1">
               {templates.map((t) => {
                 const checked = linkTargetIds.includes(t.id);
                 return (

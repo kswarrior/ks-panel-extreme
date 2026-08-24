@@ -232,7 +232,7 @@ export default function ApplicationStudioTab({
 
       {studioTab === 'script' && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="md:col-span-1 border border-white/10 rounded-md bg-black/20 p-2 max-h-[60vh] overflow-auto">
+          <div className="ks-card ks-form-card md:col-span-1 rounded-md overflow-auto">
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs text-gray-400 uppercase">Files</p>
               <div className="flex gap-1">
@@ -305,7 +305,7 @@ export default function ApplicationStudioTab({
               )}
             </ul>
           </div>
-          <div className="md:col-span-2 border border-white/10 rounded-md bg-black/20 p-2 flex flex-col">
+          <div className="ks-card ks-form-card md:col-span-2 rounded-md flex flex-col">
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs text-gray-400 uppercase">Editor{selectedPath ? ` — ${selectedPath}` : ''}</p>
             </div>

@@ -29,7 +29,7 @@ func (r *InstancePageRepository) List() ([]models.InstancePage, error) {
 	if n == 0 {
 		return out, nil
 	}
-	rows, err := r.db.Query(`SELECT id, name, slug, kind, category, description, content_type, content_html, content_markdown, content_blocks, icon_svg, created_at, updated_at
+	rows, err := r.db.Query(`SELECT id, name, slug, kind, category, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages, created_at, updated_at
 		FROM instance_pages ORDER BY name ASC`)
 	if err != nil {
 		return nil, err
@@ -38,9 +38,12 @@ func (r *InstancePageRepository) List() ([]models.InstancePage, error) {
 	for rows.Next() {
 		var p models.InstancePage
 		var created, updated string
-		if err := rows.Scan(&p.ID, &p.Name, &p.Slug, &p.Kind, &p.Category, &p.Description, &p.ContentType, &p.ContentHTML, &p.ContentMarkdown, &p.ContentBlocks, &p.IconSVG, &created, &updated); err != nil {
+		var actions, subPages sql.NullString
+		if err := rows.Scan(&p.ID, &p.Name, &p.Slug, &p.Kind, &p.Category, &p.Description, &p.ContentType, &p.ContentHTML, &p.ContentMarkdown, &p.ContentBlocks, &p.IconSVG, &actions, &subPages, &created, &updated); err != nil {
 			return nil, err
 		}
+		p.Actions = actions.String
+		p.SubPages = subPages.String
 		p.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created)
 		p.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updated)
 		out = append(out, p)
@@ -52,10 +55,10 @@ func (r *InstancePageRepository) List() ([]models.InstancePage, error) {
 func (r *InstancePageRepository) Get(id int64) (*models.InstancePage, error) {
 	var p models.InstancePage
 	var pid sql.NullInt64
-	var name, slug, kind, category, desc, contentType, contentHTML, contentMarkdown, contentBlocks, iconSVG, actions, created, updated sql.NullString
-	err := r.db.QueryRow(`SELECT id, name, slug, kind, category, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, created_at, updated_at
+	var name, slug, kind, category, desc, contentType, contentHTML, contentMarkdown, contentBlocks, iconSVG, actions, subPages, created, updated sql.NullString
+	err := r.db.QueryRow(`SELECT id, name, slug, kind, category, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages, created_at, updated_at
 		FROM instance_pages WHERE id = ?`, id).Scan(
-		&pid, &name, &slug, &kind, &category, &desc, &contentType, &contentHTML, &contentMarkdown, &contentBlocks, &iconSVG, &actions, &created, &updated)
+		&pid, &name, &slug, &kind, &category, &desc, &contentType, &contentHTML, &contentMarkdown, &contentBlocks, &iconSVG, &actions, &subPages, &created, &updated)
 	if err != nil || !pid.Valid {
 		return nil, fmt.Errorf("instance page not found")
 	}
@@ -71,6 +74,7 @@ func (r *InstancePageRepository) Get(id int64) (*models.InstancePage, error) {
 	p.ContentBlocks = contentBlocks.String
 	p.IconSVG = iconSVG.String
 	p.Actions = actions.String
+	p.SubPages = subPages.String
 	p.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created.String)
 	p.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updated.String)
 	return &p, nil
@@ -91,12 +95,15 @@ type InstancePageInput struct {
 	// Actions is a JSON array of executable page actions ("" == none). The
 	// caller (handler) is responsible for validating it parses as an array.
 	Actions string
+	// SubPages is a JSON array of extra page definitions ("" == none). The
+	// caller (handler) validates shape; see validateInstancePage.
+	SubPages string
 }
 
 // Create inserts a new instance page.
 func (r *InstancePageRepository) Create(in InstancePageInput) (int64, error) {
-	res, err := r.db.Exec(`INSERT INTO instance_pages (name, slug, kind, category, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		in.Name, in.Slug, in.Kind, in.Category, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.IconSVG, in.Actions)
+	res, err := r.db.Exec(`INSERT INTO instance_pages (name, slug, kind, category, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		in.Name, in.Slug, in.Kind, in.Category, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.IconSVG, in.Actions, in.SubPages)
 	if err != nil {
 		return 0, err
 	}
@@ -105,8 +112,8 @@ func (r *InstancePageRepository) Create(in InstancePageInput) (int64, error) {
 
 // Update patches an editable instance page.
 func (r *InstancePageRepository) Update(id int64, in InstancePageInput) error {
-	res, err := r.db.Exec(`UPDATE instance_pages SET name = ?, slug = ?, kind = ?, category = ?, description = ?, content_type = ?, content_html = ?, content_markdown = ?, content_blocks = ?, icon_svg = ?, actions = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-		in.Name, in.Slug, in.Kind, in.Category, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.IconSVG, in.Actions, id)
+	res, err := r.db.Exec(`UPDATE instance_pages SET name = ?, slug = ?, kind = ?, category = ?, description = ?, content_type = ?, content_html = ?, content_markdown = ?, content_blocks = ?, icon_svg = ?, actions = ?, sub_pages = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+		in.Name, in.Slug, in.Kind, in.Category, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.IconSVG, in.Actions, in.SubPages, id)
 	if err != nil {
 		return err
 	}

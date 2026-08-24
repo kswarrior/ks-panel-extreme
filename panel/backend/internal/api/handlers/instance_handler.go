@@ -166,6 +166,34 @@ func ListInstancesHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, insts)
 }
 
+// GetInstanceHandler returns a single instance row (same shape as the list
+// endpoint) with joined node/template names. It exists so custom HTML pages
+// running inside the sandboxed CustomPageView iframe can poll THIS instance's
+// live row — status + install-workflow tracking — through the SDK's
+// instance-scoped fetchPanel() bridge, which only permits paths under
+// /api/instances/{id}/…. The list endpoint already exposes every row to any
+// VIEW_INSTANCES holder, so this per-id read grants no new data surface.
+func GetInstanceHandler(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil || id <= 0 {
+		http.Error(w, "invalid instance id", http.StatusBadRequest)
+		return
+	}
+	con, err := repository.OpenDB()
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	defer con.Close()
+	inst, err := repository.NewInstanceRepository(con).Get(id)
+	if err != nil || inst == nil {
+		http.Error(w, "instance not found", http.StatusNotFound)
+		return
+	}
+	writeJSON(w, inst)
+}
+
 // ListMyInstancesHandler returns only the instances owned by the caller. Used
 // by the regular (non-admin) Instances page so users see just their own
 // workloads instead of the whole fleet. Supports optional pagination via

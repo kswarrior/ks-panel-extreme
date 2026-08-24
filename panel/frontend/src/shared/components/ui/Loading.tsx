@@ -1,4 +1,5 @@
 import React from 'react';
+import { useThemeStore } from '@/shared/stores/themeStore';
 
 // Loading types
 export type LoadingType = 'cycle' | 'horizontal-bar' | 'vertical-bar' | 'dots' | 'pulse' | 'wave' | 'spiral' | 'skeleton';
@@ -29,36 +30,48 @@ interface LoadingProps {
   bgOpacity?: number;
   bgSize?: string;
   bgPosition?: string;
-  bgRepeat?: 'repeat' | 'no-repeat';
+  bgRepeat?: 'no-repeat' | 'repeat';
   bgBlur?: number;
 }
 
-const Loading: React.FC<LoadingProps> = ({
-  type = 'cycle',
-  color = 'text-[var(--ks-loading-color,#3b82f6)]',
-  size = 'md',
-  text,
-  fullScreen = false,
-  className = '',
-  skeletonType = 'cards',
-  skeletonCount = 3,
-  skeletonLines = 3,
-  skeletonBaseColor = 'rgba(255,255,255,0.08)',
-  skeletonShimmerColor = 'rgba(255,255,255,0.18)',
-  skeletonSpeed = 'normal',
-  skeletonInterval = 1200,
-  skeletonRadius = 6,
-  bgType = 'color',
-  background = 'rgba(15, 23, 42, 0.65)',
-  bgImage = '',
-  bgVideo = '',
-  bgGradient = '',
-  bgOpacity = 1,
-  bgSize = 'cover',
-  bgPosition = 'center',
-  bgRepeat = 'no-repeat',
-  bgBlur = 0,
-}) => {
+// Every prop is OPTIONAL — anything the caller omits falls back to the
+// active theme's `loading` section (Theme Studio → Loading), so the studio's
+// type / colour / size / text / skeleton / backdrop controls drive every
+// real loading state, not just the studio preview.
+const Loading: React.FC<LoadingProps> = (props) => {
+  const L: any = useThemeStore((s) => s.active().loading) || {};
+  const pick = <T,>(v: T | undefined, d: T): T => (v !== undefined ? v : d);
+
+  const type = pick<LoadingType>(props.type, (L.type || 'cycle') as LoadingType);
+  // `color` is a className passthrough ('' = caller paints via style). When
+  // unset we fall back to the themed loading colour token.
+  const color = props.color !== undefined ? props.color : 'text-[var(--ks-loading-color,#3b82f6)]';
+  const themeColorStyle: React.CSSProperties =
+    props.color === undefined && L.color ? { color: L.color } : {};
+  const size = pick<'sm' | 'md' | 'lg'>(props.size, (L.size || 'md') as 'sm' | 'md' | 'lg');
+  const text = props.text !== undefined ? props.text : L.show_text === false ? '' : L.text || '';
+  const fullScreen = pick(props.fullScreen, false);
+  const className = props.className || '';
+
+  const skeletonType = pick<SkeletonType>(props.skeletonType, (L.skeleton_type || 'cards') as SkeletonType);
+  const skeletonCount = pick(props.skeletonCount, L.skeleton_count ?? 3);
+  const skeletonLines = pick(props.skeletonLines, L.skeleton_lines ?? 3);
+  const skeletonBaseColor = pick(props.skeletonBaseColor, 'var(--ks-skeleton-base, rgba(255,255,255,0.08))');
+  const skeletonShimmerColor = pick(props.skeletonShimmerColor, 'var(--ks-skeleton-shimmer, rgba(255,255,255,0.18))');
+  const skeletonSpeed = pick<'slow' | 'normal' | 'fast'>(props.skeletonSpeed, (L.skeleton_speed || 'normal') as 'slow' | 'normal' | 'fast');
+  const skeletonInterval = pick(props.skeletonInterval, L.skeleton_interval ?? 1200);
+  const skeletonRadius = pick(props.skeletonRadius, typeof L.skeleton_radius === 'number' ? L.skeleton_radius : 6);
+
+  const bgType = pick<'color' | 'image' | 'video' | 'gradient'>(props.bgType, (L.bg_type || 'color') as 'color' | 'image' | 'video' | 'gradient');
+  const background = pick(props.background, L.background || 'rgba(15, 23, 42, 0.65)');
+  const bgImage = pick(props.bgImage, L.bg_image || '');
+  const bgVideo = pick(props.bgVideo, L.bg_video || '');
+  const bgGradient = pick(props.bgGradient, L.bg_gradient || '');
+  const bgOpacity = pick(props.bgOpacity, L.bg_opacity ?? 1);
+  const bgSize = pick(props.bgSize, L.bg_size || 'cover');
+  const bgPosition = pick(props.bgPosition, L.bg_position || 'center');
+  const bgRepeat = pick<'no-repeat' | 'repeat'>(props.bgRepeat, (L.bg_repeat || 'no-repeat') as 'no-repeat' | 'repeat');
+  const bgBlur = pick(props.bgBlur, L.bg_blur ?? 0);
   const sizeClasses = {
     sm: 'w-4 h-4',
     md: 'w-8 h-8',
@@ -72,7 +85,7 @@ const Loading: React.FC<LoadingProps> = ({
   };
 
   const loadingContent = (
-    <div className={`ks-loading-host flex flex-col items-center justify-center ${type === 'skeleton' ? 'w-full' : sizeClasses[size]} ${color} ${className}`}>
+    <div style={themeColorStyle} className={`ks-loading-host flex flex-col items-center justify-center ${type === 'skeleton' ? 'w-full' : sizeClasses[size]} ${color} ${className}`}>
       {type === 'cycle' && (
         <div className={`animate-spin rounded-full border-2 border-current border-t-transparent ${sizeClasses[size]}`} />
       )}

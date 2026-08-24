@@ -5,7 +5,6 @@ import type { TemplateFormState, PortMapping, Mount, ResourceLimits, FeatureCaps
 // `advanced` produced below so serializeSpec can keep assuming the full
 // Advanced shape (it reads e.g. f.advanced.dns.split(',') unguarded).
 import { emptyForm } from '../types/templateForm';
-import { BUILTIN_PAGE_MANIFEST, type BuiltinPageManifestEntry } from '@/features/builtin-pages';
 
 function stripUnit(v: string): string {
   const m = v.match(/^\s*(\d+)\s*([MGmg]?)\s*$/);
@@ -113,30 +112,24 @@ export function serializeSpec(f: TemplateFormState): string {
       retries: f.healthcheck.retries,
       start_period: f.healthcheck.start_period_s ? `${f.healthcheck.start_period_s}s` : '',
     } : undefined,
-    pages: f.pages.flatMap((p) => {
-      const originalSlug = p.original_slug ?? p.slug;
-      const manifestEntry = BUILTIN_PAGE_MANIFEST.bySlug[originalSlug];
-      const defLabel = manifestEntry ? manifestEntry.name : '';
-      const customLabel = p.label.trim();
-      const customIcon = p.icon_svg.trim();
-      const slugRenamed = p.original_slug && p.slug !== p.original_slug;
-      const isCustom = p.kind === 'custom';
-      const explicitlyAdded = f.pages.some(fp => fp.slug === p.slug && fp.original_slug === p.original_slug);
-      // Always include the page in the spec so it renders in the instance.
-      // Only write overridden fields to keep the spec minimal.
-      const out: Record<string, unknown> = { slug: p.slug };
+    // Every page row is a CUSTOM page (html/markdown/blocks) imported from
+    // the Instance Pages library. Rows are written back verbatim so the
+    // template spec keeps exactly what the author picked — label and icon
+    // are always persisted because there is no built-in default to diff
+    // against anymore.
+    pages: f.pages.map((p) => {
+      const out: Record<string, unknown> = {
+        slug: p.slug,
+        kind: 'custom',
+      };
       if (!p.enabled) out.enabled = false;
-      if (customLabel !== '' && customLabel !== defLabel) out.label = customLabel;
-      if (customIcon !== '') out.icon_svg = customIcon;
-      if (slugRenamed && p.original_slug) out.original_slug = p.original_slug;
-      if (isCustom) {
-        out.kind = 'custom';
-        if (p.content_type) out.content_type = p.content_type;
-        if (p.content_html) out.content_html = p.content_html;
-        if (p.content_markdown) out.content_markdown = p.content_markdown;
-        if (p.content_blocks) out.content_blocks = p.content_blocks;
-      }
-      return [out];
+      if (p.label.trim() !== '') out.label = p.label.trim();
+      if (p.icon_svg.trim() !== '') out.icon_svg = p.icon_svg.trim();
+      if (p.content_type) out.content_type = p.content_type;
+      if (p.content_html) out.content_html = p.content_html;
+      if (p.content_markdown) out.content_markdown = p.content_markdown;
+      if (p.content_blocks) out.content_blocks = p.content_blocks;
+      return out;
     }),
     advanced: {
       startup_command: f.advanced.startup_command,
@@ -370,55 +363,29 @@ export function parseSpec(raw: string): Partial<TemplateFormState> {
       out.labels = s.labels.map((l: any) => ({ key: String(l.key ?? ''), value: String(l.value ?? '') }));
     }
     if (Array.isArray(s.pages)) {
+      // Every row is treated as a custom page. Legacy rows that predate the
+      // conversion (kind: 'builtin' or no kind) are loaded as custom rows
+      // with whatever content fields they carry — empty content renders the
+      // "re-import this page" card until the author re-links it.
       const pages: PageOverride[] = [];
-      const overridesByKey: Record<string, any> = {};
-      const overridesByOriginal: Record<string, any> = {};
-      s.pages.forEach((p: any) => {
-        if (!p || typeof p !== 'object' || !p.slug) return;
-        overridesByKey[String(p.slug)] = p;
-        if (p.original_slug) overridesByOriginal[String(p.original_slug)] = p;
-      });
-
       const consumed = new Set<string>();
-      for (const d of BUILTIN_PAGE_MANIFEST.entries) {
-        let o = overridesByKey[d.slug];
-        if (!o && overridesByOriginal[d.slug]) {
-          o = overridesByOriginal[d.slug];
-          consumed.add(String(o.slug));
-        } else {
-          consumed.add(d.slug);
-        }
-        const newSlug = o && typeof o.slug === 'string' && o.slug !== d.slug ? String(o.slug) : d.slug;
-        pages.push({
-          slug: newSlug,
-          original_slug: d.slug,
-          enabled: o && o.enabled === false ? false : (o ? o.enabled !== false : true),
-          label: String(o?.label ?? ''),
-          icon_svg: String(o?.icon_svg ?? ''),
-        });
-      }
-
       s.pages.forEach((p: any) => {
         if (!p || typeof p !== 'object' || !p.slug) return;
-        if (consumed.has(String(p.slug))) return;
-        if (!p.kind || p.kind !== 'custom') {
-          if (BUILTIN_PAGE_MANIFEST.bySlug[String(p.slug)]) return;
-        }
-        if (p.kind === 'custom') {
-          pages.push({
-            slug: String(p.slug),
-            original_slug: '',
-            enabled: p.enabled !== false,
-            label: String(p.label ?? p.slug ?? ''),
-            icon_svg: String(p.icon_svg ?? ''),
-            kind: 'custom',
-            content_type: (['html', 'markdown', 'blocks'].includes(p.content_type) ? p.content_type : 'markdown') as PageOverride['content_type'],
-            content_html: typeof p.content_html === 'string' ? p.content_html : '',
-            content_markdown: typeof p.content_markdown === 'string' ? p.content_markdown : '',
-            content_blocks: typeof p.content_blocks === 'string' ? p.content_blocks : '',
-          });
-          consumed.add(String(p.slug));
-        }
+        const slug = String(p.slug);
+        if (consumed.has(slug)) return;
+        consumed.add(slug);
+        pages.push({
+          slug,
+          original_slug: '',
+          enabled: p.enabled !== false,
+          label: String(p.label ?? p.slug ?? ''),
+          icon_svg: String(p.icon_svg ?? ''),
+          kind: 'custom',
+          content_type: (['html', 'markdown', 'blocks'].includes(p.content_type) ? p.content_type : 'markdown') as PageOverride['content_type'],
+          content_html: typeof p.content_html === 'string' ? p.content_html : '',
+          content_markdown: typeof p.content_markdown === 'string' ? p.content_markdown : '',
+          content_blocks: typeof p.content_blocks === 'string' ? p.content_blocks : '',
+        });
       });
       out.pages = pages;
     }

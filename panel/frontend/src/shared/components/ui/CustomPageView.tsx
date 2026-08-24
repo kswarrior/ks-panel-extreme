@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { createCustomPageSDK, type InstanceContext } from '@/shared/lib/customPageSdk';
 import { useThemeStore } from '@/shared/stores/themeStore';
 import type { Theme } from '@/features/themes/types/theme';
@@ -549,7 +549,6 @@ function customPageThemeCss(theme: Theme): string {
 // the host app, where window.KSPageSDK carries the same API surface.
 const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanceContext }) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const [sdkReady, setSdkReady] = useState(false);
   const wsRef = useRef<Map<string, WebSocket>>(new Map());
   const wsSeq = useRef(0);
 
@@ -603,10 +602,6 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
       if (!data || typeof data !== 'object' || !data.type) return;
 
       switch (data.type) {
-        case 'ks-sdk-ready':
-          setSdkReady(true);
-          break;
-
         case 'ks-sdk-call': {
           const { id, method, args } = data as { id: string; method: string; args: unknown[] };
           const respond = (payload: Record<string, unknown>) => {
@@ -724,44 +719,28 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
     }
   }, [instanceContext, content.type, content.actions]);
 
-  // For HTML content, render in a hardened sandboxed iframe.
+  // For HTML content, render in a hardened sandboxed iframe. Pure content:
+  // no injected header or card chrome — only the pages-JSON payload shows.
   if (content.type === 'html') {
     return (
-      <div className="space-y-4 animate-fade-in">
-        <div>
-          <h2 className="text-xl font-semibold text-white">{title}</h2>
-          <p className="text-sm text-gray-400 -mt-0.5">
-            Custom page defined by this instance's template.
-            {!sdkReady && instanceContext && <span className="ml-2 text-xs text-gray-500">connecting SDK…</span>}
-          </p>
-        </div>
-        <div className="glass-card rounded-xl overflow-hidden">
-          <iframe
-            ref={iframeRef}
-            srcDoc={srcDoc}
-            className="w-full border-0 bg-transparent"
-            style={{ minHeight: '500px', height: '500px' }}
-            title={title}
-            // NO allow-same-origin: the page runs on an opaque origin and can
-            // only reach the panel through the gated postMessage bridge.
-            sandbox="allow-scripts allow-forms allow-popups allow-modals allow-downloads"
-          />
-        </div>
-      </div>
+      <iframe
+        ref={iframeRef}
+        srcDoc={srcDoc}
+        className="w-full border-0 bg-transparent animate-fade-in"
+        style={{ minHeight: '500px', height: '500px' }}
+        title={title}
+        // NO allow-same-origin: the page runs on an opaque origin and can
+        // only reach the panel through the gated postMessage bridge.
+        sandbox="allow-scripts allow-forms allow-popups allow-modals allow-downloads"
+      />
     );
   }
 
   // For markdown and blocks, render as React components (SDK available on window.KSPageSDK)
   return (
-    <div className="space-y-4 animate-fade-in">
-      <div>
-        <h2 className="text-xl font-semibold text-white">{title}</h2>
-        <p className="text-sm text-gray-400 -mt-0.5">Custom page defined by this instance's template.</p>
-      </div>
-      <div className="glass-card rounded-xl">
-        {content.type === 'markdown' && renderMarkdown(content.markdown ?? '')}
-        {content.type === 'blocks' && renderBlocks(content.blocks ?? '')}
-      </div>
+    <div className="animate-fade-in">
+      {content.type === 'markdown' && renderMarkdown(content.markdown ?? '')}
+      {content.type === 'blocks' && renderBlocks(content.blocks ?? '')}
     </div>
   );
 };

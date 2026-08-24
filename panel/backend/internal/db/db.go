@@ -381,6 +381,19 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				return err
 			}
 			continue
+		case name == "047_instance_page_sub_pages.sql":
+			// Instance-page sub-pages (a JSON array of {path,name,content_*}
+			// definitions) persisted on each instance_pages row so a library
+			// page like Files can carry extra routes (files/edit). Linking or
+			// importing the parent expands every entry into its own spec.pages
+			// row. Guarded individually so re-launches stay idempotent on all
+			// dialects — mirrors 041_instance_page_actions.sql.
+			if err := guardedAddColumns(d, db, name, "instance_pages", []columnSpec{
+				{"sub_pages", "TEXT NOT NULL DEFAULT ''"},
+			}); err != nil {
+				return err
+			}
+			continue
 		case name == "045_application_files_runs.sql":
 			// Application script files (JSON array of {path,content}) plus
 			// the application_runs history table. The ALTER is guarded per

@@ -208,3 +208,12 @@ export interface SecurityTopEntry {
   label: string;
   count: number;
 }
+
+// DDOSBackgroundResponse is what POST /api/security/ddos/background
+// returns. Field names mirror internal/api/handlers/ddos_script_handler.go's
+// ddosBackgroundResponse exactly.
+export interface DDOSBackgroundResponse {
+  ok: boolean;
+  message: string;
+  script_path: string;
+}

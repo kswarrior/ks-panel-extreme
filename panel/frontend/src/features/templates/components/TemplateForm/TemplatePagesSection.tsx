@@ -4,8 +4,8 @@ import Modal from '@/shared/components/ui/Modal';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import { CustomPageStudio } from '@/features/templates/components/TemplateFormComponents';
 import type { PageOverride } from '@/features/templates/types/templateForm';
-import { BUILTIN_PAGE_MANIFEST } from '@/features/builtin-pages';
 import { listInstancePages, type InstancePage } from '@/shared/api/admin';
+import { parseSubPages } from '@/features/instance-pages/types/instancePage';
 
 export interface PageOverrideInput extends PageOverride {}
 
@@ -46,14 +46,13 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
 
   // ---- Add pages modal ------------------------------------------------------
-  // Single entry point. Lists BOTH built-in pages (Home, Files, Network, …)
-  // from BUILTIN_PAGE_MANIFEST AND custom pages from the central Instance
-  // Pages library (GET /api/instance-pages/). Picking entries from either
-  // source appends a `kind: 'builtin'` or `kind: 'custom'` row to the
-  // parent's `pages` array — so they ship in the template spec and, on
-  // instance deploy, in instance.Config. The instance sidebar / InstanceTabs
-  // then render exactly those pages; the `instancePageSpecEnabled` /
-  // `isPageAllowed` guards block everything else.
+  // Single entry point. Lists custom pages from the central Instance Pages
+  // library (GET /api/instance-pages/, backed by instance_pages/pages/*.json).
+  // Picking entries appends a `kind: 'custom'` row to the parent's `pages`
+  // array — so they ship in the template spec and, on instance deploy, in
+  // instance.Config. The instance sidebar / InstanceTabs then render exactly
+  // those pages; the `instancePageSpecEnabled` / `isPageAllowed` guards block
+  // everything else.
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [instancePages, setInstancePages] = useState<InstancePage[]>([]);
   const [importLoading, setImportLoading] = useState(false);
@@ -89,17 +88,6 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
     });
   };
 
-  // Build the combined picker list: built-in entries first, then custom
-  // entries from the Instance Pages library. Each row remembers its kind so
-  // the confirm handler emits the right PageOverride shape.
-  const filteredBuiltinPages = useMemo(() => {
-    const q = importSearch.trim().toLowerCase();
-    if (!q) return BUILTIN_PAGE_MANIFEST.entries;
-    return BUILTIN_PAGE_MANIFEST.entries.filter(
-      (e) => e.name.toLowerCase().includes(q) || e.slug.toLowerCase().includes(q),
-    );
-  }, [importSearch]);
-
   const loadInstancePages = useCallback(async () => {
     setImportLoading(true);
     setImportError('');
@@ -116,40 +104,10 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
   const handleConfirmImport = () => {
     const additions: PageOverrideInput[] = [];
     // Slugs already on the parent's pages array — skip those to avoid
-    // adding the same page twice. We accumulate additions inline so the
-    // second loop never adds a duplicate of a slug the first loop
-    // already resolved (the on-disk `instance_pages/` directory can ship
-    // both a `kind: 'builtin'` and a `kind: 'custom'` row for the same
-    // slug; without this guard both rows would land in the result and
-    // the page card would render twice — once as builtin, once as custom).
+    // adding the same page twice. Legacy `kind: 'builtin'` rows (pre-
+    // conversion stubs with no content) are skipped too — every importable
+    // page is a custom row now.
     const skip = new Set<string>(alreadyAddedSlugs);
-    // 1. Built-in selections: resolve to manifest entries (Home / Files /
-    //    Network / …). Without this loop the user picks a built-in entry
-    //    and the modal emits nothing — OR, worse, if the same slug also
-    //    exists in the on-disk `instance_pages/` directory with kind =
-    //    'builtin', the custom-only loop below would resolve it to
-    //    `kind: 'custom'`, the icon would go missing (the API row has
-    //    empty icon_svg), and the resulting card would render with the
-    //    generic placeholder and an "custom" badge — exactly the bug
-    //    the user reported.
-    for (const slug of Array.from(selectedSlugs)) {
-      if (skip.has(slug)) continue;
-      const entry = BUILTIN_PAGE_MANIFEST.bySlug[slug];
-      if (entry) {
-        additions.push({
-          slug,
-          original_slug: slug,
-          enabled: true,
-          label: entry.name,
-          icon_svg: entry.iconSvg,
-          kind: 'builtin',
-        });
-        skip.add(slug);
-      }
-    }
-    // 2. Custom selections: resolve to Instance Pages library entries.
-    //    The picker filters out `kind: 'builtin'` rows from the custom
-    //    section so this loop only sees true operator-authored pages.
     for (const p of instancePages) {
       if (!selectedSlugs.has(p.slug) || skip.has(p.slug)) continue;
       if (p.kind === 'builtin') continue;
@@ -166,6 +124,25 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
         content_blocks: p.content_blocks || '',
       });
       skip.add(p.slug);
+      // Multi-page support: each library sub-page becomes its own spec row
+      // with slug "<slug>/<path>" so it resolves to its own instance route.
+      for (const sub of parseSubPages(p.sub_pages)) {
+        const subSlug = `${p.slug}/${sub.path}`;
+        if (skip.has(subSlug)) continue;
+        additions.push({
+          slug: subSlug,
+          original_slug: '',
+          enabled: true,
+          label: sub.name,
+          icon_svg: p.icon_svg || '',
+          kind: 'custom',
+          content_type: (['html', 'markdown', 'blocks'].includes(sub.content_type) ? sub.content_type : 'html') as PageOverride['content_type'],
+          content_html: sub.content_html || '',
+          content_markdown: sub.content_markdown || '',
+          content_blocks: sub.content_blocks || '',
+        });
+        skip.add(subSlug);
+      }
     }
     if (additions.length > 0) {
       onAddPages(additions);
@@ -175,16 +152,6 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
 
   const q = importSearch.trim().toLowerCase();
   const filteredInstancePages = useMemo(() => {
-    // The /api/instance-pages/ endpoint returns BOTH `kind: 'builtin'` and
-    // `kind: 'custom'` rows because the on-disk library ships both built-in
-    // page definitions (Home / Files / Network / …) and operator-authored
-    // custom pages. The "Built-in pages" section already shows the static
-    // BUILTIN_PAGE_MANIFEST entries, so the "Custom pages" section must
-    // exclude any `kind: 'builtin'` row to avoid duplicating the built-in
-    // list. Without this filter, every built-in entry shows up twice in the
-    // modal — once under the built-in section (sky) and again under the
-    // custom section (emerald) — which is exactly the duplication the user
-    // reported.
     const customOnly = instancePages.filter((p) => p.kind !== 'builtin');
     if (!q) return customOnly;
     return customOnly.filter(
@@ -222,20 +189,13 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
 
         <div className="space-y-3">
           {pages.map((p, i) => {
-            const isBuiltin = p.kind !== 'custom';
-            const originalSlug = p.original_slug ?? p.slug;
-            const manifestEntry = isBuiltin ? BUILTIN_PAGE_MANIFEST.bySlug[originalSlug] : undefined;
-            const defLabel = manifestEntry ? manifestEntry.name : originalSlug;
-            const slugIsRenamed = isBuiltin && !!p.original_slug && p.slug !== p.original_slug;
+            const defLabel = p.slug === '.' ? 'Home' : p.slug;
             const isEditing = editingIdx === i;
-            const iconSvg =
-              (isBuiltin && manifestEntry ? manifestEntry.iconSvg : '') ||
-              p.icon_svg ||
-              '';
+            const iconSvg = p.icon_svg || '';
             return (
               <div
-                key={(p.original_slug || p.slug) + ':' + i}
-                className={`border border-white/10 rounded-md bg-black/30 overflow-hidden ${p.enabled ? '' : 'opacity-60'}`}
+                key={p.slug + ':' + i}
+                className={`ks-card ks-form-card rounded-md overflow-hidden ${p.enabled ? '' : 'opacity-60'}`}
               >
                 <div className="p-3 flex items-center gap-3 flex-wrap">
                   {/* Up/Down reorder arrows. Hidden for the first / last
@@ -263,9 +223,8 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
                     </button>
                   </div>
 
-                  {/* Icon. The page's manifest icon for built-ins, the
-                      custom icon for imported custom pages, a generic
-                      placeholder when neither is set. */}
+                  {/* Icon. The page's custom icon (from the library import),
+                      a generic placeholder when not set. */}
                   <div className="w-10 h-10 shrink-0 flex items-center justify-center rounded-md bg-white/5 border border-white/10">
                     {iconSvg ? (
                       <svg
@@ -276,7 +235,7 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
                         strokeWidth="1.8"
                         strokeLinecap="round"
                         strokeLinejoin="round"
-                        className={isBuiltin ? 'w-5 h-5 text-sky-300' : 'w-5 h-5 text-emerald-300'}
+                        className="w-5 h-5 text-emerald-300"
                         dangerouslySetInnerHTML={{ __html: iconSvg }}
                       />
                     ) : (
@@ -292,30 +251,18 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
                       `/path` shows below it in small gray monospace —
                       exactly the "Icon | Name (below /path gray small)"
                       card the user asked for. The instance-tab serial is
-                      the position in the array (1-based, implicit). The
-                      builtin / custom badge sits inline next to the name
-                      (same line) for the inline-aligned layout the user
-                      requested. */}
+                      the position in the array (1-based, implicit). */}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-semibold text-white truncate">
                         {p.label.trim() || defLabel}
                       </span>
-                      {isBuiltin ? (
-                        <span className="text-[10px] uppercase tracking-wide bg-sky-900/30 text-sky-300 border border-sky-700/40 px-1.5 py-0.5 rounded">
-                          builtin
-                        </span>
-                      ) : (
-                        <span className="text-[10px] uppercase tracking-wide bg-emerald-900/30 text-emerald-300 border border-emerald-700/40 px-1.5 py-0.5 rounded">
-                          custom
-                        </span>
-                      )}
+                      <span className="text-[10px] uppercase tracking-wide bg-emerald-900/30 text-emerald-300 border border-emerald-700/40 px-1.5 py-0.5 rounded">
+                        custom
+                      </span>
                     </div>
                     <code className="block text-[11px] text-gray-500 font-mono mt-1 truncate">
                       /{p.slug === '.' ? '' : p.slug}
-                      {slugIsRenamed && (
-                        <span className="ml-2 text-amber-400/80">was /{p.original_slug}</span>
-                      )}
                     </code>
                   </div>
 
@@ -364,24 +311,13 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
                           <input
                             value={p.slug === '.' ? '' : p.slug}
                             onChange={(e) => {
-                              if (!isBuiltin) {
-                                onPageUpdate(i, { slug: e.target.value });
-                              } else if (p.original_slug === '.') {
-                                return;
-                              } else {
-                                onPageUpdate(i, { slug: normSlug(e.target.value) });
-                              }
+                              const v = e.target.value;
+                              onPageUpdate(i, { slug: v === '' ? '.' : normSlug(v) });
                             }}
-                            disabled={isBuiltin && p.original_slug === '.'}
-                            placeholder={isBuiltin ? p.original_slug || '' : 'my-page'}
+                            placeholder="my-page (empty = home)"
                             className={monoCls + ' flex-1'}
                           />
                         </div>
-                        {slugIsRenamed && (
-                          <p className="text-[11px] text-amber-400/80 mt-1">
-                            URL is renamed — sidebar links to /{p.slug} but the page is still the built-in <code>{p.original_slug}</code>.
-                          </p>
-                        )}
                       </div>
                       <div>
                         <label className={labelCls}>Name</label>
@@ -403,24 +339,22 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
                         />
                       </div>
                     </div>
-                    {!isBuiltin && (
-                      <CustomPageStudio
-                        page={{
-                          content_type: p.content_type,
-                          content_blocks: p.content_blocks,
-                          content_html: p.content_html,
-                          content_markdown: p.content_markdown,
-                        } as { content_type?: string; content_blocks?: string; content_html?: string; content_markdown?: string }}
-                        onChange={(patch: Partial<{ content_type: string; content_blocks: string; content_html: string; content_markdown: string }>) =>
-                          onPageUpdate(i, {
-                            content_type: patch.content_type as PageOverride['content_type'],
-                            content_blocks: patch.content_blocks,
-                            content_html: patch.content_html,
-                            content_markdown: patch.content_markdown,
-                          })
-                        }
-                      />
-                    )}
+                    <CustomPageStudio
+                      page={{
+                        content_type: p.content_type,
+                        content_blocks: p.content_blocks,
+                        content_html: p.content_html,
+                        content_markdown: p.content_markdown,
+                      } as { content_type?: string; content_blocks?: string; content_html?: string; content_markdown?: string }}
+                      onChange={(patch: Partial<{ content_type: string; content_blocks: string; content_html: string; content_markdown: string }>) =>
+                        onPageUpdate(i, {
+                          content_type: patch.content_type as PageOverride['content_type'],
+                          content_blocks: patch.content_blocks,
+                          content_html: patch.content_html,
+                          content_markdown: patch.content_markdown,
+                        })
+                      }
+                    />
                   </div>
                 )}
               </div>
@@ -431,16 +365,14 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
         {pages.length === 0 && (
           <div className="text-center py-8 text-gray-500">
             <p className="text-sm">No pages configured yet.</p>
-            <p className="text-xs mt-1">Click <strong className="text-sky-300">Add pages</strong> to pick a built-in (Home / Files / Network / …) or a custom page from the Instance Pages library.</p>
+            <p className="text-xs mt-1">Click <strong className="text-sky-300">Add pages</strong> to import pages (Home / Files / Terminal / …) from the Instance Pages library.</p>
           </div>
         )}
 
-        {/* Modal — single entry point. Lists BOTH built-in pages from the
-            BUILTIN_PAGE_MANIFEST (Home / Files / Network / …) AND custom
-            pages from the Instance Pages library. Selected entries get
-            appended to the parent's `pages` array as `kind: 'builtin'` or
-            `kind: 'custom'` rows so they ship in the template spec and, on
-            instance deploy, in instance.Config. */}
+        {/* Modal — single entry point. Lists custom pages from the
+            Instance Pages library. Selected entries get appended to the
+            parent's `pages` array as `kind: 'custom'` rows so they ship in
+            the template spec and, on instance deploy, in instance.Config. */}
         <Modal
           open={importModalOpen}
           onClose={closeImportModal}
@@ -464,108 +396,20 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
               </div>
             )}
 
-            <div className="border border-white/10 rounded-md bg-black/30 max-h-[50vh] overflow-y-auto divide-y divide-white/5">
+            <div className="ks-card ks-form-card rounded-md max-h-[50vh] overflow-y-auto divide-y divide-white/5">
               {importLoading && (
                 <div className="px-4 py-6 text-center text-gray-500 text-sm">Loading…</div>
               )}
-              {!importLoading && filteredBuiltinPages.length === 0 && filteredInstancePages.length === 0 && (
+              {!importLoading && filteredInstancePages.length === 0 && (
                 <div className="px-4 py-8 text-center text-gray-500 text-sm">
                   No pages match your search.
-                </div>
-              )}
-
-              {!importLoading && filteredBuiltinPages.length > 0 && (
-                <div>
-                  <div className="px-4 py-2 text-[10px] uppercase tracking-wide text-gray-500 bg-white/[0.02] sticky top-0">
-                    Built-in pages
-                  </div>
-                  {filteredBuiltinPages.map((entry) => {
-                    const already = alreadyAddedSlugs.has(entry.slug);
-                    const isSelected = selectedSlugs.has(entry.slug);
-                    return (
-                      <button
-                        key={entry.slug}
-                        type="button"
-                        disabled={already}
-                        onClick={() => !already && toggleImportSelection(entry.slug)}
-                        className={`w-full px-4 py-3 flex items-center gap-3 text-left transition-colors ${
-                          already
-                            ? 'opacity-50 cursor-not-allowed'
-                            : isSelected
-                              ? 'bg-sky-900/20 border-l-2 border-sky-500'
-                              : 'hover:bg-white/5'
-                        }`}
-                        aria-pressed={isSelected}
-                        aria-disabled={already}
-                      >
-                        <div
-                          className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
-                            isSelected
-                              ? 'bg-sky-900/40 border border-sky-700/60'
-                              : 'bg-sky-900/30 border border-sky-700/40'
-                          }`}
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.8"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            className="w-5 h-5 text-sky-300"
-                            dangerouslySetInnerHTML={{ __html: entry.iconSvg }}
-                          />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-sm text-white truncate">{entry.name}</span>
-                            <code className="text-[11px] text-gray-500 font-mono">
-                              /{entry.slug === '.' ? '' : entry.slug}
-                            </code>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          {already ? (
-                            <span className="text-xs px-2 py-1 rounded border border-white/10 text-gray-500">
-                              Already added
-                            </span>
-                          ) : (
-                            <span
-                              className={`text-xs px-2 py-1 rounded border transition-colors ${
-                                isSelected
-                                  ? 'bg-sky-600/30 border-sky-500 text-sky-200'
-                                  : 'border-white/10 text-gray-400'
-                              }`}
-                            >
-                              {isSelected ? 'Selected' : 'Select'}
-                            </span>
-                          )}
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            className={`w-5 h-5 ${isSelected ? 'text-sky-400' : 'text-gray-500'}`}
-                          >
-                            {isSelected ? (
-                              <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
-                            ) : (
-                              <circle cx="12" cy="12" r="10" />
-                            )}
-                          </svg>
-                        </div>
-                      </button>
-                    );
-                  })}
                 </div>
               )}
 
               {!importLoading && filteredInstancePages.length > 0 && (
                 <div>
                   <div className="px-4 py-2 text-[10px] uppercase tracking-wide text-gray-500 bg-white/[0.02] sticky top-0">
-                    Custom pages (from Instance Pages library)
+                    Pages (from Instance Pages library)
                   </div>
                   {filteredInstancePages.map((p) => {
                     const already = alreadyAddedSlugs.has(p.slug);

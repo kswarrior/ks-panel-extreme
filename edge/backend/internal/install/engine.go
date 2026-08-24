@@ -219,7 +219,7 @@ func runCore(ctx context.Context, in Input, exec ExecFn, onStdin func(io.WriteCl
 				// budget; surface the message and break.
 				res = StepStatus{Index: i, Action: step.Action, Status: stepFailed,
 					Attempt: attempt, ExitCode: -1,
-					Stderr: "compile step: " + err.Error(),
+					Stderr:    "compile step: " + err.Error(),
 					StartedAt: steps[i].StartedAt, EndedAt: time.Now()}
 				steps[i] = res
 				break
@@ -377,14 +377,23 @@ func compileStep(s Step, env map[string]string) (string, error) {
 		// evaluate $… in content — `<<'EOF'` (quoted) keeps the bytes
 		// verbatim, which is what an operator writing a config file expects.
 		// We still env-substitute BEFORE the heredoc so {{KEY}} placeholders
-		// in the content pick up the per-deploy values.
+		// in the content pick up the per-deploy values. A content line equal
+		// to the terminator would break out of the heredoc into shell
+		// execution, so it's a compile error (same contract execstage uses).
 		content := sub(s.Content)
+		const marker = "KSEDGE_WRITE_EOF"
+		if strings.Contains(content, "\n"+marker+"\n") ||
+			strings.HasPrefix(content, marker+"\n") ||
+			strings.HasSuffix(content, "\n"+marker) ||
+			content == marker {
+			return "", fmt.Errorf("write step for %q contains the heredoc terminator", s.Path)
+		}
 		return strings.Join([]string{
 			`set -e`,
 			`mkdir -p "$(dirname ` + shellQuote(sub(s.Path)) + `)"`,
-			`cat > ` + shellQuote(sub(s.Path)) + ` <<'KSEDGE_WRITE_EOF'`,
+			`cat > ` + shellQuote(sub(s.Path)) + ` <<'` + marker + `'`,
 			content,
-			`KSEDGE_WRITE_EOF`,
+			marker,
 		}, "\n"), nil
 
 	case "chmod":
@@ -518,7 +527,7 @@ func parseIntLoose(s string) (int, error) {
 }
 
 // shellQuote single-quotes a string so it survives the `sh -lc` exec без
-// re-evaluation. Every embedded single quote gets the `'\''` escape.
+// re-evaluation. Every embedded single quote gets the `'\”` escape.
 func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }

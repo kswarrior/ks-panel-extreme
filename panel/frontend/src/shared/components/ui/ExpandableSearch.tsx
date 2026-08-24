@@ -43,11 +43,7 @@ const ExpandableSearch: React.FC<Props> = ({
         aria-label={ariaLabel}
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className={`shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-md border transition-colors ${
-          open || value
-            ? 'bg-white/10 border-white/30 text-white'
-            : 'bg-black/30 border-white/10 text-gray-400 hover:text-white hover:border-white/20'
-        }`}
+        className={`ks-icon-btn shrink-0 w-9 h-9 rounded-md ${open || value ? 'is-open' : ''}`}
       >
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
           <circle cx="11" cy="11" r="8" />

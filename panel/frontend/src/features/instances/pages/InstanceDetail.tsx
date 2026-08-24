@@ -1,56 +1,24 @@
-// InstanceDetail.tsx — instance-panel facade.
+// InstanceDetail.tsx — instance panel shell + dynamic page resolver.
 //
-// This file used to be the ~3,200-line monolith that held every built-in
-// instance sub-page (Home / Files / Network / Terminal / Settings) plus the
-// panel shell (InstancePanel) and the catch-all dynamic-page resolver
-// (InstanceDynamicPage). Each sub-page's implementation now lives in its
-// own self-contained file under src/lib/builtin/*.tsx, sharing UI helpers
-// via src/lib/builtin/_shared.tsx. This module is now a THIN FACADE that:
+// Every instance sub-page is now a CUSTOM page (html / markdown / blocks)
+// imported from the Instance Pages library into the instance's spec.pages.
+// The legacy built-in React sub-pages were removed; this module keeps only:
 //
-//   • re-exports the five built-in page components so their boundary-wrapped
-//     *Page variants (mounted by router.tsx) keep resolving;
-//   • keeps InstancePanel + InstanceDynamicPage (the shell + resolver are not
-//     in the builtin manifest, so they stay here);
-//   • re-exports the cross-page helpers that used to be defined here
-//     (LoadingOrError, useInstanceFromParams, cleanExternalId, joinPath,
-//     INSTANCE_NAV) so external consumers don't break.
+//   • InstancePanel       — the shell that syncs the instance's own config
+//                           snapshot into the global sidebar nav context;
+//   • InstanceDynamicPage — resolves the URL slug against the INSTANCE's
+//                           deploy-time spec and renders CustomPageView.
 //
-// Bug fixes for a specific built-in sub-page should now land in its
-// lib/builtin/<Page>.tsx file instead of here.
+// A slug is allowed when the instance's own config lists it in `pages`
+// (empty-by-default: no rows → no pages). Home uses slug "." and renders at
+// the index route when its page row was imported.
 
 import React, { useMemo } from 'react';
 import { Outlet, useParams } from 'react-router-dom';
 import { useInstance, parseConfig } from '@/shared/hooks/useInstance';
 import { useInstanceNavSync } from '@/shared/components/layout/InstanceNavContext';
-import { isCustomPage, getPageContent, isPageAllowed } from '@/shared/utils/instancePages';
-import { getBuiltinComponent } from '@/features/builtin-pages';
+import { getPageContent, isPageAllowed } from '@/shared/utils/instancePages';
 import CustomPageView from '@/shared/components/ui/CustomPageView';
-import {
-  withBoundary, PageErrorBoundary, LoadingOrError,
-  useInstanceFromParams, cleanExternalId, joinPath, INSTANCE_NAV,
-} from '@/features/builtin-pages/_shared';
-
-// Built-in page implementations (moved to features/builtin-pages/*.tsx). Imported so we
-// can wrap them in withBoundary for the router's *Page exports below.
-import { InstanceHome } from '@/features/builtin-pages/Home';
-import { InstanceFiles, InstanceFileEditor } from '@/features/builtin-pages/Files';
-import { InstanceNetwork } from '@/features/builtin-pages/Network';
-import { InstanceTerminal } from '@/features/builtin-pages/Terminal';
-import { InstanceSettings } from '@/features/builtin-pages/Settings';
-
-// Back-compat re-exports: the legacy monolith defined + exported these
-// helpers here, so any external consumer that still
-// `import { LoadingOrError, useInstanceFromParams, … } from './InstanceDetail'`
-// keeps resolving. The implementations live in lib/builtin/_shared.tsx now.
-export { LoadingOrError, useInstanceFromParams, cleanExternalId, joinPath, INSTANCE_NAV };
-
-// ----- panel shell -----------------------------------------------------------
-//
-// The page-level sub-panel sidebar was removed — the second-level nav
-// (Home / Files / Network / Terminal / Settings) is already rendered in the
-// global Sidebar's Instances dropdown, so showing it again inline was just
-// visual clutter. InstancePanel now only lays out the active subpage under
-// a compact header that links back to the instances list.
 
 export const InstancePanel: React.FC = () => {
   const { id } = useParams();
@@ -89,103 +57,102 @@ export const InstancePanel: React.FC = () => {
   );
 };
 
+// EmptyState renders when the instance's spec exposes no pages at all —
+// templates start with an empty page list by design; operators import pages
+// from the Instance Pages library via the template/deploy editor.
+const NoPagesState: React.FC<{ slug: string }> = ({ slug }) => (
+  <div className="glass-card rounded-xl text-center text-gray-400 space-y-2">
+    <p className="text-sm pt-2">This instance has no pages yet.</p>
+    <p className="text-xs text-gray-500 pb-3">
+      Import pages (Home, Files, Terminal, Metrics, …) from the Instance Pages library in the template or deploy editor.
+    </p>
+    <code className="text-[11px] text-gray-600 block pb-3">resolved route: /{slug}</code>
+  </div>
+);
+
 // InstanceDynamicPage resolves the current URL slug (the `*` catch-all param)
-// against the INSTANCE's own config spec. When the slug maps to a renamed
-// builtin (e.g. /console → terminal component), it renders that built-in
-// component. When it maps to a custom page, it renders CustomPageView with
-// the page content. When nothing matches, it renders a 404-style empty state.
-// The component resolution is now direct via the builtin manifest — no
-// string-component-name indirection or lazy-dynamic-import indirection.
+// against the INSTANCE's own config spec. When the slug maps to a page row
+// with content it renders CustomPageView; otherwise a not-part-of-template /
+// empty state card. The component resolution is direct: there are no built-in
+// components anymore, only custom content payloads.
 export const InstanceDynamicPage: React.FC = () => {
   const { id, '*': wildcard } = useParams();
   const instanceId = Number(id);
-  const { instance, loading } = useInstance(instanceId);
+  const { instance, loading, error } = useInstance(instanceId);
 
-  if (loading) return <LoadingOrError loading={true} error="" kind="panel" />;
-  if (!instance) return <LoadingOrError loading={false} error="Instance not found" kind="panel" />;
+  if (loading) return <div className="glass-card rounded-xl flex items-center gap-4 animate-pulse"><div className="w-9 h-9 rounded-lg bg-neutral-800 shrink-0" /><div className="h-5 w-1/3 bg-neutral-800 rounded" /></div>;
+  if (!instance || error) return <div className="glass-card rounded-xl text-red-400 text-sm">{error || 'Instance not found'}</div>;
 
   // Resolve the spec from the instance's OWN stored config (the deploy-time
   // snapshot that already includes the instance-form's page overrides) — NOT
   // from the live template. This is what makes each instance's page set
   // independent: a page added/removed/renamed at deploy time shows up here,
   // and later template edits don't leak into deployed instances.
+  // Multi-page support: the wildcard is the FULL page path so sub-pages like
+  // files/edit resolve to their own spec row (slug "files/edit"), not just
+  // the family's main page.
   const spec = instance.config ? parseConfig(instance.config) : null;
-  const slug = (wildcard ?? '').split('/')[0];
+  const slug = (wildcard ?? '').replace(/\/+$/, '');
   const effectiveSlug = slug === '' ? '.' : slug;
 
-  // Check if this page is explicitly allowed in the template's spec.
-  // Empty-by-default: no pages spec → nothing allowed.
   if (!isPageAllowed(effectiveSlug, spec)) {
+    // The index route on a page-less instance gets the guidance empty state;
+    // every other unknown slug gets the classic not-in-template card.
+    if (effectiveSlug === '.' && !(spec?.pages?.length > 0)) {
+      return <NoPagesState slug="" />;
+    }
     return (
-<div className="ks-card ks-form-card rounded-xl text-center text-gray-400">
+      <div className="ks-card ks-form-card rounded-xl text-center text-gray-400">
         <p className="text-sm">This page (<code className="text-gray-300">/{slug || 'home'}</code>) is not part of this instance's template.</p>
       </div>
     );
   }
 
-  // Try to resolve the slug to a built-in component via the manifest.
-  // getBuiltinComponent handles renamed slugs (spec.original_slug) and
-  // disabled pages (enabled: false). The advanced built-in pages
-  // (Env/Automation/…) are React.lazy references in the manifest so the
-  // heavy InstanceAdvancedPages module stays in a separate chunk; the
-  // Suspense boundary here makes that lazy thenable resolve instead of
-  // surfacing as React error #294 ("A component suspended while
-  // rendering"). The basic pages (Home/Files/…) are statically imported
-  // and resolve synchronously, so the Suspense is a no-op for them.
-  const BuiltinComp = getBuiltinComponent(effectiveSlug, spec);
-  if (BuiltinComp) {
+  const row = Array.isArray(spec?.pages)
+    ? spec!.pages.find((p: any) => p && typeof p === 'object' && p.slug === effectiveSlug && p.enabled !== false)
+    : null;
+  const label = (row && typeof row.label === 'string' && row.label.trim() !== '')
+    ? row.label.trim()
+    : (effectiveSlug === '.' ? 'Home' : effectiveSlug);
+
+  const content = getPageContent(effectiveSlug, spec);
+  if (!content || (!content.html && !content.markdown && !content.blocks)) {
     return (
-      <PageErrorBoundary name={effectiveSlug}>
-        <React.Suspense fallback={<LoadingOrError loading={true} error="" kind="panel" />}>
-          <BuiltinComp />
-        </React.Suspense>
-      </PageErrorBoundary>
+      <div className="glass-card rounded-xl text-center text-gray-400">
+        <p className="text-sm">This page (<code className="text-gray-300">/{slug}</code>) has no content.</p>
+        <p className="text-xs text-gray-500 mt-1">Re-import it from the Instance Pages library to restore its definition.</p>
+      </div>
     );
   }
 
-  // Not a builtin → check if it's a custom page.
-  if (isCustomPage(effectiveSlug, spec)) {
-    const content = getPageContent(effectiveSlug, spec);
-    const label = spec?.pages?.find((p: any) => p.slug === effectiveSlug)?.label ?? effectiveSlug;
-    // Build instance context for the custom page SDK
-    const instanceContext = instance ? {
-      id: instance.id,
-      name: instance.name,
-      kind: instance.kind,
-      status: instance.status,
-      template_id: instance.template_id,
-      template_name: instance.template_name ?? null,
-      node_id: instance.node_id,
-      node_name: instance.node_name ?? null,
-      owner_id: instance.owner_id ?? null,
-      owner_name: instance.owner_name ?? null,
-      config: instance.config ? parseConfig(instance.config) : {},
-      external_id: instance.external_id ?? '',
-      created_at: instance.created_at ?? '',
-      updated_at: instance.updated_at ?? '',
-    } : undefined;
-    return content ? <CustomPageView content={content} title={label} instanceContext={instanceContext} /> : <div className="text-sm text-gray-500">Page content not found.</div>;
-  }
-
-  return (
-    <div className="glass-card rounded-xl text-center text-gray-400">
-      <p className="text-sm">This page (<code className="text-gray-300">/{slug}</code>) is not part of this instance's template.</p>
-    </div>
-  );
+  // Build instance context for the custom page SDK. install_* fields ride
+  // along so overview-style pages can surface install-workflow progress.
+  const instanceContext = {
+    id: instance.id,
+    name: instance.name,
+    kind: instance.kind,
+    status: instance.status,
+    template_id: instance.template_id,
+    template_name: instance.template_name ?? null,
+    node_id: instance.node_id,
+    node_name: instance.node_name ?? null,
+    owner_id: instance.owner_id ?? null,
+    owner_name: instance.owner_name ?? null,
+    config: instance.config ? parseConfig(instance.config) : {},
+    external_id: instance.external_id ?? '',
+    created_at: instance.created_at ?? '',
+    updated_at: instance.updated_at ?? '',
+    install_state: instance.install_state ?? '',
+    install_kind: instance.install_kind ?? '',
+    install_step: typeof instance.install_step === 'number' ? instance.install_step : -1,
+    install_error: instance.install_error ?? '',
+    install_steps_json: instance.install_steps_json ?? '',
+    install_action_id: instance.install_action_id ?? '',
+    display_name: instance.display_name ?? '',
+    icon: instance.icon ?? '',
+    color: instance.color ?? '',
+  };
+  return <CustomPageView content={content} title={label} instanceContext={instanceContext} />;
 };
-
-// Export subpages for route configuration. Each is wrapped in withBoundary
-// (PageErrorBoundary) so a render-time throw in any sub-page renders a
-// visible red crash card with the JS error message instead of blanking the
-// whole SPA. router.tsx mounts these directly under their <Route>. The
-// component implementations live in lib/builtin/*.tsx; this facade just
-// wraps them.
-
-export const InstanceHomePage = withBoundary('Home', InstanceHome);
-export const InstanceFilesPage = withBoundary('Files', InstanceFiles);
-export const InstanceFileEditorPage = withBoundary('FileEditor', InstanceFileEditor);
-export const InstanceNetworkPage = withBoundary('Network', InstanceNetwork);
-export const InstanceConsolePage = withBoundary('Terminal', InstanceTerminal);
-export const InstanceSettingsPage = withBoundary('Settings', InstanceSettings);
 
 export default InstancePanel;

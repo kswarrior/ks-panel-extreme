@@ -728,7 +728,7 @@ return (
                 const meta = appCapabilityMeta(p.capability);
                 const checked = !!grants[p.capability];
                 return (
-                  <label key={p.id} className="flex items-start gap-3 p-3 rounded-lg border border-white/10 bg-black/20 cursor-pointer hover:bg-white/[0.04]">
+                  <label key={p.id} className="ks-card ks-form-card flex items-start gap-3 p-3 rounded-lg cursor-pointer">
                     <input
                       type="checkbox"
                       checked={checked}

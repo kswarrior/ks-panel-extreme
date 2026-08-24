@@ -165,7 +165,7 @@ const PanelTab: React.FC<PanelTabProps> = ({ snap, info, infoErr, infoLoading, r
     <div className="space-y-4">
       {/* Restarting overlay */}
       {restarting && (
-        <div className="glass-card rounded-xl border border-amber-300/30 bg-amber-500/5">
+        <div className="glass-card rounded-xl border border-amber-300/30">
           <div className="flex items-center gap-3">
             <svg className="w-5 h-5 text-amber-300 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
               <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.25" />
@@ -196,19 +196,19 @@ const PanelTab: React.FC<PanelTabProps> = ({ snap, info, infoErr, infoLoading, r
 
       {/* Stats cards */}
       <div className="ks-card-grid grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="glass-card rounded-xl flex flex-col gap-2 p-4 animate-slide-up">
+        <div className="ks-stat-card rounded-xl flex flex-col gap-2 p-4 animate-slide-up">
           <div className="text-[10px] text-gray-400 uppercase tracking-wide">Uptime</div>
           <div className="text-2xl font-semibold text-white tabular-nums">{fmtUptime(snap?.local?.process_uptime || 0)}</div>
         </div>
-        <div className="glass-card rounded-xl flex flex-col gap-2 p-4 animate-slide-up">
+        <div className="ks-stat-card rounded-xl flex flex-col gap-2 p-4 animate-slide-up">
           <div className="text-[10px] text-gray-400 uppercase tracking-wide">Version</div>
           <div className="text-2xl font-semibold text-white tabular-nums break-all">{info.local.version || '—'}</div>
         </div>
-        <div className="glass-card rounded-xl flex flex-col gap-2 p-4 animate-slide-up">
+        <div className="ks-stat-card rounded-xl flex flex-col gap-2 p-4 animate-slide-up">
           <div className="text-[10px] text-gray-400 uppercase tracking-wide">PID</div>
           <div className="text-2xl font-semibold text-white tabular-nums break-all">{snap?.local?.pid || '—'}</div>
         </div>
-        <div className="glass-card rounded-xl flex flex-col gap-2 p-4 animate-slide-up">
+        <div className="ks-stat-card rounded-xl flex flex-col gap-2 p-4 animate-slide-up">
           <div className="text-[10px] text-gray-400 uppercase tracking-wide">Go Version</div>
           <div className="text-2xl font-semibold text-white tabular-nums">{snap?.local?.go_version || '—'}</div>
         </div>
@@ -292,7 +292,7 @@ const PanelTab: React.FC<PanelTabProps> = ({ snap, info, infoErr, infoLoading, r
           <button
             onClick={() => setReinstallConfirmOpen(true)}
             disabled={reinstallBackgroundBusy || restarting}
-            className="inline-flex items-center gap-2 bg-blue-500/90 text-white px-4 py-2 rounded hover:bg-blue-500 text-sm disabled:opacity-50"
+            className="ks-primary-btn inline-flex items-center gap-2 px-4 py-2 rounded text-sm disabled:opacity-50"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
               <path d="M13 2L3 14h9l-1 8 10-12-10-12z" />
@@ -304,7 +304,7 @@ const PanelTab: React.FC<PanelTabProps> = ({ snap, info, infoErr, infoLoading, r
         {checkErr && <p className="text-red-400 text-sm mb-3">{checkErr}</p>}
 
         {check && !check.error && (
-          <div className={`rounded-lg border p-4 ${check.available ? 'border-emerald-400/30 bg-emerald-500/5' : 'border-white/10 bg-white/5'}`}>
+          <div className={`ks-card ks-form-card rounded-lg ${check.available ? 'border-emerald-400/30' : ''}`}>
             <div className="flex items-center gap-2 mb-2">
               <span className={`w-2.5 h-2.5 rounded-full ${check.available ? 'bg-emerald-400' : 'bg-sky-400'}`} />
               <span className="text-sm font-medium text-white">
@@ -336,7 +336,7 @@ const PanelTab: React.FC<PanelTabProps> = ({ snap, info, infoErr, infoLoading, r
                 <button
                   onClick={() => setConfirmOpen(true)}
                   disabled={applyBusy || restarting}
-                  className="inline-flex items-center gap-2 bg-emerald-500/90 text-white px-4 py-2 rounded hover:bg-emerald-500 text-sm disabled:opacity-50"
+                  className="ks-primary-btn inline-flex items-center gap-2 px-4 py-2 rounded text-sm disabled:opacity-50"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -354,7 +354,7 @@ const PanelTab: React.FC<PanelTabProps> = ({ snap, info, infoErr, infoLoading, r
         )}
 
         {check?.error && (
-          <div className="rounded-lg border border-amber-400/30 bg-amber-500/5 p-4">
+          <div className="ks-card ks-form-card rounded-lg border-amber-400/30">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
               <span className="text-sm font-medium text-white">Could not reach update server</span>
@@ -383,13 +383,13 @@ const PanelTab: React.FC<PanelTabProps> = ({ snap, info, infoErr, infoLoading, r
           <>
             <button
               onClick={() => setConfirmOpen(false)}
-              className="px-3 py-1.5 rounded text-sm border border-white/10 text-gray-300 hover:bg-white/10"
+              className="ks-ghost-btn px-3 py-1.5 rounded text-sm"
             >
               Cancel
             </button>
             <button
               onClick={doApply}
-              className="px-3 py-1.5 rounded text-sm bg-emerald-500 text-white hover:bg-emerald-400"
+              className="ks-primary-btn px-3 py-1.5 rounded text-sm"
             >
               Apply update
             </button>
@@ -431,21 +431,21 @@ const PanelTab: React.FC<PanelTabProps> = ({ snap, info, infoErr, infoLoading, r
                 setReinstallBackgroundErr('');
                 setReinstallBackgroundResult(null);
               }}
-              className="px-3 py-1.5 rounded text-sm border border-white/10 text-gray-300 hover:bg-white/10"
+              className="ks-ghost-btn px-3 py-1.5 rounded text-sm"
             >
               Cancel
             </button>
             <button
               onClick={doReinstallBackground}
               disabled={reinstallBackgroundBusy || restarting}
-              className="px-3 py-1.5 rounded text-sm bg-blue-500 text-white hover:bg-blue-400 disabled:opacity-50"
+              className="ks-primary-btn px-3 py-1.5 rounded text-sm disabled:opacity-50"
             >
               {reinstallBackgroundBusy ? 'Starting…' : 'Reinstall'}
             </button>
           </>
         }
       >
-        <div className="rounded-lg border border-blue-400/30 bg-blue-500/5 p-4">
+        <div className="ks-card ks-form-card rounded-lg border-blue-400/30">
           <div className="flex items-center gap-2 mb-2">
             <span className="w-2.5 h-2.5 rounded-full bg-blue-400" />
             <span className="text-sm font-medium text-white">Background reinstall</span>

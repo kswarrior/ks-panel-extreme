@@ -68,7 +68,7 @@ const SearchDropdown: React.FC<Props> = ({
               onChange={(e) => onChange(e.target.value)}
               placeholder={placeholder}
               aria-label={ariaLabel}
-              className="w-full bg-black/60 backdrop-blur border border-white/10 rounded-md text-sm text-white placeholder-gray-500 px-3 py-1.5 pr-7 focus:outline-none focus:border-white/40 shadow-xl"
+              className="ks-input w-full backdrop-blur border border-white/10 rounded-md text-sm text-white placeholder-gray-500 px-3 py-1.5 pr-7 focus:outline-none focus:border-white/40 shadow-xl"
               autoComplete="off"
               onKeyDown={(e) => {
                 if (e.key === 'Escape') {

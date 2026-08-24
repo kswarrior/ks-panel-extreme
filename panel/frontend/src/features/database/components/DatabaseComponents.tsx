@@ -5,6 +5,7 @@ import type { DatabaseEngineInfo, DatabaseEngineSwitchResponse } from '../types/
 import type { DatabaseTableSyncResult } from '@/shared/api/admin';
 import { formatBytes, formatSigned, tableTypeLabel, tableTypeBadge } from '../utils/databaseUtils';
 import { listDatabaseEngines, switchDatabaseEngine } from '@/shared/api/admin';
+import { glassFieldClass } from '@/shared/components/ui/Field';
 
 // MetaRow renders one labelled key+value line
 export const MetaRow: React.FC<{ label: string; value: React.ReactNode; mono?: boolean }> = ({ label, value, mono }) => (
@@ -289,7 +290,7 @@ export const ChangeDatabaseCard: React.FC<{ currentEngine?: string; currentPath?
             value={engine}
             onChange={(e) => setEngine(e.target.value)}
             disabled={submitting || engines.length === 0}
-            className="glass w-full text-sm rounded-md text-white focus:outline-none focus:border-white/30 disabled:opacity-50"
+            className={glassFieldClass + ' disabled:opacity-50'}
           >
             {engines.length === 0 && <option value={engine}>{engine}</option>}
             {engines.map((e) => (
@@ -334,7 +335,7 @@ export const ChangeDatabaseCard: React.FC<{ currentEngine?: string; currentPath?
                   : "kspanel:pass@tcp(host:3306)/kspanel?parseTime=true&loc=UTC"
                 : currentPath || "/var/lib/kspanel/kspanel.db"
             }
-            className="glass w-full text-sm rounded-md text-white font-mono placeholder-gray-600 focus:outline-none focus:border-white/30 disabled:opacity-50"
+            className={glassFieldClass + ' font-mono disabled:opacity-50'}
           />
         </div>
       ) : (
@@ -347,7 +348,7 @@ export const ChangeDatabaseCard: React.FC<{ currentEngine?: string; currentPath?
               onChange={(e) => setUrl(e.target.value)}
               disabled={submitting}
               placeholder={engine === 'mysql' ? 'localhost:3306' : 'localhost:5432'}
-              className="glass w-full text-sm rounded-md text-white font-mono placeholder-gray-600 focus:outline-none focus:border-white/30 disabled:opacity-50"
+              className={glassFieldClass + ' font-mono disabled:opacity-50'}
             />
           </div>
           <div>
@@ -358,7 +359,7 @@ export const ChangeDatabaseCard: React.FC<{ currentEngine?: string; currentPath?
               onChange={(e) => setUser(e.target.value)}
               disabled={submitting}
               placeholder="kspanel"
-              className="glass w-full text-sm rounded-md text-white placeholder-gray-600 focus:outline-none focus:border-white/30 disabled:opacity-50"
+              className={glassFieldClass + ' disabled:opacity-50'}
             />
           </div>
           <div>
@@ -370,7 +371,7 @@ export const ChangeDatabaseCard: React.FC<{ currentEngine?: string; currentPath?
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={submitting}
                 placeholder="••••••••"
-                className="glass w-full text-sm rounded-md text-white placeholder-gray-600 focus:outline-none focus:border-white/30 disabled:opacity-50"
+                className={glassFieldClass + ' disabled:opacity-50'}
               />
               <button
                 type="button"
@@ -388,7 +389,7 @@ export const ChangeDatabaseCard: React.FC<{ currentEngine?: string; currentPath?
               onChange={(e) => setDatabase(e.target.value)}
               disabled={submitting}
               placeholder="kspanel"
-              className="glass w-full text-sm rounded-md text-white placeholder-gray-600 focus:outline-none focus:border-white/30 disabled:opacity-50"
+              className={glassFieldClass + ' disabled:opacity-50'}
             />
           </div>
         </div>
@@ -437,7 +438,7 @@ export const ChangeDatabaseCard: React.FC<{ currentEngine?: string; currentPath?
               value={batchSize}
               onChange={(e) => setBatchSize(Number(e.target.value))}
               disabled={submitting || !syncData}
-              className="glass w-full text-sm rounded-md text-white font-mono focus:outline-none focus:border-white/30 disabled:opacity-50"
+              className={glassFieldClass + ' font-mono disabled:opacity-50'}
             />
           </div>
           <div>
@@ -450,7 +451,7 @@ export const ChangeDatabaseCard: React.FC<{ currentEngine?: string; currentPath?
               onChange={(e) => setTablesFilter(e.target.value)}
               disabled={submitting || !syncData}
               placeholder="users, roles, instances"
-              className="glass w-full text-sm rounded-md text-white font-mono placeholder-gray-600 focus:outline-none focus:border-white/30 disabled:opacity-50"
+              className={glassFieldClass + ' font-mono disabled:opacity-50'}
             />
           </div>
         </div>
@@ -471,7 +472,7 @@ export const ChangeDatabaseCard: React.FC<{ currentEngine?: string; currentPath?
         <button
           onClick={submit}
           disabled={submitting}
-          className="inline-flex items-center gap-2 bg-emerald-700/70 hover:bg-emerald-700 text-white px-4 py-1.5 rounded-md text-sm disabled:opacity-40"
+          className="ks-primary-btn inline-flex items-center gap-2 px-4 py-1.5 rounded-md text-sm disabled:opacity-40"
           title="Test the new database connection, optionally sync all data, then persist it"
         >
           {submitting && (

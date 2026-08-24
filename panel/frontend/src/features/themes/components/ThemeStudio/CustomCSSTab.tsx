@@ -31,7 +31,7 @@ export const CustomCSSTab: React.FC<CustomCSSTabProps> = ({ draft, patch }) => {
   return (
     <>
       <GlassCard className="space-y-4">
-        <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-2">
+        <div className="ks-form-card rounded-lg space-y-2">
           <Label
             label="Custom CSS — add completely arbitrary CSS anywhere"
             hint="The structured tabs above cover the common tokens. This tab is the escape hatch: write raw CSS for anything else."
@@ -54,7 +54,7 @@ export const CustomCSSTab: React.FC<CustomCSSTabProps> = ({ draft, patch }) => {
           rows={10}
         />
 
-        <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-4">
+        <div className="ks-form-card rounded-lg space-y-4">
           <Label
             label="Scoped CSS (applies only on a chosen area or page)"
             hint="A scoped block is emitted ONLY when the current route matches its area/page, on top of the global block above."
@@ -95,7 +95,7 @@ export const CustomCSSTab: React.FC<CustomCSSTabProps> = ({ draft, patch }) => {
                 onChange={(e) => patch('customCSS', { scopes: { ...(draft.customCSS?.scopes ?? {}), [scope]: e.target.value } })}
                 placeholder={`/* CSS that only applies on ${scopeLabelFor(scope)} */`}
                 rows={6}
-                className="w-full bg-black/40 text-white placeholder-gray-500 border border-white/10 rounded-md px-3 py-2 text-xs font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-white/60 focus:border-white/40 transition-colors duration-150 resize-y min-h-[5rem]"
+                className="w-full bg-black/30 text-white placeholder-gray-500 border border-white/10 rounded-md px-3 py-2 text-xs font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-white/60 focus:border-white/40 transition-colors duration-150 resize-y min-h-[5rem]"
               />
             </div>
           ))}
@@ -123,7 +123,7 @@ export const CustomCSSTab: React.FC<CustomCSSTabProps> = ({ draft, patch }) => {
           })()}
         </div>
 
-        <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-2">
+        <div className="ks-form-card rounded-lg space-y-2">
           <Label label="Quick reference — common class hooks" hint="Class names the panel already exposes for theming." />
           <div className="space-y-3">
             <div>

@@ -8,7 +8,6 @@ import {
 } from '@/features/authority/api/authority';
 import TextInput from '@/shared/components/ui/TextInput';
 import ToggleRow from '@/shared/components/ui/ToggleRow';
-import Modal from '@/shared/components/ui/Modal';
 
 // Authority tab: application secrets and external authentication/message
 // providers ONLY. Authentication POLICY (password rules, lockout,
@@ -350,13 +349,12 @@ const Authority: React.FC<AuthorityProps> = ({ onConfigChange }) => {
   }
 
   return (
-    <>
     <form
       onSubmit={submit}
       className="glass-card rounded-xl space-y-10 max-w-3xl"
     >
       {appSecretToast && (
-        <div className="ks-card ks-form-card rounded-xl bg-emerald-900/30 border-emerald-600/50 p-4">
+        <div className="ks-card ks-form-card rounded-xl border-emerald-600/50 p-4">
           <div className="flex items-center justify-between">
             <div>
               <div className="text-sm font-semibold text-emerald-300">New App Secret Generated</div>
@@ -395,7 +393,7 @@ const Authority: React.FC<AuthorityProps> = ({ onConfigChange }) => {
         </h3>
         <p className="text-xs text-gray-500 mb-4">
           Toggle on each provider you want to expose on the registration
-          and login pages, then press <span className="text-gray-300">Config</span> to enter
+          and login pages, then use the gear button on its right to enter
           everything that provider requires — a provider can only be
           enabled once its full credential set is saved. Once configured,
           it shows up as a &quot;Continue with …&quot; button on the login page.
@@ -407,13 +405,16 @@ const Authority: React.FC<AuthorityProps> = ({ onConfigChange }) => {
           {providers.map((p) => {
             const def = PROVIDER_DEFS.find((d) => d.id === p.id);
             const label = providerLabel(p.id);
-            const isOAuth = p.kind === 'oauth';
+            // NOTE: /api/authority does NOT echo a `kind` field — derive it
+            // from PROVIDER_DEFS (falling back to any server-sent kind) or
+            // the config gear/button would never render after load.
+            const isOAuth = (def?.kind ?? p.kind) === 'oauth';
             const missing = isOAuth ? oauthMissingFields(p) : [];
             const configured = missing.length === 0;
             return (
               <div
                 key={p.id}
-                className="rounded-md border border-white/[0.06] bg-black/20 p-4 space-y-3"
+                className="ks-card ks-form-card rounded-md space-y-3"
               >
                 <div className="flex items-start gap-3">
                   <div className="flex-1 min-w-0">
@@ -428,14 +429,20 @@ const Authority: React.FC<AuthorityProps> = ({ onConfigChange }) => {
                   {isOAuth && p.enabled && (
                     <button
                       type="button"
+                      aria-label={`Configure ${label}`}
+                      title={`Configure ${label}`}
+                      aria-expanded={configProviderId === p.id}
                       onClick={() => {
-                        setConfigProviderId(p.id);
+                        setConfigProviderId(configProviderId === p.id ? null : p.id);
                         setCopiedRedirect(false);
                       }}
-                      className="shrink-0 inline-flex items-center gap-2 bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-gray-200 px-3 py-1.5 rounded text-xs transition-colors mt-0.5"
+                      className={`shrink-0 grid place-items-center w-8 h-8 rounded border transition-colors mt-0.5 ${
+                        configProviderId === p.id
+                          ? 'bg-white/[0.15] border-white/25 text-white'
+                          : 'bg-white/[0.06] hover:bg-white/[0.12] border-white/10 text-gray-300 hover:text-white'
+                      }`}
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-                      Config
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                     </button>
                   )}
                 </div>
@@ -455,6 +462,97 @@ const Authority: React.FC<AuthorityProps> = ({ onConfigChange }) => {
                     ) : (
                       <>Setup required: missing {missing.join(', ')}</>
                     )}
+                  </div>
+                )}
+                {/* Dropped-down config panel: every field THIS provider
+                    needs, inline under its row. Secret fields follow the
+                    page-wide keep-blank contract; edits bind into the same
+                    providers state the Save button persists. */}
+                {isOAuth && p.enabled && configProviderId === p.id && (
+                  <div className="space-y-3 pt-3">
+                    <div className="ks-card ks-form-card rounded-md space-y-1">
+                      <div className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold">
+                        Redirect URI — paste this into your {label} app settings
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 min-w-0 bg-black/40 px-2 py-1 rounded font-mono text-[11px] text-gray-300 break-all select-all">
+                          {`${window.location.origin}/api/auth/oauth/${p.id}/callback`}
+                        </code>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard?.writeText(p.redirect_uri || `${window.location.origin}/api/auth/oauth/${p.id}/callback`).then(() => {
+                              setCopiedRedirect(true);
+                              window.setTimeout(() => setCopiedRedirect(false), 1500);
+                            }).catch(() => {});
+                          }}
+                          className="shrink-0 text-[11px] bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-gray-300 px-2 py-1 rounded transition-colors"
+                        >
+                          {copiedRedirect ? 'Copied' : 'Copy'}
+                        </button>
+                      </div>
+                      {p.redirect_uri && (
+                        <div className="text-[11px] text-amber-400/90">
+                          An override below takes precedence over this URL.
+                        </div>
+                      )}
+                    </div>
+
+                    {(OAUTH_CONFIG_FIELDS[p.id] ?? []).map((f) => {
+                      const id = `provider-${p.id}-${f.key}`;
+                      const value = String(
+                        (p as unknown as Record<string, unknown>)[f.key] ?? '',
+                      );
+                      const isSecret = !!f.secret;
+                      const placeholder = isSecret && (p.configured || value)
+                        ? 'leave blank to keep current'
+                        : f.placeholder;
+                      return (
+                        <div key={f.key}>
+                          <label htmlFor={id} className="block text-sm font-medium text-gray-300 mb-1">
+                            {f.label}
+                          </label>
+                          {f.area ? (
+                            <textarea
+                              id={id}
+                              rows={6}
+                              value={value}
+                              onChange={(e) =>
+                                setProviderField(p.id, {
+                                  [f.key]: e.target.value,
+                                } as Partial<AuthorityProvider>)
+                              }
+                              placeholder={placeholder}
+                              spellCheck={false}
+                              className="ks-input w-full bg-black/30 backdrop-blur-md text-white border border-white/10 placeholder-gray-500 rounded-md px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-white/60 focus:border-white/40 transition-colors duration-150"
+                            />
+                          ) : (
+                            <input
+                              id={id}
+                              type={isSecret ? 'password' : 'text'}
+                              value={value}
+                              autoComplete="off"
+                              onChange={(e) =>
+                                setProviderField(p.id, {
+                                  [f.key]: e.target.value,
+                                } as Partial<AuthorityProvider>)
+                              }
+                              placeholder={placeholder}
+                              className="w-full bg-black/30 backdrop-blur-md text-white border border-white/10 placeholder-gray-500 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-white/60 focus:border-white/40 transition-colors duration-150"
+                            />
+                          )}
+                          {f.hint && (
+                            <p className="text-[11px] text-gray-500 mt-1">{f.hint}</p>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    <p className={`text-xs ${missing.length ? 'text-amber-400' : 'text-emerald-400'}`}>
+                      {missing.length
+                        ? `Still missing: ${missing.join(', ')}`
+                        : 'All required fields are in — press Save to persist.'}
+                    </p>
                   </div>
                 )}
               </div>
@@ -515,7 +613,7 @@ const Authority: React.FC<AuthorityProps> = ({ onConfigChange }) => {
           <button
             type="button"
             onClick={regenerateSecret}
-            className="inline-flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded text-sm"
+            className="ks-primary-btn inline-flex items-center gap-2 px-4 py-2 rounded text-sm"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/></svg>
             Regenerate
@@ -537,145 +635,6 @@ const Authority: React.FC<AuthorityProps> = ({ onConfigChange }) => {
         </button>
       </div>
     </form>
-
-    {/* OAuth provider config modal. Sits OUTSIDE the <form> so its buttons
-        can never submit the page; edits bind straight into the same
-        providers state the Save button persists. */}
-    {(() => {
-      const p = providers.find((x) => x.id === configProviderId);
-      if (!p) return null;
-      const def = PROVIDER_DEFS.find((d) => d.id === p.id);
-      const label = providerLabel(p.id);
-      const fields = OAUTH_CONFIG_FIELDS[p.id] ?? [];
-      const missing = oauthMissingFields(p);
-      const callbackUrl = `${window.location.origin}/api/auth/oauth/${p.id}/callback`;
-      return (
-        <Modal
-          open
-          onClose={() => setConfigProviderId(null)}
-          title={`${label} configuration`}
-          footer={
-            <>
-              <button
-                type="button"
-                onClick={() => setConfigProviderId(null)}
-                className="bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-gray-200 px-4 py-2 rounded text-sm transition-colors"
-              >
-                Close
-              </button>
-              <button
-                type="button"
-                onClick={() => setConfigProviderId(null)}
-                disabled={authSaving}
-                className="ks-primary-btn inline-flex items-center gap-2 bg-white text-black px-4 py-2 rounded hover:bg-gray-200 text-sm disabled:opacity-60"
-              >
-                Done
-              </button>
-            </>
-          }
-        >
-          <p className="text-xs text-gray-500">
-            Enter everything {label} requires for sign-in. Secret-style
-            fields stay blank to keep the value already stored on the
-            server. Changes apply when you press{' '}
-            <span className="text-gray-300">Save</span> on the main form.
-          </p>
-
-          <div className="rounded-md border border-white/[0.08] bg-black/30 p-3 space-y-1">
-            <div className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold">
-              Redirect URI — paste this into your {label} app settings
-            </div>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 min-w-0 bg-black/40 px-2 py-1 rounded font-mono text-[11px] text-gray-300 break-all select-all">
-                {callbackUrl}
-              </code>
-              <button
-                type="button"
-                onClick={() => {
-                  navigator.clipboard?.writeText(p.redirect_uri || callbackUrl).then(() => {
-                    setCopiedRedirect(true);
-                    window.setTimeout(() => setCopiedRedirect(false), 1500);
-                  }).catch(() => {});
-                }}
-                className="shrink-0 text-[11px] bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-gray-300 px-2 py-1 rounded transition-colors"
-              >
-                {copiedRedirect ? 'Copied' : 'Copy'}
-              </button>
-            </div>
-            {p.redirect_uri && (
-              <div className="text-[11px] text-amber-400/90">
-                An override below takes precedence over this URL.
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-3">
-            {fields.map((f) => {
-              const id = `provider-${p.id}-${f.key}`;
-              const value = String(
-                (p as unknown as Record<string, unknown>)[f.key] ?? '',
-              );
-              const isSecret = !!f.secret;
-              const placeholder = isSecret && (p.configured || value)
-                ? 'leave blank to keep current'
-                : f.placeholder;
-              return (
-                <div key={f.key}>
-                  <label htmlFor={id} className="block text-sm font-medium text-gray-300 mb-1">
-                    {f.label}
-                  </label>
-                  {f.area ? (
-                    <textarea
-                      id={id}
-                      rows={6}
-                      value={value}
-                      onChange={(e) =>
-                        setProviderField(p.id, {
-                          [f.key]: e.target.value,
-                        } as Partial<AuthorityProvider>)
-                      }
-                      placeholder={placeholder}
-                      spellCheck={false}
-                      className="ks-input w-full bg-black/30 backdrop-blur-md text-white border border-white/10 placeholder-gray-500 rounded-md px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-white/60 focus:border-white/40 transition-colors duration-150"
-                    />
-                  ) : (
-                    <input
-                      id={id}
-                      type={isSecret ? 'password' : 'text'}
-                      value={value}
-                      autoComplete="off"
-                      onChange={(e) =>
-                        setProviderField(p.id, {
-                          [f.key]: e.target.value,
-                        } as Partial<AuthorityProvider>)
-                      }
-                      placeholder={placeholder}
-                      className="w-full bg-black/30 backdrop-blur-md text-white border border-white/10 placeholder-gray-500 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-white/60 focus:border-white/40 transition-colors duration-150"
-                    />
-                  )}
-                  {f.hint && (
-                    <p className="text-[11px] text-gray-500 mt-1">{f.hint}</p>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          <p className={`text-xs ${missing.length ? 'text-amber-400' : 'text-emerald-400'}`}>
-            {missing.length
-              ? `Still missing: ${missing.join(', ')}`
-              : 'All required fields are in — press Save to persist.'}
-          </p>
-          {def && !missing.length && (
-            <p className="text-[11px] text-gray-500">
-              Once saved, a &quot;Continue with {label}&quot; button appears on the login and
-              register pages.
-            </p>
-          )}
-        </Modal>
-      );
-    })()}
-    </>
   );
 };
 

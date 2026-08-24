@@ -658,7 +658,7 @@ const Account: React.FC = () => {
               {links.map((link, i) => {
                 const custom = isCustomLinkType(link.type);
                 return (
-                <div key={i} className="rounded-md border border-white/[0.06] bg-black/20 p-2 space-y-2">
+                <div key={i} className="ks-card ks-form-card rounded-md space-y-2">
                   {/* Row 1: icon + type select (+ custom name) + remove */}
                   <div className="flex items-center gap-2">
                     <span className="shrink-0 w-8 h-8 flex items-center justify-center rounded-md border border-white/10 bg-black/30 text-gray-300">

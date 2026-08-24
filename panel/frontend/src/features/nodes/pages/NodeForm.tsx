@@ -375,7 +375,7 @@ const NodeForm: React.FC = () => {
 
           {tab === 'general' && (
           <>
-          <div className="flex items-center justify-between gap-3 p-3 border border-white/10 rounded-md bg-black/20">
+          <div className="ks-card ks-form-card flex items-center justify-between gap-3 p-3 rounded-md">
             <div className="min-w-0">
               <p className="text-sm text-gray-200 font-medium">Localhost edge</p>
               <p className="text-xs text-gray-500">
@@ -418,7 +418,7 @@ const NodeForm: React.FC = () => {
             />
           </GlassField>
 
-          <div className="rounded-md border border-white/10 bg-black/20 p-3 space-y-3">
+          <div className="ks-card ks-form-card rounded-md space-y-3">
             <div>
               <p className="text-sm text-gray-200 font-medium">Icon &amp; colour</p>
               <p className="text-xs text-gray-500">
@@ -436,7 +436,7 @@ const NodeForm: React.FC = () => {
                     aria-label={`Icon: ${ic.label}`}
                     aria-pressed={on}
                     onClick={() => setForm((f) => ({ ...f, icon: on ? '' : ic.key }))}
-                    className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border transition ${on ? 'border-white/30 bg-white/10 text-white' : 'border-white/10 bg-white/[0.02] text-gray-400 hover:bg-white/5'}`}
+                    className={`ks-icon-btn inline-flex h-9 w-9 items-center justify-center rounded-lg ${on ? 'is-open' : ''}`}
                   >
                     <NodeIcon icon={ic.key} className="w-[18px] h-[18px]" />
                   </button>
@@ -570,7 +570,7 @@ const NodeForm: React.FC = () => {
 
           {tab === 'health' && (
           <>
-          <div className="rounded-md border border-white/10 bg-black/20 p-3 space-y-3">
+          <div className="ks-card ks-form-card rounded-md space-y-3">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-sm text-gray-200 font-medium">Health check</p>
@@ -623,7 +623,7 @@ const NodeForm: React.FC = () => {
 
           {tab === 'limits' && (
           <>
-          <div className="rounded-md border border-white/10 bg-black/20 p-3 space-y-2">
+          <div className="ks-card ks-form-card rounded-md space-y-2">
             <div>
               <p className="text-sm text-gray-200 font-medium">Allowed instance kinds</p>
               <p className="text-xs text-gray-500">When chosen, the panel refuses to deploy any template kind not on this list to the edge. Leave all unchecked for no restriction.</p>
@@ -636,7 +636,7 @@ const NodeForm: React.FC = () => {
                     type="button"
                     key={k.key}
                     onClick={() => toggleKind(k.key)}
-                    className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm border transition ${on ? 'border-white/30 bg-white/10 text-white' : 'border-white/10 bg-white/[0.02] text-gray-400 hover:bg-white/5'}`}
+                    className={`ks-dropdown-trigger inline-flex items-center gap-2 rounded-lg text-sm ${on ? 'is-open' : ''}`}
                   >
                     <span
                       className="w-2.5 h-2.5 rounded-full"
@@ -652,7 +652,7 @@ const NodeForm: React.FC = () => {
             </div>
           </div>
 
-          <div className="rounded-md border border-white/10 bg-black/20 p-3 space-y-3">
+          <div className="ks-card ks-form-card rounded-md space-y-3">
             <div>
               <p className="text-sm text-gray-200 font-medium">Resource allocation</p>
               <p className="text-xs text-gray-500">Panel-side caps the panel enforces before deploying instances to this edge. Leave a cap at 0 (or the over-allocation at 0) to skip the check for that resource.</p>
@@ -713,7 +713,7 @@ const NodeForm: React.FC = () => {
 
           {tab === 'location' && (
           <>
-          <div className="rounded-md border border-white/10 bg-black/20 p-3 space-y-3">
+          <div className="ks-card ks-form-card rounded-md space-y-3">
             <div>
               <p className="text-sm text-gray-200 font-medium">Categorisation & location</p>
               <p className="text-xs text-gray-500">

@@ -179,7 +179,24 @@ func proxyToEdge(w http.ResponseWriter, r *http.Request, id int64, op, path, con
 	// or not docker is reachable on the edge, and even when the container
 	// is stopped — both real regressions operators hit with the default
 	// Minecraft template before this was wired.
-	if hp := hostPathForInstance(con, inst, path); hp != "" {
+	//
+	// Rename needs PAIR consistency: the SPA sends `to` as a container
+	// path (same coordinate space as `path`). If only the source were
+	// translated to host_path, the edge would os.Rename the file onto a
+	// literal "/mc/…" path on its own filesystem. So translate the
+	// destination too, and when EITHER side falls outside the mounts,
+	// drop host_path entirely so the edge handles both paths inside the
+	// container via `mv` (where they are both valid).
+	if op == "rename" {
+		to := r.URL.Query().Get("to")
+		hpFrom := hostPathForInstance(con, inst, path)
+		if to != "" && hpFrom != "" {
+			if hpTo := hostPathForInstance(con, inst, to); hpTo != "" {
+				q.Set("host_path", hpFrom)
+				q.Set("to", hpTo)
+			}
+		}
+	} else if hp := hostPathForInstance(con, inst, path); hp != "" {
 		q.Set("host_path", hp)
 	}
 	scheme := "http"

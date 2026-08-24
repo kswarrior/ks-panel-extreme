@@ -391,7 +391,7 @@ const ModStudio: React.FC = () => {
                 key={p.id}
                 type="button"
                 onClick={() => applyPreset(p.id)}
-                className="text-left p-3 rounded-lg border border-white/10 bg-black/20 hover:bg-white/[0.06] hover:border-white/20 transition-colors"
+                className="ks-card text-left p-3 rounded-lg transition-colors"
               >
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-xl" aria-hidden="true">{p.icon}</span>
@@ -704,10 +704,8 @@ const PermissionsEditor: React.FC<{
         return (
           <label
             key={cap.key}
-            className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition ${
-              on
-                ? 'border-emerald-700/40 bg-emerald-900/15'
-                : 'border-white/10 bg-black/20 hover:bg-white/[0.04]'
+            className={`ks-card flex items-start gap-3 p-3 rounded-lg cursor-pointer transition ${
+              on ? 'border-emerald-700/40' : ''
             }`}
           >
             <input
@@ -777,7 +775,7 @@ const SlotsEditor: React.FC<{
           }
         };
         return (
-        <div key={idx} className="p-3 rounded-lg border border-white/10 bg-black/20 space-y-2">
+        <div key={idx} className="ks-card ks-form-card p-3 rounded-lg space-y-2">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <TextField
               label="Slot name (layout location)"
@@ -864,7 +862,7 @@ const HooksEditor: React.FC<{
           }
         };
         return (
-        <div key={idx} className="p-3 rounded-lg border border-white/10 bg-black/20 space-y-2">
+        <div key={idx} className="ks-card ks-form-card p-3 rounded-lg space-y-2">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <TextField
               label="Event name"
@@ -941,7 +939,7 @@ const CustomPermsEditor: React.FC<{
           }
         };
         return (
-        <div key={idx} className="p-3 rounded-lg border border-white/10 bg-black/20 space-y-2">
+        <div key={idx} className="ks-card ks-form-card p-3 rounded-lg space-y-2">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <TextField
               label="Key (namespaced under the mod slug)"

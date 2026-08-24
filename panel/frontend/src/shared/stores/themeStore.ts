@@ -773,6 +773,11 @@ function buildVars(theme: Theme, opts?: ApplyOpts): string {
   --ks-loading-text: ${l.text_color};
   --ks-loading-size: ${l.size};
   --ks-loading-animation: ${l.animation_speed};
+  /* Skeleton token hooks consumed by Loading/SkeletonCard defaults so the
+     Loading-tab skeleton sliders restyle every list-page skeleton too. */
+  --ks-skeleton-base: ${l.skeleton_base_color};
+  --ks-skeleton-shimmer: ${l.skeleton_shimmer_color};
+  --ks-skeleton-radius: ${num(l.skeleton_radius, 6)}px;
   /* Animation duration derived from the speed preset so the actual Loading
      indicator's animate-* classes can pick it up via a scoped rule below. */
    --ks-loading-animation-duration: ${l.animation_speed === 'slow' ? '2s' : l.animation_speed === 'fast' ? '0.5s' : '1s'};
@@ -803,7 +808,8 @@ body { color: var(--ks-text-body); }
    change them app-wide. The background layer stacks the optional media/
    gradient (var-layers) on top of the solid fill so a card can carry a
    png / multi-colour CSS gradient / gif backdrop. */
-.glass-card {
+.glass-card,
+.ks-card {
   background-color: var(--ks-card-bg) !important;
   background-image: var(--ks-card-bg-layer) !important;
   background-size: var(--ks-card-bg-size);
@@ -819,7 +825,8 @@ body { color: var(--ks-text-body); }
   margin: var(--ks-card-margin) !important;
   transition: border-color 0.2s ease !important;
 }
-.glass-card:hover { border-color: var(--ks-card-hover-border) !important; }
+.glass-card:hover,
+.ks-card:hover { border-color: var(--ks-card-hover-border) !important; }
 
 /* Glass-style modifiers opt in by the admin via the Theme Studio's "Glass
    style" select on the Card tab. The default 'frosted' is what a plain
@@ -1373,6 +1380,9 @@ function buildUtilityMappings(theme: Theme): string {
   const a = theme.accent;
   const t = theme.typography;
   const u = theme.utilities;
+  const b = theme.button;
+  const f = theme.forms;
+  const sh = theme.shape;
   const blocks: string[] = [];
 
   // Selector builders ------------------------------------------------
@@ -1381,7 +1391,9 @@ function buildUtilityMappings(theme: Theme): string {
   // covered for the common steps so tinted/hover classes map too — but
   // ONLY via exact class selectors, never substring matching, which would
   // also hit `hover:` variants permanently.
-  const esc = (s: string) => s.replace(/([.:[\])/g, '\\$1');
+  // Strip any pre-escape backslashes, then escape CSS-special characters
+  // exactly once ('/' needs escaping in selectors like .text-red-400\/50).
+  const esc = (s: string) => s.replace(/\\/g, '').replace(/([.:[\]/()])/g, '\\$1');
   const shadeSel = (prefix: string, shades: number[], alphas: string[]): string =>
     shades.flatMap((sh) => alphas.map((al) => `.${esc(`${prefix}-${sh}${al}`)}`)).join(',');
 
@@ -1480,7 +1492,7 @@ h1, h2, h3, h4, h5, h6, .text-gray-100, .text-gray-200, .text-white {
     }
   }
   if ((a.info || D.accent.info) !== D.accent.info) {
-    for (const hue of ['sky', 'blue', 'cyan']) {
+    for (const hue of ['sky', 'blue', 'cyan', 'indigo', 'violet', 'purple']) {
       const r = statusFamily('text', [hue], a.info);
       if (r) blocks.push(r);
       const b = statusFamily('border', [hue], a.info);
@@ -1507,6 +1519,135 @@ a.text-blue-300, a.text-blue-400, a.text-sky-300, a.text-sky-400, a.text-blue-50
 .border-white\\/10, .border-white\\/15, .border-white\\/20, .border-white\\/\\[0\\.06\\], .border-white\\/\\[0\\.08\\] {
   border-color: var(--ks-card-border) !important;
 }`);
+  }
+
+  // --- Composite button utilities → Button tab tokens ---
+  // index.css ships the .ks-btn-* component classes (plus a stock
+  // bg-white+text-black primary pattern and file-input buttons) that many
+  // pages use directly. They hard-code the stock look, so remap them onto
+  // the Button-tab tokens ONLY when an admin moves those sliders away from
+  // Default — under the Default theme nothing is emitted and every page
+  // stays pixel-identical.
+  const btnChanged =
+    b.background !== D.button.background ||
+    b.text_color !== D.button.text_color ||
+    b.hover_background !== D.button.hover_background;
+  if (btnChanged) {
+    blocks.push(`
+/* Utility mapping: composite/stock primary buttons → button tokens */
+.ks-btn-primary, .ks-btn-form, .bg-white.text-black {
+  background-color: ${b.background} !important;
+  color: ${b.text_color} !important;
+}
+.ks-btn-primary:hover, .ks-btn-form:hover, .bg-white.text-black:hover {
+  background-color: ${b.hover_background} !important;
+}
+.file\\:bg-white::file-selector-button {
+  background-color: ${b.background} !important;
+  color: ${b.text_color} !important;
+}
+.hover\\:file\\:bg-gray-200:hover::file-selector-button {
+  background-color: ${b.hover_background} !important;
+}`);
+  }
+  const ghostChanged =
+    b.ghost_text_color !== D.button.ghost_text_color ||
+    b.ghost_hover_background !== D.button.ghost_hover_background ||
+    b.ghost_border !== D.button.ghost_border;
+  if (ghostChanged) {
+    // The stock ghost look is a hairline white/10 box; only re-issue the
+    // whole border shorthand when the admin actually changed it.
+    const ghostBorder =
+      b.ghost_border !== D.button.ghost_border
+        ? `\n.ks-btn-ghost, .ks-btn-cancel { border: ${safeCssValue(b.ghost_border)} !important; }`
+        : '';
+    blocks.push(`
+/* Utility mapping: ghost buttons → ghost button tokens */
+.ks-btn-ghost, .ks-btn-cancel { color: ${b.ghost_text_color} !important; }
+.ks-btn-ghost:hover, .ks-btn-cancel:hover { background-color: ${b.ghost_hover_background} !important; }${ghostBorder}`);
+  }
+  const iconChanged =
+    b.icon_background !== D.button.icon_background ||
+    b.icon_text_color !== D.button.icon_text_color ||
+    b.icon_hover_background !== D.button.icon_hover_background;
+  if (iconChanged) {
+    blocks.push(`
+/* Utility mapping: secondary/icon buttons → icon button tokens */
+.ks-btn-icon, .ks-btn-header, .ks-btn-secondary {
+  background-color: ${b.icon_background} !important;
+  color: ${b.icon_text_color} !important;
+}
+.ks-btn-icon:hover, .ks-btn-header:hover, .ks-btn-secondary:hover {
+  background-color: ${b.icon_hover_background} !important;
+}`);
+  }
+
+  // --- accent-* checkboxes / radios / sliders → checkbox token ---
+  if (f.checkbox_bg_checked !== D.forms.checkbox_bg_checked) {
+    blocks.push(`
+/* Utility mapping: accent-* controls → forms.checkbox_bg_checked */
+.accent-emerald-500, .accent-emerald-600, .accent-sky-500, .accent-indigo-400, .accent-white {
+  accent-color: ${f.checkbox_bg_checked} !important;
+}`);
+  }
+
+  // --- Shape + Utilities radius scales → stock rounded-* utilities ---
+  // Emitted only when the admin moves the matching slider so the stock
+  // Tailwind scale stays pixel-identical under the Default theme.
+  if (sh.border_radius_sm !== D.shape.border_radius_sm) {
+    blocks.push(`\n.rounded { border-radius: var(--ks-radius-sm) !important; }`);
+  }
+  if (sh.border_radius_md !== D.shape.border_radius_md) {
+    blocks.push(`\n.rounded-md { border-radius: var(--ks-radius-md) !important; }`);
+  }
+  if (sh.border_radius_lg !== D.shape.border_radius_lg) {
+    blocks.push(`\n.rounded-lg { border-radius: var(--ks-radius-lg) !important; }`);
+  }
+  if (u.radius_none !== D.utilities.radius_none) {
+    blocks.push(`\n.rounded-none { border-radius: var(--ks-radius-none) !important; }`);
+  }
+  if (u.radius_sm !== D.utilities.radius_sm) {
+    blocks.push(`\n.rounded-sm { border-radius: var(--ks-radius-sm-u) !important; }`);
+  }
+  if (u.radius_md !== D.utilities.radius_md) {
+    blocks.push(`\n.rounded-md { border-radius: var(--ks-radius-md-u) !important; }`);
+  }
+  if (u.radius_lg !== D.utilities.radius_lg) {
+    blocks.push(`\n.rounded-lg { border-radius: var(--ks-radius-lg-u) !important; }`);
+  }
+  if (u.radius_full !== D.utilities.radius_full && num(u.radius_full, 9999) > 100) {
+    blocks.push(`\n.rounded-full { border-radius: 9999px !important; }`);
+  }
+
+  // --- Elevation scale → stock shadow-* utilities (gated) ---
+  const shadowMap: Array<[number, number, string, string]> = [
+    [D.utilities.shadow_1, u.shadow_1, 'shadow-sm', '--ks-elev-1'],
+    [D.utilities.shadow_2, u.shadow_2, 'shadow', '--ks-elev-2'],
+    [D.utilities.shadow_3, u.shadow_3, 'shadow-md', '--ks-elev-3'],
+    [D.utilities.shadow_4, u.shadow_4, 'shadow-lg', '--ks-elev-4'],
+    [D.utilities.shadow_4, u.shadow_4, 'shadow-xl', '--ks-elev-4'],
+  ];
+  const shadowRules = shadowMap
+    .filter(([d, v]) => v !== d)
+    .map(([, , cls, v]) => `.${cls.replace(/\\/g, '')} { box-shadow: var(${v}) !important; }`);
+  if (shadowRules.length) {
+    blocks.push(`\n/* Utility mapping: shadow scale → utilities elevation */\n${shadowRules.join('\n')}`);
+  }
+
+  // --- Transition speed presets → duration-* utilities (gated) ---
+  if (u.transition_slow !== D.utilities.transition_slow) {
+    blocks.push(`\n.duration-300 { transition-duration: var(--ks-t-slow, 300ms) !important; }`);
+  }
+  if (u.transition_very_slow !== D.utilities.transition_very_slow) {
+    blocks.push(`\n.duration-500, .duration-700, .duration-1000 { transition-duration: var(--ks-t-vslow, 500ms) !important; }`);
+  }
+
+  // --- Typography base size → root rem scale (gated) ---
+  // Tailwind text-* utilities are rem-based, so moving the Typography tab's
+  // "Base size" slider rescales every label/heading panel-wide. Nothing is
+  // emitted while it sits at the Default value to keep pixel parity.
+  if (t.base_size !== D.typography.base_size && num(t.base_size, 14) >= 10 && num(t.base_size, 14) <= 22) {
+    blocks.push(`\n/* Utility mapping: typography.base_size → root font scale */\nhtml { font-size: ${num(t.base_size, 14)}px; }`);
   }
 
   // --- Decorative scrollbar + selection follow accents (gated) ---
@@ -1628,6 +1769,40 @@ textarea.ks-textarea::placeholder,
   color: var(--ks-form-placeholder) !important;
   opacity: 1 !important;
 }
+/* Composite variant classes (ks-input-sm/-lg/-error/-success/-disabled/-mono,
+   ks-select-sm/-lg, ks-textarea-sm/-lg, ks-search-input, and selects styled
+   with the shared glassFieldClass). Colour + focus follow the Forms tab
+   while geometry stays owned by the variant utility, so -sm / -lg sizing
+   is never clobbered. Exact-class elements are excluded (:not) because the
+   full-property rules above already cover them with per-family tokens. */
+input[class*="ks-input"]:not(.ks-input),
+input.ks-search-input,
+select[class*="ks-input"]:not(.ks-input) {
+  background-color: var(--ks-form-input-bg) !important;
+  color: var(--ks-form-input-text) !important;
+}
+select[class*="ks-select"]:not(.ks-select) {
+  background-color: var(--ks-form-select-bg) !important;
+  color: var(--ks-form-select-text) !important;
+}
+textarea[class*="ks-textarea"]:not(.ks-textarea) {
+  background-color: var(--ks-form-textarea-bg) !important;
+  color: var(--ks-form-textarea-text) !important;
+}
+input[class*="ks-input"]:not(.ks-input):focus,
+input.ks-search-input:focus,
+select[class*="ks-select"]:not(.ks-select):focus,
+select[class*="ks-input"]:not(.ks-input):focus,
+textarea[class*="ks-textarea"]:not(.ks-textarea):focus {
+  outline: none !important;
+  border-color: var(--ks-form-focus-border) !important;
+  box-shadow: var(--ks-form-focus-shadow) !important;
+}
+input[class*="ks-input"]:not(.ks-input)::placeholder,
+textarea[class*="ks-textarea"]:not(.ks-textarea)::placeholder {
+  color: var(--ks-form-placeholder) !important;
+  opacity: 1 !important;
+}
 input.ks-input:focus,
 select.ks-select:focus,
 textarea.ks-textarea:focus,
@@ -1662,6 +1837,10 @@ input.ks-radio {
   width: var(--ks-radio-size) !important;
   height: var(--ks-radio-size) !important;
 }
+/* Variant sizes (ks-checkbox-sm/-lg, ks-radio-sm/-lg) keep their own box
+   geometry; only the checked colour follows the Forms tab. */
+input[class*="ks-checkbox"] { accent-color: var(--ks-check-on) !important; }
+input[class*="ks-radio"] { accent-color: var(--ks-radio-on) !important; }
 .rich-check {
   background: var(--ks-check-off-bg);
   border-color: var(--ks-check-border);
@@ -1681,6 +1860,11 @@ input.ks-radio {
   background-color: var(--ks-toggle-on) !important;
   border-color: var(--ks-toggle-on) !important;
 }
+/* Button-based switches (role="switch") mark the on state via .is-on. */
+.ks-toggle.is-on {
+  background-color: var(--ks-toggle-on) !important;
+  border-color: var(--ks-toggle-on) !important;
+}
 .ks-toggle:not(.ks-toggle-sm):not(.ks-toggle-lg) .ks-toggle__thumb {
   width: var(--ks-toggle-thumb-size) !important;
   height: var(--ks-toggle-thumb-size) !important;
@@ -1689,6 +1873,9 @@ input.ks-radio {
   background: var(--ks-toggle-thumb) !important;
 }
 .ks-toggle:not(.ks-toggle-sm):not(.ks-toggle-lg):has(input:checked) .ks-toggle__thumb {
+  transform: translateX(var(--ks-toggle-travel)) !important;
+}
+.ks-toggle.is-on .ks-toggle__thumb {
   transform: translateX(var(--ks-toggle-travel)) !important;
 }
 
@@ -1740,7 +1927,16 @@ input.ks-radio {
    buildSectionVars, so these rules only override what the admin set.
    ------------------------------------------------------------------ */
 .ks-list-card {
+  /* Variants OWN the whole composite background: colour from the variant
+     token + the media/gradient layer from the live Card tab. Without the
+     explicit background-image here, the earlier .glass-card rule's media
+     layer would paint ABOVE the variant colour and mix with it (the
+     "set List background to red but black/image still shows" bug). */
   background-color: var(--ks-listcard-bg) !important;
+  background-image: var(--ks-card-bg-layer) !important;
+  background-size: var(--ks-card-bg-size);
+  background-position: var(--ks-card-bg-position);
+  background-repeat: var(--ks-card-bg-repeat);
   border-color: var(--ks-listcard-border) !important;
   box-shadow: var(--ks-listcard-shadow) !important;
   border-radius: var(--ks-listcard-radius) !important;
@@ -1751,6 +1947,10 @@ input.ks-radio {
 .ks-list-card:hover { border-color: var(--ks-listcard-hover) !important; }
 .ks-stat-card {
   background-color: var(--ks-statcard-bg) !important;
+  background-image: var(--ks-card-bg-layer) !important;
+  background-size: var(--ks-card-bg-size);
+  background-position: var(--ks-card-bg-position);
+  background-repeat: var(--ks-card-bg-repeat);
   border-color: var(--ks-statcard-border) !important;
   border-radius: var(--ks-statcard-radius) !important;
   padding-left: var(--ks-statcard-px) !important;
@@ -1761,6 +1961,10 @@ input.ks-radio {
 .ks-stat-card svg { color: var(--ks-statcard-icon) !important; }
 .ks-form-card {
   background-color: var(--ks-formcard-bg) !important;
+  background-image: var(--ks-card-bg-layer) !important;
+  background-size: var(--ks-card-bg-size);
+  background-position: var(--ks-card-bg-position);
+  background-repeat: var(--ks-card-bg-repeat);
   border-color: var(--ks-formcard-border) !important;
   box-shadow: var(--ks-formcard-shadow) !important;
   border-radius: var(--ks-formcard-radius) !important;

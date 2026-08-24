@@ -20,13 +20,11 @@ const ToggleRow: React.FC<ToggleRowProps> = ({ id, label, description, checked, 
       aria-checked={checked}
       id={id}
       onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border border-white/10 transition-colors duration-200 ${
-        checked ? 'bg-emerald-500/80' : 'bg-neutral-800'
-      }`}
+      className={`ks-toggle shrink-0 ${checked ? 'is-on' : ''}`}
     >
       <span
-        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition-transform duration-200 mt-0.5 ${
-          checked ? 'translate-x-5' : 'translate-x-0.5'
+        className={`ks-toggle__thumb ${
+          checked ? 'translate-x-full' : ''
         }`}
       />
     </button>

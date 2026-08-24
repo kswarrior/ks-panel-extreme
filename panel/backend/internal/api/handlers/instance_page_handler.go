@@ -47,12 +47,25 @@ type instancePageDTO struct {
 	IconSVG         string `json:"icon_svg"`
 	// Actions is a JSON array of executable page actions ("" == none).
 	Actions string `json:"actions"`
+	// SubPages is a JSON array of extra page definitions that ship with this
+	// page — multi-page support (e.g. Files carrying files/edit). Each entry:
+	// {"path","name","content_type","content_html","content_markdown",
+	//  "content_blocks"}; the effective slug is "<slug>/<path>". "" == none.
+	SubPages string `json:"sub_pages"`
 }
 
+// validInstancePageKinds lists the page kinds a stored row may carry. The
+// legacy "builtin" kind is gone: every built-in instance sub-page was
+// converted to a self-contained custom page in the Instance Pages library
+// (instance_pages/pages/*.json) and migration 046 purged the old rows, so
+// new builtin rows are rejected to keep them from coming back.
 var validInstancePageKinds = map[string]bool{
-	"builtin": true,
-	"custom":  true,
+	"custom": true,
 }
+
+// defaultInstancePageKind is applied when a request omits `kind` entirely
+// (older import payloads / API callers).
+const defaultInstancePageKind = "custom"
 
 var validContentTypes = map[string]bool{
 	"html":     true,
@@ -64,6 +77,73 @@ var validContentTypes = map[string]bool{
 // page definition can't balloon the DB row or the template spec.
 const maxInstancePageActionsBytes = 64 * 1024
 
+// Sub-page (multi-page) limits: generous content budget per family, hard cap
+// on the number of sub-pages so the sidebar/tab bar stays sane.
+const (
+	maxInstancePageSubPagesBytes = 512 * 1024
+	maxInstancePageSubPages      = 20
+)
+
+// instancePageSubPage mirrors one entry of the persisted sub_pages JSON.
+type instancePageSubPage struct {
+	Path            string `json:"path"`
+	Name            string `json:"name"`
+	ContentType     string `json:"content_type"`
+	ContentHTML     string `json:"content_html"`
+	ContentMarkdown string `json:"content_markdown"`
+	ContentBlocks   string `json:"content_blocks"`
+}
+
+// validateSubPages checks the persisted sub_pages JSON shape: an array of at
+// most maxInstancePageSubPages entries, each carrying a URL-safe single-segment
+// path ([a-z0-9_-]+), a display name and a known content_type.
+func validateSubPages(raw string) error {
+	if raw == "" {
+		return nil
+	}
+	if len(raw) > maxInstancePageSubPagesBytes {
+		return newErrString("sub_pages too large (max 512KB of JSON)")
+	}
+	var arr []instancePageSubPage
+	if err := json.Unmarshal([]byte(raw), &arr); err != nil {
+		return newErrString("sub_pages must be a JSON array of page definitions")
+	}
+	if len(arr) > maxInstancePageSubPages {
+		return newErrString(fmt.Sprintf("too many sub-pages (max %d)", maxInstancePageSubPages))
+	}
+	seen := make(map[string]bool, len(arr))
+	for _, s := range arr {
+		if !validSubPagePath(s.Path) {
+			return newErrString("sub-page path must be a single lowercase segment of letters, numbers, dashes or underscores")
+		}
+		if seen[s.Path] {
+			return newErrString("duplicate sub-page path: " + s.Path)
+		}
+		seen[s.Path] = true
+		if s.Name == "" {
+			return newErrString("sub-page name is required")
+		}
+		if s.ContentType != "" && !validContentTypes[s.ContentType] {
+			return newErrString("sub-page content_type must be one of: html, markdown, blocks")
+		}
+	}
+	return nil
+}
+
+// validSubPagePath reports whether p is a safe single URL path segment for a
+// sub-page. Strictly lowercase so slugs stay deterministic across dialects.
+func validSubPagePath(p string) bool {
+	if p == "" || len(p) > 64 {
+		return false
+	}
+	for _, r := range p {
+		if !(r >= 'a' && r <= 'z') && !(r >= '0' && r <= '9') && r != '-' && r != '_' {
+			return false
+		}
+	}
+	return true
+}
+
 func validateInstancePage(req instancePageDTO) (instancePageDTO, error) {
 	if req.Name == "" {
 		return req, newErrString("name is required")
@@ -71,8 +151,11 @@ func validateInstancePage(req instancePageDTO) (instancePageDTO, error) {
 	if req.Slug == "" {
 		return req, newErrString("slug is required")
 	}
+	if req.Kind == "" {
+		req.Kind = defaultInstancePageKind
+	}
 	if !validInstancePageKinds[req.Kind] {
-		return req, newErrString("kind must be one of: builtin, custom")
+		return req, newErrString("kind must be \"custom\" (built-in pages were converted to custom library pages)")
 	}
 	if req.ContentType != "" && !validContentTypes[req.ContentType] {
 		return req, newErrString("content_type must be one of: html, markdown, blocks")
@@ -85,6 +168,9 @@ func validateInstancePage(req instancePageDTO) (instancePageDTO, error) {
 		if err := json.Unmarshal([]byte(req.Actions), &arr); err != nil {
 			return req, newErrString("actions must be a JSON array")
 		}
+	}
+	if err := validateSubPages(req.SubPages); err != nil {
+		return req, err
 	}
 	return req, nil
 }
@@ -140,6 +226,7 @@ func CreateInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		ContentBlocks:   req.ContentBlocks,
 		IconSVG:         req.IconSVG,
 		Actions:         req.Actions,
+		SubPages:        req.SubPages,
 	})
 	if err != nil {
 		log.Println("CreateInstancePage error:", err)
@@ -199,6 +286,7 @@ func UpdateInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		ContentBlocks:   req.ContentBlocks,
 		IconSVG:         req.IconSVG,
 		Actions:         req.Actions,
+		SubPages:        req.SubPages,
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -318,6 +406,13 @@ func LinkInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		label = page.Name
 	}
 
+	// Parse the persisted sub_pages JSON (validated at save time). A row with
+	// corrupt sub_pages still links its main page — subs are additive.
+	var subs []instancePageSubPage
+	if page.SubPages != "" {
+		_ = json.Unmarshal([]byte(page.SubPages), &subs)
+	}
+
 	for _, tid := range req.TemplateIDs {
 		t, terr := tmplRepo.Get(tid)
 		if terr != nil || t == nil {
@@ -361,9 +456,32 @@ func LinkInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 				pageEntry["icon_svg"] = page.IconSVG
 			}
 		}
+		familyIcon, _ := pageEntry["icon_svg"].(string)
+
+		// Sub-page entries — one spec row per definition, slug
+		// "<slug>/<path>" (e.g. files/edit). They inherit the family icon and
+		// enabled flag; labels come from the sub definition.
+		subEntries := make([]map[string]any, 0, len(subs))
+		for _, s := range subs {
+			entry := map[string]any{
+				"slug":             page.Slug + "/" + s.Path,
+				"original_slug":    "",
+				"kind":             "custom",
+				"label":            s.Name,
+				"enabled":          enabled,
+				"content_type":     s.ContentType,
+				"content_html":     s.ContentHTML,
+				"content_markdown": s.ContentMarkdown,
+				"content_blocks":   s.ContentBlocks,
+			}
+			if familyIcon != "" {
+				entry["icon_svg"] = familyIcon
+			}
+			subEntries = append(subEntries, entry)
+		}
 
 		pagesAny, _ := spec["pages"].([]any)
-		out := make([]any, 0, len(pagesAny)+1)
+		out := make([]any, 0, len(pagesAny)+1+len(subEntries))
 		replaced := false
 		for _, p := range pagesAny {
 			pm, ok := p.(map[string]any)
@@ -371,15 +489,25 @@ func LinkInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 				out = append(out, p)
 				continue
 			}
-			if s, _ := pm["slug"].(string); s == page.Slug {
+			s, _ := pm["slug"].(string)
+			if s == page.Slug {
+				// Main row of this family: replace with the fresh copy.
 				out = append(out, pageEntry)
 				replaced = true
+				continue
+			}
+			if strings.HasPrefix(s, page.Slug+"/") {
+				// Stale sub-row from a previous link of this family: drop it;
+				// the fresh set is appended below.
 				continue
 			}
 			out = append(out, p)
 		}
 		if !replaced {
 			out = append(out, pageEntry)
+		}
+		for _, e := range subEntries {
+			out = append(out, e)
 		}
 		spec["pages"] = out
 
@@ -855,6 +983,27 @@ type ImportInstancePageRequest struct {
 	ContentBlocks   string `json:"content_blocks"`
 	IconSVG         string `json:"icon_svg"`
 	Actions         string `json:"actions"`
+	// SubPages is the persisted JSON-array form (API shape). Library JSON
+	// files usually carry the typed `pages` array instead.
+	SubPages string `json:"sub_pages"`
+	// Pages carries the human-facing multi-page definitions (library JSON
+	// files use this shape). Encoded into SubPages on import.
+	Pages []instancePageSubPage `json:"pages"`
+}
+
+// subPagesJSON returns the persisted sub_pages payload for this request: an
+// explicit sub_pages string wins, otherwise the typed pages array is encoded.
+func (r ImportInstancePageRequest) subPagesJSON() string {
+	if r.SubPages != "" {
+		return r.SubPages
+	}
+	if len(r.Pages) == 0 {
+		return ""
+	}
+	if b, err := json.Marshal(r.Pages); err == nil {
+		return string(b)
+	}
+	return ""
 }
 
 // ImportInstancePageHandler imports an instance page from uploaded JSON.
@@ -892,6 +1041,7 @@ func ImportInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		ContentBlocks:   req.ContentBlocks,
 		IconSVG:         req.IconSVG,
 		Actions:         req.Actions,
+		SubPages:        req.subPagesJSON(),
 	}
 	dto, err = validateInstancePage(dto)
 	if err != nil {
@@ -921,6 +1071,7 @@ func ImportInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		ContentBlocks:   dto.ContentBlocks,
 		IconSVG:         dto.IconSVG,
 		Actions:         dto.Actions,
+		SubPages:        dto.SubPages,
 	})
 	if err != nil {
 		log.Println("ImportInstancePage error:", err)
@@ -1365,6 +1516,7 @@ func ImportInstancePageFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		ContentBlocks:   pageReq.ContentBlocks,
 		IconSVG:         pageReq.IconSVG,
 		Actions:         pageReq.Actions,
+		SubPages:        pageReq.subPagesJSON(),
 	}
 	dto, err = validateInstancePage(dto)
 	if err != nil {
@@ -1394,6 +1546,7 @@ func ImportInstancePageFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		ContentBlocks:   dto.ContentBlocks,
 		IconSVG:         dto.IconSVG,
 		Actions:         dto.Actions,
+		SubPages:        dto.SubPages,
 	})
 	if err != nil {
 		log.Println("ImportInstancePageFromURL error:", err)
@@ -1535,6 +1688,7 @@ func ImportInstancePageFromMarketplaceHandler(w http.ResponseWriter, r *http.Req
 		ContentBlocks:   pageReq.ContentBlocks,
 		IconSVG:         pageReq.IconSVG,
 		Actions:         pageReq.Actions,
+		SubPages:        pageReq.subPagesJSON(),
 	}
 	dto, err = validateInstancePage(dto)
 	if err != nil {
@@ -1564,6 +1718,7 @@ func ImportInstancePageFromMarketplaceHandler(w http.ResponseWriter, r *http.Req
 		ContentBlocks:   dto.ContentBlocks,
 		IconSVG:         dto.IconSVG,
 		Actions:         dto.Actions,
+		SubPages:        dto.SubPages,
 	})
 	if err != nil {
 		log.Println("ImportInstancePageFromMarketplace error:", err)
@@ -1667,6 +1822,7 @@ func ImportLocalInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		ContentBlocks:   pageReq.ContentBlocks,
 		IconSVG:         pageReq.IconSVG,
 		Actions:         pageReq.Actions,
+		SubPages:        pageReq.subPagesJSON(),
 	}
 	dto, err = validateInstancePage(dto)
 	if err != nil {
@@ -1696,6 +1852,7 @@ func ImportLocalInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		ContentBlocks:   dto.ContentBlocks,
 		IconSVG:         dto.IconSVG,
 		Actions:         dto.Actions,
+		SubPages:        dto.SubPages,
 	})
 	if err != nil {
 		log.Println("ImportLocalInstancePage error:", err)

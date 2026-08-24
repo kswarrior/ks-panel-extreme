@@ -20,7 +20,7 @@ const textToList = (text: string): string[] =>
 
 // Small read-only status card for the CORS / CSRF / headers tiles.
 const StatusCard: React.FC<{ title: string; ok: boolean; lines: string[] }> = ({ title, ok, lines }) => (
-  <div className="rounded-md border border-white/[0.06] bg-black/20 p-4">
+  <div className="ks-stat-card rounded-md">
     <div className="flex items-center gap-2 mb-2">
       <span className={`inline-block w-2 h-2 rounded-full ${ok ? 'bg-emerald-400' : 'bg-amber-400'}`} />
       <span className="text-sm font-medium text-gray-200">{title}</span>

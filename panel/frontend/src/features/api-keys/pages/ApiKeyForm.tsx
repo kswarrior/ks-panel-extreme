@@ -559,9 +559,9 @@ const ApiKeyForm: React.FC = () => {
                     />
                  </GlassField>
                   <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={() => bumpExpiry(7)} className="text-xs bg-white/5 hover:bg-white/10 border border-white/10 rounded px-2 py-1 text-gray-200">+7 days</button>
-                    <button type="button" onClick={() => bumpExpiry(30)} className="text-xs bg-white/5 hover:bg-white/10 border border-white/10 rounded px-2 py-1 text-gray-200">+30 days</button>
-                    <button type="button" onClick={() => bumpExpiry(365)} className="text-xs bg-white/5 hover:bg-white/10 border border-white/10 rounded px-2 py-1 text-gray-200">+1 year</button>
+                    <button type="button" onClick={() => bumpExpiry(7)} className="ks-btn-ghost text-xs rounded px-2 py-1">+7 days</button>
+                    <button type="button" onClick={() => bumpExpiry(30)} className="ks-btn-ghost text-xs rounded px-2 py-1">+30 days</button>
+                    <button type="button" onClick={() => bumpExpiry(365)} className="ks-btn-ghost text-xs rounded px-2 py-1">+1 year</button>
                  </div>
                </div>
               )}
@@ -754,7 +754,7 @@ const ApiKeyAreaGroupCard: React.FC<{
 }> = ({ area, umbrellaPerm, subRows, allOn, someOn, selected, onToggleGroup, onTogglePerm }) => {
   const parentRef = useIndeterminate(someOn);
   return (
-    <div className="rounded bg-indigo-500/10 border border-indigo-400/30 px-2 py-2" style={{ boxShadow: 'none' }}>
+    <div className="ks-form-card rounded px-2 py-2 border-indigo-400/30" style={{ boxShadow: 'none' }}>
       <label className="flex items-start gap-2 cursor-pointer">
         <input
           type="checkbox"

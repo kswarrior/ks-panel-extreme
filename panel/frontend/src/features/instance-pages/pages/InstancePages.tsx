@@ -2,17 +2,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom';
 import {
   listInstancePages,
-  createInstancePage,
-  updateInstancePage,
   deleteInstancePage,
   importInstancePageFromFile,
   importInstancePageFromURL,
-  getMarketplacePages,
-  importInstancePageFromMarketplace,
-  listLocalInstancePages,
-  importLocalInstancePage,
-  type MarketplacePage,
-  type LocalInstancePage,
 } from '@/shared/api/admin';
 import type { InstancePage } from '@/shared/types/instancePage';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
@@ -67,104 +59,30 @@ const InstancePages: React.FC = () => {
   const [filterOpen, setFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
 
-  // Import modals state
-  const [importModalOpen, setImportModalOpen] = useState(false);
-  const [importMethod, setImportMethod] = useState<'file' | 'url' | 'studio' | 'marketplace' | 'local'>('file');
+  // ---- Add-page modal state (mirrors the Templates "Install" dialog:
+  //      one entry point with three tabs — Upload file / From URL / Studio) ----
+  const [addOpen, setAddOpen] = useState(false);
+  const [addTab, setAddTab] = useState<'file' | 'url' | 'studio'>('file');
   const [importLoading, setImportLoading] = useState(false);
   const [importError, setImportError] = useState('');
-
-  // File import state
   const [importFile, setImportFile] = useState<File | null>(null);
-
-  // URL import state
   const [importUrl, setImportUrl] = useState('');
-
-  // Marketplace state
-  const [marketplacePages, setMarketplacePages] = useState<MarketplacePage[]>([]);
-  const [marketplaceLoading, setMarketplaceLoading] = useState(false);
-  const [selectedMarketplacePage, setSelectedMarketplacePage] = useState<MarketplacePage | null>(null);
-  const [marketplaceSearch, setMarketplaceSearch] = useState('');
-  const [marketplaceError, setMarketplaceError] = useState('');
-
-  // Local files state
-  const [localPages, setLocalPages] = useState<LocalInstancePage[]>([]);
-  const [localLoading, setLocalLoading] = useState(false);
-  const [selectedLocalPage, setSelectedLocalPage] = useState<LocalInstancePage | null>(null);
-  const [localError, setLocalError] = useState('');
-
-  const loadMarketplacePages = useCallback(async () => {
-    setMarketplaceLoading(true);
-    try {
-      const catalog = await getMarketplacePages();
-      setMarketplacePages(catalog.pages);
-    } catch (e: any) {
-      setMarketplaceError(e?.response?.data || 'Failed to load marketplace');
-    } finally {
-      setMarketplaceLoading(false);
-    }
-  }, []);
-
-  const loadLocalPages = useCallback(async () => {
-    setLocalLoading(true);
-    try {
-      const pages = await listLocalInstancePages();
-      setLocalPages(pages);
-    } catch (e: any) {
-      setLocalError(e?.response?.data || 'Failed to load local pages');
-    } finally {
-      setLocalLoading(false);
-    }
-  }, []);
 
   const handleImport = async () => {
     setImportLoading(true);
     setImportError('');
     try {
-      switch (importMethod) {
-        case 'file': {
-          if (!importFile) {
-            setImportError('Please select a file');
-            setImportLoading(false);
-            return;
-          }
-          await importInstancePageFromFile(importFile);
-          break;
-        }
-        case 'url': {
-          if (!importUrl.trim()) {
-            setImportError('Please enter a URL');
-            setImportLoading(false);
-            return;
-          }
-          await importInstancePageFromURL(importUrl.trim());
-          break;
-        }
-        case 'marketplace': {
-          if (!selectedMarketplacePage) {
-            setImportError('Please select a marketplace page');
-            setImportLoading(false);
-            return;
-          }
-          await importInstancePageFromMarketplace(selectedMarketplacePage.id);
-          break;
-        }
-        case 'local': {
-          if (!selectedLocalPage) {
-            setImportError('Please select a local page');
-            setImportLoading(false);
-            return;
-          }
-          await importLocalInstancePage(selectedLocalPage.slug + '.json');
-          break;
-        }
-        case 'studio':
-          break;
+      if (addTab === 'file') {
+        if (!importFile) { setImportError('Please select a .json page file'); setImportLoading(false); return; }
+        await importInstancePageFromFile(importFile);
+      } else if (addTab === 'url') {
+        if (!importUrl.trim()) { setImportError('Please enter a URL'); setImportLoading(false); return; }
+        await importInstancePageFromURL(importUrl.trim());
+      } else {
+        setImportLoading(false);
+        return;
       }
-      setImportModalOpen(false);
-      setImportFile(null);
-      setImportUrl('');
-      setSelectedMarketplacePage(null);
-      setSelectedLocalPage(null);
+      closeAdd();
       await load();
     } catch (e: any) {
       setImportError(e?.response?.data || 'Import failed');
@@ -173,16 +91,20 @@ const InstancePages: React.FC = () => {
     }
   };
 
-  const openImportModal = (method: 'file' | 'url' | 'studio' | 'marketplace' | 'local') => {
-    setImportMethod(method);
+  // openAdd resets the dialog exactly like the Templates page's openInstall.
+  const openAdd = () => {
+    setAddOpen(true);
+    setAddTab('file');
+    setImportFile(null);
+    setImportUrl('');
     setImportError('');
-    setImportModalOpen(true);
-    if (method === 'marketplace' && marketplacePages.length === 0) {
-      loadMarketplacePages();
-    }
-    if (method === 'local' && localPages.length === 0) {
-      loadLocalPages();
-    }
+  };
+
+  const closeAdd = () => {
+    setAddOpen(false);
+    setImportError('');
+    setImportFile(null);
+    setImportUrl('');
   };
 
   const load = useCallback(async () => {
@@ -212,7 +134,6 @@ const InstancePages: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [filterOpen]);
 
-  const openCreate = () => navigate('/instance-pages/studio');
   const openEdit = (p: InstancePage) => navigate(`/instance-pages/${p.id}/studio`);
 
   const remove = async (p: InstancePage) => {
@@ -286,53 +207,139 @@ const InstancePages: React.FC = () => {
   const resetFilters = () => { setSearch(''); setKindFilter('all'); setCategoryFilter('all'); setSort('name'); };
 
   const ImportModalContent = () => {
-    if (!importModalOpen) return null;
+    if (!addOpen) return null;
     return (
       <Modal
-        open={importModalOpen}
-        onClose={() => {
-          setImportModalOpen(false);
-          setImportError('');
-          setImportFile(null);
-          setImportUrl('');
-          setSelectedMarketplacePage(null);
-          setSelectedLocalPage(null);
-        }}
-        title="Import Instance Page"
-        maxWidth="max-w-2xl"
+        open={addOpen}
+        onClose={closeAdd}
+        title="Add Instance Page"
+        maxWidth="max-w-lg"
+        footer={
+          addTab === 'file' ? (
+            <>
+              <button onClick={closeAdd} className="ks-btn-cancel ks-btn-ghost">Cancel</button>
+              <button onClick={handleImport} disabled={importLoading || !importFile} className="ks-btn-form ks-btn-primary">
+                {importLoading ? 'Importing…' : 'Import'}
+              </button>
+            </>
+          ) : addTab === 'url' ? (
+            <>
+              <button onClick={closeAdd} className="ks-btn-cancel ks-btn-ghost">Cancel</button>
+              <button onClick={handleImport} disabled={importLoading || !importUrl.trim()} className="ks-btn-form ks-btn-primary">
+                Import from URL
+              </button>
+            </>
+          ) : (
+            <>
+              <button onClick={closeAdd} className="ks-btn-cancel ks-btn-ghost">Cancel</button>
+              <button onClick={() => { closeAdd(); navigate('/instance-pages/studio'); }} className="ks-btn-form ks-btn-primary">
+                Open Studio
+              </button>
+            </>
+          )
+        }
       >
-        <div className="space-y-4">
-          <div className="p-4 bg-emerald-900/30 border border-emerald-700/50 rounded-lg text-emerald-200">
-            <p className="font-semibold">Studio — Create New Page</p>
-            <p className="mt-1">
-              This will open the Instance Page Studio where you can visually design a new page
-              with HTML, Markdown, or Visual Blocks content.
-            </p>
-          </div>
-          <div className="flex justify-end gap-2">
-            <button
-              onClick={() => {
-                setImportModalOpen(false);
-                navigate('/instance-pages/studio');
-              }}
-              className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-500"
-            >
-              Open Studio
-            </button>
-            <button
-              onClick={() => setImportModalOpen(false)}
-              className="px-4 py-2 border border-white/10 text-gray-300 rounded hover:bg-white/10"
-            >
-              Cancel
-            </button>
-          </div>
+        {/* Tab switcher — mirrors the Templates "Install Template" dialog */}
+        <div className="flex gap-1 mb-3 bg-black/30 border border-white/10 rounded-md p-1">
+          <button
+            onClick={() => setAddTab('file')}
+            className={`ks-tab flex-1 px-3 py-1.5 rounded text-sm flex items-center justify-center gap-1.5 ${addTab === 'file' ? 'ks-tab-active' : ''}`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /> </svg>
+            Upload file
+          </button>
+          <button
+            onClick={() => setAddTab('url')}
+            className={`ks-tab flex-1 px-3 py-1.5 rounded text-sm flex items-center justify-center gap-1.5 ${addTab === 'url' ? 'ks-tab-active' : ''}`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /> </svg>
+            From URL
+          </button>
+          <button
+            onClick={() => setAddTab('studio')}
+            className={`ks-tab flex-1 px-3 py-1.5 rounded text-sm flex items-center justify-center gap-1.5 ${addTab === 'studio' ? 'ks-tab-active' : ''}`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" /> </svg>
+            Studio
+          </button>
         </div>
+
+        {addTab === 'file' && (
+          <>
+            <p className="text-xs text-gray-400">
+              Choose an instance page definition file (<code className="text-gray-300">.json</code>). The panel validates it and adds it to the library.
+            </p>
+            <label className="block mt-2">
+              <span className="text-xs text-gray-400">Page file</span>
+              <input
+                type="file"
+                accept=".json,application/json"
+                onChange={(e) => { const f = e.target.files?.[0] || null; setImportFile(f); setImportError(''); }}
+                className="block w-full mt-1 text-sm text-gray-300 file:mr-3 file:px-3 file:py-1.5 file:rounded file:border-0 file:bg-white file:text-black file:text-sm hover:file:bg-gray-200"
+              />
+            </label>
+            {importFile && (
+              <GlassCard className="text-xs mt-2">
+                <p className="text-gray-300 font-medium">{importFile.name}</p>
+                <p className="text-gray-500">{Math.round(importFile.size / 1024)} KB</p>
+              </GlassCard>
+            )}
+            {importError && <p className="text-red-400 text-xs">{importError}</p>}
+          </>
+        )}
+
+        {addTab === 'url' && (
+          <>
+            <p className="text-xs text-gray-400">
+              Paste a page definition URL. The panel fetches it <span className="text-emerald-300">server-side</span>{' '}
+              (SSRF-guarded), parses the body, and adds the page to the library.
+            </p>
+            <label className="block mt-2">
+              <span className="text-xs text-gray-400">Page URL</span>
+              <input
+                value={importUrl}
+                onChange={(e) => { setImportUrl(e.target.value); setImportError(''); }}
+                placeholder="https://example.com/pages/my-page.json"
+                className="block w-full mt-1 bg-black/30 border border-white/10 rounded-md text-sm text-white px-3 py-1.5 font-mono focus:outline-none focus:border-white/40"
+              />
+            </label>
+            <p className="text-[11px] text-gray-500 mt-1">
+              The response must be valid JSON. The fetched URL is recorded for audit trail.
+            </p>
+            {importError && <p className="text-red-400 text-xs">{importError}</p>}
+          </>
+        )}
+
+        {addTab === 'studio' && (
+          <>
+            <p className="text-xs text-gray-400">
+              Create a new page from scratch using the visual Instance Page Studio.
+            </p>
+            <GlassCard className="space-y-3 text-center py-6 mt-2">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-12 h-12 mx-auto text-gray-400">
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
+              </svg>
+              <h4 className="text-white font-medium">Instance Page Studio</h4>
+              <p className="text-gray-400 text-sm">Design pages visually with HTML, Markdown, or Blocks content, attach executable actions, preview live, then save to the library.</p>
+              <div className="flex items-center justify-center gap-2 flex-wrap">
+                <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">HTML</span>
+                <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Markdown</span>
+                <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Blocks</span>
+                <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Actions</span>
+                <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Preview</span>
+              </div>
+            </GlassCard>
+          </>
+        )}
       </Modal>
     );
   };
 
   return (
     <div>
+      {/* Header — identical single-row control group to the Templates page:
+          search · filter · stats · add, all aligned on one line. */}
       <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
         <h2 className="text-xl font-semibold text-white">Instance Pages</h2>
         <div className="flex items-center gap-2">
@@ -373,7 +380,6 @@ const InstancePages: React.FC = () => {
                         aria-label="Filter pages by kind"
                       >
                         <option value="all">All pages</option>
-                        <option value="builtin">Built-in</option>
                         <option value="custom">Custom</option>
                       </select>
                     </div>
@@ -391,10 +397,6 @@ const InstancePages: React.FC = () => {
               </div>
             )}
           </div>
-        </div>
-      </div>
-      <div className="relative">
-        <div className="flex items-center gap-2">
           <Link
             to="/instance-pages/stats"
             aria-label="Instance Page Statistics"
@@ -404,10 +406,10 @@ const InstancePages: React.FC = () => {
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>
           </Link>
           <button
-            onClick={() => navigate('/instance-pages/studio')}
-            aria-label="New Instance Page"
+            onClick={openAdd}
+            aria-label="Add Instance Page"
             className="ks-btn-header ks-icon-btn"
-            title="New Instance Page (Studio)"
+            title="Add Instance Page — upload a file, import from URL, or open Studio"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
               <line x1="12" y1="5" x2="12" y2="19" />
@@ -520,7 +522,7 @@ const InstancePages: React.FC = () => {
         )}
 
         {!loading && pages.length === 0 && !error && (
-          <div className="ks-card ks-form-card rounded-xl text-center text-gray-400">No instance pages yet. Click "New Instance Page".</div>
+          <div className="ks-card ks-form-card rounded-xl text-center text-gray-400">No instance pages yet. Click the <strong className="text-sky-300">+</strong> button to upload a page, import from a URL, or open Studio.</div>
         )}
         <ImportModalContent />
       </div>

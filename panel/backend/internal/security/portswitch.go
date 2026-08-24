@@ -182,6 +182,7 @@ func (p *PortSwitcher) switchTo(port int) error {
 
 	p.mu.Lock()
 	old := p.ln
+	oldPort := p.activePort
 	p.ln = wrapped
 	p.activePort = port
 	p.switched = port != p.primary
@@ -198,9 +199,38 @@ func (p *PortSwitcher) switchTo(port int) error {
 
 	if old != nil {
 		_ = old.Close() // unblocks runServe; accepted conns keep draining
+
+		// This process just closed its own listener on oldPort, so if that
+		// port STILL accepts connections a moment later, the socket belongs
+		// to a FOREIGN process — almost always a duplicate/stale kspanel
+		// instance left behind by an update or reinstall. A process can
+		// never close another process's socket, so record the fact (the
+		// Security page renders it as the red "Port switch problem" line)
+		// instead of letting the move look broken for no visible reason.
+		p.verifyAbandoned(oldPort)
 	}
 	log.Printf("ddos port switcher: panel moved to :%d (attack response)", port)
 	return nil
+}
+
+// verifyAbandoned dials a port this panel just vacated and, when something
+// still answers, surfaces who is likely responsible. Dialing 127.0.0.1 keeps
+// the probe local and cheap; listeners bound only to one external interface
+// or IPv6-only are not covered (best-effort diagnostics, not a guarantee).
+func (p *PortSwitcher) verifyAbandoned(port int) {
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), 500*time.Millisecond)
+	if err != nil {
+		return // refused / timeout = nothing is serving there, as expected
+	}
+	conn.Close()
+	msg := fmt.Sprintf(
+		":%d is still accepting connections — ANOTHER process owns it (duplicate/stale kspanel instance). "+
+			"This panel cannot close a foreign port; stop the extra process to free it.",
+		port)
+	p.mu.Lock()
+	p.lastErr = msg
+	p.mu.Unlock()
+	log.Printf("ddos port switcher: WARNING %s", msg)
 }
 
 // PortStatus snapshots the switcher state for the security snapshot

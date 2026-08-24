@@ -38,7 +38,7 @@ const AreaGroupCard: React.FC<{
 }> = ({ area, umbrellaPerm, subRows, allOn, someOn, selected, onToggleGroup, onTogglePerm }) => {
   const parentRef = useIndeterminate(someOn);
   return (
-    <div className="rounded bg-indigo-500/10 border border-indigo-400/30 px-2 py-2" style={{ boxShadow: 'none' }}>
+    <div className="ks-form-card rounded px-2 py-2 border-indigo-400/30" style={{ boxShadow: 'none' }}>
       <label className="flex items-start gap-2 cursor-pointer">
         <input
           type="checkbox"

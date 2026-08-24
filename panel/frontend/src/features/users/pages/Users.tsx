@@ -368,7 +368,7 @@ const UsersPage: React.FC = () => {
             const isSuspended = u.suspended === 1;
             const suspensionCount = u.suspension_count || 0;
             return (
-              <article key={u.id} id={`ks-user-${u.id}`} className={`ks-card ks-list-card glass-card rounded-xl overflow-hidden flex flex-col hover:border-white/20 transition-colors ${isSuspended ? 'border-red-500/30 bg-red-500/5' : ''}`}>
+              <article key={u.id} id={`ks-user-${u.id}`} className={`ks-card ks-list-card glass-card rounded-xl overflow-hidden flex flex-col hover:border-white/20 transition-colors ${isSuspended ? 'border-red-500/30' : ''}`}>
                 <div className="relative h-16 bg-black/30">
                   {u.has_banner && (
                     <img

@@ -192,7 +192,7 @@ const ApplicationConfigure: React.FC = () => {
         </p>
 
         {fields.length === 0 && (
-          <div className="border border-dashed border-white/15 rounded-lg p-6 text-center">
+          <div className="ks-card ks-form-card border-dashed rounded-lg p-6 text-center">
             <p className="text-sm text-gray-400">
               No fields yet. Click "<span className="text-white">+ Add field</span>" to define what the
               user must supply to install this application.
@@ -201,7 +201,7 @@ const ApplicationConfigure: React.FC = () => {
         )}
 
         {fields.map((f, idx) => (
-          <div key={idx} className="border border-white/10 rounded-lg p-3 bg-black/20 space-y-2">
+          <div key={idx} className="ks-card ks-form-card rounded-lg space-y-2">
             <div className="flex items-center justify-between gap-2">
               <span className="text-[11px] uppercase tracking-wide text-gray-500">Field #{idx + 1}</span>
               <div className="flex items-center gap-1">

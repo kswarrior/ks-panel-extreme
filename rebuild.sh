@@ -302,12 +302,26 @@ build_frontend() {
         ln -sf ../esbuild/bin/esbuild "$PANEL_FRONTEND_DIR/node_modules/.bin/esbuild" 2>/dev/null || true
 
     # Build with Vite (production mode: no sourcemaps, minified)
+    # Retry guard: this workspace has an external process that
+    # intermittently removes ../backend/internal/ui/dist right after the
+    # vite step finishes, which makes the kspanel embed fail with
+    # "pattern dist: no matching files found". Verify the output landed
+    # and rebuild once more if it vanished mid-flight.
+    local vite_args=()
     if [[ "$VITE_MODE" == "production" ]]; then
-        # Explicitly disable sourcemap generation for production
-        (cd "$PANEL_FRONTEND_DIR" && node ./node_modules/vite/bin/vite.js build --mode production --sourcemap=false)
+        vite_args=(--mode production --sourcemap=false)
     else
-        (cd "$PANEL_FRONTEND_DIR" && node ./node_modules/vite/bin/vite.js build --mode development --sourcemap=true)
+        vite_args=(--mode development --sourcemap=true)
     fi
+    local attempt
+    for attempt in 1 2 3; do
+        (cd "$PANEL_FRONTEND_DIR" && node ./node_modules/vite/bin/vite.js build "${vite_args[@]}")
+        if [[ -f "$PANEL_BACKEND_DIR/internal/ui/dist/index.html" ]]; then
+            break
+        fi
+        log_warn "frontend dist missing after vite attempt $attempt — retrying"
+        sleep 2
+    done
 
     log_ok "Frontend built and embedded into $PANEL_BACKEND_DIR/internal/ui/dist"
 }
@@ -811,6 +825,12 @@ main() {
     build_frontend
 
     # Build kspanel
+    # Same external-deletion race as above: re-verify the embedded UI is
+    # present right before the Go compile and regenerate if it vanished.
+    if [[ ! -f "$PANEL_BACKEND_DIR/internal/ui/dist/index.html" ]]; then
+        log_warn "frontend dist vanished before kspanel build — regenerating"
+        build_frontend
+    fi
     if ! build_go_binary "kspanel" "$PANEL_BACKEND_DIR/cmd/kspanel" "$KSPANEL_RELEASE_BIN" "$KSPANEL_OLD_BIN" "$KSPANEL_LDFLAGS" "$GO_BUILD_TAGS"; then
         exit 1
     fi

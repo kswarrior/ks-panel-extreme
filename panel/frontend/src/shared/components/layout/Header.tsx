@@ -393,7 +393,7 @@ const Header: React.FC<HeaderProps> = ({
               onClick={toggle}
               aria-haspopup="menu"
               aria-label="Profile menu"
-              className="inline-flex items-center justify-center w-9 h-9 rounded-full text-gray-300 hover:bg-neutral-800 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500 transition"
+              className="ks-icon-btn inline-flex items-center justify-center w-9 h-9 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500"
             >
               {/* The trigger shows the active user's profile avatar/logo
                * (uploaded image, accent symbol, or initials) so the admin

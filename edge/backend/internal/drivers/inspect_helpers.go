@@ -436,13 +436,6 @@ func parseInt(s string) int64 {
 	return n
 }
 
-// parseFloat ditto for floats.
-func parseFloat(s string) float64 {
-	s = strings.TrimSpace(s)
-	f, _ := strconv.ParseFloat(s, 64)
-	return f
-}
-
 // sentinel keeps the unused-import check honest if a future edit drops the
 // only reference to exec.CommandContext down here.
 var _ = exec.CommandContext

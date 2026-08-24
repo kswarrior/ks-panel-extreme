@@ -48,46 +48,7 @@ import Activity from '@/features/activity/pages/Activity';
 import InstancePages from '@/features/instance-pages/pages/InstancePages';
 import InstancePageStudio from '@/features/instance-pages/pages/InstancePageStudio';
 import InstancePageStats from '@/features/instance-pages/pages/InstancePageStats';
-import InstancePanel, { InstanceHomePage, InstanceFilesPage, InstanceFileEditorPage, InstanceNetworkPage, InstanceConsolePage, InstanceSettingsPage, InstanceDynamicPage } from '@/features/instances/pages/InstanceDetail';
-// Lazy-load the seven "advanced" instance pages so they ship in their own
-// chunk instead of being pulled into the main index bundle (≈330 kB of
-// panel sub-pages). InstanceDetail.tsx also dynamically imports this same
-// module — React.lazy + Suspense keeps both consumers happy: the route
-// table is synchronous for the router, and Rollup emits the module as a
-// separate chunk that the browser fetches on demand. We use .then(...) to
-// select the named export instead of the default export (React.lazy only
-// knows "default").
-const AdvancedPageFallback: React.FC = () => (
-  <div className="flex h-full w-full items-center justify-center text-sm text-slate-400">Loading...</div>
-);
-const withSuspense = (LazyComp: React.LazyExoticComponent<React.FC>): React.FC => {
-  return () => (
-    <React.Suspense fallback={<AdvancedPageFallback />}>
-      <LazyComp />
-    </React.Suspense>
-  );
-};
-// Type-safe dynamic import of the advanced pages module
-type AdvancedPagesModule = {
-  InstanceEnvPage: React.FC;
-  InstanceAutomationPage: React.FC;
-  InstanceProcessesPage: React.FC;
-  InstanceMetricsPage: React.FC;
-  InstancePortsPage: React.FC;
-  InstanceSnapshotsPage: React.FC;
-  InstanceAuditPage: React.FC;
-};
-const lazyAdvanced = (name: keyof AdvancedPagesModule): React.LazyExoticComponent<React.FC> =>
-  React.lazy(() =>
-    import('@/features/instances/pages/InstanceAdvancedPages').then((m: AdvancedPagesModule) => ({ default: m[name] }))
-  );
-const InstanceEnvPage = withSuspense(lazyAdvanced('InstanceEnvPage'));
-const InstanceAutomationPage = withSuspense(lazyAdvanced('InstanceAutomationPage'));
-const InstanceProcessesPage = withSuspense(lazyAdvanced('InstanceProcessesPage'));
-const InstanceMetricsPage = withSuspense(lazyAdvanced('InstanceMetricsPage'));
-const InstancePortsPage = withSuspense(lazyAdvanced('InstancePortsPage'));
-const InstanceSnapshotsPage = withSuspense(lazyAdvanced('InstanceSnapshotsPage'));
-const InstanceAuditPage = withSuspense(lazyAdvanced('InstanceAuditPage'));
+import InstancePanel, { InstanceDynamicPage } from '@/features/instances/pages/InstanceDetail';
 import Database from '@/features/database/pages/Database';
 import RequireAuth from '@/shared/components/ui/RequireAuth';
 import RequirePermission from '@/shared/components/ui/RequirePermission';
@@ -153,23 +114,12 @@ const Router: React.FC = () => (
           </RequireAuth>
         }
       >
-        <Route index element={<InstanceHomePage />} />
-        <Route path="files" element={<InstanceFilesPage />} />
-        <Route path="files/edit" element={<InstanceFileEditorPage />} />
-        <Route path="network" element={<InstanceNetworkPage />} />
-        <Route path="terminal" element={<InstanceConsolePage />} />
-        <Route path="settings" element={<InstanceSettingsPage />} />
-        <Route path="env" element={<InstanceEnvPage />} />
-        <Route path="automation" element={<InstanceAutomationPage />} />
-        <Route path="processes" element={<InstanceProcessesPage />} />
-        <Route path="metrics" element={<InstanceMetricsPage />} />
-        <Route path="ports" element={<InstancePortsPage />} />
-        <Route path="backups" element={<InstanceSnapshotsPage />} />
-        <Route path="audit" element={<InstanceAuditPage />} />
-        {/* Catch-all — resolves renamed builtin slugs (e.g. /console →
-            terminal component) and custom template pages to their content. */}
+        {/* Every instance sub-page is a CUSTOM page resolved from the
+            instance's deploy-time spec.pages — including the index route
+            (Home uses slug "."). No static built-in component routes. */}
+        <Route index element={<InstanceDynamicPage />} />
         <Route path="*" element={<InstanceDynamicPage />} />
-     </Route>
+      </Route>
        <Route
         path="/account"
         element={

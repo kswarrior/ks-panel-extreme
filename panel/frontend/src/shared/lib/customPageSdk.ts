@@ -17,6 +17,17 @@ export interface InstanceContext {
   external_id: string;
   created_at: string;
   updated_at: string;
+  // Install-workflow tracking + denormalised card metadata. Populated by
+  // InstanceDynamicPage so overview-style pages can surface live progress.
+  install_state?: '' | 'running' | 'done' | 'failed' | '';
+  install_kind?: '' | 'action';
+  install_step?: number;
+  install_error?: string;
+  install_steps_json?: string;
+  install_action_id?: string;
+  display_name?: string;
+  icon?: string;
+  color?: string;
 }
 
 export type ActionType = 
@@ -161,11 +172,18 @@ export function createCustomPageSDK(instanceContext: InstanceContext, savedActio
   const eventListeners: Map<string, Set<(data: any) => void>> = new Map();
   
   // --- Fetch helper ---
+  // Content-Type is only defaulted for JSON bodies: multipart uploads
+  // (FormData) must let the browser set the boundary parameter, and raw
+  // endpoints (e.g. /files/read) answer text — parsed below by content type.
   async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
+    const body = options?.body;
+    const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
+    const defaultHeaders: Record<string, string> = {};
+    if (body != null && !isFormData) defaultHeaders['Content-Type'] = 'application/json';
     const res = await fetch(url, {
       ...options,
       headers: {
-        'Content-Type': 'application/json',
+        ...defaultHeaders,
         ...(options?.headers || {}),
       },
       credentials: 'include',
@@ -174,6 +192,8 @@ export function createCustomPageSDK(instanceContext: InstanceContext, savedActio
       const text = await res.text();
       throw new Error(text || `HTTP ${res.status}`);
     }
+    const ctype = res.headers.get('content-type') || '';
+    if (!ctype.includes('json')) return (await res.text()) as unknown as T;
     return res.json();
   }
   
@@ -221,13 +241,20 @@ export function createCustomPageSDK(instanceContext: InstanceContext, savedActio
     // A page can never use the SDK to reach another instance's data or any
     // admin surface (users, nodes, settings, …).
     const prefix = `/api/instances/${instanceContext.id}`;
-    if (typeof path !== 'string' || path.length > 2048) {
+    if (typeof path !== 'string' || path.length > 2048 || !path.startsWith('/')) {
       throw new Error('fetchPanel: invalid path');
     }
-    if (!path.startsWith(prefix) || (path.length > prefix.length && path[prefix.length] !== '/' && path[prefix.length] !== '?')) {
+    // Relative paths ("/processes", "/metrics?…") are auto-bound to this
+    // instance's API base so pages don't have to hardcode the instance id.
+    let full = path;
+    if (!path.startsWith(prefix)) {
+      if (path.startsWith('//')) throw new Error('fetchPanel: invalid path');
+      full = prefix + path;
+    }
+    if (full.length > prefix.length && full[prefix.length] !== '/' && full[prefix.length] !== '?') {
       throw new Error(`fetchPanel: only ${prefix}/… paths are allowed`);
     }
-    return fetchJSON<T>(path, init);
+    return fetchJSON<T>(full, init);
   }
   
   // --- Event system ---
@@ -259,8 +286,11 @@ export function createCustomPageSDK(instanceContext: InstanceContext, savedActio
   };
   
   // --- WebSocket ---
+  // Markdown/blocks pages run in the panel's own origin, so they can open
+  // the authenticated terminal socket directly. HTML pages (sandboxed
+  // iframes) use the bridged connectWS installed by CustomPageView instead.
   function connectWS(protocols?: string[]) {
-    const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/instances/${instanceContext.id}/ws`;
+    const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/instances/${instanceContext.id}/terminal`;
     return new WebSocket(wsUrl, protocols);
   }
   

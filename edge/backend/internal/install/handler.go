@@ -87,14 +87,14 @@ func Handler(token string) http.Handler {
 // to inject commands (e.g. "stop\n") directly into the running process's
 // console instead of exec'ing a separate shell.
 type record struct {
-	mu           sync.RWMutex
-	state        string        // running | done | failed
-	steps        []StepStatus
-	err          string
-	start        time.Time
-	end          time.Time
-	cancel       context.CancelFunc
-	stdinWriter  io.WriteCloser
+	mu          sync.RWMutex
+	state       string // running | done | failed
+	steps       []StepStatus
+	err         string
+	start       time.Time
+	end         time.Time
+	cancel      context.CancelFunc
+	stdinWriter io.WriteCloser
 }
 
 // store maps "<kind>:<name>" → *record. Writes guarded by the map mutex;
@@ -378,7 +378,7 @@ func handleInstallStart(w http.ResponseWriter, r *http.Request, token string, st
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
-		"ok":        true,
+		"ok":         true,
 		"install_id": key,
 	})
 }
@@ -414,10 +414,10 @@ func handleInstallStatus(w http.ResponseWriter, r *http.Request, token string, s
 	defer rec.mu.RUnlock()
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
-		"ok":        true,
-		"state":     rec.state,
-		"steps":     rec.steps,
-		"error":     rec.err,
+		"ok":         true,
+		"state":      rec.state,
+		"steps":      rec.steps,
+		"error":      rec.err,
 		"started_at": rec.start,
 		"ended_at":   rec.end,
 	})
@@ -484,6 +484,15 @@ func handleInstallStop(w http.ResponseWriter, r *http.Request, token string, sto
 	// Default stop mode to "different" (existing behavior: exec a separate shell)
 	stopMode := in.StopMode
 	if stopMode == "" {
+		stopMode = "different"
+	}
+	// Same-terminal delivery writes the stop_command into the running step's
+	// stdin — without a command there is nothing to inject, so "same"
+	// degenerates to a plain cancel. Falling through (instead of answering
+	// state:"") matters because the panel's StopActionHandler always sends a
+	// StopMode even for actions with no stop_command; skipping store.Stop
+	// here left those workflows running forever while the UI showed stopped.
+	if stopMode == "same" && strings.TrimSpace(in.StopCommand) == "" {
 		stopMode = "different"
 	}
 

@@ -2,7 +2,9 @@ package pageaction
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/subtle"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -159,9 +161,23 @@ func executeWriteFile(ctx context.Context, drv drivers.Driver, name, path, conte
 	if path == "" {
 		return Output{OK: false, Error: "path is required"}
 	}
-	// Use tee to write content
-	escaped := strings.ReplaceAll(content, "'", "'\\''")
-	cmd := []string{"/bin/sh", "-lc", fmt.Sprintf("cat > %s <<'EOF'\n%s\nEOF", shellQuote(path), escaped)}
+	// Quoted heredoc so the content lands verbatim (no $ expansion). The
+	// marker is random per request and rejected on collision — a fixed "EOF"
+	// marker truncated the file / executed stray shell whenever the content
+	// itself contained an EOF line. Content is NOT quote-escaped here: the
+	// previous escaping corrupted every literal "'" in the file because
+	// quoted heredocs pass bytes through untouched.
+	marker, merr := newHeredocMarker()
+	if merr != nil {
+		return Output{OK: false, Error: merr.Error()}
+	}
+	if strings.Contains(content, "\n"+marker+"\n") ||
+		strings.HasPrefix(content, marker+"\n") ||
+		strings.HasSuffix(content, "\n"+marker) ||
+		content == marker {
+		return Output{OK: false, Error: "content contains the heredoc terminator"}
+	}
+	cmd := []string{"/bin/sh", "-lc", fmt.Sprintf("cat > %s <<'%s'\n%s\n%s", shellQuote(path), marker, content, marker)}
 	sess, err := drv.Exec(ctx, name, false, 0, 0, cmd)
 	if err != nil {
 		return Output{OK: false, Error: err.Error()}
@@ -173,6 +189,16 @@ func executeWriteFile(ctx context.Context, drv drivers.Driver, name, path, conte
 		return Output{OK: false, ExitCode: code, Error: stderr}
 	}
 	return Output{OK: true, Stdout: stdout}
+}
+
+// newHeredocMarker returns an unpredictable terminator so written file
+// content can never collide with it by chance.
+func newHeredocMarker() (string, error) {
+	buf := make([]byte, 8)
+	if _, err := rand.Read(buf); err != nil {
+		return "", fmt.Errorf("generate heredoc marker: %w", err)
+	}
+	return "KSEDGE_EOF_" + hex.EncodeToString(buf), nil
 }
 
 func executeListFiles(ctx context.Context, drv drivers.Driver, name, path string) Output {

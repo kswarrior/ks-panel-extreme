@@ -39,12 +39,12 @@ import (
 // in Handler rejects POST/DELETE for ops not in this set so a typo doesn't
 // silently no-op.
 var writeOps = map[string]bool{
-	"write":   true,
-	"upload":  true,
-	"mkdir":   true,
-	"rename":  true,
-	"delete":  true,
-	"chmod":   true,
+	"write":  true,
+	"upload": true,
+	"mkdir":  true,
+	"rename": true,
+	"delete": true,
+	"chmod":  true,
 }
 
 // Handler returns an http.Handler authenticated by the given edge token.
@@ -128,7 +128,7 @@ func Handler(token string) http.Handler {
 		// stuck restarting) and keeps the File Manager useful for the
 		// default Minecraft template even before the first boot completes.
 		if hp := q.Get("host_path"); hp != "" {
-			if hostFSDispatcher(w, r, op, path, hp) {
+			if hostFSDispatcher(w, r, op, hp) {
 				return
 			}
 		}
@@ -158,13 +158,6 @@ func Handler(token string) http.Handler {
 	})
 }
 
-// hostPathRoot is the longest fixed prefix the panel ever forwards. When
-// the panel computes host_path it joins the template's mount host with
-// the relative suffix, so the result can never escape this root via
-// "../" tricks because path.Join cleans them. We still re-canonicalise
-// the input here as belt-and-braces.
-func hostPathRoot() string { return "" }
-
 // hostFSDispatcher routes the request to the host filesystem when the
 // panel supplied a host_path that points at a bind-mounted directory the
 // edge actually owns. It returns false when the host path is missing or
@@ -173,7 +166,7 @@ func hostPathRoot() string { return "" }
 // The split keeps the docker exec code path intact for non-mounted
 // instances (e.g. ad-hoc `docker run -it alpine …` rows where /mc has no
 // host equivalent).
-func hostFSDispatcher(w http.ResponseWriter, r *http.Request, op, containerPath, hostPath string) bool {
+func hostFSDispatcher(w http.ResponseWriter, r *http.Request, op, hostPath string) bool {
 	if hostPath == "" {
 		return false
 	}
@@ -189,11 +182,6 @@ func hostFSDispatcher(w http.ResponseWriter, r *http.Request, op, containerPath,
 		// provisioned" case the panel still wants to show.
 		return false
 	}
-	// Compute the host-side counterpart of `containerPath`. The mount may
-	// bind a sub-directory of the container (e.g. /mc), so paths inside it
-	// translate to hostPath/relative. We need this for ops that re-derive
-	// paths (rename's `to`, mkdir, etc.).
-	rel := containerRel(containerPath)
 	switch op {
 	case "list", "":
 		listHostDir(w, clean, info)
@@ -208,7 +196,7 @@ func hostFSDispatcher(w http.ResponseWriter, r *http.Request, op, containerPath,
 	case "mkdir":
 		mkdirHost(w, clean)
 	case "rename":
-		renameHost(w, r, clean, rel)
+		renameHost(w, r, clean)
 	case "delete":
 		deleteHost(w, clean, info)
 	case "chmod":
@@ -218,19 +206,6 @@ func hostFSDispatcher(w http.ResponseWriter, r *http.Request, op, containerPath,
 	}
 	return true
 }
-
-// containerRel returns the suffix of containerPath that, joined with the
-// mount's container prefix, reproduces the requested path. The edge-side
-// file handler doesn't know the mount prefix, so it returns the full
-// container path here and lets renameHost resolve via the panel-supplied
-// query/host paths.
-//
-// In practice the panel passes the full container path (e.g. "/mc/world")
-// and the hostPath is the literal bind target (e.g. "/var/lib/.../mc").
-// We don't need to translate because the panel already gave us the
-// resolved host path — rel is unused at the moment but kept for symmetry
-// with future per-mount helpers.
-func containerRel(_ string) string { return "" }
 
 // listHostDir serves `op=list` directly off the host filesystem. The
 // payload shape mirrors listDockerDir so the SPA can render either path
@@ -341,7 +316,7 @@ func mkdirHost(w http.ResponseWriter, hostPath string) {
 // fallback, the "to" query parameter. We deliberately accept both because
 // the SPA's first revision only knew query params and we want to avoid a
 // forced frontend upgrade.
-func renameHost(w http.ResponseWriter, r *http.Request, hostPath, _ string) {
+func renameHost(w http.ResponseWriter, r *http.Request, hostPath string) {
 	to := r.URL.Query().Get("to")
 	if to == "" {
 		// Try a JSON body too — POST /api/.../files?op=rename with JSON is
@@ -598,8 +573,6 @@ func chmodDocker(ctx context.Context, w http.ResponseWriter, name, path, modeStr
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "path": path, "mode": mode})
 }
-
-var _ = io.Copy // silence unused import if copy path is stripped later
 
 // writeErr is a tiny helper so error responses stay JSON-shaped and the
 // frontend can render them in the file browser surface.

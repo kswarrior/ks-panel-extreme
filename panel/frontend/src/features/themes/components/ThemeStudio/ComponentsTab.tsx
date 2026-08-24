@@ -23,7 +23,7 @@ const inh = (v: string | undefined, d: string): string => (v == null || v === d 
 export const ComponentsTab: React.FC<ComponentsTabProps> = ({ draft, patch }) => {
   return (
     <GlassCard className="space-y-4">
-      <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-4">
+      <div className="ks-form-card rounded-lg space-y-4">
         <Label label="Card / Panel" hint="Edits the same values as the Card tab." />
         <ColorField label="Background" value={draft.card?.background ?? 'rgba(255,255,255,0.04)'} onChange={(v) => patch('card', { background: v })} />
         <ColorField label="Border color" value={draft.card?.border_color ?? 'rgba(255,255,255,0.1)'} onChange={(v) => patch('card', { border_color: v })} />
@@ -37,7 +37,7 @@ export const ComponentsTab: React.FC<ComponentsTabProps> = ({ draft, patch }) =>
         </div>
       </div>
 
-      <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-4">
+      <div className="ks-form-card rounded-lg space-y-4">
         <Label label="Card Strong" hint="Strong glass surface for modals / dropdowns. Defaults follow the Card tab until changed here." />
         <ColorField label="Background" value={inh(draft.components?.glass_strong_background, D.components.glass_strong_background)} onChange={(v) => patch('components', { glass_strong_background: v })} placeholder="Follow Card tab" />
         <ColorField label="Border color" value={inh(draft.components?.glass_strong_border_color, D.components.glass_strong_border_color)} onChange={(v) => patch('components', { glass_strong_border_color: v })} placeholder="Follow Card tab" />
@@ -48,7 +48,7 @@ export const ComponentsTab: React.FC<ComponentsTabProps> = ({ draft, patch }) =>
         </div>
       </div>
 
-      <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-4">
+      <div className="ks-form-card rounded-lg space-y-4">
         <Label label="Dropdown / Menu" hint="Edits the same values as the Dropdowns tab." />
         <ColorField label="Background" value={draft.dropdowns?.background ?? 'rgba(12,14,18,0.22)'} onChange={(v) => patch('dropdowns', { background: v })} />
         <ColorField label="Border color" value={draft.dropdowns?.border_color ?? 'rgba(255,255,255,0.18)'} onChange={(v) => patch('dropdowns', { border_color: v })} />
@@ -60,7 +60,7 @@ export const ComponentsTab: React.FC<ComponentsTabProps> = ({ draft, patch }) =>
         </div>
       </div>
 
-      <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-4">
+      <div className="ks-form-card rounded-lg space-y-4">
         <Label label="Modal / Dialog" hint="Overlay modals and dialogs (Modal.tsx surfaces)." />
         <ColorField label="Background" value={inh(draft.components?.modal_background, D.components.modal_background)} onChange={(v) => patch('components', { modal_background: v })} placeholder="Follow Card tab" />
         <ColorField label="Border color" value={inh(draft.components?.modal_border_color, D.components.modal_border_color)} onChange={(v) => patch('components', { modal_border_color: v })} placeholder="Follow Card tab" />
@@ -73,7 +73,7 @@ export const ComponentsTab: React.FC<ComponentsTabProps> = ({ draft, patch }) =>
         </div>
       </div>
 
-      <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-4">
+      <div className="ks-form-card rounded-lg space-y-4">
         <Label label="Tab Pills" hint="Edits the same values as the Tabs tab." />
         <ColorField label="Active background" value={draft.tabs?.active_background ?? '#ffffff'} onChange={(v) => patch('tabs', { active_background: v })} />
         <ColorField label="Active text color" value={draft.tabs?.active_text_color ?? '#000000'} onChange={(v) => patch('tabs', { active_text_color: v })} />
@@ -89,7 +89,7 @@ export const ComponentsTab: React.FC<ComponentsTabProps> = ({ draft, patch }) =>
         </div>
       </div>
 
-      <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-3">
+      <div className="ks-form-card rounded-lg space-y-3">
         <Label label="Preview" hint="Live sample of components." />
         <div className="flex flex-wrap items-center gap-3">
           <div className="ks-card rounded-xl p-4 min-w-[200px]">Card</div>

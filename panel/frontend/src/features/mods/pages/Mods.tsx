@@ -816,7 +816,7 @@ return (
             )}
             <div className="grid grid-cols-1 gap-2">
               {samples.map((s) => (
-                <div key={s.key} className="flex items-start gap-3 p-3 rounded-lg border border-white/10 bg-black/20">
+                <div key={s.key} className="ks-card ks-form-card flex items-start gap-3 p-3 rounded-lg">
                   <span className="text-xl leading-none mt-0.5" aria-hidden="true">{s.icon}</span>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm text-white font-medium flex items-center gap-2 flex-wrap">
@@ -915,7 +915,7 @@ return (
                 const meta = modCapabilityMeta(p.capability);
                 const checked = !!grants[p.capability];
                 return (
-                  <label key={p.id} className="flex items-start gap-3 p-3 rounded-lg border border-white/10 bg-black/20 cursor-pointer hover:bg-white/[0.04]">
+                  <label key={p.id} className="ks-card ks-form-card flex items-start gap-3 p-3 rounded-lg cursor-pointer">
                     <input
                       type="checkbox"
                       checked={checked}
@@ -956,7 +956,7 @@ return (
         {logsError && <p className="text-red-400 text-xs">{logsError}</p>}
         {logLines === null && !logsError && <p className="text-gray-400 text-xs animate-pulse">Loading logs…</p>}
         {logLines !== null && logLines.length === 0 && (
-          <div className="rounded-lg border border-white/10 bg-black/20 p-4 text-center">
+          <div className="ks-card ks-form-card rounded-lg text-center">
             <p className="text-gray-400 text-sm">No log entries yet.</p>
             <p className="text-gray-500 text-xs mt-1">Entries appear when the mod runs (activate it and trigger its events) or when the engine records lifecycle events.</p>
           </div>

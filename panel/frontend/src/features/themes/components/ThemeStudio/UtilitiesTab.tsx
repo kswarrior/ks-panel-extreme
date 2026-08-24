@@ -10,7 +10,7 @@ interface UtilitiesTabProps {
 export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({ draft, patch }) => {
   return (
     <GlassCard className="space-y-4">
-      <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-4">
+      <div className="ks-form-card rounded-lg space-y-4">
         <Label label="Color Utilities" hint="Semantic colour tokens (--ks-ui-*) available to Custom CSS." />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <ColorField label="Primary" value={draft.utilities?.color_primary ?? '#ffffff'} onChange={(v) => patch('utilities', { color_primary: v })} />
@@ -22,16 +22,15 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({ draft, patch }) => {
         </div>
       </div>
 
-      <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-4">
+      <div className="ks-form-card rounded-lg space-y-4">
         <Label label="Spacing Scale" hint="--ks-space-base token (Custom CSS)." />
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
           <Slider label="Base unit (px)" min={2} max={16} value={draft.utilities?.spacing_base ?? 4} onChange={(v) => patch('utilities', { spacing_base: v })} />
-          <Slider label="Max multiplier" min={4} max={24} value={draft.utilities?.spacing_max_multiplier ?? 8} onChange={(v) => patch('utilities', { spacing_max_multiplier: v })} />
         </div>
       </div>
 
-      <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-4">
-        <Label label="Radius Scale" hint="--ks-radius-*-u tokens (Custom CSS)." />
+      <div className="ks-form-card rounded-lg space-y-4">
+        <Label label="Radius Scale" hint="Remaps the rounded-sm/md/lg/full utilities panel-wide + --ks-radius-*-u token for Custom CSS." />
         <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
           <Slider label="None" min={0} max={4} value={draft.utilities?.radius_none ?? 0} onChange={(v) => patch('utilities', { radius_none: v })} />
           <Slider label="Small" min={0} max={12} value={draft.utilities?.radius_sm ?? 4} onChange={(v) => patch('utilities', { radius_sm: v })} />
@@ -41,8 +40,8 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({ draft, patch }) => {
         </div>
       </div>
 
-      <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-4">
-        <Label label="Shadow Scale" hint="--ks-elev-1..4 elevation tokens (Custom CSS)." />
+      <div className="ks-form-card rounded-lg space-y-4">
+        <Label label="Shadow Scale" hint="Remaps shadow-sm/shadow/shadow-md/lg/xl utilities + --ks-elev-1..4 tokens." />
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
           <Slider label="Level 1" min={0} max={24} value={draft.utilities?.shadow_1 ?? 4} onChange={(v) => patch('utilities', { shadow_1: v })} />
           <Slider label="Level 2" min={0} max={32} value={draft.utilities?.shadow_2 ?? 8} onChange={(v) => patch('utilities', { shadow_2: v })} />
@@ -51,8 +50,8 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({ draft, patch }) => {
         </div>
       </div>
 
-      <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-4">
-        <Label label="Transitions" hint="Drives the themed components' transition speeds (cards, buttons, tabs)." />
+      <div className="ks-form-card rounded-lg space-y-4">
+        <Label label="Transitions" hint="Drives themed components (cards/buttons/tabs) and the duration-300/500+ utilities." />
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
           <Slider label="Fast (ms)" min={50} max={300} value={draft.utilities?.transition_fast ?? 150} onChange={(v) => patch('utilities', { transition_fast: v })} />
           <Slider label="Normal (ms)" min={100} max={500} value={draft.utilities?.transition_normal ?? 200} onChange={(v) => patch('utilities', { transition_normal: v })} />
@@ -61,7 +60,7 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({ draft, patch }) => {
         </div>
       </div>
 
-      <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-4">
+      <div className="ks-form-card rounded-lg space-y-4">
         <Label label="Z-Index Scale" hint="--ks-z-* tokens for Custom CSS layering." />
         <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
           <Slider label="Dropdown" min={10} max={100} value={draft.utilities?.z_dropdown ?? 50} onChange={(v) => patch('utilities', { z_dropdown: v })} />
@@ -72,7 +71,7 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({ draft, patch }) => {
         </div>
       </div>
 
-      <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-3">
+      <div className="ks-form-card rounded-lg space-y-3">
         <Label label="Preview" hint="Sample utility classes." />
         <div className="flex flex-wrap items-center gap-2">
           <input className="ks-input w-40" placeholder="Input" readOnly />

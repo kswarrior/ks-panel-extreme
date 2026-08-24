@@ -40,7 +40,7 @@ const RoleAuthorities: React.FC<RoleAuthoritiesProps> = ({
         {formAllowedAuthTypes !== null && (() => {
           const allowed = formAllowedAuthTypes as string[];
           return (
-          <div className="rounded border border-white/[0.06] bg-black/20 p-3 space-y-2">
+          <div className="ks-card ks-form-card rounded space-y-2">
             <p className="text-xs text-gray-400">
               Pick the subset of admin-enabled authorities this role may turn on. Password is always allowed implicitly — un-ticking it doesn't disable it for a user's own login.
             </p>

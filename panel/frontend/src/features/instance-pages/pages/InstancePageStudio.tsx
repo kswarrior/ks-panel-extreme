@@ -12,20 +12,23 @@ import type { Instance } from '@/features/instances/types/instance';
 import type {
   InstancePage,
   PageActionDef,
+  InstancePageSubPage,
   CreateInstancePagePayload,
   UpdateInstancePagePayload,
 } from '@/shared/types/instancePage';
+import { parseSubPages } from '@/shared/types/instancePage';
 import { PAGE_STARTERS, type PageStarter } from '../templates/pageStarters';
 import CustomPageView, { type PageContent } from '@/shared/components/ui/CustomPageView';
 import GlassCard from '@/shared/components/ui/Card';
 import { glassFieldClass } from '@/shared/components/ui/Field';
 import { parseConfig } from '@/shared/hooks/useInstance';
 
-type TabId = 'templates' | 'editor' | 'actions' | 'preview' | 'settings';
+type TabId = 'templates' | 'editor' | 'subpages' | 'actions' | 'preview' | 'settings';
 
 const TAB_CONFIG: { id: TabId; label: string; hint: string; icon: React.ReactNode }[] = [
   { id: 'templates', label: 'Templates', hint: 'Ready-made functional pages', icon: <TemplatesIcon /> },
   { id: 'editor', label: 'Content', hint: 'HTML · Markdown · Blocks', icon: <EditorIcon /> },
+  { id: 'subpages', label: 'Sub-pages', hint: 'Extra routes (/files/edit…)', icon: <PagesIcon /> },
   { id: 'actions', label: 'Actions', hint: 'Saved executable actions', icon: <TerminalIcon /> },
   { id: 'preview', label: 'Preview', hint: 'Live render on an instance', icon: <PreviewIcon /> },
   { id: 'settings', label: 'Settings', hint: 'Meta, icon, import/export', icon: <SettingsIcon /> },
@@ -42,6 +45,9 @@ function TerminalIcon() {
 }
 function PreviewIcon() {
   return <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/> </svg>;
+}
+function PagesIcon() {
+  return <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M13 2v7h7"/><path d="M9 15h6"/><path d="M9 11h2"/></svg>;
 }
 function SettingsIcon() {
   return <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/> </svg>;
@@ -123,6 +129,74 @@ function defsToActions(json: string | undefined): ActionRow[] {
     timeout: d.timeout != null ? String(d.timeout) : '30',
     description: typeof d.description === 'string' ? d.description : '',
   }));
+}
+
+// ---------------------------------------------------------------------------
+// Sub-page (multi-page) editing shapes
+// ---------------------------------------------------------------------------
+
+interface SubPageRow {
+  id: string;
+  path: string;
+  name: string;
+  content_type: 'html' | 'markdown' | 'blocks';
+  content_html: string;
+  content_markdown: string;
+  content_blocks: string;
+}
+
+let subSeq = 0;
+function blankSub(): SubPageRow {
+  subSeq += 1;
+  return { id: `s${Date.now()}-${subSeq}`, path: '', name: '', content_type: 'html', content_html: '', content_markdown: '', content_blocks: '' };
+}
+
+function subRowsFromJSON(json: string | undefined | null): SubPageRow[] {
+  const defs: InstancePageSubPage[] = parseSubPages(json);
+  if (defs.length === 0) return [];
+  return defs.map((d) => ({
+    id: `p${subSeq++}-${Math.random().toString(36).slice(2, 8)}`,
+    path: d.path,
+    name: d.name,
+    content_type: (['html', 'markdown', 'blocks'].includes(d.content_type) ? d.content_type : 'html') as SubPageRow['content_type'],
+    content_html: typeof d.content_html === 'string' ? d.content_html : '',
+    content_markdown: typeof d.content_markdown === 'string' ? d.content_markdown : '',
+    content_blocks: typeof d.content_blocks === 'string' ? d.content_blocks : '',
+  }));
+}
+
+// subsToJSON serialises editor rows into the persisted sub_pages shape.
+// Fully blank rows are dropped; returns '' when nothing remains so the API
+// stores "no sub-pages".
+function subsToJSON(rows: SubPageRow[]): string {
+  const defs: InstancePageSubPage[] = rows
+    .filter((r) => r.path.trim() !== '' || r.name.trim() !== '')
+    .map((r) => ({
+      path: r.path.trim(),
+      name: r.name.trim(),
+      content_type: r.content_type,
+      content_html: r.content_html,
+      content_markdown: r.content_markdown,
+      content_blocks: r.content_blocks,
+    }));
+  if (defs.length === 0) return '';
+  return JSON.stringify(defs);
+}
+
+// validateSubRows mirrors the backend's sub_pages rules client-side so the
+// operator gets a precise message before a round-trip.
+function validateSubRows(rows: SubPageRow[]): string {
+  const seen = new Set<string>();
+  for (const r of rows) {
+    const path = r.path.trim();
+    const name = r.name.trim();
+    if (path === '' && name === '') continue; // untouched row
+    if (!/^[a-z0-9_-]+$/.test(path)) return `Sub-page path "${path || '(empty)'}" must be lowercase letters, numbers, dashes or underscores.`;
+    if (name === '') return `Sub-page "/${path}" needs a display name.`;
+    if (seen.has(path)) return `Duplicate sub-page path "/${path}".`;
+    seen.add(path);
+  }
+  return '';
 }
 
 // Static preview used when no instance is bound (no SDK available).
@@ -262,7 +336,7 @@ const BlocksVisualEditor: React.FC<{
         <p className="text-xs text-gray-500">No blocks yet. Add your first block below.</p>
       )}
       {rows.map((b, i) => (
-        <div key={i} className="rounded-lg border border-white/10 bg-black/30 p-3 space-y-2">
+        <div key={i} className="ks-card ks-form-card rounded-lg space-y-2">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-semibold text-gray-300 uppercase tracking-wide">
               {BLOCK_TYPES.find((t) => t.type === b.type)?.label ?? b.type}
@@ -423,6 +497,41 @@ const InstancePageStudio: React.FC = () => {
   // Saved-action rows (edited on the Actions tab, persisted with the page).
   const [actions, setActions] = useState<ActionRow[]>([blankAction()]);
 
+  // Sub-page rows (edited on the Sub-pages tab) — extra routes that ship
+  // with this page (multi-page support, e.g. files/edit).
+  const [subs, setSubs] = useState<SubPageRow[]>([]);
+  const [editingSubId, setEditingSubId] = useState<string | null>(null);
+  // Preview target: 'main' or a sub-page row id.
+  const [previewTarget, setPreviewTarget] = useState<string>('main');
+
+  // Full-screen preview: keeps the panel shell (header + sidebar) visible and
+  // hides every other piece of studio chrome. The overlay is measured over
+  // the app's <main> region so header and sidebar are never covered.
+  const [fullPreview, setFullPreview] = useState(false);
+  const [mainRect, setMainRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
+  useEffect(() => {
+    if (!fullPreview) return;
+    const measure = () => {
+      const main = document.querySelector('main');
+      if (!main) { setMainRect(null); return; }
+      const r = main.getBoundingClientRect();
+      setMainRect({ top: r.top, left: r.left, width: r.width, height: r.height });
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [fullPreview]);
+  useEffect(() => {
+    if (!fullPreview) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setFullPreview(false); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [fullPreview]);
+  // Leaving the Preview tab always drops out of full screen so chrome returns.
+  useEffect(() => {
+    if (activeTab !== 'preview' && fullPreview) setFullPreview(false);
+  }, [activeTab, fullPreview]);
+
   // Blocks visual editor state
   const [blocksMode, setBlocksMode] = useState<'visual' | 'json'>('visual');
 
@@ -450,6 +559,7 @@ const InstancePageStudio: React.FC = () => {
         if (found) {
           setPage({ ...found });
           setActions(defsToActions(found.actions));
+          setSubs(subRowsFromJSON(found.sub_pages));
         } else {
           setError('Instance page not found');
         }
@@ -521,6 +631,21 @@ const InstancePageStudio: React.FC = () => {
     setActions((a) => a.map((x) => (x.id === actionId ? { ...x, ...patch } : x)));
   };
 
+  // ---- Sub-page row handlers ----------------------------------------------
+  const addSub = () => {
+    const row = blankSub();
+    setSubs((s) => [...s, row]);
+    setEditingSubId(row.id);
+  };
+  const updateSub = (subId: string, patch: Partial<SubPageRow>) => {
+    setSubs((s) => s.map((x) => (x.id === subId ? { ...x, ...patch } : x)));
+  };
+  const removeSub = (subId: string) => {
+    setSubs((s) => s.filter((x) => x.id !== subId));
+    if (editingSubId === subId) setEditingSubId(null);
+    if (previewTarget === subId) setPreviewTarget('main');
+  };
+
   const previewInstance = useMemo(
     () => instances.find((i) => i.id === previewInstanceId) ?? null,
     [instances, previewInstanceId],
@@ -546,13 +671,27 @@ const InstancePageStudio: React.FC = () => {
     };
   }, [previewInstance]);
 
-  const previewContent = useMemo<PageContent>(() => ({
-    type: (page.content_type || 'html') as PageContent['type'],
-    html: page.content_html,
-    markdown: page.content_markdown,
-    blocks: page.content_blocks,
-    actions: actionDefs.length ? actionDefs : undefined,
-  }), [page.content_type, page.content_html, page.content_markdown, page.content_blocks, actionDefs]);
+  // Preview renders the main page or the selected sub-page (multi-page).
+  const editingSub = useMemo(() => subs.find((s) => s.id === previewTarget) ?? null, [subs, previewTarget]);
+
+  const previewContent = useMemo<PageContent>(() => {
+    const src = editingSub;
+    if (src) {
+      return {
+        type: src.content_type as PageContent['type'],
+        html: src.content_html,
+        markdown: src.content_markdown,
+        blocks: src.content_blocks,
+      };
+    }
+    return {
+      type: (page.content_type || 'html') as PageContent['type'],
+      html: page.content_html,
+      markdown: page.content_markdown,
+      blocks: page.content_blocks,
+      actions: actionDefs.length ? actionDefs : undefined,
+    };
+  }, [editingSub, page.content_type, page.content_html, page.content_markdown, page.content_blocks, actionDefs]);
 
   // Test-execute a saved action against the selected instance. The backend
   // only runs it when this page's slug is enabled in that instance's spec.
@@ -578,6 +717,8 @@ const InstancePageStudio: React.FC = () => {
     if (isBuiltin) { setError('Built-in pages cannot be edited. Create a custom page instead.'); return; }
     if (!page.name?.trim() || !page.slug?.trim()) { setError('Name and slug are required'); return; }
     if (!/^[a-z0-9][a-z0-9-._]*$/i.test(page.slug.trim())) { setError('Slug may contain letters, numbers, dots, dashes and underscores only.'); return; }
+    const subErr = validateSubRows(subs);
+    if (subErr) { setError(subErr); return; }
     setSaving(true);
     setError('');
     try {
@@ -593,6 +734,7 @@ const InstancePageStudio: React.FC = () => {
         content_blocks: page.content_blocks ?? '',
         icon_svg: page.icon_svg ?? '',
         actions: JSON.stringify(actionDefs),
+        sub_pages: subsToJSON(subs),
       } as unknown as UpdateInstancePagePayload;
       if (isEdit && pageId != null) {
         await updateInstancePage(pageId, payload as UpdateInstancePagePayload);
@@ -609,7 +751,7 @@ const InstancePageStudio: React.FC = () => {
 
   // ---- Import / export ----------------------------------------------------
   const exportJson = () => {
-    const data = {
+    const data: Record<string, unknown> = {
       name: page.name ?? '',
       slug: page.slug ?? '',
       kind: page.kind ?? 'custom',
@@ -622,6 +764,8 @@ const InstancePageStudio: React.FC = () => {
       icon_svg: page.icon_svg ?? '',
       actions: actionDefs,
     };
+    const subDefs = parseSubPages(subsToJSON(subs));
+    if (subDefs.length > 0) data.pages = subDefs;
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -652,6 +796,11 @@ const InstancePageStudio: React.FC = () => {
         actions: Array.isArray(data.actions) ? JSON.stringify(data.actions) : p.actions,
       }));
       if (Array.isArray(data.actions)) setActions(defsToActions(JSON.stringify(data.actions)));
+      if (Array.isArray(data.pages)) {
+        const rows = subRowsFromJSON(JSON.stringify(data.pages));
+        setSubs(rows);
+        setEditingSubId(null);
+      }
       setNotice('Page JSON imported into the form. Review and save.');
     } catch (e: any) {
       setError(`Import failed: ${e?.message || e}`);
@@ -672,6 +821,99 @@ const InstancePageStudio: React.FC = () => {
   if (loading) return <GlassCard className="text-center text-gray-400">Loading…</GlassCard>;
 
   const contentType = (page.content_type || 'html') as 'html' | 'markdown' | 'blocks';
+
+  // Preview panel shared by the normal Preview tab and full-screen mode.
+  const previewPanel = (
+    <div className={fullPreview ? 'flex h-full flex-col gap-3 overflow-auto p-4' : 'space-y-4'}>
+      <div className="flex items-end justify-between gap-3 flex-wrap">
+        {fullPreview ? (
+          <h3 className="text-sm font-semibold text-white mr-auto">Live preview</h3>
+        ) : (
+          <div>
+            <h3 className="text-sm font-semibold text-white">Live preview</h3>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Bind a real instance to exercise the page SDK (shell, files, panel APIs) exactly as operators will see it.
+            </p>
+          </div>
+        )}
+        {!isBuiltin && (
+          <>
+            <label className="block">
+              <span className="text-xs text-gray-400">Test instance</span>
+              <select
+                value={previewInstanceId ?? ''}
+                onChange={(e) => setPreviewInstanceId(e.target.value ? Number(e.target.value) : null)}
+                className={`${glassFieldClass} min-w-[220px]`}
+              >
+                <option value="">— none (static render) —</option>
+                {instances.map((i) => (
+                  <option key={i.id} value={i.id}>
+                    #{i.id} {i.display_name || i.name} ({i.kind}, {i.status})
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-xs text-gray-400">Page</span>
+              <select
+                value={previewTarget}
+                onChange={(e) => setPreviewTarget(e.target.value)}
+                className={`${glassFieldClass} min-w-[220px]`}
+                disabled={subs.length === 0}
+              >
+                <option value="main">Main page{subs.length === 0 ? '' : ` (/${page.slug?.trim() || 'slug'})`}</option>
+                {subs.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name.trim() || s.path.trim()} (/{page.slug?.trim() || 'slug'}/{s.path.trim() || '…'})
+                  </option>
+                ))}
+              </select>
+            </label>
+          </>
+        )}
+        <button
+          type="button"
+          onClick={() => setFullPreview((v) => !v)}
+          title={fullPreview ? 'Exit full screen (Esc)' : 'Full screen — hides everything except the panel header and sidebar'}
+          aria-pressed={fullPreview}
+          className={`px-3 py-1.5 text-sm rounded border transition ${fullPreview ? 'bg-white text-black border-white' : 'border-white/10 text-gray-300 hover:bg-white/10'}`}
+        >
+          {fullPreview ? 'Exit full screen' : 'Full screen'}
+        </button>
+      </div>
+
+      {previewInstance && previewContext ? (
+        <>
+          {!isEdit && (
+            <p className="text-xs text-amber-300">Tip: unsaved pages preview with the SDK, but actions that hit the panel require the page to be saved &amp; linked.</p>
+          )}
+          <CustomPageView content={previewContent} title={editingSub ? (editingSub.name.trim() || editingSub.path || 'Preview') : (page.name || 'Preview')} instanceContext={previewContext} />
+        </>
+      ) : (
+        <div className={`border border-white/10 rounded-lg overflow-hidden bg-black/30 ${fullPreview ? 'flex-1 min-h-0 flex flex-col' : ''}`} style={fullPreview ? undefined : { minHeight: '500px' }}>
+          <iframe
+            srcDoc={renderPreview(contentType, currentContent)}
+            className={fullPreview ? 'w-full flex-1 min-h-0 border-0' : 'w-full h-[600px] border-0'}
+            title="Static Page Preview"
+            sandbox="allow-scripts"
+          />
+        </div>
+      )}
+    </div>
+  );
+
+  // Full-screen preview: only header + sidebar (the app shell around this
+  // overlay) stay visible — every other studio element is not rendered.
+  if (fullPreview && activeTab === 'preview') {
+    return (
+      <div
+        className="fixed z-40 overflow-hidden"
+        style={mainRect ?? undefined}
+      >
+        {previewPanel}
+      </div>
+    );
+  }
 
   return (
     <>
@@ -762,7 +1004,7 @@ const InstancePageStudio: React.FC = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
               {filteredStarters.map((s) => (
-                <article key={s.id} className="rounded-xl border border-white/10 bg-black/30 p-4 flex flex-col gap-2 hover:border-white/25 transition-colors">
+                <article key={s.id} className="ks-card rounded-xl p-4 flex flex-col gap-2 hover:border-white/25 transition-colors">
                   <header className="flex items-start gap-2.5">
                     <span className="shrink-0 inline-flex w-9 h-9 rounded-lg bg-white/[0.05] border border-white/10 text-gray-300 items-center justify-center">
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-4.5 h-4.5"><g dangerouslySetInnerHTML={{ __html: s.iconSvg }} /></svg>
@@ -906,6 +1148,115 @@ const InstancePageStudio: React.FC = () => {
           </div>
         )}
 
+        {/* ============================== SUB-PAGES ============================== */}
+        {activeTab === 'subpages' && !isBuiltin && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-white">Sub-pages</h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Extra routes shipped with this page — each becomes{' '}
+                  <code className="font-mono">/{page.slug?.trim() || 'slug'}/&lt;path&gt;</code>{' '}
+                  when the page is linked to a template or imported (e.g. a Files manager with an editor at /files/edit).
+                </p>
+              </div>
+              <button type="button" onClick={addSub} className="px-3 py-1.5 text-sm bg-emerald-600 text-white rounded hover:bg-emerald-500">
+                + Add sub-page
+              </button>
+            </div>
+
+            {subs.length === 0 && (
+              <p className="text-sm text-gray-500">No sub-pages yet. Add one to give this page extra routes.</p>
+            )}
+
+            {subs.map((sub) => {
+              const isEditing = editingSubId === sub.id;
+              const subContent = sub.content_type === 'html' ? sub.content_html : sub.content_type === 'markdown' ? sub.content_markdown : sub.content_blocks;
+              const updateSubContent = (value: string) => {
+                if (sub.content_type === 'html') updateSub(sub.id, { content_html: value });
+                else if (sub.content_type === 'markdown') updateSub(sub.id, { content_markdown: value });
+                else updateSub(sub.id, { content_blocks: value });
+              };
+              return (
+                <GlassCard key={sub.id} className="p-4 space-y-4">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <h4 className="text-sm font-medium text-white flex items-center gap-2">
+                      <span className="font-mono text-[11px] text-sky-300">/{page.slug?.trim() || 'slug'}/{sub.path.trim() || '…'}</span>
+                      {sub.name.trim() && <span className="text-gray-400">· {sub.name}</span>}
+                    </h4>
+                    <div className="flex items-center gap-2">
+                      <button type="button" onClick={() => setEditingSubId(isEditing ? null : sub.id)} className="ks-ghost-btn px-3 py-1.5 text-xs border border-white/10 rounded hover:bg-white/5">
+                        {isEditing ? 'Collapse' : 'Edit'}
+                      </button>
+                      <button type="button" onClick={() => removeSub(sub.id)} className="text-red-400 hover:text-red-200 text-sm">Remove</button>
+                    </div>
+                  </div>
+
+                  {isEditing && (
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <label className="block">
+                          <span className="text-xs text-gray-400">Path * (becomes /{'{slug}'}/path)</span>
+                          <input
+                            value={sub.path}
+                            onChange={(e) => updateSub(sub.id, { path: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '') })}
+                            className={`${glassFieldClass} font-mono`}
+                            placeholder="edit"
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="text-xs text-gray-400">Display name *</span>
+                          <input value={sub.name} onChange={(e) => updateSub(sub.id, { name: e.target.value })} className={glassFieldClass} placeholder="Editor" />
+                        </label>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-2">Content type</label>
+                        <div className="flex gap-2">
+                          {(['html', 'markdown', 'blocks'] as const).map((t) => (
+                            <button
+                              key={t}
+                              type="button"
+                              onClick={() => updateSub(sub.id, { content_type: t })}
+                              className={`px-3 py-1.5 rounded text-sm border transition ${
+                                sub.content_type === t
+                                  ? 'bg-emerald-600/40 border-emerald-500 text-white'
+                                  : 'border-white/10 text-gray-400 hover:text-white'
+                              }`}
+                            >
+                              {t === 'blocks' ? 'Visual Blocks' : t.charAt(0).toUpperCase() + t.slice(1)}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {sub.content_type !== 'blocks' ? (
+                        <textarea
+                          value={subContent}
+                          onChange={(e) => updateSubContent(e.target.value)}
+                          className={`${glassFieldClass} font-mono text-sm`}
+                          style={{ minHeight: '320px', width: '100%' }}
+                          spellCheck={false}
+                          placeholder={sub.content_type === 'html' ? '<div class="ks-card">\n  <h3>Editor</h3>\n</div>' : '# Editor'}
+                        />
+                      ) : (
+                        <textarea
+                          value={sub.content_blocks}
+                          onChange={(e) => updateSubContent(e.target.value)}
+                          className={`${glassFieldClass} font-mono text-sm`}
+                          style={{ minHeight: '280px', width: '100%' }}
+                          spellCheck={false}
+                          placeholder={'[\n  { "type": "heading", "value": "Editor", "level": 2 }\n]'}
+                        />
+                      )}
+                    </>
+                  )}
+                </GlassCard>
+              );
+            })}
+          </div>
+        )}
+
         {/* ============================== ACTIONS ============================== */}
         {activeTab === 'actions' && !isBuiltin && (
           <div className="space-y-6">
@@ -1035,51 +1386,7 @@ const InstancePageStudio: React.FC = () => {
         )}
 
         {/* ============================== PREVIEW ============================== */}
-        {activeTab === 'preview' && (
-          <div className="space-y-4">
-            <div className="flex items-end justify-between gap-3 flex-wrap">
-              <div>
-                <h3 className="text-sm font-semibold text-white">Live preview</h3>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Bind a real instance to exercise the page SDK (shell, files, panel APIs) exactly as operators will see it.
-                </p>
-              </div>
-              <label className="block">
-                <span className="text-xs text-gray-400">Test instance</span>
-                <select
-                  value={previewInstanceId ?? ''}
-                  onChange={(e) => setPreviewInstanceId(e.target.value ? Number(e.target.value) : null)}
-                  className={`${glassFieldClass} min-w-[220px]`}
-                >
-                  <option value="">— none (static render) —</option>
-                  {instances.map((i) => (
-                    <option key={i.id} value={i.id}>
-                      #{i.id} {i.display_name || i.name} ({i.kind}, {i.status})
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
-            {previewInstance && previewContext ? (
-              <>
-                {!isEdit && (
-                  <p className="text-xs text-amber-300">Tip: unsaved pages preview with the SDK, but actions that hit the panel require the page to be saved &amp; linked.</p>
-                )}
-                <CustomPageView content={previewContent} title={page.name || 'Preview'} instanceContext={previewContext} />
-              </>
-            ) : (
-              <div className="border border-white/10 rounded-lg overflow-hidden bg-black/30" style={{ minHeight: '500px' }}>
-                <iframe
-                  srcDoc={renderPreview(contentType, currentContent)}
-                  className="w-full h-[600px] border-0"
-                  title="Static Page Preview"
-                  sandbox="allow-scripts"
-                />
-              </div>
-            )}
-          </div>
-        )}
+        {activeTab === 'preview' && previewPanel}
 
         {/* ============================== SETTINGS ============================== */}
         {activeTab === 'settings' && !isBuiltin && (

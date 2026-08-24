@@ -381,10 +381,7 @@ export const BioMarkdownEditor: React.FC<{
               type="button"
               onClick={() => setMode(m)}
               className={
-                'px-2 py-1 capitalize transition-colors ' +
-                (mode === m
-                  ? 'bg-white text-black'
-                  : 'bg-black/30 text-gray-300 hover:bg-white/10')
+                'ks-tab capitalize ' + (mode === m ? 'ks-tab-active' : '')
               }
               aria-pressed={mode === m}
             >

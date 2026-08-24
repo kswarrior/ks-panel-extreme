@@ -8,6 +8,8 @@ export type {
   InstancePageKind,
   PageActionDef,
   InstancePage,
+  InstancePageSubPage,
   CreateInstancePagePayload,
   UpdateInstancePagePayload,
 } from '@/features/instance-pages/types/instancePage';
+export { parseSubPages } from '@/features/instance-pages/types/instancePage';

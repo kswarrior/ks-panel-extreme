@@ -24,7 +24,7 @@ export const StatCard: React.FC<StatCardProps> = ({
   trend,
   subLabel,
 }) => (
-  <GlassCard className="px-4 py-3 flex items-start gap-3">
+  <GlassCard className="ks-stat-card px-4 py-3 flex items-start gap-3">
     {icon && <div className="shrink-0 w-10 h-10 rounded-lg flex items-center justify-center bg-white/[0.05] border border-white/10 text-gray-300">{icon}</div>}
     <div className="min-w-0 flex-1">
       <p className="text-xs text-gray-400 truncate">{label}</p>

@@ -10,7 +10,7 @@ interface FormsTabProps {
 export const FormsTab: React.FC<FormsTabProps> = ({ draft, patch }) => {
   return (
     <GlassCard className="space-y-4">
-      <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-4">
+      <div className="ks-form-card rounded-lg space-y-4">
         <Label label="Input Fields" hint="Base styling for text inputs, textareas, selects." />
         <ColorField label="Background" value={draft.forms?.input_background ?? 'rgba(0,0,0,0.3)'} onChange={(v) => patch('forms', { input_background: v })} />
         <ColorField label="Text color" value={draft.forms?.input_text_color ?? '#ffffff'} onChange={(v) => patch('forms', { input_text_color: v })} />
@@ -26,7 +26,7 @@ export const FormsTab: React.FC<FormsTabProps> = ({ draft, patch }) => {
         </div>
       </div>
 
-      <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-4">
+      <div className="ks-form-card rounded-lg space-y-4">
         <Label label="Select Dropdowns" hint="Native select elements." />
         <ColorField label="Background" value={draft.forms?.select_background ?? 'rgba(0,0,0,0.3)'} onChange={(v) => patch('forms', { select_background: v })} />
         <ColorField label="Text color" value={draft.forms?.select_text_color ?? '#ffffff'} onChange={(v) => patch('forms', { select_text_color: v })} />
@@ -40,7 +40,7 @@ export const FormsTab: React.FC<FormsTabProps> = ({ draft, patch }) => {
         </div>
       </div>
 
-      <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-4">
+      <div className="ks-form-card rounded-lg space-y-4">
         <Label label="Textarea" hint="Multi-line text inputs." />
         <ColorField label="Background" value={draft.forms?.textarea_background ?? 'rgba(0,0,0,0.3)'} onChange={(v) => patch('forms', { textarea_background: v })} />
         <ColorField label="Text color" value={draft.forms?.textarea_text_color ?? '#ffffff'} onChange={(v) => patch('forms', { textarea_text_color: v })} />
@@ -53,7 +53,7 @@ export const FormsTab: React.FC<FormsTabProps> = ({ draft, patch }) => {
         </div>
       </div>
 
-      <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-4">
+      <div className="ks-form-card rounded-lg space-y-4">
         <Label label="Checkbox" hint="Checkbox inputs." />
         <ColorField label="Background (unchecked)" value={draft.forms?.checkbox_bg_unchecked ?? 'rgba(0,0,0,0.3)'} onChange={(v) => patch('forms', { checkbox_bg_unchecked: v })} />
         <ColorField label="Background (checked)" value={draft.forms?.checkbox_bg_checked ?? '#22c55e'} onChange={(v) => patch('forms', { checkbox_bg_checked: v })} />
@@ -66,7 +66,7 @@ export const FormsTab: React.FC<FormsTabProps> = ({ draft, patch }) => {
         </div>
       </div>
 
-      <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-4">
+      <div className="ks-form-card rounded-lg space-y-4">
         <Label label="Radio" hint="Radio button inputs." />
         <ColorField label="Background (unchecked)" value={draft.forms?.radio_bg_unchecked ?? 'rgba(0,0,0,0.3)'} onChange={(v) => patch('forms', { radio_bg_unchecked: v })} />
         <ColorField label="Background (checked)" value={draft.forms?.radio_bg_checked ?? '#22c55e'} onChange={(v) => patch('forms', { radio_bg_checked: v })} />
@@ -78,7 +78,7 @@ export const FormsTab: React.FC<FormsTabProps> = ({ draft, patch }) => {
         </div>
       </div>
 
-      <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-4">
+      <div className="ks-form-card rounded-lg space-y-4">
         <Label label="Toggle Switch" hint="Toggle/switch inputs." />
         <ColorField label="Track (off)" value={draft.forms?.toggle_track_off ?? 'rgba(255,255,255,0.16)'} onChange={(v) => patch('forms', { toggle_track_off: v })} />
         <ColorField label="Track (on)" value={draft.forms?.toggle_track_on ?? '#38bdf8'} onChange={(v) => patch('forms', { toggle_track_on: v })} />
@@ -91,7 +91,7 @@ export const FormsTab: React.FC<FormsTabProps> = ({ draft, patch }) => {
         </div>
       </div>
 
-      <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-4">
+      <div className="ks-form-card rounded-lg space-y-4">
         <Label label="Form Labels" hint="Labels for form fields." />
         <ColorField label="Text color" value={draft.forms?.label_text_color ?? '#e5e7eb'} onChange={(v) => patch('forms', { label_text_color: v })} />
         <ColorField label="Hint color" value={draft.forms?.label_hint_color ?? '#888888'} onChange={(v) => patch('forms', { label_hint_color: v })} />
@@ -101,7 +101,7 @@ export const FormsTab: React.FC<FormsTabProps> = ({ draft, patch }) => {
         </div>
       </div>
 
-      <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-4">
+      <div className="ks-form-card rounded-lg space-y-4">
         <Label label="Hint/Help Text" hint="Helper text below form fields." />
         <ColorField label="Text color" value={draft.forms?.hint_text_color ?? '#888888'} onChange={(v) => patch('forms', { hint_text_color: v })} />
         <ColorField label="Error color" value={draft.forms?.hint_error_color ?? '#ef4444'} onChange={(v) => patch('forms', { hint_error_color: v })} />
@@ -109,7 +109,7 @@ export const FormsTab: React.FC<FormsTabProps> = ({ draft, patch }) => {
         <Slider label="Font size" min={10} max={16} value={draft.forms?.hint_font_size ?? 12} onChange={(v) => patch('forms', { hint_font_size: v })} />
       </div>
 
-      <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-4">
+      <div className="ks-form-card rounded-lg space-y-4">
         <Label label="Field Wrapper" hint="Wrapper around label + input + hint." />
         <ColorField label="Background" value={draft.forms?.field_bg ?? 'transparent'} onChange={(v) => patch('forms', { field_bg: v })} />
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -118,7 +118,7 @@ export const FormsTab: React.FC<FormsTabProps> = ({ draft, patch }) => {
         </div>
       </div>
 
-      <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-4">
+      <div className="ks-form-card rounded-lg space-y-4">
         <Label label="Focus Ring" hint="Ring around focused inputs." />
         <ColorField label="Color" value={draft.forms?.focus_ring_color ?? 'rgba(255,255,255,0.6)'} onChange={(v) => patch('forms', { focus_ring_color: v })} />
         <ColorField label="Offset color" value={draft.forms?.focus_ring_offset_color ?? '#0b0d10'} onChange={(v) => patch('forms', { focus_ring_offset_color: v })} />
@@ -128,7 +128,7 @@ export const FormsTab: React.FC<FormsTabProps> = ({ draft, patch }) => {
         </div>
       </div>
 
-      <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-3">
+      <div className="ks-form-card rounded-lg space-y-3">
         <Label label="Preview" hint="Live sample of form controls." />
         <div className="flex flex-wrap items-center gap-3">
           <input type="text" className="ks-input" placeholder="Text input" />

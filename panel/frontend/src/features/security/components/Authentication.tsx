@@ -34,7 +34,7 @@ const SectionTitle: React.FC<{ title: string; sub?: string }> = ({ title, sub })
 );
 
 const StatTile: React.FC<{ value: React.ReactNode; label: string }> = ({ value, label }) => (
-  <div className="rounded-md border border-white/[0.06] bg-black/20 p-3">
+  <div className="ks-stat-card rounded-md">
     <div className="text-lg font-semibold text-white">{value}</div>
     <div className="text-[11px] text-gray-500 uppercase tracking-wide mt-0.5">{label}</div>
   </div>
@@ -465,7 +465,7 @@ const Authentication: React.FC<AuthenticationProps> = ({ initialSnapshot, onConf
                   onChange={(e) => setRegistrationN(Number(e.target.value))}
                   className="w-full max-w-xs bg-black/30 backdrop-blur-md text-white border border-white/10 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-white/60 focus:border-white/40 transition-colors duration-150"
                 />
-                <div className="rounded border border-white/[0.06] bg-black/20 p-3">
+                <div className="ks-card ks-form-card rounded">
                   <p className="text-xs text-gray-400 mb-2">
                     Select which enabled providers (managed on the Authority tab) count toward the requirement.
                   </p>
@@ -571,7 +571,7 @@ const Authentication: React.FC<AuthenticationProps> = ({ initialSnapshot, onConf
           <button
             type="button"
             onClick={generateCodes}
-            className="inline-flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded text-sm"
+            className="ks-primary-btn inline-flex items-center gap-2 px-4 py-2 rounded text-sm"
           >
             Generate Codes
           </button>

@@ -154,7 +154,7 @@ export function SearchableSelect<T extends string | number>({
       </div>
 
       {open && (
-        <div className="absolute z-20 mt-1 w-full max-h-80 overflow-y-auto rounded-md border border-white/10 bg-[#0b0f14]/95 backdrop-blur-md shadow-xl">
+        <div className="ks-dropdown absolute z-20 mt-1 w-full max-h-80 overflow-y-auto">
           {filtered.length === 0 ? (
             <p className="px-3 py-3 text-xs text-gray-500">{emptyMessage}</p>
           ) : (
@@ -172,7 +172,7 @@ export function SearchableSelect<T extends string | number>({
                     aria-selected={selected}
                     onMouseEnter={() => setHighlight(i)}
                     onMouseDown={(e) => { e.preventDefault(); commit(i); }}
-                    className={`px-3 py-1.5 cursor-pointer text-sm ${active ? 'bg-white/10' : 'hover:bg-white/5'} ${selected ? 'text-white' : 'text-gray-200'}`}
+                    className={`ks-dropdown-item cursor-pointer text-sm ${selected ? 'font-medium' : ''}`}
                   >
                     {renderRow
                       ? renderRow(opt, active)

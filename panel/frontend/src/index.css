@@ -212,6 +212,11 @@
   .ks-toggle:has(input:checked) {
     @apply bg-emerald-500 border-emerald-500;
   }
+  /* Button-based switches (role="switch", no inner input) mark the on
+     state with .is-on — same painted result as :has(input:checked). */
+  .ks-toggle.is-on {
+    @apply bg-emerald-500 border-emerald-500;
+  }
   .ks-toggle input {
     @apply sr-only;
   }

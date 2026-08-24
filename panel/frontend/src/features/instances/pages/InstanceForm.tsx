@@ -436,7 +436,7 @@ const InstanceForm: React.FC = () => {
                             </select>
                           ) : v.display === 'checkbox' ? (
                             <label className="inline-flex items-center gap-2 text-xs text-gray-300">
-                              <input type="checkbox" checked={val === 'true' || val === '1' || val === 'on'} onChange={(e) => setEnvValues((m) => ({ ...m, [v.name]: e.target.checked ? 'true' : 'false' }))} />
+                              <input type="checkbox" className="ks-checkbox" checked={val === 'true' || val === '1' || val === 'on'} onChange={(e) => setEnvValues((m) => ({ ...m, [v.name]: e.target.checked ? 'true' : 'false' }))} />
                               enable
                             </label>
                           ) : v.display === 'number' ? (

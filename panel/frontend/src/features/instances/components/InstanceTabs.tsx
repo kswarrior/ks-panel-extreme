@@ -153,7 +153,7 @@ const InstanceTabs: React.FC = () => {
                   value={searchQuery}
                   onChange={handleSearchChange}
                   onClick={(e) => e.stopPropagation()}
-                  className="flex-1 min-w-0 px-3 py-2 text-sm bg-white/5 border border-white/10 rounded-md text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/20"
+                  className="ks-input flex-1 min-w-0 px-3 py-2 text-sm bg-white/5 border border-white/10 rounded-md text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/20"
                   aria-label="Search pages"
                   autoFocus
                 />
@@ -207,7 +207,7 @@ const InstanceTabs: React.FC = () => {
                     handlePageSelect(item.to);
                     handleAllPagesClose();
                   }}
-                  className="flex items-center gap-2.5 px-3 py-2 text-left hover:bg-white/10 focus-visible:bg-white/10 rounded-md transition-colors w-full"
+                  className="ks-dropdown-item text-left rounded-md transition-colors w-full"
                 >
                   {item.iconKind === 'svg' && item.iconSvg && (
                     <svg

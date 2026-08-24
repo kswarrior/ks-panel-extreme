@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"os/exec"
 	"strconv"
@@ -22,18 +21,6 @@ type docker struct{}
 func newDocker() Driver { return &docker{} }
 
 func (d *docker) Name() string { return "docker" }
-
-// deployAsset holds the env/ports fields from the panel's config blob. We
-// don't impose a Go struct on the spec; we just pluck out the keys we need
-// and let docker reject unrealistic combos.
-type deployAsset struct {
-	Env     map[string]string `json:"env"`
-	Ports   []portMapping     `json:"ports"`
-	Limits  map[string]string `json:"limits"`
-	Command []string          `json:"command"`
-	Detach  bool              `json:"detach"`
-	Restart string            `json:"restart"`
-}
 
 type portMapping struct {
 	Host      int    `json:"host"`
@@ -486,46 +473,6 @@ func (d *docker) Exec(ctx context.Context, name string, tty bool, cols, rows int
 	}, nil
 }
 
-// newPipeWriter attaches an os.Pipe writer pair to cmd.Stdin so the caller
-// can push data into the child without blocking on the child reading.
-func newPipeWriter(cmd *exec.Cmd) (io.WriteCloser, error) {
-	r, w, err := openPipe()
-	if err != nil {
-		return nil, err
-	}
-	cmd.Stdin = r
-	return w, nil
-}
-
-// newPipeReader attaches an os.Pipe reader pair to cmd.Stdout so output
-// streams back to the caller without blocking on writes from the child.
-//
-// NOTE: newPipeReader / newPipeStderr intentionally drop the write end of the
-// pipe on the floor here. That fd stays open in the parent until Go's GC
-// finaliser closes it — which is exactly the indefinite-hang race the
-// non-TTY Exec path used to hit (io.ReadAll on the read end never saw EOF
-// because the parent still owned a write fd to the same pipe). All non-TTY
-// Exec paths now go through startPiped, which closes the parent's write ends
-// right after cmd.Start(). These two helpers are retained only for the TTY
-// (creack/pty) path, where pty.StartWithSize owns the fd lifecycle itself.
-func newPipeReader(cmd *exec.Cmd) (io.ReadCloser, error) {
-	r, w, err := openPipe()
-	if err != nil {
-		return nil, err
-	}
-	cmd.Stdout = w
-	return r, nil
-}
-
-func newPipeStderr(cmd *exec.Cmd) (io.ReadCloser, error) {
-	r, w, err := openPipe()
-	if err != nil {
-		return nil, err
-	}
-	cmd.Stderr = w
-	return r, nil
-}
-
 // Runner gathers live metrics/processes/ports for the docker-driven instance
 // by running a portable shell script inside the container through Exec. This
 // avoids depending on `docker stats`/`docker top` formatting (which differ
@@ -551,11 +498,16 @@ func (d *docker) Runner(ctx context.Context, name string) (metrics, processes, p
 		return metrics, processes, ports, info, err
 	}
 	// Override mem_total with docker's --memory limit if one is set.
-// docker inspect --format '{{.HostConfig.Memory}}' returns bytes as a
-// Go integer (0 = no limit). We parse it and if > 0, inject it into
-// the metrics JSON so the panel sees the container's actual cap.
-	memLimitStr, err := asExec(ctx, "", "docker", "inspect", name, "--format", "{{.HostConfig.Memory}}")
-	if err == nil {
+	// docker inspect --format '{{.HostConfig.Memory}}' returns bytes as a
+	// Go integer (0 = no limit). We parse it and if > 0, inject it into
+	// the metrics JSON so the panel sees the container's actual cap.
+	//
+	// The inspect failures are deliberately non-fatal: the metrics blob is
+	// already complete from gatherViaShell, so a transient inspect error
+	// must not flip the whole Runner into an error (the named-return err
+	// would leak into the final return otherwise).
+	memLimitStr, ierr := asExec(ctx, "", "docker", "inspect", name, "--format", "{{.HostConfig.Memory}}")
+	if ierr == nil {
 		memLimitStr = strings.TrimSpace(memLimitStr)
 		if memLimitStr != "" && memLimitStr != "0" {
 			// Extract digits in case the output includes unexpected characters (e.g., units)
@@ -583,8 +535,8 @@ func (d *docker) Runner(ctx context.Context, name string) (metrics, processes, p
 	// This shows how much the container has actually written to its writable
 	// layer, rather than the host filesystem usage seen by df inside the
 	// container (which is misleading for storage drivers like overlay2).
-	diskUsedStr, err := asExec(ctx, "", "docker", "inspect", name, "--format", "{{.SizeRw}}")
-	if err == nil {
+	diskUsedStr, ierr := asExec(ctx, "", "docker", "inspect", name, "--format", "{{.SizeRw}}")
+	if ierr == nil {
 		diskUsedStr = strings.TrimSpace(diskUsedStr)
 		if diskUsedStr != "" && diskUsedStr != "<nil>" {
 			// Extract digits in case the output includes unexpected characters (e.g., units)
@@ -670,16 +622,14 @@ func (d *docker) Snapshot(ctx context.Context, name string, action string, snapN
 			return "", 0, fmt.Errorf("image %s not found", imageName)
 		}
 
-		// For restore, we would typically stop the current container,
-		// remove it, and create a new one from the snapshot image
-		// But since this is a complex operation that affects the running instance,
-		// and the panel's restore snapshot handler already handles stopping the instance,
-		// we'll just return success for now.
-		// A full implementation would involve:
-		// 1. Stop the current instance
-		// 2. Remove the current instance
-		// 3. Create a new instance from the snapshot image
-		return "", 0, nil
+		// Restoring in place would mean stopping + removing the current
+		// container and re-running it from the committed image — but this
+		// RPC carries no deploy spec (ports/env/mounts/command), so a
+		// recreated container would silently lose its configuration.
+		// Failing loudly beats faking success: the operator should use the
+		// panel's destroy + re-deploy flow pointed at the snapshot image.
+		return "", 0, fmt.Errorf(
+			"in-place restore is not supported for docker snapshots (image %q is available; destroy and redeploy from it)", imageName)
 
 	case "delete":
 		// Delete the snapshot by removing the image

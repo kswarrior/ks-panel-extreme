@@ -2,7 +2,6 @@
 
 import type { EditorState, PortMapping, Mount, ResourceLimits, FeatureCaps, EnvVariable, InstallStep, TemplateAction, ActionStep, Label, Device, Healthcheck, Advanced, KvRuntime, MpRuntime, LxdRuntime, PageOverride } from '../types/instanceForm';
 import { parseConfig } from '@/shared/hooks/useInstance';
-import { BUILTIN_PAGE_MANIFEST, type BuiltinPageManifestEntry } from '@/features/builtin-pages';
 import { emptyEditor, emptyKvm, emptyMp, emptyLxd, kindKey, KIND_META, InstallAction, NetworkMode, RestartPolicy, LogLevel } from '../types/instanceForm';
 
 function stripUnit(v: string): string {
@@ -111,28 +110,15 @@ export function specToEditor(spec: string): EditorState {
   if (typeof s.category === 'string') out.category = s.category;
   if (typeof s.type === 'string') out.type = s.type;
   if (Array.isArray(s.pages)) {
+    // Every page row is a CUSTOM page (html/markdown/blocks). Legacy rows
+    // that predate the conversion (kind: 'builtin' / no kind) are loaded as
+    // custom rows with whatever content fields they carry — empty content
+    // renders the "re-import this page" card until it is re-linked.
     const pages: PageOverride[] = [];
     const consumed = new Set<string>();
 
     s.pages.forEach((p: any) => {
       if (!p || typeof p !== 'object' || !p.slug) return;
-      if (p.kind === 'custom') return;
-      const slug = String(p.slug);
-      if (consumed.has(slug)) return;
-      consumed.add(slug);
-      pages.push({
-        slug,
-        original_slug: typeof p.original_slug === 'string' ? p.original_slug : slug,
-        enabled: p.enabled !== false,
-        label: String(p.label ?? ''),
-        icon_svg: String(p.icon_svg ?? ''),
-        kind: 'builtin',
-      });
-    });
-
-    s.pages.forEach((p: any) => {
-      if (!p || typeof p !== 'object' || !p.slug) return;
-      if (p.kind !== 'custom') return;
       const slug = String(p.slug);
       if (consumed.has(slug)) return;
       consumed.add(slug);
@@ -287,18 +273,16 @@ export function serializeEditor(f: EditorState): Record<string, unknown> {
     labels: f.labels.filter((l) => l.key).map((l) => ({ key: l.key, value: l.value })),
     devices: f.devices.filter((d) => d.host || d.container).map((d) => ({ host: d.host, container: d.container, cgroup: !!d.cgroup })),
     pages: f.pages.map((p) => {
-      const out: Record<string, unknown> = { slug: p.slug };
+      // Every page row is a custom page — write it verbatim (label and icon
+      // are always persisted; there is no built-in default to diff against).
+      const out: Record<string, unknown> = { slug: p.slug, kind: 'custom' };
       if (!p.enabled) out.enabled = false;
       if (p.label.trim() !== '') out.label = p.label.trim();
       if (p.icon_svg.trim() !== '') out.icon_svg = p.icon_svg.trim();
-      if (p.original_slug && p.slug !== p.original_slug) out.original_slug = p.original_slug;
-      if (p.kind === 'custom') {
-        out.kind = 'custom';
-        if (p.content_type) out.content_type = p.content_type;
-        if (p.content_html) out.content_html = p.content_html;
-        if (p.content_markdown) out.content_markdown = p.content_markdown;
-        if (p.content_blocks) out.content_blocks = p.content_blocks;
-      }
+      if (p.content_type) out.content_type = p.content_type;
+      if (p.content_html) out.content_html = p.content_html;
+      if (p.content_markdown) out.content_markdown = p.content_markdown;
+      if (p.content_blocks) out.content_blocks = p.content_blocks;
       return out;
     }),
     healthcheck: f.healthcheck.enabled ? {

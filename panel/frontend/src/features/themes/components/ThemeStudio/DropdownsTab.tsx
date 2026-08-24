@@ -10,7 +10,7 @@ interface DropdownsTabProps {
 export const DropdownsTab: React.FC<DropdownsTabProps> = ({ draft, patch }) => {
   return (
     <GlassCard className="space-y-4">
-      <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-4">
+      <div className="ks-form-card rounded-lg space-y-4">
         <Label label="Backdrop" hint="Frosted panel that pops open from the card 3-dot menu, the header account menu, the Themes 'Apply to…' picker, and every inline filter dropdown in admin pages." />
         <Select
           label="Backdrop type"
@@ -77,7 +77,7 @@ export const DropdownsTab: React.FC<DropdownsTabProps> = ({ draft, patch }) => {
         )}
       </div>
 
-      <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-4">
+      <div className="ks-form-card rounded-lg space-y-4">
         <Label label="Chrome" hint="Border / radius / shadow / padding / minimum width / backdrop blur." />
         <ColorField
           label="Border color"
@@ -140,7 +140,7 @@ export const DropdownsTab: React.FC<DropdownsTabProps> = ({ draft, patch }) => {
         </div>
       </div>
 
-      <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-4">
+      <div className="ks-form-card rounded-lg space-y-4">
         <Label label="Item rows" hint="Default row fill / text + padding / gap between icon and label." />
         <ColorField
           label="Item text color"
@@ -174,7 +174,7 @@ export const DropdownsTab: React.FC<DropdownsTabProps> = ({ draft, patch }) => {
         </div>
       </div>
 
-      <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-4">
+      <div className="ks-form-card rounded-lg space-y-4">
         <Label label="Danger rows" hint="Destructive items (Delete / Remove) get their own colour pair." />
         <ColorField
           label="Danger text color"
@@ -188,7 +188,7 @@ export const DropdownsTab: React.FC<DropdownsTabProps> = ({ draft, patch }) => {
         />
       </div>
 
-      <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-3">
+      <div className="ks-form-card rounded-lg space-y-3">
         <Label label="Preview" hint="Live sample of a dropdown panel (account menu style)." />
         <div className="flex flex-wrap items-start gap-4">
           <button type="button" className="ks-icon-btn ks-dropdown-trigger" title="Account menu">

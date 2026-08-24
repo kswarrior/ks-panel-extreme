@@ -2,11 +2,8 @@ package drivers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os/exec"
-	"strconv"
-	"strings"
 
 	"github.com/creack/pty"
 )
@@ -162,25 +159,15 @@ func (d *multipass) Runner(ctx context.Context, name string) (metrics, processes
 	if err != nil {
 		return metrics, processes, ports, info, err
 	}
-	// Override mem_total with multipass's --memory if one is set.
-	// multipass info <name> --format json returns {"name":..., "memory": "2G", ...}
-	// We parse the JSON and extract the memory field.
-	infoOut, err := asExec(ctx, "", "multipass", "info", name, "--format", "json")
-	if err == nil {
-		var m map[string]any
-		if json.Unmarshal([]byte(infoOut), &m) == nil {
-			if memVal, ok := m["memory"].(string); ok && memVal != "" {
-				var parsed map[string]any
-				if json.Unmarshal([]byte(metrics), &parsed) == nil {
-					parsed["mem_total"] = parseMultipassMemory(memVal)
-					if b, err := json.Marshal(parsed); err == nil {
-						metrics = string(b)
-					}
-				}
-			}
-		}
-	}
-	return metrics, processes, ports, info, err
+	// mem_total needs no driver-side override here: a multipass VM runs its
+	// own kernel, so /proc/meminfo inside the guest already reports the VM's
+	// allocated RAM (unlike docker/lxd where /proc is the host's and the
+	// limit must be read from the daemon). The previous `multipass info
+	// --format json` override parsed m["memory"] as a string, a shape the
+	// real output never has (it nests under info.<name>.memory.total), so it
+	// was a silent no-op that also leaked its exec error into this named
+	// return — removed rather than kept pretending to work.
+	return metrics, processes, ports, info, nil
 }
 
 // Snapshot creates, restores, or deletes a snapshot of the instance.
@@ -198,8 +185,12 @@ func (d *multipass) Snapshot(ctx context.Context, name string, action string, sn
 			return "", 0, fmt.Errorf("snapshot name is required for create action")
 		}
 
-		// Create the snapshot
-		_, err := asExec(ctx, "", "multipass", "snapshot", name, snapName)
+		// Create the snapshot. multipass takes the snapshot name via the
+		// repeatable `--name` flag (Usage: multipass snapshot [options]
+		// <instance>) — a second positional arg is rejected by the CLI.
+		// Note multipass itself refuses to snapshot a Running instance; that
+		// surfaces verbatim through asExec so the panel shows the real cause.
+		_, err := asExec(ctx, "", "multipass", "snapshot", name, "--name", snapName)
 		if err != nil {
 			return "", 0, fmt.Errorf("multipass snapshot failed: %w", err)
 		}
@@ -218,8 +209,13 @@ func (d *multipass) Snapshot(ctx context.Context, name string, action string, sn
 			return "", 0, fmt.Errorf("snapshot name is required for restore action")
 		}
 
-		// Restore the snapshot
-		_, err := asExec(ctx, "", "multipass", "restore", name, snapName)
+		// Restore the snapshot. multipass addresses snapshots as
+		// `<instance>.<snapshot>` (single positional); the previous two-
+		// positional form was rejected by the CLI. `--destructive` is
+		// required when stdin/stdout are piped (our exec capture), because
+		// multipass otherwise wants to interactively ask whether to save a
+		// pre-restore backup.
+		_, err := asExec(ctx, "", "multipass", "restore", "--destructive", name+"."+snapName)
 		if err != nil {
 			return "", 0, fmt.Errorf("multipass restore failed: %w", err)
 		}
@@ -232,7 +228,10 @@ func (d *multipass) Snapshot(ctx context.Context, name string, action string, sn
 			return "", 0, fmt.Errorf("snapshot name is required for delete action")
 		}
 
-		_, err := asExec(ctx, "", "multipass", "delete", "snap", name, snapName)
+		// Delete the snapshot. multipass addresses snapshots as
+		// `<instance>.<snapshot>`; "snap" is not a delete subcommand and the
+		// previous three-argument form was rejected by the CLI.
+		_, err := asExec(ctx, "", "multipass", "delete", name+"."+snapName)
 		if err != nil {
 			return "", 0, fmt.Errorf("multipass delete snapshot failed: %w", err)
 		}
@@ -242,28 +241,4 @@ func (d *multipass) Snapshot(ctx context.Context, name string, action string, sn
 	default:
 		return "", 0, fmt.Errorf("invalid snapshot action: %s", action)
 	}
-}
-
-// parseMultipassMemory parses multipass memory format (e.g. "2G", "512M",
-// "1024M", "2048") into bytes (int64). Returns 0 on failure.
-func parseMultipassMemory(s string) int64 {
-	s = strings.TrimSpace(strings.ToUpper(s))
-	if s == "" {
-		return 0
-	}
-	mult := int64(1)
-	if strings.HasSuffix(s, "G") {
-		mult = 1024 * 1024 * 1024
-		s = strings.TrimSuffix(s, "G")
-	} else if strings.HasSuffix(s, "M") {
-		mult = 1024 * 1024
-		s = strings.TrimSuffix(s, "M")
-	} else if strings.HasSuffix(s, "K") {
-		mult = 1024
-		s = strings.TrimSuffix(s, "K")
-	}
-	if v, err := strconv.ParseInt(s, 10, 64); err == nil {
-		return v * mult
-	}
-	return 0
 }

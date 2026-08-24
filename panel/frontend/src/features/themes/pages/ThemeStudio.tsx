@@ -8,7 +8,6 @@ import Loading from '@/shared/components/ui/Loading';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import {
   BackgroundTab,
-  CardTab,
   SidebarTab,
   HeaderTab,
   ButtonTab,
@@ -25,8 +24,6 @@ import {
   CustomCSSTab,
 } from '@/features/themes/components/ThemeStudio';
 import GlassCard from '@/shared/components/ui/Card';
-import ThemePreview from '@/features/themes/components/ThemePreview';
-import { Label } from '@/theme/studioControls';
 
 // renderLoadingPreview renders a preview of the loading animation based on
 // the theme's loading configuration. This is used in the live preview area
@@ -208,7 +205,6 @@ function scopeLabelFor(scope: string): string {
 type TabKey = ThemeKey | 'forms' | 'components' | 'utilities' | 'cards';
 const TABS: Array<{ key: TabKey; label: string; icon: React.ReactNode }> = [
   { key: 'background', label: 'Background', icon: ICON_BG },
-  { key: 'card', label: 'Card', icon: ICON_CARD },
   { key: 'sidebar', label: 'Sidebar', icon: ICON_SIDEBAR },
   { key: 'header', label: 'Header', icon: ICON_HEADER },
   { key: 'button', label: 'Button', icon: ICON_BUTTON },
@@ -221,7 +217,7 @@ const TABS: Array<{ key: TabKey; label: string; icon: React.ReactNode }> = [
   { key: 'forms', label: 'Forms', icon: ICON_FORMS },
   { key: 'components', label: 'Components', icon: ICON_COMPONENTS },
   { key: 'utilities', label: 'Utilities', icon: ICON_UTILITIES },
-  { key: 'cards', label: 'Cards', icon: ICON_SHAPE },
+  { key: 'cards', label: 'Cards', icon: ICON_CARD },
   { key: 'customCSS', label: 'Custom CSS', icon: ICON_CSS },
 ];
 
@@ -357,8 +353,53 @@ const ThemeStudio: React.FC = () => {
         </div>
       </div>
 
+      {/* Save scope + actions — top-left, always visible */}
+      <div className="flex justify-start items-center gap-2 flex-wrap mb-4">
+          {canManageGlobal && (
+              <div className="flex items-center gap-1 mr-auto p-1 rounded-lg border border-white/10 bg-white/[0.04]">
+                <button
+                  type="button"
+                  onClick={() => setSaveScope('local')}
+                  className={`ks-tab text-xs rounded-md transition ${saveScope === 'local' ? 'ks-tab-active' : ''}`}
+                  title="Save to this browser (localStorage). Only this user sees this theme."
+                >
+                  Local
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSaveScope('global')}
+                  className={`ks-tab text-xs rounded-md transition ${saveScope === 'global' ? 'ks-tab-active' : ''}`}
+                  title="Publish to the server. Every user will see this theme on the areas/pages you assign it to."
+                >
+                  Global
+                </button>
+              </div>
+            )}
+            <button type="button" onClick={cancel} className="ks-ghost-btn px-4 py-2 text-sm rounded transition-colors">
+              Cancel
+            </button>
+            {editingExisting && (
+              <button
+                type="button"
+                onClick={() => save(true)}
+                disabled={saving}
+                className="ks-ghost-btn px-4 py-2 text-sm rounded disabled:opacity-60"
+              >
+                {saving ? 'Saving…' : 'Save as new'}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => save(false)}
+              disabled={saving}
+              className="ks-primary-btn px-4 py-2 text-sm rounded hover:bg-gray-200 disabled:opacity-60"
+            >
+              {saving ? 'Saving…' : editingExisting ? 'Save' : 'Create theme'}
+            </button>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        <div className="lg:col-span-7 xl:col-span-8">
+        <div className="lg:col-span-12">
           <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4">
             <GlassCard className="lg:sticky lg:top-4 self-start">
               <nav className="flex lg:flex-col gap-1 overflow-x-auto">
@@ -396,8 +437,11 @@ const ThemeStudio: React.FC = () => {
               </GlassCard>
 
               <GlassCard className="space-y-4">
+              {/* Fixed-height options box — every studio control scrolls inside
+                  (same pattern as the API-key permission list) so the page
+                  itself never stretches on small laptops. */}
+              <div className="max-h-[70vh] overflow-y-auto pr-1">
             {tab === 'background' && <BackgroundTab draft={draft} patch={patch} />}
-            {tab === 'card' && <CardTab draft={draft} patch={patch} />}
             {tab === 'sidebar' && <SidebarTab draft={draft} patch={patch} />}
             {tab === 'header' && <HeaderTab draft={draft} patch={patch} />}
             {tab === 'button' && <ButtonTab draft={draft} patch={patch} />}
@@ -412,135 +456,14 @@ const ThemeStudio: React.FC = () => {
             {tab === 'utilities' && <UtilitiesTab draft={draft} patch={patch} />}
             {tab === 'cards' && <CardsTab draft={draft} patch={patch} />}
             {tab === 'customCSS' && <CustomCSSTab draft={draft} patch={patch} />}
-          </GlassCard>
-
-          <GlassCard className="">
-            <Label label="Tip" />
-            <p className="text-xs text-gray-400 leading-relaxed">
-              Edits here preview live on the whole panel — drag the Background opacity, switch to an image, or
-              soften a card's border radius. Use <span className="text-gray-200">Reset preview</span> to jump back
-              to the currently-saved theme without saving.
-            </p>
+              </div>
           </GlassCard>
         </div>
           </div>
         </div>
 
-        <div className="lg:col-span-5 xl:col-span-4">
-          <div className="sticky top-4 space-y-4">
-            <GlassCard className="">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-semibold text-white">Live preview</h3>
-                <span className="text-xs text-gray-500">As you edit</span>
-              </div>
-              <ThemePreview theme={draft as Theme} className="mb-3" />
 
-              <div
-                className="rounded-lg overflow-hidden border"
-                style={{
-                  background: draft.background.type === 'color' ? draft.background.color : '#0a0a0a',
-                  borderColor: 'rgba(255,255,255,0.08)',
-                }}
-              >
-                <div style={{
-                  height: draft.header.height / 2, display: 'flex', alignItems: 'center',
-                  background: draft.header.background,
-                  color: draft.header.text_color, padding: '0 8px',
-                  borderColor: draft.header.border_color, borderBottomWidth: 1, borderStyle: 'solid',
-                }}>
-                  <span style={{ fontSize: 9, fontWeight: 600 }}>{name || 'My Theme'}</span>
-                </div>
-                <div style={{ display: 'flex', height: 80 }}>
-                  <div style={{
-                    width: 36, background: draft.sidebar.background,
-                    borderColor: draft.sidebar.border_color, borderRightWidth: 1, borderStyle: 'solid',
-                    padding: '5px 3px', display: 'flex', flexDirection: 'column', gap: 4,
-                  }}>
-                    <span style={{ height: 6, background: draft.sidebar.active_background, borderRadius: 2 }} />
-                    <span style={{ height: 6, background: draft.sidebar.text_color, opacity: 0.45, borderRadius: 2 }} />
-                    <span style={{ height: 6, background: draft.sidebar.text_color, opacity: 0.45, borderRadius: 2 }} />
-                  </div>
 
-                  <div style={{ flex: 1, padding: 8 }}>
-                    <div style={{
-                      background: draft.card.background,
-                      borderColor: draft.card.border_color,
-                      borderWidth: draft.card.border_width, borderStyle: 'solid',
-                      borderRadius: draft.card.border_radius / 2,
-                      boxShadow: draft.card.shadow,
-                      padding: draft.card.padding / 2, height: '100%',
-                      color: draft.card.text_color, display: 'flex', flexDirection: 'column', gap: 5,
-                    }}>
-                      <span style={{ fontSize: 8, fontWeight: 700, color: draft.typography.heading_color }}>Dashboard</span>
-                      <span style={{ fontSize: 7, color: draft.typography.body_color }}>Total: 12 instances · 3 nodes</span>
-                      <div>
-                        <span style={{
-                          display: 'inline-block', fontSize: 8, fontWeight: 600,
-                          background: draft.button.background, color: draft.button.text_color,
-                          borderRadius: draft.button.border_radius,
-                          padding: `${draft.button.padding_y / 2}px ${draft.button.padding_x / 2}px`,
-                        }}>Create</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </GlassCard>
-
-            <GlassCard className="">
-              <Label label="Tip" />
-              <p className="text-xs text-gray-400 leading-relaxed">
-                Edits here preview live on the whole panel — drag the Background opacity, switch to an image, or
-                soften a card's border radius. Use <span className="text-gray-200">Reset preview</span> to jump back
-                to the currently-saved theme without saving.
-              </p>
-            </GlassCard>
-          </div>
-        </div>
-
-        <div className="flex justify-end items-center gap-2 flex-wrap">
-          {canManageGlobal && (
-            <div className="flex items-center gap-1 mr-auto p-1 rounded-lg border border-white/10 bg-white/[0.04]">
-              <button
-                type="button"
-                onClick={() => setSaveScope('local')}
-                className={`ks-tab text-xs rounded-md transition ${saveScope === 'local' ? 'ks-tab-active' : ''}`}
-                title="Save to this browser (localStorage). Only this user sees this theme."
-              >
-                Local
-              </button>
-              <button
-                type="button"
-                onClick={() => setSaveScope('global')}
-                className={`ks-tab text-xs rounded-md transition ${saveScope === 'global' ? 'ks-tab-active' : ''}`}
-                title="Publish to the server. Every user will see this theme on the areas/pages you assign it to."
-              >
-                Global
-              </button>
-            </div>
-          )}
-          <button type="button" onClick={cancel} className="ks-ghost-btn px-4 py-2 text-sm rounded transition-colors">
-            Cancel
-          </button>
-          {editingExisting && (
-            <button
-              type="button"
-              onClick={() => save(true)}
-              disabled={saving}
-              className="ks-ghost-btn px-4 py-2 text-sm rounded disabled:opacity-60"
-            >
-              {saving ? 'Saving…' : 'Save as new'}
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => save(false)}
-            disabled={saving}
-            className="ks-primary-btn px-4 py-2 text-sm rounded hover:bg-gray-200 disabled:opacity-60"
-          >
-            {saving ? 'Saving…' : editingExisting ? 'Save' : 'Create theme'}
-          </button>
-        </div>
       </div>
     </div>
   );

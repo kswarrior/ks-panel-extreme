@@ -42,16 +42,16 @@ const HostPanel: React.FC<HostPanelProps> = React.memo(({ host, samples, recentC
 
       {/* Metrics tiles */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-        <div className="glass-card rounded-xl flex flex-col gap-2 animate-slide-up">
+        <div className="ks-stat-card rounded-xl flex flex-col gap-2 animate-slide-up">
           <div className="text-[10px] text-gray-400 uppercase tracking-wide">Uptime</div>
           <div className="text-2xl font-semibold leading-none tabular-nums text-gray-200">{fmtUptime(host.uptime_sec || 0)}</div>
         </div>
-        <div className="glass-card rounded-xl flex flex-col gap-2 animate-slide-up">
+        <div className="ks-stat-card rounded-xl flex flex-col gap-2 animate-slide-up">
           <div className="text-[10px] text-gray-400 uppercase tracking-wide">Swap</div>
           <div className="text-2xl font-semibold leading-none tabular-nums text-fuchsia-300">{host.swap_total_mb > 0 ? fmtPct(((host.swap_used_mb || 0) / host.swap_total_mb) * 100) : '—'}</div>
           <div className="text-[10px] text-gray-500 font-mono">{fmtMB(host.swap_used_mb || 0)} / {fmtMB(host.swap_total_mb || 0)}</div>
         </div>
-        <div className="glass-card rounded-xl flex flex-col gap-2 animate-slide-up sm:col-span-2">
+        <div className="ks-stat-card rounded-xl flex flex-col gap-2 animate-slide-up sm:col-span-2">
           <div className="text-[10px] text-gray-400 uppercase tracking-wide">Load (1m)</div>
           <div className="text-2xl font-semibold leading-none tabular-nums text-violet-300">{(last.load1 || 0).toFixed(2)}</div>
           {recentLoad.length > 1 && <div className="-mb-1 -mx-1"><Sparkline values={recentLoad} color="#c4b5fd" /></div>}

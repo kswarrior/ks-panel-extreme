@@ -21,6 +21,7 @@ import type {
   SecurityStatusResponse,
   LockoutStatus,
   RecoveryCodesStatus,
+  DDOSBackgroundResponse,
 } from '@/features/security/types/security';
 
 // Admin users API
@@ -548,6 +549,25 @@ export async function securityDDOSManualStop(): Promise<{
   return res.data;
 }
 
+// getDDOSScript downloads the standalone ddos.sh emergency port-switch
+// script. The script stops the panel and restarts it on the DDoS
+// alternate port WITHOUT saving that port as the last port, so the next
+// normal start returns to the original one.
+export async function getDDOSScript(): Promise<string> {
+  const res = await client.get('/api/security/ddos/script', {
+    responseType: 'text',
+  });
+  return res.data;
+}
+
+// ddosBackground triggers the panel to write a ddos.sh script next to
+// its binary and execute it detached. Returns immediately while the
+// panel stops and comes back on the alternate port in the background.
+export async function ddosBackground(): Promise<DDOSBackgroundResponse> {
+  const res = await client.post<DDOSBackgroundResponse>('/api/security/ddos/background');
+  return res.data;
+}
+
 // Read-only status of the panel-wide network protections (CORS / CSRF /
 // security headers / cookie flags) rendered by the Firewall tab.
 export async function securityGetStatus(): Promise<SecurityStatusResponse> {
@@ -842,6 +862,8 @@ export interface LocalInstancePage {
   content_markdown: string;
   content_blocks: string;
   icon_svg: string;
+  /** Multi-page support: extra pages shipped with this definition. */
+  pages?: import('@/features/instance-pages/types/instancePage').InstancePageSubPage[];
 }
 
 export async function listLocalInstancePages(): Promise<LocalInstancePage[]> {

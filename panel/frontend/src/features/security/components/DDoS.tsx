@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
-import { securitySnapshot, securityToggleAttack, securityDDOSReset, securityDDOSManualStop, securityGetConfig, securityUpdateConfig } from '@/shared/api/admin';
-import type { SecuritySnapshot as SecuritySnapshotT, SecurityConfig } from '@/features/security/types/security';
+import { securitySnapshot, securityToggleAttack, securityDDOSReset, securityGetConfig, securityUpdateConfig, ddosBackground } from '@/shared/api/admin';
+import type { SecuritySnapshot as SecuritySnapshotT, SecurityConfig, DDOSBackgroundResponse } from '@/features/security/types/security';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import NumberInput from '@/shared/components/ui/NumberInput';
 import ToggleRow from '@/shared/components/ui/ToggleRow';
@@ -43,6 +43,8 @@ const DDoS: React.FC<DDoSProps> = ({
   const [configSuccess, setConfigSuccess] = useState('');
   const [actionError, setActionError] = useState('');
   const [actionSuccess, setActionSuccess] = useState('');
+  // ddos.sh background-run result (triggered by "Test Reaction").
+  const [ddosScriptResult, setDdosScriptResult] = useState<DDOSBackgroundResponse | null>(null);
 
   const [underAttack, setUnderAttack] = useState(initialSnapshot?.under_attack ?? false);
 
@@ -168,24 +170,34 @@ const DDoS: React.FC<DDoSProps> = ({
     }
   };
 
-  const handleDDOSManualStop = async () => {
-    if (!confirm(ddosMode === 'port_switch'
-      ? `Manually trigger the DDoS reaction? The panel will move from its current port to :${ddosAltPort} for the configured cooldown period.`
-      : 'Manually trigger DDoS auto-stop? This will stop the panel from accepting new requests for the configured cooldown period.')) {
+  // handleTestReaction runs the emergency port-switch script (ddos.sh):
+  // it stops the panel and restarts it on ddos_alt_port via
+  // `launch --port <alt> --type ddos`, so that port is NOT saved as the
+  // last port and a normal restart returns to the original one.
+  const handleTestReaction = async () => {
+    if (!confirm(`Run ddos.sh? The panel will STOP and come back on :${ddosAltPort}. The alternate port is temporary — a normal restart returns to the original port.`)) {
       return;
     }
     setActionError('');
     setActionSuccess('');
+    setDdosScriptResult(null);
     try {
-      const res = await securityDDOSManualStop();
-      const s = await securitySnapshot();
-      setSnap(s);
-      setUnderAttack(s.under_attack);
-      onAttackToggle?.(s.under_attack);
-      loadConfig();
-      setActionSuccess(`DDoS reaction triggered. Stop count: ${res.stop_count}, cooldown until: ${res.cooldown_until}`);
+      const r = await ddosBackground();
+      setDdosScriptResult(r);
+      setActionSuccess(`ddos.sh started — panel is switching to :${ddosAltPort}. Reopen this page there once it is back.`);
+      // Best-effort snapshot refresh; the panel may already be going down
+      // mid-switch, in which case this silently fails and that's fine.
+      try {
+        const s = await securitySnapshot();
+        setSnap(s);
+        setUnderAttack(s.under_attack);
+        onAttackToggle?.(s.under_attack);
+        loadConfig();
+      } catch {
+        // Panel restarting — expected.
+      }
     } catch (e: any) {
-      setActionError(e?.response?.data || 'Failed to trigger DDoS stop');
+      setActionError(e?.response?.data || e?.message || 'Failed to start ddos.sh');
     }
   };
 
@@ -276,10 +288,8 @@ const DDoS: React.FC<DDoSProps> = ({
                     type="button"
                     onClick={() => setDdosMode(m.id)}
                     aria-pressed={ddosMode === m.id}
-                    className={`text-left rounded-xl border p-4 transition-colors duration-150 ${
-                      ddosMode === m.id
-                        ? 'border-white/40 bg-white/10'
-                        : 'border-white/10 bg-black/20 hover:border-white/25 opacity-75'
+                    className={`ks-card text-left rounded-xl p-4 transition-colors duration-150 ${
+                      ddosMode === m.id ? 'ring-2 ring-white/50' : 'opacity-75'
                     }`}
                   >
                     <span className="block text-sm font-medium text-gray-100">{m.title}</span>
@@ -367,15 +377,15 @@ const DDoS: React.FC<DDoSProps> = ({
                 Attack History
               </h3>
               <div className="grid grid-cols-3 gap-3">
-                <div className="rounded-md border border-white/[0.06] bg-black/20 p-3">
+                <div className="ks-stat-card rounded-md">
                   <div className="text-lg font-semibold text-white">{snap?.ddos_stop_count ?? 0}</div>
                   <div className="text-[11px] text-gray-500 uppercase tracking-wide">Reactions triggered</div>
                 </div>
-                <div className="rounded-md border border-white/[0.06] bg-black/20 p-3">
+                <div className="ks-stat-card rounded-md">
                   <div className="text-lg font-semibold text-white">{snap?.ddos_tcp_dropped ?? 0}</div>
                   <div className="text-[11px] text-gray-500 uppercase tracking-wide">TCP connections dropped</div>
                 </div>
-                <div className="rounded-md border border-white/[0.06] bg-black/20 p-3">
+                <div className="ks-stat-card rounded-md">
                   <div className="text-lg font-semibold text-white">
                     {snap?.blocked_requests ?? 0}
                   </div>
@@ -387,8 +397,8 @@ const DDoS: React.FC<DDoSProps> = ({
             <div className="flex justify-start gap-2">
               <button
                 type="button"
-                onClick={handleDDOSManualStop}
-                className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded text-sm disabled:opacity-60"
+                onClick={handleTestReaction}
+                className="ks-primary-btn inline-flex items-center gap-2 px-4 py-2 rounded text-sm disabled:opacity-60"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect x="2" y="2" width="20" height="20" rx="2"/><line x1="6" y1="10" x2="18" y2="10"/></svg>
                 Test Reaction
@@ -396,11 +406,17 @@ const DDoS: React.FC<DDoSProps> = ({
               <button
                 type="button"
                 onClick={handleDDOSReset}
-                className="inline-flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded text-sm disabled:opacity-60"
+                className="ks-ghost-btn inline-flex items-center gap-2 px-4 py-2 rounded text-sm disabled:opacity-60"
               >
                 Resume / Reset State
               </button>
             </div>
+
+            {ddosScriptResult && (
+              <p className="text-xs text-gray-400">
+                ddos.sh: <code className="text-gray-200">{ddosScriptResult.script_path}</code>
+              </p>
+            )}
 
             {configError && <p className="text-sm text-red-400">{configError}</p>}
             {configSuccess && <p className="text-sm text-green-400">{configSuccess}</p>}

@@ -40,7 +40,7 @@ var launchCmd = &cobra.Command{
 
 func init() {
 	launchCmd.Flags().IntP("port", "p", config.DefaultPort(), "Port to listen on")
-	launchCmd.Flags().String("type", "", "Database engine: sqlite (default), postgres, mysql/mariadb")
+	launchCmd.Flags().String("type", "", "Database engine: sqlite (default), postgres, mysql/mariadb — or \"ddos\" to start on a temporary port that is NOT saved as the last port")
 	launchCmd.Flags().String("dsn", "", "Full database DSN (overrides --url); file path for sqlite, conn string for postgres/mysql")
 	launchCmd.Flags().String("url", "", "Database host:port (e.g. localhost:5432) — friendlier alternative to --dsn for postgres/mysql")
 	launchCmd.Flags().String("user", "", "Database username — paired with --url for postgres/mysql")
@@ -81,6 +81,19 @@ func runLaunch(cmd *cobra.Command, args []string) error {
 
 	typ, _ := cmd.Flags().GetString("type")
 	dsn, _ := cmd.Flags().GetString("dsn")
+
+	// "--type ddos" is RESERVED as the DDoS emergency launch mode (used by
+	// ddos.sh, internal/api/handlers/ddos_script_handler.go): the panel
+	// starts on the alternate port and that port is NOT persisted into the
+	// settings KV below, so the saved last port keeps pointing at the
+	// original port for the next normal start. "ddos" is not a database
+	// engine — clear it here so SetDatabaseType never sees it.
+	ddosTempPort := false
+	if strings.EqualFold(strings.TrimSpace(typ), "ddos") {
+		ddosTempPort = true
+		typ = ""
+	}
+
 	if typ != "" || dsn != "" {
 		config.SetDatabaseType(strings.ToLower(strings.TrimSpace(typ)), dsn)
 	}
@@ -219,6 +232,8 @@ go nodeSweepLoop(90*time.Second, time.Minute)
 	fmt.Println()
 	print.OK("panel ready", "running")
 
+	warnDuplicatePanelProcesses()
+
 	// Bind the TCP listener ourselves so we can wrap it with the
 	// DDoS-active gate (internal/security/ddoslistener.go). The wrapper
 	// inspects the live security state at the moment each connection
@@ -258,13 +273,73 @@ go nodeSweepLoop(90*time.Second, time.Minute)
 	// must still start if the KV write fails. (The switcher overwrites
 	// this key whenever a DDoS reaction moves the panel, so restarts
 	// come back on whichever port is actually safe.)
-	if persistDB, perr := repository.OpenDB(); perr == nil {
-		_ = repository.NewSettingsRepository(persistDB).SetPanelPort(port)
-		persistDB.Close()
+	//
+	// ddosTempPort (--type ddos) opts OUT of that write: the ddos.sh
+	// emergency script starts the panel on the DDoS alternate port with
+	// this flag, and that port must stay temporary — the saved panel_port
+	// keeps pointing at the original port so the next normal start comes
+	// back to it. Any other --type value persists as usual.
+	if !ddosTempPort {
+		if persistDB, perr := repository.OpenDB(); perr == nil {
+			_ = repository.NewSettingsRepository(persistDB).SetPanelPort(port)
+			persistDB.Close()
+		}
 	}
 
 	<-servingDone
 	return nil
+}
+
+// warnDuplicatePanelProcesses scans /proc for OTHER running kspanel
+// processes (matched on the executable, not arguments) and prints a loud
+// warning when found. Why:
+// the #1 way the DDoS port switcher "stops working" is a second panel
+// instance left behind by an update/reinstall — it keeps serving the old
+// port forever, and no code in THIS process can close another process's
+// socket. Surfacing the duplicate at launch turns a mysterious symptom into
+// a one-line fix (stop the extra PID). Linux-only best effort; other OSes
+// skip silently.
+func warnDuplicatePanelProcesses() {
+	if runtime.GOOS != "linux" {
+		return
+	}
+	self := strconv.Itoa(os.Getpid())
+	entries, err := os.ReadDir("/proc")
+	if err != nil {
+		return
+	}
+	var dups []string
+	for _, e := range entries {
+		if !e.IsDir() || e.Name() == self {
+			continue
+		}
+		if _, err := strconv.Atoi(e.Name()); err != nil {
+			continue // not a pid directory
+		}
+		raw, err := os.ReadFile("/proc/" + e.Name() + "/cmdline")
+		if err != nil {
+			continue // raced exit or no permission — skip quietly
+		}
+		// Only the EXECUTABLE counts (argv[0]). Matching the whole command
+		// line would flag unrelated wrapper shells that merely mention
+		// kspanel in their arguments.
+		parts := strings.SplitN(string(raw), "\x00", 2)
+		if len(parts) == 0 || parts[0] == "" {
+			continue
+		}
+		exe := parts[0]
+		if i := strings.LastIndexByte(exe, '/'); i >= 0 {
+			exe = exe[i+1:]
+		}
+		if !strings.Contains(exe, "kspanel") {
+			continue
+		}
+		cmdline := strings.TrimSpace(strings.ReplaceAll(string(raw), "\x00", " "))
+		dups = append(dups, fmt.Sprintf("pid %s: %s", e.Name(), cmdline))
+	}
+	for _, dup := range dups {
+		print.Error("duplicate", fmt.Sprintf("%s — stop the old instance so DDoS port switching can free ports cleanly", dup))
+	}
 }
 
 // nodeSweepLoop periodically marks edges whose heartbeats went stale as "down".

@@ -44,10 +44,12 @@ const ApplyToRichMenu: React.FC<{ theme: Theme }> = ({ theme }) => {
         <button
           type="button"
           onClick={toggle}
-          className="ks-primary-btn w-full bg-white text-black text-sm py-1.5 rounded hover:bg-gray-200 inline-flex items-center justify-center gap-1.5"
+          aria-label={`Apply “theme ${theme.name}” to pages`}
+          title="Apply to…"
+          aria-haspopup="menu"
+          className="ks-icon-btn rounded-lg"
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M4 7h16M4 12h16M4 17h10" /> </svg>
-          Apply to…
         </button>
       )}
     />
@@ -447,6 +449,46 @@ const Themes: React.FC = () => {
                   {t.updated_at ? <>Updated {new Date(t.updated_at).toLocaleDateString()}</> : <>id {t.id}</>}
                 </span>
                 <div className="flex items-center gap-1">
+                  {/* Edit / Delete are ALWAYS rendered so the card layout is
+                      stable; they're disabled (with an explanatory tooltip)
+                      when the theme can't be mutated — built-in themes are
+                      read-only and global themes need manage permission. */}
+                  {(() => {
+                    const why =
+                      t.builtin ? 'Built-in theme is read-only'
+                      : origin === 'global' && !canManageGlobal ? 'Needs manage-themes permission'
+                      : '';
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => editInStudio(t.id)}
+                        disabled={!!why}
+                        aria-label={`Edit theme ${t.name}`}
+                        title={why || 'Edit in Studio'}
+                        className="ks-icon-btn rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /> </svg>
+                      </button>
+                    );
+                  })()}
+                  {(() => {
+                    const why =
+                      t.builtin ? 'Built-in theme cannot be deleted'
+                      : origin === 'global' && !canManageGlobal ? 'Needs manage-themes permission'
+                      : '';
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => remove(t.id)}
+                        disabled={!!why}
+                        aria-label={`Delete theme ${t.name}`}
+                        title={why || 'Delete'}
+                        className="ks-icon-btn rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /> </svg>
+                      </button>
+                    );
+                  })()}
                   {canAssign && (
                     <ApplyToRichMenu theme={t} />
                   )}

@@ -38,7 +38,13 @@ type InstancePage struct {
 	// Actions is a JSON array of executable page actions (shell, file ops,
 	// docker/kvm/lxd) authored in the Instance Page Studio. Empty string ==
 	// no actions. Validated server-side to be a well-formed JSON array.
-	Actions   string    `json:"actions"`
+	Actions string `json:"actions"`
+	// SubPages is a JSON array of extra page definitions that ship with this
+	// page ({path,name,content_type,content_html,content_markdown,
+	// content_blocks}). Each entry becomes a spec.pages row with slug
+	// "<slug>/<path>" when the page is linked/imported (multi-page support:
+	// e.g. Files → files/edit). Empty string == no sub-pages.
+	SubPages  string    `json:"sub_pages"`
 	IconSVG   string    `json:"icon_svg"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`

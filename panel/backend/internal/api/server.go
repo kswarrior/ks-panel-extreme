@@ -532,6 +532,10 @@ func NewRouter() http.Handler {
 		r.Route("/api/instances", func(r chi.Router) {
 			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionView)).Get("/", handlers.ListInstancesHandler)
 			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionCreate)).Post("/", handlers.DeployInstanceHandler)
+			// Per-id read: consumed by custom HTML pages through the SDK
+			// fetchPanel bridge to poll this instance's live status +
+			// install-workflow state. Same data the list endpoint returns.
+			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionView)).Get("/{id}", handlers.GetInstanceHandler)
 			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionEdit)).Post("/{id}/start", handlers.StartInstanceHandler)
 			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionEdit)).Post("/{id}/stop", handlers.StopInstanceHandler)
 			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionDelete)).Delete("/{id}", handlers.DestroyInstanceHandler)
@@ -668,6 +672,14 @@ func NewRouter() http.Handler {
 		r.Put("/api/security/config", handlers.SecurityUpdateConfigHandler)
 		r.Post("/api/security/ddos/reset", handlers.SecurityDDOSResetHandler)
 		r.Post("/api/security/ddos/stop", handlers.SecurityDDOSManualStopHandler)
+		// Security page → DDoS tab: emergency port-switch script (ddos.sh).
+		// Same delivery pattern as the reinstall script: GET generates and
+		// downloads the standalone script; POST writes it next to the
+		// binary and runs it detached. The script stops the panel and
+		// restarts it on DDOSAltPort WITHOUT persisting that port, so the
+		// saved last port keeps pointing at the original port.
+		r.Get("/api/security/ddos/script", handlers.DDOSScriptHandler)
+		r.Post("/api/security/ddos/background", handlers.DDOSBackgroundHandler)
 
 		// Security page → Sessions tab. The list is the SessionManager's
 		// tracked sessions across all users; revocation is enforced by

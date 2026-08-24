@@ -11,7 +11,7 @@ export const ButtonTab: React.FC<ButtonTabProps> = ({ draft, patch }) => {
   return (
     <>
       <GlassCard className="space-y-4">
-        <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-4">
+        <div className="ks-form-card rounded-lg space-y-4">
           <Label label="Primary button (Create / Save / Activate)" hint="High-emphasis solid fill." />
           <ColorField label="Background" value={draft.button.background} onChange={(v) => patch('button', { background: v })} />
           <ColorField label="Text color" value={draft.button.text_color} onChange={(v) => patch('button', { text_color: v })} />
@@ -25,7 +25,7 @@ export const ButtonTab: React.FC<ButtonTabProps> = ({ draft, patch }) => {
           </div>
         </div>
 
-        <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-4">
+        <div className="ks-form-card rounded-lg space-y-4">
           <Label label="Ghost button (Cancel / secondary)" hint="Transparent with a faint border + hover wash." />
           <ColorField label="Background" value={draft.button.ghost_background} onChange={(v) => patch('button', { ghost_background: v })} />
           <ColorField label="Text color" value={draft.button.ghost_text_color} onChange={(v) => patch('button', { ghost_text_color: v })} />
@@ -39,7 +39,7 @@ export const ButtonTab: React.FC<ButtonTabProps> = ({ draft, patch }) => {
           </div>
         </div>
 
-        <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-4">
+        <div className="ks-form-card rounded-lg space-y-4">
           <Label label="Icon button (Filter / New / Upload)" hint="Square translucent pills used in page headers." />
           <ColorField label="Background" value={draft.button.icon_background} onChange={(v) => patch('button', { icon_background: v })} />
           <ColorField label="Icon color" value={draft.button.icon_text_color} onChange={(v) => patch('button', { icon_text_color: v })} />
@@ -52,7 +52,7 @@ export const ButtonTab: React.FC<ButtonTabProps> = ({ draft, patch }) => {
           </div>
         </div>
 
-        <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-3">
+        <div className="ks-form-card rounded-lg space-y-3">
           <Label label="Preview" hint="Live sample of every button variant." />
           <div className="flex flex-wrap items-center gap-3">
             <button type="button" className="ks-primary-btn">Save</button>

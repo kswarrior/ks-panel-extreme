@@ -300,22 +300,22 @@ const ThemeStats: React.FC = () => {
       {/* Key Metrics */}
       <DashboardSection title="Theme Configuration Metrics" className="space-y-4">
         <DashboardGrid columns={4}>
-          <GlassCard className="p-4 text-center">
+          <GlassCard className="ks-stat-card p-4 text-center">
             <p className="text-2xl font-bold text-emerald-300">{stats.assigned}</p>
             <p className="text-xs text-gray-400">Assigned</p>
             <p className="text-xs text-sky-300 mt-1">{stats.unassigned} unassigned</p>
           </GlassCard>
-          <GlassCard className="p-4 text-center">
+          <GlassCard className="ks-stat-card p-4 text-center">
             <p className="text-2xl font-bold text-indigo-300">{stats.global}</p>
             <p className="text-xs text-gray-400">Global</p>
             <p className="text-xs text-sky-300 mt-1">Server-wide</p>
           </GlassCard>
-          <GlassCard className="p-4 text-center">
+          <GlassCard className="ks-stat-card p-4 text-center">
             <p className="text-2xl font-bold text-emerald-300">{stats.local}</p>
             <p className="text-xs text-gray-400">Personal</p>
             <p className="text-xs text-sky-300 mt-1">Local only</p>
           </GlassCard>
-          <GlassCard className="p-4 text-center">
+          <GlassCard className="ks-stat-card p-4 text-center">
             <p className="text-2xl font-bold text-white">{stats.total}</p>
             <p className="text-xs text-gray-400">Total Themes</p>
             <p className="text-xs text-sky-300 mt-1">{stats.builtin} built-in</p>

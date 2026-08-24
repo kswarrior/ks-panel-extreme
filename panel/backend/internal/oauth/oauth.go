@@ -353,6 +353,10 @@ func userInfoProfile(hc *http.Client, profileURL, accessToken string) (*Profile,
 	}, nil
 }
 
+// githubEmailsURL is a var so tests can point the flow at a fake GitHub;
+// production value matches the documented API route.
+var githubEmailsURL = "https://api.github.com/user/emails"
+
 // githubProfile resolves the account's PRIMARY email via /user/emails —
 // /user itself usually returns a null email these days.
 func githubProfile(hc *http.Client, accessToken string) (*Profile, error) {
@@ -363,7 +367,7 @@ func githubProfile(hc *http.Client, accessToken string) (*Profile, error) {
 	if u.Email != "" {
 		return u, nil
 	}
-	req, err := http.NewRequest(http.MethodGet, "https://api.github.com/user/emails", nil)
+	req, err := http.NewRequest(http.MethodGet, githubEmailsURL, nil)
 	if err != nil {
 		return nil, err
 	}
