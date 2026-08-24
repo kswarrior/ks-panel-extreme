@@ -25,6 +25,7 @@ jobs:
 
       - name: Sync from Hugging Face Bucket
         run: |
+          rm -rf *
           hf sync hf://buckets/kswarrior/opencode-storage/ks-panel ./hf_temp \
             --exclude "*node_modules*"
 
