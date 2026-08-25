@@ -46,6 +46,7 @@ import System from '@/features/system/pages/System';
 import Security from '@/features/security/pages/Security';
 import Activity from '@/features/activity/pages/Activity';
 import InstancePages from '@/features/instance-pages/pages/InstancePages';
+import InstancePageDetail from '@/features/instance-pages/pages/InstancePageDetail';
 import InstancePageStudio from '@/features/instance-pages/pages/InstancePageStudio';
 import InstancePageStats from '@/features/instance-pages/pages/InstancePageStats';
 import InstancePanel, { InstanceDynamicPage } from '@/features/instances/pages/InstanceDetail';
@@ -509,6 +510,16 @@ const Router: React.FC = () => (
           <RequireAuth>
             <RequirePermission permission={PermissionKey.MANAGE_INSTANCE_PAGES}>
               <InstancePageStudio />
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/instance-pages/:id"
+        element={
+          <RequireAuth>
+            <RequirePermission permission={PermissionKey.MANAGE_INSTANCE_PAGES}>
+              <InstancePageDetail />
             </RequirePermission>
           </RequireAuth>
         }

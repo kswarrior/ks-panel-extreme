@@ -470,71 +470,12 @@ const AdminNodes: React.FC = () => {
                       </span>
                     )}
                   </div>
-                  <CardMenu
-                    ariaLabel={`Actions for node ${n.name}`}
-                    items={[
-                      {
-                        kind: 'action',
-                        key: 'view',
-                        label: 'View',
-                        tone: 'default',
-                      },
-                      {
-                        kind: 'action',
-                        key: 'edit',
-                        label: 'Edit',
-                        tone: 'default',
-                        icon: (
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /> </svg>
-                        ),
-                      },
-                      {
-                        kind: 'action',
-                        key: 'recheck',
-                        label: isProbing ? 'Re-checking…' : 'Re-check edge',
-                        disabled: isProbing,
-                        icon: (
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={`w-3.5 h-3.5 ${isProbing ? 'animate-spin' : ''}`}><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /> </svg>
-                        ),
-                      },
-                      {
-                        kind: 'action',
-                        key: 'rotate',
-                        label: 'Rotate token',
-                        icon: (
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /> </svg>
-                        ),
-                      },
-                      ...(isLocalAddress(n.address) ? [{
-                        kind: 'action' as const,
-                        key: 'purge',
-                        label: purgingId === n.id ? 'Purging…' : 'Delete edge completely',
-                        tone: 'danger' as const,
-                        disabled: purgingId === n.id,
-                        icon: (
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /> </svg>
-                        ),
-                      }] : []),
-                      {
-                        kind: 'action',
-                        key: 'delete',
-                        label: deletingId === n.id ? 'Deleting…' : 'Delete',
-                        tone: 'danger',
-                        disabled: deletingId === n.id,
-                        icon: (
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /> </svg>
-                        ),
-                      },
-                    ]}
-                    onSelect={(key) => {
-                      if (key === 'view') navigate(`/node/${n.id}`);
-                      else if (key === 'edit') openEdit(n);
-                      else if (key === 'recheck') recheck(n);
-                      else if (key === 'rotate') rotate(n);
-                      else if (key === 'purge') purge(n);
-                      else if (key === 'delete') remove(n);
-                    }}
-                  />
+                  <button
+                    onClick={() => navigate(`/node/${n.id}`)}
+                    className="text-[11px] text-gray-400 hover:text-white transition-colors"
+                  >
+                    View details →
+                  </button>
                 </footer>
               </div>
             </article>

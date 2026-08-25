@@ -256,13 +256,47 @@ go nodeSweepLoop(90*time.Second, time.Minute)
 	// would immediately move the panel back under an ongoing flood).
 	state.SeedDDOSFromDB()
 
+	// A --type ddos launch (ddos.sh emergency switch) parks on the
+	// alternate port for ONE cooldown window and then returns to the real
+	// port. Two things make that return actually happen:
+	//
+	//   1. homePort = the saved panel_port read BEFORE anything else — the
+	//      persist step below is skipped in ddos mode, so this is still
+	//      the operator's original port. The switcher re-binds it when the
+	//      window closes.
+	//   2. If no live attack window exists yet (the Test Reaction flow
+	//      restarts the panel without going through /ddos/stop), arm one
+	//      now using DDOSStopMinutes and persist it, so a crash mid-window
+	//      comes back parked instead of dropping onto the attacked port.
+	homePort := 0
+	if ddosTempPort {
+		if con, herr := repository.OpenDB(); herr == nil {
+			homePort = repository.NewSettingsRepository(con).PanelPort()
+			con.Close()
+		}
+		if !state.DDOSActive() {
+			minutes := state.Cfg().DDOSStopMinutes
+			if minutes <= 0 {
+				minutes = 5
+			}
+			until := time.Now().Add(time.Duration(minutes) * time.Minute)
+			state.SetDDOSActive(true, until)
+			if con, cerr := repository.OpenDB(); cerr == nil {
+				_ = repository.NewSecurityRepository(con).SetDDOSCooldownUntil(until)
+				con.Close()
+			}
+			log.Printf("ddos launch: parked on :%d until %s, will return to :%d", port, until.Format(time.RFC3339), homePort)
+		}
+	}
+
 	// Hand serving over to the port switcher: it serves on the listener
 	// above, and when a DDoS reaction in "port_switch" mode fires it
 	// re-binds this same http.Server onto the alternate port at runtime
 	// (and back once the cooldown expires) without dropping in-flight
 	// requests. The returned channel closes after srv.Shutdown, exactly
-	// like the old direct srv.Serve(ln) call did.
-	servingDone := security.StartPortSwitcher(srv, ln, port)
+	// like the old direct srv.Serve(ln) call did. homePort drives the
+	// --type ddos return-home move described above.
+	servingDone := security.StartPortSwitcher(srv, ln, port, homePort)
 
 	// Persist the bound port so a follow-up bare `kspanel launch` (no
 	// --port flag, no KSPANEL_PORT env var) reuses the same port the

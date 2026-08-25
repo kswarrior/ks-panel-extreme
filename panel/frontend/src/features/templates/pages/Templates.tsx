@@ -470,50 +470,7 @@ const Templates: React.FC = () => {
                       <>id {t.id}</>
                     )}
                   </span>
-                  <CardMenu
-                    ariaLabel={`Actions for template ${t.name}`}
-                    items={[
-                      {
-                        key: 'view',
-                        label: 'View',
-                        tone: 'default',
-                        icon: (
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" /> </svg>
-                        ),
-                      },
-                      {
-                        key: 'edit',
-                        label: 'Edit',
-                        tone: 'default',
-                        icon: (
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" /> </svg>
-                        ),
-                      },
-                      {
-                        key: 'download',
-                        label: 'Download',
-                        tone: 'default',
-                        icon: (
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /> </svg>
-                        ),
-                      },
-                      {
-                        key: 'delete',
-                        label: deletingId === t.id ? 'Deleting…' : 'Delete',
-                        tone: 'danger',
-                        disabled: deletingId === t.id,
-                        icon: (
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /> </svg>
-                        ),
-                      },
-                    ]}
-                    onSelect={(key) => {
-                      if (key === 'view') navigate(`/template/${t.id}`);
-                      else if (key === 'edit') openEdit(t);
-                      else if (key === 'download') handleDownload(t);
-                      else if (key === 'delete') remove(t);
-                    }}
-                  />
+                  <Link to={`/template/${t.id}`} className="text-[11px] text-sky-300 hover:text-sky-200 hover:underline">View details →</Link>
                 </footer>
               </article>
             );

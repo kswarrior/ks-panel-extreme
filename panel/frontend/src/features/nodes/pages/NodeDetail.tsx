@@ -1,14 +1,16 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { listNodes, nodeHeartbeats, probeNode } from '@/shared/api/admin';
+import { listNodes, nodeHeartbeats, probeNode, listInstances, rotateNodeToken, deleteNode, purgeLocalNode } from '@/shared/api/admin';
 import type { Node, NodeHeartbeat } from '@/features/nodes/types/node';
 import GlassCard from '@/shared/components/ui/Card';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import { NodeIcon } from '../utils/nodeIcons';
 import { HeartbeatIcon, DriverRing, ResourceBar } from '../components/NodesComponents';
-import { formatBytesPair, formatPercent } from '../utils/nodesUtils';
+import { formatBytesPair, formatPercent, isLocalAddress } from '../utils/nodesUtils';
 import { countryByCode } from '@/shared/components/forms/LocationField/countries';
-import { STATE_STYLES, MONITOR_BARS } from '../types/nodes';
+import { STATE_STYLES, MONITOR_BARS, DRIVER_ARCS } from '../types/nodes';
+import { Gauge } from '@/features/system/components/SystemCharts';
+import { fmtGB } from '@/features/system/components/SystemCharts';
 
 function getErrorMessage(e: any, fallback: string): string {
   const data = e?.response?.data;
@@ -64,6 +66,10 @@ const NodeDetail: React.FC = () => {
   const [probing, setProbing] = useState(false);
   const [probeMsg, setProbeMsg] = useState('');
   const [copied, setCopied] = useState('');
+  const [instanceStats, setInstanceStats] = useState<{ total: number; running: number } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [purging, setPurging] = useState(false);
+  const [rotating, setRotating] = useState(false);
 
   const numericId = id ? Number(id) : NaN;
   const validId = Number.isFinite(numericId) && numericId > 0;
@@ -91,8 +97,15 @@ const NodeDetail: React.FC = () => {
           } catch {
             if (!cancelled) setHeartbeats([]);
           }
+          // best-effort instance count hosted on this node
+          listInstances().then((all) => {
+            if (cancelled) return;
+            const mine = all.filter((ins) => ins.node_id === n.id);
+            setInstanceStats({ total: mine.length, running: mine.filter((i) => i.status === 'running').length });
+          }).catch(() => {});
         } else {
           if (!cancelled) setHeartbeats([]);
+          if (!cancelled) setInstanceStats(null);
         }
       } catch (e: any) {
         if (!cancelled) setError(getErrorMessage(e, 'Failed to load node'));
@@ -131,6 +144,47 @@ const NodeDetail: React.FC = () => {
       setProbeMsg(getErrorMessage(e, 'Probe failed'));
     } finally {
       setProbing(false);
+    }
+  };
+
+  const handleRotateToken = async () => {
+    if (!node) return;
+    setRotating(true);
+    try {
+      await rotateNodeToken(node.id);
+      const nodes = await listNodes();
+      const n = nodes.find((x) => x.id === node.id) || null;
+      if (n) setNode(n);
+    } catch (e: any) {
+      alert(getErrorMessage(e, 'Failed to rotate token'));
+    } finally {
+      setRotating(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!node) return;
+    if (!confirm(`Delete node "${node.name}"? This cannot be undone.`)) return;
+    setDeleting(true);
+    try {
+      await deleteNode(node.id);
+      navigate('/nodes');
+    } catch (e: any) {
+      alert(getErrorMessage(e, 'Failed to delete node'));
+      setDeleting(false);
+    }
+  };
+
+  const handlePurge = async () => {
+    if (!node) return;
+    if (!confirm(`Delete edge completely? This removes local files for node "${node.name}" and cannot be undone.`)) return;
+    setPurging(true);
+    try {
+      await purgeLocalNode(node.id);
+      navigate('/nodes');
+    } catch (e: any) {
+      alert(getErrorMessage(e, 'Failed to purge node'));
+      setPurging(false);
     }
   };
 
@@ -181,15 +235,14 @@ const NodeDetail: React.FC = () => {
   const state = (node.state || (node.status === 'up' ? 'up' : 'down')) as keyof typeof STATE_STYLES;
   const st = STATE_STYLES[state] || STATE_STYLES.down;
 
-  const monitor = useMemo(() => {
-    const out: ('up' | 'down')[] = [];
-    for (let i = 0; i < MONITOR_BARS; i++) {
-      const hb = heartbeats[i];
-      if (hb) out.push(hb.status === 'up' ? 'up' : 'down');
-      else out.push(node.status === 'up' ? 'up' : 'down');
-    }
-    return out;
-  }, [heartbeats, node.status]);
+  // Plain computation, NOT a hook: this runs after the conditional early
+  // returns above, so a hook here would break React's rules-of-hooks order.
+  const monitor: ('up' | 'down')[] = [];
+  for (let i = 0; i < MONITOR_BARS; i++) {
+    const hb = heartbeats[i];
+    if (hb) monitor.push(hb.status === 'up' ? 'up' : 'down');
+    else monitor.push(node.status === 'up' ? 'up' : 'down');
+  }
   const upPct = monitor.length ? (monitor.filter((s) => s === 'up').length / monitor.length * 100) : 0;
 
   const ramLabel = formatBytesPair(node.ram_used, node.ram_total);
@@ -216,12 +269,23 @@ const NodeDetail: React.FC = () => {
             { key: 'probe', label: probing ? 'Probing…' : 'Recheck now', tone: 'default' },
             { key: 'copyAddr', label: copied === 'addr' ? 'Copied!' : 'Copy address', tone: 'default' },
             { key: 'copyHost', label: copied === 'host' ? 'Copied!' : 'Copy host URL', tone: 'default' },
+            { key: 'rotate', label: rotating ? 'Rotating…' : 'Rotate token', tone: 'default' },
+            ...(isLocalAddress(node.address) ? [{
+              key: 'purge',
+              label: purging ? 'Purging…' : 'Delete edge completely',
+              tone: 'danger' as const,
+              disabled: purging,
+            }] : []),
+            { key: 'delete', label: deleting ? 'Deleting…' : 'Delete', tone: 'danger', disabled: deleting },
           ]}
           onSelect={(k) => {
             if (k === 'edit') navigate(`/nodes/${node.id}/edit`);
             if (k === 'probe') handleProbe();
             if (k === 'copyAddr') copy(node.address, 'addr');
             if (k === 'copyHost') copy(hostUrl, 'host');
+            if (k === 'rotate') handleRotateToken();
+            if (k === 'purge') handlePurge();
+            if (k === 'delete') handleDelete();
           }}
         />
       </div>
@@ -269,10 +333,44 @@ const NodeDetail: React.FC = () => {
           </div>
         </header>
 
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <ResourceBar label="RAM" pair={ramLabel} pct={node.ram_total ? (node.ram_used / node.ram_total) * 100 : 0} from="#34d399" to="#10b981" ok={node.hw_ram_ok} />
           <ResourceBar label="CPU" pair={cpuPct} pct={node.cpu_percent ?? 0} from="#60a5fa" to="#3b82f6" ok={node.hw_cpu_ok} />
           <ResourceBar label="DISK" pair={diskLabel} pct={node.disk_total ? (node.disk_used / node.disk_total) * 100 : 0} from="#a78bfa" to="#8b5cf6" ok={node.hw_disk_ok} />
+          <ResourceBar
+            label="Instances"
+            pair={instanceStats === null ? '—' : `${instanceStats.total} · ${instanceStats.running} running`}
+            pct={instanceStats && instanceStats.total > 0 ? (instanceStats.running / instanceStats.total) * 100 : 0}
+            from="#38bdf8"
+            to="#6366f1"
+          />
+        </div>
+
+        <div className="mt-6">
+          <h4 className="text-[11px] uppercase tracking-wide text-gray-500 mb-3">Resource Usage</h4>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="rounded-lg border border-white/5 bg-white/[0.02] p-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-gray-400 uppercase tracking-wide">RAM</span>
+                <span className="text-xs font-mono text-gray-300">{fmtGB(node.ram_used / 1024 ** 3)} / {fmtGB(node.ram_total / 1024 ** 3)}</span>
+              </div>
+              <Gauge value={node.ram_used} total={node.ram_total} label="RAM" />
+            </div>
+            <div className="rounded-lg border border-white/5 bg-white/[0.02] p-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-gray-400 uppercase tracking-wide">CPU</span>
+                <span className="text-xs font-mono text-gray-300">{node.cpu_percent?.toFixed(1) ?? '0'}%</span>
+              </div>
+              <Gauge value={node.cpu_percent ?? 0} total={100} label="CPU" />
+            </div>
+            <div className="rounded-lg border border-white/5 bg-white/[0.02] p-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-gray-400 uppercase tracking-wide">DISK</span>
+                <span className="text-xs font-mono text-gray-300">{fmtGB(node.disk_used / 1024 ** 3)} / {fmtGB(node.disk_total / 1024 ** 3)}</span>
+              </div>
+              <Gauge value={node.disk_used} total={node.disk_total} label="DISK" />
+            </div>
+          </div>
         </div>
 
         <div className="mt-4">
@@ -341,6 +439,22 @@ const NodeDetail: React.FC = () => {
             <div className="flex justify-between"><span className="text-gray-400">Install dir</span><span className="text-white font-mono text-xs truncate max-w-[150px]" title={node.install_dir}>{node.install_dir || 'default'}</span></div>
             <div className="flex justify-between"><span className="text-gray-400">Instances dir</span><span className="text-white font-mono text-xs truncate max-w-[150px]" title={node.instances_dir}>{node.instances_dir || 'default'}</span></div>
             <div className="flex justify-between"><span className="text-gray-400">Token prefix</span><span className="text-white font-mono text-xs">{node.token_prefix || '—'} <button onClick={() => copy(node.token_prefix, 'tok')} className="ml-1 p-1 rounded hover:bg-white/10 inline-flex"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-3 h-3"><rect x="9" y="9" width="10" height="10" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v3" /></svg></button>{copied === 'tok' && <span className="text-[10px] text-emerald-300 ml-1">copied</span>}</span></div>
+          </div>
+          <div className="mt-3 pt-2 border-t border-white/5">
+            <p className="text-[11px] uppercase tracking-wide text-gray-500 mb-1.5">Drivers available on this edge</p>
+            <div className="flex flex-wrap gap-1.5">
+              {DRIVER_ARCS.map((d) => (
+                <span
+                  key={d.key}
+                  title={node[d.key] ? `${d.label}: available` : `${d.label}: not detected`}
+                  className={`inline-flex items-center gap-1.5 text-[11px] px-1.5 py-0.5 rounded border ${node[d.key] ? 'border-white/10 bg-white/5 text-gray-200' : 'border-white/5 bg-transparent text-gray-500'}`}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: node[d.key] ? d.color : '#374151' }} />
+                  {d.label}
+                </span>
+              ))}
+              {node.hw_drivers_ok === false && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-900/30 border border-amber-700/30 text-amber-200">detection failed</span>}
+            </div>
           </div>
         </GlassCard>
       </div>

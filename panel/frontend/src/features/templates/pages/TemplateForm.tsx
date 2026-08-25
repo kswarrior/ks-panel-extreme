@@ -121,27 +121,23 @@ const TemplatePagesImportModal: React.FC<TemplatePagesImportModalProps> = ({
         content_html: p.content_html || '',
         content_markdown: p.content_markdown || '',
         content_blocks: p.content_blocks || '',
+        // Multi-page support: sub-pages stay INSIDE the parent row (effective
+        // route "<slug>/<path>", e.g. files/edit) so they never show up as
+        // separate top-level tabs — the tab bar lists the parent page only.
+        ...(parseSubPages(p.sub_pages).length > 0
+          ? {
+              sub_pages: parseSubPages(p.sub_pages).map((sub) => ({
+                path: sub.path,
+                name: sub.name,
+                content_type: (['html', 'markdown', 'blocks'].includes(sub.content_type) ? sub.content_type : 'html') as 'html' | 'markdown' | 'blocks',
+                content_html: sub.content_html || '',
+                content_markdown: sub.content_markdown || '',
+                content_blocks: sub.content_blocks || '',
+              })),
+            }
+          : {}),
       });
       skip.add(p.slug);
-      // Multi-page support: each library sub-page becomes its own spec row
-      // with slug "<slug>/<path>" so it resolves to its own instance route.
-      for (const sub of parseSubPages(p.sub_pages)) {
-        const subSlug = `${p.slug}/${sub.path}`;
-        if (skip.has(subSlug)) continue;
-        additions.push({
-          slug: subSlug,
-          original_slug: '',
-          enabled: true,
-          label: sub.name,
-          icon_svg: p.icon_svg || '',
-          kind: 'custom',
-          content_type: (['html', 'markdown', 'blocks'].includes(sub.content_type) ? sub.content_type : 'html') as PageOverride['content_type'],
-          content_html: sub.content_html || '',
-          content_markdown: sub.content_markdown || '',
-          content_blocks: sub.content_blocks || '',
-        });
-        skip.add(subSlug);
-      }
     }
     if (additions.length > 0) {
       onAddPages(additions);

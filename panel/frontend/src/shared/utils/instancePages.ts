@@ -29,20 +29,71 @@ export interface ResolvedNavEntry {
 // generic placeholder the template editor shows.
 const FALLBACK_ICON = '<circle cx="12" cy="12" r="9" />';
 
+// subPagesOf normalises a spec row's `sub_pages` field into a list of
+// sub-page entries. Multi-page library pages keep their extra pages INSIDE
+// the parent row (effective URL `<slug>/<path>`, e.g. files/edit) instead of
+// as sibling spec rows, so the tab bar shows only the parent page. The field
+// may be an inline array (spec rows written by the import flow / form
+// round-trip) or a JSON-encoded string (legacy/library shape); corrupt
+// payloads degrade to an empty list.
+function subPagesOf(row: any): any[] {
+  if (!row || typeof row !== 'object') return [];
+  let list: unknown = row.sub_pages;
+  if (typeof list === 'string') {
+    const trimmed = list.trim();
+    if (!trimmed) return [];
+    try { list = JSON.parse(trimmed); } catch { return []; }
+  }
+  if (!Array.isArray(list)) return [];
+  return list.filter(
+    (s: any) => !!s && typeof s === 'object' && typeof s.path === 'string' && String(s.path).trim() !== '',
+  );
+}
+
+// splitSubSlug splits an effective sub-page slug ("<parent>/<path>") into its
+// parent slug and sub path at the FIRST slash. Returns null for top-level
+// slugs (no slash).
+function splitSubSlug(slug: string): { parent: string; path: string } | null {
+  const idx = slug.indexOf('/');
+  if (idx <= 0 || idx === slug.length - 1) return null;
+  return { parent: slug.slice(0, idx), path: slug.slice(idx + 1) };
+}
+
+// findSubPageEntry resolves `<parent>/<path>` against parent rows carrying
+// nested sub_pages. Only enabled parents expose their sub-pages. Returns null
+// when the slug is not a sub-page of any enabled row.
+function findSubPageEntry(slug: string, spec: Record<string, any> | null | undefined): { parent: any; sub: any } | null {
+  const parts = splitSubSlug(slug);
+  if (!parts) return null;
+  const pages = Array.isArray(spec?.pages) ? spec.pages : [];
+  for (const p of pages) {
+    if (!p || typeof p !== 'object' || !p.slug) continue;
+    if (String(p.slug).trim() !== parts.parent) continue;
+    if (p.enabled === false) continue;
+    const sub = subPagesOf(p).find(
+      (s) => s && typeof s.path === 'string' && String(s.path).trim() === parts.path,
+    );
+    if (sub) return { parent: p, sub };
+  }
+  return null;
+}
+
 function labelFor(slug: string, row?: Record<string, any>): string {
   const custom = row && typeof row.label === 'string' ? row.label.trim() : '';
   if (custom !== '') return custom;
   if (slug === '.') return 'Home';
-  // Sub-page rows (files/edit) fall back to their own segment so the tab
-  // shows "edit", not the full path.
+  // Legacy slash-slug rows (files/edit) fall back to their own segment.
   const last = slug.split('/').pop() ?? slug;
   return last || slug;
 }
 
 // resolveInstanceNav applies the spec's `pages` rows and returns the rendered
-// list. Every enabled row becomes an entry; order follows the array so the
-// template author controls the tab serial. Rows may rename their URL path via
-// original_slug (legacy) — the nav always links to the CURRENT slug.
+// list. Every enabled TOP-LEVEL row becomes an entry; order follows the array
+// so the template author controls the tab serial. Rows may rename their URL
+// path via original_slug (legacy) — the nav always links to the CURRENT slug.
+// Sub-pages (rows with a slash slug, or nested sub_pages) are NOT tabs: they
+// live INSIDE their parent page and stay reachable by URL only, so e.g.
+// /files/edit keeps the "Files" tab highlighted (NavLink prefix match).
 export function resolveInstanceNav(spec: Record<string, any> | null | undefined): ResolvedNavEntry[] {
   const pages = Array.isArray(spec?.pages) ? (spec!.pages as any[]) : [];
   const entries: ResolvedNavEntry[] = [];
@@ -53,6 +104,9 @@ export function resolveInstanceNav(spec: Record<string, any> | null | undefined)
     const slug = String(p.slug).trim();
     if (!slug || usedSlugs.has(slug)) continue;
     if (p.enabled === false) continue;
+    // Sub-page rows (legacy flattened "files/edit" rows) belong to their
+    // parent page — never render them as separate top-level tabs.
+    if (slug.includes('/')) continue;
 
     const customIcon = typeof p.icon_svg === 'string' ? p.icon_svg.trim() : '';
     entries.push({
@@ -71,10 +125,11 @@ export function resolveInstanceNav(spec: Record<string, any> | null | undefined)
 // isPageAllowed checks whether `slug` is explicitly allowed (enabled) in the
 // spec. This is the gatekeeper for both sidebar display AND direct URL access.
 // Legacy renamed rows keep granting access through original_slug so old
-// templates don't break after the conversion.
+// templates don't break after the conversion. Sub-pages of enabled parents
+// ("<parent>/<path>", e.g. files/edit) are allowed through their parent row.
 export function isPageAllowed(slug: string, spec: Record<string, any> | null | undefined): boolean {
   const pages = Array.isArray(spec?.pages) ? spec.pages : [];
-  return pages.some((p: any) => {
+  const allowed = pages.some((p: any) => {
     if (!p || typeof p !== 'object' || !p.slug) return false;
     if (p.enabled === false) return false;
     if (typeof p.slug === 'string' && String(p.slug).trim() === slug) return true;
@@ -90,6 +145,9 @@ export function isPageAllowed(slug: string, spec: Record<string, any> | null | u
     }
     return false;
   });
+  if (allowed) return true;
+  // Nested sub-page: allowed when its parent page is enabled and lists it.
+  return findSubPageEntry(slug, spec) !== null;
 }
 
 // PageContent describes custom content rendered by CustomPageView.
@@ -151,11 +209,8 @@ function findPageRow(slug: string, spec: Record<string, any> | null | undefined)
   return fallback;
 }
 
-// getPageContent returns the custom content payload for a resolved slug, or
-// null when the slug has no page row.
-export function getPageContent(slug: string, spec: Record<string, any> | null | undefined): PageContent | null {
-  const p = findPageRow(slug, spec);
-  if (!p) return null;
+// pagePayloadFromRow builds the PageContent payload from a top-level spec row.
+function pagePayloadFromRow(p: any): PageContent {
   const type: PageContentType = ['html', 'markdown', 'blocks'].includes(p.content_type)
     ? p.content_type
     // No explicit content_type: infer from whichever field carries data.
@@ -171,7 +226,59 @@ export function getPageContent(slug: string, spec: Record<string, any> | null | 
   };
 }
 
-// getEnabledPages returns the list of enabled page slugs from the spec.
+// pagePayloadFromSub builds the PageContent payload from one nested sub-page
+// entry (no actions of its own — actions live on the parent row).
+function pagePayloadFromSub(s: any): PageContent {
+  const type: PageContentType = ['html', 'markdown', 'blocks'].includes(s.content_type)
+    ? s.content_type
+    : s.content_html ? 'html'
+    : s.content_blocks ? 'blocks'
+    : 'markdown';
+  return {
+    type,
+    html: typeof s.content_html === 'string' ? s.content_html : undefined,
+    markdown: typeof s.content_markdown === 'string' ? s.content_markdown : undefined,
+    blocks: typeof s.content_blocks === 'string' ? s.content_blocks : undefined,
+  };
+}
+
+// getPageContent returns the custom content payload for a resolved slug, or
+// null when the slug has no page row. Slugs with a slash resolve through the
+// parent row's nested sub_pages ("<parent>/<path>"); legacy flattened rows
+// (slug "files/edit") still match directly first.
+export function getPageContent(slug: string, spec: Record<string, any> | null | undefined): PageContent | null {
+  const p = findPageRow(slug, spec);
+  if (p) return pagePayloadFromRow(p);
+  const hit = findSubPageEntry(slug, spec);
+  if (!hit) return null;
+  return pagePayloadFromSub(hit.sub);
+}
+
+// getPageLabel returns the display label for a resolved slug: the row's
+// label, a sub-page's name ("Editor" for files/edit), "Home" for ".", or
+// null when nothing matches (caller falls back to the slug).
+export function getPageLabel(slug: string, spec: Record<string, any> | null | undefined): string | null {
+  const pages = Array.isArray(spec?.pages) ? spec.pages : [];
+  for (const p of pages) {
+    if (!p || typeof p !== 'object' || !p.slug) continue;
+    if (p.enabled === false) continue;
+    if (String(p.slug).trim() !== slug) continue;
+    const custom = typeof p.label === 'string' ? p.label.trim() : '';
+    if (custom !== '') return custom;
+    break;
+  }
+  const hit = findSubPageEntry(slug, spec);
+  if (hit) {
+    const name = hit.sub && typeof hit.sub.name === 'string' ? hit.sub.name.trim() : '';
+    if (name !== '') return name;
+  }
+  if (slug === '.') return 'Home';
+  return null;
+}
+
+// getEnabledPages returns the list of enabled page slugs from the spec,
+// including nested sub-pages ("<parent>/<path>"). Sub-page rows of enabled
+// parents count as their parent's page.
 // EMPTY-BY-DEFAULT: when the template has no `pages` spec, the enabled list
 // is empty. Template authors opt in by importing pages.
 export function getEnabledPages(spec: Record<string, any> | null | undefined): string[] {
@@ -183,6 +290,15 @@ export function getEnabledPages(spec: Record<string, any> | null | undefined): s
 
   return pages
     .filter((p: any) => p && typeof p === 'object' && p.slug && p.enabled !== false)
-    .map((p: any) => String(p.slug).trim())
-    .filter(Boolean);
+    .flatMap((p: any) => {
+      const slug = String(p.slug).trim();
+      if (!slug) return [];
+      if (slug.includes('/')) return []; // legacy flattened row — covered by its parent
+      const subs = subPagesOf(p)
+        .map((s) => (s && typeof s.path === 'string' && String(s.path).trim() !== '' ? `${slug}/${String(s.path).trim()}` : ''))
+        .filter(Boolean);
+      return [slug, ...subs];
+    })
+    .filter(Boolean)
+    .filter((s, i, arr) => arr.indexOf(s) === i);
 }

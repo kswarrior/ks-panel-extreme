@@ -793,6 +793,25 @@ security_verification() {
 }
 
 # ============================================================================
+# Instance-pages library sync (embedded into the kspanel binary)
+# ============================================================================
+
+sync_pagelib() {
+    local src="$ROOT_DIR/instance_pages"
+    local dst="$PANEL_BACKEND_DIR/internal/pagelib/library"
+    log_step "Syncing instance-pages library into backend embed tree..."
+    if [[ ! -d "$src/pages" ]]; then
+        log_err "instance_pages/pages missing at $src — cannot embed library"
+        exit 1
+    fi
+    rm -rf "$dst"
+    mkdir -p "$dst/pages"
+    cp "$src"/pages/*.json "$dst/pages/" || exit 1
+    [[ -f "$src/marketplace.json" ]] && cp "$src/marketplace.json" "$dst/"
+    log_ok "Embedded $(ls "$dst/pages" | wc -l) library page(s)$( [[ -f "$dst/marketplace.json" ]] && printf ' + marketplace catalog')"
+}
+
+# ============================================================================
 # Cleanup Temporary Files
 # ============================================================================
 
@@ -823,6 +842,12 @@ main() {
 
     # Build frontend
     build_frontend
+
+    # Sync the instance-pages library into the backend embed tree. The panel
+    # binary carries these via internal/pagelib (go:embed), so the local
+    # library / marketplace import flows work on installs that ship a bare
+    # binary with no instance_pages/ directory next to it.
+    sync_pagelib
 
     # Build kspanel
     # Same external-deletion race as above: re-verify the embedded UI is

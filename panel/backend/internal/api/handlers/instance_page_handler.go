@@ -16,6 +16,7 @@ import (
 
 	"github.com/example/kspanel/internal/edge"
 	"github.com/example/kspanel/internal/models"
+	"github.com/example/kspanel/internal/pagelib"
 	"github.com/example/kspanel/internal/repository"
 	"github.com/go-chi/chi/v5"
 )
@@ -456,32 +457,27 @@ func LinkInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 				pageEntry["icon_svg"] = page.IconSVG
 			}
 		}
-		familyIcon, _ := pageEntry["icon_svg"].(string)
 
-		// Sub-page entries — one spec row per definition, slug
-		// "<slug>/<path>" (e.g. files/edit). They inherit the family icon and
-		// enabled flag; labels come from the sub definition.
-		subEntries := make([]map[string]any, 0, len(subs))
-		for _, s := range subs {
-			entry := map[string]any{
-				"slug":             page.Slug + "/" + s.Path,
-				"original_slug":    "",
-				"kind":             "custom",
-				"label":            s.Name,
-				"enabled":          enabled,
-				"content_type":     s.ContentType,
-				"content_html":     s.ContentHTML,
-				"content_markdown": s.ContentMarkdown,
-				"content_blocks":   s.ContentBlocks,
+		// Sub-pages stay INSIDE the family's main row (nested sub_pages,
+		// effective route "<slug>/<path>", e.g. files/edit) so the instance
+		// tab bar lists only the parent page — matching the SPA import flow.
+		if len(subs) > 0 {
+			subsAny := make([]any, 0, len(subs))
+			for _, s := range subs {
+				subsAny = append(subsAny, map[string]any{
+					"path":             s.Path,
+					"name":             s.Name,
+					"content_type":     s.ContentType,
+					"content_html":     s.ContentHTML,
+					"content_markdown": s.ContentMarkdown,
+					"content_blocks":   s.ContentBlocks,
+				})
 			}
-			if familyIcon != "" {
-				entry["icon_svg"] = familyIcon
-			}
-			subEntries = append(subEntries, entry)
+			pageEntry["sub_pages"] = subsAny
 		}
 
 		pagesAny, _ := spec["pages"].([]any)
-		out := make([]any, 0, len(pagesAny)+1+len(subEntries))
+		out := make([]any, 0, len(pagesAny)+1)
 		replaced := false
 		for _, p := range pagesAny {
 			pm, ok := p.(map[string]any)
@@ -497,17 +493,15 @@ func LinkInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			if strings.HasPrefix(s, page.Slug+"/") {
-				// Stale sub-row from a previous link of this family: drop it;
-				// the fresh set is appended below.
+				// Stale flattened sub-row from a previous link of this
+				// family: drop it — sub-pages now live nested on the main
+				// row and legacy sibling rows are no longer produced.
 				continue
 			}
 			out = append(out, p)
 		}
 		if !replaced {
 			out = append(out, pageEntry)
-		}
-		for _, e := range subEntries {
-			out = append(out, e)
 		}
 		spec["pages"] = out
 
@@ -1592,11 +1586,11 @@ type MarketplaceCatalog struct {
 
 // GetMarketplacePagesHandler returns the marketplace catalog.
 func GetMarketplacePagesHandler(w http.ResponseWriter, r *http.Request) {
-	// Read the local marketplace catalog
-	catalogPath := filepath.Join("instance_pages", "marketplace.json")
-	data, err := os.ReadFile(catalogPath)
-	if err != nil {
-		// Return empty catalog if file doesn't exist
+	// Read the marketplace catalog: working-dir instance_pages/marketplace.json
+	// first, then the copy embedded in the binary (internal/pagelib).
+	data, ok := pagelib.ReadCatalog()
+	if !ok {
+		// Return empty catalog if no catalog exists anywhere
 		writeJSON(w, MarketplaceCatalog{
 			Version: "1.0",
 			Updated: time.Now().Format(time.RFC3339),
@@ -1629,10 +1623,11 @@ func ImportInstancePageFromMarketplaceHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// Read the marketplace catalog to find the page
-	catalogPath := filepath.Join("instance_pages", "marketplace.json")
-	data, err := os.ReadFile(catalogPath)
-	if err != nil {
+	// Read the marketplace catalog to find the page — disk first, embedded
+	// fallback (same source GetMarketplacePagesHandler serves from, so the
+	// list and the import can never disagree).
+	data, ok := pagelib.ReadCatalog()
+	if !ok {
 		http.Error(w, "marketplace catalog not found", http.StatusNotFound)
 		return
 	}
@@ -1655,22 +1650,41 @@ func ImportInstancePageFromMarketplaceHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// Fetch the page definition from the download URL
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get(marketplacePage.DownloadURL)
-	if err != nil {
-		http.Error(w, "failed to fetch page from marketplace: "+err.Error(), http.StatusBadGateway)
-		return
-	}
-	defer resp.Body.Close()
+	// Fetch the page definition from the download URL. Relative entries
+	// ("instance_pages/pages/home.json" in the shipped catalog) resolve from
+	// the local/embedded library instead of http.Get, which cannot fetch
+	// them and would fail with "unsupported protocol scheme".
+	var pageBytes []byte
+	if !strings.Contains(marketplacePage.DownloadURL, "://") {
+		b, ok := pagelib.Read(filepath.Base(marketplacePage.DownloadURL))
+		if !ok {
+			http.Error(w, "marketplace page not found in the local library: "+marketplacePage.DownloadURL, http.StatusNotFound)
+			return
+		}
+		pageBytes = b
+	} else {
+		client := &http.Client{Timeout: 10 * time.Second}
+		resp, err := client.Get(marketplacePage.DownloadURL)
+		if err != nil {
+			http.Error(w, "failed to fetch page from marketplace: "+err.Error(), http.StatusBadGateway)
+			return
+		}
+		defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		http.Error(w, fmt.Sprintf("marketplace download URL returned status %d", resp.StatusCode), http.StatusBadGateway)
-		return
+		if resp.StatusCode != http.StatusOK {
+			http.Error(w, fmt.Sprintf("marketplace download URL returned status %d", resp.StatusCode), http.StatusBadGateway)
+			return
+		}
+		b, rerr := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
+		if rerr != nil {
+			http.Error(w, "failed to read marketplace page: "+rerr.Error(), http.StatusBadGateway)
+			return
+		}
+		pageBytes = b
 	}
 
 	var pageReq ImportInstancePageRequest
-	if err := json.NewDecoder(resp.Body).Decode(&pageReq); err != nil {
+	if err := json.Unmarshal(pageBytes, &pageReq); err != nil {
 		http.Error(w, "invalid JSON from marketplace: "+err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -1690,9 +1704,9 @@ func ImportInstancePageFromMarketplaceHandler(w http.ResponseWriter, r *http.Req
 		Actions:         pageReq.Actions,
 		SubPages:        pageReq.subPagesJSON(),
 	}
-	dto, err = validateInstancePage(dto)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	dto, verr := validateInstancePage(dto)
+	if verr != nil {
+		http.Error(w, verr.Error(), http.StatusBadRequest)
 		return
 	}
 	if dto.ContentType == "" {
@@ -1741,38 +1755,25 @@ func ImportInstancePageFromMarketplaceHandler(w http.ResponseWriter, r *http.Req
 	writeJSON(w, map[string]any{"id": id, "message": "Page imported successfully from marketplace"})
 }
 
-// ListLocalInstancePagesHandler returns instance pages from the local instance_pages directory.
+// ListLocalInstancePagesHandler returns instance pages from the local
+// instance_pages directory (top level + pages/), falling back to the library
+// embedded in the binary via internal/pagelib when no on-disk copy exists.
+// Entries that fail to parse are skipped with a log line so one broken file
+// can't blank the whole list.
 func ListLocalInstancePagesHandler(w http.ResponseWriter, r *http.Request) {
-	pagesDir := "instance_pages"
-	entries, err := os.ReadDir(pagesDir)
-	if err != nil {
-		writeJSON(w, []ImportInstancePageRequest{})
-		return
-	}
-
-	var pages []ImportInstancePageRequest
-	for _, entry := range entries {
-		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
+	pages := []ImportInstancePageRequest{}
+	for _, name := range pagelib.ListNames() {
+		data, ok := pagelib.Read(name)
+		if !ok {
 			continue
 		}
-		if entry.Name() == "marketplace.json" || entry.Name() == "README.md" {
-			continue
-		}
-
-		filePath := filepath.Join(pagesDir, entry.Name())
-		data, err := os.ReadFile(filePath)
-		if err != nil {
-			continue
-		}
-
 		var pageReq ImportInstancePageRequest
 		if err := json.Unmarshal(data, &pageReq); err != nil {
+			log.Printf("ListLocalInstancePages: skipping %s: %v", name, err)
 			continue
 		}
-
 		pages = append(pages, pageReq)
 	}
-
 	writeJSON(w, pages)
 }
 
@@ -1790,15 +1791,11 @@ func ImportLocalInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Security: prevent path traversal
-	if strings.Contains(req.Filename, "..") || strings.Contains(req.Filename, "/") || strings.Contains(req.Filename, "\\") {
-		http.Error(w, "invalid filename", http.StatusBadRequest)
-		return
-	}
-
-	filePath := filepath.Join("instance_pages", req.Filename)
-	data, err := os.ReadFile(filePath)
-	if err != nil {
+	// Resolve the file through pagelib: working-dir instance_pages/ (top
+	// level + pages/) first, then the binary-embedded library. Read() only
+	// accepts a bare basename, so the path-traversal guard lives in one place.
+	data, ok := pagelib.Read(req.Filename)
+	if !ok {
 		http.Error(w, "file not found", http.StatusNotFound)
 		return
 	}
@@ -1824,9 +1821,9 @@ func ImportLocalInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		Actions:         pageReq.Actions,
 		SubPages:        pageReq.subPagesJSON(),
 	}
-	dto, err = validateInstancePage(dto)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	dto, verr := validateInstancePage(dto)
+	if verr != nil {
+		http.Error(w, verr.Error(), http.StatusBadRequest)
 		return
 	}
 	if dto.ContentType == "" {

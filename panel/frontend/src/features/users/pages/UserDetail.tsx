@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getPublicProfile } from '@/features/account/api/profile';
-import { listRoles, listUsers } from '@/shared/api/admin';
+import { listRoles, listUsers, listInstances, listAdminApiKeys } from '@/shared/api/admin';
 import type { Profile, Role, User } from '@/shared/types/user';
 import GlassCard from '@/shared/components/ui/Card';
 import Avatar from '@/shared/components/ui/Avatar';
@@ -53,6 +53,8 @@ const UserDetail: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState<string>('');
+  const [instanceCount, setInstanceCount] = useState<number | null>(null);
+  const [apiKeyCount, setApiKeyCount] = useState<number | null>(null);
 
   const numericId = id ? Number(id) : NaN;
   const validId = Number.isFinite(numericId) && numericId > 0;
@@ -80,6 +82,13 @@ const UserDetail: React.FC = () => {
         setUserRow(u);
         const r = (roles as Role[]).find((x) => x.id === (u?.role_id ?? (prof as any).role_id)) || null;
         setRole(r);
+        // best-effort cross-entity stats (permission-gated endpoints degrade silently)
+        listInstances().then((all) => {
+          if (!cancelled) setInstanceCount(all.filter((i) => i.owner_id === numericId).length);
+        }).catch(() => {});
+        listAdminApiKeys().then((keys) => {
+          if (!cancelled) setApiKeyCount(keys.filter((k) => k.user_id === numericId).length);
+        }).catch(() => {});
       } catch (e: any) {
         if (!cancelled) setError(getErrorMessage(e, 'Failed to load user profile'));
       } finally {
@@ -294,6 +303,12 @@ const UserDetail: React.FC = () => {
                 ) : `ID ${profile.role_id}`}
               </span>
             </div>
+            {role?.description && (
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-gray-400 shrink-0">Role notes</span>
+                <span className="text-white text-xs truncate max-w-[160px] text-right" title={role.description}>{role.description}</span>
+              </div>
+            )}
             <div className="flex items-center justify-between gap-2">
               <span className="text-gray-400">Status</span>
               <span className={isSuspended ? 'text-red-300' : 'text-emerald-300'}>{isSuspended ? 'Suspended' : 'Active'}</span>
@@ -352,6 +367,14 @@ const UserDetail: React.FC = () => {
             <div className="flex items-center justify-between gap-2">
               <span className="text-gray-400">Social links</span>
               <span className="text-white">{profile.social_links?.length ?? 0}</span>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-gray-400">Instances owned</span>
+              <button onClick={() => navigate('/instances')} className="text-xs text-sky-300 hover:text-sky-200 hover:underline" title="Open instances">{instanceCount === null ? '—' : instanceCount}</button>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-gray-400">API keys</span>
+              <button onClick={() => navigate('/api-keys')} className="text-xs text-sky-300 hover:text-sky-200 hover:underline" title="Open API keys">{apiKeyCount === null ? '—' : apiKeyCount}</button>
             </div>
             <div className="pt-2 flex gap-2">
               <button onClick={() => navigate(`/users/${profile.id}/edit`)} className="flex-1 px-3 py-1.5 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white">Edit user</button>

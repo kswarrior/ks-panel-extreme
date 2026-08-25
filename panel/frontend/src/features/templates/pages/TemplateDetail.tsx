@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { listTemplates, downloadTemplate, listInstances } from '@/shared/api/admin';
+import { listTemplates, downloadTemplate, listInstances, deleteTemplate } from '@/shared/api/admin';
 import type { Template } from '@/shared/types/instance';
 import GlassCard from '@/shared/components/ui/Card';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
@@ -60,8 +60,9 @@ const TemplateDetail: React.FC = () => {
   const [error, setError] = useState('');
   const [specOpen, setSpecOpen] = useState(false);
   const [copied, setCopied] = useState('');
-  const [instanceCount, setInstanceCount] = useState<number | null>(null);
+  const [instanceStats, setInstanceStats] = useState<{ total: number; running: number; stopped: number } | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const numericId = id ? Number(id) : NaN;
   const validId = Number.isFinite(numericId) && numericId > 0;
@@ -85,9 +86,15 @@ const TemplateDetail: React.FC = () => {
         if (!t) {
           setError('');
         } else {
-          // best-effort instance count
+          // best-effort instance usage breakdown
           listInstances().then((all) => {
-            if (!cancelled) setInstanceCount(all.filter((ins) => ins.template_id === numericId).length);
+            if (cancelled) return;
+            const mine = all.filter((ins) => ins.template_id === numericId);
+            setInstanceStats({
+              total: mine.length,
+              running: mine.filter((i) => i.status === 'running').length,
+              stopped: mine.filter((i) => i.status === 'stopped').length,
+            });
           }).catch(() => {});
         }
       } catch (e: any) {
@@ -127,6 +134,19 @@ const TemplateDetail: React.FC = () => {
       alert(getErrorMessage(e, 'Download failed'));
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!template) return;
+    if (!confirm(`Delete template "${template.name}"? This cannot be undone.`)) return;
+    setDeleting(true);
+    try {
+      await deleteTemplate(template.id);
+      navigate('/templates');
+    } catch (e: any) {
+      alert(getErrorMessage(e, 'Failed to delete template'));
+      setDeleting(false);
     }
   };
 
@@ -180,6 +200,9 @@ const TemplateDetail: React.FC = () => {
   }
 
   const spec = parseSpec(template.spec);
+  // Surface invalid JSON instead of silently rendering empty sections.
+  let specInvalid = false;
+  try { JSON.parse(template.spec || '{}'); } catch { specInvalid = true; }
   const kind = kindMeta(template.kind);
   const limits = spec.limits || {};
   const ports: any[] = Array.isArray(spec.ports) ? spec.ports : [];
@@ -210,12 +233,14 @@ const TemplateDetail: React.FC = () => {
             { key: 'download', label: downloading ? 'Downloading…' : 'Download JSON', tone: 'default' },
             { key: 'copyId', label: copied === 'id' ? 'Copied!' : 'Copy ID', tone: 'default' },
             { key: 'copySpec', label: copied === 'spec' ? 'Copied!' : 'Copy spec', tone: 'default' },
+            { key: 'delete', label: deleting ? 'Deleting…' : 'Delete', tone: 'danger', disabled: deleting },
           ]}
           onSelect={(k) => {
             if (k === 'edit') navigate(`/templates/${template.id}/edit`);
             if (k === 'download') handleDownload();
             if (k === 'copyId') copy(String(template.id), 'id');
             if (k === 'copySpec') copy(prettySpec, 'spec');
+            if (k === 'delete') handleDelete();
           }}
         />
       </div>
@@ -252,8 +277,15 @@ const TemplateDetail: React.FC = () => {
           </div>
           <div className="rounded-lg border border-white/5 bg-white/[0.02] p-2.5">
             <h4 className="text-[10px] uppercase tracking-wide text-gray-500">Instances</h4>
-            <p className="text-lg font-semibold text-white leading-none mt-1">{instanceCount === null ? '—' : instanceCount}</p>
-            <p className="text-[11px] text-gray-500">using this template</p>
+            <p className="text-lg font-semibold text-white leading-none mt-1">{instanceStats === null ? '—' : instanceStats.total}</p>
+            {instanceStats && instanceStats.total > 0 ? (
+              <>
+                <p className="text-[11px] text-gray-500">{instanceStats.running} running · {instanceStats.stopped} stopped</p>
+                <button onClick={() => navigate('/instances')} className="mt-1 text-[11px] text-sky-300 hover:text-sky-200 hover:underline">View instances →</button>
+              </>
+            ) : (
+              <p className="text-[11px] text-gray-500">{instanceStats === null ? 'loading usage…' : 'no instances use this template'}</p>
+            )}
           </div>
           <div className="rounded-lg border border-white/5 bg-white/[0.02] p-2.5">
             <h4 className="text-[10px] uppercase tracking-wide text-gray-500">Spec items</h4>
@@ -266,6 +298,16 @@ const TemplateDetail: React.FC = () => {
           <div className="mt-4">
             <h4 className="text-xs uppercase tracking-wide text-gray-500 mb-1">Description</h4>
             <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap break-words">{template.description}</p>
+          </div>
+        )}
+
+        {specInvalid && (
+          <div className="mt-4 rounded-lg border border-amber-700/40 bg-amber-900/30 px-3 py-2 flex items-start gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4 text-amber-300 shrink-0 mt-0.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+            <div>
+              <p className="text-xs font-medium text-amber-200">Spec is not valid JSON</p>
+              <p className="text-[11px] text-amber-200/70 mt-0.5">The sections below may be incomplete. Fix the spec in the template editor.</p>
+            </div>
           </div>
         )}
 

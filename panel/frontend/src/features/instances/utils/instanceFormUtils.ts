@@ -133,6 +133,21 @@ export function specToEditor(spec: string): EditorState {
         content_html: typeof p.content_html === 'string' ? p.content_html : '',
         content_markdown: typeof p.content_markdown === 'string' ? p.content_markdown : '',
         content_blocks: typeof p.content_blocks === 'string' ? p.content_blocks : '',
+        // Multi-page support: keep nested sub-pages attached to the row.
+        ...(Array.isArray(p.sub_pages)
+          ? {
+              sub_pages: p.sub_pages
+                .filter((s: any) => !!s && typeof s === 'object' && typeof s.path === 'string' && String(s.path).trim() !== '')
+                .map((s: any) => ({
+                  path: String(s.path),
+                  name: String(s.name ?? s.path),
+                  content_type: (['html', 'markdown', 'blocks'].includes(s.content_type) ? s.content_type : 'html') as 'html' | 'markdown' | 'blocks',
+                  content_html: typeof s.content_html === 'string' ? s.content_html : '',
+                  content_markdown: typeof s.content_markdown === 'string' ? s.content_markdown : '',
+                  content_blocks: typeof s.content_blocks === 'string' ? s.content_blocks : '',
+                })),
+            }
+          : {}),
       });
     });
 
@@ -283,6 +298,17 @@ export function serializeEditor(f: EditorState): Record<string, unknown> {
       if (p.content_html) out.content_html = p.content_html;
       if (p.content_markdown) out.content_markdown = p.content_markdown;
       if (p.content_blocks) out.content_blocks = p.content_blocks;
+      // Multi-page support: nested sub-pages ride on the parent row.
+      if (p.sub_pages && p.sub_pages.length > 0) {
+        out.sub_pages = p.sub_pages.map((s) => ({
+          path: s.path,
+          name: s.name,
+          content_type: s.content_type,
+          ...(s.content_html ? { content_html: s.content_html } : {}),
+          ...(s.content_markdown ? { content_markdown: s.content_markdown } : {}),
+          ...(s.content_blocks ? { content_blocks: s.content_blocks } : {}),
+        }));
+      }
       return out;
     }),
     healthcheck: f.healthcheck.enabled ? {

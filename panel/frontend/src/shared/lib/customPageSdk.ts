@@ -129,6 +129,12 @@ export interface CustomPageAPI {
   // Polling-based subscriptions (since edge doesn't push)
   subscribe: (action: PageAction, callback: (result: ActionResult) => void, intervalMs?: number) => () => void;
   
+  // ==================== NAVIGATION ====================
+  // Navigate the panel SPA to another route WITHIN this same instance
+  // (e.g. "/instances/12/files/edit?path=/etc/app.conf"). Anything outside
+  // /instances/<this-id>/** is rejected by pageNavigateTarget.
+  navigate: (to: string) => void;
+  
   // ==================== UTILITIES ====================
   toast: (message: string, type?: 'success' | 'error' | 'info' | 'warning') => void;
   confirm: (message: string) => Promise<boolean>;
@@ -162,6 +168,27 @@ declare global {
 }
 
 window.KSPageSDK = null;
+
+// pageNavigateTarget validates a custom-page navigation request and returns
+// the absolute SPA path to navigate to, or null when the target is outside
+// this instance's own route tree. Fail closed: scheme/protocol-relative URLs,
+// oversized values and any path not under /instances/<id> are rejected, so a
+// page can never steer the operator into another instance or an admin surface.
+export function pageNavigateTarget(instanceId: number, to: unknown): string | null {
+  if (typeof to !== 'string') return null;
+  const t = to.trim();
+  if (!t || t.length > 2048) return null;
+  // Absolute (http:, javascript:, …) and protocol-relative URLs: rejected.
+  if (/^[a-z][a-z0-9+.-]*:/i.test(t) || t.startsWith('//')) return null;
+  // Dot segments could escape the instance prefix after client-side
+  // normalisation (/instances/5/../users) — reject outright.
+  const qIdx = t.indexOf('?');
+  const pathOnly = qIdx >= 0 ? t.slice(0, qIdx) : t;
+  if (pathOnly.split('/').some((seg) => seg === '.' || seg === '..')) return null;
+  const base = `/instances/${instanceId}`;
+  if (t === base || t.startsWith(base + '/') || t.startsWith(base + '?')) return t;
+  return null;
+}
 
 // ============================================================================
 // SDK IMPLEMENTATION
@@ -356,6 +383,12 @@ export function createCustomPageSDK(instanceContext: InstanceContext, savedActio
     subscribe,
     
     // Utilities
+    // Navigation (host-origin pages): announce through a window event —
+    // the router-owning shell listens and performs the SPA navigation after
+    // re-validating the target. Iframe pages go through the bridge instead.
+    navigate: (to: string) => {
+      window.dispatchEvent(new CustomEvent('ks-navigate', { detail: { to } }));
+    },
     toast,
     confirm: (msg) => Promise.resolve(window.confirm(msg)),
     prompt: (msg, def = '') => Promise.resolve(window.prompt(msg, def)),

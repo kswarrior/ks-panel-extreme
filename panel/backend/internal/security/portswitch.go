@@ -45,6 +45,12 @@ type PortSwitcher struct {
 	srv     *http.Server
 	primary int // port the panel launched on
 
+	// homePort is the port a --type ddos emergency launch (ddos.sh) must
+	// return to once the attack window closes: the saved panel_port at
+	// launch time. 0 (unknown / fresh install) disables the return-home
+	// move so the switcher never bounces to port 0.
+	homePort int
+
 	mu         sync.Mutex
 	ln         net.Listener
 	activePort int
@@ -67,10 +73,16 @@ var (
 // the process-wide switcher, and returns a channel that closes when the
 // server stops serving for good (i.e. after srv.Shutdown) — launch code
 // blocks on it exactly like it used to block on srv.Serve.
-func StartPortSwitcher(srv *http.Server, ln net.Listener, primaryPort int) <-chan struct{} {
+//
+// homePort carries the --type ddos return target (0 = none): while the
+// DDoS window is active the panel stays on primaryPort, and once it
+// expires reconcile moves serving back to homePort, closing the parked
+// port — see PortSwitcher.homePort.
+func StartPortSwitcher(srv *http.Server, ln net.Listener, primaryPort int, homePort int) <-chan struct{} {
 	p := &PortSwitcher{
 		srv:        srv,
 		primary:    primaryPort,
+		homePort:   homePort,
 		ln:         ln,
 		activePort: primaryPort,
 		done:       make(chan struct{}),
@@ -149,6 +161,15 @@ func (p *PortSwitcher) reconcile() {
 		cfg.DDOSAltPort >= 1 && cfg.DDOSAltPort <= 65535 &&
 		int(cfg.DDOSAltPort) != p.primary {
 		want = int(cfg.DDOSAltPort)
+	}
+
+	// A --type ddos launch parks on the alternate port as its primary;
+	// once the attack window closes (DDOSActive cleared above), move back
+	// to the real home port so the parked port is vacated and the panel
+	// resumes on the original one. While the window is active this rule
+	// stays out of the way and the panel keeps serving the parked port.
+	if p.homePort > 0 && p.homePort != p.primary && !s.DDOSActive() {
+		want = p.homePort
 	}
 
 	if want == p.currentPort() {

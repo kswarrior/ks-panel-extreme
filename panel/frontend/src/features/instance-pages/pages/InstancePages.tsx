@@ -9,7 +9,6 @@ import {
 import type { InstancePage } from '@/shared/types/instancePage';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import GlassCard from '@/shared/components/ui/Card';
-import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import Modal from '@/shared/components/ui/Modal';
 
@@ -428,8 +427,8 @@ const InstancePages: React.FC = () => {
               return (
                 <article key={p.id} id={`ks-instancepage-${p.id}`} className="ks-card ks-list-card group relative glass-card rounded-xl flex flex-col gap-3 hover:border-white/20 transition-colors">
                   <header className="flex items-start gap-3 min-w-0 relative">
-                    <div className="shrink-0 w-10 h-10 rounded-lg flex items-center justify-center border bg-white/[0.05] border-white/10 text-gray-300" aria-hidden="true">
-                      <KindIcon kind={e.kind} className="w-5 h-5" />
+                    <div className="shrink-0 w-12 h-12 rounded-lg flex items-center justify-center border bg-white/[0.05] border-white/10 text-gray-300" aria-hidden="true">
+                      <KindIcon kind={e.kind} className="w-6 h-6" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <h3 className="text-sm font-semibold text-white truncate leading-tight">{p.name}</h3>
@@ -474,32 +473,7 @@ const InstancePages: React.FC = () => {
                         <>id {p.id}</>
                       )}
                     </span>
-                    <CardMenu
-                      ariaLabel={`Actions for instance page ${p.name}`}
-                      items={e.kind === 'builtin' ? [] : [
-                        {
-                          key: 'edit',
-                          label: 'Edit',
-                          tone: 'default',
-                          icon: (
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" /> </svg>
-                          ),
-                        },
-                        {
-                          key: 'delete',
-                          label: deletingId === p.id ? 'Deleting…' : 'Delete',
-                          tone: 'danger',
-                          disabled: deletingId === p.id,
-                          icon: (
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /> </svg>
-                          ),
-                        },
-                      ]}
-                      onSelect={(key) => {
-                        if (key === 'edit') openEdit(p);
-                        else if (key === 'delete') remove(p);
-                      }}
-                    />
+                    <Link to={`/instance-pages/${p.id}`} className="text-[11px] text-sky-300 hover:text-sky-200 hover:underline">View details →</Link>
                   </footer>
                 </article>
               );
@@ -522,7 +496,19 @@ const InstancePages: React.FC = () => {
         )}
 
         {!loading && pages.length === 0 && !error && (
-          <div className="ks-card ks-form-card rounded-xl text-center text-gray-400">No instance pages yet. Click the <strong className="text-sky-300">+</strong> button to upload a page, import from a URL, or open Studio.</div>
+          <div className="flex flex-col items-center justify-center min-h-[40vh] px-4 animate-fade-in">
+            <div className="flex flex-col items-center gap-4">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-20 h-20 text-gray-400" aria-hidden="true">
+                <rect x="7" y="4" width="13" height="15" rx="2" />
+                <path d="M7 9H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-1" />
+                <line x1="11" y1="9" x2="17" y2="9" opacity="0.7" />
+                <line x1="11" y1="13" x2="17" y2="13" opacity="0.7" />
+                <line x1="11" y1="17" x2="15" y2="17" opacity="0.5" />
+              </svg>
+              <p className="text-lg font-medium text-gray-300">No instance pages yet</p>
+              <p className="text-sm text-gray-400 text-center max-w-md">Click the <strong className="text-sky-300">+</strong> button to upload a page, import from a URL, or open Studio.</p>
+            </div>
+          </div>
         )}
         <ImportModalContent />
       </div>

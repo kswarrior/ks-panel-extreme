@@ -13,17 +13,34 @@
 // (empty-by-default: no rows → no pages). Home uses slug "." and renders at
 // the index route when its page row was imported.
 
-import React, { useMemo } from 'react';
-import { Outlet, useParams } from 'react-router-dom';
+import React, { useEffect, useMemo } from 'react';
+import { Outlet, useNavigate, useParams } from 'react-router-dom';
 import { useInstance, parseConfig } from '@/shared/hooks/useInstance';
 import { useInstanceNavSync } from '@/shared/components/layout/InstanceNavContext';
-import { getPageContent, isPageAllowed } from '@/shared/utils/instancePages';
+import { getPageContent, getPageLabel, isPageAllowed } from '@/shared/utils/instancePages';
+import { pageNavigateTarget } from '@/shared/lib/customPageSdk';
 import CustomPageView from '@/shared/components/ui/CustomPageView';
 
 export const InstancePanel: React.FC = () => {
   const { id } = useParams();
   const instanceId = Number(id);
   const { instance, loading } = useInstance(instanceId);
+  const navigate = useNavigate();
+  // Host-origin pages (markdown/blocks render inside the SPA, not an iframe)
+  // request navigation through the sdk.navigate() → 'ks-navigate' window
+  // event. The target is re-validated here so a page can only move within
+  // its own instance's route tree (same fail-closed rule as the iframe
+  // bridge in CustomPageView).
+  useEffect(() => {
+    if (!instanceId) return;
+    const onNavigate = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { to?: unknown } | undefined;
+      const target = pageNavigateTarget(instanceId, detail?.to);
+      if (target) navigate(target);
+    };
+    window.addEventListener('ks-navigate', onNavigate);
+    return () => window.removeEventListener('ks-navigate', onNavigate);
+  }, [instanceId, navigate]);
   // The parsed spec must be referentially stable across re-renders of this
   // shell. parseConfig() hands back a brand-new object on every call, and
   // useInstanceNavSync keyed its effect on that object — once the instance
@@ -108,12 +125,9 @@ export const InstanceDynamicPage: React.FC = () => {
     );
   }
 
-  const row = Array.isArray(spec?.pages)
-    ? spec!.pages.find((p: any) => p && typeof p === 'object' && p.slug === effectiveSlug && p.enabled !== false)
-    : null;
-  const label = (row && typeof row.label === 'string' && row.label.trim() !== '')
-    ? row.label.trim()
-    : (effectiveSlug === '.' ? 'Home' : effectiveSlug);
+  // Label: the row's label, a nested sub-page's name ("Editor" for
+  // files/edit), "Home" for ".", or the raw slug as last resort.
+  const label = getPageLabel(effectiveSlug, spec) ?? (effectiveSlug === '.' ? 'Home' : effectiveSlug);
 
   const content = getPageContent(effectiveSlug, spec);
   if (!content || (!content.html && !content.markdown && !content.blocks)) {

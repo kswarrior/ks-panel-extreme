@@ -1,6 +1,7 @@
 // InstanceForm types - extracted from InstanceForm.tsx
 
 import type { Template } from '@/shared/types/instance';
+import type { InstancePageSubPage } from '@/features/instance-pages/types/instancePage';
 
 export type KindKey = 'docker' | 'lxd' | 'kvm' | 'multipass' | 'unknown';
 
@@ -218,6 +219,10 @@ export interface PageOverride {
   content_html?: string;
   content_markdown?: string;
   content_blocks?: string;
+  /** Multi-page support: extra pages nested INSIDE this row. Effective route
+   *  of each is "<slug>/<path>" (e.g. files/edit); they never render as
+   *  separate top-level tabs. */
+  sub_pages?: InstancePageSubPage[];
 }
 
 export interface EditorState {

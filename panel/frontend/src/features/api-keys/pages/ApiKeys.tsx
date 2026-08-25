@@ -10,7 +10,6 @@ import {
 import type { ApiKey } from '@/shared/types/apiKey';
 import type { User, Permission } from '@/shared/types/user';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
-import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import GlassCard from '@/shared/components/ui/Card';
 
@@ -325,84 +324,7 @@ const AdminApiKeys: React.FC = () => {
                       <> · Last used {new Date(k.last_used_at).toLocaleDateString()}</>
                     )}
                   </span>
-                  <CardMenu
-                    ariaLabel={`Actions for API key ${k.name}`}
-                    items={[
-                      // Toggle: the key is active; toggling off is
-                      // a one-click soft revoke.
-                      {
-                        kind: 'toggle',
-                        key: 'active',
-                        label: 'Active',
-                        checked: k.active ?? true,
-                        hint:
-                          (k.active ?? true)
-                            ? 'Token accepts requests'
-                            : 'Token is revoked — requests will 401',
-                      },
-                      // Submenu: live per-permission toggles. Children
-                      // are checkbox rows for each permission known to
-                      // the panel; seeding flips draws on either the
-                      // existing permission set the server returned (or
-                      // local view state if the user has changed it).
-                      {
-                        kind: 'submenu',
-                        key: 'perms',
-                        label: 'Permissions…',
-                        children: permissions.map((p) => {
-                          const cur =
-                            localPermState[k.id]?.[p.key] ??
-                            k.permissions.includes(p.key);
-                          return {
-                            kind: 'checkbox' as const,
-                            key: `perm-${p.key}`,
-                            label: p.key,
-                            checked: cur,
-                            hint: p.description,
-                          };
-                        }),
-                      },
-                      { kind: 'separator', key: 'sep1' },
-                        {
-                          key: 'view',
-                          label: 'View',
-                          tone: 'default',
-                        },
-                        {
-                          key: 'edit',
-                          label: 'Edit',
-                          tone: 'default',
-                          icon: (
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" /> </svg>
-                          ),
-                        },
-                        {
-                          key: 'delete',
-                        label: deletingId === k.id ? 'Deleting…' : 'Delete',
-                        tone: 'danger',
-                        disabled: deletingId === k.id,
-                        icon: (
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /> </svg>
-                        ),
-                      },
-                    ]}
-                     onSelect={(key) => {
-                       if (key === 'view') navigate(`/api-keys/${k.id}`);
-                       else if (key === 'edit') openEdit(k);
-                       else if (key === 'delete') remove(k);
-                     }}
-                    onToggle={(key, next) => {
-                      if (key === 'active') {
-                        toggleActive(k, next);
-                      } else if (key.startsWith('perm-')) {
-                        const p = key.slice(5);
-                        setLocalPermState((s) => ({
-                          ...s,
-                          [k.id]: { ...(s[k.id] || {}), [p]: next },
-                        }));
-                      }
-                    }}
-                  />
+                  <Link to={`/api-key/${k.id}`} className="text-[11px] text-sky-300 hover:text-sky-200 hover:underline">View details →</Link>
                 </footer>
               </article>
             );

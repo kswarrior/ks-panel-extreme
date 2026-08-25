@@ -221,6 +221,11 @@ const ApiKeyDetail: React.FC = () => {
   const rateWindow = key.rate_window_seconds ?? 60;
   const isActive = key.active ?? true;
   const isUnlimited = !rateLimit || rateLimit <= 0;
+  const windowLabel = rateWindow % 3600 === 0
+    ? `${rateWindow / 3600} hour${rateWindow / 3600 > 1 ? 's' : ''}`
+    : rateWindow % 60 === 0
+      ? `${rateWindow / 60} minute${rateWindow / 60 > 1 ? 's' : ''}`
+      : `${rateWindow} seconds`;
 
   return (
     <div className="space-y-4">
@@ -247,6 +252,7 @@ const ApiKeyDetail: React.FC = () => {
             { key: 'toggle', label: toggling ? '…' : isActive ? 'Revoke' : 'Activate', tone: isActive ? 'danger' : 'default' },
             { key: 'copyId', label: copied === 'id' ? 'Copied!' : 'Copy ID', tone: 'default' },
             { key: 'copyPrefix', label: copied === 'prefix' ? 'Copied!' : 'Copy prefix', tone: 'default' },
+            { key: 'copyPerms', label: copied === 'perms' ? 'Copied!' : 'Copy permissions JSON', tone: 'default' },
             { key: 'delete', label: deleting ? 'Deleting…' : 'Delete', tone: 'danger' },
           ]}
           onSelect={(k) => {
@@ -254,6 +260,7 @@ const ApiKeyDetail: React.FC = () => {
             if (k === 'toggle') toggleActive();
             if (k === 'copyId') copy(String(key.id), 'id');
             if (k === 'copyPrefix') copy(key.prefix, 'prefix');
+            if (k === 'copyPerms') copy(JSON.stringify(key.permissions || [], null, 2), 'perms');
             if (k === 'delete') handleDelete();
           }}
         />
@@ -286,7 +293,7 @@ const ApiKeyDetail: React.FC = () => {
           <h4 className="text-xs uppercase tracking-wide text-gray-500">Timeline</h4>
           <div className="mt-2 space-y-1.5 text-sm">
             <div className="flex justify-between gap-2"><span className="text-gray-400">Created</span><span className="text-white text-xs" title={formatDate(key.created_at)}>{formatDateShort(key.created_at)} <span className="text-gray-500">· {relativeTime(key.created_at)}</span></span></div>
-            <div className="flex justify-between gap-2"><span className="text-gray-400">Last used</span><span className="text-white text-xs">{key.last_used_at ? <span title={formatDate(key.last_used_at)}>{formatDateShort(key.last_used_at)} · {relativeTime(key.last_used_at)}</span> : <span className="text-gray-500">never</span>}</span></div>
+            <div className="flex justify-between gap-2"><span className="text-gray-400">Last used</span><span className="text-white text-xs inline-flex items-center gap-1.5">{key.last_used_at ? <span title={formatDate(key.last_used_at)}>{formatDateShort(key.last_used_at)} · {relativeTime(key.last_used_at)}</span> : <><span className="text-gray-500">never</span><span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-900/30 border border-amber-700/30 text-amber-200">unused</span></>}</span></div>
             <div className="flex justify-between gap-2"><span className="text-gray-400">Expires</span><span className={isExpired ? 'text-red-300 text-xs' : 'text-white text-xs'}>{key.expires_at ? <span title={formatDate(key.expires_at)}>{formatDateShort(key.expires_at)} · {relativeTime(key.expires_at)}</span> : 'Never'}</span></div>
             <div className="pt-1 flex gap-2">
               <button onClick={() => navigate(`/api-keys/${key.id}/edit`)} className="flex-1 px-3 py-1.5 text-xs rounded-md bg-white text-black hover:bg-gray-200">Edit</button>
@@ -333,18 +340,18 @@ const ApiKeyDetail: React.FC = () => {
           {isUnlimited ? (
             <div className="flex items-center gap-2">
               <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wide px-2 py-1 rounded-md border bg-emerald-900/30 border-emerald-700/30 text-emerald-200">Unlimited</span>
-              <span className="text-xs text-gray-500">No request cap set · window {rateWindow}s</span>
+              <span className="text-xs text-gray-500">No request cap set · window {windowLabel}</span>
             </div>
           ) : (
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-gray-300">{rateLimit} req / {rateWindow}s</span>
-                <span className="text-xs text-gray-400">{rateLimit} / {rateWindow}s</span>
+                <span className="text-xs text-gray-400">{rateLimit} / {windowLabel}</span>
               </div>
               <div className="h-2 rounded-full bg-white/10 overflow-hidden">
                 <div className="h-full rounded-full" style={{ width: '100%', background: 'linear-gradient(90deg, #38bdf8, #818cf8)' }} />
               </div>
-              <p className="text-[11px] text-gray-500">Max {rateLimit} requests per {rateWindow} second window. Exceeding returns 429.</p>
+              <p className="text-[11px] text-gray-500">Max {rateLimit} requests per {windowLabel}. Exceeding returns 429.</p>
             </div>
           )}
           <div className="mt-3 flex flex-wrap gap-1.5">

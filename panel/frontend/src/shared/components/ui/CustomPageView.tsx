@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef } from 'react';
-import { createCustomPageSDK, type InstanceContext } from '@/shared/lib/customPageSdk';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { createCustomPageSDK, pageNavigateTarget, type InstanceContext } from '@/shared/lib/customPageSdk';
 import { useThemeStore } from '@/shared/stores/themeStore';
 import type { Theme } from '@/features/themes/types/theme';
 import { rgbaAt } from '@/theme/colorUtils';
@@ -270,6 +271,8 @@ const BRIDGE_METHODS = [
   'shell', 'readFile', 'writeFile', 'listFiles', 'deleteFile', 'createDirectory',
   'docker', 'kvm', 'lxd',
   'toast',
+  // SPA navigation within the SAME instance (parent re-validates the target).
+  'navigate',
   'storage.get', 'storage.set', 'storage.delete', 'storage.clear', 'storage.keys',
 ] as const;
 
@@ -283,7 +286,7 @@ function safeInlineJson(v: unknown): string {
     .replace(/\u2029/g, '\\u2029');
 }
 
-function buildIframeDocument(htmlContent: string, instanceContextJson: string, savedActionsJson: string, themeCss?: string): string {
+function buildIframeDocument(htmlContent: string, instanceContextJson: string, savedActionsJson: string, pageQuery: string, themeCss?: string): string {
   const bootstrapSrc = `
 (function() {
   'use strict';
@@ -450,6 +453,11 @@ function buildIframeDocument(htmlContent: string, instanceContextJson: string, s
   window.addEventListener('load', reportHeight);
 
   window.KSPageSDK = sdk;
+  // KS_PAGE_QUERY carries the PARENT route's query string (the iframe itself
+  // is srcdoc on an opaque origin and cannot see it). Sub-pages read it to
+  // pick up parameters — e.g. /files/edit?path=/etc/app.conf preloads the
+  // editor with that path.
+  window.KS_PAGE_QUERY = ${safeInlineJson(pageQuery)};
   window.dispatchEvent(new CustomEvent('ks-page-sdk-ready', { detail: sdk }));
   try { window.parent.postMessage({ type: 'ks-sdk-ready' }, '*'); } catch (e) {}
 })();`;
@@ -551,6 +559,11 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const wsRef = useRef<Map<string, WebSocket>>(new Map());
   const wsSeq = useRef(0);
+  // SPA navigation for bridged pages (sandboxed iframes cannot navigate or
+  // even read the parent URL themselves). The target is re-validated against
+  // pageNavigateTarget before react-router performs it.
+  const navigate = useNavigate();
+  const location = useLocation();
 
   // The real SDK lives in the host origin; bridged calls execute against it.
   const sdkRef = useRef<ReturnType<typeof createCustomPageSDK> | null>(null);
@@ -589,9 +602,10 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
       content.html ?? '',
       safeInlineJson(ctx),
       safeInlineJson(Array.isArray(content.actions) ? content.actions : []),
+      location.search,
       customPageThemeCss(useThemeStore.getState().active()),
     );
-  }, [content.type, content.html, content.actions, instanceContext]);
+  }, [content.type, content.html, content.actions, instanceContext, location.search]);
 
   // Bridge: parent-side handler for everything the iframe sends up.
   useEffect(() => {
@@ -629,6 +643,13 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
               case 'kvm': return sdk.kvm(list[0], list[1]);
               case 'lxd': return sdk.lxd(list[0], list[1]);
               case 'toast': sdk.toast(list[0], list[1]); return { ok: true };
+              case 'navigate': {
+                // Fail closed: only routes inside THIS instance are allowed.
+                const target = pageNavigateTarget(instanceContext?.id ?? 0, list[0]);
+                if (!target) throw new Error('navigate: path outside this instance');
+                navigate(target);
+                return { ok: true };
+              }
               default: {
                 // storage.* — routed onto the storage namespace.
                 const [, op] = method.split('.');
@@ -709,7 +730,7 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
       wsRef.current.forEach((ws) => { try { ws.close(); } catch { /* noop */ } });
       wsRef.current.clear();
     };
-  }, [instanceContext]);
+  }, [instanceContext, navigate]);
 
   // For markdown and blocks content rendered in-host, make sure the direct
   // SDK exists even before effects above run consumers rely on.
