@@ -22,15 +22,7 @@ const (
 	appURLFetchDNSTimeout = 5 * time.Second
 )
 
-// allowedAppURLError mirrors allowedURLError from mod_handler.go for application-specific fetching.
-type allowedAppURLError struct {
-	status int
-	reason string
-}
-
-func (e *allowedAppURLError) Error() string { return e.reason }
-
-type appResponse struct {
+func openAppRepo() (*repository.ApplicationRepository, func()) {
 	ID            int64                       `json:"id"`
 	Name          string                      `json:"name"`
 	Slug          string                      `json:"slug"`
