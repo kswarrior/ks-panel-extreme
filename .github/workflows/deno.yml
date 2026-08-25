@@ -52,7 +52,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git fetch origin main
+          git fetch origin main >/dev/null 2>&1 || true
 
           git checkout -B main origin/main
 
@@ -65,7 +65,9 @@ jobs:
           set -e
 
           npm install --global opencode-ai
+
           bash retest.sh || true
+
           echo "OpenCode:"
           opencode --version
 
@@ -115,8 +117,6 @@ jobs:
 
           echo "$OPENCODE_PID" > /tmp/opencode.pid
 
-          echo "Waiting for OpenCode Web UI..."
-
           READY=0
 
           for i in $(seq 1 60); do
@@ -143,375 +143,286 @@ jobs:
           echo "OpenCode Web UI is running on port 7070."
 
       - name: Monitor repository
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ks-release
+          RELEASE_TITLE: KS Release
         run: |
-          set -e
+          # IMPORTANT:
+          # This step intentionally does NOT use "set -e".
+          # A temporary Git/network/rebase problem must never stop the monitor.
 
           START_TIME=$(date +%s)
           END_TIME=$((START_TIME + 21000))
 
-          RELEASE_TAG="ks-release"
-          RELEASE_TITLE="KS Release"
+          echo "Monitor."
 
-          echo "Repository monitor started."
-          echo "Monitoring for 5 hours 50 minutes."
-          echo "Check interval: 5 seconds."
+          publish_release() {
+            local assets=("$@")
+
+            if [ "${#assets[@]}" -eq 0 ]; then
+              return 0
+            fi
+
+            if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+              gh release create \
+                "$RELEASE_TAG" \
+                "${assets[@]}" \
+                --target "$(git rev-parse HEAD)" \
+                --title "$RELEASE_TITLE" \
+                --generate-notes \
+                >/dev/null 2>&1 || true
+
+              return 0
+            fi
+
+            gh release upload \
+              "$RELEASE_TAG" \
+              "${assets[@]}" \
+              --clobber \
+              >/dev/null 2>&1 || true
+
+            gh release edit \
+              "$RELEASE_TAG" \
+              --title "$RELEASE_TITLE" \
+              --target "$(git rev-parse HEAD)" \
+              >/dev/null 2>&1 || true
+          }
+
+          collect_release_assets() {
+            RELEASE_ASSETS=()
+
+            while IFS= read -r FILE; do
+              if [ -f "$FILE" ]; then
+                RELEASE_ASSETS+=("$FILE")
+              fi
+            done < <(
+              git diff \
+                --cached \
+                --name-only \
+                --diff-filter=ACMRT \
+                -- \
+                'release/ksedge/**' \
+                'release/kspanel/**' \
+                2>/dev/null
+            )
+          }
+
+          commit_local_changes() {
+            git add -A >/dev/null 2>&1 || true
+
+            git reset -- \
+              ':(glob)node_modules/**' \
+              ':(glob)**/node_modules/**' \
+              >/dev/null 2>&1 || true
+
+            if git diff --cached --quiet; then
+              return 0
+            fi
+
+            collect_release_assets
+
+            if git commit -m "Auto sync changes" >/dev/null 2>&1; then
+              publish_release "${RELEASE_ASSETS[@]}"
+            fi
+
+            return 0
+          }
+
+          push_with_retry() {
+            for ATTEMPT in 1 2 3 4 5 6 7 8 9 10; do
+
+              if git push origin main:main >/dev/null 2>&1; then
+                return 0
+              fi
+
+              git fetch origin main >/dev/null 2>&1 || true
+
+              # Remote moved while we were pushing.
+              # Rebase local commits on top of the latest remote commit.
+              git rebase --autostash origin/main >/dev/null 2>&1
+
+              if [ "$?" -ne 0 ]; then
+                git rebase --abort >/dev/null 2>&1 || true
+              fi
+
+              sleep 2
+            done
+
+            return 1
+          }
 
           while true; do
-
             CURRENT_TIME=$(date +%s)
 
             if [ "$CURRENT_TIME" -ge "$END_TIME" ]; then
-              echo "Repository monitoring completed."
               break
             fi
 
-            git fetch origin main
+            # Never print fetch output.
+            git fetch origin main >/dev/null 2>&1 || true
 
-            LOCAL_COMMIT=$(git rev-parse HEAD)
-            REMOTE_COMMIT=$(git rev-parse origin/main)
-
-            git status --porcelain --untracked-files=all > /tmp/git-status.txt
+            # Check local working-tree changes.
+            git status \
+              --porcelain \
+              --untracked-files=all \
+              > /tmp/monitor-status.txt 2>/dev/null || true
 
             grep -vE '(^|/)(node_modules)(/|$)' \
-              /tmp/git-status.txt \
-              > /tmp/git-status-clean.txt || true
+              /tmp/monitor-status.txt \
+              > /tmp/monitor-status-clean.txt 2>/dev/null || true
 
-            if [ -s /tmp/git-status-clean.txt ]; then
-              HAS_LOCAL_CHANGES=1
-            else
-              HAS_LOCAL_CHANGES=0
+            # New/modified local files exist.
+            if [ -s /tmp/monitor-status-clean.txt ]; then
+              commit_local_changes
             fi
 
-            if [ "$LOCAL_COMMIT" != "$REMOTE_COMMIT" ]; then
+            # Update remote information quietly.
+            git fetch origin main >/dev/null 2>&1 || true
 
-              if [ "$HAS_LOCAL_CHANGES" -eq 0 ]; then
+            LOCAL_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "")
+            REMOTE_COMMIT=$(git rev-parse origin/main 2>/dev/null || echo "")
 
-                git reset --hard origin/main
+            if [ -n "$LOCAL_COMMIT" ] && [ -n "$REMOTE_COMMIT" ]; then
 
-                git clean -fd \
-                  -e node_modules \
-                  -e '*/node_modules'
+              if [ "$LOCAL_COMMIT" = "$REMOTE_COMMIT" ]; then
 
-                echo "Remote changes loaded into workspace."
+                :
+
+              elif git merge-base --is-ancestor origin/main HEAD >/dev/null 2>&1; then
+                # Local branch is ahead of remote.
+                # Push it.
+                push_with_retry || true
+
+              elif git merge-base --is-ancestor HEAD origin/main >/dev/null 2>&1; then
+                # Local branch is behind remote.
+                #
+                # Only reset when there are NO local commits.
+                git reset --hard origin/main >/dev/null 2>&1 || true
 
               else
-
-                echo "Local changes detected."
-
-                git add -A
-
-                git reset -- \
-                  ':(glob)node_modules/**' \
-                  ':(glob)**/node_modules/**' \
-                  2>/dev/null || true
-
-                if git diff --cached --quiet; then
-
-                  git reset --hard origin/main
-
-                  git clean -fd \
-                    -e node_modules \
-                    -e '*/node_modules'
-
-                  echo "Remote changes loaded into workspace."
-
+                # Local and remote both have commits.
+                #
+                # Rebase with autostash so OpenCode's currently changing
+                # files do not cause:
+                #
+                # "cannot rebase: You have unstaged changes"
+                #
+                if ! git rebase --autostash origin/main >/dev/null 2>&1; then
+                  git rebase --abort >/dev/null 2>&1 || true
                 else
-
-                  RELEASE_ASSETS=()
-
-                  while IFS= read -r FILE; do
-                    if [ -f "$FILE" ]; then
-                      RELEASE_ASSETS+=("$FILE")
-                    fi
-                  done < <(
-                    git diff \
-                      --cached \
-                      --name-only \
-                      --diff-filter=ACMRT \
-                      -- \
-                      'release/ksedge/**' \
-                      'release/kspanel/**'
-                  )
-
-                  git commit -m "Auto sync changes"
-
-                  git fetch origin main
-
-                  git rebase origin/main
-
-                  PUSHED=0
-
-                  for ATTEMPT in 1 2 3 4 5; do
-
-                    if git push origin main:main; then
-                      PUSHED=1
-                      break
-                    fi
-
-                    git fetch origin main
-
-                    git rebase origin/main
-
-                    sleep 2
-
-                  done
-
-                  if [ "$PUSHED" -ne 1 ]; then
-                    echo "ERROR: Push failed after 5 attempts."
-                    exit 1
-                  fi
-
-                  echo "Changes committed and pushed successfully."
-
-                  if [ "${#RELEASE_ASSETS[@]}" -gt 0 ]; then
-
-                    if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-
-                      gh release upload \
-                        "$RELEASE_TAG" \
-                        "${RELEASE_ASSETS[@]}" \
-                        --clobber
-
-                      gh release edit \
-                        "$RELEASE_TAG" \
-                        --title "$RELEASE_TITLE" \
-                        --target "$(git rev-parse HEAD)"
-
-                      echo "GitHub Release updated."
-
-                    else
-
-                      gh release create \
-                        "$RELEASE_TAG" \
-                        "${RELEASE_ASSETS[@]}" \
-                        --target "$(git rev-parse HEAD)" \
-                        --title "$RELEASE_TITLE" \
-                        --generate-notes
-
-                      echo "GitHub Release created."
-
-                    fi
-
-                  fi
-
+                  push_with_retry || true
                 fi
-
-              fi
-
-            else
-
-              if [ "$HAS_LOCAL_CHANGES" -eq 1 ]; then
-
-                echo "Local changes detected."
-
-                git add -A
-
-                git reset -- \
-                  ':(glob)node_modules/**' \
-                  ':(glob)**/node_modules/**' \
-                  2>/dev/null || true
-
-                if ! git diff --cached --quiet; then
-
-                  RELEASE_ASSETS=()
-
-                  while IFS= read -r FILE; do
-                    if [ -f "$FILE" ]; then
-                      RELEASE_ASSETS+=("$FILE")
-                    fi
-                  done < <(
-                    git diff \
-                      --cached \
-                      --name-only \
-                      --diff-filter=ACMRT \
-                      -- \
-                      'release/ksedge/**' \
-                      'release/kspanel/**'
-                  )
-
-                  git commit -m "Auto sync changes"
-
-                  git fetch origin main
-
-                  git rebase origin/main
-
-                  PUSHED=0
-
-                  for ATTEMPT in 1 2 3 4 5; do
-
-                    if git push origin main:main; then
-                      PUSHED=1
-                      break
-                    fi
-
-                    git fetch origin main
-
-                    git rebase origin/main
-
-                    sleep 2
-
-                  done
-
-                  if [ "$PUSHED" -ne 1 ]; then
-                    echo "ERROR: Push failed after 5 attempts."
-                    exit 1
-                  fi
-
-                  echo "Changes committed and pushed successfully."
-
-                  if [ "${#RELEASE_ASSETS[@]}" -gt 0 ]; then
-
-                    if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-
-                      gh release upload \
-                        "$RELEASE_TAG" \
-                        "${RELEASE_ASSETS[@]}" \
-                        --clobber
-
-                      gh release edit \
-                        "$RELEASE_TAG" \
-                        --title "$RELEASE_TITLE" \
-                        --target "$(git rev-parse HEAD)"
-
-                      echo "GitHub Release updated."
-
-                    else
-
-                      gh release create \
-                        "$RELEASE_TAG" \
-                        "${RELEASE_ASSETS[@]}" \
-                        --target "$(git rev-parse HEAD)" \
-                        --title "$RELEASE_TITLE" \
-                        --generate-notes
-
-                      echo "GitHub Release created."
-
-                    fi
-
-                  fi
-
-                fi
-
               fi
 
             fi
 
             sleep 5
-
           done
 
       - name: Final repository check
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ks-release
+          RELEASE_TITLE: KS Release
+        continue-on-error: true
         run: |
-          set -e
+          # Never allow final synchronization to make the whole workflow
+          # fail because of a temporary Git/rebase problem.
 
-          RELEASE_TAG="ks-release"
-          RELEASE_TITLE="KS Release"
+          git fetch origin main >/dev/null 2>&1 || true
 
-          git fetch origin main
-
-          git status --porcelain --untracked-files=all > /tmp/final-status.txt
+          git status \
+            --porcelain \
+            --untracked-files=all \
+            > /tmp/final-status.txt 2>/dev/null || true
 
           grep -vE '(^|/)(node_modules)(/|$)' \
             /tmp/final-status.txt \
-            > /tmp/final-status-clean.txt || true
+            > /tmp/final-status-clean.txt 2>/dev/null || true
 
-          if [ ! -s /tmp/final-status-clean.txt ]; then
-            exit 0
-          fi
+          if [ -s /tmp/final-status-clean.txt ]; then
 
-          echo "Final local changes detected."
+            git add -A >/dev/null 2>&1 || true
 
-          git add -A
+            git reset -- \
+              ':(glob)node_modules/**' \
+              ':(glob)**/node_modules/**' \
+              >/dev/null 2>&1 || true
 
-          git reset -- \
-            ':(glob)node_modules/**' \
-            ':(glob)**/node_modules/**' \
-            2>/dev/null || true
+            if ! git diff --cached --quiet; then
 
-          if git diff --cached --quiet; then
-            exit 0
-          fi
+              RELEASE_ASSETS=()
 
-          RELEASE_ASSETS=()
+              while IFS= read -r FILE; do
+                if [ -f "$FILE" ]; then
+                  RELEASE_ASSETS+=("$FILE")
+                fi
+              done < <(
+                git diff \
+                  --cached \
+                  --name-only \
+                  --diff-filter=ACMRT \
+                  -- \
+                  'release/ksedge/**' \
+                  'release/kspanel/**' \
+                  2>/dev/null
+              )
 
-          while IFS= read -r FILE; do
-            if [ -f "$FILE" ]; then
-              RELEASE_ASSETS+=("$FILE")
+              git commit -m "Final sync changes" >/dev/null 2>&1 || true
+
+              git fetch origin main >/dev/null 2>&1 || true
+
+              git rebase --autostash origin/main >/dev/null 2>&1 || {
+                git rebase --abort >/dev/null 2>&1 || true
+              }
+
+              for ATTEMPT in 1 2 3 4 5 6 7 8 9 10; do
+                if git push origin main:main >/dev/null 2>&1; then
+                  break
+                fi
+
+                git fetch origin main >/dev/null 2>&1 || true
+
+                git rebase --autostash origin/main >/dev/null 2>&1 || {
+                  git rebase --abort >/dev/null 2>&1 || true
+                }
+
+                sleep 2
+              done
+
+              if [ "${#RELEASE_ASSETS[@]}" -gt 0 ]; then
+
+                if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+
+                  gh release create \
+                    "$RELEASE_TAG" \
+                    "${RELEASE_ASSETS[@]}" \
+                    --target "$(git rev-parse HEAD)" \
+                    --title "$RELEASE_TITLE" \
+                    --generate-notes \
+                    >/dev/null 2>&1 || true
+
+                else
+
+                  gh release upload \
+                    "$RELEASE_TAG" \
+                    "${RELEASE_ASSETS[@]}" \
+                    --clobber \
+                    >/dev/null 2>&1 || true
+
+                  gh release edit \
+                    "$RELEASE_TAG" \
+                    --title "$RELEASE_TITLE" \
+                    --target "$(git rev-parse HEAD)" \
+                    >/dev/null 2>&1 || true
+
+                fi
+
+              fi
             fi
-          done < <(
-            git diff \
-              --cached \
-              --name-only \
-              --diff-filter=ACMRT \
-              -- \
-              'release/ksedge/**' \
-              'release/kspanel/**'
-          )
-
-          git commit -m "Final sync changes"
-
-          git fetch origin main
-
-          git rebase origin/main
-
-          PUSHED=0
-
-          for ATTEMPT in 1 2 3 4 5; do
-
-            if git push origin main:main; then
-              PUSHED=1
-              break
-            fi
-
-            git fetch origin main
-
-            git rebase origin/main
-
-            sleep 2
-
-          done
-
-          if [ "$PUSHED" -ne 1 ]; then
-            echo "ERROR: Final push failed after 5 attempts."
-            exit 1
-          fi
-
-          echo "Final changes pushed successfully."
-
-          if [ "${#RELEASE_ASSETS[@]}" -gt 0 ]; then
-
-            if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-
-              gh release upload \
-                "$RELEASE_TAG" \
-                "${RELEASE_ASSETS[@]}" \
-                --clobber
-
-              gh release edit \
-                "$RELEASE_TAG" \
-                --title "$RELEASE_TITLE" \
-                --target "$(git rev-parse HEAD)"
-
-              echo "Final GitHub Release updated."
-
-            else
-
-              gh release create \
-                "$RELEASE_TAG" \
-                "${RELEASE_ASSETS[@]}" \
-                --target "$(git rev-parse HEAD)" \
-                --title "$RELEASE_TITLE" \
-                --generate-notes
-
-              echo "Final GitHub Release created."
-
-            fi
-
           fi
 
       - name: Stop OpenCode
