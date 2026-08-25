@@ -111,12 +111,17 @@ export async function updateApplicationEnv(
 
 // Executes the application's script once on the chosen target and returns
 // the completed run row (status/output/exit_code). Rejects with an Axios
-// error whose `.response.data` is the plain-text backend reason.
+// error whose `.response.data` is the plain-text backend reason. Runs are
+// synchronous and may legally take up to timeout_sec (5–1800s), so the 15s
+// client default is explicitly lifted for THIS call only (timeout: 0 = no
+// client-side abort) — same pattern as switchDatabaseEngine in admin.ts.
 export async function runApplication(
   id: number,
   req: ApplicationRunRequest,
 ): Promise<ApplicationRun> {
-  const res = await client.post<ApplicationRun>(`/api/applications/${id}/run`, req);
+  const res = await client.post<ApplicationRun>(`/api/applications/${id}/run`, req, {
+    timeout: 0,
+  });
   return res.data;
 }
 
