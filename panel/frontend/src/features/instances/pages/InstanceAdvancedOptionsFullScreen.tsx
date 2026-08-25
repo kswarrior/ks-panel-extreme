@@ -436,11 +436,13 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
     <div className="relative min-h-screen">
       <ThemedBackground />
       <FormPage
-        crumbs={[{ label: 'Instances', to: '/instances' }, { label: 'Deploy Instance' }, { label: 'Advance Option' }]}
-        saving={false}
-        title="Advance Option"
-        cancelTo="/instances/new"
-        submitLabel={undefined}
+        crumbs={crumbs}
+        saving={saving}
+        title={title}
+        cancelTo={cancelTo}
+        submitLabel={submitLabel}
+        submittingLabel={submittingLabel}
+        onSubmit={onSubmit}
         maxWidth="max-w-4xl"
         headerActions={
           <button
