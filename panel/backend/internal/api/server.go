@@ -538,6 +538,7 @@ func NewRouter() http.Handler {
 			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionView)).Get("/{id}", handlers.GetInstanceHandler)
 			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionEdit)).Post("/{id}/start", handlers.StartInstanceHandler)
 			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionEdit)).Post("/{id}/stop", handlers.StopInstanceHandler)
+			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionEdit)).Post("/{id}/restart", handlers.RestartInstanceHandler)
 			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionDelete)).Delete("/{id}", handlers.DestroyInstanceHandler)
 		})
 
