@@ -616,6 +616,19 @@ ${htmlContent}
 </html>`;
 }
 
+// cssConst hardens a theme value before it is interpolated into the iframe
+// stylesheet (mirrors themeStore's safeCssValue): block/declaration break-out
+// characters and control chars are stripped, length capped. A rejected value
+// falls back so the token always emits a usable declaration.
+function cssConst(v: unknown, fallback: string): string {
+  const s = String(v ?? '')
+    .replace(/[{}<>\\;]/g, '')
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u001f\u007f]/g, '')
+    .trim();
+  return s ? s.slice(0, 256) : fallback;
+}
+
 // customPageThemeCss bakes the ACTIVE panel theme into the sandboxed
 // iframe's stylesheet. iframes don't inherit the parent's CSS custom
 // properties, so concrete values are generated per mount. Values mirror
@@ -626,31 +639,67 @@ function customPageThemeCss(theme: Theme): string {
   const b = theme.button;
   const c = theme.card;
   const a = theme.accent;
+  const bodyCol = cssConst(c.text_color, '#e5e7eb');
+  const okCol = rgbaAt(a.success, 1, '#34d399');
+  const warnCol = rgbaAt(a.warning, 1, '#fcd34d');
+  const badCol = rgbaAt(a.danger, 1, '#fca5a5');
+  const infoCol = rgbaAt(a.info, 1, '#38bdf8');
   return `
-    body { color: ${c.text_color || '#e5e7eb'}; font-family: ${theme.typography.font_family || 'inherit'}; }
-    h1,h2,h3 { color: ${theme.typography.heading_color || '#fff'}; }
-    a { color: ${theme.typography.link_color || '#7dd3fc'}; }
-    a:hover { color: ${a.info || '#38bdf8'}; }
-    input, textarea, select { background: ${f.input_background || 'rgba(0,0,0,0.4)'}; border-color: ${f.input_border_color || 'rgba(255,255,255,0.15)'}; color: ${f.input_text_color || '#e5e7eb'}; border-radius: ${f.input_border_radius ?? 6}px; padding: ${f.input_padding_y ?? 8}px ${f.input_padding_x ?? 12}px; font-size: ${f.input_font_size ?? 14}px; }
-    input:focus, textarea:focus, select:focus { border-color: ${f.input_focus_border_color || '#38bdf8'}; box-shadow: 0 0 0 ${f.focus_ring_width ?? 2}px ${f.input_focus_ring_color || 'rgba(255,255,255,0.6)'}; }
-    label { color: ${f.label_hint_color || '#9ca3af'}; }
-    th { color: ${f.label_hint_color || '#9ca3af'}; }
-    th, td { border-bottom-color: ${c.border_color || 'rgba(255,255,255,0.08)'}; }
-    .ks-btn { background: ${b.background || '#fff'}; color: ${b.text_color || '#000'}; border-radius: ${b.border_radius ?? 6}px; font-size: ${b.font_size ?? 14}px; }
-    .ks-btn:hover { background: ${b.hover_background || '#e5e7eb'}; }
-    .ks-btn-blue { background: ${a.info || '#0284c7'}; color: ${b.text_color || '#fff'}; }
-    .ks-btn-blue:hover { background: ${a.info || '#0ea5e9'}; filter: brightness(1.15); }
+    /* Theme tokens — re-emitted from the ACTIVE panel theme. These override
+       the stock :root defaults above so pages consuming var(--ks-*) follow
+       the admin's theme exactly like the host UI does. */
+    :root {
+      --ks-font-family: ${cssConst(theme.typography.font_family, "-apple-system, BlinkMacSystemFont,'Segoe UI', Roboto, sans-serif")};
+      --ks-heading: ${cssConst(theme.typography.heading_color, '#ffffff')};
+      --ks-body: ${bodyCol};
+      --ks-secondary: ${rgbaAt(bodyCol, 0.88, '#d1d5db')};
+      --ks-muted: ${cssConst(theme.typography.body_color, '#9ca3af')};
+      --ks-faint: ${cssConst(f.label_hint_color, '#6b7280')};
+      --ks-link: ${cssConst(theme.typography.link_color, '#60a5fa')};
+      --ks-ok: ${okCol};
+      --ks-ok-soft: ${rgbaAt(okCol, 0.75, 'rgba(52,211,153,0.75)')};
+      --ks-ok-wash: ${rgbaAt(okCol, 0.2, 'rgba(6,78,59,0.2)')};
+      --ks-ok-line: ${rgbaAt(okCol, 0.4, 'rgba(6,78,59,0.4)')};
+      --ks-warn: ${warnCol};
+      --ks-warn-soft: ${rgbaAt(warnCol, 0.75, 'rgba(252,211,77,0.75)')};
+      --ks-warn-wash: ${rgbaAt(warnCol, 0.25, 'rgba(120,53,15,0.3)')};
+      --ks-warn-line: ${rgbaAt(warnCol, 0.4, 'rgba(180,83,9,0.4)')};
+      --ks-bad: ${badCol};
+      --ks-bad-soft: ${rgbaAt(badCol, 0.75, 'rgba(252,165,165,0.75)')};
+      --ks-bad-wash: ${rgbaAt(badCol, 0.28, 'rgba(127,29,29,0.3)')};
+      --ks-bad-line: ${rgbaAt(badCol, 0.5, 'rgba(185,28,28,0.5)')};
+      --ks-info: ${infoCol};
+      --ks-info-wash: ${rgbaAt(infoCol, 0.3, 'rgba(2,132,199,0.3)')};
+      --ks-info-line: ${rgbaAt(infoCol, 0.45, 'rgba(7,89,133,0.45)')};
+      --ks-card-bg: ${cssConst(c.background, 'rgba(255,255,255,0.04)')};
+      --ks-card-border: ${cssConst(c.border_color, 'rgba(255,255,255,0.10)')};
+      --ks-input-bg: ${cssConst(f.input_background, 'rgba(0,0,0,0.4)')};
+      --ks-input-border: ${cssConst(f.input_border_color, 'rgba(255,255,255,0.15)')};
+    }
+    body { color: ${bodyCol}; font-family: ${cssConst(theme.typography.font_family, 'inherit')}; }
+    h1,h2,h3 { color: ${cssConst(theme.typography.heading_color, '#fff')}; }
+    a { color: ${cssConst(theme.typography.link_color, '#7dd3fc')}; }
+    a:hover { color: ${infoCol}; }
+    input, textarea, select { background: ${cssConst(f.input_background, 'rgba(0,0,0,0.4)')}; border-color: ${cssConst(f.input_border_color, 'rgba(255,255,255,0.15)')}; color: ${cssConst(f.input_text_color, '#e5e7eb')}; border-radius: ${f.input_border_radius ?? 6}px; padding: ${f.input_padding_y ?? 8}px ${f.input_padding_x ?? 12}px; font-size: ${f.input_font_size ?? 14}px; }
+    input:focus, textarea:focus, select:focus { border-color: ${cssConst(f.input_focus_border_color, '#38bdf8')}; box-shadow: 0 0 0 ${f.focus_ring_width ?? 2}px ${cssConst(f.input_focus_ring_color, 'rgba(255,255,255,0.6)')}; }
+    label { color: ${cssConst(f.label_hint_color, '#9ca3af')}; }
+    th { color: ${cssConst(f.label_hint_color, '#9ca3af')}; }
+    th, td { border-bottom-color: ${cssConst(c.border_color, 'rgba(255,255,255,0.08)')}; }
+    .ks-btn { background: ${cssConst(b.background, '#fff')}; color: ${cssConst(b.text_color, '#000')}; border-radius: ${b.border_radius ?? 6}px; font-size: ${b.font_size ?? 14}px; }
+    .ks-btn:hover { background: ${cssConst(b.hover_background, '#e5e7eb')}; }
+    .ks-btn-blue { background: ${infoCol}; color: ${cssConst(b.text_color, '#fff')}; }
+    .ks-btn-blue:hover { background: ${infoCol}; filter: brightness(1.15); }
     .ks-btn-red { background: ${rgbaAt(a.danger, 1, '#b91c1c')}; color: #fff; }
     .ks-btn-red:hover { background: ${rgbaAt(a.danger, 1, '#dc2626')}; filter: brightness(1.15); }
     .ks-btn-green { background: ${rgbaAt(a.success, 1, '#059669')}; color: #0b0d10; }
     .ks-btn-green:hover { background: ${rgbaAt(a.success, 1, '#10b981')}; }
-    .ks-card { background: ${c.background || 'rgba(255,255,255,0.04)'}; border-color: ${c.border_color || 'rgba(255,255,255,0.1)'}; border-radius: ${c.border_radius ?? 12}px; padding: ${c.padding ?? 16}px; }
-    .ks-muted { color: ${theme.typography.body_color || '#9ca3af'}; }
-    .ks-ok { color: ${rgbaAt(a.success, 1, '#6ee7b7')}; }
-    .ks-bad { color: ${rgbaAt(a.danger, 1, '#fca5a5')}; }
-    .ks-warn { color: ${rgbaAt(a.warning, 1, '#fcd34d')}; }
-    .ks-badge { border-color: ${c.border_color || 'rgba(255,255,255,0.15)'}; background: ${f.input_background || 'rgba(0,0,0,0.3)'}; }
-    .ks-bar > span { background: ${a.info || '#38bdf8'}; }`;
+    .ks-card { background: ${cssConst(c.background, 'rgba(255,255,255,0.04)')}; border-color: ${cssConst(c.border_color, 'rgba(255,255,255,0.1)')}; border-radius: ${c.border_radius ?? 12}px; padding: ${c.padding ?? 16}px; }
+    .ks-muted { color: ${cssConst(theme.typography.body_color, '#9ca3af')}; }
+    .ks-ok { color: ${okCol}; }
+    .ks-bad { color: ${badCol}; }
+    .ks-warn { color: ${warnCol}; }
+    .ks-badge { border-color: ${cssConst(c.border_color, 'rgba(255,255,255,0.15)')}; background: ${cssConst(f.input_background, 'rgba(0,0,0,0.3)')}; }
+    .ks-bar > span { background: ${infoCol}; }`;
 }
 
 // CustomPageView renders a custom page's content. HTML mode renders inside a
