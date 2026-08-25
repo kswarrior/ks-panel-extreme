@@ -684,12 +684,15 @@ return (
         )}
 
         {uploadTab === 'studio' && (
-          <ApplicationStudioTab
-            studioTab={studioTab}
-            setStudioTab={setStudioTab}
-            studioForm={studioForm}
-            setStudioForm={setStudioForm}
-          />
+          <>
+            <ApplicationStudioTab
+              studioTab={studioTab}
+              setStudioTab={setStudioTab}
+              studioForm={studioForm}
+              setStudioForm={setStudioForm}
+            />
+            {uploadError && <p className="text-red-400 text-xs mt-2">{uploadError}</p>}
+          </>
         )}
       </GlassModal>
 
