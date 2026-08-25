@@ -56,3 +56,5 @@ cpus:         4
 2026/08/25 17:42:02 security_requests insert with context: context canceled
 2026/08/25 17:42:09 [runnervm76f27/6pPwKIaWu6-000018] "GET http://panel.ksweb.qzz.io/api/nodes/1/heartbeats?limit=40 HTTP/1.1" from [::1]:32846 - 200 2B in 3.48622ms
 2026/08/25 17:42:09 security_requests insert with context: context canceled
+2026/08/25 17:42:13 [runnervm76f27/6pPwKIaWu6-000019] "GET http://panel.ksweb.qzz.io/templates HTTP/1.1" from [::1]:32846 - 200 1301B in 2.306657ms
+2026/08/25 17:42:13 security_requests insert with context: context canceled
