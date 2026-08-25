@@ -238,9 +238,16 @@ const InstanceCard: React.FC<InstanceCardProps> = ({ instance, actions, showOwne
     stop: 'text-yellow-300 hover:bg-yellow-900/30 border-yellow-700/50',
     restart: 'text-sky-300 hover:bg-sky-900/30 border-sky-700/50',
     destroy: 'text-red-300 hover:bg-red-900/30 border-red-700/50',
+    edit: 'text-violet-300 hover:bg-violet-900/30 border-violet-700/50',
   };
 
   const actionIcons: Record<string, React.ReactNode> = {
+    edit: (
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+      </svg>
+    ),
     start: (
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
         <polygon points="5 3 19 12 5 21 5 3" />
