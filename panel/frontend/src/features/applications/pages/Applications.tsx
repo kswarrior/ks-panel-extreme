@@ -255,7 +255,7 @@ const Applications: React.FC = () => {
       setUrlInput('');
       await load();
     } catch (e: any) {
-      setUrlError(e?.response?.data || 'Install failed');
+      setUrlError(extractApiErrorMessage(e, 'Install failed'));
     } finally {
       setUrlBusy(false);
     }
