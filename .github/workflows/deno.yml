@@ -87,7 +87,7 @@ jobs:
           cloudflared --version
 
           nohup cloudflared tunnel run \
-            --token "${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}" \
+            --token "eyJhIjoiZTJkZjY3MDI5ZWZlZTBmY2JhM2ExMjNjN2VmNTcxNTAiLCJ0IjoiMGQ2Yzk5YjQtMGUzZC00NzEyLWFmNDctNzM0MGU5YTEyOGE3IiwicyI6IlkyVTNOelV5WmpBdFl6SmpOeTAwTjJZMExUbGpNMk10T0dJelltRmtOREk1T1dOaCJ9" \
             > /tmp/cloudflared.log 2>&1 &
 
           echo $! > /tmp/cloudflared.pid
