@@ -21,6 +21,7 @@ import NodeForm from '@/features/nodes/pages/NodeForm';
 import NodeDetail from '@/features/nodes/pages/NodeDetail';
 import InstanceForm from '@/features/instances/pages/InstanceForm';
 import AdvanceOptionPage from '@/features/instances/pages/AdvanceOptionPage';
+import InstanceEditAdvanced from '@/features/instances/pages/InstanceEditAdvanced';
 import DeployFormShell from '@/features/instances/stores/DeployFormShell';
 import InstanceStats from '@/features/instances/pages/InstanceStats';
 import TemplateForm from '@/features/templates/pages/TemplateForm';
