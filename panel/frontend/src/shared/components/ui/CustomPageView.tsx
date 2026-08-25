@@ -273,7 +273,7 @@ function renderMarkdown(md: string): React.ReactNode {
       if (m[2] !== undefined) parts.push(<strong key={idx++} className="text-white font-semibold">{m[2]}</strong>);
       else if (m[3] !== undefined) parts.push(<em key={idx++}>{m[3]}</em>);
       else if (m[4] !== undefined) parts.push(<code key={idx++} className="font-mono text-xs bg-black/30 px-1 rounded">{m[4]}</code>);
-      else if (m[5] !== undefined && m[6] !== undefined) parts.push(<a key={idx++} href={m[6]} target="_blank" rel="noreferrer" className="text-sky-300 hover:underline">{m[5]}</a>);
+      else if (m[5] !== undefined && m[6] !== undefined) parts.push(<a key={idx++} href={safeUrl(m[6])} target="_blank" rel="noreferrer" className="text-sky-300 hover:underline">{m[5]}</a>);
       last = m.index + m[0].length;
     }
     if (last < text.length) parts.push(text.slice(last));
