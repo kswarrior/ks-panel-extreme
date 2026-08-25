@@ -4,7 +4,7 @@
   "name": "local-edge",
   "panel_url": "http://127.0.0.1:5050",
   "skip_verify": false,
-  "token": "kse_223a20bf8827a146daf7dc1f06b4330c227c8e999baef2b2d02abb05580d5853",
+  "token": "kse_07b437553a344f2d9ceffe331b0e6c4279a5558fe25a434e4b11b81e5c573795",
   "use_tls_upstream": false,
   "uuid": "cli-localnode-1"
 }
