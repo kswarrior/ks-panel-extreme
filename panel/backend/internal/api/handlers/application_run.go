@@ -184,7 +184,7 @@ func RunApplicationHandler(w http.ResponseWriter, r *http.Request) {
 	} else if exitCode != 0 {
 		status = models.AppRunStatusFailed
 	}
-	if err := repo.CompleteApplicationRun(run.ID, status, exitCode, truncateRunOutput(out), truncateRunOutput(errOut), appRunErrText(runErr)); err != nil {
+	if err := repo.CompleteApplicationRun(run.ID, status, exitCode, truncateRunOutput(out), truncateRunOutput(errOut), appRunErrText(runErr), run.NodeID, run.NodeName); err != nil {
 		log.Println("CompleteApplicationRun error:", err)
 	}
 
