@@ -99,6 +99,15 @@ const ApplicationEdit: React.FC = () => {
       setError('Slug is required');
       return;
     }
+    let config_schema: ApplicationConfigField[];
+    try {
+      const parsed = JSON.parse(schemaDraft);
+      if (!Array.isArray(parsed)) throw new Error('not an array');
+      config_schema = parsed;
+    } catch {
+      setError('Config Schema must be a valid JSON array of field definitions.');
+      return;
+    }
     setSaving(true);
     setError('');
     try {
@@ -111,7 +120,7 @@ const ApplicationEdit: React.FC = () => {
         icon: form.icon,
         runtime: form.runtime,
         entrypoint: form.entrypoint,
-        config_schema: form.config_schema,
+        config_schema,
         permissionsRequested: form.permissionsRequested,
       };
       if (editing) {
