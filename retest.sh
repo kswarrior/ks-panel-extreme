@@ -75,5 +75,23 @@ export KSPANEL_SESSION_SECRET="$(openssl rand -base64 32)"
 ./kspanel setup:localnode --port 4040
 
 echo
-log_step "Launching kspanel on port $LAUNCH_PORT..."
-./kspanel launch --port "$LAUNCH_PORT"
+log_step "Launching kspanel on port $LAUNCH_PORT (background)..."
+LOG_FILE="$TEST_DIR/kspanel.log"
+PID_FILE="$TEST_DIR/kspanel.pid"
+
+nohup ./kspanel launch --port "$LAUNCH_PORT" >"$LOG_FILE" 2>&1 &
+PANEL_PID=$!
+echo "$PANEL_PID" > "$PID_FILE"
+
+# Give it a moment to boot, then verify
+sleep 3
+if kill -0 "$PANEL_PID" 2>/dev/null; then
+    log_ok "kspanel running in background (PID $PANEL_PID)"
+    log_ok "Logs:   $LOG_FILE"
+    log_ok "Stop:   kill \$(cat $PID_FILE)"
+    tail -n 20 "$LOG_FILE" || true
+else
+    log_err "kspanel failed to start — last log lines:"
+    tail -n 40 "$LOG_FILE" || true
+    exit 1
+fi
