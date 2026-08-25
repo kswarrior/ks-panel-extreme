@@ -85,7 +85,14 @@ const InstanceEditAdvancedInner: React.FC = () => {
     setSaving(true);
     setSaveError('');
     try {
-      const res = await updateInstance(instanceId, { config: serializeEditor(editor) });
+      const spec = serializeEditor(editor) as Record<string, unknown>;
+      // serializeEditor leaves these keys undefined when cleared, and
+      // JSON.stringify then drops them entirely — but the backend merge is
+      // per-key additive, so a dropped key would silently keep the old
+      // value. Re-add explicit empties so "cleared" actually clears.
+      if (!('command' in spec)) spec.command = [];
+      if (!('healthcheck' in spec)) spec.healthcheck = null;
+      const res = await updateInstance(instanceId, { config: spec });
       if (res.recreated) {
         alert(
           'Saved. The changed settings require a recreate — the workload is being destroyed and ' +
