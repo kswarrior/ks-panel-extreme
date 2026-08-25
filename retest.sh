@@ -42,6 +42,37 @@ command -v openssl >/dev/null 2>&1 || die "openssl is required but not installed
 [[ -x "$RELEASE_DIR/kspanel" ]] || die "release/kspanel is not executable."
 
 # ============================================================================
+# Stop any previously running sandbox instances
+# ============================================================================
+
+stop_pid() {
+    local pid="$1"
+    [[ -n "$pid" ]] || return 0
+    kill "$pid" 2>/dev/null || return 0
+    for _ in $(seq 1 20); do
+        kill -0 "$pid" 2>/dev/null || return 0
+        sleep 0.2
+    done
+    kill -9 "$pid" 2>/dev/null || true
+}
+
+kill_sandbox_binaries() {
+    local bin="$1" pid exe
+    for pid in $(pgrep -x "$bin" 2>/dev/null || true); do
+        exe="$(readlink -f "/proc/$pid/exe" 2>/dev/null || true)"
+        [[ "$exe" == "$TEST_DIR"/* ]] || continue
+        log_info "Stopping old $bin (pid $pid)..."
+        stop_pid "$pid"
+    done
+}
+
+if pgrep -x kspanel >/dev/null 2>&1 || pgrep -x ksedge >/dev/null 2>&1; then
+    log_step "Stopping previously running instances..."
+    kill_sandbox_binaries kspanel
+    kill_sandbox_binaries ksedge
+fi
+
+# ============================================================================
 # Test sandbox setup (/tmp)
 # ============================================================================
 
