@@ -176,7 +176,11 @@ function renderBlocks(json: string): React.ReactNode {
             );
           }
           case 'html':
-            return <div key={i} className={al} dangerouslySetInnerHTML={{ __html: b.value }} />;
+            return b.value ? (
+              <div key={i} className={al}>
+                <HtmlBlockFrame html={b.value} />
+              </div>
+            ) : null;
           case 'action':
             return (
               <div key={i} className={`${al}`}>
