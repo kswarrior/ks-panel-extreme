@@ -82,3 +82,5 @@ cpus:         4
 2026/08/25 17:43:56 security_requests insert with context: context canceled
 2026/08/25 17:43:57 [runnervm76f27/6pPwKIaWu6-000031] "GET http://panel.ksweb.qzz.io/api/instance-pages/ HTTP/1.1" from [::1]:32846 - 200 3B in 3.594318ms
 2026/08/25 17:43:57 security_requests insert with context: context canceled
+2026/08/25 17:44:07 [runnervm76f27/6pPwKIaWu6-000032] "GET http://panel.ksweb.qzz.io/api/applications/ HTTP/1.1" from [::1]:32846 - 200 13290B in 3.782852ms
+2026/08/25 17:44:07 security_requests insert with context: context canceled
