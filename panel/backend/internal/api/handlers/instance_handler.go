@@ -1005,6 +1005,117 @@ func StartInstanceHandler(w http.ResponseWriter, r *http.Request)   { instanceAc
 func StopInstanceHandler(w http.ResponseWriter, r *http.Request)    { instanceAction(w, r, "stop") }
 func DestroyInstanceHandler(w http.ResponseWriter, r *http.Request) { instanceAction(w, r, "destroy") }
 
+// RestartInstanceHandler restarts an instance by issuing a stop RPC followed
+// by a start RPC to the owning edge. The edge's lifecycle dispatch has no
+// native "restart" action (the drivers expose Deploy/Start/Stop/Destroy only),
+// so the panel composes the two primitives it already has. Mirrors
+// instanceAction's shape: load row → dial node → retry each RPC up to 3x →
+// mirror the edge-reported status back into the row.
+func RestartInstanceHandler(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	con, err := repository.OpenDB()
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	defer con.Close()
+
+	instRepo := repository.NewInstanceRepository(con)
+	nodeRepo := repository.NewNodeRepository(con)
+
+	inst, err := instRepo.Get(id)
+	if err != nil {
+		http.Error(w, "instance not found", http.StatusNotFound)
+		return
+	}
+	node, err := nodeRepo.GetNode(inst.NodeID)
+	if err != nil {
+		http.Error(w, "owning node not found", http.StatusBadRequest)
+		return
+	}
+	token, err := nodeRepo.PlainToken(inst.NodeID)
+	if err != nil || token == "" {
+		http.Error(w, "node has no usable edge token (rotate it first)", http.StatusBadRequest)
+		return
+	}
+
+	preEvent := "pre:instance.restart"
+	if modengine.Default().HasHooks(preEvent) {
+		cancelled, msg := modengine.Default().EmitPre(r.Context(), preEvent, map[string]any{
+			"id": id, "name": inst.Name, "kind": inst.Kind, "node": inst.NodeName,
+		})
+		if cancelled {
+			writeJSONStatus(w, http.StatusConflict, map[string]any{
+				"error":   "blocked by a mod",
+				"message": msg,
+			})
+			return
+		}
+	}
+
+	ec := edge.NewWithTimeout(*node, token, 60*time.Second)
+	lifecycleWithRetry := func(action string) (edge.LifecycleResponse, error) {
+		var resp edge.LifecycleResponse
+		var lastErr error
+		for i := 0; i < 3; i++ {
+			resp, lastErr = ec.Lifecycle(edge.LifecycleRequest{
+				Action: action,
+				Kind:   inst.Kind,
+				Name:   inst.Name,
+			})
+			if lastErr == nil {
+				return resp, nil
+			}
+			log.Printf("RestartInstanceHandler: edge lifecycle %s failed on attempt %d for instance %d: %v", action, i+1, id, lastErr)
+			if i < 2 {
+				time.Sleep(time.Second)
+			}
+		}
+		return resp, lastErr
+	}
+
+	if _, stopErr := lifecycleWithRetry("stop"); stopErr != nil {
+		_ = instRepo.SetStatus(id, "errored", inst.ExternalID, "restart stop failed: "+stopErr.Error())
+		writeJSONStatus(w, http.StatusBadGateway, map[string]any{
+			"id":     id,
+			"status": "errored",
+			"error":  "edge rejected restart stop: " + stopErr.Error(),
+		})
+		return
+	}
+	startResp, startErr := lifecycleWithRetry("start")
+	if startErr != nil {
+		_ = instRepo.SetStatus(id, "errored", inst.ExternalID, "restart start failed: "+startErr.Error())
+		writeJSONStatus(w, http.StatusBadGateway, map[string]any{
+			"id":     id,
+			"status": "errored",
+			"error":  "edge rejected restart start: " + startErr.Error(),
+		})
+		return
+	}
+	status := startResp.Status
+	if status == "" {
+		status = "running"
+	}
+	if err := instRepo.SetStatus(id, status, inst.ExternalID, ""); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	emitInstancePost("restart", id, inst)
+	RecordActivity(r, repository.ActivityInput{
+		Category:    models.ActivityCategoryInstance,
+		Action:      "restart",
+		TargetID:    &id,
+		TargetLabel: inst.Name,
+		Message:     fmt.Sprintf("restarted instance %q (%s) on %q", inst.Name, inst.Kind, inst.NodeName),
+	})
+	writeJSON(w, map[string]any{"id": id, "status": status})
+}
+
 // SuspendInstanceHandler suspends an instance with optional auto-unsuspend time.
 func SuspendInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
