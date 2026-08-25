@@ -15,6 +15,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          ref: main
           fetch-depth: 0
           persist-credentials: true
 
@@ -49,6 +50,19 @@ jobs:
           echo "GitHub CLI:"
           gh --version
 
+      - name: Prepare Git
+        run: |
+          set -e
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git fetch origin main
+
+          git switch -C main origin/main
+
+          printf "\nnode_modules/\n**/node_modules/\n" >> .git/info/exclude
+
       - name: Install OpenCode
         run: |
           set -e
@@ -72,10 +86,8 @@ jobs:
 
           cloudflared --version
 
-          echo "Cloudflare Tunnel token is available."
-
           nohup cloudflared tunnel run \
-            --token "eyJhIjoiZTJkZjY3MDI5ZWZlZTBmY2JhM2ExMjNjN2VmNTcxNTAiLCJ0IjoiMGQ2Yzk5YjQtMGUzZC00NzEyLWFmNDctNzM0MGU5YTEyOGE3IiwicyI6IlkyVTNOelV5WmpBdFl6SmpOeTAwTjJZMExUbGpNMk10T0dJelltRmtOREk1T1dOaCJ9" \
+            --token "${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}" \
             > /tmp/cloudflared.log 2>&1 &
 
           echo $! > /tmp/cloudflared.pid
@@ -104,8 +116,6 @@ jobs:
 
           echo $! > /tmp/opencode.pid
 
-          echo "Waiting for OpenCode Web UI..."
-
           READY=0
 
           for i in $(seq 1 30); do
@@ -131,13 +141,6 @@ jobs:
 
           echo "OpenCode Web UI is running on port 7070."
 
-      - name: Configure Git
-        run: |
-          set -e
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
       - name: Monitor repository and push changes
         env:
           GH_TOKEN: ${{ github.token }}
@@ -146,6 +149,9 @@ jobs:
 
           START_TIME=$(date +%s)
           END_TIME=$((START_TIME + 21000))
+
+          RELEASE_TAG="ks-release"
+          RELEASE_TITLE="KS Release"
 
           echo "Monitoring started."
           echo "Duration: 5 hours 50 minutes."
@@ -159,61 +165,191 @@ jobs:
               break
             fi
 
-            echo "Checking repository..."
+            git fetch origin main
 
-            git add -A
+            git switch main >/dev/null 2>&1 || true
 
-            if git diff --cached --quiet; then
-              echo "No changes."
-            else
-              echo "Changes detected."
+            LOCAL_COMMIT=$(git rev-parse HEAD)
+            REMOTE_COMMIT=$(git rev-parse origin/main)
 
-              git status --short
+            git add -A -- . ':(exclude)node_modules/**' ':(exclude)**/node_modules/**'
 
-              RELEASE_ASSETS=()
+            HAS_LOCAL_CHANGES=0
 
-              while IFS= read -r FILE; do
-                if [ -f "$FILE" ]; then
-                  RELEASE_ASSETS+=("$FILE")
-                  echo "Release asset detected: $FILE"
+            if ! git diff --cached --quiet; then
+              HAS_LOCAL_CHANGES=1
+            fi
+
+            if [ "$LOCAL_COMMIT" != "$REMOTE_COMMIT" ]; then
+
+              if [ "$HAS_LOCAL_CHANGES" -eq 1 ]; then
+
+                echo "Local changes detected."
+
+                git status --short
+
+                RELEASE_ASSETS=()
+
+                while IFS= read -r FILE; do
+                  if [ -f "$FILE" ]; then
+                    RELEASE_ASSETS+=("$FILE")
+                  fi
+                done < <(
+                  git diff \
+                    --cached \
+                    --name-only \
+                    --diff-filter=ACMRT \
+                    -- \
+                    release/ksedge \
+                    release/kspanel
+                )
+
+                git commit -m "Auto sync changes"
+
+                git fetch origin main
+
+                git rebase origin/main
+
+                PUSHED=0
+
+                for ATTEMPT in 1 2 3 4 5; do
+                  if git push origin main:main; then
+                    PUSHED=1
+                    break
+                  fi
+
+                  git fetch origin main
+                  git rebase origin/main
+                  sleep 2
+                done
+
+                if [ "$PUSHED" -ne 1 ]; then
+                  echo "ERROR: Could not push after 5 attempts."
+                  exit 1
                 fi
-              done < <(
-                git diff \
-                  --cached \
-                  --name-only \
-                  --diff-filter=ACMRT \
-                  -- \
-                  release/ksedge \
-                  release/kspanel
-              )
 
-              git commit -m "Auto sync changes"
+                echo "Changes committed and pushed successfully."
 
-              git push origin HEAD
+                if [ "${#RELEASE_ASSETS[@]}" -gt 0 ]; then
 
-              echo "Changes committed and pushed successfully."
+                  if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
 
-              if [ "${#RELEASE_ASSETS[@]}" -gt 0 ]; then
-                CURRENT_COMMIT=$(git rev-parse HEAD)
-                SHORT_COMMIT=$(git rev-parse --short=12 HEAD)
-                RELEASE_TAG="ks-release-${GITHUB_RUN_ID}-${SHORT_COMMIT}"
+                    gh release upload \
+                      "$RELEASE_TAG" \
+                      "${RELEASE_ASSETS[@]}" \
+                      --clobber
 
-                echo "Release files changed."
-                echo "Creating release: $RELEASE_TAG"
-                echo "Target commit: $CURRENT_COMMIT"
+                    gh release edit \
+                      "$RELEASE_TAG" \
+                      --title "$RELEASE_TITLE" \
+                      --target "$(git rev-parse HEAD)"
 
-                gh release create \
-                  "$RELEASE_TAG" \
-                  "${RELEASE_ASSETS[@]}" \
-                  --target "$CURRENT_COMMIT" \
-                  --title "KS Release $SHORT_COMMIT" \
-                  --generate-notes
+                    echo "GitHub Release updated."
 
-                echo "GitHub Release created successfully."
+                  else
+
+                    gh release create \
+                      "$RELEASE_TAG" \
+                      "${RELEASE_ASSETS[@]}" \
+                      --target "$(git rev-parse HEAD)" \
+                      --title "$RELEASE_TITLE" \
+                      --generate-notes
+
+                    echo "GitHub Release created."
+
+                  fi
+                fi
+
               else
-                echo "No added or modified release files."
-                echo "Deletion-only changes will not create a release."
+
+                git reset --hard origin/main
+
+                echo "Remote changes loaded into workspace."
+
               fi
+
+            else
+
+              if [ "$HAS_LOCAL_CHANGES" -eq 1 ]; then
+
+                echo "Local changes detected."
+
+                git status --short
+
+                RELEASE_ASSETS=()
+
+                while IFS= read -r FILE; do
+                  if [ -f "$FILE" ]; then
+                    RELEASE_ASSETS+=("$FILE")
+                  fi
+                done < <(
+                  git diff \
+                    --cached \
+                    --name-only \
+                    --diff-filter=ACMRT \
+                    -- \
+                    release/ksedge \
+                    release/kspanel
+                )
+
+                git commit -m "Auto sync changes"
+
+                git fetch origin main
+
+                git rebase origin/main
+
+                PUSHED=0
+
+                for ATTEMPT in 1 2 3 4 5; do
+                  if git push origin main:main; then
+                    PUSHED=1
+                    break
+                  fi
+
+                  git fetch origin main
+                  git rebase origin/main
+                  sleep 2
+                done
+
+                if [ "$PUSHED" -ne 1 ]; then
+                  echo "ERROR: Could not push after 5 attempts."
+                  exit 1
+                fi
+
+                echo "Changes committed and pushed successfully."
+
+                if [ "${#RELEASE_ASSETS[@]}" -gt 0 ]; then
+
+                  if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+
+                    gh release upload \
+                      "$RELEASE_TAG" \
+                      "${RELEASE_ASSETS[@]}" \
+                      --clobber
+
+                    gh release edit \
+                      "$RELEASE_TAG" \
+                      --title "$RELEASE_TITLE" \
+                      --target "$(git rev-parse HEAD)"
+
+                    echo "GitHub Release updated."
+
+                  else
+
+                    gh release create \
+                      "$RELEASE_TAG" \
+                      "${RELEASE_ASSETS[@]}" \
+                      --target "$(git rev-parse HEAD)" \
+                      --title "$RELEASE_TITLE" \
+                      --generate-notes
+
+                    echo "GitHub Release created."
+
+                  fi
+                fi
+
+              fi
+
             fi
 
             sleep 5
@@ -226,54 +362,89 @@ jobs:
         run: |
           set -e
 
-          git add -A
+          RELEASE_TAG="ks-release"
+          RELEASE_TITLE="KS Release"
+
+          git fetch origin main
+          git switch main >/dev/null 2>&1 || true
+
+          git add -A -- . ':(exclude)node_modules/**' ':(exclude)**/node_modules/**'
 
           if git diff --cached --quiet; then
-            echo "No final changes."
-          else
-            echo "Final changes detected."
+            exit 0
+          fi
 
-            RELEASE_ASSETS=()
+          echo "Final local changes detected."
 
-            while IFS= read -r FILE; do
-              if [ -f "$FILE" ]; then
-                RELEASE_ASSETS+=("$FILE")
-                echo "Final release asset detected: $FILE"
-              fi
-            done < <(
-              git diff \
-                --cached \
-                --name-only \
-                --diff-filter=ACMRT \
-                -- \
-                release/ksedge \
-                release/kspanel
-            )
+          RELEASE_ASSETS=()
 
-            git commit -m "Final sync changes"
+          while IFS= read -r FILE; do
+            if [ -f "$FILE" ]; then
+              RELEASE_ASSETS+=("$FILE")
+            fi
+          done < <(
+            git diff \
+              --cached \
+              --name-only \
+              --diff-filter=ACMRT \
+              -- \
+              release/ksedge \
+              release/kspanel
+          )
 
-            git push origin HEAD
+          git commit -m "Final sync changes"
 
-            echo "Final changes pushed successfully."
+          git fetch origin main
 
-            if [ "${#RELEASE_ASSETS[@]}" -gt 0 ]; then
-              CURRENT_COMMIT=$(git rev-parse HEAD)
-              SHORT_COMMIT=$(git rev-parse --short=12 HEAD)
-              RELEASE_TAG="ks-release-${GITHUB_RUN_ID}-${SHORT_COMMIT}"
+          git rebase origin/main
 
-              echo "Creating final GitHub Release: $RELEASE_TAG"
+          PUSHED=0
+
+          for ATTEMPT in 1 2 3 4 5; do
+            if git push origin main:main; then
+              PUSHED=1
+              break
+            fi
+
+            git fetch origin main
+            git rebase origin/main
+            sleep 2
+          done
+
+          if [ "$PUSHED" -ne 1 ]; then
+            echo "ERROR: Final push failed after 5 attempts."
+            exit 1
+          fi
+
+          echo "Final changes pushed successfully."
+
+          if [ "${#RELEASE_ASSETS[@]}" -gt 0 ]; then
+
+            if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+
+              gh release upload \
+                "$RELEASE_TAG" \
+                "${RELEASE_ASSETS[@]}" \
+                --clobber
+
+              gh release edit \
+                "$RELEASE_TAG" \
+                --title "$RELEASE_TITLE" \
+                --target "$(git rev-parse HEAD)"
+
+              echo "Final GitHub Release updated."
+
+            else
 
               gh release create \
                 "$RELEASE_TAG" \
                 "${RELEASE_ASSETS[@]}" \
-                --target "$CURRENT_COMMIT" \
-                --title "KS Release $SHORT_COMMIT" \
+                --target "$(git rev-parse HEAD)" \
+                --title "$RELEASE_TITLE" \
                 --generate-notes
 
-              echo "Final GitHub Release created successfully."
-            else
-              echo "No final release assets."
-              echo "No final GitHub Release created."
+              echo "Final GitHub Release created."
+
             fi
           fi
 
