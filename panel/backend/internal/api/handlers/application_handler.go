@@ -555,12 +555,29 @@ func UpdateApplicationEnvHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid payload", http.StatusBadRequest)
 		return
 	}
+	// Mirror the run engine's rules here so a bad key is rejected with a
+	// clear 400 at save time instead of silently poisoning the saved env
+	// and failing every future Run with an obscure runtime error.
+	if len(dto.Env) > 64 {
+		http.Error(w, "too many env keys (max 64)", http.StatusBadRequest)
+		return
+	}
+	for k := range dto.Env {
+		if !isAppEnvName(k) {
+			http.Error(w, fmt.Sprintf("env key %q is not a valid POSIX identifier", k), http.StatusBadRequest)
+			return
+		}
+	}
 	repo, closeFn := openAppRepo()
 	if repo == nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
 	defer closeFn()
+	if _, gerr := repo.GetApplication(id); gerr != nil {
+		http.Error(w, "application not found", http.StatusNotFound)
+		return
+	}
 	envBytes, err := json.Marshal(dto.Env)
 	if err != nil {
 		http.Error(w, "invalid env", http.StatusBadRequest)
