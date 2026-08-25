@@ -62,6 +62,7 @@ const ApplicationEdit: React.FC = () => {
           if (cancelled) return;
           const a = apps.find((x) => x.id === Number(id));
           if (a) {
+            const schema = Array.isArray(a.config_schema) ? a.config_schema : [];
             setForm({
               name: a.name,
               slug: a.slug,
@@ -71,9 +72,10 @@ const ApplicationEdit: React.FC = () => {
               icon: a.icon,
               runtime: a.runtime,
               entrypoint: a.entrypoint,
-              config_schema: Array.isArray(a.config_schema) ? a.config_schema : [],
+              config_schema: schema,
               permissionsRequested: Array.isArray(a.permissions) ? a.permissions.map(p => ({ capability: p.capability, access_level: p.access_level })) : [],
             });
+            setSchemaDraft(JSON.stringify(schema, null, 2));
           } else {
             setError('Application not found');
           }
