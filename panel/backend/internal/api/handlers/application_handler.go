@@ -283,7 +283,9 @@ func InstallApplicationFromURLHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	rawManifest, ferr := fetchManifestFromURL(r.Context(), dto.URL)
 	if ferr != nil {
-		var ue *allowedAppURLError
+		// fetchManifestFromURL classifies every user-facing failure as
+		// *allowedURLError (same package) — surface its status + reason.
+		var ue *allowedURLError
 		if errors.As(ferr, &ue) {
 			writeJSONStatus(w, ue.status, map[string]any{
 				"error": ue.reason,
