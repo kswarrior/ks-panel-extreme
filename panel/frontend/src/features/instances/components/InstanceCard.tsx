@@ -4,6 +4,7 @@ import type { Instance, DriverKind } from '@/shared/types/instance';
 import { parseConfig } from '@/shared/hooks/useInstance';
 import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
 import { useThemeStore } from '@/shared/stores/themeStore';
+import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 import { listCachedResources, type CachedResource } from '@/features/instances/api/instanceAdvanced';
 import CardMenu, { type RichMenuItem } from '@/shared/components/ui/CardMenu/CardMenu';
 
@@ -324,7 +325,7 @@ const InstanceCard: React.FC<InstanceCardProps> = ({ instance, actions, showOwne
             {customIcon ? (
               <span
                 dangerouslySetInnerHTML={{
-                  __html: customIcon.replace(/<svg /, `<svg width="24" height="24" stroke="${customColor || 'currentColor'}" `),
+                  __html: sanitizeSvgIcon(customIcon).replace(/<svg /, `<svg width="24" height="24" stroke="${customColor || 'currentColor'}" `),
                 }}
               />
             ) : (

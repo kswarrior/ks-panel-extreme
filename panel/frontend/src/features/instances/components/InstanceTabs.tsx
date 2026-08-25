@@ -221,7 +221,7 @@ const InstanceTabs: React.FC = () => {
                       strokeLinejoin="round"
                       className="w-4 h-4 flex-shrink-0 text-gray-300"
                       aria-hidden="true"
-                      dangerouslySetInnerHTML={{ __html: item.iconSvg }}
+                      dangerouslySetInnerHTML={{ __html: sanitizeSvgIcon(item.iconSvg) }}
                     />
                   )}
                   <span className="flex-1 truncate text-white">{item.label}</span>
@@ -292,7 +292,7 @@ return (
                       strokeLinejoin="round"
                       className="w-4 h-4 flex-shrink-0"
                       aria-hidden="true"
-                      dangerouslySetInnerHTML={{ __html: item.iconSvg }}
+                      dangerouslySetInnerHTML={{ __html: sanitizeSvgIcon(item.iconSvg) }}
                     />
                   )
                 : null;
