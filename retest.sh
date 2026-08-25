@@ -41,7 +41,7 @@ command -v openssl >/dev/null 2>&1 || die "openssl is required but not installed
 [[ -x "$RELEASE_DIR/kspanel" ]] || die "release/kspanel is not executable."
 
 # ============================================================================
-# Test folder setup
+# Test sandbox setup (/tmp)
 # ============================================================================
 
 log_step "Preparing test sandbox at $TEST_DIR..."
