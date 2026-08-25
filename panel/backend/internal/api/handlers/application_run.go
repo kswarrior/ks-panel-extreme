@@ -549,10 +549,22 @@ func flattenAppEnv(env map[string]string) []string {
 }
 
 func truncateRunOutput(s string) string {
-	if len(s) > appRunMaxOutputBytes {
-		return s[:appRunMaxOutputBytes]
+	if len(s) <= appRunMaxOutputBytes {
+		return s
 	}
-	return s
+	cut := s[:appRunMaxOutputBytes]
+	// Back off a partial trailing UTF-8 sequence: MySQL/Postgres TEXT
+	// columns reject broken sequences, which would fail the completion
+	// UPDATE and strand the run row in "running" forever.
+	for i := 0; i < utf8.UTFMax && len(cut) > 0; i++ {
+		r, size := utf8.DecodeLastRuneInString(cut)
+		if r == utf8.RuneError && size == 1 {
+			cut = cut[:len(cut)-1]
+			continue
+		}
+		break
+	}
+	return cut
 }
 
 func appRunErrText(err error) string {
