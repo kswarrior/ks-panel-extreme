@@ -1,0 +1,16 @@
+2026/08/25 17:41:29 ksedge listening on http://localhost:4040/health
+Error: listen tcp :4040: bind: address already in use
+Usage:
+  ksedge launch [flags]
+
+Flags:
+  -c, --config string       Path to the edge config file (default "config.json")
+  -h, --help                help for launch
+      --interval duration   Override heartbeat interval (e.g. 30s)
+      --once                Send a single heartbeat and exit thereafter
+      --panel string        Override panel_url from config
+  -p, --port int            Override the edge HTTP listen port (default 4040, or config.json)
+      --skip-verify         Skip upstream TLS verification (self-signed panels)
+      --token string        Override the panel-issued edge token from config
+
+listen tcp :4040: bind: address already in use
