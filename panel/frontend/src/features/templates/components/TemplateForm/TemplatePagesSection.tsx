@@ -6,6 +6,7 @@ import { CustomPageStudio } from '@/features/templates/components/TemplateFormCo
 import type { PageOverride } from '@/features/templates/types/templateForm';
 import { listInstancePages, type InstancePage } from '@/shared/api/admin';
 import { parseSubPages } from '@/features/instance-pages/types/instancePage';
+import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 
 export interface PageOverrideInput extends PageOverride {}
 
