@@ -91,7 +91,10 @@ func (r *ApplicationRepository) CreateApplication(in CreateApplicationInput) (*m
 	}
 	cfgSchema := string(in.ConfigSchema)
 	if cfgSchema == "" {
-		cfgSchema = "{}"
+		// The run engine (buildAppRunPayload) reads this as a JSON array of
+		// field definitions — store "[]", not "{}", so an app created
+		// without config_schema stays runnable.
+		cfgSchema = "[]"
 	}
 	files := string(in.Files)
 	if files == "" {
