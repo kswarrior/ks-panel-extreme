@@ -31,9 +31,9 @@ Features below are sorted by implementation status. Items are not promised in an
 
 ## IN PROGRESS / PARTIAL
 
-22. **Instance suspend/unsuspend** — models + repository + handler exist (migrations 037/038); handlers not yet wired in router.
-23. **Authority page** — SMTP, OAuth providers, registration toggles, OTP/SMS channels, TOTP authenticator-app connection with QR generation. Page and API exist; provider keyboards require finishing.
-24. **Authority branding** — per-authority logo + background image settings exist in the authority spec; routing/rendering still being integrated.
+23. **Instance suspend/unsuspend** — models + repository + handler exist (migrations 037/038); handlers not yet wired in router.
+24. **Authority page** — SMTP, OAuth providers, registration toggles, OTP/SMS channels, TOTP authenticator-app connection with QR generation. Page and API exist; provider keyboards require finishing.
+25. **Authority branding** — per-authority logo + background image settings exist in the authority spec; routing/rendering still being integrated.
 25. **Dashboard charts** — MetricsChart component exists but instance page wiring to live metrics is pending.
 26. **File manager UX** — backend proxy fully implemented; frontend has list/read/write/delete/URL-upload and inline editor; advanced FM UX (chunked upload, inline preview, bulk context menu) still being refined.
 
