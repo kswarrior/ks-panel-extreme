@@ -48,6 +48,10 @@ const ApplicationEdit: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  // Raw text of the config-schema editor. Kept separate from `form` so
+  // intermediate keystrokes that aren't valid JSON yet aren't silently
+  // reverted by a controlled re-stringify; parsed + validated on submit.
+  const [schemaDraft, setSchemaDraft] = useState('[]');
 
   useEffect(() => {
     let cancelled = false;
