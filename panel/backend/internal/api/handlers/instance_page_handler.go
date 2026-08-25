@@ -554,12 +554,17 @@ func LinkInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 				pageEntry["actions"] = actionsAny
 			}
 		}
-		if req.IconSVG != "" || page.IconSVG != "" {
-			pageEntry["icon_svg"] = req.IconSVG
-			if req.IconSVG == "" {
-				pageEntry["icon_svg"] = page.IconSVG
-			}
+	if req.IconSVG != "" || page.IconSVG != "" {
+		// Icons render inline in the panel origin — never persist unsanitized
+		// author markup into the template spec.
+		icon := sanitizeIconSVG(strings.TrimSpace(req.IconSVG))
+		if icon == "" {
+			icon = sanitizeIconSVG(strings.TrimSpace(page.IconSVG))
 		}
+		if icon != "" {
+			pageEntry["icon_svg"] = icon
+		}
+	}
 
 		// Sub-pages stay INSIDE the family's main row (nested sub_pages,
 		// effective route "<slug>/<path>", e.g. files/edit) so the instance
