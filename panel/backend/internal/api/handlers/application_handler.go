@@ -22,7 +22,7 @@ const (
 	appURLFetchDNSTimeout = 5 * time.Second
 )
 
-func openAppRepo() (*repository.ApplicationRepository, func()) {
+type appResponse struct {
 	ID            int64                       `json:"id"`
 	Name          string                      `json:"name"`
 	Slug          string                      `json:"slug"`
