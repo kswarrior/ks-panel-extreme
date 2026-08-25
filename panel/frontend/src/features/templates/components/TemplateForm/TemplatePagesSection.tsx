@@ -233,7 +233,7 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
                         strokeLinecap="round"
                         strokeLinejoin="round"
                         className="w-5 h-5 text-emerald-300"
-                        dangerouslySetInnerHTML={{ __html: iconSvg }}
+                        dangerouslySetInnerHTML={{ __html: sanitizeSvgIcon(iconSvg) }}
                       />
                     ) : (
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5 text-gray-500">
@@ -444,7 +444,7 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
                               strokeLinecap="round"
                               strokeLinejoin="round"
                               className="w-5 h-5 text-emerald-300"
-                              dangerouslySetInnerHTML={{ __html: p.icon_svg }}
+                              dangerouslySetInnerHTML={{ __html: sanitizeSvgIcon(p.icon_svg) }}
                             />
                           ) : (
                             <svg
