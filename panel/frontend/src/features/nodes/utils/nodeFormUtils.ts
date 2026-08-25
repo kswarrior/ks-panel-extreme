@@ -40,4 +40,4 @@ EOF
 }
 
 export const KSEDGE_URL =
-  'https://github.com/kswarrior/ks-panel-extreme/releases/download/ks-release-32876373128-a36954f895a6/ksedge';
+  'https://github.com/kswarrior/ks-panel-extreme/releases/latest/download/ksedge';

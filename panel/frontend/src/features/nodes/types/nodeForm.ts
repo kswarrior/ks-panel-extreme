@@ -53,7 +53,7 @@ export const emptyForm: Form = {
 };
 
 export const KSEDGE_URL =
-  'https://github.com/kswarrior/ks-panel-extreme/releases/download/ks-release-32876373128-a36954f895a6/ksedge';
+  'https://github.com/kswarrior/ks-panel-extreme/releases/latest/download/ksedge';
 
 export const ALL_KINDS: { key: string; label: string; color: string }[] = [
   { key: 'docker', label: 'Docker', color: '#60a5fa' },
