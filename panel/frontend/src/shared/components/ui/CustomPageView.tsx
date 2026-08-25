@@ -38,6 +38,26 @@ const TONE_CLASS: Record<string, string> = {
   bad: 'text-red-300',
 };
 
+// safeUrl guards author-controlled hrefs rendered in the HOST origin
+// (markdown links, button blocks). Only http(s), mailto and relative targets
+// are allowed; every other explicit scheme (javascript:, vbscript:, data:,
+// file:, …) falls back to '#'.
+function safeUrl(raw?: string): string {
+  const u = (raw ?? '').trim();
+  if (!u) return '#';
+  if (/^(https?:|mailto:)/i.test(u)) return u;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(u)) return '#';
+  return u;
+}
+
+// safeImgSrc additionally permits data:image/* (inline images cannot execute
+// script when loaded through <img>).
+function safeImgSrc(raw?: string): string {
+  const u = (raw ?? '').trim();
+  if (/^data:image\//i.test(u)) return u;
+  return safeUrl(u);
+}
+
 // renderBlocks converts the JSON block list into React elements. Mirrors the
 // studio's block types one-for-one so what the author composes is what the
 // user sees.
