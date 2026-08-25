@@ -494,6 +494,10 @@ return (
         </div>
 </div>
 
+      {!loading && error && (
+        <GlassCard className="text-sm text-red-300 border border-red-700/40 mb-4">{error}</GlassCard>
+      )}
+
       {loading && <SkeletonGrid count={6} />}
 
       {!loading && filtered.length > 0 && (
