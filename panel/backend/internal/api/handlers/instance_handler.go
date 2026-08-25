@@ -280,12 +280,45 @@ var advancedRecreateKeys = []string{
 	"readonly_rootfs", "enable_tty", "stop_signal", "shm_size",
 }
 
+// commandScript normalises a spec command argv into the single shell string
+// the advance-options editor edits (advanced.startup_command): ["sh","-c",
+// rest] collapses to rest, anything else joins verbatim. Mirrors the exact
+// parsing in the frontend's specToEditor, so a legacy ["nginx","-g","…"]
+// command that round-trips through the editor as ["sh","-c","nginx -g …"]
+// doesn't register as a change and trigger a needless recreate.
+func commandScript(v any) string {
+	switch t := v.(type) {
+	case string:
+		return t
+	case []any:
+		parts := make([]string, len(t))
+		for i, p := range t {
+			parts[i] = fmt.Sprintf("%v", p)
+		}
+		if len(parts) >= 3 && parts[0] == "sh" && parts[1] == "-c" {
+			return strings.Join(parts[2:], " ")
+		}
+		return strings.Join(parts, " ")
+	default:
+		return ""
+	}
+}
+
 // configNeedsRecreate diffs the stored config against the merged incoming
 // one and reports whether any recreate-only field changed. The driver
 // runtime blocks (kvm/multipass/lxd) provision disks and CPU at create
 // time, so ANY change inside them forces a recreate.
 func configNeedsRecreate(old, new map[string]any) bool {
 	for _, k := range recreateTopKeys {
+		if k == "command" {
+			// Compare semantically (see commandScript) instead of raw
+			// DeepEqual — the editor rewrites foreign argv shapes into the
+			// canonical ["sh","-c",script] form.
+			if commandScript(old[k]) != commandScript(new[k]) {
+				return true
+			}
+			continue
+		}
 		if !reflect.DeepEqual(old[k], new[k]) {
 			return true
 		}
