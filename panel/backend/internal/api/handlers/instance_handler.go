@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -245,6 +246,376 @@ func ListMyInstancesHandler(w http.ResponseWriter, r *http.Request) {
 		insts = []models.Instance{}
 	}
 	writeJSON(w, insts)
+}
+
+// ---- INSTANCE UPDATE (admin editor) ------------------------------------
+//
+// The instances-page Edit button opens the full Advance-Options-style
+// editor and PUTs the serialized spec here. Saving is DB-always;
+// recreate-on-the-edge only when a create-time-only field changed (the
+// user-visible contract: limits/pages/actions edits are hot, image/port/
+// mount/env/command edits require tearing the workload down and deploying
+// it again).
+
+// updateInstanceRequest is the body PUT /api/instances/{id} accepts. Config
+// is the full edited spec (the frontend serializeEditor output). Identity /
+// lifecycle fields are intentionally not editable through this route.
+type updateInstanceRequest struct {
+	Config map[string]any `json:"config"`
+}
+
+// recreateTopKeys lists spec keys whose change always requires a workload
+// recreate on the edge: they are baked in at create time (docker image /
+// command / published ports / mounts / resolved env; volumes is the legacy
+// mounts alias).
+var recreateTopKeys = []string{"image", "command", "ports", "mounts", "volumes", "env"}
+
+// advancedRecreateKeys lists advanced{} sub-keys docker only accepts at
+// create time. Resource limits (memory / cpus / swap / pids) and the
+// restart policy are deliberately absent — those stay live-updatable or
+// panel-side, so editing them saves DB-only without touching the workload.
+var advancedRecreateKeys = []string{
+	"startup_command", "network_mode", "dns", "extra_hosts",
+	"hostname", "user", "working_dir", "privileged",
+	"readonly_rootfs", "enable_tty", "stop_signal", "shm_size",
+}
+
+// configNeedsRecreate diffs the stored config against the merged incoming
+// one and reports whether any recreate-only field changed. The driver
+// runtime blocks (kvm/multipass/lxd) provision disks and CPU at create
+// time, so ANY change inside them forces a recreate.
+func configNeedsRecreate(old, new map[string]any) bool {
+	for _, k := range recreateTopKeys {
+		if !reflect.DeepEqual(old[k], new[k]) {
+			return true
+		}
+	}
+	oldAdv, _ := old["advanced"].(map[string]any)
+	newAdv, _ := new["advanced"].(map[string]any)
+	if oldAdv == nil && newAdv == nil {
+		return false
+	}
+	for _, k := range advancedRecreateKeys {
+		if !reflect.DeepEqual(oldAdv[k], newAdv[k]) {
+			return true
+		}
+	}
+	for _, blk := range []string{"kvm", "multipass", "lxd"} {
+		if !reflect.DeepEqual(oldAdv[blk], newAdv[blk]) {
+			return true
+		}
+	}
+	return false
+}
+
+// normalizeInstanceConfigForStore converts an editor-serialized env array
+// (template-style definitions carrying name/default) into the resolved
+// {KEY: value} map shape every stored instance config uses at deploy time
+// (see DeployInstanceHandler's finalEnv merge). InvokeActionHandler reads
+// cfg["env"] as a map for {{KEY}} substitution, so persisting the raw
+// definitions array would silently break action-step substitution.
+func normalizeInstanceConfigForStore(cfg map[string]any) map[string]any {
+	rawEnv, ok := cfg["env"].([]any)
+	if !ok {
+		return cfg
+	}
+	m := make(map[string]any, len(rawEnv))
+	for _, e := range rawEnv {
+		em, ok := e.(map[string]any)
+		if !ok {
+			continue
+		}
+		name := getString(em, "name")
+		if name == "" {
+			continue
+		}
+		m[name] = getString(em, "default")
+	}
+	cfg["env"] = m
+	return cfg
+}
+
+// UpdateInstanceHandler persists admin edits to an instance's config.
+//
+// URL: PUT /api/instances/{id}  (gated like start/stop: INSTANCES_EDIT or
+// the MANAGE_INSTANCES umbrella).
+//
+// Flow:
+//  1. Decode {config}, load the row → 404 on miss.
+//  2. Normalize env + shallow-merge the new spec over the stored one
+//     (top-level key replacement — same semantics as deploy-time overrides;
+//     unknown legacy keys such as install_timeout_sec survive because the
+//     editor never emits them).
+//  3. Diff recreate-only fields. Nothing recreate-relevant changed →
+//     DB-only save, workload untouched.
+//  4. Otherwise destroy the workload synchronously (fail-closed: a failed
+//     destroy aborts before any redeploy) and kick off an async redeploy
+//     goroutine with the merged config — mirroring deploy's background
+//     pattern so upstream proxy timeouts can't bite — re-running the
+//     install workflow when the edited spec carries install[] steps.
+func UpdateInstanceHandler(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil || id <= 0 {
+		http.Error(w, "invalid instance id", http.StatusBadRequest)
+		return
+	}
+	var req updateInstanceRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Config == nil {
+		http.Error(w, "config object is required", http.StatusBadRequest)
+		return
+	}
+
+	con, err := repository.OpenDB()
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	defer con.Close()
+
+	instRepo := repository.NewInstanceRepository(con)
+	inst, err := instRepo.Get(id)
+	if err != nil {
+		http.Error(w, "instance not found", http.StatusNotFound)
+		return
+	}
+
+	oldCfg := map[string]any{}
+	if inst.Config != "" {
+		_ = json.Unmarshal([]byte(inst.Config), &oldCfg)
+	}
+	newCfg := normalizeInstanceConfigForStore(req.Config)
+	merged := make(map[string]any, len(oldCfg)+len(newCfg))
+	for k, v := range oldCfg {
+		merged[k] = v
+	}
+	for k, v := range newCfg {
+		merged[k] = v
+	}
+
+	needsRecreate := configNeedsRecreate(oldCfg, merged) &&
+		inst.ExternalID != "" &&
+		inst.Status != "destroyed"
+
+	cfgBytes, err := json.Marshal(merged)
+	if err != nil {
+		http.Error(w, "config is not serializable", http.StatusBadRequest)
+		return
+	}
+	if err := instRepo.UpdateConfig(id, string(cfgBytes)); err != nil {
+		log.Println("UpdateInstance error:", err)
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+
+	if !needsRecreate {
+		RecordActivity(r, repository.ActivityInput{
+			Category:    models.ActivityCategoryInstance,
+			Action:      "update",
+			TargetID:    &id,
+			TargetLabel: inst.Name,
+			Message:     fmt.Sprintf("updated config of instance %q (%s)", inst.Name, inst.Kind),
+		})
+		writeJSON(w, map[string]any{"id": id, "status": inst.Status, "recreated": false})
+		return
+	}
+
+	// Recreate path: resolve the owning edge first so a missing node/token
+	// surfaces BEFORE we tear anything down.
+	nodeRepo := repository.NewNodeRepository(con)
+	node, err := nodeRepo.GetNode(inst.NodeID)
+	if err != nil {
+		writeJSONStatus(w, http.StatusBadGateway, map[string]any{
+			"error":  "config saved, but recreate aborted: owning node not found",
+			"detail": err.Error(),
+		})
+		return
+	}
+	token, err := nodeRepo.PlainToken(inst.NodeID)
+	if err != nil || token == "" {
+		writeJSONStatus(w, http.StatusBadGateway, map[string]any{
+			"error": "config saved, but recreate aborted: node has no usable edge token (rotate it first)",
+		})
+		return
+	}
+
+	// Tear the current workload down with the same 3-attempt retry policy
+	// instanceAction uses. Fail closed: no destroy confirmation → no
+	// redeploy (the row already carries the saved config either way).
+	var destroyErr error
+	for i := 0; i < 3; i++ {
+		ec := edge.NewWithTimeout(*node, token, 60*time.Second)
+		_, destroyErr = ec.Lifecycle(edge.LifecycleRequest{
+			Action: "destroy",
+			Kind:   inst.Kind,
+			Name:   inst.Name,
+		})
+		if destroyErr == nil {
+			break
+		}
+		time.Sleep(time.Second)
+	}
+	if destroyErr != nil {
+		log.Printf("UpdateInstance: destroy before recreate failed for instance %d: %v", id, destroyErr)
+		writeJSONStatus(w, http.StatusBadGateway, map[string]any{
+			"error":  "config saved, but recreate aborted: edge refused destroy after 3 retries",
+			"detail": destroyErr.Error(),
+		})
+		return
+	}
+
+	// Flip the row to "creating" right away so no card claims the old
+	// workload still exists while the redeploy goroutine runs. SetStatus's
+	// COALESCE keeps the stored ExternalID until the new deploy reports.
+	_ = instRepo.SetStatus(id, "creating", "", "")
+
+	RecordActivity(r, repository.ActivityInput{
+		Category:    models.ActivityCategoryInstance,
+		Action:      "update+recreate",
+		TargetID:    &id,
+		TargetLabel: inst.Name,
+		Message:     fmt.Sprintf("saved config of %q and recreated the workload (%s on %q)", inst.Name, inst.Kind, node.Name),
+	})
+
+	go func() {
+		con2, err := repository.OpenDB()
+		if err != nil {
+			log.Printf("recreate async: db open failed: %v", err)
+			return
+		}
+		defer con2.Close()
+
+		repo2 := repository.NewInstanceRepository(con2)
+		nodeRepo2 := repository.NewNodeRepository(con2)
+		node2, err := nodeRepo2.GetNode(inst.NodeID)
+		if err != nil {
+			_ = repo2.SetStatus(id, "errored", "", "recreate: node not found: "+err.Error())
+			return
+		}
+		token2, err := nodeRepo2.PlainToken(inst.NodeID)
+		if err != nil || token2 == "" {
+			_ = repo2.SetStatus(id, "errored", "", "recreate: node token missing")
+			return
+		}
+
+		// Same generous timeout as the deploy goroutine (image pull + run);
+		// the HTTP response has long since returned.
+		ec2 := edge.NewWithTimeout(*node2, token2, 5*time.Minute)
+		resp, err := ec2.Lifecycle(edge.LifecycleRequest{
+			Action: "deploy",
+			Kind:   inst.Kind,
+			Name:   inst.Name,
+			Config: merged,
+		})
+		if err != nil {
+			log.Printf("recreate async for instance %d failed: %v", id, err)
+			_ = repo2.SetStatus(id, "errored", "", "recreate failed: "+err.Error())
+			return
+		}
+		status := resp.Status
+		if status == "" {
+			status = "running"
+		}
+
+		// Re-run the install workflow when the edited spec carries
+		// install[] steps — the recreated workload starts from a fresh
+		// filesystem, exactly like a first deploy.
+		var steps []installStepSpec
+		if rawInstall, ok := merged["install"].([]any); ok {
+			for _, s := range rawInstall {
+				if m, ok := s.(map[string]any); ok {
+					steps = append(steps, installStepSpec{
+						Action:       getString(m, "action"),
+						Command:      getString(m, "command"),
+						URL:          getString(m, "url"),
+						Filename:     getString(m, "filename"),
+						Archive:      getString(m, "archive"),
+						Dest:         getString(m, "dest"),
+						From:         getString(m, "from"),
+						To:           getString(m, "to"),
+						Path:         getString(m, "path"),
+						Content:      getString(m, "content"),
+						Branch:       getString(m, "branch"),
+						Retries:      getString(m, "retries"),
+						IgnoreErrors: getBool(m, "ignore_errors"),
+					})
+				}
+			}
+		}
+		if len(steps) > 0 && status != "running" {
+			failMsg := fmt.Sprintf(
+				"container exited before install workflow could start after recreate (docker status=%q, id=%s)",
+				status, resp.ExternalID,
+			)
+			log.Printf("recreate async: instance %d refusing install — %s", id, failMsg)
+			_ = repo2.SetStatus(id, "install_failed", resp.ExternalID, failMsg)
+			return
+		}
+		if len(steps) > 0 {
+			status = "installing"
+		}
+		if err := repo2.SetStatus(id, status, resp.ExternalID, ""); err != nil {
+			log.Printf("recreate async: failed to update status for instance %d: %v", id, err)
+			return
+		}
+		if len(steps) > 0 {
+			stepsJSON, _ := json.Marshal(steps)
+			_ = repo2.UpdateInstallStatus(id, "running", inst.Kind+":"+inst.Name, 0, "", string(stepsJSON))
+			edgeSteps := make([]edge.InstallStep, len(steps))
+			for i, s := range steps {
+				edgeSteps[i] = edge.InstallStep{
+					Action:       s.Action,
+					Command:      s.Command,
+					URL:          s.URL,
+					Filename:     s.Filename,
+					Archive:      s.Archive,
+					Dest:         s.Dest,
+					From:         s.From,
+					To:           s.To,
+					Path:         s.Path,
+					Content:      s.Content,
+					Branch:       s.Branch,
+					Retries:      s.Retries,
+					IgnoreErrors: s.IgnoreErrors,
+				}
+			}
+			// Resolved KEY=VALUE pairs ride along for {{KEY}} substitution
+			// inside install steps (same contract as deploy).
+			envVars := map[string]string{}
+			if em, ok := merged["env"].(map[string]any); ok {
+				for k, v := range em {
+					if s, ok := v.(string); ok {
+						envVars[k] = s
+					}
+				}
+			}
+			if _, err := ec2.InstallStart(edge.InstallStartRequest{
+				Token:      token2,
+				Kind:       inst.Kind,
+				Name:       inst.Name,
+				Steps:      edgeSteps,
+				EnvVars:    envVars,
+				TimeoutSec: timeoutSecFromSpec(merged["install_timeout_sec"]),
+			}); err != nil {
+				log.Printf("recreate async: install kick-off for instance %d failed: %v", id, err)
+				_ = repo2.UpdateInstallStatus(id, "failed", inst.Kind+":"+inst.Name, 0, "edge install start failed: "+err.Error(), string(mustJSON(steps)))
+				_ = repo2.SetStatus(id, "install_failed", resp.ExternalID, "edge install start failed: "+err.Error())
+			}
+			// Success: installSweepLoop polls progress and flips the row to
+			// "running"/"install_failed".
+		}
+	}()
+
+	writeJSON(w, map[string]any{"id": id, "status": "creating", "recreated": true})
+}
+
+// mustJSON marshals v or returns "null" on failure — best-effort helper for
+// audit/transcript columns where a marshal failure must never panic.
+func mustJSON(v any) []byte {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return []byte("null")
+	}
+	return b
 }
 
 // DeployInstanceHandler schedules a new instance onto a node.
