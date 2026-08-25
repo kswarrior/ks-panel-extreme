@@ -27,6 +27,7 @@ Features below are sorted by implementation status. Items are not promised in an
 19. **Multi-node** — full node CRUD, heartbeats (push ingest + history), probes (single + all), local node setup/purge, rotate token.
 20. **Templates** — full CRUD + URL install + download. JSON spec interpreted by edge drivers (docker/lxd/kvm/multipass).
 21. **SSRF-hardened fetches** — all URL-install paths (mods, apps, files) restricted to public IPs, DNS-pinned, size/time capped.
+22. **Google / OAuth login** — social sign-in via OAuth providers configured on the Authority page; issues the standard session cookie on success.
 
 ## IN PROGRESS / PARTIAL
 
