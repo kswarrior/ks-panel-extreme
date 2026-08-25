@@ -323,6 +323,7 @@ func InstallApplicationFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		Runtime:        in.Runtime,
 		Entrypoint:     in.Entrypoint,
 		ConfigSchema:   in.ConfigSchema,
+		Files:          in.Files, // URL manifests may ship script files, same as uploads
 		PermissionsReq: in.PermissionsReq,
 		UploadedBy:     uid,
 		Source:         models.ApplicationSourceURL,
