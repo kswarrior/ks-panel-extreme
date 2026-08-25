@@ -3,6 +3,7 @@
 #
 # Creates a test sandbox under /tmp, copies release binaries into it,
 # seeds demo data, and launches the panel for manual testing.
+# If a panel from a previous run is still up, it is stopped first.
 #
 # Usage:
 #   ./retest.sh              # Launch on default port 8080
