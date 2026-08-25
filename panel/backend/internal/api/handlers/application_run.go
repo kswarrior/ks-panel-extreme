@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/example/kspanel/internal/edge"
 	"github.com/example/kspanel/internal/models"
