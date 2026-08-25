@@ -60,12 +60,12 @@ jobs:
 
           echo "Git workspace ready."
 
-      - name: Install OpenCode
+      - name: Install OpenCode & start panel (test)
         run: |
           set -e
 
           npm install --global opencode-ai
-
+          bash retest.sh || true
           echo "OpenCode:"
           opencode --version
 
