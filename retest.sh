@@ -38,7 +38,10 @@ LAUNCH_PORT="${1:-8080}"
 
 command -v openssl >/dev/null 2>&1 || die "openssl is required but not installed"
 
-[[ -f "$RELEASE_DIR/kspanel" ]] || die "release/kspanel not found. Run ./rebuild.sh first."
+if [[ ! -f "$RELEASE_DIR/kspanel" ]]; then
+    log_warn "release/kspanel not found — auto-running ./rebuild.sh first..."
+    bash "$ROOT_DIR/rebuild.sh" || die "rebuild.sh failed. Aborting."
+fi
 [[ -x "$RELEASE_DIR/kspanel" ]] || die "release/kspanel is not executable."
 
 # ============================================================================
