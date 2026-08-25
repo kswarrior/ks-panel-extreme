@@ -129,39 +129,26 @@ const Applications: React.FC = () => {
 
   const handleStudioSave = async () => {
     const { general, permission, configure, script } = studioForm;
-    if (!general.name.trim()) { setError('Name is required.'); return; }
-    if (general.runtime !== 'custom' && !general.mainFile.trim() && script.files.length > 0) {
-      // Default the entrypoint to the first staged file so a Studio-created
-      // app is immediately runnable.
-      general.mainFile = script.files[0].path;
-    }
+    // Report through uploadError (rendered inside the modal) — the page-level
+    // error banner is hidden behind the open modal and would never be seen.
+    if (!general.name.trim()) { setUploadError('Name is required.'); return; }
+    const mainFile = general.mainFile.trim() ||
+      (general.runtime !== 'custom' && script.files.length > 0 ? script.files[0].path : '');
+    const entrypoint = general.runtime === 'custom' ? general.command.trim() : mainFile;
     try {
       const newApp = await createApplication({
         name: general.name,
-        slug: general.name.toLowerCase().replace(/\s+/g, '-'),
+        slug: general.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''),
         category: 'custom',
         version: general.version,
         description: general.note,
         icon: '',
         runtime: general.runtime,
-        entrypoint: general.mainFile || (general.runtime === 'custom' ? general.command : ''),
+        entrypoint,
         config_schema: [],
         files: script.files.filter((f) => f.path.trim() && f.content !== undefined),
         permissionsRequested: permission.map(p => ({ capability: p.capability, access_level: p.access_level })),
       });
-      if (general.runtime === 'custom' && general.command) {
-        // Custom runtime keeps its command line in the entrypoint field.
-        await updateApplication(newApp.id, {
-          name: general.name,
-          category: 'custom',
-          version: general.version,
-          description: general.note,
-          icon: '',
-          runtime: general.runtime,
-          entrypoint: general.command,
-          config_schema: [],
-        });
-      }
       // 2. Update env if any
       if (Object.keys(configure).length > 0) {
         await updateApplicationEnv(newApp.id, configure);
