@@ -203,6 +203,46 @@ function renderBlocks(json: string): React.ReactNode {
   );
 }
 
+// HtmlBlockFrame renders a 'html' block inside its own sandboxed
+// opaque-origin iframe. Author markup must never run in the host origin (it
+// could reach panel DOM, cookies and fetch panel APIs directly); this mirrors
+// the content_type=html sandbox minus the SDK bridge — blocks are purely
+// presentational. The frame self-reports its height so it sizes to content.
+function HtmlBlockFrame({ html }: { html: string }) {
+  const frameRef = useRef<HTMLIFrameElement>(null);
+  const [height, setHeight] = useState(160);
+  useEffect(() => {
+    const onMsg = (e: MessageEvent) => {
+      if (e.source !== frameRef.current?.contentWindow) return;
+      const d = e.data as { type?: string; height?: number } | null;
+      if (d && d.type === 'ks-block-resize' && typeof d.height === 'number') {
+        setHeight(Math.min(Math.max(Math.ceil(d.height), 40), 20000));
+      }
+    };
+    window.addEventListener('message', onMsg);
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
+  // NOTE: html is interpolated into srcDoc served on an opaque origin; the
+  // sandbox attribute (NO allow-same-origin) is what contains it.
+  const doc = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+*{box-sizing:border-box}
+body{margin:0;padding:.25rem;color:#e5e7eb;background:transparent;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;line-height:1.6;overflow-x:hidden}
+img{max-width:100%}table{border-collapse:collapse;width:100%}
+a{color:#7dd3fc}
+</style></head><body>${html}<script>
+(function(){var last=0;function r(){var h=Math.ceil(document.documentElement.getBoundingClientRect().height);if(h!==last){last=h;try{window.parent.postMessage({type:'ks-block-resize',height:h},'*')}catch(e){}}}setInterval(r,400);window.addEventListener('load',r)})();
+</script></body></html>`;
+  return (
+    <iframe
+      ref={frameRef}
+      srcDoc={doc}
+      style={{ width: '100%', height, border: 0, background: 'transparent' }}
+      title="HTML block"
+      sandbox="allow-scripts allow-forms allow-popups allow-modals"
+    />
+  );
+}
+
 // A minimal markdown renderer — converts headings, bold, italic, code, lists,
 // and paragraphs into React nodes. We avoid pulling a heavy dependency by
 // supporting just the common subset (headings, **bold**, *italic*, `code`,
