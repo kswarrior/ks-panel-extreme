@@ -1080,7 +1080,7 @@ func RestartInstanceHandler(w http.ResponseWriter, r *http.Request) {
 
 	if _, stopErr := lifecycleWithRetry("stop"); stopErr != nil {
 		_ = instRepo.SetStatus(id, "errored", inst.ExternalID, "restart stop failed: "+stopErr.Error())
-		writeJSONStatus(w, http.StatusBadGateway, map[string]any{
+		writeJSON(w, map[string]any{
 			"id":     id,
 			"status": "errored",
 			"error":  "edge rejected restart stop: " + stopErr.Error(),
@@ -1090,7 +1090,7 @@ func RestartInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	startResp, startErr := lifecycleWithRetry("start")
 	if startErr != nil {
 		_ = instRepo.SetStatus(id, "errored", inst.ExternalID, "restart start failed: "+startErr.Error())
-		writeJSONStatus(w, http.StatusBadGateway, map[string]any{
+		writeJSON(w, map[string]any{
 			"id":     id,
 			"status": "errored",
 			"error":  "edge rejected restart start: " + startErr.Error(),
