@@ -138,7 +138,9 @@ func (d *kvm) Stop(ctx context.Context, name string) (Result, error) {
 		return Result{}, err
 	}
 	if _, err := asExec(ctx, "", "virsh", "shutdown", name); err != nil {
-		return Result{}, err
+		if !isAlreadyStoppedErr(err) {
+			return Result{}, err
+		}
 	}
 	return Result{ExternalID: name, Status: "stopped"}, nil
 }
