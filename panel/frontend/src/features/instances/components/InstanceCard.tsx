@@ -325,7 +325,7 @@ const InstanceCard: React.FC<InstanceCardProps> = ({ instance, actions, showOwne
             {customIcon ? (
               <span
                 dangerouslySetInnerHTML={{
-                  __html: customIcon.replace(/<svg /, `<svg width="24" height="24" stroke="${customColor || 'currentColor'}" `),
+                  __html: sanitizeSvgIcon(customIcon).replace(/<svg /, `<svg width="24" height="24" stroke="${customColor || 'currentColor'}" `),
                 }}
               />
             ) : (
