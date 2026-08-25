@@ -19,6 +19,7 @@ import {
   type GrantDecision,
   type ApplicationActivateConflict,
 } from '@/features/applications/api/applications';
+import { extractApiErrorMessage } from '@/features/mods/api/mods';
 import {
   Application,
   ApplicationPermission,
