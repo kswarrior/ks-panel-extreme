@@ -401,7 +401,12 @@ func nodeSweepLoop(threshold, interval time.Duration) {
 			for _, nd := range due {
 				go func(nd models.Node) {
 					res := probe.Probe(nd)
-					_ = repo.RecordProbe(nd.ID, repository.ProbeInput{
+					pcon, perr := repository.OpenDB()
+					if perr != nil {
+						return
+					}
+					defer pcon.Close()
+					_ = repository.NewNodeRepository(pcon).RecordProbe(nd.ID, repository.ProbeInput{
 						Reachable: res.Reachable,
 						SeenName:  res.SeenName,
 						CheckedAt: time.Now().UTC(),
