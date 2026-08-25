@@ -24,7 +24,7 @@
 
 | # | Feature | KS Panel | JTG Panel | Score (KS – JTG) |
 |---|---------|----------|-----------|------------------|
-| 1 | Multi-node management | CRUD + heartbeats + probes + local setup/purge + rotate token + edge RPC | Wings + local engine | 95 – 85 |
+| 1 | Multi-node management | **KS Smart** — one-command node onboarding (paste & run a single command in any VPS/VM; auto-connects with zero IP, port, or tunnel config; 99.9% uptime, safe & trusted) + CRUD + heartbeats + probes + local setup/purge + rotate token + edge RPC | Wings + local engine | 100 – 85 |
 | 2 | Instance lifecycle | Deploy, start, stop, destroy (restart handlers exist, unrouted) | Start, stop, restart, delete | 80 – 85 |
 | 3 | Instance suspend/unsuspend | Handlers exist, not routed | Routed + UI | 30 – 100 |
 | 4 | Terminal / console | WebSocket via edge proxy (xterm.js) | Socket.IO | 95 – 95 |
