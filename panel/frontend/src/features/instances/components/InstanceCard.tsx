@@ -168,7 +168,7 @@ export interface CardAction {
   disabled?: boolean;
   busy?: boolean;
   danger?: boolean;
-  tone: 'start' | 'stop' | 'restart' | 'destroy';
+  tone: 'start' | 'stop' | 'restart' | 'destroy' | 'edit';
   icon?: React.ReactNode;
 }
 
