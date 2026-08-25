@@ -537,6 +537,13 @@ return (
                         ),
                       },
                       { key: 'toggle', label: a.active ? 'Deactivate' : 'Activate', tone: 'default', icon: (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>) },
+                      {
+                        key: 'delete', label: deletingId === a.id ? 'Deleting…' : 'Delete', tone: 'danger',
+                        disabled: deletingId !== null,
+                        icon: (
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+                        ),
+                      },
                     ]}
                     onSelect={(key) => {
                       if (key === 'run') setRunApp(a);
@@ -546,6 +553,7 @@ return (
                         if (a.active) stop(a);
                         else start(a);
                       }
+                      else if (key === 'delete') remove(a);
                     }}
                   />
                 </footer>
