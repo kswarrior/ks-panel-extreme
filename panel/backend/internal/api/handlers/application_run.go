@@ -262,7 +262,15 @@ func buildAppRunPayload(app *models.Application, overrides map[string]string) ([
 		}
 		var s string
 		if err := json.Unmarshal(f.Default, &s); err != nil {
-			continue
+			// The wire contract allows number defaults too (the SPA's
+			// Configure editor round-trips them as strings, but uploaded
+			// manifests may ship real JSON numbers) — keep those instead of
+			// silently dropping them.
+			var n json.Number
+			if nerr := json.Unmarshal(f.Default, &n); nerr != nil {
+				continue
+			}
+			s = n.String()
 		}
 		env[f.Key] = s
 	}
