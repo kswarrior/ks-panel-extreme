@@ -6,10 +6,6 @@ on:
 permissions:
   contents: write
 
-concurrency:
-  group: ks-panel-testing
-  cancel-in-progress: false
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
