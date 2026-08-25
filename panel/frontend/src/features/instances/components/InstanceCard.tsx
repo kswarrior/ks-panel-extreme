@@ -4,6 +4,7 @@ import type { Instance, DriverKind } from '@/shared/types/instance';
 import { parseConfig } from '@/shared/hooks/useInstance';
 import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
 import { useThemeStore } from '@/shared/stores/themeStore';
+import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 import { listCachedResources, type CachedResource } from '@/features/instances/api/instanceAdvanced';
 import CardMenu, { type RichMenuItem } from '@/shared/components/ui/CardMenu/CardMenu';
 
