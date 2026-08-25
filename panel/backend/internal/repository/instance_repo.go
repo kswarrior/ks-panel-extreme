@@ -328,6 +328,21 @@ func (r *InstanceRepository) UpdateInstallStatus(id int64, state, installID stri
 	return nil
 }
 
+// UpdateConfig persists an edited instance config JSON (the spec blob the
+// edge drivers consume). Called by UpdateInstanceHandler after the admin
+// editor saves; identity/lifecycle columns are untouched here.
+func (r *InstanceRepository) UpdateConfig(id int64, configJSON string) error {
+	res, err := r.db.Exec(`UPDATE instances SET config = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+		configJSON, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("instance not found")
+	}
+	return nil
+}
+
 // SetInstallKind updates the install_kind + install_auto_stop columns. Used by
 // InvokeActionHandler when an action is invoked so the install sweep loop can
 // distinguish an action-driven workflow from a template install workflow,
