@@ -126,9 +126,26 @@ func (d *lxd) Stop(ctx context.Context, name string) (Result, error) {
 		return Result{}, err
 	}
 	if _, err := asExec(ctx, "", "lxc", "stop", name); err != nil {
-		return Result{}, err
+		if !isAlreadyStoppedErr(err) {
+			return Result{}, err
+		}
 	}
 	return Result{ExternalID: name, Status: "stopped"}, nil
+}
+
+// isAlreadyStoppedErr reports whether the CLI rejected a stop because the
+// workload was already down. The drivers' stop contract is idempotent (see
+// docker.Stop): stopping a stopped instance must succeed so a panel Stop /
+// restart flow that races a natural exit doesn't surface a bogus 502.
+// Matches LXD's "The instance is already stopped" and libvirt's
+// "domain is not running" phrasings.
+func isAlreadyStoppedErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "already stopped") ||
+		strings.Contains(msg, "not running")
 }
 
 func (d *lxd) Destroy(ctx context.Context, name string) (Result, error) {
