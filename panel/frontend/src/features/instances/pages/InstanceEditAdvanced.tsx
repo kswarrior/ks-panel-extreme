@@ -1,0 +1,163 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { getInstance, updateInstance } from '@/shared/api/admin';
+import { parseConfig } from '@/shared/hooks/useInstance';
+import FormPage from '@/shared/components/forms/FormPage';
+import GlassCard from '@/shared/components/ui/Card';
+import type { DriverKind } from '../types/instance';
+import { DeployFormProvider, useDeployForm } from '../stores/deployFormStore';
+import { serializeEditor, specToEditor, structuredCloneSafe } from '../utils/instanceFormUtils';
+import InstanceAdvancedOptionsFullScreen from './InstanceAdvancedOptionsFullScreen';
+
+// envMapToDefinitions converts the resolved {KEY: value} env map stored on
+// deployed instances (deploy bakes finalEnv into config.env as a plain map)
+// into the template-style definition rows specToEditor expects, so the Env
+// tab shows the instance's live values instead of an empty list. Each row
+// keeps the current value as its default; the backend converts back to a
+// flat map on save (normalizeInstanceConfigForStore).
+function envMapToDefinitions(cfg: Record<string, any>): void {
+  const env = cfg.env;
+  if (Array.isArray(env) || !env || typeof env !== 'object') return;
+  cfg.env = Object.entries(env).map(([name, value]) => ({
+    name,
+    label: '',
+    description: '',
+    default: String(value ?? ''),
+    user_viewable: true,
+    user_editable: true,
+    required: false,
+    rule: '',
+    display: 'text',
+    options: '',
+    prepend: '',
+    append: false,
+    append_value: '',
+  }));
+}
+
+const InstanceEditAdvancedInner: React.FC = () => {
+  const navigate = useNavigate();
+  const params = useParams();
+  const instanceId = Number(params.id);
+  const validId = Number.isInteger(instanceId) && instanceId > 0;
+
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [templateMeta, setTemplateMeta] = useState<{ image: string; kind: DriverKind } | null>(null);
+
+  const { editor, setEditor, setTab } = useDeployForm();
+
+  useEffect(() => {
+    if (!validId) {
+      setLoadError('Invalid instance id.');
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const inst = await getInstance(instanceId);
+        if (cancelled) return;
+        const cfg = parseConfig(inst.config);
+        envMapToDefinitions(cfg);
+        const ed = specToEditor(JSON.stringify(cfg));
+        setEditor(structuredCloneSafe(ed));
+        setTab('environment');
+        setTemplateMeta({
+          image: String(cfg.image || ''),
+          kind: inst.kind as DriverKind,
+        });
+      } catch (e: any) {
+        if (!cancelled) setLoadError(e?.response?.data || e?.message || 'Failed to load instance');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [validId, instanceId, setEditor, setTab]);
+
+  const specPreview = useMemo(() => JSON.stringify(serializeEditor(editor), null, 2), [editor]);
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setSaveError('');
+    try {
+      const res = await updateInstance(instanceId, { config: serializeEditor(editor) });
+      if (res.recreated) {
+        alert(
+          'Saved. The changed settings require a recreate — the workload is being destroyed and ' +
+          'redeployed with the new config on its node (this wipes container state and re-runs install).'
+        );
+      }
+      navigate(`/instances/${instanceId}`);
+    } catch (err: any) {
+      setSaveError(err?.response?.data?.error || err?.response?.data || err?.message || 'Failed to save instance');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <FormPage
+        crumbs={[{ label: 'Instances', to: '/instances' }, { label: 'Edit Instance' }]}
+        saving={false}
+        maxWidth="max-w-4xl"
+      >
+        <p className="text-gray-400 text-sm">Loading…</p>
+      </FormPage>
+    );
+  }
+
+  if (loadError || !validId) {
+    return (
+      <FormPage
+        crumbs={[{ label: 'Instances', to: '/instances' }, { label: 'Edit Instance' }]}
+        saving={false}
+        maxWidth="max-w-4xl"
+      >
+        <GlassCard className="text-sm text-red-300 border border-red-700/40">
+          {loadError || 'Instance not found.'}
+        </GlassCard>
+      </FormPage>
+    );
+  }
+
+  return (
+    <>
+      {saveError && (
+        <GlassCard className="mb-4 text-sm text-red-300 border border-red-700/40">
+          {typeof saveError === 'string' ? saveError : JSON.stringify(saveError)}
+        </GlassCard>
+      )}
+      <InstanceAdvancedOptionsFullScreen
+        selectedTemplate={templateMeta}
+        specPreview={specPreview}
+        onClose={() => navigate(`/instances/${instanceId}`)}
+        title={`Edit Instance #${instanceId}`}
+        crumbs={[{ label: 'Instances', to: '/instances' }, { label: `Edit Instance #${instanceId}` }]}
+        cancelTo={`/instances/${instanceId}`}
+        submitLabel="Save Changes"
+        submittingLabel="Saving…"
+        saving={saving}
+        onSubmit={save}
+      />
+    </>
+  );
+};
+
+// InstanceEditAdvanced mounts its own DeployFormProvider (with an empty
+// template list) so the shared Advance-Options editor can consume
+// useDeployForm unchanged. templateId stays 0, which disables the provider's
+// template-seeding effect — the editor is seeded from the instance's saved
+// config instead.
+const InstanceEditAdvanced: React.FC = () => (
+  <DeployFormProvider templates={[]}>
+    <InstanceEditAdvancedInner />
+  </DeployFormProvider>
+);
+
+export default InstanceEditAdvanced;

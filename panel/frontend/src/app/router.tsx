@@ -559,7 +559,7 @@ const Router: React.FC = () => (
         element={
           <RequireAuth>
             <RequirePermission permission={PermissionKey.MANAGE_INSTANCES}>
-              <InstanceForm />
+              <InstanceEditAdvanced />
             </RequirePermission>
           </RequireAuth>
         }
