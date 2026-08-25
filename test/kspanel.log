@@ -66,3 +66,13 @@ cpus:         4
 2026/08/25 17:42:26 security_requests insert with context: context canceled
 2026/08/25 17:42:26 [runnervm76f27/6pPwKIaWu6-000023] "GET http://panel.ksweb.qzz.io/api/themes HTTP/1.1" from [::1]:32846 - 200 31B in 1.490246ms
 2026/08/25 17:42:26 security_requests insert with context: context canceled
+2026/08/25 17:43:51 [runnervm76f27/6pPwKIaWu6-000024] "GET http://panel.ksweb.qzz.io/templates HTTP/1.1" from [::1]:32846 - 200 1301B in 1.785721ms
+2026/08/25 17:43:51 security_requests insert with context: context canceled
+2026/08/25 17:43:52 [runnervm76f27/6pPwKIaWu6-000025] "GET http://panel.ksweb.qzz.io/api/settings/panel-name HTTP/1.1" from [::1]:32846 - 200 44B in 2.066675ms
+2026/08/25 17:43:52 [runnervm76f27/6pPwKIaWu6-000026] "GET http://panel.ksweb.qzz.io/api/me HTTP/1.1" from [::1]:43044 - 200 1444B in 2.192555ms
+2026/08/25 17:43:52 security_requests insert with context: context canceled
+2026/08/25 17:43:52 security_requests insert with context: context canceled
+2026/08/25 17:43:52 [runnervm76f27/6pPwKIaWu6-000027] "GET http://panel.ksweb.qzz.io/api/templates/ HTTP/1.1" from [::1]:43044 - 200 2892B in 3.60265ms
+2026/08/25 17:43:52 [runnervm76f27/6pPwKIaWu6-000028] "GET http://panel.ksweb.qzz.io/api/themes HTTP/1.1" from [::1]:32846 - 200 31B in 1.897445ms
+2026/08/25 17:43:52 security_requests insert with context: context canceled
+2026/08/25 17:43:52 security_requests insert with context: context canceled
