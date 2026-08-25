@@ -42,6 +42,16 @@ interface InstanceAdvancedOptionsFullScreenProps {
   selectedTemplate: { image: string; kind: DriverKind } | null;
   specPreview: string;
   onClose: () => void;
+  // Optional chrome/save overrides so the instance EDIT page can reuse this
+  // exact tabbed editor with its own title, breadcrumbs and Save action.
+  // Unset values fall back to the deploy-flow defaults below.
+  title?: string;
+  crumbs?: Array<{ label: string; to?: string }>;
+  cancelTo?: string;
+  submitLabel?: string;
+  submittingLabel?: string;
+  saving?: boolean;
+  onSubmit?: (e: React.FormEvent) => void;
 }
 
 const ADVANCED_TABS = TEMPLATE_TABS.filter((t) => t.id !== 'general');
@@ -50,6 +60,13 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
   selectedTemplate,
   specPreview,
   onClose,
+  title = 'Advance Option',
+  crumbs = [{ label: 'Instances', to: '/instances' }, { label: 'Deploy Instance' }, { label: 'Advance Option' }],
+  cancelTo = '/instances/new',
+  submitLabel,
+  submittingLabel,
+  saving = false,
+  onSubmit,
 }) => {
   const monoCls = glassFieldClass + ' font-mono ks-input-mono';
   const labelCls = 'block text-sm font-medium text-gray-300 mb-1 ks-label';
