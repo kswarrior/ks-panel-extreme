@@ -145,6 +145,12 @@ const Instances: React.FC = () => {
 
   const actionsFor = (i: Instance): CardAction[] => [
     {
+      label: 'Edit',
+      tone: 'edit',
+      onClick: () => { handleEdit(i); },
+      disabled: busyId === i.id,
+    },
+    {
       label: 'Start',
       tone: 'start',
       onClick: () => { act(i.id, 'start'); },
