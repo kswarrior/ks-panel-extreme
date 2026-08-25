@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useInstanceNav } from '@/shared/components/layout/InstanceNavContext';
 import { createPortal } from 'react-dom';
-import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 
 const InstanceTabs: React.FC = () => {
   const { nav, instanceId, loading } = useInstanceNav();
@@ -221,7 +220,7 @@ const InstanceTabs: React.FC = () => {
                       strokeLinejoin="round"
                       className="w-4 h-4 flex-shrink-0 text-gray-300"
                       aria-hidden="true"
-                      dangerouslySetInnerHTML={{ __html: sanitizeSvgIcon(item.iconSvg) }}
+                      dangerouslySetInnerHTML={{ __html: item.iconSvg }}
                     />
                   )}
                   <span className="flex-1 truncate text-white">{item.label}</span>
@@ -292,7 +291,7 @@ return (
                       strokeLinejoin="round"
                       className="w-4 h-4 flex-shrink-0"
                       aria-hidden="true"
-                      dangerouslySetInnerHTML={{ __html: sanitizeSvgIcon(item.iconSvg) }}
+                      dangerouslySetInnerHTML={{ __html: item.iconSvg }}
                     />
                   )
                 : null;

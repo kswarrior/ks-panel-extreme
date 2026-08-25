@@ -223,38 +223,9 @@ func validateInstancePage(req instancePageDTO) (instancePageDTO, error) {
 	if req.Name == "" {
 		return req, newErrString("name is required")
 	}
-	if len(req.Name) > maxInstancePageNameLen {
-		return req, newErrString(fmt.Sprintf("name too long (max %d characters)", maxInstancePageNameLen))
-	}
-	if len(req.Description) > maxInstancePageDescLen {
-		return req, newErrString(fmt.Sprintf("description too long (max %d characters)", maxInstancePageDescLen))
-	}
-	if len(req.Category) > maxInstancePageDescLen {
-		return req, newErrString(fmt.Sprintf("category too long (max %d characters)", maxInstancePageDescLen))
-	}
 	if req.Slug == "" {
 		return req, newErrString("slug is required")
 	}
-	if !validSlug(req.Slug) {
-		return req, newErrString("slug must start with a letter or number and contain only letters, numbers, dots, dashes or underscores (max 64 chars)")
-	}
-	if len(req.ContentHTML) > maxInstancePageContentBytes {
-		return req, newErrString("content_html too large (max 1MB)")
-	}
-	if len(req.ContentMarkdown) > maxInstancePageContentBytes {
-		return req, newErrString("content_markdown too large (max 1MB)")
-	}
-	if len(req.ContentBlocks) > maxInstancePageContentBytes {
-		return req, newErrString("content_blocks too large (max 1MB)")
-	}
-	if err := validateBlocksJSON(req.ContentBlocks); err != nil {
-		return req, err
-	}
-	if len(req.IconSVG) > maxInstancePageIconBytes {
-		return req, newErrString("icon_svg too large (max 16KB)")
-	}
-	// Icons render inline in the panel origin — store only sanitized markup.
-	req.IconSVG = sanitizeIconSVG(strings.TrimSpace(req.IconSVG))
 	if req.Kind == "" {
 		req.Kind = defaultInstancePageKind
 	}
@@ -554,17 +525,12 @@ func LinkInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 				pageEntry["actions"] = actionsAny
 			}
 		}
-	if req.IconSVG != "" || page.IconSVG != "" {
-		// Icons render inline in the panel origin — never persist unsanitized
-		// author markup into the template spec.
-		icon := sanitizeIconSVG(strings.TrimSpace(req.IconSVG))
-		if icon == "" {
-			icon = sanitizeIconSVG(strings.TrimSpace(page.IconSVG))
+		if req.IconSVG != "" || page.IconSVG != "" {
+			pageEntry["icon_svg"] = req.IconSVG
+			if req.IconSVG == "" {
+				pageEntry["icon_svg"] = page.IconSVG
+			}
 		}
-		if icon != "" {
-			pageEntry["icon_svg"] = icon
-		}
-	}
 
 		// Sub-pages stay INSIDE the family's main row (nested sub_pages,
 		// effective route "<slug>/<path>", e.g. files/edit) so the instance

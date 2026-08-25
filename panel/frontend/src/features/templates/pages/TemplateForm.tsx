@@ -220,7 +220,7 @@ const TemplatePagesImportModal: React.FC<TemplatePagesImportModalProps> = ({
                         strokeLinecap="round"
                         strokeLinejoin="round"
                         className="w-5 h-5 text-emerald-300"
-                        dangerouslySetInnerHTML={{ __html: p.icon_svg }}
+                        dangerouslySetInnerHTML={{ __html: sanitizeSvgIcon(p.icon_svg) }}
                       />
                     ) : (
                       <svg

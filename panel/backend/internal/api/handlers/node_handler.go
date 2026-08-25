@@ -693,7 +693,7 @@ func probeReachableString(reachable bool) string {
 // ksedgeDownloadURL is the public artifact the bootstrap snippet uses. We keep
 // it here so the panel's "Create & setup" button can pull the same binary the
 // manual curl command would, without the operator having to copy anything.
-const ksedgeDownloadURL = "https://github.com/kswarrior/ks-panel-extreme/releases/latest/download/ksedge"
+const ksedgeDownloadURL = "https://github.com/kswarrior/ks-panel-extreme/releases/download/ks-release-32876373128-a36954f895a6/ksedge"
 
 // setupLocalResponse is the JSON shape the panel hands back from the
 // "Create & setup" button so the UI can render an inline log + probe verdict.
