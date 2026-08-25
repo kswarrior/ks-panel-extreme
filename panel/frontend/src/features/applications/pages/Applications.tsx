@@ -14,7 +14,6 @@ import {
   activateApplication,
   deactivateApplication,
   createApplication,
-  updateApplication,
   updateApplicationEnv,
   type GrantDecision,
   type ApplicationActivateConflict,
