@@ -1,2 +1,1 @@
 # ks test
-ks wariior
