@@ -146,11 +146,13 @@ func RunApplicationHandler(w http.ResponseWriter, r *http.Request) {
 		Status:        models.AppRunStatusRunning,
 		TimeoutSec:    timeout,
 	}
-	if _, err := repo.CreateApplicationRun(run); err != nil {
+	runID, err := repo.CreateApplicationRun(run)
+	if err != nil {
 		log.Println("CreateApplicationRun error:", err)
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
+	run.ID = runID
 
 	ctx, cancel := context.WithTimeout(r.Context(), time.Duration(timeout)*time.Second)
 	defer cancel()
