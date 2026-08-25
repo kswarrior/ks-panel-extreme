@@ -292,7 +292,7 @@ return (
                       strokeLinejoin="round"
                       className="w-4 h-4 flex-shrink-0"
                       aria-hidden="true"
-                      dangerouslySetInnerHTML={{ __html: item.iconSvg }}
+                      dangerouslySetInnerHTML={{ __html: sanitizeSvgIcon(item.iconSvg) }}
                     />
                   )
                 : null;
