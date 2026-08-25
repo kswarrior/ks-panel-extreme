@@ -101,14 +101,16 @@ function renderBlocks(json: string): React.ReactNode {
           }
           case 'text':
             return <p key={i} className={`text-sm text-gray-300 leading-relaxed whitespace-pre-wrap ${al}`}>{b.value}</p>;
-          case 'image':
-            return b.value
-              ? <img key={i} src={b.value} alt="" className={`max-w-full rounded-lg border border-white/10 ${al}`} />
+          case 'image': {
+            const imgSrc = safeImgSrc(b.value);
+            return imgSrc !== '#'
+              ? <img key={i} src={imgSrc} alt="" className={`max-w-full rounded-lg border border-white/10 ${al}`} />
               : <div key={i} className="text-xs text-gray-500">[no image url]</div>;
+          }
           case 'button':
             return (
               <div key={i} className={`${al}`}>
-                <a href={b.href ?? '#'} target="_blank" rel="noreferrer"
+                <a href={safeUrl(b.href)} target="_blank" rel="noreferrer"
                   className="ks-primary-btn inline-flex items-center bg-white text-black px-4 py-2 rounded text-sm hover:bg-gray-200 transition">
                   {b.value}
                 </a>
