@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useInstanceNav } from '@/shared/components/layout/InstanceNavContext';
 import { createPortal } from 'react-dom';
+import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 
 const InstanceTabs: React.FC = () => {
   const { nav, instanceId, loading } = useInstanceNav();
