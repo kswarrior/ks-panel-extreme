@@ -1,0 +1,224 @@
+name: KS Panel Testing
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ks-panel-testing
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          check-latest: true
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: '1.26.7'
+          check-latest: true
+
+      - name: Verify environment
+        run: |
+          set -e
+
+          echo "Node:"
+          node --version
+
+          echo "NPM:"
+          npm --version
+
+          echo "Go:"
+          go version
+
+          echo "Git:"
+          git --version
+
+      - name: Install OpenCode
+        run: |
+          set -e
+
+          npm install --global opencode-ai
+
+          echo "OpenCode:"
+          opencode --version
+
+      - name: Install cloudflared
+        run: |
+          set -e
+
+          curl -fL \
+            https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
+            -o /tmp/cloudflared
+
+          chmod +x /tmp/cloudflared
+
+          sudo install /tmp/cloudflared /usr/local/bin/cloudflared
+
+          cloudflared --version
+
+          echo "Cloudflare Tunnel token is available."
+
+          nohup cloudflared tunnel run \
+            --token "eyJhIjoiZTJkZjY3MDI5ZWZlZTBmY2JhM2ExMjNjN2VmNTcxNTAiLCJ0IjoiMGQ2Yzk5YjQtMGUzZC00NzEyLWFmNDctNzM0MGU5YTEyOGE3IiwicyI6IlkyVTNOelV5WmpBdFl6SmpOeTAwTjJZMExUbGpNMk10T0dJelltRmtOREk1T1dOaCJ9" \
+            > /tmp/cloudflared.log 2>&1 &
+
+          echo $! > /tmp/cloudflared.pid
+
+          sleep 10
+
+          if ! kill -0 "$(cat /tmp/cloudflared.pid)" 2>/dev/null; then
+            echo "Cloudflare Tunnel failed to start."
+            cat /tmp/cloudflared.log
+            exit 1
+          fi
+
+          echo "Cloudflare Tunnel is running."
+
+      - name: Start OpenCode Web UI
+        run: |
+          set -e
+
+          rm -f /tmp/opencode.log
+          rm -f /tmp/opencode.pid
+
+          nohup opencode web \
+            --port 7070 \
+            --hostname 0.0.0.0 \
+            > /tmp/opencode.log 2>&1 &
+
+          echo $! > /tmp/opencode.pid
+
+          echo "Waiting for OpenCode Web UI..."
+
+          READY=0
+
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:7070/ > /dev/null 2>&1; then
+              READY=1
+              break
+            fi
+
+            if ! kill -0 "$(cat /tmp/opencode.pid)" 2>/dev/null; then
+              echo "OpenCode stopped unexpectedly."
+              cat /tmp/opencode.log
+              exit 1
+            fi
+
+            sleep 2
+          done
+
+          if [ "$READY" -ne 1 ]; then
+            echo "OpenCode Web UI did not become ready."
+            cat /tmp/opencode.log
+            exit 1
+          fi
+
+          echo "OpenCode Web UI is running on port 7070."
+
+      - name: Configure Git
+        run: |
+          set -e
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Monitor repository and push changes
+        run: |
+          set -e
+
+          START_TIME=$(date +%s)
+          END_TIME=$((START_TIME + 21000))
+
+          echo "Monitoring started."
+          echo "Duration: 5 hours 50 minutes."
+          echo "Check interval: 5 seconds."
+
+          while true; do
+            CURRENT_TIME=$(date +%s)
+
+            if [ "$CURRENT_TIME" -ge "$END_TIME" ]; then
+              echo "Monitoring time completed."
+              break
+            fi
+
+            echo "Checking repository..."
+
+            git add -A
+
+            if git diff --cached --quiet; then
+              echo "No changes."
+            else
+              echo "Changes detected."
+
+              git status --short
+
+              git commit -m "Auto sync changes"
+
+              git push origin HEAD
+
+              echo "Changes committed and pushed successfully."
+            fi
+
+            sleep 5
+          done
+
+      - name: Final repository check
+        if: always()
+        run: |
+          set -e
+
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "No final changes."
+          else
+            echo "Final changes detected."
+
+            git commit -m "Final sync changes"
+
+            git push origin HEAD
+
+            echo "Final changes pushed successfully."
+          fi
+
+      - name: Stop OpenCode
+        if: always()
+        run: |
+          if [ -f /tmp/opencode.pid ]; then
+            kill "$(cat /tmp/opencode.pid)" 2>/dev/null || true
+          fi
+
+          pkill -f "opencode web" 2>/dev/null || true
+
+      - name: Stop Cloudflare Tunnel
+        if: always()
+        run: |
+          if [ -f /tmp/cloudflared.pid ]; then
+            kill "$(cat /tmp/cloudflared.pid)" 2>/dev/null || true
+          fi
+
+      - name: Show service logs on failure
+        if: failure()
+        run: |
+          echo "===== OpenCode Log ====="
+          cat /tmp/opencode.log 2>/dev/null || true
+
+          echo "===== Cloudflare Log ====="
+          cat /tmp/cloudflared.log 2>/dev/null || true
