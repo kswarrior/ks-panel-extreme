@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # KS Panel — Retest Script
 #
-# Creates a test sandbox, copies release binaries into it, seeds demo data,
-# and launches the panel for manual testing.
+# Creates a test sandbox under /tmp, copies release binaries into it,
+# seeds demo data, and launches the panel for manual testing.
 #
 # Usage:
 #   ./retest.sh              # Launch on default port 8080
@@ -12,7 +12,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RELEASE_DIR="$ROOT_DIR/release"
-TEST_DIR="$ROOT_DIR/test"
+TEST_DIR="/tmp/kspanel-retest"
 
 # Colors
 RED='\033[0;31m'
