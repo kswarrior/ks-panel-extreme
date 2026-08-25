@@ -165,7 +165,7 @@ const Applications: React.FC = () => {
         script: { files: [] },
       });
     } catch (e: any) {
-      setError(e?.response?.data || 'Failed to save application');
+      setUploadError(e?.response?.data || 'Failed to save application');
     }
   };
 
