@@ -422,12 +422,16 @@ func (r *ApplicationRepository) CreateApplicationRun(run *models.ApplicationRun)
 	return res.LastInsertId()
 }
 
-// CompleteApplicationRun stores the final outcome of a run row.
-func (r *ApplicationRepository) CompleteApplicationRun(id int64, status string, exitCode int, output, errorOutput, runErr string) error {
+// CompleteApplicationRun stores the final outcome of a run row. nodeID /
+// nodeName carry the executor resolved AFTER insert (panel-target runs may
+// route through a local node discovered mid-flight) so history rows record
+// what actually executed, not just what was requested.
+func (r *ApplicationRepository) CompleteApplicationRun(id int64, status string, exitCode int, output, errorOutput, runErr string, nodeID int64, nodeName string) error {
 	now := time.Now().UTC().Format("2006-01-02 15:04:05")
 	_, err := r.db.Exec(
-		`UPDATE application_runs SET status = ?, exit_code = ?, output = ?, error_output = ?, error = ?, ended_at = ? WHERE id = ?`,
-		status, exitCode, output, errorOutput, runErr, now, id,
+		`UPDATE application_runs SET status = ?, exit_code = ?, output = ?, error_output = ?, error = ?,
+		 node_id = ?, node_name = ?, ended_at = ? WHERE id = ?`,
+		status, exitCode, output, errorOutput, runErr, nodeID, nodeName, now, id,
 	)
 	return err
 }
