@@ -167,7 +167,8 @@ func (r *ApplicationRepository) UpdateApplication(id int64, in UpdateApplication
 	}
 	cfgSchema := string(in.ConfigSchema)
 	if cfgSchema == "" {
-		cfgSchema = "{}"
+		// Keep the array shape the run engine expects (see CreateApplication).
+		cfgSchema = "[]"
 	}
 	now := time.Now().UTC().Format("2006-01-02 15:04:05")
 	var res sql.Result

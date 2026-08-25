@@ -535,19 +535,55 @@ function buildIframeDocument(htmlContent: string, instanceContextJson: string, s
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
 * { box-sizing: border-box; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 1rem; color: #e5e7eb; background: transparent; line-height: 1.6; overflow-x: hidden; }
-h1,h2,h3 { color: #fff; margin: 1rem 0 0.5rem; }
+/* Theme tokens — stock defaults mirroring the pre-theme look. The themed
+   override block appended below re-emits every token from the ACTIVE panel
+   theme (customPageThemeCss), so pages referencing var(--ks-*) follow the
+   admin's theme exactly like the host UI does. */
+:root {
+  --ks-font-family: -apple-system, BlinkMacSystemFont,'Segoe UI', Roboto, sans-serif;
+  --ks-heading: #ffffff;
+  --ks-body: #e5e7eb;
+  --ks-secondary: #d1d5db;
+  --ks-muted: #9ca3af;
+  --ks-faint: #6b7280;
+  --ks-link: #7dd3fc;
+  --ks-ok: #34d399;
+  --ks-ok-soft: rgba(52,211,153,0.75);
+  --ks-ok-wash: rgba(6,78,59,0.2);
+  --ks-ok-line: rgba(6,78,59,0.4);
+  --ks-warn: #fcd34d;
+  --ks-warn-soft: rgba(252,211,77,0.75);
+  --ks-warn-wash: rgba(120,53,15,0.3);
+  --ks-warn-line: rgba(180,83,9,0.4);
+  --ks-bad: #fca5a5;
+  --ks-bad-soft: rgba(252,165,165,0.75);
+  --ks-bad-wash: rgba(127,29,29,0.3);
+  --ks-bad-line: rgba(185,28,28,0.5);
+  --ks-info: #38bdf8;
+  --ks-info-wash: rgba(2,132,199,0.3);
+  --ks-info-line: rgba(7,89,133,0.45);
+  /* Decorative hues without a panel token — stable across themes. */
+  --ks-purple: #c4b5fd;
+  --ks-pink: #f0abfc;
+  --ks-cyan: #22d3ee;
+  --ks-card-bg: rgba(255,255,255,0.04);
+  --ks-card-border: rgba(255,255,255,0.10);
+  --ks-input-bg: rgba(0,0,0,0.4);
+  --ks-input-border: rgba(255,255,255,0.15);
+}
+body { font-family: var(--ks-font-family); margin: 0; padding: 1rem; color: var(--ks-body); background: transparent; line-height: 1.6; overflow-x: hidden; }
+h1,h2,h3 { color: var(--ks-heading); margin: 1rem 0 0.5rem; }
 code { background: rgba(0,0,0,0.35); padding: 0.1rem 0.3rem; border-radius: 3px; }
 pre { background: rgba(0,0,0,0.35); padding: 1rem; border-radius: 6px; overflow-x: auto; }
-a { color: #7dd3fc; }
-a:hover { color: #38bdf8; }
+a { color: var(--ks-link); }
+a:hover { color: var(--ks-info); }
 button, .btn { cursor: pointer; }
-input, textarea, select { background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.15); color: #e5e7eb; padding: 0.5rem; border-radius: 0.375rem; font-family: inherit; max-width: 100%; }
-input:focus, textarea:focus, select:focus { outline: none; border-color: #38bdf8; }
-label { display: block; margin-bottom: 0.5rem; font-size: 0.75rem; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.05em; }
+input, textarea, select { background: var(--ks-input-bg); border: 1px solid var(--ks-input-border); color: var(--ks-body); padding: 0.5rem; border-radius: 0.375rem; font-family: inherit; max-width: 100%; }
+input:focus, textarea:focus, select:focus { outline: none; border-color: var(--ks-info); }
+label { display: block; margin-bottom: 0.5rem; font-size: 0.75rem; color: var(--ks-muted); text-transform: uppercase; letter-spacing: 0.05em; }
 table { border-collapse: collapse; width: 100%; }
-th, td { text-align: left; padding: 0.375rem 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.08); font-size: 0.8125rem; }
-th { color: #9ca3af; text-transform: uppercase; font-size: 0.6875rem; letter-spacing: 0.05em; }
+th, td { text-align: left; padding: 0.375rem 0.75rem; border-bottom: 1px solid var(--ks-card-border); font-size: 0.8125rem; }
+th { color: var(--ks-muted); text-transform: uppercase; font-size: 0.6875rem; letter-spacing: 0.05em; }
 img { max-width: 100%; }
 .ks-btn { display: inline-block; background: #fff; color: #000; border: none; padding: 0.5rem 1rem; border-radius: 0.375rem; font-weight: 500; cursor: pointer; font-size: 0.875rem; }
 .ks-btn:hover { background: #e5e7eb; }
@@ -557,16 +593,16 @@ img { max-width: 100%; }
 .ks-btn-red:hover { background: #dc2626; }
 .ks-btn-green { background: #059669; color: #fff; }
 .ks-btn-green:hover { background: #10b981; }
-.ks-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 0.75rem; padding: 1rem; margin-bottom: 0.75rem; }
+.ks-card { background: var(--ks-card-bg); border: 1px solid var(--ks-card-border); border-radius: 0.75rem; padding: 1rem; margin-bottom: 0.75rem; }
 .ks-row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
-.ks-muted { color: #9ca3af; }
+.ks-muted { color: var(--ks-muted); }
 .ks-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-.ks-ok { color: #6ee7b7; }
-.ks-bad { color: #fca5a5; }
-.ks-warn { color: #fcd34d; }
-.ks-badge { display: inline-block; padding: 0.125rem 0.5rem; border-radius: 9999px; font-size: 0.6875rem; border: 1px solid rgba(255,255,255,0.15); background: rgba(0,0,0,0.3); }
-.ks-bar { position: relative; background: rgba(0,0,0,0.4); border-radius: 9999px; height: 8px; overflow: hidden; min-width: 80px; }
-.ks-bar > span { position: absolute; inset: 0 auto 0 0; background: #38bdf8; border-radius: 9999px; }
+.ks-ok { color: var(--ks-ok); }
+.ks-bad { color: var(--ks-bad); }
+.ks-warn { color: var(--ks-warn); }
+.ks-badge { display: inline-block; padding: 0.125rem 0.5rem; border-radius: 9999px; font-size: 0.6875rem; border: 1px solid var(--ks-input-border); background: var(--ks-input-bg); }
+.ks-bar { position: relative; background: var(--ks-input-bg); border-radius: 9999px; height: 8px; overflow: hidden; min-width: 80px; }
+.ks-bar > span { position: absolute; inset: 0 auto 0 0; background: var(--ks-info); border-radius: 9999px; }
 ${themeCss || ''}
 </style>
 <script>
