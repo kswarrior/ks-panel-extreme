@@ -1,4 +1,4 @@
-FIRST ACTION — READ "/test/ks-panel/loop.md"
+FIRST ACTION — READ "./loop.md"
 
 Before doing anything else, you MUST read and fully process "loop.md".
 
