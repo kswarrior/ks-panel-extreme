@@ -1,0 +1,28 @@
+
+ ██╗  ██╗███████╗    ██████╗  █████╗  ███╗   ██╗███████╗██╗
+ ██║ ██╔╝██╔════╝    ██╔══██╗██╔══██╗████╗  ██║██╔════╝██║
+ █████╔╝ ███████╗    ██████╔╝███████║██╔██╗ ██║█████╗  ██║
+ ██╔═██╗ ╚════██║    ██╔═══╝ ██╔══██║██║╚██╗██║██╔══╝  ██║
+ ██║  ██╗███████║    ██║      ██║  ██║██║ ╚████║███████╗███████╗
+ ╚═╝  ╚═╝╚══════╝    ╚═╝      ╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝
+→ database     sqlite — /home/runner/work/ks-panel-extreme/ks-panel-extreme/test/kspanel.db
+✓ database     sqlite ready
+→ ui           embedded bundle
+✓ ui           served from api/handlers
+
+panel pid:    16872
+engine:       sqlite
+dsn:          /home/runner/work/ks-panel-extreme/ks-panel-extreme/test/kspanel.db
+listen:       :5050
+open:         http://10.1.1.171:5050
+bind ifs:     10.1.1.171, 172.17.0.1
+go:           1.26.7
+goos:         linux/amd64
+cpus:         4
+
+✓ panel ready  running
+✗ duplicate    pid 16864: ./kspanel setup:localnode --port 4040 — stop the old instance so DDoS port switching can free ports cleanly
+2026/08/25 17:36:56 [runnervm76f27/QoyNiB478z-000001] "GET http://127.0.0.1:5050/health HTTP/1.1" from 127.0.0.1:52320 - 200 15B in 65.879µs
+2026/08/25 17:36:56 security_requests insert with context: context canceled
+2026/08/25 17:36:56 [runnervm76f27/QoyNiB478z-000002] "POST http://127.0.0.1:5050/api/nodes/heartbeat HTTP/1.1" from 127.0.0.1:52328 - 200 28B in 2.900321ms
+2026/08/25 17:36:56 security_requests insert with context: context canceled

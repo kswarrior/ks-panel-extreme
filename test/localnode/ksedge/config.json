@@ -1,0 +1,10 @@
+{
+  "heartbeat_interval": 60,
+  "listen_port": 4040,
+  "name": "local-edge",
+  "panel_url": "http://127.0.0.1:5050",
+  "skip_verify": false,
+  "token": "kse_14deb77399cb8ae300735fb73c916c1ef446277f1bf77ebf23e6beb0c70b43d9",
+  "use_tls_upstream": false,
+  "uuid": "cli-localnode-1"
+}
