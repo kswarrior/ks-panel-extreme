@@ -45,6 +45,10 @@ command -v openssl >/dev/null 2>&1 || die "openssl is required but not installed
 # ============================================================================
 
 log_step "Preparing test sandbox at $TEST_DIR..."
+if [[ -d "$TEST_DIR" ]]; then
+    log_warn "Existing test folder found — wiping for a clean run..."
+    rm -rf "$TEST_DIR"
+fi
 mkdir -p "$TEST_DIR"
 
 log_info "Copying binaries from release/ ..."

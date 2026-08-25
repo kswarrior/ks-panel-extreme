@@ -79,6 +79,79 @@ var validContentTypes = map[string]bool{
 // page definition can't balloon the DB row or the template spec.
 const maxInstancePageActionsBytes = 64 * 1024
 
+// Content budget per page definition. Generous for rich pages, but hard-capped
+// so a single import can't wedge the DB row or the browser.
+const (
+	maxInstancePageContentBytes = 1024 * 1024 // 1MB per content field
+	maxInstancePageIconBytes    = 16 * 1024   // 16KB for the inline SVG icon
+	maxInstancePageNameLen      = 200
+	maxInstancePageDescLen      = 500
+)
+
+// validSlug reports whether s is a safe top-level page slug: it becomes a URL
+// path segment in the SPA (/instances/<id>/<slug>) so it must never contain a
+// slash or traversal sequence. The bare "." slug is the reserved Home page.
+func validSlug(s string) bool {
+	if s == "." {
+		return true
+	}
+	if len(s) == 0 || len(s) > 64 || strings.Contains(s, "/") || strings.Contains(s, "..") {
+		return false
+	}
+	if !slugStartRe.MatchString(s[:1]) || !slugBodyRe.MatchString(s) {
+		return false
+	}
+	return true
+}
+
+var (
+	slugStartRe = regexp.MustCompile(`^[A-Za-z0-9]$`)
+	slugBodyRe  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
+)
+
+// icon SVG sanitization: icons are rendered INLINE in the panel host origin
+// (sidebar tabs, cards, pickers), so anything script-capable must be stripped
+// before storage. Rules mirror the frontend sanitizeSvgIcon utility.
+var (
+	iconDangerousElementRe = regexp.MustCompile(`(?is)<\s*/?\s*(script|foreignObject|iframe|object|embed|animate|set|handler)\b[^>]*>?`)
+	iconEventHandlerRe     = regexp.MustCompile(`(?i)\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)`)
+	iconJSURLRe            = regexp.MustCompile(`(?i)(href|xlink:href|src|from|to|values|style)\s*=\s*("\s*(javascript|vbscript|data:text/html)[^"]*"|\s*'(javascript|vbscript|data:text/html)[^']*'|(?:javascript|vbscript|data:text/html)[^\s>]*)`)
+	iconUseExternalRefRe   = regexp.MustCompile(`(?i)(xlink:href|href)\s*=\s*("[^"#][^"]*"|'[^#'][^']*')`)
+)
+
+// sanitizeIconSVG strips script-execution vectors from an author-supplied SVG
+// icon (inner markup or full <svg> document): dangerous elements, event
+// handler attributes, javascript:/vbscript:/data:text/html URLs and external
+// references. Runs to a fixpoint so nested/malformed payloads can't reassemble
+// a stripped construct after one pass.
+func sanitizeIconSVG(raw string) string {
+	prev := raw
+	for i := 0; i < 10; i++ {
+		cur := iconDangerousElementRe.ReplaceAllString(prev, "")
+		cur = iconEventHandlerRe.ReplaceAllString(cur, "")
+		cur = iconJSURLRe.ReplaceAllString(cur, "")
+		cur = iconUseExternalRefRe.ReplaceAllString(cur, `$1="#"`)
+		if cur == prev {
+			break
+		}
+		prev = cur
+	}
+	return prev
+}
+
+// validateBlocksJSON checks that non-empty content_blocks is a JSON array of
+// block objects (the shape renderBlocks expects).
+func validateBlocksJSON(raw string) error {
+	if raw == "" {
+		return nil
+	}
+	var arr []json.RawMessage
+	if err := json.Unmarshal([]byte(raw), &arr); err != nil {
+		return newErrString("content_blocks must be a JSON array of block objects")
+	}
+	return nil
+}
+
 // Sub-page (multi-page) limits: generous content budget per family, hard cap
 // on the number of sub-pages so the sidebar/tab bar stays sane.
 const (
