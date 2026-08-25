@@ -1,9 +1,9 @@
 # KS Panel — Agent Rules
 
 ## 0. Paths
-- Backend:  /test/ks-panel/panel/backend
-- Frontend: /test/ks-panel/panel/frontend
-- Edge:     /test/ks-panel/edge/backend
+- Backend:  /home/runner/work/ks-panel-extreme/ks-panel-extreme/panel/backend
+- Frontend: /home/runner/work/ks-panel-extreme/ks-panel-extreme/panel/frontend
+- Edge:     /home/runner/work/ks-panel-extreme/ks-panel-extreme/edge/backend
 Search only inside the affected part. If the user gives a path, search it FIRST,
 then widen within the same part. Never search / or the whole system.
 
@@ -56,7 +56,7 @@ Run this full checklist, do not look only at changed lines:
 - Any failure → find the real cause, fix, restart from PASS 1.
 
 ## 5. Rebuild
-Only after all required passes: bash /test/ks-panel/rebuild.sh
+Only after all required passes: bash /home/runner/work/ks-panel-extreme/ks-panel-extreme/rebuild.sh
 Read the actual output. Failure → fix root cause → PASS 1 again.
 
 ## 6. Report (short)
