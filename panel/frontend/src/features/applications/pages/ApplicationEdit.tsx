@@ -291,14 +291,8 @@ const ApplicationEdit: React.FC = () => {
 
       <GlassField label="Config Schema (JSON array of field definitions)">
         <textarea
-          value={JSON.stringify(form.config_schema, null, 2)}
-          onChange={(e) => {
-            try {
-              setForm({ ...form, config_schema: JSON.parse(e.target.value) });
-            } catch {
-              /* ignore invalid JSON while typing */
-            }
-          }}
+          value={schemaDraft}
+          onChange={(e) => setSchemaDraft(e.target.value)}
           rows={8}
           className="w-full bg-black/30 border border-white/10 rounded-md text-sm text-white px-3 py-1.5 font-mono focus:outline-none focus:border-white/40"
           placeholder='[{"key":"bot_token","label":"Bot Token","type":"secret","required":true}]'

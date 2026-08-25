@@ -320,7 +320,7 @@ const ApplicationConfigure: React.FC = () => {
                       updateField(idx, { options: opts });
                     }}
                   rows={3}
-                  placeholder="dev|Development\nprod|Production"
+                  placeholder={'dev|Development\nprod|Production'}
                   className="w-full bg-black/30 border border-white/10 rounded-md text-sm text-white px-2 py-1.5 font-mono focus:outline-none focus:border-white/40"
                 />
               </GlassField>
