@@ -246,7 +246,14 @@ func buildAppRunPayload(app *models.Application, overrides map[string]string) ([
 	}
 	if len(app.ConfigSchema) > 0 {
 		if err := json.Unmarshal(app.ConfigSchema, &schema); err != nil {
-			return nil, "", nil, fmt.Errorf("application config_schema is not a JSON array")
+			// Rows created before the array contract was enforced (and the
+			// column's '{}' default) hold an empty JSON object — treat that
+			// as "no fields" instead of failing every run. Anything else
+			// that isn't an array stays an error.
+			var legacy map[string]json.RawMessage
+			if lerr := json.Unmarshal(app.ConfigSchema, &legacy); lerr != nil || len(legacy) != 0 {
+				return nil, "", nil, fmt.Errorf("application config_schema is not a JSON array")
+			}
 		}
 	}
 	for _, f := range schema {
