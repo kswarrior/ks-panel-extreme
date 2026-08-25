@@ -290,6 +290,33 @@ export async function listInstances(): Promise<Instance[]> {
   return res.data;
 }
 
+// Fetches a single instance row (same shape as listInstances entries).
+export async function getInstance(id: number): Promise<Instance> {
+  const res = await client.get<Instance>(`/api/instances/${id}`);
+  return res.data;
+}
+
+export interface UpdateInstancePayload {
+  // Full edited spec (the serializeEditor output). The backend merges it
+  // over the stored config and recreates the workload when a
+  // create-time-only field changed.
+  config: Record<string, unknown>;
+}
+
+// Saves admin edits to an instance's config. `recreated` is true when the
+// backend tore the workload down and kicked off an async redeploy because a
+// create-time-only field (image/ports/mounts/env/command/…) changed.
+export async function updateInstance(
+  id: number,
+  payload: UpdateInstancePayload,
+): Promise<{ id: number; status: string; recreated: boolean }> {
+  const res = await client.put<{ id: number; status: string; recreated: boolean }>(
+    `/api/instances/${id}`,
+    payload,
+  );
+  return res.data;
+}
+
 // Deploys an instance from a template + node + optional per-deploy edits.
 // Returns the created instance's id/external_id/status, or rejects with an
 // Axios error whose `.response.data` is the structured deploy failure the
