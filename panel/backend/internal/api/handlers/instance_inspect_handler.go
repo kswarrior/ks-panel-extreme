@@ -317,7 +317,7 @@ func MetricsHandler(w http.ResponseWriter, r *http.Request) {
 	// disk) as well as the Metrics page itself, so an instance whose
 	// template enabled either page may read it. Instances with neither get
 	// the same structured 403 as before.
-	if !guardInstancePageAny(w, r, "metrics", "home") {
+	if !guardInstancePageAny(w, r, "metrics", "home", ".") {
 		return
 	}
 	inst, ec, _, ok := loadInstNode(w, r)
