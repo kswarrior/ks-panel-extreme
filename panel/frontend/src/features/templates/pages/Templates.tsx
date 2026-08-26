@@ -12,6 +12,7 @@ import GlassCard from '@/shared/components/ui/Card';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import GlassModal from '@/shared/components/ui/Modal';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
+import { useConfirm } from '@/shared/stores/confirmStore';
 
 type KindKey = 'docker' | 'lxd' | 'kvm' | 'multipass' | 'unknown';
 type SortKey = 'name' | 'kind' | 'updated' | 'newest';
@@ -61,6 +62,7 @@ function KindIcon({ kind, className = '' }: { kind: KindKey; className?: string 
 
 const Templates: React.FC = () => {
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -174,7 +176,7 @@ const Templates: React.FC = () => {
   const openEdit = (t: Template) => navigate(`/templates/${t.id}/edit`);
 
   const remove = async (t: Template) => {
-    if (!confirm(`Delete template "${t.name}"? Existing instances keep running.`)) return;
+    if (!(await confirm({ title: 'Delete template', message: `Delete template "${t.name}"? Existing instances keep running.`, tone: 'danger', confirmLabel: 'Delete' }))) return;
     setDeletingId(t.id);
     try { await deleteTemplate(t.id); await load(); }
     catch (e: any) { alert(e?.response?.data || 'Failed to delete template'); }
