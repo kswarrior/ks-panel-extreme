@@ -22,10 +22,11 @@
 -- kind='builtin' tells the Instance router (resolveInstanceNav /
 -- slugToComponent) to render the matching built-in component; content_* stays
 -- empty because the panel renders built-ins from React, not from this table.
--- INSERT OR IGNORE keeps an idempotent re-seed safe: if an admin previously
--- renamed one of these rows the existing record wins.
+-- INSERT ... ON CONFLICT DO NOTHING keeps an idempotent re-seed safe: if an
+-- admin previously renamed one of these rows the existing record wins.
+-- (PostgreSQL has no INSERT OR IGNORE; this is the equivalent form.)
 
-INSERT OR IGNORE INTO instance_pages (name, slug, kind, category, description, content_type, icon_svg)
+INSERT INTO instance_pages (name, slug, kind, category, description, content_type, icon_svg)
 VALUES
     ('Home',        '.',          'builtin', 'builtin', 'Home dashboard of the instance.',                    'markdown', ''),
     ('Files',       'files',      'builtin', 'builtin', 'File manager and editor.',                          'markdown', ''),
@@ -38,4 +39,5 @@ VALUES
     ('Ports',       'ports',      'builtin', 'builtin', 'Port allocations.',                                 'markdown', ''),
     ('Backups',     'backups',    'builtin', 'builtin', 'Backup snapshots.',                                 'markdown', ''),
     ('Audit',       'audit',      'builtin', 'builtin', 'Audit log of instance actions.',                    'markdown', ''),
-    ('Settings',    'settings',   'builtin', 'builtin', 'Instance settings.',                                'markdown', '');
+    ('Settings',    'settings',   'builtin', 'builtin', 'Instance settings.',                                'markdown', '')
+ON CONFLICT DO NOTHING;
