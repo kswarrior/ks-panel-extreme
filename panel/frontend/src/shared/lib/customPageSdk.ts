@@ -420,8 +420,8 @@ export function createCustomPageSDK(
 }
 
 // Helper to inject SDK into a page's iframe or directly into window
-export function injectSDK(instanceContext: InstanceContext, savedActions: PageActionDef[] = []): CustomPageAPI {
-  const sdk = createCustomPageSDK(instanceContext, savedActions);
+export function injectSDK(instanceContext: InstanceContext, savedActions: PageActionDef[] = [], pageSlug: string = ''): CustomPageAPI {
+  const sdk = createCustomPageSDK(instanceContext, savedActions, pageSlug);
   window.KSPageSDK = sdk;
   return sdk;
 }
