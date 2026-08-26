@@ -79,8 +79,7 @@ func (r *SettingsRepository) SetPanelName(name string) error {
 		return fmt.Errorf("panel name cannot be empty")
 	}
 	_, err := r.db.Exec(
-		`INSERT INTO settings (key, value) VALUES (?, ?)
-		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+		`INSERT INTO settings (key, value) VALUES (?, ?)` + upsertSet("(key)", []string{"value"}),
 		PanelNameKey, name,
 	)
 	return err
@@ -311,8 +310,7 @@ func (r *SettingsRepository) getString(key, fallback string) string {
 // setString upserts a single key/value pair in the settings table.
 func (r *SettingsRepository) setString(key, value string) error {
 	_, err := r.db.Exec(
-		`INSERT INTO settings (key, value) VALUES (?, ?)
-		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+		`INSERT INTO settings (key, value) VALUES (?, ?)` + upsertSet("(key)", []string{"value"}),
 		key, value,
 	)
 	return err
