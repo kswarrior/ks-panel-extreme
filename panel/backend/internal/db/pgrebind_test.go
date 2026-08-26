@@ -65,3 +65,26 @@ func TestRebindPostgresNoPlaceholdersUnchanged(t *testing.T) {
 		t.Fatalf("got %q want unchanged %q", got, in)
 	}
 }
+
+func TestBareCreateIndex(t *testing.T) {
+	cases := []struct {
+		stmt string
+		want bool
+	}{
+		{"CREATE INDEX idx_a ON users(email)", true},
+		{"CREATE UNIQUE INDEX idx_b ON nodes(token)", true},
+		{"  create index idx_c on instances(name)", true},
+		{"CREATE INDEX IF NOT EXISTS idx_d ON users(id)", false},
+		{"CREATE TABLE users (id INTEGER)", false},
+		{"INSERT INTO permissions (key) VALUES ('x')", false},
+	}
+	for _, tc := range cases {
+		if got := bareCreateIndex(tc.stmt); got != tc.want {
+			t.Errorf("bareCreateIndex(%q) = %v want %v", tc.stmt, got, tc.want)
+		}
+	}
+	m := createIndexRe.FindStringSubmatch("CREATE UNIQUE INDEX idx_app ON application_runs(application_id)")
+	if m == nil || m[1] != "idx_app" || m[2] != "application_runs" {
+		t.Fatalf("captures wrong: %v", m)
+	}
+}
