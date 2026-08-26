@@ -30,6 +30,10 @@ type InstancePage struct {
 	Slug            string `json:"slug"`
 	Kind            string `json:"kind"` // "custom" (legacy "builtin" rows were purged by migration 046 and are rejected by the API)
 	Category        string `json:"category"`
+	// PageType (API/JSON key "type", column page_type) classifies the page
+	// flavor — dashboard, status, docs, admin-panel, widget, … — mirroring
+	// the Category/Type pickers in the template editor. Free-form; "" == unset.
+	PageType        string `json:"type"`
 	Description     string `json:"description"`
 	ContentType     string `json:"content_type"` // "html" | "markdown" | "blocks"
 	ContentHTML     string `json:"content_html"`

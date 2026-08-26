@@ -394,6 +394,18 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				return err
 			}
 			continue
+		case name == "048_instance_page_type.sql":
+			// Instance-page type classification (API key "type", column
+			// page_type): free-form flavor tag (dashboard, status, docs, …)
+			// edited via the Studio settings tab's Category/Type pickers.
+			// Guarded so re-launches stay idempotent on all dialects —
+			// mirrors 047_instance_page_sub_pages.sql.
+			if err := guardedAddColumns(d, db, name, "instance_pages", []columnSpec{
+				{"page_type", "TEXT NOT NULL DEFAULT ''"},
+			}); err != nil {
+				return err
+			}
+			continue
 		case name == "045_application_files_runs.sql":
 			// Application script files (JSON array of {path,content}) plus
 			// the application_runs history table. The ALTER is guarded per

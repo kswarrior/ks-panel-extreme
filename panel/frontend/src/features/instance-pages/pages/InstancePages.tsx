@@ -176,23 +176,6 @@ const InstancePages: React.FC = () => {
     created: p.created_at ? new Date(p.created_at).getTime() : 0,
   })), [pages]);
 
-  const stats = useMemo(() => {
-    const byKind: Record<string, number> = {};
-    const byCategory: Record<string, number> = {};
-    enriched.forEach((e) => {
-      byKind[e.kind] = (byKind[e.kind] || 0) + 1;
-      if (e.category) byCategory[e.category] = (byCategory[e.category] || 0) + 1;
-    });
-    return {
-      total: enriched.length,
-      builtin: byKind.builtin || 0,
-      custom: byKind.custom || 0,
-      categories: Object.keys(byCategory).length,
-      byKind,
-      byCategory,
-    };
-  }, [enriched]);
-
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     let out = enriched;
