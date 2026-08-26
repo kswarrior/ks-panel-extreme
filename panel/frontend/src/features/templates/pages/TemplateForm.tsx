@@ -19,6 +19,7 @@ import {
   TemplateSpecPreviewSection,
 } from '@/features/templates/components/TemplateForm';
 import { TagPicker, Toggle, TemplateTabs, CustomPageStudio } from '../components/TemplateFormComponents';
+import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 import type {
   TemplateFormState,
   DriverKind,
@@ -172,7 +173,14 @@ const TemplatePagesImportModal: React.FC<TemplatePagesImportModalProps> = ({
 
         <div className="border border-white/10 rounded-md bg-black/30 max-h-[50vh] overflow-y-auto divide-y divide-white/5">
           {loading && (
-            <div className="px-4 py-6 text-center text-gray-500 text-sm">Loading…</div>
+            <div className="px-4 py-4 space-y-3 animate-pulse" aria-busy="true" aria-label="Loading pages">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <div className="h-3 w-1/3 rounded bg-white/10" style={{ animationDelay: `${i * 120}ms` }} />
+                  <div className="h-3 flex-1 rounded bg-white/[0.06]" style={{ animationDelay: `${i * 120 + 60}ms` }} />
+                </div>
+              ))}
+            </div>
           )}
           {!loading && filteredInstance.length === 0 && (
             <div className="px-4 py-8 text-center text-gray-500 text-sm">
@@ -498,7 +506,7 @@ const TemplateForm: React.FC = () => {
         saving={false}
         submitLabel="Save"
       >
-        <p className="text-white/60 text-sm">Loading…</p>
+        <FormSkeleton fields={6} />
       </FormPage>
     );
   }
