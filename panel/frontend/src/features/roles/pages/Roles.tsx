@@ -55,6 +55,7 @@ const getRoleIconSvg = (icon?: string) => {
 
 const RolesPage: React.FC = () => {
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -133,7 +134,7 @@ const filterRef = useRef<HTMLDivElement | null>(null);
   }, [load]);
 
   const remove = async (r: Role) => {
-    if (!confirm(`Delete role "${r.name}"? This cannot be undone.`)) return;
+    if (!(await confirm({ title: 'Delete role', message: `Delete role "${r.name}"? This cannot be undone.`, tone: 'danger', confirmLabel: 'Delete' }))) return;
     setDeletingName(r.name);
     try {
       await deleteRole(r.id);
