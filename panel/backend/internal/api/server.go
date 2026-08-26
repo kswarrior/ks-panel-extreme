@@ -548,6 +548,11 @@ func NewRouter() http.Handler {
 			// workload on the edge only when a create-time-only field changed.
 			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionEdit)).Put("/{id}", handlers.UpdateInstanceHandler)
 			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionDelete)).Delete("/{id}", handlers.DestroyInstanceHandler)
+			// Suspension lifecycle (edit-gated). The handlers existed but
+			// were never mounted, so the AdminInstances page's suspend /
+			// unsuspend buttons silently hit the SPA catch-all.
+			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionEdit)).Post("/{id}/suspend", handlers.SuspendInstanceHandler)
+			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionEdit)).Post("/{id}/unsuspend", handlers.UnsuspendInstanceHandler)
 		})
 
 		// Instance actions: invoke a template-defined named action (e.g. the
