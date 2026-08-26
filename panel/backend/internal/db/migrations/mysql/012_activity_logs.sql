@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS activity_logs (
     -- Optional role display name at write-time; useful in the Activity UI
     -- to colour-code the actor without joining.
     role         TEXT    NOT NULL DEFAULT (''),
-    category     TEXT    NOT NULL,
+    category     VARCHAR(64) NOT NULL,
     action       TEXT    NOT NULL,
     target_id    BIGINT,
     target_label TEXT    NOT NULL DEFAULT (''),

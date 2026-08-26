@@ -10,12 +10,12 @@
 CREATE TABLE IF NOT EXISTS templates (
     id          BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     -- Display name shown in the deploy modal + template list.
-    name        TEXT    NOT NULL,
+    name        VARCHAR(255) NOT NULL,
     -- Short one-line description rendered under the name.
     description TEXT    NOT NULL DEFAULT (''),
     -- Which ksedge driver executes instances from this template.
     -- One of: 'docker' | 'lxd' | 'kvm' | 'multipass'.
-    kind        TEXT    NOT NULL,
+    kind        VARCHAR(64) NOT NULL,
     -- Pretty image / base the operator recognises (e.g. "ubuntu/22.04",
     -- "alpine:3.19", "debian-12"). Forwarded verbatim to the driver which
     -- interprets it according to its own image syntax.
