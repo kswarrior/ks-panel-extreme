@@ -948,4 +948,13 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
     );
   }
 
-  // For HTML content, render in a hardened sandboxed iframe. Pure content:
+  // For markdown and blocks, render as React components (SDK available on window.KSPageSDK)
+  return (
+    <div className="animate-fade-in">
+      {content.type === 'markdown' && renderMarkdown(content.markdown ?? '')}
+      {content.type === 'blocks' && renderBlocks(content.blocks ?? '')}
+    </div>
+  );
+};
+
+export default CustomPageView;
