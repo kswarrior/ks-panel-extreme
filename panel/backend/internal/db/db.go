@@ -616,38 +616,28 @@ func execMigrationScript(d Dialect, db *sql.DB, script, migration string) error 
 	}
 
 	guardBareIndexes := d.Name() != "sqlite"
-	var bareIdx []string
-	if guardBareIndexes {
-		filtered := make([]string, 0, len(rest))
-		for _, s := range rest {
-			if bareCreateIndex(s) {
-				bareIdx = append(bareIdx, s)
-				continue
-			}
-			filtered = append(filtered, s)
-		}
-		rest = filtered
-	}
 
 	for _, ct := range ordered {
 		if err := exec(ct.stmt); err != nil {
 			return fmt.Errorf("statement %d (%s): %w", ct.order+1, ct.name, err)
 		}
 	}
-	// Guarded index creation happens right after the tables exist but
-	// before any seed INSERTs so the original statement order stays
-	// semantically equivalent for every shipped file.
-	for _, s := range bareIdx {
-		m := createIndexRe.FindStringSubmatch(s)
-		table, idxName := m[2], m[1]
-		if hasIndex(d, db, table, idxName) {
+	// Statements stay in their original positions — an index may depend
+	// on an ALTER earlier in the same file. Bare CREATE INDEX statements
+	// (no IF NOT EXISTS) are applied through the hasIndex guard so the
+	// every-launch re-run stays idempotent on MySQL.
+	for _, s := range rest {
+		if guardBareIndexes && bareCreateIndex(s) {
+			m := createIndexRe.FindStringSubmatch(s)
+			table, idxName := m[2], m[1]
+			if hasIndex(d, db, table, idxName) {
+				continue
+			}
+			if err := exec(s); err != nil {
+				return fmt.Errorf("migration %s (%s): %w", migration, idxName, err)
+			}
 			continue
 		}
-		if err := exec(s); err != nil {
-			return fmt.Errorf("migration %s (%s): %w", migration, idxName, err)
-		}
-	}
-	for _, s := range rest {
 		if err := exec(s); err != nil {
 			return err
 		}
