@@ -581,11 +581,18 @@ export const PAGE_STARTERS: PageStarter[] = [
     html: DISK_ANALYZER,
     actions: [
       {
-        name: 'disk_report',
+        name: 'df_report',
         type: 'shell',
-        command: 'df -h; echo; du -x -d1 -h / 2>/dev/null | sort -rh | head -10',
-        timeout: 120,
-        description: 'Full filesystem table plus largest top-level directories.',
+        command: 'df -h',
+        timeout: 30,
+        description: 'Filesystem usage table.',
+      },
+      {
+        name: 'du_top',
+        type: 'shell',
+        command: 'du -x -d1 -h / 2>/dev/null | sort -rh | head -15',
+        timeout: 180,
+        description: 'Largest top-level directories by du.',
       },
       {
         name: 'clean_tmp',
@@ -605,6 +612,13 @@ export const PAGE_STARTERS: PageStarter[] = [
     iconSvg: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
     html: UPDATE_CENTER,
     actions: [
+      {
+        name: 'detect_pm',
+        type: 'shell',
+        command: 'command -v apt-get || command -v apk || command -v dnf || command -v yum',
+        timeout: 10,
+        description: 'Print the path of the first supported package manager.',
+      },
       {
         name: 'check_updates',
         type: 'shell',
