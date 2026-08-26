@@ -822,6 +822,12 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
               case 'kvm': return sdk.kvm(list[0], list[1]);
               case 'lxd': return sdk.lxd(list[0], list[1]);
               case 'toast': sdk.toast(list[0], list[1]); return { ok: true };
+              case 'confirm': {
+                // Render the panel's themed ConfirmDialog in the HOST origin
+                // and resolve the iframe's promise with the answer.
+                const msg = typeof list[0] === 'string' ? list[0] : String(list[0] ?? '');
+                return confirmDialog({ title: 'Please confirm', message: msg });
+              }
               case 'navigate': {
                 // Fail closed: only routes inside THIS instance are allowed.
                 const target = pageNavigateTarget(instanceContext?.id ?? 0, list[0]);
