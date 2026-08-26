@@ -284,20 +284,18 @@ const UPDATE_CENTER = page(
   `
     var mgr = '';
     async function detect(){
-      var r = await sh('command -v apt-get || command -v apk || command -v dnf || command -v yum', 10);
-      mgr = (r.stdout.trim().split('\\n')[0] || '').split('/').pop();
+      try {
+        var r = await act('detect_pm');
+        mgr = (((r.stdout || '') + '').trim().split('\\n')[0] || '').split('/').pop();
+      } catch (e) { mgr = ''; }
       el('mgr').textContent = mgr ? ('package manager: ' + mgr) : 'no supported package manager found (apt/apk/dnf/yum)';
       return mgr;
     }
     async function check(){
       if (!mgr) { el('content').innerHTML = '<p class="ks-muted">No supported package manager detected.</p>'; return; }
       el('content').innerHTML = '<p class="ks-muted">Checking…</p>';
-      var cmd =
-        mgr === 'apt-get' ? 'apt-get update -qq && apt list --upgradable 2>/dev/null | tail -n +2' :
-        mgr === 'apk' ? 'apk update >/dev/null 2>&1; apk version -l \\'<\\'' :
-        'dnf -q check-update 2>/dev/null || yum -q check-update 2>/dev/null; true';
-      var r = await sh(cmd, 120);
-      var out = (r.stdout || '').trim();
+      var r = await act('check_updates');
+      var out = ((r.stdout || '') + '').trim();
       if (!out) {
         el('content').innerHTML = '<p class="ks-ok">All packages up to date.</p>';
         el('upgrade').style.display = 'none';
@@ -311,12 +309,8 @@ const UPDATE_CENTER = page(
       el('upgrade').disabled = true;
       el('content').innerHTML = '<p class="ks-muted">Upgrading…</p>';
       try {
-        var cmd =
-          mgr === 'apt-get' ? 'DEBIAN_FRONTEND=noninteractive apt-get -y upgrade 2>&1 | tail -30' :
-          mgr === 'apk' ? 'apk upgrade 2>&1 | tail -30' :
-          '(dnf -y upgrade || yum -y update) 2>&1 | tail -30';
-        var r = await sh(cmd, 600);
-        el('content').innerHTML = card('Upgrade result (exit ' + (r.exit_code != null ? r.exit_code : '?') + ')', pre((r.stdout || '') + (r.stderr || '')));
+        var r = await act('apply_upgrades');
+        el('content').innerHTML = card('Upgrade result (exit ' + (r.exit_code != null ? r.exit_code : '?') + ')', pre(((r.stdout || '') + '') + ((r.stderr || '') + '')));
         toast('Upgrade finished', r.exit_code === 0 ? 'success' : 'error');
       } finally { el('upgrade').disabled = false; }
     }
@@ -567,6 +561,15 @@ export const PAGE_STARTERS: PageStarter[] = [
     description: 'Inspect the user crontab plus /etc/crontab, cron.d and cron.daily.',
     iconSvg: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9 2h6"/><path d="m19 5 1.5 1.5"/>',
     html: CRON_SCHEDULER,
+    actions: [
+      {
+        name: 'cron_overview',
+        type: 'shell',
+        command: "{ echo '# user crontab (crontab -l)'; crontab -l 2>/dev/null || true; echo; echo '# /etc/crontab'; cat /etc/crontab 2>/dev/null || true; echo; echo '# /etc/cron.d'; ls -la /etc/cron.d 2>/dev/null || true; echo; echo '# /etc/cron.daily'; ls -la /etc/cron.daily 2>/dev/null || true; } 2>&1",
+        timeout: 20,
+        description: 'User crontab plus /etc/crontab, cron.d and cron.daily listings.',
+      },
+    ],
   },
   {
     id: 'disk-analyzer',
