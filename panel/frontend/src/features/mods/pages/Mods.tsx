@@ -86,7 +86,7 @@ const Mods: React.FC = () => {
   const [editVersion, setEditVersion] = useState('');
   const [editDesc, setEditDesc] = useState('');
   const [editId, setEditId] = useState<number | null>(null);
-  const [editSpec, setEditSpec] = useState<string | undefined>(undefined);
+  const [editSpec, setEditSpec] = useState<Record<string, any> | undefined>(undefined);
   const [editSaving, setEditSaving] = useState(false);
 
   // activate / grant modal
@@ -263,7 +263,7 @@ const Mods: React.FC = () => {
     setEditName(m.name);
     setEditVersion(m.version);
     setEditDesc(m.description);
-    setEditSpec(typeof m.spec === 'string' ? m.spec : undefined);
+    setEditSpec(m.spec ?? undefined);
   };
   const saveEdit = async () => {
     if (editId == null) return;
