@@ -210,7 +210,7 @@ func normalizePGValues(args []driver.Value) []driver.Value {
 }
 
 // rebindPostgres rewrites "?" placeholders into "$1..$N" ordinals. A "?"
-// inside a single-quoted string (with ” escapes), double-quoted identifier,
+// inside a single-quoted string (with doubled single-quote escapes), double-quoted identifier,
 // -- line comment or /* */ block comment is left alone, because there it is
 // data, not a placeholder. Existing "$n" tokens are preserved verbatim and
 // the ordinal counter starts above the highest one so a query that mixes
