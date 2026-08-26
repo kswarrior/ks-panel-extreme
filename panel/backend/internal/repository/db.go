@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"fmt"
 	"strings"
 
 	"github.com/example/kspanel/internal/config"
@@ -33,4 +34,31 @@ func engineName() string {
 	default:
 		return "sqlite"
 	}
+}
+
+// upsertSet builds the dialect-appropriate upsert suffix that follows an
+// INSERT ... VALUES clause. conflictTarget is the unique constraint's
+// column list including parentheses, e.g. "(instance_id, key)". Every name
+// in cols is overwritten from the VALUES row ("excluded.col" on
+// SQLite/Postgres, "VALUES(col)" on MySQL); extraSets are appended verbatim
+// so callers can bump timestamps ("updated_at = CURRENT_TIMESTAMP").
+//
+// Without this, the PostgreSQL-flavoured ON CONFLICT clauses previously
+// hardcoded at the call sites were syntax errors on MySQL — every settings,
+// heartbeat, secret, theme and authority write failed on that engine.
+func upsertSet(conflictTarget string, cols []string, extraSets ...string) string {
+	mysql := engineName() == "mysql"
+	sets := make([]string, 0, len(cols)+len(extraSets))
+	for _, c := range cols {
+		if mysql {
+			sets = append(sets, fmt.Sprintf("%s = VALUES(%s)", c, c))
+		} else {
+			sets = append(sets, fmt.Sprintf("%s = excluded.%s", c, c))
+		}
+	}
+	sets = append(sets, extraSets...)
+	if mysql {
+		return " ON DUPLICATE KEY UPDATE " + strings.Join(sets, ", ")
+	}
+	return " ON CONFLICT" + conflictTarget + " DO UPDATE SET " + strings.Join(sets, ", ")
 }
