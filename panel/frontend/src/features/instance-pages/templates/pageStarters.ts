@@ -1,14 +1,14 @@
 // PAGE STARTERS — a built-in library of fully functional instance-page
 // templates for the Instance Page Studio ("Templates" tab).
 //
-// Every starter is an ordinary custom instance page (content_type 'html')
-// whose JavaScript talks ONLY to KSPageSDK — exactly what an admin authors
-// in the Studio. Together they prove the instance-pages system can express
-// everything the compiled built-in pages do (Home / Files / Network /
-// Console / Settings / Env / Automation / Processes / Metrics / Ports /
-// Backups / Audit) plus the extra surfaces VM & container operators usually
-// need (Docker manager, systemd services, cron, disk analyzer, package
-// updates, firewall, users, system info).
+// Every starter is an ordinary custom instance page whose JavaScript talks
+// ONLY to KSPageSDK — exactly what an admin authors in the Studio. The set
+// covers the surfaces VM & container operators usually need (Docker manager,
+// systemd services, cron, disk analyzer, package updates, firewall, users,
+// system info) plus verbatim ports of the former instance_pages/pages/*.json
+// library (Home / Files / Network / Terminal / Settings / Env / Automation /
+// Processes / Metrics / Ports / Backups / Audit + docs/dashboard examples),
+// which was consolidated into this file when that directory was removed.
 //
 // Security notes:
 //   • No external resources — everything runs offline inside the panel.
@@ -45,14 +45,6 @@ export interface PageStarter {
 const COMMON_JS = `
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function el(id){return document.getElementById(id);}
-function fmtBytes(n){if(n==null||isNaN(n))return'-';var u=['B','KB','MB','GB','TB'];var i=0;while(n>=1024&&i<u.length-1){n/=1024;i++;}return n.toFixed(n>=100||i===0?0:1)+' '+u[i];}
-function badge(s){var c='ks-badge';s=String(s==null?'':s).toLowerCase();if(['running','done','active','ok','up'].indexOf(s)>=0)c+=' ks-ok';else if(['stopped','exited','inactive','paused'].indexOf(s)>=0)c+=' ks-warn';else if(['errored','failed','error','dead'].indexOf(s)>=0)c+=' ks-bad';return '<span class="'+c+'">'+esc(s||'unknown')+'</span>';}
-// tok resolves a panel theme token to a concrete color for APIs that cannot
-// consume CSS var() (canvas strokeStyle/fillStyle, SVG attributes). Inline
-// style="" values should prefer var(--ks-*) directly so live theme changes
-// repaint without a re-render.
-function tok(name,fb){try{var v=getComputedStyle(document.documentElement).getPropertyValue(name).trim();return v||fb;}catch(e){return fb;}}
-function bar(pct,color){pct=Math.max(0,Math.min(100,Number(pct)||0));if(!color)color=pct>90?'var(--ks-bad)':pct>70?'var(--ks-warn)':'var(--ks-info)';return '<div class="ks-bar"><span style="width:'+pct+'%;background:'+color+'"></span></div>';}
 function toast(m,t){try{KSPageSDK.toast(m,t||'info');}catch(e){}}
 async function sh(cmd,timeout){var r=await KSPageSDK.shell(cmd,[],null,timeout||20);if(r&&r.error&&!r.stdout&&!r.stderr)throw new Error(r.error);return r;}
 function pre(text,maxH){return '<pre style="max-height:'+(maxH||420)+'px;overflow:auto;font-size:12px;margin:0">'+esc(text==null?'':text)+'</pre>';}
