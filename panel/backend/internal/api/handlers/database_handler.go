@@ -440,21 +440,27 @@ func listTables(con *sql.DB, hasDbstat bool) ([]DatabaseTable, error) {
 	for _, n := range names {
 		var dt DatabaseTable
 		dt.Name = n
+		// Table names originate from sqlite_master and are attacker-
+		// controllable one hop away (mods granted the database capability can
+		// CREATE TABLE with arbitrary names). Escape openings for both the
+		// identifier (double-quote) and string-literal (single-quote) contexts.
+		nIdent := strings.ReplaceAll(n, `"`, `""`)
+		nLit := strings.ReplaceAll(n, `'`, `''`)
 		dt.Type = "table"
 		dt.RowCount = scalarInt(con,
-			`SELECT COUNT(*) FROM "`+n+`"`)
+			`SELECT COUNT(*) FROM "`+nIdent+`"`)
 		dt.ColumnCount = scalarInt(con,
-			`SELECT COUNT(*) FROM pragma_table_info('`+n+`')`)
+			`SELECT COUNT(*) FROM pragma_table_info('`+nLit+`')`)
 		// Index count: system + user indexes combined, excluding the
 		// implicit rowid b-tree which isn't an "index" entry.
 		dt.IndexCount = scalarInt(con,
-			`SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND tbl_name='`+n+`'`)
+			`SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND tbl_name='`+nLit+`'`)
 		// WITHOUT ROWID tables store rows directly in their PK b-tree (no
 		// separate rowid). Detect by parsing the CREATE TABLE statement for
 		// the trailing "WITHOUT ROWID" clause rather than guessing from
 		// primary-key presence (every table with a PK would otherwise read
 		// as without-rowid).
-		sqlText := scalar(con, `SELECT sql FROM sqlite_master WHERE type='table' AND name='`+n+`'`)
+		sqlText := scalar(con, `SELECT sql FROM sqlite_master WHERE type='table' AND name='`+nLit+`'`)
 		if sqlText != "" {
 			upper := strings.ToUpper(strings.TrimSpace(strings.TrimRight(strings.TrimSpace(sqlText), ";")))
 			dt.WithoutRowid = strings.HasSuffix(upper, "WITHOUT ROWID")
@@ -462,7 +468,7 @@ func listTables(con *sql.DB, hasDbstat bool) ([]DatabaseTable, error) {
 		// Autoincrement: SELECT FROM sqlite_sequence WHERE name = table.
 		// Missing row ⇒ table has no AUTOINCREMENT column.
 		dt.AutoIncrVal = scalarInt(con,
-			`SELECT seq FROM sqlite_sequence WHERE name='`+n+`'`)
+			`SELECT seq FROM sqlite_sequence WHERE name='`+nLit+`'`)
 		if hasDbstat {
 			// Per-table footprint + b-tree topology + payload telemetry.
 			// One dbstat aggregation returns size, page count, internal and
@@ -478,14 +484,14 @@ func listTables(con *sql.DB, hasDbstat bool) ([]DatabaseTable, error) {
 					COALESCE(SUM(CASE WHEN pagetype='interior' THEN 1 ELSE 0 END), 0),
 					COALESCE(SUM(CASE WHEN pagetype='overflow' THEN 1 ELSE 0 END), 0),
 					COALESCE(MAX(payload), 0)
-				FROM dbstat WHERE name='`+n+`'`).
+				FROM dbstat WHERE name='`+nLit+`'`).
 				Scan(&dt.SizeBytes, &dt.PageCount, &dt.InternalPages, &dt.OverflowPages, &dt.MaxPayload)
 			dt.LeafPages = dt.PageCount - dt.InternalPages - dt.OverflowPages
 			// Index footprint: every index entry in dbstat for this table.
 			// dbstat exposes each index by the index name, so we sum pgsize
 			// across every index name attached to this table.
 			dt.IndexBytes = scalarInt(con,
-				`SELECT COALESCE(SUM(s.pgsize), 0) FROM dbstat s JOIN sqlite_master m ON m.name = s.name WHERE m.type='index' AND m.tbl_name='`+n+`'`)
+				`SELECT COALESCE(SUM(s.pgsize), 0) FROM dbstat s JOIN sqlite_master m ON m.name = s.name WHERE m.type='index' AND m.tbl_name='`+nLit+`'`)
 			if dt.RowCount > 0 {
 				dt.AvgRowBytes = dt.SizeBytes / dt.RowCount
 			}

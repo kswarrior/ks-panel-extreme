@@ -232,6 +232,14 @@ func OAuthCallbackHandler(w http.ResponseWriter, r *http.Request) {
 			oauthFail(w, r, err.Error())
 			return
 		}
+	} else if !profile.Verified {
+		// Unverified provider email must never auto-merge onto an existing
+		// account — otherwise anyone controlling a GitHub/Discord/etc account
+		// can set its unverified email to a victim's panel address and log
+		// in as them. The IsVerifyRequired toggle is an admin UX choice for
+		// the registration flow, not a security gate for account merges.
+		oauthFail(w, r, id+" has not verified that email address")
+		return
 	}
 
 	if suspended, until, serr := userRepo.IsUserSuspended(user.ID); serr == nil && suspended {

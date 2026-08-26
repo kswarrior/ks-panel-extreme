@@ -386,8 +386,9 @@ func githubProfile(hc *http.Client, accessToken string) (*Profile, error) {
 		return nil, fmt.Errorf("user emails failed (%d)", resp.StatusCode)
 	}
 	var emails []struct {
-		Email   string `json:"email"`
-		Primary bool   `json:"primary"`
+		Email    string `json:"email"`
+		Primary  bool   `json:"primary"`
+		Verified bool   `json:"verified"`
 	}
 	if err := json.Unmarshal(body, &emails); err != nil {
 		return nil, err
@@ -395,7 +396,7 @@ func githubProfile(hc *http.Client, accessToken string) (*Profile, error) {
 	for _, em := range emails {
 		if em.Primary {
 			u.Email = normalizeEmail(em.Email)
-			u.Verified = true
+			u.Verified = em.Verified
 			break
 		}
 	}
