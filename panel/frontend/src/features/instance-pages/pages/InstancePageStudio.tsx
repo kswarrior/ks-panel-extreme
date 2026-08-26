@@ -18,7 +18,7 @@ import type {
 } from '@/shared/types/instancePage';
 import { parseSubPages } from '@/shared/types/instancePage';
 import { PAGE_STARTERS, type PageStarter } from '../templates/pageStarters';
-import CustomPageView, { type PageContent } from '@/shared/components/ui/CustomPageView';
+import CustomPageView, { activePageThemeCss, type PageContent } from '@/shared/components/ui/CustomPageView';
 import GlassCard from '@/shared/components/ui/Card';
 import { glassFieldClass } from '@/shared/components/ui/Field';
 import { parseConfig } from '@/shared/hooks/useInstance';
@@ -223,16 +223,25 @@ window.KSPageSDK = {
 };
 </script>`;
 
+// PREVIEW_BASE_STYLE is the neutral base for the static preview iframe; the
+// ACTIVE panel theme's tokens are appended after it (activePageThemeCss) so
+// the preview renders with the same --ks-* palette the live page gets.
+const PREVIEW_BASE_STYLE = `
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 1rem; color: var(--ks-body, #e5e7eb); background: transparent; }
+* { box-sizing: border-box; }
+h1,h2,h3 { color: var(--ks-heading, #fff); margin: 1rem 0 0.5rem; }
+code { background: var(--ks-input-bg, rgba(0,0,0,0.35)); padding: 0.1rem 0.3rem; border-radius: 3px; }
+pre { background: var(--ks-input-bg, rgba(0,0,0,0.35)); padding: 1rem; border-radius: 6px; overflow-x: auto; }
+`;
+
 function renderPreview(contentType: string, content: string): string {
   const safeContent = content || '';
-  if (contentType === 'html') {
-    return `<!DOCTYPE html>
+  const head = (extraStyle = '') => `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 ${STATIC_SDK_STUB}
-<style>
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 1rem; color: #e5e7eb; background: #0f172a; }
-* { box-sizing: border-box; }
-</style></head><body>${safeContent}</body></html>`;
+<style>${PREVIEW_BASE_STYLE}${extraStyle}${activePageThemeCss()}</style></head><body>`;
+  if (contentType === 'html') {
+    return `${head()}${safeContent}</body></html>`;
   }
   if (contentType === 'markdown') {
     let html = safeContent
@@ -243,14 +252,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
       .replace(/\*(.+?)\*/g, '<em>$1</em>')
       .replace(/`(.+?)`/g, '<code>$1</code>')
       .replace(/\n/g, '<br>');
-    return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<style>
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 1rem; color: #e5e7eb; background: #0f172a; line-height: 1.6; }
-h1,h2,h3 { color: #fff; margin: 1rem 0 0.5rem; }
-code { background: #1e293b; padding: 0.1rem 0.3rem; border-radius: 3px; }
-pre { background: #1e293b; padding: 1rem; border-radius: 6px; overflow-x: auto; }
-</style></head><body>${html}</body></html>`;
+    return `${head('body { line-height: 1.6; }')}${html}</body></html>`;
   }
   let blocksJson = '[]';
   try {
@@ -258,12 +260,7 @@ pre { background: #1e293b; padding: 1rem; border-radius: 6px; overflow-x: auto; 
   } catch {
     blocksJson = safeContent || '(invalid JSON)';
   }
-  return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<style>
-body { font-family: monospace; padding: 1rem; color: #e5e7eb; background: #0f172a; }
-pre { background: #1e293b; padding: 1rem; border-radius: 6px; overflow-x: auto; }
-</style></head><body><pre>${blocksJson}</pre></body></html>`;
+  return `${head('body { font-family: monospace; }')}<pre>${blocksJson}</pre></body></html>`;
 }
 
 // ---------------------------------------------------------------------------
