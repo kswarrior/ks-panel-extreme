@@ -874,6 +874,17 @@ func insertIgnorePrefix(d Dialect) (prefix, suffix string) {
 	}
 }
 
+// quoteColumnName quotes an identifier for the dialect's grammar: backticks
+// for MySQL (where double quotes mean string literals by default), double
+// quotes for SQLite + Postgres. Embedded quotes are doubled so hostile
+// identifiers can't break out.
+func quoteColumnName(d Dialect, name string) string {
+	if d.Name() == "mysql" {
+		return "`" + strings.ReplaceAll(name, "`", "``") + "`"
+	}
+	return `"` + strings.ReplaceAll(name, `"`, `""`) + `"`
+}
+
 // SeedCore inserts default roles, permissions, and an admin user if needed.
 // The seeded roles follow a fixed logical order used by the CLI:
 //
