@@ -1028,8 +1028,6 @@ body { color: var(--ks-text-body); }
   box-shadow: 0 0 0 2px var(--ks-dropdown-border-color) !important;
 }
 
-/* Opt-in class for any element that should follow the card box model even
-
 /* Opt-in class for any grid / flex container that holds sibling cards.
    Applies the themed "gap between cards" so dragging the Card tab's
    "Gap between cards (H)" and "Gap between cards (V)" sliders in the
