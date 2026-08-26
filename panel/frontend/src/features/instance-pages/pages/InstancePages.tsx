@@ -434,7 +434,7 @@ const InstancePages: React.FC = () => {
                     </div>
                     <div className="min-w-0 flex-1">
                       <h3 className="text-sm font-semibold text-white truncate leading-tight">{p.name}</h3>
-                      <p className="text-[11px] text-gray-500 truncate mt-0.5 font-mono">/{p.slug}</p>
+                      <p className="text-[11px] text-gray-500 truncate mt-0.5 font-mono">/{p.slug === '.' ? '' : p.slug}</p>
                       {p.category && (
                         <p className="text-[11px] text-gray-400 truncate mt-0.5">
                           <span className="inline-flex items-center gap-1">

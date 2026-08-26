@@ -237,45 +237,13 @@ export interface StopActionResponse {
 export async function stopInstanceAction(
   instanceId: number,
   actionId: string,
-): Promise<StopActionResponse> {
+  ): Promise<StopActionResponse> {
   const res = await client.post<StopActionResponse>(
     `/api/instances/${instanceId}/actions/${encodeURIComponent(actionId)}/stop`,
   );
   return res.data;
 }
-
-// ---- Custom Page Actions ----------------------------------------------------
-//
-// Allows custom pages (created via Instance Page Studio) to execute actions
-// on the edge. These are proxied through the panel to the edge's page-action
-// endpoint, same as the Instance Page Studio test execution.
-
-export interface CustomPageAction {
-  type: 'shell' | 'read_file' | 'write_file' | 'list_files' | 'docker' | 'kvm' | 'lxd';
-  command?: string;
-  path?: string;
-  content?: string;
-  args?: string[];
-  env?: Record<string, string>;
-  timeout?: number;
-}
-
-export interface CustomPageActionResult {
-  ok: boolean;
-  exit_code?: number;
-  stdout?: string;
-  stderr?: string;
-  error?: string;
-  data?: any;
-}
-
-export async function executeCustomPageAction(
-  instanceId: number,
-  action: CustomPageAction
-): Promise<CustomPageActionResult> {
-  const res = await client.post<CustomPageActionResult>(
-    `/api/instance-pages/execute-action`,
-    { instance_id: instanceId, ...action }
-  );
-  return res.data;
-}
+// (Custom-page action execution lives in the page SDK —
+// shared/lib/customPageSdk.ts → POST /api/instance-pages/execute-action with
+// instance_id + page_slug. A previous host-side helper here posted without
+// page_slug, which the backend always rejects, and had no callers.)
