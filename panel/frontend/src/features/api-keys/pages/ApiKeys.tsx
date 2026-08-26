@@ -12,6 +12,7 @@ import type { User, Permission } from '@/shared/types/user';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import GlassCard from '@/shared/components/ui/Card';
+import { useConfirm } from '@/shared/stores/confirmStore';
 
 // Form shape (kept for consistency, not used in this list view)
 type Form = {
@@ -24,6 +25,7 @@ const emptyForm: Form = { name: '', user_id: 0, permissions: [] };
 
 const AdminApiKeys: React.FC = () => {
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [permissions, setPermissions] = useState<Permission[]>([]);
@@ -141,7 +143,7 @@ const AdminApiKeys: React.FC = () => {
   };
 
   const remove = async (k: ApiKey) => {
-    if (!confirm(`Delete API key "${k.name}"? This revokes it immediately.`)) return;
+    if (!(await confirm({ title: 'Delete API key', message: `Delete API key "${k.name}"? This revokes it immediately.`, tone: 'danger', confirmLabel: 'Delete' }))) return;
     setDeletingId(k.id);
     try {
       await deleteAdminApiKey(k.id);
