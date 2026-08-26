@@ -150,12 +150,12 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				if rerr != nil {
 					return rerr
 				}
-				stripped := stripAlterColumnLines(body, "users", "email_verified")
-				log.Printf("Running migration %s (email_verified already present, ALTER stripped)", name)
-				if _, err := db.Exec(string(stripped)); err != nil {
-					return fmt.Errorf("migration %s failed: %w", name, err)
-				}
-				continue
+			stripped := stripAlterColumnLines(body, "users", "email_verified")
+			log.Printf("Running migration %s (email_verified already present, ALTER stripped)", name)
+			if _, err := db.Exec(string(stripped)); err != nil {
+				return fmt.Errorf("migration %s failed: %w", name, err)
+			}
+			continue
 			}
 		case name == "018_user_profile.sql":
 			if err := guardedAddColumns(d, db, name, "users", []columnSpec{
