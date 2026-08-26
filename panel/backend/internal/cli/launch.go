@@ -17,6 +17,7 @@ import (
 
 	"github.com/example/kspanel/internal/api"
 	"github.com/example/kspanel/internal/api/handlers"
+	"github.com/example/kspanel/internal/auth"
 	"github.com/example/kspanel/internal/banner"
 	"github.com/example/kspanel/internal/cli/print"
 	"github.com/example/kspanel/internal/config"
