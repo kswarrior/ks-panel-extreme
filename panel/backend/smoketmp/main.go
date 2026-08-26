@@ -39,38 +39,51 @@ func main() {
 	node, token, err := nr.CreateNode(repository.CreateNodeInput{Name: "smoke", Address: "127.0.0.1:1"})
 	die(err, "CreateNode")
 	hb := repository.IngestInput{
-		Token:      token,
-		RAMUsed:    1,
-		RAMTotal:   2,
-		CPUPercent: 3,
-		DiskUsed:   4,
-		DiskTotal:  8,
-		UptimeSecs: 5,
+		Token:        token,
+		RAMUsed:      1,
+		RAMTotal:     2,
+		CPUPercent:   3,
+		DiskUsed:     4,
+		DiskTotal:    8,
+		UptimeSecs:   5,
 		DriverDocker: true,
 	}
 	die(func() error { _, err := nr.IngestHeartbeat(hb); return err }(), "IngestHeartbeat#1")
 	die(func() error { _, err := nr.IngestHeartbeat(hb); return err }(), "IngestHeartbeat#2(upsert)")
 
 	tr := repository.NewThemeRepository(con)
-	die(tr.CreateTheme(&models.Theme{ID: "smoke", Name: "Smoke", Description: "", Spec: []byte("{}")}), "CreateTheme")
+	_, err = tr.CreateTheme(repository.UpsertThemeInput{ID: "smoke", Name: "Smoke", Description: "", Spec: []byte("{}")})
+	die(err, "CreateTheme")
 	die(tr.AssignTheme("global", "smoke"), "AssignTheme")
 	die(tr.AssignTheme("auth", "smoke"), "AssignTheme#2")
 
 	ir := repository.NewInstanceRepository(con)
-	instID, err := ir.Create(&models.Instance{Name: "smoke-inst", Kind: "docker", NodeID: node.ID, OwnerID: 1})
-	die(err, "InstanceCreate", )
+	instID, err := ir.Create(repository.InstanceCreateInput{
+		NodeID: node.ID, TemplateID: 0, OwnerID: 1, Name: "smoke-inst",
+		Kind: "docker", Status: "created",
+	})
+	die(err, "InstanceCreate")
 	sr := repository.NewSecretRepository(con)
 	die(func() error { _, err := sr.Set(instID, "K", "v", true, ""); return err }(), "SecretSet#1")
 	die(func() error { _, err := sr.Set(instID, "K", "v2", true, ""); return err }(), "SecretSet#2(upsert)")
 
 	ar := repository.NewAuthorityRepository(con)
-	die(ar.Save(`{"smtp":{"enabled":false}}`), "AuthoritySave")
+	die(ar.Update(&models.AuthorityConfig{}), "AuthorityUpdate")
 
-	ur := repository.NewUserAuthRepository(con)
-	die(ur.SaveForUser(1, `{"totp":true}`), "UserAuthSave")
+	ur := repository.NewUserAuthorityRepository(con)
+	die(ur.Update(1, &models.UserAuthorityConfig{}), "UserAuthUpdate")
 
-	rr := repository.NewRoleAuthRepository(con)
-	die(rr.SetRoleAllowedProviders(1, map[string]bool{"password": true}), "RoleAuthSave")
+	rr := repository.NewRoleAuthorityRepository(con)
+	die(rr.SetRoleAllowedAuth(1, []string{"password"}), "RoleAuthSave")
 
-	fmt.Println("SMOKE OK on", os.Args[1])
+	iar := repository.NewInstanceAdvancedRepository(con)
+	die(iar.SaveLiveState(instID, models.LiveState{CPUPercent: 10}), "LiveStateSave")
+
+	aar := repository.NewAutomationRepository(con)
+	jobID, err := aar.CreateJob(repository.AutomationJobInput{
+		InstanceID: instID, Name: "j", Schedule: "", Command: "echo hi", Enabled: true,
+	})
+	die(err, "AutomationCreateJob")
+
+	fmt.Println("SMOKE OK on", os.Args[1], "(job", jobID, ")")
 }
