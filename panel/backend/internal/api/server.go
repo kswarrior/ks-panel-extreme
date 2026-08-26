@@ -258,6 +258,11 @@ func NewRouter() http.Handler {
 			r.With(requireUmbrellaOrAction(usersG, permissions.ActionCreate)).Post("/", handlers.CreateUserHandler)
 			r.With(requireUmbrellaOrAction(usersG, permissions.ActionEdit)).Put("/{id}", handlers.UpdateUserHandler)
 			r.With(requireUmbrellaOrAction(usersG, permissions.ActionDelete)).Delete("/{id}", handlers.DeleteUserHandler)
+			// Suspension lifecycle (edit-gated like the other user
+			// mutations). Backs the Users page's suspend / unsuspend
+			// buttons; the repo layer keeps the suspension history.
+			r.With(requireUmbrellaOrAction(usersG, permissions.ActionEdit)).Post("/{id}/suspend", handlers.SuspendUserHandler)
+			r.With(requireUmbrellaOrAction(usersG, permissions.ActionEdit)).Post("/{id}/unsuspend", handlers.UnsuspendUserHandler)
 		})
 
 		// Admin: roles management (same umbrella-or-action pattern).
