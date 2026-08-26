@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS node_heartbeats (
     -- of heartbeats in the same minute collapses to one row, keeping the
     -- table small.
     bucket_at     DATETIME NOT NULL,
-    status        TEXT     NOT NULL,
+    status VARCHAR(255)     NOT NULL,
     PRIMARY KEY (node_id, bucket_at),
     FOREIGN KEY (node_id) REFERENCES nodes(id) ON DELETE CASCADE
 );

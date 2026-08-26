@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS applications (
     id              BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     name            TEXT    NOT NULL,
     slug VARCHAR(255)     NOT NULL  UNIQUE,
-    category        TEXT    NOT NULL DEFAULT ('custom'),
+    category VARCHAR(255)    NOT NULL DEFAULT ('custom'),
     version         TEXT    NOT NULL DEFAULT ('1.0.0'),
     description     TEXT    NOT NULL DEFAULT (''),
     icon            TEXT    NOT NULL DEFAULT (''),
@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS applications (
     uploaded_by     INTEGER,
     source          TEXT    NOT NULL DEFAULT ('file'),
     source_url      TEXT    NOT NULL DEFAULT (''),
-    created_at      TEXT    NOT NULL,
+    created_at VARCHAR(255)    NOT NULL,
     updated_at      TEXT    NOT NULL,
     FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL
 );
@@ -73,10 +73,10 @@ CREATE TABLE IF NOT EXISTS application_installations (
     owner_id        BIGINT NOT NULL,
     name            TEXT    NOT NULL,
     config_values   TEXT    NOT NULL DEFAULT ('{}'),
-    status          TEXT    NOT NULL DEFAULT ('stopped'),
+    status VARCHAR(255)    NOT NULL DEFAULT ('stopped'),
     last_error      TEXT    NOT NULL DEFAULT (''),
     node_id         BIGINT NOT NULL DEFAULT 0,
-    created_at      TEXT    NOT NULL,
+    created_at VARCHAR(255)    NOT NULL,
     updated_at      TEXT    NOT NULL,
     FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE,
     FOREIGN KEY (owner_id)       REFERENCES users(id)       ON DELETE CASCADE
