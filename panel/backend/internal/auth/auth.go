@@ -9,57 +9,34 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
 )
+
+var sessionSecret []byte
 
 // bcryptCost is the cost factor for bcrypt hashing.
 // Default is 12 (higher than DefaultCost of 10) for better security.
 // Can be overridden via KSPANEL_BCRYPT_COST environment variable.
 var bcryptCost = 12
 
-var (
-	secretOnce    sync.Once
-	sessionSecret []byte
-	secretErr     error
-)
+func init() {
+	secret := os.Getenv("KSPANEL_SESSION_SECRET")
+	if secret == "" {
+		panic("KSPANEL_SESSION_SECRET environment variable is required for security. Generate a strong secret with: openssl rand -base64 32")
+	}
+	if len(secret) < 32 {
+		panic("KSPANEL_SESSION_SECRET must be at least 32 characters long")
+	}
+	sessionSecret = []byte(secret)
 
-// loadSessionSecret resolves KSPANEL_SESSION_SECRET exactly once per
-// process. The check is lazy (not in init) so non-session binaries such as
-// `kspanel seed` and every test binary can import this package without the
-// env var; token minting/validation still FAIL CLOSED — both return an
-// error instead of silently falling back to an unkeyed or default secret.
-func loadSessionSecret() ([]byte, error) {
-	secretOnce.Do(func() {
-		secret := os.Getenv("KSPANEL_SESSION_SECRET")
-		if secret == "" {
-			secretErr = errors.New("KSPANEL_SESSION_SECRET environment variable is required for security. Generate a strong secret with: openssl rand -base64 32")
-			return
+	// Allow custom bcrypt cost via environment variable
+	if costStr := os.Getenv("KSPANEL_BCRYPT_COST"); costStr != "" {
+		if cost, err := strconv.Atoi(costStr); err == nil && cost >= 10 && cost <= 15 {
+			bcryptCost = cost
 		}
-		if len(secret) < 32 {
-			secretErr = errors.New("KSPANEL_SESSION_SECRET must be at least 32 characters long")
-			return
-		}
-		sessionSecret = []byte(secret)
-
-		// Allow custom bcrypt cost via environment variable
-		if costStr := os.Getenv("KSPANEL_BCRYPT_COST"); costStr != "" {
-			if cost, err := strconv.Atoi(costStr); err == nil && cost >= 10 && cost <= 15 {
-				bcryptCost = cost
-			}
-		}
-	})
-	return sessionSecret, secretErr
-}
-
-// EnsureSessionSecret reports whether a usable session secret is configured.
-// The HTTP server calls it once at startup so an operator gets a loud,
-// immediate failure instead of every login request failing at runtime.
-func EnsureSessionSecret() error {
-	_, err := loadSessionSecret()
-	return err
+	}
 }
 
 func HashPassword(pw string) (string, error) {
@@ -86,25 +63,18 @@ func CheckPassword(hash, pw string) error {
 // issuedAt lets the middleware compute the session's remaining life and,
 // when it dips under rotationWindow, mint a fresh cookie (sliding expiry).
 // A zero issuedAt falls back to now for ergonomic one-off use.
-//
-// Returns an error when no session secret is configured — callers must
-// fail rather than issue an unsigned credential.
-func GenerateSessionToken(userID int64, issuedAt time.Time) (string, error) {
-	secret, err := loadSessionSecret()
-	if err != nil {
-		return "", err
-	}
+func GenerateSessionToken(userID int64, issuedAt time.Time) string {
 	if issuedAt.IsZero() {
 		issuedAt = time.Now()
 	}
 	uidStr := fmt.Sprintf("%d", userID)
 	issuedStr := strconv.FormatInt(issuedAt.Unix(), 10)
-	mac := hmac.New(sha256.New, secret)
+	mac := hmac.New(sha256.New, sessionSecret)
 	mac.Write([]byte(uidStr))
 	mac.Write([]byte{'.'})
 	mac.Write([]byte(issuedStr))
 	sig := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
-	return uidStr + "." + issuedStr + "." + sig, nil
+	return uidStr + "." + issuedStr + "." + sig
 }
 
 // ValidateSessionToken verifies the signature of a token produced by
@@ -117,17 +87,11 @@ func GenerateSessionToken(userID int64, issuedAt time.Time) (string, error) {
 // caller is told issuedAt is the Unix epoch so an explicit "ancient
 // session" check is straightforward.
 func ValidateSessionToken(token string) (int64, time.Time, error) {
-	secret, err := loadSessionSecret()
-	if err != nil {
-		// Fail closed: without a configured secret no token can be
-		// trusted, so every validation attempt is rejected.
-		return 0, time.Time{}, err
-	}
 	parts := strings.SplitN(token, ".", 3)
 	switch len(parts) {
 	case 3:
 		uidStr, issuedStr, sig := parts[0], parts[1], parts[2]
-		mac := hmac.New(sha256.New, secret)
+		mac := hmac.New(sha256.New, sessionSecret)
 		mac.Write([]byte(uidStr))
 		mac.Write([]byte{'.'})
 		mac.Write([]byte(issuedStr))
@@ -151,7 +115,7 @@ func ValidateSessionToken(token string) (int64, time.Time, error) {
 		// middleware can choose to AGE it out (it does) rather than
 		// trusting it indefinitely.
 		uidStr, sig := parts[0], parts[1]
-		mac := hmac.New(sha256.New, secret)
+		mac := hmac.New(sha256.New, sessionSecret)
 		mac.Write([]byte(uidStr))
 		wantSig := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 		if !hmac.Equal([]byte(wantSig), []byte(sig)) {

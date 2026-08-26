@@ -49,13 +49,13 @@
 
 CREATE TABLE IF NOT EXISTS security_requests (
     id          BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    client_ip   VARCHAR(64) NOT NULL DEFAULT (''),
-    method      TEXT    NOT NULL DEFAULT (''),
-    path        TEXT    NOT NULL DEFAULT (''),
+    client_ip   TEXT    NOT NULL DEFAULT '',
+    method      TEXT    NOT NULL DEFAULT '',
+    path        TEXT    NOT NULL DEFAULT '',
     status      INTEGER NOT NULL DEFAULT 0,
-    user_id     BIGINT,
-    user_agent  TEXT    NOT NULL DEFAULT (''),
-    country     TEXT    NOT NULL DEFAULT (''),
+    user_id     INTEGER,
+    user_agent  TEXT    NOT NULL DEFAULT '',
+    country     TEXT    NOT NULL DEFAULT '',
     blocked     INTEGER NOT NULL DEFAULT 0,
     challenged  INTEGER NOT NULL DEFAULT 0,
     is_api      INTEGER NOT NULL DEFAULT 0,
@@ -77,5 +77,5 @@ CREATE INDEX security_requests_login_idx ON security_requests(is_login, status);
 --                          middleware's decision to challenge every request.
 --   security_block_unknown_ua — "0"/"1" — block requests from unknown UAs.
 
-INSERT IGNORE INTO settings (`key`, value) VALUES ('security_under_attack', '0');
-INSERT IGNORE INTO settings (`key`, value) VALUES ('security_block_unknown_ua', '0');
+INSERT IGNORE INTO settings (key, value) VALUES ('security_under_attack', '0');
+INSERT IGNORE INTO settings (key, value) VALUES ('security_block_unknown_ua', '0');

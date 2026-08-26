@@ -9,8 +9,6 @@ import (
 	"log"
 	"os"
 	"path"
-	"regexp"
-	"sort"
 	"strings"
 	"time"
 
@@ -133,8 +131,8 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			}
 		case name == "014_role_display_color.sql":
 			if err := guardedAddColumns(d, db, name, "roles", []columnSpec{
-				{"display_name", "TEXT NOT NULL DEFAULT ('')"},
-				{"color", "TEXT NOT NULL DEFAULT ('')"},
+				{"display_name", "TEXT NOT NULL DEFAULT ''"},
+				{"color", "TEXT NOT NULL DEFAULT ''"},
 			}); err != nil {
 				return err
 			}
@@ -152,25 +150,25 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				if rerr != nil {
 					return rerr
 				}
-			stripped := stripAlterColumnLines(body, "users", "email_verified")
-			log.Printf("Running migration %s (email_verified already present, ALTER stripped)", name)
-			if err := execMigrationScript(d, db, string(stripped), name); err != nil {
-				return fmt.Errorf("migration %s failed: %w", name, err)
-			}
-			continue
+				stripped := stripAlterColumnLines(body, "users", "email_verified")
+				log.Printf("Running migration %s (email_verified already present, ALTER stripped)", name)
+				if _, err := db.Exec(string(stripped)); err != nil {
+					return fmt.Errorf("migration %s failed: %w", name, err)
+				}
+				continue
 			}
 		case name == "018_user_profile.sql":
 			if err := guardedAddColumns(d, db, name, "users", []columnSpec{
-				{"display_name", "TEXT NOT NULL DEFAULT ('')"},
-				{"bio", "TEXT NOT NULL DEFAULT ('')"},
-				{"pronouns", "TEXT NOT NULL DEFAULT ('')"},
-				{"accent_color", "TEXT NOT NULL DEFAULT ('')"},
-				{"avatar_symbol", "TEXT NOT NULL DEFAULT ('')"},
+				{"display_name", "TEXT NOT NULL DEFAULT ''"},
+				{"bio", "TEXT NOT NULL DEFAULT ''"},
+				{"pronouns", "TEXT NOT NULL DEFAULT ''"},
+				{"accent_color", "TEXT NOT NULL DEFAULT ''"},
+				{"avatar_symbol", "TEXT NOT NULL DEFAULT ''"},
 				{"avatar_mime", "TEXT"},
 				{"avatar_filename", "TEXT"},
 				{"banner_mime", "TEXT"},
 				{"banner_filename", "TEXT"},
-				{"social_links", "TEXT NOT NULL DEFAULT ('')"},
+				{"social_links", "TEXT NOT NULL DEFAULT ''"},
 			}); err != nil {
 				return err
 			}
@@ -182,9 +180,9 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				{"health_timeout", "INTEGER NOT NULL DEFAULT 4"},
 				{"health_retries", "INTEGER NOT NULL DEFAULT 3"},
 				{"skip_tls_verify", "INTEGER NOT NULL DEFAULT 0"},
-				{"notes", "TEXT NOT NULL DEFAULT ('')"},
-				{"install_dir", "TEXT NOT NULL DEFAULT ('')"},
-				{"allowed_kinds", "TEXT NOT NULL DEFAULT ('')"},
+				{"notes", "TEXT NOT NULL DEFAULT ''"},
+				{"install_dir", "TEXT NOT NULL DEFAULT ''"},
+				{"allowed_kinds", "TEXT NOT NULL DEFAULT ''"},
 				{"probe_fail_count", "INTEGER NOT NULL DEFAULT 0"},
 				{"next_probe_at", d.datetimeType()},
 			}); err != nil {
@@ -206,7 +204,7 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			}
 			stripped := stripAlterColumnLines(body, "mods", "engine_version")
 			log.Printf("Running migration %s", name)
-			if err := execMigrationScript(d, db, string(stripped), name); err != nil {
+			if _, err := db.Exec(string(stripped)); err != nil {
 				return fmt.Errorf("migration %s failed: %w", name, err)
 			}
 			continue
@@ -231,11 +229,11 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			// each ALTER individually so a re-launch is idempotent
 			// (mirrors 025_node_allocations.sql).
 			if err := guardedAddColumns(d, db, name, "instances", []columnSpec{
-				{"install_state", "TEXT NOT NULL DEFAULT ('')"},
-				{"install_id", "TEXT NOT NULL DEFAULT ('')"},
+				{"install_state", "TEXT NOT NULL DEFAULT ''"},
+				{"install_id", "TEXT NOT NULL DEFAULT ''"},
 				{"install_step", "INTEGER NOT NULL DEFAULT -1"},
-				{"install_error", "TEXT NOT NULL DEFAULT ('')"},
-				{"install_steps_json", "TEXT NOT NULL DEFAULT ('')"},
+				{"install_error", "TEXT NOT NULL DEFAULT ''"},
+				{"install_steps_json", "TEXT NOT NULL DEFAULT ''"},
 			}); err != nil {
 				return err
 			}
@@ -249,7 +247,7 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			// auto_stop_on_exit flag. Guarded individually so re-launches
 			// stay idempotent — mirrors 025_instance_install.sql.
 			if err := guardedAddColumns(d, db, name, "instances", []columnSpec{
-				{"install_kind", "TEXT NOT NULL DEFAULT ('')"},
+				{"install_kind", "TEXT NOT NULL DEFAULT ''"},
 				{"install_auto_stop", "INTEGER NOT NULL DEFAULT 0"},
 			}); err != nil {
 				return err
@@ -263,7 +261,7 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			// the native ADD COLUMN IF NOT EXISTS and falls through to the
 			// generic exec path.)
 			if err := guardedAddColumns(d, db, name, "instances", []columnSpec{
-				{"install_action_id", "TEXT NOT NULL DEFAULT ('')"},
+				{"install_action_id", "TEXT NOT NULL DEFAULT ''"},
 			}); err != nil {
 				return err
 			}
@@ -274,16 +272,16 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				{"mem_overcommit_pct", "INTEGER NOT NULL DEFAULT 0"},
 				{"alloc_disk_mib", "INTEGER NOT NULL DEFAULT 0"},
 				{"disk_overcommit_pct", "INTEGER NOT NULL DEFAULT 0"},
-				{"instances_dir", "TEXT NOT NULL DEFAULT ('')"},
+				{"instances_dir", "TEXT NOT NULL DEFAULT ''"},
 			}); err != nil {
 				return err
 			}
 			continue
 		case name == "026_node_category_location.sql":
 			if err := guardedAddColumns(d, db, name, "nodes", []columnSpec{
-				{"category", "TEXT NOT NULL DEFAULT ('')"},
-				{"location_country", "TEXT NOT NULL DEFAULT ('')"},
-				{"location_node", "TEXT NOT NULL DEFAULT ('')"},
+				{"category", "TEXT NOT NULL DEFAULT ''"},
+				{"location_country", "TEXT NOT NULL DEFAULT ''"},
+				{"location_node", "TEXT NOT NULL DEFAULT ''"},
 			}); err != nil {
 				return err
 			}
@@ -294,8 +292,8 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			// idempotent, so each column is added via the runtime guard —
 			// mirrors 026_node_category_location.sql.
 			if err := guardedAddColumns(d, db, name, "nodes", []columnSpec{
-				{"icon", "TEXT NOT NULL DEFAULT ('')"},
-				{"color", "TEXT NOT NULL DEFAULT ('')"},
+				{"icon", "TEXT NOT NULL DEFAULT ''"},
+				{"color", "TEXT NOT NULL DEFAULT ''"},
 			}); err != nil {
 				return err
 			}
@@ -309,8 +307,8 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			continue
 		case name == "027_mod_source.sql":
 			if err := guardedAddColumns(d, db, name, "mods", []columnSpec{
-				{"source", "TEXT NOT NULL DEFAULT ('file')"},
-				{"source_url", "TEXT NOT NULL DEFAULT ('')"},
+				{"source", "TEXT NOT NULL DEFAULT 'file'"},
+				{"source_url", "TEXT NOT NULL DEFAULT ''"},
 			}); err != nil {
 				return err
 			}
@@ -336,10 +334,9 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			}); err != nil {
 				return err
 			}
-			// Create index if not exists (idempotent) — guarded so MySQL
-			// (no IF NOT EXISTS support) skips when it already exists.
-			if err := guardedCreateIndexSQL(d, db, name, "CREATE INDEX IF NOT EXISTS idx_users_suspended ON users(suspended)", "users", "idx_users_suspended"); err != nil {
-				return err
+			// Create index if not exists (idempotent)
+			if _, err := db.Exec("CREATE INDEX IF NOT EXISTS idx_users_suspended ON users(suspended)"); err != nil {
+				return fmt.Errorf("migration %s failed: %w", name, err)
 			}
 			continue
 		case name == "038_instance_suspension.sql":
@@ -353,10 +350,9 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			}); err != nil {
 				return err
 			}
-			// Create index if not exists (idempotent) — guarded so MySQL
-			// (no IF NOT EXISTS support) skips when it already exists.
-			if err := guardedCreateIndexSQL(d, db, name, "CREATE INDEX IF NOT EXISTS idx_instances_suspended ON instances(suspended)", "instances", "idx_instances_suspended"); err != nil {
-				return err
+			// Create index if not exists (idempotent)
+			if _, err := db.Exec("CREATE INDEX IF NOT EXISTS idx_instances_suspended ON instances(suspended)"); err != nil {
+				return fmt.Errorf("migration %s failed: %w", name, err)
 			}
 			continue
 		case name == "035_instance_display.sql":
@@ -366,9 +362,9 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			// Fresh installs converge after 007 (which does not carry these
 			// columns yet); existing installs that already ran 035 skip.
 			if err := guardedAddColumns(d, db, name, "instances", []columnSpec{
-				{"display_name", "TEXT NOT NULL DEFAULT ('')"},
-				{"icon", "TEXT NOT NULL DEFAULT ('')"},
-				{"color", "TEXT NOT NULL DEFAULT ('')"},
+				{"display_name", "TEXT NOT NULL DEFAULT ''"},
+				{"icon", "TEXT NOT NULL DEFAULT ''"},
+				{"color", "TEXT NOT NULL DEFAULT ''"},
 			}); err != nil {
 				return err
 			}
@@ -380,7 +376,7 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			// ships its actions into spec.pages. Guarded individually so
 			// re-launches stay idempotent — mirrors 036_mod_package.sql.
 			if err := guardedAddColumns(d, db, name, "instance_pages", []columnSpec{
-				{"actions", "TEXT NOT NULL DEFAULT ('')"},
+				{"actions", "TEXT NOT NULL DEFAULT ''"},
 			}); err != nil {
 				return err
 			}
@@ -393,25 +389,9 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			// row. Guarded individually so re-launches stay idempotent on all
 			// dialects — mirrors 041_instance_page_actions.sql.
 			if err := guardedAddColumns(d, db, name, "instance_pages", []columnSpec{
-				{"sub_pages", "TEXT NOT NULL DEFAULT ('')"},
+				{"sub_pages", "TEXT NOT NULL DEFAULT ''"},
 			}); err != nil {
 				return err
-			}
-			continue
-		case name == "048_rename_automation_trigger.sql":
-			// automation_runs.trigger → trigger_type: TRIGGER is a reserved
-			// word on MySQL, so the runtime queries select trigger_type and
-			// 022 creates the new name directly. This guarded rename only
-			// converges installs whose table still carries the old column;
-			// the RENAME COLUMN grammar is identical on SQLite / Postgres /
-			// MySQL 8. The file body itself is intentionally empty — the Go
-			// guard owns the statement (same shape as the other guarded
-			// cases above).
-			if hasColumn(d, db, "automation_runs", "trigger") {
-				log.Printf("Running migration %s (renaming automation_runs.trigger)", name)
-				if _, err := db.Exec("ALTER TABLE automation_runs RENAME COLUMN trigger TO trigger_type"); err != nil {
-					return fmt.Errorf("migration %s failed: %w", name, err)
-				}
 			}
 			continue
 		case name == "045_application_files_runs.sql":
@@ -422,7 +402,7 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			// re-run every launch); both are applied through runtime guards
 			// below so every engine converges idempotently — mirrors 041.
 			if err := guardedAddColumns(d, db, name, "applications", []columnSpec{
-				{"files", "TEXT NOT NULL DEFAULT ('[]')"},
+				{"files", "TEXT NOT NULL DEFAULT '[]'"},
 			}); err != nil {
 				return err
 			}
@@ -432,7 +412,7 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			}
 			stripped := stripAlterColumnLines(body, "applications", "files")
 			stripped = stripCreateIndexLines(stripped, "idx_application_runs_app")
-			if err := execMigrationScript(d, db, string(stripped), name); err != nil {
+			if _, err := db.Exec(string(stripped)); err != nil {
 				return fmt.Errorf("migration %s failed: %w", name, err)
 			}
 			if err := guardedCreateIndex(d, db, name, "application_runs", "idx_application_runs_app", "application_id"); err != nil {
@@ -451,7 +431,7 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			return err
 		}
 		log.Printf("Running migration %s", name)
-		if err := execMigrationScript(d, db, string(content), name); err != nil {
+		if _, err := db.Exec(string(content)); err != nil {
 			return fmt.Errorf("migration %s failed: %w", name, err)
 		}
 	}
@@ -463,263 +443,6 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 type columnSpec struct {
 	name string
 	def  string
-}
-
-// splitSQLStatements splits a migration script into its individual
-// semicolon-terminated statements. Semicolons inside single/double-quoted
-// strings, backtick identifiers and -- or /* */ comments never split, so the
-// seed rows and quoted defaults in the shipped files survive intact. Each
-// returned statement is trimmed; empty ones are dropped.
-//
-// The per-engine drivers cannot all run multi-statement batches: go-sql-driver
-// only accepts them with multiStatements=true in the DSN (Error 1064
-// otherwise) and pgx's extended protocol rejects them when bind parameters are
-// present — so the runner executes one statement at a time on every dialect.
-func splitSQLStatements(script string) []string {
-	var (
-		out     []string
-		cur     strings.Builder
-		inSq    bool // '...'
-		inDq    bool // "..."
-		inBt    bool // `...`
-		inLine  bool // -- comment
-		inBlock bool // /* comment */
-	)
-	runes := []rune(script)
-	for i := 0; i < len(runes); i++ {
-		c := runes[i]
-		switch {
-		case inLine:
-			if c == '\n' {
-				inLine = false
-				cur.WriteRune(c)
-			}
-		case inBlock:
-			if c == '*' && i+1 < len(runes) && runes[i+1] == '/' {
-				inBlock = false
-				i++
-			}
-		case inSq:
-			if c == '\'' {
-				if i+1 < len(runes) && runes[i+1] == '\'' { // '' escape
-					cur.WriteRune(c)
-					i++
-				} else {
-					inSq = false
-				}
-			}
-			cur.WriteRune(c)
-		case inDq:
-			if c == '"' {
-				if i+1 < len(runes) && runes[i+1] == '"' {
-					cur.WriteRune(c)
-					i++
-				} else {
-					inDq = false
-				}
-			}
-			cur.WriteRune(c)
-		case inBt:
-			if c == '`' {
-				inBt = false
-			}
-			cur.WriteRune(c)
-		case c == '\'':
-			inSq = true
-			cur.WriteRune(c)
-		case c == '"':
-			inDq = true
-			cur.WriteRune(c)
-		case c == '`':
-			inBt = true
-			cur.WriteRune(c)
-		case c == '-' && i+1 < len(runes) && runes[i+1] == '-':
-			inLine = true
-			i++
-		case c == '/' && i+1 < len(runes) && runes[i+1] == '*':
-			inBlock = true
-			i++
-		case c == ';':
-			if s := strings.TrimSpace(cur.String()); s != "" {
-				out = append(out, s)
-			}
-			cur.Reset()
-		default:
-			cur.WriteRune(c)
-		}
-	}
-	if s := strings.TrimSpace(cur.String()); s != "" {
-		out = append(out, s)
-	}
-	return out
-}
-
-// createTableRef is one parsed CREATE TABLE statement: the table it creates
-// plus every table its inline FOREIGN KEY ... REFERENCES clauses point at.
-type createTableRef struct {
-	stmt  string
-	name  string
-	refs  map[string]bool
-	order int
-}
-
-// parseCreateTable extracts name + referenced parents from a statement that
-// starts with CREATE TABLE. Statements that aren't CREATE TABLE return nil.
-var (
-	createTableRe = regexp.MustCompile(`(?is)^\s*CREATE\s+(?:TEMP(?:ORARY)?\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?["'` + "`" + `]?(\w+)["'` + "`" + `]?`)
-	referencesRe  = regexp.MustCompile(`(?is)REFERENCES\s+(?:ONLY\s+)?["'` + "`" + `]?(\w+)["'` + "`" + `]?`)
-)
-
-func parseCreateTable(stmt string, order int) *createTableRef {
-	m := createTableRe.FindStringSubmatch(stmt)
-	if m == nil {
-		return nil
-	}
-	ref := &createTableRef{stmt: stmt, name: strings.ToLower(m[1]), refs: map[string]bool{}, order: order}
-	for _, r := range referencesRe.FindAllStringSubmatch(stmt, -1) {
-		t := strings.ToLower(r[1])
-		if t != ref.name { // self-references don't constrain ordering
-			ref.refs[t] = true
-		}
-	}
-	return ref
-}
-
-// createIndexRe matches a CREATE [UNIQUE] INDEX statement header and
-// captures the index + table names. "IF NOT EXISTS" may or may not follow.
-var createIndexRe = regexp.MustCompile(`(?is)^\s*CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?["'` + "`" + `]?(\w+)["'` + "`" + `]?\s+ON\s+["'` + "`" + `]?(\w+)["'` + "`" + `]?`)
-
-// bareCreateIndex reports whether stmt is a CREATE INDEX — every form needs
-// the runtime guard on non-SQLite dialects: migrations re-run each launch,
-// MySQL rejects both duplicate names and the "IF NOT EXISTS" clause itself.
-func bareCreateIndex(stmt string) bool {
-	return createIndexRe.FindStringSubmatch(stmt) != nil
-}
-
-// stripIndexIfExistsClause removes "IF NOT EXISTS" from a CREATE INDEX
-// statement for engines that don't parse it (MySQL).
-func stripIndexIfExistsClause(stmt string) string {
-	return regexp.MustCompile(`(?is)^(CREATE\s+(?:UNIQUE\s+)?INDEX)\s+IF\s+NOT\s+EXISTS`).ReplaceAllString(stmt, "$1")
-}
-
-// execMigrationScript runs one migration body as individual statements.
-// CREATE TABLE statements execute first in parents-first topological order —
-// engines validate inline FOREIGN KEY targets at creation time (SQLite
-// tolerates forward references, Postgres and MySQL do not), and the shipped
-// files declare tables in narrative rather than dependency order — then every
-// remaining statement runs in its original position. A cycle or unresolvable
-// reference falls back to the file's own order so the failure surfaces loudly
-// from the engine instead of being masked here.
-//
-// On every dialect except SQLite, every CREATE INDEX statement is applied
-// through the hasIndex guard at its original position: migrations re-run on
-// each launch, MySQL rejects both duplicate index names and the IF NOT
-// EXISTS clause itself, and Postgres files rely on IF NOT EXISTS while the
-// guard makes that redundant-but-harmless.
-func execMigrationScript(d Dialect, db *sql.DB, script, migration string) error {
-	stmts := splitSQLStatements(script)
-
-	var creates []*createTableRef
-	rest := make([]string, 0, len(stmts))
-	for i, s := range stmts {
-		if ct := parseCreateTable(s, i); ct != nil {
-			creates = append(creates, ct)
-		} else {
-			rest = append(rest, s)
-		}
-	}
-	ordered, _ := topoSortCreates(creates)
-
-	exec := func(stmt string) error {
-		if _, err := db.Exec(stmt); err != nil {
-			return err
-		}
-		return nil
-	}
-
-	guardBareIndexes := d.Name() != "sqlite"
-
-	for _, ct := range ordered {
-		if err := exec(ct.stmt); err != nil {
-			return fmt.Errorf("statement %d (%s): %w", ct.order+1, ct.name, err)
-		}
-	}
-	// Statements stay in their original positions — an index may depend
-	// on an ALTER earlier in the same file. Every CREATE INDEX statement
-	// is applied through the hasIndex guard on non-SQLite dialects so the
-	// every-launch re-run stays idempotent (MySQL supports neither
-	// duplicate index names nor IF NOT EXISTS).
-	for _, s := range rest {
-		if guardBareIndexes && bareCreateIndex(s) {
-			m := createIndexRe.FindStringSubmatch(s)
-			table, idxName := m[2], m[1]
-			if hasIndex(d, db, table, idxName) {
-				continue
-			}
-			stmt := s
-			if d.Name() == "mysql" {
-				stmt = stripIndexIfExistsClause(stmt)
-			}
-			if err := exec(stmt); err != nil {
-				return fmt.Errorf("migration %s (%s): %w", migration, idxName, err)
-			}
-			continue
-		}
-		if err := exec(s); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// topoSortCreates orders CREATE TABLE statements so referenced parents come
-// first (Kahn's algorithm, original file order as the tiebreak). ok=false
-// means the statements contain a dependency cycle or reference an unknown
-// sibling — callers keep the original order.
-func topoSortCreates(creates []*createTableRef) ([]*createTableRef, bool) {
-	if len(creates) == 0 {
-		return nil, true
-	}
-	byName := make(map[string]*createTableRef, len(creates))
-	for _, c := range creates {
-		byName[c.name] = c
-	}
-	deg := make(map[string]int, len(creates))
-	dependents := make(map[string][]string, len(creates))
-	for _, c := range creates {
-		for p := range c.refs {
-			parent, ok := byName[p]
-			if !ok || parent == c {
-				continue
-			}
-			deg[c.name]++
-			dependents[p] = append(dependents[p], c.name)
-		}
-	}
-	var ready []*createTableRef
-	for _, c := range creates {
-		if deg[c.name] == 0 {
-			ready = append(ready, c)
-		}
-	}
-	sort.SliceStable(ready, func(i, j int) bool { return ready[i].order < ready[j].order })
-	out := make([]*createTableRef, 0, len(creates))
-	for len(ready) > 0 {
-		c := ready[0]
-		ready = ready[1:]
-		out = append(out, c)
-		for _, dep := range dependents[c.name] {
-			deg[dep]--
-			if deg[dep] == 0 {
-				ready = append(ready, byName[dep])
-			}
-		}
-		sort.SliceStable(ready, func(i, j int) bool { return ready[i].order < ready[j].order })
-	}
-	if len(out) != len(creates) {
-		return creates, false
-	}
-	return out, true
 }
 
 // guardedAddColumns walks each column in spec, skipping ones that already
@@ -865,23 +588,6 @@ func guardedCreateIndex(d Dialect, db *sql.DB, migration, table, indexName, colu
 	return nil
 }
 
-// guardedCreateIndexSQL applies a full CREATE INDEX statement through the
-// hasIndex guard. On MySQL the "IF NOT EXISTS" clause is stripped (MySQL
-// parses neither it nor duplicate index names); SQLite and Postgres accept
-// the statement verbatim.
-func guardedCreateIndexSQL(d Dialect, db *sql.DB, migration, stmt, table, indexName string) error {
-	if hasIndex(d, db, table, indexName) {
-		return nil
-	}
-	if d.Name() == "mysql" {
-		stmt = stripIndexIfExistsClause(stmt)
-	}
-	if _, err := db.Exec(stmt); err != nil {
-		return fmt.Errorf("migration %s failed: %w", migration, err)
-	}
-	return nil
-}
-
 // hasIndex reports whether the named index already exists on the table.
 // Same fail-closed convention as hasColumn: any introspection error returns
 // false, and the subsequent CREATE INDEX surfaces a duplicate-name failure
@@ -955,17 +661,6 @@ func insertIgnorePrefix(d Dialect) (prefix, suffix string) {
 	}
 }
 
-// quoteColumnName quotes an identifier for the dialect's grammar: backticks
-// for MySQL (where double quotes mean string literals by default), double
-// quotes for SQLite + Postgres. Embedded quotes are doubled so hostile
-// identifiers can't break out.
-func quoteColumnName(d Dialect, name string) string {
-	if d.Name() == "mysql" {
-		return "`" + strings.ReplaceAll(name, "`", "``") + "`"
-	}
-	return `"` + strings.ReplaceAll(name, `"`, `""`) + `"`
-}
-
 // SeedCore inserts default roles, permissions, and an admin user if needed.
 // The seeded roles follow a fixed logical order used by the CLI:
 //
@@ -986,13 +681,10 @@ func SeedCore(d Dialect, db *sql.DB) error {
 		// idempotency in the prefix, so leave the suffix empty.
 		pgConflict = " " + suffix
 	}
-	// `key` is a MySQL reserved word and must be quoted; SQLite + Postgres
-	// accept the double-quoted form, so only MySQL needs backticks.
-	keyCol := quoteColumnName(d, "key")
 
 	// Page-level capability keys (the umbrella MANAGE_* group + granular
 	// CRUD verbs). Every page in the panel maps to one of these keys.
-	if _, err := db.Exec(translateSeedInsert(prefix, pgConflict, fmt.Sprintf(`(%s, description) VALUES
+	if _, err := db.Exec(translateSeedInsert(prefix, pgConflict, `(key, description) VALUES
 		('VIEW_INSTANCES', 'View instances page'),
 		('VIEW_ACCOUNT', 'View own account page'),
 		('ACCESS_ADMIN_PANEL', 'Open the admin area'),
@@ -1012,10 +704,10 @@ func SeedCore(d Dialect, db *sql.DB) error {
 		('USE_GLOBAL_THEMES', 'Assign an existing GLOBAL theme to a page / area (affects everyone)'),
 		('CREATE_GLOBAL_THEMES', 'Publish new GLOBAL themes onto the server (every user sees them)'),
 		('EDIT_THEMES', 'Rename / re-spec existing themes in the Theme Studio'),
-		('ASSIGN_THEMES', 'Bind a theme to a page or an area (the "Apply to" action)')`, keyCol), "permissions")); err != nil {
+		('ASSIGN_THEMES', 'Bind a theme to a page or an area (the "Apply to" action)')`, "permissions")); err != nil {
 		return err
 	}
-	if _, err := db.Exec(translateSeedInsert(prefix, pgConflict, fmt.Sprintf(`(%s, description) VALUES
+	if _, err := db.Exec(translateSeedInsert(prefix, pgConflict, `(key, description) VALUES
 		('USERS_VIEW', 'View the users list (admin area)'),
 		('USERS_CREATE', 'Create a new user account'),
 		('USERS_EDIT', 'Edit an existing user account'),
@@ -1049,23 +741,23 @@ func SeedCore(d Dialect, db *sql.DB) error {
 		('APPLICATIONS_EDIT', 'Edit an Application and approve its requested capabilities'),
 		('APPLICATIONS_DELETE', 'Remove an Application from the catalog'),
 		('SETTINGS_VIEW', 'View the panel settings page'),
-		('SETTINGS_EDIT', 'Change panel settings and upload logo')`, keyCol), "permissions")); err != nil {
+		('SETTINGS_EDIT', 'Change panel settings and upload logo')`, "permissions")); err != nil {
 		return err
 	}
-	if _, err := db.Exec(translateSeedInsert(prefix, pgConflict, fmt.Sprintf(`(%s, description) VALUES
+	if _, err := db.Exec(translateSeedInsert(prefix, pgConflict, `(key, description) VALUES
 		('ACCOUNT_EDIT_BANNER', 'Upload / replace / remove the profile banner image'),
 		('ACCOUNT_EDIT_ABOUT', 'Edit the About Me bio, display name and pronouns'),
 		('ACCOUNT_EDIT_ACCENT', 'Change the profile accent colour'),
 		('ACCOUNT_USE_AVATAR_SYMBOL', 'Pick a default avatar symbol when no picture is uploaded'),
-		('ACCOUNT_UPLOAD_AVATAR', 'Upload / replace / remove the avatar image')`, keyCol), "permissions")); err != nil {
+		('ACCOUNT_UPLOAD_AVATAR', 'Upload / replace / remove the avatar image')`, "permissions")); err != nil {
 		return err
 	}
-	if _, err := db.Exec(translateSeedInsert(prefix, pgConflict, fmt.Sprintf(`(%s, description) VALUES
-		('MANAGE_PANEL_UPDATE', 'Check for and apply panel updates (downloads a new binary, replaces the running one and restarts the panel)')`, keyCol), "permissions")); err != nil {
+	if _, err := db.Exec(translateSeedInsert(prefix, pgConflict, `(key, description) VALUES
+		('MANAGE_PANEL_UPDATE', 'Check for and apply panel updates (downloads a new binary, replaces the running one and restarts the panel)')`, "permissions")); err != nil {
 		return err
 	}
 	// Keep the MANAGE_THEMES description current on legacy installs.
-	if _, err := db.Exec(fmt.Sprintf(`UPDATE permissions SET description = 'Manage the theme system (umbrella key – enables the theme surface for a role)' WHERE %s = 'MANAGE_THEMES'`, keyCol)); err != nil {
+	if _, err := db.Exec(`UPDATE permissions SET description = 'Manage the theme system (umbrella key – enables the theme surface for a role)' WHERE key = 'MANAGE_THEMES'`); err != nil {
 		return err
 	}
 	// Default roles, in deterministic INSERT order (preserves existing IDs).
@@ -1091,20 +783,20 @@ func SeedCore(d Dialect, db *sql.DB) error {
 		SELECT r.id, p.id FROM roles r, permissions p WHERE r.name='admin'`, "role_permissions")); err != nil {
 		return err
 	}
-	if _, err := db.Exec(translateSeedInsert(prefix, pgConflict, fmt.Sprintf(`(role_id, permission_id)
+	if _, err := db.Exec(translateSeedInsert(prefix, pgConflict, `(role_id, permission_id)
 		SELECT r.id, p.id FROM roles r, permissions p
-		WHERE r.name='moderator' AND p.%s IN ('VIEW_INSTANCES', 'VIEW_ACCOUNT', 'VIEW_SETTINGS', 'MANAGE_THEMES', 'MANAGE_MODS', 'MANAGE_APPLICATIONS', 'USE_APPLICATIONS',
+		WHERE r.name='moderator' AND p.key IN ('VIEW_INSTANCES', 'VIEW_ACCOUNT', 'VIEW_SETTINGS', 'MANAGE_THEMES', 'MANAGE_MODS', 'MANAGE_APPLICATIONS', 'USE_APPLICATIONS',
 		'APPLICATIONS_VIEW', 'APPLICATIONS_CREATE', 'APPLICATIONS_EDIT',
 		'USE_LOCAL_THEMES', 'USE_GLOBAL_THEMES', 'ASSIGN_THEMES',
 		'ACCOUNT_EDIT_BANNER', 'ACCOUNT_EDIT_ABOUT', 'ACCOUNT_EDIT_ACCENT',
-		'ACCOUNT_USE_AVATAR_SYMBOL', 'ACCOUNT_UPLOAD_AVATAR')`, keyCol), "role_permissions")); err != nil {
+		'ACCOUNT_USE_AVATAR_SYMBOL', 'ACCOUNT_UPLOAD_AVATAR')`, "role_permissions")); err != nil {
 		return err
 	}
-	if _, err := db.Exec(translateSeedInsert(prefix, pgConflict, fmt.Sprintf(`(role_id, permission_id)
+	if _, err := db.Exec(translateSeedInsert(prefix, pgConflict, `(role_id, permission_id)
 		SELECT r.id, p.id FROM roles r, permissions p
-		WHERE r.name='user' AND p.%s IN ('VIEW_INSTANCES', 'VIEW_ACCOUNT', 'USE_APPLICATIONS',
+		WHERE r.name='user' AND p.key IN ('VIEW_INSTANCES', 'VIEW_ACCOUNT', 'USE_APPLICATIONS',
 		'ACCOUNT_EDIT_BANNER', 'ACCOUNT_EDIT_ABOUT', 'ACCOUNT_EDIT_ACCENT',
-		'ACCOUNT_USE_AVATAR_SYMBOL', 'ACCOUNT_UPLOAD_AVATAR')`, keyCol), "role_permissions")); err != nil {
+		'ACCOUNT_USE_AVATAR_SYMBOL', 'ACCOUNT_UPLOAD_AVATAR')`, "role_permissions")); err != nil {
 		return err
 	}
 	return nil

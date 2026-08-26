@@ -41,7 +41,7 @@ const ModsEngineSettingKey = "mods_engine_enabled"
 // hiccup, which is a worse failure mode than keeping the previous state.
 func (r *ModRepository) ModsEnabled() bool {
 	var v string
-	err := r.db.QueryRow(`SELECT value FROM settings WHERE `+qKey()+` = ?`, ModsEngineSettingKey).Scan(&v)
+	err := r.db.QueryRow(`SELECT value FROM settings WHERE key = ?`, ModsEngineSettingKey).Scan(&v)
 	if err != nil {
 		return true
 	}
@@ -55,14 +55,14 @@ func (r *ModRepository) SetModsEnabled(enabled bool) error {
 	if enabled {
 		val = "1"
 	}
-	res, err := r.db.Exec(`UPDATE settings SET value = ? WHERE `+qKey()+` = ?`, val, ModsEngineSettingKey)
+	res, err := r.db.Exec(`UPDATE settings SET value = ? WHERE key = ?`, val, ModsEngineSettingKey)
 	if err != nil {
 		return err
 	}
 	if n, e := res.RowsAffected(); e == nil && n > 0 {
 		return nil
 	}
-	_, err = r.db.Exec(`INSERT INTO settings (`+qKey()+`, value) VALUES (?, ?)`, ModsEngineSettingKey, val)
+	_, err = r.db.Exec(`INSERT INTO settings (key, value) VALUES (?, ?)`, ModsEngineSettingKey, val)
 	return err
 }
 
@@ -219,11 +219,15 @@ func (r *ModRepository) CreateMod(in CreateModInput) (*models.Mod, error) {
 	}
 	defer tx.Rollback()
 
-	id, err := insertReturningID(tx,
+	res, err := tx.Exec(
 		`INSERT INTO mods (name, slug, version, description, manifest, spec, active, uploaded_by, engine_version, source, source_url, package_size, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`,
 		in.Name, in.Slug, in.Version, in.Description, manifest, spec, in.UploadedBy, engineVersion, source, in.SourceURL, in.PackageSize, now, now,
 	)
+	if err != nil {
+		return nil, err
+	}
+	id, err := res.LastInsertId()
 	if err != nil {
 		return nil, err
 	}

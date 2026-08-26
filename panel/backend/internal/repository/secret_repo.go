@@ -70,8 +70,8 @@ func (r *SecretRepository) ListByInstance(instanceID int64) ([]SecretEntry, erro
 		return out, nil
 	}
 	rows, err := r.db.Query(
-		`SELECT id, instance_id, `+qKey()+`, value_blob, is_secret, description, created_at, updated_at
-		 FROM instance_secrets WHERE instance_id = ? ORDER BY `+qKey()+` ASC`,
+		`SELECT id, instance_id, key, value_blob, is_secret, description, created_at, updated_at
+		 FROM instance_secrets WHERE instance_id = ? ORDER BY key ASC`,
 		instanceID,
 	)
 	if err != nil {
@@ -135,9 +135,11 @@ func (r *SecretRepository) Set(instanceID int64, key, value string, isSecret boo
 		secretFlag = 1
 	}
 	if _, err := r.db.Exec(
-		`INSERT INTO instance_secrets (instance_id, `+qKey()+`, value_blob, is_secret, description)
-		 VALUES (?, ?, ?, ?, ?)`+upsertSet("(instance_id, key)",
-			[]string{"value_blob", "is_secret", "description"}, "updated_at = CURRENT_TIMESTAMP"),
+		`INSERT INTO instance_secrets (instance_id, key, value_blob, is_secret, description)
+		 VALUES (?, ?, ?, ?, ?)
+		 ON CONFLICT(instance_id, key) DO UPDATE SET value_blob = excluded.value_blob,
+		     is_secret = excluded.is_secret, description = excluded.description,
+		     updated_at = CURRENT_TIMESTAMP`,
 		instanceID, key, blob, secretFlag, description,
 	); err != nil {
 		return 0, err
@@ -146,7 +148,7 @@ func (r *SecretRepository) Set(instanceID int64, key, value string, isSecret boo
 	// row id explicitly. Callers use it for the 201 body but tolerate 0.
 	var id int64
 	if err := r.db.QueryRow(
-		`SELECT id FROM instance_secrets WHERE instance_id = ? AND `+qKey()+` = ?`,
+		`SELECT id FROM instance_secrets WHERE instance_id = ? AND key = ?`,
 		instanceID, key,
 	).Scan(&id); err != nil {
 		return 0, nil
@@ -161,7 +163,7 @@ func (r *SecretRepository) Reveal(instanceID int64, key string) (string, error) 
 	var blob []byte
 	var isSecret int
 	err := r.db.QueryRow(
-		`SELECT value_blob, is_secret FROM instance_secrets WHERE instance_id = ? AND `+qKey()+` = ?`,
+		`SELECT value_blob, is_secret FROM instance_secrets WHERE instance_id = ? AND key = ?`,
 		instanceID, key,
 	).Scan(&blob, &isSecret)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -183,7 +185,7 @@ func (r *SecretRepository) Reveal(instanceID int64, key string) (string, error) 
 // Delete removes one (instance_id, key) row. Returns ErrSecretNotFound when
 // no row matched so the handler maps it to 404.
 func (r *SecretRepository) Delete(instanceID int64, key string) error {
-	res, err := r.db.Exec(`DELETE FROM instance_secrets WHERE instance_id = ? AND `+qKey()+` = ?`, instanceID, key)
+	res, err := r.db.Exec(`DELETE FROM instance_secrets WHERE instance_id = ? AND key = ?`, instanceID, key)
 	if err != nil {
 		return err
 	}
@@ -215,8 +217,8 @@ func (r *SecretRepository) ResolvedEnv(instanceID int64, refs []string) (keys, v
 		placeholders += "?"
 		args = append(args, ref)
 	}
-	q := `SELECT ` + qKey() + `, value_blob, is_secret FROM instance_secrets
-	      WHERE instance_id = ? AND ` + qKey() + ` IN (` + placeholders + `)`
+	q := `SELECT key, value_blob, is_secret FROM instance_secrets
+	      WHERE instance_id = ? AND key IN (` + placeholders + `)`
 	rows, err := r.db.Query(q, args...)
 	if err != nil {
 		return nil, nil, err

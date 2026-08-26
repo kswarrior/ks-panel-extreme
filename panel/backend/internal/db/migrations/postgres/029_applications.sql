@@ -87,13 +87,10 @@ CREATE INDEX IF NOT EXISTS idx_application_installations_app ON application_inst
 CREATE INDEX IF NOT EXISTS idx_application_installations_own ON application_installations(owner_id);
 
 -- Seed the catalog permissions so the admin's role picks them up on launch.
--- (PostgreSQL has no INSERT OR IGNORE; ON CONFLICT DO NOTHING is the
--- equivalent idempotent form. The sqlite/mysql dirs keep their own verbs.)
-INSERT INTO permissions (key, description) VALUES
+INSERT OR IGNORE INTO permissions (key, description) VALUES
     ('MANAGE_APPLICATIONS', 'Manage the Applications catalog (upload, edit, activate/deactivate)'),
     ('APPLICATIONS_VIEW',   'View the Applications catalog'),
     ('APPLICATIONS_CREATE', 'Add a new Application to the catalog'),
     ('APPLICATIONS_EDIT',   'Edit an Application and approve its requested capabilities'),
     ('APPLICATIONS_DELETE', 'Remove an Application from the catalog'),
-    ('USE_APPLICATIONS',    'Install and run user-level Applications (bots, services)')
-ON CONFLICT DO NOTHING;
+    ('USE_APPLICATIONS',    'Install and run user-level Applications (bots, services)');

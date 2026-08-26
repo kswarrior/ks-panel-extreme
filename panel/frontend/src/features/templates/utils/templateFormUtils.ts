@@ -289,10 +289,7 @@ export function parseSpec(raw: string): Partial<TemplateFormState> {
       const c = s.caps as Record<string, any>;
       out.caps = {
         databases: String(c.databases ?? ''),
-        // serializeSpec writes the "backups" key; "backends" is the legacy
-        // alias some hand-written specs used. Reading backends-first here
-        // silently dropped every template's Backups cap on edit round-trip.
-        backups: String(c.backups ?? c.backends ?? ''),
+        backups: String(c.backends ?? ''),
         networks: String(c.networks ?? ''),
       };
     }

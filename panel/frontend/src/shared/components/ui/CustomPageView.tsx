@@ -313,6 +313,13 @@ interface CustomPageViewProps {
   content: PageContent;
   title: string;
   instanceContext?: InstanceContext;
+  /**
+   * Slug (or "<slug>/<sub-path>") of the page this view renders. Sent with
+   * every SDK executeAction call so the server can verify the calling page
+   * family is enabled on the bound instance (page-bound execution). Omit in
+   * contexts without a real page (Studio static preview of unsaved pages).
+   */
+  pageSlug?: string;
 }
 
 // ============================================================================

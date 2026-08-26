@@ -474,10 +474,6 @@ func writeDockerFile(ctx context.Context, w http.ResponseWriter, r *http.Request
 		return
 	}
 	if _, err := io.Copy(stdin, r.Body); err != nil {
-		// Close stdin BEFORE Wait: the `cat > file` child blocks reading
-		// its stdin pipe, so waiting without closing would pin this
-		// handler (and the container exec) until the context deadline.
-		_ = stdin.Close()
 		_ = cmd.Wait()
 		writeErr(w, http.StatusBadGateway, fmt.Sprintf("write %s: %v", path, err))
 		return

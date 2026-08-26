@@ -59,7 +59,7 @@ const LogoFilenamePrefix = "panel-"
 // GetPanelName returns the configured panel name, falling back to the default.
 func (r *SettingsRepository) GetPanelName() (string, error) {
 	var v string
-	err := r.db.QueryRow(`SELECT value FROM settings WHERE `+qKey()+` = ?`, PanelNameKey).Scan(&v)
+	err := r.db.QueryRow(`SELECT value FROM settings WHERE key = ?`, PanelNameKey).Scan(&v)
 	if err == sql.ErrNoRows {
 		return DefaultPanelName, nil
 	}
@@ -79,7 +79,8 @@ func (r *SettingsRepository) SetPanelName(name string) error {
 		return fmt.Errorf("panel name cannot be empty")
 	}
 	_, err := r.db.Exec(
-		`INSERT INTO settings (`+qKey()+`, value) VALUES (?, ?)`+upsertSet("(key)", []string{"value"}),
+		`INSERT INTO settings (key, value) VALUES (?, ?)
+		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
 		PanelNameKey, name,
 	)
 	return err
@@ -98,7 +99,7 @@ type PanelLogo struct {
 // that case without touching the disk.
 func (r *SettingsRepository) GetPanelLogo() (PanelLogo, bool, error) {
 	var mime, filename sql.NullString
-	err := r.db.QueryRow(`SELECT logo_mime, logo_filename FROM settings WHERE `+qKey()+` = ?`, PanelNameKey).
+	err := r.db.QueryRow(`SELECT logo_mime, logo_filename FROM settings WHERE key = ?`, PanelNameKey).
 		Scan(&mime, &filename)
 	if err == sql.ErrNoRows {
 		return PanelLogo{}, false, nil
@@ -148,7 +149,7 @@ func (r *SettingsRepository) SetPanelLogo(data []byte, mime string) (PanelLogo, 
 	// Persist the new reference. If we hit an error, roll back the just-written
 	// file so the on-disk state and DB stay in lock-step.
 	res, err := r.db.Exec(
-		`UPDATE settings SET logo_mime = ?, logo_filename = ? WHERE `+qKey()+` = ?`,
+		`UPDATE settings SET logo_mime = ?, logo_filename = ? WHERE key = ?`,
 		mime, filename, PanelNameKey,
 	)
 	if err != nil {
@@ -160,7 +161,7 @@ func (r *SettingsRepository) SetPanelLogo(data []byte, mime string) (PanelLogo, 
 		// The settings row doesn't exist yet (very fresh DB) – create the
 		// panel_name row on the fly so the logo metadata has a home.
 		if _, err := r.db.Exec(
-			`INSERT INTO settings (`+qKey()+`, value, logo_mime, logo_filename) VALUES (?, ?, ?, ?)`,
+			`INSERT INTO settings (key, value, logo_mime, logo_filename) VALUES (?, ?, ?, ?)`,
 			PanelNameKey, DefaultPanelName, mime, filename,
 		); err != nil {
 			_ = os.Remove(dst)
@@ -187,7 +188,7 @@ func (r *SettingsRepository) ClearPanelLogo() error {
 		return nil
 	}
 	if _, err := r.db.Exec(
-		`UPDATE settings SET logo_mime = NULL, logo_filename = NULL WHERE `+qKey()+` = ?`,
+		`UPDATE settings SET logo_mime = NULL, logo_filename = NULL WHERE key = ?`,
 		PanelNameKey,
 	); err != nil {
 		return fmt.Errorf("clear logo meta: %w", err)
@@ -300,7 +301,7 @@ func (r *SettingsRepository) Get() (*SettingsSnapshot, error) {
 // the GET.
 func (r *SettingsRepository) getString(key, fallback string) string {
 	var v string
-	err := r.db.QueryRow(`SELECT value FROM settings WHERE `+qKey()+` = ?`, key).Scan(&v)
+	err := r.db.QueryRow(`SELECT value FROM settings WHERE key = ?`, key).Scan(&v)
 	if err == sql.ErrNoRows || err != nil {
 		return fallback
 	}
@@ -310,7 +311,8 @@ func (r *SettingsRepository) getString(key, fallback string) string {
 // setString upserts a single key/value pair in the settings table.
 func (r *SettingsRepository) setString(key, value string) error {
 	_, err := r.db.Exec(
-		`INSERT INTO settings (`+qKey()+`, value) VALUES (?, ?)`+upsertSet("(key)", []string{"value"}),
+		`INSERT INTO settings (key, value) VALUES (?, ?)
+		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
 		key, value,
 	)
 	return err

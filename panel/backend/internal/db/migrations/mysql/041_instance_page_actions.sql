@@ -9,4 +9,4 @@
 -- (mirrors 036_mod_package.sql) so re-launches are idempotent on every
 -- dialect.
 
-ALTER TABLE instance_pages ADD COLUMN actions TEXT NOT NULL DEFAULT ('');
+ALTER TABLE instance_pages ADD COLUMN actions TEXT NOT NULL DEFAULT '';

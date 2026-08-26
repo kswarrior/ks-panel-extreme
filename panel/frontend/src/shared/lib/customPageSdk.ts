@@ -245,6 +245,7 @@ export function createCustomPageSDK(instanceContext: InstanceContext, savedActio
       method: 'POST',
       body: JSON.stringify({
         instance_id: instanceContext.id,
+        page_slug: pageSlug || undefined,
         ...action,
       }),
     });

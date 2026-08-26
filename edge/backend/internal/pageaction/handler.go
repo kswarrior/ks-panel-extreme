@@ -90,18 +90,9 @@ func Handler(token string) http.Handler {
 			return
 		}
 
-		// Clamp the caller-supplied timeout: negative values would create
-		// an already-expired context (every action fails confusingly) and
-		// unbounded values pin a goroutine for as long as the number says.
-		// 0 keeps the documented default; >1800s is capped to match
-		// execrpc's maximum.
 		timeout := time.Duration(in.Timeout) * time.Second
-		if in.Timeout < 0 || timeout == 0 {
+		if timeout == 0 {
 			timeout = 30 * time.Second
-		}
-		const maxTimeout = 1800 * time.Second
-		if timeout > maxTimeout {
-			timeout = maxTimeout
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), timeout)
 		defer cancel()

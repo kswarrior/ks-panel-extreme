@@ -184,12 +184,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	auth.AccountLockoutInstance.ResetAttempts(identifier)
 
 	// Create session
-	cookieVal, err := auth.GenerateSessionToken(user.ID, time.Now())
-	if err != nil {
-		log.Println("GenerateSessionToken error:", err)
-		http.Error(w, "server error", http.StatusInternalServerError)
-		return
-	}
+	cookieVal := auth.GenerateSessionToken(user.ID, time.Now())
 	http.SetCookie(w, auth.NewSessionCookie(r, cookieVal, time.Now().Add(auth.SessionTTL())))
 
 	// Record session in session manager
@@ -218,14 +213,8 @@ func writeLoginResponse(w http.ResponseWriter, r *http.Request, user *models.Use
 	json.NewEncoder(w).Encode(resp)
 }
 
-// LogoutHandler invalidates the session by revoking the tracked credential
-// (cookie or Bearer — whichever the request authenticated with) and
-// clearing the cookie. Without the revocation the token would stay valid
-// until its TTL even though the user logged out.
+// LogoutHandler invalidates the session by clearing the cookie.
 func LogoutHandler(w http.ResponseWriter, r *http.Request) {
-	if tok := callerSessionToken(r); tok != "" {
-		auth.SessionManagerInstance.InvalidateSession(tok)
-	}
 	http.SetCookie(w, auth.ClearSessionCookie(r))
 	w.WriteHeader(http.StatusOK)
 }
@@ -275,19 +264,7 @@ func SwitchLoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check account lockout status — same policy as LoginHandler so the
-	// switcher endpoint can't be used to brute-force around it.
-	if auth.AccountLockoutInstance.IsAccountLocked(identifier) {
-		lockoutTime := auth.AccountLockoutInstance.GetLockoutTime(identifier)
-		w.Header().Set("Retry-After", lockoutTime.String())
-		http.Error(w, "account temporarily locked due to multiple failed attempts", http.StatusTooManyRequests)
-		return
-	}
-
 	if err := auth.CheckPassword(user.PasswordHash, req.Password); err != nil {
-		// Record failed attempt
-		auth.AccountLockoutInstance.RecordFailedAttempt(identifier)
-
 		RecordActivity(r, repository.ActivityInput{
 			Username:    user.Username,
 			UserID:      &user.ID,
@@ -339,9 +316,6 @@ func SwitchLoginHandler(w http.ResponseWriter, r *http.Request) {
 		roleName = role.Name
 	}
 
-	// Reset failed attempts on successful login (mirrors LoginHandler).
-	auth.AccountLockoutInstance.ResetAttempts(identifier)
-
 	// No cookie here — the caller (SPA's switcher) owns the token. We only
 	// record the attempt, sign a token, and hand it back in the body.
 	RecordActivity(r, repository.ActivityInput{
@@ -354,12 +328,7 @@ func SwitchLoginHandler(w http.ResponseWriter, r *http.Request) {
 		Message:     "logged in for account switcher (no cookie)",
 	})
 
-	tokenVal, err := auth.GenerateSessionToken(user.ID, time.Now())
-	if err != nil {
-		log.Println("GenerateSessionToken error:", err)
-		http.Error(w, "server error", http.StatusInternalServerError)
-		return
-	}
+	tokenVal := auth.GenerateSessionToken(user.ID, time.Now())
 	// Register the switcher bearer with the session manager so it shows
 	// up on the admin Sessions tab and is subject to revocation, the
 	// per-user cap and the idle timeout like any cookie session.

@@ -43,7 +43,7 @@ func roleAuthorityKey(roleID int64) string {
 func (r *RoleAuthorityRepository) GetRoleAllowedAuth(roleID int64) ([]string, error) {
 	var raw string
 	err := r.db.QueryRow(
-		`SELECT COALESCE((SELECT value FROM settings WHERE `+qKey()+` = ?), '')`,
+		`SELECT COALESCE((SELECT value FROM settings WHERE key = ?), '')`,
 		roleAuthorityKey(roleID),
 	).Scan(&raw)
 	if err != nil {
@@ -79,7 +79,7 @@ func (r *RoleAuthorityRepository) SetRoleAllowedAuth(roleID int64, allowed []str
 		// nil → unrestricted: drop the row so the role has no
 		// persisted blob (GetRoleAllowedAuth returns (nil, nil)
 		// which every reader treats as unrestricted).
-		_, err := r.db.Exec(`DELETE FROM settings WHERE `+qKey()+` = ?`, roleAuthorityKey(roleID))
+		_, err := r.db.Exec(`DELETE FROM settings WHERE key = ?`, roleAuthorityKey(roleID))
 		return err
 	}
 	// Persist the list as-is — explicit `[]string{}` marshals to "[]",
@@ -91,7 +91,8 @@ func (r *RoleAuthorityRepository) SetRoleAllowedAuth(roleID int64, allowed []str
 		return fmt.Errorf("encode role allowed auth: %w", err)
 	}
 	_, err = r.db.Exec(
-		`INSERT INTO settings (`+qKey()+`, value) VALUES (?, ?)`+upsertSet("(key)", []string{"value"}),
+		`INSERT INTO settings (key, value) VALUES (?, ?)
+		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
 		roleAuthorityKey(roleID), blob,
 	)
 	return err

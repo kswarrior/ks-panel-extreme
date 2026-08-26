@@ -8,7 +8,7 @@ ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS email_verification_codes (
     id           BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    email        VARCHAR(255) NOT NULL,
+    email        TEXT    NOT NULL,
     code         TEXT    NOT NULL,
     code_hash    TEXT    NOT NULL,
     created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

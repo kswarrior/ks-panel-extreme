@@ -32,22 +32,22 @@ CREATE TABLE IF NOT EXISTS activity_logs (
     -- The user who triggered the action. Nullable so a deleted user doesn't
     -- break viewing the historic row — the denormalised username column
     -- carries the label.
-    user_id      BIGINT,
+    user_id      INTEGER,
     -- Denormalised username at write-time. Empty when the action was
     -- performed by an unauthenticated caller (e.g. failed login attempt).
-    username     TEXT    NOT NULL DEFAULT (''),
+    username     TEXT    NOT NULL DEFAULT '',
     -- Optional role display name at write-time; useful in the Activity UI
     -- to colour-code the actor without joining.
-    role         TEXT    NOT NULL DEFAULT (''),
-    category     VARCHAR(64) NOT NULL,
+    role         TEXT    NOT NULL DEFAULT '',
+    category     TEXT    NOT NULL,
     action       TEXT    NOT NULL,
-    target_id    BIGINT,
-    target_label TEXT    NOT NULL DEFAULT (''),
+    target_id    INTEGER,
+    target_label TEXT    NOT NULL DEFAULT '',
     -- Free-form human summary ('deleted user "alice"', 'rotated token for
     -- edge "edge-1"', 'logged in'). Limited at write-side to ~255 chars.
-    message      TEXT    NOT NULL DEFAULT (''),
-    ip_address   TEXT    NOT NULL DEFAULT (''),
-    user_agent   TEXT    NOT NULL DEFAULT (''),
+    message      TEXT    NOT NULL DEFAULT '',
+    ip_address   TEXT    NOT NULL DEFAULT '',
+    user_agent   TEXT    NOT NULL DEFAULT '',
     created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 );

@@ -46,9 +46,13 @@ func (r *SnapshotRepository) List(instanceID int64) ([]models.InstanceSnapshot, 
 }
 
 func (r *SnapshotRepository) Create(s models.InstanceSnapshot) (int64, error) {
-	return insertReturningID(r.db, `INSERT INTO instance_snapshots (instance_id, name, external_ref, size_bytes, note)
+	res, err := r.db.Exec(`INSERT INTO instance_snapshots (instance_id, name, external_ref, size_bytes, note)
 		VALUES (?, ?, ?, ?, ?)`,
 		s.InstanceID, s.Name, s.ExternalRef, s.SizeBytes, s.Note)
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
 }
 
 func (r *SnapshotRepository) Delete(instanceID int64, name string) error {
@@ -82,8 +86,12 @@ type AuditInput struct {
 
 // Append inserts one audit row.
 func (r *InstanceAuditRepository) Append(in AuditInput) (int64, error) {
-	return insertReturningID(r.db, `INSERT INTO instance_audit (instance_id, actor, action, detail)
+	res, err := r.db.Exec(`INSERT INTO instance_audit (instance_id, actor, action, detail)
 		VALUES (?, ?, ?, ?)`, in.InstanceID, in.Actor, in.Action, in.Detail)
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
 }
 
 // List returns rows newest-first, capped to limit.
@@ -152,8 +160,10 @@ func (r *LiveStateRepository) Save(ls models.InstanceLiveState) error {
 	ls.Ports = defaultJSON(ls.Ports, "[]")
 	ls.Info = defaultJSON(ls.Info, "{}")
 	_, err := r.db.Exec(`INSERT INTO instance_live_state (instance_id, updated_at, metrics, processes, ports, info)
-		VALUES (?, CURRENT_TIMESTAMP, ?, ?, ?, ?)`+upsertSet("(instance_id)",
-		[]string{"metrics", "processes", "ports", "info"}, "updated_at = CURRENT_TIMESTAMP"),
+		VALUES (?, CURRENT_TIMESTAMP, ?, ?, ?, ?)
+		ON CONFLICT(instance_id) DO UPDATE SET updated_at = CURRENT_TIMESTAMP,
+			metrics = excluded.metrics, processes = excluded.processes,
+			ports = excluded.ports, info = excluded.info`,
 		ls.InstanceID, ls.Metrics, ls.Processes, ls.Ports, ls.Info)
 	return err
 }

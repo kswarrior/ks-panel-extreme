@@ -176,11 +176,7 @@ func (*postgresDialect) MigrationsFS() fs.FS {
 }
 
 func (*postgresDialect) Open(dsn string) (*sql.DB, error) {
-	// "pgxrebind" wraps the stock pgx driver so the repository layer's
-	// "?" placeholders are rewritten to PostgreSQL's "$n" ordinals at the
-	// driver boundary (see pgrebind.go).
-	registerPgxRebindDriver()
-	db, err := sql.Open(pgxRebindDriverName, dsn)
+	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return nil, err
 	}

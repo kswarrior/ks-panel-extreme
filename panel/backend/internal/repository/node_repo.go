@@ -94,7 +94,7 @@ func (r *NodeRepository) CreateNode(in CreateNodeInput) (*models.Node, string, e
 		prefix = prefix[:8]
 	}
 
-	id, err := insertReturningID(r.db,
+	res, err := r.db.Exec(
 		`INSERT INTO nodes (name, address, use_tls, token_hash, token_prefix, token_plain, status,
 			health_enabled, health_interval, health_timeout, health_retries,
 			skip_tls_verify, notes, install_dir, allowed_kinds,
@@ -109,6 +109,10 @@ func (r *NodeRepository) CreateNode(in CreateNodeInput) (*models.Node, string, e
 		in.InstancesDir,
 		in.Category, in.LocationCountry, in.LocationNode, in.Icon, in.Color,
 	)
+	if err != nil {
+		return nil, "", err
+	}
+	id, err := res.LastInsertId()
 	if err != nil {
 		return nil, "", err
 	}
@@ -735,8 +739,8 @@ func (r *NodeRepository) IngestHeartbeat(in IngestInput) (int64, error) {
 	// collapse to one row so a chatty edge doesn't bloat the table.
 	bucket := now.Truncate(time.Minute)
 	if _, err := r.db.Exec(
-		`INSERT INTO node_heartbeats (node_id, bucket_at, status) VALUES (?, ?, 'up')`+
-			upsertSet("(node_id, bucket_at)", []string{"status"}),
+		`INSERT INTO node_heartbeats (node_id, bucket_at, status) VALUES (?, ?, 'up')
+		 ON CONFLICT(node_id, bucket_at) DO UPDATE SET status = 'up'`,
 		id.Int64, bucket); err != nil {
 		return 0, err
 	}
@@ -772,8 +776,8 @@ func (r *NodeRepository) MarkStale(threshold time.Duration) (int, error) {
 	bucket := time.Now().UTC().Truncate(time.Minute)
 	for _, id := range ids {
 		_, _ = r.db.Exec(
-			`INSERT INTO node_heartbeats (node_id, bucket_at, status) VALUES (?, ?, 'down')`+
-				upsertSet("(node_id, bucket_at)", []string{"status"}),
+			`INSERT INTO node_heartbeats (node_id, bucket_at, status) VALUES (?, ?, 'down')
+			 ON CONFLICT(node_id, bucket_at) DO UPDATE SET status = 'down'`,
 			id, bucket)
 	}
 	res, err := r.db.Exec(

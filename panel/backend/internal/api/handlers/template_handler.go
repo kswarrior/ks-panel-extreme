@@ -268,36 +268,6 @@ func CreateTemplateHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"id": id})
 }
 
-// manifestSpecString extracts manifest["spec"] into the canonical JSON
-// document string both import paths persist. The canonical manifest embeds
-// spec as a JSON object; panel builds before the download fix exported it as
-// a string-encoded JSON document — accepting both keeps previously
-// downloaded manifests importable. Returns ok=false when the field is
-// present but neither an object nor a parseable JSON-object string.
-func manifestSpecString(manifest map[string]any) (string, bool) {
-	switch v := manifest["spec"].(type) {
-	case nil:
-		// Absent — caller applies its "{}" default.
-		return "", true
-	case string:
-		s := strings.TrimSpace(v)
-		if s == "" {
-			return "", true
-		}
-		var probe map[string]any
-		if err := json.Unmarshal([]byte(s), &probe); err != nil {
-			return "", false
-		}
-		return s, true
-	default:
-		b, err := json.Marshal(v)
-		if err != nil {
-			return "", false
-		}
-		return string(b), true
-	}
-}
-
 func handleTemplateFileUpload(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseMultipartForm(8 << 20); err != nil {
 		http.Error(w, "invalid multipart payload: "+err.Error(), http.StatusBadRequest)
@@ -329,11 +299,8 @@ func handleTemplateFileUpload(w http.ResponseWriter, r *http.Request) {
 	description := getString(manifest, "description")
 	kind := getString(manifest, "kind")
 	image := getString(manifest, "image")
-	spec, specOK := manifestSpecString(manifest)
-	if !specOK {
-		http.Error(w, "spec must be a JSON object (or a string containing one)", http.StatusBadRequest)
-		return
-	}
+	specBytes, _ := json.Marshal(manifest["spec"])
+	spec := string(specBytes)
 
 	if name == "" {
 		http.Error(w, "template name is required", http.StatusBadRequest)
@@ -427,11 +394,8 @@ func InstallTemplateFromURLHandler(w http.ResponseWriter, r *http.Request) {
 	description := getString(manifest, "description")
 	kind := getString(manifest, "kind")
 	image := getString(manifest, "image")
-	spec, specOK := manifestSpecString(manifest)
-	if !specOK {
-		http.Error(w, "spec must be a JSON object (or a string containing one)", http.StatusBadRequest)
-		return
-	}
+	specBytes, _ := json.Marshal(manifest["spec"])
+	spec := string(specBytes)
 
 	if name == "" {
 		http.Error(w, "template name is required", http.StatusBadRequest)
@@ -709,25 +673,12 @@ func DownloadTemplateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Embed the spec as a REAL JSON object (json.RawMessage), not a quoted
-	// Go-string. The import paths (handleTemplateFileUpload /
-	// InstallTemplateFromURLHandler) decode manifest["spec"] into
-	// map[string]any, so a string-encoded spec failed to re-import with
-	// "cannot unmarshal string into Go value of type map[string]interface {}"
-	// — the download → upload round-trip never worked. Every writer of the
-	// templates table validates the spec as a JSON object first, so a
-	// non-parseable row here is corruption worth failing loudly on rather
-	// than silently exporting something importers reject again.
-	if !json.Valid([]byte(tmpl.Spec)) {
-		http.Error(w, "stored spec is not valid JSON; fix the template before downloading", http.StatusInternalServerError)
-		return
-	}
 	exportData := map[string]any{
 		"name":        tmpl.Name,
 		"description": tmpl.Description,
 		"kind":        tmpl.Kind,
 		"image":       tmpl.Image,
-		"spec":        json.RawMessage(tmpl.Spec),
+		"spec":        tmpl.Spec,
 	}
 
 	jsonData, err := json.MarshalIndent(exportData, "", "  ")

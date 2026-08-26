@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS nodes (
     uptime_secs   INTEGER NOT NULL DEFAULT 0,
     -- "up" = last heartbeat fresh and reachable, "down" = stale or last
     -- contact failed. Updated on every ingest or health probe.
-    status        VARCHAR(32) NOT NULL DEFAULT ('down'),
+    status        TEXT    NOT NULL DEFAULT 'down',
     -- Computed uptime percentage (0-100). Updated by the panel from the
     -- heartbeat history so it's available even if the edge crashed.
     uptime_pct    REAL    NOT NULL DEFAULT 0,

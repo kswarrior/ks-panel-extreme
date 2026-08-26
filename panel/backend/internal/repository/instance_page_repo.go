@@ -102,8 +102,12 @@ type InstancePageInput struct {
 
 // Create inserts a new instance page.
 func (r *InstancePageRepository) Create(in InstancePageInput) (int64, error) {
-	return insertReturningID(r.db, `INSERT INTO instance_pages (name, slug, kind, category, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	res, err := r.db.Exec(`INSERT INTO instance_pages (name, slug, kind, category, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		in.Name, in.Slug, in.Kind, in.Category, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.IconSVG, in.Actions, in.SubPages)
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
 }
 
 // Update patches an editable instance page.

@@ -15,11 +15,11 @@
 --   security_session_idle_timeout_minutes — idle eviction window (was 24h).
 --   security_session_max_per_user         — concurrent sessions per user (0 = unlimited).
 
-INSERT IGNORE INTO settings (`key`, value) VALUES ('security_ip_allowlist', '');
-INSERT IGNORE INTO settings (`key`, value) VALUES ('security_ip_denylist', '');
-INSERT IGNORE INTO settings (`key`, value) VALUES ('security_max_body_size_mb', '10');
-INSERT IGNORE INTO settings (`key`, value) VALUES ('security_allowed_http_methods', '');
-INSERT IGNORE INTO settings (`key`, value) VALUES ('security_block_suspicious_paths', '0');
-INSERT IGNORE INTO settings (`key`, value) VALUES ('security_session_lifetime_minutes', '480');
-INSERT IGNORE INTO settings (`key`, value) VALUES ('security_session_idle_timeout_minutes', '1440');
-INSERT IGNORE INTO settings (`key`, value) VALUES ('security_session_max_per_user', '0');
+INSERT IGNORE INTO settings (key, value) VALUES ('security_ip_allowlist', '');
+INSERT IGNORE INTO settings (key, value) VALUES ('security_ip_denylist', '');
+INSERT IGNORE INTO settings (key, value) VALUES ('security_max_body_size_mb', '10');
+INSERT IGNORE INTO settings (key, value) VALUES ('security_allowed_http_methods', '');
+INSERT IGNORE INTO settings (key, value) VALUES ('security_block_suspicious_paths', '0');
+INSERT IGNORE INTO settings (key, value) VALUES ('security_session_lifetime_minutes', '480');
+INSERT IGNORE INTO settings (key, value) VALUES ('security_session_idle_timeout_minutes', '1440');
+INSERT IGNORE INTO settings (key, value) VALUES ('security_session_max_per_user', '0');

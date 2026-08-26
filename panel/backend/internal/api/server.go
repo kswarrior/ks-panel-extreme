@@ -258,11 +258,6 @@ func NewRouter() http.Handler {
 			r.With(requireUmbrellaOrAction(usersG, permissions.ActionCreate)).Post("/", handlers.CreateUserHandler)
 			r.With(requireUmbrellaOrAction(usersG, permissions.ActionEdit)).Put("/{id}", handlers.UpdateUserHandler)
 			r.With(requireUmbrellaOrAction(usersG, permissions.ActionDelete)).Delete("/{id}", handlers.DeleteUserHandler)
-			// Suspension lifecycle (edit-gated like the other user
-			// mutations). Backs the Users page's suspend / unsuspend
-			// buttons; the repo layer keeps the suspension history.
-			r.With(requireUmbrellaOrAction(usersG, permissions.ActionEdit)).Post("/{id}/suspend", handlers.SuspendUserHandler)
-			r.With(requireUmbrellaOrAction(usersG, permissions.ActionEdit)).Post("/{id}/unsuspend", handlers.UnsuspendUserHandler)
 		})
 
 		// Admin: roles management (same umbrella-or-action pattern).
@@ -522,13 +517,13 @@ func NewRouter() http.Handler {
 		// React <Slot /> component can mount the right components. Gated by
 		// ACCESS_ADMIN_PANEL because slots render inside the admin shell; an
 		// anonymous caller would have nothing to render them into anyway.
-		r.With(requirePermission(permissions.AccessAdminPanelKey)).Get("/api/mods/v1/slots", handlers.SlotsHandler)
+		r.Get("/api/mods/v1/slots", handlers.SlotsHandler)
 		// Per-mod asset stream: serves a single file from an active mod's
 		// extracted .kspm workdir to the browser (the JS bundle the slots
 		// loader mounts, page content referenced by spec.pages, …). Same
 		// ACCESS_ADMIN_PANEL gate as the slot registry since assets render
 		// inside the admin shell alongside the slots that point at them.
-		r.With(requirePermission(permissions.AccessAdminPanelKey)).Get("/api/mods/v1/assets/{slug}/*", handlers.ModAssetHandler)
+		r.Get("/api/mods/v1/assets/{slug}/*", handlers.ModAssetHandler)
 
 		// Admin: instance management. MANAGE_INSTANCES (umbrella) implies
 		// every action; INSTANCES_* narrow each route. Deploy spins up a
@@ -548,11 +543,6 @@ func NewRouter() http.Handler {
 			// workload on the edge only when a create-time-only field changed.
 			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionEdit)).Put("/{id}", handlers.UpdateInstanceHandler)
 			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionDelete)).Delete("/{id}", handlers.DestroyInstanceHandler)
-			// Suspension lifecycle (edit-gated). The handlers existed but
-			// were never mounted, so the AdminInstances page's suspend /
-			// unsuspend buttons silently hit the SPA catch-all.
-			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionEdit)).Post("/{id}/suspend", handlers.SuspendInstanceHandler)
-			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionEdit)).Post("/{id}/unsuspend", handlers.UnsuspendInstanceHandler)
 		})
 
 		// Instance actions: invoke a template-defined named action (e.g. the
@@ -640,7 +630,7 @@ func NewRouter() http.Handler {
 		// System snapshot (ACCESS_ADMIN_PANEL). One round-trip carries
 		// every tile the System page renders so the page can paint in a
 		// single fetch and refresh on an interval without re-querying.
-		r.With(requirePermission(permissions.AccessAdminPanelKey)).Get("/api/system", handlers.SystemSnapshotHandler)
+		r.Get("/api/system", handlers.SystemSnapshotHandler)
 
 		// Panel self-update (MANAGE_PANEL_UPDATE). Endpoints back
 		// the "Updates" tab on the System page:
@@ -672,49 +662,44 @@ func NewRouter() http.Handler {
 		// "Change Database" surface: GET /engines lists switchable backends,
 		// POST /engine validates + persists a new engine selection (the
 		// running panel keeps its pool until a launch restart).
-		r.With(requirePermission(permissions.AccessAdminPanelKey)).Get("/api/database", handlers.DatabaseInfoHandler)
-		r.With(requirePermission(permissions.AccessAdminPanelKey)).Get("/api/database/engines", handlers.DatabaseEnginesHandler)
-		r.With(requirePermission(permissions.AccessAdminPanelKey)).Post("/api/database/engine", handlers.SetDatabaseEngineHandler)
+		r.Get("/api/database", handlers.DatabaseInfoHandler)
+		r.Get("/api/database/engines", handlers.DatabaseEnginesHandler)
+		r.Post("/api/database/engine", handlers.SetDatabaseEngineHandler)
 
 		// Security page (ACCESS_ADMIN_PANEL). Per-request security telemetry
 		// aggregated into the headline counters + top-N lists the page renders.
 		// The toggle endpoint flips the persisted Attack Status flag in the
 		// settings KV so the middleware (and the page) can react.
-		// Every route below is admin-surface (telemetry, session revocation,
-		// DDoS controls, lockout overrides, recovery-code management), so
-		// each is gated by ACCESS_ADMIN_PANEL — matching the documented
-		// intent; without the gate any authenticated user could revoke
-		// other users' sessions or rewrite firewall limits.
-		r.With(requirePermission(permissions.AccessAdminPanelKey)).Get("/api/security", handlers.SecuritySnapshotHandler)
-		r.With(requirePermission(permissions.AccessAdminPanelKey)).Post("/api/security/attack", handlers.SecurityToggleAttackHandler)
-		r.With(requirePermission(permissions.AccessAdminPanelKey)).Get("/api/security/config", handlers.SecurityGetConfigHandler)
-		r.With(requirePermission(permissions.AccessAdminPanelKey)).Put("/api/security/config", handlers.SecurityUpdateConfigHandler)
-		r.With(requirePermission(permissions.AccessAdminPanelKey)).Post("/api/security/ddos/reset", handlers.SecurityDDOSResetHandler)
-		r.With(requirePermission(permissions.AccessAdminPanelKey)).Post("/api/security/ddos/stop", handlers.SecurityDDOSManualStopHandler)
+		r.Get("/api/security", handlers.SecuritySnapshotHandler)
+		r.Post("/api/security/attack", handlers.SecurityToggleAttackHandler)
+		r.Get("/api/security/config", handlers.SecurityGetConfigHandler)
+		r.Put("/api/security/config", handlers.SecurityUpdateConfigHandler)
+		r.Post("/api/security/ddos/reset", handlers.SecurityDDOSResetHandler)
+		r.Post("/api/security/ddos/stop", handlers.SecurityDDOSManualStopHandler)
 		// Security page → DDoS tab: emergency port-switch script (ddos.sh).
 		// Same delivery pattern as the reinstall script: GET generates and
 		// downloads the standalone script; POST writes it next to the
 		// binary and runs it detached. The script stops the panel and
 		// restarts it on DDOSAltPort WITHOUT persisting that port, so the
 		// saved last port keeps pointing at the original port.
-		r.With(requirePermission(permissions.AccessAdminPanelKey)).Get("/api/security/ddos/script", handlers.DDOSScriptHandler)
-		r.With(requirePermission(permissions.AccessAdminPanelKey)).Post("/api/security/ddos/background", handlers.DDOSBackgroundHandler)
+		r.Get("/api/security/ddos/script", handlers.DDOSScriptHandler)
+		r.Post("/api/security/ddos/background", handlers.DDOSBackgroundHandler)
 
 		// Security page → Sessions tab. The list is the SessionManager's
 		// tracked sessions across all users; revocation is enforced by
 		// AuthMiddleware's TrackedSessionValid check on the next request.
-		r.With(requirePermission(permissions.AccessAdminPanelKey)).Get("/api/security/status", handlers.SecurityStatusHandler)
-		r.With(requirePermission(permissions.AccessAdminPanelKey)).Get("/api/security/sessions", handlers.SecurityListSessionsHandler)
-		r.With(requirePermission(permissions.AccessAdminPanelKey)).Delete("/api/security/sessions/{id}", handlers.SecurityRevokeSessionHandler)
-		r.With(requirePermission(permissions.AccessAdminPanelKey)).Post("/api/security/sessions/revoke-all", handlers.SecurityRevokeAllSessionsHandler)
+		r.Get("/api/security/status", handlers.SecurityStatusHandler)
+		r.Get("/api/security/sessions", handlers.SecurityListSessionsHandler)
+		r.Delete("/api/security/sessions/{id}", handlers.SecurityRevokeSessionHandler)
+		r.Post("/api/security/sessions/revoke-all", handlers.SecurityRevokeAllSessionsHandler)
 
 		// Security page → Authentication tab: login-protection status
 		// (in-memory lockout) + MFA recovery-code management.
-		r.With(requirePermission(permissions.AccessAdminPanelKey)).Get("/api/security/authentication/lockout", handlers.SecurityLockoutStatusHandler)
-		r.With(requirePermission(permissions.AccessAdminPanelKey)).Post("/api/security/authentication/unlock", handlers.SecurityUnlockAccountHandler)
-		r.With(requirePermission(permissions.AccessAdminPanelKey)).Get("/api/security/authentication/recovery-codes", handlers.SecurityRecoveryCodesStatusHandler)
-		r.With(requirePermission(permissions.AccessAdminPanelKey)).Post("/api/security/authentication/recovery-codes/generate", handlers.SecurityRecoveryCodesGenerateHandler)
-		r.With(requirePermission(permissions.AccessAdminPanelKey)).Post("/api/security/authentication/recovery-codes/consume", handlers.SecurityRecoveryCodesConsumeHandler)
+		r.Get("/api/security/authentication/lockout", handlers.SecurityLockoutStatusHandler)
+		r.Post("/api/security/authentication/unlock", handlers.SecurityUnlockAccountHandler)
+		r.Get("/api/security/authentication/recovery-codes", handlers.SecurityRecoveryCodesStatusHandler)
+		r.Post("/api/security/authentication/recovery-codes/generate", handlers.SecurityRecoveryCodesGenerateHandler)
+		r.Post("/api/security/authentication/recovery-codes/consume", handlers.SecurityRecoveryCodesConsumeHandler)
 	})
 
 	// Serve SPA from embedded UI – any route not matched above falls through to UI

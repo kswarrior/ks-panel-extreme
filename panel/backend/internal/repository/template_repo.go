@@ -109,8 +109,12 @@ type TemplateInput struct {
 // Create inserts a new template. The handler validates Spec is well-formed
 // JSON before calling here so the column never holds garbage.
 func (r *TemplateRepository) Create(in TemplateInput) (int64, error) {
-	return insertReturningID(r.db, `INSERT INTO templates (name, description, kind, image, spec) VALUES (?, ?, ?, ?, ?)`,
+	res, err := r.db.Exec(`INSERT INTO templates (name, description, kind, image, spec) VALUES (?, ?, ?, ?, ?)`,
 		in.Name, in.Description, in.Kind, in.Image, in.Spec)
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
 }
 
 // Update patches an editable template. We update updated_at explicitly so a

@@ -215,7 +215,11 @@ func (r *ApiKeyRepository) CreateApiKey(in CreateApiKeyInput) (*models.ApiKey, s
 		args = append(args, rlArg)
 	}
 	args = append(args, window)
-	id, err := insertReturningID(r.db, query, args...)
+	res, err := r.db.Exec(query, args...)
+	if err != nil {
+		return nil, "", err
+	}
+	id, err := res.LastInsertId()
 	if err != nil {
 		return nil, "", err
 	}

@@ -182,13 +182,8 @@ func (r *ThemeRepository) UpdateTheme(id string, name, description string, spec 
 	if err != nil {
 		return nil, err
 	}
-	// RowsAffected==0 is ambiguous across engines: MySQL reports 0 when the
-	// row exists but no column changed, so confirm existence by reading the
-	// row back instead of treating 0 as "not found".
 	if n, _ := res.RowsAffected(); n == 0 {
-		if t, gerr := r.GetTheme(id); gerr != nil || t == nil {
-			return nil, fmt.Errorf("theme not found")
-		}
+		return nil, fmt.Errorf("theme not found")
 	}
 	return r.GetTheme(id)
 }
@@ -246,8 +241,8 @@ func (r *ThemeRepository) AssignTheme(scope, themeID string) error {
 		return fmt.Errorf("scope and theme_id are required")
 	}
 	_, err := r.db.Exec(
-		`INSERT INTO theme_assignments (scope, theme_id) VALUES (?, ?)`+
-			upsertSet("(scope)", []string{"theme_id"}),
+		`INSERT INTO theme_assignments (scope, theme_id) VALUES (?, ?)
+		 ON CONFLICT(scope) DO UPDATE SET theme_id = excluded.theme_id`,
 		scope, themeID,
 	)
 	return err

@@ -279,11 +279,15 @@ type InstanceCreateInput struct {
 // Create persists a freshly-deployed instance. Called after the edge RPC
 // returns OK so the row only lands if the workload really exists.
 func (r *InstanceRepository) Create(in InstanceCreateInput) (int64, error) {
-	return insertReturningID(r.db, `INSERT INTO instances (node_id, template_id, owner_id, name, display_name, icon, color, kind, status, external_id, config,
+	res, err := r.db.Exec(`INSERT INTO instances (node_id, template_id, owner_id, name, display_name, icon, color, kind, status, external_id, config,
 		install_state, install_id, install_step, install_error, install_steps_json)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		in.NodeID, in.TemplateID, nullableInt64(in.OwnerID), in.Name, in.DisplayName, in.Icon, in.Color, in.Kind, in.Status, in.ExternalID, in.Config,
 		in.InstallState, in.InstallID, in.InstallStep, in.InstallError, in.InstallStepsJSON)
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
 }
 
 // nullableInt64 returns NULL when the id is 0 — legacy behaviour for

@@ -116,7 +116,7 @@ func (r *ApplicationRepository) CreateApplication(in CreateApplicationInput) (*m
 	}
 	defer tx.Rollback()
 
-	id, err := insertReturningID(tx,
+	res, err := tx.Exec(
 		`INSERT INTO applications (name, slug, category, version, description, icon, runtime, entrypoint,
 			config_schema, files, permissions, active, uploaded_by, source, source_url, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`,
@@ -124,6 +124,10 @@ func (r *ApplicationRepository) CreateApplication(in CreateApplicationInput) (*m
 		in.Runtime, in.Entrypoint, cfgSchema, files, string(perms),
 		in.UploadedBy, source, in.SourceURL, now, now,
 	)
+	if err != nil {
+		return nil, err
+	}
+	id, err := res.LastInsertId()
 	if err != nil {
 		return nil, err
 	}
@@ -389,8 +393,12 @@ func (r *ApplicationRepository) UpdateApplicationEnv(id int64, envJSON string) e
 // default instead of an argument.
 func (r *ApplicationRepository) CreateApplicationRun(run *models.ApplicationRun) (int64, error) {
 	now := time.Now().UTC().Format("2006-01-02 15:04:05")
+	var (
+		res sql.Result
+		err error
+	)
 	if run.TriggeredBy != nil {
-		return insertReturningID(r.db,
+		res, err = r.db.Exec(
 			`INSERT INTO application_runs
 			 (application_id, triggered_by, target, node_id, node_name, exec_mode, workload,
 			  status, timeout_sec, created_at, ended_at)
@@ -398,15 +406,20 @@ func (r *ApplicationRepository) CreateApplicationRun(run *models.ApplicationRun)
 			run.ApplicationID, *run.TriggeredBy, run.Target, run.NodeID, run.NodeName,
 			run.ExecMode, run.Workload, models.AppRunStatusRunning, run.TimeoutSec, now,
 		)
+	} else {
+		res, err = r.db.Exec(
+			`INSERT INTO application_runs
+			 (application_id, target, node_id, node_name, exec_mode, workload,
+			  status, timeout_sec, created_at, ended_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '')`,
+			run.ApplicationID, run.Target, run.NodeID, run.NodeName,
+			run.ExecMode, run.Workload, models.AppRunStatusRunning, run.TimeoutSec, now,
+		)
 	}
-	return insertReturningID(r.db,
-		`INSERT INTO application_runs
-		 (application_id, target, node_id, node_name, exec_mode, workload,
-		  status, timeout_sec, created_at, ended_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '')`,
-		run.ApplicationID, run.Target, run.NodeID, run.NodeName,
-		run.ExecMode, run.Workload, models.AppRunStatusRunning, run.TimeoutSec, now,
-	)
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
 }
 
 // CompleteApplicationRun stores the final outcome of a run row. nodeID /
