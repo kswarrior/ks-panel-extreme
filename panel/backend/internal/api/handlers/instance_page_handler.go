@@ -1409,6 +1409,7 @@ func ImportInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		Slug:            req.Slug,
 		Kind:            req.Kind,
 		Category:        req.Category,
+		Type:            req.Type,
 		Description:     req.Description,
 		ContentType:     req.ContentType,
 		ContentHTML:     req.ContentHTML,
