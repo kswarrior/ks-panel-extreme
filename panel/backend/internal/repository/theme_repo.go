@@ -182,8 +182,13 @@ func (r *ThemeRepository) UpdateTheme(id string, name, description string, spec 
 	if err != nil {
 		return nil, err
 	}
+	// RowsAffected==0 is ambiguous across engines: MySQL reports 0 when the
+	// row exists but no column changed, so confirm existence by reading the
+	// row back instead of treating 0 as "not found".
 	if n, _ := res.RowsAffected(); n == 0 {
-		return nil, fmt.Errorf("theme not found")
+		if t, gerr := r.GetTheme(id); gerr != nil || t == nil {
+			return nil, fmt.Errorf("theme not found")
+		}
 	}
 	return r.GetTheme(id)
 }

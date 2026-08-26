@@ -61,8 +61,16 @@ func main() {
 	die(tr.AssignTheme("auth", "smoke"), "AssignTheme#2")
 
 	trep := repository.NewTemplateRepository(con)
-	tmplID, err := trep.Create(repository.TemplateInput{Name: "t", Kind: "docker", Spec: "{}"})
-	die(err, "TemplateCreate")
+	tmplID, terr := trep.Create(repository.TemplateInput{Name: "t", Kind: "docker", Spec: "{}"})
+	if terr != nil {
+		// rerun: name is UNIQUE — reuse the existing row
+		list, lerr := trep.List()
+		die(lerr, "TemplateList")
+		if len(list) == 0 {
+			die(terr, "TemplateCreate")
+		}
+		tmplID = list[0].ID
+	}
 
 	ir := repository.NewInstanceRepository(con)
 	instID, err := ir.Create(repository.InstanceCreateInput{
