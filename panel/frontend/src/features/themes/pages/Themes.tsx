@@ -13,6 +13,7 @@ import { useAuthStore } from '@/shared/stores/authStore';
 import { AREAS, STANDALONE_PAGES } from '@/features/instance-pages/types/pageregistry';
 import type { Theme } from '@/features/themes/types/theme';
 import { downloadTheme, installThemeFromUrl, uploadThemeFile } from '@/features/themes/api/themes';
+import { useConfirm } from '@/shared/stores/confirmStore';
 
 // ApplyToRichMenu is the "Apply to…" dropdown for a single theme card.
 // It wires RichMenu (which owns portal + placement + scrim + submenu
@@ -72,6 +73,7 @@ function scopeLabel(scope: string): string {
 
 const Themes: React.FC = () => {
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const themes = useThemeStore((s) => s.themes);
   const assignments = useThemeStore((s) => s.assignments);
   const globalThemes = useThemeStore((s) => s.globalThemes);
@@ -197,10 +199,10 @@ const Themes: React.FC = () => {
     navigate('/themes/studio');
   };
 
-  const remove = (id: string) => {
+  const remove = async (id: string) => {
     const found = findTheme(id);
     if (!found || found.theme.builtin) return;
-    if (!confirm(`Delete theme "${found.theme.name}"? Any pages using it fall back to the Default theme.`)) return;
+    if (!(await confirm({ title: 'Delete theme', message: `Delete theme "${found.theme.name}"? Any pages using it fall back to the Default theme.`, tone: 'danger', confirmLabel: 'Delete' }))) return;
     // A global theme is removed server-side; everyone loses it. A local theme
     // is removed from this browser only. Editing a global theme requires
     // MANAGE_THEMES (the page itself is already gated, but we double-check
