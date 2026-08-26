@@ -7,7 +7,7 @@
 --   security_ddos_stop_count        — how many times auto-stop has triggered (runtime counter).
 --   security_ddos_cooldown_until    — RFC3339 timestamp when cooldown expires (runtime).
 
-INSERT IGNORE INTO settings (key, value) VALUES ('security_ddos_auto_stop_enabled', '0');
-INSERT IGNORE INTO settings (key, value) VALUES ('security_ddos_stop_minutes', '5');
-INSERT IGNORE INTO settings (key, value) VALUES ('security_ddos_stop_count', '0');
-INSERT IGNORE INTO settings (key, value) VALUES ('security_ddos_cooldown_until', '');
+INSERT IGNORE INTO settings (`key`, value) VALUES ('security_ddos_auto_stop_enabled', '0');
+INSERT IGNORE INTO settings (`key`, value) VALUES ('security_ddos_stop_minutes', '5');
+INSERT IGNORE INTO settings (`key`, value) VALUES ('security_ddos_stop_count', '0');
+INSERT IGNORE INTO settings (`key`, value) VALUES ('security_ddos_cooldown_until', '');

@@ -77,5 +77,5 @@ CREATE INDEX security_requests_login_idx ON security_requests(is_login, status);
 --                          middleware's decision to challenge every request.
 --   security_block_unknown_ua — "0"/"1" — block requests from unknown UAs.
 
-INSERT IGNORE INTO settings (key, value) VALUES ('security_under_attack', '0');
-INSERT IGNORE INTO settings (key, value) VALUES ('security_block_unknown_ua', '0');
+INSERT IGNORE INTO settings (`key`, value) VALUES ('security_under_attack', '0');
+INSERT IGNORE INTO settings (`key`, value) VALUES ('security_block_unknown_ua', '0');

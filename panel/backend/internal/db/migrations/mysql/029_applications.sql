@@ -87,7 +87,7 @@ CREATE INDEX idx_application_installations_app ON application_installations(appl
 CREATE INDEX idx_application_installations_own ON application_installations(owner_id);
 
 -- Seed the catalog permissions so the admin's role picks them up on launch.
-INSERT IGNORE INTO permissions (key, description) VALUES
+INSERT IGNORE INTO permissions (`key`, description) VALUES
     ('MANAGE_APPLICATIONS', 'Manage the Applications catalog (upload, edit, activate/deactivate)'),
     ('APPLICATIONS_VIEW',   'View the Applications catalog'),
     ('APPLICATIONS_CREATE', 'Add a new Application to the catalog'),

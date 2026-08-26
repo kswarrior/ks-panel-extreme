@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS instance_secrets (
     description  TEXT    NOT NULL DEFAULT '',
     created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (instance_id, key)
+    UNIQUE (instance_id, `key`)
 );
 
 CREATE INDEX instance_secrets_inst_idx ON instance_secrets(instance_id);

@@ -9,34 +9,57 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
 )
-
-var sessionSecret []byte
 
 // bcryptCost is the cost factor for bcrypt hashing.
 // Default is 12 (higher than DefaultCost of 10) for better security.
 // Can be overridden via KSPANEL_BCRYPT_COST environment variable.
 var bcryptCost = 12
 
-func init() {
-	secret := os.Getenv("KSPANEL_SESSION_SECRET")
-	if secret == "" {
-		panic("KSPANEL_SESSION_SECRET environment variable is required for security. Generate a strong secret with: openssl rand -base64 32")
-	}
-	if len(secret) < 32 {
-		panic("KSPANEL_SESSION_SECRET must be at least 32 characters long")
-	}
-	sessionSecret = []byte(secret)
+var (
+	secretOnce   sync.Once
+	sessionSecret []byte
+	secretErr    error
+)
 
-	// Allow custom bcrypt cost via environment variable
-	if costStr := os.Getenv("KSPANEL_BCRYPT_COST"); costStr != "" {
-		if cost, err := strconv.Atoi(costStr); err == nil && cost >= 10 && cost <= 15 {
-			bcryptCost = cost
+// loadSessionSecret resolves KSPANEL_SESSION_SECRET exactly once per
+// process. The check is lazy (not in init) so non-session binaries such as
+// `kspanel seed` and every test binary can import this package without the
+// env var; token minting/validation still FAIL CLOSED — both return an
+// error instead of silently falling back to an unkeyed or default secret.
+func loadSessionSecret() ([]byte, error) {
+	secretOnce.Do(func() {
+		secret := os.Getenv("KSPANEL_SESSION_SECRET")
+		if secret == "" {
+			secretErr = errors.New("KSPANEL_SESSION_SECRET environment variable is required for security. Generate a strong secret with: openssl rand -base64 32")
+			return
 		}
-	}
+		if len(secret) < 32 {
+			secretErr = errors.New("KSPANEL_SESSION_SECRET must be at least 32 characters long")
+			return
+		}
+		sessionSecret = []byte(secret)
+
+		// Allow custom bcrypt cost via environment variable
+		if costStr := os.Getenv("KSPANEL_BCRYPT_COST"); costStr != "" {
+			if cost, err := strconv.Atoi(costStr); err == nil && cost >= 10 && cost <= 15 {
+				bcryptCost = cost
+			}
+		}
+	})
+	return sessionSecret, secretErr
+}
+
+// EnsureSessionSecret reports whether a usable session secret is configured.
+// The HTTP server calls it once at startup so an operator gets a loud,
+// immediate failure instead of every login request failing at runtime.
+func EnsureSessionSecret() error {
+	_, err := loadSessionSecret()
+	return err
 }
 
 func HashPassword(pw string) (string, error) {

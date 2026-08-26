@@ -32,7 +32,7 @@ CREATE INDEX idx_instance_pages_kind      ON instance_pages(kind);
 CREATE INDEX idx_instance_pages_category  ON instance_pages(category);
 
 -- Seed the permission keys so the admin's role picks them up on launch.
-INSERT IGNORE INTO permissions (key, description) VALUES
+INSERT IGNORE INTO permissions (`key`, description) VALUES
     ('MANAGE_INSTANCE_PAGES', 'Manage instance page definitions (create, edit, delete)'),
     ('INSTANCE_PAGES_VIEW',   'View instance page definitions'),
     ('INSTANCE_PAGES_CREATE', 'Create new instance page definitions'),
