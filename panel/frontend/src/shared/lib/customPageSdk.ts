@@ -70,6 +70,9 @@ export interface PageActionDef {
   path?: string;
   content?: string;
   args?: string[];
+  /** Opt-in runtime arguments (validated server-side; shell commands
+   *  substitute them into the stored command's {{args}} placeholder). */
+  open_args?: boolean;
   env?: Record<string, string>;
   timeout?: number;
   description?: string;

@@ -67,6 +67,7 @@ interface ActionRow {
   path: string;
   content: string;
   args: string;
+  open_args: boolean;
   env: string;
   timeout: string;
   description: string;
@@ -75,7 +76,7 @@ interface ActionRow {
 let actionSeq = 0;
 function blankAction(): ActionRow {
   actionSeq += 1;
-  return { id: `a${Date.now()}-${actionSeq}`, name: '', type: 'shell', command: '', path: '', content: '', args: '', env: '{}', timeout: '30', description: '' };
+  return { id: `a${Date.now()}-${actionSeq}`, name: '', type: 'shell', command: '', path: '', content: '', args: '', open_args: false, env: '{}', timeout: '30', description: '' };
 }
 
 // actionsToDefs serialises editor rows into the persisted JSON shape.
@@ -102,6 +103,7 @@ function actionsToDefs(rows: ActionRow[]): PageActionDef[] {
       path: r.path || undefined,
       content: r.content || undefined,
       args: r.args.trim() ? r.args.split(/\s+/).filter(Boolean) : undefined,
+      ...(r.open_args ? { open_args: true } : {}),
       env,
       timeout: parseInt(r.timeout, 10) || undefined,
       description: r.description || undefined,

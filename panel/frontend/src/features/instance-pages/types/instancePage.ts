@@ -13,6 +13,10 @@ export interface PageActionDef {
   path?: string;
   content?: string;
   args?: string[];
+  /** Opt-in: the page may append up to 4 runtime argument values after the
+   *  stored static args (shell commands substitute them into {{args}});
+   *  every value is validated server-side before execution. */
+  open_args?: boolean;
   env?: Record<string, string>;
   timeout?: number;
   description?: string;
