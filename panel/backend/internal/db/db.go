@@ -866,6 +866,17 @@ func insertIgnorePrefix(d Dialect) (prefix, suffix string) {
 	}
 }
 
+// quoteColumnName quotes an identifier for the dialect's grammar: backticks
+// for MySQL (where double quotes mean string literals by default), double
+// quotes for SQLite + Postgres. Embedded quotes are doubled so hostile
+// identifiers can't break out.
+func quoteColumnName(d Dialect, name string) string {
+	if d.Name() == "mysql" {
+		return "`" + strings.ReplaceAll(name, "`", "``") + "`"
+	}
+	return `"` + strings.ReplaceAll(name, `"`, `""`) + `"`
+}
+
 // SeedCore inserts default roles, permissions, and an admin user if needed.
 // The seeded roles follow a fixed logical order used by the CLI:
 //
@@ -991,7 +1002,7 @@ func SeedCore(d Dialect, db *sql.DB) error {
 		SELECT r.id, p.id FROM roles r, permissions p WHERE r.name='admin'`, "role_permissions")); err != nil {
 		return err
 	}
-	if _, err := db.Exec(translateSeedInsert(prefix, pgConflict, `(role_id, permission_id)
+	if _, err := db.Exec(translateSeedInsert(prefix, pgConflict, fmt.Sprintf(`(role_id, permission_id)
 		SELECT r.id, p.id FROM roles r, permissions p
 		WHERE r.name='moderator' AND p.%s IN ('VIEW_INSTANCES', 'VIEW_ACCOUNT', 'VIEW_SETTINGS', 'MANAGE_THEMES', 'MANAGE_MODS', 'MANAGE_APPLICATIONS', 'USE_APPLICATIONS',
 		'APPLICATIONS_VIEW', 'APPLICATIONS_CREATE', 'APPLICATIONS_EDIT',
@@ -1004,7 +1015,7 @@ func SeedCore(d Dialect, db *sql.DB) error {
 		SELECT r.id, p.id FROM roles r, permissions p
 		WHERE r.name='user' AND p.%s IN ('VIEW_INSTANCES', 'VIEW_ACCOUNT', 'USE_APPLICATIONS',
 		'ACCOUNT_EDIT_BANNER', 'ACCOUNT_EDIT_ABOUT', 'ACCOUNT_EDIT_ACCENT',
-		'ACCOUNT_USE_AVATAR_SYMBOL', 'ACCOUNT_UPLOAD_AVATAR')`, "role_permissions")); err != nil {
+		'ACCOUNT_USE_AVATAR_SYMBOL', 'ACCOUNT_UPLOAD_AVATAR')`, keyCol), "role_permissions")); err != nil {
 		return err
 	}
 	return nil
