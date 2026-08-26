@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"strings"
@@ -36,21 +37,33 @@ func engineName() string {
 	}
 }
 
+// dbExecer is satisfied by both *sql.DB and *sql.Tx, so the insert helpers
+// work inside transactions too.
+type dbExecer interface {
+	Exec(query string, args ...any) (sql.Result, error)
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	QueryRow(query string, args ...any) *sql.Row
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
 // insertReturningID executes a plain INSERT and returns the new row's id.
-// PostgreSQL cannot report LastInsertId through pgx (it errors with
-// "not supported by this driver"), so there the INSERT runs as a QueryRow
-// with RETURNING id appended; SQLite and MySQL keep Exec + LastInsertId.
-// The query must not already carry a RETURNING clause and must target a
-// table whose primary key is the first identity column named "id".
-func insertReturningID(db *sql.DB, insert string, args ...any) (int64, error) {
+// PostgreSQL cannot report LastInsertId through pgx ("not supported by this
+// driver"), so there the INSERT runs as a QueryRow with RETURNING id
+// appended; SQLite and MySQL keep Exec + LastInsertId. The statement must
+// not already carry a RETURNING clause.
+func insertReturningID(dbe dbExecer, insert string, args ...any) (int64, error) {
+	return insertReturningIDCtx(context.Background(), dbe, insert, args...)
+}
+
+func insertReturningIDCtx(ctx context.Context, dbe dbExecer, insert string, args ...any) (int64, error) {
 	if engineName() == "postgres" {
 		var id int64
-		if err := db.QueryRow(insert+" RETURNING id", args...).Scan(&id); err != nil {
+		if err := dbe.QueryRowContext(ctx, insert+" RETURNING id", args...).Scan(&id); err != nil {
 			return 0, err
 		}
 		return id, nil
 	}
-	res, err := db.Exec(insert, args...)
+	res, err := dbe.ExecContext(ctx, insert, args...)
 	if err != nil {
 		return 0, err
 	}

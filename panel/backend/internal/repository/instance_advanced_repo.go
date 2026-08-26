@@ -46,13 +46,9 @@ func (r *SnapshotRepository) List(instanceID int64) ([]models.InstanceSnapshot, 
 }
 
 func (r *SnapshotRepository) Create(s models.InstanceSnapshot) (int64, error) {
-	res, err := r.db.Exec(`INSERT INTO instance_snapshots (instance_id, name, external_ref, size_bytes, note)
+	return insertReturningID(r.db, `INSERT INTO instance_snapshots (instance_id, name, external_ref, size_bytes, note)
 		VALUES (?, ?, ?, ?, ?)`,
 		s.InstanceID, s.Name, s.ExternalRef, s.SizeBytes, s.Note)
-	if err != nil {
-		return 0, err
-	}
-	return res.LastInsertId()
 }
 
 func (r *SnapshotRepository) Delete(instanceID int64, name string) error {
@@ -86,12 +82,8 @@ type AuditInput struct {
 
 // Append inserts one audit row.
 func (r *InstanceAuditRepository) Append(in AuditInput) (int64, error) {
-	res, err := r.db.Exec(`INSERT INTO instance_audit (instance_id, actor, action, detail)
+	return insertReturningID(r.db, `INSERT INTO instance_audit (instance_id, actor, action, detail)
 		VALUES (?, ?, ?, ?)`, in.InstanceID, in.Actor, in.Action, in.Detail)
-	if err != nil {
-		return 0, err
-	}
-	return res.LastInsertId()
 }
 
 // List returns rows newest-first, capped to limit.

@@ -71,11 +71,7 @@ func (r *ActivityRepository) Create(in ActivityInput) (int64, error) {
 	}
 	args = append(args, in.TargetLabel, in.Message, in.IPAddress, in.UserAgent)
 
-	res, err := r.db.Exec(q, args...)
-	if err != nil {
-		return 0, err
-	}
-	return res.LastInsertId()
+	return insertReturningID(r.db, q, args...)
 }
 
 // ListFilter scopes the List query. Default values (limit=0, empty category)

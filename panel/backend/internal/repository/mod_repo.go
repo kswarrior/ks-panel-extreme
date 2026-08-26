@@ -219,15 +219,11 @@ func (r *ModRepository) CreateMod(in CreateModInput) (*models.Mod, error) {
 	}
 	defer tx.Rollback()
 
-	res, err := tx.Exec(
+	id, err := insertReturningID(tx,
 		`INSERT INTO mods (name, slug, version, description, manifest, spec, active, uploaded_by, engine_version, source, source_url, package_size, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`,
 		in.Name, in.Slug, in.Version, in.Description, manifest, spec, in.UploadedBy, engineVersion, source, in.SourceURL, in.PackageSize, now, now,
 	)
-	if err != nil {
-		return nil, err
-	}
-	id, err := res.LastInsertId()
 	if err != nil {
 		return nil, err
 	}

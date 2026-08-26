@@ -133,13 +133,9 @@ func (r *AutomationRepository) Create(in AutomationUpsertInput) (int64, error) {
 	if to <= 0 {
 		to = 300
 	}
-	res, err := r.db.Exec(`INSERT INTO instance_automation (instance_id, name, command, schedule, enabled, secret_refs, timeout_sec)
+	return insertReturningID(r.db, `INSERT INTO instance_automation (instance_id, name, command, schedule, enabled, secret_refs, timeout_sec)
 		VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		in.InstanceID, in.Name, in.Command, in.Schedule, enabled, in.refsJSON(), to)
-	if err != nil {
-		return 0, err
-	}
-	return res.LastInsertId()
 }
 
 // Update replaces an existing job's mutable fields.
@@ -245,11 +241,7 @@ func (r *AutomationRepository) RecordRun(in AutomationRunInput) (int64, error) {
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 		args = []interface{}{in.JobID, in.InstanceID, in.Trigger, in.Command, in.Stdout, in.Stderr, in.ExitCode, in.DurationMS, in.Error, started, finished}
 	}
-	res, err := r.db.Exec(q, args...)
-	if err != nil {
-		return 0, err
-	}
-	return res.LastInsertId()
+	return insertReturningID(r.db, q, args...)
 }
 
 // ListRunsByJob returns the most recent runs for a job.

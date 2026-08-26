@@ -94,7 +94,7 @@ func (r *NodeRepository) CreateNode(in CreateNodeInput) (*models.Node, string, e
 		prefix = prefix[:8]
 	}
 
-	res, err := r.db.Exec(
+	id, err := insertReturningID(r.db,
 		`INSERT INTO nodes (name, address, use_tls, token_hash, token_prefix, token_plain, status,
 			health_enabled, health_interval, health_timeout, health_retries,
 			skip_tls_verify, notes, install_dir, allowed_kinds,
@@ -109,10 +109,6 @@ func (r *NodeRepository) CreateNode(in CreateNodeInput) (*models.Node, string, e
 		in.InstancesDir,
 		in.Category, in.LocationCountry, in.LocationNode, in.Icon, in.Color,
 	)
-	if err != nil {
-		return nil, "", err
-	}
-	id, err := res.LastInsertId()
 	if err != nil {
 		return nil, "", err
 	}

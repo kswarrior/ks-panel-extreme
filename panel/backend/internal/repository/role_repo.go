@@ -147,13 +147,9 @@ func (r *RoleRepository) GetRoleByID(id int64) (*models.Role, error) {
 // silently skipped rather than failing the whole operation. displayName and
 // color are stored verbatim — empty strings fall back to defaults on read.
 func (r *RoleRepository) CreateRole(name, displayName, color, description, icon string, permissionKeys []string) (int64, error) {
-	res, err := r.db.Exec(
+	id, err := insertReturningID(r.db,
 		`INSERT INTO roles (name, display_name, color, description, icon) VALUES (?, ?, ?, ?, ?)`,
 		name, displayName, color, description, icon)
-	if err != nil {
-		return 0, err
-	}
-	id, err := res.LastInsertId()
 	if err != nil {
 		return 0, err
 	}

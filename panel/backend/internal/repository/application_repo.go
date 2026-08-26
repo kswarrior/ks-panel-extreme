@@ -116,7 +116,7 @@ func (r *ApplicationRepository) CreateApplication(in CreateApplicationInput) (*m
 	}
 	defer tx.Rollback()
 
-	res, err := tx.Exec(
+	id, err := insertReturningID(tx,
 		`INSERT INTO applications (name, slug, category, version, description, icon, runtime, entrypoint,
 			config_schema, files, permissions, active, uploaded_by, source, source_url, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`,
@@ -124,10 +124,6 @@ func (r *ApplicationRepository) CreateApplication(in CreateApplicationInput) (*m
 		in.Runtime, in.Entrypoint, cfgSchema, files, string(perms),
 		in.UploadedBy, source, in.SourceURL, now, now,
 	)
-	if err != nil {
-		return nil, err
-	}
-	id, err := res.LastInsertId()
 	if err != nil {
 		return nil, err
 	}
