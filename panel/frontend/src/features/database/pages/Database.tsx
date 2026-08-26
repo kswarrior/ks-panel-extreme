@@ -11,8 +11,11 @@ import type { DatabaseInfo, DatabaseTable } from '@/features/system/types/system
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import { MetaRow, StatTile, DeltaPill, Meter, Sparkline, PragmaTile, ChangeDatabaseCard } from '../components/DatabaseComponents';
 import type { DatabaseTabId } from '../types/database';
-import { DATABASE_TABS, HISTORY_WINDOW, REFRESH_MS } from '../types/database';
-import { formatBytes, formatSigned, ago, autoVacuumLabel, BarWidth, tableTypeLabel, tableTypeBadge } from '../utils/databaseUtils';
+import { DATABASE_TABS } from '../types/database';
+// HISTORY_WINDOW / REFRESH_MS live once in utils — types/database.ts must not
+// re-declare them (a duplicated copy drifted here before).
+import { HISTORY_WINDOW, REFRESH_MS } from '../utils/databaseUtils';
+import { formatBytes, ago } from '../utils/databaseUtils';
 
 const DatabasePage: React.FC = () => {
   const [info, setInfo] = useState<DatabaseInfo | null>(null);

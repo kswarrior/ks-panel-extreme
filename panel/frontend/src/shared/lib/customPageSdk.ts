@@ -194,7 +194,11 @@ export function pageNavigateTarget(instanceId: number, to: unknown): string | nu
 // SDK IMPLEMENTATION
 // ============================================================================
 
-export function createCustomPageSDK(instanceContext: InstanceContext, savedActions: PageActionDef[] = []): CustomPageAPI {
+export function createCustomPageSDK(
+  instanceContext: InstanceContext,
+  savedActions: PageActionDef[] = [],
+  pageSlug: string = '',
+): CustomPageAPI {
   const apiBase = `/api/instances/${instanceContext.id}`;
   const eventListeners: Map<string, Set<(data: any) => void>> = new Map();
   
