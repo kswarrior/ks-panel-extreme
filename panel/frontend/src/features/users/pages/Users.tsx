@@ -158,7 +158,7 @@ const UsersPage: React.FC = () => {
       await deleteUser(u.id);
       await load();
     } catch (e: any) {
-      alert(e?.response?.data || 'Failed to delete user');
+      setError(typeof e?.response?.data === 'string' ? e.response.data : 'Failed to delete user');
     } finally {
       setDeletingId(null);
     }
@@ -185,7 +185,7 @@ const UsersPage: React.FC = () => {
       await unsuspendUser(u.id);
       await load();
     } catch (e: any) {
-      alert(e?.response?.data || 'Failed to unsuspend user');
+      setError(typeof e?.response?.data === 'string' ? e.response.data : 'Failed to unsuspend user');
     } finally {
       setSuspendingId(null);
     }
