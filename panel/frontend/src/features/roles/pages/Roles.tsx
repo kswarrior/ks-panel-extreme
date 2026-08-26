@@ -7,6 +7,7 @@ import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import LimitSelect from '@/shared/components/ui/LimitSelect';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import GlassCard from '@/shared/components/ui/Card';
+import { useConfirm } from '@/shared/stores/confirmStore';
 
 function withAlpha(color: string, alpha: number): string {
   const c = color.trim();

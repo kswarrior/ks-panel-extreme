@@ -8,6 +8,7 @@ import { useSettingsStore } from '@/shared/stores/settingsStore';
 import LimitSelect from '@/shared/components/ui/LimitSelect';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import GlassCard from '@/shared/components/ui/Card';
+import { useConfirm } from '@/shared/stores/confirmStore';
 
 const MAX_IMAGE_KEY = 'ks.users.maxImageBytes';
 const MAX_IMAGE_OPTIONS: { label: string; value: number }[] = [
@@ -44,6 +45,7 @@ function userBannerURL(id: number, max: number) {
 
 const UsersPage: React.FC = () => {
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
@@ -150,7 +152,7 @@ const UsersPage: React.FC = () => {
   }
 
   const remove = async (u: User) => {
-    if (!confirm(`Delete user "${u.username}"?`)) return;
+    if (!(await confirm({ title: 'Delete user', message: `Delete user "${u.username}"?`, tone: 'danger', confirmLabel: 'Delete' }))) return;
     setDeletingId(u.id);
     try {
       await deleteUser(u.id);
@@ -177,7 +179,7 @@ const UsersPage: React.FC = () => {
   };
 
   const unsuspend = async (u: User) => {
-    if (!confirm(`Unsuspend "${u.username}"? They will be able to log in again.`)) return;
+    if (!(await confirm({ title: 'Unsuspend user', message: `Unsuspend "${u.username}"? They will be able to log in again.`, tone: 'default', confirmLabel: 'Unsuspend' }))) return;
     setSuspendingId(u.id);
     try {
       await unsuspendUser(u.id);
