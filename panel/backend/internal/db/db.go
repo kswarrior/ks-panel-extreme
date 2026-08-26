@@ -353,9 +353,10 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			}); err != nil {
 				return err
 			}
-			// Create index if not exists (idempotent)
-			if _, err := db.Exec("CREATE INDEX IF NOT EXISTS idx_instances_suspended ON instances(suspended)"); err != nil {
-				return fmt.Errorf("migration %s failed: %w", name, err)
+			// Create index if not exists (idempotent) — guarded so MySQL
+			// (no IF NOT EXISTS support) skips when it already exists.
+			if err := guardedCreateIndexSQL(d, db, name, "CREATE INDEX IF NOT EXISTS idx_instances_suspended ON instances(suspended)", "instances", "idx_instances_suspended"); err != nil {
+				return err
 			}
 			continue
 		case name == "035_instance_display.sql":
