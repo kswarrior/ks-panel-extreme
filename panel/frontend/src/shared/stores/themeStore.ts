@@ -1123,8 +1123,19 @@ body { color: var(--ks-text-body); }
   backdrop-filter: blur(var(--ks-sidebar-blur)) !important;
   -webkit-backdrop-filter: blur(var(--ks-sidebar-blur)) !important;
   border-color: var(--ks-sidebar-border) !important;
-  width: var(--ks-sidebar-width, 224px) !important;
-  min-width: var(--ks-sidebar-width, 224px) !important;
+}
+/* Themed width applies on md+ ONLY while the sidebar is expanded.
+   Two bugs this fixes: the old unconditional !important clobbered the
+   collapse toggle's w-16 utility (sidebar never narrowed), and it also
+   forced the width onto the mobile off-canvas drawer where an admin-set
+   320px swallowed most of a 360px phone. Below md the drawer keeps the
+   stock w-64 utility; .ks-sidebar-collapsed (set by Sidebar.tsx) lets the
+   w-16 utility win again. */
+@media (min-width: 768px) {
+  .ks-sidebar-bg:not(.ks-sidebar-collapsed) {
+    width: var(--ks-sidebar-width, 224px) !important;
+    min-width: var(--ks-sidebar-width, 224px) !important;
+  }
 }
 
 /* Sidebar nav-item active / hover states. These are the parts that used
@@ -1225,7 +1236,7 @@ function buildSectionVars(theme: Theme): { vars: string } {
   const ringW = clampNum(f.focus_ring_width, D.forms.focus_ring_width, 0, 8);
   const ringO = clampNum(f.focus_ring_offset, D.forms.focus_ring_offset, 0, 8);
   const focusShadowParts = [`0 0 0 ${ringW}px ${safeCssValue(f.input_focus_ring_color, 'transparent')}`];
-  if (ringO > 0) focusShadowParts.push(`0 0 0 ${ringW + ringO}px ${safeCssValue('#0b0d10')}`);
+  if (ringO > 0) focusShadowParts.push(`0 0 0 ${ringW + ringO}px ${safeCssValue(f.focus_ring_offset_color, '#0b0d10')}`);
 
   // ---- elevation composition ----
   const elev = (n: number) => `0 ${Math.round(n * 0.5)}px ${n}px rgba(0,0,0,0.45)`;
