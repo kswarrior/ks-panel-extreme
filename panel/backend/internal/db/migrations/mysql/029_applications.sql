@@ -39,20 +39,20 @@
 CREATE TABLE IF NOT EXISTS applications (
     id              BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     name            TEXT    NOT NULL,
-    slug VARCHAR(255) NOT NULL UNIQUE,
-    category        TEXT    NOT NULL DEFAULT ('custom'),
-    version         TEXT    NOT NULL DEFAULT ('1.0.0'),
-    description     TEXT    NOT NULL DEFAULT (''),
-    icon            TEXT    NOT NULL DEFAULT (''),
-    runtime         TEXT    NOT NULL DEFAULT ('nodejs'),
-    entrypoint      TEXT    NOT NULL DEFAULT (''),
-    config_schema   TEXT    NOT NULL DEFAULT ('{}'),
-    permissions     TEXT    NOT NULL DEFAULT ('[]'),
-    env             TEXT    NOT NULL DEFAULT ('{}'),
+    slug            TEXT    NOT NULL UNIQUE,
+    category        TEXT    NOT NULL DEFAULT 'custom',
+    version         TEXT    NOT NULL DEFAULT '1.0.0',
+    description     TEXT    NOT NULL DEFAULT '',
+    icon            TEXT    NOT NULL DEFAULT '',
+    runtime         TEXT    NOT NULL DEFAULT 'nodejs',
+    entrypoint      TEXT    NOT NULL DEFAULT '',
+    config_schema   TEXT    NOT NULL DEFAULT '{}',
+    permissions     TEXT    NOT NULL DEFAULT '[]',
+    env             TEXT    NOT NULL DEFAULT '{}',
     active          INTEGER NOT NULL DEFAULT 0,
-    uploaded_by     BIGINT,
-    source          TEXT    NOT NULL DEFAULT ('file'),
-    source_url      TEXT    NOT NULL DEFAULT (''),
+    uploaded_by     INTEGER,
+    source          TEXT    NOT NULL DEFAULT 'file',
+    source_url      TEXT    NOT NULL DEFAULT '',
     created_at      TEXT    NOT NULL,
     updated_at      TEXT    NOT NULL,
     FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL
@@ -60,21 +60,21 @@ CREATE TABLE IF NOT EXISTS applications (
 
 CREATE TABLE IF NOT EXISTS application_permissions (
     id              BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    application_id  BIGINT NOT NULL,
+    application_id  INTEGER NOT NULL,
     capability      TEXT    NOT NULL,
-    access_level    TEXT    NOT NULL DEFAULT (''),
+    access_level    TEXT    NOT NULL DEFAULT '',
     granted         INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS application_installations (
     id              BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    application_id  BIGINT NOT NULL,
-    owner_id        BIGINT NOT NULL,
+    application_id  INTEGER NOT NULL,
+    owner_id        INTEGER NOT NULL,
     name            TEXT    NOT NULL,
-    config_values   TEXT    NOT NULL DEFAULT ('{}'),
-    status          TEXT    NOT NULL DEFAULT ('stopped'),
-    last_error      TEXT    NOT NULL DEFAULT (''),
+    config_values   TEXT    NOT NULL DEFAULT '{}',
+    status          TEXT    NOT NULL DEFAULT 'stopped',
+    last_error      TEXT    NOT NULL DEFAULT '',
     node_id         INTEGER NOT NULL DEFAULT 0,
     created_at      TEXT    NOT NULL,
     updated_at      TEXT    NOT NULL,
@@ -87,7 +87,7 @@ CREATE INDEX idx_application_installations_app ON application_installations(appl
 CREATE INDEX idx_application_installations_own ON application_installations(owner_id);
 
 -- Seed the catalog permissions so the admin's role picks them up on launch.
-INSERT IGNORE INTO permissions (`key`, description) VALUES
+INSERT IGNORE INTO permissions (key, description) VALUES
     ('MANAGE_APPLICATIONS', 'Manage the Applications catalog (upload, edit, activate/deactivate)'),
     ('APPLICATIONS_VIEW',   'View the Applications catalog'),
     ('APPLICATIONS_CREATE', 'Add a new Application to the catalog'),

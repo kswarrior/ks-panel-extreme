@@ -963,18 +963,7 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 		InstallStepsJSON: "",
 	})
 	if err != nil {
-		log.Printf("failed to create instance row for %q: %v", req.Name, err)
-		// UNIQUE(node_id, name) is the DB modelling an expected operator
-		// mistake (re-deploying a name that already exists on this node) —
-		// answer 409 with the reason instead of the generic 500. Match the
-		// driver-specific phrasings: SQLite "UNIQUE constraint failed",
-		// MySQL "Duplicate entry", PostgreSQL "duplicate key value".
-		msg := err.Error()
-		if strings.Contains(msg, "UNIQUE") || strings.Contains(msg, "unique") ||
-			strings.Contains(msg, "Duplicate entry") || strings.Contains(msg, "duplicate key") {
-			http.Error(w, fmt.Sprintf("an instance named %q already exists on this node — pick another name", req.Name), http.StatusConflict)
-			return
-		}
+		log.Printf("CRITICAL: failed to create instance row for %q: %v", req.Name, err)
 		http.Error(w, "panel failed to store instance (see panel logs)", http.StatusInternalServerError)
 		return
 	}

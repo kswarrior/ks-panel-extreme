@@ -19,17 +19,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"regexp"
 	"time"
 
 	"github.com/example/kspanel/internal/models"
 )
-
-// tokenQueryParamRe matches a token=… query parameter inside an error's
-// message text. InstallStatus is the one RPC that carries the shared edge
-// secret in the URL query, so when the dial fails the wrapped *url.Error
-// would otherwise embed the raw token in the message the sweep loop logs.
-var tokenQueryParamRe = regexp.MustCompile(`token=[^&\s"']+`)
 
 // Client dials a single edge node. The scheme (http vs https) is decided by
 // the node's UseTLS flag so the panel transparently talks to edges that put
@@ -105,7 +98,7 @@ func NewWithTimeout(node models.Node, token string, timeout time.Duration) *Clie
 // (e.g. prefix with instance id) and returns the real driver ID in the
 // response's ExternalID.
 type LifecycleRequest struct {
-	Token string `json:"token"`
+	Token  string `json:"token"`
 	// "deploy" | "start" | "stop" | "destroy" | "inspect".
 	Action string `json:"action"`
 	// "docker" | "lxd" | "kvm" | "multipass".
@@ -188,24 +181,24 @@ type InstallStatusRequest struct {
 // InstallStepStatus is the per-step transcript the panel polls back (mirrors
 // edge's internal/install.StepStatus).
 type InstallStepStatus struct {
-	Index     int    `json:"index"`
-	Action    string `json:"action"`
-	Status    string `json:"status"`
-	Attempt   int    `json:"attempt"`
-	ExitCode  int    `json:"exit_code"`
-	Stdout    string `json:"stdout"`
-	Stderr    string `json:"stderr"`
-	StartedAt string `json:"started_at"`
-	EndedAt   string `json:"ended_at,omitempty"`
+	Index     int       `json:"index"`
+	Action    string    `json:"action"`
+	Status    string    `json:"status"`
+	Attempt   int       `json:"attempt"`
+	ExitCode  int       `json:"exit_code"`
+	Stdout    string    `json:"stdout"`
+	Stderr    string    `json:"stderr"`
+	StartedAt string    `json:"started_at"`
+	EndedAt   string    `json:"ended_at,omitempty"`
 }
 
 // InstallStatusResponse is the polled install state. State is one of:
 // "running" | "done" | "failed" | "unknown" (no record / edge restarted).
 type InstallStatusResponse struct {
-	OK        bool                `json:"ok"`
-	State     string              `json:"state"`
-	Steps     []InstallStepStatus `json:"steps"`
-	Error     string              `json:"error"`
+	OK       bool                 `json:"ok"`
+	State    string               `json:"state"`
+	Steps    []InstallStepStatus  `json:"steps"`
+	Error    string               `json:"error"`
 	StartedAt string              `json:"started_at"`
 	EndedAt   string              `json:"ended_at"`
 }
@@ -230,22 +223,12 @@ type InstallStopRequest struct {
 // (was running, now cancelled), "done"/"failed" (already resolved — cancel
 // was a no-op), "unknown" (no record / edge restarted).
 type InstallStopResponse struct {
-	OK       bool   `json:"ok"`
-	State    string `json:"state"`
-	ExitCode int    `json:"exit_code"`
-	Stdout   string `json:"stdout"`
-	Stderr   string `json:"stderr"`
-	Error    string `json:"error,omitempty"`
-}
-
-// redactTokenErr returns err's message with any token=… query value masked,
-// so dial failures on token-in-URL RPCs never leak the shared edge secret
-// into panel logs.
-func redactTokenErr(err error) string {
-	if err == nil {
-		return ""
-	}
-	return tokenQueryParamRe.ReplaceAllString(err.Error(), "token=REDACTED")
+	OK      bool   `json:"ok"`
+	State   string `json:"state"`
+	ExitCode int   `json:"exit_code"`
+	Stdout  string `json:"stdout"`
+	Stderr  string `json:"stderr"`
+	Error   string `json:"error,omitempty"`
 }
 
 // InstallStart POSTs the install kick-off to the edge. Returns the install_id
@@ -306,9 +289,7 @@ func (c *Client) InstallStatus(req InstallStatusRequest) (InstallStatusResponse,
 
 	resp, err := c.http.Do(httpReq)
 	if err != nil {
-		// The URL carries the token as a query param — mask it before the
-		// error reaches any log.
-		return InstallStatusResponse{}, fmt.Errorf("dial edge: %s", redactTokenErr(err))
+		return InstallStatusResponse{}, fmt.Errorf("dial edge: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -367,7 +348,6 @@ func (c *Client) InstallStop(req InstallStopRequest) (InstallStopResponse, error
 	}
 	return out, nil
 }
-
 // A non-2xx status is converted into an error so callers can treat the RPC
 // uniformly with `err != nil`.
 func (c *Client) Lifecycle(req LifecycleRequest) (LifecycleResponse, error) {
@@ -546,13 +526,13 @@ type InspectRequest struct {
 // InspectResponse is the opaque edge-side blob. The panel stores it raw in
 // instance_live_state and the SPA decodes the fields.
 type InspectResponse struct {
-	OK        bool            `json:"ok"`
-	Status    string          `json:"status,omitempty"`
+	OK        bool   `json:"ok"`
+	Status    string `json:"status,omitempty"`
 	Metrics   json.RawMessage `json:"metrics,omitempty"`
 	Processes json.RawMessage `json:"processes,omitempty"`
 	Ports     json.RawMessage `json:"ports,omitempty"`
 	Info      json.RawMessage `json:"info,omitempty"`
-	Error     string          `json:"error,omitempty"`
+	Error     string `json:"error,omitempty"`
 }
 
 // Inspect calls the edge's /api/edge/inspect endpoint.
@@ -595,21 +575,21 @@ func (c *Client) Inspect(req InspectRequest) (InspectResponse, error) {
 // SnapshotRequest asks the edge to create/restore/delete a driver-side
 // snapshot of the workload. The panel persists the returned external_ref.
 type SnapshotRequest struct {
-	Token string `json:"token"`
-	Kind  string `json:"kind"`
-	Name  string `json:"name"`
+	Token   string `json:"token"`
+	Kind    string `json:"kind"`
+	Name    string `json:"name"`
 	// "create" | "restore" | "delete".
-	Action   string `json:"action"`
+	Action  string `json:"action"`
 	SnapName string `json:"snap_name,omitempty"`
-	Type     string `json:"type,omitempty"`     // e.g., "zip", "tar", "docker", "lxd"
+	Type    string `json:"type,omitempty"`    // e.g., "zip", "tar", "docker", "lxd"
 	Location string `json:"location,omitempty"` // e.g., "/mc/", "/tmp/snapshots/"
 }
 
 type SnapshotResponse struct {
-	OK          bool   `json:"ok"`
+	OK        bool   `json:"ok"`
 	ExternalRef string `json:"external_ref,omitempty"`
-	SizeBytes   int64  `json:"size_bytes,omitempty"`
-	Error       string `json:"error,omitempty"`
+	SizeBytes int64  `json:"size_bytes,omitempty"`
+	Error     string `json:"error,omitempty"`
 }
 
 // Snapshot dispatches a create/restore/delete RPC.
