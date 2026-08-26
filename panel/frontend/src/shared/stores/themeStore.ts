@@ -1713,6 +1713,35 @@ function buildSectionRules(theme: Theme): string {
   const f = theme.forms;
   const D = DEFAULT_THEME;
 
+  // Custom checkbox / radio skin gates. Native controls normally render via
+  // accent-color alone; when the admin tunes ANY relevant colour we switch
+  // them to a fully skinned appearance:none rendering driven by the Forms
+  // tab. Gated so the Default theme keeps the stock browser rendering
+  // pixel-identical.
+  const cbChanged =
+    f.checkbox_bg_unchecked !== D.forms.checkbox_bg_unchecked ||
+    f.checkbox_bg_checked !== D.forms.checkbox_bg_checked ||
+    f.checkbox_border_unchecked !== D.forms.checkbox_border_unchecked ||
+    f.checkbox_border_checked !== D.forms.checkbox_border_checked ||
+    f.checkbox_checkmark_color !== D.forms.checkbox_checkmark_color;
+  const radioChanged =
+    f.radio_bg_unchecked !== D.forms.radio_bg_unchecked ||
+    f.radio_bg_checked !== D.forms.radio_bg_checked ||
+    f.radio_border_unchecked !== D.forms.radio_border_unchecked ||
+    f.radio_border_checked !== D.forms.radio_border_checked ||
+    f.radio_dot_color !== D.forms.radio_dot_color;
+
+  // Checked-state checkmark glyph for the skinned checkbox — the mark colour
+  // is baked into an encoded SVG data URI (same pattern as the select
+  // chevron below). Only clean colour characters may reach the attribute.
+  const markOk = /^[#%(),.\s0-9a-fA-F]+$/.test(String(f.checkbox_checkmark_color || ''));
+  const checkGlyphRule =
+    cbChanged && markOk
+      ? `\ninput.ks-checkbox:checked,\ninput[class*="ks-checkbox"]:checked {\n  background-image: url("data:image/svg+xml;charset=utf-8,${encodeURIComponent(
+          `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="${f.checkbox_checkmark_color}" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 12.5 9.5 18 20 6.5"/></svg>`,
+        )}") !important;\n  background-size: 64% !important;\n  background-position: center !important;\n  background-repeat: no-repeat !important;\n}`
+      : '';
+
   const modalMaxWidth =
     num(comp.modal_max_width, 512) !== D.components.modal_max_width
       ? `\n.ks-modal-panel { max-width: min(${num(comp.modal_max_width, 512)}px, 92vw) !important; }`
