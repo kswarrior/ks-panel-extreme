@@ -36,6 +36,16 @@ func engineName() string {
 	}
 }
 
+// qKey returns the settings/instance_secrets column name for "key", quoted
+// for engines that reject it unquoted in DML. MySQL's grammar accepts KEY as
+// a column definition but not inside INSERT column lists or WHERE clauses.
+func qKey() string {
+	if engineName() == "mysql" {
+		return "`key`"
+	}
+	return "key"
+}
+
 // upsertSet builds the dialect-appropriate upsert suffix that follows an
 // INSERT ... VALUES clause. conflictTarget is the unique constraint's
 // column list including parentheses, e.g. "(instance_id, key)". Every name

@@ -739,7 +739,7 @@ func (r *NodeRepository) IngestHeartbeat(in IngestInput) (int64, error) {
 	// collapse to one row so a chatty edge doesn't bloat the table.
 	bucket := now.Truncate(time.Minute)
 	if _, err := r.db.Exec(
-		`INSERT INTO node_heartbeats (node_id, bucket_at, status) VALUES (?, ?, 'up')` +
+		`INSERT INTO node_heartbeats (node_id, bucket_at, status) VALUES (?, ?, 'up')`+
 			upsertSet("(node_id, bucket_at)", []string{"status"}),
 		id.Int64, bucket); err != nil {
 		return 0, err
@@ -776,7 +776,7 @@ func (r *NodeRepository) MarkStale(threshold time.Duration) (int, error) {
 	bucket := time.Now().UTC().Truncate(time.Minute)
 	for _, id := range ids {
 		_, _ = r.db.Exec(
-			`INSERT INTO node_heartbeats (node_id, bucket_at, status) VALUES (?, ?, 'down')` +
+			`INSERT INTO node_heartbeats (node_id, bucket_at, status) VALUES (?, ?, 'down')`+
 				upsertSet("(node_id, bucket_at)", []string{"status"}),
 			id, bucket)
 	}

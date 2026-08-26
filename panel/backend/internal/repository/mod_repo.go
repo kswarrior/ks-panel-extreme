@@ -41,7 +41,7 @@ const ModsEngineSettingKey = "mods_engine_enabled"
 // hiccup, which is a worse failure mode than keeping the previous state.
 func (r *ModRepository) ModsEnabled() bool {
 	var v string
-	err := r.db.QueryRow(`SELECT value FROM settings WHERE key = ?`, ModsEngineSettingKey).Scan(&v)
+	err := r.db.QueryRow(`SELECT value FROM settings WHERE " + qKey() + " = ?`, ModsEngineSettingKey).Scan(&v)
 	if err != nil {
 		return true
 	}
@@ -55,14 +55,14 @@ func (r *ModRepository) SetModsEnabled(enabled bool) error {
 	if enabled {
 		val = "1"
 	}
-	res, err := r.db.Exec(`UPDATE settings SET value = ? WHERE key = ?`, val, ModsEngineSettingKey)
+	res, err := r.db.Exec(`UPDATE settings SET value = ? WHERE " + qKey() + " = ?`, val, ModsEngineSettingKey)
 	if err != nil {
 		return err
 	}
 	if n, e := res.RowsAffected(); e == nil && n > 0 {
 		return nil
 	}
-	_, err = r.db.Exec(`INSERT INTO settings (key, value) VALUES (?, ?)`, ModsEngineSettingKey, val)
+	_, err = r.db.Exec(`INSERT INTO settings (" + qKey() + ", value) VALUES (?, ?)`, ModsEngineSettingKey, val)
 	return err
 }
 
