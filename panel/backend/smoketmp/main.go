@@ -30,8 +30,7 @@ func main() {
 	die(s.SetPanelName("Smoke Panel"), "SetPanelName")
 
 	sec := repository.NewSecurityRepository(con)
-	cfg, err := sec.GetConfig()
-	die(err, "GetConfig")
+	cfg := sec.GetConfig()
 	cfg.MaxBodySizeBytes = 4096
 	die(sec.UpdateConfig(cfg), "UpdateConfig")
 
@@ -76,11 +75,11 @@ func main() {
 	rr := repository.NewRoleAuthorityRepository(con)
 	die(rr.SetRoleAllowedAuth(1, []string{"password"}), "RoleAuthSave")
 
-	iar := repository.NewInstanceAdvancedRepository(con)
-	die(iar.SaveLiveState(instID, models.LiveState{CPUPercent: 10}), "LiveStateSave")
+	iar := repository.NewLiveStateRepository(con)
+	die(iar.Save(models.InstanceLiveState{InstanceID: instID, Metrics: "{}", Processes: "[]", Ports: "[]", Info: "{}"}), "LiveStateSave")
 
 	aar := repository.NewAutomationRepository(con)
-	jobID, err := aar.CreateJob(repository.AutomationJobInput{
+	jobID, err := aar.Create(repository.AutomationUpsertInput{
 		InstanceID: instID, Name: "j", Schedule: "", Command: "echo hi", Enabled: true,
 	})
 	die(err, "AutomationCreateJob")
