@@ -239,7 +239,7 @@ export interface DatabaseInfo {
   free_pages: number;
   max_page_count: number;
   last_modified_ago_secs: number;
-  // Live health summary surfaced by PRAGMA integrity_quick and
+  // Live health summary surfaced by PRAGMA quick_check and
   // foreign_key_check.
   integrity_ok: boolean;
   integrity_issues: string[];
