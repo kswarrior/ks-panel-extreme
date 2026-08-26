@@ -98,7 +98,7 @@ const InstanceTabs: React.FC = () => {
   // nav had disappeared.
   if (loading || nav.length === 0) {
     return (
-      <div className="w-full flex-shrink-0 relative bg-transparent">
+      <div className="flex-1 min-w-0 relative bg-transparent">
         <div className="relative">
           <nav
             className="flex items-center gap-1 px-0 py-2 overflow-x-auto"
@@ -123,8 +123,18 @@ const InstanceTabs: React.FC = () => {
     );
   }
 
-  // All Pages Dropdown Portal
-  const allPagesDropdown = showAllPagesDropdown && allPagesTriggerRef.current
+  // All Pages Dropdown Portal — the left edge is clamped to the viewport so
+  // the fixed-width (320px) menu can never hang off the right side of a
+  // narrow screen (the trigger sits ~44px from the left, so an unclamped
+  // left+320 clipped on phones).
+  const allPagesRect = showAllPagesDropdown && allPagesTriggerRef.current
+    ? allPagesTriggerRef.current.getBoundingClientRect()
+    : null;
+  const DROPDOWN_WIDTH = 320;
+  const dropdownLeft = allPagesRect
+    ? Math.min(Math.max(8, allPagesRect.left), Math.max(8, window.innerWidth - DROPDOWN_WIDTH - 8))
+    : 0;
+  const allPagesDropdown = allPagesRect
     ? createPortal(
         <>
           {/* Invisible full-screen scrim — closes on click */}
@@ -138,10 +148,10 @@ const InstanceTabs: React.FC = () => {
             role="menu"
             style={{
               position: 'fixed',
-              left: allPagesTriggerRef.current.getBoundingClientRect().left,
-              top: allPagesTriggerRef.current.getBoundingClientRect().bottom + 6,
+              left: dropdownLeft,
+              top: allPagesRect.bottom + 6,
               zIndex: 2147483640,
-              width: '320px',
+              width: `${DROPDOWN_WIDTH}px`,
               maxHeight: '70vh',
             }}
             className="glass-dropdown rounded-lg overflow-visible text-sm"
@@ -240,7 +250,7 @@ const InstanceTabs: React.FC = () => {
     : null;
 
 return (
-    <div className="w-full flex-shrink-0 relative bg-transparent">
+    <div className="flex-1 min-w-0 relative bg-transparent">
       <div className="relative">
         <nav
           ref={scrollRef}
