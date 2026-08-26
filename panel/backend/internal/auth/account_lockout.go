@@ -37,13 +37,26 @@ func NewAccountLockout() *AccountLockout {
 	}
 }
 
+// lockKey normalizes an identifier into the map key used for attempt
+// tracking. Emails match case-insensitively in the user repository
+// (lower(email) = lower(?)), so "Victim@X.com" and "victim@x.com" resolve to
+// the same account — tracking them under different keys would let an attacker
+// rotate letter case to get a fresh 5-attempt counter per variant and bypass
+// the lockout entirely. Usernames are looked up case-sensitively, but sharing
+// one counter across case variants is the safe direction: it can only make
+// the lockout stricter, never looser.
+func lockKey(identifier string) string {
+	return strings.ToLower(strings.TrimSpace(identifier))
+}
+
 // RecordFailedAttempt records a failed login attempt for a user
 func (al *AccountLockout) RecordFailedAttempt(username string) {
+	key := lockKey(username)
 	al.mu.Lock()
 	defer al.mu.Unlock()
 
 	now := time.Now()
-	attempt, exists := al.attempts[username]
+	attempt, exists := al.attempts[key]
 
 	if !exists {
 		attempt = &LoginAttempt{
@@ -51,7 +64,7 @@ func (al *AccountLockout) RecordFailedAttempt(username string) {
 			Attempts:    1,
 			LastAttempt: now,
 		}
-		al.attempts[username] = attempt
+		al.attempts[key] = attempt
 		return
 	}
 
