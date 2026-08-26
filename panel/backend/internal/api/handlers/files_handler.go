@@ -249,12 +249,14 @@ func proxyToEdge(w http.ResponseWriter, r *http.Request, id int64, op, path, con
 	}
 	resp, err := filesProxyHTTPClient.Do(req)
 	if err != nil {
-		log.Printf("proxyToEdge: dial edge failed: %v", err)
+		safeErr := strings.ReplaceAll(err.Error(), token, "[redacted]")
+		log.Printf("proxyToEdge: dial edge failed: %v", safeErr)
 		writeJSON(w, map[string]any{
-			"error": "edge unreachable: " + err.Error(),
+			"error": "edge unreachable: " + safeErr,
 		})
 		return
 	}
+	defer resp.Body.Close()
 
 	// Pass status and selected headers through. We rewrite Content-Type only
 	// for the JSON ops (list/stat) so the SPA can rely on it; for read we
@@ -282,10 +284,14 @@ func proxyToEdge(w http.ResponseWriter, r *http.Request, id int64, op, path, con
 			})
 			return
 		}
-		// Reset the response state — writeJSON wrote headers + body — and
-		// fall through? We can't fall through; we've already written. Skip
-		// the original body or re-target: simplest = just return.
-		_ = body
+		// Legacy branch fell through previously with an empty 200 (no
+		// headers written, no body) — treat the text/plain payload as an
+		// error so the SPA sees the reason instead of a silent success.
+		writeJSONStatus(w, resp.StatusCode, map[string]any{
+			"error": strings.TrimSpace(string(body)),
+			"hint":  "the edge returned a non-JSON error response; check that ksedge is up to date and running",
+			"edge":  node.Address,
+		})
 		return
 	}
 
