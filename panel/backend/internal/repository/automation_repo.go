@@ -237,7 +237,7 @@ func (r *AutomationRepository) RecordRun(in AutomationRunInput) (int64, error) {
 	var q string
 	var args []interface{}
 	if finished == "" {
-		q = `INSERT INTO automation_runs (job_id, instance_id, trigger, command, stdout, stderr, exit_code, duration_ms, error, started_at)
+		q = `INSERT INTO automation_runs (job_id, instance_id, trigger_type, command, stdout, stderr, exit_code, duration_ms, error, started_at)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 		args = []interface{}{in.JobID, in.InstanceID, in.Trigger, in.Command, in.Stdout, in.Stderr, in.ExitCode, in.DurationMS, in.Error, started}
 	} else {
@@ -257,7 +257,7 @@ func (r *AutomationRepository) ListRunsByJob(jobID int64, limit int) ([]models.A
 	if limit <= 0 || limit > 200 {
 		limit = 50
 	}
-	rows, err := r.db.Query(`SELECT id, job_id, instance_id, trigger, command, stdout, stderr, exit_code,
+	rows, err := r.db.Query(`SELECT id, job_id, instance_id, trigger_type, command, stdout, stderr, exit_code,
 		duration_ms, error, started_at, finished_at FROM automation_runs
 		WHERE job_id = ? ORDER BY started_at DESC, id DESC LIMIT ?`, jobID, limit)
 	if err != nil {
@@ -288,7 +288,7 @@ func (r *AutomationRepository) ListRunsByInstance(instanceID int64, limit int) (
 	if n == 0 {
 		return out, nil
 	}
-	rows, err := r.db.Query(`SELECT id, job_id, instance_id, trigger, command, stdout, stderr, exit_code,
+	rows, err := r.db.Query(`SELECT id, job_id, instance_id, trigger_type, command, stdout, stderr, exit_code,
 		duration_ms, error, started_at, finished_at FROM automation_runs
 		WHERE instance_id = ? ORDER BY started_at DESC, id DESC LIMIT ?`, instanceID, limit)
 	if err != nil {
