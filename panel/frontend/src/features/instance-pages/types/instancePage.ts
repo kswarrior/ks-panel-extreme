@@ -70,6 +70,23 @@ export function parseSubPages(json: string | undefined | null): InstancePageSubP
   }
 }
 
+// parsePageActions decodes the persisted actions JSON into typed defs.
+// Corrupt payloads degrade to an empty list so a bad row never blocks the UI
+// (the runtime allow-list just ends up empty — same as "no actions").
+export function parsePageActions(json: string | undefined | null): PageActionDef[] {
+  if (!json || !json.trim()) return [];
+  try {
+    const arr = JSON.parse(json);
+    if (!Array.isArray(arr)) return [];
+    return arr.filter(
+      (a): a is PageActionDef =>
+        !!a && typeof a === 'object' && typeof a.name === 'string' && typeof a.type === 'string',
+    );
+  } catch {
+    return [];
+  }
+}
+
 export interface CreateInstancePagePayload {
   name: string;
   description: string;
