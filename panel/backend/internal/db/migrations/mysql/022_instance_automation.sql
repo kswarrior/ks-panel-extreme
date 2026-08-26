@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS automation_runs (
     id            BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     job_id        BIGINT NOT NULL REFERENCES instance_automation(id) ON DELETE CASCADE,
     instance_id   BIGINT NOT NULL REFERENCES instances(id) ON DELETE CASCADE,
-    trigger       TEXT    NOT NULL,                    -- 'schedule' | 'manual'
+    `trigger`     TEXT    NOT NULL,                    -- 'schedule' | 'manual'
     command       TEXT    NOT NULL DEFAULT (''),
     stdout        TEXT    NOT NULL DEFAULT (''),
     stderr        TEXT    NOT NULL DEFAULT (''),
