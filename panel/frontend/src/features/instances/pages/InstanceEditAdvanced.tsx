@@ -8,6 +8,7 @@ import type { DriverKind } from '../types/instance';
 import { DeployFormProvider, useDeployForm } from '../stores/deployFormStore';
 import { serializeEditor, specToEditor, structuredCloneSafe } from '../utils/instanceFormUtils';
 import InstanceAdvancedOptionsFullScreen from './InstanceAdvancedOptionsFullScreen';
+import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 
 // envMapToDefinitions converts the resolved {KEY: value} env map stored on
 // deployed instances (deploy bakes finalEnv into config.env as a plain map)
@@ -114,7 +115,7 @@ const InstanceEditAdvancedInner: React.FC = () => {
         saving={false}
         maxWidth="max-w-4xl"
       >
-        <p className="text-gray-400 text-sm">Loading…</p>
+        <FormSkeleton fields={5} />
       </FormPage>
     );
   }

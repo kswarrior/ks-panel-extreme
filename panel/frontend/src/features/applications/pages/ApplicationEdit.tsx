@@ -15,6 +15,7 @@ import {
 } from '@/features/applications/types/application';
 import FormPage from '@/shared/components/forms/FormPage';
 import GlassField from '@/shared/components/ui/Field';
+import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 
 type Form = {
   name: string;
@@ -146,7 +147,7 @@ const ApplicationEdit: React.FC = () => {
         saving={true}
         submitLabel="Save"
       >
-        <div className="text-gray-400 text-sm">Loading…</div>
+        <FormSkeleton fields={5} />
       </FormPage>
     );
   }

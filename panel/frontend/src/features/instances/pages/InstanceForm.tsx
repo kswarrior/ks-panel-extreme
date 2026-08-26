@@ -15,6 +15,7 @@ import ThemedBackground from '@/shared/components/layout/ThemedBackground';
 import { useDeployForm } from '../stores/deployFormStore';
 import { KIND_META, ICON_PRESETS, COLOR_SWATCHES, driverEnabled, kindKey } from '../types/instanceForm';
 import { buildOverrides } from '../utils/instanceFormUtils';
+import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 
 const monoCls = glassFieldClass + ' font-mono ks-input-mono';
 const labelCls = 'block text-sm font-medium text-gray-300 mb-1 ks-label';
@@ -196,7 +197,7 @@ const InstanceForm: React.FC = () => {
         submitLabel="Deploy"
         maxWidth="max-w-3xl"
       >
-        <p className="text-gray-400 text-sm">Loading…</p>
+        <FormSkeleton fields={5} />
       </FormPage>
     );
   }
