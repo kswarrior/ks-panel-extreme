@@ -129,6 +129,7 @@ function defsToActions(json: string | undefined): ActionRow[] {
     path: typeof d.path === 'string' ? d.path : '',
     content: typeof d.content === 'string' ? d.content : '',
     args: Array.isArray(d.args) ? d.args.join(' ') : '',
+    open_args: d.open_args === true,
     env: d.env && typeof d.env === 'object' ? JSON.stringify(d.env, null, 2) : '{}',
     timeout: d.timeout != null ? String(d.timeout) : '30',
     description: typeof d.description === 'string' ? d.description : '',
@@ -724,7 +725,7 @@ const InstancePageStudio: React.FC = () => {
   const handleSave = async () => {
     if (isBuiltin) { setError('Built-in pages cannot be edited. Create a custom page instead.'); return; }
     if (!page.name?.trim() || !page.slug?.trim()) { setError('Name and slug are required'); return; }
-    if (!/^[a-z0-9][a-z0-9-._]*$/i.test(page.slug.trim())) { setError('Slug may contain letters, numbers, dots, dashes and underscores only.'); return; }
+    if (page.slug.trim() !== '.' && !/^[a-z0-9][a-z0-9-._]*$/i.test(page.slug.trim())) { setError('Slug may contain letters, numbers, dots, dashes and underscores only ("." is the reserved Home slug).'); return; }
     const subErr = validateSubRows(subs);
     if (subErr) { setError(subErr); return; }
     setSaving(true);
@@ -1312,15 +1313,31 @@ const InstancePageStudio: React.FC = () => {
                 </div>
 
                 {(action.type === 'shell' || action.type === 'docker' || action.type === 'kvm' || action.type === 'lxd') && (
-                  <label className="block">
-                    <span className="text-xs text-gray-400">{action.type === 'shell' ? 'Command' : 'Sub-command'}</span>
-                    <input
-                      value={action.command}
-                      onChange={(e) => updateAction(action.id, { command: e.target.value })}
-                      className={`${glassFieldClass} font-mono`}
-                      placeholder={action.type === 'shell' ? 'systemctl restart myservice' : 'ps / inspect / logs'}
-                    />
-                  </label>
+                  <>
+                    <label className="block">
+                      <span className="text-xs text-gray-400">{action.type === 'shell' ? 'Command' : 'Sub-command'}{action.open_args ? ' — {{args}} inserts the runtime arguments' : ''}</span>
+                      <input
+                        value={action.command}
+                        onChange={(e) => updateAction(action.id, { command: e.target.value })}
+                        className={`${glassFieldClass} font-mono`}
+                        placeholder={action.type === 'shell'
+                          ? (action.open_args ? 'docker stop {{args}}' : 'systemctl restart myservice')
+                          : 'ps / inspect / logs'}
+                      />
+                    </label>
+                    <label className="flex items-center gap-2 mt-1 select-none">
+                      <input
+                        type="checkbox"
+                        checked={action.open_args}
+                        onChange={(e) => updateAction(action.id, { open_args: e.target.checked })}
+                        className="accent-emerald-500"
+                      />
+                      <span className="text-xs text-gray-400">
+                        Allow runtime arguments — pages pass up to 4 values via{' '}
+                        <code className="font-mono">runAction(name, {'{ args }'})</code>; every value is validated server-side.
+                      </span>
+                    </label>
+                  </>
                 )}
 
                 {(action.type === 'read_file' || action.type === 'write_file' || action.type === 'list_files') && (
@@ -1420,9 +1437,8 @@ const InstancePageStudio: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <label className="block">
                 <span className="text-xs text-gray-400">Kind</span>
-                <select value={page.kind ?? 'custom'} onChange={(e) => onChange('kind', e.target.value as InstancePage['kind'])} className={glassFieldClass}>
+                <select value="custom" disabled className={glassFieldClass} title='Only "custom" pages exist — the legacy built-in kind was removed (migration 046)'>
                   <option value="custom">Custom</option>
-                  <option value="builtin">Built-in</option>
                 </select>
               </label>
               <label className="block">
