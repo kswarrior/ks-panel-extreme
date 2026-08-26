@@ -733,8 +733,11 @@ func SetDatabaseEngineHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Resolve the DSN: explicit --dsn wins over the friendlier URL form.
-	// For SQLite the DSN defaults to the current path when neither was given
-	// so "switch back to SQLite" is a one-click reset (uses KSPANEL_DB).
+	// For SQLite the DSN defaults to the standard SQLite path (KSPANEL_DB or
+	// ./kspanel.db) when neither was given so "switch back to SQLite" is a
+	// one-click reset. DatabasePath() is deliberately NOT used here: it
+	// returns the CURRENT config's DSN, which is a postgres/mysql connection
+	// string whenever the panel is running on that engine.
 	dsn := strings.TrimSpace(req.DSN)
 	if dsn == "" && strings.TrimSpace(req.URL) != "" {
 		if built, ok := config.BuildDSNFromURL(engine, req.URL, req.User, req.Password, req.Database); ok {
@@ -742,7 +745,7 @@ func SetDatabaseEngineHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if d.IsSQLite() && dsn == "" {
-		dsn = config.DatabasePath()
+		dsn = config.DefaultSQLitePath()
 	}
 
 	resp := EngineSwitchResponse{

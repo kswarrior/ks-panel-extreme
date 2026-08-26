@@ -661,10 +661,13 @@ func NewRouter() http.Handler {
 		// SQLite-flavoured inspector; the two POSTs drive the admin
 		// "Change Database" surface: GET /engines lists switchable backends,
 		// POST /engine validates + persists a new engine selection (the
-		// running panel keeps its pool until a launch restart).
-		r.Get("/api/database", handlers.DatabaseInfoHandler)
-		r.Get("/api/database/engines", handlers.DatabaseEnginesHandler)
-		r.Post("/api/database/engine", handlers.SetDatabaseEngineHandler)
+		// running panel keeps its pool until a launch restart). Every route
+		// here is explicitly permission-gated — the engine switch can copy
+		// the whole dataset to an external server, so plain authentication
+		// must never be enough to reach it.
+		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Get("/api/database", handlers.DatabaseInfoHandler)
+		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Get("/api/database/engines", handlers.DatabaseEnginesHandler)
+		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Post("/api/database/engine", handlers.SetDatabaseEngineHandler)
 
 		// Security page (ACCESS_ADMIN_PANEL). Per-request security telemetry
 		// aggregated into the headline counters + top-N lists the page renders.

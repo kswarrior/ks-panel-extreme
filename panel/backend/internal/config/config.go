@@ -101,10 +101,20 @@ func DatabasePath() string {
 	return DatabaseConfig().DSN
 }
 
-// defaultSQLitePath returns the file path the SQLite engine should open when
+// DefaultSQLitePath returns the file path the SQLite engine should open when
 // no KSPANEL_DB / KSPANEL_DB_DSN is set. Falls back to a path next to the
 // config source file only as a last resort (e.g. when Getwd fails — unlikely
 // in normal use but defensive against weird CGO staging paths).
+//
+// Exported for the engine-switch handler: "switch back to SQLite" must resolve
+// to this default, never to DatabasePath() (which returns the CURRENT config's
+// DSN and would hand a postgres/mysql connection string to the sqlite driver
+// when the panel is running on that engine).
+func DefaultSQLitePath() string {
+	return defaultSQLitePath()
+}
+
+// defaultSQLitePath is the unexported core of DefaultSQLitePath.
 func defaultSQLitePath() string {
 	if env := os.Getenv("KSPANEL_DB"); env != "" {
 		return env

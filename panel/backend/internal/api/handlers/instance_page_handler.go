@@ -1627,23 +1627,69 @@ func ServeInstancePageModuleAssetHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Construct the file path
-	filePath := filepath.Join("instance_pages/modules", moduleID, version, assetPath)
+	// Security check: every segment must be a plain name. filepath.Join
+	// CLEANES ".." segments away BEFORE any string check could see them, so
+	// validating raw segments here is the only reliable traversal guard —
+	// e.g. id="..", version=".." used to clean down to an arbitrary
+	// working-directory-relative path.
+	if !safeModuleSegment(moduleID) || !safeModuleSegment(version) {
+		http.Error(w, "invalid module id or version", http.StatusBadRequest)
+		return
+	}
+	for _, seg := range strings.Split(assetPath, "/") {
+		if !safeModuleSegment(seg) {
+			http.Error(w, "invalid asset path", http.StatusBadRequest)
+			return
+		}
+	}
 
-	// Security check: prevent path traversal
-	if strings.Contains(filePath, "..") || strings.Contains(filePath, "//") {
+	// Construct the file path and prove containment in the modules root:
+	// Clean is applied to BOTH sides and compared with a separator-aware
+	// prefix so "modules-extra" can never pass for "modules".
+	root, err := filepath.Abs("instance_pages/modules")
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	filePath, err := filepath.Abs(filepath.Join(root, moduleID, version, assetPath))
+	if err != nil || filePath != root && !strings.HasPrefix(filePath, root+string(filepath.Separator)) {
 		http.Error(w, "invalid asset path", http.StatusBadRequest)
 		return
 	}
 
 	// Check if file exists
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+	info, err := os.Stat(filePath)
+	if os.IsNotExist(err) {
+		http.Error(w, "asset not found", http.StatusNotFound)
+		return
+	}
+	if info.IsDir() {
 		http.Error(w, "asset not found", http.StatusNotFound)
 		return
 	}
 
 	// Serve the file
 	http.ServeFile(w, r, filePath)
+}
+
+// safeModuleSegment reports whether s is a single safe path segment for a
+// module id / version / asset name: non-empty, no separators, no dot-dot,
+// limited to filename-safe characters.
+func safeModuleSegment(s string) bool {
+	if s == "" || s == "." || len(s) > 128 {
+		return false
+	}
+	for _, r := range s {
+		switch {
+		case r >= 'a' && r <= 'z':
+		case r >= 'A' && r <= 'Z':
+		case r >= '0' && r <= '9':
+		case r == '-' || r == '_' || r == '.':
+		default:
+			return false
+		}
+	}
+	return !strings.Contains(s, "..")
 }
 
 // Helper function to unzip a file

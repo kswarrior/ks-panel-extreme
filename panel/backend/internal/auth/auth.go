@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
+	"flag"
 	"fmt"
 	"os"
 	"strconv"
@@ -23,6 +24,13 @@ var bcryptCost = 12
 
 func init() {
 	secret := os.Getenv("KSPANEL_SESSION_SECRET")
+	if secret == "" && flag.Lookup("test.v") != nil {
+		// Under `go test` the package init runs before any TestMain can
+		// inject the env var, so test binaries would panic on import.
+		// Production binaries never register go test flags, so they still
+		// fail closed below.
+		secret = "kspanel-test-session-secret-0123456789abcdef"
+	}
 	if secret == "" {
 		panic("KSPANEL_SESSION_SECRET environment variable is required for security. Generate a strong secret with: openssl rand -base64 32")
 	}
