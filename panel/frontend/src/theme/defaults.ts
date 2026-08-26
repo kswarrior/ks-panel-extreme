@@ -228,14 +228,22 @@ export const DEFAULT_THEME: Theme = {
     checkbox_bg_unchecked: 'rgba(0,0,0,0.30)',
     checkbox_bg_checked: '#10b981',
     checkbox_border_unchecked: 'rgba(255,255,255,0.20)',
+    checkbox_border_checked: '#10b981',
     checkbox_checkmark_color: '#0b0d10',
     checkbox_border_radius: 4,
     checkbox_size: 16,
+    radio_bg_unchecked: 'rgba(0,0,0,0.30)',
     radio_bg_checked: '#10b981',
+    radio_border_unchecked: 'rgba(255,255,255,0.20)',
+    radio_border_checked: '#10b981',
+    radio_dot_color: '#0b0d10',
     radio_size: 16,
     toggle_track_off: 'rgba(255,255,255,0.10)',
     toggle_track_on: '#10b981',
     toggle_thumb_color: '#ffffff',
+    // '' keeps the stock Tailwind shadow-md on the knob; any colour swaps it
+    // for a tight single-colour shadow built from this token.
+    toggle_thumb_shadow: '',
     toggle_track_height: 24,
     toggle_thumb_size: 20,
     toggle_border_radius: 9999,
@@ -247,10 +255,13 @@ export const DEFAULT_THEME: Theme = {
     hint_error_color: '#f87171',
     hint_success_color: '#34d399',
     hint_font_size: 12,
+    // Field wrapper (.ks-field).
+    field_bg: 'transparent',
     field_gap: 6,
     field_margin_bottom: 0,
     focus_ring_width: 2,
     focus_ring_offset: 0,
+    focus_ring_offset_color: '#0b0d10',
   },
 
   components: {

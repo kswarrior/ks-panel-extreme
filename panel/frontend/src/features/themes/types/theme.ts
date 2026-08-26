@@ -317,16 +317,22 @@ export interface ThemeForms {
   checkbox_bg_unchecked: string;
   checkbox_bg_checked: string;   // accent-color when checked
   checkbox_border_unchecked: string;
+  checkbox_border_checked: string;  // border colour once checked (.rich-check + custom skin)
   checkbox_checkmark_color: string; // glyph colour on custom check chips (.rich-check)
   checkbox_border_radius: number;
   checkbox_size: number;         // px
   // Radios.
+  radio_bg_unchecked: string;    // fill while unchecked (custom skin)
   radio_bg_checked: string;      // accent-color when checked
+  radio_border_unchecked: string;
+  radio_border_checked: string;
+  radio_dot_color: string;       // centre dot painted when checked (custom skin)
   radio_size: number;            // px
   // Toggle switches (.ks-toggle).
   toggle_track_off: string;
   toggle_track_on: string;
   toggle_thumb_color: string;
+  toggle_thumb_shadow: string;   // knob shadow colour ('' = stock Tailwind shadow-md)
   toggle_track_height: number;   // px — width derives from height
   toggle_thumb_size: number;     // px
   toggle_border_radius: number;  // px (9999 = pill)
@@ -340,11 +346,13 @@ export interface ThemeForms {
   hint_success_color: string;
   hint_font_size: number;
   // Field wrapper (.ks-field).
+  field_bg: string;              // wrapper fill (transparent = none)
   field_gap: number;             // px between label/hint/input
   field_margin_bottom: number;   // px below the wrapper
   // Focus ring shared by inputs/selects/textareas.
   focus_ring_width: number;      // px
   focus_ring_offset: number;     // px
+  focus_ring_offset_color: string; // gap ring between focus border and page
 }
 
 // ThemeComponents styles the floating surfaces that aren't covered by a
