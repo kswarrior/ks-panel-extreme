@@ -1,0 +1,5 @@
+-- 048_rename_automation_trigger.sql: automation_runs.trigger is a reserved
+-- word on MySQL and the runtime queries now select trigger_type. The column
+-- creation itself was renamed in 022; this guarded rename converges installs
+-- that created the table before the rename. Applied via the Go guard (see
+-- RunMigrations) so it only runs when the old column is still present.
