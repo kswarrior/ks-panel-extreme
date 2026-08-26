@@ -86,18 +86,25 @@ func CheckPassword(hash, pw string) error {
 // issuedAt lets the middleware compute the session's remaining life and,
 // when it dips under rotationWindow, mint a fresh cookie (sliding expiry).
 // A zero issuedAt falls back to now for ergonomic one-off use.
-func GenerateSessionToken(userID int64, issuedAt time.Time) string {
+//
+// Returns an error when no session secret is configured — callers must
+// fail rather than issue an unsigned credential.
+func GenerateSessionToken(userID int64, issuedAt time.Time) (string, error) {
+	secret, err := loadSessionSecret()
+	if err != nil {
+		return "", err
+	}
 	if issuedAt.IsZero() {
 		issuedAt = time.Now()
 	}
 	uidStr := fmt.Sprintf("%d", userID)
 	issuedStr := strconv.FormatInt(issuedAt.Unix(), 10)
-	mac := hmac.New(sha256.New, sessionSecret)
+	mac := hmac.New(sha256.New, secret)
 	mac.Write([]byte(uidStr))
 	mac.Write([]byte{'.'})
 	mac.Write([]byte(issuedStr))
 	sig := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
-	return uidStr + "." + issuedStr + "." + sig
+	return uidStr + "." + issuedStr + "." + sig, nil
 }
 
 // ValidateSessionToken verifies the signature of a token produced by
