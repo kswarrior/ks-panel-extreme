@@ -598,6 +598,7 @@ const InstancePageStudio: React.FC = () => {
   const applyStarter = async (s: PageStarter) => {
     const hasContent = Boolean((page.content_html ?? '') || (page.content_markdown ?? '') || (page.content_blocks ?? ''));
     if (hasContent && !(await confirm({ title: 'Apply template', message: `Replace the current draft with the "${s.name}" template?`, tone: 'warning', confirmLabel: 'Replace' }))) return;
+    const type = s.contentType ?? 'html';
     setPage((p) => ({
       ...p,
       name: p.name || s.name,
@@ -605,15 +606,20 @@ const InstancePageStudio: React.FC = () => {
       category: p.category || s.category,
       description: s.description,
       icon_svg: s.iconSvg,
-      content_type: 'html',
-      content_html: s.html,
-      content_markdown: '',
-      content_blocks: '',
+      content_type: type,
+      content_html: type === 'html' ? s.html : '',
+      content_markdown: type === 'markdown' ? (s.markdown ?? '') : '',
+      content_blocks: type === 'blocks' ? (s.blocks ?? '') : '',
       actions: JSON.stringify(s.actions ?? []),
     }));
     // Load the template's saved actions into the Actions tab (blank row when
     // the template ships none).
     setActions(defsToActions(JSON.stringify(s.actions ?? [])));
+    if (s.subPages) {
+      setSubs(subRowsFromJSON(JSON.stringify(s.subPages)));
+      setEditingSubId(null);
+      setPreviewTarget('main');
+    }
     setNotice(
       s.actions?.length
         ? `Template "${s.name}" applied — full code loaded in Content and ${s.actions.length} saved action(s) in Actions.`
