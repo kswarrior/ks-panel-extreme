@@ -34,6 +34,7 @@ import {
   modCapabilityMeta,
   modSourceMeta,
 } from '@/shared/types/mod';
+import { useConfirm } from '@/shared/stores/confirmStore';
 
 // resolve the human-facing label for a capability code on a card chip / the
 // approval checklist. Falls back to the raw code when the manifest shipped an
@@ -49,6 +50,7 @@ const CapDot: React.FC<{ capability: string }> = ({ capability }) => {
 
 const Mods: React.FC = () => {
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const [mods, setMods] = useState<Mod[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -121,7 +123,7 @@ const Mods: React.FC = () => {
   const toggleEngine = async () => {
     if (!engine) return;
     const next = !engine.enabled;
-    if (!next && !confirm('Disable the mod engine? Every running mod runtime stops immediately. Mods stay installed and re-activate explicitly once the engine is re-enabled.')) return;
+    if (!next && !(await confirm({ title: 'Disable mod engine', message: 'Disable the mod engine? Every running mod runtime stops immediately. Mods stay installed and re-activate explicitly once the engine is re-enabled.', tone: 'warning', confirmLabel: 'Disable' }))) return;
     setEngineBusy(true);
     try {
       await setEngineEnabled(next);
@@ -348,7 +350,7 @@ const Mods: React.FC = () => {
   };
 
   const stop = async (m: Mod) => {
-    if (!confirm(`Deactivate mod "${m.name}"? It stops running but stays installed.`)) return;
+    if (!(await confirm({ title: 'Deactivate mod', message: `Deactivate mod "${m.name}"? It stops running but stays installed.`, tone: 'warning', confirmLabel: 'Deactivate' }))) return;
     try { await deactivateMod(m.id); await load(); }
     catch (e: any) { alert(extractApiErrorMessage(e, 'Failed to deactivate')); }
   };
@@ -369,7 +371,7 @@ const Mods: React.FC = () => {
   };
 
   const remove = async (m: Mod) => {
-    if (!confirm(`Delete mod "${m.name}"? This removes it permanently.`)) return;
+    if (!(await confirm({ title: 'Delete mod', message: `Delete mod "${m.name}"? This removes it permanently.`, tone: 'danger', confirmLabel: 'Delete' }))) return;
     setDeletingId(m.id);
     try { await deleteMod(m.id); await load(); }
     catch (e: any) { alert(extractApiErrorMessage(e, 'Failed to delete')); }
