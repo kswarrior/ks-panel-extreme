@@ -12,9 +12,9 @@
 --   health_timeout   INTEGER NOT NULL DEFAULT 4   -- seconds to wait per probe
 --   health_retries   INTEGER NOT NULL DEFAULT 3   -- failed attempts -> down
 --   skip_tls_verify  INTEGER NOT NULL DEFAULT 0   -- per-node self-signed edge
---   notes            TEXT    NOT NULL DEFAULT ''  -- operator free-text
---   install_dir      TEXT    NOT NULL DEFAULT ''  -- local edge install path
---   allowed_kinds    TEXT    NOT NULL DEFAULT ''  -- comma-locked deploy kinds
+--   notes            TEXT    NOT NULL DEFAULT ('')  -- operator free-text
+--   install_dir      TEXT    NOT NULL DEFAULT ('')  -- local edge install path
+--   allowed_kinds    TEXT    NOT NULL DEFAULT ('')  -- comma-locked deploy kinds
 --
 -- Kept as one ALTER-per-column so a partially-applied migration converges
 -- without "duplicate column name" errors (mirrors 010/014/018).
@@ -24,8 +24,8 @@ ALTER TABLE nodes ADD COLUMN health_interval INTEGER NOT NULL DEFAULT 60;
 ALTER TABLE nodes ADD COLUMN health_timeout INTEGER NOT NULL DEFAULT 4;
 ALTER TABLE nodes ADD COLUMN health_retries INTEGER NOT NULL DEFAULT 3;
 ALTER TABLE nodes ADD COLUMN skip_tls_verify INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE nodes ADD COLUMN notes TEXT NOT NULL DEFAULT '';
-ALTER TABLE nodes ADD COLUMN install_dir TEXT NOT NULL DEFAULT '';
-ALTER TABLE nodes ADD COLUMN allowed_kinds TEXT NOT NULL DEFAULT '';
+ALTER TABLE nodes ADD COLUMN notes TEXT NOT NULL DEFAULT ('');
+ALTER TABLE nodes ADD COLUMN install_dir TEXT NOT NULL DEFAULT ('');
+ALTER TABLE nodes ADD COLUMN allowed_kinds TEXT NOT NULL DEFAULT ('');
 ALTER TABLE nodes ADD COLUMN probe_fail_count INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE nodes ADD COLUMN next_probe_at DATETIME;

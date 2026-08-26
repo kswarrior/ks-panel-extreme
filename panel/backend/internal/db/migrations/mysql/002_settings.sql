@@ -3,7 +3,7 @@
 -- settings live in a small KV table.
 
 CREATE TABLE IF NOT EXISTS settings (
-    key   TEXT PRIMARY KEY,
+    `key`   TEXT
     value TEXT NOT NULL
 );
 
@@ -11,4 +11,4 @@ CREATE TABLE IF NOT EXISTS settings (
 -- Use 'KS Panel' as the initial brand per the requirement to differentiate from
 -- the older "kspanel" branding; admins can change it any time from the
 -- Settings page (or via API).
-INSERT IGNORE INTO settings (key, value) VALUES ('panel_name', 'KS Panel');
+INSERT IGNORE INTO settings (`key`, value) VALUES ('panel_name', 'KS Panel');

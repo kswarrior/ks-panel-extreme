@@ -27,6 +27,6 @@
 --                          key already; we re-seed it here under a new
 --                          name so the migration only inserts keys it owns).
 
-INSERT IGNORE INTO settings (key, value) VALUES ('security_requests_per_minute_limit', '600');
-INSERT IGNORE INTO settings (key, value) VALUES ('security_window_seconds_limit', '60');
-INSERT IGNORE INTO settings (key, value) VALUES ('security_global_rpm_limit', '0');
+INSERT IGNORE INTO settings (`key`, value) VALUES ('security_requests_per_minute_limit', '600');
+INSERT IGNORE INTO settings (`key`, value) VALUES ('security_window_seconds_limit', '60');
+INSERT IGNORE INTO settings (`key`, value) VALUES ('security_global_rpm_limit', '0');
