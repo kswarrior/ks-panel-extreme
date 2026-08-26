@@ -9,6 +9,7 @@ import GlassCard from '@/shared/components/ui/Card';
 import { useAuthStore } from '@/shared/stores/authStore';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import { PermissionKey } from '@/shared/types/permissions';
+import { useConfirm } from '@/shared/stores/confirmStore';
 
 type StatusBucket = 'running' | 'attention' | 'stopped';
 
@@ -95,6 +96,7 @@ const EmptyStateIllustration: React.FC = () => (
 
 const Instances: React.FC = () => {
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const [instances, setInstances] = useState<Instance[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -158,7 +160,7 @@ const Instances: React.FC = () => {
   }, [instances]);
 
   const deleteInstanceHandle = async (id: number) => {
-    if (!confirm('Delete this instance? This action cannot be undone.')) return;
+    if (!(await confirm({ title: 'Delete instance', message: 'Delete this instance? This action cannot be undone.', tone: 'danger', confirmLabel: 'Delete' }))) return;
     setDeletingId(id);
     try {
       await destroyInstance(id);
