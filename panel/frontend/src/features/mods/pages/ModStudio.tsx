@@ -16,6 +16,7 @@ import {
 } from '@/shared/types/mod';
 import { createModFromStudio, installModFromUrl, extractApiErrorMessage } from '@/features/mods/api/mods';
 import { MOD_STUDIO_PRESETS } from './modStudioPresets';
+import { useConfirm } from '@/shared/stores/confirmStore';
 
 // ---------------------------------------------------------------------------
 // ModStudio — a visual + code manifest builder.
@@ -155,6 +156,7 @@ const Select: React.FC<{
 
 const ModStudio: React.FC = () => {
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const [draft, setDraft] = useState<ModStudioDraft>(blankModStudioDraft);
   const [tab, setTab] = useState<Tab>('meta');
   const [raw, setRaw] = useState<string>('');
@@ -337,15 +339,15 @@ const ModStudio: React.FC = () => {
   }, []);
 
   // ---- reset --------------------------------------------------------------
-  const reset = useCallback(() => {
-    if (!confirm('Discard the current draft and start over?')) return;
+  const reset = useCallback(async () => {
+    if (!(await confirm({ title: 'Reset draft', message: 'Discard the current draft and start over?', tone: 'warning', confirmLabel: 'Discard' }))) return;
     setDraft(blankModStudioDraft());
     setTab('meta');
     setShowPresets(true);
     setInstallError('');
     setInstallOk('');
     setRawError('');
-  }, []);
+  }, [confirm]);
 
   return (
     <div className="space-y-4">
