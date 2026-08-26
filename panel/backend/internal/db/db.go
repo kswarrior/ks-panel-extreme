@@ -900,7 +900,7 @@ func SeedCore(d Dialect, db *sql.DB) error {
 
 	// Page-level capability keys (the umbrella MANAGE_* group + granular
 	// CRUD verbs). Every page in the panel maps to one of these keys.
-	if _, err := db.Exec(translateSeedInsert(prefix, pgConflict, `(key, description) VALUES
+	if _, err := db.Exec(translateSeedInsert(prefix, pgConflict, fmt.Sprintf(`(%s, description) VALUES
 		('VIEW_INSTANCES', 'View instances page'),
 		('VIEW_ACCOUNT', 'View own account page'),
 		('ACCESS_ADMIN_PANEL', 'Open the admin area'),
@@ -920,10 +920,10 @@ func SeedCore(d Dialect, db *sql.DB) error {
 		('USE_GLOBAL_THEMES', 'Assign an existing GLOBAL theme to a page / area (affects everyone)'),
 		('CREATE_GLOBAL_THEMES', 'Publish new GLOBAL themes onto the server (every user sees them)'),
 		('EDIT_THEMES', 'Rename / re-spec existing themes in the Theme Studio'),
-		('ASSIGN_THEMES', 'Bind a theme to a page or an area (the "Apply to" action)')`, "permissions")); err != nil {
+		('ASSIGN_THEMES', 'Bind a theme to a page or an area (the "Apply to" action)')`, keyCol), "permissions")); err != nil {
 		return err
 	}
-	if _, err := db.Exec(translateSeedInsert(prefix, pgConflict, `(key, description) VALUES
+	if _, err := db.Exec(translateSeedInsert(prefix, pgConflict, fmt.Sprintf(`(%s, description) VALUES
 		('USERS_VIEW', 'View the users list (admin area)'),
 		('USERS_CREATE', 'Create a new user account'),
 		('USERS_EDIT', 'Edit an existing user account'),
@@ -957,23 +957,23 @@ func SeedCore(d Dialect, db *sql.DB) error {
 		('APPLICATIONS_EDIT', 'Edit an Application and approve its requested capabilities'),
 		('APPLICATIONS_DELETE', 'Remove an Application from the catalog'),
 		('SETTINGS_VIEW', 'View the panel settings page'),
-		('SETTINGS_EDIT', 'Change panel settings and upload logo')`, "permissions")); err != nil {
+		('SETTINGS_EDIT', 'Change panel settings and upload logo')`, keyCol), "permissions")); err != nil {
 		return err
 	}
-	if _, err := db.Exec(translateSeedInsert(prefix, pgConflict, `(key, description) VALUES
+	if _, err := db.Exec(translateSeedInsert(prefix, pgConflict, fmt.Sprintf(`(%s, description) VALUES
 		('ACCOUNT_EDIT_BANNER', 'Upload / replace / remove the profile banner image'),
 		('ACCOUNT_EDIT_ABOUT', 'Edit the About Me bio, display name and pronouns'),
 		('ACCOUNT_EDIT_ACCENT', 'Change the profile accent colour'),
 		('ACCOUNT_USE_AVATAR_SYMBOL', 'Pick a default avatar symbol when no picture is uploaded'),
-		('ACCOUNT_UPLOAD_AVATAR', 'Upload / replace / remove the avatar image')`, "permissions")); err != nil {
+		('ACCOUNT_UPLOAD_AVATAR', 'Upload / replace / remove the avatar image')`, keyCol), "permissions")); err != nil {
 		return err
 	}
-	if _, err := db.Exec(translateSeedInsert(prefix, pgConflict, `(key, description) VALUES
-		('MANAGE_PANEL_UPDATE', 'Check for and apply panel updates (downloads a new binary, replaces the running one and restarts the panel)')`, "permissions")); err != nil {
+	if _, err := db.Exec(translateSeedInsert(prefix, pgConflict, fmt.Sprintf(`(%s, description) VALUES
+		('MANAGE_PANEL_UPDATE', 'Check for and apply panel updates (downloads a new binary, replaces the running one and restarts the panel)')`, keyCol), "permissions")); err != nil {
 		return err
 	}
 	// Keep the MANAGE_THEMES description current on legacy installs.
-	if _, err := db.Exec(`UPDATE permissions SET description = 'Manage the theme system (umbrella key – enables the theme surface for a role)' WHERE key = 'MANAGE_THEMES'`); err != nil {
+	if _, err := db.Exec(fmt.Sprintf(`UPDATE permissions SET description = 'Manage the theme system (umbrella key – enables the theme surface for a role)' WHERE %s = 'MANAGE_THEMES'`, keyCol)); err != nil {
 		return err
 	}
 	// Default roles, in deterministic INSERT order (preserves existing IDs).
@@ -999,20 +999,20 @@ func SeedCore(d Dialect, db *sql.DB) error {
 		SELECT r.id, p.id FROM roles r, permissions p WHERE r.name='admin'`, "role_permissions")); err != nil {
 		return err
 	}
-	if _, err := db.Exec(translateSeedInsert(prefix, pgConflict, `(role_id, permission_id)
+	if _, err := db.Exec(translateSeedInsert(prefix, pgConflict, fmt.Sprintf(`(role_id, permission_id)
 		SELECT r.id, p.id FROM roles r, permissions p
-		WHERE r.name='moderator' AND p.key IN ('VIEW_INSTANCES', 'VIEW_ACCOUNT', 'VIEW_SETTINGS', 'MANAGE_THEMES', 'MANAGE_MODS', 'MANAGE_APPLICATIONS', 'USE_APPLICATIONS',
+		WHERE r.name='moderator' AND p.%s IN ('VIEW_INSTANCES', 'VIEW_ACCOUNT', 'VIEW_SETTINGS', 'MANAGE_THEMES', 'MANAGE_MODS', 'MANAGE_APPLICATIONS', 'USE_APPLICATIONS',
 		'APPLICATIONS_VIEW', 'APPLICATIONS_CREATE', 'APPLICATIONS_EDIT',
 		'USE_LOCAL_THEMES', 'USE_GLOBAL_THEMES', 'ASSIGN_THEMES',
 		'ACCOUNT_EDIT_BANNER', 'ACCOUNT_EDIT_ABOUT', 'ACCOUNT_EDIT_ACCENT',
-		'ACCOUNT_USE_AVATAR_SYMBOL', 'ACCOUNT_UPLOAD_AVATAR')`, "role_permissions")); err != nil {
+		'ACCOUNT_USE_AVATAR_SYMBOL', 'ACCOUNT_UPLOAD_AVATAR')`, keyCol), "role_permissions")); err != nil {
 		return err
 	}
-	if _, err := db.Exec(translateSeedInsert(prefix, pgConflict, `(role_id, permission_id)
+	if _, err := db.Exec(translateSeedInsert(prefix, pgConflict, fmt.Sprintf(`(role_id, permission_id)
 		SELECT r.id, p.id FROM roles r, permissions p
-		WHERE r.name='user' AND p.key IN ('VIEW_INSTANCES', 'VIEW_ACCOUNT', 'USE_APPLICATIONS',
+		WHERE r.name='user' AND p.%s IN ('VIEW_INSTANCES', 'VIEW_ACCOUNT', 'USE_APPLICATIONS',
 		'ACCOUNT_EDIT_BANNER', 'ACCOUNT_EDIT_ABOUT', 'ACCOUNT_EDIT_ACCENT',
-		'ACCOUNT_USE_AVATAR_SYMBOL', 'ACCOUNT_UPLOAD_AVATAR')`, "role_permissions")); err != nil {
+		'ACCOUNT_USE_AVATAR_SYMBOL', 'ACCOUNT_UPLOAD_AVATAR')`, keyCol), "role_permissions")); err != nil {
 		return err
 	}
 	return nil
