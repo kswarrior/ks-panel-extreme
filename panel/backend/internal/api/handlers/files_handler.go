@@ -577,7 +577,7 @@ func fetchBytesFromURL(ctx context.Context, raw string) (*url.URL, []byte, strin
 	// the connection away from the validated ones.
 	dialCtx, cancelDial := context.WithTimeout(ctx, filesURLFetchTimeout)
 	defer cancelDial()
-	port := filesPortFromHost(u.Host)
+	port := filesPortFromHost(u)
 	transport := &http.Transport{
 		Proxy:                 http.ProxyFromEnvironment,
 		ResponseHeaderTimeout: filesURLFetchDialTimeout,
@@ -630,13 +630,16 @@ func fetchBytesFromURL(ctx context.Context, raw string) (*url.URL, []byte, strin
 	return u, body, contentType, nil
 }
 
-// filesPortFromHost extracts the port from a host:port string, defaulting
-// to 443 for https URLs (which omit the port) and 80 for http. url.Parse
-// stores the host as "[::1]:8080" for IPv6 literals; net.SplitHostPort
-// handles both shapes.
-func filesPortFromHost(hostport string) string {
-	if _, port, err := net.SplitHostPort(hostport); err == nil && port != "" {
+// filesPortFromHost extracts the port from a URL, defaulting to 443 for
+// https URLs (which omit the port) and 80 for http. url.Parse stores the
+// host as "[::1]:8080" for IPv6 literals; net.SplitHostPort handles both
+// shapes.
+func filesPortFromHost(u *url.URL) string {
+	if _, port, err := net.SplitHostPort(u.Host); err == nil && port != "" {
 		return port
+	}
+	if strings.EqualFold(u.Scheme, "https") {
+		return "443"
 	}
 	return "80"
 }
