@@ -4,6 +4,7 @@ import { listTemplates, downloadTemplate, listInstances, deleteTemplate } from '
 import type { Template } from '@/shared/types/instance';
 import GlassCard from '@/shared/components/ui/Card';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
+import { useConfirm } from '@/shared/stores/confirmStore';
 
 function getErrorMessage(e: any, fallback: string): string {
   const data = e?.response?.data;
@@ -55,6 +56,7 @@ function kindMeta(kind: string) {
 const TemplateDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const [template, setTemplate] = useState<Template | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -139,7 +141,7 @@ const TemplateDetail: React.FC = () => {
 
   const handleDelete = async () => {
     if (!template) return;
-    if (!confirm(`Delete template "${template.name}"? This cannot be undone.`)) return;
+    if (!(await confirm({ title: 'Delete template', message: `Delete template "${template.name}"? This cannot be undone.`, tone: 'danger', confirmLabel: 'Delete' }))) return;
     setDeleting(true);
     try {
       await deleteTemplate(template.id);
