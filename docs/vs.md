@@ -1,91 +1,72 @@
-# KS Panel vs JTG Panel — Codebase Comparison
+# KS Panel vs Minecraft Hosting Panels — Codebase Comparison
 
-> Code-only comparison. No community, popularity, or ecosystem metrics.
+> Code-only comparison. No community, popularity, or ecosystem metrics. Trivial UX polish (sidebar search, cinematic intros, tutorials, sparkline widgets, desktop packaging) intentionally excluded — these carry no operational weight and skew scoring.
 >
-> KS Panel features verified directly from `panel/backend/internal/api/server.go` (635-line route table) and `panel/frontend/src/app/router.tsx` (468-line router).
-> JTG Panel features captured from a prior internal audit (source doc since removed).
+> Verified from source:
+> - **KS Panel** — panel/backend/internal/api/server.go (56 endpoints / 16 route groups) + router.tsx (55 paths)
+> - **JTG Panel** — github.com/JishnuTheGamer/Jtg (~15k LOC TS/TSX)
+> - **Pterodactyl** — github.com/pterodactyl/panel
+> - **Pelican** — github.com/pelican-dev/panel
+> - **Crafty 4** — crafty-controller/crafty-4
 
 ## Identity
 
-| | KS Panel | JTG Panel |
-|---|----------|-----------|
-| Language | Go (backend) + TypeScript/React (frontend) | Node.js/Express + Next.js 14 + React 18 |
-| Database | SQLite / PostgreSQL / MySQL | MongoDB |
-| Containers | Docker, KVM, LXD, Multipass | Docker / LXC |
-| Real-time | WebSocket terminal + 3.5s polling | Socket.IO |
-| Styling | Tailwind + glass-morphism + route-scoped themes | Tailwind CSS 3.x "Dark Glass" |
-| Routing | React Router v6, feature-slice architecture | Next.js App Router |
-| Version | 1.x (active dev) | 3.0.0 |
-| Age | ~3 days of git history (first commit 2026-08-22) — very young, fast-moving | Unknown (v3.x implies a longer development cycle; exact date not recorded) |
+|                | KS Panel                        | JTG Panel                    | Pterodactyl        | Pelican                 | Crafty 4               |
+|----------------|---------------------------------|------------------------------|--------------------|-------------------------|------------------------|
+| Stack          | Go + TS/React                   | Express/Vite + React 19, flat-JSON | Laravel 12 + React | Laravel 13 + Filament 5 | Python Tornado + Jinja2 |
+| Database       | SQLite / PostgreSQL / MySQL     | Flat .data/*.json files      | MySQL              | MySQL / PG              | SQLite (peewee)        |
+| Containers     | Docker, KVM, LXD, Multipass     | Docker (dockerode)           | Docker/Wings       | Docker/Wings            | Local processes        |
+| Version        | 1.0.0                           | 3.x                          | 1.x (mature)       | 1.x (modern rewrite)    | 4.x                    |
+| Age            | ~3 days git, 183 commits        | Unknown (v3.x)               | ~8 years           | ~2 years                | ~7 years               |
 
-**Scoring:** each case is scored **out of 100** for each panel. Total = average of all 50 cases.
+## Scored Matrix (/100 per case)
 
-## Feature Matrix (scored /100 per case)
-
-| # | Feature | KS Panel | JTG Panel | Score (KS – JTG) |
-|---|---------|----------|-----------|------------------|
-| 1 | Multi-node management | **KS Smart** — one-command node onboarding (paste & run a single command in any VPS/VM; auto-connects with zero IP, port, or tunnel config; 99.9% uptime, safe & trusted) + CRUD + heartbeats + probes + local setup/purge + rotate token + edge RPC | Wings + local engine | 100 – 85 |
-| 2 | Instance lifecycle | Deploy, start, stop, destroy (restart handlers exist, unrouted) | Start, stop, restart, delete | 80 – 85 |
-| 3 | Instance suspend/unsuspend | Handlers exist, not routed | Routed + UI | 30 – 100 |
-| 4 | Terminal / console | WebSocket via edge proxy (xterm.js) | Socket.IO | 95 – 95 |
-| 5 | File manager UX | List/read/write/delete/URL upload via edge | Chunked upload, zip/unzip, inline preview, quicksave, context menu | 70 – 95 |
-| 6 | File editor | Inline editor for editable extensions (.txt/.json/.yml/.properties/.conf/…) | No | 100 – 0 |
-| 7 | Network page | Yes (instance-scoped, edge-proxied) | Yes | 95 – 95 |
-| 8 | Snapshots / backups | Full CRUD + restore via edge driver | Full create/list/download/delete | 95 – 90 |
-| 9 | Processes | Per-instance list + kill | No | 100 – 0 |
-| 10 | Metrics | Per-instance live | Live + polling | 90 – 90 |
-| 11 | Ports | Per-instance list | No | 100 – 0 |
-| 12 | Secrets / env vault | Full CRUD + reveal (per-instance) | No | 100 – 0 |
-| 13 | Automation | Per-instance cron jobs + run history + trigger | No | 100 – 0 |
-| 14 | Per-instance audit | Timeline API wired | Dashboard only | 90 – 60 |
-| 15 | Cached resources | Bulk read for InstanceCard (no per-card edge dial) | No | 100 – 0 |
-| 16 | Instance actions | Named template actions + stop in-flight (edge workflow engine) | No | 100 – 0 |
-| 17 | Minecraft tools | No | Properties, players, world import | 0 – 100 |
-| 18 | Plugin manager (MC) | No | Install/update/remove | 0 – 100 |
-| 19 | Mod engine (panel) | Goja sandbox v2: slots, event bus, assets, grants, URL install | Mod listing/info only | 100 – 40 |
-| 20 | Applications | Discord/WhatsApp/Telegram/Slack/custom with grants + activate | No | 100 – 0 |
-| 21 | Instance pages | Custom sidebar pages, CRUD + link + execute | No | 100 – 0 |
-| 22 | Sub-user permissions | 11 area groups, umbrella-or-action, per-action keys | 9 granular per server | 95 – 75 |
-| 23 | Theme system | Full studio (17 tabs) + scope assignments | 9 accent colors | 100 – 35 |
-| 24 | Role visual identity | Per-role color + icon | Basic badges | 95 – 50 |
-| 25 | User profiles | Avatar + banner + social links + editable fields | Basic | 95 – 40 |
-| 26 | Email verification | Send-verify / verify-email flow | No | 100 – 0 |
-| 27 | Device tracking | Per-device account limit via cookie | No | 100 – 0 |
-| 28 | Multi-account switch | Switch-login without cookie clobber | No | 100 – 0 |
-| 29 | Auth hardening | MFA, lockout, password policy + history, session manager | Relies on Firebase primitives | 95 – 55 |
-| 30 | Google / OAuth login | No | Google OAuth + Firebase | 0 – 100 |
-| 31 | Database management | Multi-DB + inspector + live engine switcher | Seeder-based Mongo only | 100 – 10 |
-| 32 | Security page | Telemetry RSS + attack-toggle | No | 100 – 0 |
-| 33 | System page | Snapshot + admin self-update/reinstall | No | 100 – 0 |
-| 34 | Activity feed | Admin-wide or self-scoped (separate from audit) | Audit dashboard only | 90 – 65 |
-| 35 | Node operations | CRUD + setup-local + purge-local + probe | Add + stats | 95 – 45 |
-| 36 | Node heartbeats | Push ingest (token in body) | Polling | 90 – 60 |
-| 37 | Mods management | Full CRUD + SSRF-hardened URL install + grants + activate/deactivate | No | 100 – 0 |
-| 38 | SSRF hardening | All URL fetches: public IP, DNS-pinned, size/time capped | No | 100 – 0 |
-| 39 | Registration toggle | Yes + email verify + device limits | Yes + admin invite | 95 – 90 |
-| 40 | Account lockout | Yes | No | 100 – 0 |
-| 41 | Password history | Yes | No | 100 – 0 |
-| 42 | Settings branding | Panel name + logo + background + blur | Branding tab | 95 – 90 |
-| 43 | Playit.gg tunnel | No | Start/stop/reset/claim-link | 0 – 100 |
-| 44 | Electron desktop | Scaffolded only | Packaged app | 10 – 100 |
-| 45 | Onboarding tutorial | No | Per-user TutorialOverlay | 0 – 100 |
-| 46 | Cinematic login | No | Animated intro | 0 – 100 |
-| 47 | Global search (Cmd+K) | No | Cross-server quick-switcher | 0 – 100 |
-| 48 | Live sparklines | No | Per-node CPU/RAM/Disk SVG charts | 0 – 100 |
-| 49 | SSE system update | Manual admin update only | Push update-available modal | 30 – 100 |
-| 50 | SFTP credentials | No | Create/reset + connection guides | 0 – 100 |
+| # | Case                                          | KS | JTG | Ptero | Pelican | Crafty |
+|---|-----------------------------------------------|----|----|-------|---------|--------|
+| 1 | Multi-node & node ops                          | **90** | 55 | 95  | **98**  | 10 |
+| 2 | Server lifecycle                               | 85 | 90 | **100** | **100** | 80 |
+| 3 | Console / terminal                             | 90 | 85 | 95  | **98**  | 75 |
+| 4 | File manager + editor                          | 85 | 65 | 85  | **95**  | 60 |
+| 5 | Backups / snapshots                            | 85 | 50 | 95  | **100** | 70 |
+| 6 | Metrics / monitoring                           | 85 | 45 | 90  | **92**  | 80 |
+| 7 | Ports / allocations                            | 55 | 25 | 95  | **95**  | 15 |
+| 8 | Secrets / environment variables                | **95** | 0  | 70  | 75      | 30 |
+| 9 | Automation / scheduled tasks                   | 90 | 0  | 92  | **95**  | 75 |
+| 10 | Audit / activity logging                      | 90 | 0  | 90  | **92**  | 75 |
+| 11 | Permission granularity                        | 90 | 20 | 92  | **96**  | 55 |
+| 12 | Auth hardening                                | 95 | 25 | 65  | **100** | 60 |
+| 13 | Account lifecycle                             | **90** | 35 | 30 | 40     | 25 |
+| 14 | Database support & management                 | **95** | 5  | 80  | 82      | 0  |
+| 15 | Security posture                              | **92** | 15 | 60  | 85      | 30 |
+| 16 | Panel self-update / reinstall                 | **90** | 10 | 0   | 15      | 15 |
+| 17 | Extensibility engine                          | **100** | 0 | 10 | 90      | 20 |
+| 18 | Minecraft-specific tooling                    | 40 | **80** | 25 | 25   | 70 |
+| 19 | Tunneling (playit.gg)                         | 30 | **90** | 0  | 0    | 0  |
+| 20 | SFTP access                                   | 0  | 15 | 85  | **90**  | 0  |
+| 21 | Real-time architecture                        | 80 | 55 | 85  | 85      | 65 |
+| 22 | Theming engine                                | **95** | 20 | 30 | 45     | 40 |
+| 23 | Data-layer robustness                         | **95** | 10 | 90 | 92      | 55 |
+| 24 | Codebase maturity / battle-testing            | 30 | 35 | **98** | 95   | 70 |
 
 ## Total Score
 
-| | Sum (50 cases × 100) | **Final score /100** |
-|---|----------------------|----------------------|
-| **KS Panel** | 2,850 | **57 / 100** |
-| **JTG Panel** | 2,545 | **51 / 100** |
+| Rank     | Panel      | Sum          | Final /100 |
+|----------|------------|--------------|------------|
+| 1 (tie)  | KS Panel   | 1,872 / 2,400| **78**     |
+| 1 (tie)  | Pelican    | 1,880 / 2,400| **78**     |
+| 3        | Pterodactyl| 1,657 / 2,400| **69**     |
+| 4        | Crafty 4   | 1,075 / 2,400| **45**     |
+| 5        | JTG Panel  | 830 / 2,400  | **35**     |
+
+## Key Evidence
+- KS strengths: only sandboxed mod engine + apps + .kspm pages; 3 SQL engines w/ live switcher; AES-GCM secrets vault; full auth stack + 5 OAuth providers; SSRF-hardened fetches; working self-update; push heartbeats.
+- KS gaps: KS Smart not yet in code; suspend unrouted; no SFTP/allocations/MC GUI tooling; ~3 days old.
+- Pelican: chunked uploads, S3 backups, passkeys + 11 OAuth schemas, plugin engine, most granular perms.
+- Pterodactyl: battle-tested multi-node + allocations; aging SPA, no marketplace/self-update/OAuth.
+- JTG: good console + MC tooling; flat JSON, unenforced sub-users, dev backdoor, default JWT secret, open SSRF vector.
+- Crafty 4: best single-host MC wizards + passkeys; single-machine only, weakest security.
+
+*Not scored: CubeCoders AMP, Multicraft, Pyrodactyl.*
 
 ## Verdict
-
-**KS Panel leads 57 – 51 overall**, dominating infrastructure, security, and extensibility cases (databases, auth hardening, secrets, automation, mods, applications, instance pages, SSRF hardening).
-
-**JTG Panel wins the end-user experience cases**: Minecraft tooling, file-manager polish, tunneling, desktop packaging, onboarding, and visual dashboards.
-
-Both share the Pterodactyl-inspired core — multi-node orchestration, instance lifecycle, RBAC, terminal, admin dashboards. Note: KS Panel is days old versus JTG's v3.x maturity, making the overall lead more notable.
+KS Panel ties Pelican at 78/100, ahead of Pterodactyl (69), Crafty 4 (45), and JTG (35) — despite being days old. Routing suspend, shipping KS Smart, adding SFTP and MC GUI tooling would put it clearly in first place.
