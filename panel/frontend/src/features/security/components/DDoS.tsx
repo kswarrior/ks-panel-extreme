@@ -4,6 +4,7 @@ import type { SecuritySnapshot as SecuritySnapshotT, SecurityConfig, DDOSBackgro
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import NumberInput from '@/shared/components/ui/NumberInput';
 import ToggleRow from '@/shared/components/ui/ToggleRow';
+import { useConfirm } from '@/shared/stores/confirmStore';
 
 interface DDoSProps {
   initialSnapshot?: SecuritySnapshotT | null;
@@ -35,6 +36,7 @@ const DDoS: React.FC<DDoSProps> = ({
   onConfigChange,
   onAttackToggle,
 }) => {
+  const confirm = useConfirm();
   const [snap, setSnap] = useState<SecuritySnapshotT | null>(initialSnapshot ?? null);
   const [loading, setLoading] = useState(!initialSnapshot);
   const [configLoading, setConfigLoading] = useState(!initialConfig);
@@ -152,7 +154,7 @@ const DDoS: React.FC<DDoSProps> = ({
   };
 
   const handleDDOSReset = async () => {
-    if (!confirm('Reset DDoS auto-stop count and cooldown? This will re-enable auto-stop if it was disabled due to max count reached.')) {
+    if (!(await confirm({ title: 'Reset DDoS state', message: 'Reset DDoS auto-stop count and cooldown? This will re-enable auto-stop if it was disabled due to max count reached.', tone: 'warning', confirmLabel: 'Reset' }))) {
       return;
     }
     setActionError('');
@@ -175,7 +177,7 @@ const DDoS: React.FC<DDoSProps> = ({
   // `launch --port <alt> --type ddos`, so that port is NOT saved as the
   // last port and a normal restart returns to the original one.
   const handleTestReaction = async () => {
-    if (!confirm(`Run ddos.sh? The panel will STOP and come back on :${ddosAltPort}. The alternate port is temporary — a normal restart returns to the original port.`)) {
+    if (!(await confirm({ title: 'Run ddos.sh', message: `Run ddos.sh? The panel will STOP and come back on :${ddosAltPort}. The alternate port is temporary — a normal restart returns to the original port.`, tone: 'warning', confirmLabel: 'Run' }))) {
       return;
     }
     setActionError('');

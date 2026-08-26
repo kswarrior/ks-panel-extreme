@@ -28,6 +28,7 @@ import {
   appRuntimeMeta,
   ApplicationConfigField,
 } from '@/features/applications/types/application';
+import { useConfirm } from '@/shared/stores/confirmStore';
 import ApplicationStudioTab from '@/features/applications/components/ApplicationStudioTab';
 import ApplicationRunModal from '@/features/applications/components/ApplicationRunModal';
 
@@ -74,6 +75,7 @@ const RuntimeChip: React.FC<{ runtime: string }> = ({ runtime }) => {
 
 const Applications: React.FC = () => {
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const [apps, setApps] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -335,7 +337,7 @@ const Applications: React.FC = () => {
   };
 
   const stop = async (a: Application) => {
-    if (!confirm(`Deactivate application "${a.name}"? It stops being available for new installs but existing installations keep running.`)) return;
+    if (!(await confirm({ title: 'Deactivate application', message: `Deactivate application "${a.name}"? It stops being available for new installs but existing installations keep running.`, tone: 'warning', confirmLabel: 'Deactivate' }))) return;
     try { await deactivateApplication(a.id); await load(); }
     catch (e: any) { alert(e?.response?.data || 'Failed to deactivate'); }
   };
@@ -354,7 +356,7 @@ const Applications: React.FC = () => {
   };
 
   const remove = async (a: Application) => {
-    if (!confirm(`Delete application "${a.name}"? This removes it permanently and all its permission rows.`)) return;
+    if (!(await confirm({ title: 'Delete application', message: `Delete application "${a.name}"? This removes it permanently and all its permission rows.`, tone: 'danger', confirmLabel: 'Delete' }))) return;
     setDeletingId(a.id);
     try { await deleteApplication(a.id); await load(); }
     catch (e: any) { alert(e?.response?.data || 'Failed to delete'); }
