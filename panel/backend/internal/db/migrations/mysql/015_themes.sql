@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS themes (
     description TEXT    NOT NULL DEFAULT (''),
     spec        TEXT    NOT NULL,             -- JSON-encoded Theme object
     builtin     INTEGER NOT NULL DEFAULT 0,   -- 0 = user-created (the seed default lives in the frontend only)
-    created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_by  BIGINT REFERENCES users(id) ON DELETE SET NULL,
     created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

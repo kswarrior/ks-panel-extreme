@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS mods (
     manifest     TEXT    NOT NULL,                  -- full JSON manifest (opaque except permissionsRequested)
     spec         TEXT    NOT NULL DEFAULT ('{}'),     -- optional editable spec blob (e.g. page definitions)
     active       INTEGER NOT NULL DEFAULT 0,        -- 0 = inactive (installed only), 1 = active
-    uploaded_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    uploaded_by  BIGINT REFERENCES users(id) ON DELETE SET NULL,
     created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
