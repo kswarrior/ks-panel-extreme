@@ -100,7 +100,7 @@ func ValidatePassword(password string, policy *PasswordPolicy, userInfo ...strin
 
 	// Check unique characters
 	if policy.RequireUnique > 0 && len(uniqueChars) < policy.RequireUnique {
-		return errors.New("password must contain at least " + string(rune(policy.RequireUnique)) + " unique characters")
+		return errors.New("password must contain at least " + strconv.Itoa(policy.RequireUnique) + " unique characters")
 	}
 
 	// Check against common passwords if enabled
@@ -291,7 +291,7 @@ func GetPasswordFeedback(password string, policy *PasswordPolicy) []string {
 
 	// Length feedback
 	if len(password) < policy.MinLength {
-		feedback = append(feedback, "Use at least "+string(rune(policy.MinLength))+" characters")
+		feedback = append(feedback, "Use at least "+strconv.Itoa(policy.MinLength)+" characters")
 	}
 	if len(password) > policy.MaxLength {
 		feedback = append(feedback, "Password is too long")
