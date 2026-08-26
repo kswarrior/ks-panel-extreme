@@ -59,12 +59,20 @@ func TestResolveExecPayloadShellSubstitution(t *testing.T) {
 
 func TestResolveExecPayloadShellQuoteEscape(t *testing.T) {
 	def := map[string]any{"type": "shell", "command": "cat {{args}}", "open_args": true}
-	cmd, _, err := resolveExecPayload(def, "shell", "cat {{args}}", nil, []string{"it's.txt"})
+	cmd, _, err := resolveExecPayload(def, "shell", "cat {{args}}", nil, []string{"my file.txt"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if cmd != "cat 'it'\\''s.txt'" {
-		t.Fatalf("single quotes must be escaped, got %q", cmd)
+	if cmd != "cat 'my file.txt'" {
+		t.Fatalf("spaced args must land as one quoted word, got %q", cmd)
+	}
+}
+
+// Quotes never pass validActionArg, so shellQuoteArg's escaping is pure
+// defense-in-depth — prove it is still correct on its own.
+func TestShellQuoteArgEscapesApostrophe(t *testing.T) {
+	if got := shellQuoteArg("it's"); got != "'it'\\''s'" {
+		t.Fatalf("shellQuoteArg = %q", got)
 	}
 }
 

@@ -932,7 +932,7 @@ func validActionArg(s string) bool {
 	for _, r := range s {
 		switch {
 		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
-		case strings.ContainsRune(" ._/:@+=,~-", r):
+		case strings.ContainsRune(" ._/:@+=,-", r):
 		default:
 			return false
 		}
