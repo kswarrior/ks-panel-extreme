@@ -754,7 +754,7 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
   const sdkRef = useRef<ReturnType<typeof createCustomPageSDK> | null>(null);
   useEffect(() => {
     sdkRef.current = instanceContext
-      ? createCustomPageSDK(instanceContext, Array.isArray(content.actions) ? content.actions : [])
+      ? createCustomPageSDK(instanceContext, Array.isArray(content.actions) ? content.actions : [], pageSlug ?? '')
       : null;
     if (instanceContext) {
       // Also publish on window for markdown/blocks pages rendered in-host.
