@@ -122,6 +122,7 @@ Iteration ladder:
 Only after all required passes:
 bash /home/runner/work/ks-panel-extreme/ks-panel-extreme/rebuild.sh
 Read the ACTUAL output. Failure → root cause → THE LOOP → PASS 1 again.
+If any verification needs a live panel → bash retest.sh (see V7 Runtime).
 
 ## 8. Report (short, honest)
 Task type | Part(s) | Files changed | Root cause (for Fix) |
