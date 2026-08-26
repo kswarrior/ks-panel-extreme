@@ -205,10 +205,12 @@ func rebindPostgres(query string) string {
 				n = val
 			}
 			out.WriteString(string(runes[pos:j]))
-			return j
+			// Return the index of the LAST consumed digit; the loop's i++
+			// then lands on the first character after the number.
+			return j - 1
 		}
 		out.WriteRune('$')
-		return pos + 1
+		return pos
 	}
 	for i := 0; i < len(runes); i++ {
 		c := runes[i]
