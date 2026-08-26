@@ -51,8 +51,12 @@ func main() {
 	die(func() error { _, err := nr.IngestHeartbeat(hb); return err }(), "IngestHeartbeat#2(upsert)")
 
 	tr := repository.NewThemeRepository(con)
-	_, err = tr.CreateTheme(repository.UpsertThemeInput{ID: "smoke", Name: "Smoke", Description: "", Spec: []byte("{}"), CreatedBy: 1})
-	die(err, "CreateTheme")
+	if _, cerr := tr.CreateTheme(repository.UpsertThemeInput{ID: "smoke", Name: "Smoke", Description: "", Spec: []byte("{}"), CreatedBy: 1}); cerr != nil {
+		// rerun: theme already exists — exercise the update path instead
+		if _, uerr := tr.UpdateTheme("smoke", "Smoke", "", []byte("{}")); uerr != nil {
+			die(uerr, "CreateTheme/UpdateTheme")
+		}
+	}
 	die(tr.AssignTheme("global", "smoke"), "AssignTheme")
 	die(tr.AssignTheme("auth", "smoke"), "AssignTheme#2")
 
