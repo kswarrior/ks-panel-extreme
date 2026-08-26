@@ -510,8 +510,13 @@ function buildIframeDocument(htmlContent: string, instanceContextJson: string, s
       var sockOpen = sockets[String(event.data.wsId)];
       if (!sockOpen) return;
       if (event.data.error) {
+        // A real WebSocket always fires close after a failed handshake; do
+        // the same here or pages that reconnect on close would stall.
         sockOpen.readyState = 3;
-        messageHandlers[String(event.data.wsId)].error({});
+        var hsOpen = messageHandlers[String(event.data.wsId)];
+        if (hsOpen) { hsOpen.error({}); hsOpen.close({}); }
+        delete sockets[String(event.data.wsId)];
+        delete messageHandlers[String(event.data.wsId)];
       }
       return;
     }
