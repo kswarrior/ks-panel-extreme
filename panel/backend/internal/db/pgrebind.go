@@ -191,6 +191,7 @@ func rebindPostgres(query string) string {
 		inLine  bool // -- comment
 		inBlock bool // /* comment */
 	)
+	runes := []rune(query)
 	writeOrdinalAt := func(pos int) int {
 		// Consume "$<digits>" verbatim and keep the counter above it.
 		j := pos + 1
@@ -209,7 +210,6 @@ func rebindPostgres(query string) string {
 		out.WriteRune('$')
 		return pos + 1
 	}
-	runes := []rune(query)
 	for i := 0; i < len(runes); i++ {
 		c := runes[i]
 		switch {
