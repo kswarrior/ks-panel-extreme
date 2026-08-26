@@ -250,7 +250,12 @@ const RichMenu: React.FC<RichMenuProps> = ({
     const sw = sub.offsetWidth || 192;
     const sh = sub.offsetHeight || 200;
     const side: 'right' | 'left' = r.right + sw + 8 > vw ? 'left' : 'right';
-    const left = side === 'right' ? r.right : Math.max(8, r.left - sw);
+    // Clamp BOTH edges: flipping left isn't enough when the submenu is
+    // wider than the room left of the row — without the right-edge clamp
+    // the panel still spilled past narrow viewports.
+    const left = side === 'right'
+      ? Math.min(r.right, vw - sw - 8)
+      : Math.max(8, Math.min(r.left - sw, vw - sw - 8));
     let top = r.top;
     if (top + sh > vh - 8) top = Math.max(8, vh - sh - 8);
     setSubmenuSide(side);
