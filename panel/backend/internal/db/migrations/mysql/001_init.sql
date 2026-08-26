@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS permissions (
     id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    `key` TEXT
+    `key` VARCHAR(255) NOT NULL UNIQUE,
     description TEXT
 );
 
