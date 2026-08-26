@@ -3,7 +3,7 @@
 -- settings live in a small KV table.
 
 CREATE TABLE IF NOT EXISTS settings (
-    `key`   TEXT
+    `key`   VARCHAR(255) PRIMARY KEY,
     value TEXT NOT NULL
 );
 
