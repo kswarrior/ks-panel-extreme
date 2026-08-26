@@ -555,17 +555,17 @@ func LinkInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 				pageEntry["actions"] = actionsAny
 			}
 		}
-	if req.IconSVG != "" || page.IconSVG != "" {
-		// Icons render inline in the panel origin — never persist unsanitized
-		// author markup into the template spec.
-		icon := sanitizeIconSVG(strings.TrimSpace(req.IconSVG))
-		if icon == "" {
-			icon = sanitizeIconSVG(strings.TrimSpace(page.IconSVG))
+		if req.IconSVG != "" || page.IconSVG != "" {
+			// Icons render inline in the panel origin — never persist unsanitized
+			// author markup into the template spec.
+			icon := sanitizeIconSVG(strings.TrimSpace(req.IconSVG))
+			if icon == "" {
+				icon = sanitizeIconSVG(strings.TrimSpace(page.IconSVG))
+			}
+			if icon != "" {
+				pageEntry["icon_svg"] = icon
+			}
 		}
-		if icon != "" {
-			pageEntry["icon_svg"] = icon
-		}
-	}
 
 		// Sub-pages stay INSIDE the family's main row (nested sub_pages,
 		// effective route "<slug>/<path>", e.g. files/edit) so the instance
@@ -1697,9 +1697,9 @@ func safeModuleSegment(s string) bool {
 // exhaust disk or inode budgets (zip bombs) and can't escape the target
 // directory (zip-slip).
 const (
-	maxModuleZipEntries      = 2000
-	maxModuleZipFileBytes    = 64 << 20  // 64MB per entry (uncompressed)
-	maxModuleZipTotalBytes   = 256 << 20 // 256MB total uncompressed
+	maxModuleZipEntries    = 2000
+	maxModuleZipFileBytes  = 64 << 20  // 64MB per entry (uncompressed)
+	maxModuleZipTotalBytes = 256 << 20 // 256MB total uncompressed
 )
 
 // unzip extracts a ZIP stream into dest. Hardened for untrusted archives:
@@ -1718,12 +1718,17 @@ func unzip(src io.Reader, dest string) error {
 		tempFile.Close()
 		return err
 	}
-	if _, err := tempFile.Seek(0, io.SeekStart); err != nil {
+	size, serr := tempFile.Seek(0, io.SeekEnd)
+	if serr != nil {
 		tempFile.Close()
-		return err
+		return serr
+	}
+	if _, serr := tempFile.Seek(0, io.SeekStart); serr != nil {
+		tempFile.Close()
+		return serr
 	}
 
-	zr, err := zip.NewReader(tempFile, tempFile.Size())
+	zr, err := zip.NewReader(tempFile, size)
 	closeErr := tempFile.Close()
 	if closeErr != nil {
 		return closeErr

@@ -118,11 +118,17 @@ func SaveDBConfig(engine, dsn string) error {
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		return fmt.Errorf("create env dir: %w", err)
 	}
-	out, err := os.Create(p)
+	// 0600: the file carries the database password inside the persisted DSN.
+	out, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return fmt.Errorf("write env file: %w", err)
 	}
 	defer out.Close()
+	// OpenFile's perm only applies at creation; an existing file keeps its
+	// old (possibly looser) mode, so tighten it explicitly every write.
+	if err := out.Chmod(0o600); err != nil {
+		return fmt.Errorf("restrict env file mode: %w", err)
+	}
 
 	// Stable key order for diff-friendly output.
 	ordered := []string{"KSPANEL_DB", "KSPANEL_DB_TYPE", "KSPANEL_DB_DSN"}

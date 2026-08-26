@@ -579,6 +579,12 @@ func coerce(v any, dstType string) any {
 		case "TEXT", "VARCHAR", "CHARACTER VARYING", "CHAR", "CLOB",
 			"MEDIUMTEXT", "LONGTEXT", "TINYTEXT", "NVARCHAR", "STRING":
 			return string(b)
+		default:
+			// BLOB passthrough must clone: database/sql drivers are allowed
+			// to reuse the backing array on the next Scan, and copyTable
+			// buffers up to one batch of scanned rows before flushing — a
+			// shared buffer would silently corrupt every row behind it.
+			return append([]byte(nil), b...)
 		}
 	}
 	return v
