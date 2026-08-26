@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import GlassCard from '@/shared/components/ui/Card';
+import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 import { listInstancePages, createInstancePage, updateInstancePage, listTemplates, linkInstancePage } from '@/shared/api/admin';
 import type { InstancePage, CreateInstancePagePayload, UpdateInstancePagePayload } from '@/shared/types/instancePage';
 
@@ -63,7 +64,7 @@ const InstancePageForm: React.FC = () => {
       .finally(() => setLoading(false));
   }, [id, isEdit]);
 
-  if (loading) return <GlassCard className="ks-card ks-form-card text-center text-gray-400">Loading…</GlassCard>;
+  if (loading) return <FormSkeleton className="ks-form-card" fields={5} />;
 
   const isBuiltin = page.kind === 'builtin';
 
