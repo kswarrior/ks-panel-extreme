@@ -18,6 +18,7 @@ import type {
 } from '@/shared/types/instancePage';
 import { parseSubPages } from '@/shared/types/instancePage';
 import { PAGE_STARTERS, type PageStarter } from '../templates/pageStarters';
+import { TagPicker } from '@/features/templates/components/TemplateFormComponents';
 import CustomPageView, { activePageThemeCss, type PageContent } from '@/shared/components/ui/CustomPageView';
 import GlassCard from '@/shared/components/ui/Card';
 import { glassFieldClass } from '@/shared/components/ui/Field';
@@ -26,6 +27,11 @@ import { useConfirm } from '@/shared/stores/confirmStore';
 import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 
 type TabId = 'templates' | 'editor' | 'subpages' | 'actions' | 'preview' | 'settings';
+
+// Suggestion lists for the Settings tab Category / Type pickers — same
+// suggest-or-add-free-text UX as the template editor's tag pickers.
+const CATEGORY_OPTIONS = ['monitoring', 'docs', 'tools', 'dashboard', 'system', 'other'];
+const TYPE_OPTIONS = ['dashboard', 'status', 'docs', 'admin-panel', 'widget', 'generic'];
 
 const TAB_CONFIG: { id: TabId; label: string; hint: string; icon: React.ReactNode }[] = [
   { id: 'templates', label: 'Templates', hint: 'Ready-made functional pages', icon: <TemplatesIcon /> },
@@ -506,6 +512,7 @@ const InstancePageStudio: React.FC = () => {
     slug: '',
     kind: 'custom' as InstancePage['kind'],
     category: '',
+    type: '',
     content_type: 'html',
     content_html: '',
     content_markdown: '',
@@ -754,6 +761,7 @@ const InstancePageStudio: React.FC = () => {
         slug: page.slug!.trim(),
         kind: page.kind ?? 'custom',
         category: page.category ?? '',
+        type: page.type ?? '',
         content_type: page.content_type || 'html',
         content_html: page.content_html ?? '',
         content_markdown: page.content_markdown ?? '',
@@ -782,6 +790,7 @@ const InstancePageStudio: React.FC = () => {
       slug: page.slug ?? '',
       kind: page.kind ?? 'custom',
       category: page.category ?? '',
+      type: page.type ?? '',
       description: page.description ?? '',
       content_type: page.content_type || 'html',
       content_html: page.content_html ?? '',
@@ -815,6 +824,7 @@ const InstancePageStudio: React.FC = () => {
         // imports coerce to custom so a stale JSON file can't brick the save.
         kind: 'custom' as InstancePage['kind'],
         category: typeof data.category === 'string' ? data.category : p.category,
+        type: typeof data.type === 'string' ? data.type : p.type,
         description: typeof data.description === 'string' ? data.description : p.description,
         content_type: ['html', 'markdown', 'blocks'].includes(data.content_type) ? data.content_type : p.content_type,
         content_html: typeof data.content_html === 'string' ? data.content_html : p.content_html,
@@ -1462,7 +1472,25 @@ const InstancePageStudio: React.FC = () => {
               </label>
               <label className="block">
                 <span className="text-xs text-gray-400">Category</span>
-                <input value={page.category ?? ''} onChange={(e) => onChange('category', e.target.value)} className={glassFieldClass} placeholder="monitoring, docs, tools…" />
+                <TagPicker
+                  value={page.category ?? ''}
+                  options={CATEGORY_OPTIONS}
+                  placeholder="monitoring"
+                  onChange={(v) => onChange('category', v)}
+                  onAdd={(v) => onChange('category', v)}
+                  onDelete={() => onChange('category', '')}
+                />
+              </label>
+              <label className="block">
+                <span className="text-xs text-gray-400">Type</span>
+                <TagPicker
+                  value={page.type ?? ''}
+                  options={TYPE_OPTIONS}
+                  placeholder="dashboard"
+                  onChange={(v) => onChange('type', v)}
+                  onAdd={(v) => onChange('type', v)}
+                  onDelete={() => onChange('type', '')}
+                />
               </label>
             </div>
 
