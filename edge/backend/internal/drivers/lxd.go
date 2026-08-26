@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -301,8 +302,15 @@ func (d *lxd) Snapshot(ctx context.Context, name string, action string, snapName
 			if err != nil {
 				return "", 0, fmt.Errorf("failed to export snapshot to tar: %w", err)
 			}
-			// Return the tar file path as the external reference
-			return tarPath, 0, nil
+			// Return the tar file path as the external reference, with its
+			// real size so the panel renders actual bytes instead of a
+			// placeholder 0 (stat failure stays non-fatal — the snapshot
+			// itself is complete).
+			var size int64
+			if fi, serr := os.Stat(tarPath); serr == nil {
+				size = fi.Size()
+			}
+			return tarPath, size, nil
 		}
 
 		// Return the snapshot name as the external reference
