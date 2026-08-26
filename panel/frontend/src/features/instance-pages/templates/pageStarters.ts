@@ -897,10 +897,10 @@ const SYSTEM_PROBE = page(
     var loadavg = await out('cat /proc/loadavg');
     el('content').innerHTML =
       '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0.75rem;margin-bottom:0.75rem">' +
-      '<div class="ks-card"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">OS</div><div style="font-weight:600;color:#fff">' + esc(osName) + '</div></div>' +
-      '<div class="ks-card"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">Kernel</div><div class="ks-mono" style="font-weight:600;color:#fff">' + esc(kernel) + '</div></div>' +
-      '<div class="ks-card"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">Architecture</div><div class="ks-mono" style="font-weight:600;color:#fff">' + esc(arch) + '</div></div>' +
-      '<div class="ks-card"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">Virtualization</div><div class="ks-mono" style="font-weight:600;color:#fff">' + esc(virt) + '</div></div>' +
+      '<div class="ks-card"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">OS</div><div style="font-weight:600;color:var(--ks-heading)">' + esc(osName) + '</div></div>' +
+      '<div class="ks-card"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">Kernel</div><div class="ks-mono" style="font-weight:600;color:var(--ks-heading)">' + esc(kernel) + '</div></div>' +
+      '<div class="ks-card"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">Architecture</div><div class="ks-mono" style="font-weight:600;color:var(--ks-heading)">' + esc(arch) + '</div></div>' +
+      '<div class="ks-card"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">Virtualization</div><div class="ks-mono" style="font-weight:600;color:var(--ks-heading)">' + esc(virt) + '</div></div>' +
       '</div>' +
       card('Hardware', '<table>' +
         '<tr><th style="width:150px">CPU model</th><td>' + esc(cpuModel) + '</td></tr>' +
