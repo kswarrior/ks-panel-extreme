@@ -93,6 +93,16 @@ if [[ -f "$RELEASE_DIR/ksedge" ]]; then
 fi
 chmod +x "$TEST_DIR"/kspanel "$TEST_DIR"/ksedge 2>/dev/null || true
 
+# Pre-seed localnode/ksedge from the local release copy when available.
+# setup:localnode only downloads ksedge when <cwd>/localnode/ksedge/ksedge
+# is missing — without this seed it hits the GitHub releases URL, which
+# 404s on machines without access to that release asset.
+if [[ -f "$RELEASE_DIR/ksedge" ]]; then
+    mkdir -p "$TEST_DIR/localnode/ksedge"
+    cp -f "$RELEASE_DIR/ksedge" "$TEST_DIR/localnode/ksedge/ksedge"
+    chmod +x "$TEST_DIR/localnode/ksedge/ksedge"
+fi
+
 log_ok "Test folder ready:"
 ls -lh "$TEST_DIR"
 
