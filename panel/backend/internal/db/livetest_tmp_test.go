@@ -1,13 +1,11 @@
 package db
 
 import (
-	"database/sql"
 	"fmt"
 	"os"
 	"testing"
 
 	"github.com/example/kspanel/internal/config"
-	_ "github.com/example/kspanel/internal/repository"
 )
 
 // Throwaway live-verification harness (deleted after the fix is proven).
@@ -65,5 +63,5 @@ func TestTmpFullSwitchPipeline(t *testing.T) {
 	if err := EnsureSchemaAndSeed(tgtD, tgt); err != nil {
 		t.Fatalf("EnsureSchemaAndSeed(%s): %v", engine, err)
 	}
-	_ = sql.DB{} // keep import used
+	
 }
