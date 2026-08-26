@@ -379,32 +379,34 @@ const SYSTEM_PROBE = page(
   'System Info',
   `<div id="content" class="ks-muted">Loading…</div>`,
   `
-    async function out(cmd){ try { return (await sh(cmd, 15)).stdout.trim() || '-'; } catch(e){ return '(unavailable)'; } }
-    var kernel = await out('uname -r');
-    var arch = await out('uname -m');
-    var virt = await out('systemd-detect-virt 2>/dev/null || echo n/a');
-    var cpuModel = await out('grep -m1 "model name" /proc/cpuinfo 2>/dev/null | cut -d: -f2 || grep -m1 "Processor" /proc/cpuinfo 2>/dev/null | cut -d: -f2');
-    var cores = await out('nproc 2>/dev/null || grep -c processor /proc/cpuinfo');
-    var memTotal = await out('free -h 2>/dev/null | awk \\'NR==2{print $2}\\'');
-    var osName = await out('. /etc/os-release 2>/dev/null && echo "$PRETTY_NAME"');
-    var uptime = await out('uptime -p 2>/dev/null || uptime');
-    var loadavg = await out('cat /proc/loadavg');
-    el('content').innerHTML =
-      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0.75rem;margin-bottom:0.75rem">' +
-      '<div class="ks-card"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">OS</div><div style="font-weight:600;color:var(--ks-heading)">' + esc(osName) + '</div></div>' +
-      '<div class="ks-card"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">Kernel</div><div class="ks-mono" style="font-weight:600;color:var(--ks-heading)">' + esc(kernel) + '</div></div>' +
-      '<div class="ks-card"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">Architecture</div><div class="ks-mono" style="font-weight:600;color:var(--ks-heading)">' + esc(arch) + '</div></div>' +
-      '<div class="ks-card"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">Virtualization</div><div class="ks-mono" style="font-weight:600;color:var(--ks-heading)">' + esc(virt) + '</div></div>' +
-      '</div>' +
-      card('Hardware', '<table>' +
-        '<tr><th style="width:150px">CPU model</th><td>' + esc(cpuModel) + '</td></tr>' +
-        '<tr><th>CPU cores</th><td>' + esc(cores) + '</td></tr>' +
-        '<tr><th>Memory total</th><td>' + esc(memTotal) + '</td></tr>' +
-        '</table>') +
-      card('Load & uptime', '<table>' +
-        '<tr><th style="width:150px">Uptime</th><td>' + esc(uptime.replace(/\\s+/g, ' ')) + '</td></tr>' +
-        '<tr><th>Load average</th><td class="ks-mono">' + esc(loadavg) + '</td></tr>' +
-        '</table>');
+    async function load(){
+      el('content').innerHTML = '<p class="ks-muted">Probing…</p>';
+      var r = null;
+      try { r = await act('sys_probe'); } catch(e){ r = null; }
+      var info = {};
+      (((r && r.stdout) || '') + '').split('\\n').forEach(function(line){
+        var m = line.match(/^([a-z_]+)\\s(.*)$/);
+        if (m) info[m[1]] = m[2];
+      });
+      if (!info.kernel) { el('content').innerHTML = '<p class="ks-muted">System probe unavailable on this instance.</p>'; return; }
+      el('content').innerHTML =
+        '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0.75rem;margin-bottom:0.75rem">' +
+        '<div class="ks-card"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">OS</div><div style="font-weight:600;color:var(--ks-heading)">' + esc(info.os || '-') + '</div></div>' +
+        '<div class="ks-card"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">Kernel</div><div class="ks-mono" style="font-weight:600;color:var(--ks-heading)">' + esc(info.kernel) + '</div></div>' +
+        '<div class="ks-card"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">Architecture</div><div class="ks-mono" style="font-weight:600;color:var(--ks-heading)">' + esc(info.arch || '-') + '</div></div>' +
+        '<div class="ks-card"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">Virtualization</div><div class="ks-mono" style="font-weight:600;color:var(--ks-heading)">' + esc(info.virt || '-') + '</div></div>' +
+        '</div>' +
+        card('Hardware', '<table>' +
+          '<tr><th style="width:150px">CPU model</th><td>' + esc((info.cpu || '-').trim()) + '</td></tr>' +
+          '<tr><th>CPU cores</th><td>' + esc(info.cores || '-') + '</td></tr>' +
+          '<tr><th>Memory total</th><td>' + esc(info.mem || '-') + '</td></tr>' +
+          '</table>') +
+        card('Load & uptime', '<table>' +
+          '<tr><th style="width:150px">Uptime</th><td>' + esc(((info.uptime || '-').replace(/\\s+/g, ' '))) + '</td></tr>' +
+          '<tr><th>Load average</th><td class="ks-mono">' + esc(info.load || '-') + '</td></tr>' +
+          '</table>');
+    }
+    await load();
   `,
 );
 
@@ -645,6 +647,29 @@ export const PAGE_STARTERS: PageStarter[] = [
     description: 'Read-only dump of UFW / iptables / nftables rules whichever is present.',
     iconSvg: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 8v4"/><path d="M12 16h.01"/>',
     html: FIREWALL_VIEW,
+    actions: [
+      {
+        name: 'ufw',
+        type: 'shell',
+        command: 'ufw status verbose 2>/dev/null || true',
+        timeout: 15,
+        description: 'UFW status dump (empty when ufw is absent).',
+      },
+      {
+        name: 'iptables',
+        type: 'shell',
+        command: 'iptables -L -n -v --line-numbers 2>/dev/null | head -80 || true',
+        timeout: 15,
+        description: 'iptables ruleset (first 80 lines, empty when absent).',
+      },
+      {
+        name: 'nft',
+        type: 'shell',
+        command: 'nft list ruleset 2>/dev/null | head -140 || true',
+        timeout: 15,
+        description: 'nftables ruleset (first 140 lines, empty when absent).',
+      },
+    ],
   },
   {
     id: 'user-registry',
