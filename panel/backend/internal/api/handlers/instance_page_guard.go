@@ -3,7 +3,7 @@
 // Files / Secrets(env) / Automation / Processes / Metrics / Ports /
 // Snapshots(backups) / Audit), mirroring the isPageAllowed /
 // resolveInstanceNav whitelist semantics that the SPA already applies in
-// web/src/lib/instancePages.ts. Before this guard existed, those routes
+// panel/frontend/src/shared/utils/instancePages.ts. Before this guard existed, those routes
 // were gated by requirePermission("VIEW_INSTANCES") only, so any operator
 // with read access could call them even when the instance's config had
 // NOT added the matching page to its spec.pages list — i.e. they could
@@ -30,7 +30,7 @@ import (
 // is enabled for the instance's own deploy-time config snapshot before the
 // calling handler does any further work. It mirrors the frontend isPageAllowed /
 // resolveInstanceNav whitelist semantics defined in
-// web/src/lib/instancePages.ts so nobody — including a regular operator with
+// panel/frontend/src/shared/utils/instancePages.ts so nobody — including a regular operator with
 // only VIEW_INSTANCES — can reach a page the instance's config has not
 // added to its spec.pages list.
 //
@@ -46,7 +46,8 @@ import (
 // Whitelist semantics (kept identical to the frontend so panel + SPA agree):
 // EMPTY-BY-DEFAULT: when the instance config has no pages spec or an empty
 // pages array, NO pages are allowed (not all builtins). This matches
-// resolveInstanceNav and isPageAllowed in web/src/lib/instancePages.ts.
+// resolveInstanceNav and isPageAllowed in
+// panel/frontend/src/shared/utils/instancePages.ts.
 //
 //   - spec.pages absent / not an array / empty (also when the instance has
 //     no config): EMPTY-BY-DEFAULT mode — no pages are allowed.

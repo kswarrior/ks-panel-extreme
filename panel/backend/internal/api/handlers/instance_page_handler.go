@@ -1240,7 +1240,11 @@ func ExecuteModulePageActionHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Use the edge client to call the page-module action endpoint
+	// Use the edge client to call the page-action endpoint. The edge exposes
+	// exactly one action RPC (/api/edge/page-action); module actions ride the
+	// same validated payload (module_id is panel-side metadata the edge
+	// ignores). The previous /api/edge/page-module/{id}/{m}/action target
+	// was never implemented on the edge, so every module action 404'd.
 	ec := edge.New(*node, token)
 
 	edgeReq := map[string]any{
@@ -1258,7 +1262,7 @@ func ExecuteModulePageActionHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	body, _ := json.Marshal(edgeReq)
-	httpReq, _ := http.NewRequestWithContext(r.Context(), "POST", ec.BaseURL()+"/api/edge/page-module/"+strconv.FormatInt(instance.ID, 10)+"/"+req.ModuleID+"/action", bytes.NewReader(body))
+	httpReq, _ := http.NewRequestWithContext(r.Context(), "POST", ec.BaseURL()+"/api/edge/page-action", bytes.NewReader(body))
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{Timeout: time.Duration(reqTimeout+5) * time.Second}
