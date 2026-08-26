@@ -264,7 +264,52 @@ func KillProcessHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	auditInst(r, inst.ID, "process.kill", fmt.Sprintf(
 		"sent %s to pid %d (killed=%v, escalated=%v)", signal, pid, out.Killed, out.Escalated))
-	writeJSON(w, map[string]any{"ok": true, "killed": out.Killed, "escalated": out.Escalated})
+
+	// A container workload's main process is PID 1 of its PID namespace, and
+	// the kernel DROPS every fatal signal aimed at that init from inside the
+	// namespace — even `kill -9 1` is a documented no-op there (verified live:
+	// the script correctly reported killed=false while the process lived on).
+	// The only way to actually terminate it is from OUTSIDE the namespace,
+	// which is precisely what a driver stop does (`docker stop` sends
+	// SIGTERM→SIGKILL to PID 1 from the host). So when the in-instance script
+	// reports PID 1 survived, fall back to stopping the workload and report
+	// that honestly via stopped_instance so the UI can explain what happened.
+	stoppedInstance := false
+	if !out.Killed && pid == 1 {
+		lc, lerr := ec.Lifecycle(edge.LifecycleRequest{Action: "stop", Kind: inst.Kind, Name: name})
+		switch {
+		case lerr != nil:
+			writeJSONStatus(w, http.StatusBadGateway, map[string]any{
+				"error": "pid 1 survives all signals inside the instance and the driver stop failed: " + lerr.Error(),
+			})
+			return
+		case !lc.OK:
+			writeJSONStatus(w, http.StatusBadGateway, map[string]any{
+				"error": "pid 1 survives all signals inside the instance and the driver stop was rejected" + lifecycleErrSuffix(lc.Error),
+			})
+			return
+		default:
+			out.Killed = true
+			out.Escalated = false
+			stoppedInstance = true
+			auditInst(r, inst.ID, "process.kill", "pid 1 unkillable from inside the namespace — stopped the workload instead")
+		}
+	}
+
+	respBody := map[string]any{"ok": true, "killed": out.Killed, "escalated": out.Escalated}
+	if stoppedInstance {
+		respBody["stopped_instance"] = true
+	}
+	writeJSON(w, respBody)
+}
+
+// lifecycleErrSuffix appends the edge's error text (if any) to a fixed
+// prefix without leaking an empty delimiter.
+func lifecycleErrSuffix(errText string) string {
+	if strings.TrimSpace(errText) == "" {
+		return ""
+	}
+	return ": " + errText
 }
 
 // ----- Metrics --------------------------------------------------------------
