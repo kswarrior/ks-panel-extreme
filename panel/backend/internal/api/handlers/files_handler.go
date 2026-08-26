@@ -260,6 +260,12 @@ func proxyToEdge(w http.ResponseWriter, r *http.Request, id int64, op, path, con
 	// for the JSON ops (list/stat) so the SPA can rely on it; for read we
 	// trust the edge's Content-Type/Content-Disposition pair.
 	//
+	// Headers MUST be set BEFORE WriteHeader: net/http snapshots the header
+	// map at WriteHeader time, so any Set afterwards is silently dropped and
+	// Go content-sniffs the body instead (raw file bytes became "text/plain",
+	// downloads lost their filename, JSON ops became unparsable strings on
+	// the client).
+	//
 	// If the edge returns the mux-default plain-text 404 ("404 page not
 	// found"), that's actually a signal the running ksedge binary is too
 	// old (it predates the /api/edge/files route). Surface a structured
@@ -306,7 +312,6 @@ func proxyToEdge(w http.ResponseWriter, r *http.Request, id int64, op, path, con
 		return
 	}
 
-	w.WriteHeader(resp.StatusCode)
 	if contentType != "" {
 		w.Header().Set("Content-Type", contentType)
 	} else {
@@ -317,6 +322,7 @@ func proxyToEdge(w http.ResponseWriter, r *http.Request, id int64, op, path, con
 	if cd := resp.Header.Get("Content-Disposition"); cd != "" {
 		w.Header().Set("Content-Disposition", cd)
 	}
+	w.WriteHeader(resp.StatusCode)
 	_, _ = io.Copy(w, resp.Body)
 }
 
