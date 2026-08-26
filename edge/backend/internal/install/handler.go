@@ -107,15 +107,36 @@ type store struct {
 
 func newStore() *store { return &store{m: make(map[string]*record)} }
 
-func (s *store) getOrCreate(key string) *record {
+// begin atomically claims the key for a new workflow run: when a run is
+// still active for the key it returns ok=false WITHOUT touching the record;
+// otherwise it creates (or resets) the record to a fresh running state.
+// Doing the check and the reset inside ONE critical section closes the
+// check-then-act race where two concurrent POST /api/edge/install calls for
+// the same instance could both observe "not running" and both launch
+// workflows against the same container (the second setCancel silently
+// clobbering the first's).
+func (s *store) begin(key string, steps []StepStatus) (*record, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if rec, ok := s.m[key]; ok {
-		return rec
+	rec, ok := s.m[key]
+	if !ok {
+		rec = &record{}
+		s.m[key] = rec
 	}
-	rec := &record{state: StateRunning, start: time.Now()}
-	s.m[key] = rec
-	return rec
+	rec.mu.Lock()
+	defer rec.mu.Unlock()
+	if rec.state == StateRunning {
+		return nil, false
+	}
+	if ok {
+		log.Printf("install: overwriting previous install record for %s (state=%s)", key, rec.state)
+	}
+	rec.state = StateRunning
+	rec.steps = steps
+	rec.err = ""
+	rec.start = time.Now()
+	rec.end = time.Time{}
+	return rec, true
 }
 
 func (s *store) get(key string) (*record, bool) {
