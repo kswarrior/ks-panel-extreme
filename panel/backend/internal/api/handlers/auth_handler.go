@@ -184,7 +184,12 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	auth.AccountLockoutInstance.ResetAttempts(identifier)
 
 	// Create session
-	cookieVal := auth.GenerateSessionToken(user.ID, time.Now())
+	cookieVal, err := auth.GenerateSessionToken(user.ID, time.Now())
+	if err != nil {
+		log.Println("GenerateSessionToken error:", err)
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
 	http.SetCookie(w, auth.NewSessionCookie(r, cookieVal, time.Now().Add(auth.SessionTTL())))
 
 	// Record session in session manager
@@ -328,7 +333,12 @@ func SwitchLoginHandler(w http.ResponseWriter, r *http.Request) {
 		Message:     "logged in for account switcher (no cookie)",
 	})
 
-	tokenVal := auth.GenerateSessionToken(user.ID, time.Now())
+	tokenVal, err := auth.GenerateSessionToken(user.ID, time.Now())
+	if err != nil {
+		log.Println("GenerateSessionToken error:", err)
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
 	// Register the switcher bearer with the session manager so it shows
 	// up on the admin Sessions tab and is subject to revocation, the
 	// per-user cap and the idle timeout like any cookie session.
