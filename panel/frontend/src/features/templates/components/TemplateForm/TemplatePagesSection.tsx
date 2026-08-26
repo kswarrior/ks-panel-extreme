@@ -7,7 +7,6 @@ import type { PageOverride } from '@/features/templates/types/templateForm';
 import { listInstancePages, type InstancePage } from '@/shared/api/admin';
 import { parseSubPages } from '@/features/instance-pages/types/instancePage';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
-import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 
 export interface PageOverrideInput extends PageOverride {}
 

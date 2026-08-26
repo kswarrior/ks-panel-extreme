@@ -5,6 +5,7 @@ import type { User, Role } from '@/shared/types/user';
 import GlassCard from '@/shared/components/ui/Card';
 import GlassField, { glassFieldClass } from '@/shared/components/ui/Field';
 import FormPage from '@/shared/components/forms/FormPage';
+import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 
 type Form = {
   username: string;
