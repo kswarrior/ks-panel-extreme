@@ -32,6 +32,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -40,6 +41,22 @@ import (
 	"github.com/example/ksedge/internal/drivers"
 	"github.com/gorilla/websocket"
 )
+
+// wsOriginAllowed enforces the WebSocket origin policy documented on the
+// Upgrader below: no Origin header (server-to-server client) or an Origin
+// whose host matches the request's own Host are accepted; anything else is
+// rejected before the upgrade.
+func wsOriginAllowed(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return true
+	}
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	return strings.EqualFold(u.Host, r.Host)
+}
 
 // Handler returns an http.Handler authenticated by the given edge token.
 //
@@ -53,10 +70,13 @@ import (
 //      side drops, then sends the exit code and tears everything down.
 func Handler(token string) http.Handler {
 	up := websocket.Upgrader{
-		// No CSRF/origin check here: the WS endpoint is reached via the
-		// shared reverse proxy that already enforces origin/ACLs, and
-		// authentication relies on the shared token rather than cookies.
-		CheckOrigin:     func(r *http.Request) bool { return true },
+		// Origin policy: non-browser clients (the panel's server-side
+		// proxy, which is the only sanctioned consumer of this endpoint)
+		// send no Origin header and are allowed. Browser connections are
+		// accepted only same-origin — a cross-site page must not be able
+		// to complete a WebSocket handshake against the edge agent even
+		// if it guessed a valid token.
+		CheckOrigin:     wsOriginAllowed,
 		ReadBufferSize:  4096,
 		WriteBufferSize: 4096,
 	}
