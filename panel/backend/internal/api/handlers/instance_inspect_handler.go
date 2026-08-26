@@ -224,6 +224,39 @@ func KillProcessHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSONStatus(w, http.StatusBadRequest, map[string]any{"error": "unsupported signal " + signal})
 		return
 	}
+	// A container workload's main process is PID 1 of its PID namespace, and
+	// the kernel DROPS every fatal signal aimed at that init from inside the
+	// namespace — even `kill -9 1` is a documented no-op there (verified live).
+	// The only way to actually terminate it is from OUTSIDE the namespace,
+	// which is precisely what a driver stop does (`docker stop` sends
+	// SIGTERM→SIGKILL to PID 1 from the host). So for PID 1 skip the in-
+	// instance signal round-trip entirely (it cannot work and would only add
+	// ~4s of guaranteed-dead wait to the request) and stop the workload from
+	// the host side. The call is bounded at 25s — below the ~30s origin
+	// window CDNs/tunnels enforce, which otherwise turns a slow stop into a
+	// raw Cloudflare "Bad gateway" HTML page in the operator's browser.
+	if pid == 1 {
+		lctx, lcancel := context.WithTimeout(r.Context(), 25*time.Second)
+		defer lcancel()
+		lc, lerr := ec.LifecycleCtx(lctx, edge.LifecycleRequest{Action: "stop", Kind: inst.Kind, Name: name})
+		switch {
+		case lerr != nil:
+			writeJSONStatus(w, http.StatusBadGateway, map[string]any{
+				"error": "pid 1 survives all signals inside the instance and stopping the workload failed: " + lerr.Error(),
+			})
+			return
+		case !lc.OK:
+			writeJSONStatus(w, http.StatusBadGateway, map[string]any{
+				"error": "pid 1 survives all signals inside the instance and stopping the workload was rejected" + lifecycleErrSuffix(lc.Error),
+			})
+			return
+		}
+		auditInst(r, inst.ID, "process.kill", fmt.Sprintf(
+			"pid 1 survives all signals inside the namespace — stopped the workload (requested signal: %s)", signal))
+		writeJSON(w, map[string]any{"ok": true, "killed": true, "escalated": false, "stopped_instance": true})
+		return
+	}
+
 	resp, err := ec.Exec(edge.ExecRequest{
 		Kind: inst.Kind, Name: name,
 		Command:    killVerifyScript(pid, signal),
