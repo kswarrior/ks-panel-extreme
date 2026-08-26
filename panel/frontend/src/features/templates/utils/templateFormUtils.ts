@@ -129,6 +129,9 @@ export function serializeSpec(f: TemplateFormState): string {
       if (p.content_html) out.content_html = p.content_html;
       if (p.content_markdown) out.content_markdown = p.content_markdown;
       if (p.content_blocks) out.content_blocks = p.content_blocks;
+      // Saved actions are part of the row — persist them or the runtime
+      // allow-list ends up empty and every action 403s on the instance.
+      if (p.actions && p.actions.length > 0) out.actions = p.actions;
       // Multi-page support: nested sub-pages ride on the parent row.
       if (p.sub_pages && p.sub_pages.length > 0) {
         out.sub_pages = p.sub_pages.map((s) => ({
@@ -396,6 +399,25 @@ export function parseSpec(raw: string): Partial<TemplateFormState> {
           content_html: typeof p.content_html === 'string' ? p.content_html : '',
           content_markdown: typeof p.content_markdown === 'string' ? p.content_markdown : '',
           content_blocks: typeof p.content_blocks === 'string' ? p.content_blocks : '',
+          // Saved actions survive the round-trip (inline array or legacy
+          // JSON-encoded string) — dropping them broke every action button.
+          ...(parsePageActions(
+            Array.isArray(p.actions)
+              ? JSON.stringify(p.actions)
+              : typeof p.actions === 'string'
+                ? p.actions
+                : null,
+          ).length > 0
+            ? {
+                actions: parsePageActions(
+                  Array.isArray(p.actions)
+                    ? JSON.stringify(p.actions)
+                    : typeof p.actions === 'string'
+                      ? p.actions
+                      : null,
+                ),
+              }
+            : {}),
           // Multi-page support: keep nested sub-pages attached to the row.
           ...(Array.isArray(p.sub_pages)
             ? {
