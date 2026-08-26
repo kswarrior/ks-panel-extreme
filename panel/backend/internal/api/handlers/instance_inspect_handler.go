@@ -295,47 +295,9 @@ func KillProcessHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	// A container workload's main process is PID 1 of its PID namespace, and
-	// the kernel DROPS every fatal signal aimed at that init from inside the
-	// namespace — even `kill -9 1` is a documented no-op there (verified live:
-	// the script correctly reported killed=false while the process lived on).
-	// The only way to actually terminate it is from OUTSIDE the namespace,
-	// which is precisely what a driver stop does (`docker stop` sends
-	// SIGTERM→SIGKILL to PID 1 from the host). So when the in-instance script
-	// reports PID 1 survived, fall back to stopping the workload and report
-	// that honestly via stopped_instance so the UI can explain what happened.
-	stoppedInstance := false
-	if !out.Killed && pid == 1 {
-		lc, lerr := ec.Lifecycle(edge.LifecycleRequest{Action: "stop", Kind: inst.Kind, Name: name})
-		switch {
-		case lerr != nil:
-			writeJSONStatus(w, http.StatusBadGateway, map[string]any{
-				"error": "pid 1 survives all signals inside the instance and the driver stop failed: " + lerr.Error(),
-			})
-			return
-		case !lc.OK:
-			writeJSONStatus(w, http.StatusBadGateway, map[string]any{
-				"error": "pid 1 survives all signals inside the instance and the driver stop was rejected" + lifecycleErrSuffix(lc.Error),
-			})
-			return
-		default:
-			out.Killed = true
-			out.Escalated = false
-			stoppedInstance = true
-		}
-	}
-
 	detail := fmt.Sprintf("sent %s to pid %d (killed=%v, escalated=%v)", signal, pid, out.Killed, out.Escalated)
-	if stoppedInstance {
-		detail = fmt.Sprintf("pid 1 survives all signals inside the namespace — stopped the workload (requested signal: %s)", signal)
-	}
 	auditInst(r, inst.ID, "process.kill", detail)
-
-	respBody := map[string]any{"ok": true, "killed": out.Killed, "escalated": out.Escalated}
-	if stoppedInstance {
-		respBody["stopped_instance"] = true
-	}
-	writeJSON(w, respBody)
+	writeJSON(w, map[string]any{"ok": true, "killed": out.Killed, "escalated": out.Escalated})
 }
 
 // lifecycleErrSuffix appends the edge's error text (if any) to a fixed
