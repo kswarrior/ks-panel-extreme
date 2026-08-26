@@ -324,8 +324,7 @@ func maskSecrets(cfg *models.AuthorityConfig) *models.AuthorityConfig {
 
 func (r *AuthorityRepository) setString(key, value string) error {
 	_, err := r.db.Exec(
-		`INSERT INTO settings (key, value) VALUES (?, ?)
-		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+		`INSERT INTO settings (key, value) VALUES (?, ?)`+upsertSet("(key)", []string{"value"}),
 		key, value,
 	)
 	return err

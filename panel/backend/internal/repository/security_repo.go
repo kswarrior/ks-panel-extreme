@@ -249,8 +249,7 @@ func (r *SecurityRepository) UpdateConfig(c models.SecurityConfig) error {
 	}
 	for _, w := range writes {
 		if _, err := r.db.Exec(
-			`INSERT INTO settings (key, value) VALUES (?, ?)
-			 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+			`INSERT INTO settings (key, value) VALUES (?, ?)`+upsertSet("(key)", []string{"value"}),
 			w.key, w.val,
 		); err != nil {
 			return fmt.Errorf("security config upsert %s: %w", w.key, err)
@@ -298,8 +297,7 @@ func (r *SecurityRepository) getString(key string, def string) string {
 // setString writes a string value to settings.
 func (r *SecurityRepository) setString(key, val string) error {
 	_, err := r.db.Exec(
-		`INSERT INTO settings (key, value) VALUES (?, ?)
-		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+		`INSERT INTO settings (key, value) VALUES (?, ?)`+upsertSet("(key)", []string{"value"}),
 		key, val,
 	)
 	return err
