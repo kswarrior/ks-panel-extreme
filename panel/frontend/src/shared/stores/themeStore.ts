@@ -1275,15 +1275,21 @@ function buildSectionVars(theme: Theme): { vars: string } {
   --ks-check-off-bg: ${safeCssValue(f.checkbox_bg_unchecked)};
   --ks-check-on: ${safeCssValue(f.checkbox_bg_checked, '#10b981')};
   --ks-check-border: ${safeCssValue(f.checkbox_border_unchecked)};
+  --ks-check-border-on: ${safeCssValue(f.checkbox_border_checked, '#10b981')};
   --ks-check-mark: ${safeCssValue(f.checkbox_checkmark_color, '#0b0d10')};
   --ks-check-size: ${clampNum(f.checkbox_size, D.forms.checkbox_size, 10, 32)}px;
   --ks-check-radius: ${clampNum(f.checkbox_border_radius, D.forms.checkbox_border_radius, 0, 16)}px;
+  --ks-radio-off-bg: ${safeCssValue(f.radio_bg_unchecked)};
   --ks-radio-on: ${safeCssValue(f.radio_bg_checked, '#10b981')};
+  --ks-radio-border: ${safeCssValue(f.radio_border_unchecked)};
+  --ks-radio-border-on: ${safeCssValue(f.radio_border_checked, '#10b981')};
+  --ks-radio-dot: ${safeCssValue(f.radio_dot_color, '#0b0d10')};
   --ks-radio-size: ${clampNum(f.radio_size, D.forms.radio_size, 10, 32)}px;
 
   --ks-toggle-off: ${safeCssValue(f.toggle_track_off)};
   --ks-toggle-on: ${safeCssValue(f.toggle_track_on, '#10b981')};
   --ks-toggle-thumb: ${safeCssValue(f.toggle_thumb_color, '#ffffff')};
+  --ks-toggle-thumb-shadow: ${safeCssValue(f.toggle_thumb_shadow)};
   --ks-toggle-w: ${tW}px;
   --ks-toggle-h: ${tH}px;
   --ks-toggle-thumb-size: ${tT}px;
@@ -1298,6 +1304,7 @@ function buildSectionVars(theme: Theme): { vars: string } {
   --ks-hint-error: ${safeCssValue(f.hint_error_color, '#f87171')};
   --ks-hint-success: ${safeCssValue(f.hint_success_color, '#34d399')};
   --ks-hint-size: ${clampNum(f.hint_font_size, D.forms.hint_font_size, 8, 20)}px;
+  --ks-field-bg: ${safeCssValue(f.field_bg, 'transparent')};
   --ks-field-gap: ${clampNum(f.field_gap, D.forms.field_gap, 0, 32)}px;
   --ks-field-mb: ${clampNum(f.field_margin_bottom, D.forms.field_margin_bottom, 0, 48)}px;
 
