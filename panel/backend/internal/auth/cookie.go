@@ -55,20 +55,12 @@ func IsSecureRequest(r *http.Request) bool {
 // NewSessionCookie builds the session cookie with the project's security
 // defaults: HttpOnly (no JS access ⇒ no XSS-generated theft path),
 // SameSite=Strict (no cross-site request delivery ⇒ CSRF-resistant),
-// Path="/", and Secure when the request is over TLS. MaxAge is derived
-// from the supplied expiry so the browser purges it at the right moment.
-// The __Host- prefix requires Secure flag, so we enforce it in production.
+// Path="/" and Secure. MaxAge is derived from the supplied expiry so the
+// browser purges it at the right moment.
 func NewSessionCookie(r *http.Request, value string, expiry time.Time) *http.Cookie {
 	maxAge := int(time.Until(expiry).Seconds())
 	if maxAge < 0 {
 		maxAge = 0
-	}
-	isSecure := IsSecureRequest(r)
-
-	// In development, allow non-Secure for localhost
-	isDevelopment := false
-	if host := r.Host; host == "localhost:5050" || host == "127.0.0.1:5050" || strings.HasPrefix(host, "localhost:") || strings.HasPrefix(host, "127.0.0.1:") {
-		isDevelopment = true
 	}
 
 	c := &http.Cookie{
