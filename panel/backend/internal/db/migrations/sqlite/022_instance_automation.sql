@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS automation_runs (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     job_id        INTEGER NOT NULL REFERENCES instance_automation(id) ON DELETE CASCADE,
     instance_id   INTEGER NOT NULL REFERENCES instances(id) ON DELETE CASCADE,
-    trigger       TEXT    NOT NULL,                    -- 'schedule' | 'manual'
+    trigger_type  TEXT    NOT NULL,                    -- 'schedule' | 'manual'
     command       TEXT    NOT NULL DEFAULT '',
     stdout        TEXT    NOT NULL DEFAULT '',
     stderr        TEXT    NOT NULL DEFAULT '',
