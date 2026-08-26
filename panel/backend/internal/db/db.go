@@ -391,9 +391,25 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			// row. Guarded individually so re-launches stay idempotent on all
 			// dialects — mirrors 041_instance_page_actions.sql.
 			if err := guardedAddColumns(d, db, name, "instance_pages", []columnSpec{
-				{"sub_pages", "TEXT NOT NULL DEFAULT ('')"},
+				{"sub_pages", "TEXT NOT NULL DEFAULT ''"},
 			}); err != nil {
 				return err
+			}
+			continue
+		case name == "048_rename_automation_trigger.sql":
+			// automation_runs.trigger → trigger_type: TRIGGER is a reserved
+			// word on MySQL, so the runtime queries select trigger_type and
+			// 022 creates the new name directly. This guarded rename only
+			// converges installs whose table still carries the old column;
+			// the RENAME COLUMN grammar is identical on SQLite / Postgres /
+			// MySQL 8. The file body itself is intentionally empty — the Go
+			// guard owns the statement (same shape as the other guarded
+			// cases above).
+			if hasColumn(d, db, "automation_runs", "trigger") {
+				log.Printf("Running migration %s (renaming automation_runs.trigger)", name)
+				if _, err := db.Exec("ALTER TABLE automation_runs RENAME COLUMN trigger TO trigger_type"); err != nil {
+					return fmt.Errorf("migration %s failed: %w", name, err)
+				}
 			}
 			continue
 		case name == "045_application_files_runs.sql":
