@@ -864,6 +864,23 @@ func guardedCreateIndex(d Dialect, db *sql.DB, migration, table, indexName, colu
 	return nil
 }
 
+// guardedCreateIndexSQL applies a full CREATE INDEX statement through the
+// hasIndex guard. On MySQL the "IF NOT EXISTS" clause is stripped (MySQL
+// parses neither it nor duplicate index names); SQLite and Postgres accept
+// the statement verbatim.
+func guardedCreateIndexSQL(d Dialect, db *sql.DB, migration, stmt, table, indexName string) error {
+	if hasIndex(d, db, table, indexName) {
+		return nil
+	}
+	if d.Name() == "mysql" {
+		stmt = stripIndexIfExistsClause(stmt)
+	}
+	if _, err := db.Exec(stmt); err != nil {
+		return fmt.Errorf("migration %s failed: %w", migration, err)
+	}
+	return nil
+}
+
 // hasIndex reports whether the named index already exists on the table.
 // Same fail-closed convention as hasColumn: any introspection error returns
 // false, and the subsequent CREATE INDEX surfaces a duplicate-name failure
