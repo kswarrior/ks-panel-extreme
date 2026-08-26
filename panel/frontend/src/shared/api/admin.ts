@@ -889,6 +889,8 @@ export interface LocalInstancePage {
   slug: string;
   kind: string;
   category: string;
+  /** Page flavor tag (dashboard, status, docs, …). Optional: older library files omit it. */
+  type?: string;
   description: string;
   content_type: string;
   content_html: string;

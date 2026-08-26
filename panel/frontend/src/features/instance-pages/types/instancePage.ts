@@ -29,6 +29,8 @@ export interface InstancePage {
   slug: string;
   kind: InstancePageKind;
   category: string;
+  /** Page flavor tag (dashboard, status, docs, …) — persisted as page_type. "" == unset. */
+  type: string;
   content_type: 'html' | 'markdown' | 'blocks' | '';
   content_html: string;
   content_markdown: string;
@@ -93,6 +95,7 @@ export interface CreateInstancePagePayload {
   slug: string;
   kind: InstancePageKind;
   category: string;
+  type: string;
   content_type: 'html' | 'markdown' | 'blocks';
   content_html: string;
   content_markdown: string;
@@ -108,6 +111,7 @@ export interface UpdateInstancePagePayload {
   slug: string;
   kind: InstancePageKind;
   category: string;
+  type: string;
   content_type: 'html' | 'markdown' | 'blocks';
   content_html: string;
   content_markdown: string;
