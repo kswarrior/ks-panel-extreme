@@ -253,7 +253,7 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
       />
 
       <aside
-        className={` fixed inset-y-0 left-0 z-40 h-dvh flex flex-col overflow-hidden transition-all duration-200 glass-chrome ks-sidebar-bg text-gray-100 md:static md:relative md:inset-auto md:flex-shrink-0 md:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} ${isCollapsed ? 'w-16' : 'w-64'}`}
+        className={` fixed inset-y-0 left-0 z-40 h-dvh flex flex-col overflow-hidden transition-all duration-200 glass-chrome ks-sidebar-bg text-gray-100 md:static md:relative md:inset-auto md:flex-shrink-0 md:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} ${isCollapsed ? 'ks-sidebar-collapsed w-16' : 'w-64'}`}
         aria-label="Main navigation"
       >
         {/* Fixed top brand area — never scrolls */}

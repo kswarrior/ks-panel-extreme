@@ -62,6 +62,8 @@ export const BackgroundTab: React.FC<BackgroundTabProps> = ({ draft, patch }) =>
       </div>
       {draft.background.type === 'image' && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Select label="Position" value={draft.background.position || 'center'} onChange={(v) => patch('background', { position: v })} options={[{ label: 'Center', value: 'center' }, { label: 'Top', value: 'top' }, { label: 'Bottom', value: 'bottom' }, { label: 'Left', value: 'left' }, { label: 'Right', value: 'right' }, { label: 'Top left', value: 'top left' }, { label: 'Top right', value: 'top right' }, { label: 'Bottom left', value: 'bottom left' }, { label: 'Bottom right', value: 'bottom right' }]} />
+          <Select label="Size" value={draft.background.size || 'cover'} onChange={(v) => patch('background', { size: v })} options={[{ label: 'Cover (fill)', value: 'cover' }, { label: 'Contain (fit)', value: 'contain' }, { label: 'Auto', value: 'auto' }, { label: 'Stretch 100%', value: '100% 100%' }]} />
           <Select label="Attachment" value={draft.background.attachment} onChange={(v) => patch('background', { attachment: v as any })} options={[{ label: 'Fixed', value: 'fixed' }, { label: 'Scroll', value: 'scroll' }]} />
           <Select label="Repeat" value={draft.background.repeat} onChange={(v) => patch('background', { repeat: v as any })} options={[{ label: 'No repeat', value: 'no-repeat' }, { label: 'Repeat', value: 'repeat' }]} />
         </div>
