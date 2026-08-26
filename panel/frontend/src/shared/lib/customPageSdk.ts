@@ -194,7 +194,7 @@ export function pageNavigateTarget(instanceId: number, to: unknown): string | nu
 // SDK IMPLEMENTATION
 // ============================================================================
 
-export function createCustomPageSDK(instanceContext: InstanceContext, savedActions: PageActionDef[] = []): CustomPageAPI {
+export function createCustomPageSDK(instanceContext: InstanceContext, savedActions: PageActionDef[] = [], pageSlug = ''): CustomPageAPI {
   const apiBase = `/api/instances/${instanceContext.id}`;
   const eventListeners: Map<string, Set<(data: any) => void>> = new Map();
   
@@ -234,11 +234,14 @@ export function createCustomPageSDK(instanceContext: InstanceContext, savedActio
   }
   
   // --- Core action executor ---
+  // page_slug identifies the page the SDK runs from; the server verifies
+  // that exact page family is enabled on the target instance (fail closed).
   async function executeAction(action: PageAction): Promise<ActionResult> {
     return fetchJSON<ActionResult>(`/api/instance-pages/execute-action`, {
       method: 'POST',
       body: JSON.stringify({
         instance_id: instanceContext.id,
+        page_slug: pageSlug || undefined,
         ...action,
       }),
     });
@@ -410,8 +413,8 @@ export function createCustomPageSDK(instanceContext: InstanceContext, savedActio
 }
 
 // Helper to inject SDK into a page's iframe or directly into window
-export function injectSDK(instanceContext: InstanceContext, savedActions: PageActionDef[] = []): CustomPageAPI {
-  const sdk = createCustomPageSDK(instanceContext, savedActions);
+export function injectSDK(instanceContext: InstanceContext, savedActions: PageActionDef[] = [], pageSlug = ''): CustomPageAPI {
+  const sdk = createCustomPageSDK(instanceContext, savedActions, pageSlug);
   window.KSPageSDK = sdk;
   return sdk;
 }
