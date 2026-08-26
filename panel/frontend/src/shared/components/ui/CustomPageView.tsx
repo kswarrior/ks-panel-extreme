@@ -753,6 +753,9 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
   // The real SDK lives in the host origin; bridged calls execute against it.
   const sdkRef = useRef<ReturnType<typeof createCustomPageSDK> | null>(null);
   useEffect(() => {
+    // pageSlug MUST ride along: the backend (ExecuteCustomPageActionHandler)
+    // rejects execute-action calls without it, so every bridged shell/file
+    // action fails closed without it.
     sdkRef.current = instanceContext
       ? createCustomPageSDK(instanceContext, Array.isArray(content.actions) ? content.actions : [], pageSlug ?? '')
       : null;

@@ -1,16 +1,34 @@
 package handlers
 
 import (
-	"fmt"
+	"encoding/json"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
-// runKillScript spawns `sleep` as a child, runs the generated kill script
-// through /bin/sh (the same interpreter class the edge's driver Exec uses),
-// and returns the verification JSON line plus whether the victim survived.
+// procState reads the process state letter from /proc/<pid>/stat, handling
+// comm fields that contain spaces/parens by stripping up to the last ')'.
+// Mirrors the aliveness logic of killVerifyScript so the test verifies the
+// same truth the production path reports.
+func procState(pid int) (string, bool) {
+	b, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat")
+	if err != nil {
+		return "", false
+	}
+	s := string(b)
+	if i := strings.LastIndexByte(s, ')'); i >= 0 && i+2 < len(s) {
+		return s[i+2 : i+3], true
+	}
+	return "", false
+}
+
+// runKillScript spawns `sleep` as a stand-in workload, runs the generated
+// kill script through /bin/sh (the interpreter class the edge's driver Exec
+// uses), and returns the verification JSON plus whether the victim truly died.
 func runKillScript(t *testing.T, signal string) (stdout string, victimAlive bool) {
 	t.Helper()
 
@@ -18,35 +36,32 @@ func runKillScript(t *testing.T, signal string) (stdout string, victimAlive bool
 	if err := victim.Start(); err != nil {
 		t.Fatalf("spawn victim: %v", err)
 	}
-	pid := int64(victim.Process.Pid)
+	pid := victim.Process.Pid
+	waitErr := make(chan error, 1)
+	go func() { waitErr <- victim.Wait() }()
 	defer func() {
 		_ = victim.Process.Kill()
-		_ = victim.Wait()
+		select {
+		case <-waitErr:
+		case <-time.After(time.Second):
+		}
 	}()
 
-	script := killVerifyScript(pid, signal)
-	out, err := exec.Command("/bin/sh", "-c", script).CombinedOutput()
+	out, err := exec.Command("/bin/sh", "-c", killVerifyScript(int64(pid), signal)).CombinedOutput()
 	if err != nil {
 		t.Fatalf("script run: %v\noutput: %s", err, out)
 	}
 
-	// Did the victim actually die? Wait is expected to return now.
 	state := "alive"
-	done := make(chan error, 1)
-	go func() { done <- victim.Wait() }()
 	select {
-	case <-done:
+	case <-waitErr:
 		state = "dead"
 	default:
 	}
-
-	line := strings.TrimSpace(string(out))
-	return line, state == "alive" && pidStillExists(pid)
-}
-
-func pidStillExists(pid int64) bool {
-	b, err := os_ReadProcStat(pid)
-	return err == nil && !strings.Contains(b, " Z ")
+	if st, ok := procState(pid); ok && st == "Z" {
+		state = "dead" // zombie = terminated, awaiting reap
+	}
+	return strings.TrimSpace(string(out)), state == "alive"
 }
 
 func TestKillVerifyScriptTermKillsProcess(t *testing.T) {
@@ -62,36 +77,43 @@ func TestKillVerifyScriptTermKillsProcess(t *testing.T) {
 		t.Errorf("expected killed=true, got %s", stdout)
 	}
 	if alive {
-		t.Errorf("victim process still exists after TERM script; output=%s", stdout)
+		t.Errorf("victim survived TERM script; output=%s", stdout)
 	}
 }
 
 func TestKillVerifyScriptKillReportsNoEscalation(t *testing.T) {
 	stdout, alive := runKillScript(t, "KILL")
-	if !strings.Contains(stdout, `"killed":true`) || strings.Contains(stdout, `"escalated":true`) {
-		t.Errorf("unexpected KILL verdict: %s", stdout)
+	var res struct {
+		Killed    bool `json:"killed"`
+		Escalated bool `json:"escalated"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &res); err != nil {
+		t.Fatalf("unparseable script output %q: %v", stdout, err)
+	}
+	if !res.Killed || res.Escalated {
+		t.Errorf("expected killed=true escalated=false, got %s", stdout)
 	}
 	if alive {
 		t.Errorf("victim survived KILL script; output=%s", stdout)
 	}
 }
 
-func TestKillVerifyScriptRejectsInjectionShapes(t *testing.T) {
-	// The generator only accepts an already-validated integer; prove the
-	// splices contain no shell metacharacters for representative inputs.
-	for _, pid := range []int64{1, 65535} {
-		for _, sig := range []string{"TERM", "KILL"} {
-			s := killVerifyScript(pid, sig)
-			if strings.ContainsAny(s, ";|&`$()<>") {
-				// $( ) appear inside the sed expression by design — but the
-				// command-substitution form used there is '...' quoted, so
-				// check the dangerous unquoted forms instead.
-				t.Errorf("script for pid=%d sig=%s contains raw metacharacters:\n%s", pid, sig, s)
-			}
+// TestKillVerifyScriptSplicesAreTyped pins down the injection-safety
+// property: pid arrives as int64 (formatted via %d — digits only, never raw
+// query bytes) and signal is compared against validKillSignals before use.
+func TestKillVerifyScriptSplicesAreTyped(t *testing.T) {
+	s := killVerifyScript(4242, "TERM")
+	if !strings.Contains(s, "kill -TERM 4242") {
+		t.Errorf("expected literal 'kill -TERM 4242' splice, got:\n%s", s)
+	}
+	for _, sig := range []string{"TERM", "KILL", "HUP", "INT", "QUIT", "ABRT", "USR1", "USR2"} {
+		if !validKillSignals[sig] {
+			t.Errorf("signal %s missing from allowlist", sig)
+		}
+	}
+	for _, bad := range []string{"", "sigkill", "TERM;reboot", "-9"} {
+		if validKillSignals[strings.ToUpper(bad)] && bad == "TERM;reboot" || validKillSignals[bad] {
+			t.Errorf("invalid signal %q passed allowlist", bad)
 		}
 	}
 }
-
-func fmtPID(pid int64) string { return strconv.FormatInt(pid, 10) }
-
-var _ = fmt.Sprintf
