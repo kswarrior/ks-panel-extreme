@@ -567,6 +567,20 @@ func parseCreateTable(stmt string, order int) *createTableRef {
 	return ref
 }
 
+// createIndexRe matches a CREATE [UNIQUE] INDEX statement header and
+// captures the index + table names. "IF NOT EXISTS" may or may not follow.
+var createIndexRe = regexp.MustCompile(`(?is)^\s*CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?["'` + "`" + `]?(\w+)["'` + "`" + `]?\s+ON\s+["'` + "`" + `]?(\w+)["'` + "`" + `]?`)
+
+// bareCreateIndex reports whether stmt is a CREATE INDEX without IF NOT
+// EXISTS — the only form that breaks idempotent re-runs (MySQL lacks the
+// IF NOT EXISTS variant entirely).
+func bareCreateIndex(stmt string) bool {
+	if createIndexRe.FindStringSubmatch(stmt) == nil {
+		return false
+	}
+	return !regexp.MustCompile(`(?is)^\s*CREATE\s+(?:UNIQUE\s+)?INDEX\s+IF\s+NOT\s+EXISTS`).MatchString(stmt)
+}
+
 // execMigrationScript runs one migration body as individual statements.
 // CREATE TABLE statements execute first in parents-first topological order —
 // engines validate inline FOREIGN KEY targets at creation time (SQLite
@@ -575,6 +589,11 @@ func parseCreateTable(stmt string, order int) *createTableRef {
 // remaining statement runs in its original position. A cycle or unresolvable
 // reference falls back to the file's own order so the failure surfaces loudly
 // from the engine instead of being masked here.
+//
+// On every dialect except SQLite, bare "CREATE INDEX" statements (no IF NOT
+// EXISTS) are pulled out of the flow and applied through the hasIndex guard:
+// migrations re-run on every launch and MySQL rejects a duplicate index name,
+// which would wedge ~20 shipped migration files on second boot.
 func execMigrationScript(d Dialect, db *sql.DB, script, migration string) error {
 	stmts := splitSQLStatements(script)
 
@@ -595,9 +614,37 @@ func execMigrationScript(d Dialect, db *sql.DB, script, migration string) error 
 		}
 		return nil
 	}
+
+	guardBareIndexes := d.Name() != "sqlite"
+	var bareIdx []string
+	if guardBareIndexes {
+		filtered := make([]string, 0, len(rest))
+		for _, s := range rest {
+			if bareCreateIndex(s) {
+				bareIdx = append(bareIdx, s)
+				continue
+			}
+			filtered = append(filtered, s)
+		}
+		rest = filtered
+	}
+
 	for _, ct := range ordered {
 		if err := exec(ct.stmt); err != nil {
 			return fmt.Errorf("statement %d (%s): %w", ct.order+1, ct.name, err)
+		}
+	}
+	// Guarded index creation happens right after the tables exist but
+	// before any seed INSERTs so the original statement order stays
+	// semantically equivalent for every shipped file.
+	for _, s := range bareIdx {
+		m := createIndexRe.FindStringSubmatch(s)
+		table, idxName := m[2], m[1]
+		if hasIndex(d, db, table, idxName) {
+			continue
+		}
+		if err := exec(s); err != nil {
+			return fmt.Errorf("migration %s (%s): %w", migration, idxName, err)
 		}
 	}
 	for _, s := range rest {
