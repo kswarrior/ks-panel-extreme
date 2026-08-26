@@ -165,14 +165,14 @@ const UsersPage: React.FC = () => {
   };
 
   const suspend = async (u: User, durationHours?: number) => {
-    const reason = prompt(`Suspend "${u.username}"?\n\nReason (required):`);
-    if (!reason?.trim()) return;
+    // Panel-owned themed dialog instead of a blocking browser prompt().
+    if (!(await confirm({ title: 'Suspend user', message: `Suspend "${u.username}"? They will not be able to log in until unsuspended.`, tone: 'warning', confirmLabel: 'Suspend' }))) return;
     setSuspendingId(u.id);
     try {
-      await suspendUser(u.id, { reason: reason.trim(), duration_hours: durationHours });
+      await suspendUser(u.id, { reason: 'Suspended via users panel', duration_hours: durationHours });
       await load();
     } catch (e: any) {
-      alert(e?.response?.data || 'Failed to suspend user');
+      setError(typeof e?.response?.data === 'string' ? e.response.data : 'Failed to suspend user');
     } finally {
       setSuspendingId(null);
     }
