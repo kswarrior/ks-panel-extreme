@@ -799,7 +799,10 @@ func SetDatabaseEngineHandler(w http.ResponseWriter, r *http.Request) {
 	batchSize := clampBatchSize(req.BatchSize)
 
 	if !req.SyncData {
-		persistEngineConfig(&resp, engine, dsn,
+		// Persist the CANONICAL dialect name so kspanel.env never carries
+		// an alias ("postgresql"/"mariadb") that drifts from the engine
+		// name the response and every dialect lookup report.
+		persistEngineConfig(&resp, d.Name(), dsn,
 			"database engine updated — restart kspanel launch to apply", started)
 		writeJSON(w, resp)
 		return
@@ -906,7 +909,7 @@ func SetDatabaseEngineHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Step 5 — everything succeeded; make the new coordinates durable.
-	persistEngineConfig(&resp, engine, dsn,
+	persistEngineConfig(&resp, d.Name(), dsn,
 		fmt.Sprintf("database switched and %d tables / %d rows synced — restart kspanel launch to apply",
 			len(res.Tables), res.RowsCopied),
 		started)

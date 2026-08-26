@@ -6,6 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
+
+	"github.com/go-sql-driver/mysql"
 )
 
 // EnvFileName is the dotenv-style file kspanel writes when an operator changes
