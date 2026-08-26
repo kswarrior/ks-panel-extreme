@@ -348,6 +348,9 @@ const BRIDGE_METHODS = [
   'shell', 'readFile', 'writeFile', 'listFiles', 'deleteFile', 'createDirectory',
   'docker', 'kvm', 'lxd',
   'toast',
+  // Panel-owned confirm dialog: the iframe asks, the HOST renders the themed
+  // ConfirmDialog (no browser-native confirm()/alert() anywhere).
+  'confirm',
   // SPA navigation within the SAME instance (parent re-validates the target).
   'navigate',
   'storage.get', 'storage.set', 'storage.delete', 'storage.clear', 'storage.keys',
