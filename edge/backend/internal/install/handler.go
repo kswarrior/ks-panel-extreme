@@ -522,9 +522,14 @@ func handleInstallStop(w http.ResponseWriter, r *http.Request, token string, sto
 		stdin := store.getStdinWriter(key)
 		if stdin != nil {
 			// Write stop command + newline to the process's stdin
-			_, err := stdin.Write([]byte(in.StopCommand + "\n"))
-			if err != nil {
-				stopErr = "write to stdin failed: " + err.Error()
+			if _, werr := stdin.Write([]byte(in.StopCommand + "\n")); werr != nil {
+				// Delivery failed (step rolled over / pipe already
+				// closed). Degrade to different-mode so the stop click
+				// still CANCELS the workflow — leaving stopMode as "same"
+				// here meant neither delivery nor cancel ran and the
+				// workflow kept running while the UI reported an error.
+				stopErr = "write to stdin failed (" + werr.Error() + "); falling back to cancel"
+				stopMode = "different"
 			} else {
 				// Don't cancel - let the process read "stop" and exit naturally
 				// The engine will capture the exit and complete the workflow
