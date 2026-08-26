@@ -1262,7 +1262,7 @@ document.currentScript.remove();
       var act = t.dataset.act;
       var name = t.dataset.name;
       try {
-        if (act === 'logs') { showLogs(name); return; }
+        if (act === 'logs') { await showLogs(name); return; }
         if ((act === 'stop' || act === 'restart') && !(await ask(act + ' container "' + name + '"?'))) return;
         var r = await sh('docker ' + act + ' ' + JSON.stringify(name), 30);
         toast('docker ' + act + ': exit ' + (r.exit_code != null ? r.exit_code : '?'), r.exit_code === 0 ? 'success' : 'error');
@@ -3641,7 +3641,7 @@ def deploy_instance(template, node):
     html += '<div class="ks-card" style="margin-top:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;'
       + (overall === 'danger' ? 'border-color:var(--ks-bad-line)!important;' : overall === 'warn' ? 'border-color:var(--ks-warn-line)!important;' : '') + '">'
       + '<div style="display:flex;align-items:center;gap:12px;min-width:0">'
-      + '<span class="ks-badge" style="color:' + oMeta.c + ';border-color:color-mix(in srgb,' + oMeta.c + ' 35%,transparent">' + escf(oMeta.label) + '</span>'
+      + '<span class="ks-badge" style="color:' + oMeta.c + ';border-color:color-mix(in srgb,' + oMeta.c + ' 35%,transparent)">' + escf(oMeta.label) + '</span>'
       + '<span class="ks-muted" style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escf(oMeta.text) + '</span></div>'
       + '<div class="ks-mono ks-hidden-sm" style="display:flex;gap:14px;font-size:11px;color:var(--ks-muted);flex-shrink:0">'
       + '<span>CPU <span style="color:var(--ks-body)">' + (cpuPct != null ? cpuPct.toFixed(1) + '%' : '—') + '</span></span>'
@@ -3801,7 +3801,7 @@ def deploy_instance(template, node):
             + '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px">'
             + '<div style="display:flex;align-items:center;gap:8px;min-width:0">'
             + '<span style="width:8px;height:8px;border-radius:50%;background:' + meta.c + '"></span>'
-            + '<span class="ks-badge" style="color:' + meta.c + ';border-color:color-mix(in srgb,' + meta.c + ' 35%,transparent">' + esc(meta.label) + '</span>'
+            + '<span class="ks-badge" style="color:' + meta.c + ';border-color:color-mix(in srgb,' + meta.c + ' 35%,transparent)">' + esc(meta.label) + '</span>'
             + '<span class="ks-muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.04em">port</span>'
             + '</div>'
             + '<span class="ks-mono" style="font-size:24px;font-weight:600;color:var(--ks-heading);line-height:1">' + esc(p.host || '—') + '</span>'
