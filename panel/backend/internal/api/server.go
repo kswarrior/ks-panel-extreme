@@ -517,13 +517,13 @@ func NewRouter() http.Handler {
 		// React <Slot /> component can mount the right components. Gated by
 		// ACCESS_ADMIN_PANEL because slots render inside the admin shell; an
 		// anonymous caller would have nothing to render them into anyway.
-		r.Get("/api/mods/v1/slots", handlers.SlotsHandler)
+		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Get("/api/mods/v1/slots", handlers.SlotsHandler)
 		// Per-mod asset stream: serves a single file from an active mod's
 		// extracted .kspm workdir to the browser (the JS bundle the slots
 		// loader mounts, page content referenced by spec.pages, …). Same
 		// ACCESS_ADMIN_PANEL gate as the slot registry since assets render
 		// inside the admin shell alongside the slots that point at them.
-		r.Get("/api/mods/v1/assets/{slug}/*", handlers.ModAssetHandler)
+		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Get("/api/mods/v1/assets/{slug}/*", handlers.ModAssetHandler)
 
 		// Admin: instance management. MANAGE_INSTANCES (umbrella) implies
 		// every action; INSTANCES_* narrow each route. Deploy spins up a
@@ -630,7 +630,7 @@ func NewRouter() http.Handler {
 		// System snapshot (ACCESS_ADMIN_PANEL). One round-trip carries
 		// every tile the System page renders so the page can paint in a
 		// single fetch and refresh on an interval without re-querying.
-		r.Get("/api/system", handlers.SystemSnapshotHandler)
+		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Get("/api/system", handlers.SystemSnapshotHandler)
 
 		// Panel self-update (MANAGE_PANEL_UPDATE). Endpoints back
 		// the "Updates" tab on the System page:
