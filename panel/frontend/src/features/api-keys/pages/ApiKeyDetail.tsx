@@ -6,6 +6,7 @@ import type { User, Role } from '@/shared/types/user';
 import GlassCard from '@/shared/components/ui/Card';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import { PERMISSION_AREAS } from '@/shared/types/permissions';
+import { useConfirm } from '@/shared/stores/confirmStore';
 
 function getErrorMessage(e: any, fallback: string): string {
   const data = e?.response?.data;
@@ -67,6 +68,7 @@ function expiryStats(key: ApiKey) {
 const ApiKeyDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const [key, setKey] = useState<ApiKey | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -119,7 +121,7 @@ const ApiKeyDetail: React.FC = () => {
 
   const handleDelete = async () => {
     if (!key) return;
-    if (!confirm(`Delete API key "${key.name}"? This cannot be undone.`)) return;
+    if (!(await confirm({ title: 'Delete API key', message: `Delete API key "${key.name}"? This cannot be undone.`, tone: 'danger', confirmLabel: 'Delete' }))) return;
     setDeleting(true);
     try {
       await deleteAdminApiKey(key.id);
