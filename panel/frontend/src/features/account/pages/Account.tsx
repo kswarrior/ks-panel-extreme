@@ -22,6 +22,7 @@ import type { Profile, SocialLink } from '@/shared/types/user';
 import { CUSTOM_LINK_TYPE, SOCIAL_LINK_TYPES } from '@/shared/types/user';
 import { PermissionKey, hasPermissionAny } from '@/shared/types/permissions';
 import { AUTHORITY_PROVIDER, type AuthProviderInfo, type UserAuthorityMode } from '@/shared/types/authority';
+import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 
 // Account-area sub-cap check. Mirrors the backend's
 // checker.EnsureAny(uid, VIEW_ACCOUNT, subCap) — holding the umbrella
@@ -191,7 +192,7 @@ const Account: React.FC = () => {
   }, [user, loadProfile, loadAuth]);
 
   if (!user) {
-    return <p className="text-gray-400">Loading…</p>;
+    return <FormSkeleton fields={4} />;
   }
 
   // The header preview uses the buffered (unsaved) values so the user sees
@@ -735,7 +736,7 @@ const Account: React.FC = () => {
             {savingProfile ? 'Saving…' : 'Save profile'}
           </button>
           {loadingProfile && (
-            <span className="text-xs text-gray-500">Loading…</span>
+            <span className="inline-block h-3 w-20 rounded bg-white/15 animate-pulse align-middle" aria-busy="true" aria-label="Loading" />
           )}
         </div>
         <Msg msg={profileMsg} />
@@ -859,7 +860,11 @@ const Account: React.FC = () => {
         </p>
 
         {authProviders.length === 0 && loadingAuth && (
-          <p className="text-xs text-gray-500">Loading available authorities…</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4 animate-pulse" aria-busy="true" aria-label="Loading available authorities">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="h-10 rounded-md bg-white/[0.06]" style={{ animationDelay: `${i * 120}ms` }} />
+            ))}
+          </div>
         )}
         {authProviders.length > 0 && (
           <>
