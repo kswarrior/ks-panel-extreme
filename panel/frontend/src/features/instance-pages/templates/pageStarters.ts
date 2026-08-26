@@ -41,11 +41,16 @@ function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){retur
 function el(id){return document.getElementById(id);}
 function fmtBytes(n){if(n==null||isNaN(n))return'-';var u=['B','KB','MB','GB','TB'];var i=0;while(n>=1024&&i<u.length-1){n/=1024;i++;}return n.toFixed(n>=100||i===0?0:1)+' '+u[i];}
 function badge(s){var c='ks-badge';s=String(s==null?'':s).toLowerCase();if(['running','done','active','ok','up'].indexOf(s)>=0)c+=' ks-ok';else if(['stopped','exited','inactive','paused'].indexOf(s)>=0)c+=' ks-warn';else if(['errored','failed','error','dead'].indexOf(s)>=0)c+=' ks-bad';return '<span class="'+c+'">'+esc(s||'unknown')+'</span>';}
-function bar(pct,color){pct=Math.max(0,Math.min(100,Number(pct)||0));if(!color)color=pct>90?'#f87171':pct>70?'#fbbf24':'#38bdf8';return '<div class="ks-bar"><span style="width:'+pct+'%;background:'+color+'"></span></div>';}
+// tok resolves a panel theme token to a concrete color for APIs that cannot
+// consume CSS var() (canvas strokeStyle/fillStyle, SVG attributes). Inline
+// style="" values should prefer var(--ks-*) directly so live theme changes
+// repaint without a re-render.
+function tok(name,fb){try{var v=getComputedStyle(document.documentElement).getPropertyValue(name).trim();return v||fb;}catch(e){return fb;}}
+function bar(pct,color){pct=Math.max(0,Math.min(100,Number(pct)||0));if(!color)color=pct>90?'var(--ks-bad)':pct>70?'var(--ks-warn)':'var(--ks-info)';return '<div class="ks-bar"><span style="width:'+pct+'%;background:'+color+'"></span></div>';}
 function toast(m,t){try{KSPageSDK.toast(m,t||'info');}catch(e){}}
 async function sh(cmd,timeout){var r=await KSPageSDK.shell(cmd,[],null,timeout||20);if(r&&r.error&&!r.stdout&&!r.stderr)throw new Error(r.error);return r;}
 function pre(text,maxH){return '<pre style="max-height:'+(maxH||420)+'px;overflow:auto;font-size:12px;margin:0">'+esc(text==null?'':text)+'</pre>';}
-function card(title,innerHtml){return '<div class="ks-card"><h3 style="margin:0 0 .5rem;font-size:.95rem;color:#fff">'+title+'</h3>'+innerHtml+'</div>';}
+function card(title,innerHtml){return '<div class="ks-card"><h3 style="margin:0 0 .5rem;font-size:.95rem;color:var(--ks-heading)">'+title+'</h3>'+innerHtml+'</div>';}
 `;
 
 // page() wraps a body + script into the standard starter skeleton. The
@@ -53,7 +58,7 @@ function card(title,innerHtml){return '<div class="ks-card"><h3 style="margin:0 
 function page(title: string, body: string, js: string): string {
   return `<div class="ks-page">
 <div class="ks-row" style="justify-content:space-between;margin-bottom:0.75rem">
-  <h2 style="margin:0;font-size:1.3rem;color:#fff">${title}</h2>
+  <h2 style="margin:0;font-size:1.3rem;color:var(--ks-heading)">${title}</h2>
 </div>
 ${body}
 <script>
@@ -217,7 +222,7 @@ const NETWORK_INFO = page(
 const WEB_CONSOLE = page(
   'Console',
   `<div class="ks-muted" style="font-size:11px;margin-bottom:0.4rem">Exec-based console: every command runs as a fresh non-TTY shell inside the instance.</div>
-  <div id="out" style="background:rgba(0,0,0,0.55);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:0.75rem;height:340px;overflow:auto;font-family:ui-monospace,monospace;font-size:12px;white-space:pre-wrap"></div>
+  <div id="out" style="background:var(--ks-input-bg);border:1px solid var(--ks-card-border);border-radius:8px;padding:0.75rem;height:340px;overflow:auto;font-family:ui-monospace,monospace;font-size:12px;white-space:pre-wrap"></div>
   <div class="ks-row" style="margin-top:0.5rem">
     <input id="cmd" placeholder="command…" spellcheck="false" style="flex:1" />
     <button class="ks-btn ks-btn-blue" id="run">Run</button>
