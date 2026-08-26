@@ -136,13 +136,14 @@ func Script(env map[string]string, files []File, command string) (string, error)
 }
 
 // quote renders s as a fully single-quoted POSIX shell word ('…'), with
-// embedded single quotes escaped the standard way ('\''-style), so EVERY
-// metacharacter ($, backtick, ", \, spaces) stays literal when the script
-// runs. Callers concatenate it AFTER the separately-double-quoted "$STAGE/"
-// prefix — keeping variable expansion and the literal path in separate
-// quoting contexts is what stops a hostile staged path from executing as
-// shell substitution inside the workload (execrpc) or on the edge host
-// itself (hostexec).
+// embedded single quotes escaped by closing the quote, a backslash-quoted
+// apostrophe, then reopening ('fo' + \' + 'o'), so EVERY metacharacter
+// ($, backtick, ", \, spaces) stays literal when the script runs. Callers
+// concatenate it AFTER the separately-double-quoted "$STAGE/" prefix —
+// keeping variable expansion and the literal path in separate quoting
+// contexts is what stops a hostile staged path from executing as shell
+// substitution inside the workload (execrpc) or on the edge host itself
+// (hostexec).
 func quote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
 }
