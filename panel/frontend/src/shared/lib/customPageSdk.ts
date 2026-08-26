@@ -2,6 +2,8 @@
 // Uses the unified action system (shell, read_file, write_file, list_files, docker, kvm, lxd)
 // All operations go through executeAction() - no per-endpoint methods.
 
+import { confirmDialog } from '@/shared/stores/confirmStore';
+
 export interface InstanceContext {
   id: number;
   name: string;

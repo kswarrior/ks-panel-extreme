@@ -55,7 +55,7 @@ export const useConfirmStore = create<ConfirmState>((set, get) => ({
     set({ open: false, resolve: null, opts: null });
     r?.(v);
   },
-})));
+}));
 
 // Hook form for components — stable reference, safe in deps arrays.
 export const useConfirm = () => useConfirmStore((s) => s.request);
