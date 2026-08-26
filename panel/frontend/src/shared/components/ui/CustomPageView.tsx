@@ -887,9 +887,14 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
             wsRef.current.set(wsId, ws);
             ws.onopen = () => iframeRef.current?.contentWindow?.postMessage({ type: 'ks-ws-event', wsId, event: 'open' }, '*');
             ws.onmessage = (ev) => {
-              ev.data.text().then((t: string) =>
-                iframeRef.current?.contentWindow?.postMessage({ type: 'ks-ws-event', wsId, event: 'message', data: t }, '*'),
-              ).catch(() => {});
+              // Text frames arrive as strings, binary frames as Blobs. The
+              // terminal bridge speaks text frames only — calling .text() on
+              // a string throws and silently killed EVERY message to the
+              // sandboxed page (terminal showed "connecting…" forever).
+              const deliver = (t: string) =>
+                iframeRef.current?.contentWindow?.postMessage({ type: 'ks-ws-event', wsId, event: 'message', data: t }, '*');
+              if (typeof ev.data === 'string') { deliver(ev.data); return; }
+              if (ev.data instanceof Blob) ev.data.text().then(deliver).catch(() => {});
             };
             ws.onerror = () => iframeRef.current?.contentWindow?.postMessage({ type: 'ks-ws-event', wsId, event: 'error' }, '*');
             ws.onclose = () => {
