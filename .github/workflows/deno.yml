@@ -15,12 +15,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 360
 
-    env:
-      RELEASE_TAG: ks-release
-      RELEASE_TITLE: KS Release
-      MONITOR_SECONDS: 21000
-      GIT_SYNC_INTERVAL: 20
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -32,338 +26,128 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
-          cache: npm
-          check-latest: false
+          node-version: '22'
+          check-latest: true
 
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version: "1.26.7"
-          cache: true
-          check-latest: false
+          go-version: '1.26.7'
+          check-latest: true
 
       - name: Verify environment
-        shell: bash
         run: |
-          set -euo pipefail
-
+          set -e
           node --version
           npm --version
           go version
           git --version
           gh --version
 
-          echo
-          nproc
-          free -h
-          df -h .
-          git rev-parse --show-toplevel
-          git branch --show-current
-          git status --short
-
       - name: Prepare Git
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
         run: |
-          set -euo pipefail
-
+          set -e
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git config core.autocrlf false
-          git config core.safecrlf false
-          git config advice.detachedHead false
-          git config maintenance.auto false
-          git config gc.auto 0
-          git config fetch.prune true
-          git config rerere.enabled false
-
-          git remote set-url origin \
-            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-
-          git fetch --quiet origin main
+          git fetch origin main >/dev/null 2>&1 || true
           git checkout -B main origin/main
+          printf "node_modules/\n**/node_modules/\n" >> .git/info/exclude
+          echo "Git workspace ready."
 
-          cat >> .git/info/exclude <<'EOF'
-
-          node_modules/
-          **/node_modules/
-          .npm/
-          .cache/
-          **/.cache/
-          coverage/
-          **/coverage/
-          .turbo/
-          **/.turbo/
-          .next/
-          **/.next/
-          retest.log
-          **/*.log
-          tmp/
-          **/tmp/
-          .opencode/
-          **/.opencode/
-          EOF
-
-      - name: Install OpenCode
-        shell: bash
+      - name: Install OpenCode & start panel (test)
         run: |
-          set -euo pipefail
-
+          set -e
           npm install --global opencode-ai
+          bash retest.sh > retest.log 2>&1 &
+          echo "OpenCode:"
           opencode --version
 
-      - name: Start panel test
-        shell: bash
-        run: |
-          set -u
-
-          rm -f retest.log
-          rm -f /tmp/retest.pid
-
-          if [ ! -f "retest.sh" ]; then
-            echo "retest.sh not found."
-            exit 1
-          fi
-
-          chmod +x retest.sh
-
-          nohup bash retest.sh \
-            > retest.log 2>&1 &
-
-          echo "$!" > /tmp/retest.pid
-
-          sleep 2
-
-          if ! kill -0 "$(cat /tmp/retest.pid)" 2>/dev/null; then
-            echo "retest.sh stopped immediately."
-            tail -n 100 retest.log || true
-            exit 1
-          fi
-
       - name: Install cloudflared
-        shell: bash
         run: |
-          set -euo pipefail
-
-          curl -fsSL \
+          set -e
+          curl -fL \
             https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
             -o /tmp/cloudflared
-
           chmod +x /tmp/cloudflared
           sudo install /tmp/cloudflared /usr/local/bin/cloudflared
           cloudflared --version
-
-      - name: Start Cloudflare Tunnel
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          rm -f /tmp/cloudflared.log
-          rm -f /tmp/cloudflared.pid
-
           nohup cloudflared tunnel run \
             --token "eyJhIjoiZTJkZjY3MDI5ZWZlZTBmY2JhM2ExMjNjN2VmNTcxNTAiLCJ0IjoiMGQ2Yzk5YjQtMGUzZC00NzEyLWFmNDctNzM0MGU5YTEyOGE3IiwicyI6IlkyVTNOelV5WmpBdFl6SmpOeTAwTjJZMExUbGpNMk10T0dJelltRmtOREk1T1dOaCJ9" \
             > /tmp/cloudflared.log 2>&1 &
-
-          echo "$!" > /tmp/cloudflared.pid
-
-          for _ in $(seq 1 30); do
-            PID="$(cat /tmp/cloudflared.pid 2>/dev/null || true)"
-
-            if [ -z "$PID" ]; then
-              break
-            fi
-
-            if ! kill -0 "$PID" 2>/dev/null; then
-              echo "Cloudflare Tunnel stopped."
-              tail -n 100 /tmp/cloudflared.log || true
-              exit 1
-            fi
-
-            sleep 2
-          done
-
-          PID="$(cat /tmp/cloudflared.pid)"
-
-          if ! kill -0 "$PID" 2>/dev/null; then
-            echo "Cloudflare Tunnel failed."
-            tail -n 100 /tmp/cloudflared.log || true
+          echo $! > /tmp/cloudflared.pid
+          sleep 10
+          if ! kill -0 "$(cat /tmp/cloudflared.pid)" 2>/dev/null; then
+            echo "Cloudflare Tunnel failed to start."
+            cat /tmp/cloudflared.log
             exit 1
           fi
+          echo "Cloudflare Tunnel is running."
 
       - name: Start OpenCode Web UI
-        shell: bash
         run: |
-          set -euo pipefail
-
+          set -e
           rm -f /tmp/opencode.log
           rm -f /tmp/opencode.pid
-
           nohup opencode web \
             --port 7070 \
             --hostname 0.0.0.0 \
             > /tmp/opencode.log 2>&1 &
-
-          echo "$!" > /tmp/opencode.pid
-
+          OPENCODE_PID=$!
+          echo "$OPENCODE_PID" > /tmp/opencode.pid
           READY=0
-
-          for _ in $(seq 1 60); do
-            PID="$(cat /tmp/opencode.pid 2>/dev/null || true)"
-
-            if [ -z "$PID" ]; then
-              break
-            fi
-
-            if ! kill -0 "$PID" 2>/dev/null; then
-              break
-            fi
-
-            if curl -fsS \
-              --connect-timeout 2 \
-              --max-time 5 \
-              http://127.0.0.1:7070/ \
-              >/dev/null 2>&1; then
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:7070/ > /dev/null 2>&1; then
               READY=1
               break
             fi
-
+            if ! kill -0 "$OPENCODE_PID" 2>/dev/null; then
+              echo "OpenCode stopped unexpectedly."
+              cat /tmp/opencode.log
+              exit 1
+            fi
             sleep 2
           done
-
           if [ "$READY" -ne 1 ]; then
-            echo "OpenCode Web UI failed to become ready."
-            tail -n 100 /tmp/opencode.log || true
+            echo "OpenCode Web UI did not become ready."
+            cat /tmp/opencode.log
             exit 1
           fi
+          echo "OpenCode Web UI is running on port 7070."
 
       - name: Monitor repository
-        shell: bash
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ks-release
+          RELEASE_TITLE: KS Release
         run: |
-          set -u
-          set -o pipefail
-
-          START_TIME="$(date +%s)"
-          END_TIME=$((START_TIME + MONITOR_SECONDS))
-          GIT_LOCK="/tmp/ks-git.lock"
-          STATUS_FILE="/tmp/ks-status.txt"
-          PUSH_LOG="/tmp/ks-push.log"
-
-          acquire_lock() {
-            local attempt=0
-
-            while ! mkdir "$GIT_LOCK" 2>/dev/null; do
-              attempt=$((attempt + 1))
-
-              if [ "$attempt" -ge 60 ]; then
-                return 1
-              fi
-
-              sleep 1
-            done
-
-            return 0
-          }
-
-          release_lock() {
-            rmdir "$GIT_LOCK" 2>/dev/null || true
-          }
-
-          stage_changes() {
-            if ! acquire_lock; then
-              return 1
-            fi
-
-            git add -u -- . >/dev/null 2>&1 || true
-
-            while IFS= read -r -d '' FILE; do
-              case "$FILE" in
-                node_modules/*|*/node_modules/*)
-                  continue
-                  ;;
-                .cache/*|*/.cache/*)
-                  continue
-                  ;;
-                coverage/*|*/coverage/*)
-                  continue
-                  ;;
-                .turbo/*|*/.turbo/*)
-                  continue
-                  ;;
-                .next/*|*/.next/*)
-                  continue
-                  ;;
-                tmp/*|*/tmp/*)
-                  continue
-                  ;;
-                .opencode/*|*/.opencode/*)
-                  continue
-                  ;;
-                *.log)
-                  continue
-                  ;;
-              esac
-
-              git add -- "$FILE" >/dev/null 2>&1 || true
-            done < <(
-              git ls-files \
-                --others \
-                --exclude-standard \
-                -z \
-                2>/dev/null
-            )
-
-            release_lock
-            return 0
-          }
-
-          collect_release_assets() {
-            RELEASE_ASSETS=()
-
-            while IFS= read -r -d '' FILE; do
-              [ -f "$FILE" ] || continue
-              RELEASE_ASSETS+=("$FILE")
-            done < <(
-              git diff \
-                --cached \
-                --name-only \
-                --diff-filter=ACMRT \
-                -z \
-                -- \
-                'release/ksedge/**' \
-                'release/kspanel/**' \
-                2>/dev/null
-            )
-          }
+          # IMPORTANT:
+          # This step intentionally does NOT use "set -e".
+          # A temporary Git/network/rebase problem must never stop the monitor.
+          START_TIME=$(date +%s)
+          END_TIME=$((START_TIME + 21000))
+          echo "Monitor."
 
           publish_release() {
-            if [ "${#RELEASE_ASSETS[@]}" -eq 0 ]; then
+            local assets=("$@")
+            if [ "${#assets[@]}" -eq 0 ]; then
               return 0
             fi
-
             if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
               gh release create \
                 "$RELEASE_TAG" \
-                "${RELEASE_ASSETS[@]}" \
+                "${assets[@]}" \
                 --target "$(git rev-parse HEAD)" \
                 --title "$RELEASE_TITLE" \
                 --generate-notes \
                 >/dev/null 2>&1 || true
-
               return 0
             fi
-
             gh release upload \
               "$RELEASE_TAG" \
-              "${RELEASE_ASSETS[@]}" \
+              "${assets[@]}" \
               --clobber \
               >/dev/null 2>&1 || true
-
             gh release edit \
               "$RELEASE_TAG" \
               --title "$RELEASE_TITLE" \
@@ -371,330 +155,183 @@ jobs:
               >/dev/null 2>&1 || true
           }
 
-          commit_changes() {
-            if ! stage_changes; then
-              return 1
-            fi
-
-            if git diff --cached --quiet; then
-              return 0
-            fi
-
-            collect_release_assets
-
-            if git commit \
-              -m "Auto sync changes" \
-              --no-verify \
-              >/dev/null 2>&1; then
-              publish_release
-              return 0
-            fi
-
-            return 1
-          }
-
-          rebase_remote() {
-            if ! acquire_lock; then
-              return 1
-            fi
-
-            if git rebase \
-              --autostash \
-              origin/main \
-              >/dev/null 2>&1; then
-              release_lock
-              return 0
-            fi
-
-            git rebase --abort >/dev/null 2>&1 || true
-            release_lock
-            return 1
-          }
-
-          push_with_retry() {
-            local attempt delay
-
-            for attempt in 1 2 3 4 5; do
-
-              if git push origin main:main \
-                >"$PUSH_LOG" 2>&1; then
-                return 0
-              fi
-
-              if [ "$attempt" -eq 5 ]; then
-                return 1
-              fi
-
-              if ! acquire_lock; then
-                delay=$((attempt * 10))
-                sleep "$delay"
-                continue
-              fi
-
-              git fetch --quiet origin main || true
-              release_lock
-
-              rebase_remote || true
-
-              delay=$((attempt * 10))
-              sleep "$delay"
-            done
-
-            return 1
-          }
-
-          local_or_remote_state() {
-            git merge-base --is-ancestor origin/main HEAD >/dev/null 2>&1
-          }
-
-          sync_repository() {
-            if ! acquire_lock; then
-              return 0
-            fi
-
-            git fetch --quiet origin main || true
-            release_lock
-
-            if ! acquire_lock; then
-              return 0
-            fi
-
-            git status \
-              --porcelain=v1 \
-              --untracked-files=all \
-              > "$STATUS_FILE" \
-              2>/dev/null || true
-
-            release_lock
-
-            if grep -qvE \
-              '(^|/)(node_modules|\.cache|coverage|\.turbo|\.next|tmp|\.opencode)(/|$)|\.log$' \
-              "$STATUS_FILE" \
-              2>/dev/null; then
-              commit_changes || true
-            fi
-
-            if ! acquire_lock; then
-              return 0
-            fi
-
-            LOCAL_COMMIT="$(git rev-parse HEAD 2>/dev/null || true)"
-            REMOTE_COMMIT="$(git rev-parse origin/main 2>/dev/null || true)"
-
-            release_lock
-
-            if [ -z "$LOCAL_COMMIT" ] || [ -z "$REMOTE_COMMIT" ]; then
-              return 0
-            fi
-
-            if [ "$LOCAL_COMMIT" = "$REMOTE_COMMIT" ]; then
-              return 0
-            fi
-
-            if git merge-base \
-              --is-ancestor \
-              origin/main \
-              HEAD \
-              >/dev/null 2>&1; then
-              push_with_retry || true
-              return 0
-            fi
-
-            if git merge-base \
-              --is-ancestor \
-              HEAD \
-              origin/main \
-              >/dev/null 2>&1; then
-
-              if acquire_lock; then
-                git merge \
-                  --ff-only \
-                  origin/main \
-                  >/dev/null 2>&1 || true
-                release_lock
-              fi
-
-              return 0
-            fi
-
-            rebase_remote || true
-            push_with_retry || true
-          }
-
-          LAST_HEALTH="$(date +%s)"
-
-          while true; do
-            NOW="$(date +%s)"
-
-            if [ "$NOW" -ge "$END_TIME" ]; then
-              break
-            fi
-
-            sync_repository
-
-            if [ -f /tmp/opencode.pid ]; then
-              PID="$(cat /tmp/opencode.pid 2>/dev/null || true)"
-
-              if [ -n "$PID" ] && ! kill -0 "$PID" 2>/dev/null; then
-                echo "OpenCode stopped."
-              fi
-            fi
-
-            if [ -f /tmp/cloudflared.pid ]; then
-              PID="$(cat /tmp/cloudflared.pid 2>/dev/null || true)"
-
-              if [ -n "$PID" ] && ! kill -0 "$PID" 2>/dev/null; then
-                echo "Cloudflare Tunnel stopped."
-              fi
-            fi
-
-            if [ -f /tmp/retest.pid ]; then
-              PID="$(cat /tmp/retest.pid 2>/dev/null || true)"
-
-              if [ -n "$PID" ] && ! kill -0 "$PID" 2>/dev/null; then
-                echo "retest.sh stopped."
-              fi
-            fi
-
-            NOW="$(date +%s)"
-
-            if [ $((NOW - LAST_HEALTH)) -ge 300 ]; then
-              uptime || true
-              free -h || true
-              df -h . || true
-              LAST_HEALTH="$NOW"
-            fi
-
-            sleep "$GIT_SYNC_INTERVAL"
-          done
-
-      - name: Final repository synchronization
-        if: always()
-        shell: bash
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -u
-
-          GIT_LOCK="/tmp/ks-final-lock"
-
-          acquire_final_lock() {
-            local attempt=0
-
-            while ! mkdir "$GIT_LOCK" 2>/dev/null; do
-              attempt=$((attempt + 1))
-
-              if [ "$attempt" -ge 30 ]; then
-                return 1
-              fi
-
-              sleep 1
-            done
-
-            return 0
-          }
-
-          if ! acquire_final_lock; then
-            exit 0
-          fi
-
-          git fetch --quiet origin main || true
-
-          git add -u -- . >/dev/null 2>&1 || true
-
-          while IFS= read -r -d '' FILE; do
-            case "$FILE" in
-              node_modules/*|*/node_modules/*)
-                continue
-                ;;
-              .cache/*|*/.cache/*)
-                continue
-                ;;
-              coverage/*|*/coverage/*)
-                continue
-                ;;
-              .turbo/*|*/.turbo/*)
-                continue
-                ;;
-              .next/*|*/.next/*)
-                continue
-                ;;
-              tmp/*|*/tmp/*)
-                continue
-                ;;
-              .opencode/*|*/.opencode/*)
-                continue
-                ;;
-              *.log)
-                continue
-                ;;
-            esac
-
-            git add -- "$FILE" >/dev/null 2>&1 || true
-          done < <(
-            git ls-files \
-              --others \
-              --exclude-standard \
-              -z \
-              2>/dev/null
-          )
-
-          if ! git diff --cached --quiet; then
-
+          collect_release_assets() {
             RELEASE_ASSETS=()
-
-            while IFS= read -r -d '' FILE; do
-              [ -f "$FILE" ] || continue
-              RELEASE_ASSETS+=("$FILE")
+            while IFS= read -r FILE; do
+              if [ -f "$FILE" ]; then
+                RELEASE_ASSETS+=("$FILE")
+              fi
             done < <(
               git diff \
                 --cached \
                 --name-only \
                 --diff-filter=ACMRT \
-                -z \
                 -- \
                 'release/ksedge/**' \
                 'release/kspanel/**' \
                 2>/dev/null
             )
+          }
 
-            if git commit \
-              -m "Final sync changes" \
-              --no-verify \
-              >/dev/null 2>&1; then
+          commit_local_changes() {
+            git add -A >/dev/null 2>&1 || true
+            git reset -- \
+              ':(glob)node_modules/**' \
+              ':(glob)**/node_modules/**' \
+              >/dev/null 2>&1 || true
+            if git diff --cached --quiet; then
+              return 0
+            fi
+            collect_release_assets
+            if git commit -m "Auto sync changes" >/dev/null 2>&1; then
+              publish_release "${RELEASE_ASSETS[@]}"
+            fi
+            return 0
+          }
 
-              git fetch --quiet origin main || true
-
-              if ! git rebase \
-                --autostash \
-                origin/main \
-                >/dev/null 2>&1; then
+          push_with_retry() {
+            for ATTEMPT in 1 2 3 4 5 6 7 8 9 10; do
+              if git push origin main:main >/dev/null 2>&1; then
+                return 0
+              fi
+              git fetch origin main >/dev/null 2>&1 || true
+              # Remote moved while we were pushing.
+              # Rebase local commits on top of the latest remote commit.
+              git rebase --autostash origin/main >/dev/null 2>&1
+              if [ "$?" -ne 0 ]; then
                 git rebase --abort >/dev/null 2>&1 || true
               fi
+              sleep 2
+            done
+            return 1
+          }
 
-              for ATTEMPT in 1 2 3 4 5; do
+          while true; do
+            CURRENT_TIME=$(date +%s)
+            if [ "$CURRENT_TIME" -ge "$END_TIME" ]; then
+              break
+            fi
 
+            # Never print fetch output.
+            git fetch origin main >/dev/null 2>&1 || true
+
+            # Check local working-tree changes.
+            git status \
+              --porcelain \
+              --untracked-files=all \
+              > /tmp/monitor-status.txt 2>/dev/null || true
+
+            grep -vE '(^|/)(node_modules)(/|$)' \
+              /tmp/monitor-status.txt \
+              > /tmp/monitor-status-clean.txt 2>/dev/null || true
+
+            # New/modified local files exist.
+            if [ -s /tmp/monitor-status-clean.txt ]; then
+              commit_local_changes
+            fi
+
+            # Update remote information quietly.
+            git fetch origin main >/dev/null 2>&1 || true
+            LOCAL_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "")
+            REMOTE_COMMIT=$(git rev-parse origin/main 2>/dev/null || echo "")
+
+            if [ -n "$LOCAL_COMMIT" ] && [ -n "$REMOTE_COMMIT" ]; then
+              if [ "$LOCAL_COMMIT" = "$REMOTE_COMMIT" ]; then
+                :
+              elif git merge-base --is-ancestor origin/main HEAD >/dev/null 2>&1; then
+                # Local branch is ahead of remote.
+                # Push it.
+                push_with_retry || true
+              elif git merge-base --is-ancestor HEAD origin/main >/dev/null 2>&1; then
+                # Local branch is behind remote.
+                #
+                # Only reset when there are NO local commits.
+                git reset --hard origin/main >/dev/null 2>&1 || true
+              else
+                # Local and remote both have commits.
+                #
+                # Rebase with autostash so OpenCode's currently changing
+                # files do not cause:
+                #
+                # "cannot rebase: You have unstaged changes"
+                if ! git rebase --autostash origin/main >/dev/null 2>&1; then
+                  git rebase --abort >/dev/null 2>&1 || true
+                else
+                  push_with_retry || true
+                fi
+              fi
+            fi
+
+            sleep 25
+          done
+
+      - name: Final repository check
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ks-release
+          RELEASE_TITLE: KS Release
+        continue-on-error: true
+        run: |
+          # Never allow final synchronization to make the whole workflow
+          # fail because of a temporary Git/rebase problem.
+          git fetch origin main >/dev/null 2>&1 || true
+          git status \
+            --porcelain \
+            --untracked-files=all \
+            > /tmp/final-status.txt 2>/dev/null || true
+          grep -vE '(^|/)(node_modules)(/|$)' \
+            /tmp/final-status.txt \
+            > /tmp/final-status-clean.txt 2>/dev/null || true
+
+          if [ -s /tmp/final-status-clean.txt ]; then
+            git add -A >/dev/null 2>&1 || true
+            git reset -- \
+              ':(glob)node_modules/**' \
+              ':(glob)**/node_modules/**' \
+              >/dev/null 2>&1 || true
+
+            if ! git diff --cached --quiet; then
+              RELEASE_ASSETS=()
+
+              while IFS= read -r FILE; do
+                if [ -f "$FILE" ]; then
+                  RELEASE_ASSETS+=("$FILE")
+                fi
+              done < <(
+                git diff \
+                  --cached \
+                  --name-only \
+                  --diff-filter=ACMRT \
+                  -- \
+                  'release/ksedge/**' \
+                  'release/kspanel/**' \
+                  2>/dev/null
+              )
+
+              git commit -m "Final sync changes" >/dev/null 2>&1 || true
+              git fetch origin main >/dev/null 2>&1 || true
+
+              git rebase --autostash origin/main >/dev/null 2>&1 || {
+                git rebase --abort >/dev/null 2>&1 || true
+              }
+
+              for ATTEMPT in 1 2 3 4 5 6 7 8 9 10; do
                 if git push origin main:main >/dev/null 2>&1; then
                   break
                 fi
 
-                git fetch --quiet origin main || true
+                git fetch origin main >/dev/null 2>&1 || true
 
-                if ! git rebase \
-                  --autostash \
-                  origin/main \
-                  >/dev/null 2>&1; then
+                git rebase --autostash origin/main >/dev/null 2>&1 || {
                   git rebase --abort >/dev/null 2>&1 || true
-                fi
+                }
 
-                sleep $((ATTEMPT * 10))
+                sleep 2
               done
 
               if [ "${#RELEASE_ASSETS[@]}" -gt 0 ]; then
-
                 if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-
                   gh release create \
                     "$RELEASE_TAG" \
                     "${RELEASE_ASSETS[@]}" \
@@ -702,84 +339,41 @@ jobs:
                     --title "$RELEASE_TITLE" \
                     --generate-notes \
                     >/dev/null 2>&1 || true
-
                 else
-
                   gh release upload \
                     "$RELEASE_TAG" \
                     "${RELEASE_ASSETS[@]}" \
                     --clobber \
                     >/dev/null 2>&1 || true
-
                   gh release edit \
                     "$RELEASE_TAG" \
                     --title "$RELEASE_TITLE" \
                     --target "$(git rev-parse HEAD)" \
                     >/dev/null 2>&1 || true
-
                 fi
               fi
             fi
           fi
 
-          rmdir "$GIT_LOCK" 2>/dev/null || true
-
       - name: Stop OpenCode
         if: always()
-        shell: bash
         run: |
-          set +e
-
           if [ -f /tmp/opencode.pid ]; then
             kill "$(cat /tmp/opencode.pid)" 2>/dev/null || true
           fi
-
           pkill -f "opencode web" 2>/dev/null || true
-
-      - name: Stop panel test
-        if: always()
-        shell: bash
-        run: |
-          set +e
-
-          if [ -f /tmp/retest.pid ]; then
-            kill "$(cat /tmp/retest.pid)" 2>/dev/null || true
-          fi
-
-          pkill -f "bash retest.sh" 2>/dev/null || true
 
       - name: Stop Cloudflare Tunnel
         if: always()
-        shell: bash
         run: |
-          set +e
-
           if [ -f /tmp/cloudflared.pid ]; then
             kill "$(cat /tmp/cloudflared.pid)" 2>/dev/null || true
           fi
 
-          pkill -f "cloudflared tunnel run" 2>/dev/null || true
-
-      - name: Show diagnostics
-        if: always()
-        shell: bash
+      - name: Show service logs on failure
+        if: failure()
         run: |
-          set +e
-
-          echo "OpenCode"
-          tail -n 100 /tmp/opencode.log 2>/dev/null || true
-
-          echo "Cloudflare"
-          tail -n 100 /tmp/cloudflared.log 2>/dev/null || true
-
-          echo "Panel"
-          tail -n 100 retest.log 2>/dev/null || true
-
-          echo "Git"
-          git status --short 2>/dev/null || true
-
-          echo "Disk"
-          df -h . 2>/dev/null || true
-
-          echo "Memory"
-          free -h 2>/dev/null || true
+          echo "===== OpenCode Log ====="
+          cat /tmp/opencode.log 2>/dev/null || true
+          echo "===== Cloudflare Log ====="
+          cat /tmp/cloudflared.log 2>/dev/null || true
