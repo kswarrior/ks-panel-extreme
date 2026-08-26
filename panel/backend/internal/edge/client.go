@@ -371,6 +371,15 @@ func (c *Client) InstallStop(req InstallStopRequest) (InstallStopResponse, error
 // A non-2xx status is converted into an error so callers can treat the RPC
 // uniformly with `err != nil`.
 func (c *Client) Lifecycle(req LifecycleRequest) (LifecycleResponse, error) {
+	return c.LifecycleCtx(context.Background(), req)
+}
+
+// LifecycleCtx is Lifecycle with a caller-supplied context so a handler can
+// bound the call below its own response deadline: `docker stop` may honor a
+// full grace period before SIGKILL, and a request that outlives the CDN/
+// tunnel origin window surfaces the proxy's raw HTML error page instead of
+// this client's structured error.
+func (c *Client) LifecycleCtx(ctx context.Context, req LifecycleRequest) (LifecycleResponse, error) {
 	req.Token = c.token
 	body, err := json.Marshal(req)
 	if err != nil {
@@ -378,7 +387,7 @@ func (c *Client) Lifecycle(req LifecycleRequest) (LifecycleResponse, error) {
 	}
 
 	endpoint := c.baseURL + "/api/edge/lifecycle"
-	httpReq, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(body))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return LifecycleResponse{}, fmt.Errorf("build request: %w", err)
 	}
