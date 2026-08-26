@@ -306,7 +306,9 @@ func (c *Client) InstallStatus(req InstallStatusRequest) (InstallStatusResponse,
 
 	resp, err := c.http.Do(httpReq)
 	if err != nil {
-		return InstallStatusResponse{}, fmt.Errorf("dial edge: %w", err)
+		// The URL carries the token as a query param — mask it before the
+		// error reaches any log.
+		return InstallStatusResponse{}, fmt.Errorf("dial edge: %s", redactTokenErr(err))
 	}
 	defer resp.Body.Close()
 

@@ -83,7 +83,11 @@ type Instance struct {
 	// Install workflow tracking (set by the edge install poller after deploy).
 	InstallState     string `json:"install_state,omitempty"`      // "" | "running" | "done" | "failed"
 	InstallID        string `json:"install_id,omitempty"`         // "<kind>:<name>" key for edge poll
-	InstallStep      int    `json:"install_step,omitempty"`       // current step index (-1 = not started)
+	// InstallStep has NO omitempty on purpose: step index 0 is a real,
+	// meaningful value ("step #0 running / failed") and omitting it made the
+	// SPA read it as -1 ("not started") for exactly the first workflow step.
+	// -1 remains the explicit "not started" sentinel.
+	InstallStep      int    `json:"install_step"`                 // current step index (-1 = not started)
 	InstallError     string `json:"install_error,omitempty"`      // short failure message from edge
 	InstallStepsJSON string `json:"install_steps_json,omitempty"` // full transcript JSON
 	// InstallKind: '' = the template's spec.install[] workflow kicked off
