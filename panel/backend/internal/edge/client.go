@@ -19,10 +19,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
 	"time"
 
 	"github.com/example/kspanel/internal/models"
 )
+
+// tokenQueryParamRe matches a token=… query parameter inside an error's
+// message text. InstallStatus is the one RPC that carries the shared edge
+// secret in the URL query, so when the dial fails the wrapped *url.Error
+// would otherwise embed the raw token in the message the sweep loop logs.
+var tokenQueryParamRe = regexp.MustCompile(`token=[^&\s"']+`)
 
 // Client dials a single edge node. The scheme (http vs https) is decided by
 // the node's UseTLS flag so the panel transparently talks to edges that put
