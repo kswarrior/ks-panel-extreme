@@ -15,6 +15,7 @@ import type {
 import GlassCard from '@/shared/components/ui/Card';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import NumberInput from '@/shared/components/ui/NumberInput';
+import { useConfirm } from '@/shared/stores/confirmStore';
 
 // Sessions — Security page tab: session lifetime / idle timeout /
 // per-user cap policy, cookie-security status, and every active tracked
@@ -26,6 +27,7 @@ interface SessionsProps {
 }
 
 const Sessions: React.FC<SessionsProps> = ({ initialConfig, onConfigChange }) => {
+  const confirm = useConfirm();
   const [configLoading, setConfigLoading] = useState(!initialConfig);
   const [configSaving, setConfigSaving] = useState(false);
   const [configError, setConfigError] = useState('');
@@ -124,9 +126,14 @@ const Sessions: React.FC<SessionsProps> = ({ initialConfig, onConfigChange }) =>
 
   const revoke = async (s: SecuritySessionEntry) => {
     if (
-      !confirm(
-        `Terminate the ${s.current ? 'CURRENT ' : ''}session of ${s.username || `user #${s.user_id}`}? Their next request will require a fresh login.`,
-      )
+      !(await confirm(
+        {
+          title: 'Terminate session',
+          message: `Terminate the ${s.current ? 'CURRENT ' : ''}session of ${s.username || `user #${s.user_id}`}? Their next request will require a fresh login.`,
+          tone: s.current ? 'danger' : 'warning',
+          confirmLabel: 'Terminate',
+        },
+      ))
     ) {
       return;
     }
@@ -143,7 +150,7 @@ const Sessions: React.FC<SessionsProps> = ({ initialConfig, onConfigChange }) =>
   };
 
   const revokeAll = async () => {
-    if (!confirm('Terminate EVERY active session for ALL users (including this browser)?')) return;
+    if (!(await confirm({ title: 'Terminate all sessions', message: 'Terminate EVERY active session for ALL users (including this browser)?', tone: 'danger', confirmLabel: 'Terminate all' }))) return;
     setBusyId('__all__');
     try {
       await securityRevokeAllSessions();
