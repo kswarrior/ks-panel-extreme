@@ -377,7 +377,7 @@ func (r *SecurityRepository) Insert(in SecurityRequestInput) (int64, error) {
 		log.Printf("security_requests insert: %v", errIns)
 		return 0, errIns
 	}
-	return idIns
+	return idIns, nil
 }
 
 // InsertWithContext appends one request row with a context for timeout
@@ -430,7 +430,7 @@ func (r *SecurityRepository) InsertWithContext(ctx context.Context, in SecurityR
 		log.Printf("security_requests insert with context: %v", errIns)
 		return 0, errIns
 	}
-	return idIns
+	return idIns, nil
 }
 
 // IsUnderAttack reads the persisted security_under_attack setting so the
