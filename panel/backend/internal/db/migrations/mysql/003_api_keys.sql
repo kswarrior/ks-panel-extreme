@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS api_keys (
     last_used_at DATETIME,
     -- Encoded as a comma-separated list of permission keys. Empty => no
     -- permissions granted (the request would be unauthenticated-equivalent).
-    permissions TEXT    NOT NULL DEFAULT '',
+    permissions TEXT    NOT NULL DEFAULT (''),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 

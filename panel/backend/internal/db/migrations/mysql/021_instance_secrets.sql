@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS instance_secrets (
     -- small enough to keep alongside, so we store it in value_blob too and
     -- mark is_secret = 0.
     is_secret    INTEGER NOT NULL DEFAULT 1,    -- 0 = visible env, 1 = masked secret
-    description  TEXT    NOT NULL DEFAULT '',
+    description  TEXT    NOT NULL DEFAULT (''),
     created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (instance_id, `key`)

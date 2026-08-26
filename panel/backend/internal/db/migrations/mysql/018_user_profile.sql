@@ -16,13 +16,13 @@
 -- the ALTER when the column is already present, letting a partially-migrated
 -- DB converge without "duplicate column name" errors.
 
-ALTER TABLE users ADD COLUMN display_name TEXT NOT NULL DEFAULT '';
-ALTER TABLE users ADD COLUMN bio TEXT NOT NULL DEFAULT '';
-ALTER TABLE users ADD COLUMN pronouns TEXT NOT NULL DEFAULT '';
-ALTER TABLE users ADD COLUMN accent_color TEXT NOT NULL DEFAULT '';
-ALTER TABLE users ADD COLUMN avatar_symbol TEXT NOT NULL DEFAULT '';
+ALTER TABLE users ADD COLUMN display_name TEXT NOT NULL DEFAULT ('');
+ALTER TABLE users ADD COLUMN bio TEXT NOT NULL DEFAULT ('');
+ALTER TABLE users ADD COLUMN pronouns TEXT NOT NULL DEFAULT ('');
+ALTER TABLE users ADD COLUMN accent_color TEXT NOT NULL DEFAULT ('');
+ALTER TABLE users ADD COLUMN avatar_symbol TEXT NOT NULL DEFAULT ('');
 ALTER TABLE users ADD COLUMN avatar_mime TEXT;
 ALTER TABLE users ADD COLUMN avatar_filename TEXT;
 ALTER TABLE users ADD COLUMN banner_mime TEXT;
 ALTER TABLE users ADD COLUMN banner_filename TEXT;
-ALTER TABLE users ADD COLUMN social_links TEXT NOT NULL DEFAULT '';
+ALTER TABLE users ADD COLUMN social_links TEXT NOT NULL DEFAULT ('');

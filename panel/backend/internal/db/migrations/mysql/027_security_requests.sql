@@ -49,13 +49,13 @@
 
 CREATE TABLE IF NOT EXISTS security_requests (
     id          BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    client_ip   TEXT    NOT NULL DEFAULT '',
-    method      TEXT    NOT NULL DEFAULT '',
-    path        TEXT    NOT NULL DEFAULT '',
+    client_ip   TEXT    NOT NULL DEFAULT (''),
+    method      TEXT    NOT NULL DEFAULT (''),
+    path        TEXT    NOT NULL DEFAULT (''),
     status      INTEGER NOT NULL DEFAULT 0,
     user_id     BIGINT,
-    user_agent  TEXT    NOT NULL DEFAULT '',
-    country     TEXT    NOT NULL DEFAULT '',
+    user_agent  TEXT    NOT NULL DEFAULT (''),
+    country     TEXT    NOT NULL DEFAULT (''),
     blocked     INTEGER NOT NULL DEFAULT 0,
     challenged  INTEGER NOT NULL DEFAULT 0,
     is_api      INTEGER NOT NULL DEFAULT 0,

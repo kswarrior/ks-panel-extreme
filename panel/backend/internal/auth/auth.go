@@ -117,11 +117,17 @@ func GenerateSessionToken(userID int64, issuedAt time.Time) (string, error) {
 // caller is told issuedAt is the Unix epoch so an explicit "ancient
 // session" check is straightforward.
 func ValidateSessionToken(token string) (int64, time.Time, error) {
+	secret, err := loadSessionSecret()
+	if err != nil {
+		// Fail closed: without a configured secret no token can be
+		// trusted, so every validation attempt is rejected.
+		return 0, time.Time{}, err
+	}
 	parts := strings.SplitN(token, ".", 3)
 	switch len(parts) {
 	case 3:
 		uidStr, issuedStr, sig := parts[0], parts[1], parts[2]
-		mac := hmac.New(sha256.New, sessionSecret)
+		mac := hmac.New(sha256.New, secret)
 		mac.Write([]byte(uidStr))
 		mac.Write([]byte{'.'})
 		mac.Write([]byte(issuedStr))

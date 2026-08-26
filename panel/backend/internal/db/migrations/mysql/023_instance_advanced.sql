@@ -21,9 +21,9 @@ CREATE TABLE IF NOT EXISTS instance_snapshots (
     id           BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     instance_id  BIGINT NOT NULL REFERENCES instances(id) ON DELETE CASCADE,
     name         TEXT    NOT NULL,
-    external_ref TEXT    NOT NULL DEFAULT '',            -- edge-side snapshot id/name
+    external_ref TEXT    NOT NULL DEFAULT (''),            -- edge-side snapshot id/name
     size_bytes   INTEGER NOT NULL DEFAULT 0,
-    note         TEXT    NOT NULL DEFAULT '',
+    note         TEXT    NOT NULL DEFAULT (''),
     created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (instance_id, name)
 );
@@ -33,9 +33,9 @@ CREATE INDEX instance_snapshots_inst_idx ON instance_snapshots(instance_id, crea
 CREATE TABLE IF NOT EXISTS instance_audit (
     id           BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     instance_id  BIGINT NOT NULL REFERENCES instances(id) ON DELETE CASCADE,
-    actor        TEXT    NOT NULL DEFAULT '',            -- username or 'system'
+    actor        TEXT    NOT NULL DEFAULT (''),            -- username or 'system'
     action       TEXT    NOT NULL,
-    detail       TEXT    NOT NULL DEFAULT '',
+    detail       TEXT    NOT NULL DEFAULT (''),
     created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -44,8 +44,8 @@ CREATE INDEX instance_audit_inst_idx ON instance_audit(instance_id, created_at D
 CREATE TABLE IF NOT EXISTS instance_live_state (
     instance_id  BIGINT PRIMARY KEY REFERENCES instances(id) ON DELETE CASCADE,
     updated_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    metrics      TEXT    NOT NULL DEFAULT '{}',           -- JSON: cpu/mem/disk/net
-    processes    TEXT    NOT NULL DEFAULT '[]',           -- JSON: [{pid,cmd,cpu,mem,...}]
-    ports        TEXT    NOT NULL DEFAULT '[]',           -- JSON: [{proto,laddr,raddr,pid,state}]
-    info         TEXT    NOT NULL DEFAULT '{}'            -- JSON: driver-supplied inspect blob
+    metrics      TEXT    NOT NULL DEFAULT ('{}'),           -- JSON: cpu/mem/disk/net
+    processes    TEXT    NOT NULL DEFAULT ('[]'),           -- JSON: [{pid,cmd,cpu,mem,...}]
+    ports        TEXT    NOT NULL DEFAULT ('[]'),           -- JSON: [{proto,laddr,raddr,pid,state}]
+    info         TEXT    NOT NULL DEFAULT ('{}')            -- JSON: driver-supplied inspect blob
 );

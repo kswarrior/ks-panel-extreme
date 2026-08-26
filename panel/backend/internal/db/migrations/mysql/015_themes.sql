@@ -23,7 +23,7 @@
 CREATE TABLE IF NOT EXISTS themes (
     id VARCHAR(255)     PRIMARY KEY,          -- client-generated stable id, e.g. "theme-<ts>"
     name        TEXT    NOT NULL,
-    description TEXT    NOT NULL DEFAULT '',
+    description TEXT    NOT NULL DEFAULT (''),
     spec        TEXT    NOT NULL,             -- JSON-encoded Theme object
     builtin     INTEGER NOT NULL DEFAULT 0,   -- 0 = user-created (the seed default lives in the frontend only)
     created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
