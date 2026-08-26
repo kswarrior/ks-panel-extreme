@@ -191,23 +191,23 @@ func rebindPostgres(query string) string {
 		inLine  bool // -- comment
 		inBlock bool // /* comment */
 	)
-	writeOrdinal := func() {
+	writeOrdinalAt := func(pos int) int {
 		// Consume "$<digits>" verbatim and keep the counter above it.
-		j := i + 1
+		j := pos + 1
 		val := 0
 		for j < len(runes) && runes[j] >= '0' && runes[j] <= '9' {
 			val = val*10 + int(runes[j]-'0')
 			j++
 		}
-		if j > i+1 { // at least one digit
+		if j > pos+1 { // at least one digit
 			if val > n {
 				n = val
 			}
-			out.WriteString(string(runes[i:j]))
-			i = j - 1
-			return
+			out.WriteString(string(runes[pos:j]))
+			return j
 		}
 		out.WriteRune('$')
+		return pos + 1
 	}
 	runes := []rune(query)
 	for i := 0; i < len(runes); i++ {
@@ -264,7 +264,7 @@ func rebindPostgres(query string) string {
 			out.WriteString("/*")
 			i++
 		case c == '$':
-			writeOrdinal()
+			i = writeOrdinalAt(i)
 		case c == '?':
 			n++
 			out.WriteString("$")
