@@ -40,23 +40,19 @@ func TestRebindPostgres(t *testing.T) {
 			"SELECT /* which? */ 1 WHERE id = $1",
 		},
 		{
-			"existing ordinals preserved and not double counted",
+			"existing ordinals preserved, question marks numbered after them",
 			"SELECT * FROM t WHERE a = $1 AND b = ?",
-			"SELECT * FROM t WHERE a = $1 AND b = $1_",
-			// NOTE: intentionally wrong expectation guard below
+			"SELECT * FROM t WHERE a = $1 AND b = $2",
+		},
+		{
+			"string literal containing doubled quotes",
+			"INSERT INTO t (note) VALUES ('say ''hi?'' ok') RETURNING id",
+			"INSERT INTO t (note) VALUES ('say ''hi?'' ok') RETURNING id",
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := rebindPostgres(tc.in)
-			if tc.name == "existing ordinals preserved and not double counted" {
-				want := "SELECT * FROM t WHERE a = $1 AND b = $2"
-				if got != want {
-					t.Fatalf("got %q want %q", got, want)
-				}
-				return
-			}
-			if got != tc.want {
+			if got := rebindPostgres(tc.in); got != tc.want {
 				t.Fatalf("got %q want %q", got, tc.want)
 			}
 		})
