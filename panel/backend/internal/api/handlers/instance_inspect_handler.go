@@ -262,9 +262,6 @@ func KillProcessHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	auditInst(r, inst.ID, "process.kill", fmt.Sprintf(
-		"sent %s to pid %d (killed=%v, escalated=%v)", signal, pid, out.Killed, out.Escalated))
-
 	// A container workload's main process is PID 1 of its PID namespace, and
 	// the kernel DROPS every fatal signal aimed at that init from inside the
 	// namespace — even `kill -9 1` is a documented no-op there (verified live:
@@ -292,9 +289,14 @@ func KillProcessHandler(w http.ResponseWriter, r *http.Request) {
 			out.Killed = true
 			out.Escalated = false
 			stoppedInstance = true
-			auditInst(r, inst.ID, "process.kill", "pid 1 unkillable from inside the namespace — stopped the workload instead")
 		}
 	}
+
+	detail := fmt.Sprintf("sent %s to pid %d (killed=%v, escalated=%v)", signal, pid, out.Killed, out.Escalated)
+	if stoppedInstance {
+		detail = fmt.Sprintf("pid 1 survives all signals inside the namespace — stopped the workload (requested signal: %s)", signal)
+	}
+	auditInst(r, inst.ID, "process.kill", detail)
 
 	respBody := map[string]any{"ok": true, "killed": out.Killed, "escalated": out.Escalated}
 	if stoppedInstance {
