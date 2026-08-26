@@ -90,9 +90,22 @@ func Handler(token string) http.Handler {
 			return
 		}
 
+		// Timeout budget mirrors the sibling RPCs (execrpc/hostexec): the
+		// panel-supplied value is honoured when positive, otherwise the
+		// 30s default applies — a NEGATIVE value would hand
+		// context.WithTimeout an already-expired deadline and fail every
+		// action instantly. An upper clamp keeps a typo'd huge timeout
+		// from pinning a goroutine for hours.
+		const (
+			defaultTimeout = 30 * time.Second
+			maxTimeout     = 30 * time.Minute
+		)
 		timeout := time.Duration(in.Timeout) * time.Second
-		if timeout == 0 {
-			timeout = 30 * time.Second
+		if timeout <= 0 {
+			timeout = defaultTimeout
+		}
+		if timeout > maxTimeout {
+			timeout = maxTimeout
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), timeout)
 		defer cancel()

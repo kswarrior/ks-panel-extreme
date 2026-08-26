@@ -108,9 +108,18 @@ func Script(env map[string]string, files []File, command string) (string, error)
 			}
 			dir := filepath.ToSlash(filepath.Dir(clean))
 			if dir != "." && dir != "" {
-				b.WriteString("mkdir -p \"$STAGE/" + quote(dir) + "\"\n")
+				// The staged fragment must sit OUTSIDE the "$STAGE/"
+				// expansion: inside double quotes quote()'s single-quote
+				// escapes are inert, so a path carrying $, a backtick or
+				// '"' would execute as shell substitution when the script
+				// runs (inside the workload via execrpc, or on the edge
+				// host itself via hostexec). Emitting "$STAGE/" as one
+				// word and quote(path) as an adjacent fully single-quoted
+				// word keeps the variable expansion and the literal path
+				// in separate quoting contexts.
+				b.WriteString("mkdir -p \"$STAGE/\"" + quote(dir) + "\n")
 			}
-			b.WriteString("cat > \"$STAGE/" + quote(clean) + "\" <<'" + marker + "'\n")
+			b.WriteString("cat > \"$STAGE/\"" + quote(clean) + " <<'" + marker + "'\n")
 			b.WriteString(f.Content)
 			b.WriteString("\n" + marker + "\n")
 		}
