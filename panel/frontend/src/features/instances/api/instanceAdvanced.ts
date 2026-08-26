@@ -110,7 +110,7 @@ export async function killProcess(
   const params = new URLSearchParams();
   params.append('pid', String(pid));
   if (signal) params.append('signal', signal);
-  const res = await client.post<{ ok: boolean; exit_code: number }>(
+  const res = await client.post<{ ok: boolean; killed: boolean; escalated: boolean }>(
     `${base(instanceId)}/processes/kill?${params.toString()}`,
   );
   return res.data;
