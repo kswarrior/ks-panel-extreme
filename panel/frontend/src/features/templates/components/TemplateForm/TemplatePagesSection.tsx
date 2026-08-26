@@ -7,6 +7,7 @@ import type { PageOverride } from '@/features/templates/types/templateForm';
 import { listInstancePages, type InstancePage } from '@/shared/api/admin';
 import { parseSubPages } from '@/features/instance-pages/types/instancePage';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
+import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 
 export interface PageOverrideInput extends PageOverride {}
 
@@ -395,7 +396,14 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
 
             <div className="ks-card ks-form-card rounded-md max-h-[50vh] overflow-y-auto divide-y divide-white/5">
               {importLoading && (
-                <div className="px-4 py-6 text-center text-gray-500 text-sm">Loading…</div>
+                <div className="px-4 py-4 space-y-3 animate-pulse" aria-busy="true" aria-label="Loading pages">
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className="flex items-center gap-3">
+                      <div className="h-3 w-1/3 rounded bg-white/10" style={{ animationDelay: `${i * 120}ms` }} />
+                      <div className="h-3 flex-1 rounded bg-white/[0.06]" style={{ animationDelay: `${i * 120 + 60}ms` }} />
+                    </div>
+                  ))}
+                </div>
               )}
               {!importLoading && filteredInstancePages.length === 0 && (
                 <div className="px-4 py-8 text-center text-gray-500 text-sm">
