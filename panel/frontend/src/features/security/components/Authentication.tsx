@@ -242,7 +242,7 @@ const Authentication: React.FC<AuthenticationProps> = ({ initialSnapshot, onConf
   }
 
   async function unlock(username: string) {
-    if (!confirm(`Unlock account "${username}" and clear its failed attempts?`)) return;
+    if (!(await confirm({ title: 'Unlock account', message: `Unlock account "${username}" and clear its failed attempts?`, tone: 'default', confirmLabel: 'Unlock' }))) return;
     setLockBusy(username);
     try {
       await securityUnlockAccount(username);
@@ -262,7 +262,7 @@ const Authentication: React.FC<AuthenticationProps> = ({ initialSnapshot, onConf
       setRecoveryError('Enter a username first.');
       return;
     }
-    if (!confirm(`Generate a NEW recovery-code set for "${username}"? All previous codes for this user stop working.`)) {
+    if (!(await confirm({ title: 'Generate recovery codes', message: `Generate a NEW recovery-code set for "${username}"? All previous codes for this user stop working.`, tone: 'warning', confirmLabel: 'Generate' }))) {
       return;
     }
     try {
