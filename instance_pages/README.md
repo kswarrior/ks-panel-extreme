@@ -1,6 +1,10 @@
 # Instance Pages Directory
 
 This directory contains instance page definitions that can be imported into the panel.
+The shipped page library that used to live in `pages/` was consolidated into the
+panel's Instance Page Studio templates (`features/instance-pages/templates/pageStarters.ts`).
+Files placed here (top level, or a `pages/` sub-directory) still override/add to the
+library on the panel host.
 
 ## File Format
 
