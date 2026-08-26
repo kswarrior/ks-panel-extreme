@@ -8,6 +8,7 @@ import {
 } from '@/features/authority/api/authority';
 import TextInput from '@/shared/components/ui/TextInput';
 import ToggleRow from '@/shared/components/ui/ToggleRow';
+import { useConfirm } from '@/shared/stores/confirmStore';
 
 // Authority tab: application secrets and external authentication/message
 // providers ONLY. Authentication POLICY (password rules, lockout,
@@ -177,6 +178,7 @@ interface AuthorityProps {
 }
 
 const Authority: React.FC<AuthorityProps> = ({ onConfigChange }) => {
+  const confirm = useConfirm();
   const [authLoading, setAuthLoading] = useState(true);
   const [authSaving, setAuthSaving] = useState(false);
   const [authError, setAuthError] = useState('');
@@ -333,7 +335,7 @@ const Authority: React.FC<AuthorityProps> = ({ onConfigChange }) => {
   }
 
   async function regenerateSecret() {
-    if (!confirm('Regenerate the Authority app secret? Existing authenticator apps will need to be re-scanned.')) {
+    if (!(await confirm({ title: 'Regenerate app secret', message: 'Regenerate the Authority app secret? Existing authenticator apps will need to be re-scanned.', tone: 'warning', confirmLabel: 'Regenerate' }))) {
       return;
     }
     setAuthError('');
