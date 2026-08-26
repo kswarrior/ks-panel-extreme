@@ -14,8 +14,15 @@ func DefaultPort() int { return 5050 }
 // (database, uploaded logos, ...). Right now it lives next to the DB so
 // backups stay co-located, but exposing it as a dedicated helper gives us a
 // single place to swap in XXD_DATA_HOME later without touching every caller.
+//
+// The anchor is the DEFAULT SQLite location, deliberately NOT the live
+// engine's DSN: once the panel runs on Postgres / MySQL the DSN is a
+// connection string, and deriving directories from it would scatter
+// kspanel.env, backups and uploads into folders named after DSN fragments
+// (and desynchronise SaveDBConfig's write path from LoadEnvFile's read
+// path, silently dropping persisted engine switches).
 func DataDir() string {
-	return filepath.Dir(DatabasePath())
+	return filepath.Dir(DefaultSQLitePath())
 }
 
 // DBConfig bundles the engine selection + connection string that kspanel
@@ -117,3 +124,10 @@ func defaultSQLitePath() string {
 	base := filepath.Dir(b)
 	return filepath.Join(base, "kspanel.db")
 }
+
+// DefaultSQLitePath is the exported form of defaultSQLitePath: the SQLite
+// file the panel opens when no explicit DSN is configured. Callers that need
+// a stable on-disk anchor independent of the live engine (the admin
+// "Change Database" handler's one-click revert to SQLite) use this instead of
+// DatabasePath(), which follows whatever engine is currently configured.
+func DefaultSQLitePath() string { return defaultSQLitePath() }
