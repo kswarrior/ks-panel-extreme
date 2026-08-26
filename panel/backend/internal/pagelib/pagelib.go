@@ -1,14 +1,16 @@
-// Package pagelib embeds the instance-pages library (pages/*.json plus
-// marketplace.json) into the kspanel binary so the local-library and
-// marketplace import flows work on every install — including ones that were
-// self-updated from a bare binary and therefore have no instance_pages/
-// directory next to the executable.
+// Package pagelib embeds the instance-pages marketplace catalog into the
+// kspanel binary so the local-library and marketplace import flows work on
+// every install — including ones that were self-updated from a bare binary
+// and therefore have no instance_pages/ directory next to the executable.
 //
-// The canonical sources live at <repo>/instance_pages; rebuild.sh syncs them
-// into internal/pagelib/library before compiling, so this package never goes
-// stale in release builds. On disk a directory with the same files may still
-// override individual entries: readers try the working-directory
-// instance_pages/ tree FIRST and fall back to the embedded copies.
+// The page templates themselves live in the frontend Studio
+// (features/instance-pages/templates/pageStarters.ts); the shipped
+// instance_pages/pages/*.json library was removed. The canonical source for
+// the catalog lives at <repo>/instance_pages/marketplace.json; rebuild.sh
+// syncs it into internal/pagelib/library before compiling. On disk a
+// working-directory instance_pages/ tree (top level + legacy pages/) may
+// still provide page definitions: readers try it FIRST and fall back to the
+// embedded copies, so operator-provided libraries keep working.
 package pagelib
 
 import (
