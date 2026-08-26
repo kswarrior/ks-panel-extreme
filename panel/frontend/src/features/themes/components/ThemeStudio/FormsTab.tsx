@@ -69,10 +69,10 @@ export const FormsTab: React.FC<FormsTabProps> = ({ draft, patch }) => {
       <div className="ks-form-card rounded-lg space-y-4">
         <Label label="Radio" hint="Radio button inputs." />
         <ColorField label="Background (unchecked)" value={draft.forms?.radio_bg_unchecked ?? 'rgba(0,0,0,0.3)'} onChange={(v) => patch('forms', { radio_bg_unchecked: v })} />
-        <ColorField label="Background (checked)" value={draft.forms?.radio_bg_checked ?? '#22c55e'} onChange={(v) => patch('forms', { radio_bg_checked: v })} />
+        <ColorField label="Background (checked)" value={draft.forms?.radio_bg_checked ?? '#10b981'} onChange={(v) => patch('forms', { radio_bg_checked: v })} />
         <ColorField label="Border color (unchecked)" value={draft.forms?.radio_border_unchecked ?? 'rgba(255,255,255,0.2)'} onChange={(v) => patch('forms', { radio_border_unchecked: v })} />
-        <ColorField label="Border color (checked)" value={draft.forms?.radio_border_checked ?? '#22c55e'} onChange={(v) => patch('forms', { radio_border_checked: v })} />
-        <ColorField label="Dot color" value={draft.forms?.radio_dot_color ?? '#000000'} onChange={(v) => patch('forms', { radio_dot_color: v })} />
+        <ColorField label="Border color (checked)" value={draft.forms?.radio_border_checked ?? '#10b981'} onChange={(v) => patch('forms', { radio_border_checked: v })} />
+        <ColorField label="Dot color" value={draft.forms?.radio_dot_color ?? '#0b0d10'} onChange={(v) => patch('forms', { radio_dot_color: v })} />
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
           <Slider label="Size" max={24} value={draft.forms?.radio_size ?? 16} onChange={(v) => patch('forms', { radio_size: v })} />
         </div>
@@ -83,7 +83,7 @@ export const FormsTab: React.FC<FormsTabProps> = ({ draft, patch }) => {
         <ColorField label="Track (off)" value={draft.forms?.toggle_track_off ?? 'rgba(255,255,255,0.16)'} onChange={(v) => patch('forms', { toggle_track_off: v })} />
         <ColorField label="Track (on)" value={draft.forms?.toggle_track_on ?? '#38bdf8'} onChange={(v) => patch('forms', { toggle_track_on: v })} />
         <ColorField label="Thumb" value={draft.forms?.toggle_thumb_color ?? '#f8fafc'} onChange={(v) => patch('forms', { toggle_thumb_color: v })} />
-        <ColorField label="Thumb shadow" value={draft.forms?.toggle_thumb_shadow ?? 'rgba(0,0,0,0.45)'} onChange={(v) => patch('forms', { toggle_thumb_shadow: v })} />
+        <ColorField label="Thumb shadow" value={draft.forms?.toggle_thumb_shadow ?? ''} placeholder="empty = stock shadow" onChange={(v) => patch('forms', { toggle_thumb_shadow: v })} />
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
           <Slider label="Track height" max={24} value={draft.forms?.toggle_track_height ?? 18} onChange={(v) => patch('forms', { toggle_track_height: v })} />
           <Slider label="Thumb size" max={20} value={draft.forms?.toggle_thumb_size ?? 14} onChange={(v) => patch('forms', { toggle_thumb_size: v })} />
@@ -120,7 +120,7 @@ export const FormsTab: React.FC<FormsTabProps> = ({ draft, patch }) => {
 
       <div className="ks-form-card rounded-lg space-y-4">
         <Label label="Focus Ring" hint="Ring around focused inputs." />
-        <ColorField label="Color" value={draft.forms?.focus_ring_color ?? 'rgba(255,255,255,0.6)'} onChange={(v) => patch('forms', { focus_ring_color: v })} />
+        <ColorField label="Color" value={draft.forms?.input_focus_ring_color ?? 'rgba(255,255,255,0.6)'} onChange={(v) => patch('forms', { input_focus_ring_color: v })} />
         <ColorField label="Offset color" value={draft.forms?.focus_ring_offset_color ?? '#0b0d10'} onChange={(v) => patch('forms', { focus_ring_offset_color: v })} />
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Slider label="Width" max={4} value={draft.forms?.focus_ring_width ?? 2} onChange={(v) => patch('forms', { focus_ring_width: v })} />
