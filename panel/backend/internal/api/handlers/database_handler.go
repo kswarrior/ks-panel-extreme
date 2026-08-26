@@ -65,7 +65,7 @@ type DatabaseInfo struct {
 	// surface it so the UI can badge "live".
 	LastModifiedAgoSec int64 `json:"last_modified_ago_secs"`
 
-	// Health summary. IntegrityOk flips to false if PRAGMA integrity_quick
+	// Health summary. IntegrityOk flips to false if PRAGMA quick_check
 	// (or the all-tables foreign_key_check) emitted anything but "ok".
 	IntegrityOk      bool     `json:"integrity_ok"`
 	IntegrityIssues  []string `json:"integrity_issues"`
@@ -295,7 +295,7 @@ func DatabaseInfoHandler(w http.ResponseWriter, r *http.Request) {
 	// active). The conn counter stays 0 when we genuinely can't tell.
 	info.TotalConnections = 0
 
-	// Health: integrity_quick is O(pages) but cheap relative to integrity
+	// Health: quick_check is O(pages) but cheap relative to integrity
 	// full and catches the vast majority of corruption classes without the
 	// minutes-long full scan. foreign_key_check walks every parent→child
 	// edge that has an FK defined and reports orphaned rows by table.
@@ -317,7 +317,7 @@ func DatabaseInfoHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		rows.Close()
 	} else {
-		// Some older SQLite builds predate integrity_quick — fall back so a
+		// quick_check unavailable (driver quirk) — fall back so a
 		// perfectly healthy DB doesn't render as "unknown health".
 		if v := scalar(con, `PRAGMA integrity_check(1)`); v != "" && strings.ToLower(v) != "ok" {
 			info.IntegrityOk = false
