@@ -611,10 +611,11 @@ func stripIndexIfExistsClause(stmt string) string {
 // reference falls back to the file's own order so the failure surfaces loudly
 // from the engine instead of being masked here.
 //
-// On every dialect except SQLite, bare "CREATE INDEX" statements (no IF NOT
-// EXISTS) are pulled out of the flow and applied through the hasIndex guard:
-// migrations re-run on every launch and MySQL rejects a duplicate index name,
-// which would wedge ~20 shipped migration files on second boot.
+// On every dialect except SQLite, every CREATE INDEX statement is applied
+// through the hasIndex guard at its original position: migrations re-run on
+// each launch, MySQL rejects both duplicate index names and the IF NOT
+// EXISTS clause itself, and Postgres files rely on IF NOT EXISTS while the
+// guard makes that redundant-but-harmless.
 func execMigrationScript(d Dialect, db *sql.DB, script, migration string) error {
 	stmts := splitSQLStatements(script)
 
