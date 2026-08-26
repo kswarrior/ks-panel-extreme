@@ -127,7 +127,7 @@ const Instances: React.FC = () => {
 
   const handleEdit = (instance: Instance) => {
     // Navigate to edit form - uses the same form as create (InstanceForm)
-    navigate(`/instances/${instance.id}/edit`);
+    navigate(`/instance/${instance.id}/edit`);
   };
 
   const handleDelete = async (instance: Instance) => {

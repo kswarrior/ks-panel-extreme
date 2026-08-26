@@ -538,10 +538,11 @@ const Router: React.FC = () => (
       {/* Fleet-wide instance management (deploy / edit). The LIST lives
           at /instances (InstancesRouter dispatches to the admin list when
           MANAGE_INSTANCES is held); these are the deploy + edit sub-actions
-          for MANAGE_INSTANCES holders. The static "/new" + "/:id/edit"
-          segment ranks higher in react-router v6's specificity rules than
-          the /instances/:id/* splat the panel uses, so they never clash
-          with the self-serve panel route. */}
+          for MANAGE_INSTANCES holders. The static "/new" segment ranks
+          higher in react-router v6's specificity rules than the
+          /instances/:id/* splat the panel uses, so they never clash
+          with the self-serve panel route; the edit form lives outside
+          that prefix entirely at /instance/:id/edit. */}
       <Route
         path="/instances/new"
         element={
@@ -556,7 +557,7 @@ const Router: React.FC = () => (
         <Route path="advanced" element={<AdvanceOptionPage />} />
       </Route>
       <Route
-        path="/instances/:id/edit"
+        path="/instance/:id/edit"
         element={
           <RequireAuth>
             <RequirePermission permission={PermissionKey.MANAGE_INSTANCES}>
