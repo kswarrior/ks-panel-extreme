@@ -268,6 +268,36 @@ func CreateTemplateHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"id": id})
 }
 
+// manifestSpecString extracts manifest["spec"] into the canonical JSON
+// document string both import paths persist. The canonical manifest embeds
+// spec as a JSON object; panel builds before the download fix exported it as
+// a string-encoded JSON document — accepting both keeps previously
+// downloaded manifests importable. Returns ok=false when the field is
+// present but neither an object nor a parseable JSON-object string.
+func manifestSpecString(manifest map[string]any) (string, bool) {
+	switch v := manifest["spec"].(type) {
+	case nil:
+		// Absent — caller applies its "{}" default.
+		return "", true
+	case string:
+		s := strings.TrimSpace(v)
+		if s == "" {
+			return "", true
+		}
+		var probe map[string]any
+		if err := json.Unmarshal([]byte(s), &probe); err != nil {
+			return "", false
+		}
+		return s, true
+	default:
+		b, err := json.Marshal(v)
+		if err != nil {
+			return "", false
+		}
+		return string(b), true
+	}
+}
+
 func handleTemplateFileUpload(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseMultipartForm(8 << 20); err != nil {
 		http.Error(w, "invalid multipart payload: "+err.Error(), http.StatusBadRequest)
