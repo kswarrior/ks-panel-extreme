@@ -106,7 +106,7 @@ export async function killProcess(
   instanceId: number,
   pid: number,
   signal?: string,
-): Promise<{ ok: boolean; killed: boolean; escalated: boolean }> {
+): Promise<{ ok: boolean; killed: boolean; escalated: boolean; stopped_instance?: boolean }> {
   const params = new URLSearchParams();
   params.append('pid', String(pid));
   if (signal) params.append('signal', signal);
