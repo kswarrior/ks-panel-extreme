@@ -27,9 +27,11 @@ import { NodeIcon } from '../utils/nodeIcons';
 import { resolveState, isLocalAddress, formatBytes, formatBytesPair, formatPercent, withAlpha, buildMonitor, buildEdgeConfig } from '../utils/nodesUtils';
 import type { StateStyle } from '../types/nodes';
 import { STATE_STYLES, MONITOR_BARS } from '../types/nodes';
+import { useConfirm } from '@/shared/stores/confirmStore';
 
 const AdminNodes: React.FC = () => {
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const glassModifier = useThemeStore((s) => {
     const g = s.active().card.glass_style;
     if (!g || g === 'frosted') return '';
@@ -110,7 +112,7 @@ const AdminNodes: React.FC = () => {
   };
 
   const remove = async (n: Node) => {
-    if (!confirm(`Delete node "${n.name}"?`)) return;
+    if (!(await confirm({ title: 'Delete node', message: `Delete node "${n.name}"?`, tone: 'danger', confirmLabel: 'Delete' }))) return;
     setDeletingId(n.id);
     try {
       await deleteNode(n.id);
@@ -123,7 +125,7 @@ const AdminNodes: React.FC = () => {
   };
 
   const purge = async (n: Node) => {
-    if (!confirm(`Completely remove local edge "${n.name}"?\n\nThis stops the running ksedge daemon, deletes its binary + config + logs, and removes the node from the panel. This cannot be undone.`)) {
+    if (!(await confirm({ title: 'Remove local edge', message: `Completely remove local edge "${n.name}"?\n\nThis stops the running ksedge daemon, deletes its binary + config + logs, and removes the node from the panel. This cannot be undone.`, tone: 'danger', confirmLabel: 'Remove' }))) {
       return;
     }
     setPurgingId(n.id);

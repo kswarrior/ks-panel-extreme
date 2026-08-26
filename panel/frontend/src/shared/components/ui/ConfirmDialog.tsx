@@ -91,7 +91,7 @@ const ConfirmDialog: React.FC = () => {
             <h3 className="text-lg font-semibold text-white leading-snug">
               {opts.title ?? 'Are you sure?'}
             </h3>
-            <div className="mt-1.5 text-sm text-gray-300 leading-relaxed break-words">
+            <div className="mt-1.5 text-sm text-gray-300 leading-relaxed break-words whitespace-pre-line">
               {opts.message}
             </div>
           </div>

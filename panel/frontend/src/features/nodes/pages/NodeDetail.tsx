@@ -11,6 +11,7 @@ import { countryByCode } from '@/shared/components/forms/LocationField/countries
 import { STATE_STYLES, MONITOR_BARS, DRIVER_ARCS } from '../types/nodes';
 import { Gauge } from '@/features/system/components/SystemCharts';
 import { fmtGB } from '@/features/system/components/SystemCharts';
+import { useConfirm } from '@/shared/stores/confirmStore';
 
 function getErrorMessage(e: any, fallback: string): string {
   const data = e?.response?.data;
@@ -59,6 +60,7 @@ function formatUptime(secs: number): string {
 const NodeDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const [node, setNode] = useState<Node | null>(null);
   const [heartbeats, setHeartbeats] = useState<NodeHeartbeat[]>([]);
   const [loading, setLoading] = useState(true);
@@ -164,7 +166,7 @@ const NodeDetail: React.FC = () => {
 
   const handleDelete = async () => {
     if (!node) return;
-    if (!confirm(`Delete node "${node.name}"? This cannot be undone.`)) return;
+    if (!(await confirm({ title: 'Delete node', message: `Delete node "${node.name}"? This cannot be undone.`, tone: 'danger', confirmLabel: 'Delete' }))) return;
     setDeleting(true);
     try {
       await deleteNode(node.id);
@@ -177,7 +179,7 @@ const NodeDetail: React.FC = () => {
 
   const handlePurge = async () => {
     if (!node) return;
-    if (!confirm(`Delete edge completely? This removes local files for node "${node.name}" and cannot be undone.`)) return;
+    if (!(await confirm({ title: 'Remove local edge', message: `Delete edge completely? This removes local files for node "${node.name}" and cannot be undone.`, tone: 'danger', confirmLabel: 'Delete' }))) return;
     setPurging(true);
     try {
       await purgeLocalNode(node.id);
