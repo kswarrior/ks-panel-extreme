@@ -247,7 +247,7 @@ export function createCustomPageSDK(
       ...options,
       credentials: 'include',
     });
-    if (!res.ok) throw new Error(await res.text());
+    if (!res.ok) throw new Error(sanitizeHttpError(await res.text(), res.status));
     return res.text();
   }
   
