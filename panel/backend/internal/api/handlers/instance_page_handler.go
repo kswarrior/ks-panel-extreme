@@ -676,6 +676,11 @@ func ExecutePageActionHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "instance_id and type are required", http.StatusBadRequest)
 		return
 	}
+	if !validActionTypes[req.Type] {
+		http.Error(w, "unknown action type", http.StatusBadRequest)
+		return
+	}
+	reqTimeout := clampActionTimeout(req.Timeout)
 
 	con, err := repository.OpenDB()
 	if err != nil {
@@ -746,17 +751,14 @@ func ExecutePageActionHandler(w http.ResponseWriter, r *http.Request) {
 		"content": req.Content,
 		"args":    req.Args,
 		"env":     req.Env,
-		"timeout": req.Timeout,
+		"timeout": reqTimeout,
 	}
 
 	body, _ := json.Marshal(edgeReq)
 	httpReq, _ := http.NewRequestWithContext(r.Context(), "POST", ec.BaseURL()+"/api/edge/page-action", bytes.NewReader(body))
 	httpReq.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{Timeout: time.Duration(req.Timeout+5) * time.Second}
-	if req.Timeout == 0 {
-		client.Timeout = 35 * time.Second
-	}
+	client := &http.Client{Timeout: time.Duration(reqTimeout+5) * time.Second}
 
 	resp, err := client.Do(httpReq)
 	if err != nil {
