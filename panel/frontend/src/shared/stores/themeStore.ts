@@ -1871,7 +1871,7 @@ textarea.ks-textarea:focus,
 }
 .ks-hint-error { color: var(--ks-hint-error) !important; }
 .ks-hint-success { color: var(--ks-hint-success) !important; }
-.ks-field { margin-bottom: var(--ks-field-mb); }
+.ks-field { margin-bottom: var(--ks-field-mb); background-color: var(--ks-field-bg); }
 .ks-field > * + * { margin-top: var(--ks-field-gap) !important; }
 input.ks-checkbox {
   accent-color: var(--ks-check-on) !important;
@@ -1888,13 +1888,42 @@ input.ks-radio {
    geometry; only the checked colour follows the Forms tab. */
 input[class*="ks-checkbox"] { accent-color: var(--ks-check-on) !important; }
 input[class*="ks-radio"] { accent-color: var(--ks-radio-on) !important; }
+${cbChanged ? `/* Custom checkbox skin — see the gate in buildSectionRules(). */
+input.ks-checkbox,
+input[class*="ks-checkbox"] {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  background-color: var(--ks-check-off-bg) !important;
+  border-color: var(--ks-check-border) !important;
+}
+input.ks-checkbox:checked,
+input[class*="ks-checkbox"]:checked {
+  background-color: var(--ks-check-on) !important;
+  border-color: var(--ks-check-border-on) !important;
+}${checkGlyphRule}` : ''}
+${radioChanged ? `/* Custom radio skin — dot painted with a radial-gradient so no pseudo
+   elements are needed on the <input> itself. */
+input.ks-radio,
+input[class*="ks-radio"] {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  background-color: var(--ks-radio-off-bg) !important;
+  border-color: var(--ks-radio-border) !important;
+  border-radius: 9999px !important;
+}
+input.ks-radio:checked,
+input[class*="ks-radio"]:checked {
+  background-color: var(--ks-radio-on) !important;
+  border-color: var(--ks-radio-border-on) !important;
+  background-image: radial-gradient(circle, var(--ks-radio-dot) 0%, var(--ks-radio-dot) 42%, transparent 48%) !important;
+}` : ''}
 .rich-check {
   background: var(--ks-check-off-bg);
   border-color: var(--ks-check-border);
 }
 .rich-check.is-on {
   background: var(--ks-check-on) !important;
-  border-color: var(--ks-check-on) !important;
+  border-color: var(--ks-check-border-on) !important;
   color: var(--ks-check-mark) !important;
 }
 .ks-toggle:not(.ks-toggle-sm):not(.ks-toggle-lg) {
