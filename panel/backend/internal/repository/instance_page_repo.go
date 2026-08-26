@@ -29,7 +29,7 @@ func (r *InstancePageRepository) List() ([]models.InstancePage, error) {
 	if n == 0 {
 		return out, nil
 	}
-	rows, err := r.db.Query(`SELECT id, name, slug, kind, category, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages, created_at, updated_at
+	rows, err := r.db.Query(`SELECT id, name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages, created_at, updated_at
 		FROM instance_pages ORDER BY name ASC`)
 	if err != nil {
 		return nil, err
@@ -39,7 +39,7 @@ func (r *InstancePageRepository) List() ([]models.InstancePage, error) {
 		var p models.InstancePage
 		var created, updated string
 		var actions, subPages sql.NullString
-		if err := rows.Scan(&p.ID, &p.Name, &p.Slug, &p.Kind, &p.Category, &p.Description, &p.ContentType, &p.ContentHTML, &p.ContentMarkdown, &p.ContentBlocks, &p.IconSVG, &actions, &subPages, &created, &updated); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.Slug, &p.Kind, &p.Category, &p.PageType, &p.Description, &p.ContentType, &p.ContentHTML, &p.ContentMarkdown, &p.ContentBlocks, &p.IconSVG, &actions, &subPages, &created, &updated); err != nil {
 			return nil, err
 		}
 		p.Actions = actions.String
