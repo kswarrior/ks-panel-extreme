@@ -389,12 +389,8 @@ func (r *ApplicationRepository) UpdateApplicationEnv(id int64, envJSON string) e
 // default instead of an argument.
 func (r *ApplicationRepository) CreateApplicationRun(run *models.ApplicationRun) (int64, error) {
 	now := time.Now().UTC().Format("2006-01-02 15:04:05")
-	var (
-		res sql.Result
-		err error
-	)
 	if run.TriggeredBy != nil {
-		res, err = r.db.Exec(
+		return insertReturningID(r.db,
 			`INSERT INTO application_runs
 			 (application_id, triggered_by, target, node_id, node_name, exec_mode, workload,
 			  status, timeout_sec, created_at, ended_at)
@@ -402,20 +398,15 @@ func (r *ApplicationRepository) CreateApplicationRun(run *models.ApplicationRun)
 			run.ApplicationID, *run.TriggeredBy, run.Target, run.NodeID, run.NodeName,
 			run.ExecMode, run.Workload, models.AppRunStatusRunning, run.TimeoutSec, now,
 		)
-	} else {
-		res, err = r.db.Exec(
-			`INSERT INTO application_runs
-			 (application_id, target, node_id, node_name, exec_mode, workload,
-			  status, timeout_sec, created_at, ended_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '')`,
-			run.ApplicationID, run.Target, run.NodeID, run.NodeName,
-			run.ExecMode, run.Workload, models.AppRunStatusRunning, run.TimeoutSec, now,
-		)
 	}
-	if err != nil {
-		return 0, err
-	}
-	return res.LastInsertId()
+	return insertReturningID(r.db,
+		`INSERT INTO application_runs
+		 (application_id, target, node_id, node_name, exec_mode, workload,
+		  status, timeout_sec, created_at, ended_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '')`,
+		run.ApplicationID, run.Target, run.NodeID, run.NodeName,
+		run.ExecMode, run.Workload, models.AppRunStatusRunning, run.TimeoutSec, now,
+	)
 }
 
 // CompleteApplicationRun stores the final outcome of a run row. nodeID /

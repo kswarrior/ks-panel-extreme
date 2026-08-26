@@ -372,12 +372,12 @@ func (r *SecurityRepository) Insert(in SecurityRequestInput) (int64, error) {
 	args = append(args, ua, in.Country, blocked, challenged, isAPI, isLogin, in.BytesSent, in.DurationMs)
 	q += "?, ?, ?, ?, ?, ?, ?)"
 
-	res, err := r.db.Exec(q, args...)
-	if err != nil {
-		log.Printf("security_requests insert: %v", err)
-		return 0, err
+	idIns, errIns := insertReturningID(r.db, q, args...)
+	if errIns != nil {
+		log.Printf("security_requests insert: %v", errIns)
+		return 0, errIns
 	}
-	return res.LastInsertId()
+	return idIns
 }
 
 // InsertWithContext appends one request row with a context for timeout
@@ -425,12 +425,12 @@ func (r *SecurityRepository) InsertWithContext(ctx context.Context, in SecurityR
 	args = append(args, ua, in.Country, blocked, challenged, isAPI, isLogin, in.BytesSent, in.DurationMs)
 	q += "?, ?, ?, ?, ?, ?, ?)"
 
-	res, err := r.db.ExecContext(ctx, q, args...)
-	if err != nil {
-		log.Printf("security_requests insert with context: %v", err)
-		return 0, err
+	idIns, errIns := insertReturningIDCtx(ctx, r.db, q, args...)
+	if errIns != nil {
+		log.Printf("security_requests insert with context: %v", errIns)
+		return 0, errIns
 	}
-	return res.LastInsertId()
+	return idIns
 }
 
 // IsUnderAttack reads the persisted security_under_attack setting so the
