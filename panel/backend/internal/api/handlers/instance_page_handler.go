@@ -1136,17 +1136,14 @@ func ExecuteModulePageActionHandler(w http.ResponseWriter, r *http.Request) {
 		"content":   req.Content,
 		"args":      req.Args,
 		"env":       req.Env,
-		"timeout":   req.Timeout,
+		"timeout":   reqTimeout,
 	}
 
 	body, _ := json.Marshal(edgeReq)
 	httpReq, _ := http.NewRequestWithContext(r.Context(), "POST", ec.BaseURL()+"/api/edge/page-module/"+strconv.FormatInt(instance.ID, 10)+"/"+req.ModuleID+"/action", bytes.NewReader(body))
 	httpReq.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{Timeout: time.Duration(req.Timeout+5) * time.Second}
-	if req.Timeout == 0 {
-		client.Timeout = 35 * time.Second
-	}
+	client := &http.Client{Timeout: time.Duration(reqTimeout+5) * time.Second}
 
 	resp, err := client.Do(httpReq)
 	if err != nil {
