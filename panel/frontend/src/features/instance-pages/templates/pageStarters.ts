@@ -434,12 +434,12 @@ const PROCESS_OBSERVER = page(
 const METRICS_LIVE = page(
   'Live Metrics',
   `<div id="gauges" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0.75rem"></div>
-  <div class="ks-card" style="margin-top:0.75rem"><h3 style="margin:0 0 .5rem;font-size:.95rem;color:#fff">CPU history (last 5 min)</h3><canvas id="cpuChart" width="600" height="90" style="width:100%"></canvas></div>
+  <div class="ks-card" style="margin-top:0.75rem"><h3 style="margin:0 0 .5rem;font-size:.95rem;color:var(--ks-heading)">CPU history (last 5 min)</h3><canvas id="cpuChart" width="600" height="90" style="width:100%"></canvas></div>
   <p class="ks-muted" style="font-size:11px">Polled from the panel metrics API every 5 seconds.</p>`,
   `
     var cpuHist = [];
     function gauge(label, pct, sub){
-      var color = pct > 90 ? '#f87171' : pct > 70 ? '#fbbf24' : '#38bdf8';
+      var color = pct > 90 ? 'var(--ks-bad)' : pct > 70 ? 'var(--ks-warn)' : 'var(--ks-info)';
       var v = pct == null ? '--' : Number(pct).toFixed(1);
       return '<div class="ks-card"><div class="ks-muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.05em">' + label + '</div>' +
         '<div style="font-size:1.6rem;font-weight:600;color:' + color + '">' + v + '%</div>' + bar(pct, color) +
@@ -453,7 +453,7 @@ const METRICS_LIVE = page(
       ctx.strokeRect(0.5, 0.5, cv.width - 1, cv.height - 1);
       if (cpuHist.length < 2) return;
       ctx.beginPath();
-      ctx.strokeStyle = '#38bdf8';
+      ctx.strokeStyle = cssVar('--ks-info', '#38bdf8');
       ctx.lineWidth = 1.5;
       for (var i = 0; i < cpuHist.length; i++) {
         var x = (i / (cpuHist.length - 1)) * (cv.width - 8) + 4;
@@ -866,9 +866,9 @@ const USER_REGISTRY = page(
     var human = users.filter(function(u){ return !isNaN(u.uid) && u.uid >= 1000 || u.uid === 0; });
     el('content').innerHTML =
       '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:0.75rem;margin-bottom:0.75rem">' +
-      '<div class="ks-card"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">Accounts</div><div style="font-size:1.6rem;font-weight:600;color:#fff">' + users.length + '</div></div>' +
-      '<div class="ks-card"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">Human / privileged</div><div style="font-size:1.6rem;font-weight:600;color:#38bdf8">' + human.length + '</div><div class="ks-mono ks-muted" style="font-size:11px">' + esc(human.map(function(u){ return u.name; }).join(', ')) + '</div></div>' +
-      '<div class="ks-card"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">Groups</div><div style="font-size:1.6rem;font-weight:600;color:#fff">' + esc(groupCount) + '</div></div>' +
+      '<div class="ks-card"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">Accounts</div><div style="font-size:1.6rem;font-weight:600;color:var(--ks-heading)">' + users.length + '</div></div>' +
+      '<div class="ks-card"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">Human / privileged</div><div style="font-size:1.6rem;font-weight:600;color:var(--ks-info)">' + human.length + '</div><div class="ks-mono ks-muted" style="font-size:11px">' + esc(human.map(function(u){ return u.name; }).join(', ')) + '</div></div>' +
+      '<div class="ks-card"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">Groups</div><div style="font-size:1.6rem;font-weight:600;color:var(--ks-heading)">' + esc(groupCount) + '</div></div>' +
       '</div>' +
       card('Accounts (/etc/passwd)',
         '<table><thead><tr><th>User</th><th>UID</th><th>GID</th><th>Home</th><th>Shell</th></tr></thead><tbody>' +
