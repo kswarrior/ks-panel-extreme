@@ -1019,6 +1019,137 @@ func ExecuteModulePageActionHandler(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(respBody)
 }
 
+// ============================== PAGE ACTION HARDENING ==============================
+//
+// Page actions execute commands inside an instance container on behalf of
+// custom-page JavaScript running in the operator's browser. Because the
+// endpoint is reachable outside the page sandbox (devtools / direct HTTP),
+// every request is validated server-side here:
+//
+//   - type must be a known action type (mirrors the frontend ActionType
+//     union in web/src/lib/customPageSdk.ts) — unknown verbs fail closed.
+//   - timeout is clamped to [min,max] seconds; a negative value previously
+//     produced a non-positive http.Client.Timeout (= NO timeout), letting a
+//     request hold the edge connection open indefinitely.
+//   - command/path/content/args/env sizes are capped so one request cannot
+//     balloon the proxied edge payload.
+//
+// Custom-page execution additionally requires the CALLING PAGE to be enabled
+// on the target instance: the browser SDK sends its own page slug and the
+// server verifies it against the instance's deploy-time config before doing
+// any work (see instanceCustomPageEnabled). A viewer can no longer run
+// commands under an arbitrary instance merely because SOME custom page is
+// enabled there — the exact page family the call originates from must be
+// enabled for that instance, mirroring guardInstancePage semantics.
+
+// validPageActionTypes mirrors the frontend ActionType union.
+var validPageActionTypes = map[string]bool{
+	"shell":      true,
+	"read_file":  true,
+	"write_file": true,
+	"list_files": true,
+	"docker":     true,
+	"kvm":        true,
+	"lxd":        true,
+}
+
+// Payload + duration budgets for one page-action execution.
+const (
+	maxPageActionCommandBytes   = 8 * 1024
+	maxPageActionPathBytes      = 2 * 1024
+	maxPageActionContentBytes   = 2 * 1024 * 1024
+	maxPageActionArgsCount      = 64
+	maxPageActionArgBytes       = 4 * 1024
+	maxPageActionEnvEntries     = 64
+	maxPageActionEnvValueBytes  = 4 * 1024
+	minPageActionTimeoutSec     = 5
+	maxPageActionTimeoutSec     = 300
+	defaultPageActionTimeoutSec = 30
+)
+
+// sanitizePageAction validates the browser-supplied action fields and returns
+// the clamped timeout to use for both the edge payload and the proxy client.
+func sanitizePageAction(typ, command, path, content string, args []string, env map[string]string, timeout int) (int, error) {
+	if !validPageActionTypes[typ] {
+		return 0, newErrString("invalid action type")
+	}
+	if len(command) > maxPageActionCommandBytes {
+		return 0, newErrString("command too large")
+	}
+	if len(path) > maxPageActionPathBytes {
+		return 0, newErrString("path too large")
+	}
+	if len(content) > maxPageActionContentBytes {
+		return 0, newErrString("content too large")
+	}
+	if len(args) > maxPageActionArgsCount {
+		return 0, newErrString("too many args")
+	}
+	for _, a := range args {
+		if len(a) > maxPageActionArgBytes {
+			return 0, newErrString("arg too large")
+		}
+	}
+	if len(env) > maxPageActionEnvEntries {
+		return 0, newErrString("too many env vars")
+	}
+	for k, v := range env {
+		if k == "" || len(k) > 256 || len(v) > maxPageActionEnvValueBytes {
+			return 0, newErrString("invalid env var")
+		}
+	}
+	switch {
+	case timeout < 0:
+		return 0, newErrString("timeout must not be negative")
+	case timeout == 0:
+		return defaultPageActionTimeoutSec, nil
+	case timeout < minPageActionTimeoutSec:
+		return minPageActionTimeoutSec, nil
+	case timeout > maxPageActionTimeoutSec:
+		return maxPageActionTimeoutSec, nil
+	default:
+		return timeout, nil
+	}
+}
+
+// instanceCustomPageEnabled reports whether the page family identified by
+// pageSlug carries an ENABLED entry with kind "custom" in the instance's
+// deploy-time config spec. pageSlug may be a top-level slug ("files"), the
+// reserved Home slug ("."), or a sub-page path ("files/edit") — sub-pages
+// resolve to their parent family row, matching the SPA route tree. Entries
+// whose kind is present and NOT "custom" (e.g. module rows) never grant the
+// custom action surface; unparseable configs fail closed.
+func instanceCustomPageEnabled(specJSON, pageSlug string) bool {
+	specJSON = strings.TrimSpace(specJSON)
+	if specJSON == "" || pageSlug == "" {
+		return false
+	}
+	var spec map[string]any
+	if err := json.Unmarshal([]byte(specJSON), &spec); err != nil {
+		return false // unparseable = nothing allowed (safe default)
+	}
+	pagesAny, _ := spec["pages"].([]any)
+	for _, p := range pagesAny {
+		pm, ok := p.(map[string]any)
+		if !ok {
+			continue
+		}
+		if pm["enabled"] == false {
+			continue
+		}
+		if k, ok := pm["kind"].(string); ok && k != "custom" {
+			continue // only custom-kind entries carry the action surface
+		}
+		s, _ := pm["slug"].(string)
+		os, _ := pm["original_slug"].(string)
+		if pageSlug == s || pageSlug == os ||
+			(s != "" && strings.HasPrefix(pageSlug, s+"/")) {
+			return true
+		}
+	}
+	return false
+}
+
 // getEnabledModules returns the list of enabled module IDs from the spec.
 func getEnabledModules(spec map[string]any) []string {
 	pages, _ := spec["pages"].([]any)
