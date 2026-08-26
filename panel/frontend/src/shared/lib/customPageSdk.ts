@@ -402,7 +402,7 @@ export function createCustomPageSDK(
       window.dispatchEvent(new CustomEvent('ks-navigate', { detail: { to } }));
     },
     toast,
-    confirm: (msg) => Promise.resolve(window.confirm(msg)),
+    confirm: (msg) => confirmDialog({ title: 'Please confirm', message: msg }),
     prompt: (msg, def = '') => Promise.resolve(window.prompt(msg, def)),
     modal,
     

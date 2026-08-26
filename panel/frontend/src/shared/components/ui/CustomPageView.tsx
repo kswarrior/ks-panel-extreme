@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { createCustomPageSDK, pageNavigateTarget, type InstanceContext } from '@/shared/lib/customPageSdk';
+import { confirmDialog } from '@/shared/stores/confirmStore';
 import { useThemeStore } from '@/shared/stores/themeStore';
 import type { Theme } from '@/features/themes/types/theme';
 import { rgbaAt } from '@/theme/colorUtils';
@@ -74,7 +75,7 @@ function renderBlocks(json: string): React.ReactNode {
     if (!name) return;
     const sdk = (window as any).KSPageSDK;
     if (!sdk?.runAction) { alert('Actions are unavailable on this page view.'); return; }
-    if (confirmText && !window.confirm(confirmText)) return;
+    if (confirmText && !(await confirmDialog({ title: 'Please confirm', message: confirmText }))) return;
     try {
       const res = await sdk.runAction(name);
       if (res && res.ok === false && (res.error || res.stderr)) {
