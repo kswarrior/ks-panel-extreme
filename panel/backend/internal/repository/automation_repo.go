@@ -241,7 +241,7 @@ func (r *AutomationRepository) RecordRun(in AutomationRunInput) (int64, error) {
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 		args = []interface{}{in.JobID, in.InstanceID, in.Trigger, in.Command, in.Stdout, in.Stderr, in.ExitCode, in.DurationMS, in.Error, started}
 	} else {
-		q = `INSERT INTO automation_runs (job_id, instance_id, trigger, command, stdout, stderr, exit_code, duration_ms, error, started_at, finished_at)
+		q = `INSERT INTO automation_runs (job_id, instance_id, trigger_type, command, stdout, stderr, exit_code, duration_ms, error, started_at, finished_at)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 		args = []interface{}{in.JobID, in.InstanceID, in.Trigger, in.Command, in.Stdout, in.Stderr, in.ExitCode, in.DurationMS, in.Error, started, finished}
 	}
