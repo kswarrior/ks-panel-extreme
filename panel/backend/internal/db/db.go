@@ -587,7 +587,7 @@ func execMigrationScript(d Dialect, db *sql.DB, script, migration string) error 
 			rest = append(rest, s)
 		}
 	}
-	ordered := topoSortCreates(creates)
+	ordered, _ := topoSortCreates(creates)
 
 	exec := func(stmt string) error {
 		if _, err := db.Exec(stmt); err != nil {
