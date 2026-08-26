@@ -196,6 +196,20 @@ export function pageNavigateTarget(instanceId: number, to: unknown): string | nu
 // SDK IMPLEMENTATION
 // ============================================================================
 
+// sanitizeHttpError converts a failed response body into a message fit for
+// the page's error banner. Proxy/CDN layers (Cloudflare tunnels especially)
+// answer origin outages with full HTML error pages; pasting those into the
+// banner rendered kilobytes of markup ("<!DOCTYPE html>…502 Bad gateway…")
+// instead of one readable line. HTML bodies and oversized text collapse to
+// "HTTP <status>", everything else is truncated to 300 chars.
+export function sanitizeHttpError(text: string, status: number): string {
+  const body = (text || '').trim();
+  if (!body) return `HTTP ${status}`;
+  if (body.startsWith('<')) return `Panel unreachable (HTTP ${status})`;
+  if (body.length > 300) return body.slice(0, 300) + '…';
+  return body;
+}
+
 export function createCustomPageSDK(
   instanceContext: InstanceContext,
   savedActions: PageActionDef[] = [],
