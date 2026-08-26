@@ -213,8 +213,21 @@ func writeLoginResponse(w http.ResponseWriter, r *http.Request, user *models.Use
 	json.NewEncoder(w).Encode(resp)
 }
 
-// LogoutHandler invalidates the session by clearing the cookie.
+// LogoutHandler invalidates the session by clearing the cookie AND
+// revoking the presented token in the SessionManager. Without the revoke,
+// a stolen or SPA-stored token (the login body also returns it for the
+// multi-account switcher) would keep authenticating as Bearer until its
+// absolute TTL even after the user logged out.
 func LogoutHandler(w http.ResponseWriter, r *http.Request) {
+	rawToken := ""
+	if tok := r.Header.Get("Authorization"); len(tok) >= 7 && strings.EqualFold(tok[:7], "Bearer ") {
+		rawToken = strings.TrimSpace(tok[7:])
+	} else if cookie, cerr := r.Cookie(auth.SessionCookieName); cerr == nil {
+		rawToken = cookie.Value
+	}
+	if rawToken != "" {
+		auth.SessionManagerInstance.InvalidateSession(rawToken)
+	}
 	http.SetCookie(w, auth.ClearSessionCookie(r))
 	w.WriteHeader(http.StatusOK)
 }
@@ -264,7 +277,21 @@ func SwitchLoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check account lockout status — same enforcement as LoginHandler. This
+	// endpoint performs the identical credential check, so skipping the
+	// counter here would turn it into an unlogged, unlimited brute-force
+	// channel for anyone throttled out of /api/auth/login.
+	if auth.AccountLockoutInstance.IsAccountLocked(identifier) {
+		lockoutTime := auth.AccountLockoutInstance.GetLockoutTime(identifier)
+		w.Header().Set("Retry-After", lockoutTime.String())
+		http.Error(w, "account temporarily locked due to multiple failed attempts", http.StatusTooManyRequests)
+		return
+	}
+
 	if err := auth.CheckPassword(user.PasswordHash, req.Password); err != nil {
+		// Record failed attempt (keeps both login paths on one counter).
+		auth.AccountLockoutInstance.RecordFailedAttempt(identifier)
+
 		RecordActivity(r, repository.ActivityInput{
 			Username:    user.Username,
 			UserID:      &user.ID,
