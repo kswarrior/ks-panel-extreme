@@ -220,9 +220,8 @@ const Login: React.FC = () => {
                   required
                   autoComplete="username"
                   placeholder=" "
-                  className="peer w-full bg-transparent text-white placeholder-transparent
- border-b border-neutral-700 pl-10 pr-3 py-2.5 text-sm
- focus:outline-none focus:border-white
+                  className="peer w-full bg-transparent ks-auth-input placeholder-transparent
+ border-b pl-10 pr-3 py-2.5 text-sm
  transition-all duration-200"
                 />
                 <label className="absolute left-10 top-2.5 text-xs font-medium text-gray-500 
@@ -254,9 +253,8 @@ const Login: React.FC = () => {
                   required
                   autoComplete="current-password"
                   placeholder=" "
-                  className="peer w-full bg-transparent text-white placeholder-transparent
- border-b border-neutral-700 pl-10 pr-10 py-2.5 text-sm
- focus:outline-none focus:border-white
+                  className="peer w-full bg-transparent ks-auth-input placeholder-transparent
+ border-b pl-10 pr-10 py-2.5 text-sm
  transition-all duration-200"
                 />
                 <label className="absolute left-10 top-2.5 text-xs font-medium text-gray-500 
