@@ -15,15 +15,15 @@
 CREATE TABLE IF NOT EXISTS instance_pages (
     id              BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     name            TEXT    NOT NULL,
-    slug VARCHAR(255)  NOT NULL  UNIQUE,
-    kind VARCHAR(255) NOT NULL DEFAULT ('custom'),
-    category VARCHAR(255) NOT NULL DEFAULT (''),
-    description     TEXT    NOT NULL DEFAULT (''),
-    content_type    TEXT    NOT NULL DEFAULT ('markdown'),
-    content_html    TEXT    NOT NULL DEFAULT (''),
-    content_markdown TEXT    NOT NULL DEFAULT (''),
-    content_blocks  TEXT    NOT NULL DEFAULT (''),
-    icon_svg        TEXT    NOT NULL DEFAULT (''),
+    slug            TEXT    NOT NULL UNIQUE,
+    kind            TEXT    NOT NULL DEFAULT 'custom',
+    category        TEXT    NOT NULL DEFAULT '',
+    description     TEXT    NOT NULL DEFAULT '',
+    content_type    TEXT    NOT NULL DEFAULT 'markdown',
+    content_html    TEXT    NOT NULL DEFAULT '',
+    content_markdown TEXT    NOT NULL DEFAULT '',
+    content_blocks  TEXT    NOT NULL DEFAULT '',
+    icon_svg        TEXT    NOT NULL DEFAULT '',
     created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -32,7 +32,7 @@ CREATE INDEX idx_instance_pages_kind      ON instance_pages(kind);
 CREATE INDEX idx_instance_pages_category  ON instance_pages(category);
 
 -- Seed the permission keys so the admin's role picks them up on launch.
-INSERT IGNORE INTO permissions (`key`, description) VALUES
+INSERT IGNORE INTO permissions (key, description) VALUES
     ('MANAGE_INSTANCE_PAGES', 'Manage instance page definitions (create, edit, delete)'),
     ('INSTANCE_PAGES_VIEW',   'View instance page definitions'),
     ('INSTANCE_PAGES_CREATE', 'Create new instance page definitions'),

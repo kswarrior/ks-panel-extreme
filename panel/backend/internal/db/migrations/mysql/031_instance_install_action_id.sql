@@ -7,4 +7,4 @@
 -- panel stored against InvokeActionHandler). Empty for the template install
 -- workflow and after the workflow resolves.
 
-ALTER TABLE instances ADD COLUMN install_action_id TEXT NOT NULL DEFAULT ('');
+ALTER TABLE instances ADD COLUMN install_action_id TEXT NOT NULL DEFAULT '';

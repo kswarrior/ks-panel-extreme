@@ -269,17 +269,13 @@ export interface CustomPageActionResult {
   data?: any;
 }
 
-// pageSlug is REQUIRED by the server: execution is page-bound, so the
-// backend verifies this exact page family is enabled on the instance before
-// running the action. Calls without it fail closed (403).
 export async function executeCustomPageAction(
   instanceId: number,
-  action: CustomPageAction,
-  pageSlug?: string
+  action: CustomPageAction
 ): Promise<CustomPageActionResult> {
   const res = await client.post<CustomPageActionResult>(
     `/api/instance-pages/execute-action`,
-    { instance_id: instanceId, page_slug: pageSlug, ...action }
+    { instance_id: instanceId, ...action }
   );
   return res.data;
 }

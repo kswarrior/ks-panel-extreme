@@ -742,11 +742,7 @@ func SetDatabaseEngineHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if d.IsSQLite() && dsn == "" {
-		// Revert-to-SQLite default. Deliberately DefaultSQLitePath() rather
-		// than DatabasePath(): when the panel currently runs on Postgres /
-		// MySQL, DatabasePath() returns that engine's connection string,
-		// which would be misused as a literal FILE PATH here.
-		dsn = config.DefaultSQLitePath()
+		dsn = config.DatabasePath()
 	}
 
 	resp := EngineSwitchResponse{
@@ -799,10 +795,7 @@ func SetDatabaseEngineHandler(w http.ResponseWriter, r *http.Request) {
 	batchSize := clampBatchSize(req.BatchSize)
 
 	if !req.SyncData {
-		// Persist the CANONICAL dialect name so kspanel.env never carries
-		// an alias ("postgresql"/"mariadb") that drifts from the engine
-		// name the response and every dialect lookup report.
-		persistEngineConfig(&resp, d.Name(), dsn,
+		persistEngineConfig(&resp, engine, dsn,
 			"database engine updated — restart kspanel launch to apply", started)
 		writeJSON(w, resp)
 		return
@@ -909,7 +902,7 @@ func SetDatabaseEngineHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Step 5 — everything succeeded; make the new coordinates durable.
-	persistEngineConfig(&resp, d.Name(), dsn,
+	persistEngineConfig(&resp, engine, dsn,
 		fmt.Sprintf("database switched and %d tables / %d rows synced — restart kspanel launch to apply",
 			len(res.Tables), res.RowsCopied),
 		started)

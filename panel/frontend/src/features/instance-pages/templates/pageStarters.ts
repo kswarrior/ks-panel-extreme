@@ -41,12 +41,11 @@ function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){retur
 function el(id){return document.getElementById(id);}
 function fmtBytes(n){if(n==null||isNaN(n))return'-';var u=['B','KB','MB','GB','TB'];var i=0;while(n>=1024&&i<u.length-1){n/=1024;i++;}return n.toFixed(n>=100||i===0?0:1)+' '+u[i];}
 function badge(s){var c='ks-badge';s=String(s==null?'':s).toLowerCase();if(['running','done','active','ok','up'].indexOf(s)>=0)c+=' ks-ok';else if(['stopped','exited','inactive','paused'].indexOf(s)>=0)c+=' ks-warn';else if(['errored','failed','error','dead'].indexOf(s)>=0)c+=' ks-bad';return '<span class="'+c+'">'+esc(s||'unknown')+'</span>';}
-function bar(pct,color){pct=Math.max(0,Math.min(100,Number(pct)||0));if(!color)color=pct>90?'var(--ks-bad)':pct>70?'var(--ks-warn)':'var(--ks-info)';return '<div class="ks-bar"><span style="width:'+pct+'%;background:'+color+'"></span></div>';}
-function cssVar(n,f){try{var v=getComputedStyle(document.documentElement).getPropertyValue(n).trim();return v||f;}catch(e){return f;}}
+function bar(pct,color){pct=Math.max(0,Math.min(100,Number(pct)||0));if(!color)color=pct>90?'#f87171':pct>70?'#fbbf24':'#38bdf8';return '<div class="ks-bar"><span style="width:'+pct+'%;background:'+color+'"></span></div>';}
 function toast(m,t){try{KSPageSDK.toast(m,t||'info');}catch(e){}}
 async function sh(cmd,timeout){var r=await KSPageSDK.shell(cmd,[],null,timeout||20);if(r&&r.error&&!r.stdout&&!r.stderr)throw new Error(r.error);return r;}
 function pre(text,maxH){return '<pre style="max-height:'+(maxH||420)+'px;overflow:auto;font-size:12px;margin:0">'+esc(text==null?'':text)+'</pre>';}
-function card(title,innerHtml){return '<div class="ks-card"><h3 style="margin:0 0 .5rem;font-size:.95rem;color:var(--ks-heading)">'+title+'</h3>'+innerHtml+'</div>';}
+function card(title,innerHtml){return '<div class="ks-card"><h3 style="margin:0 0 .5rem;font-size:.95rem;color:#fff">'+title+'</h3>'+innerHtml+'</div>';}
 `;
 
 // page() wraps a body + script into the standard starter skeleton. The
@@ -54,7 +53,7 @@ function card(title,innerHtml){return '<div class="ks-card"><h3 style="margin:0 
 function page(title: string, body: string, js: string): string {
   return `<div class="ks-page">
 <div class="ks-row" style="justify-content:space-between;margin-bottom:0.75rem">
-  <h2 style="margin:0;font-size:1.3rem;color:var(--ks-heading)">${title}</h2>
+  <h2 style="margin:0;font-size:1.3rem;color:#fff">${title}</h2>
 </div>
 ${body}
 <script>
@@ -369,8 +368,8 @@ const AUTOMATION_HUB = page(
             '<td class="' + (r.exit_code === 0 ? 'ks-ok' : 'ks-bad') + '">' + r.exit_code + '</td><td>' + (r.duration_ms || 0) + ' ms</td>' +
             '<td class="ks-mono" style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(text) + '</td></tr>';
         }).join('') + '</tbody></table></div>';
-    el('content').innerHTML = '<h3 style="font-size:1rem;color:var(--ks-heading);margin:0 0 .4rem">Jobs</h3>' + jobsHtml +
-      '<h3 style="font-size:1rem;color:var(--ks-heading);margin:1rem 0 .4rem">Recent runs</h3>' + runsHtml;
+    el('content').innerHTML = '<h3 style="font-size:1rem;color:#fff;margin:0 0 .4rem">Jobs</h3>' + jobsHtml +
+      '<h3 style="font-size:1rem;color:#fff;margin:1rem 0 .4rem">Recent runs</h3>' + runsHtml;
     el('content').addEventListener('click', async function(ev){
       var t = ev.target.closest('a');
       if (!t) return;
@@ -434,12 +433,12 @@ const PROCESS_OBSERVER = page(
 const METRICS_LIVE = page(
   'Live Metrics',
   `<div id="gauges" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0.75rem"></div>
-  <div class="ks-card" style="margin-top:0.75rem"><h3 style="margin:0 0 .5rem;font-size:.95rem;color:var(--ks-heading)">CPU history (last 5 min)</h3><canvas id="cpuChart" width="600" height="90" style="width:100%"></canvas></div>
+  <div class="ks-card" style="margin-top:0.75rem"><h3 style="margin:0 0 .5rem;font-size:.95rem;color:#fff">CPU history (last 5 min)</h3><canvas id="cpuChart" width="600" height="90" style="width:100%"></canvas></div>
   <p class="ks-muted" style="font-size:11px">Polled from the panel metrics API every 5 seconds.</p>`,
   `
     var cpuHist = [];
     function gauge(label, pct, sub){
-      var color = pct > 90 ? 'var(--ks-bad)' : pct > 70 ? 'var(--ks-warn)' : 'var(--ks-info)';
+      var color = pct > 90 ? '#f87171' : pct > 70 ? '#fbbf24' : '#38bdf8';
       var v = pct == null ? '--' : Number(pct).toFixed(1);
       return '<div class="ks-card"><div class="ks-muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.05em">' + label + '</div>' +
         '<div style="font-size:1.6rem;font-weight:600;color:' + color + '">' + v + '%</div>' + bar(pct, color) +
@@ -453,7 +452,7 @@ const METRICS_LIVE = page(
       ctx.strokeRect(0.5, 0.5, cv.width - 1, cv.height - 1);
       if (cpuHist.length < 2) return;
       ctx.beginPath();
-      ctx.strokeStyle = cssVar('--ks-info', '#38bdf8');
+      ctx.strokeStyle = '#38bdf8';
       ctx.lineWidth = 1.5;
       for (var i = 0; i < cpuHist.length; i++) {
         var x = (i / (cpuHist.length - 1)) * (cv.width - 8) + 4;
@@ -866,9 +865,9 @@ const USER_REGISTRY = page(
     var human = users.filter(function(u){ return !isNaN(u.uid) && u.uid >= 1000 || u.uid === 0; });
     el('content').innerHTML =
       '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:0.75rem;margin-bottom:0.75rem">' +
-      '<div class="ks-card"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">Accounts</div><div style="font-size:1.6rem;font-weight:600;color:var(--ks-heading)">' + users.length + '</div></div>' +
-      '<div class="ks-card"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">Human / privileged</div><div style="font-size:1.6rem;font-weight:600;color:var(--ks-info)">' + human.length + '</div><div class="ks-mono ks-muted" style="font-size:11px">' + esc(human.map(function(u){ return u.name; }).join(', ')) + '</div></div>' +
-      '<div class="ks-card"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">Groups</div><div style="font-size:1.6rem;font-weight:600;color:var(--ks-heading)">' + esc(groupCount) + '</div></div>' +
+      '<div class="ks-card"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">Accounts</div><div style="font-size:1.6rem;font-weight:600;color:#fff">' + users.length + '</div></div>' +
+      '<div class="ks-card"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">Human / privileged</div><div style="font-size:1.6rem;font-weight:600;color:#38bdf8">' + human.length + '</div><div class="ks-mono ks-muted" style="font-size:11px">' + esc(human.map(function(u){ return u.name; }).join(', ')) + '</div></div>' +
+      '<div class="ks-card"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">Groups</div><div style="font-size:1.6rem;font-weight:600;color:#fff">' + esc(groupCount) + '</div></div>' +
       '</div>' +
       card('Accounts (/etc/passwd)',
         '<table><thead><tr><th>User</th><th>UID</th><th>GID</th><th>Home</th><th>Shell</th></tr></thead><tbody>' +
@@ -897,10 +896,10 @@ const SYSTEM_PROBE = page(
     var loadavg = await out('cat /proc/loadavg');
     el('content').innerHTML =
       '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0.75rem;margin-bottom:0.75rem">' +
-      '<div class="ks-card"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">OS</div><div style="font-weight:600;color:var(--ks-heading)">' + esc(osName) + '</div></div>' +
-      '<div class="ks-card"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">Kernel</div><div class="ks-mono" style="font-weight:600;color:var(--ks-heading)">' + esc(kernel) + '</div></div>' +
-      '<div class="ks-card"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">Architecture</div><div class="ks-mono" style="font-weight:600;color:var(--ks-heading)">' + esc(arch) + '</div></div>' +
-      '<div class="ks-card"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">Virtualization</div><div class="ks-mono" style="font-weight:600;color:var(--ks-heading)">' + esc(virt) + '</div></div>' +
+      '<div class="ks-card"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">OS</div><div style="font-weight:600;color:#fff">' + esc(osName) + '</div></div>' +
+      '<div class="ks-card"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">Kernel</div><div class="ks-mono" style="font-weight:600;color:#fff">' + esc(kernel) + '</div></div>' +
+      '<div class="ks-card"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">Architecture</div><div class="ks-mono" style="font-weight:600;color:#fff">' + esc(arch) + '</div></div>' +
+      '<div class="ks-card"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">Virtualization</div><div class="ks-mono" style="font-weight:600;color:#fff">' + esc(virt) + '</div></div>' +
       '</div>' +
       card('Hardware', '<table>' +
         '<tr><th style="width:150px">CPU model</th><td>' + esc(cpuModel) + '</td></tr>' +

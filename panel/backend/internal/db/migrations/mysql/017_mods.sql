@@ -27,13 +27,13 @@
 CREATE TABLE IF NOT EXISTS mods (
     id           BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     name         TEXT    NOT NULL,                  -- display name (from manifest)
-    slug VARCHAR(255)  NOT NULL  UNIQUE,           -- stable unique id used in routes
-    version      TEXT    NOT NULL DEFAULT (''),
-    description  TEXT    NOT NULL DEFAULT (''),
+    slug         TEXT    NOT NULL UNIQUE,           -- stable unique id used in routes
+    version      TEXT    NOT NULL DEFAULT '',
+    description  TEXT    NOT NULL DEFAULT '',
     manifest     TEXT    NOT NULL,                  -- full JSON manifest (opaque except permissionsRequested)
-    spec         TEXT    NOT NULL DEFAULT ('{}'),     -- optional editable spec blob (e.g. page definitions)
+    spec         TEXT    NOT NULL DEFAULT '{}',     -- optional editable spec blob (e.g. page definitions)
     active       INTEGER NOT NULL DEFAULT 0,        -- 0 = inactive (installed only), 1 = active
-    uploaded_by  BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    uploaded_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
     created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -57,9 +57,9 @@ CREATE INDEX mods_uploaded_by_idx ON mods(uploaded_by);
 -- so the activation modal can show it next to the capability.
 CREATE TABLE IF NOT EXISTS mod_permissions (
     id           BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    mod_id       BIGINT NOT NULL REFERENCES mods(id) ON DELETE CASCADE,
-    capability VARCHAR(255) NOT NULL,                  -- capability code
-    access_level TEXT    NOT NULL DEFAULT (''),        -- read_only / read_write / ''
+    mod_id       INTEGER NOT NULL REFERENCES mods(id) ON DELETE CASCADE,
+    capability   TEXT    NOT NULL,                  -- capability code
+    access_level TEXT    NOT NULL DEFAULT '',        -- read_only / read_write / ''
     granted      INTEGER NOT NULL DEFAULT 0,         -- 0 = pending approval, 1 = approved
     UNIQUE (mod_id, capability)
 );

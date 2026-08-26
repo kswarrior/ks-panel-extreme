@@ -17,17 +17,17 @@
 
 CREATE TABLE IF NOT EXISTS instance_secrets (
     id           BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    instance_id  BIGINT NOT NULL REFERENCES instances(id) ON DELETE CASCADE,
-    `key`          VARCHAR(255) NOT NULL,
+    instance_id  INTEGER NOT NULL REFERENCES instances(id) ON DELETE CASCADE,
+    key          TEXT    NOT NULL,
     value_blob   BLOB    NOT NULL,              -- nonce||ciphertext||tag
     -- value_mime is empty for secrets. For non-secret env the cleartext is
     -- small enough to keep alongside, so we store it in value_blob too and
     -- mark is_secret = 0.
     is_secret    INTEGER NOT NULL DEFAULT 1,    -- 0 = visible env, 1 = masked secret
-    description  TEXT    NOT NULL DEFAULT (''),
+    description  TEXT    NOT NULL DEFAULT '',
     created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (instance_id, `key`)
+    UNIQUE (instance_id, key)
 );
 
 CREATE INDEX instance_secrets_inst_idx ON instance_secrets(instance_id);

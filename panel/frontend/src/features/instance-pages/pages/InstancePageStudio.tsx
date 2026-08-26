@@ -887,7 +887,7 @@ const InstancePageStudio: React.FC = () => {
           {!isEdit && (
             <p className="text-xs text-amber-300">Tip: unsaved pages preview with the SDK, but actions that hit the panel require the page to be saved &amp; linked.</p>
           )}
-          <CustomPageView content={previewContent} title={editingSub ? (editingSub.name.trim() || editingSub.path || 'Preview') : (page.name || 'Preview')} instanceContext={previewContext} pageSlug={page.slug ? (editingSub ? `${page.slug}/${editingSub.path}` : page.slug) : undefined} />
+          <CustomPageView content={previewContent} title={editingSub ? (editingSub.name.trim() || editingSub.path || 'Preview') : (page.name || 'Preview')} instanceContext={previewContext} />
         </>
       ) : (
         <div className={`border border-white/10 rounded-lg overflow-hidden bg-black/30 ${fullPreview ? 'flex-1 min-h-0 flex flex-col' : ''}`} style={fullPreview ? undefined : { minHeight: '500px' }}>

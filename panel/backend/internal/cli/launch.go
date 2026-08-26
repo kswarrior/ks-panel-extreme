@@ -17,7 +17,6 @@ import (
 
 	"github.com/example/kspanel/internal/api"
 	"github.com/example/kspanel/internal/api/handlers"
-	"github.com/example/kspanel/internal/auth"
 	"github.com/example/kspanel/internal/banner"
 	"github.com/example/kspanel/internal/cli/print"
 	"github.com/example/kspanel/internal/config"
@@ -50,15 +49,6 @@ func init() {
 }
 
 func runLaunch(cmd *cobra.Command, args []string) error {
-	// Fail fast when the session secret is missing/too short: the server
-	// must never come up unable to sign or verify session cookies. (The
-	// check used to live in the auth package's init(), which also crashed
-	// every non-serving subcommand and test binary; it is lazy there now,
-	// so launch re-enforces it explicitly.)
-	if err := auth.EnsureSessionSecret(); err != nil {
-		return err
-	}
-
 	port, err := cmd.Flags().GetInt("port")
 	if err != nil {
 		return err

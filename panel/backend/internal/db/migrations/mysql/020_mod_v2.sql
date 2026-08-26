@@ -21,11 +21,11 @@
 
 
 CREATE TABLE IF NOT EXISTS mod_storage (
-    mod_slug VARCHAR(255) NOT NULL,
-    `key`        VARCHAR(255) NOT NULL,
-    value      TEXT    NOT NULL DEFAULT ('{}'),   -- JSON value blob
+    mod_slug   TEXT    NOT NULL,
+    key        TEXT    NOT NULL,
+    value      TEXT    NOT NULL DEFAULT '{}',   -- JSON value blob
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (mod_slug, `key`),
+    PRIMARY KEY (mod_slug, key),
     FOREIGN KEY (mod_slug) REFERENCES mods(slug) ON DELETE CASCADE
 );
 

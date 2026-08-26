@@ -313,13 +313,6 @@ interface CustomPageViewProps {
   content: PageContent;
   title: string;
   instanceContext?: InstanceContext;
-  /**
-   * Slug (or "<slug>/<sub-path>") of the page this view renders. Sent with
-   * every SDK executeAction call so the server can verify the calling page
-   * family is enabled on the bound instance (page-bound execution). Omit in
-   * contexts without a real page (Studio static preview of unsaved pages).
-   */
-  pageSlug?: string;
 }
 
 // ============================================================================
@@ -713,7 +706,7 @@ function customPageThemeCss(theme: Theme): string {
 // sandboxed opaque-origin iframe whose only channel to the panel is the
 // postMessage SDK bridge. Markdown and blocks render as React components in
 // the host app, where window.KSPageSDK carries the same API surface.
-const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanceContext, pageSlug }) => {
+const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanceContext }) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const wsRef = useRef<Map<string, WebSocket>>(new Map());
   const wsSeq = useRef(0);
@@ -722,23 +715,18 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
   // pageNavigateTarget before react-router performs it.
   const navigate = useNavigate();
   const location = useLocation();
-  // Subscribe to the ACTIVE panel theme so themed pages follow theme edits
-  // and route-scope switches live: the sandboxed iframe cannot inherit the
-  // host's CSS custom properties, so its stylesheet is regenerated (with
-  // concrete token values) whenever the resolved theme object changes.
-  const activeTheme = useThemeStore((s) => s.active());
 
   // The real SDK lives in the host origin; bridged calls execute against it.
   const sdkRef = useRef<ReturnType<typeof createCustomPageSDK> | null>(null);
   useEffect(() => {
     sdkRef.current = instanceContext
-      ? createCustomPageSDK(instanceContext, Array.isArray(content.actions) ? content.actions : [], pageSlug ?? '')
+      ? createCustomPageSDK(instanceContext, Array.isArray(content.actions) ? content.actions : [])
       : null;
     if (instanceContext) {
       // Also publish on window for markdown/blocks pages rendered in-host.
       (window as any).KSPageSDK = sdkRef.current;
     }
-  }, [instanceContext, content.actions, pageSlug]);
+  }, [instanceContext, content.actions]);
 
   const srcDoc = useMemo(() => {
     if (content.type !== 'html') return undefined;
@@ -766,9 +754,9 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
       safeInlineJson(ctx),
       safeInlineJson(Array.isArray(content.actions) ? content.actions : []),
       location.search,
-      customPageThemeCss(activeTheme),
+      customPageThemeCss(useThemeStore.getState().active()),
     );
-  }, [content.type, content.html, content.actions, instanceContext, location.search, activeTheme]);
+  }, [content.type, content.html, content.actions, instanceContext, location.search]);
 
   // Bridge: parent-side handler for everything the iframe sends up.
   useEffect(() => {
@@ -899,9 +887,9 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
   // SDK exists even before effects above run consumers rely on.
   useEffect(() => {
     if (instanceContext && content.type !== 'html') {
-      createCustomPageSDK(instanceContext, Array.isArray(content.actions) ? content.actions : [], pageSlug ?? '');
+      createCustomPageSDK(instanceContext, Array.isArray(content.actions) ? content.actions : []);
     }
-  }, [instanceContext, content.type, content.actions, pageSlug]);
+  }, [instanceContext, content.type, content.actions]);
 
   // For HTML content, render in a hardened sandboxed iframe. Pure content:
   // no injected header or card chrome — only the pages-JSON payload shows.

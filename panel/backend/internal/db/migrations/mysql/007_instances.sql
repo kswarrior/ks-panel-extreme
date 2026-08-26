@@ -9,31 +9,31 @@
 CREATE TABLE IF NOT EXISTS instances (
     id          BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     -- The edge node this instance was scheduled onto.
-    node_id     BIGINT NOT NULL,
+    node_id     INTEGER NOT NULL,
     -- The template the instance was spawned from. Kept as a foreign key so
     -- deleting a template still leaves the instance row pointing at it via
     -- ON DELETE SET NULL (we keep history but refuse to redeploy from a
     -- removed template).
-    template_id BIGINT,
+    template_id INTEGER,
     -- Operator-chosen instance label, unique per panel so logs/UI are clear.
-    name VARCHAR(255) NOT NULL,
+    name        TEXT    NOT NULL,
     -- 'docker' | 'lxd' | 'kvm' | 'multipass' — cached from the template at
     -- deploy time so an owner can tell at a glance what kind of workload it is.
-    kind VARCHAR(255) NOT NULL,
+    kind        TEXT    NOT NULL,
     -- Lifecycle status mirrored from ksedge. 'creating' on deploy, then the
     -- edge flips it to 'running'/'stopped'/'errored' as the driver responds.
     -- The panel also accepts 'destroyed' which removes any printable card.
-    status VARCHAR(255) NOT NULL DEFAULT ('creating'),
+    status      TEXT    NOT NULL DEFAULT 'creating',
     -- The real driver-side name/ID ksedge returned (docker container name,
     -- lxc instance name, virsh domain, multipass instance name). Stored so
     -- subsequent start/stop/destroy RPCs reference the exact workload.
-    external_id TEXT    NOT NULL DEFAULT (''),
+    external_id TEXT    NOT NULL DEFAULT '',
     -- JSON snapshot of the resolved config used at deploy (template.spec
     -- merged with the per-deploy overrides from the modal). Cached so the
     -- instance keeps running even if the template is later edited.
-    config      TEXT    NOT NULL DEFAULT ('{}'),
+    config      TEXT    NOT NULL DEFAULT '{}',
     -- Last error message from the edge, shown verbatim in the UI's status pill.
-    error       TEXT    NOT NULL DEFAULT (''),
+    error       TEXT    NOT NULL DEFAULT '',
     created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (node_id)     REFERENCES nodes(id)      ON DELETE CASCADE,

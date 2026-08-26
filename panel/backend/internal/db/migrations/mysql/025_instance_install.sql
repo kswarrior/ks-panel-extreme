@@ -7,8 +7,8 @@
 --   install_error   → short failure message from edge
 --   install_steps_json → full step transcript JSON for panel rendering
 
-ALTER TABLE instances ADD COLUMN install_state TEXT NOT NULL DEFAULT ('');
-ALTER TABLE instances ADD COLUMN install_id TEXT NOT NULL DEFAULT ('');
+ALTER TABLE instances ADD COLUMN install_state TEXT NOT NULL DEFAULT '';
+ALTER TABLE instances ADD COLUMN install_id TEXT NOT NULL DEFAULT '';
 ALTER TABLE instances ADD COLUMN install_step INTEGER NOT NULL DEFAULT -1;
-ALTER TABLE instances ADD COLUMN install_error TEXT NOT NULL DEFAULT ('');
-ALTER TABLE instances ADD COLUMN install_steps_json TEXT NOT NULL DEFAULT ('');
+ALTER TABLE instances ADD COLUMN install_error TEXT NOT NULL DEFAULT '';
+ALTER TABLE instances ADD COLUMN install_steps_json TEXT NOT NULL DEFAULT '';
