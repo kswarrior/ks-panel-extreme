@@ -217,10 +217,13 @@ func SecurityMiddleware(next http.Handler) http.Handler {
 		// contends with the request's own work, and never reports an
 		// error back to the response (a logging failure must not break
 		// the request that triggered it). A timeout is applied so a slow
-		// or unreachable DB never hangs this goroutine.
-		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-		defer cancel()
+		// or unreachable DB never hangs this goroutine. The context is
+		// detached from the request (WithoutCancel) — r.Context() dies as
+		// soon as this handler returns, which used to cancel the INSERT
+		// mid-flight and silently drop most telemetry rows.
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 5*time.Second)
 		go func(in repository.SecurityRequestInput) {
+			defer cancel()
 			con, err := repository.OpenDB()
 			if err != nil {
 				return
