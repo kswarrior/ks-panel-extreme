@@ -1065,6 +1065,13 @@ func ExecuteModulePageActionHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "instance_id, module_id, and type are required", http.StatusBadRequest)
 		return
 	}
+	// Defense-in-depth: the module action store is not persisted yet, so at
+	// minimum reject unknown kinds and bound the edge round-trip.
+	if !validActionTypes[req.Type] {
+		http.Error(w, "unknown action type", http.StatusBadRequest)
+		return
+	}
+	reqTimeout := clampActionTimeout(req.Timeout)
 
 	con, err := repository.OpenDB()
 	if err != nil {
