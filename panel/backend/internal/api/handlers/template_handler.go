@@ -329,8 +329,11 @@ func handleTemplateFileUpload(w http.ResponseWriter, r *http.Request) {
 	description := getString(manifest, "description")
 	kind := getString(manifest, "kind")
 	image := getString(manifest, "image")
-	specBytes, _ := json.Marshal(manifest["spec"])
-	spec := string(specBytes)
+	spec, specOK := manifestSpecString(manifest)
+	if !specOK {
+		http.Error(w, "spec must be a JSON object (or a string containing one)", http.StatusBadRequest)
+		return
+	}
 
 	if name == "" {
 		http.Error(w, "template name is required", http.StatusBadRequest)
@@ -424,8 +427,11 @@ func InstallTemplateFromURLHandler(w http.ResponseWriter, r *http.Request) {
 	description := getString(manifest, "description")
 	kind := getString(manifest, "kind")
 	image := getString(manifest, "image")
-	specBytes, _ := json.Marshal(manifest["spec"])
-	spec := string(specBytes)
+	spec, specOK := manifestSpecString(manifest)
+	if !specOK {
+		http.Error(w, "spec must be a JSON object (or a string containing one)", http.StatusBadRequest)
+		return
+	}
 
 	if name == "" {
 		http.Error(w, "template name is required", http.StatusBadRequest)
