@@ -373,8 +373,8 @@ const AUTOMATION_HUB = page(
             '<td class="' + (r.exit_code === 0 ? 'ks-ok' : 'ks-bad') + '">' + r.exit_code + '</td><td>' + (r.duration_ms || 0) + ' ms</td>' +
             '<td class="ks-mono" style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(text) + '</td></tr>';
         }).join('') + '</tbody></table></div>';
-    el('content').innerHTML = '<h3 style="font-size:1rem;color:#fff;margin:0 0 .4rem">Jobs</h3>' + jobsHtml +
-      '<h3 style="font-size:1rem;color:#fff;margin:1rem 0 .4rem">Recent runs</h3>' + runsHtml;
+    el('content').innerHTML = '<h3 style="font-size:1rem;color:var(--ks-heading);margin:0 0 .4rem">Jobs</h3>' + jobsHtml +
+      '<h3 style="font-size:1rem;color:var(--ks-heading);margin:1rem 0 .4rem">Recent runs</h3>' + runsHtml;
     el('content').addEventListener('click', async function(ev){
       var t = ev.target.closest('a');
       if (!t) return;
