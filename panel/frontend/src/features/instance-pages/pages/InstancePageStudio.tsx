@@ -769,7 +769,7 @@ const InstancePageStudio: React.FC = () => {
       }
       navigate('/instance-pages');
     } catch (e: any) {
-      setError(e?.response?.data || 'Save failed');
+      setError(getErrorMessage(e, 'Save failed'));
     } finally {
       setSaving(false);
     }
@@ -1035,7 +1035,7 @@ const InstancePageStudio: React.FC = () => {
                 <article key={s.id} className="ks-card rounded-xl p-4 flex flex-col gap-2 hover:border-white/25 transition-colors">
                   <header className="flex items-start gap-2.5">
                     <span className="shrink-0 inline-flex w-9 h-9 rounded-lg bg-white/[0.05] border border-white/10 text-gray-300 items-center justify-center">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-4.5 h-4.5"><g dangerouslySetInnerHTML={{ __html: s.iconSvg }} /></svg>
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-4 h-4"><g dangerouslySetInnerHTML={{ __html: s.iconSvg }} /></svg>
                     </span>
                     <div className="min-w-0">
                       <h4 className="text-sm font-semibold text-white truncate">{s.name}</h4>

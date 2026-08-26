@@ -1,12 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { listInstancePages } from '@/shared/api/admin';
 import type { InstancePage } from '@/shared/types/instancePage';
 import {
-  DonutStat,
-  PieChart,
-  DashboardSection,
-  DashboardGrid,
   HeaderWithAction,
   StatCard,
 } from '@/shared/components/ui/StatDashboard';
