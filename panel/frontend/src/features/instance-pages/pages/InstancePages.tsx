@@ -11,6 +11,7 @@ import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import GlassCard from '@/shared/components/ui/Card';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import Modal from '@/shared/components/ui/Modal';
+import { useConfirm } from '@/shared/stores/confirmStore';
 
 type SortKey = 'name' | 'kind' | 'category' | 'updated' | 'newest';
 
@@ -44,6 +45,7 @@ function KindIcon({ kind, className = '' }: { kind: string; className?: string }
 
 const InstancePages: React.FC = () => {
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const [pages, setPages] = useState<InstancePage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -136,7 +138,7 @@ const InstancePages: React.FC = () => {
   const openEdit = (p: InstancePage) => navigate(`/instance-pages/${p.id}/studio`);
 
   const remove = async (p: InstancePage) => {
-    if (!confirm(`Delete instance page "${p.name}"?`)) return;
+    if (!(await confirm({ title: 'Delete instance page', message: `Delete instance page "${p.name}"?`, tone: 'danger', confirmLabel: 'Delete' }))) return;
     setDeletingId(p.id);
     try { await deleteInstancePage(p.id); await load(); }
     catch (e: any) { alert(e?.response?.data || 'Failed to delete instance page'); }

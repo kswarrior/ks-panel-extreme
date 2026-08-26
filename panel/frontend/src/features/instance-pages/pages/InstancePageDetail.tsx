@@ -4,6 +4,7 @@ import { listInstancePages, deleteInstancePage } from '@/shared/api/admin';
 import type { InstancePage } from '@/shared/types/instancePage';
 import GlassCard from '@/shared/components/ui/Card';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
+import { useConfirm } from '@/shared/stores/confirmStore';
 
 function getErrorMessage(e: any, fallback: string): string {
   const data = e?.response?.data;
@@ -33,6 +34,7 @@ function relativeTime(iso: string): string {
 const InstancePageDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const [page, setPage] = useState<InstancePage | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -73,7 +75,7 @@ const InstancePageDetail: React.FC = () => {
 
   const handleDelete = async () => {
     if (!page) return;
-    if (!confirm(`Delete instance page "${page.name}"?`)) return;
+    if (!(await confirm({ title: 'Delete instance page', message: `Delete instance page "${page.name}"?`, tone: 'danger', confirmLabel: 'Delete' }))) return;
     setDeleting(true);
     try {
       await deleteInstancePage(page.id);
