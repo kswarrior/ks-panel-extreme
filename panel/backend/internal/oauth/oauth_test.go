@@ -284,7 +284,7 @@ func TestExchangeCodeGitHubPrimaryEmail(t *testing.T) {
 		if r.Header.Get("Accept") != "application/vnd.github+json" {
 			t.Errorf("github emails Accept header = %q", r.Header.Get("Accept"))
 		}
-		_, _ = w.Write([]byte(`[{"email":"alias@example.com","primary":false},{"email":"Prime@Example.com","primary":true}]`))
+		_, _ = w.Write([]byte(`[{"email":"alias@example.com","primary":false,"verified":false},{"email":"Prime@Example.com","primary":true,"verified":true}]`))
 	}))
 	defer emailsSrv.Close()
 
