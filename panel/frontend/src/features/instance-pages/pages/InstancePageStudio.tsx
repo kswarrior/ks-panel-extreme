@@ -595,9 +595,9 @@ const InstancePageStudio: React.FC = () => {
     else onChange('content_blocks', value);
   };
 
-  const applyStarter = (s: PageStarter) => {
+  const applyStarter = async (s: PageStarter) => {
     const hasContent = Boolean((page.content_html ?? '') || (page.content_markdown ?? '') || (page.content_blocks ?? ''));
-    if (hasContent && !window.confirm(`Replace the current draft with the "${s.name}" template?`)) return;
+    if (hasContent && !(await confirm({ title: 'Apply template', message: `Replace the current draft with the "${s.name}" template?`, tone: 'warning', confirmLabel: 'Replace' }))) return;
     setPage((p) => ({
       ...p,
       name: p.name || s.name,
@@ -818,7 +818,7 @@ const InstancePageStudio: React.FC = () => {
     );
   }, [starterQuery]);
 
-  if (loading) return <GlassCard className="text-center text-gray-400">Loading…</GlassCard>;
+  if (loading) return <FormSkeleton className="ks-form-card" fields={5} />;
 
   const contentType = (page.content_type || 'html') as 'html' | 'markdown' | 'blocks';
 
