@@ -185,15 +185,15 @@ const SERVICE_CONTROL = page(
         rows.map(function(u){
           return '<tr><td class="ks-mono">' + esc(u.unit) + '</td><td>' + esc(u.active) + '</td><td>' + esc(u.sub) + '</td><td>' + esc(u.desc) + '</td>' +
             '<td class="ks-row">' +
-            '<a href="#" data-act="start" data-u="' + esc(u.unit) + '" class="ks-ok">start</a> ' +
-            '<a href="#" data-act="stop" data-u="' + esc(u.unit) + '" class="ks-warn">stop</a> ' +
-            '<a href="#" data-act="restart" data-u="' + esc(u.unit) + '">restart</a> ' +
-            '<a href="#" data-act="status" data-u="' + esc(u.unit) + '">status</a></td></tr>';
+            '<a href="#" data-op="start" data-u="' + esc(u.unit) + '" class="ks-ok">start</a> ' +
+            '<a href="#" data-op="stop" data-u="' + esc(u.unit) + '" class="ks-warn">stop</a> ' +
+            '<a href="#" data-op="restart" data-u="' + esc(u.unit) + '">restart</a> ' +
+            '<a href="#" data-op="status" data-u="' + esc(u.unit) + '">status</a></td></tr>';
         }).join('') + '</tbody></table></div>';
     }
     async function load(){
-      var r = await sh('systemctl list-units --type=service --all --no-pager --no-legend', 25);
-      units = (r.stdout || '').split('\\n').filter(function(l){ return l.trim(); }).map(function(line){
+      var r = await act('list_units');
+      units = ((r.stdout || '') + '').split('\\n').filter(function(l){ return l.trim(); }).map(function(line){
         var f = line.trim().split(/\\s+/);
         return { unit: f[0] || '', active: f[2] || '', sub: f[3] || '', desc: f.slice(4).join(' ') };
       }).filter(function(u){ return u.unit.indexOf('.service') >= 0; });
@@ -203,22 +203,22 @@ const SERVICE_CONTROL = page(
     el('q').oninput = render;
     el('closedetail').onclick = function(){ el('detail').style.display = 'none'; };
     el('content').addEventListener('click', async function(ev){
-      var t = ev.target.closest('a[data-act]');
+      var t = ev.target.closest('a[data-op]');
       if (!t) return;
       ev.preventDefault();
-      var act = t.dataset.act;
+      var op = t.dataset.op;
       var u = t.dataset.u;
       try {
-        if (act === 'status') {
-          var s = await sh('systemctl status ' + JSON.stringify(u) + ' --no-pager -l', 20);
+        if (op === 'status') {
+          var s = await act('unit_status', [u]);
           el('detailtitle').textContent = 'status: ' + u;
-          el('detailbox').textContent = (s.stdout || '') + (s.stderr || '');
+          el('detailbox').textContent = ((s.stdout || '') + '') + ((s.stderr || '') + '');
           el('detail').style.display = 'block';
           return;
         }
-        if ((act === 'stop' || act === 'restart') && !(await ask(act + ' ' + u + '?'))) return;
-        var r = await sh('systemctl ' + act + ' ' + JSON.stringify(u), 30);
-        toast(u + ' ' + act + ': exit ' + (r.exit_code != null ? r.exit_code : '?'), r.exit_code === 0 ? 'success' : 'error');
+        if ((op === 'stop' || op === 'restart') && !(await ask(op + ' ' + u + '?'))) return;
+        var r = await act('unit_' + op, [u]);
+        toast(u + ' ' + op + ': exit ' + (r.exit_code != null ? r.exit_code : '?'), r.exit_code === 0 ? 'success' : 'error');
         load();
       } catch (e) { toast(e.message, 'error'); }
     });
@@ -519,18 +519,43 @@ export const PAGE_STARTERS: PageStarter[] = [
     html: SERVICE_CONTROL,
     actions: [
       {
-        name: 'failed_units',
+        name: 'list_units',
         type: 'shell',
-        command: 'systemctl list-units --state=failed --no-pager --no-legend 2>/dev/null || echo "(none / unavailable)"',
-        timeout: 20,
-        description: 'List systemd units in a failed state.',
+        command: 'systemctl list-units --type=service --all --no-pager --no-legend',
+        timeout: 25,
+        description: 'List every systemd service unit and its state.',
       },
       {
-        name: 'restart_sshd',
+        name: 'unit_status',
         type: 'shell',
-        command: 'systemctl restart sshd 2>/dev/null || systemctl restart ssh 2>/dev/null; echo "exit=$?"',
+        command: 'systemctl status {{args}} --no-pager -l',
+        open_args: true,
+        timeout: 20,
+        description: 'Detailed status of one unit (runtime argument).',
+      },
+      {
+        name: 'unit_start',
+        type: 'shell',
+        command: 'systemctl start {{args}}',
+        open_args: true,
         timeout: 30,
-        description: 'Restart the SSH daemon (sshd or ssh).',
+        description: 'Start a unit (runtime argument).',
+      },
+      {
+        name: 'unit_stop',
+        type: 'shell',
+        command: 'systemctl stop {{args}}',
+        open_args: true,
+        timeout: 30,
+        description: 'Stop a unit (runtime argument).',
+      },
+      {
+        name: 'unit_restart',
+        type: 'shell',
+        command: 'systemctl restart {{args}}',
+        open_args: true,
+        timeout: 30,
+        description: 'Restart a unit (runtime argument).',
       },
     ],
   },
