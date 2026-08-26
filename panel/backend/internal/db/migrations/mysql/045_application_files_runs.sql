@@ -26,10 +26,10 @@ ALTER TABLE applications ADD COLUMN files TEXT NOT NULL DEFAULT '[]';
 
 CREATE TABLE IF NOT EXISTS application_runs (
     id              BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    application_id  INTEGER NOT NULL,
-    triggered_by    INTEGER,
+    application_id  BIGINT NOT NULL,
+    triggered_by    BIGINT,
     target          TEXT NOT NULL DEFAULT 'panel',
-    node_id         INTEGER NOT NULL DEFAULT 0,
+    node_id         BIGINT NOT NULL DEFAULT 0,
     node_name       TEXT NOT NULL DEFAULT '',
     exec_mode       TEXT NOT NULL DEFAULT 'host',
     workload        TEXT NOT NULL DEFAULT '',

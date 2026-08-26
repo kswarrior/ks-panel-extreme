@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS security_requests (
     method      TEXT    NOT NULL DEFAULT '',
     path        TEXT    NOT NULL DEFAULT '',
     status      INTEGER NOT NULL DEFAULT 0,
-    user_id     INTEGER,
+    user_id     BIGINT,
     user_agent  TEXT    NOT NULL DEFAULT '',
     country     TEXT    NOT NULL DEFAULT '',
     blocked     INTEGER NOT NULL DEFAULT 0,

@@ -9,6 +9,6 @@
 -- ON DELETE SET NULL keeps the row even after the user is deleted
 -- (history matters more than referential cleanliness for instances).
 
-ALTER TABLE instances ADD COLUMN owner_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE instances ADD COLUMN owner_id BIGINT REFERENCES users(id) ON DELETE SET NULL;
 
 CREATE INDEX instances_owner_idx ON instances(owner_id);

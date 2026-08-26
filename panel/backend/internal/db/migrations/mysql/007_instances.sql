@@ -9,12 +9,12 @@
 CREATE TABLE IF NOT EXISTS instances (
     id          BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     -- The edge node this instance was scheduled onto.
-    node_id     INTEGER NOT NULL,
+    node_id     BIGINT NOT NULL,
     -- The template the instance was spawned from. Kept as a foreign key so
     -- deleting a template still leaves the instance row pointing at it via
     -- ON DELETE SET NULL (we keep history but refuse to redeploy from a
     -- removed template).
-    template_id INTEGER,
+    template_id BIGINT,
     -- Operator-chosen instance label, unique per panel so logs/UI are clear.
     name        TEXT    NOT NULL,
     -- 'docker' | 'lxd' | 'kvm' | 'multipass' — cached from the template at

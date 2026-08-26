@@ -14,7 +14,7 @@
 
 CREATE TABLE IF NOT EXISTS password_history (
     id            BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    user_id       INTEGER NOT NULL,
+    user_id       BIGINT NOT NULL,
     -- Bcrypt hash of the outgoing (replaced) password. Never plaintext.
     password_hash VARCHAR(255) NOT NULL,
     created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -24,7 +24,7 @@ CREATE INDEX idx_password_history_user ON password_history(user_id);
 
 CREATE TABLE IF NOT EXISTS recovery_codes (
     id         BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    user_id    INTEGER NOT NULL,
+    user_id    BIGINT NOT NULL,
     -- Bcrypt hash of the code; the plaintext is shown once at generation.
     code_hash  VARCHAR(255) NOT NULL,
     used       INTEGER NOT NULL DEFAULT 0,

@@ -5,7 +5,7 @@
 
 CREATE TABLE IF NOT EXISTS api_keys (
     id          BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    user_id     INTEGER NOT NULL,
+    user_id     BIGINT NOT NULL,
     name        TEXT    NOT NULL,
     -- SHA-256 hex digest of the key. Indexed for fast lookup.
     key_hash VARCHAR(255)     NOT NULL  UNIQUE,

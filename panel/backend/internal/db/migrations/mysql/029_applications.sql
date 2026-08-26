@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS applications (
 
 CREATE TABLE IF NOT EXISTS application_permissions (
     id              BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    application_id  INTEGER NOT NULL,
+    application_id  BIGINT NOT NULL,
     capability      TEXT    NOT NULL,
     access_level    TEXT    NOT NULL DEFAULT '',
     granted         INTEGER NOT NULL DEFAULT 0,
@@ -69,13 +69,13 @@ CREATE TABLE IF NOT EXISTS application_permissions (
 
 CREATE TABLE IF NOT EXISTS application_installations (
     id              BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    application_id  INTEGER NOT NULL,
-    owner_id        INTEGER NOT NULL,
+    application_id  BIGINT NOT NULL,
+    owner_id        BIGINT NOT NULL,
     name            TEXT    NOT NULL,
     config_values   TEXT    NOT NULL DEFAULT '{}',
     status          TEXT    NOT NULL DEFAULT 'stopped',
     last_error      TEXT    NOT NULL DEFAULT '',
-    node_id         INTEGER NOT NULL DEFAULT 0,
+    node_id         BIGINT NOT NULL DEFAULT 0,
     created_at      TEXT    NOT NULL,
     updated_at      TEXT    NOT NULL,
     FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE,

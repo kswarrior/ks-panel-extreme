@@ -57,7 +57,7 @@ CREATE INDEX mods_uploaded_by_idx ON mods(uploaded_by);
 -- so the activation modal can show it next to the capability.
 CREATE TABLE IF NOT EXISTS mod_permissions (
     id           BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    mod_id       INTEGER NOT NULL REFERENCES mods(id) ON DELETE CASCADE,
+    mod_id       BIGINT NOT NULL REFERENCES mods(id) ON DELETE CASCADE,
     capability   TEXT    NOT NULL,                  -- capability code
     access_level TEXT    NOT NULL DEFAULT '',        -- read_only / read_write / ''
     granted      INTEGER NOT NULL DEFAULT 0,         -- 0 = pending approval, 1 = approved
