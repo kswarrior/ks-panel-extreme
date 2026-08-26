@@ -1426,7 +1426,7 @@ const InstancePageStudio: React.FC = () => {
                 <input value={page.name ?? ''} onChange={(e) => onChange('name', e.target.value)} className={glassFieldClass} required />
               </label>
               <label className="block">
-                <span className="text-xs text-gray-400">Slug * (URL path segment)</span>
+                <span className="text-xs text-gray-400">Slug * (URL path segment — "." is the reserved Home/index slug)</span>
                 <input value={page.slug ?? ''} onChange={(e) => onChange('slug', e.target.value)} className={`${glassFieldClass} font-mono`} required />
               </label>
             </div>

@@ -237,7 +237,7 @@ export interface StopActionResponse {
 export async function stopInstanceAction(
   instanceId: number,
   actionId: string,
-  ): Promise<StopActionResponse> {
+): Promise<StopActionResponse> {
   const res = await client.post<StopActionResponse>(
     `/api/instances/${instanceId}/actions/${encodeURIComponent(actionId)}/stop`,
   );
