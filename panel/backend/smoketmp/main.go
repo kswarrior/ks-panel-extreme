@@ -56,9 +56,13 @@ func main() {
 	die(tr.AssignTheme("global", "smoke"), "AssignTheme")
 	die(tr.AssignTheme("auth", "smoke"), "AssignTheme#2")
 
+	trep := repository.NewTemplateRepository(con)
+	tmplID, err := trep.Create(repository.TemplateInput{Name: "t", Kind: "docker", Spec: "{}"})
+	die(err, "TemplateCreate")
+
 	ir := repository.NewInstanceRepository(con)
 	instID, err := ir.Create(repository.InstanceCreateInput{
-		NodeID: node.ID, TemplateID: 0, OwnerID: 1, Name: "smoke-inst",
+		NodeID: node.ID, TemplateID: tmplID, OwnerID: 1, Name: "smoke-inst",
 		Kind: "docker", Status: "created",
 	})
 	die(err, "InstanceCreate")
