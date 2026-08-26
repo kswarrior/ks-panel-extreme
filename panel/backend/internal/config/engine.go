@@ -6,6 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
+
+	"github.com/go-sql-driver/mysql"
 )
 
 // EnvFileName is the dotenv-style file kspanel writes when an operator changes
@@ -209,15 +212,24 @@ func BuildDSNFromURL(engine, url, user, password, database string) (string, bool
 		if db == "" {
 			db = "kspanel"
 		}
-		// go-sql-driver form. parseTime + UTC mirrors the dialect docs.
-		addr := host
-		if port != "" {
-			addr = fmt.Sprintf("%s:%s", host, port)
-		} else {
-			addr = fmt.Sprintf("%s:%s", host, defaultPort("", engine))
+		// Built through mysql.Config + FormatDSN rather than string
+		// splicing so credentials containing '@', ':', '/', '(' etc. are
+		// escaped exactly the way go-sql-driver parses them back — a raw
+		// "%s:%s@tcp(%s)/%s" template silently mis-routes on such passwords.
+		// parseTime + loc mirror the dialect docs; multiStatements stays
+		// OFF (the migration runner executes one statement at a time).
+		cfg := mysql.Config{
+			User:                 user,
+			Passwd:               password,
+			Net:                  "tcp",
+			Addr:                 fmt.Sprintf("%s:%s", host, defaultPort(port, engine)),
+			DBName:               db,
+			AllowNativePasswords: true,
+			ParseTime:            true,
+			Loc:                  time.UTC,
+			Timeout:              10 * time.Second,
 		}
-		return fmt.Sprintf("%s:%s@tcp(%s)/%s?parseTime=true&loc=UTC&timeout=10s",
-			user, password, addr, db), true
+		return cfg.FormatDSN(), true
 	}
 	return "", false
 }
