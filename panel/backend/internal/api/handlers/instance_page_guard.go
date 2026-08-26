@@ -138,3 +138,102 @@ func instancePageSpecEnabled(specJSON, pageSlug string) bool {
 	}
 	return false
 }
+
+// specPageRow mirrors one entry of the instance config's spec.pages array
+// with the loose typing raw JSON decoding produces.
+type specPageRow struct {
+	slug         string
+	originalSlug string
+	subPages     []string
+	actions      []map[string]any
+}
+
+// parseSpecRows decodes the spec JSON into its pages rows. Returns nil when
+// the spec is absent/unparseable/empty (EMPTY-BY-DEFAULT semantics — callers
+// treat nil as "nothing allowed").
+func parseSpecRows(specJSON string) []specPageRow {
+	specJSON = strings.TrimSpace(specJSON)
+	if specJSON == "" {
+		return nil
+	}
+	var spec struct {
+		Pages []struct {
+			Slug         string          `json:"slug"`
+			OriginalSlug string          `json:"original_slug"`
+			SubPages     json.RawMessage `json:"sub_pages"`
+			Actions      json.RawMessage `json:"actions"`
+		} `json:"pages"`
+	}
+	if err := json.Unmarshal([]byte(specJSON), &spec); err != nil {
+		return nil
+	}
+	rows := make([]specPageRow, 0, len(spec.Pages))
+	for _, p := range spec.Pages {
+		row := specPageRow{slug: strings.TrimSpace(p.Slug), originalSlug: strings.TrimSpace(p.OriginalSlug)}
+		// sub_pages may be an inline array or a JSON-encoded string (legacy
+		// shape) — decode both, degrade to empty on anything else.
+		raw := []byte(p.SubPages)
+		if len(raw) > 0 && raw[0] == '"' {
+			var encoded string
+			if json.Unmarshal(raw, &encoded) == nil {
+				raw = []byte(encoded)
+			}
+		}
+		var subs []struct {
+			Path string `json:"path"`
+		}
+		if len(raw) > 0 && json.Unmarshal(raw, &subs) == nil {
+			for _, s := range subs {
+				if s.Path != "" {
+					row.subPages = append(row.subPages, s.Path)
+				}
+			}
+		}
+		// Same dual shape for actions (inline array or encoded string).
+		araw := []byte(p.Actions)
+		if len(araw) > 0 && araw[0] == '"' {
+			var encoded string
+			if json.Unmarshal(araw, &encoded) == nil {
+				araw = []byte(encoded)
+			}
+		}
+		if len(araw) > 0 {
+			var defs []map[string]any
+			if json.Unmarshal(araw, &defs) == nil {
+				row.actions = defs
+			}
+		}
+		rows = append(rows, row)
+	}
+	return rows
+}
+
+// findSpecPageRow resolves `pageSlug` against parsed spec rows using the SAME
+// precedence as the SPA's isPageAllowed: exact slug, then legacy
+// original_slug, then nested sub-page ("<parent>/<path>") through its enabled
+// parent row. Returns the owning row (a sub-page inherits its parent's saved
+// actions) or nil when the slug is not allowed.
+func findSpecPageRow(rows []specPageRow, pageSlug string) *specPageRow {
+	for i := range rows {
+		if rows[i].slug == pageSlug || (rows[i].originalSlug != "" && rows[i].originalSlug == pageSlug) {
+			return &rows[i]
+		}
+	}
+	// Nested sub-page resolution: "<parent>/<path>" at the FIRST slash.
+	idx := strings.Index(pageSlug, "/")
+	if idx <= 0 || idx == len(pageSlug)-1 {
+		return nil
+	}
+	parent, path := pageSlug[:idx], pageSlug[idx+1:]
+	for i := range rows {
+		if rows[i].slug != parent {
+			continue
+		}
+		for _, sp := range rows[i].subPages {
+			if sp == path {
+				return &rows[i]
+			}
+		}
+	}
+	return nil
+}
