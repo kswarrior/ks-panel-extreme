@@ -31,7 +31,7 @@ func main() {
 
 	sec := repository.NewSecurityRepository(con)
 	cfg := sec.GetConfig()
-	cfg.MaxBodySizeBytes = 4096
+	cfg.GlobalRPMLimit = 4242
 	die(sec.UpdateConfig(cfg), "UpdateConfig")
 
 	nr := repository.NewNodeRepository(con)
