@@ -679,6 +679,29 @@ export const PAGE_STARTERS: PageStarter[] = [
     description: 'Account inventory from /etc/passwd with recent logins.',
     iconSvg: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
     html: USER_REGISTRY,
+    actions: [
+      {
+        name: 'accounts_report',
+        type: 'shell',
+        command: 'cat /etc/passwd 2>/dev/null || true',
+        timeout: 15,
+        description: '/etc/passwd account inventory.',
+      },
+      {
+        name: 'groups_count',
+        type: 'shell',
+        command: 'wc -l < /etc/group 2>/dev/null || true',
+        timeout: 10,
+        description: 'Number of system groups.',
+      },
+      {
+        name: 'recent_logins',
+        type: 'shell',
+        command: 'last -n 12 2>/dev/null || who 2>/dev/null || true',
+        timeout: 15,
+        description: 'Recent login sessions.',
+      },
+    ],
   },
   {
     id: 'system-probe',
@@ -688,6 +711,15 @@ export const PAGE_STARTERS: PageStarter[] = [
     description: 'CPU model/cores, memory, kernel, architecture and virtualization detail.',
     iconSvg: '<rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 1v3"/><path d="M15 1v3"/><path d="M9 20v3"/><path d="M15 20v3"/><path d="M20 9h3"/><path d="M20 14h3"/><path d="M1 9h3"/><path d="M1 14h3"/>',
     html: SYSTEM_PROBE,
+    actions: [
+      {
+        name: 'sys_probe',
+        type: 'shell',
+        command: 'echo "kernel $(uname -r)"; echo "arch $(uname -m)"; echo "virt $(systemd-detect-virt 2>/dev/null || echo n/a)"; echo "cpu $(grep -m1 \'model name\' /proc/cpuinfo 2>/dev/null | cut -d: -f2 || grep -m1 \'Processor\' /proc/cpuinfo 2>/dev/null | cut -d: -f2)"; echo "cores $(nproc 2>/dev/null || grep -c processor /proc/cpuinfo)"; echo "mem $(free -h 2>/dev/null | awk \'NR==2{print $2}\')"; echo "os $(. /etc/os-release 2>/dev/null && echo "$PRETTY_NAME")"; echo "uptime $(uptime -p 2>/dev/null || uptime)"; echo "load $(cat /proc/loadavg 2>/dev/null)"',
+        timeout: 15,
+        description: 'Kernel/arch/virt/CPU/memory/OS/uptime/load key-value probe.',
+      },
+    ],
   },
 {
     id: "lib-audit",
