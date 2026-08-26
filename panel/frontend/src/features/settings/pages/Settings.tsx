@@ -7,6 +7,7 @@ import {
 } from '@/features/settings/api/settings';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
 import SkeletonCard from '@/shared/components/ui/SkeletonCard';
+import { useConfirm } from '@/shared/stores/confirmStore';
 
 const MAX_LOGO_BYTES = 5 * 1024 * 1024; // mirrors server-side limit
 const ALLOWED_LOGO_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp', 'image/svg+xml'];
@@ -22,6 +23,7 @@ const ALLOWED_LOGO_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif',
 const Settings: React.FC = () => {
   const setPanelName = useSettingsStore((s) => s.setPanelName);
   const setPanelLogo = useSettingsStore((s) => s.setPanelLogo);
+  const confirm = useConfirm();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -120,7 +122,7 @@ const Settings: React.FC = () => {
 
   const onRemoveLogo = async () => {
     if (!logo) return;
-    if (!confirm('Remove the panel logo? The default icon will be used.')) return;
+    if (!(await confirm({ title: 'Remove logo', message: 'Remove the panel logo? The default icon will be used.', tone: 'danger', confirmLabel: 'Remove' }))) return;
     setError('');
     setSuccess('');
     setUploadingLogo(true);
