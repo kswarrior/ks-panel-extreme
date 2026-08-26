@@ -59,9 +59,9 @@ type instancePageDTO struct {
 
 // validInstancePageKinds lists the page kinds a stored row may carry. The
 // legacy "builtin" kind is gone: every built-in instance sub-page was
-// converted to a self-contained custom page in the Instance Pages library
-// (instance_pages/pages/*.json) and migration 046 purged the old rows, so
-// new builtin rows are rejected to keep them from coming back.
+// converted to a self-contained custom page template in the Instance Page
+// Studio and migration 046 purged the old rows, so new builtin rows are
+// rejected to keep them from coming back.
 var validInstancePageKinds = map[string]bool{
 	"custom": true,
 }
@@ -2025,9 +2025,9 @@ func ImportInstancePageFromMarketplaceHandler(w http.ResponseWriter, r *http.Req
 	}
 
 	// Fetch the page definition from the download URL. Relative entries
-	// ("instance_pages/pages/home.json" in the shipped catalog) resolve from
-	// the local/embedded library instead of http.Get, which cannot fetch
-	// them and would fail with "unsupported protocol scheme".
+	// ("instance_pages/pages/home.json" in operator-provided catalogs)
+	// resolve from the local/embedded library instead of http.Get, which
+	// cannot fetch them and would fail with "unsupported protocol scheme".
 	var pageBytes []byte
 	if !strings.Contains(marketplacePage.DownloadURL, "://") {
 		b, ok := pagelib.Read(filepath.Base(marketplacePage.DownloadURL))
