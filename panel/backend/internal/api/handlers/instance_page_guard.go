@@ -64,6 +64,15 @@ import (
 // MUST `return` immediately. On success it returns ok=true and writes
 // nothing, leaving the response untouched for the handler.
 func guardInstancePage(w http.ResponseWriter, r *http.Request, pageSlug string) bool {
+	return guardInstancePageAny(w, r, pageSlug)
+}
+
+// guardInstancePageAny is guardInstancePage for endpoints shared by several
+// built-in pages: the request is allowed when ANY of the listed slugs is
+// enabled in the instance's config snapshot (same EMPTY-BY-DEFAULT /
+// WHITELIST semantics per slug). On denial it writes the identical
+// structured 403 JSON, listing every slug that was tried.
+func guardInstancePageAny(w http.ResponseWriter, r *http.Request, pageSlugs ...string) bool {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
@@ -83,20 +92,23 @@ func guardInstancePage(w http.ResponseWriter, r *http.Request, pageSlug string) 
 		return false
 	}
 
-	// Use the instance's own config (deploy-time snapshot) for page allowance.
-	// This ensures instance independence and consistency with the frontend.
-	if !instancePageSpecEnabled(inst.Config, pageSlug) {
-		writeJSONStatus(w, http.StatusForbidden, map[string]any{
-			"error": "page not enabled for this instance",
-			"page":  pageSlug,
-			"instance": map[string]any{
-				"id":   inst.ID,
-				"name": inst.Name,
-			},
-		})
-		return false
+	for _, pageSlug := range pageSlugs {
+		// Use the instance's own config (deploy-time snapshot) for page
+		// allowance. This ensures instance independence and consistency
+		// with the frontend.
+		if instancePageSpecEnabled(inst.Config, pageSlug) {
+			return true
+		}
 	}
-	return true
+	writeJSONStatus(w, http.StatusForbidden, map[string]any{
+		"error": "page not enabled for this instance",
+		"page":  strings.Join(pageSlugs, ","),
+		"instance": map[string]any{
+			"id":   inst.ID,
+			"name": inst.Name,
+		},
+	})
+	return false
 }
 
 // instancePageSpecEnabled reports whether `pageSlug` is enabled for the

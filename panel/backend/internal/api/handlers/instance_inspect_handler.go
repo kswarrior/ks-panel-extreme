@@ -175,7 +175,11 @@ func KillProcessHandler(w http.ResponseWriter, r *http.Request) {
 // ----- Metrics --------------------------------------------------------------
 
 func MetricsHandler(w http.ResponseWriter, r *http.Request) {
-	if !guardInstancePage(w, r, "metrics") {
+	// The metrics feed powers the Home page's resource tiles (RAM / CPU /
+	// disk) as well as the Metrics page itself, so an instance whose
+	// template enabled either page may read it. Instances with neither get
+	// the same structured 403 as before.
+	if !guardInstancePageAny(w, r, "metrics", "home") {
 		return
 	}
 	inst, ec, _, ok := loadInstNode(w, r)
