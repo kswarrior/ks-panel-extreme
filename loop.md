@@ -54,7 +54,6 @@ Run this full checklist, do not look only at changed lines:
   (re-read the files, don't trust pass-1 memory) and rerun V7.
   For a single-file, single-part, non-security change, PASS 2 = rerun V7 + V2.
 - Any failure → find the real cause, fix, restart from PASS 1.
-if need panel for testing than use bash /home/runner/work/ks-panel-extreme/ks-panel-extreme/retest.sh by which it run panel
 
 ## 5. Rebuild
 Only after all required passes: bash /home/runner/work/ks-panel-extreme/ks-panel-extreme/rebuild.sh

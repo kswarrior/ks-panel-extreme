@@ -194,13 +194,7 @@ export function pageNavigateTarget(instanceId: number, to: unknown): string | nu
 // SDK IMPLEMENTATION
 // ============================================================================
 
-// createCustomPageSDK builds the page-side API. `pageSlug` is the slug (or
-// "<slug>/<sub-path>") of the page the SDK is running from; it rides along on
-// every executeAction call so the server can verify that THIS page family is
-// enabled on the target instance before executing anything (page-bound
-// execution — see instance_page_handler.go). Omitted for contexts without a
-// bound page (Studio static preview), where the server fails closed anyway.
-export function createCustomPageSDK(instanceContext: InstanceContext, savedActions: PageActionDef[] = [], pageSlug = ''): CustomPageAPI {
+export function createCustomPageSDK(instanceContext: InstanceContext, savedActions: PageActionDef[] = []): CustomPageAPI {
   const apiBase = `/api/instances/${instanceContext.id}`;
   const eventListeners: Map<string, Set<(data: any) => void>> = new Map();
   
@@ -245,7 +239,6 @@ export function createCustomPageSDK(instanceContext: InstanceContext, savedActio
       method: 'POST',
       body: JSON.stringify({
         instance_id: instanceContext.id,
-        page_slug: pageSlug || undefined,
         ...action,
       }),
     });
