@@ -74,8 +74,11 @@ func (sm *SessionManager) CreateSession(userID int64, token string, ipAddress, u
 
 // GetSession retrieves a session by token
 func (sm *SessionManager) GetSession(token string) (*Session, bool) {
-	sm.mu.RLock()
-	defer sm.mu.RUnlock()
+	// Full Lock, not RLock: LastUsed is refreshed here, which mutates the
+	// shared *Session. Concurrent RLock holders writing the same field is a
+	// data race (go test -race flags it).
+	sm.mu.Lock()
+	defer sm.mu.Lock()
 
 	session, exists := sm.sessions[token]
 	if !exists || !session.IsActive {
