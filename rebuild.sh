@@ -800,15 +800,14 @@ sync_pagelib() {
     local src="$ROOT_DIR/instance_pages"
     local dst="$PANEL_BACKEND_DIR/internal/pagelib/library"
     log_step "Syncing instance-pages library into backend embed tree..."
-    if [[ ! -d "$src/pages" ]]; then
-        log_err "instance_pages/pages missing at $src — cannot embed library"
+    if [[ ! -d "$src" ]]; then
+        log_err "instance_pages missing at $src — cannot embed library"
         exit 1
     fi
     rm -rf "$dst"
-    mkdir -p "$dst/pages"
-    cp "$src"/pages/*.json "$dst/pages/" || exit 1
+    mkdir -p "$dst"
     [[ -f "$src/marketplace.json" ]] && cp "$src/marketplace.json" "$dst/"
-    log_ok "Embedded $(ls "$dst/pages" | wc -l) library page(s)$( [[ -f "$dst/marketplace.json" ]] && printf ' + marketplace catalog')"
+    log_ok "Embedded marketplace catalog ($(ls "$dst" | wc -l) file(s); page templates live in the frontend Studio)"
 }
 
 # ============================================================================
