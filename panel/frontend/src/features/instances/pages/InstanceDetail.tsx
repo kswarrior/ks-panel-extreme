@@ -166,7 +166,7 @@ export const InstanceDynamicPage: React.FC = () => {
     icon: instance.icon ?? '',
     color: instance.color ?? '',
   };
-  return <CustomPageView content={content} title={label} instanceContext={instanceContext} />;
+  return <CustomPageView content={content} title={label} instanceContext={instanceContext} pageSlug={effectiveSlug} />;
 };
 
 export default InstancePanel;
