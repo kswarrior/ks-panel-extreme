@@ -673,12 +673,25 @@ func DownloadTemplateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Embed the spec as a REAL JSON object (json.RawMessage), not a quoted
+	// Go-string. The import paths (handleTemplateFileUpload /
+	// InstallTemplateFromURLHandler) decode manifest["spec"] into
+	// map[string]any, so a string-encoded spec failed to re-import with
+	// "cannot unmarshal string into Go value of type map[string]interface {}"
+	// — the download → upload round-trip never worked. Every writer of the
+	// templates table validates the spec as a JSON object first, so a
+	// non-parseable row here is corruption worth failing loudly on rather
+	// than silently exporting something importers reject again.
+	if !json.Valid([]byte(tmpl.Spec)) {
+		http.Error(w, "stored spec is not valid JSON; fix the template before downloading", http.StatusInternalServerError)
+		return
+	}
 	exportData := map[string]any{
 		"name":        tmpl.Name,
 		"description": tmpl.Description,
 		"kind":        tmpl.Kind,
 		"image":       tmpl.Image,
-		"spec":        tmpl.Spec,
+		"spec":        json.RawMessage(tmpl.Spec),
 	}
 
 	jsonData, err := json.MarshalIndent(exportData, "", "  ")
