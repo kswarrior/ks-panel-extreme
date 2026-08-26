@@ -128,10 +128,14 @@ export const PieChart: React.FC<PieChartProps> = ({ slices, title, centerLabel, 
                 )}
               </g>
             ))}
-            <circle cx="50" cy="50" r="28" fill="#0f172a" />
+            {/* Hole follows the themed card fill — a hardcoded navy disc
+                looked wrong on any non-default card background. */}
+            <circle cx="50" cy="50" r="28" fill="var(--ks-card-bg, #0f172a)" />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            {centerLabel && <span className="text-xl font-semibold text-white">{centerLabel}</span>}
+            {centerLabel && (
+              <span className="text-xl font-semibold" style={{ color: 'var(--ks-text-card, #ffffff)' }}>{centerLabel}</span>
+            )}
             <span className="text-[10px] text-gray-400">Total: {total}</span>
           </div>
         </div>

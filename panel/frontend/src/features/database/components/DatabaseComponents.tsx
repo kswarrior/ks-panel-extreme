@@ -138,7 +138,7 @@ const SyncResultDetails: React.FC<{ result: DatabaseEngineSwitchResponse }> = ({
           <summary className="cursor-pointer select-none text-[11px] uppercase tracking-wide text-gray-500 hover:text-gray-300">
             Per-table results ({result.tables.length})
           </summary>
-          <div className="mt-1 max-h-48 overflow-y-auto rounded-md border border-white/10">
+          <div className="mt-1 max-h-48 overflow-auto rounded-md border border-white/10">
             <table className="w-full text-[11px]">
               <thead className="sticky top-0 bg-neutral-900/95 text-gray-500 uppercase tracking-wide">
                 <tr>

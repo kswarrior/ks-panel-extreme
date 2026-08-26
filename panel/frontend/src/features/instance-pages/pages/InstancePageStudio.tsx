@@ -1012,7 +1012,12 @@ const InstancePageStudio: React.FC = () => {
                 <span className="inline-flex items-center">{tab.icon}</span>
                 <span className="flex flex-col">
                   <span className="text-sm">{tab.label}</span>
-                  <span className={`text-[10px] hidden lg:block ${activeTab === tab.id ? 'text-black/60 opacity-70' : 'text-gray-500'}`}>{tab.hint}</span>
+                  <span
+                    className={`text-[10px] hidden lg:block ${activeTab === tab.id ? 'opacity-70' : 'text-gray-500'}`}
+                    style={activeTab === tab.id ? { color: 'var(--ks-tab-active-text, #000000)' } : undefined}
+                  >
+                    {tab.hint}
+                  </span>
                 </span>
               </button>
             ))}

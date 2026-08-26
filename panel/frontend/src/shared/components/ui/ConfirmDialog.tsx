@@ -82,7 +82,7 @@ const ConfirmDialog: React.FC = () => {
       aria-label={opts.title ?? 'Confirm'}
       onMouseDown={(e) => { if (e.target === e.currentTarget) settle(false); }}
     >
-      <div className={`ks-modal-panel glass-strong ${modifier} rounded-xl w-full max-w-md`}>
+      <div className={`ks-modal-panel glass-strong ${modifier} rounded-xl w-full max-w-md max-h-[90dvh] overflow-y-auto`}>
         <div className="flex items-start gap-4 px-6 pt-6 pb-2">
           <div className={`shrink-0 rounded-full p-2.5 ring-1 ${ts.iconWrap}`}>
             <ToneIcon tone={tone} />

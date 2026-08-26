@@ -39,7 +39,7 @@ const Layout: React.FC = () => {
           onToggleSidebar={toggleSidebar}
           inInstancePanel={inInstancePanel}
         />
-        <main className="flex-1 overflow-auto p-6">
+        <main className="flex-1 overflow-auto p-4 sm:p-6">
           <Outlet />
         </main>
       </div>
