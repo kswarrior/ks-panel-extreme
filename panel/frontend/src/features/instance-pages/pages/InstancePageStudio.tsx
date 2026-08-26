@@ -710,7 +710,7 @@ const InstancePageStudio: React.FC = () => {
     setActionResult(null);
     setError('');
     try {
-      const res = await executePageAction(pageId, def as InstancePageAction);
+      const res = await executePageAction(pageId, previewInstanceId, def as InstancePageAction);
       setActionResult({ stdout: res.stdout ?? '', stderr: res.stderr ?? '', exit_code: res.exit_code ?? -1 });
     } catch (e: any) {
       setActionResult({ stdout: '', stderr: e?.response?.data || e.message, exit_code: -1 });

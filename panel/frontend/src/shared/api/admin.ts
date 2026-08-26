@@ -702,13 +702,19 @@ export interface InstancePageActionResult {
   data?: any;
 }
 
+// Execute a saved page action against a specific instance (Studio "Test
+// execute"). instance_id is REQUIRED by the backend — it resolves the node,
+// verifies the page is enabled in that instance's spec snapshot and proxies
+// to the edge. Omitting it made every test run fail with
+// "instance_id and type are required" (HTTP 400).
 export async function executePageAction(
   pageId: number,
+  instanceId: number,
   action: InstancePageAction
 ): Promise<InstancePageActionResult> {
   const res = await client.post<InstancePageActionResult>(
     `/api/instance-pages/${pageId}/actions`,
-    action
+    { instance_id: instanceId, ...action }
   );
   return res.data;
 }

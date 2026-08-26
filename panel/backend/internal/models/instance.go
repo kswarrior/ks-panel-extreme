@@ -28,7 +28,7 @@ type InstancePage struct {
 	ID              int64  `json:"id"`
 	Name            string `json:"name"`
 	Slug            string `json:"slug"`
-	Kind            string `json:"kind"` // "builtin" | "custom"
+	Kind            string `json:"kind"` // "custom" (legacy "builtin" rows were purged by migration 046 and are rejected by the API)
 	Category        string `json:"category"`
 	Description     string `json:"description"`
 	ContentType     string `json:"content_type"` // "html" | "markdown" | "blocks"
