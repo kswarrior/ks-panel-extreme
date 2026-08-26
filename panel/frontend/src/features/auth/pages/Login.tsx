@@ -138,10 +138,17 @@ const Login: React.FC = () => {
       const msg = e?.response?.data || '';
       if (e?.response?.status === 403 && typeof msg === 'string' && msg.includes('verified')) {
         setSubmitting(false);
-        navigate('/auth/verify-email', { state: { email: identifier } });
+        // Only prefill the email field when the identifier looks like an
+        // email address. If the user typed a username, leave the field
+        // blank so they can enter their actual email for the code.
+        const isEmail = identifier.includes('@');
+        navigate('/auth/verify-email', { state: { email: isEmail ? identifier : '' } });
         return;
       }
-      setError('Invalid credentials');
+      // Surface the real backend message (lockout, suspension, invalid
+      // credentials) instead of always showing a generic error.
+      const displayMsg = typeof msg === 'string' && msg.trim() ? msg.trim() : 'Invalid credentials';
+      setError(displayMsg);
       setSubmitting(false);
     }
   };

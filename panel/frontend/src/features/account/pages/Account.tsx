@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/shared/stores/authStore';
 import Avatar from '@/shared/components/ui/Avatar';
 import { BioMarkdownEditor } from '@/shared/components/ui/MarkdownBio';
@@ -72,7 +73,8 @@ function Msg({ msg }: { msg: { kind: 'ok' | 'err'; text: string } | null }) {
 type UploadKind = 'avatar' | 'banner';
 
 const Account: React.FC = () => {
-  const { user, setAuth, token, permissions } = useAuthStore();
+  const { user, setAuth, clearAuth, token, permissions } = useAuthStore();
+  const navigate = useNavigate();
 
   // Derive each Account area sub-cap once per render. Mirrors the backend
   // route gates so the UI hides exactly what the server would 403 anyway —
@@ -326,10 +328,12 @@ const Account: React.FC = () => {
     setPasswordMsg(null);
     try {
       await changePassword(oldPassword, newPassword);
-      setOldPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-      setPasswordMsg({ kind: 'ok', text: 'Password updated.' });
+      // Backend invalidates ALL sessions for this user on password change
+      // (me_handler.go:146). Clear local auth state and redirect to login
+      // so the user re-authenticates with the new password.
+      clearAuth();
+      navigate('/auth/login', { replace: true });
+      return;
     } catch (e: any) {
       setPasswordMsg({ kind: 'err', text: e?.response?.data || 'Failed to update password' });
     } finally {

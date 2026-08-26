@@ -244,8 +244,10 @@ export async function probeNode(id: number): Promise<ProbeResult> {
 // Page-level "Recheck all" — probes every edge in parallel and returns the
 // bulk per-node results without needing a listNodes re-fetch.
 export async function probeAllNodes(): Promise<ProbeResult[]> {
-  const res = await client.post<ProbeResult[]>(`/api/nodes/probe`);
-  return res.data;
+  const res = await client.post<ProbeResult[] | { results: ProbeResult[] }>(`/api/nodes/probe`);
+  // Backend wraps in {results:[...]}; handle both wrapped and flat shapes.
+  const data = res.data;
+  return Array.isArray(data) ? data : (data as any).results ?? [];
 }
 
 
