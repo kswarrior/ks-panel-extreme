@@ -21,7 +21,7 @@
 
 
 CREATE TABLE IF NOT EXISTS mod_storage (
-    mod_slug   TEXT    NOT NULL,
+    mod_slug VARCHAR(255) NOT NULL,
     `key`        TEXT
     value      TEXT    NOT NULL DEFAULT ('{}'),   -- JSON value blob
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

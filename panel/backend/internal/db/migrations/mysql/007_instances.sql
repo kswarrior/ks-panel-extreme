@@ -19,11 +19,11 @@ CREATE TABLE IF NOT EXISTS instances (
     name        TEXT    NOT NULL,
     -- 'docker' | 'lxd' | 'kvm' | 'multipass' — cached from the template at
     -- deploy time so an owner can tell at a glance what kind of workload it is.
-    kind        TEXT    NOT NULL,
+    kind VARCHAR(255) NOT NULL,
     -- Lifecycle status mirrored from ksedge. 'creating' on deploy, then the
     -- edge flips it to 'running'/'stopped'/'errored' as the driver responds.
     -- The panel also accepts 'destroyed' which removes any printable card.
-    status      TEXT    NOT NULL DEFAULT ('creating'),
+    status VARCHAR(255) NOT NULL DEFAULT ('creating'),
     -- The real driver-side name/ID ksedge returned (docker container name,
     -- lxc instance name, virsh domain, multipass instance name). Stored so
     -- subsequent start/stop/destroy RPCs reference the exact workload.
