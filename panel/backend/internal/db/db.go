@@ -336,9 +336,10 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			}); err != nil {
 				return err
 			}
-			// Create index if not exists (idempotent)
-			if _, err := db.Exec("CREATE INDEX IF NOT EXISTS idx_users_suspended ON users(suspended)"); err != nil {
-				return fmt.Errorf("migration %s failed: %w", name, err)
+			// Create index if not exists (idempotent; MySQL has no
+			// IF NOT EXISTS for indexes, so the dialect-aware guard owns it)
+			if err := guardedCreateIndex(d, db, name, "users", "idx_users_suspended", "suspended"); err != nil {
+				return err
 			}
 			continue
 		case name == "038_instance_suspension.sql":
@@ -352,9 +353,10 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			}); err != nil {
 				return err
 			}
-			// Create index if not exists (idempotent)
-			if _, err := db.Exec("CREATE INDEX IF NOT EXISTS idx_instances_suspended ON instances(suspended)"); err != nil {
-				return fmt.Errorf("migration %s failed: %w", name, err)
+			// Create index if not exists (idempotent; MySQL has no
+			// IF NOT EXISTS for indexes, so the dialect-aware guard owns it)
+			if err := guardedCreateIndex(d, db, name, "instances", "idx_instances_suspended", "suspended"); err != nil {
+				return err
 			}
 			continue
 		case name == "035_instance_display.sql":
