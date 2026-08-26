@@ -35,7 +35,6 @@ function getErrorMessage(e: any, fallback: string): string {
 }
 
 const InstancePageStats: React.FC = () => {
-  const navigate = useNavigate();
   const [pages, setPages] = useState<InstancePage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');

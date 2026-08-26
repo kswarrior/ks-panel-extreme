@@ -25,6 +25,21 @@ function kindKey(k: string): string {
   return k in KIND_META ? k : 'unknown';
 }
 
+// getErrorMessage normalises API failures for display: some panel endpoints
+// answer with JSON bodies ({error|message}) instead of plain text, which would
+// otherwise render as "[object Object]".
+function getErrorMessage(e: any, fallback: string): string {
+  const data = e?.response?.data;
+  if (typeof data === 'string' && data.trim()) return data;
+  if (data && typeof data === 'object') {
+    if (typeof data.error === 'string') return data.error;
+    if (typeof data.message === 'string') return data.message;
+    try { return JSON.stringify(data); } catch { return fallback; }
+  }
+  if (typeof e?.message === 'string' && e.message.trim()) return e.message;
+  return fallback;
+}
+
 function KindIcon({ kind, className = '' }: { kind: string; className?: string }) {
   const common = { xmlns: 'http://www.w3.org/2000/svg', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, className };
   switch (kind) {
@@ -86,7 +101,7 @@ const InstancePages: React.FC = () => {
       closeAdd();
       await load();
     } catch (e: any) {
-      setImportError(e?.response?.data || 'Import failed');
+      setImportError(getErrorMessage(e, 'Import failed'));
     } finally {
       setImportLoading(false);
     }
@@ -115,7 +130,7 @@ const InstancePages: React.FC = () => {
       const ps = await listInstancePages();
       setPages(ps);
     } catch (e: any) {
-      setError(e?.response?.data || 'Failed to load instance pages');
+      setError(getErrorMessage(e, 'Failed to load instance pages'));
     } finally {
       setLoading(false);
     }
@@ -141,7 +156,7 @@ const InstancePages: React.FC = () => {
     if (!(await confirm({ title: 'Delete instance page', message: `Delete instance page "${p.name}"?`, tone: 'danger', confirmLabel: 'Delete' }))) return;
     setDeletingId(p.id);
     try { await deleteInstancePage(p.id); await load(); }
-    catch (e: any) { alert(e?.response?.data || 'Failed to delete instance page'); }
+    catch (e: any) { alert(getErrorMessage(e, 'Failed to delete instance page')); }
     finally { setDeletingId(null); }
   };
 
