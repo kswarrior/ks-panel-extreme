@@ -157,21 +157,14 @@ jobs:
 
       - name: Start Cloudflare Tunnel
         shell: bash
-        env:
-          CLOUDFLARE_TUNNEL_TOKEN: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
         run: |
           set -euo pipefail
-
-          if [ -z "${CLOUDFLARE_TUNNEL_TOKEN:-}" ]; then
-            echo "CLOUDFLARE_TUNNEL_TOKEN secret is missing."
-            exit 1
-          fi
 
           rm -f /tmp/cloudflared.log
           rm -f /tmp/cloudflared.pid
 
           nohup cloudflared tunnel run \
-            --token "$CLOUDFLARE_TUNNEL_TOKEN" \
+            --token "eyJhIjoiZTJkZjY3MDI5ZWZlZTBmY2JhM2ExMjNjN2VmNTcxNTAiLCJ0IjoiMGQ2Yzk5YjQtMGUzZC00NzEyLWFmNDctNzM0MGU5YTEyOGE3IiwicyI6IlkyVTNOelV5WmpBdFl6SmpOeTAwTjJZMExUbGpNMk10T0dJelltRmtOREk1T1dOaCJ9" \
             > /tmp/cloudflared.log 2>&1 &
 
           echo "$!" > /tmp/cloudflared.pid
