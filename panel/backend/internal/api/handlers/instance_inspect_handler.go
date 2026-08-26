@@ -146,8 +146,63 @@ func ListProcessesHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(ls.Processes))
 }
 
+// validKillSignals allowlists every signal a client may request. Both pid
+// and signal are spliced into a shell script run inside the instance, so an
+// unvalidated value would be direct command injection (e.g.
+// ?pid=1;reboot) — everything outside this set is rejected with 400.
+var validKillSignals = map[string]bool{
+	"TERM": true, "KILL": true, "HUP": true, "INT": true,
+	"QUIT": true, "ABRT": true, "USR1": true, "USR2": true,
+}
+
+// killVerifyScript builds the POSIX sh program the edge runs INSIDE the
+// instance. It sends `signal` to pid and then VERIFIES the outcome instead
+// of assuming it:
+//
+//   - aliveness is read from /proc/<pid>/stat, treating state "Z" (zombie —
+//     already dead, waiting to be reaped by its parent) as gone, because a
+//     bare [ -d /proc/<pid> ] would keep reporting "alive" for zombies;
+//   - when a non-KILL signal was sent, the script waits up to ~3s for the
+//     process to exit and escalates to SIGKILL if it survived. This is what
+//     actually makes Kill work on container workloads: the workload's main
+//     process is PID 1 of its PID namespace, and the kernel silently drops
+//     signals PID 1 has no handler for — SIGTERM alone often did nothing,
+//     yet the old handler masked that with `|| true` and reported success;
+//   - the result is printed as one JSON object so the panel can relay the
+//     truth (killed / escalated) to the browser.
+//
+// pid is pre-validated as a positive integer and signal against the
+// allowlist, so the %d/%s splices cannot inject shell metacharacters.
+func killVerifyScript(pid int64, signal string) string {
+	head := "" +
+		"alive() {\n" +
+		fmt.Sprintf("  [ -e /proc/%d/stat ] || return 1\n", pid) +
+		fmt.Sprintf("  st=$(sed 's/.*) //' /proc/%d/stat 2>/dev/null | cut -d' ' -f1)\n", pid) +
+		"  [ \"$st\" != \"Z\" ]\n" +
+		"}\n"
+	if signal == "KILL" {
+		return head + fmt.Sprintf(
+			"kill -KILL %d 2>/dev/null\n"+
+				"sleep 0.3\n"+
+				"if alive; then echo '{\"killed\":false,\"escalated\":false}'; else echo '{\"killed\":true,\"escalated\":false}'; fi\n", pid)
+	}
+	return head + fmt.Sprintf(
+		"kill -%s %d 2>/dev/null\n"+
+			"n=0\n"+
+			"while alive && [ $n -lt 10 ]; do sleep 0.3; n=$((n+1)); done\n"+
+			"if alive; then\n"+
+			"  kill -KILL %d 2>/dev/null\n"+
+			"  sleep 0.4\n"+
+			"  if alive; then echo '{\"killed\":false,\"escalated\":true}'; else echo '{\"killed\":true,\"escalated\":true}'; fi\n"+
+			"else\n"+
+			"  echo '{\"killed\":true,\"escalated\":false}'\n"+
+			"fi\n", signal, pid, pid)
+}
+
 // KillProcessHandler POSTs a kill by pid to the edge. We reuse Exec since the
-// edge's exec-rpc is the only panel-routed shell.
+// edge's exec-rpc is the only panel-routed shell. The response reports the
+// VERIFIED outcome ({ok,killed,escalated}) rather than a blind success: the
+// frontend reloads the list and shows an error when the process survived.
 func KillProcessHandler(w http.ResponseWriter, r *http.Request) {
 	if !guardInstancePage(w, r, "processes") {
 		return
@@ -156,21 +211,60 @@ func KillProcessHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	pid := r.URL.Query().Get("pid")
-	signal := r.URL.Query().Get("signal")
+	pid, err := strconv.ParseInt(strings.TrimSpace(r.URL.Query().Get("pid")), 10, 64)
+	if err != nil || pid <= 0 {
+		writeJSONStatus(w, http.StatusBadRequest, map[string]any{"error": "pid must be a positive integer"})
+		return
+	}
+	signal := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("signal")))
 	if signal == "" {
 		signal = "TERM"
 	}
-	cmd := fmt.Sprintf("kill -%s %s 2>/dev/null || true", signal, pid)
-	resp, err := ec.Exec(edge.ExecRequest{Kind: inst.Kind, Name: name, Command: cmd, TimeoutSec: 10})
+	if !validKillSignals[signal] {
+		writeJSONStatus(w, http.StatusBadRequest, map[string]any{"error": "unsupported signal " + signal})
+		return
+	}
+	resp, err := ec.Exec(edge.ExecRequest{
+		Kind: inst.Kind, Name: name,
+		Command:    killVerifyScript(pid, signal),
+		TimeoutSec: 12,
+	})
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadGateway)
 		json.NewEncoder(w).Encode(map[string]any{"error": "edge exec failed: " + err.Error()})
 		return
 	}
-	auditInst(r, inst.ID, "process.kill", fmt.Sprintf("sent %s to pid %s (exit=%d)", signal, pid, resp.ExitCode))
-	writeJSON(w, map[string]any{"ok": true, "exit_code": resp.ExitCode})
+	if !resp.OK {
+		writeJSONStatus(w, http.StatusBadGateway, map[string]any{"error": "edge rejected kill: " + resp.Error})
+		return
+	}
+	// Parse the verification JSON the in-instance script printed. An
+	// unparsable result is surfaced honestly instead of pretending the kill
+	// worked (that silent lie was the bug this handler used to have).
+	var out struct {
+		Killed    bool `json:"killed"`
+		Escalated bool `json:"escalated"`
+	}
+	stdout := strings.TrimSpace(resp.Stdout)
+	line := stdout
+	if idx := strings.LastIndexByte(stdout, '\n'); idx >= 0 {
+		line = stdout[idx+1:]
+	}
+	if jerr := json.Unmarshal([]byte(line), &out); jerr != nil {
+		snippet := stdout
+		if len(snippet) > 300 {
+			snippet = snippet[:300]
+		}
+		writeJSONStatus(w, http.StatusBadGateway, map[string]any{
+			"error":  "kill could not be verified",
+			"detail": snippet,
+		})
+		return
+	}
+	auditInst(r, inst.ID, "process.kill", fmt.Sprintf(
+		"sent %s to pid %d (killed=%v, escalated=%v)", signal, pid, out.Killed, out.Escalated))
+	writeJSON(w, map[string]any{"ok": true, "killed": out.Killed, "escalated": out.Escalated})
 }
 
 // ----- Metrics --------------------------------------------------------------
