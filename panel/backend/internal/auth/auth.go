@@ -9,12 +9,16 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
 )
 
-var sessionSecret []byte
+var (
+	sessionSecretOnce sync.Once
+	sessionSecret     []byte
+)
 
 // bcryptCost is the cost factor for bcrypt hashing.
 // Default is 12 (higher than DefaultCost of 10) for better security.
@@ -22,21 +26,51 @@ var sessionSecret []byte
 var bcryptCost = 12
 
 func init() {
-	secret := os.Getenv("KSPANEL_SESSION_SECRET")
-	if secret == "" {
-		panic("KSPANEL_SESSION_SECRET environment variable is required for security. Generate a strong secret with: openssl rand -base64 32")
-	}
-	if len(secret) < 32 {
-		panic("KSPANEL_SESSION_SECRET must be at least 32 characters long")
-	}
-	sessionSecret = []byte(secret)
-
 	// Allow custom bcrypt cost via environment variable
 	if costStr := os.Getenv("KSPANEL_BCRYPT_COST"); costStr != "" {
 		if cost, err := strconv.Atoi(costStr); err == nil && cost >= 10 && cost <= 15 {
 			bcryptCost = cost
 		}
 	}
+}
+
+// validateSessionSecret enforces the session-secret policy: present and at
+// least 32 characters. Kept next to the loader so both the eager (launch)
+// and lazy (first token operation) paths share one definition.
+func validateSessionSecret(secret string) error {
+	if secret == "" {
+		return errors.New("KSPANEL_SESSION_SECRET environment variable is required for security. Generate a strong secret with: openssl rand -base64 32")
+	}
+	if len(secret) < 32 {
+		return errors.New("KSPANEL_SESSION_SECRET must be at least 32 characters long")
+	}
+	return nil
+}
+
+// EnsureSessionSecret eagerly validates KSPANEL_SESSION_SECRET. The HTTP
+// server path (kspanel launch) calls this during startup so an operator who
+// forgot the variable sees the failure at boot, not on the first login.
+func EnsureSessionSecret() error {
+	return validateSessionSecret(os.Getenv("KSPANEL_SESSION_SECRET"))
+}
+
+// loadSessionSecret resolves the session secret exactly once, on first use.
+// Validation stays strict and fails closed: without a valid secret no
+// session token can be minted or verified (both operations panic), so an
+// unconfigured process can never sign or accept sessions. Resolving lazily
+// (instead of panicking inside package init) keeps unrelated consumers of
+// this package — CLI subcommands like `kspanel version`, and `go test`
+// binaries of every package that transitively imports auth — working when
+// the variable is legitimately not needed.
+func loadSessionSecret() []byte {
+	sessionSecretOnce.Do(func() {
+		secret := os.Getenv("KSPANEL_SESSION_SECRET")
+		if err := validateSessionSecret(secret); err != nil {
+			panic(err.Error())
+		}
+		sessionSecret = []byte(secret)
+	})
+	return sessionSecret
 }
 
 func HashPassword(pw string) (string, error) {
@@ -69,7 +103,7 @@ func GenerateSessionToken(userID int64, issuedAt time.Time) string {
 	}
 	uidStr := fmt.Sprintf("%d", userID)
 	issuedStr := strconv.FormatInt(issuedAt.Unix(), 10)
-	mac := hmac.New(sha256.New, sessionSecret)
+	mac := hmac.New(sha256.New, loadSessionSecret())
 	mac.Write([]byte(uidStr))
 	mac.Write([]byte{'.'})
 	mac.Write([]byte(issuedStr))
@@ -91,7 +125,7 @@ func ValidateSessionToken(token string) (int64, time.Time, error) {
 	switch len(parts) {
 	case 3:
 		uidStr, issuedStr, sig := parts[0], parts[1], parts[2]
-		mac := hmac.New(sha256.New, sessionSecret)
+		mac := hmac.New(sha256.New, loadSessionSecret())
 		mac.Write([]byte(uidStr))
 		mac.Write([]byte{'.'})
 		mac.Write([]byte(issuedStr))
@@ -115,7 +149,7 @@ func ValidateSessionToken(token string) (int64, time.Time, error) {
 		// middleware can choose to AGE it out (it does) rather than
 		// trusting it indefinitely.
 		uidStr, sig := parts[0], parts[1]
-		mac := hmac.New(sha256.New, sessionSecret)
+		mac := hmac.New(sha256.New, loadSessionSecret())
 		mac.Write([]byte(uidStr))
 		wantSig := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 		if !hmac.Equal([]byte(wantSig), []byte(sig)) {
