@@ -26,7 +26,7 @@ func NewAuthorityRepository(db *sql.DB) *AuthorityRepository {
 func (r *AuthorityRepository) readBlob(key string) (string, bool, error) {
 	var raw string
 	err := r.db.QueryRow(
-		`SELECT COALESCE((SELECT value FROM settings WHERE " + qKey() + " = ?), '')`,
+		`SELECT COALESCE((SELECT value FROM settings WHERE `+qKey()+` = ?), '')`,
 		key,
 	).Scan(&raw)
 	if err != nil {
@@ -324,7 +324,7 @@ func maskSecrets(cfg *models.AuthorityConfig) *models.AuthorityConfig {
 
 func (r *AuthorityRepository) setString(key, value string) error {
 	_, err := r.db.Exec(
-		`INSERT INTO settings (" + qKey() + ", value) VALUES (?, ?)`+upsertSet("(key)", []string{"value"}),
+		`INSERT INTO settings (`+qKey()+`, value) VALUES (?, ?)`+upsertSet("(key)", []string{"value"}),
 		key, value,
 	)
 	return err

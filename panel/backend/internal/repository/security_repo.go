@@ -249,7 +249,7 @@ func (r *SecurityRepository) UpdateConfig(c models.SecurityConfig) error {
 	}
 	for _, w := range writes {
 		if _, err := r.db.Exec(
-			`INSERT INTO settings (" + qKey() + ", value) VALUES (?, ?)`+upsertSet("(key)", []string{"value"}),
+			`INSERT INTO settings (`+qKey()+`, value) VALUES (?, ?)`+upsertSet("(key)", []string{"value"}),
 			w.key, w.val,
 		); err != nil {
 			return fmt.Errorf("security config upsert %s: %w", w.key, err)
@@ -263,7 +263,7 @@ func (r *SecurityRepository) UpdateConfig(c models.SecurityConfig) error {
 // so the security middleware + snapshot can rely on a real number.
 func (r *SecurityRepository) getInt(key string, def int64) int64 {
 	var v string
-	if err := r.db.QueryRow(`SELECT value FROM settings WHERE " + qKey() + " = ?`, key).Scan(&v); err != nil {
+	if err := r.db.QueryRow(`SELECT value FROM settings WHERE `+qKey()+` = ?`, key).Scan(&v); err != nil {
 		return def
 	}
 	n, err := strconv.ParseInt(v, 10, 64)
@@ -279,7 +279,7 @@ func (r *SecurityRepository) getInt(key string, def int64) int64 {
 // getBool reads a "0"/"1" row as a real bool.
 func (r *SecurityRepository) getBool(key string, def bool) bool {
 	var v string
-	if err := r.db.QueryRow(`SELECT value FROM settings WHERE " + qKey() + " = ?`, key).Scan(&v); err != nil {
+	if err := r.db.QueryRow(`SELECT value FROM settings WHERE `+qKey()+` = ?`, key).Scan(&v); err != nil {
 		return def
 	}
 	return v == "1"
@@ -288,7 +288,7 @@ func (r *SecurityRepository) getBool(key string, def bool) bool {
 // getString reads a string value from settings.
 func (r *SecurityRepository) getString(key string, def string) string {
 	var v string
-	if err := r.db.QueryRow(`SELECT value FROM settings WHERE " + qKey() + " = ?`, key).Scan(&v); err != nil {
+	if err := r.db.QueryRow(`SELECT value FROM settings WHERE `+qKey()+` = ?`, key).Scan(&v); err != nil {
 		return def
 	}
 	return v
@@ -297,7 +297,7 @@ func (r *SecurityRepository) getString(key string, def string) string {
 // setString writes a string value to settings.
 func (r *SecurityRepository) setString(key, val string) error {
 	_, err := r.db.Exec(
-		`INSERT INTO settings (" + qKey() + ", value) VALUES (?, ?)`+upsertSet("(key)", []string{"value"}),
+		`INSERT INTO settings (`+qKey()+`, value) VALUES (?, ?)`+upsertSet("(key)", []string{"value"}),
 		key, val,
 	)
 	return err
@@ -439,7 +439,7 @@ func (r *SecurityRepository) InsertWithContext(ctx context.Context, in SecurityR
 // value lives in the shared settings KV table (seeded by migration 027).
 func (r *SecurityRepository) IsUnderAttack() bool {
 	var v string
-	err := r.db.QueryRow(`SELECT value FROM settings WHERE " + qKey() + " = 'security_under_attack'`).Scan(&v)
+	err := r.db.QueryRow(`SELECT value FROM settings WHERE ` + qKey() + ` = 'security_under_attack'`).Scan(&v)
 	if err != nil {
 		return false
 	}
@@ -454,7 +454,7 @@ func (r *SecurityRepository) SetUnderAttack(under bool) error {
 	if under {
 		val = "1"
 	}
-	res, err := r.db.Exec(`UPDATE settings SET value = ? WHERE " + qKey() + " = 'security_under_attack'`, val)
+	res, err := r.db.Exec(`UPDATE settings SET value = ? WHERE `+qKey()+` = 'security_under_attack'`, val)
 	if err != nil {
 		return err
 	}
@@ -462,7 +462,7 @@ func (r *SecurityRepository) SetUnderAttack(under bool) error {
 		return nil
 	}
 	_, err = r.db.Exec(
-		`INSERT INTO settings (" + qKey() + ", value) VALUES ('security_under_attack', ?)`, val)
+		`INSERT INTO settings (`+qKey()+`, value) VALUES ('security_under_attack', ?)`, val)
 	return err
 }
 
