@@ -24,11 +24,11 @@ import (
 //go:embed all:library
 var embedded embed.FS
 
-// libraryFS is the embedded tree rooted at library/ (pages/…, marketplace.json).
+// libraryFS is the embedded tree rooted at library/ (marketplace.json).
 var libraryFS, _ = fs.Sub(embedded, "library")
 
-// pagesDirs lists the relative sub-directories that carry page JSON files,
-// mirroring the repository layout.
+// pagesDirs lists the relative sub-directories scanned for page JSON files
+// on disk: the top level plus the legacy pages/ layout of older installs.
 var pagesDirs = []string{".", "pages"}
 
 // excluded names are metadata, not importable page definitions.
