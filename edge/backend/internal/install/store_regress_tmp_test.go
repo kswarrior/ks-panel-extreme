@@ -2,6 +2,7 @@ package install
 
 import (
 	"sync"
+	"sync/atomic"
 	"testing"
 )
 
