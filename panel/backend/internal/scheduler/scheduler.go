@@ -48,14 +48,12 @@ func newSemaphore(limit int) *semaphore {
 	return &semaphore{tokens: make(chan struct{}, limit)}
 }
 
-// acquire blocks until a permit is available, then consumes one.
+// acquire blocks until a permit is available, then consumes one. The
+// channel capacity IS the permit count: sending blocks once `limit`
+// goroutines hold tokens. (The previous select/default version silently
+// proceeded when the channel was full, making the limit a no-op.)
 func (s *semaphore) acquire() {
-	select {
-	case s.tokens <- struct{}{}:
-		// acquired
-	default:
-		// shouldn't happen since channel is pre-filled, but be safe
-	}
+	s.tokens <- struct{}{}
 }
 
 // release returns a permit to the semaphore.
@@ -127,10 +125,14 @@ func sweep(ctx context.Context) {
 		default:
 		}
 
+		// Acquire BEFORE spawning so both goroutines AND concurrent job
+		// executions stay bounded by the limit — a sweep that discovers
+		// thousands of due jobs must not spawn thousands of parked
+		// goroutines waiting for a token.
+		sem.acquire()
 		wg.Add(1)
 		go func(job models.Automation) {
 			defer wg.Done()
-			sem.acquire()
 			defer sem.release()
 			runJob(ctx, job, instRepo, nodeRepo, secretRepo, automationRepo, auditRepo)
 		}(due[i])
