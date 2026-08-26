@@ -160,10 +160,8 @@ func (r *LiveStateRepository) Save(ls models.InstanceLiveState) error {
 	ls.Ports = defaultJSON(ls.Ports, "[]")
 	ls.Info = defaultJSON(ls.Info, "{}")
 	_, err := r.db.Exec(`INSERT INTO instance_live_state (instance_id, updated_at, metrics, processes, ports, info)
-		VALUES (?, CURRENT_TIMESTAMP, ?, ?, ?, ?)
-		ON CONFLICT(instance_id) DO UPDATE SET updated_at = CURRENT_TIMESTAMP,
-			metrics = excluded.metrics, processes = excluded.processes,
-			ports = excluded.ports, info = excluded.info`,
+		VALUES (?, CURRENT_TIMESTAMP, ?, ?, ?, ?)`+upsertSet("(instance_id)",
+		[]string{"metrics", "processes", "ports", "info"}, "updated_at = CURRENT_TIMESTAMP"),
 		ls.InstanceID, ls.Metrics, ls.Processes, ls.Ports, ls.Info)
 	return err
 }

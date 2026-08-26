@@ -241,8 +241,8 @@ func (r *ThemeRepository) AssignTheme(scope, themeID string) error {
 		return fmt.Errorf("scope and theme_id are required")
 	}
 	_, err := r.db.Exec(
-		`INSERT INTO theme_assignments (scope, theme_id) VALUES (?, ?)
-		 ON CONFLICT(scope) DO UPDATE SET theme_id = excluded.theme_id`,
+		`INSERT INTO theme_assignments (scope, theme_id) VALUES (?, ?)`+
+			upsertSet("(scope)", []string{"theme_id"}),
 		scope, themeID,
 	)
 	return err

@@ -136,10 +136,8 @@ func (r *SecretRepository) Set(instanceID int64, key, value string, isSecret boo
 	}
 	if _, err := r.db.Exec(
 		`INSERT INTO instance_secrets (instance_id, key, value_blob, is_secret, description)
-		 VALUES (?, ?, ?, ?, ?)
-		 ON CONFLICT(instance_id, key) DO UPDATE SET value_blob = excluded.value_blob,
-		     is_secret = excluded.is_secret, description = excluded.description,
-		     updated_at = CURRENT_TIMESTAMP`,
+		 VALUES (?, ?, ?, ?, ?)`+ upsertSet("(instance_id, key)",
+		[]string{"value_blob", "is_secret", "description"}, "updated_at = CURRENT_TIMESTAMP"),
 		instanceID, key, blob, secretFlag, description,
 	); err != nil {
 		return 0, err
