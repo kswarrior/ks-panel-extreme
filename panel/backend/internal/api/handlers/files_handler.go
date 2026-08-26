@@ -92,7 +92,16 @@ func InstanceFilesHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unsupported op "+op, http.StatusBadRequest)
 		return
 	}
-	proxyToEdge(w, r, id, op, qs.Get("path"), "application/json")
+	// Content-Type must reflect the OP, not a blanket JSON label: list/stat
+	// answer structured JSON, everything else (read/write/…) streams raw
+	// bytes or edge-shaped payloads. Forcing application/json onto reads made
+	// plain-text files (e.g. eula.txt) come back labelled JSON, which the SPA
+	// then tried to res.json() into a SyntaxError.
+	ct := ""
+	if op == "list" || op == "stat" {
+		ct = "application/json"
+	}
+	proxyToEdge(w, r, id, op, qs.Get("path"), ct)
 }
 
 // InstanceFileReadHandler streams a single file's bytes back to the
