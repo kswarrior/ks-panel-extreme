@@ -81,8 +81,8 @@ type Instance struct {
 	Config     string `json:"config,omitempty"`
 	Error      string `json:"error,omitempty"`
 	// Install workflow tracking (set by the edge install poller after deploy).
-	InstallState     string `json:"install_state,omitempty"`      // "" | "running" | "done" | "failed"
-	InstallID        string `json:"install_id,omitempty"`         // "<kind>:<name>" key for edge poll
+	InstallState string `json:"install_state,omitempty"` // "" | "running" | "done" | "failed"
+	InstallID    string `json:"install_id,omitempty"`    // "<kind>:<name>" key for edge poll
 	// InstallStep has NO omitempty on purpose: step index 0 is a real,
 	// meaningful value ("step #0 running / failed") and omitting it made the
 	// SPA read it as -1 ("not started") for exactly the first workflow step.
