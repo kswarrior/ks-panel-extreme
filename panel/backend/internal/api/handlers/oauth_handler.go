@@ -260,7 +260,12 @@ func OAuthCallbackHandler(w http.ResponseWriter, r *http.Request) {
 		roleName = role.Name
 	}
 
-	cookieVal := auth.GenerateSessionToken(user.ID, time.Now())
+	cookieVal, err := auth.GenerateSessionToken(user.ID, time.Now())
+	if err != nil {
+		log.Println("GenerateSessionToken error:", err)
+		oauthFail(w, r, "login failed")
+		return
+	}
 	http.SetCookie(w, auth.NewSessionCookie(r, cookieVal, time.Now().Add(auth.SessionTTL())))
 	auth.SessionManagerInstance.CreateSession(user.ID, cookieVal, r.RemoteAddr, r.UserAgent())
 

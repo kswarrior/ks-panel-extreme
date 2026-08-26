@@ -143,6 +143,15 @@ func runLaunch(cmd *cobra.Command, args []string) error {
 	print.Step("ui", "embedded bundle")
 	print.OK("ui", "served from api/handlers")
 
+	// Fail closed before binding the port: without a session secret no
+	// session token could be signed or verified, so serving would be
+	// insecure. Non-session subcommands (seed, create-user) don't need it
+	// and keep working without the env var.
+	if err := auth.EnsureSessionSecret(); err != nil {
+		print.Error("paneld", err.Error())
+		return err
+	}
+
 	srv := &http.Server{
 		Addr:    addr,
 		Handler: api.NewRouter(),
