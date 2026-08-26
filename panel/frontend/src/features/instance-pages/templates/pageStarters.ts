@@ -328,14 +328,16 @@ const FIREWALL_VIEW = page(
   <div id="content" class="ks-muted">Loading…</div>`,
   `
     async function load(){
+      el('content').innerHTML = '<p class="ks-muted">Loading…</p>';
       var html = '';
-      var ufw = null, iptables = null, nft = null;
-      try { ufw = (await sh('ufw status verbose 2>/dev/null', 15)); } catch(e){}
-      if (ufw && ufw.stdout && ufw.stdout.trim()) html += card('UFW', pre(ufw.stdout));
-      try { iptables = (await sh('iptables -L -n -v --line-numbers 2>/dev/null | head -80', 15)); } catch(e){}
-      if (iptables && iptables.stdout && iptables.stdout.trim()) html += card('iptables', pre(iptables.stdout));
-      try { nft = (await sh('nft list ruleset 2>/dev/null | head -140', 15)); } catch(e){}
-      if (nft && nft.stdout && nft.stdout.trim()) html += card('nftables', pre(nft.stdout));
+      var sections = [['ufw', 'UFW'], ['iptables', 'iptables'], ['nft', 'nftables']];
+      for (var i = 0; i < sections.length; i++) {
+        try {
+          var r = await act(sections[i][0]);
+          var out = ((r.stdout || '') + '').trim();
+          if (out) html += card(sections[i][1], pre(out));
+        } catch (e) { /* tool absent — skip its card */ }
+      }
       el('content').innerHTML = html || '<p class="ks-muted">No firewall tooling found (ufw / iptables / nft) or no output.</p>';
     }
     el('refresh').onclick = load;
@@ -348,9 +350,9 @@ const USER_REGISTRY = page(
   `<div id="content" class="ks-muted">Loading…</div>`,
   `
     var passwdOut = '', groupCount = '-', lastOut = '';
-    try { passwdOut = (await sh('cat /etc/passwd')).stdout; } catch(e){}
-    try { groupCount = (await sh('wc -l < /etc/group')).stdout.trim(); } catch(e){}
-    try { lastOut = (await sh('last -n 12 2>/dev/null || who 2>/dev/null', 15)).stdout; } catch(e){}
+    try { passwdOut = ((await act('accounts_report')).stdout || '') + ''; } catch(e){}
+    try { groupCount = (((await act('groups_count')).stdout || '') + '').trim() || '-'; } catch(e){}
+    try { lastOut = ((await act('recent_logins')).stdout || '') + ''; } catch(e){}
     var users = passwdOut.split('\\n').filter(Boolean).map(function(line){
       var f = line.split(':');
       return { name: f[0] || '', uid: parseInt(f[2], 10), gid: parseInt(f[3], 10), home: f[5] || '', shell: f[6] || '' };
