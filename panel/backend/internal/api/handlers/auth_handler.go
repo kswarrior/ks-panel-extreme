@@ -339,6 +339,9 @@ func SwitchLoginHandler(w http.ResponseWriter, r *http.Request) {
 		roleName = role.Name
 	}
 
+	// Reset failed attempts on successful login (mirrors LoginHandler).
+	auth.AccountLockoutInstance.ResetAttempts(identifier)
+
 	// No cookie here — the caller (SPA's switcher) owns the token. We only
 	// record the attempt, sign a token, and hand it back in the body.
 	RecordActivity(r, repository.ActivityInput{
