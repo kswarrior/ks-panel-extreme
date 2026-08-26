@@ -548,9 +548,12 @@ type createTableRef struct {
 var (
 	createTableRe = regexp.MustCompile(`(?is)^\s*CREATE\s+(?:TEMP(?:ORARY)?\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?["'` + "`" + `]?(\w+)["'` + "`" + `]?`)
 	referencesRe  = regexp.MustCompile(`(?is)REFERENCES\s+(?:ONLY\s+)?["'` + "`" + `]?(\w+)["'` + "`" + `]?`)
-	// createIndexRe captures [index, table] from a bare CREATE INDEX so the
-	// runner can make index creation idempotent on MySQL (no IF NOT EXISTS).
-	createIndexRe = regexp.MustCompile(`(?is)^\s*CREATE\s+INDEX\s+["'` + "`" + `]?(\w+)["'` + "`" + `]?\s+ON\s+["'` + "`" + `]?(\w+)["'` + "`" + `]?`)
+	// createIndexRe captures [index, table] from a CREATE INDEX (with or
+	// without IF NOT EXISTS) so the runner can make index creation
+	// idempotent on every dialect.
+	createIndexRe = regexp.MustCompile(`(?is)^\s*CREATE\s+INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?["'` + "`" + `]?(\w+)["'` + "`" + `]?\s+ON\s+["'` + "`" + `]?(\w+)["'` + "`" + `]?`)
+	// ifNotExistsIndexRe strips the IF NOT EXISTS clause MySQL cannot parse.
+	ifNotExistsIndexRe = regexp.MustCompile(`(?is)^\s*CREATE\s+INDEX\s+IF\s+NOT\s+EXISTS\s+`)
 )
 
 func parseCreateTable(stmt string, order int) *createTableRef {
@@ -597,14 +600,18 @@ func execMigrationScript(d Dialect, db *sql.DB, script, migration string) error 
 	}
 	for _, stmt := range rest {
 		// Migrations re-run on every launch, so every statement must be
-		// idempotent. SQLite/Postgres ship CREATE INDEX IF NOT EXISTS, but
-		// MySQL has no such clause and its files carry the bare form — a
-		// second launch would die on "duplicate key name". Guard centrally:
-		// skip an index that already exists (same protection the guarded
-		// ALTER path gives columns).
-		if m := createIndexRe.FindStringSubmatch(stmt); m != nil && !strings.Contains(strings.ToUpper(stmt), "IF NOT EXISTS") {
+		// idempotent. SQLite/Postgres accept CREATE INDEX IF NOT EXISTS;
+		// MySQL supports NEITHER the clause NOR duplicate creation — its
+		// files historically shipped the bare form (second launch dies on
+		// "duplicate key name") while newer ones ship the IF NOT EXISTS
+		// form (immediate syntax error). Normalise here: skip an index
+		// that already exists and strip the clause MySQL can't parse.
+		if m := createIndexRe.FindStringSubmatch(stmt); m != nil {
 			if hasIndex(d, db, m[2], m[1]) {
 				continue
+			}
+			if d.Name() == "mysql" && strings.Contains(strings.ToUpper(stmt), "IF NOT EXISTS") {
+				stmt = ifNotExistsIndexRe.ReplaceAllString(stmt, "CREATE INDEX ")
 			}
 		}
 		if _, err := db.Exec(stmt); err != nil {
