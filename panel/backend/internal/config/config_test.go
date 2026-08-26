@@ -57,19 +57,25 @@ func TestEnvFilePathMatchesReadSide(t *testing.T) {
 }
 
 // TestSaveDBConfigPersistsAndRoundTrips covers the exact payload the
-// SetDatabaseEngineHandler persists and that LoadEnvFile honours it when the
-// process env carries none of the keys.
+// SetDatabaseEngineHandler persists (canonical engine name, like the handler
+// now stores) and that LoadEnvFile honours it when the process env carries
+// none of the keys. The password contains '@' to prove FormatDSN escaping.
 func TestSaveDBConfigPersistsAndRoundTrips(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("KSPANEL_DB", filepath.Join(dir, "kspanel.db"))
 	os.Unsetenv("KSPANEL_DB_TYPE")
 	os.Unsetenv("KSPANEL_DB_DSN")
-	if err := SaveDBConfig("postgresql", "postgres://u:p%40ss@h:5432/db"); err != nil {
+
+	dsn, ok := BuildDSNFromURL("mysql", "127.0.0.1:3306", "ks", "p@ss:w/rd", "kspanel")
+	if !ok || !strings.Contains(dsn, "tcp(127.0.0.1:3306)") {
+		t.Fatalf("BuildDSNFromURL = %q ok=%v", dsn, ok)
+	}
+	if err := SaveDBConfig("mysql", dsn); err != nil {
 		t.Fatal(err)
 	}
 	LoadEnvFile()
 	cfg := DatabaseConfig()
-	if cfg.Engine != "postgres" || !strings.Contains(cfg.DSN, "5432") {
+	if cfg.Engine != "mysql" || !strings.Contains(cfg.DSN, "tcp(127.0.0.1:3306)") {
 		t.Fatalf("round trip = %+v", cfg)
 	}
 }
