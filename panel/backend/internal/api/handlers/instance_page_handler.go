@@ -42,6 +42,9 @@ type instancePageDTO struct {
 	Slug            string `json:"slug"`
 	Kind            string `json:"kind"`
 	Category        string `json:"category"`
+	// Type classifies the page flavor (dashboard, status, docs, …) —
+	// persisted as the page_type column. "" == unset.
+	Type            string `json:"type"`
 	Description     string `json:"description"`
 	ContentType     string `json:"content_type"`
 	ContentHTML     string `json:"content_html"`
@@ -233,6 +236,9 @@ func validateInstancePage(req instancePageDTO) (instancePageDTO, error) {
 	if len(req.Category) > maxInstancePageDescLen {
 		return req, newErrString(fmt.Sprintf("category too long (max %d characters)", maxInstancePageDescLen))
 	}
+	if len(req.Type) > maxInstancePageDescLen {
+		return req, newErrString(fmt.Sprintf("type too long (max %d characters)", maxInstancePageDescLen))
+	}
 	if req.Slug == "" {
 		return req, newErrString("slug is required")
 	}
@@ -324,6 +330,7 @@ func CreateInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		Slug:            req.Slug,
 		Kind:            req.Kind,
 		Category:        req.Category,
+		PageType:        req.Type,
 		Description:     req.Description,
 		ContentType:     req.ContentType,
 		ContentHTML:     req.ContentHTML,
@@ -384,6 +391,7 @@ func UpdateInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		Slug:            req.Slug,
 		Kind:            req.Kind,
 		Category:        req.Category,
+		PageType:        req.Type,
 		Description:     req.Description,
 		ContentType:     req.ContentType,
 		ContentHTML:     req.ContentHTML,
@@ -1342,6 +1350,7 @@ type ImportInstancePageRequest struct {
 	Slug            string `json:"slug"`
 	Kind            string `json:"kind"`
 	Category        string `json:"category"`
+	Type            string `json:"type"`
 	Description     string `json:"description"`
 	ContentType     string `json:"content_type"`
 	ContentHTML     string `json:"content_html"`
@@ -1430,6 +1439,7 @@ func ImportInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		Slug:            dto.Slug,
 		Kind:            dto.Kind,
 		Category:        dto.Category,
+		PageType:        dto.Type,
 		Description:     dto.Description,
 		ContentType:     dto.ContentType,
 		ContentHTML:     dto.ContentHTML,
@@ -1999,6 +2009,7 @@ func ImportInstancePageFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		Slug:            pageReq.Slug,
 		Kind:            pageReq.Kind,
 		Category:        pageReq.Category,
+		Type:            pageReq.Type,
 		Description:     pageReq.Description,
 		ContentType:     pageReq.ContentType,
 		ContentHTML:     pageReq.ContentHTML,
@@ -2029,6 +2040,7 @@ func ImportInstancePageFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		Slug:            dto.Slug,
 		Kind:            dto.Kind,
 		Category:        dto.Category,
+		PageType:        dto.Type,
 		Description:     dto.Description,
 		ContentType:     dto.ContentType,
 		ContentHTML:     dto.ContentHTML,
@@ -2191,6 +2203,7 @@ func ImportInstancePageFromMarketplaceHandler(w http.ResponseWriter, r *http.Req
 		Slug:            pageReq.Slug,
 		Kind:            pageReq.Kind,
 		Category:        pageReq.Category,
+		Type:            pageReq.Type,
 		Description:     pageReq.Description,
 		ContentType:     pageReq.ContentType,
 		ContentHTML:     pageReq.ContentHTML,
@@ -2221,6 +2234,7 @@ func ImportInstancePageFromMarketplaceHandler(w http.ResponseWriter, r *http.Req
 		Slug:            dto.Slug,
 		Kind:            dto.Kind,
 		Category:        dto.Category,
+		PageType:        dto.Type,
 		Description:     dto.Description,
 		ContentType:     dto.ContentType,
 		ContentHTML:     dto.ContentHTML,
@@ -2308,6 +2322,7 @@ func ImportLocalInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		Slug:            pageReq.Slug,
 		Kind:            pageReq.Kind,
 		Category:        pageReq.Category,
+		Type:            pageReq.Type,
 		Description:     pageReq.Description,
 		ContentType:     pageReq.ContentType,
 		ContentHTML:     pageReq.ContentHTML,
@@ -2338,6 +2353,7 @@ func ImportLocalInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		Slug:            dto.Slug,
 		Kind:            dto.Kind,
 		Category:        dto.Category,
+		PageType:        dto.Type,
 		Description:     dto.Description,
 		ContentType:     dto.ContentType,
 		ContentHTML:     dto.ContentHTML,
