@@ -47,8 +47,8 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
 
   // ---- Add pages modal ------------------------------------------------------
-  // Single entry point. Lists custom pages from the central Instance Pages
-  // library (GET /api/instance-pages/, backed by instance_pages/pages/*.json).
+  // Single entry point. Lists custom pages from the Instance Pages library
+  // (GET /api/instance-pages/, the DB rows authored in the Studio or imported).
   // Picking entries appends a `kind: 'custom'` row to the parent's `pages`
   // array — so they ship in the template spec and, on instance deploy, in
   // instance.Config. The instance sidebar / InstanceTabs then render exactly

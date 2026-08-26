@@ -60,7 +60,7 @@ const addBtn = 'text-xs text-sky-300 hover:text-sky-200 underline';
 
 // TemplatePagesImportModal is the single entry point for adding pages to a
 // template. It lists custom pages from the Instance Pages library
-// (/api/instance-pages/, backed by instance_pages/pages/*.json). The picked
+// (/api/instance-pages/, the DB rows authored in the Studio or imported). The picked
 // entries are passed back via onAddPages as `kind: 'custom'` rows so the
 // parent can append them to the template's spec.pages.
 interface TemplatePagesImportModalProps {

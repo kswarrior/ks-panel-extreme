@@ -2,9 +2,8 @@
 //
 // The legacy built-in React pages (Home / Files / Network / Terminal / …)
 // were removed from the frontend bundle: every instance sub-page is now a
-// CUSTOM page row in the template/instance spec (`spec.pages`), authored by
-// importing definitions from the Instance Pages library
-// (/test/ks-panel/instance_pages/pages/*.json → GET /api/instance-pages/).
+// CUSTOM page row in the template/instance spec (`spec.pages`), authored in
+// the Instance Page Studio or imported into it.
 //
 // This module is the single source of truth for:
 //   • resolveInstanceNav — the per-instance sidebar entries from spec.pages
