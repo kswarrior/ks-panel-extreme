@@ -18,12 +18,12 @@
 
 CREATE TABLE IF NOT EXISTS instance_automation (
     id           BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    instance_id  INTEGER NOT NULL REFERENCES instances(id) ON DELETE CASCADE,
+    instance_id  BIGINT NOT NULL REFERENCES instances(id) ON DELETE CASCADE,
     name         TEXT    NOT NULL,
     command      TEXT    NOT NULL,
-    schedule     TEXT    NOT NULL DEFAULT '',          -- cron 5-field or '' for on-demand
+    schedule     TEXT    NOT NULL DEFAULT (''),          -- cron 5-field or '' for on-demand
     enabled      INTEGER NOT NULL DEFAULT 1,
-    secret_refs  TEXT    NOT NULL DEFAULT '[]',         -- JSON array of secret keys to inject
+    secret_refs  TEXT    NOT NULL DEFAULT ('[]'),         -- JSON array of secret keys to inject
     timeout_sec  INTEGER NOT NULL DEFAULT 300,
     last_run_at  DATETIME,
     next_run_at  DATETIME,
@@ -39,15 +39,15 @@ CREATE INDEX instance_automation_due_idx ON instance_automation(enabled, next_ru
 -- exit code + durations. Runs are append-only.
 CREATE TABLE IF NOT EXISTS automation_runs (
     id            BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    job_id        INTEGER NOT NULL REFERENCES instance_automation(id) ON DELETE CASCADE,
-    instance_id   INTEGER NOT NULL REFERENCES instances(id) ON DELETE CASCADE,
-    trigger       TEXT    NOT NULL,                    -- 'schedule' | 'manual'
-    command       TEXT    NOT NULL DEFAULT '',
-    stdout        TEXT    NOT NULL DEFAULT '',
-    stderr        TEXT    NOT NULL DEFAULT '',
+    job_id        BIGINT NOT NULL REFERENCES instance_automation(id) ON DELETE CASCADE,
+    instance_id   BIGINT NOT NULL REFERENCES instances(id) ON DELETE CASCADE,
+    `trigger`       TEXT    NOT NULL,                    -- 'schedule' | 'manual'
+    command       TEXT    NOT NULL DEFAULT (''),
+    stdout        TEXT    NOT NULL DEFAULT (''),
+    stderr        TEXT    NOT NULL DEFAULT (''),
     exit_code     INTEGER NOT NULL DEFAULT 0,
     duration_ms   INTEGER NOT NULL DEFAULT 0,
-    error         TEXT    NOT NULL DEFAULT '',
+    error         TEXT    NOT NULL DEFAULT (''),
     started_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     finished_at   DATETIME
 );

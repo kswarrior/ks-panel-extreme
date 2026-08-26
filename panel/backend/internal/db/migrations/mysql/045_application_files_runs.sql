@@ -22,25 +22,25 @@
 -- internal/db/db.go (mirrors 041_instance_page_actions.sql) so re-launches
 -- are idempotent on every dialect.
 
-ALTER TABLE applications ADD COLUMN files TEXT NOT NULL DEFAULT '[]';
+ALTER TABLE applications ADD COLUMN files TEXT NOT NULL DEFAULT ('[]');
 
 CREATE TABLE IF NOT EXISTS application_runs (
     id              BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    application_id  INTEGER NOT NULL,
-    triggered_by    INTEGER,
-    target          TEXT NOT NULL DEFAULT 'panel',
+    application_id  BIGINT NOT NULL,
+    triggered_by    BIGINT,
+    target          TEXT NOT NULL DEFAULT ('panel'),
     node_id         INTEGER NOT NULL DEFAULT 0,
-    node_name       TEXT NOT NULL DEFAULT '',
-    exec_mode       TEXT NOT NULL DEFAULT 'host',
-    workload        TEXT NOT NULL DEFAULT '',
-    status          TEXT NOT NULL DEFAULT 'running',
+    node_name       TEXT NOT NULL DEFAULT (''),
+    exec_mode       TEXT NOT NULL DEFAULT ('host'),
+    workload        TEXT NOT NULL DEFAULT (''),
+    status          TEXT NOT NULL DEFAULT ('running'),
     exit_code       INTEGER NOT NULL DEFAULT 0,
-    output          TEXT NOT NULL DEFAULT '',
-    error_output    TEXT NOT NULL DEFAULT '',
-    error           TEXT NOT NULL DEFAULT '',
+    output          TEXT NOT NULL DEFAULT (''),
+    error_output    TEXT NOT NULL DEFAULT (''),
+    error           TEXT NOT NULL DEFAULT (''),
     timeout_sec     INTEGER NOT NULL DEFAULT 300,
     created_at      TEXT NOT NULL,
-    ended_at        TEXT NOT NULL DEFAULT '',
+    ended_at        TEXT NOT NULL DEFAULT (''),
     FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE,
     FOREIGN KEY (triggered_by)   REFERENCES users(id)       ON DELETE SET NULL
 );

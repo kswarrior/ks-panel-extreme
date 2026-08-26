@@ -5,10 +5,10 @@
 
 CREATE TABLE IF NOT EXISTS api_keys (
     id          BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    user_id     INTEGER NOT NULL,
+    user_id     BIGINT NOT NULL,
     name        TEXT    NOT NULL,
     -- SHA-256 hex digest of the key. Indexed for fast lookup.
-    key_hash    TEXT    NOT NULL UNIQUE,
+    key_hash VARCHAR(255) NOT NULL UNIQUE,
     -- Short prefix shown in the UI (first 8 chars of the generated token) so
     -- users can recognise which key is which without revealing the secret.
     prefix      TEXT    NOT NULL,
@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS api_keys (
     last_used_at DATETIME,
     -- Encoded as a comma-separated list of permission keys. Empty => no
     -- permissions granted (the request would be unauthenticated-equivalent).
-    permissions TEXT    NOT NULL DEFAULT '',
+    permissions TEXT    NOT NULL DEFAULT (''),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 

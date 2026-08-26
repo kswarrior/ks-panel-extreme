@@ -8,5 +8,5 @@
 -- tie the row back to the origin. Both columns default to the legacy behaviour
 -- (source='file', source_url='') so existing rows don't need to be touched.
 
-ALTER TABLE mods ADD COLUMN source     TEXT    NOT NULL DEFAULT 'file';
-ALTER TABLE mods ADD COLUMN source_url TEXT    NOT NULL DEFAULT '';
+ALTER TABLE mods ADD COLUMN source     TEXT    NOT NULL DEFAULT ('file');
+ALTER TABLE mods ADD COLUMN source_url TEXT    NOT NULL DEFAULT ('');

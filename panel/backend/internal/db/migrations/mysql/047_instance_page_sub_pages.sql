@@ -9,4 +9,4 @@
 -- (mirrors 041_instance_page_actions.sql) so re-launches are idempotent on
 -- every dialect.
 
-ALTER TABLE instance_pages ADD COLUMN sub_pages TEXT NOT NULL DEFAULT '';
+ALTER TABLE instance_pages ADD COLUMN sub_pages TEXT NOT NULL DEFAULT ('');
