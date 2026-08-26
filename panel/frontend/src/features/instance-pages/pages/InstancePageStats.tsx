@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { listInstancePages } from '@/shared/api/admin';
 import type { InstancePage } from '@/shared/types/instancePage';
 import {
@@ -20,25 +19,26 @@ function kindKey(k: string): KindKey {
   return (k in KIND_META ? k : 'unknown') as KindKey;
 }
 
+// getErrorMessage normalises API failures for display: some panel endpoints
+// answer with JSON bodies ({error|message}) instead of plain text, which would
+// otherwise render as "[object Object]".
+function getErrorMessage(e: any, fallback: string): string {
+  const data = e?.response?.data;
+  if (typeof data === 'string' && data.trim()) return data;
+  if (data && typeof data === 'object') {
+    if (typeof data.error === 'string') return data.error;
+    if (typeof data.message === 'string') return data.message;
+    try { return JSON.stringify(data); } catch { return fallback; }
+  }
+  if (typeof e?.message === 'string' && e.message.trim()) return e.message;
+  return fallback;
+}
+
 const InstancePageStats: React.FC = () => {
   const navigate = useNavigate();
   const [pages, setPages] = useState<InstancePage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [filterOpen, setFilterOpen] = useState(false);
-  const filterRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
-        setFilterOpen(false);
-      }
-    }
-    if (filterOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [filterOpen]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -46,7 +46,7 @@ const InstancePageStats: React.FC = () => {
     try {
       setPages(await listInstancePages());
     } catch (e: any) {
-      setError(e?.response?.data || 'Failed to load');
+      setError(getErrorMessage(e, 'Failed to load'));
     } finally {
       setLoading(false);
     }
@@ -109,50 +109,6 @@ const InstancePageStats: React.FC = () => {
         title="Instance Page Statistics"
         backHref="/instance-pages"
         backLabel="Instance Pages"
-        action={
-          <div className="flex items-center gap-2">
-            <div className="relative" ref={filterRef}>
-              <button
-                type="button"
-                onClick={() => setFilterOpen(!filterOpen)}
-                className={`ks-btn-header ks-icon-btn transition-colors ${filterOpen ? 'is-open' : ''}`}
-                aria-label="Open filters"
-                aria-expanded={filterOpen}
-                aria-haspopup="true"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-                  <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-                </svg>
-                <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
-              </button>
-              {filterOpen && (
-                <div className="absolute left-0 top-full mt-1 z-30 w-56">
-                  <div className="ks-dropdown min-w-[200px] animate-in fade-in slide-in-from-to duration-150">
-                    <div className="p-3 space-y-3">
-                      <div>
-                        <label className="block text-xs text-gray-400 uppercase tracking-wide mb-1.5">Type</label>
-                        <select className="w-full glass-field">
-                          <option value="all">All pages</option>
-                          <option value="builtin">Built-in</option>
-                          <option value="custom">Custom</option>
-                        </select>
-                      </div>
-                      <div className="pt-2 border-t border-white/5 flex items-center justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setFilterOpen(false)}
-                          className="px-3 py-1.5 text-sm text-gray-400 hover:text-white"
-                        >
-                          Close
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        }
       />
 
       {/* Stat Cards only - removed all other sections per requirements */}
