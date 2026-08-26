@@ -154,7 +154,7 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				}
 			stripped := stripAlterColumnLines(body, "users", "email_verified")
 			log.Printf("Running migration %s (email_verified already present, ALTER stripped)", name)
-			if _, err := execMigrationScript(d, db, string(stripped), name); err != nil {
+			if err := execMigrationScript(d, db, string(stripped), name); err != nil {
 				return fmt.Errorf("migration %s failed: %w", name, err)
 			}
 			continue
@@ -206,7 +206,7 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			}
 			stripped := stripAlterColumnLines(body, "mods", "engine_version")
 			log.Printf("Running migration %s", name)
-			if _, err := execMigrationScript(d, db, string(stripped), name); err != nil {
+			if err := execMigrationScript(d, db, string(stripped), name); err != nil {
 				return fmt.Errorf("migration %s failed: %w", name, err)
 			}
 			continue
@@ -414,7 +414,7 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			}
 			stripped := stripAlterColumnLines(body, "applications", "files")
 			stripped = stripCreateIndexLines(stripped, "idx_application_runs_app")
-			if _, err := execMigrationScript(d, db, string(stripped), name); err != nil {
+			if err := execMigrationScript(d, db, string(stripped), name); err != nil {
 				return fmt.Errorf("migration %s failed: %w", name, err)
 			}
 			if err := guardedCreateIndex(d, db, name, "application_runs", "idx_application_runs_app", "application_id"); err != nil {
@@ -433,7 +433,7 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			return err
 		}
 		log.Printf("Running migration %s", name)
-		if _, err := execMigrationScript(d, db, string(content), name); err != nil {
+		if err := execMigrationScript(d, db, string(content), name); err != nil {
 			return fmt.Errorf("migration %s failed: %w", name, err)
 		}
 	}
