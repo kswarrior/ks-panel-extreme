@@ -144,13 +144,16 @@ func instancePageSpecEnabled(specJSON, pageSlug string) bool {
 type specPageRow struct {
 	slug         string
 	originalSlug string
+	enabled      bool
 	subPages     []string
 	actions      []map[string]any
 }
 
-// parseSpecRows decodes the spec JSON into its pages rows. Returns nil when
-// the spec is absent/unparseable/empty (EMPTY-BY-DEFAULT semantics — callers
-// treat nil as "nothing allowed").
+// parseSpecRows decodes the ENABLED pages rows of the spec JSON. Returns nil
+// when the spec is absent/unparseable/empty (EMPTY-BY-DEFAULT semantics —
+// callers treat nil as "nothing allowed"). Rows explicitly disabled
+// (`enabled: false`) are dropped here so downstream resolution can never
+// grant access through them.
 func parseSpecRows(specJSON string) []specPageRow {
 	specJSON = strings.TrimSpace(specJSON)
 	if specJSON == "" {
@@ -160,6 +163,7 @@ func parseSpecRows(specJSON string) []specPageRow {
 		Pages []struct {
 			Slug         string          `json:"slug"`
 			OriginalSlug string          `json:"original_slug"`
+			Enabled      *bool           `json:"enabled"`
 			SubPages     json.RawMessage `json:"sub_pages"`
 			Actions      json.RawMessage `json:"actions"`
 		} `json:"pages"`
@@ -169,7 +173,10 @@ func parseSpecRows(specJSON string) []specPageRow {
 	}
 	rows := make([]specPageRow, 0, len(spec.Pages))
 	for _, p := range spec.Pages {
-		row := specPageRow{slug: strings.TrimSpace(p.Slug), originalSlug: strings.TrimSpace(p.OriginalSlug)}
+		if p.Enabled != nil && !*p.Enabled {
+			continue
+		}
+		row := specPageRow{slug: strings.TrimSpace(p.Slug), originalSlug: strings.TrimSpace(p.OriginalSlug), enabled: true}
 		// sub_pages may be an inline array or a JSON-encoded string (legacy
 		// shape) — decode both, degrade to empty on anything else.
 		raw := []byte(p.SubPages)
