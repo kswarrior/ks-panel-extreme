@@ -240,6 +240,11 @@ func UpdateApiKeyHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	uid, err := UserIDFromContext(r)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
 	con, err := repository.OpenDB()
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
@@ -247,6 +252,11 @@ func UpdateApiKeyHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer con.Close()
 	repo := repository.NewApiKeyRepository(con)
+	// Ownership check: self-service keys must belong to the caller.
+	if existing, gerr := repo.GetApiKey(id); gerr != nil || existing == nil || existing.UserID != uid {
+		http.Error(w, "api key not found", http.StatusNotFound)
+		return
+	}
 	if err := repo.UpdateApiKeyByID(id, repository.UpdateApiKeyInput{
 		Name:              req.Name,
 		Permissions:       req.Permissions,
@@ -279,6 +289,11 @@ func DeleteApiKeyHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid id", http.StatusBadRequest)
 		return
 	}
+	uid, err := UserIDFromContext(r)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
 	con, err := repository.OpenDB()
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
@@ -287,11 +302,14 @@ func DeleteApiKeyHandler(w http.ResponseWriter, r *http.Request) {
 	defer con.Close()
 	repo := repository.NewApiKeyRepository(con)
 	// Snapshot the name up-front so the audit row tells you which key was
-	// deleted even though the row is gone.
+	// deleted even though the row is gone. Ownership check first.
 	var label string
-	if existing, gerr := repo.GetApiKey(id); gerr == nil && existing != nil {
-		label = existing.Name
+	existing, gerr := repo.GetApiKey(id)
+	if gerr != nil || existing == nil || existing.UserID != uid {
+		http.Error(w, "api key not found", http.StatusNotFound)
+		return
 	}
+	label = existing.Name
 	if err := repo.DeleteApiKey(id); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
