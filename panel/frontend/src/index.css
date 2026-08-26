@@ -330,6 +330,19 @@
     background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='1.5'%3E%3Ccircle cx='11' cy='11' r='8'%3E%3C/circle%3E%3Cpath d='M21 21l-4.35-4.35'%3E%3C/path%3E%3C/svg%3E");
   }
 
+/* Auth underline inputs (Login / Register / VerifyEmail). Keeps the
+   transparent underline aesthetic (no fill — floating labels sit on top)
+   while text, resting border and focus border follow the Theme Studio's
+   Forms tab via the always-emitted --ks-form-* variables. */
+.ks-auth-input {
+  color: var(--ks-form-input-text, #ffffff);
+  border-color: var(--ks-form-input-border, rgba(255, 255, 255, 0.10));
+}
+.ks-auth-input:focus {
+  outline: none;
+  border-color: var(--ks-form-focus-border, rgba(255, 255, 255, 0.40));
+}
+
 /* Floating dropdown panels — the "Apply to…" scope menu and the header
    profile menu. Defined OUTSIDE @layer/@apply on purpose: arbitrary rgba()
    inside @apply is fragile across Tailwind versions. These panels render as
@@ -337,8 +350,7 @@
    STRONG backdrop blur, so the cards/page behind are visible BUT blurred,
    and the menu text stays crisp. The thin scrim (~0.22 alpha) just deepens
    the glass a touch over the page colour so dropdown content reads; the
-   blur does the visual separating, not opacity. */
-.glass-dropdown {
+   blur does the visual separating, not opacity. */.glass-dropdown {
   background-color: rgba(12, 14, 18, 0.22);
   backdrop-filter: blur(40px) saturate(180%);
   -webkit-backdrop-filter: blur(40px) saturate(180%);
