@@ -733,6 +733,13 @@ func ExecutePageActionHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate + clamp before touching the edge.
+	timeoutSec, verr := sanitizePageAction(req.Type, req.Command, req.Path, req.Content, req.Args, req.Env, req.Timeout)
+	if verr != nil {
+		http.Error(w, verr.Error(), http.StatusBadRequest)
+		return
+	}
+
 	// Use the edge client to call the page-action endpoint
 	ec := edge.New(*node, token)
 
@@ -746,17 +753,14 @@ func ExecutePageActionHandler(w http.ResponseWriter, r *http.Request) {
 		"content": req.Content,
 		"args":    req.Args,
 		"env":     req.Env,
-		"timeout": req.Timeout,
+		"timeout": timeoutSec,
 	}
 
 	body, _ := json.Marshal(edgeReq)
 	httpReq, _ := http.NewRequestWithContext(r.Context(), "POST", ec.BaseURL()+"/api/edge/page-action", bytes.NewReader(body))
 	httpReq.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{Timeout: time.Duration(req.Timeout+5) * time.Second}
-	if req.Timeout == 0 {
-		client.Timeout = 35 * time.Second
-	}
+	client := &http.Client{Timeout: time.Duration(timeoutSec+5) * time.Second}
 
 	resp, err := client.Do(httpReq)
 	if err != nil {
