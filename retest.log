@@ -2,8 +2,8 @@
 [0;34m[INFO][0m Copying binaries from release/ ...
 [0;32m[OK][0m Test folder ready:
 total 32M
--rwxr-xr-x 1 runner runner 9.4M Aug 26 06:07 ksedge
--rwxr-xr-x 1 runner runner  22M Aug 26 06:07 kspanel
+-rwxr-xr-x 1 runner runner 9.4M Aug 26 10:33 ksedge
+-rwxr-xr-x 1 runner runner  22M Aug 26 10:33 kspanel
 → database     sqlite — /tmp/kspanel-retest/kspanel.db
 ✓ connected    sqlite ready
 → migrations   running
@@ -29,7 +29,7 @@ total 32M
 → config       localnode/ksedge/config.json
 → panel        started (pid 2468) on 127.0.0.1:5050
 ✓ panel        ready at http://127.0.0.1:5050
-→ launch       started ksedge (pid 2478) on 127.0.0.1:4040
+→ launch       started ksedge (pid 2481) on 127.0.0.1:4040
 ✓ edge         up and reachable (name="local-edge", log=localnode/ksedge/ksedge.log)
 
 node id:      1
@@ -39,7 +39,7 @@ config:       localnode/ksedge/config.json
 log:          localnode/ksedge/ksedge.log
 
 [0;34m==>[0m Launching kspanel on port 8080 (background)...
-[0;32m[OK][0m kspanel running in background (PID 2506)
+[0;32m[OK][0m kspanel running in background (PID 2489)
 [0;32m[OK][0m Logs:   /tmp/kspanel-retest/kspanel.log
 [0;32m[OK][0m Stop:   kill $(cat /tmp/kspanel-retest/kspanel.pid)
  ██╔═██╗ ╚════██║    ██╔═══╝ ██╔══██║██║╚██╗██║██╔══╝  ██║
@@ -50,12 +50,12 @@ log:          localnode/ksedge/ksedge.log
 → ui           embedded bundle
 ✓ ui           served from api/handlers
 
-panel pid:    2506
+panel pid:    2489
 engine:       sqlite
 dsn:          /tmp/kspanel-retest/kspanel.db
 listen:       :8080
-open:         http://10.1.0.62:8080
-bind ifs:     10.1.0.62, 172.17.0.1
+open:         http://10.1.0.28:8080
+bind ifs:     10.1.0.28, 172.17.0.1
 go:           1.26.7
 goos:         linux/amd64
 cpus:         4
