@@ -109,7 +109,12 @@ export const TemplateTabs: React.FC<{ tab: TemplateTabId; onChange: (id: Templat
             <span className="inline-flex items-center">{t.icon}</span>
             <span className="flex flex-col">
               <span>{t.label}</span>
-              <span className={`text-[10px] hidden lg:block ${tab === t.id ? 'text-black/60 opacity-70' : 'text-gray-500'}`}>{t.hint}</span>
+              <span
+                className={`text-[10px] hidden lg:block ${tab === t.id ? 'opacity-70' : 'text-gray-500'}`}
+                style={tab === t.id ? { color: 'var(--ks-tab-active-text, #000000)' } : undefined}
+              >
+                {t.hint}
+              </span>
             </span>
           </button>
         ))}
