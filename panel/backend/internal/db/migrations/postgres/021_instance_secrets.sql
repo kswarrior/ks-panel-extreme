@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS instance_secrets (
     id           SERIAL PRIMARY KEY,
     instance_id  INTEGER NOT NULL REFERENCES instances(id) ON DELETE CASCADE,
     key          TEXT    NOT NULL,
-    value_blob   BLOB    NOT NULL,              -- nonce||ciphertext||tag
+    value_blob   BYTEA   NOT NULL,              -- nonce||ciphertext||tag
     -- value_mime is empty for secrets. For non-secret env the cleartext is
     -- small enough to keep alongside, so we store it in value_blob too and
     -- mark is_secret = 0.

@@ -238,6 +238,16 @@ type InstallStopResponse struct {
 	Error   string `json:"error,omitempty"`
 }
 
+// redactTokenErr returns err's message with any token=… query value masked,
+// so dial failures on token-in-URL RPCs never leak the shared edge secret
+// into panel logs.
+func redactTokenErr(err error) string {
+	if err == nil {
+		return ""
+	}
+	return tokenQueryParamRe.ReplaceAllString(err.Error(), "token=REDACTED")
+}
+
 // InstallStart POSTs the install kick-off to the edge. Returns the install_id
 // immediately so the panel can start polling.
 func (c *Client) InstallStart(req InstallStartRequest) (InstallStartResponse, error) {
@@ -296,7 +306,9 @@ func (c *Client) InstallStatus(req InstallStatusRequest) (InstallStatusResponse,
 
 	resp, err := c.http.Do(httpReq)
 	if err != nil {
-		return InstallStatusResponse{}, fmt.Errorf("dial edge: %w", err)
+		// The URL carries the token as a query param — mask it before the
+		// error reaches any log.
+		return InstallStatusResponse{}, fmt.Errorf("dial edge: %s", redactTokenErr(err))
 	}
 	defer resp.Body.Close()
 
