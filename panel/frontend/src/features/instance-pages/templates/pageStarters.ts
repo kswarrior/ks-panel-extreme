@@ -233,18 +233,10 @@ const CRON_SCHEDULER = page(
   </div>
   <div id="content" class="ks-muted">Loading…</div>`,
   `
-    async function section(title, cmd){
-      var out = '(unavailable)';
-      try { out = (await sh(cmd)).stdout.trim() || '(empty)'; } catch(e){}
-      return card(title, pre(out));
-    }
     async function load(){
       el('content').innerHTML = '<p class="ks-muted">Loading…</p>';
-      el('content').innerHTML =
-        await section('User crontab (crontab -l)', 'crontab -l 2>/dev/null') +
-        await section('/etc/crontab', 'cat /etc/crontab 2>/dev/null') +
-        await section('/etc/cron.d', 'ls -la /etc/cron.d 2>/dev/null') +
-        await section('/etc/cron.daily', 'ls -la /etc/cron.daily 2>/dev/null');
+      var r = await act('cron_overview');
+      el('content').innerHTML = card('Cron & scheduled jobs', pre(((r.stdout || '') + '').trim() || '(empty)'));
     }
     el('refresh').onclick = load;
     await load();
@@ -255,20 +247,28 @@ const DISK_ANALYZER = page(
   'Disk Usage',
   `<div class="ks-row" style="margin-bottom:0.6rem">
     <button class="ks-btn ks-btn-blue" id="refresh">Refresh</button>
+    <button class="ks-btn ks-btn-red" id="cleantmp">Clean old /tmp files</button>
+    <span id="note" class="ks-muted" style="font-size:11px"></span>
   </div>
   <div id="content" class="ks-muted">Loading…</div>`,
   `
     async function load(){
       el('content').innerHTML = '<p class="ks-muted">Analyzing… (du can take a while on large filesystems)</p>';
-      var dfOut = '(unavailable)';
-      try { dfOut = (await sh('df -h')).stdout; } catch(e){}
-      var duOut = '';
-      try { duOut = (await sh('du -x -d1 -h / 2>/dev/null | sort -rh | head -15', 120)).stdout; } catch(e){ duOut = '(du unavailable or timed out)'; }
+      var dfR = null, duR = null;
+      try { dfR = await act('df_report'); } catch(e){ dfR = { stdout: '(df unavailable)' }; }
+      try { duR = await act('du_top'); } catch(e){ duR = { stdout: '(du unavailable or timed out)' }; }
       el('content').innerHTML =
-        card('Filesystems (df -h)', pre(dfOut)) +
-        card('Largest top-level directories (du)', pre(duOut));
+        card('Filesystems (df -h)', pre(dfR.stdout)) +
+        card('Largest top-level directories (du)', pre(duR.stdout));
     }
     el('refresh').onclick = load;
+    el('cleantmp').onclick = async function(){
+      if (!(await ask('Delete /tmp files untouched for over 7 days now?'))) return;
+      try {
+        var r = await act('clean_tmp');
+        toast(((r.stdout || '') + '').trim() || ('exit ' + (r.exit_code != null ? r.exit_code : '?')), r.exit_code === 0 ? 'success' : 'error');
+      } catch (e) { toast(e.message, 'error'); }
+    };
     await load();
   `,
 );
