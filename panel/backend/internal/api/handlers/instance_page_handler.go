@@ -910,6 +910,106 @@ func savedActionExecFields(def map[string]any) (typ, command, path, content stri
 	return typ, command, path, content, args, env, actionNumberField(def, "timeout"), true
 }
 
+// maxOpenActionArgs caps how many caller-supplied values an open_args action
+// may append to its stored argument prefix.
+const maxOpenActionArgs = 4
+
+// argsPlaceholder is the literal token inside a stored shell command that
+// resolveExecPayload replaces with the caller-supplied arguments (properly
+// single-quote-escaped). A stored command without the token rejects any
+// caller-supplied extras — fail closed.
+const argsPlaceholder = "{{args}}"
+
+// validActionArg reports whether a caller-supplied argument value is safe to
+// splice into a stored command. Positive charset only: alphanumerics plus a
+// fixed set of harmless punctuation (dots, spaces, slashes, …). Quotes, shell
+// metacharacters and control bytes are rejected outright, so even before the
+// per-type escaping below nothing can break out of the stored command shape.
+func validActionArg(s string) bool {
+	if s == "" || len(s) > 200 {
+		return false
+	}
+	for _, r := range s {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+		case strings.ContainsRune(" ._/:@+=,~-", r):
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// shellQuoteArg single-quote escapes one value for safe interpolation into a
+// POSIX shell string (same escaping the edge uses for paths).
+func shellQuoteArg(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
+}
+
+// resolveExecPayload applies a matched saved action's argument policy to the
+// request payload and returns the FINAL command and argv for the edge.
+//
+// Without open_args the exact-match in savedActionMatches already pinned
+// everything: command/args come back untouched. With open_args:
+//
+//   - shell: every {{args}} token in the STORED command is replaced with the
+//     extra values (each shell-quoted). A stored command without the token
+//     rejects any extra — silent dropping would run a different program than
+//     the author wrote. Stored static args stay as trailing argv ($0…).
+//   - docker/kvm/lxd: quoted extras are appended to the argv; the edge joins
+//     them into its `docker <cmd> <args…>` shell line.
+//   - file ops never accept extras.
+func resolveExecPayload(def map[string]any, typ, command string, defArgs []string, reqArgs []string) (string, []string, error) {
+	open, _ := def["open_args"].(bool)
+	if !open {
+		// Exact-match path: the request's args equal the stored ones.
+		return command, defArgs, nil
+	}
+	prefixLen := len(defArgs)
+	if len(reqArgs) < prefixLen {
+		// savedActionMatches guarantees this; defensive only.
+		return command, defArgs, newErrString("action is missing its required prefix arguments")
+	}
+	extras := reqArgs[prefixLen:]
+	if len(extras) > maxOpenActionArgs {
+		return "", nil, newErrString("action accepts at most " + strconv.Itoa(maxOpenActionArgs) + " runtime argument(s)")
+	}
+	for _, e := range extras {
+		if !validActionArg(e) {
+			return "", nil, newErrString("action argument contains unsupported characters")
+		}
+	}
+
+	switch typ {
+	case "shell":
+		if !strings.Contains(command, argsPlaceholder) {
+			if len(extras) > 0 {
+				return "", nil, newErrString("action does not accept runtime arguments")
+			}
+			return command, defArgs, nil
+		}
+		quoted := make([]string, 0, len(extras))
+		for _, e := range extras {
+			quoted = append(quoted, shellQuoteArg(e))
+		}
+		return strings.ReplaceAll(command, argsPlaceholder, strings.Join(quoted, " ")), defArgs, nil
+	case "docker", "kvm", "lxd":
+		out := make([]string, 0, len(defArgs)+len(extras))
+		out = append(out, defArgs...)
+		for _, e := range extras {
+			// Pre-quoted: the edge interpolates argv with spaces.Join into
+			// its own sh -lc line, so quoting here keeps spaced values whole.
+			out = append(out, shellQuoteArg(e))
+		}
+		return command, out, nil
+	default: // read_file / write_file / list_files
+		if len(extras) > 0 {
+			return "", nil, newErrString("action does not accept runtime arguments")
+		}
+		return command, defArgs, nil
+	}
+}
+
 // ExecuteCustomPageActionHandler executes an action from a custom page
 // against a specific instance. Called directly by the custom page SDK running
 // in the browser (HTML iframe bridge or host-origin markdown/blocks pages).
