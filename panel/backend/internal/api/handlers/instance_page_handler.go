@@ -1105,6 +1105,13 @@ func ExecuteCustomPageActionHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "saved action definition is invalid", http.StatusForbidden)
 		return
 	}
+	// Argument policy: expand open_args actions from the request (validated,
+	// quoted) or pin the payload to the stored definition.
+	execCommand, execArgs, aerr := resolveExecPayload(matched, execType, execCommand, execArgs, req.Args)
+	if aerr != nil {
+		http.Error(w, aerr.Error(), http.StatusForbidden)
+		return
+	}
 	// Requested timeout is operational, not executable — honour it when the
 	// caller supplied one, else the stored value; always clamped.
 	timeout := clampActionTimeout(req.Timeout)
