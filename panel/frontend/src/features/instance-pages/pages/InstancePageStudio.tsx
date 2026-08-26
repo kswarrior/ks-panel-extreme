@@ -794,7 +794,9 @@ const InstancePageStudio: React.FC = () => {
         ...p,
         name: typeof data.name === 'string' ? data.name : p.name,
         slug: typeof data.slug === 'string' ? data.slug : p.slug,
-        kind: data.kind === 'builtin' ? 'builtin' : 'custom',
+        // The legacy "builtin" kind is rejected by the API (migration 046);
+        // imports coerce to custom so a stale JSON file can't brick the save.
+        kind: 'custom' as InstancePage['kind'],
         category: typeof data.category === 'string' ? data.category : p.category,
         description: typeof data.description === 'string' ? data.description : p.description,
         content_type: ['html', 'markdown', 'blocks'].includes(data.content_type) ? data.content_type : p.content_type,
