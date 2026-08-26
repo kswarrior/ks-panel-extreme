@@ -782,6 +782,7 @@ func ExecutePageActionHandler(w http.ResponseWriter, r *http.Request) {
 func ExecuteCustomPageActionHandler(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		InstanceID int64             `json:"instance_id"`
+		PageSlug   string            `json:"page_slug"`
 		Type       string            `json:"type"`
 		Command    string            `json:"command"`
 		Path       string            `json:"path"`
@@ -815,6 +816,22 @@ func ExecuteCustomPageActionHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Page-bound execution: the calling page must be enabled on THIS
+	// instance's own deploy-time config snapshot. Fail closed on missing or
+	// unknown slugs — the browser SDK always sends it; anything else is a
+	// hand-forged request.
+	if !instanceCustomPageEnabled(instance.Config, req.PageSlug) {
+		http.Error(w, "page not enabled for this instance", http.StatusForbidden)
+		return
+	}
+
+	// Validate + clamp before touching the edge.
+	timeoutSec, verr := sanitizePageAction(req.Type, req.Command, req.Path, req.Content, req.Args, req.Env, req.Timeout)
+	if verr != nil {
+		http.Error(w, verr.Error(), http.StatusBadRequest)
+		return
+	}
+
 	// Get the node to get edge connection info
 	nodeRepo := repository.NewNodeRepository(con)
 	node, nerr := nodeRepo.GetNode(instance.NodeID)
@@ -827,36 +844,6 @@ func ExecuteCustomPageActionHandler(w http.ResponseWriter, r *http.Request) {
 	token, terr := nodeRepo.PlainToken(instance.NodeID)
 	if terr != nil || token == "" {
 		http.Error(w, "node has no usable edge token (rotate it first)", http.StatusBadRequest)
-		return
-	}
-
-	// Verify the instance has at least one custom page enabled in its spec
-	// This ensures the action is being called from a valid custom page context
-	var spec map[string]any
-	if instance.Config != "" {
-		_ = json.Unmarshal([]byte(instance.Config), &spec)
-	}
-	enabledPages := getEnabledPages(spec)
-	hasCustomPage := false
-	for _, p := range enabledPages {
-		// Check if this page is a custom page in the spec
-		pages, _ := spec["pages"].([]any)
-		for _, page := range pages {
-			pm, ok := page.(map[string]any)
-			if !ok {
-				continue
-			}
-			if pm["slug"] == p && pm["kind"] == "custom" {
-				hasCustomPage = true
-				break
-			}
-		}
-		if hasCustomPage {
-			break
-		}
-	}
-	if !hasCustomPage {
-		http.Error(w, "no custom pages enabled for this instance", http.StatusForbidden)
 		return
 	}
 
@@ -873,17 +860,14 @@ func ExecuteCustomPageActionHandler(w http.ResponseWriter, r *http.Request) {
 		"content": req.Content,
 		"args":    req.Args,
 		"env":     req.Env,
-		"timeout": req.Timeout,
+		"timeout": timeoutSec,
 	}
 
 	body, _ := json.Marshal(edgeReq)
 	httpReq, _ := http.NewRequestWithContext(r.Context(), "POST", ec.BaseURL()+"/api/edge/page-action", bytes.NewReader(body))
 	httpReq.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{Timeout: time.Duration(req.Timeout+5) * time.Second}
-	if req.Timeout == 0 {
-		client.Timeout = 35 * time.Second
-	}
+	client := &http.Client{Timeout: time.Duration(timeoutSec+5) * time.Second}
 
 	resp, err := client.Do(httpReq)
 	if err != nil {
