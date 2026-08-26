@@ -92,7 +92,7 @@ const UserForm: React.FC = () => {
         saving={false}
         submitLabel="Save"
       >
-        <p className="text-gray-400 text-sm">Loading…</p>
+        <FormSkeleton fields={4} />
       </FormPage>
     );
   }
