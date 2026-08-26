@@ -223,12 +223,15 @@ function HtmlBlockFrame({ html }: { html: string }) {
     return () => window.removeEventListener('message', onMsg);
   }, []);
   // NOTE: html is interpolated into srcDoc served on an opaque origin; the
-  // sandbox attribute (NO allow-same-origin) is what contains it.
+  // sandbox attribute (NO allow-same-origin) is what contains it. The ACTIVE
+  // panel theme's tokens are baked in (same stylesheet the HTML page iframe
+  // gets) so html blocks follow the theme like every other surface.
   const doc = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
 *{box-sizing:border-box}
-body{margin:0;padding:.25rem;color:#e5e7eb;background:transparent;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;line-height:1.6;overflow-x:hidden}
+body{margin:0;padding:.25rem;color:var(--ks-body,#e5e7eb);background:transparent;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;line-height:1.6;overflow-x:hidden}
 img{max-width:100%}table{border-collapse:collapse;width:100%}
-a{color:#7dd3fc}
+a{color:var(--ks-link,#7dd3fc)}
+${activePageThemeCss()}
 </style></head><body>${html}<script>
 (function(){var last=0;function r(){var h=Math.ceil(document.documentElement.getBoundingClientRect().height);if(h!==last){last=h;try{window.parent.postMessage({type:'ks-block-resize',height:h},'*')}catch(e){}}}setInterval(r,400);window.addEventListener('load',r)})();
 </script></body></html>`;
