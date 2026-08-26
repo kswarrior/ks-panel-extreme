@@ -6,6 +6,7 @@ import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import InstanceCard, { CardAction } from '@/features/instances/components/InstanceCard';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import GlassCard from '@/shared/components/ui/Card';
+import { useConfirm } from '@/shared/stores/confirmStore';
 
 const EmptyStateIllustration: React.FC = () => (
   <div className="flex flex-col items-center gap-4">
@@ -38,6 +39,7 @@ type StatusKey = 'all' | 'running' | 'stopped' | 'creating' | 'installing' | 'er
 
 const Instances: React.FC = () => {
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const [instances, setInstances] = useState<Instance[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -113,7 +115,7 @@ const Instances: React.FC = () => {
   };
 
   const unsuspend = async (instance: Instance) => {
-    if (!confirm(`Unsuspend "${instance.name}"?`)) return;
+    if (!(await confirm({ title: 'Unsuspend instance', message: `Unsuspend "${instance.name}"?`, tone: 'default', confirmLabel: 'Unsuspend' }))) return;
     setSuspendingId(instance.id);
     try {
       await unsuspendInstance(instance.id);
@@ -131,7 +133,7 @@ const Instances: React.FC = () => {
   };
 
   const handleDelete = async (instance: Instance) => {
-    if (!confirm(`Destroy "${instance.name}"? This runs driver destroy on the edge and removes the row.`)) return;
+    if (!(await confirm({ title: 'Destroy instance', message: `Destroy "${instance.name}"? This runs driver destroy on the edge and removes the row.`, tone: 'danger', confirmLabel: 'Destroy' }))) return;
     setBusyId(instance.id);
     try {
       await destroyInstance(instance.id);
@@ -171,7 +173,7 @@ const Instances: React.FC = () => {
     {
       label: 'Destroy',
       tone: 'destroy',
-      onClick: () => { if (confirm(`Destroy "${i.name}"? This runs driver destroy on the edge and removes the row.`)) act(i.id, 'destroy'); },
+      onClick: async () => { if (await confirm({ title: 'Destroy instance', message: `Destroy "${i.name}"? This runs driver destroy on the edge and removes the row.`, tone: 'danger', confirmLabel: 'Destroy' })) act(i.id, 'destroy'); },
       busy: busyId === i.id,
       disabled: busyId === i.id,
     },
