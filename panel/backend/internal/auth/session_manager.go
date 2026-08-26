@@ -78,7 +78,7 @@ func (sm *SessionManager) GetSession(token string) (*Session, bool) {
 	// shared *Session. Concurrent RLock holders writing the same field is a
 	// data race (go test -race flags it).
 	sm.mu.Lock()
-	defer sm.mu.Lock()
+	defer sm.Unlock_()
 
 	session, exists := sm.sessions[token]
 	if !exists || !session.IsActive {
