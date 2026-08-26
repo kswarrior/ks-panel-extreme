@@ -29,22 +29,19 @@ func TestStoreBeginRefusesConcurrentStart(t *testing.T) {
 		t.Fatalf("record not reset: %+v", *rec2)
 	}
 	var wg sync.WaitGroup
-	raceOK := make(chan bool, 1)
+	var refused int64
 	s.begin("lxd:c", nil)
 	wg.Add(8)
 	for i := 0; i < 8; i++ {
 		go func() {
 			defer wg.Done()
 			if _, ok := s.begin("lxd:c", nil); !ok {
-				raceOK <- false
+				atomic.AddInt64(&refused, 1)
 			}
 		}()
 	}
 	wg.Wait()
-	close(raceOK)
-	for ok := range raceOK {
-		if !ok {
-			t.Fatal("a concurrent goroutine claimed a running key")
-		}
+	if refused != 8 {
+		t.Fatalf("expected all 8 concurrent claims refused, got %d", refused)
 	}
 }

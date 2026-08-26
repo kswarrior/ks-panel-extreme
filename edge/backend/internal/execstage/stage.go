@@ -135,10 +135,16 @@ func Script(env map[string]string, files []File, command string) (string, error)
 	return b.String(), nil
 }
 
-// quote shell-single-quotes a path fragment for interpolation inside the
-// double-quoted "$STAGE/..." expansion.
+// quote renders s as a fully single-quoted POSIX shell word ('…'), with
+// embedded single quotes escaped the standard way ('\''-style), so EVERY
+// metacharacter ($, backtick, ", \, spaces) stays literal when the script
+// runs. Callers concatenate it AFTER the separately-double-quoted "$STAGE/"
+// prefix — keeping variable expansion and the literal path in separate
+// quoting contexts is what stops a hostile staged path from executing as
+// shell substitution inside the workload (execrpc) or on the edge host
+// itself (hostexec).
 func quote(s string) string {
-	return strings.ReplaceAll(s, "'", "'\\''")
+	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
 }
 
 // newMarker returns an unpredictable heredoc terminator so file content can
