@@ -207,7 +207,8 @@ export function createCustomPageSDK(
   // --- Fetch helper ---
   // Content-Type is only defaulted for JSON bodies: multipart uploads
   // (FormData) must let the browser set the boundary parameter, and raw
-  // endpoints (e.g. /files/read) answer text — parsed below by content type.
+  // endpoints (e.g. /files/read) answer text — parsed below by content AND
+  // shape so a mislabelled raw-file response never throws.
   async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
     const body = options?.body;
     const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
