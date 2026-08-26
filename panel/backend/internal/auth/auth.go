@@ -21,9 +21,9 @@ import (
 var bcryptCost = 12
 
 var (
-	secretOnce   sync.Once
+	secretOnce    sync.Once
 	sessionSecret []byte
-	secretErr    error
+	secretErr     error
 )
 
 // loadSessionSecret resolves KSPANEL_SESSION_SECRET exactly once per

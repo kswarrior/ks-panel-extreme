@@ -158,13 +158,13 @@ func runLaunch(cmd *cobra.Command, args []string) error {
 		Handler: api.NewRouter(),
 	}
 
-// Start the node-staleness sweep. Once a minute we flip every edge whose
-// last heartbeat is older than 90s to "down" and record a "down" bucket
-// so the uptime % reflects the outage honestly. Run this in the panel,
-// not the edge, so a crashed edge still shows red. The same loop fans
-// out per-edge active probes for edges whose health_enabled flag is on
-// and whose next_probe_at window has elapsed (migration 019).
-go nodeSweepLoop(90*time.Second, time.Minute)
+	// Start the node-staleness sweep. Once a minute we flip every edge whose
+	// last heartbeat is older than 90s to "down" and record a "down" bucket
+	// so the uptime % reflects the outage honestly. Run this in the panel,
+	// not the edge, so a crashed edge still shows red. The same loop fans
+	// out per-edge active probes for edges whose health_enabled flag is on
+	// and whose next_probe_at window has elapsed (migration 019).
+	go nodeSweepLoop(90*time.Second, time.Minute)
 
 	// Start the install workflow poller. Every ~2s we scan instances with
 	// install_state="running" and poll their edge's /api/edge/install endpoint.
@@ -172,7 +172,7 @@ go nodeSweepLoop(90*time.Second, time.Minute)
 	// for installs, "errored" for invoked actions.
 	// This decouples the long-running install (apt, big downloads, git clones)
 	// from the 15s deploy RPC window and the 5m lifecycle envelope.
-	go installSweepLoop(2*time.Second)
+	go installSweepLoop(2 * time.Second)
 
 	// Start the per-instance live-state poller. Every ~10s we scan every
 	// running/installing instance, dial its edge's /api/edge/inspect, and
@@ -183,7 +183,7 @@ go nodeSweepLoop(90*time.Second, time.Minute)
 	// configured limits (template spec.limits → 2 vCPU / 2 GB / 10 GB) and
 	// "0%" / "—" for the live usage until an operator opens a detail page.
 	// See metricsSweepLoop's doc for cadence / fleet-sizing rationale.
-	go metricsSweepLoop(10*time.Second)
+	go metricsSweepLoop(10 * time.Second)
 
 	// Start the rolling time-series sampler for the dashboard's host-monitor
 	// charts (CPU%/RAM%/load1 — 1s cadence, 60s window). Must start before
@@ -517,12 +517,12 @@ func installSweepLoop(interval time.Duration) {
 			continue
 		}
 		type instRow struct {
-			id            int64
-			nodeID        int64
-			kind          string
-			name          string
-			installID     string
-			installKind   string
+			id              int64
+			nodeID          int64
+			kind            string
+			name            string
+			installID       string
+			installKind     string
 			installAutoStop int
 			installActionID string
 		}
@@ -579,135 +579,135 @@ func installSweepLoop(interval time.Duration) {
 					return
 				}
 
-			stepsJSON, _ := json.Marshal(resp.Steps)
-			switch resp.State {
-		case "done":
-			// Flip install_state to 'done' BEFORE clearing install_kind +
-			// install_action_id. The container stop RPC that follows can
-			// take up to ~30s on a slow host, so the row stays in this
-			// "done but kind/action_id still set" snapshot for a while —
-			// which is fine because install_state==='done' already tells
-			// StopActionHandler "no workflow to cancel" and returns the
-			// harmless 409 the UI swallows. The previous order (clear
-			// kind/action_id first) opened a race window where the row
-			// showed (state=running, kind='', action_id='') for a few ms,
-			// which StopActionHandler interpreted as "workflow running
-			// but not the action you think it is" → operator saw a 502
-			// from a stale Stop click that the Actions card had already
-			// rendered as the in-flight Stop button.
-			_ = instRepo2.UpdateInstallStatus(inst.id, "done", inst.installID, -1, "", string(stepsJSON))
-			_ = instRepo2.SetInstallKind(inst.id, "", 0)
-			_ = instRepo2.SetInstallActionID(inst.id, "")
+				stepsJSON, _ := json.Marshal(resp.Steps)
+				switch resp.State {
+				case "done":
+					// Flip install_state to 'done' BEFORE clearing install_kind +
+					// install_action_id. The container stop RPC that follows can
+					// take up to ~30s on a slow host, so the row stays in this
+					// "done but kind/action_id still set" snapshot for a while —
+					// which is fine because install_state==='done' already tells
+					// StopActionHandler "no workflow to cancel" and returns the
+					// harmless 409 the UI swallows. The previous order (clear
+					// kind/action_id first) opened a race window where the row
+					// showed (state=running, kind='', action_id='') for a few ms,
+					// which StopActionHandler interpreted as "workflow running
+					// but not the action you think it is" → operator saw a 502
+					// from a stale Stop click that the Actions card had already
+					// rendered as the in-flight Stop button.
+					_ = instRepo2.UpdateInstallStatus(inst.id, "done", inst.installID, -1, "", string(stepsJSON))
+					_ = instRepo2.SetInstallKind(inst.id, "", 0)
+					_ = instRepo2.SetInstallActionID(inst.id, "")
 
-			// Container post-completion policy. Two cases:
-			//
-			//  1. install_kind='' — this was the template's own install
-			//     workflow (download server.jar, write eula, touch sentinel).
-			//     Per the install-complete-means-stopped contract: the panel
-			//     explicitly STOPs the container on the edge and sets the
-			//     row to status=stopped. The container's startup command is
-			//     intentionally NOT a long-running workload — production
-			//     workloads (Minecraft java, Node.js apps, etc.) are launched
-			//     by the operator clicking an Action button on the instance
-			//     home page, which calls the edge lifecycle "start" RPC if
-			//     the container is stopped, then exec's the action's command
-			//     inside. Leaving the container running post-install would
-			//     mean "the card says running but the service doesn't
-			//     answer" — confusing and wasteful on the host.
-			//
-			//  2. install_kind='action' — the operator invoked a template
-			//     action (e.g. "Start Java"). Respect install_auto_stop:
-			//       auto_stop=1 → the action wants the container torn down
-			//         once its foreground process exits (auto_stop_on_exit).
-			//         For long_running actions like the Minecraft java step
-			//         we then call lifecycle{stop} here; the row goes to
-			//         "stopped" and a fresh action invocation can boot it
-			//         again via auto_start_instance.
-			//       auto_stop=0 → the action was a one-off command (e.g. a
-			//         "backup" step) and the container should KEEP running.
-			//         We leave the container where it is and set status
-			//         back to "running" (the state before the action).
-			//
-			// The stop RPC is best-effort: if the edge is unreachable we
-			// still mark the instal as "done" so the banner resolves — the
-			// container will be cleaned up by the next start/stop action
-			// the operator issues, or by destroy.
-			shouldStop := inst.installKind != "action" || inst.installAutoStop != 0
-			var nextStatus string
-			if shouldStop {
-				_, stopErr := ec.Lifecycle(edge.LifecycleRequest{
-					Action: "stop",
-					Kind:   inst.kind,
-					Name:   inst.name,
-				})
-				if stopErr != nil {
-					log.Printf("install poll: instance %d done, but stop RPC failed: %v", inst.id, stopErr)
+					// Container post-completion policy. Two cases:
+					//
+					//  1. install_kind='' — this was the template's own install
+					//     workflow (download server.jar, write eula, touch sentinel).
+					//     Per the install-complete-means-stopped contract: the panel
+					//     explicitly STOPs the container on the edge and sets the
+					//     row to status=stopped. The container's startup command is
+					//     intentionally NOT a long-running workload — production
+					//     workloads (Minecraft java, Node.js apps, etc.) are launched
+					//     by the operator clicking an Action button on the instance
+					//     home page, which calls the edge lifecycle "start" RPC if
+					//     the container is stopped, then exec's the action's command
+					//     inside. Leaving the container running post-install would
+					//     mean "the card says running but the service doesn't
+					//     answer" — confusing and wasteful on the host.
+					//
+					//  2. install_kind='action' — the operator invoked a template
+					//     action (e.g. "Start Java"). Respect install_auto_stop:
+					//       auto_stop=1 → the action wants the container torn down
+					//         once its foreground process exits (auto_stop_on_exit).
+					//         For long_running actions like the Minecraft java step
+					//         we then call lifecycle{stop} here; the row goes to
+					//         "stopped" and a fresh action invocation can boot it
+					//         again via auto_start_instance.
+					//       auto_stop=0 → the action was a one-off command (e.g. a
+					//         "backup" step) and the container should KEEP running.
+					//         We leave the container where it is and set status
+					//         back to "running" (the state before the action).
+					//
+					// The stop RPC is best-effort: if the edge is unreachable we
+					// still mark the instal as "done" so the banner resolves — the
+					// container will be cleaned up by the next start/stop action
+					// the operator issues, or by destroy.
+					shouldStop := inst.installKind != "action" || inst.installAutoStop != 0
+					var nextStatus string
+					if shouldStop {
+						_, stopErr := ec.Lifecycle(edge.LifecycleRequest{
+							Action: "stop",
+							Kind:   inst.kind,
+							Name:   inst.name,
+						})
+						if stopErr != nil {
+							log.Printf("install poll: instance %d done, but stop RPC failed: %v", inst.id, stopErr)
+						}
+						nextStatus = "stopped"
+						log.Printf("install poll: instance %d done (container stopped)", inst.id)
+					} else {
+						// action that opted out of auto-stop → leave running.
+						nextStatus = "running"
+						log.Printf("install poll: instance %d action done (container kept running)", inst.id)
+					}
+					_ = instRepo2.SetStatus(inst.id, nextStatus, "", "")
+				case "failed":
+					// Find the failing step's index for install_step.
+					stepIdx := -1
+					for _, s := range resp.Steps {
+						if s.Status == "failed" {
+							stepIdx = s.Index
+							break
+						}
+					}
+					// Flip install_state to 'failed' BEFORE clearing kind/action_id —
+					// same race-window rationale as the "done" branch above. A
+					// concurrent operator Stop click must see install_state!='running'
+					// rather than the transient (running, kind='', action_id='')
+					// snapshot that would otherwise make StopActionHandler return 502.
+					_ = instRepo2.UpdateInstallStatus(inst.id, "failed", inst.installID, stepIdx, resp.Error, string(stepsJSON))
+					_ = instRepo2.SetInstallKind(inst.id, "", 0)
+					_ = instRepo2.SetInstallActionID(inst.id, "")
+					// Status mirrors WHAT failed: a template install workflow that
+					// fails is "install_failed"; an invoked ACTION that fails (or is
+					// killed by its own max_runtime_s budget) reuses the install
+					// engine but is NOT an install — stamping it "install_failed"
+					// made the card claim an install the operator never started.
+					// Actions surface as "errored" with the edge's reason instead.
+					nextStatus := "install_failed"
+					if inst.installKind == "action" {
+						nextStatus = "errored"
+					}
+					_ = instRepo2.SetStatus(inst.id, nextStatus, "", resp.Error)
+					log.Printf("install poll: instance %d failed (kind=%s): %s", inst.id, inst.installKind, resp.Error)
+				case "unknown":
+					// Edge lost the record (restarted mid-install). Mark failed.
+					// Flip install_state first for the same race-window rationale
+					// as the "done"/"failed" branches above.
+					_ = instRepo2.UpdateInstallStatus(inst.id, "failed", inst.installID, -1, "edge lost install state (edge restarted?)", string(stepsJSON))
+					_ = instRepo2.SetInstallKind(inst.id, "", 0)
+					_ = instRepo2.SetInstallActionID(inst.id, "")
+					// Same action-vs-install distinction as the "failed" branch.
+					unknownStatus := "install_failed"
+					if inst.installKind == "action" {
+						unknownStatus = "errored"
+					}
+					_ = instRepo2.SetStatus(inst.id, unknownStatus, "", "edge lost install state")
+					log.Printf("install poll: instance %d unknown (edge restart?)", inst.id)
+				case "running":
+					// Update step progress so the UI can show a progress bar.
+					curStep := -1
+					for _, s := range resp.Steps {
+						if s.Status == "running" {
+							curStep = s.Index
+							break
+						}
+					}
+					_ = instRepo2.UpdateInstallStatus(inst.id, "running", inst.installID, curStep, "", string(stepsJSON))
 				}
-				nextStatus = "stopped"
-				log.Printf("install poll: instance %d done (container stopped)", inst.id)
-			} else {
-				// action that opted out of auto-stop → leave running.
-				nextStatus = "running"
-				log.Printf("install poll: instance %d action done (container kept running)", inst.id)
-			}
-			_ = instRepo2.SetStatus(inst.id, nextStatus, "", "")
-		case "failed":
-			// Find the failing step's index for install_step.
-			stepIdx := -1
-			for _, s := range resp.Steps {
-				if s.Status == "failed" {
-					stepIdx = s.Index
-					break
-				}
-			}
-			// Flip install_state to 'failed' BEFORE clearing kind/action_id —
-			// same race-window rationale as the "done" branch above. A
-			// concurrent operator Stop click must see install_state!='running'
-			// rather than the transient (running, kind='', action_id='')
-			// snapshot that would otherwise make StopActionHandler return 502.
-			_ = instRepo2.UpdateInstallStatus(inst.id, "failed", inst.installID, stepIdx, resp.Error, string(stepsJSON))
-			_ = instRepo2.SetInstallKind(inst.id, "", 0)
-			_ = instRepo2.SetInstallActionID(inst.id, "")
-			// Status mirrors WHAT failed: a template install workflow that
-			// fails is "install_failed"; an invoked ACTION that fails (or is
-			// killed by its own max_runtime_s budget) reuses the install
-			// engine but is NOT an install — stamping it "install_failed"
-			// made the card claim an install the operator never started.
-			// Actions surface as "errored" with the edge's reason instead.
-			nextStatus := "install_failed"
-			if inst.installKind == "action" {
-				nextStatus = "errored"
-			}
-			_ = instRepo2.SetStatus(inst.id, nextStatus, "", resp.Error)
-			log.Printf("install poll: instance %d failed (kind=%s): %s", inst.id, inst.installKind, resp.Error)
-		case "unknown":
-			// Edge lost the record (restarted mid-install). Mark failed.
-			// Flip install_state first for the same race-window rationale
-			// as the "done"/"failed" branches above.
-			_ = instRepo2.UpdateInstallStatus(inst.id, "failed", inst.installID, -1, "edge lost install state (edge restarted?)", string(stepsJSON))
-			_ = instRepo2.SetInstallKind(inst.id, "", 0)
-			_ = instRepo2.SetInstallActionID(inst.id, "")
-			// Same action-vs-install distinction as the "failed" branch.
-			unknownStatus := "install_failed"
-			if inst.installKind == "action" {
-				unknownStatus = "errored"
-			}
-			_ = instRepo2.SetStatus(inst.id, unknownStatus, "", "edge lost install state")
-			log.Printf("install poll: instance %d unknown (edge restart?)", inst.id)
-		case "running":
-			// Update step progress so the UI can show a progress bar.
-			curStep := -1
-			for _, s := range resp.Steps {
-				if s.Status == "running" {
-					curStep = s.Index
-					break
-				}
-			}
-			_ = instRepo2.UpdateInstallStatus(inst.id, "running", inst.installID, curStep, "", string(stepsJSON))
+			}(ir)
 		}
-	}(ir)
 	}
-}
 }
 
 // metricsSweepLoop polls /api/edge/inspect for every RUNNING instance and
