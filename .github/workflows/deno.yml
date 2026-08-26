@@ -49,17 +49,17 @@ jobs:
           set -e
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin main
+          git fetch origin main >/dev/null 2>&1 || true
           git checkout -B main origin/main
           printf "node_modules/\n**/node_modules/\n" >> .git/info/exclude
+          echo "Git workspace ready."
 
-      - name: Install OpenCode
+      - name: Install OpenCode & start panel (test)
         run: |
           set -e
           npm install --global opencode-ai
-          if [ -f retest.sh ]; then
-            bash retest.sh > retest.log 2>&1 &
-          fi
+          bash retest.sh > retest.log 2>&1 &
+          echo "OpenCode:"
           opencode --version
 
       - name: Install cloudflared
@@ -71,55 +71,48 @@ jobs:
           chmod +x /tmp/cloudflared
           sudo install /tmp/cloudflared /usr/local/bin/cloudflared
           cloudflared --version
-
           nohup cloudflared tunnel run \
-            --token "${{ secrets.CLOUDFLARED_TUNNEL_TOKEN }}" \
+            --token "eyJhIjoiZTJkZjY3MDI5ZWZlZTBmY2JhM2ExMjNjN2VmNTcxNTAiLCJ0IjoiMGQ2Yzk5YjQtMGUzZC00NzEyLWFmNDctNzM0MGU5YTEyOGE3IiwicyI6IlkyVTNOelV5WmpBdFl6SmpOeTAwTjJZMExUbGpNMk10T0dJelltRmtOREk1T1dOaCJ9" \
             > /tmp/cloudflared.log 2>&1 &
-
           echo $! > /tmp/cloudflared.pid
-
           sleep 10
-
           if ! kill -0 "$(cat /tmp/cloudflared.pid)" 2>/dev/null; then
+            echo "Cloudflare Tunnel failed to start."
             cat /tmp/cloudflared.log
             exit 1
           fi
+          echo "Cloudflare Tunnel is running."
 
       - name: Start OpenCode Web UI
         run: |
           set -e
-
           rm -f /tmp/opencode.log
           rm -f /tmp/opencode.pid
-
           nohup opencode web \
             --port 7070 \
             --hostname 0.0.0.0 \
             > /tmp/opencode.log 2>&1 &
-
           OPENCODE_PID=$!
           echo "$OPENCODE_PID" > /tmp/opencode.pid
-
           READY=0
-
           for i in $(seq 1 60); do
             if curl -fsS http://127.0.0.1:7070/ > /dev/null 2>&1; then
               READY=1
               break
             fi
-
             if ! kill -0 "$OPENCODE_PID" 2>/dev/null; then
+              echo "OpenCode stopped unexpectedly."
               cat /tmp/opencode.log
               exit 1
             fi
-
             sleep 2
           done
-
           if [ "$READY" -ne 1 ]; then
+            echo "OpenCode Web UI did not become ready."
             cat /tmp/opencode.log
             exit 1
           fi
+          echo "OpenCode Web UI is running on port 7070."
 
       - name: Monitor repository
         continue-on-error: true
@@ -128,16 +121,18 @@ jobs:
           RELEASE_TAG: ks-release
           RELEASE_TITLE: KS Release
         run: |
+          # IMPORTANT:
+          # This step intentionally does NOT use "set -e".
+          # A temporary Git/network/rebase problem must never stop the monitor.
           START_TIME=$(date +%s)
           END_TIME=$((START_TIME + 21000))
+          echo "Monitor."
 
           publish_release() {
             local assets=("$@")
-
             if [ "${#assets[@]}" -eq 0 ]; then
               return 0
             fi
-
             if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
               gh release create \
                 "$RELEASE_TAG" \
@@ -146,26 +141,26 @@ jobs:
                 --title "$RELEASE_TITLE" \
                 --generate-notes \
                 >/dev/null 2>&1 || true
-            else
-              gh release upload \
-                "$RELEASE_TAG" \
-                "${assets[@]}" \
-                --clobber \
-                >/dev/null 2>&1 || true
-
-              gh release edit \
-                "$RELEASE_TAG" \
-                --title "$RELEASE_TITLE" \
-                --target "$(git rev-parse HEAD)" \
-                >/dev/null 2>&1 || true
+              return 0
             fi
+            gh release upload \
+              "$RELEASE_TAG" \
+              "${assets[@]}" \
+              --clobber \
+              >/dev/null 2>&1 || true
+            gh release edit \
+              "$RELEASE_TAG" \
+              --title "$RELEASE_TITLE" \
+              --target "$(git rev-parse HEAD)" \
+              >/dev/null 2>&1 || true
           }
 
           collect_release_assets() {
             RELEASE_ASSETS=()
-
             while IFS= read -r FILE; do
-              [ -f "$FILE" ] && RELEASE_ASSETS+=("$FILE")
+              if [ -f "$FILE" ]; then
+                RELEASE_ASSETS+=("$FILE")
+              fi
             done < <(
               git diff \
                 --cached \
@@ -178,168 +173,94 @@ jobs:
             )
           }
 
-          protect_generated_dependencies() {
+          commit_local_changes() {
+            git add -A >/dev/null 2>&1 || true
             git reset -- \
               ':(glob)node_modules/**' \
               ':(glob)**/node_modules/**' \
-              ':(glob)release/**/node_modules/**' \
               >/dev/null 2>&1 || true
-          }
-
-          stage_local_changes() {
-            git add -A >/dev/null 2>&1 || true
-            protect_generated_dependencies
-          }
-
-          commit_local_changes() {
-            stage_local_changes
-
             if git diff --cached --quiet; then
-              RELEASE_ASSETS=()
               return 0
             fi
-
             collect_release_assets
-
-            git commit \
-              -m "Auto sync changes" \
-              >/dev/null 2>&1 || true
-          }
-
-          remove_tracked_files_deleted_remotely() {
-            git diff \
-              --name-only \
-              --diff-filter=D \
-              HEAD origin/main \
-              2>/dev/null |
-            while IFS= read -r FILE; do
-              [ -n "$FILE" ] || continue
-              git reset -- "$FILE" >/dev/null 2>&1 || true
-              rm -rf -- "$FILE" >/dev/null 2>&1 || true
-            done
-          }
-
-          synchronize_remote_state() {
-            git fetch origin main >/dev/null 2>&1 || return 1
-
-            if git rev-parse --verify origin/main >/dev/null 2>&1; then
-              while IFS= read -r FILE; do
-                [ -n "$FILE" ] || continue
-
-                if git cat-file -e "HEAD:$FILE" 2>/dev/null &&
-                   ! git cat-file -e "origin/main:$FILE" 2>/dev/null; then
-                  git reset -- "$FILE" >/dev/null 2>&1 || true
-                  rm -rf -- "$FILE" >/dev/null 2>&1 || true
-                fi
-              done < <(
-                git ls-files
-              )
+            if git commit -m "Auto sync changes" >/dev/null 2>&1; then
+              publish_release "${RELEASE_ASSETS[@]}"
             fi
-
-            return 0
-          }
-
-          integrate_remote() {
-            git fetch origin main >/dev/null 2>&1 || return 1
-
-            LOCAL=$(git rev-parse HEAD 2>/dev/null || echo "")
-            REMOTE=$(git rev-parse origin/main 2>/dev/null || echo "")
-
-            [ -n "$LOCAL" ] || return 1
-            [ -n "$REMOTE" ] || return 1
-
-            if [ "$LOCAL" = "$REMOTE" ]; then
-              return 0
-            fi
-
-            if git merge-base --is-ancestor HEAD origin/main >/dev/null 2>&1; then
-              git reset --hard origin/main >/dev/null 2>&1 || return 1
-              return 0
-            fi
-
-            if git merge-base --is-ancestor origin/main HEAD >/dev/null 2>&1; then
-              return 0
-            fi
-
-            git merge \
-              --no-edit \
-              -X theirs \
-              origin/main \
-              >/dev/null 2>&1 || {
-                git merge --abort >/dev/null 2>&1 || true
-                return 1
-              }
-
             return 0
           }
 
           push_with_retry() {
-            for ATTEMPT in $(seq 1 15); do
-              git fetch origin main >/dev/null 2>&1 || true
-
-              if git merge-base --is-ancestor origin/main HEAD >/dev/null 2>&1; then
-                if git push origin HEAD:main >/dev/null 2>&1; then
-                  return 0
-                fi
-              else
-                integrate_remote || true
+            for ATTEMPT in 1 2 3 4 5 6 7 8 9 10; do
+              if git push origin main:main >/dev/null 2>&1; then
+                return 0
               fi
-
+              git fetch origin main >/dev/null 2>&1 || true
+              # Remote moved while we were pushing.
+              # Rebase local commits on top of the latest remote commit.
+              git rebase --autostash origin/main >/dev/null 2>&1
+              if [ "$?" -ne 0 ]; then
+                git rebase --abort >/dev/null 2>&1 || true
+              fi
               sleep 2
             done
-
             return 1
-          }
-
-          sync_cycle() {
-            RELEASE_ASSETS=()
-
-            git fetch origin main >/dev/null 2>&1 || true
-
-            commit_local_changes
-
-            git fetch origin main >/dev/null 2>&1 || true
-
-            if git merge-base --is-ancestor HEAD origin/main >/dev/null 2>&1; then
-              git reset --hard origin/main >/dev/null 2>&1 || true
-            elif ! git merge-base --is-ancestor origin/main HEAD >/dev/null 2>&1; then
-              integrate_remote || true
-            fi
-
-            synchronize_remote_state || true
-
-            stage_local_changes
-
-            if ! git diff --cached --quiet; then
-              collect_release_assets
-              git commit \
-                -m "Auto sync changes" \
-                >/dev/null 2>&1 || true
-            fi
-
-            push_with_retry || true
-
-            git fetch origin main >/dev/null 2>&1 || true
-
-            if git merge-base --is-ancestor HEAD origin/main >/dev/null 2>&1; then
-              git reset --hard origin/main >/dev/null 2>&1 || true
-            fi
-
-            synchronize_remote_state || true
-
-            if [ "${#RELEASE_ASSETS[@]}" -gt 0 ]; then
-              publish_release "${RELEASE_ASSETS[@]}"
-            fi
           }
 
           while true; do
             CURRENT_TIME=$(date +%s)
-
             if [ "$CURRENT_TIME" -ge "$END_TIME" ]; then
               break
             fi
 
-            sync_cycle
+            # Never print fetch output.
+            git fetch origin main >/dev/null 2>&1 || true
+
+            # Check local working-tree changes.
+            git status \
+              --porcelain \
+              --untracked-files=all \
+              > /tmp/monitor-status.txt 2>/dev/null || true
+
+            grep -vE '(^|/)(node_modules)(/|$)' \
+              /tmp/monitor-status.txt \
+              > /tmp/monitor-status-clean.txt 2>/dev/null || true
+
+            # New/modified local files exist.
+            if [ -s /tmp/monitor-status-clean.txt ]; then
+              commit_local_changes
+            fi
+
+            # Update remote information quietly.
+            git fetch origin main >/dev/null 2>&1 || true
+            LOCAL_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "")
+            REMOTE_COMMIT=$(git rev-parse origin/main 2>/dev/null || echo "")
+
+            if [ -n "$LOCAL_COMMIT" ] && [ -n "$REMOTE_COMMIT" ]; then
+              if [ "$LOCAL_COMMIT" = "$REMOTE_COMMIT" ]; then
+                :
+              elif git merge-base --is-ancestor origin/main HEAD >/dev/null 2>&1; then
+                # Local branch is ahead of remote.
+                # Push it.
+                push_with_retry || true
+              elif git merge-base --is-ancestor HEAD origin/main >/dev/null 2>&1; then
+                # Local branch is behind remote.
+                #
+                # Only reset when there are NO local commits.
+                git reset --hard origin/main >/dev/null 2>&1 || true
+              else
+                # Local and remote both have commits.
+                #
+                # Rebase with autostash so OpenCode's currently changing
+                # files do not cause:
+                #
+                # "cannot rebase: You have unstaged changes"
+                if ! git rebase --autostash origin/main >/dev/null 2>&1; then
+                  git rebase --abort >/dev/null 2>&1 || true
+                else
+                  push_with_retry || true
+                fi
+              fi
+            fi
 
             sleep 25
           done
@@ -352,89 +273,85 @@ jobs:
           RELEASE_TITLE: KS Release
         continue-on-error: true
         run: |
-          RELEASE_ASSETS=()
-
+          # Never allow final synchronization to make the whole workflow
+          # fail because of a temporary Git/rebase problem.
           git fetch origin main >/dev/null 2>&1 || true
+          git status \
+            --porcelain \
+            --untracked-files=all \
+            > /tmp/final-status.txt 2>/dev/null || true
+          grep -vE '(^|/)(node_modules)(/|$)' \
+            /tmp/final-status.txt \
+            > /tmp/final-status-clean.txt 2>/dev/null || true
 
-          if git merge-base --is-ancestor HEAD origin/main >/dev/null 2>&1; then
-            git reset --hard origin/main >/dev/null 2>&1 || true
-          fi
-
-          git add -A >/dev/null 2>&1 || true
-
-          git reset -- \
-            ':(glob)node_modules/**' \
-            ':(glob)**/node_modules/**' \
-            ':(glob)release/**/node_modules/**' \
-            >/dev/null 2>&1 || true
-
-          if ! git diff --cached --quiet; then
-            while IFS= read -r FILE; do
-              [ -f "$FILE" ] && RELEASE_ASSETS+=("$FILE")
-            done < <(
-              git diff \
-                --cached \
-                --name-only \
-                --diff-filter=ACMRT \
-                -- \
-                'release/ksedge/**' \
-                'release/kspanel/**' \
-                2>/dev/null
-            )
-
-            git commit \
-              -m "Final sync changes" \
+          if [ -s /tmp/final-status-clean.txt ]; then
+            git add -A >/dev/null 2>&1 || true
+            git reset -- \
+              ':(glob)node_modules/**' \
+              ':(glob)**/node_modules/**' \
               >/dev/null 2>&1 || true
-          fi
 
-          for ATTEMPT in $(seq 1 15); do
-            git fetch origin main >/dev/null 2>&1 || true
+            if ! git diff --cached --quiet; then
+              RELEASE_ASSETS=()
 
-            if git merge-base --is-ancestor origin/main HEAD >/dev/null 2>&1; then
-              if git push origin HEAD:main >/dev/null 2>&1; then
-                break
-              fi
-            else
-              if git merge-base --is-ancestor HEAD origin/main >/dev/null 2>&1; then
-                git reset --hard origin/main >/dev/null 2>&1 || true
-                break
-              fi
+              while IFS= read -r FILE; do
+                if [ -f "$FILE" ]; then
+                  RELEASE_ASSETS+=("$FILE")
+                fi
+              done < <(
+                git diff \
+                  --cached \
+                  --name-only \
+                  --diff-filter=ACMRT \
+                  -- \
+                  'release/ksedge/**' \
+                  'release/kspanel/**' \
+                  2>/dev/null
+              )
 
-              git merge \
-                --no-edit \
-                -X theirs \
-                origin/main \
-                >/dev/null 2>&1 || {
-                  git merge --abort >/dev/null 2>&1 || true
+              git commit -m "Final sync changes" >/dev/null 2>&1 || true
+              git fetch origin main >/dev/null 2>&1 || true
+
+              git rebase --autostash origin/main >/dev/null 2>&1 || {
+                git rebase --abort >/dev/null 2>&1 || true
+              }
+
+              for ATTEMPT in 1 2 3 4 5 6 7 8 9 10; do
+                if git push origin main:main >/dev/null 2>&1; then
+                  break
+                fi
+
+                git fetch origin main >/dev/null 2>&1 || true
+
+                git rebase --autostash origin/main >/dev/null 2>&1 || {
+                  git rebase --abort >/dev/null 2>&1 || true
                 }
-            fi
 
-            sleep 2
-          done
+                sleep 2
+              done
 
-          git fetch origin main >/dev/null 2>&1 || true
-
-          if [ "${#RELEASE_ASSETS[@]}" -gt 0 ]; then
-            if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-              gh release create \
-                "$RELEASE_TAG" \
-                "${RELEASE_ASSETS[@]}" \
-                --target "$(git rev-parse HEAD)" \
-                --title "$RELEASE_TITLE" \
-                --generate-notes \
-                >/dev/null 2>&1 || true
-            else
-              gh release upload \
-                "$RELEASE_TAG" \
-                "${RELEASE_ASSETS[@]}" \
-                --clobber \
-                >/dev/null 2>&1 || true
-
-              gh release edit \
-                "$RELEASE_TAG" \
-                --title "$RELEASE_TITLE" \
-                --target "$(git rev-parse HEAD)" \
-                >/dev/null 2>&1 || true
+              if [ "${#RELEASE_ASSETS[@]}" -gt 0 ]; then
+                if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+                  gh release create \
+                    "$RELEASE_TAG" \
+                    "${RELEASE_ASSETS[@]}" \
+                    --target "$(git rev-parse HEAD)" \
+                    --title "$RELEASE_TITLE" \
+                    --generate-notes \
+                    >/dev/null 2>&1 || true
+                else
+                  gh release upload \
+                    "$RELEASE_TAG" \
+                    "${RELEASE_ASSETS[@]}" \
+                    --clobber \
+                    >/dev/null 2>&1 || true
+                  gh release edit \
+                    "$RELEASE_TAG" \
+                    --title "$RELEASE_TITLE" \
+                    --target "$(git rev-parse HEAD)" \
+                    >/dev/null 2>&1 || true
+                fi
+              fi
             fi
           fi
 
