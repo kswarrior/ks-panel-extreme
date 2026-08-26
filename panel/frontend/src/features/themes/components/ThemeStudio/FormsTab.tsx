@@ -1,6 +1,6 @@
 import React from 'react';
 import GlassCard from '@/shared/components/ui/Card';
-import { ColorField, Label, Text, Slider } from '@/theme/studioControls';
+import { ColorField, Label, Slider } from '@/theme/studioControls';
 
 interface FormsTabProps {
   draft: any;
@@ -58,7 +58,7 @@ export const FormsTab: React.FC<FormsTabProps> = ({ draft, patch }) => {
         <ColorField label="Background (unchecked)" value={draft.forms?.checkbox_bg_unchecked ?? 'rgba(0,0,0,0.3)'} onChange={(v) => patch('forms', { checkbox_bg_unchecked: v })} />
         <ColorField label="Background (checked)" value={draft.forms?.checkbox_bg_checked ?? '#22c55e'} onChange={(v) => patch('forms', { checkbox_bg_checked: v })} />
         <ColorField label="Border color (unchecked)" value={draft.forms?.checkbox_border_unchecked ?? 'rgba(255,255,255,0.2)'} onChange={(v) => patch('forms', { checkbox_border_unchecked: v })} />
-        <ColorField label="Border color (checked)" value={draft.forms?.checkbox_border_checked ?? '#22c55e'} onChange={(v) => patch('forms', { checkbox_border_checked: v })} />
+        <ColorField label="Border color (checked)" value={draft.forms?.checkbox_border_checked ?? '#10b981'} onChange={(v) => patch('forms', { checkbox_border_checked: v })} />
         <ColorField label="Checkmark color" value={draft.forms?.checkbox_checkmark_color ?? '#000000'} onChange={(v) => patch('forms', { checkbox_checkmark_color: v })} />
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
           <Slider label="Border radius" max={8} value={draft.forms?.checkbox_border_radius ?? 4} onChange={(v) => patch('forms', { checkbox_border_radius: v })} />
