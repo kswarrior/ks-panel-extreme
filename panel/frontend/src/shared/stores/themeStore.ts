@@ -1956,7 +1956,7 @@ input[class*="ks-radio"]:checked {
 }
 /* Toggle knob shadow — an empty token keeps the stock Tailwind shadow-md
    from index.css; any colour swaps it for a tight single-colour shadow. */
-${String(f.toggle_thumb_shadow || '').trim() ? `\n.ks-toggle .ks-toggle__thumb { box-shadow: 0 1px 3px ${safeCssValue(f.toggle_thumb_shadow)} !important; }` : ''}
+${String(f.toggle_thumb_shadow || '').trim() ? `\n.ks-toggle .ks-toggle__thumb { box-shadow: 0 1px 3px var(--ks-toggle-thumb-shadow) !important; }` : ''}
 
 /* ------------------------------------------------------------------
    Theme Studio → Components. Modal dialog + overlay scrim + strong
