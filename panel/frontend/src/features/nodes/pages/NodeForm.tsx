@@ -6,6 +6,7 @@ import FormPage from '@/shared/components/forms/FormPage';
 import GlassField, { glassFieldClass } from '@/shared/components/ui/Field';
 import GlassModal from '@/shared/components/ui/Modal';
 import LocationField from '@/shared/components/forms/LocationField/LocationField';
+import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 import type { Form, NodeFormTabId } from '../types/nodeForm';
 import { emptyForm, KSEDGE_URL, ALL_KINDS, NODEFORM_TABS } from '../types/nodeForm';
 import { buildEdgeConfig, buildBootstrapCmd } from '../utils/nodeFormUtils';
@@ -330,7 +331,7 @@ const NodeForm: React.FC = () => {
         saving={false}
         submitLabel="Save"
       >
-        <p className="text-white/60 text-sm">Loading…</p>
+        <FormSkeleton fields={5} />
       </FormPage>
     );
   }

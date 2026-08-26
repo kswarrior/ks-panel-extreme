@@ -6,6 +6,7 @@ import type { Permission, User } from '@/shared/types/user';
 import FormPage from '@/shared/components/forms/FormPage';
 import GlassField, { glassFieldClass } from '@/shared/components/ui/Field';
 import GlassModal from '@/shared/components/ui/Modal';
+import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 import {
   ALL_ACTIONS,
   AREA_PERM_KEYS,
@@ -344,7 +345,7 @@ const ApiKeyForm: React.FC = () => {
         saving={false}
         submitLabel="Save"
       >
-        <p className="text-gray-400 text-sm">Loading…</p>
+        <FormSkeleton fields={5} />
      </FormPage>
     );
   }
