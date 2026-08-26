@@ -55,10 +55,10 @@ func (r *InstancePageRepository) List() ([]models.InstancePage, error) {
 func (r *InstancePageRepository) Get(id int64) (*models.InstancePage, error) {
 	var p models.InstancePage
 	var pid sql.NullInt64
-	var name, slug, kind, category, desc, contentType, contentHTML, contentMarkdown, contentBlocks, iconSVG, actions, subPages, created, updated sql.NullString
-	err := r.db.QueryRow(`SELECT id, name, slug, kind, category, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages, created_at, updated_at
+	var name, slug, kind, category, pageType, desc, contentType, contentHTML, contentMarkdown, contentBlocks, iconSVG, actions, subPages, created, updated sql.NullString
+	err := r.db.QueryRow(`SELECT id, name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages, created_at, updated_at
 		FROM instance_pages WHERE id = ?`, id).Scan(
-		&pid, &name, &slug, &kind, &category, &desc, &contentType, &contentHTML, &contentMarkdown, &contentBlocks, &iconSVG, &actions, &subPages, &created, &updated)
+		&pid, &name, &slug, &kind, &category, &pageType, &desc, &contentType, &contentHTML, &contentMarkdown, &contentBlocks, &iconSVG, &actions, &subPages, &created, &updated)
 	if err != nil || !pid.Valid {
 		return nil, fmt.Errorf("instance page not found")
 	}
@@ -67,6 +67,7 @@ func (r *InstancePageRepository) Get(id int64) (*models.InstancePage, error) {
 	p.Slug = slug.String
 	p.Kind = kind.String
 	p.Category = category.String
+	p.PageType = pageType.String
 	p.Description = desc.String
 	p.ContentType = contentType.String
 	p.ContentHTML = contentHTML.String
@@ -86,6 +87,9 @@ type InstancePageInput struct {
 	Slug            string
 	Kind            string
 	Category        string
+	// PageType is the API "type" field (column page_type): free-form page
+	// flavor tag (dashboard, status, docs, …). "" == unset.
+	PageType        string
 	Description     string
 	ContentType     string
 	ContentHTML     string
@@ -102,8 +106,8 @@ type InstancePageInput struct {
 
 // Create inserts a new instance page.
 func (r *InstancePageRepository) Create(in InstancePageInput) (int64, error) {
-	res, err := r.db.Exec(`INSERT INTO instance_pages (name, slug, kind, category, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		in.Name, in.Slug, in.Kind, in.Category, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.IconSVG, in.Actions, in.SubPages)
+	res, err := r.db.Exec(`INSERT INTO instance_pages (name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		in.Name, in.Slug, in.Kind, in.Category, in.PageType, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.IconSVG, in.Actions, in.SubPages)
 	if err != nil {
 		return 0, err
 	}
