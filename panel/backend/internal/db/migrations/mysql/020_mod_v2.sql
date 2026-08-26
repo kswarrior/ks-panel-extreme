@@ -22,7 +22,7 @@
 
 CREATE TABLE IF NOT EXISTS mod_storage (
     mod_slug   TEXT    NOT NULL,
-    key        TEXT    NOT NULL,
+    `key`      TEXT    NOT NULL,
     value      TEXT    NOT NULL DEFAULT '{}',   -- JSON value blob
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (mod_slug, key),

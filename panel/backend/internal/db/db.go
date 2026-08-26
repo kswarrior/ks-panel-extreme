@@ -894,6 +894,9 @@ func SeedCore(d Dialect, db *sql.DB) error {
 		// idempotency in the prefix, so leave the suffix empty.
 		pgConflict = " " + suffix
 	}
+	// `key` is a MySQL reserved word and must be quoted; SQLite + Postgres
+	// accept the double-quoted form, so only MySQL needs backticks.
+	keyCol := quoteColumnName(d, "key")
 
 	// Page-level capability keys (the umbrella MANAGE_* group + granular
 	// CRUD verbs). Every page in the panel maps to one of these keys.
