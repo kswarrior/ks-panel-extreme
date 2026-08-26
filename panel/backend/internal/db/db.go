@@ -587,14 +587,17 @@ func parseCreateTable(stmt string, order int) *createTableRef {
 // captures the index + table names. "IF NOT EXISTS" may or may not follow.
 var createIndexRe = regexp.MustCompile(`(?is)^\s*CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?["'` + "`" + `]?(\w+)["'` + "`" + `]?\s+ON\s+["'` + "`" + `]?(\w+)["'` + "`" + `]?`)
 
-// bareCreateIndex reports whether stmt is a CREATE INDEX without IF NOT
-// EXISTS — the only form that breaks idempotent re-runs (MySQL lacks the
-// IF NOT EXISTS variant entirely).
+// bareCreateIndex reports whether stmt is a CREATE INDEX — every form needs
+// the runtime guard on non-SQLite dialects: migrations re-run each launch,
+// MySQL rejects both duplicate names and the "IF NOT EXISTS" clause itself.
 func bareCreateIndex(stmt string) bool {
-	if createIndexRe.FindStringSubmatch(stmt) == nil {
-		return false
-	}
-	return !regexp.MustCompile(`(?is)^\s*CREATE\s+(?:UNIQUE\s+)?INDEX\s+IF\s+NOT\s+EXISTS`).MatchString(stmt)
+	return createIndexRe.FindStringSubmatch(stmt) != nil
+}
+
+// stripIndexIfExistsClause removes "IF NOT EXISTS" from a CREATE INDEX
+// statement for engines that don't parse it (MySQL).
+func stripIndexIfExistsClause(stmt string) string {
+	return regexp.MustCompile(`(?is)^(CREATE\s+(?:UNIQUE\s+)?INDEX)\s+IF\s+NOT\s+EXISTS`).ReplaceAllString(stmt, "$1")
 }
 
 // execMigrationScript runs one migration body as individual statements.
@@ -639,9 +642,10 @@ func execMigrationScript(d Dialect, db *sql.DB, script, migration string) error 
 		}
 	}
 	// Statements stay in their original positions — an index may depend
-	// on an ALTER earlier in the same file. Bare CREATE INDEX statements
-	// (no IF NOT EXISTS) are applied through the hasIndex guard so the
-	// every-launch re-run stays idempotent on MySQL.
+	// on an ALTER earlier in the same file. Every CREATE INDEX statement
+	// is applied through the hasIndex guard on non-SQLite dialects so the
+	// every-launch re-run stays idempotent (MySQL supports neither
+	// duplicate index names nor IF NOT EXISTS).
 	for _, s := range rest {
 		if guardBareIndexes && bareCreateIndex(s) {
 			m := createIndexRe.FindStringSubmatch(s)
@@ -649,7 +653,11 @@ func execMigrationScript(d Dialect, db *sql.DB, script, migration string) error 
 			if hasIndex(d, db, table, idxName) {
 				continue
 			}
-			if err := exec(s); err != nil {
+			stmt := s
+			if d.Name() == "mysql" {
+				stmt = stripIndexIfExistsClause(stmt)
+			}
+			if err := exec(stmt); err != nil {
 				return fmt.Errorf("migration %s (%s): %w", migration, idxName, err)
 			}
 			continue
