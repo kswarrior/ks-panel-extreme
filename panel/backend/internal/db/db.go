@@ -445,6 +445,217 @@ type columnSpec struct {
 	def  string
 }
 
+// splitSQLStatements splits a migration script into its individual
+// semicolon-terminated statements. Semicolons inside single/double-quoted
+// strings, backtick identifiers and -- or /* */ comments never split, so the
+// seed rows and quoted defaults in the shipped files survive intact. Each
+// returned statement is trimmed; empty ones are dropped.
+//
+// The per-engine drivers cannot all run multi-statement batches: go-sql-driver
+// only accepts them with multiStatements=true in the DSN (Error 1064
+// otherwise) and pgx's extended protocol rejects them when bind parameters are
+// present — so the runner executes one statement at a time on every dialect.
+func splitSQLStatements(script string) []string {
+	var (
+		out     []string
+		cur     strings.Builder
+		inSq    bool // '...'
+		inDq    bool // "..."
+		inBt    bool // `...`
+		inLine  bool // -- comment
+		inBlock bool // /* comment */
+	)
+	runes := []rune(script)
+	for i := 0; i < len(runes); i++ {
+		c := runes[i]
+		switch {
+		case inLine:
+			if c == '\n' {
+				inLine = false
+				cur.WriteRune(c)
+			}
+		case inBlock:
+			if c == '*' && i+1 < len(runes) && runes[i+1] == '/' {
+				inBlock = false
+				i++
+			}
+		case inSq:
+			if c == '\'' {
+				if i+1 < len(runes) && runes[i+1] == '\'' { // '' escape
+					cur.WriteRune(c)
+					i++
+				} else {
+					inSq = false
+				}
+			}
+			cur.WriteRune(c)
+		case inDq:
+			if c == '"' {
+				if i+1 < len(runes) && runes[i+1] == '"' {
+					cur.WriteRune(c)
+					i++
+				} else {
+					inDq = false
+				}
+			}
+			cur.WriteRune(c)
+		case inBt:
+			if c == '`' {
+				inBt = false
+			}
+			cur.WriteRune(c)
+		case c == '\'':
+			inSq = true
+			cur.WriteRune(c)
+		case c == '"':
+			inDq = true
+			cur.WriteRune(c)
+		case c == '`':
+			inBt = true
+			cur.WriteRune(c)
+		case c == '-' && i+1 < len(runes) && runes[i+1] == '-':
+			inLine = true
+			i++
+		case c == '/' && i+1 < len(runes) && runes[i+1] == '*':
+			inBlock = true
+			i++
+		case c == ';':
+			if s := strings.TrimSpace(cur.String()); s != "" {
+				out = append(out, s)
+			}
+			cur.Reset()
+		default:
+			cur.WriteRune(c)
+		}
+	}
+	if s := strings.TrimSpace(cur.String()); s != "" {
+		out = append(out, s)
+	}
+	return out
+}
+
+// createTableRef is one parsed CREATE TABLE statement: the table it creates
+// plus every table its inline FOREIGN KEY ... REFERENCES clauses point at.
+type createTableRef struct {
+	stmt  string
+	name  string
+	refs  map[string]bool
+	order int
+}
+
+// parseCreateTable extracts name + referenced parents from a statement that
+// starts with CREATE TABLE. Statements that aren't CREATE TABLE return nil.
+var (
+	createTableRe = regexp.MustCompile(`(?is)^\s*CREATE\s+(?:TEMP(?:ORARY)?\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?["'` + "`" + `]?(\w+)["'` + "`" + `]?`)
+	referencesRe  = regexp.MustCompile(`(?is)REFERENCES\s+(?:ONLY\s+)?["'` + "`" + `]?(\w+)["'` + "`" + `]?`)
+)
+
+func parseCreateTable(stmt string, order int) *createTableRef {
+	m := createTableRe.FindStringSubmatch(stmt)
+	if m == nil {
+		return nil
+	}
+	ref := &createTableRef{stmt: stmt, name: strings.ToLower(m[1]), refs: map[string]bool{}, order: order}
+	for _, r := range referencesRe.FindAllStringSubmatch(stmt, -1) {
+		t := strings.ToLower(r[1])
+		if t != ref.name { // self-references don't constrain ordering
+			ref.refs[t] = true
+		}
+	}
+	return ref
+}
+
+// execMigrationScript runs one migration body as individual statements.
+// CREATE TABLE statements execute first in parents-first topological order —
+// engines validate inline FOREIGN KEY targets at creation time (SQLite
+// tolerates forward references, Postgres and MySQL do not), and the shipped
+// files declare tables in narrative rather than dependency order — then every
+// remaining statement runs in its original position. A cycle or unresolvable
+// reference falls back to the file's own order so the failure surfaces loudly
+// from the engine instead of being masked here.
+func execMigrationScript(d Dialect, db *sql.DB, script, migration string) error {
+	stmts := splitSQLStatements(script)
+
+	var creates []*createTableRef
+	rest := make([]string, 0, len(stmts))
+	for i, s := range stmts {
+		if ct := parseCreateTable(s, i); ct != nil {
+			creates = append(creates, ct)
+		} else {
+			rest = append(rest, s)
+		}
+	}
+	ordered := topoSortCreates(creates)
+
+	exec := func(stmt string) error {
+		if _, err := db.Exec(stmt); err != nil {
+			return err
+		}
+		return nil
+	}
+	for _, ct := range ordered {
+		if err := exec(ct.stmt); err != nil {
+			return fmt.Errorf("statement %d (%s): %w", ct.order+1, ct.name, err)
+		}
+	}
+	for _, s := range rest {
+		if err := exec(s); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// topoSortCreates orders CREATE TABLE statements so referenced parents come
+// first (Kahn's algorithm, original file order as the tiebreak). ok=false
+// means the statements contain a dependency cycle or reference an unknown
+// sibling — callers keep the original order.
+func topoSortCreates(creates []*createTableRef) ([]*createTableRef, bool) {
+	if len(creates) == 0 {
+		return nil, true
+	}
+	byName := make(map[string]*createTableRef, len(creates))
+	for _, c := range creates {
+		byName[c.name] = c
+	}
+	deg := make(map[string]int, len(creates))
+	dependents := make(map[string][]string, len(creates))
+	for _, c := range creates {
+		for p := range c.refs {
+			parent, ok := byName[p]
+			if !ok || parent == c {
+				continue
+			}
+			deg[c.name]++
+			dependents[p] = append(dependents[p], c.name)
+		}
+	}
+	var ready []*createTableRef
+	for _, c := range creates {
+		if deg[c.name] == 0 {
+			ready = append(ready, c)
+		}
+	}
+	sort.SliceStable(ready, func(i, j int) bool { return ready[i].order < ready[j].order })
+	out := make([]*createTableRef, 0, len(creates))
+	for len(ready) > 0 {
+		c := ready[0]
+		ready = ready[1:]
+		out = append(out, c)
+		for _, dep := range dependents[c.name] {
+			deg[dep]--
+			if deg[dep] == 0 {
+				ready = append(ready, byName[dep])
+			}
+		}
+		sort.SliceStable(ready, func(i, j int) bool { return ready[i].order < ready[j].order })
+	}
+	if len(out) != len(creates) {
+		return creates, false
+	}
+	return out, true
+}
+
 // guardedAddColumns walks each column in spec, skipping ones that already
 // exist in `table`. For each missing column it issues a single ALTER TABLE;
 // on dialects that support ADD COLUMN IF NOT EXISTS it uses that form (so a
