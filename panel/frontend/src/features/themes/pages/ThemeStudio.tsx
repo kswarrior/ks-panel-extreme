@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useThemeStore, scopeForArea, scopeForPage } from '@/shared/stores/themeStore';
+import { useThemeStore } from '@/shared/stores/themeStore';
 import { useAuthStore } from '@/shared/stores/authStore';
 import type { Theme, ThemeKey } from '@/features/themes/types/theme';
-import { AREAS, STANDALONE_PAGES } from '@/features/instance-pages/types/pageregistry';
 import Loading from '@/shared/components/ui/Loading';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import {
@@ -171,34 +170,9 @@ const ICON_CSS = (
   </svg>
 );
 
-// SCOPE_OPTIONS is the flat list of every area + page scope the custom-CSS
-// editor can target, mirroring the SAME scope model the theme-assignment
-// system uses ('area:<id>' / 'page:<id>'). Built once at module load so the
-// studio's "Add scope" picker and the per-row labels don't re-derive it on
-// every render. Adding a new area / page to the registry automatically
-// surfaces it here, so custom CSS follows the same coverage as theme
-// assignments with zero extra plumbing.
-const SCOPE_OPTIONS: Array<{ scope: string; label: string }> = (() => {
-  const out: Array<{ scope: string; label: string }> = [];
-  for (const area of AREAS) {
-    out.push({ scope: scopeForArea(area.id), label: `Whole ${area.label}` });
-    for (const p of area.pages) {
-      out.push({ scope: scopeForPage(p.id), label: `${area.label} · ${p.label}` });
-    }
-  }
-  for (const p of STANDALONE_PAGES) {
-    out.push({ scope: scopeForPage(p.id), label: `${p.areaLabel} · ${p.label}` });
-  }
-  return out;
-})();
-
-// scopeLabelFor looks up the human label for a scope key, falling back to
-// the raw key when the scope isn't in the registry (defensive: an admin who
-// saved a scope that was since removed from the registry still sees a
-// meaningful row instead of a blank chip).
-function scopeLabelFor(scope: string): string {
-  return SCOPE_OPTIONS.find((o) => o.scope === scope)?.label || scope;
-}
+// SCOPE_OPTIONS / scopeLabelFor previously lived here but were only ever
+// used by the Custom CSS tab, which now owns its own copy in
+// CustomCSSTab.tsx. Removed as dead code (V5).
 
 // Tabs surfaced in the studio sidebar. Each entry maps to a section key on
 // the Theme object; the panel below renders the matching editor block.
