@@ -698,8 +698,11 @@ func InstanceFileURLUploadHandler(w http.ResponseWriter, r *http.Request) {
 	// so we normalise here for ergonomics.
 	target := strings.TrimSpace(dto.Path)
 	if strings.HasSuffix(target, "/") {
+		// path.Base("/") is "/" itself (not ""), which used to slip past
+		// the degenerate-base guard and Join back to the bare directory —
+		// the edge then failed with "is a directory".
 		base := path.Base(u.Path)
-		if base == "" || base == "." {
+		if base == "" || base == "." || base == "/" {
 			base = "upload.bin"
 		}
 		target = path.Join(target, base)
