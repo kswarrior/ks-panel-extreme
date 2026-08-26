@@ -15,14 +15,29 @@ func DefaultPort() int { return 5050 }
 // backups stay co-located, but exposing it as a dedicated helper gives us a
 // single place to swap in XXD_DATA_HOME later without touching every caller.
 //
-// The anchor is the DEFAULT SQLite location, deliberately NOT the live
-// engine's DSN: once the panel runs on Postgres / MySQL the DSN is a
-// connection string, and deriving directories from it would scatter
-// kspanel.env, backups and uploads into folders named after DSN fragments
-// (and desynchronise SaveDBConfig's write path from LoadEnvFile's read
-// path, silently dropping persisted engine switches).
+// When a SQLite database backs the panel this stays Dir(live DSN) exactly as
+// it has always been. Once the panel runs on Postgres / MySQL the DSN is a
+// connection string rather than a path, so the anchor falls back to the
+// DEFAULT SQLite location: deriving directories from "user:pass@tcp(host)/db"
+// would scatter kspanel.env, backups and uploads into folders named after
+// DSN fragments, and desynchronise SaveDBConfig's write path from
+// LoadEnvFile's read path (which always resolves before the persisted
+// engine is applied) — silently dropping persisted engine switches.
 func DataDir() string {
+	cfg := DatabaseConfig()
+	if isSQLiteEngine(cfg.Engine) {
+		return filepath.Dir(cfg.DSN)
+	}
 	return filepath.Dir(DefaultSQLitePath())
+}
+
+// isSQLiteEngine reports whether the named engine selects the SQLite driver.
+func isSQLiteEngine(engine string) bool {
+	switch strings.ToLower(strings.TrimSpace(engine)) {
+	case "", "sqlite", "sqlite3":
+		return true
+	}
+	return false
 }
 
 // DBConfig bundles the engine selection + connection string that kspanel
