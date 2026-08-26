@@ -830,6 +830,12 @@ func actionNumberField(def map[string]any, key string) int {
 // (type/command/path/content/args/env); cosmetic fields (name, description,
 // timeout) are ignored. This is the server-side trust boundary: the browser
 // never picks what runs, it only names a stored action.
+//
+// Argument policy: by default the request's args must equal the stored args
+// element-for-element. A saved action may opt in to caller-supplied
+// arguments with `"open_args": true` — the request's args must then START
+// with the stored prefix and may append up to maxOpenActionArgs extra
+// values, which resolveExecPayload validates before anything is executed.
 func savedActionMatches(def map[string]any, typ, command, path, content string, args []string, env map[string]string) bool {
 	if actionStringField(def, "type") != typ {
 		return false
@@ -839,10 +845,15 @@ func savedActionMatches(def map[string]any, typ, command, path, content string, 
 		actionStringField(def, "content") != content {
 		return false
 	}
-	// args: JSON decodes to []any — every element must be a string and the
-	// sequence must equal the request's.
+	// args: JSON decodes to []any — every element must be a string. The
+	// stored sequence is a mandatory PREFIX; extras only pass when the def
+	// opted in via open_args (count re-checked in resolveExecPayload).
 	defArgsAny, _ := def["args"].([]any)
-	if len(defArgsAny) != len(args) {
+	open, _ := def["open_args"].(bool)
+	if len(args) < len(defArgsAny) {
+		return false
+	}
+	if !open && len(args) != len(defArgsAny) {
 		return false
 	}
 	for i, a := range defArgsAny {
