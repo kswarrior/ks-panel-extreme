@@ -81,16 +81,13 @@ func NewSessionCookie(r *http.Request, value string, expiry time.Time) *http.Coo
 		MaxAge:   maxAge,
 	}
 
-	// __Host- prefix requires Secure flag
-	// In production, always set Secure. In development, only set if actually secure.
-	if isSecure || isDevelopment {
-		c.Secure = isSecure
-	} else {
-		// Production HTTP - do not set Secure flag; browsers won't send
-		// Secure cookies over HTTP. The SecureCookieMiddleware will block
-		// non-HTTPS requests separately.
-		c.Secure = false
-	}
+	// The __Host- prefix REQUIRES the Secure attribute per RFC 6265bis —
+	// browsers discard the entire Set-Cookie when it is missing, which made
+	// every non-TLS branch here produce a cookie the browser would never
+	// store. Secure cookies ARE accepted from trustworthy origins (localhost
+	// over plain HTTP); a remote plain-HTTP host cannot use __Host- at all,
+	// and such deployments keep working through the Bearer-token path.
+	c.Secure = true
 
 	return c
 }
@@ -101,14 +98,6 @@ func NewSessionCookie(r *http.Request, value string, expiry time.Time) *http.Coo
 // cookie the browser previously stored — otherwise the browser keeps the
 // old one around.
 func ClearSessionCookie(r *http.Request) *http.Cookie {
-	isSecure := IsSecureRequest(r)
-
-	// In development, allow non-Secure for localhost
-	isDevelopment := false
-	if host := r.Host; host == "localhost:5050" || host == "127.0.0.1:5050" || strings.HasPrefix(host, "localhost:") || strings.HasPrefix(host, "127.0.0.1:") {
-		isDevelopment = true
-	}
-
 	c := &http.Cookie{
 		Name:     SessionCookieName,
 		Value:    "",
@@ -117,16 +106,9 @@ func ClearSessionCookie(r *http.Request) *http.Cookie {
 		SameSite: http.SameSiteStrictMode,
 		MaxAge:   -1,
 		Expires:  time.Now().Add(-1 * time.Hour),
-	}
-
-	// __Host- prefix requires Secure flag
-	if isSecure || isDevelopment {
-		c.Secure = isSecure
-	} else {
-		// Production HTTP - do not set Secure flag; browsers won't send
-		// Secure cookies over HTTP. The SecureCookieMiddleware will block
-		// non-HTTPS requests separately.
-		c.Secure = false
+		// Must match NewSessionCookie's Secure=true or the deletion
+		// targets a differently-attributed cookie than the stored one.
+		Secure: true,
 	}
 
 	return c
