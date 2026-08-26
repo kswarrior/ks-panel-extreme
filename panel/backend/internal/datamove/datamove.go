@@ -563,8 +563,8 @@ func coerce(v any, dstType string) any {
 	if v == nil {
 		return nil
 	}
-	isBoolCol := strings.Contains(dstType, "BOOL")
-	if isBoolCol {
+	base := normalizeTypeName(dstType)
+	if strings.Contains(base, "BOOL") {
 		switch n := v.(type) {
 		case int64:
 			return n != 0
@@ -575,13 +575,29 @@ func coerce(v any, dstType string) any {
 		}
 	}
 	if b, ok := v.([]byte); ok {
-		switch dstType {
+		switch base {
 		case "TEXT", "VARCHAR", "CHARACTER VARYING", "CHAR", "CLOB",
-			"MEDIUMTEXT", "LONGTEXT", "TINYTEXT", "NVARCHAR", "STRING":
+			"MEDIUMTEXT", "LONGTEXT", "TINYTEXT", "NVARCHAR", "STRING",
+			"NCHAR", "VARCHAR2", "JSON", "ENUM", "SET", "DATETIME",
+			"TIMESTAMP", "DATE", "TIME":
+			// Always hand the destination a Go string — a zero-length
+			// []byte (empty TEXT cell read back from MySQL) makes
+			// modernc.org/sqlite abort the statement with "cannot
+			// allocate 0 bytes of memory".
 			return string(b)
 		}
 	}
 	return v
+}
+
+// normalizeTypeName strips precision/length suffixes ("VARCHAR(255)" →
+// "VARCHAR") so driver-reported names match the coercion table above;
+// drivers differ on whether the suffix is included.
+func normalizeTypeName(t string) string {
+	if i := strings.IndexByte(t, '('); i >= 0 {
+		t = t[:i]
+	}
+	return strings.ToUpper(strings.TrimSpace(t))
 }
 
 // resyncSequences bumps every PostgreSQL serial/identity sequence past the
