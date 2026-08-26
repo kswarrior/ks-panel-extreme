@@ -113,8 +113,17 @@ type Input struct {
 	//         server alive until the operator clicks Stop),
 	//   = 0 → the legacy 30-minute default so panels that don't send the
 	//         field keep today's safety net.
-	TimeoutSec  int           `json:"timeout_sec,omitempty"`
-	SessionExec SessionExecFn `json:"-"`
+	TimeoutSec int `json:"timeout_sec,omitempty"`
+	// OnProgress, when non-nil, is called with a snapshot of the step
+	// transcript every time a step's status changes (start / retry outcome /
+	// completion). The HTTP handler uses it to publish LIVE per-step state
+	// into the poll record — without it the record only carries the final
+	// transcript when the whole workflow returns, and every mid-run poll
+	// shows all steps stuck on "pending" (the panel's install_step stays -1
+	// and no progress banner can render). The callback runs on the workflow
+	// goroutine; implementors must make their store thread-safe.
+	OnProgress  func([]StepStatus) `json:"-"`
+	SessionExec SessionExecFn      `json:"-"`
 }
 
 // StepStatus is the per-step result the panel polls back. The shape mirrors
