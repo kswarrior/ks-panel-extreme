@@ -774,14 +774,147 @@ func ExecutePageActionHandler(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(respBody)
 }
 
+// validActionTypes enumerates the executable action kinds a saved page
+// action may carry (mirrors the edge page-action input).
+var validActionTypes = map[string]bool{
+	"shell":      true,
+	"read_file":  true,
+	"write_file": true,
+	"list_files": true,
+	"docker":     true,
+	"kvm":        true,
+	"lxd":        true,
+}
+
+// minActionTimeout / maxActionTimeout bound the edge round-trip so neither a
+// negative nor an absurd client-supplied timeout can disable the HTTP client
+// deadline or wedge a panel worker for minutes.
+const (
+	minActionTimeout = 1
+	maxActionTimeout = 600
+)
+
+// clampActionTimeout coerces t into [minActionTimeout, maxActionTimeout],
+// defaulting to 30 when unset.
+func clampActionTimeout(t int) int {
+	if t <= 0 {
+		return 30
+	}
+	if t < minActionTimeout {
+		return minActionTimeout
+	}
+	if t > maxActionTimeout {
+		return maxActionTimeout
+	}
+	return t
+}
+
+// actionStringField reads a string field from a raw saved-action definition.
+func actionStringField(def map[string]any, key string) string {
+	s, _ := def[key].(string)
+	return s
+}
+
+// actionNumberField reads a finite number field from a raw saved-action
+// definition (JSON numbers decode as float64).
+func actionNumberField(def map[string]any, key string) int {
+	f, _ := def[key].(float64)
+	return int(f)
+}
+
+// savedActionMatches reports whether the incoming request payload is exactly
+// one of the page's saved actions. Comparison covers every EXECUTABLE field
+// (type/command/path/content/args/env); cosmetic fields (name, description,
+// timeout) are ignored. This is the server-side trust boundary: the browser
+// never picks what runs, it only names a stored action.
+func savedActionMatches(def map[string]any, typ, command, path, content string, args []string, env map[string]string) bool {
+	if actionStringField(def, "type") != typ {
+		return false
+	}
+	if actionStringField(def, "command") != command ||
+		actionStringField(def, "path") != path ||
+		actionStringField(def, "content") != content {
+		return false
+	}
+	// args: JSON decodes to []any — every element must be a string and the
+	// sequence must equal the request's.
+	defArgsAny, _ := def["args"].([]any)
+	if len(defArgsAny) != len(args) {
+		return false
+	}
+	for i, a := range defArgsAny {
+		if s, _ := a.(string); s != args[i] {
+			return false
+		}
+	}
+	// env: keys AND values must match exactly (nil ≡ empty).
+	defEnv, _ := def["env"].(map[string]any)
+	if len(defEnv) != len(env) {
+		return false
+	}
+	for k, v := range defEnv {
+		vs, ok := v.(string)
+		if !ok || env[k] != vs {
+			return false
+		}
+	}
+	return true
+}
+
+// savedActionExecFields extracts the executable fields from a matched saved
+// action. ok=false when the stored definition is malformed (unknown type or
+// non-string command/args/env values) — such rows fail closed instead of
+// being partially forwarded to the edge.
+func savedActionExecFields(def map[string]any) (typ, command, path, content string, args []string, env map[string]string, timeout int, ok bool) {
+	typ = actionStringField(def, "type")
+	if !validActionTypes[typ] {
+		return "", "", "", "", nil, nil, 0, false
+	}
+	command = actionStringField(def, "command")
+	path = actionStringField(def, "path")
+	content = actionStringField(def, "content")
+	if defArgsAny, present := def["args"].([]any); present && len(defArgsAny) > 0 {
+		args = make([]string, 0, len(defArgsAny))
+		for _, a := range defArgsAny {
+			s, isStr := a.(string)
+			if !isStr {
+				return "", "", "", "", nil, nil, 0, false
+			}
+			args = append(args, s)
+		}
+	}
+	if defEnv, present := def["env"].(map[string]any); present && len(defEnv) > 0 {
+		env = make(map[string]string, len(defEnv))
+		for k, v := range defEnv {
+			s, isStr := v.(string)
+			if !isStr {
+				return "", "", "", "", nil, nil, 0, false
+			}
+			env[k] = s
+		}
+	}
+	return typ, command, path, content, args, env, actionNumberField(def, "timeout"), true
+}
+
 // ExecuteCustomPageActionHandler executes an action from a custom page
-// against a specific instance. Unlike ExecutePageActionHandler which requires
-// a predefined instance page ID, this handler is called directly by the
-// custom page SDK running in the browser. It validates that the instance
-// has custom pages enabled in its spec, then proxies to the edge.
+// against a specific instance. Called directly by the custom page SDK running
+// in the browser (HTML iframe bridge or host-origin markdown/blocks pages).
+//
+// Security model (fail closed, server-side validated):
+//   - The SDK stamps every call with the slug of the page it renders
+//     (`page_slug`). The slug must resolve against THIS instance's own
+//     deploy-time config using the same precedence as the SPA's
+//     isPageAllowed: exact slug, legacy original_slug, or a nested
+//     "<parent>/<sub>" sub-page of an enabled parent row.
+//   - The executed payload must EXACTLY match one of that page family's
+//     SAVED actions (the spec row's `actions`, which the parent row carries).
+//     The browser can only name a stored action — it can never invent new
+//     commands, override arguments on a saved action, or reach an instance
+//     whose config does not list the calling page.
 func ExecuteCustomPageActionHandler(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		InstanceID int64             `json:"instance_id"`
+		PageSlug   string            `json:"page_slug"`
 		Type       string            `json:"type"`
 		Command    string            `json:"command"`
 		Path       string            `json:"path"`
@@ -795,8 +928,9 @@ func ExecuteCustomPageActionHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.InstanceID == 0 || req.Type == "" {
-		http.Error(w, "instance_id and type are required", http.StatusBadRequest)
+	pageSlug := strings.TrimSpace(req.PageSlug)
+	if req.InstanceID == 0 || pageSlug == "" || req.Type == "" {
+		http.Error(w, "instance_id, page_slug and type are required", http.StatusBadRequest)
 		return
 	}
 
@@ -830,34 +964,38 @@ func ExecuteCustomPageActionHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify the instance has at least one custom page enabled in its spec
-	// This ensures the action is being called from a valid custom page context
-	var spec map[string]any
-	if instance.Config != "" {
-		_ = json.Unmarshal([]byte(instance.Config), &spec)
+	// Page-bound gate: the calling page family must be enabled in THIS
+	// instance's deploy-time config snapshot (EMPTY-BY-DEFAULT semantics).
+	row := findSpecPageRow(parseSpecRows(instance.Config), pageSlug)
+	if row == nil {
+		http.Error(w, "page not enabled for this instance", http.StatusForbidden)
+		return
 	}
-	enabledPages := getEnabledPages(spec)
-	hasCustomPage := false
-	for _, p := range enabledPages {
-		// Check if this page is a custom page in the spec
-		pages, _ := spec["pages"].([]any)
-		for _, page := range pages {
-			pm, ok := page.(map[string]any)
-			if !ok {
-				continue
-			}
-			if pm["slug"] == p && pm["kind"] == "custom" {
-				hasCustomPage = true
-				break
-			}
-		}
-		if hasCustomPage {
+
+	// Action allow-list: the payload must be byte-for-byte one of the page's
+	// saved actions. Everything actually executed below comes from the STORED
+	// definition, never from the request body.
+	var matched map[string]any
+	for _, def := range row.actions {
+		if savedActionMatches(def, req.Type, req.Command, req.Path, req.Content, req.Args, req.Env) {
+			matched = def
 			break
 		}
 	}
-	if !hasCustomPage {
-		http.Error(w, "no custom pages enabled for this instance", http.StatusForbidden)
+	if matched == nil {
+		http.Error(w, "action is not defined on this page", http.StatusForbidden)
 		return
+	}
+	execType, execCommand, execPath, execContent, execArgs, execEnv, defTimeout, ok := savedActionExecFields(matched)
+	if !ok {
+		http.Error(w, "saved action definition is invalid", http.StatusForbidden)
+		return
+	}
+	// Requested timeout is operational, not executable — honour it when the
+	// caller supplied one, else the stored value; always clamped.
+	timeout := clampActionTimeout(req.Timeout)
+	if req.Timeout <= 0 {
+		timeout = clampActionTimeout(defTimeout)
 	}
 
 	// Use the edge client to call the page-action endpoint
@@ -867,23 +1005,20 @@ func ExecuteCustomPageActionHandler(w http.ResponseWriter, r *http.Request) {
 		"token":   token,
 		"kind":    instance.Kind,
 		"name":    instance.Name,
-		"type":    req.Type,
-		"command": req.Command,
-		"path":    req.Path,
-		"content": req.Content,
-		"args":    req.Args,
-		"env":     req.Env,
-		"timeout": req.Timeout,
+		"type":    execType,
+		"command": execCommand,
+		"path":    execPath,
+		"content": execContent,
+		"args":    execArgs,
+		"env":     execEnv,
+		"timeout": timeout,
 	}
 
 	body, _ := json.Marshal(edgeReq)
 	httpReq, _ := http.NewRequestWithContext(r.Context(), "POST", ec.BaseURL()+"/api/edge/page-action", bytes.NewReader(body))
 	httpReq.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{Timeout: time.Duration(req.Timeout+5) * time.Second}
-	if req.Timeout == 0 {
-		client.Timeout = 35 * time.Second
-	}
+	client := &http.Client{Timeout: time.Duration(timeout+5) * time.Second}
 
 	resp, err := client.Do(httpReq)
 	if err != nil {
