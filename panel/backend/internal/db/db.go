@@ -133,8 +133,8 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			}
 		case name == "014_role_display_color.sql":
 			if err := guardedAddColumns(d, db, name, "roles", []columnSpec{
-				{"display_name", "TEXT NOT NULL DEFAULT ''"},
-				{"color", "TEXT NOT NULL DEFAULT ''"},
+				{"display_name", "TEXT NOT NULL DEFAULT ('')"},
+				{"color", "TEXT NOT NULL DEFAULT ('')"},
 			}); err != nil {
 				return err
 			}
@@ -161,16 +161,16 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			}
 		case name == "018_user_profile.sql":
 			if err := guardedAddColumns(d, db, name, "users", []columnSpec{
-				{"display_name", "TEXT NOT NULL DEFAULT ''"},
-				{"bio", "TEXT NOT NULL DEFAULT ''"},
-				{"pronouns", "TEXT NOT NULL DEFAULT ''"},
-				{"accent_color", "TEXT NOT NULL DEFAULT ''"},
-				{"avatar_symbol", "TEXT NOT NULL DEFAULT ''"},
+				{"display_name", "TEXT NOT NULL DEFAULT ('')"},
+				{"bio", "TEXT NOT NULL DEFAULT ('')"},
+				{"pronouns", "TEXT NOT NULL DEFAULT ('')"},
+				{"accent_color", "TEXT NOT NULL DEFAULT ('')"},
+				{"avatar_symbol", "TEXT NOT NULL DEFAULT ('')"},
 				{"avatar_mime", "TEXT"},
 				{"avatar_filename", "TEXT"},
 				{"banner_mime", "TEXT"},
 				{"banner_filename", "TEXT"},
-				{"social_links", "TEXT NOT NULL DEFAULT ''"},
+				{"social_links", "TEXT NOT NULL DEFAULT ('')"},
 			}); err != nil {
 				return err
 			}
@@ -182,9 +182,9 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				{"health_timeout", "INTEGER NOT NULL DEFAULT 4"},
 				{"health_retries", "INTEGER NOT NULL DEFAULT 3"},
 				{"skip_tls_verify", "INTEGER NOT NULL DEFAULT 0"},
-				{"notes", "TEXT NOT NULL DEFAULT ''"},
-				{"install_dir", "TEXT NOT NULL DEFAULT ''"},
-				{"allowed_kinds", "TEXT NOT NULL DEFAULT ''"},
+				{"notes", "TEXT NOT NULL DEFAULT ('')"},
+				{"install_dir", "TEXT NOT NULL DEFAULT ('')"},
+				{"allowed_kinds", "TEXT NOT NULL DEFAULT ('')"},
 				{"probe_fail_count", "INTEGER NOT NULL DEFAULT 0"},
 				{"next_probe_at", d.datetimeType()},
 			}); err != nil {
@@ -231,11 +231,11 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			// each ALTER individually so a re-launch is idempotent
 			// (mirrors 025_node_allocations.sql).
 			if err := guardedAddColumns(d, db, name, "instances", []columnSpec{
-				{"install_state", "TEXT NOT NULL DEFAULT ''"},
-				{"install_id", "TEXT NOT NULL DEFAULT ''"},
+				{"install_state", "TEXT NOT NULL DEFAULT ('')"},
+				{"install_id", "TEXT NOT NULL DEFAULT ('')"},
 				{"install_step", "INTEGER NOT NULL DEFAULT -1"},
-				{"install_error", "TEXT NOT NULL DEFAULT ''"},
-				{"install_steps_json", "TEXT NOT NULL DEFAULT ''"},
+				{"install_error", "TEXT NOT NULL DEFAULT ('')"},
+				{"install_steps_json", "TEXT NOT NULL DEFAULT ('')"},
 			}); err != nil {
 				return err
 			}
@@ -249,7 +249,7 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			// auto_stop_on_exit flag. Guarded individually so re-launches
 			// stay idempotent — mirrors 025_instance_install.sql.
 			if err := guardedAddColumns(d, db, name, "instances", []columnSpec{
-				{"install_kind", "TEXT NOT NULL DEFAULT ''"},
+				{"install_kind", "TEXT NOT NULL DEFAULT ('')"},
 				{"install_auto_stop", "INTEGER NOT NULL DEFAULT 0"},
 			}); err != nil {
 				return err
@@ -263,7 +263,7 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			// the native ADD COLUMN IF NOT EXISTS and falls through to the
 			// generic exec path.)
 			if err := guardedAddColumns(d, db, name, "instances", []columnSpec{
-				{"install_action_id", "TEXT NOT NULL DEFAULT ''"},
+				{"install_action_id", "TEXT NOT NULL DEFAULT ('')"},
 			}); err != nil {
 				return err
 			}
@@ -274,16 +274,16 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				{"mem_overcommit_pct", "INTEGER NOT NULL DEFAULT 0"},
 				{"alloc_disk_mib", "INTEGER NOT NULL DEFAULT 0"},
 				{"disk_overcommit_pct", "INTEGER NOT NULL DEFAULT 0"},
-				{"instances_dir", "TEXT NOT NULL DEFAULT ''"},
+				{"instances_dir", "TEXT NOT NULL DEFAULT ('')"},
 			}); err != nil {
 				return err
 			}
 			continue
 		case name == "026_node_category_location.sql":
 			if err := guardedAddColumns(d, db, name, "nodes", []columnSpec{
-				{"category", "TEXT NOT NULL DEFAULT ''"},
-				{"location_country", "TEXT NOT NULL DEFAULT ''"},
-				{"location_node", "TEXT NOT NULL DEFAULT ''"},
+				{"category", "TEXT NOT NULL DEFAULT ('')"},
+				{"location_country", "TEXT NOT NULL DEFAULT ('')"},
+				{"location_node", "TEXT NOT NULL DEFAULT ('')"},
 			}); err != nil {
 				return err
 			}
@@ -294,8 +294,8 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			// idempotent, so each column is added via the runtime guard —
 			// mirrors 026_node_category_location.sql.
 			if err := guardedAddColumns(d, db, name, "nodes", []columnSpec{
-				{"icon", "TEXT NOT NULL DEFAULT ''"},
-				{"color", "TEXT NOT NULL DEFAULT ''"},
+				{"icon", "TEXT NOT NULL DEFAULT ('')"},
+				{"color", "TEXT NOT NULL DEFAULT ('')"},
 			}); err != nil {
 				return err
 			}
@@ -309,8 +309,8 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			continue
 		case name == "027_mod_source.sql":
 			if err := guardedAddColumns(d, db, name, "mods", []columnSpec{
-				{"source", "TEXT NOT NULL DEFAULT 'file'"},
-				{"source_url", "TEXT NOT NULL DEFAULT ''"},
+				{"source", "TEXT NOT NULL DEFAULT ('file')"},
+				{"source_url", "TEXT NOT NULL DEFAULT ('')"},
 			}); err != nil {
 				return err
 			}
@@ -364,9 +364,9 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			// Fresh installs converge after 007 (which does not carry these
 			// columns yet); existing installs that already ran 035 skip.
 			if err := guardedAddColumns(d, db, name, "instances", []columnSpec{
-				{"display_name", "TEXT NOT NULL DEFAULT ''"},
-				{"icon", "TEXT NOT NULL DEFAULT ''"},
-				{"color", "TEXT NOT NULL DEFAULT ''"},
+				{"display_name", "TEXT NOT NULL DEFAULT ('')"},
+				{"icon", "TEXT NOT NULL DEFAULT ('')"},
+				{"color", "TEXT NOT NULL DEFAULT ('')"},
 			}); err != nil {
 				return err
 			}
@@ -378,7 +378,7 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			// ships its actions into spec.pages. Guarded individually so
 			// re-launches stay idempotent — mirrors 036_mod_package.sql.
 			if err := guardedAddColumns(d, db, name, "instance_pages", []columnSpec{
-				{"actions", "TEXT NOT NULL DEFAULT ''"},
+				{"actions", "TEXT NOT NULL DEFAULT ('')"},
 			}); err != nil {
 				return err
 			}
@@ -391,7 +391,7 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			// row. Guarded individually so re-launches stay idempotent on all
 			// dialects — mirrors 041_instance_page_actions.sql.
 			if err := guardedAddColumns(d, db, name, "instance_pages", []columnSpec{
-				{"sub_pages", "TEXT NOT NULL DEFAULT ''"},
+				{"sub_pages", "TEXT NOT NULL DEFAULT ('')"},
 			}); err != nil {
 				return err
 			}

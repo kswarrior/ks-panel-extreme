@@ -10,7 +10,7 @@
 --   mem_overcommit_pct   INTEGER NOT NULL DEFAULT 0   -- allowed over-allocation (%)
 --   alloc_disk_mib       INTEGER NOT NULL DEFAULT 0   -- total disk cap (MiB)
 --   disk_overcommit_pct  INTEGER NOT NULL DEFAULT 0   -- allowed over-allocation (%)
---   instances_dir        TEXT    NOT NULL DEFAULT ''  -- daemon instance file dir
+--   instances_dir        TEXT    NOT NULL DEFAULT ('')  -- daemon instance file dir
 --
 -- 0 means "unset / inherit live telemetry"; the deploy handler will fall
 -- back to the heartbeat-reported totals when the operator left the cap
@@ -28,4 +28,4 @@ ALTER TABLE nodes ADD COLUMN alloc_mem_mib INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE nodes ADD COLUMN mem_overcommit_pct INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE nodes ADD COLUMN alloc_disk_mib INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE nodes ADD COLUMN disk_overcommit_pct INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE nodes ADD COLUMN instances_dir TEXT NOT NULL DEFAULT '';
+ALTER TABLE nodes ADD COLUMN instances_dir TEXT NOT NULL DEFAULT ('');

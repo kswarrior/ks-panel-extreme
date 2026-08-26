@@ -10,4 +10,4 @@
 -- 1..65535 before accepting it; anything else is ignored and the launch
 -- flag/env/defaults win.
 
-INSERT IGNORE INTO settings (key, value) VALUES ('panel_port', '');
+INSERT IGNORE INTO settings (`key`, value) VALUES ('panel_port', '');

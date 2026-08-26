@@ -3,12 +3,12 @@
 -- Two cosmetic columns the NodeForm General tab manages so an operator can
 -- recognise an edge at a glance on the Nodes page:
 --
---   icon  TEXT NOT NULL DEFAULT ''  -- symbolic icon key ("server", "cloud",
+--   icon  TEXT NOT NULL DEFAULT ('')  -- symbolic icon key ("server", "cloud",
 --                                   -- "shield", …). Empty = the default
 --                                   -- heartbeat glyph. The panel validates
 --                                   -- the key against its fixed icon set;
 --                                   -- nothing arbitrary is stored.
---   color TEXT NOT NULL DEFAULT ''  -- accent hex colour ("#34d399") used to
+--   color TEXT NOT NULL DEFAULT ('')  -- accent hex colour ("#34d399") used to
 --                                   -- tint the icon chip on cards. Empty =
 --                                   -- theme default grey. Constrained to
 --                                   -- #rrggbb by the API handler.
@@ -23,5 +23,5 @@
 -- unique index would fail to build on legacy installs that already carry
 -- duplicate rows, breaking startup on all three engines.
 
-ALTER TABLE nodes ADD COLUMN icon TEXT NOT NULL DEFAULT '';
-ALTER TABLE nodes ADD COLUMN color TEXT NOT NULL DEFAULT '';
+ALTER TABLE nodes ADD COLUMN icon TEXT NOT NULL DEFAULT ('');
+ALTER TABLE nodes ADD COLUMN color TEXT NOT NULL DEFAULT ('');
