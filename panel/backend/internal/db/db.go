@@ -406,7 +406,7 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			// re-run every launch); both are applied through runtime guards
 			// below so every engine converges idempotently — mirrors 041.
 			if err := guardedAddColumns(d, db, name, "applications", []columnSpec{
-				{"files", "TEXT NOT NULL DEFAULT '[]'"},
+				{"files", "TEXT NOT NULL DEFAULT ('[]')"},
 			}); err != nil {
 				return err
 			}
