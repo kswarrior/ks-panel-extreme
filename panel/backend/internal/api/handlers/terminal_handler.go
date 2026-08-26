@@ -127,10 +127,12 @@ func TerminalHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// Tell the browser the bridge couldn't reach the edge; the JS
 		// side shows a "couldn't connect to node" banner instead of a
-		// generic WS-failed popup.
+		// generic WS-failed popup. The dial error's URL contains the raw
+		// edge token, so redact it before sending anything to the browser.
+		safeMsg := strings.ReplaceAll(err.Error(), token, "[redacted]")
 		_ = clientConn.WriteJSON(map[string]any{
 			"type":    "error",
-			"message": fmt.Sprintf("could not dial edge: %v", err),
+			"message": fmt.Sprintf("could not dial edge: %v", safeMsg),
 		})
 		time.Sleep(50 * time.Millisecond)
 		return

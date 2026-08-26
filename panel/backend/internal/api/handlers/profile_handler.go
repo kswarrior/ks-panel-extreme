@@ -404,6 +404,12 @@ func uploadUserImage(w http.ResponseWriter, r *http.Request, uid int64, kind str
 		// extension so the most common types still work.
 		mime = imageMimeFromExt(filepath.Ext(hdr.Filename))
 	}
+	// SVGs execute in the panel origin when served on /api/users/{id}/avatar
+	// (no CSP, public route). Sanitize with the same rules used for instance-
+	// page icons so stored XSS cannot be planted via avatars/banners.
+	if strings.EqualFold(mime, "image/svg+xml") {
+		data = []byte(sanitizeIconSVG(string(data)))
+	}
 
 	con, err := repository.OpenDB()
 	if err != nil {
