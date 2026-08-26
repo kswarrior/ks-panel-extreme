@@ -218,8 +218,14 @@ func writeLoginResponse(w http.ResponseWriter, r *http.Request, user *models.Use
 	json.NewEncoder(w).Encode(resp)
 }
 
-// LogoutHandler invalidates the session by clearing the cookie.
+// LogoutHandler invalidates the session by revoking the tracked credential
+// (cookie or Bearer — whichever the request authenticated with) and
+// clearing the cookie. Without the revocation the token would stay valid
+// until its TTL even though the user logged out.
 func LogoutHandler(w http.ResponseWriter, r *http.Request) {
+	if tok := callerSessionToken(r); tok != "" {
+		auth.SessionManagerInstance.InvalidateSession(tok)
+	}
 	http.SetCookie(w, auth.ClearSessionCookie(r))
 	w.WriteHeader(http.StatusOK)
 }
@@ -269,7 +275,19 @@ func SwitchLoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check account lockout status — same policy as LoginHandler so the
+	// switcher endpoint can't be used to brute-force around it.
+	if auth.AccountLockoutInstance.IsAccountLocked(identifier) {
+		lockoutTime := auth.AccountLockoutInstance.GetLockoutTime(identifier)
+		w.Header().Set("Retry-After", lockoutTime.String())
+		http.Error(w, "account temporarily locked due to multiple failed attempts", http.StatusTooManyRequests)
+		return
+	}
+
 	if err := auth.CheckPassword(user.PasswordHash, req.Password); err != nil {
+		// Record failed attempt
+		auth.AccountLockoutInstance.RecordFailedAttempt(identifier)
+
 		RecordActivity(r, repository.ActivityInput{
 			Username:    user.Username,
 			UserID:      &user.ID,
