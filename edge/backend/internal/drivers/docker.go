@@ -326,6 +326,21 @@ func (d *docker) Stop(ctx context.Context, name string) (Result, error) {
 	return Result{ExternalID: name, Status: "stopped"}, nil
 }
 
+// isAlreadyGoneErr reports whether docker rejected the call because the
+// container doesn't exist ("No such container: x" on classic endpoints,
+// "Error: No such object: x" on newer ones). Destroy's contract mirrors
+// Stop's idempotency: destroying an already-destroyed instance must succeed
+// so a panel destroy flow that races a manual `docker rm` doesn't surface a
+// bogus failure for an end-state the operator asked for.
+func isAlreadyGoneErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "no such container") ||
+		strings.Contains(msg, "no such object")
+}
+
 func (d *docker) Destroy(ctx context.Context, name string) (Result, error) {
 	if err := binMissing("docker"); err != nil {
 		return Result{}, err
@@ -333,7 +348,9 @@ func (d *docker) Destroy(ctx context.Context, name string) (Result, error) {
 	// Use `docker rm -f` so a stopped container cleans up too. A failed rm
 	// of an absent container is non-fatal – treat it as already-gone.
 	if _, err := asExec(ctx, "", "docker", "rm", "-f", name); err != nil {
-		return Result{}, err
+		if !isAlreadyGoneErr(err) {
+			return Result{}, err
+		}
 	}
 	return Result{ExternalID: name, Status: "destroyed"}, nil
 }
