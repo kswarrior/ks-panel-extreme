@@ -252,11 +252,15 @@ func (d *lxd) Runner(ctx context.Context, name string) (metrics, processes, port
 	// not flip the whole Runner into an error via the named-return err.
 	memLimitStr, ierr := asExec(ctx, "", "lxc", "config", "get", name, "limits.memory")
 	if ierr == nil {
-		memLimitStr = strings.TrimSpace(memLimitStr)
-		if memLimitStr != "" && memLimitStr != "0" {
+		// Only inject when the limit actually parsed to a positive byte
+		// count. parseLXDMemory returns 0 for formats it can't read; the
+		// previous unconditional assignment used to OVERWRITE the good
+		// /proc-derived mem_total with a 0 whenever LXD echoed an
+		// unparsed spelling (e.g. "2GiB"), blanking the Metrics page.
+		if limit := parseLXDMemory(strings.TrimSpace(memLimitStr)); limit > 0 {
 			var m map[string]any
 			if json.Unmarshal([]byte(metrics), &m) == nil {
-				m["mem_total"] = parseLXDMemory(memLimitStr)
+				m["mem_total"] = limit
 				if b, err := json.Marshal(m); err == nil {
 					metrics = string(b)
 				}
