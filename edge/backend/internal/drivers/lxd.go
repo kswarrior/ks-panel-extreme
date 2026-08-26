@@ -341,29 +341,44 @@ func (d *lxd) Snapshot(ctx context.Context, name string, action string, snapName
 	}
 }
 
-// parseLXDMemory parses LXD's limits.memory format (e.g. "2GB", "512MB",
-// "1024", "2147483648") into bytes (int64). Returns 0 on failure.
+// parseLXDMemory parses LXD's limits.memory format into bytes (int64).
+// Accepts the plain byte count ("2147483648"), decimal magnitudes ("1.5GB")
+// and every suffix LXD echoes back — SI (KB/MB/GB/TB) and binary
+// (KiB/MiB/GiB/TiB; the CLI happily round-trips an operator-typed "2GiB").
+// Returns 0 on failure so callers can skip the override rather than inject
+// a bogus zero.
 func parseLXDMemory(s string) int64 {
 	s = strings.TrimSpace(strings.ToUpper(s))
 	if s == "" {
 		return 0
 	}
 	mult := int64(1)
-	if strings.HasSuffix(s, "GB") {
-		mult = 1024 * 1024 * 1024
-		s = strings.TrimSuffix(s, "GB")
-	} else if strings.HasSuffix(s, "MB") {
-		mult = 1024 * 1024
-		s = strings.TrimSuffix(s, "MB")
-	} else if strings.HasSuffix(s, "KB") {
-		mult = 1024
-		s = strings.TrimSuffix(s, "KB")
-	} else if strings.HasSuffix(s, "B") {
-		mult = 1
-		s = strings.TrimSuffix(s, "B")
+	suffixes := []struct {
+		suffix string
+		mult   int64
+	}{
+		// Binary suffixes must be tested before their SI prefixes'
+		// shorter spellings ("2GIB" ends in both "GIB" and… nothing
+		// else, but "TIB"/"PIB"-style ordering keeps the match exact).
+		{"KIB", 1 << 10},
+		{"MIB", 1 << 20},
+		{"GIB", 1 << 30},
+		{"TIB", 1 << 40},
+		{"KB", 1 << 10},
+		{"MB", 1 << 20},
+		{"GB", 1 << 30},
+		{"TB", 1 << 40},
+		{"B", 1},
 	}
-	if v, err := strconv.ParseInt(s, 10, 64); err == nil {
-		return v * mult
+	for _, suf := range suffixes {
+		if strings.HasSuffix(s, suf.suffix) {
+			mult = suf.mult
+			s = strings.TrimSuffix(s, suf.suffix)
+			break
+		}
+	}
+	if v, err := strconv.ParseFloat(s, 64); err == nil {
+		return int64(v * float64(mult))
 	}
 	return 0
 }
