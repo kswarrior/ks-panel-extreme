@@ -5,11 +5,11 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
-	"flag"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
+	"testing"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -24,11 +24,14 @@ var bcryptCost = 12
 
 func init() {
 	secret := os.Getenv("KSPANEL_SESSION_SECRET")
-	if secret == "" && flag.Lookup("test.v") != nil {
+	if secret == "" && testing.Testing() {
 		// Under `go test` the package init runs before any TestMain can
 		// inject the env var, so test binaries would panic on import.
-		// Production binaries never register go test flags, so they still
-		// fail closed below.
+		// testing.Testing() is stamped at link time by `go test`, so it is
+		// reliable inside init (unlike flag.Lookup("test.v"), which is not
+		// registered until testing.Init runs after package inits).
+		// Production binaries never get the stamp, so they still fail
+		// closed below.
 		secret = "kspanel-test-session-secret-0123456789abcdef"
 	}
 	if secret == "" {
