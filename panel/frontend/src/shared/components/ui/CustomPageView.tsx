@@ -74,15 +74,21 @@ function renderBlocks(json: string): React.ReactNode {
   const runSavedAction = async (name?: string, confirmText?: string) => {
     if (!name) return;
     const sdk = (window as any).KSPageSDK;
-    if (!sdk?.runAction) { alert('Actions are unavailable on this page view.'); return; }
+    // Panel-owned toast instead of a blocking browser alert().
+    const say = (m: string, t: 'error' | 'info' = 'error') => {
+      try { sdk?.toast?.(m, t); } catch { /* toast unavailable */ }
+    };
+    if (!sdk?.runAction) { say('Actions are unavailable on this page view.'); return; }
     if (confirmText && !(await confirmDialog({ title: 'Please confirm', message: confirmText }))) return;
     try {
       const res = await sdk.runAction(name);
       if (res && res.ok === false && (res.error || res.stderr)) {
-        alert(String(res.error || res.stderr));
+        say(String(res.error || res.stderr));
+      } else {
+        say(`${name} finished`, 'info');
       }
     } catch (e: any) {
-      alert(e?.message || String(e));
+      say(e?.message || String(e));
     }
   };
 
