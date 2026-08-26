@@ -238,11 +238,17 @@ export function createCustomPageSDK(
   }
   
   // --- Core action executor ---
+  // page_slug stamps the call with the page family rendering right now; the
+  // server verifies that slug is enabled on THIS instance AND that the
+  // payload exactly matches one of the page's SAVED actions before running
+  // anything. A page without a slug (Studio static preview) fails closed
+  // server-side.
   async function executeAction(action: PageAction): Promise<ActionResult> {
     return fetchJSON<ActionResult>(`/api/instance-pages/execute-action`, {
       method: 'POST',
       body: JSON.stringify({
         instance_id: instanceContext.id,
+        page_slug: pageSlug,
         ...action,
       }),
     });

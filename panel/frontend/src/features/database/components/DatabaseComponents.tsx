@@ -213,6 +213,17 @@ export const ChangeDatabaseCard: React.FC<{ currentEngine?: string; currentPath?
 
   const engineMeta = engines.find((e) => e.name === engine);
 
+  // Keep the Host:Port default in step with the selected engine so switching
+  // postgres → mysql doesn't silently submit the previous engine's port.
+  const defaultPort = engineMeta?.default_port;
+  useEffect(() => {
+    if (!defaultPort) return;
+    setUrl((u) => {
+      const i = u.lastIndexOf(':');
+      return i > 0 ? `${u.slice(0, i)}:${defaultPort}` : `${u}:${defaultPort}`;
+    });
+  }, [defaultPort]);
+
   const submit = async () => {
     setSubmitting(true);
     setResult(null);
