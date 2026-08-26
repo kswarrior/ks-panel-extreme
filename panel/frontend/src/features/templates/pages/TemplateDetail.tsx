@@ -286,7 +286,13 @@ const TemplateDetail: React.FC = () => {
                 <button onClick={() => navigate('/instances')} className="mt-1 text-[11px] text-sky-300 hover:text-sky-200 hover:underline">View instances →</button>
               </>
             ) : (
-              <p className="text-[11px] text-gray-500">{instanceStats === null ? 'loading usage…' : 'no instances use this template'}</p>
+              <p className="text-[11px] text-gray-500">
+                {instanceStats === null ? (
+                  <span className="inline-block h-2.5 w-28 rounded bg-white/10 animate-pulse align-middle" aria-busy="true" aria-label="Loading usage" />
+                ) : (
+                  'no instances use this template'
+                )}
+              </p>
             )}
           </div>
           <div className="rounded-lg border border-white/5 bg-white/[0.02] p-2.5">

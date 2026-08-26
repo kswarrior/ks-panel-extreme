@@ -8,6 +8,7 @@ import {
 } from '@/features/applications/api/applications';
 import FormPage from '@/shared/components/forms/FormPage';
 import GlassField from '@/shared/components/ui/Field';
+import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 
 type ConfigField = ApplicationConfigField & { options?: Array<{ value: string; label: string }> };
 
@@ -141,7 +142,7 @@ const ApplicationConfigure: React.FC = () => {
         saving={true}
         submitLabel="Save fields"
       >
-        <div className="text-gray-400 text-sm">Loading…</div>
+        <FormSkeleton fields={4} />
       </FormPage>
     );
   }

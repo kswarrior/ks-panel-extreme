@@ -812,7 +812,7 @@ return (
               <span className="text-amber-300"> inactive</span>, and only run after you approve their requested permissions.
             </p>
             {samplesError && <p className="text-red-400 text-xs">{samplesError}</p>}
-            {samplesLoading && <p className="text-gray-400 text-xs animate-pulse">Loading samples…</p>}
+            {samplesLoading && <span className="inline-block h-3 w-24 rounded bg-white/10 animate-pulse align-middle" aria-busy="true" aria-label="Loading samples" />}
             {!samplesLoading && samples.length === 0 && !samplesError && (
               <p className="text-gray-500 text-xs">No built-in samples available.</p>
             )}
@@ -956,7 +956,13 @@ return (
           ks.log output plus engine lifecycle events.
         </p>
         {logsError && <p className="text-red-400 text-xs">{logsError}</p>}
-        {logLines === null && !logsError && <p className="text-gray-400 text-xs animate-pulse">Loading logs…</p>}
+        {logLines === null && !logsError && (
+          <div className="space-y-1.5 mb-2 animate-pulse" aria-busy="true" aria-label="Loading logs">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="h-3 rounded bg-white/[0.07] font-mono" style={{ width: `${92 - i * 14}%`, animationDelay: `${i * 120}ms` }} />
+            ))}
+          </div>
+        )}
         {logLines !== null && logLines.length === 0 && (
           <div className="ks-card ks-form-card rounded-lg text-center">
             <p className="text-gray-400 text-sm">No log entries yet.</p>
