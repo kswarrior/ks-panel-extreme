@@ -84,7 +84,7 @@ func (c *rebindConn) PrepareContext(ctx context.Context, query string) (driver.S
 
 func (c *rebindConn) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
 	if ec, ok := c.inner.(driver.ExecerContext); ok {
-		return ec.ExecContext(ctx, rebindPostgres(query), args)
+		return ec.ExecContext(ctx, rebindPostgres(query), normalizePGNamedValues(args))
 	}
 	stmt, err := c.PrepareContext(ctx, query)
 	if err != nil {
@@ -96,7 +96,7 @@ func (c *rebindConn) ExecContext(ctx context.Context, query string, args []drive
 
 func (c *rebindConn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
 	if qc, ok := c.inner.(driver.QueryerContext); ok {
-		return qc.QueryContext(ctx, rebindPostgres(query), args)
+		return qc.QueryContext(ctx, rebindPostgres(query), normalizePGNamedValues(args))
 	}
 	stmt, err := c.PrepareContext(ctx, query)
 	if err != nil {
@@ -146,19 +146,21 @@ func (s *rebindStmt) QueryContext(ctx context.Context, args []driver.NamedValue)
 }
 
 func execStmtContext(stmt driver.Stmt, args []driver.NamedValue) (driver.Result, error) {
+	args = normalizePGNamedValues(args)
 	if sec, ok := stmt.(driver.StmtExecContext); ok {
 		return sec.ExecContext(context.Background(), args)
 	}
 	values := namedValuesToValues(args)
-	return stmt.Exec(values)
+	return stmt.Exec(normalizePGValues(values))
 }
 
 func queryStmtContext(stmt driver.Stmt, args []driver.NamedValue) (driver.Rows, error) {
+	args = normalizePGNamedValues(args)
 	if sqc, ok := stmt.(driver.StmtQueryContext); ok {
 		return sqc.QueryContext(context.Background(), args)
 	}
 	values := namedValuesToValues(args)
-	rows, err := stmt.Query(values)
+	rows, err := stmt.Query(normalizePGValues(values))
 	if err != nil {
 		return nil, err
 	}
@@ -174,6 +176,37 @@ func namedValuesToValues(args []driver.NamedValue) []driver.Value {
 		out[i] = a.Value
 	}
 	return out
+}
+
+// normalizePGNamedValues / normalizePGValues coerce Go bools into 0/1
+// integers. SQLite and MySQL happily store a bool in an INTEGER column;
+// pgx's binary protocol refuses ("cannot find encode plan"), so the driver
+// boundary converts them the same way the repository layer's boolToInt
+// helpers would.
+func normalizePGNamedValues(args []driver.NamedValue) []driver.NamedValue {
+	for i := range args {
+		if b, ok := args[i].Value.(bool); ok {
+			if b {
+				args[i].Value = int64(1)
+			} else {
+				args[i].Value = int64(0)
+			}
+		}
+	}
+	return args
+}
+
+func normalizePGValues(args []driver.Value) []driver.Value {
+	for i := range args {
+		if b, ok := args[i].(bool); ok {
+			if b {
+				args[i] = int64(1)
+			} else {
+				args[i] = int64(0)
+			}
+		}
+	}
+	return args
 }
 
 // rebindPostgres rewrites "?" placeholders into "$1..$N" ordinals. A "?"
