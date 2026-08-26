@@ -787,8 +787,9 @@ func proxyToEdgeWithBody(w http.ResponseWriter, r *http.Request, id int64, op, t
 
 	resp, err := filesProxyHTTPClient.Do(req)
 	if err != nil {
+		safeErr := strings.ReplaceAll(err.Error(), token, "[redacted]")
 		writeJSONStatus(w, http.StatusBadGateway, map[string]any{
-			"error": "dial edge failed: " + err.Error(),
+			"error": "dial edge failed: " + safeErr,
 			"hint":  "the edge node at " + node.Address + " is unreachable; check that ksedge is running and the node address in the panel is correct",
 		})
 		return
