@@ -2,20 +2,25 @@
 // templates for the Instance Page Studio ("Templates" tab).
 //
 // Every starter is an ordinary custom instance page whose JavaScript talks
-// ONLY to KSPageSDK — exactly what an admin authors in the Studio. The set
-// covers the surfaces VM & container operators usually need (Docker manager,
-// systemd services, cron, disk analyzer, package updates, firewall, users,
-// system info) plus verbatim ports of the former instance_pages/pages/*.json
-// library (Home / Files / Network / Terminal / Settings / Env / Automation /
-// Processes / Metrics / Ports / Backups / Audit + docs/dashboard examples),
-// which was consolidated into this file when that directory was removed.
+// ONLY to KSPageSDK — exactly what an admin authors in the Studio. Runtime
+// execution is allow-list based: pages call KSPageSDK.runAction(name,
+// { args }) and the server runs the matching SAVED action (actions shipped
+// in each starter's manifest, incl. open_args entries for parameterised
+// operations such as "docker stop <name>"). The set covers the surfaces VM &
+// container operators usually need (Docker manager, systemd services, cron,
+// disk analyzer, package updates, firewall, users, system info) plus
+// verbatim ports of the former instance_pages/pages/*.json library (Home /
+// Files / Network / Terminal / Settings / Env / Automation / Processes /
+// Metrics / Ports / Backups / Audit + docs/dashboard examples), which was
+// consolidated into this file when that directory was removed.
 //
 // Security notes:
 //   • No external resources — everything runs offline inside the panel.
 //   • All dynamic values pass through esc() before touching innerHTML.
 //   • Destructive operations always confirm() first.
-//   • Data access goes through the SDK bridge, which is instance-scoped and
-//     permission-gated server-side (see CustomPageView / fetchPanel).
+//   • Data access goes through the SDK bridge; runAction payloads are
+//     matched server-side against this page's saved actions and instance-
+//     scoped + permission-gated (see CustomPageView / fetchPanel).
 
 import type { InstancePageSubPage, PageActionDef } from '../types/instancePage';
 
@@ -42,11 +47,17 @@ export interface PageStarter {
 // ---------------------------------------------------------------------------
 // Shared helpers injected into every starter page.
 // ---------------------------------------------------------------------------
+
+// Every dynamic call goes through KSPageSDK.runAction(name, { args }) — the
+// server executes ONLY payloads that match a SAVED action of this page
+// (ExecuteCustomPageActionHandler). Raw ad-hoc shell via sdk.shell() was
+// rejected server-side, which left every template stuck on "Loading…";
+// these helpers keep pages on the supported path.
 const COMMON_JS = `
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function el(id){return document.getElementById(id);}
 function toast(m,t){try{KSPageSDK.toast(m,t||'info');}catch(e){}}
-async function sh(cmd,timeout){var r=await KSPageSDK.shell(cmd,[],null,timeout||20);if(r&&r.error&&!r.stdout&&!r.stderr)throw new Error(r.error);return r;}
+async function act(name,args){var r=await KSPageSDK.runAction(name,{args:(args||[])});if(r&&r.error&&!r.stdout&&!r.stderr&&!r.data)throw new Error(r.error);return r;}
 // ask() routes destructive-operation confirmations through the panel's themed
 // ConfirmDialog (sdk.confirm bridges to the host origin) instead of the
 // browser-native confirm(). Falls back so pages stay functional everywhere.
