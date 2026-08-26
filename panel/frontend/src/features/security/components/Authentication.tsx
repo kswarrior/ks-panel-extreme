@@ -13,6 +13,7 @@ import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import NumberInput from '@/shared/components/ui/NumberInput';
 import ToggleRow from '@/shared/components/ui/ToggleRow';
 import TextInput from '@/shared/components/ui/TextInput';
+import { useConfirm } from '@/shared/stores/confirmStore';
 
 // Authentication — Security page tab owning every authentication POLICY
 // setting: password policy + history, login protection (account lockout),
@@ -41,6 +42,7 @@ const StatTile: React.FC<{ value: React.ReactNode; label: string }> = ({ value, 
 );
 
 const Authentication: React.FC<AuthenticationProps> = ({ initialSnapshot, onConfigChange }) => {
+  const confirm = useConfirm();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
