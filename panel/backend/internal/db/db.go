@@ -616,11 +616,28 @@ func execMigrationScript(d Dialect, db *sql.DB, script, migration string) error 
 				stmt = ifNotExistsIndexRe.ReplaceAllString(stmt, "CREATE INDEX ")
 			}
 		}
+		// Some migration bodies use SQLite's INSERT OR IGNORE verb; only
+		// Postgres rejects it — translate to its native conflict clause.
+		if d.Name() == "postgres" {
+			stmt = pgInsertIgnore(stmt)
+		}
 		if _, err := db.Exec(stmt); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// pgInsertIgnore rewrites a single SQLite-flavoured
+// "INSERT OR IGNORE INTO ..." statement into PostgreSQL's
+// "INSERT INTO ... ON CONFLICT DO NOTHING". Statements without the verb are
+// returned unchanged.
+func pgInsertIgnore(stmt string) string {
+	if !strings.Contains(strings.ToUpper(stmt), "INSERT OR IGNORE INTO") {
+		return stmt
+	}
+	out := strings.Replace(stmt, "INSERT OR IGNORE INTO", "INSERT INTO", 1)
+	return strings.TrimRight(out, " \t\n") + " ON CONFLICT DO NOTHING"
 }
 
 // topoSortCreates orders CREATE TABLE statements so referenced parents come
