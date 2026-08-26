@@ -614,12 +614,18 @@ func (d *docker) Snapshot(ctx context.Context, name string, action string, snapN
 		// If requested, save the image to a tar file
 		if snapType == "tar" && location != "" {
 			tarPath := location + imageName + ".tar"
-			_, err := asExec(ctx, "", "docker", "save", "-o", tarPath, imageName)
-			if err != nil {
+			if _, err := asExec(ctx, "", "docker", "save", "-o", tarPath, imageName); err != nil {
 				return "", 0, fmt.Errorf("failed to save image to tar: %w", err)
 			}
-			// Return the tar file path as the external reference
-			return tarPath, 0, nil
+			// Return the tar file path as the external reference, with its
+			// real size so the panel renders actual bytes instead of a
+			// placeholder 0 (stat failure stays non-fatal — the snapshot
+			// itself is complete).
+			var size int64
+			if fi, serr := os.Stat(tarPath); serr == nil {
+				size = fi.Size()
+			}
+			return tarPath, size, nil
 		}
 
 		// For now, we'll just return the image ID as the external reference

@@ -306,33 +306,21 @@ func handleInstallStart(w http.ResponseWriter, r *http.Request, token string, st
 		in.SessionExec = sessionExecFn
 	}
 
-	// If a previous workflow exists for the same name and is still running,
-	// we REFUSE the kick-off — a second deploy on the same name mid-install
-	// would race on the same container's exec. The panel always destroys
-	// before re-deploying, so this only triggers on operator mistake.
-	if existing, ok := store.get(key); ok {
-		existing.mu.RLock()
-		st := existing.state
-		existing.mu.RUnlock()
-		if st == StateRunning {
-			writeInstallErr(w, http.StatusConflict, "install already running for "+key)
-			return
-		}
-		log.Printf("install: overwriting previous install record for %s (state=%s)", key, st)
-	}
-
-	rec := store.getOrCreate(key)
-	rec.mu.Lock()
-	// Reset transcript for a fresh deploy of the same name.
-	rec.state = StateRunning
-	rec.steps = make([]StepStatus, len(in.Steps))
+	// Atomically claim the key: a still-running workflow REFUSES the
+	// kick-off (a second deploy on the same name mid-install would race on
+	// the same container's exec — the panel always destroys before
+	// re-deploying, so this only triggers on operator mistake); anything
+	// else is reset to a fresh running transcript. See store.begin for why
+	// the refusal and the reset must share one critical section.
+	seed := make([]StepStatus, len(in.Steps))
 	for i, s := range in.Steps {
-		rec.steps[i] = StepStatus{Index: i, Action: s.Action, Status: "pending"}
+		seed[i] = StepStatus{Index: i, Action: s.Action, Status: stepPending}
 	}
-	rec.err = ""
-	rec.start = time.Now()
-	rec.end = time.Time{}
-	rec.mu.Unlock()
+	rec, ok := store.begin(key, seed)
+	if !ok {
+		writeInstallErr(w, http.StatusConflict, "install already running for "+key)
+		return
+	}
 
 	// Publish LIVE per-step state into the record while the workflow runs:
 	// the engine calls OnProgress on every step transition, and mid-run polls
