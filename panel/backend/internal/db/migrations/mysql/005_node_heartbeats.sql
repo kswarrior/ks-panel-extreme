@@ -6,12 +6,12 @@
 -- current minute; the uptime calculation counts rows with status='up'.
 
 CREATE TABLE IF NOT EXISTS node_heartbeats (
-    node_id       BIGINT NOT NULL,
+    node_id       INTEGER NOT NULL,
     -- Truncated-to-minute bucket. Storing a rounded timestamp means a burst
     -- of heartbeats in the same minute collapses to one row, keeping the
     -- table small.
     bucket_at     DATETIME NOT NULL,
-    status VARCHAR(255)     NOT NULL,
+    status        TEXT     NOT NULL,
     PRIMARY KEY (node_id, bucket_at),
     FOREIGN KEY (node_id) REFERENCES nodes(id) ON DELETE CASCADE
 );

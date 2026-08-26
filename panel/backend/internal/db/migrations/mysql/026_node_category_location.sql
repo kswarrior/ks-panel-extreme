@@ -5,13 +5,13 @@
 -- edge so an operator with many panels (homelab + production + staging + a
 -- dozen regional VPS providers) can recognise the row at a glance:
 --
---   category          TEXT    NOT NULL DEFAULT ('')  -- free-text bucket label
+--   category          TEXT    NOT NULL DEFAULT ''  -- free-text bucket label
 --                                                    -- ("production",
 --                                                    -- "staging", "dev",
 --                                                    -- "tenant-acme", …)
---   location_country  TEXT    NOT NULL DEFAULT ('')  -- ISO-3166 alpha-2 code
+--   location_country  TEXT    NOT NULL DEFAULT ''  -- ISO-3166 alpha-2 code
 --                                                    -- ("IN", "US", "DE", …)
---   location_node     TEXT    NOT NULL DEFAULT ('')  -- operator's per-site
+--   location_node     TEXT    NOT NULL DEFAULT ''  -- operator's per-site
 --                                                    -- label ("node-1",
 --                                                    -- "rack-a3", …)
 --
@@ -28,6 +28,6 @@
 -- runner (db.go) applies each ALTER individually and skips columns that
 -- are already present.
 
-ALTER TABLE nodes ADD COLUMN category TEXT NOT NULL DEFAULT ('');
-ALTER TABLE nodes ADD COLUMN location_country TEXT NOT NULL DEFAULT ('');
-ALTER TABLE nodes ADD COLUMN location_node TEXT NOT NULL DEFAULT ('');
+ALTER TABLE nodes ADD COLUMN category TEXT NOT NULL DEFAULT '';
+ALTER TABLE nodes ADD COLUMN location_country TEXT NOT NULL DEFAULT '';
+ALTER TABLE nodes ADD COLUMN location_node TEXT NOT NULL DEFAULT '';

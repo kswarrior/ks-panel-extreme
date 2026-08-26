@@ -19,5 +19,5 @@
 --       running (the action did NOT request auto-stop), set status
 --       back to 'running'.
 
-ALTER TABLE instances ADD COLUMN install_kind TEXT NOT NULL DEFAULT ('');
+ALTER TABLE instances ADD COLUMN install_kind TEXT NOT NULL DEFAULT '';
 ALTER TABLE instances ADD COLUMN install_auto_stop INTEGER NOT NULL DEFAULT 0;
