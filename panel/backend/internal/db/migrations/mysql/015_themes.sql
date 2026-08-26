@@ -21,7 +21,7 @@
 -- (the theme is a shared asset, not personal data).
 
 CREATE TABLE IF NOT EXISTS themes (
-    id          TEXT    PRIMARY KEY,          -- client-generated stable id, e.g. "theme-<ts>"
+    id VARCHAR(255)     PRIMARY KEY,          -- client-generated stable id, e.g. "theme-<ts>"
     name        TEXT    NOT NULL,
     description TEXT    NOT NULL DEFAULT '',
     spec        TEXT    NOT NULL,             -- JSON-encoded Theme object
@@ -41,7 +41,7 @@ CREATE INDEX themes_created_by_idx ON themes(created_by);
 -- Exactly one row per scope: assigning a different theme to a scope is an
 -- UPSERT (the unique constraint enforces this), un-assigning is a DELETE.
 CREATE TABLE IF NOT EXISTS theme_assignments (
-    scope     TEXT    PRIMARY KEY,           -- "area:<id>" or "page:<id>"
+    scope VARCHAR(255)     PRIMARY KEY,           -- "area:<id>" or "page:<id>"
     theme_id  TEXT    NOT NULL REFERENCES themes(id) ON DELETE CASCADE
 );
 

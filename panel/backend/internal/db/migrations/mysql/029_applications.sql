@@ -39,7 +39,7 @@
 CREATE TABLE IF NOT EXISTS applications (
     id              BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     name            TEXT    NOT NULL,
-    slug            TEXT    NOT NULL UNIQUE,
+    slug VARCHAR(255)     NOT NULL  UNIQUE,
     category        TEXT    NOT NULL DEFAULT 'custom',
     version         TEXT    NOT NULL DEFAULT '1.0.0',
     description     TEXT    NOT NULL DEFAULT '',

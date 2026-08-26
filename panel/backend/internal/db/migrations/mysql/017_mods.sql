@@ -27,7 +27,7 @@
 CREATE TABLE IF NOT EXISTS mods (
     id           BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     name         TEXT    NOT NULL,                  -- display name (from manifest)
-    slug         TEXT    NOT NULL UNIQUE,           -- stable unique id used in routes
+    slug VARCHAR(255)     NOT NULL  UNIQUE,           -- stable unique id used in routes
     version      TEXT    NOT NULL DEFAULT '',
     description  TEXT    NOT NULL DEFAULT '',
     manifest     TEXT    NOT NULL,                  -- full JSON manifest (opaque except permissionsRequested)
