@@ -224,7 +224,7 @@ export function createCustomPageSDK(
     });
     if (!res.ok) {
       const text = await res.text();
-      throw new Error(text || `HTTP ${res.status}`);
+      throw new Error(sanitizeHttpError(text, res.status));
     }
     // Parse by CONTENT, not just label: some proxies/endpoints mislabel raw
     // file bytes (eula.txt, server.properties…) as application/json, and a
