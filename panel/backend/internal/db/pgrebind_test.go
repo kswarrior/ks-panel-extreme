@@ -74,7 +74,9 @@ func TestBareCreateIndex(t *testing.T) {
 		{"CREATE INDEX idx_a ON users(email)", true},
 		{"CREATE UNIQUE INDEX idx_b ON nodes(token)", true},
 		{"  create index idx_c on instances(name)", true},
-		{"CREATE INDEX IF NOT EXISTS idx_d ON users(id)", false},
+		// IF NOT EXISTS forms are also guarded on non-sqlite dialects:
+		// MySQL rejects the clause itself, so the runner strips it.
+		{"CREATE INDEX IF NOT EXISTS idx_d ON users(id)", true},
 		{"CREATE TABLE users (id INTEGER)", false},
 		{"INSERT INTO permissions (key) VALUES ('x')", false},
 	}
