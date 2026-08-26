@@ -32,9 +32,12 @@ CREATE INDEX IF NOT EXISTS idx_instance_pages_kind      ON instance_pages(kind);
 CREATE INDEX IF NOT EXISTS idx_instance_pages_category  ON instance_pages(category);
 
 -- Seed the permission keys so the admin's role picks them up on launch.
-INSERT OR IGNORE INTO permissions (key, description) VALUES
+-- (PostgreSQL has no INSERT OR IGNORE; ON CONFLICT DO NOTHING is the
+-- equivalent idempotent form.)
+INSERT INTO permissions (key, description) VALUES
     ('MANAGE_INSTANCE_PAGES', 'Manage instance page definitions (create, edit, delete)'),
     ('INSTANCE_PAGES_VIEW',   'View instance page definitions'),
     ('INSTANCE_PAGES_CREATE', 'Create new instance page definitions'),
     ('INSTANCE_PAGES_EDIT',   'Edit instance page definitions'),
-    ('INSTANCE_PAGES_DELETE', 'Delete instance page definitions');
+    ('INSTANCE_PAGES_DELETE', 'Delete instance page definitions')
+ON CONFLICT DO NOTHING;
