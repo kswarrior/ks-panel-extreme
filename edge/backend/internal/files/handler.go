@@ -177,10 +177,19 @@ func hostFSDispatcher(w http.ResponseWriter, r *http.Request, op, hostPath strin
 	// still-empty bind mount), so we only sanity-check what's reachable.
 	info, err := os.Stat(clean)
 	if err != nil {
-		// Fall back to docker exec when the host path doesn't exist — this
-		// is the "container running but host bind directory not yet
-		// provisioned" case the panel still wants to show.
-		return false
+		// A missing TARGET is expected for create-style ops (write/upload
+		// onto a brand-new file): previously this fell back to docker exec,
+		// which broke every first upload into a fresh directory whenever
+		// the container was stopped. Verify the deepest existing ancestor
+		// instead and let the host writers create the file.
+		if !os.IsNotExist(err) || (op != "write" && op != "upload") {
+			return false
+		}
+		parent := filepath.Dir(clean)
+		if pi, perr := os.Stat(parent); perr != nil || !pi.IsDir() {
+			return false
+		}
+		info = nil
 	}
 	switch op {
 	case "list", "":
