@@ -98,6 +98,7 @@ const DOCKER_MANAGER = page(
   'Docker Containers',
   `<div class="ks-row" style="margin-bottom:0.6rem">
     <button class="ks-btn ks-btn-blue" id="refresh">Refresh</button>
+    <button class="ks-btn" id="prune">Prune dangling images</button>
     <span id="note" class="ks-muted" style="font-size:11px"></span>
   </div>
   <div id="content" class="ks-muted">Loading…</div>
@@ -113,8 +114,8 @@ const DOCKER_MANAGER = page(
       el('note').textContent = 'Driver is "' + KSPageSDK.instance.kind + '" — docker commands only work where a docker CLI exists.';
     }
     async function load(){
-      var r = await sh("docker ps -a --format '{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}|{{.Ports}}'", 20);
-      var lines = (r.stdout || '').split('\\n').filter(Boolean);
+      var r = await act('list_containers');
+      var lines = ((r.stdout || '') + '').split('\\n').filter(Boolean);
       if (!lines.length) { el('content').innerHTML = '<p class="ks-muted">No containers found (or docker unavailable).</p>'; return; }
       el('content').innerHTML = '<div class="ks-card" style="padding:0"><table><thead><tr><th>ID</th><th>Name</th><th>Image</th><th>Status</th><th>Ports</th><th style="width:230px">Actions</th></tr></thead><tbody>' +
         lines.map(function(line){
@@ -123,31 +124,36 @@ const DOCKER_MANAGER = page(
           return '<tr><td class="ks-mono">' + esc(c[0] || '') + '</td><td><strong>' + esc(name) + '</strong></td><td>' + esc(c[2] || '') + '</td>' +
             '<td>' + esc(c[3] || '') + '</td><td class="ks-mono" style="font-size:11px">' + esc(c[4] || '') + '</td>' +
             '<td class="ks-row">' +
-            '<a href="#" data-act="start" data-name="' + esc(name) + '" class="ks-ok">start</a> ' +
-            '<a href="#" data-act="stop" data-name="' + esc(name) + '" class="ks-warn">stop</a> ' +
-            '<a href="#" data-act="restart" data-name="' + esc(name) + '">restart</a> ' +
-            '<a href="#" data-act="logs" data-name="' + esc(name) + '">logs</a></td></tr>';
+            '<a href="#" data-op="start" data-name="' + esc(name) + '" class="ks-ok">start</a> ' +
+            '<a href="#" data-op="stop" data-name="' + esc(name) + '" class="ks-warn">stop</a> ' +
+            '<a href="#" data-op="restart" data-name="' + esc(name) + '">restart</a> ' +
+            '<a href="#" data-op="logs" data-name="' + esc(name) + '">logs</a></td></tr>';
         }).join('') + '</tbody></table></div>';
     }
     async function showLogs(name){
-      var r = await sh('docker logs --tail 200 ' + JSON.stringify(name), 20);
+      var r = await act('container_logs', [name]);
       el('logtitle').textContent = 'logs: ' + name;
-      el('logbox').textContent = (r.stdout || '') + (r.stderr || '');
+      el('logbox').textContent = ((r.stdout || '') + '') + ((r.stderr || '') + '');
       el('logs').style.display = 'block';
     }
     el('refresh').onclick = load;
     el('closelogs').onclick = function(){ el('logs').style.display = 'none'; };
+    el('prune').onclick = async function(){
+      if (!(await ask('Remove ALL dangling docker images now?'))) return;
+      try { var r = await act('prune_dangling'); toast('Prune finished: exit ' + (r.exit_code != null ? r.exit_code : '?'), r.exit_code === 0 ? 'success' : 'error'); }
+      catch (e) { toast(e.message, 'error'); }
+    };
     el('content').addEventListener('click', async function(ev){
-      var t = ev.target.closest('a[data-act]');
+      var t = ev.target.closest('a[data-op]');
       if (!t) return;
       ev.preventDefault();
-      var act = t.dataset.act;
+      var op = t.dataset.op;
       var name = t.dataset.name;
       try {
-        if (act === 'logs') { await showLogs(name); return; }
-        if ((act === 'stop' || act === 'restart') && !(await ask(act + ' container "' + name + '"?'))) return;
-        var r = await sh('docker ' + act + ' ' + JSON.stringify(name), 30);
-        toast('docker ' + act + ': exit ' + (r.exit_code != null ? r.exit_code : '?'), r.exit_code === 0 ? 'success' : 'error');
+        if (op === 'logs') { await showLogs(name); return; }
+        if ((op === 'stop' || op === 'restart') && !(await ask(op + ' container "' + name + '"?'))) return;
+        var r = await act('container_' + op, [name]);
+        toast('docker ' + op + ': exit ' + (r.exit_code != null ? r.exit_code : '?'), r.exit_code === 0 ? 'success' : 'error');
         load();
       } catch (e) { toast(e.message, 'error'); }
     });
