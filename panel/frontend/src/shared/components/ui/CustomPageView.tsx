@@ -712,6 +712,15 @@ function customPageThemeCss(theme: Theme): string {
     .ks-bar > span { background: ${infoCol}; }`;
 }
 
+// activePageThemeCss returns the ACTIVE panel theme baked into an iframe
+// stylesheet (the same CSS CustomPageView injects into HTML pages). Exported
+// for sibling surfaces that render page content on opaque origins — the
+// Studio's static preview and html blocks — so every sandboxed frame follows
+// the admin's theme without inheriting host CSS variables.
+export function activePageThemeCss(): string {
+  return customPageThemeCss(useThemeStore.getState().active());
+}
+
 // CustomPageView renders a custom page's content. HTML mode renders inside a
 // sandboxed opaque-origin iframe whose only channel to the panel is the
 // postMessage SDK bridge. Markdown and blocks render as React components in
