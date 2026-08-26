@@ -47,6 +47,10 @@ function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){retur
 function el(id){return document.getElementById(id);}
 function toast(m,t){try{KSPageSDK.toast(m,t||'info');}catch(e){}}
 async function sh(cmd,timeout){var r=await KSPageSDK.shell(cmd,[],null,timeout||20);if(r&&r.error&&!r.stdout&&!r.stderr)throw new Error(r.error);return r;}
+// ask() routes destructive-operation confirmations through the panel's themed
+// ConfirmDialog (sdk.confirm bridges to the host origin) instead of the
+// browser-native confirm(). Falls back so pages stay functional everywhere.
+async function ask(m){try{if(window.KSPageSDK&&typeof window.KSPageSDK.confirm==='function')return await window.KSPageSDK.confirm(m);}catch(e){}return window.confirm(m);}
 function pre(text,maxH){return '<pre style="max-height:'+(maxH||420)+'px;overflow:auto;font-size:12px;margin:0">'+esc(text==null?'':text)+'</pre>';}
 function card(title,innerHtml){return '<div class="ks-card"><h3 style="margin:0 0 .5rem;font-size:.95rem;color:var(--ks-heading)">'+title+'</h3>'+innerHtml+'</div>';}
 `;
@@ -130,7 +134,7 @@ const DOCKER_MANAGER = page(
       var name = t.dataset.name;
       try {
         if (act === 'logs') { showLogs(name); return; }
-        if ((act === 'stop' || act === 'restart') && !window.confirm(act + ' container "' + name + '"?')) return;
+        if ((act === 'stop' || act === 'restart') && !(await ask(act + ' container "' + name + '"?'))) return;
         var r = await sh('docker ' + act + ' ' + JSON.stringify(name), 30);
         toast('docker ' + act + ': exit ' + (r.exit_code != null ? r.exit_code : '?'), r.exit_code === 0 ? 'success' : 'error');
         load();
@@ -195,7 +199,7 @@ const SERVICE_CONTROL = page(
           el('detail').style.display = 'block';
           return;
         }
-        if ((act === 'stop' || act === 'restart') && !window.confirm(act + ' ' + u + '?')) return;
+        if ((act === 'stop' || act === 'restart') && !(await ask(act + ' ' + u + '?'))) return;
         var r = await sh('systemctl ' + act + ' ' + JSON.stringify(u), 30);
         toast(u + ' ' + act + ': exit ' + (r.exit_code != null ? r.exit_code : '?'), r.exit_code === 0 ? 'success' : 'error');
         load();
@@ -286,7 +290,7 @@ const UPDATE_CENTER = page(
       el('upgrade').style.display = 'inline-block';
     }
     async function upgrade(){
-      if (!window.confirm('Install ALL available package upgrades now? This can take several minutes.')) return;
+      if (!(await ask('Install ALL available package upgrades now? This can take several minutes.'))) return;
       el('upgrade').disabled = true;
       el('content').innerHTML = '<p class="ks-muted">Upgrading…</p>';
       try {
