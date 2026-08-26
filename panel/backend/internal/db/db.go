@@ -593,6 +593,17 @@ func execMigrationScript(d Dialect, db *sql.DB, script, migration string) error 
 		}
 	}
 	for _, stmt := range rest {
+		// Migrations re-run on every launch, so every statement must be
+		// idempotent. SQLite/Postgres ship CREATE INDEX IF NOT EXISTS, but
+		// MySQL has no such clause and its files carry the bare form — a
+		// second launch would die on "duplicate key name". Guard centrally:
+		// skip an index that already exists (same protection the guarded
+		// ALTER path gives columns).
+		if m := createIndexRe.FindStringSubmatch(stmt); m != nil && !strings.Contains(strings.ToUpper(stmt), "IF NOT EXISTS") {
+			if hasIndex(d, db, m[2], m[1]) {
+				continue
+			}
+		}
 		if _, err := db.Exec(stmt); err != nil {
 			return err
 		}
