@@ -586,6 +586,14 @@ func coerce(v any, dstType string) any {
 			// allocate 0 bytes of memory".
 			return string(b)
 		}
+		if base == "" {
+			// Some drivers (modernc.org/sqlite v1.6.0) report an EMPTY
+			// DatabaseTypeName for every column. The panel stores no
+			// binary payloads in SQL (files live on disk, only their
+			// names/mimes in TEXT), so bytes here are text cells — bind
+			// them as strings for the same zero-length-bind reason.
+			return string(b)
+		}
 	}
 	return v
 }
