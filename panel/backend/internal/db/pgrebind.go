@@ -179,7 +179,9 @@ func namedValuesToValues(args []driver.NamedValue) []driver.Value {
 // rebindPostgres rewrites "?" placeholders into "$1..$N" ordinals. A "?"
 // inside a single-quoted string (with '' escapes), double-quoted identifier,
 // -- line comment or /* */ block comment is left alone, because there it is
-// data, not a placeholder. Existing "$n" tokens are preserved verbatim.
+// data, not a placeholder. Existing "$n" tokens are preserved verbatim and
+// the ordinal counter starts above the highest one so a query that mixes
+// both styles cannot collide.
 func rebindPostgres(query string) string {
 	var (
 		out     strings.Builder
@@ -189,6 +191,24 @@ func rebindPostgres(query string) string {
 		inLine  bool // -- comment
 		inBlock bool // /* comment */
 	)
+	writeOrdinal := func() {
+		// Consume "$<digits>" verbatim and keep the counter above it.
+		j := i + 1
+		val := 0
+		for j < len(runes) && runes[j] >= '0' && runes[j] <= '9' {
+			val = val*10 + int(runes[j]-'0')
+			j++
+		}
+		if j > i+1 { // at least one digit
+			if val > n {
+				n = val
+			}
+			out.WriteString(string(runes[i:j]))
+			i = j - 1
+			return
+		}
+		out.WriteRune('$')
+	}
 	runes := []rune(query)
 	for i := 0; i < len(runes); i++ {
 		c := runes[i]
@@ -243,6 +263,8 @@ func rebindPostgres(query string) string {
 			inBlock = true
 			out.WriteString("/*")
 			i++
+		case c == '$':
+			writeOrdinal()
 		case c == '?':
 			n++
 			out.WriteString("$")
