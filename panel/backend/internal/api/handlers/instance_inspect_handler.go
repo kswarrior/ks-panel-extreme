@@ -558,7 +558,10 @@ func ListCachedResourcesHandler(w http.ResponseWriter, r *http.Request) {
 // ----- Per-instance audit ---------------------------------------------------
 
 func ListInstanceAuditHandler(w http.ResponseWriter, r *http.Request) {
-	if !guardInstancePage(w, r, "audit") {
+	// The audit feed is used by the Home page (slug ".") as well as the
+	// dedicated Audit page (slug "audit"). Allow both so custom pages that
+	// replace the built-in Home page can still fetch the audit log.
+	if !guardInstancePageAny(w, r, "audit", "home", ".") {
 		return
 	}
 	idStr := chi.URLParam(r, "id")
