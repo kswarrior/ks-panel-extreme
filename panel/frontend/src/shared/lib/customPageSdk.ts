@@ -225,9 +225,20 @@ export function createCustomPageSDK(
       const text = await res.text();
       throw new Error(text || `HTTP ${res.status}`);
     }
+    // Parse by CONTENT, not just label: some proxies/endpoints mislabel raw
+    // file bytes (eula.txt, server.properties…) as application/json, and a
+    // blind res.json() there blew up with SyntaxError "Unexpected token 'e',
+    // \"eula=true …\" is not valid JSON" inside page editors. Read the body
+    // once; when labelled JSON and it actually parses, return the object,
+    // otherwise fall back to the raw text.
     const ctype = res.headers.get('content-type') || '';
-    if (!ctype.includes('json')) return (await res.text()) as unknown as T;
-    return res.json();
+    const text = await res.text();
+    if (ctype.includes('json')) {
+      try {
+        return JSON.parse(text) as T;
+      } catch { /* mislabelled body — hand back the raw text below */ }
+    }
+    return text as unknown as T;
   }
   
   async function fetchText(url: string, options?: RequestInit): Promise<string> {
