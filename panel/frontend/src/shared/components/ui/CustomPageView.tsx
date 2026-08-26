@@ -732,7 +732,7 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
   const sdkRef = useRef<ReturnType<typeof createCustomPageSDK> | null>(null);
   useEffect(() => {
     sdkRef.current = instanceContext
-      ? createCustomPageSDK(instanceContext, Array.isArray(content.actions) ? content.actions : [], pageSlug ?? '')
+      ? createCustomPageSDK(instanceContext, Array.isArray(content.actions) ? content.actions : [])
       : null;
     if (instanceContext) {
       // Also publish on window for markdown/blocks pages rendered in-host.
@@ -899,7 +899,7 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
   // SDK exists even before effects above run consumers rely on.
   useEffect(() => {
     if (instanceContext && content.type !== 'html') {
-      createCustomPageSDK(instanceContext, Array.isArray(content.actions) ? content.actions : [], pageSlug ?? '');
+      createCustomPageSDK(instanceContext, Array.isArray(content.actions) ? content.actions : []);
     }
   }, [instanceContext, content.type, content.actions, pageSlug]);
 

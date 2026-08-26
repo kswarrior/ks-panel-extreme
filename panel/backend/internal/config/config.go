@@ -11,11 +11,18 @@ import (
 func DefaultPort() int { return 5050 }
 
 // DataDir returns the directory where KSPANEL keeps persistent files
-// (database, uploaded logos, ...). Right now it lives next to the DB so
-// backups stay co-located, but exposing it as a dedicated helper gives us a
-// single place to swap in XXD_DATA_HOME later without touching every caller.
+// (database, uploaded logos, backups, kspanel.env). It always anchors to the
+// SQLite database location: while SQLite is live that is the DSN itself;
+// once Postgres/MySQL is live the DSN is a connection string, so deriving
+// file locations from it would scatter kspanel.env/backups into directories
+// named after DSN fragments and desynchronise SaveDBConfig's write path from
+// LoadEnvFile's read path. In that case files stay next to the SQLite anchor
+// (KSPANEL_DB or ./kspanel.db).
 func DataDir() string {
-	return filepath.Dir(DatabasePath())
+	if cfg := DatabaseConfig(); cfg.Engine == "sqlite" && cfg.DSN != "" {
+		return filepath.Dir(cfg.DSN)
+	}
+	return filepath.Dir(defaultSQLitePath())
 }
 
 // DBConfig bundles the engine selection + connection string that kspanel
@@ -69,6 +76,17 @@ func DatabaseConfig() DBConfig {
 	}
 	if databaseDSNOverride != "" {
 		dsn = databaseDSNOverride
+	}
+
+	// Canonicalise engine aliases so Engine always carries the dialect's
+	// canonical name ("sqlite" | "postgres" | "mysql") no matter which
+	// spelling an operator wrote in kspanel.env or --type. Consumers
+	// (datamove, handlers) compare against db.Dialect.Name().
+	switch engine {
+	case "postgresql", "pg":
+		engine = "postgres"
+	case "mariadb":
+		engine = "mysql"
 	}
 
 	// SQLite short-cut: KSPANEL_DB still works as the file path for ops

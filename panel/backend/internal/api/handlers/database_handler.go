@@ -301,7 +301,13 @@ func DatabaseInfoHandler(w http.ResponseWriter, r *http.Request) {
 	// edge that has an FK defined and reports orphaned rows by table.
 	info.IntegrityOk = true
 	info.ForeignKeyOk = true
-	if rows, err := con.Query(`PRAGMA integrity_quick`); err == nil {
+	// PRAGMA quick_check is SQLite's fast integrity scan (the pragma this
+	// health tile was always meant to run). The previous query named a
+	// non-existent "integrity_quick" — SQLite silently ignores unknown
+	// pragmas by returning zero rows WITHOUT an error, so the happy path
+	// never ran any check at all and the page reported a permanently green
+	// health badge.
+	if rows, err := con.Query(`PRAGMA quick_check`); err == nil {
 		for rows.Next() {
 			var msg string
 			if err := rows.Scan(&msg); err == nil && strings.TrimSpace(strings.ToLower(msg)) != "ok" {
@@ -885,13 +891,22 @@ func SetDatabaseEngineHandler(w http.ResponseWriter, r *http.Request) {
 			resp.VerifyIssues = append(resp.VerifyIssues, verr.Error())
 		}
 		if len(resp.VerifyIssues) > 0 {
-			// Post-commit integrity failure: actively clear what we copied
-			// so the target ends up back at its pre-sync (empty) state and
-			// the operator's old configuration stays authoritative.
-			cleanErr := cleanupCopiedTables(target, d, bl.order)
+			// Post-commit integrity failure. With clear_target enabled the
+			// pre-sync target held only seeded rows, so wiping every copied
+			// table restores exactly that state and the operator's old
+			// configuration stays authoritative. With clear_target disabled
+			// the target also held pre-existing rows we must NOT destroy —
+			// the copied rows are reported instead of being removed.
+			var cleanErr error
+			if clearTarget {
+				cleanErr = cleanupCopiedTables(target, d, bl.order)
+				resp.Message = "verification failed — synced data removed from target: " +
+					strings.Join(resp.VerifyIssues, "; ")
+			} else {
+				resp.Message = "verification failed — copied rows left in place (clear_target was off): " +
+					strings.Join(resp.VerifyIssues, "; ")
+			}
 			resp.RolledBack = true
-			resp.Message = "verification failed — synced data removed from target: " +
-				strings.Join(resp.VerifyIssues, "; ")
 			if cleanErr != nil {
 				resp.Message += fmt.Sprintf(" (target cleanup incomplete: %v)", cleanErr)
 			}

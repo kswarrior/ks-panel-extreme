@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"archive/zip"
 	"bytes"
 	"database/sql"
 	"encoding/json"
@@ -1692,29 +1693,102 @@ func safeModuleSegment(s string) bool {
 	return !strings.Contains(s, "..")
 }
 
-// Helper function to unzip a file
+// Module bundle extraction limits: hard caps so a crafted .kspm can't
+// exhaust disk or inode budgets (zip bombs) and can't escape the target
+// directory (zip-slip).
+const (
+	maxModuleZipEntries      = 2000
+	maxModuleZipFileBytes    = 64 << 20  // 64MB per entry (uncompressed)
+	maxModuleZipTotalBytes   = 256 << 20 // 256MB total uncompressed
+)
+
+// unzip extracts a ZIP stream into dest. Hardened for untrusted archives:
+//   - zip-slip: entry names are cleaned and must resolve INSIDE dest
+//     (absolute paths, ".." segments, UNC/device names rejected);
+//   - bomb guard: entry count, per-entry size and total size caps;
+//   - mode hardening: regular files/dirs only (symlinks skipped), files
+//     written 0o644 / dirs 0o755 regardless of stored modes.
 func unzip(src io.Reader, dest string) error {
-	// Create a temporary file to store the uploaded content
-	tempFile, err := os.CreateTemp("", "kspanel-upload-*.kspm")
+	tempFile, err := os.CreateTemp("", "kspanel-upload-*.zip")
 	if err != nil {
 		return err
 	}
 	defer os.Remove(tempFile.Name())
-
-	// Copy the uploaded file to the temporary file
 	if _, err := io.Copy(tempFile, src); err != nil {
+		tempFile.Close()
+		return err
+	}
+	if _, err := tempFile.Seek(0, io.SeekStart); err != nil {
+		tempFile.Close()
 		return err
 	}
 
-	// Close the file before reopening for reading
-	if err := tempFile.Close(); err != nil {
-		return err
+	zr, err := zip.NewReader(tempFile, tempFile.Size())
+	closeErr := tempFile.Close()
+	if closeErr != nil {
+		return closeErr
+	}
+	if err != nil {
+		return fmt.Errorf("not a valid zip archive")
+	}
+	if len(zr.File) > maxModuleZipEntries {
+		return fmt.Errorf("archive has too many entries (max %d)", maxModuleZipEntries)
 	}
 
-	// TODO: Implement actual ZIP extraction
-	// For now, we'll assume the file is already extracted or handle it differently
-	// This is a simplified implementation - in production, you'd use an archive/zip package
-	return fmt.Errorf("ZIP extraction not implemented")
+	destAbs, err := filepath.Abs(dest)
+	if err != nil {
+		return err
+	}
+	var total int64
+	for _, f := range zr.File {
+		name := filepath.Clean(f.Name)
+		if name == "." || strings.HasPrefix(name, ".."+string(filepath.Separator)) || filepath.IsAbs(name) || strings.Contains(name, "..") || strings.HasPrefix(f.Name, "/") || (len(f.Name) >= 2 && f.Name[1] == ':') {
+			return fmt.Errorf("archive entry escapes the target directory: %s", f.Name)
+		}
+		target := filepath.Join(destAbs, name)
+		if !strings.HasPrefix(target, destAbs+string(filepath.Separator)) {
+			return fmt.Errorf("archive entry escapes the target directory: %s", f.Name)
+		}
+		if f.FileInfo().IsDir() {
+			if err := os.MkdirAll(target, 0o755); err != nil {
+				return err
+			}
+			continue
+		}
+		// Skip anything that is not a regular file (symlinks, devices…):
+		// extracting those verbatim is an escalation primitive.
+		if !f.FileInfo().Mode().IsRegular() {
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			return err
+		}
+		rc, err := f.Open()
+		if err != nil {
+			return err
+		}
+		out, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+		if err != nil {
+			rc.Close()
+			return err
+		}
+		// Read once, one byte beyond the per-entry cap so oversize entries
+		// are detected instead of silently truncated.
+		n, err := io.Copy(out, io.LimitReader(rc, maxModuleZipFileBytes+1))
+		closeErr := out.Close()
+		rc.Close()
+		if err != nil {
+			return err
+		}
+		if closeErr != nil {
+			return closeErr
+		}
+		total += n
+		if n > maxModuleZipFileBytes || total > maxModuleZipTotalBytes {
+			return fmt.Errorf("archive exceeds the size cap")
+		}
+	}
+	return nil
 }
 
 // Helper function to copy a directory
