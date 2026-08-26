@@ -923,14 +923,6 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
     };
   }, [instanceContext, navigate]);
 
-  // For markdown and blocks content rendered in-host, make sure the direct
-  // SDK exists even before effects above run consumers rely on.
-  useEffect(() => {
-    if (instanceContext && content.type !== 'html') {
-      createCustomPageSDK(instanceContext, Array.isArray(content.actions) ? content.actions : []);
-    }
-  }, [instanceContext, content.type, content.actions, pageSlug]);
-
   // For HTML content, render in a hardened sandboxed iframe. Pure content:
   // no injected header or card chrome — only the pages-JSON payload shows.
   if (content.type === 'html') {
