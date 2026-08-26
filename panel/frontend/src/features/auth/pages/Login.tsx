@@ -298,29 +298,27 @@ const Login: React.FC = () => {
               </div>
             </div>
 
-            {/* Submit button */}
+            {/* Submit button — fill/text live ON the button element (single
+                composite) so the theme applier's .bg-white.text-black
+                mapping lets the Theme Studio's Button tab restyle it. */}
             <button
               type="submit"
               disabled={submitting}
-              className="animate-slide-up [animation-delay:0.3s] [animation-fill-mode:backwards]
+              className={`animate-slide-up [animation-delay:0.3s] [animation-fill-mode:backwards]
  relative w-full py-2.5 rounded-lg font-semibold text-sm tracking-wide
  transition-all duration-300 active:scale-[0.97]
  focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 focus:ring-offset-neutral-900
- disabled:opacity-100 disabled:cursor-wait overflow-hidden"
+ disabled:opacity-100 disabled:cursor-wait overflow-hidden ${
+   submitting ? 'bg-neutral-800/80 text-white' : 'bg-white hover:bg-gray-200 text-black'
+ }`}
             >
-              {/* Button background layer */}
-              <span className={`absolute inset-0 rounded-lg transition-all duration-500 ${
-                submitting
-                  ? 'bg-neutral-800/80'
-                  : 'bg-white hover:bg-gray-200'
-              }`} />
               {/* Button shimmer overlay */}
               {!submitting && (
                 <span className="absolute inset-0 rounded-lg bg-gradient-to-r from-white/0 via-white/5 to-white/0
  animate-[shimmer_2s_ease-in-out_infinite]" />
               )}
               {/* Button content */}
-              <span className={`relative z-10 flex items-center justify-center gap-2 ${submitting ? 'text-white' : 'text-black'}`}>
+              <span className="relative z-10 flex items-center justify-center gap-2">
                 {submitting ? (
                   <>
                     {/* Spinning loader */}
