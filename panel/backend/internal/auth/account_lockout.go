@@ -97,10 +97,14 @@ func (al *AccountLockout) RecordFailedAttempt(username string) {
 
 // IsAccountLocked checks if an account is locked
 func (al *AccountLockout) IsAccountLocked(username string) bool {
-	al.mu.RLock()
-	defer al.mu.RUnlock()
+	// Full Lock, not RLock: the lazy expiry reset below mutates the shared
+	// attempt record. Writing under RLock races with concurrent readers and
+	// writers (go test -race flags it).
+	key := lockKey(username)
+	al.mu.Lock()
+	defer al.mu.Unlock()
 
-	attempt, exists := al.attempts[username]
+	attempt, exists := al.attempts[key]
 	if !exists {
 		return false
 	}
@@ -124,7 +128,7 @@ func (al *AccountLockout) GetRemainingAttempts(username string) int {
 	al.mu.RLock()
 	defer al.mu.RUnlock()
 
-	attempt, exists := al.attempts[username]
+	attempt, exists := al.attempts[lockKey(username)]
 	if !exists {
 		return al.maxAttempts
 	}
@@ -145,7 +149,7 @@ func (al *AccountLockout) GetLockoutTime(username string) time.Duration {
 	al.mu.RLock()
 	defer al.mu.RUnlock()
 
-	attempt, exists := al.attempts[username]
+	attempt, exists := al.attempts[lockKey(username)]
 	if !exists || !attempt.Locked {
 		return 0
 	}
@@ -162,7 +166,7 @@ func (al *AccountLockout) ResetAttempts(username string) {
 	al.mu.Lock()
 	defer al.mu.Unlock()
 
-	delete(al.attempts, username)
+	delete(al.attempts, lockKey(username))
 }
 
 // UnlockAccount manually unlocks an account
@@ -170,7 +174,7 @@ func (al *AccountLockout) UnlockAccount(username string) {
 	al.mu.Lock()
 	defer al.mu.Unlock()
 
-	if attempt, exists := al.attempts[username]; exists {
+	if attempt, exists := al.attempts[lockKey(username)]; exists {
 		attempt.Locked = false
 		attempt.Attempts = 0
 		attempt.LockedAt = time.Time{}
@@ -183,9 +187,9 @@ func (al *AccountLockout) CleanupOldAttempts() {
 	defer al.mu.Unlock()
 
 	now := time.Now()
-	for username, attempt := range al.attempts {
+	for key, attempt := range al.attempts {
 		if !attempt.Locked && now.Sub(attempt.LastAttempt) > al.lockoutWindow {
-			delete(al.attempts, username)
+			delete(al.attempts, key)
 		}
 	}
 }
@@ -195,7 +199,7 @@ func (al *AccountLockout) GetAccountStatus(username string) (bool, int, time.Dur
 	al.mu.RLock()
 	defer al.mu.RUnlock()
 
-	attempt, exists := al.attempts[username]
+	attempt, exists := al.attempts[lockKey(username)]
 	if !exists {
 		return false, al.maxAttempts, 0
 	}
