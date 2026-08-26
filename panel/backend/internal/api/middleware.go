@@ -110,7 +110,14 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		// value the SPA stored with the one the server now expects.
 		if fromCookie && auth.ShouldRotate(expiry) {
 			newExpiry := now.Add(policy.Lifetime)
-			newValue := auth.GenerateSessionToken(uid, now)
+			newValue, err := auth.GenerateSessionToken(uid, now)
+			if err != nil {
+				// No session secret configured — refuse to mint a
+				// replacement credential instead of downgrading to an
+				// unsigned token.
+				http.Error(w, "server error", http.StatusInternalServerError)
+				return
+			}
 			// Keep the manager in lockstep with rotation: register the
 			// replacement token and retire the old value so the admin
 			// Sessions list shows exactly the live credentials.

@@ -151,7 +151,7 @@ func ValidateSessionToken(token string) (int64, time.Time, error) {
 		// middleware can choose to AGE it out (it does) rather than
 		// trusting it indefinitely.
 		uidStr, sig := parts[0], parts[1]
-		mac := hmac.New(sha256.New, sessionSecret)
+		mac := hmac.New(sha256.New, secret)
 		mac.Write([]byte(uidStr))
 		wantSig := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 		if !hmac.Equal([]byte(wantSig), []byte(sig)) {
