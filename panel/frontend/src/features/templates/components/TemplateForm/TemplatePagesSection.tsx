@@ -123,6 +123,12 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
         content_html: p.content_html || '',
         content_markdown: p.content_markdown || '',
         content_blocks: p.content_blocks || '',
+        // Saved actions MUST ride along: the runtime allow-list matches
+        // against the spec row's actions, so dropping them here made every
+        // action on the page fail with 403 once deployed.
+        ...(parsePageActions(p.actions).length > 0
+          ? { actions: parsePageActions(p.actions) }
+          : {}),
         // Multi-page support: sub-pages stay INSIDE the parent row (effective
         // route "<slug>/<path>", e.g. files/edit) so they never show up as
         // separate top-level tabs — the tab bar lists the parent page only.
