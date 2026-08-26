@@ -8,6 +8,7 @@ import RoleIdentity from '@/features/roles/components/RoleIdentity';
 import RolePermissions from '@/features/roles/components/RolePermissions';
 import RoleAuthorities from '@/features/roles/components/RoleAuthorities';
 import { AUTHORITY_PROVIDER } from '@/features/authority/types/authority';
+import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 
 interface Form {
   name: string;
@@ -118,7 +119,7 @@ const RoleForm: React.FC = () => {
         saving={false}
         submitLabel="Save"
       >
-        <p className="text-gray-400 text-sm">Loading…</p>
+        <FormSkeleton fields={4} />
       </FormPage>
     );
   }

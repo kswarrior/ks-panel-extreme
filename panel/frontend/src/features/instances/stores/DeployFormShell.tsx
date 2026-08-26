@@ -4,6 +4,7 @@ import FormPage from '@/shared/components/forms/FormPage';
 import { listTemplates } from '@/shared/api/admin';
 import type { Template } from '@/shared/types/instance';
 import { DeployFormProvider } from './deployFormStore';
+import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 
 // DeployFormShell wraps the /instances/new/* subtree so the
 // DeployFormProvider sits ABOVE both the Main form and the Advance
@@ -35,7 +36,7 @@ const DeployFormShell: React.FC = () => {
         submitLabel="Deploy"
         maxWidth="max-w-3xl"
       >
-        <p className="text-gray-400 text-sm">Loading…</p>
+        <FormSkeleton fields={4} />
       </FormPage>
     );
   }
