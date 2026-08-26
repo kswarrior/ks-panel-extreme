@@ -78,6 +78,13 @@ requires written proof of exactly what is blocked and why.
      Backend/Edge: go build ./... && go test ./...
      Frontend:     build + typecheck + lint
      Migration:    verify MySQL / PostgreSQL / SQLite compatibility
+     Runtime:      ANY check needing the panel RUNNING (endpoints, login,
+                   seed data, edge wiring) → bash /home/runner/work/
+                   ks-panel-extreme/ks-panel-extreme/retest.sh
+                   (auto-runs rebuild.sh if release/kspanel missing; stops old
+                   instances; launches panel on :8080, custom port as arg 1;
+                   logs: /tmp/kspanel-retest/kspanel.log; stop: kill $(cat
+                   /tmp/kspanel-retest/kspanel.pid)). Read output + tail the log.
 - V8 READ the REAL command output. Exit code + output or it didn't pass.
      A green assumption is a red failure.
 - V9 Security pass on touched surfaces: injection, authz gaps, secret exposure,
