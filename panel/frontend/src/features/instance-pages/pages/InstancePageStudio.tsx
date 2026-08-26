@@ -495,7 +495,9 @@ const InstancePageStudio: React.FC = () => {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [executingAction, setExecutingAction] = useState<string | null>(null);
-  const [actionResult, setActionResult] = useState<{ stdout: string; stderr: string; exit_code: number } | null>(null);
+  // Test-execute output, keyed to the row that produced it so the result only
+  // renders inside that action's card.
+  const [actionResult, setActionResult] = useState<{ id: string; stdout: string; stderr: string; exit_code: number } | null>(null);
 
   // Page metadata + content
   const [page, setPage] = useState<Partial<InstancePage>>({
@@ -583,7 +585,7 @@ const InstancePageStudio: React.FC = () => {
         }
       })
       .catch((e: any) => {
-        if (!cancelled) setError(e?.response?.data || 'Failed to load page');
+        if (!cancelled) setError(getErrorMessage(e, 'Failed to load page'));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -633,11 +635,11 @@ const InstancePageStudio: React.FC = () => {
     // Load the template's saved actions into the Actions tab (blank row when
     // the template ships none).
     setActions(defsToActions(JSON.stringify(s.actions ?? [])));
-    if (s.subPages) {
-      setSubs(subRowsFromJSON(JSON.stringify(s.subPages)));
-      setEditingSubId(null);
-      setPreviewTarget('main');
-    }
+    // Replace any previously loaded sub-pages so switching templates can't
+    // leave stale routes from another template behind.
+    setSubs(s.subPages ? subRowsFromJSON(JSON.stringify(s.subPages)) : []);
+    setEditingSubId(null);
+    setPreviewTarget('main');
     setNotice(
       s.actions?.length
         ? `Template "${s.name}" applied — full code loaded in Content and ${s.actions.length} saved action(s) in Actions.`
@@ -729,9 +731,9 @@ const InstancePageStudio: React.FC = () => {
     setError('');
     try {
       const res = await executePageAction(pageId, previewInstanceId, def as InstancePageAction);
-      setActionResult({ stdout: res.stdout ?? '', stderr: res.stderr ?? '', exit_code: res.exit_code ?? -1 });
+      setActionResult({ id: row.id, stdout: res.stdout ?? '', stderr: res.stderr ?? '', exit_code: res.exit_code ?? -1 });
     } catch (e: any) {
-      setActionResult({ stdout: '', stderr: e?.response?.data || e.message, exit_code: -1 });
+      setActionResult({ id: row.id, stdout: '', stderr: getErrorMessage(e, 'Action failed'), exit_code: -1 });
     } finally {
       setExecutingAction(null);
     }
@@ -1406,14 +1408,14 @@ const InstancePageStudio: React.FC = () => {
                   >
                     {executingAction === action.id ? 'Executing…' : 'Test execute'}
                   </button>
-                  {actionResult && executingAction === null && (
+                  {actionResult && actionResult.id === action.id && executingAction === null && (
                     <span className={`text-xs font-mono ${actionResult.exit_code === 0 ? 'text-emerald-300' : 'text-red-300'}`}>
                       Exit: {actionResult.exit_code}
                     </span>
                   )}
                 </div>
 
-                {actionResult && (
+                {actionResult?.id === action.id && (
                   <details>
                     <summary className="text-xs text-gray-400 cursor-pointer select-none">Show output</summary>
                     <pre className="mt-2 p-3 bg-black/50 border border-white/10 rounded text-xs text-gray-300 overflow-auto max-h-64 font-mono">
