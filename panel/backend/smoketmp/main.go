@@ -51,7 +51,7 @@ func main() {
 	die(func() error { _, err := nr.IngestHeartbeat(hb); return err }(), "IngestHeartbeat#2(upsert)")
 
 	tr := repository.NewThemeRepository(con)
-	_, err = tr.CreateTheme(repository.UpsertThemeInput{ID: "smoke", Name: "Smoke", Description: "", Spec: []byte("{}")})
+	_, err = tr.CreateTheme(repository.UpsertThemeInput{ID: "smoke", Name: "Smoke", Description: "", Spec: []byte("{}"), CreatedBy: 1})
 	die(err, "CreateTheme")
 	die(tr.AssignTheme("global", "smoke"), "AssignTheme")
 	die(tr.AssignTheme("auth", "smoke"), "AssignTheme#2")
