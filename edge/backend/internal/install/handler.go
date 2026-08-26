@@ -313,6 +313,17 @@ func handleInstallStart(w http.ResponseWriter, r *http.Request, token string, st
 	rec.end = time.Time{}
 	rec.mu.Unlock()
 
+	// Publish LIVE per-step state into the record while the workflow runs:
+	// the engine calls OnProgress on every step transition, and mid-run polls
+	// of GET /api/edge/install then return the real running/failed/done step
+	// instead of an all-"pending" transcript (the panel's install poller maps
+	// that onto instance.install_step for the UI progress display).
+	in.OnProgress = func(ss []StepStatus) {
+		rec.mu.Lock()
+		rec.steps = ss
+		rec.mu.Unlock()
+	}
+
 	// Run asynchronously so the RPC returns immediately. The workflow budget
 	// is chosen from Input.TimeoutSec (sent by the panel):
 	//   > 0 → operator-configured cap (template action max_runtime_s or the

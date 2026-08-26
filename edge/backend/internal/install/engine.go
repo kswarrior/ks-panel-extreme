@@ -196,6 +196,17 @@ func runCore(ctx context.Context, in Input, exec ExecFn, onStdin func(io.WriteCl
 	for i := range in.Steps {
 		steps[i] = StepStatus{Index: i, Action: in.Steps[i].Action, Status: stepPending}
 	}
+	// publish pushes a copy of the current transcript to the optional
+	// OnProgress hook so mid-run polls see live per-step state instead of a
+	// frozen "all pending" snapshot.
+	publish := func() {
+		if in.OnProgress == nil {
+			return
+		}
+		snapshot := make([]StepStatus, len(steps))
+		copy(snapshot, steps)
+		in.OnProgress(snapshot)
+	}
 
 	for i, step := range in.Steps {
 		select {
@@ -208,6 +219,7 @@ func runCore(ctx context.Context, in Input, exec ExecFn, onStdin func(io.WriteCl
 
 		steps[i].Status = stepRunning
 		steps[i].StartedAt = time.Now()
+		publish()
 
 		// Max retries defaults to 0 (one shot) unless the operator set it.
 		// A non-numeric / negative value silently clamps to 0 so a typo
@@ -231,6 +243,7 @@ func runCore(ctx context.Context, in Input, exec ExecFn, onStdin func(io.WriteCl
 					Stderr:    "compile step: " + err.Error(),
 					StartedAt: steps[i].StartedAt, EndedAt: time.Now()}
 				steps[i] = res
+				publish()
 				break
 			}
 
@@ -302,12 +315,14 @@ func runCore(ctx context.Context, in Input, exec ExecFn, onStdin func(io.WriteCl
 				res.Stderr = stderr + "\n" + execErr.Error()
 			}
 			steps[i] = res
+			publish()
 			break
 		}
 		// Persist the last attempt's transcript (retries>0 path overwrites
 		// steps[i] in-loop; the success path needs the assignment here).
 		if res.Status == stepDone {
 			steps[i] = res
+			publish()
 		}
 
 		if steps[i].Status == stepFailed {
