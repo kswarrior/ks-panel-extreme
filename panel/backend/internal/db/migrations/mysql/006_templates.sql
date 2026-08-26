@@ -10,7 +10,7 @@
 CREATE TABLE IF NOT EXISTS templates (
     id          BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     -- Display name shown in the deploy modal + template list.
-    name        TEXT    NOT NULL,
+    name VARCHAR(255) NOT NULL,
     -- Short one-line description rendered under the name.
     description TEXT    NOT NULL DEFAULT (''),
     -- Which ksedge driver executes instances from this template.

@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS instances (
     -- removed template).
     template_id BIGINT,
     -- Operator-chosen instance label, unique per panel so logs/UI are clear.
-    name        TEXT    NOT NULL,
+    name VARCHAR(255) NOT NULL,
     -- 'docker' | 'lxd' | 'kvm' | 'multipass' — cached from the template at
     -- deploy time so an owner can tell at a glance what kind of workload it is.
     kind VARCHAR(255) NOT NULL,

@@ -20,7 +20,7 @@
 CREATE TABLE IF NOT EXISTS instance_snapshots (
     id           BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     instance_id  BIGINT NOT NULL REFERENCES instances(id) ON DELETE CASCADE,
-    name         TEXT    NOT NULL,
+    name VARCHAR(255) NOT NULL,
     external_ref TEXT    NOT NULL DEFAULT (''),            -- edge-side snapshot id/name
     size_bytes   INTEGER NOT NULL DEFAULT 0,
     note         TEXT    NOT NULL DEFAULT (''),
