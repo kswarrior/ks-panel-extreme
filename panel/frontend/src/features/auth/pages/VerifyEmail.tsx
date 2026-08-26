@@ -177,9 +177,9 @@ const VerifyEmail: React.FC = () => {
                   required
                   autoComplete="one-time-code"
                   placeholder=" "
-                  className="peer w-full bg-transparent text-white placeholder-transparent
- border-b border-neutral-700 pl-10 pr-3 py-2.5 text-sm tracking-[0.5em]
- focus:outline-none focus:border-white transition-all duration-200"
+                  className="peer w-full bg-transparent ks-auth-input placeholder-transparent
+ border-b pl-10 pr-3 py-2.5 text-sm tracking-[0.5em]
+ transition-all duration-200"
                 />
                 <label className="absolute left-10 top-2.5 text-xs font-medium text-gray-500
  transition-all duration-200 pointer-events-none
@@ -199,19 +199,19 @@ const VerifyEmail: React.FC = () => {
               </div>
             </div>
 
-            {/* Submit */}
+            {/* Submit — colors on the button element itself so the theme
+                applier's .bg-white.text-black mapping applies. */}
             <button
               type="submit"
               disabled={submitting}
-              className="relative w-full py-2.5 rounded-lg font-semibold text-sm tracking-wide
+              className={`relative w-full py-2.5 rounded-lg font-semibold text-sm tracking-wide
  transition-all duration-300 active:scale-[0.97]
  focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 focus:ring-offset-neutral-900
- disabled:opacity-100 disabled:cursor-wait overflow-hidden"
+ disabled:opacity-100 disabled:cursor-wait overflow-hidden ${
+   submitting ? 'bg-neutral-800/80 text-white' : 'bg-white hover:bg-gray-200 text-black'
+ }`}
             >
-              <span className={`absolute inset-0 rounded-lg transition-all duration-500 ${
-                submitting ? 'bg-neutral-800/80' : 'bg-white hover:bg-gray-200'
-              }`} />
-              <span className={`relative z-10 flex items-center justify-center gap-2 ${submitting ? 'text-white' : 'text-black'}`}>
+              <span className="relative z-10 flex items-center justify-center gap-2">
                 {submitting ? 'Verifying…' : 'Verify Email'}
               </span>
             </button>
