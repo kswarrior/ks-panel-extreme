@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS applications (
     permissions     TEXT    NOT NULL DEFAULT ('[]'),
     env             TEXT    NOT NULL DEFAULT ('{}'),
     active          INTEGER NOT NULL DEFAULT 0,
-    uploaded_by     INTEGER,
+    uploaded_by     BIGINT,
     source          TEXT    NOT NULL DEFAULT ('file'),
     source_url      TEXT    NOT NULL DEFAULT (''),
     created_at      TEXT    NOT NULL,
