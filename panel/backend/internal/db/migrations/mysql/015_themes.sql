@@ -42,7 +42,7 @@ CREATE INDEX themes_created_by_idx ON themes(created_by);
 -- UPSERT (the unique constraint enforces this), un-assigning is a DELETE.
 CREATE TABLE IF NOT EXISTS theme_assignments (
     scope VARCHAR(255)     PRIMARY KEY,           -- "area:<id>" or "page:<id>"
-    theme_id  TEXT    NOT NULL REFERENCES themes(id) ON DELETE CASCADE
+    VARCHAR(255)    
 );
 
 CREATE INDEX theme_assignments_theme_idx ON theme_assignments(theme_id);

@@ -49,7 +49,7 @@
 
 CREATE TABLE IF NOT EXISTS security_requests (
     id          BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    client_ip   TEXT    NOT NULL DEFAULT (''),
+    VARCHAR(255)    
     method      TEXT    NOT NULL DEFAULT (''),
     path        TEXT    NOT NULL DEFAULT (''),
     status      INTEGER NOT NULL DEFAULT 0,

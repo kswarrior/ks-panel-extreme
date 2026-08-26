@@ -9,7 +9,7 @@
 
 CREATE TABLE IF NOT EXISTS device_registrations (
     id           BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    device_id    TEXT    NOT NULL,
+    VARCHAR(255)    
     user_id      BIGINT,
     email        TEXT    NOT NULL,
     created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP

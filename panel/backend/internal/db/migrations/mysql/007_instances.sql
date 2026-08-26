@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS instances (
     -- Lifecycle status mirrored from ksedge. 'creating' on deploy, then the
     -- edge flips it to 'running'/'stopped'/'errored' as the driver responds.
     -- The panel also accepts 'destroyed' which removes any printable card.
-    status      TEXT    NOT NULL DEFAULT ('creating'),
+    VARCHAR(255)    
     -- The real driver-side name/ID ksedge returned (docker container name,
     -- lxc instance name, virsh domain, multipass instance name). Stored so
     -- subsequent start/stop/destroy RPCs reference the exact workload.

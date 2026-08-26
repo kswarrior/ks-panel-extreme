@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS templates (
     description TEXT    NOT NULL DEFAULT (''),
     -- Which ksedge driver executes instances from this template.
     -- One of: 'docker' | 'lxd' | 'kvm' | 'multipass'.
-    kind        TEXT    NOT NULL,
+    VARCHAR(255)    
     -- Pretty image / base the operator recognises (e.g. "ubuntu/22.04",
     -- "alpine:3.19", "debian-12"). Forwarded verbatim to the driver which
     -- interprets it according to its own image syntax.

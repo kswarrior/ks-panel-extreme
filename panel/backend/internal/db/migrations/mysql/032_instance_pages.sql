@@ -16,8 +16,8 @@ CREATE TABLE IF NOT EXISTS instance_pages (
     id              BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     name            TEXT    NOT NULL,
     slug VARCHAR(255)     NOT NULL  UNIQUE,
-    kind            TEXT    NOT NULL DEFAULT ('custom'),
-    category        TEXT    NOT NULL DEFAULT (''),
+    VARCHAR(255)    
+    VARCHAR(255)    
     description     TEXT    NOT NULL DEFAULT (''),
     content_type    TEXT    NOT NULL DEFAULT ('markdown'),
     content_html    TEXT    NOT NULL DEFAULT (''),

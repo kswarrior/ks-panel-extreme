@@ -546,8 +546,11 @@ type createTableRef struct {
 }
 
 var (
-	createTableRe = regexp.MustCompile(`(?is)^\s*CREATE\s+(?:TEMP(?:ORARY)?\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?["'`+"`"+`]?(\w+)["'`+"`"+`]?`)
-	referencesRe  = regexp.MustCompile(`(?is)REFERENCES\s+(?:ONLY\s+)?["'`+"`"+`]?(\w+)["'`+"`"+`]?`)
+	createTableRe = regexp.MustCompile(`(?is)^\s*CREATE\s+(?:TEMP(?:ORARY)?\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?["'` + "`" + `]?(\w+)["'` + "`" + `]?`)
+	referencesRe  = regexp.MustCompile(`(?is)REFERENCES\s+(?:ONLY\s+)?["'` + "`" + `]?(\w+)["'` + "`" + `]?`)
+	// createIndexRe captures [index, table] from a bare CREATE INDEX so the
+	// runner can make index creation idempotent on MySQL (no IF NOT EXISTS).
+	createIndexRe = regexp.MustCompile(`(?is)^\s*CREATE\s+INDEX\s+["'` + "`" + `]?(\w+)["'` + "`" + `]?\s+ON\s+["'` + "`" + `]?(\w+)["'` + "`" + `]?`)
 )
 
 func parseCreateTable(stmt string, order int) *createTableRef {
