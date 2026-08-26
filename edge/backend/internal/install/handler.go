@@ -367,7 +367,7 @@ func handleInstallStart(w http.ResponseWriter, r *http.Request, token string, st
 	go func() {
 		defer cancel()
 		// Snapshot rec locally for the goroutine; store's map still owns
-		// the canonical pointer (getOrCreate returned the same *record we
+		// the canonical pointer (store.begin returned the same *record we
 		// reset above, so mutate-by-reference is safe).
 		state, steps := runFn(ctx, in, execFn, func(w io.WriteCloser) {
 			store.setStdinWriter(key, w)
