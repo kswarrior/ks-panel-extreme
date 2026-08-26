@@ -22,6 +22,8 @@ import CustomPageView, { activePageThemeCss, type PageContent } from '@/shared/c
 import GlassCard from '@/shared/components/ui/Card';
 import { glassFieldClass } from '@/shared/components/ui/Field';
 import { parseConfig } from '@/shared/hooks/useInstance';
+import { useConfirm } from '@/shared/stores/confirmStore';
+import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 
 type TabId = 'templates' | 'editor' | 'subpages' | 'actions' | 'preview' | 'settings';
 
@@ -464,6 +466,7 @@ const BlocksVisualEditor: React.FC<{
 
 const InstancePageStudio: React.FC = () => {
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const { id } = useParams<{ id?: string }>();
   const isEdit = Boolean(id);
   const pageId = id ? Number(id) : null;
