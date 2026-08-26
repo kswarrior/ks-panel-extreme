@@ -81,11 +81,12 @@ const Mods: React.FC = () => {
   const [engine, setEngine] = useState<ModEngineDiagnostics | null>(null);
   const [engineBusy, setEngineBusy] = useState(false);
 
-  // edit modal
+  // edit modal — editSpec holds the current spec so it's not lost on save
   const [editName, setEditName] = useState('');
   const [editVersion, setEditVersion] = useState('');
   const [editDesc, setEditDesc] = useState('');
   const [editId, setEditId] = useState<number | null>(null);
+  const [editSpec, setEditSpec] = useState<string | undefined>(undefined);
   const [editSaving, setEditSaving] = useState(false);
 
   // activate / grant modal
@@ -262,12 +263,15 @@ const Mods: React.FC = () => {
     setEditName(m.name);
     setEditVersion(m.version);
     setEditDesc(m.description);
+    setEditSpec(typeof m.spec === 'string' ? m.spec : undefined);
   };
   const saveEdit = async () => {
     if (editId == null) return;
     setEditSaving(true);
     try {
-      await updateMod(editId, { name: editName, version: editVersion, description: editDesc });
+      // Include spec in the payload to prevent backend from overwriting
+      // the manifest with an empty {} on update (mod_repo.go:265-271).
+      await updateMod(editId, { name: editName, version: editVersion, description: editDesc, spec: editSpec });
       setEditId(null);
       await load();
     } catch (e: any) {

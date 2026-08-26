@@ -293,7 +293,7 @@ export function parseSpec(raw: string): Partial<TemplateFormState> {
       const c = s.caps as Record<string, any>;
       out.caps = {
         databases: String(c.databases ?? ''),
-        backups: String(c.backends ?? ''),
+        backups: String(c.backups ?? ''),
         networks: String(c.networks ?? ''),
       };
     }

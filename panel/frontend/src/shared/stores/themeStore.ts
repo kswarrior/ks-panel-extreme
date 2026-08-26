@@ -251,7 +251,9 @@ function buildBgLayer(theme: Theme): string {
 // simplest portable approach.
 function cardBgLayer(c: Theme['card']): string {
   if (c.bg_type === 'image' && c.bg_image) {
-    const img = `url('${c.bg_image.replace(/'/g, "\\'")}')`;
+    const url = cssUrl(c.bg_image);
+    if (!url) return 'none';
+    const img = `url('${url}')`;
     const opacity = Math.max(0, Math.min(1, c.bg_opacity));
     const scrim = 'rgba(0,0,0,' + (1 - opacity) + ')';
     // Combine the scrim + the tiled image as a single layered background.
