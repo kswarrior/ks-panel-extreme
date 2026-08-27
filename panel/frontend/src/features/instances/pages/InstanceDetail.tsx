@@ -134,15 +134,40 @@ export const InstanceDynamicPage: React.FC = () => {
     for (const p of libraryPages) {
       if (p.slug && typeof p.slug === 'string') libBySlug.set(p.slug.trim(), p);
     }
-    // Merge sub_pages from library into matching spec rows when spec row lacks them
+
     const merged = pages.map((row: any) => {
       if (!row || typeof row !== 'object' || !row.slug) return row;
       const lib = libBySlug.get(String(row.slug).trim());
-      if (lib && (!row.sub_pages || (typeof row.sub_pages === 'string' && !row.sub_pages.trim()))) {
-        return { ...row, sub_pages: lib.sub_pages ?? row.sub_pages };
+      if (!lib) return row;
+      const mergedRow: any = { ...row };
+
+      // Fill missing sub_pages from library
+      const hasSubPages = Array.isArray(row.sub_pages) && row.sub_pages.length > 0
+        || (typeof row.sub_pages === 'string' && row.sub_pages.trim().length > 0);
+      if (!hasSubPages && lib.sub_pages) {
+        mergedRow.sub_pages = lib.sub_pages;
       }
-      return row;
+
+      // Fill missing content from library when the spec row is empty
+      const rowHasContent = !!(row.content_type && String(row.content_type).trim())
+        || !!(row.content_html && String(row.content_html).trim())
+        || !!(row.content_markdown && String(row.content_markdown).trim())
+        || !!(row.content_blocks && String(row.content_blocks).trim());
+      if (!rowHasContent && lib.content_type) {
+        if (!mergedRow.content_type) mergedRow.content_type = lib.content_type;
+        if (!mergedRow.content_html && lib.content_html) mergedRow.content_html = lib.content_html;
+        if (!mergedRow.content_markdown && lib.content_markdown) mergedRow.content_markdown = lib.content_markdown;
+        if (!mergedRow.content_blocks && lib.content_blocks) mergedRow.content_blocks = lib.content_blocks;
+      }
+
+      // Fill missing actions
+      if ((!row.actions || (Array.isArray(row.actions) && row.actions.length === 0)) && lib.actions) {
+        mergedRow.actions = lib.actions;
+      }
+
+      return mergedRow;
     });
+
     // Also add library pages not present in spec (for older instances)
     const existingSlugs = new Set(merged.filter((r: any) => r && r.slug).map((r: any) => String(r.slug).trim()));
     for (const p of libraryPages) {
