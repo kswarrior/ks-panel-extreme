@@ -15,7 +15,7 @@ const puppeteer = require('puppeteer');
   });
   page.on('response', resp => {
     if (resp.status() >= 400) {
-      console.log('Response error:', resp.url(), resp.status());
+      console.log('Response error:', resp.url(), resp.status(), JSON.stringify(resp.request().headers()));
     }
   });
 
