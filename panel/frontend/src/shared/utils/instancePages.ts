@@ -41,7 +41,13 @@ function subPagesOf(row: any): any[] {
   if (typeof list === 'string') {
     const trimmed = list.trim();
     if (!trimmed) return [];
-    try { list = JSON.parse(trimmed); } catch { return []; }
+    try {
+      list = JSON.parse(trimmed);
+      // Handle double-encoded JSON strings
+      if (typeof list === 'string') {
+        try { list = JSON.parse(list); } catch { return []; }
+      }
+    } catch { return []; }
   }
   if (!Array.isArray(list)) return [];
   return list.filter(
