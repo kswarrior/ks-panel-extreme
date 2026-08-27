@@ -1,12 +1,10 @@
 // PageStudioSubPagesSection — "Sub-pages" tab
 //
-// Mirrors TemplateEnvironmentSection's card UX: each sub-page is a
-// collapsible GlassCard with Path/Name/content-type and a per-page editor.
-// The extra route ships as "<slug>/<path>" so it never leaks into the
-// instance tab bar as a separate top-level page.
+// Mirrors TemplateActionsSection's card UX: each sub-page is a collapsible
+// ks-card with header + dropdown body (click chevron to expand), same as
+// /templates/new → Actions tab.
 
 import React from 'react';
-import GlassCard from '@/shared/components/ui/Card';
 import { glassFieldClass } from '@/shared/components/ui/Field';
 import type { SubPageRow } from '@/features/instance-pages/types/pageStudio';
 
@@ -17,6 +15,7 @@ export interface PageStudioSubPagesSectionProps {
   onAdd: () => void;
   onUpdate: (id: string, patch: Partial<SubPageRow>) => void;
   onRemove: (id: string) => void;
+  onMove?: (idx: number, dir: -1 | 1) => void;
   pageSlug?: string;
   sectionCls: string;
 }
