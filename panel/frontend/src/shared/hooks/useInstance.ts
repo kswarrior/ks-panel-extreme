@@ -163,8 +163,9 @@ export function useInstance(id: number) {
   }, [id, canManage]);
 
   useEffect(() => {
+    if (!authInitialized) return;
     load();
-  }, [load]);
+  }, [load, authInitialized]);
 
   // While the instance is mid-deploy ("creating") or running its install
   // workflow ("installing"), poll silently so pages that show install
