@@ -122,17 +122,6 @@ export const PageStudioContentSection: React.FC<PageStudioContentSectionProps> =
         </div>
       )}
 
-      <div className="flex gap-2">
-        <button type="button" onClick={onCopy} className="ks-ghost-btn px-3 py-1.5 text-sm border border-white/10 rounded hover:bg-white/5">
-          Copy content
-        </button>
-        <button type="button" onClick={onExport} className="ks-ghost-btn px-3 py-1.5 text-sm border border-white/10 rounded hover:bg-white/5">
-          Export page JSON
-        </button>
-        <button type="button" onClick={onImportClick} className="ks-ghost-btn px-3 py-1.5 text-sm border border-white/10 rounded hover:bg-white/5">
-          Import JSON…
-        </button>
-      </div>
     </div>
   );
 };
