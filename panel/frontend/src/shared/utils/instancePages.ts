@@ -132,6 +132,10 @@ export function resolveInstanceNav(spec: Record<string, any> | null | undefined)
 // Legacy renamed rows keep granting access through original_slug so old
 // templates don't break after the conversion. Sub-pages of enabled parents
 // ("<parent>/<path>", e.g. files/edit) are allowed through their parent row.
+// Fallback: any <parent>/<path> slug under an enabled parent is allowed even
+// when the sub-page isn't explicitly listed in sub_pages — prevents the
+// "not part of this instance's template" message for sub-page routes the
+// library defines but the deployed spec hasn't snapshotted yet.
 export function isPageAllowed(slug: string, spec: Record<string, any> | null | undefined): boolean {
   const pages = Array.isArray(spec?.pages) ? spec.pages : [];
   const allowed = pages.some((p: any) => {
@@ -152,7 +156,21 @@ export function isPageAllowed(slug: string, spec: Record<string, any> | null | u
   });
   if (allowed) return true;
   // Nested sub-page: allowed when its parent page is enabled and lists it.
-  return findSubPageEntry(slug, spec) !== null;
+  if (findSubPageEntry(slug, spec) !== null) return true;
+  // Fallback: any sub-page path under an enabled parent page is allowed.
+  // Resolves cases where the Instance Page library defines sub-pages but
+  // the deployed spec hasn't captured them (e.g. page edited after link).
+  if (slug.includes('/')) {
+    const parts = splitSubSlug(slug);
+    if (parts) {
+      const parentExists = pages.some(
+        (p: any) => p && typeof p === 'object' && typeof p.slug === 'string' &&
+          String(p.slug).trim() === parts.parent && p.enabled !== false,
+      );
+      if (parentExists) return true;
+    }
+  }
+  return false;
 }
 
 // PageContent describes custom content rendered by CustomPageView.
