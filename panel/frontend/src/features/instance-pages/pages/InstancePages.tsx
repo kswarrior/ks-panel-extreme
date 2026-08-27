@@ -428,7 +428,13 @@ const InstancePages: React.FC = () => {
                 <article key={p.id} id={`ks-instancepage-${p.id}`} className="ks-card ks-list-card group relative glass-card rounded-xl flex flex-col gap-3 hover:border-white/20 transition-colors">
                   <header className="flex items-start gap-3 min-w-0 relative">
                     <div className="shrink-0 w-12 h-12 rounded-lg flex items-center justify-center border bg-white/[0.05] border-white/10 text-gray-300" aria-hidden="true">
-                      <KindIcon kind={e.kind} className="w-6 h-6" />
+                      {p.icon_svg ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
+                          <g dangerouslySetInnerHTML={{ __html: p.icon_svg }} />
+                        </svg>
+                      ) : (
+                        <KindIcon kind={e.kind} className="w-6 h-6" />
+                      )}
                     </div>
                     <div className="min-w-0 flex-1">
                       <h3 className="text-sm font-semibold text-white truncate leading-tight">{p.name}</h3>
