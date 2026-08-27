@@ -105,24 +105,17 @@ export const PageStudioSubPagesSection: React.FC<PageStudioSubPagesSectionProps>
                     </label>
                   </div>
 
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-2">Content type</label>
-                    <div className="flex gap-2">
-                      {(['html', 'markdown', 'blocks'] as const).map((t) => (
-                        <button
-                          key={t}
-                          type="button"
-                          onClick={() => onUpdate(sub.id, { content_type: t })}
-                          className={`px-3 py-1.5 rounded text-sm border transition ${
-                            sub.content_type === t
-                              ? 'bg-emerald-600/40 border-emerald-500 text-white'
-                              : 'border-white/10 text-gray-400 hover:text-white'
-                          }`}
-                        >
-                          {t === 'blocks' ? 'Visual Blocks' : t.charAt(0).toUpperCase() + t.slice(1)}
-                        </button>
-                      ))}
-                    </div>
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-gray-400">Content type</label>
+                    <select
+                      value={sub.content_type}
+                      onChange={(e) => onUpdate(sub.id, { content_type: e.target.value as any })}
+                      className="bg-black/40 border border-white/10 rounded px-2 py-1 text-sm text-white"
+                    >
+                      <option value="html">HTML</option>
+                      <option value="markdown">Markdown</option>
+                      <option value="blocks">Visual Blocks</option>
+                    </select>
                   </div>
 
                   {sub.content_type !== 'blocks' ? (
