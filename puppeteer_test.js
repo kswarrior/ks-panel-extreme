@@ -35,6 +35,8 @@ await page.type('#identifier', 'kshosting');
   const activeIdLS = await page.evaluate(() => localStorage.getItem('ks.accounts.activeId'));
   console.log('LocalStorage ks.accounts.list:', accountsLS);
   console.log('LocalStorage ks.accounts.activeId:', activeIdLS);
+  const cookies = await page.cookies();
+  console.log('Cookies after login:', JSON.stringify(cookies));
 
   // Navigate to the specific instance page.
   await page.goto('http://10.1.0.37:8080/instances/1', {waitUntil: 'networkidle0'});
