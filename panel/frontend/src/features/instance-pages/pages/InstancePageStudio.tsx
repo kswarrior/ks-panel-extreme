@@ -185,6 +185,7 @@ const InstancePageStudio: React.FC = () => {
 
   const onChange = <K extends keyof InstancePage>(key: K, value: InstancePage[K]) => {
     setPage((p) => ({ ...p, [key]: value }));
+    if (key === 'name' || key === 'slug') setError('');
   };
 
   const handleContentChange = (value: string) => {
@@ -328,6 +329,7 @@ const InstancePageStudio: React.FC = () => {
 
   const handleSave = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    setError('');
     if (isBuiltin) { setError('Built-in pages cannot be edited. Create a custom page instead.'); return; }
     if (!page.name?.trim() || !page.slug?.trim()) { setError('Name and slug are required before saving.'); return; }
     if (page.slug.trim() !== '.' && !/^[a-z0-9][a-z0-9-._]*$/i.test(page.slug.trim())) { setError('Slug may contain letters, numbers, dots, dashes and underscores only ("." is the reserved Home slug).'); return; }
