@@ -40,6 +40,7 @@ import {
   PageStudioContentSection,
   PageStudioSubPagesSection,
   PageStudioActionsSection,
+  PageStudioComponentsSection,
   PageStudioPreviewSection,
   PageStudioSettingsSection,
 } from '@/features/instance-pages/components/PageStudio';
@@ -597,6 +598,11 @@ const InstancePageStudio: React.FC = () => {
               actionResult={actionResult}
               sectionCls={sectionCls}
             />
+          )}
+
+          {/* ============================== COMPONENTS ============================== */}
+          {activeTab === 'components' && !isBuiltin && (
+            <PageStudioComponentsSection sectionCls={sectionCls} />
           )}
 
           {/* ============================== PREVIEW ============================== */}

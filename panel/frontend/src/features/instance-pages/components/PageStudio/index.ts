@@ -11,5 +11,7 @@ export { PageStudioPreviewSection } from './PageStudioPreviewSection';
 export type { PageStudioPreviewSectionProps } from './PageStudioPreviewSection';
 export { PageStudioSettingsSection } from './PageStudioSettingsSection';
 export type { PageStudioSettingsSectionProps } from './PageStudioSettingsSection';
+export { PageStudioComponentsSection } from './PageStudioComponentsSection';
+export type { PageStudioComponentsSectionProps } from './PageStudioComponentsSection';
 export { PageStudioBlocksEditor } from './PageStudioBlocksEditor';
 export type { PageStudioBlocksEditorProps } from './PageStudioBlocksEditor';
