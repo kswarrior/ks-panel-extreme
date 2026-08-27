@@ -23,7 +23,7 @@ import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 import type { PageContent } from '@/shared/components/ui/CustomPageView';
 import type { PageStudioTabId } from '@/features/instance-pages/types/pageStudio';
 import { sectionCls } from '@/features/instance-pages/types/pageStudio';
-import type { ActionRow, SubPageRow } from '@/features/instance-pages/types/pageStudio';
+import type { ActionRow, SubPageRow, ComponentRow } from '@/features/instance-pages/types/pageStudio';
 import {
   getErrorMessage,
   blankAction,
@@ -246,6 +246,12 @@ const InstancePageStudio: React.FC = () => {
   const updateAction = (actionId: string, patch: Partial<ActionRow>) => {
     setActions((a) => a.map((x) => (x.id === actionId ? { ...x, ...patch } : x)));
   };
+
+  // ---- Component row handlers ---------------------------------------------
+  const blankComponent = (): ComponentRow => ({ id: Math.random().toString(36).slice(2), name: '', type: 'html', description: '', content: '' });
+  const addComponent = () => setComponents((c) => [...c, blankComponent()]);
+  const removeComponent = (id: string) => setComponents((c) => c.filter((x) => x.id !== id));
+  const updateComponent = (id: string, patch: Partial<ComponentRow>) => setComponents((c) => c.map((x) => (x.id === id ? { ...x, ...patch } : x)));
 
   // ---- Sub-page row handlers ----------------------------------------------
   const addSub = () => {
@@ -605,7 +611,13 @@ const InstancePageStudio: React.FC = () => {
 
           {/* ============================== COMPONENTS ============================== */}
           {activeTab === 'components' && !isBuiltin && (
-            <PageStudioComponentsSection sectionCls={sectionCls} />
+            <PageStudioComponentsSection
+              components={components}
+              onAdd={addComponent}
+              onRemove={removeComponent}
+              onUpdate={updateComponent}
+              sectionCls={sectionCls}
+            />
           )}
 
           {/* ============================== PREVIEW ============================== */}
