@@ -3188,7 +3188,7 @@ button.ks-iconbtn:hover{background:var(--ks-input-bg);color:var(--ks-heading)}
     }
     async function goBack() {
       if (dirty && !(await ask('Discard unsaved changes to "' + path + '"?'))) return;
-      try { sdk.navigate('/instances/' + sdk.instance.id + '/files'); }
+      var parent = path ? path.split('/').slice(0, -1).join('/') || '/' : '/'; try { sdk.navigate('/instances/' + sdk.instance.id + '/files?path=' + encodeURIComponent(parent)); }
       catch (e) { say((e && e.message) || 'Cannot go back', true); }
     }
     function save() {
