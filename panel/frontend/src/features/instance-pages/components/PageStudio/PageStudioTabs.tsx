@@ -1,10 +1,10 @@
 // PageStudioTabs — tab rail for the Instance Page Studio
 //
 // Mirrors panel/frontend/src/features/templates/components/TemplateFormComponents.tsx
-// (TemplateTabs) — GlassCard + ks-tab + hint line, sticky on desktop.
+// (TemplateTabs) — ks-tab + hint line, sticky on desktop.
+// No outer card — tabs and content sit directly on the page background.
 
 import React from 'react';
-import GlassCard from '@/shared/components/ui/Card';
 import type { PageStudioTabId } from '@/features/instance-pages/types/pageStudio';
 
 interface PageStudioTabsProps {
@@ -47,7 +47,7 @@ export const PageStudioTabs: React.FC<PageStudioTabsProps> = ({ tab, onChange, i
   const tabs: PageStudioTabId[] = ['templates', 'editor', 'subpages', 'actions', 'preview', 'settings'];
 
   return (
-    <GlassCard className="lg:sticky lg:top-4 self-start">
+    <div className="lg:sticky lg:top-4 self-start">
       <nav className="flex lg:flex-col gap-1 overflow-x-auto">
         {tabs.map((id) => {
           const m = meta[id];
@@ -74,6 +74,6 @@ export const PageStudioTabs: React.FC<PageStudioTabsProps> = ({ tab, onChange, i
           );
         })}
       </nav>
-    </GlassCard>
+    </div>
   );
 };
