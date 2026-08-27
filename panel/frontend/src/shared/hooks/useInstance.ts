@@ -139,6 +139,7 @@ export function extractConfig(cfg: Record<string, any>): ParsedConfig {
 export function useInstance(id: number) {
   const permissions = useAuthStore((s) => s.permissions);
   const canManage = permissions.includes(PermissionKey.MANAGE_INSTANCES);
+  const authInitialized = useAuthStore((s) => s.initialized);
   const [instance, setInstance] = useState<Instance | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
