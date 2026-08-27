@@ -27,15 +27,16 @@ export const PageStudioSubPagesSection: React.FC<PageStudioSubPagesSectionProps>
   onAdd,
   onUpdate,
   onRemove,
+  onMove,
   pageSlug,
   sectionCls,
 }) => {
   return (
     <div className={sectionCls}>
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between mb-1">
         <div>
           <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">Section C · Sub-pages</h4>
-          <p className="text-xs text-gray-500 mt-0.5">
+          <p className="text-xs text-gray-500">
             Extra routes shipped with this page — each becomes{' '}
             <code className="font-mono">/{pageSlug?.trim() || 'slug'}/&lt;path&gt;</code>{' '}
             when the page is linked to a template or imported (e.g. a Files manager with an editor at /files/edit).
@@ -47,94 +48,108 @@ export const PageStudioSubPagesSection: React.FC<PageStudioSubPagesSectionProps>
       </div>
 
       {subs.length === 0 && (
-        <p className="text-sm text-gray-500">No sub-pages yet. Add one to give this page extra routes.</p>
+        <p className="text-xs text-gray-500">No sub-pages yet. Add one to give this page extra routes.</p>
       )}
 
-      {subs.map((sub) => {
-        const isEditing = editingSubId === sub.id;
-        const subContent = sub.content_type === 'html' ? sub.content_html : sub.content_type === 'markdown' ? sub.content_markdown : sub.content_blocks;
-        const updateSubContent = (value: string) => {
-          if (sub.content_type === 'html') onUpdate(sub.id, { content_html: value });
-          else if (sub.content_type === 'markdown') onUpdate(sub.id, { content_markdown: value });
-          else onUpdate(sub.id, { content_blocks: value });
-        };
-        return (
-          <GlassCard key={sub.id} className="p-4 space-y-4">
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-              <h4 className="text-sm font-medium text-white flex items-center gap-2">
-                <span className="font-mono text-[11px] text-sky-300">/{pageSlug?.trim() || 'slug'}/{sub.path.trim() || '…'}</span>
-                {sub.name.trim() && <span className="text-gray-400">· {sub.name}</span>}
-              </h4>
-              <div className="flex items-center gap-2">
-                <button type="button" onClick={() => onEditingChange(isEditing ? null : sub.id)} className="ks-ghost-btn px-3 py-1.5 text-xs border border-white/10 rounded hover:bg-white/5">
-                  {isEditing ? 'Collapse' : 'Edit'}
-                </button>
-                <button type="button" onClick={() => onRemove(sub.id)} className="text-red-400 hover:text-red-200 text-sm">Remove</button>
-              </div>
-            </div>
-
-            {isEditing && (
-              <>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <label className="block">
-                    <span className="text-xs text-gray-400">Path * (becomes /{'{slug}'}/path)</span>
-                    <input
-                      value={sub.path}
-                      onChange={(e) => onUpdate(sub.id, { path: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '') })}
-                      className={`${glassFieldClass} font-mono`}
-                      placeholder="edit"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="text-xs text-gray-400">Display name *</span>
-                    <input value={sub.name} onChange={(e) => onUpdate(sub.id, { name: e.target.value })} className={glassFieldClass} placeholder="Editor" />
-                  </label>
+      <div className="space-y-4">
+        {subs.map((sub, idx) => {
+          const isEditing = editingSubId === sub.id;
+          const subContent = sub.content_type === 'html' ? sub.content_html : sub.content_type === 'markdown' ? sub.content_markdown : sub.content_blocks;
+          const updateSubContent = (value: string) => {
+            if (sub.content_type === 'html') onUpdate(sub.id, { content_html: value });
+            else if (sub.content_type === 'markdown') onUpdate(sub.id, { content_markdown: value });
+            else onUpdate(sub.id, { content_blocks: value });
+          };
+          return (
+            <div key={sub.id} className="ks-card ks-form-card rounded-md overflow-hidden">
+              <div className="p-3 flex items-center gap-3 flex-wrap">
+                <div className="flex flex-col gap-0.5 shrink-0">
+                  <button type="button" aria-label="Move up" onClick={() => onMove?.(idx, -1)} disabled={idx === 0} className="p-1 rounded text-gray-400 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M18 15l-6-6-6 6" /></svg>
+                  </button>
+                  <button type="button" aria-label="Move down" onClick={() => onMove?.(idx, 1)} disabled={idx === subs.length - 1} className="p-1 rounded text-gray-400 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M6 9l6 6 6-6" /></svg>
+                  </button>
                 </div>
-
-                <div>
-                  <label className="block text-xs text-gray-400 mb-2">Content type</label>
-                  <div className="flex gap-2">
-                    {(['html', 'markdown', 'blocks'] as const).map((t) => (
-                      <button
-                        key={t}
-                        type="button"
-                        onClick={() => onUpdate(sub.id, { content_type: t })}
-                        className={`px-3 py-1.5 rounded text-sm border transition ${
-                          sub.content_type === t
-                            ? 'bg-emerald-600/40 border-emerald-500 text-white'
-                            : 'border-white/10 text-gray-400 hover:text-white'
-                        }`}
-                      >
-                        {t === 'blocks' ? 'Visual Blocks' : t.charAt(0).toUpperCase() + t.slice(1)}
-                      </button>
-                    ))}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold text-white truncate">{sub.name.trim() || sub.path.trim() || `Sub-page ${idx + 1}`}</span>
+                    <code className="text-[11px] text-gray-500 font-mono">/{pageSlug?.trim() || 'slug'}/{sub.path.trim() || '…'}</code>
                   </div>
                 </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button type="button" onClick={() => onRemove(sub.id)} className="p-2 rounded hover:bg-white/5 text-red-400 hover:text-red-300" aria-label="Remove">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+                  </button>
+                  <button type="button" onClick={() => onEditingChange(isEditing ? null : sub.id)} className="p-2 rounded hover:bg-white/5 text-gray-400 hover:text-white" aria-label="Options">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><polyline points="6 9 12 15 18 9" /></svg>
+                  </button>
+                </div>
+              </div>
 
-                {sub.content_type !== 'blocks' ? (
-                  <textarea
-                    value={subContent}
-                    onChange={(e) => updateSubContent(e.target.value)}
-                    className={`${glassFieldClass} font-mono text-sm`}
-                    style={{ minHeight: '320px', width: '100%' }}
-                    spellCheck={false}
-                    placeholder={sub.content_type === 'html' ? '<div class="ks-card">\n  <h3>Editor</h3>\n</div>' : '# Editor'}
-                  />
-                ) : (
-                  <textarea
-                    value={sub.content_blocks}
-                    onChange={(e) => updateSubContent(e.target.value)}
-                    className={`${glassFieldClass} font-mono text-sm`}
-                    style={{ minHeight: '280px', width: '100%' }}
-                    spellCheck={false}
-                    placeholder={'[\n  { "type": "heading", "value": "Editor", "level": 2 }\n]'}
-                  />
-                )}
-              </>
-            )}
-          </GlassCard>
-        );
-      })}
+              {isEditing && (
+                <div className="px-3 pb-3 pt-1 border-t border-white/5 space-y-3 bg-black/20">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <label className="block">
+                      <span className="text-xs text-gray-400">Path * (becomes /{'{slug}'}/path)</span>
+                      <input
+                        value={sub.path}
+                        onChange={(e) => onUpdate(sub.id, { path: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '') })}
+                        className={`${glassFieldClass} font-mono`}
+                        placeholder="edit"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs text-gray-400">Display name *</span>
+                      <input value={sub.name} onChange={(e) => onUpdate(sub.id, { name: e.target.value })} className={glassFieldClass} placeholder="Editor" />
+                    </label>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-2">Content type</label>
+                    <div className="flex gap-2">
+                      {(['html', 'markdown', 'blocks'] as const).map((t) => (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => onUpdate(sub.id, { content_type: t })}
+                          className={`px-3 py-1.5 rounded text-sm border transition ${
+                            sub.content_type === t
+                              ? 'bg-emerald-600/40 border-emerald-500 text-white'
+                              : 'border-white/10 text-gray-400 hover:text-white'
+                          }`}
+                        >
+                          {t === 'blocks' ? 'Visual Blocks' : t.charAt(0).toUpperCase() + t.slice(1)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {sub.content_type !== 'blocks' ? (
+                    <textarea
+                      value={subContent}
+                      onChange={(e) => updateSubContent(e.target.value)}
+                      className={`${glassFieldClass} font-mono text-sm`}
+                      style={{ minHeight: '320px', width: '100%' }}
+                      spellCheck={false}
+                      placeholder={sub.content_type === 'html' ? '<div class="ks-card">\n  <h3>Editor</h3>\n</div>' : '# Editor'}
+                    />
+                  ) : (
+                    <textarea
+                      value={sub.content_blocks}
+                      onChange={(e) => updateSubContent(e.target.value)}
+                      className={`${glassFieldClass} font-mono text-sm`}
+                      style={{ minHeight: '280px', width: '100%' }}
+                      spellCheck={false}
+                      placeholder={'[\n  { "type": "heading", "value": "Editor", "level": 2 }\n]'}
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 };

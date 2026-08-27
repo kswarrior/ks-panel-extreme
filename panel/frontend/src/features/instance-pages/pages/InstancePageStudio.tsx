@@ -249,6 +249,15 @@ const InstancePageStudio: React.FC = () => {
     if (editingSubId === subId) setEditingSubId(null);
     if (previewTarget === subId) setPreviewTarget('main');
   };
+  const moveSub = (idx: number, dir: -1 | 1) => {
+    setSubs((s) => {
+      const j = idx + dir;
+      if (j < 0 || j >= s.length) return s;
+      const next = [...s];
+      [next[idx], next[j]] = [next[j], next[idx]];
+      return next;
+    });
+  };
 
   const previewInstance = useMemo(
     () => instances.find((i) => i.id === previewInstanceId) ?? null,
@@ -559,6 +568,7 @@ const InstancePageStudio: React.FC = () => {
               onAdd={addSub}
               onUpdate={updateSub}
               onRemove={removeSub}
+              onMove={moveSub}
               pageSlug={page.slug}
               sectionCls={sectionCls}
             />
