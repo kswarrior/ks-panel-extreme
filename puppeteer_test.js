@@ -5,10 +5,18 @@ const puppeteer = require('puppeteer');
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
   });
-  const page = await browser.newPage();
-  const consoleMessages = [];
-  page.on('console', msg => {
+   const page = await browser.newPage();
+   page.on('requestfailed', req => {
+     console.log('Request failed:', req.url(), req.failure()?.errorText, req.headers());
+   });
+   const consoleMessages = [];
+   page.on('console', msg => {
     consoleMessages.push(`${msg.type()}: ${msg.text()}`);
+  });
+  page.on('response', resp => {
+    if (resp.status() >= 400) {
+      console.log('Response error:', resp.url(), resp.status());
+    }
   });
 
   // Go to login page
