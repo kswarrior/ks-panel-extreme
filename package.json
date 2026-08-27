@@ -19,5 +19,8 @@
   "bugs": {
     "url": "https://github.com/kswarrior/ks-panel-extreme/issues"
   },
-  "homepage": "https://github.com/kswarrior/ks-panel-extreme#readme"
+  "homepage": "https://github.com/kswarrior/ks-panel-extreme#readme",
+  "dependencies": {
+    "puppeteer": "^25.9.0"
+  }
 }
