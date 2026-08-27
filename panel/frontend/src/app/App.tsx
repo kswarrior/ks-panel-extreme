@@ -25,6 +25,8 @@ const App: React.FC = () => {
     // in another tab since this bundle loaded.
     reapplyTheme();
     let cancelled = false;
+    // Debug: log token for auth
+    console.log('App init active token:', useAuthStore.getState().activeAccountToken?.());
 
     // Bootstrap the brand from the API. Most navigations already get this
     // from the inline <script> in index.html (spliced by the Go server at
