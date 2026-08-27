@@ -96,11 +96,6 @@ export const PageStudioSettingsSection: React.FC<PageStudioSettingsSectionProps>
         </div>
         <textarea value={page.icon_svg ?? ''} onChange={(e) => onChange('icon_svg', e.target.value)} rows={3} className={`${glassFieldClass} font-mono text-xs`} placeholder='<path d="M12 2L2 7l10 5 10-5-10-5z" />' />
       </div>
-
-      <div className="flex gap-2 pt-2 border-t border-white/10">
-        <button type="button" onClick={onExport} className="ks-ghost-btn px-3 py-1.5 text-sm border border-white/10 rounded hover:bg-white/5">Export page JSON</button>
-        <button type="button" onClick={onImportClick} className="ks-ghost-btn px-3 py-1.5 text-sm border border-white/10 rounded hover:bg-white/5">Import JSON…</button>
-      </div>
     </div>
   );
 };
