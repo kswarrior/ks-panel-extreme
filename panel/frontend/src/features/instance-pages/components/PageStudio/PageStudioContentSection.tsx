@@ -48,25 +48,19 @@ export const PageStudioContentSection: React.FC<PageStudioContentSectionProps> =
 
   return (
     <div className={sectionCls}>
-      <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">Section B · Content</h4>
-
-      <div>
-        <label className="block text-xs text-gray-400 mb-2">Content Type</label>
-        <div className="flex gap-2">
-          {(['html', 'markdown', 'blocks'] as const).map((t) => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => { onContentTypeChange(t); onBlocksModeChange('visual'); }}
-              className={`px-3 py-1.5 rounded text-sm border transition ${
-                contentType === t
-                  ? 'bg-emerald-600/40 border-emerald-500 text-white'
-                  : 'border-white/10 text-gray-400 hover:text-white'
-              }`}
-            >
-              {t === 'blocks' ? 'Visual Blocks' : t.charAt(0).toUpperCase() + t.slice(1)}
-            </button>
-          ))}
+      <div className="flex items-center justify-between mb-2">
+        <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400">Section B · Content</h4>
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-gray-400">Content Type</label>
+          <select
+            value={contentType}
+            onChange={(e) => { onContentTypeChange(e.target.value as any); onBlocksModeChange('visual'); }}
+            className="bg-black/40 border border-white/10 rounded px-2 py-1 text-sm text-white"
+          >
+            <option value="html">HTML</option>
+            <option value="markdown">Markdown</option>
+            <option value="blocks">Visual Blocks</option>
+          </select>
         </div>
       </div>
 
