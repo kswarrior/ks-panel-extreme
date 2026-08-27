@@ -47,6 +47,14 @@ export interface ActionRow {
   description: string;
 }
 
+export interface ComponentRow {
+  id: string;
+  name: string;
+  type: 'html' | 'markdown' | 'block';
+  description: string;
+  content: string;
+}
+
 export interface SubPageRow {
   id: string;
   path: string;

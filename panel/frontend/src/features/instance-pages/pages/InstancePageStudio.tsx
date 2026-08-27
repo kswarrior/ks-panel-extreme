@@ -96,6 +96,9 @@ const InstancePageStudio: React.FC = () => {
   // Saved-action rows (edited on the Actions tab, persisted with the page).
   const [actions, setActions] = useState<ActionRow[]>([blankAction()]);
 
+  // Component rows (edited on the Components tab)
+  const [components, setComponents] = useState<ComponentRow[]>([]);
+
   // Sub-page rows (edited on the Sub-pages tab) — extra routes that ship
   // with this page (multi-page support, e.g. files/edit).
   const [subs, setSubs] = useState<SubPageRow[]>([]);
