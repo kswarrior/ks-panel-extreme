@@ -124,6 +124,20 @@ jobs:
           START_TIME=$(date +%s)
           END_TIME=$((START_TIME + 21000))
 
+          collect_release_assets() {
+            RELEASE_ASSETS=()
+
+            for DIR in release/ksedge release/kspanel library; do
+              if [ -d "$DIR" ]; then
+                while IFS= read -r -d '' FILE; do
+                  if [ -f "$FILE" ]; then
+                    RELEASE_ASSETS+=("$FILE")
+                  fi
+                done < <(find "$DIR" -type f -print0)
+              fi
+            done
+          }
+
           publish_release() {
             local assets=("$@")
 
@@ -134,52 +148,41 @@ jobs:
                   "${assets[@]}" \
                   --target "$(git rev-parse HEAD)" \
                   --title "$RELEASE_TITLE" \
-                  --generate-notes \
-                  >/dev/null 2>&1 || true
+                  --generate-notes
               else
                 gh release create \
                   "$RELEASE_TAG" \
                   --target "$(git rev-parse HEAD)" \
                   --title "$RELEASE_TITLE" \
-                  --generate-notes \
-                  >/dev/null 2>&1 || true
+                  --generate-notes
               fi
+            else
+              if [ "${#assets[@]}" -gt 0 ]; then
+                gh release upload \
+                  "$RELEASE_TAG" \
+                  "${assets[@]}" \
+                  --clobber
+              fi
+
+              gh release edit \
+                "$RELEASE_TAG" \
+                --title "$RELEASE_TITLE" \
+                --target "$(git rev-parse HEAD)"
+            fi
+          }
+
+          sync_and_publish() {
+            if ! git diff --cached --quiet; then
+              git commit -m "Auto sync changes" >/dev/null 2>&1 || true
+            fi
+
+            if git push origin main:main >/dev/null 2>&1; then
+              collect_release_assets
+              publish_release "${RELEASE_ASSETS[@]}"
               return 0
             fi
 
-            if [ "${#assets[@]}" -gt 0 ]; then
-              gh release upload \
-                "$RELEASE_TAG" \
-                "${assets[@]}" \
-                --clobber \
-                >/dev/null 2>&1 || true
-            fi
-
-            gh release edit \
-              "$RELEASE_TAG" \
-              --title "$RELEASE_TITLE" \
-              --target "$(git rev-parse HEAD)" \
-              >/dev/null 2>&1 || true
-          }
-
-          collect_release_assets() {
-            RELEASE_ASSETS=()
-
-            while IFS= read -r FILE; do
-              if [ -f "$FILE" ]; then
-                RELEASE_ASSETS+=("$FILE")
-              fi
-            done < <(
-              git diff \
-                --cached \
-                --name-only \
-                --diff-filter=ACMRT \
-                -- \
-                'release/ksedge/**' \
-                'release/kspanel/**' \
-                'library/**' \
-                2>/dev/null
-            )
+            return 1
           }
 
           commit_local_changes() {
@@ -194,11 +197,7 @@ jobs:
               return 0
             fi
 
-            collect_release_assets
-
-            if git commit -m "Auto sync changes" >/dev/null 2>&1; then
-              publish_release "${RELEASE_ASSETS[@]}"
-            fi
+            git commit -m "Auto sync changes" >/dev/null 2>&1 || true
 
             return 0
           }
@@ -211,9 +210,7 @@ jobs:
 
               git fetch origin main >/dev/null 2>&1 || true
 
-              git rebase --autostash origin/main >/dev/null 2>&1
-
-              if [ "$?" -ne 0 ]; then
+              if ! git rebase --autostash origin/main >/dev/null 2>&1; then
                 git rebase --abort >/dev/null 2>&1 || true
               fi
 
@@ -254,14 +251,20 @@ jobs:
               if [ "$LOCAL_COMMIT" = "$REMOTE_COMMIT" ]; then
                 :
               elif git merge-base --is-ancestor origin/main HEAD >/dev/null 2>&1; then
-                push_with_retry || true
+                if push_with_retry; then
+                  collect_release_assets
+                  publish_release "${RELEASE_ASSETS[@]}"
+                fi
               elif git merge-base --is-ancestor HEAD origin/main >/dev/null 2>&1; then
                 git reset --hard origin/main >/dev/null 2>&1 || true
               else
                 if ! git rebase --autostash origin/main >/dev/null 2>&1; then
                   git rebase --abort >/dev/null 2>&1 || true
                 else
-                  push_with_retry || true
+                  if push_with_retry; then
+                    collect_release_assets
+                    publish_release "${RELEASE_ASSETS[@]}"
+                  fi
                 fi
               fi
             fi
@@ -297,86 +300,69 @@ jobs:
               >/dev/null 2>&1 || true
 
             if ! git diff --cached --quiet; then
-              RELEASE_ASSETS=()
-
-              while IFS= read -r FILE; do
-                if [ -f "$FILE" ]; then
-                  RELEASE_ASSETS+=("$FILE")
-                fi
-              done < <(
-                git diff \
-                  --cached \
-                  --name-only \
-                  --diff-filter=ACMRT \
-                  -- \
-                  'release/ksedge/**' \
-                  'release/kspanel/**' \
-                  'library/**' \
-                  2>/dev/null
-              )
-
               git commit -m "Final sync changes" >/dev/null 2>&1 || true
+            fi
+
+            git fetch origin main >/dev/null 2>&1 || true
+
+            if ! git rebase --autostash origin/main >/dev/null 2>&1; then
+              git rebase --abort >/dev/null 2>&1 || true
+            fi
+
+            for ATTEMPT in 1 2 3 4 5 6 7 8 9 10; do
+              if git push origin main:main >/dev/null 2>&1; then
+                break
+              fi
 
               git fetch origin main >/dev/null 2>&1 || true
 
-              git rebase --autostash origin/main >/dev/null 2>&1 || {
+              if ! git rebase --autostash origin/main >/dev/null 2>&1; then
                 git rebase --abort >/dev/null 2>&1 || true
-              }
-
-              for ATTEMPT in 1 2 3 4 5 6 7 8 9 10; do
-                if git push origin main:main >/dev/null 2>&1; then
-                  break
-                fi
-
-                git fetch origin main >/dev/null 2>&1 || true
-
-                git rebase --autostash origin/main >/dev/null 2>&1 || {
-                  git rebase --abort >/dev/null 2>&1 || true
-                }
-
-                sleep 2
-              done
-
-              if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-                if [ "${#RELEASE_ASSETS[@]}" -gt 0 ]; then
-                  gh release create \
-                    "$RELEASE_TAG" \
-                    "${RELEASE_ASSETS[@]}" \
-                    --target "$(git rev-parse HEAD)" \
-                    --title "$RELEASE_TITLE" \
-                    --generate-notes \
-                    >/dev/null 2>&1 || true
-                else
-                  gh release create \
-                    "$RELEASE_TAG" \
-                    --target "$(git rev-parse HEAD)" \
-                    --title "$RELEASE_TITLE" \
-                    --generate-notes \
-                    >/dev/null 2>&1 || true
-                fi
-              else
-                if [ "${#RELEASE_ASSETS[@]}" -gt 0 ]; then
-                  gh release upload \
-                    "$RELEASE_TAG" \
-                    "${RELEASE_ASSETS[@]}" \
-                    --clobber \
-                    >/dev/null 2>&1 || true
-                fi
-
-                gh release edit \
-                  "$RELEASE_TAG" \
-                  --title "$RELEASE_TITLE" \
-                  --target "$(git rev-parse HEAD)" \
-                  >/dev/null 2>&1 || true
               fi
+
+              sleep 2
+            done
+          fi
+
+          RELEASE_ASSETS=()
+
+          for DIR in release/ksedge release/kspanel library; do
+            if [ -d "$DIR" ]; then
+              while IFS= read -r -d '' FILE; do
+                if [ -f "$FILE" ]; then
+                  RELEASE_ASSETS+=("$FILE")
+                fi
+              done < <(find "$DIR" -type f -print0)
             fi
-          elif ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release create \
+          done
+
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            if [ "${#RELEASE_ASSETS[@]}" -gt 0 ]; then
+              gh release create \
+                "$RELEASE_TAG" \
+                "${RELEASE_ASSETS[@]}" \
+                --target "$(git rev-parse HEAD)" \
+                --title "$RELEASE_TITLE" \
+                --generate-notes
+            else
+              gh release create \
+                "$RELEASE_TAG" \
+                --target "$(git rev-parse HEAD)" \
+                --title "$RELEASE_TITLE" \
+                --generate-notes
+            fi
+          else
+            if [ "${#RELEASE_ASSETS[@]}" -gt 0 ]; then
+              gh release upload \
+                "$RELEASE_TAG" \
+                "${RELEASE_ASSETS[@]}" \
+                --clobber
+            fi
+
+            gh release edit \
               "$RELEASE_TAG" \
-              --target "$(git rev-parse HEAD)" \
               --title "$RELEASE_TITLE" \
-              --generate-notes \
-              >/dev/null 2>&1 || true
+              --target "$(git rev-parse HEAD)"
           fi
 
       - name: Stop OpenCode
