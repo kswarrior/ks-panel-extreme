@@ -188,6 +188,12 @@ const InstancePageStudio: React.FC = () => {
     if (key === 'name' || key === 'slug') setError('');
   };
 
+  useEffect(() => {
+    if (error && page.name?.trim() && page.slug?.trim()) {
+      setError('');
+    }
+  }, [page.name, page.slug]);
+
   const handleContentChange = (value: string) => {
     if (page.content_type === 'html') onChange('content_html', value);
     else if (page.content_type === 'markdown') onChange('content_markdown', value);
@@ -195,6 +201,7 @@ const InstancePageStudio: React.FC = () => {
   };
 
   const applyStarter = async (s: PageStarter) => {
+    setError('');
     const hasContent = Boolean((page.content_html ?? '') || (page.content_markdown ?? '') || (page.content_blocks ?? ''));
     if (hasContent && !(await confirm({ title: 'Apply template', message: `Replace the current draft with the "${s.name}" template?`, tone: 'warning', confirmLabel: 'Replace' }))) return;
     const type = s.contentType ?? 'html';
