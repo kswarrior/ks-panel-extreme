@@ -98,6 +98,19 @@ export const InstanceDynamicPage: React.FC = () => {
   const { id, '*': wildcard } = useParams();
   const instanceId = Number(id);
   const { instance, loading, error } = useInstance(instanceId);
+  const [libraryPages, setLibraryPages] = useState<InstancePage[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+    listInstancePages()
+      .then((pages) => {
+        if (mounted) setLibraryPages(pages);
+      })
+      .catch(() => {
+        if (mounted) setLibraryPages([]);
+      });
+    return () => { mounted = false; };
+  }, []);
 
   if (loading) return <div className="glass-card rounded-xl flex items-center gap-4 animate-pulse"><div className="w-9 h-9 rounded-lg bg-neutral-800 shrink-0" /><div className="h-5 w-1/3 bg-neutral-800 rounded" /></div>;
   if (!instance || error) return <div className="glass-card rounded-xl text-red-400 text-sm">{error || 'Instance not found'}</div>;
@@ -110,7 +123,49 @@ export const InstanceDynamicPage: React.FC = () => {
   // Multi-page support: the wildcard is the FULL page path so sub-pages like
   // files/edit resolve to their own spec row (slug "files/edit"), not just
   // the family's main page.
-  const spec = instance.config ? parseConfig(instance.config) : null;
+  const baseSpec = instance.config ? parseConfig(instance.config) : null;
+
+  // Merge library pages' sub_pages into the spec so sub-page routes resolve
+  // even if the deployed spec snapshot didn't include the latest sub_pages.
+  const spec = useMemo(() => {
+    if (!baseSpec) return baseSpec;
+    const pages = Array.isArray(baseSpec.pages) ? [...baseSpec.pages] : [];
+    const libBySlug = new Map<string, InstancePage>();
+    for (const p of libraryPages) {
+      if (p.slug && typeof p.slug === 'string') libBySlug.set(p.slug.trim(), p);
+    }
+    // Merge sub_pages from library into matching spec rows when spec row lacks them
+    const merged = pages.map((row: any) => {
+      if (!row || typeof row !== 'object' || !row.slug) return row;
+      const lib = libBySlug.get(String(row.slug).trim());
+      if (lib && (!row.sub_pages || (typeof row.sub_pages === 'string' && !row.sub_pages.trim()))) {
+        return { ...row, sub_pages: lib.sub_pages ?? row.sub_pages };
+      }
+      return row;
+    });
+    // Also add library pages not present in spec (for older instances)
+    const existingSlugs = new Set(merged.filter((r: any) => r && r.slug).map((r: any) => String(r.slug).trim()));
+    for (const p of libraryPages) {
+      if (p.slug && typeof p.slug === 'string' && !existingSlugs.has(p.slug.trim())) {
+        merged.push({
+          slug: p.slug,
+          original_slug: '',
+          enabled: true,
+          label: p.name,
+          icon_svg: p.icon_svg,
+          kind: 'custom',
+          content_type: p.content_type,
+          content_html: p.content_html,
+          content_markdown: p.content_markdown,
+          content_blocks: p.content_blocks,
+          sub_pages: p.sub_pages,
+          actions: p.actions,
+        });
+      }
+    }
+    return { ...baseSpec, pages: merged };
+  }, [baseSpec, libraryPages]);
+
   const slug = (wildcard ?? '').replace(/\/+$/, '');
   const effectiveSlug = slug === '' ? '.' : slug;
 
