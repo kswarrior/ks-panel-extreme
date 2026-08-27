@@ -2564,17 +2564,17 @@ button.ks-iconbtn:hover{background:var(--ks-input-bg);color:var(--ks-heading)}
   }
 
   function download(p) {
-    // Sandboxed iframes run on an opaque origin whose document is
-    // about:srcdoc — a RELATIVE window.open() URL can never resolve there,
-    // so the old direct open silently did nothing. Fetch the file through
-    // the SDK bridge and hand it to a blob <a download> instead (the host
-    // iframe sandbox carries allow-downloads). /files/read answers TEXT, so
-    // text/config files download byte-faithful; binary files arrive
-    // UTF-8-reinterpreted (use them via the editor/downloadable panel UI).
     var name = String(p).split('/').pop() || 'download';
-    sdk.fetchPanel('/api/instances/' + sdk.instance.id + '/files/read?path=' + encodeURIComponent(p))
-      .then(function (text) {
-        var blob = new Blob([typeof text === 'string' ? text : JSON.stringify(text)], { type: 'application/octet-stream' });
+    // Use a direct credentialed fetch so binary files arrive byte-faithful.
+    // sdk.fetchPanel goes through fetchJSON (res.text()) which UTF-8 decodes
+    // the bytes, corrupting non-text artifacts. A raw blob fetch preserves
+    // every byte and still respects the panel session cookie.
+    fetch('/api/instances/' + sdk.instance.id + '/files/read?path=' + encodeURIComponent(p), { credentials: 'include' })
+      .then(function (res) {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.blob();
+      })
+      .then(function (blob) {
         var url = URL.createObjectURL(blob);
         var a = document.createElement('a');
         a.href = url;
@@ -2716,6 +2716,7 @@ button.ks-iconbtn:hover{background:var(--ks-input-bg);color:var(--ks-heading)}
   function closeMenu(rerender) {
     if (!state.menuFor) return;
     state.menuFor = null;
+    cleanupMenuListeners();
     if (rerender !== false) render();
   }
   async function menuAction(act, name) {
@@ -2859,8 +2860,12 @@ button.ks-iconbtn:hover{background:var(--ks-input-bg);color:var(--ks-heading)}
       });
     });
     if (state.menuFor) {
+      document.removeEventListener('click', onDocClickClose);
+      document.removeEventListener('keydown', onMenuEscape);
       document.addEventListener('click', onDocClickClose);
       document.addEventListener('keydown', onMenuEscape);
+    } else {
+      cleanupMenuListeners();
     }
 
     // top-bar actions
