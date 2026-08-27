@@ -6,7 +6,7 @@
 // Actions are persisted with the page so pages can run them via
 // KSPageSDK.runAction(name); action-button blocks reference them by name.
 
-import React from 'react';
+import React, { useState } from 'react';
 import GlassCard from '@/shared/components/ui/Card';
 import { glassFieldClass } from '@/shared/components/ui/Field';
 import type { ActionRow } from '@/features/instance-pages/types/pageStudio';
