@@ -14,6 +14,9 @@ const puppeteer = require('puppeteer');
     consoleMessages.push(`${msg.type()}: ${msg.text()}`);
   });
   page.on('response', resp => {
+    if (resp.url().includes('/api/auth/login')) {
+      console.log('Login response headers:', JSON.stringify(resp.headers()));
+    }
     if (resp.status() >= 400) {
       console.log('Response error:', resp.url(), resp.status(), JSON.stringify(resp.request().headers()));
     }
