@@ -19,6 +19,7 @@ import { useInstance, parseConfig } from '@/shared/hooks/useInstance';
 import { listInstancePages } from '@/shared/api/admin';
 import type { InstancePage } from '@/shared/types/instancePage';
 import { useInstanceNavSync } from '@/shared/components/layout/InstanceNavContext';
+import { useAuthStore } from '@/shared/stores/authStore';
 import { getPageContent, getPageLabel, isPageAllowed } from '@/shared/utils/instancePages';
 import { pageNavigateTarget } from '@/shared/lib/customPageSdk';
 import CustomPageView from '@/shared/components/ui/CustomPageView';
