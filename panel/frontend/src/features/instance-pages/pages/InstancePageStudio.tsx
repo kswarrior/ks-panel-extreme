@@ -516,10 +516,6 @@ const InstancePageStudio: React.FC = () => {
             </div>
           )}
 
-          {!isEdit && (!page.name || !page.slug) && !isBuiltin && (
-            <p className="text-amber-300 text-sm border border-amber-700/30 rounded px-3 py-2 bg-amber-900/20">Name and slug are required before saving — pick them up automatically from a template on the Templates tab.</p>
-          )}
-
           {/* ============================== TEMPLATES ============================== */}
           {activeTab === 'templates' && !isBuiltin && (
             <PageStudioTemplatesSection
