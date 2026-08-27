@@ -62,6 +62,8 @@ await page.type('#identifier', 'kshosting');
   await page.goto('http://10.1.0.37:8080/instances/1', {waitUntil: 'networkidle0'});
   // Allow React a moment to render.
   await new Promise(r => setTimeout(r, 2000));
+  const cardExists = await page.$('.glass-card');
+  console.log('Glass-card exists?', !!cardExists);
 
   console.log('=== Console messages from the page ===');
   consoleMessages.forEach(m => console.log(m));
