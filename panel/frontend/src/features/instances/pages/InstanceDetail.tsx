@@ -100,8 +100,10 @@ export const InstanceDynamicPage: React.FC = () => {
   const instanceId = Number(id);
   const { instance, loading, error } = useInstance(instanceId);
   const [libraryPages, setLibraryPages] = useState<InstancePage[]>([]);
+  const authInitialized = useAuthStore((s) => s.initialized);
 
   useEffect(() => {
+    if (!authInitialized) return;
     let mounted = true;
     listInstancePages()
       .then((pages) => {
@@ -111,7 +113,7 @@ export const InstanceDynamicPage: React.FC = () => {
         if (mounted) setLibraryPages([]);
       });
     return () => { mounted = false; };
-  }, []);
+  }, [authInitialized]);
 
   if (loading) return <div className="glass-card rounded-xl flex items-center gap-4 animate-pulse"><div className="w-9 h-9 rounded-lg bg-neutral-800 shrink-0" /><div className="h-5 w-1/3 bg-neutral-800 rounded" /></div>;
   if (!instance || error) return <div className="glass-card rounded-xl text-red-400 text-sm">{error || 'Instance not found'}</div>;
