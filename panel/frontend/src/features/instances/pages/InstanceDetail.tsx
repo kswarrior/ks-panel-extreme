@@ -123,7 +123,7 @@ export const InstanceDynamicPage: React.FC = () => {
   // Multi-page support: the wildcard is the FULL page path so sub-pages like
   // files/edit resolve to their own spec row (slug "files/edit"), not just
   // the family's main page.
-  const baseSpec = instance.config ? parseConfig(instance.config) : null;
+  const baseSpec = useMemo(() => instance.config ? parseConfig(instance.config) : null, [instance?.config]);
 
   // Merge library pages' sub_pages into the spec so sub-page routes resolve
   // even if the deployed spec snapshot didn't include the latest sub_pages.
