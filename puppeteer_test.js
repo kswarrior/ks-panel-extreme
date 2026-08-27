@@ -38,6 +38,23 @@ await page.type('#identifier', 'kshosting');
   const activeIdLS = await page.evaluate(() => localStorage.getItem('ks.accounts.activeId'));
   console.log('LocalStorage ks.accounts.list:', accountsLS);
   console.log('LocalStorage ks.accounts.activeId:', activeIdLS);
+  const derivedToken = await page.evaluate(() => {
+    const listStr = localStorage.getItem('ks.accounts.list');
+    const activeIdStr = localStorage.getItem('ks.accounts.activeId');
+    if (!listStr || !activeIdStr) return null;
+    const list = JSON.parse(listStr);
+    const idx = parseInt(activeIdStr);
+    return list[idx]?.token || null;
+  });
+  console.log('Derived token from LS:', derivedToken);
+  // Manual fetch of /api/me using the token
+  await page.evaluate((token) => {
+    fetch('/api/me', {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${token}` },
+      credentials: 'include'
+    }).then(r => r.text()).then(text => console.log('Manual /api/me fetch response:', text)).catch(err => console.error('Manual fetch error', err));
+  }, derivedToken);
   const cookies = await page.cookies();
   console.log('Cookies after login:', JSON.stringify(cookies));
 
