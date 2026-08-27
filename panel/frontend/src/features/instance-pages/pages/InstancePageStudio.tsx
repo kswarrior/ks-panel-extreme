@@ -22,7 +22,7 @@ import FormPage from '@/shared/components/forms/FormPage';
 import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 import type { PageContent } from '@/shared/components/ui/CustomPageView';
 import type { PageStudioTabId } from '@/features/instance-pages/types/pageStudio';
-import { sectionCls, labelCls, monoCls, addBtn } from '@/features/instance-pages/types/pageStudio';
+import { sectionCls } from '@/features/instance-pages/types/pageStudio';
 import type { ActionRow, SubPageRow } from '@/features/instance-pages/types/pageStudio';
 import {
   getErrorMessage,
