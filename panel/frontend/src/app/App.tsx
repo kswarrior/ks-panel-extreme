@@ -30,7 +30,7 @@ const App: React.FC = () => {
     reapplyTheme();
     let cancelled = false;
     // Debug: log token for auth
-    console.log('App init active token:', useAuthStore.getState().activeAccountToken?.());
+    console.log('App init active token:', useAuthStore.getState().activeAccountToken());
 
     // Bootstrap the brand from the API. Most navigations already get this
     // from the inline <script> in index.html (spliced by the Go server at
@@ -52,11 +52,10 @@ const App: React.FC = () => {
       })
       .catch(() => {/* fall back to bootstrap – silently */});
 
-    const authToken = useAuthStore((s) => {
-      const idx = s.activeAccountId;
-      return idx != null && s.accounts[idx] ? s.accounts[idx].token : null;
-    });
-    if (!authToken) return;
+    if (!authToken) {
+      setInitialized(true);
+      return () => { cancelled = true };
+    }
     client.get('/api/me').then((res: { data: { user: unknown; permissions: string[] } }) => {
       if (cancelled) return;
       const { user, permissions } = res.data as { user: User; permissions: string[] };
@@ -79,7 +78,7 @@ const App: React.FC = () => {
       }
     });
     return () => { cancelled = true };
-  }, [setAuth, clearAuth, setInitialized, bootstrapFromServer, reapplyTheme, loadGlobalThemes]);
+  }, [setAuth, clearAuth, setInitialized, bootstrapFromServer, reapplyTheme, loadGlobalThemes, authToken]);
 
   // Whenever a session becomes active (initial /api/me success, a login-page
   // login, or a multi-account switch) re-fetch the ADMIN-MANAGED GLOBAL theme
