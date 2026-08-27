@@ -21,7 +21,7 @@ export const PAGE_STUDIO_TABS: Array<{ id: PageStudioTabId; label: string }> = [
   { id: 'actions', label: 'Actions' },
   { id: 'components', label: 'Components' },
   { id: 'preview', label: 'Preview' },
-  { id: 'settings', label: 'Settings' },
+  { id: 'settings', label: 'General' },
 ];
 
 // Suggestion lists for the Settings tab Category / Type pickers — same

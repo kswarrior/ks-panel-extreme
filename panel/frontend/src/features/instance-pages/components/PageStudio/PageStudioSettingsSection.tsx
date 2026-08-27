@@ -29,7 +29,7 @@ export const PageStudioSettingsSection: React.FC<PageStudioSettingsSectionProps>
 }) => {
   return (
     <div className={sectionCls}>
-      <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">Section F · Settings</h4>
+      <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">Section F · General</h4>
       <h3 className="text-sm font-semibold text-white">Page settings</h3>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
