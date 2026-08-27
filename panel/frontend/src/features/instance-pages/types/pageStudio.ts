@@ -16,7 +16,7 @@ export type PageStudioTabId = 'templates' | 'editor' | 'subpages' | 'actions' | 
 
 export const PAGE_STUDIO_TABS: Array<{ id: PageStudioTabId; label: string }> = [
   { id: 'templates', label: 'Templates' },
-  { id: 'editor', label: 'Content' },
+  { id: 'editor', label: 'Main page' },
   { id: 'subpages', label: 'Sub-pages' },
   { id: 'actions', label: 'Actions' },
   { id: 'components', label: 'Components' },

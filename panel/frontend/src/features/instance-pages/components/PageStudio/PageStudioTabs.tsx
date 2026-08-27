@@ -40,7 +40,7 @@ function ComponentsIcon() {
 export const PageStudioTabs: React.FC<PageStudioTabsProps> = ({ tab, onChange, isBuiltin }) => {
   const meta: Record<PageStudioTabId, { label: string; hint: string; icon: React.ReactNode }> = {
     templates: { label: 'Templates', hint: 'Ready-made functional pages', icon: <TemplatesIcon /> },
-    editor: { label: 'Content', hint: 'HTML · Markdown · Blocks', icon: <EditorIcon /> },
+    editor: { label: 'Main page', hint: 'HTML · Markdown · Blocks', icon: <EditorIcon /> },
     subpages: { label: 'Sub-pages', hint: 'Extra routes (/files/edit…)', icon: <PagesIcon /> },
     actions: { label: 'Actions', hint: 'Saved executable actions', icon: <TerminalIcon /> },
     components: { label: 'Components', hint: 'Reusable page components', icon: <ComponentsIcon /> },
