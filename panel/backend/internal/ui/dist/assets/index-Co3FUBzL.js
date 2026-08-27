@@ -2966,35 +2966,8 @@ button.ks-iconbtn:hover{background:var(--ks-input-bg);color:var(--ks-heading)}
         });
       }
     }
-    function queueUploads(items) {
-      items = (items || []).filter(function (it) { return it && it.file; }).slice(0, 500);
-      if (!items.length) return;
-      if (state.modal && state.modal.kind === 'upload') state.modal.queue = items;
-      runUploadQueue(items);
-    }
-    async function runUploadQueue(items) {
-      state.modal.busy = true; state.uploadPct = 1; state.uploadLabel = ''; render();
-      var ok = 0, failed = 0;
-      for (var i = 0; i < items.length; i++) {
-        var it = items[i];
-        state.uploadLabel = (i + 1) + '/' + items.length + ' \\u00b7 ' + it.rel;
-        state.uploadPct = Math.round(((i) / items.length) * 100) || 1;
-        render();
-        var target = joinPath(state.path, it.rel);
-        try {
-          var idx = it.rel.lastIndexOf('/');
-          if (idx > 0) await doMkdir(joinPath(state.path, it.rel.slice(0, idx)));
-          await doUploadOne(it.file, target);
-          ok++;
-        } catch (e) {
-          failed++;
-          flash(false, it.rel + ': ' + ((e && e.message) || 'upload failed'));
-        }
-      }
-      state.uploadPct = 100; state.uploadLabel = '';
-      flash(failed === 0, 'Uploaded ' + ok + ' item' + (ok === 1 ? '' : 's') + (failed ? ', ' + failed + ' failed' : ''));
-      state.modal = null; render(); load(state.path);
-    }
+    
+    
     var urlInput = document.getElementById('url-value');
     if (urlInput) {
       urlInput.value = state.modal.name || '';
@@ -3093,6 +3066,36 @@ button.ks-iconbtn:hover{background:var(--ks-input-bg);color:var(--ks-heading)}
     Promise.all(entries.map(function (en) { return walkEntry(en, '', out, 0); }))
       .then(function () { cb(out.length ? out : plain); });
   }
+
+  function queueUploads(items) {
+      items = (items || []).filter(function (it) { return it && it.file; }).slice(0, 500);
+      if (!items.length) return;
+      if (state.modal && state.modal.kind === 'upload') state.modal.queue = items;
+      runUploadQueue(items);
+    }
+    async function runUploadQueue(items) {
+      state.modal.busy = true; state.uploadPct = 1; state.uploadLabel = ''; render();
+      var ok = 0, failed = 0;
+      for (var i = 0; i < items.length; i++) {
+        var it = items[i];
+        state.uploadLabel = (i + 1) + '/' + items.length + ' \\u00b7 ' + it.rel;
+        state.uploadPct = Math.round(((i) / items.length) * 100) || 1;
+        render();
+        var target = joinPath(state.path, it.rel);
+        try {
+          var idx = it.rel.lastIndexOf('/');
+          if (idx > 0) await doMkdir(joinPath(state.path, it.rel.slice(0, idx)));
+          await doUploadOne(it.file, target);
+          ok++;
+        } catch (e) {
+          failed++;
+          flash(false, it.rel + ': ' + ((e && e.message) || 'upload failed'));
+        }
+      }
+      state.uploadPct = 100; state.uploadLabel = '';
+      flash(failed === 0, 'Uploaded ' + ok + ' item' + (ok === 1 ? '' : 's') + (failed ? ', ' + failed + ' failed' : ''));
+      state.modal = null; render(); load(state.path);
+    }
 
   function start(s) {
     sdk = s;
