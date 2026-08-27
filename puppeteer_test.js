@@ -14,18 +14,18 @@ const puppeteer = require('puppeteer');
   // Go to login page
   await page.goto('http://10.1.0.37:8080', {waitUntil: 'networkidle0'});
   // Fill login form (input fields). The login component uses name="username" and name="password".
-  await page.type('input[name="username"]', 'kshosting');
-  await page.type('input[name="password"]', 'kshosting@55');
-  // Click the sign‑in button (it’s a button element containing the text "Sign In").
+await page.type('#identifier', 'kshosting');
+  await page.type('#password', 'kshosting@55');
+  // Click the sign‑in button (button[type="submit"])
   await Promise.all([
-    page.click('button:has-text("Sign In")'),
+    page.click('button[type="submit"]'),
     page.waitForNavigation({waitUntil: 'networkidle0'}),
   ]);
 
   // Navigate to the specific instance page.
   await page.goto('http://10.1.0.37:8080/instances/1', {waitUntil: 'networkidle0'});
   // Allow React a moment to render.
-  await page.waitForTimeout(2000);
+  await new Promise(r => setTimeout(r, 2000));
 
   console.log('=== Console messages from the page ===');
   consoleMessages.forEach(m => console.log(m));
