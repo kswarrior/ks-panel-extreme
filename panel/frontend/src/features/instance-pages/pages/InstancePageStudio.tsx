@@ -320,7 +320,7 @@ const InstancePageStudio: React.FC = () => {
   const handleSave = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (isBuiltin) { setError('Built-in pages cannot be edited. Create a custom page instead.'); return; }
-    if (!page.name?.trim() || !page.slug?.trim()) { setError('Name and slug are required'); return; }
+    if (!page.name?.trim() || !page.slug?.trim()) { setError('Name and slug are required before saving — pick them up automatically from a template on the Templates tab.'); return; }
     if (page.slug.trim() !== '.' && !/^[a-z0-9][a-z0-9-._]*$/i.test(page.slug.trim())) { setError('Slug may contain letters, numbers, dots, dashes and underscores only ("." is the reserved Home slug).'); return; }
     const subErr = validateSubRows(subs);
     if (subErr) { setError(subErr); return; }
