@@ -18,6 +18,10 @@ const App: React.FC = () => {
   const bootstrapFromServer = useSettingsStore((s) => s.bootstrapFromServer);
   const reapplyTheme = useThemeStore((s) => s.reapply);
   const loadGlobalThemes = useThemeStore((s) => s.loadGlobal);
+  const authToken = useAuthStore((s) => {
+    const idx = s.activeAccountId;
+    return idx != null && s.accounts[idx] ? s.accounts[idx].token : null;
+  });
 
   useEffect(() => {
     // The theme store applies the active theme at import time, but a quick
@@ -48,6 +52,11 @@ const App: React.FC = () => {
       })
       .catch(() => {/* fall back to bootstrap – silently */});
 
+    const authToken = useAuthStore((s) => {
+      const idx = s.activeAccountId;
+      return idx != null && s.accounts[idx] ? s.accounts[idx].token : null;
+    });
+    if (!authToken) return;
     client.get('/api/me').then((res: { data: { user: unknown; permissions: string[] } }) => {
       if (cancelled) return;
       const { user, permissions } = res.data as { user: User; permissions: string[] };
