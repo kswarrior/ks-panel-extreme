@@ -1,10 +1,10 @@
 [0;34m==>[0m Preparing test sandbox at /tmp/kspanel-retest...
 [0;34m[INFO][0m Copying binaries from release/ ...
 [0;32m[OK][0m Test folder ready:
-total 32M
--rwxr-xr-x 1 runner runner 9.4M Aug 26 13:07 ksedge
--rwxr-xr-x 1 runner runner  22M Aug 26 13:07 kspanel
-drwxr-xr-x 3 runner runner 4.0K Aug 26 13:07 localnode
+total 49M
+-rwxr-xr-x 1 runner runner  14M Aug 27 01:24 ksedge
+-rwxr-xr-x 1 runner runner  36M Aug 27 01:24 kspanel
+drwxr-xr-x 3 runner runner 4.0K Aug 27 01:24 localnode
 → database     sqlite — /tmp/kspanel-retest/kspanel.db
 ✓ connected    sqlite ready
 → migrations   running
@@ -28,9 +28,9 @@ drwxr-xr-x 3 runner runner 4.0K Aug 26 13:07 localnode
 → node         local-edge @ 127.0.0.1:4040 (id 1)
 → download     ksedge already present, skipping
 → config       localnode/ksedge/config.json
-→ panel        started (pid 2563) on 127.0.0.1:5050
+→ panel        started (pid 2462) on 127.0.0.1:5050
 ✓ panel        ready at http://127.0.0.1:5050
-→ launch       started ksedge (pid 2576) on 127.0.0.1:4040
+→ launch       started ksedge (pid 2490) on 127.0.0.1:4040
 ✓ edge         up and reachable (name="local-edge", log=localnode/ksedge/ksedge.log)
 
 node id:      1
@@ -40,7 +40,7 @@ config:       localnode/ksedge/config.json
 log:          localnode/ksedge/ksedge.log
 
 [0;34m==>[0m Launching kspanel on port 8080 (background)...
-[0;32m[OK][0m kspanel running in background (PID 2603)
+[0;32m[OK][0m kspanel running in background (PID 2498)
 [0;32m[OK][0m Logs:   /tmp/kspanel-retest/kspanel.log
 [0;32m[OK][0m Stop:   kill $(cat /tmp/kspanel-retest/kspanel.pid)
  ██╔═██╗ ╚════██║    ██╔═══╝ ██╔══██║██║╚██╗██║██╔══╝  ██║
@@ -51,15 +51,15 @@ log:          localnode/ksedge/ksedge.log
 → ui           embedded bundle
 ✓ ui           served from api/handlers
 
-panel pid:    2603
+panel pid:    2498
 engine:       sqlite
 dsn:          /tmp/kspanel-retest/kspanel.db
 listen:       :8080
-open:         http://10.1.0.194:8080
-bind ifs:     10.1.0.194, 172.17.0.1
+open:         http://10.1.0.254:8080
+bind ifs:     10.1.0.254, 172.17.0.1
 go:           1.26.7
 goos:         linux/amd64
 cpus:         4
 
 ✓ panel ready  running
-✗ duplicate    pid 2563: /tmp/kspanel-retest/kspanel launch --port 5050 — stop the old instance so DDoS port switching can free ports cleanly
+✗ duplicate    pid 2462: /tmp/kspanel-retest/kspanel launch --port 5050 — stop the old instance so DDoS port switching can free ports cleanly
