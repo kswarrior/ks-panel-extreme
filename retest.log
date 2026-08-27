@@ -2,9 +2,9 @@
 [0;34m[INFO][0m Copying binaries from release/ ...
 [0;32m[OK][0m Test folder ready:
 total 49M
--rwxr-xr-x 1 runner runner  14M Aug 27 01:24 ksedge
--rwxr-xr-x 1 runner runner  36M Aug 27 01:24 kspanel
-drwxr-xr-x 3 runner runner 4.0K Aug 27 01:24 localnode
+-rwxr-xr-x 1 runner runner  14M Aug 27 09:43 ksedge
+-rwxr-xr-x 1 runner runner  36M Aug 27 09:43 kspanel
+drwxr-xr-x 3 runner runner 4.0K Aug 27 09:43 localnode
 → database     sqlite — /tmp/kspanel-retest/kspanel.db
 ✓ connected    sqlite ready
 → migrations   running
@@ -28,9 +28,9 @@ drwxr-xr-x 3 runner runner 4.0K Aug 27 01:24 localnode
 → node         local-edge @ 127.0.0.1:4040 (id 1)
 → download     ksedge already present, skipping
 → config       localnode/ksedge/config.json
-→ panel        started (pid 2462) on 127.0.0.1:5050
+→ panel        started (pid 2558) on 127.0.0.1:5050
 ✓ panel        ready at http://127.0.0.1:5050
-→ launch       started ksedge (pid 2490) on 127.0.0.1:4040
+→ launch       started ksedge (pid 2568) on 127.0.0.1:4040
 ✓ edge         up and reachable (name="local-edge", log=localnode/ksedge/ksedge.log)
 
 node id:      1
@@ -40,26 +40,26 @@ config:       localnode/ksedge/config.json
 log:          localnode/ksedge/ksedge.log
 
 [0;34m==>[0m Launching kspanel on port 8080 (background)...
-[0;32m[OK][0m kspanel running in background (PID 2498)
+[0;32m[OK][0m kspanel running in background (PID 2596)
 [0;32m[OK][0m Logs:   /tmp/kspanel-retest/kspanel.log
 [0;32m[OK][0m Stop:   kill $(cat /tmp/kspanel-retest/kspanel.pid)
- ██╔═██╗ ╚════██║    ██╔═══╝ ██╔══██║██║╚██╗██║██╔══╝  ██║
- ██║  ██╗███████║    ██║      ██║  ██║██║ ╚████║███████╗███████╗
- ╚═╝  ╚═╝╚══════╝    ╚═╝      ╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝
-→ database     sqlite — /tmp/kspanel-retest/kspanel.db
-✓ database     sqlite ready
-→ ui           embedded bundle
 ✓ ui           served from api/handlers
 
-panel pid:    2498
+panel pid:    2596
 engine:       sqlite
 dsn:          /tmp/kspanel-retest/kspanel.db
 listen:       :8080
-open:         http://10.1.0.254:8080
-bind ifs:     10.1.0.254, 172.17.0.1
+open:         http://10.1.1.88:8080
+bind ifs:     10.1.1.88, 172.17.0.1
 go:           1.26.7
 goos:         linux/amd64
 cpus:         4
 
 ✓ panel ready  running
-✗ duplicate    pid 2462: /tmp/kspanel-retest/kspanel launch --port 5050 — stop the old instance so DDoS port switching can free ports cleanly
+✗ duplicate    pid 2558: /tmp/kspanel-retest/kspanel launch --port 5050 — stop the old instance so DDoS port switching can free ports cleanly
+2026/08/27 09:43:24 [runnervm76f27/BfwbYazafa-000001] "GET http://panel.ksweb.qzz.io/instance-pages/studio HTTP/1.1" from [::1]:49166 - 200 1301B in 2.029774ms
+2026/08/27 09:43:25 [runnervm76f27/BfwbYazafa-000002] "GET http://panel.ksweb.qzz.io/assets/react-0h_Dc6Wy.js HTTP/1.1" from [::1]:49166 - 200 142275B in 12.294179ms
+2026/08/27 09:43:25 [runnervm76f27/BfwbYazafa-000003] "GET http://panel.ksweb.qzz.io/assets/index-DfSWEZuq.css HTTP/1.1" from [::1]:49178 - 200 125072B in 6.732337ms
+2026/08/27 09:43:25 [runnervm76f27/BfwbYazafa-000005] "GET http://panel.ksweb.qzz.io/assets/vendor-HlfYZEFA.js HTTP/1.1" from [::1]:49202 - 200 61566B in 2.037779ms
+2026/08/27 09:43:25 [runnervm76f27/BfwbYazafa-000004] "GET http://panel.ksweb.qzz.io/assets/index-F7WYzu8C.js HTTP/1.1" from [::1]:49190 - 200 1504780B in 5.718026ms
+2026/08/27 09:43:26 [runnervm76f27/BfwbYazafa-000006] "GET http://panel.ksweb.qzz.io/assets/router-DAO8MGSL.js HTTP/1.1" from [::1]:49178 - 200 13661B in 112.37µs
