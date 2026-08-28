@@ -422,6 +422,7 @@ func CreateInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		IconSVG:         req.IconSVG,
 		Actions:         req.Actions,
 		SubPages:        req.SubPages,
+		Components:      req.Components,
 	})
 	if err != nil {
 		log.Println("CreateInstancePage error:", err)
