@@ -845,8 +845,6 @@ func ExecutePageActionHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	reqTimeout := clampActionTimeout(req.Timeout)
-
 	// Use the edge client to call the page-action endpoint
 	ec := edge.New(*node, token)
 
