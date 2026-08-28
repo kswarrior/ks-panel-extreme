@@ -246,6 +246,49 @@ func validateSubPages(raw string) error {
 	return nil
 }
 
+// instancePageComponent mirrors one entry of the persisted components JSON.
+type instancePageComponent struct {
+	Name        string `json:"name"`
+	Type        string `json:"type"`
+	Description string `json:"description"`
+	Content     string `json:"content"`
+}
+
+// validateComponentsJSON checks that non-empty components is a JSON array of
+// component objects with valid names and known types.
+func validateComponentsJSON(raw string) error {
+	if raw == "" {
+		return nil
+	}
+	if len(raw) > maxInstancePageComponentsBytes {
+		return newErrString("components too large (max 512KB of JSON)")
+	}
+	var arr []instancePageComponent
+	if err := json.Unmarshal([]byte(raw), &arr); err != nil {
+		return newErrString("components must be a JSON array of component objects")
+	}
+	if len(arr) > maxInstancePageComponents {
+		return newErrString(fmt.Sprintf("too many components (max %d)", maxInstancePageComponents))
+	}
+	seen := make(map[string]bool, len(arr))
+	for _, c := range arr {
+		if !validComponentName(c.Name) {
+			return newErrString("component name must start with a letter, number or underscore and contain only letters, numbers, underscores or dashes (max 64 chars)")
+		}
+		if seen[c.Name] {
+			return newErrString("duplicate component name: " + c.Name)
+		}
+		seen[c.Name] = true
+		if c.Type != "" && !validComponentTypes[c.Type] {
+			return newErrString("component type must be one of: html, markdown, block")
+		}
+		if len(c.Content) > maxInstancePageContentBytes {
+			return newErrString("component content too large (max 1MB)")
+		}
+	}
+	return nil
+}
+
 // validSubPagePath reports whether p is a safe single URL path segment for a
 // sub-page. Strictly lowercase so slugs stay deterministic across dialects.
 func validSubPagePath(p string) bool {
