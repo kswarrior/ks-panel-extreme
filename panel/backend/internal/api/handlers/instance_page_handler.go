@@ -1872,10 +1872,25 @@ func UninstallInstancePageModuleHandler(w http.ResponseWriter, r *http.Request) 
 }
 
 // ServeInstancePageModuleAssetHandler serves static assets for a module.
+// Routes:
+//   /api/instance-page-modules/{id}/{version}/page.js   -> assetPath = "page.js" (derived from URL)
+//   /api/instance-page-modules/{id}/{version}/page.css  -> assetPath = "page.css"
+//   /api/instance-page-modules/{id}/{version}/assets/*  -> assetPath from wildcard param
 func ServeInstancePageModuleAssetHandler(w http.ResponseWriter, r *http.Request) {
 	moduleID := chi.URLParam(r, "id")
 	version := chi.URLParam(r, "version")
 	assetPath := chi.URLParam(r, "*")
+	// Fixed asset routes (page.js / page.css) have no wildcard segment; derive
+	// the filename from the request path so they serve the expected file.
+	if assetPath == "" {
+		trimmed := strings.TrimSuffix(r.URL.Path, "/")
+		if idx := strings.LastIndex(trimmed, "/"); idx >= 0 {
+			candidate := trimmed[idx+1:]
+			if candidate == "page.js" || candidate == "page.css" {
+				assetPath = candidate
+			}
+		}
+	}
 	if moduleID == "" || version == "" || assetPath == "" {
 		http.Error(w, "module id, version, and asset path are required", http.StatusBadRequest)
 		return
