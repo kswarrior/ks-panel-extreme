@@ -48,10 +48,16 @@ type InstancePage struct {
 	// content_blocks}). Each entry becomes a spec.pages row with slug
 	// "<slug>/<path>" when the page is linked/imported (multi-page support:
 	// e.g. Files → files/edit). Empty string == no sub-pages.
-	SubPages  string    `json:"sub_pages"`
-	IconSVG   string    `json:"icon_svg"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	SubPages string `json:"sub_pages"`
+	// Components is a JSON array of reusable UI blocks
+	// ({name,type,description,content}) authored in the Instance Page Studio's
+	// Components tab. Page content references them with {{component:name}};
+	// linking a page copies them into spec.pages so the runtime can
+	// substitute the tokens when rendering. Empty string == no components.
+	Components string `json:"components"`
+	IconSVG    string `json:"icon_svg"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 // Instance is one deployed workload living on an edge node.
