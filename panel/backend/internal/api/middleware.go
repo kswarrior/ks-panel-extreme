@@ -289,6 +289,18 @@ func PermissionMiddleware(perm string, checker *permissions.Checker) func(http.H
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return
 			}
+			// API-key scoped check: if the request was authenticated via a
+			// scoped key, enforce the key's permission list first. A key that
+			// lacks the permission is denied even if the owning user would
+			// otherwise have it – the key's scope is the ceiling.
+			if k, ok := ApiKeyFromContext(r); ok {
+				if !hasApiKeyPermission(k, []string{perm}) {
+					http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+					return
+				}
+				next.ServeHTTP(w, r)
+				return
+			}
 			if err := checker.Ensure(uid, perm); err != nil {
 				http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 				return
@@ -308,6 +320,14 @@ func requirePermission(perm string) func(http.Handler) http.Handler {
 			uid, err := MustAuth(r)
 			if err != nil {
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+			if k, ok := ApiKeyFromContext(r); ok {
+				if !hasApiKeyPermission(k, []string{perm}) {
+					http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+					return
+				}
+				next.ServeHTTP(w, r)
 				return
 			}
 			con, err := repository.OpenDB()
@@ -348,6 +368,14 @@ func requireAnyPermission(keys ...string) func(http.Handler) http.Handler {
 				http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 				return
 			}
+			if k, ok := ApiKeyFromContext(r); ok {
+				if !hasApiKeyPermission(k, keys) {
+					http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+					return
+				}
+				next.ServeHTTP(w, r)
+				return
+			}
 			con, err := repository.OpenDB()
 			if err != nil {
 				http.Error(w, "server error", http.StatusInternalServerError)
@@ -362,6 +390,50 @@ func requireAnyPermission(keys ...string) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// hasApiKeyPermission reports whether the API key's permission list grants ANY
+// of the required keys. It also handles the umbrella-implies-action case for
+// single-key gates: if the required key belongs to a group, holding the group's
+// umbrella counts as holding the specific key. This preserves the
+// "MANAGE_* implies VIEW_*" contract without requiring the key to list every
+// sub-key explicitly.
+func hasApiKeyPermission(k *models.ApiKey, required []string) bool {
+	if k == nil || len(required) == 0 {
+		return false
+	}
+	have := make(map[string]struct{}, len(k.Permissions))
+	for _, p := range k.Permissions {
+		have[p] = struct{}{}
+	}
+	// Fast path: any exact match.
+	for _, r := range required {
+		if _, ok := have[r]; ok {
+			return true
+		}
+	}
+	// Fallback: check umbrella implications for single-key gates.
+	// For each required key, see if it belongs to a group whose umbrella the
+	// key holds. This allows a key with MANAGE_INSTANCES to pass a gate that
+	// only requires VIEW_INSTANCES, matching the role-layer semantics.
+	for _, r := range required {
+		for _, g := range permissions.AreaGroups {
+			if k2, ok := g.Keys[permissions.ActionView]; ok && k2 == r {
+				if _, hasUmbrella := have[g.Umbrella]; hasUmbrella && g.Umbrella != "" {
+					return true
+				}
+			}
+			// Also cover non-view actions where the required key is an umbrella'd sub-key.
+			for _, ak := range g.Keys {
+				if ak == r {
+					if _, hasUmbrella := have[g.Umbrella]; hasUmbrella && g.Umbrella != "" {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
 }
 
 // requireUmbrellaOrAction is a thin wrapper over requireAnyPermission that
