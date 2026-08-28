@@ -208,6 +208,17 @@ function parseSpecActions(raw: unknown): PageContent['actions'] {
   return defs.length > 0 ? defs : undefined;
 }
 
+function parseSpecComponents(raw: unknown): PageComponentDef[] | undefined {
+  let list: unknown = raw;
+  if (typeof raw === 'string') {
+    if (!raw.trim()) return undefined;
+    try { list = JSON.parse(raw); } catch { return undefined; }
+  }
+  if (!Array.isArray(list)) return undefined;
+  const defs = parsePageComponents(JSON.stringify(list));
+  return defs.length > 0 ? defs : undefined;
+}
+
 // hasAnyContent reports whether a spec row carries renderable content.
 function hasAnyContent(p: any): boolean {
   return (
@@ -250,7 +261,7 @@ function pagePayloadFromRow(p: any): PageContent {
     markdown: typeof p.content_markdown === 'string' ? p.content_markdown : undefined,
     blocks: typeof p.content_blocks === 'string' ? p.content_blocks : undefined,
     actions: parseSpecActions(p.actions),
-    components: typeof p.components === 'string' && p.components.trim() ? parsePageComponents(p.components) : undefined,
+    components: parseSpecComponents(p.components),
   };
 }
 
@@ -281,10 +292,8 @@ export function getPageContent(slug: string, spec: Record<string, any> | null | 
   if (p) return pagePayloadFromRow(p);
   const hit = findSubPageEntry(slug, spec);
   if (!hit) return null;
-  // Pass parent's components to sub-page payload.
-  const parentComps = typeof hit.parent?.components === 'string' && hit.parent.components.trim()
-    ? parsePageComponents(hit.parent.components)
-    : undefined;
+  // Pass parent's components to sub-page payload (handles both string and inline array).
+  const parentComps = parseSpecComponents(hit.parent?.components);
   return pagePayloadFromSub(hit.sub, parentComps);
 }
 
