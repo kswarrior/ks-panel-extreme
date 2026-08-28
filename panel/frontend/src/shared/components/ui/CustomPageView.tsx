@@ -375,8 +375,10 @@ ${activePageThemeCss()}
 // and paragraphs into React nodes. We avoid pulling a heavy dependency by
 // supporting just the common subset (headings, **bold**, *italic*, `code`,
 // links, lists, paragraphs).
-function renderMarkdown(md: string): React.ReactNode {
-  const lines = md.split('\n');
+function renderMarkdown(md: string, components?: PageComponentDef[]): React.ReactNode {
+  // Resolve {{component:name}} tokens before rendering markdown.
+  const resolvedMd = resolveComponentTokens(md, components ?? []);
+  const lines = resolvedMd.split('\n');
   const out: React.ReactNode[] = [];
   let list: React.ReactNode[] = [];
   let listType: 'ul' | 'ol' | null = null;
@@ -909,14 +911,16 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
       created_at: '',
       updated_at: '',
     } as InstanceContext);
+    // Resolve {{component:name}} tokens in HTML content.
+    const resolvedHtml = resolveComponentTokens(content.html ?? '', content.components ?? []);
     return buildIframeDocument(
-      content.html ?? '',
+      resolvedHtml,
       safeInlineJson(ctx),
       safeInlineJson(Array.isArray(content.actions) ? content.actions : []),
       location.search,
       customPageThemeCss(activeTheme),
     );
-  }, [content.type, content.html, content.actions, instanceContext, location.search, activeTheme]);
+  }, [content.type, content.html, content.components, content.actions, instanceContext, location.search, activeTheme]);
 
   // Bridge: parent-side handler for everything the iframe sends up.
   useEffect(() => {
