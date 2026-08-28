@@ -1,4 +1,4 @@
-name: Sync from Hugging Face Bucket
+name: Reset Main to d2121be
 
 on:
   workflow_dispatch:
@@ -7,53 +7,28 @@ permissions:
   contents: write
 
 jobs:
-  sync:
+  reset:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout GitHub Repository
+      - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          fetch-depth: 0
+          ref: main
 
-      - name: Install Hugging Face CLI
+      - name: Replace main with d2121be
         run: |
-          pip install -U huggingface_hub
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Sync from Hugging Face Bucket
-        run: |
-          rm -rf *
-          hf sync hf://buckets/kswarrior/opencode-storage/ks-panel ./hf_temp \
-            --exclude "*node_modules*"
+          git fetch origin d2121bef9c326ebe57d482fa3be2844349341b61
 
-      - name: Remove unwanted files
-        run: |
-          find ./hf_temp -type d -name "node_modules" -prune -exec rm -rf {} +
-          rm -rf ./hf_temp/.github
+          git rm -rf .
+          git clean -fdx
 
-      - name: Sync Files to Repository Root
-        run: |
-          rsync -av \
-            --exclude=".git" \
-            --exclude=".github" \
-            --exclude="node_modules" \
-            hf_temp/ ./
+          git archive d2121bef9c326ebe57d482fa3be2844349341b61 | tar -x
 
-          rm -rf hf_temp
-
-      - name: Commit and Push Changes
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add .
-
-          if git diff --staged --quiet; then
-            echo "No changes detected. Skipping commit."
-          else
-            git commit -m "Sync from Hugging Face ks-panel"
-            git push origin HEAD
-          fi
+          git add -A
+          git commit -m "Reset main to d2121be" || true
+          git push origin HEAD:main
