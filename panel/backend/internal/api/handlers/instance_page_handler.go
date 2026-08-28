@@ -1722,27 +1722,40 @@ func ListInstancePageModulesHandler(w http.ResponseWriter, r *http.Request) {
 		if !entry.IsDir() {
 			continue
 		}
-
-		// Check if this is a valid module directory (has manifest.json)
-		manifestPath := filepath.Join(modulesDir, entry.Name(), "manifest.json")
-		if _, err := os.Stat(manifestPath); os.IsNotExist(err) {
+		id := entry.Name()
+		// Legacy layout: instance_pages/modules/<id>/manifest.json (no version dir)
+		legacyPath := filepath.Join(modulesDir, id, "manifest.json")
+		if _, err := os.Stat(legacyPath); err == nil {
+			data, err := os.ReadFile(legacyPath)
+			if err == nil {
+				var m instancePageModuleManifest
+				if json.Unmarshal(data, &m) == nil {
+					modules = append(modules, m)
+				}
+			}
 			continue
 		}
-
-		// Read and parse manifest
-		data, err := os.ReadFile(manifestPath)
+		// Current layout: instance_pages/modules/<id>/<version>/manifest.json
+		versionEntries, err := os.ReadDir(filepath.Join(modulesDir, id))
 		if err != nil {
-			log.Printf("ListInstancePageModules: failed to read manifest %s: %v", manifestPath, err)
 			continue
 		}
-
-		var manifest instancePageModuleManifest
-		if err := json.Unmarshal(data, &manifest); err != nil {
-			log.Printf("ListInstancePageModules: failed to parse manifest %s: %v", manifestPath, err)
-			continue
+		for _, vEntry := range versionEntries {
+			if !vEntry.IsDir() {
+				continue
+			}
+			manifestPath := filepath.Join(modulesDir, id, vEntry.Name(), "manifest.json")
+			data, err := os.ReadFile(manifestPath)
+			if err != nil {
+				continue
+			}
+			var manifest instancePageModuleManifest
+			if err := json.Unmarshal(data, &manifest); err != nil {
+				log.Printf("ListInstancePageModules: failed to parse manifest %s: %v", manifestPath, err)
+				continue
+			}
+			modules = append(modules, manifest)
 		}
-
-		modules = append(modules, manifest)
 	}
 
 	writeJSON(w, modules)
