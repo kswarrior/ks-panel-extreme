@@ -24,6 +24,13 @@ interface BlockRow {
   confirmText?: string; // optional confirm prompt before running
 }
 
+export interface PageComponentDef {
+  name: string;
+  type: 'html' | 'markdown' | 'block';
+  description?: string;
+  content: string;
+}
+
 export interface PageContent {
   type: 'html' | 'markdown' | 'blocks';
   html?: string;
