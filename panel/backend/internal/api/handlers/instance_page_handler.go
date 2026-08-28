@@ -1565,14 +1565,14 @@ func ImportInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		IconSVG:         dto.IconSVG,
 		Actions:         dto.Actions,
 		SubPages:        dto.SubPages,
+		Components:      dto.Components,
 	})
 	if err != nil {
 		log.Println("ImportInstancePage error:", err)
-		errMsg := err.Error()
-		if strings.Contains(errMsg, "UNIQUE constraint failed") && strings.Contains(errMsg, "slug") {
+		if isSlugConflict(err) {
 			http.Error(w, "slug already exists", http.StatusConflict)
 		} else {
-			http.Error(w, "could not create instance page: "+errMsg, http.StatusInternalServerError)
+			http.Error(w, "could not create instance page: "+err.Error(), http.StatusInternalServerError)
 		}
 		return
 	}
