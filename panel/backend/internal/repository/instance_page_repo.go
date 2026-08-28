@@ -3,33 +3,10 @@ package repository
 import (
 	"database/sql"
 	"fmt"
-	"strings"
 	"time"
 
-	"github.com/example/kspanel/internal/config"
 	"github.com/example/kspanel/internal/models"
 )
-
-// bind rewrites `?` placeholders to `$n` for postgres so the same query text
-// works on all three engines (sqlite/mysql use `?`, postgres uses `$1`).
-// No query in this file contains a literal `?` inside a string, so a naive
-// sequential replacement is safe.
-func bind(q string) string {
-	if strings.ToLower(strings.TrimSpace(config.DatabaseConfig().Engine)) != "postgres" {
-		return q
-	}
-	var sb strings.Builder
-	n := 0
-	for _, r := range q {
-		if r == '?' {
-			n++
-			sb.WriteString(fmt.Sprintf("$%d", n))
-		} else {
-			sb.WriteRune(r)
-		}
-	}
-	return sb.String()
-}
 
 // InstancePageRepository manages the `instance_pages` table. These are reusable
 // page definitions that template authors can reference to provide custom
@@ -45,15 +22,15 @@ func NewInstancePageRepository(db *sql.DB) *InstancePageRepository {
 // List returns all instance pages ordered by name for deterministic UI rendering.
 func (r *InstancePageRepository) List() ([]models.InstancePage, error) {
 	var n int
-	if err := r.db.QueryRow(bind(`SELECT COUNT(*) FROM instance_pages`)).Scan(&n); err != nil {
+	if err := r.db.QueryRow(`SELECT COUNT(*) FROM instance_pages`).Scan(&n); err != nil {
 		return nil, err
 	}
 	out := make([]models.InstancePage, 0, n)
 	if n == 0 {
 		return out, nil
 	}
-	rows, err := r.db.Query(bind(`SELECT id, name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages, components, created_at, updated_at
-		FROM instance_pages ORDER BY name ASC`))
+	rows, err := r.db.Query(`SELECT id, name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages, components, created_at, updated_at
+		FROM instance_pages ORDER BY name ASC`)
 	if err != nil {
 		return nil, err
 	}
@@ -80,8 +57,8 @@ func (r *InstancePageRepository) Get(id int64) (*models.InstancePage, error) {
 	var p models.InstancePage
 	var pid sql.NullInt64
 	var name, slug, kind, category, pageType, desc, contentType, contentHTML, contentMarkdown, contentBlocks, iconSVG, actions, subPages, components, created, updated sql.NullString
-	err := r.db.QueryRow(bind(`SELECT id, name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages, components, created_at, updated_at
-		FROM instance_pages WHERE id = ?`), id).Scan(
+	err := r.db.QueryRow(`SELECT id, name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages, components, created_at, updated_at
+		FROM instance_pages WHERE id = ?`, id).Scan(
 		&pid, &name, &slug, &kind, &category, &pageType, &desc, &contentType, &contentHTML, &contentMarkdown, &contentBlocks, &iconSVG, &actions, &subPages, &components, &created, &updated)
 	if err != nil || !pid.Valid {
 		return nil, fmt.Errorf("instance page not found")
@@ -134,7 +111,7 @@ type InstancePageInput struct {
 
 // Create inserts a new instance page.
 func (r *InstancePageRepository) Create(in InstancePageInput) (int64, error) {
-	res, err := r.db.Exec(bind(`INSERT INTO instance_pages (name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages, components) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`),
+	res, err := r.db.Exec(`INSERT INTO instance_pages (name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages, components) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		in.Name, in.Slug, in.Kind, in.Category, in.PageType, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.IconSVG, in.Actions, in.SubPages, in.Components)
 	if err != nil {
 		return 0, err
@@ -144,7 +121,7 @@ func (r *InstancePageRepository) Create(in InstancePageInput) (int64, error) {
 
 // Update patches an editable instance page.
 func (r *InstancePageRepository) Update(id int64, in InstancePageInput) error {
-	res, err := r.db.Exec(bind(`UPDATE instance_pages SET name = ?, slug = ?, kind = ?, category = ?, page_type = ?, description = ?, content_type = ?, content_html = ?, content_markdown = ?, content_blocks = ?, icon_svg = ?, actions = ?, sub_pages = ?, components = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`),
+	res, err := r.db.Exec(`UPDATE instance_pages SET name = ?, slug = ?, kind = ?, category = ?, page_type = ?, description = ?, content_type = ?, content_html = ?, content_markdown = ?, content_blocks = ?, icon_svg = ?, actions = ?, sub_pages = ?, components = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
 		in.Name, in.Slug, in.Kind, in.Category, in.PageType, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.IconSVG, in.Actions, in.SubPages, in.Components, id)
 	if err != nil {
 		return err
@@ -157,7 +134,7 @@ func (r *InstancePageRepository) Update(id int64, in InstancePageInput) error {
 
 // Delete removes an instance page.
 func (r *InstancePageRepository) Delete(id int64) error {
-	res, err := r.db.Exec(bind(`DELETE FROM instance_pages WHERE id = ?`), id)
+	res, err := r.db.Exec(`DELETE FROM instance_pages WHERE id = ?`, id)
 	if err != nil {
 		return err
 	}

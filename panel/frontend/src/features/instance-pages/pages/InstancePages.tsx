@@ -12,6 +12,7 @@ import GlassCard from '@/shared/components/ui/Card';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import Modal from '@/shared/components/ui/Modal';
 import { useConfirm } from '@/shared/stores/confirmStore';
+import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 
 type SortKey = 'name' | 'kind' | 'category' | 'updated' | 'newest';
 
@@ -427,11 +428,20 @@ const InstancePages: React.FC = () => {
               return (
                 <article key={p.id} id={`ks-instancepage-${p.id}`} className="ks-card ks-list-card group relative glass-card rounded-xl flex flex-col gap-3 hover:border-white/20 transition-colors">
                   <header className="flex items-start gap-3 min-w-0 relative">
-                    <div className="shrink-0 w-12 h-12 rounded-lg flex items-center justify-center border bg-white/[0.05] border-white/10 text-gray-300" aria-hidden="true">
+                    <div className="shrink-0 w-12 h-12 rounded-lg flex items-center justify-center border bg-white/[0.05] border-white/10 text-gray-300 overflow-hidden" aria-hidden="true">
                       {p.icon_svg ? (
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
-                          <g dangerouslySetInnerHTML={{ __html: p.icon_svg }} />
-                        </svg>
+                        (() => {
+                          const sanitized = sanitizeSvgIcon(p.icon_svg);
+                          const isFullSvg = sanitized.trim().toLowerCase().startsWith('<svg');
+                          if (isFullSvg) {
+                            return <span className="w-6 h-6 block [&>svg]:w-6 [&>svg]:h-6 [&>svg]:block" dangerouslySetInnerHTML={{ __html: sanitized }} />;
+                          }
+                          return (
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
+                              <g dangerouslySetInnerHTML={{ __html: sanitized }} />
+                            </svg>
+                          );
+                        })()
                       ) : (
                         <KindIcon kind={e.kind} className="w-6 h-6" />
                       )}
