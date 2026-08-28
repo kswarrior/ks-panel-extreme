@@ -45,8 +45,10 @@ type Node struct {
 	AllocDiskMiB      int `json:"alloc_disk_mib"`
 	DiskOvercommitPct int `json:"disk_overcommit_pct"`
 	// InstancesDir is the daemon's instance working-files directory the
-	// panel hands to ksedge (default "./instances"). Empty falls back to
-	// the edge's documented default.
+	// panel hands to ksedge (default "/var/lib/kspanel/instances").
+	// "./instances" (or "./instances/") is resolved by the edge relative
+	// to the edge binary directory (./ = edge location). Empty falls back
+	// to the edge's documented default.
 	InstancesDir string `json:"instances_dir"`
 	// Category is a free-text bucket label the operator attaches to the
 	// node ("production", "staging", "dev", "tenant-acme", …). Drives the

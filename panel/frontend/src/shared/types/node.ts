@@ -36,7 +36,8 @@ export interface Node {
   /** Allowed disk over-allocation as a % of the cap. */
   disk_overcommit_pct: number;
   /** Daemon instance-working-files directory the panel forwards to ksedge.
-   *  Empty = daemon default "./instances". */
+   *  Empty = daemon default "/var/lib/kspanel/instances". "./instances"
+   *  is resolved relative to the edge binary directory (./ = edge location). */
   instances_dir: string;
   /** Free-text bucket label the operator attaches to the node
    *  ("production", "staging", "dev", "tenant-acme", …). Empty = uncategorised. */

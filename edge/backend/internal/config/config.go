@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -49,10 +51,11 @@ type Config struct {
 	SkipVerify bool `json:"skip_verify,omitempty"`
 	// InstancesDir overrides where the daemon keeps its per-instance
 	// working files (logs, mounts, sockets). Empty lets the daemon fall
-	// back to its documented default "./instances" relative to the working
-	// directory. The panel forwards it through config.json so every ksedge
-	// started by "Create & setup" honours the operator's choice without
-	// adding a CLI flag.
+	// back to its documented default "/var/lib/kspanel/instances".
+	// The panel forwards it through config.json so every ksedge started
+	// by "Create & setup" honours the operator's choice without adding a
+	// CLI flag. A value of "./instances" (or "./instances/") is resolved
+	// relative to the edge binary directory (./ = edge location).
 	InstancesDir string `json:"instances_dir,omitempty"`
 }
 
