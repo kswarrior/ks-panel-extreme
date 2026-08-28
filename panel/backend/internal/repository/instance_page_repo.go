@@ -104,6 +104,9 @@ type InstancePageInput struct {
 	// SubPages is a JSON array of extra page definitions ("" == none). The
 	// caller (handler) validates shape; see validateInstancePage.
 	SubPages string
+	// Components is a JSON array of reusable UI blocks ("" == none). The
+	// caller (handler) validates shape; see validateInstancePage.
+	Components string
 }
 
 // Create inserts a new instance page.
