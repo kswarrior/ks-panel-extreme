@@ -374,6 +374,7 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
             content_html: '',
             content_markdown: '# Custom Page\n\nAdd your content here.',
             content_blocks: '',
+            components: [],
           },
         ],
       })),
@@ -398,6 +399,7 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
               content_html: np.content_html || '',
               content_markdown: np.content_markdown || '',
               content_blocks: np.content_blocks || '',
+              components: np.components || [],
             },
           ],
         };
