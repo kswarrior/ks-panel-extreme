@@ -357,6 +357,8 @@ const InstancePageStudio: React.FC = () => {
     if (page.slug.trim() !== '.' && !/^[a-z0-9][a-z0-9-._]*$/i.test(page.slug.trim())) { setError('Slug may contain letters, numbers, dots, dashes and underscores only ("." is the reserved Home slug).'); return; }
     const subErr = validateSubRows(subs);
     if (subErr) { setError(subErr); return; }
+    const compErr = validateCompRows(components);
+    if (compErr) { setError(compErr); return; }
     setSaving(true);
     setError('');
     try {
@@ -374,6 +376,7 @@ const InstancePageStudio: React.FC = () => {
         icon_svg: page.icon_svg ?? '',
         actions: JSON.stringify(actionDefs),
         sub_pages: subsToJSON(subs),
+        components: compsToJSON(components),
       } as unknown as UpdateInstancePagePayload;
       if (isEdit && pageId != null) {
         await updateInstancePage(pageId, payload as UpdateInstancePagePayload);
