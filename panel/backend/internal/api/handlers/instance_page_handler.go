@@ -371,6 +371,30 @@ func validateInstancePage(req instancePageDTO) (instancePageDTO, error) {
 	return req, nil
 }
 
+// isSlugConflict reports whether err is a unique-constraint violation on slug.
+// Covers sqlite ("UNIQUE constraint failed"), mysql ("Duplicate entry") and
+// postgres ("duplicate key value violates unique constraint") so the handler
+// can map to HTTP 409 on every dialect instead of leaking a 500.
+func isSlugConflict(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	if strings.Contains(msg, "unique") && strings.Contains(msg, "slug") {
+		return true
+	}
+	if strings.Contains(msg, "duplicate") && strings.Contains(msg, "slug") {
+		return true
+	}
+	// Postgres/mysql messages sometimes omit the column name but still
+	// contain the constraint keyword; treat any unique/duplicate wording
+	// on instance_pages as a slug conflict when slug is the only UNIQUE col.
+	if strings.Contains(msg, "instance_pages") && (strings.Contains(msg, "unique") || strings.Contains(msg, "duplicate")) {
+		return true
+	}
+	return false
+}
+
 // ListInstancePagesHandler returns every instance page for the admin UI.
 func ListInstancePagesHandler(w http.ResponseWriter, r *http.Request) {
 	con, err := repository.OpenDB()
@@ -428,9 +452,9 @@ func CreateInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		log.Println("CreateInstancePage error:", err)
-		// Check for unique constraint violation (slug already exists)
+		// Check for unique constraint violation (slug already exists) — dialect-agnostic.
 		errMsg := err.Error()
-		if strings.Contains(errMsg, "UNIQUE constraint failed") && strings.Contains(errMsg, "slug") {
+		if isSlugConflict(err) {
 			http.Error(w, "slug already exists", http.StatusConflict)
 		} else if strings.Contains(errMsg, "NOT NULL constraint failed") {
 			http.Error(w, "required field missing: "+errMsg, http.StatusBadRequest)
@@ -488,7 +512,11 @@ func UpdateInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		SubPages:        req.SubPages,
 		Components:      req.Components,
 	}); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		if isSlugConflict(err) {
+			http.Error(w, "slug already exists", http.StatusConflict)
+		} else {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		}
 		return
 	}
 	RecordActivity(r, repository.ActivityInput{
@@ -818,27 +846,16 @@ func ExecutePageActionHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Verify the page is enabled for this instance (using instance's own config)
-	// The instance's Config field contains the deploy-time snapshot (template.spec + overrides)
-	var spec map[string]any
-	if instance.Config != "" {
-		_ = json.Unmarshal([]byte(instance.Config), &spec)
-	}
-	enabledPages := getEnabledPages(spec)
+	// The instance's Config field contains the deploy-time snapshot; use the
+	// same precedence as the SPA (exact slug, original_slug, nested sub-page)
+	// so sub-page actions are reachable when the parent is enabled.
 	pageRepo := repository.NewInstancePageRepository(con)
 	page, perr := pageRepo.Get(pageID)
 	if perr != nil || page == nil {
 		http.Error(w, "page not found", http.StatusNotFound)
 		return
 	}
-
-	pageAllowed := false
-	for _, p := range enabledPages {
-		if p == page.Slug {
-			pageAllowed = true
-			break
-		}
-	}
-	if !pageAllowed {
+	if findSpecPageRow(parseSpecRows(instance.Config), page.Slug) == nil {
 		http.Error(w, "page not enabled for this instance", http.StatusForbidden)
 		return
 	}
