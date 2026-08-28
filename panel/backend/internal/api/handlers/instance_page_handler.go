@@ -387,6 +387,27 @@ func ListInstancePagesHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, pages)
 }
 
+// GetInstancePageHandler returns a single instance page by id.
+func GetInstancePageHandler(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	con, err := repository.OpenDB()
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	defer con.Close()
+	page, err := repository.NewInstancePageRepository(con).Get(id)
+	if err != nil || page == nil {
+		http.Error(w, "instance page not found", http.StatusNotFound)
+		return
+	}
+	writeJSON(w, page)
+}
+
 // CreateInstancePageHandler inserts a new instance page after validating.
 func CreateInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 	var req instancePageDTO
