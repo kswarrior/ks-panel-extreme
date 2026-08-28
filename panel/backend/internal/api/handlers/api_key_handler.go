@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/example/kspanel/internal/models"
@@ -570,28 +571,15 @@ func AdminDeleteApiKeyHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // validateApiKeyDTO checks common invariants for both create and update.
-// isUpdate is only used to emit the same "name is required" message; the rest
-// of the checks apply to either flow.
 func validateApiKeyDTO(req *apiKeyDTO, isUpdate bool) string {
-	_ = isUpdate
-	trimmed := ""
-	if req.Name != "" {
-		// manual trim to avoid importing strings for a one-off check; we do
-		// need strings though – import already present for other helpers.
-		trimmed = req.Name
-		// strings.TrimSpace is clearer and handles all whitespace.
-		// We call it explicitly rather than inline to keep the linter quiet.
-		trimmed = trimSpace(req.Name)
-		if trimmed == "" {
-			return "name is required"
-		}
-		if len(trimmed) > 64 {
-			return "name is too long (max 64)"
-		}
-		req.Name = trimmed
-	} else {
+	trimmed := strings.TrimSpace(req.Name)
+	if trimmed == "" {
 		return "name is required"
 	}
+	if len(trimmed) > 64 {
+		return "name is too long (max 64)"
+	}
+	req.Name = trimmed
 	if len(req.Description) > 500 {
 		return "description is too long (max 500)"
 	}
@@ -604,7 +592,6 @@ func validateApiKeyDTO(req *apiKeyDTO, isUpdate bool) string {
 	if len(req.Permissions) > 100 {
 		return "too many permissions (max 100)"
 	}
-	// Basic permission key hygiene – allow alphanumeric, underscore, dash.
 	for _, p := range req.Permissions {
 		if len(p) > 64 {
 			return "permission key too long: " + p
@@ -616,23 +603,6 @@ func validateApiKeyDTO(req *apiKeyDTO, isUpdate bool) string {
 	if req.RateLimit != nil && *req.RateLimit < 0 {
 		return "rate_limit cannot be negative"
 	}
-	if req.RateLimit != nil && *req.RateLimit > 0 && req.RateLimitSet == false && !isUpdate {
-		// On create, rate_limit without explicit set is okay – the repo handles it.
-	}
+	_ = isUpdate
 	return ""
-}
-
-// trimSpace is a tiny wrapper to keep imports clean in validateApiKeyDTO.
-func trimSpace(s string) string {
-	// Use standard library trimming.
-	return stringsTrimSpace(s)
-}
-
-// stringsTrimSpace delegates to strings.TrimSpace without introducing a circular
-// import at the top-level helper boundary.
-func stringsTrimSpace(s string) string {
-	// Inline implementation mirrors strings.TrimSpace for this package's needs.
-	// We import "strings" at the top of the file; calling it directly is fine.
-	// This indirection exists only to keep the helper testable in isolation.
-	return trimSpaceImpl(s)
 }
