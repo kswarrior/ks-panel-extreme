@@ -1962,6 +1962,15 @@ func ServeInstancePageModuleAssetHandler(w http.ResponseWriter, r *http.Request)
 	moduleID := chi.URLParam(r, "id")
 	version := chi.URLParam(r, "version")
 	assetPath := chi.URLParam(r, "*")
+	// chi route /{id}/{version}/page.js (and page.css) has no wildcard, so "*" is empty.
+	// Derive assetPath from the URL tail for those two fixed assets.
+	if assetPath == "" {
+		if strings.HasSuffix(r.URL.Path, "/page.js") {
+			assetPath = "page.js"
+		} else if strings.HasSuffix(r.URL.Path, "/page.css") {
+			assetPath = "page.css"
+		}
+	}
 	if moduleID == "" || version == "" || assetPath == "" {
 		http.Error(w, "module id, version, and asset path are required", http.StatusBadRequest)
 		return
@@ -2581,4 +2590,97 @@ func ImportLocalInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		Message:     fmt.Sprintf("imported instance page %q (slug=%s) from local directory", dto.Name, dto.Slug),
 	})
 	writeJSON(w, map[string]any{"id": id, "message": "Page imported successfully from local directory"})
+}
+
+const (
+	instancePageURLFetchTimeout    = 10 * time.Second
+	instancePageURLFetchDNSTimeout = 5 * time.Second
+	instancePageURLFetchMaxBytes   = 10 << 20
+)
+
+func fetchInstancePageURLBytes(ctx context.Context, raw string) ([]byte, error) {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return nil, &allowedURLError{http.StatusBadRequest, "invalid URL: " + err.Error()}
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return nil, &allowedURLError{http.StatusBadRequest, "URL must use http or https"}
+	}
+	if u.Host == "" {
+		return nil, &allowedURLError{http.StatusBadRequest, "URL is missing a host"}
+	}
+	host := u.Hostname()
+	if host == "" {
+		return nil, &allowedURLError{http.StatusBadRequest, "URL is missing a host"}
+	}
+	resolver := net.Resolver{PreferGo: true}
+	dnsCtx, cancelDNS := context.WithTimeout(ctx, instancePageURLFetchDNSTimeout)
+	defer cancelDNS()
+	ips, err := resolver.LookupIPAddr(dnsCtx, host)
+	if err != nil || len(ips) == 0 {
+		return nil, &allowedURLError{http.StatusBadGateway, "could not resolve host: " + host}
+	}
+	for _, ipa := range ips {
+		if !isPublicIP(ipa.IP) {
+			which := ""
+			if ipa.IP != nil {
+				which = " (" + ipa.IP.String() + ")"
+			}
+			return nil, &allowedURLError{
+				http.StatusBadRequest,
+				fmt.Sprintf("refusing to fetch %s: host resolves to a non-public address%s; only public hosts are allowed", host, which),
+			}
+		}
+	}
+	dialCtx, cancelDial := context.WithTimeout(ctx, instancePageURLFetchTimeout)
+	defer cancelDial()
+	port := portFromHost(u.Host, u.Scheme)
+	transport := &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		ResponseHeaderTimeout: instancePageURLFetchTimeout,
+		TLSHandshakeTimeout:   instancePageURLFetchTimeout,
+		IdleConnTimeout:       instancePageURLFetchTimeout,
+		DialContext: func(_ context.Context, network, _ string) (net.Conn, error) {
+			var lastErr error
+			for _, ipa := range ips {
+				addr := net.JoinHostPort(ipa.IP.String(), port)
+				conn, derr := (&net.Dialer{Timeout: instancePageURLFetchTimeout}).DialContext(dialCtx, network, addr)
+				if derr == nil {
+					return conn, nil
+				}
+				lastErr = derr
+			}
+			return nil, lastErr
+		},
+	}
+	defer transport.CloseIdleConnections()
+	client := &http.Client{Transport: transport, Timeout: instancePageURLFetchTimeout}
+	req, err := http.NewRequestWithContext(dialCtx, http.MethodGet, u.String(), nil)
+	if err != nil {
+		return nil, &allowedURLError{http.StatusBadRequest, "invalid URL: " + err.Error()}
+	}
+	req.Header.Set("User-Agent", "kspanel-instance-page-importer/1.0")
+	req.Header.Set("Accept", "application/json, text/plain;q=0.9, */*;q=0.1")
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, &allowedURLError{http.StatusBadGateway, "fetch failed: " + err.Error()}
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, &allowedURLError{
+			http.StatusBadGateway,
+			fmt.Sprintf("origin returned HTTP %d for %s", resp.StatusCode, u.String()),
+		}
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, instancePageURLFetchMaxBytes+1))
+	if err != nil {
+		return nil, &allowedURLError{http.StatusBadGateway, "read body: " + err.Error()}
+	}
+	if int64(len(body)) > instancePageURLFetchMaxBytes {
+		return nil, &allowedURLError{
+			http.StatusRequestEntityTooLarge,
+			fmt.Sprintf("remote body exceeded %d bytes", instancePageURLFetchMaxBytes),
+		}
+	}
+	return body, nil
 }
