@@ -11,6 +11,8 @@ interface RoleAuthoritiesProps {
   authProviders: AuthProviderInfo[];
 }
 
+const ALLOWED_AUTH_TYPES_UNRESTRICTED: string[] = [];
+
 const RoleAuthorities: React.FC<RoleAuthoritiesProps> = ({
   formAllowedAuthTypes,
   setFormAllowedAuthTypes,

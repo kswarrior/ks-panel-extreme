@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { createRole, listAuthProviders, listPermissions, listRoles, updateRole } from '@/shared/api/admin';
 import type { Role, Permission } from '@/shared/types/user';
@@ -7,6 +7,7 @@ import FormPage from '@/shared/components/forms/FormPage';
 import RoleIdentity from '@/features/roles/components/RoleIdentity';
 import RolePermissions from '@/features/roles/components/RolePermissions';
 import RoleAuthorities from '@/features/roles/components/RoleAuthorities';
+import { AUTHORITY_PROVIDER } from '@/features/authority/types/authority';
 import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 
 interface Form {
@@ -24,6 +25,8 @@ const ROLE_TABS: { id: 'identity' | 'permissions' | 'authorities'; label: string
   { id: 'permissions', label: 'Permissions' },
   { id: 'authorities', label: 'Authorities' },
 ];
+
+const ALLOWED_AUTH_TYPES_UNRESTRICTED: string[] = [];
 
 const RoleForm: React.FC = () => {
   const { id } = useParams<{ id?: string }>();
@@ -88,7 +91,7 @@ const RoleForm: React.FC = () => {
     setError('');
     try {
       const payload = {
-        name: form.name.trim(),
+        name: form.name,
         display_name: form.display_name.trim(),
         color: form.color,
         description: form.description,
