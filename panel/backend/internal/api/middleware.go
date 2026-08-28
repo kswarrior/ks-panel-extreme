@@ -153,6 +153,110 @@ func AuthMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// extractApiKeyToken returns a candidate API-key token if the request carries
+// one. Precedence:
+//  1. X-API-Key header (exact value, may or may not include Bearer prefix)
+//  2. Authorization: Bearer ksk_... (only when the bearer value starts with ksk_)
+// Returns "" when no API-key candidate is present so the caller can fall back
+// to session-cookie authentication.
+func extractApiKeyToken(r *http.Request) string {
+	// X-API-Key is the conventional header for machine-to-machine keys; it
+	// carries the raw token without a scheme prefix.
+	if tok := strings.TrimSpace(r.Header.Get("X-API-Key")); tok != "" {
+		// Allow "Bearer ksk_..." in X-API-Key too for leniency.
+		if strings.HasPrefix(strings.ToLower(tok), "bearer ") {
+			tok = strings.TrimSpace(tok[7:])
+		}
+		if strings.HasPrefix(tok, repository.KeyPrefix) {
+			return tok
+		}
+		// If the header is present but doesn't look like an API key, treat it
+		// as absent so the session path can still try (the request will just
+		// fail later with "api key not found" if they meant to use a key).
+	}
+	bearer := extractBearerToken(r)
+	if bearer != "" && strings.HasPrefix(bearer, repository.KeyPrefix) {
+		return bearer
+	}
+	return ""
+}
+
+// tryApiKeyAuth attempts to authenticate the request with the given plaintext
+// API key. Returns (true, true) when the request was fully handled (either
+// success or a terminal error was already written), (false, false) when the
+// token wasn't an API key after all, and (false, true) when an error response
+// was written and the caller should stop.
+func tryApiKeyAuth(w http.ResponseWriter, r *http.Request, next http.Handler, token string) (handled bool, responded bool) {
+	con, err := repository.OpenDB()
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return false, true
+	}
+	defer con.Close()
+	repo := repository.NewApiKeyRepository(con)
+	// Ensure the rate-limit table exists; best-effort (a failure to create
+	// does not block auth – rate limiting will just be skipped).
+	_ = repository.EnsureAPIKeyTables(con)
+
+	key, err := repo.FindByToken(token)
+	if err != nil || key == nil {
+		http.Error(w, "invalid api key", http.StatusUnauthorized)
+		return false, true
+	}
+	if !key.Active {
+		http.Error(w, "api key revoked", http.StatusUnauthorized)
+		return false, true
+	}
+	if key.ExpiresAt != nil && time.Now().UTC().After(key.ExpiresAt.UTC()) {
+		http.Error(w, "api key expired", http.StatusUnauthorized)
+		return false, true
+	}
+	// Rate limit check – when a limit is configured, count requests in the
+	// current window. Exceeding returns 429 Too Many Requests.
+	if key.RateLimit != nil && *key.RateLimit > 0 {
+		// We need the hash for the secondary lookup helpers which key by hash.
+		sum := sha256.Sum256([]byte(token))
+		hash := hex.EncodeToString(sum[:])
+		// Ensure table in case it was never created.
+		ok, rerr := repo.CheckAPIKeyRateLimit(hash)
+		if rerr != nil {
+			// On DB error, fail open for availability (log would be ideal).
+			ok = true
+		}
+		if !ok {
+			http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
+			return false, true
+		}
+		// Record this request for future window checks (best-effort).
+		_ = repo.RecordAPIKeyRequest(hash)
+	}
+	// Best-effort: bump last_used_at so the UI can show "last used …".
+	{
+		sum := sha256.Sum256([]byte(token))
+		hash := hex.EncodeToString(sum[:])
+		_ = repo.TouchLastUsedByHash(hash)
+	}
+	ctx := context.WithValue(r.Context(), handlers.UserIDKey, key.UserID)
+	ctx = context.WithValue(ctx, apiKeyCtxKey, key)
+	// Carry the original expiry far in the future so downstream code that
+	// reads expiryKey (rare) sees a valid value; API keys don't have sliding
+	// session expiry.
+	ctx = context.WithValue(ctx, expiryKey, time.Now().Add(24*time.Hour))
+	next.ServeHTTP(w, r.WithContext(ctx))
+	return true, true
+}
+
+// ApiKeyFromContext returns the authenticated API key when the request was
+// authenticated via an API key token, otherwise nil.
+func ApiKeyFromContext(r *http.Request) (*models.ApiKey, bool) {
+	if v := r.Context().Value(apiKeyCtxKey); v != nil {
+		if k, ok := v.(*models.ApiKey); ok && k != nil {
+			return k, true
+		}
+	}
+	return nil, false
+}
+
 // extractBearerToken pulls a session token out of an Authorization header of
 // the form `Bearer <token>`. Returns "" when the header is absent or not a
 // Bearer scheme so callers can fall back to the cookie. We trim surrounding
