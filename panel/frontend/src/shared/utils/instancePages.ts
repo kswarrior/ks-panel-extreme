@@ -188,6 +188,8 @@ export interface PageContent {
   /** Persisted executable actions authored with this page (parsed from the
    *  spec row's `actions`). Empty when the page defines none. */
   actions?: import('@/features/instance-pages/types/instancePage').PageActionDef[];
+  /** Reusable UI components for {{component:name}} substitution. */
+  components?: import('@/features/instance-pages/types/instancePage').PageComponentDef[];
 }
 
 // parseSpecActions normalises a spec page row's `actions` field — it may be
