@@ -1505,6 +1505,7 @@ func ImportInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		IconSVG:         req.IconSVG,
 		Actions:         req.Actions,
 		SubPages:        req.subPagesJSON(),
+		Components:      req.Components,
 	}
 	dto, err = validateInstancePage(dto)
 	if err != nil {
