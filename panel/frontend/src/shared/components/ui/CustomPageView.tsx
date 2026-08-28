@@ -1084,7 +1084,7 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
   return (
     <div className="animate-fade-in">
       {content.type === 'markdown' && renderMarkdown(content.markdown ?? '', content.components)}
-      {content.type === 'blocks' && renderBlocks(content.blocks ?? '')}
+      {content.type === 'blocks' && renderBlocks(content.blocks ?? '', content.components)}
     </div>
   );
 };
