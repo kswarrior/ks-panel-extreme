@@ -2092,7 +2092,7 @@ func ImportInstancePageFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate
+// Validate
 	dto := instancePageDTO{
 		Name:            pageReq.Name,
 		Slug:            pageReq.Slug,
