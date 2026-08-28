@@ -2229,9 +2229,9 @@ func ImportInstancePageFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		SubPages:        pageReq.subPagesJSON(),
 		Components:      pageReq.componentsJSON(),
 	}
-	dto, err = validateInstancePage(dto)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	dto, verr := validateInstancePage(dto)
+	if verr != nil {
+		http.Error(w, verr.Error(), http.StatusBadRequest)
 		return
 	}
 	if dto.ContentType == "" {
