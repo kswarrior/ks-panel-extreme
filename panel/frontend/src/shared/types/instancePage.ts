@@ -12,4 +12,4 @@ export type {
   CreateInstancePagePayload,
   UpdateInstancePagePayload,
 } from '@/features/instance-pages/types/instancePage';
-export { parseSubPages } from '@/features/instance-pages/types/instancePage';
+export { parseSubPages, parsePageComponents } from '@/features/instance-pages/types/instancePage';
