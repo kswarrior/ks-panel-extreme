@@ -898,7 +898,7 @@ func ExecutePageActionHandler(w http.ResponseWriter, r *http.Request) {
 	httpReq, _ := http.NewRequestWithContext(r.Context(), "POST", ec.BaseURL()+"/api/edge/page-action", bytes.NewReader(body))
 	httpReq.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{Timeout: time.Duration(reqTimeout+5) * time.Second}
+	client := &http.Client{Timeout: time.Duration(timeout+5) * time.Second}
 
 	resp, err := client.Do(httpReq)
 	if err != nil {
