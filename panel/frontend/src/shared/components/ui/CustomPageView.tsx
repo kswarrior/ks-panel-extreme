@@ -222,13 +222,13 @@ function renderBlocks(json: string, components?: PageComponentDef[]): React.Reac
             const lvl = (b.level ?? 2) as 1 | 2 | 3;
             const cls = `text-white font-semibold ${al} ${lvl === 1 ? 'text-2xl' : lvl === 2 ? 'text-xl' : 'text-lg'}`;
             return lvl === 1
-              ? <h1 key={i} className={cls}>{b.value}</h1>
+              ? <h1 key={i} className={cls}>{resolveInString(b.value)}</h1>
               : lvl === 2
-              ? <h2 key={i} className={cls}>{b.value}</h2>
-              : <h3 key={i} className={cls}>{b.value}</h3>;
+              ? <h2 key={i} className={cls}>{resolveInString(b.value)}</h2>
+              : <h3 key={i} className={cls}>{resolveInString(b.value)}</h3>;
           }
           case 'text':
-            return <p key={i} className={`text-sm text-gray-300 leading-relaxed whitespace-pre-wrap ${al}`}>{b.value}</p>;
+            return <p key={i} className={`text-sm text-gray-300 leading-relaxed whitespace-pre-wrap ${al}`}>{resolveInString(b.value)}</p>;
           case 'image': {
             const imgSrc = safeImgSrc(b.value);
             return imgSrc !== '#'
@@ -240,12 +240,12 @@ function renderBlocks(json: string, components?: PageComponentDef[]): React.Reac
               <div key={i} className={`${al}`}>
                 <a href={safeUrl(b.href)} target="_blank" rel="noreferrer"
                   className="ks-primary-btn inline-flex items-center bg-white text-black px-4 py-2 rounded text-sm hover:bg-gray-200 transition">
-                  {b.value}
+                  {resolveInString(b.value)}
                 </a>
               </div>
             );
           case 'code':
-            return <pre key={i} className="bg-black/40 border border-white/10 rounded-lg p-3 overflow-auto text-xs font-mono text-gray-200">{b.value}</pre>;
+            return <pre key={i} className="bg-black/40 border border-white/10 rounded-lg p-3 overflow-auto text-xs font-mono text-gray-200">{resolveInString(b.value)}</pre>;
           case 'spacer':
             return <div key={i} className="h-6" />;
           case 'divider':
