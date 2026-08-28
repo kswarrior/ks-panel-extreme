@@ -56,10 +56,10 @@ func (r *InstancePageRepository) List() ([]models.InstancePage, error) {
 func (r *InstancePageRepository) Get(id int64) (*models.InstancePage, error) {
 	var p models.InstancePage
 	var pid sql.NullInt64
-	var name, slug, kind, category, pageType, desc, contentType, contentHTML, contentMarkdown, contentBlocks, iconSVG, actions, subPages, created, updated sql.NullString
-	err := r.db.QueryRow(`SELECT id, name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages, created_at, updated_at
+	var name, slug, kind, category, pageType, desc, contentType, contentHTML, contentMarkdown, contentBlocks, iconSVG, actions, subPages, components, created, updated sql.NullString
+	err := r.db.QueryRow(`SELECT id, name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages, components, created_at, updated_at
 		FROM instance_pages WHERE id = ?`, id).Scan(
-		&pid, &name, &slug, &kind, &category, &pageType, &desc, &contentType, &contentHTML, &contentMarkdown, &contentBlocks, &iconSVG, &actions, &subPages, &created, &updated)
+		&pid, &name, &slug, &kind, &category, &pageType, &desc, &contentType, &contentHTML, &contentMarkdown, &contentBlocks, &iconSVG, &actions, &subPages, &components, &created, &updated)
 	if err != nil || !pid.Valid {
 		return nil, fmt.Errorf("instance page not found")
 	}
@@ -77,6 +77,7 @@ func (r *InstancePageRepository) Get(id int64) (*models.InstancePage, error) {
 	p.IconSVG = iconSVG.String
 	p.Actions = actions.String
 	p.SubPages = subPages.String
+	p.Components = components.String
 	p.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created.String)
 	p.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updated.String)
 	return &p, nil
