@@ -58,6 +58,10 @@ type instancePageDTO struct {
 	// {"path","name","content_type","content_html","content_markdown",
 	//  "content_blocks"}; the effective slug is "<slug>/<path>". "" == none.
 	SubPages string `json:"sub_pages"`
+	// Components is a JSON array of reusable UI blocks authored in the
+	// Studio's Components tab: {"name","type","description","content"}.
+	// Page content references them with {{component:name}}. "" == none.
+	Components string `json:"components"`
 }
 
 // validInstancePageKinds lists the page kinds a stored row may carry. The
