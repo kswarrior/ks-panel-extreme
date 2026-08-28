@@ -1789,8 +1789,11 @@ func UploadInstancePageModuleHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create module directory in storage
+	// Create module directory in storage — remove any previous version first so
+	// stale files from an earlier bundle (e.g. a removed frontend asset) do
+	// not survive the re-upload.
 	moduleDir := filepath.Join("instance_pages/modules", manifest.ID, manifest.Version)
+	_ = os.RemoveAll(moduleDir)
 	if err := os.MkdirAll(moduleDir, 0o755); err != nil {
 		log.Printf("UploadInstancePageModule: failed to create module directory: %v", err)
 		http.Error(w, "server error", http.StatusInternalServerError)
