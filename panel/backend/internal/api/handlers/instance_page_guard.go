@@ -255,13 +255,5 @@ func findSpecPageRow(rows []specPageRow, pageSlug string) *specPageRow {
 			}
 		}
 	}
-	// Fallback: any sub-page under an enabled parent is allowed (new library
-	// sub-pages not yet snapshotted in the deployed spec). Matches frontend
-	// isPageAllowed fallback.
-	for i := range rows {
-		if rows[i].slug == parent {
-			return &rows[i]
-		}
-	}
 	return nil
 }

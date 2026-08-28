@@ -3,16 +3,12 @@ package handlers
 import (
 	"archive/zip"
 	"bytes"
-	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log"
-	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -201,7 +197,7 @@ func validComponentName(s string) bool {
 
 var (
 	componentStartRe = regexp.MustCompile(`^[A-Za-z0-9_]$`)
-	componentBodyRe  = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_-]*$`)
+	componentBodyRe  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
 )
 
 // instancePageSubPage mirrors one entry of the persisted sub_pages JSON.
@@ -1466,88 +1462,6 @@ type ImportInstancePageRequest struct {
 	Pages []instancePageSubPage `json:"pages"`
 }
 
-// flexibleJSONString handles both string-encoded JSON (e.g. "[{...}]") and inline arrays/objects.
-type flexibleJSONString string
-
-func (f *flexibleJSONString) UnmarshalJSON(data []byte) error {
-	d := bytes.TrimSpace(data)
-	if len(d) == 0 || string(d) == "null" {
-		*f = ""
-		return nil
-	}
-	if d[0] == '"' {
-		var s string
-		if err := json.Unmarshal(d, &s); err != nil {
-			return err
-		}
-		*f = flexibleJSONString(s)
-		return nil
-	}
-	// inline JSON (array or object): keep raw
-	*f = flexibleJSONString(string(d))
-	return nil
-}
-
-func (r *ImportInstancePageRequest) UnmarshalJSON(data []byte) error {
-	type alias ImportInstancePageRequest
-	// shadow to capture flexible fields raw
-	var raw struct {
-		alias
-		Actions    flexibleJSONString `json:"actions"`
-		Components flexibleJSONString `json:"components"`
-		SubPages   flexibleJSONString `json:"sub_pages"`
-	}
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	*r = ImportInstancePageRequest(raw.alias)
-	r.Actions = string(raw.Actions)
-	r.Components = string(raw.Components)
-	r.SubPages = string(raw.SubPages)
-	// also normalise inline sub_pages array encoded as string contains JSON array string? Already handled.
-	// If Pages is empty but SubPages looks like JSON array, keep it.
-	return nil
-}
-
-// actionsJSON returns the persisted actions payload: normalises both string and array forms.
-// The Studio export writes actions as an inline array ([{...}]), while the API
-// create path stores it as a JSON-encoded string. Both decode via flexibleJSONString.
-func (r ImportInstancePageRequest) actionsJSON() string {
-	s := strings.TrimSpace(r.Actions)
-	if s == "" {
-		return ""
-	}
-	// If it's already a JSON array, return as-is; validate later.
-	if strings.HasPrefix(s, "[") {
-		return s
-	}
-	// Could be JSON string containing array — try decode
-	if strings.HasPrefix(s, "\"") {
-		var inner string
-		if json.Unmarshal([]byte(s), &inner) == nil {
-			return inner
-		}
-	}
-	return s
-}
-
-func (r ImportInstancePageRequest) componentsJSON() string {
-	s := strings.TrimSpace(r.Components)
-	if s == "" {
-		return ""
-	}
-	if strings.HasPrefix(s, "[") {
-		return s
-	}
-	if strings.HasPrefix(s, "\"") {
-		var inner string
-		if json.Unmarshal([]byte(s), &inner) == nil {
-			return inner
-		}
-	}
-	return s
-}
-
 // subPagesJSON returns the persisted sub_pages payload for this request: an
 // explicit sub_pages string wins, otherwise the typed pages array is encoded.
 func (r ImportInstancePageRequest) subPagesJSON() string {
@@ -1598,9 +1512,9 @@ func ImportInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		ContentMarkdown: req.ContentMarkdown,
 		ContentBlocks:   req.ContentBlocks,
 		IconSVG:         req.IconSVG,
-		Actions:         req.actionsJSON(),
+		Actions:         req.Actions,
 		SubPages:        req.subPagesJSON(),
-		Components:      req.componentsJSON(),
+		Components:      req.Components,
 	}
 	dto, err = validateInstancePage(dto)
 	if err != nil {
@@ -1632,7 +1546,6 @@ func ImportInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		IconSVG:         dto.IconSVG,
 		Actions:         dto.Actions,
 		SubPages:        dto.SubPages,
-		Components:      dto.Components,
 	})
 	if err != nil {
 		log.Println("ImportInstancePage error:", err)
@@ -1722,40 +1635,27 @@ func ListInstancePageModulesHandler(w http.ResponseWriter, r *http.Request) {
 		if !entry.IsDir() {
 			continue
 		}
-		id := entry.Name()
-		// Legacy layout: instance_pages/modules/<id>/manifest.json (no version dir)
-		legacyPath := filepath.Join(modulesDir, id, "manifest.json")
-		if _, err := os.Stat(legacyPath); err == nil {
-			data, err := os.ReadFile(legacyPath)
-			if err == nil {
-				var m instancePageModuleManifest
-				if json.Unmarshal(data, &m) == nil {
-					modules = append(modules, m)
-				}
-			}
+
+		// Check if this is a valid module directory (has manifest.json)
+		manifestPath := filepath.Join(modulesDir, entry.Name(), "manifest.json")
+		if _, err := os.Stat(manifestPath); os.IsNotExist(err) {
 			continue
 		}
-		// Current layout: instance_pages/modules/<id>/<version>/manifest.json
-		versionEntries, err := os.ReadDir(filepath.Join(modulesDir, id))
+
+		// Read and parse manifest
+		data, err := os.ReadFile(manifestPath)
 		if err != nil {
+			log.Printf("ListInstancePageModules: failed to read manifest %s: %v", manifestPath, err)
 			continue
 		}
-		for _, vEntry := range versionEntries {
-			if !vEntry.IsDir() {
-				continue
-			}
-			manifestPath := filepath.Join(modulesDir, id, vEntry.Name(), "manifest.json")
-			data, err := os.ReadFile(manifestPath)
-			if err != nil {
-				continue
-			}
-			var manifest instancePageModuleManifest
-			if err := json.Unmarshal(data, &manifest); err != nil {
-				log.Printf("ListInstancePageModules: failed to parse manifest %s: %v", manifestPath, err)
-				continue
-			}
-			modules = append(modules, manifest)
+
+		var manifest instancePageModuleManifest
+		if err := json.Unmarshal(data, &manifest); err != nil {
+			log.Printf("ListInstancePageModules: failed to parse manifest %s: %v", manifestPath, err)
+			continue
 		}
+
+		modules = append(modules, manifest)
 	}
 
 	writeJSON(w, modules)
@@ -1931,19 +1831,14 @@ func UninstallInstancePageModuleHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	moduleDir := filepath.Join("instance_pages/modules", moduleID, version)
-	if _, err := os.Stat(moduleDir); os.IsNotExist(err) {
-		http.Error(w, "module not found", http.StatusNotFound)
-		return
-	}
 	if err := os.RemoveAll(moduleDir); err != nil {
+		if os.IsNotExist(err) {
+			http.Error(w, "module not found", http.StatusNotFound)
+			return
+		}
 		log.Printf("UninstallInstancePageModule: failed to remove module directory: %v", err)
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
-	}
-	// Clean parent id dir when last version removed
-	parent := filepath.Join("instance_pages/modules", moduleID)
-	if entries, _ := os.ReadDir(parent); len(entries) == 0 {
-		_ = os.Remove(parent)
 	}
 
 	RecordActivity(r, repository.ActivityInput{
@@ -1962,15 +1857,6 @@ func ServeInstancePageModuleAssetHandler(w http.ResponseWriter, r *http.Request)
 	moduleID := chi.URLParam(r, "id")
 	version := chi.URLParam(r, "version")
 	assetPath := chi.URLParam(r, "*")
-	// chi route /{id}/{version}/page.js (and page.css) has no wildcard, so "*" is empty.
-	// Derive assetPath from the URL tail for those two fixed assets.
-	if assetPath == "" {
-		if strings.HasSuffix(r.URL.Path, "/page.js") {
-			assetPath = "page.js"
-		} else if strings.HasSuffix(r.URL.Path, "/page.css") {
-			assetPath = "page.css"
-		}
-	}
 	if moduleID == "" || version == "" || assetPath == "" {
 		http.Error(w, "module id, version, and asset path are required", http.StatusBadRequest)
 		return
@@ -2195,19 +2081,22 @@ func ImportInstancePageFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fetch the JSON from the URL via SSRF-hardened fetcher
-	bodyBytes, ferr := fetchInstancePageURLBytes(r.Context(), req.URL)
-	if ferr != nil {
-		var ue *allowedURLError
-		if errors.As(ferr, &ue) {
-			http.Error(w, ue.reason, ue.status)
-			return
-		}
-		http.Error(w, "failed to fetch URL: "+ferr.Error(), http.StatusBadGateway)
+	// Fetch the JSON from the URL
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(req.URL)
+	if err != nil {
+		http.Error(w, "failed to fetch URL: "+err.Error(), http.StatusBadGateway)
 		return
 	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		http.Error(w, fmt.Sprintf("URL returned status %d", resp.StatusCode), http.StatusBadGateway)
+		return
+	}
+
 	var pageReq ImportInstancePageRequest
-	if err := json.Unmarshal(bodyBytes, &pageReq); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&pageReq); err != nil {
 		http.Error(w, "invalid JSON from URL: "+err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -2225,13 +2114,13 @@ func ImportInstancePageFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		ContentMarkdown: pageReq.ContentMarkdown,
 		ContentBlocks:   pageReq.ContentBlocks,
 		IconSVG:         pageReq.IconSVG,
-		Actions:         pageReq.actionsJSON(),
+		Actions:         pageReq.Actions,
 		SubPages:        pageReq.subPagesJSON(),
-		Components:      pageReq.componentsJSON(),
+		Components:      pageReq.Components,
 	}
-	dto, verr := validateInstancePage(dto)
-	if verr != nil {
-		http.Error(w, verr.Error(), http.StatusBadRequest)
+	dto, err = validateInstancePage(dto)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	if dto.ContentType == "" {
@@ -2259,7 +2148,6 @@ func ImportInstancePageFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		IconSVG:         dto.IconSVG,
 		Actions:         dto.Actions,
 		SubPages:        dto.SubPages,
-		Components:      dto.Components,
 	})
 	if err != nil {
 		log.Println("ImportInstancePageFromURL error:", err)
@@ -2382,14 +2270,21 @@ func ImportInstancePageFromMarketplaceHandler(w http.ResponseWriter, r *http.Req
 		}
 		pageBytes = b
 	} else {
-		b, ferr := fetchInstancePageURLBytes(r.Context(), marketplacePage.DownloadURL)
-		if ferr != nil {
-			var ue *allowedURLError
-			if errors.As(ferr, &ue) {
-				http.Error(w, ue.reason, ue.status)
-				return
-			}
-			http.Error(w, "failed to fetch page from marketplace: "+ferr.Error(), http.StatusBadGateway)
+		client := &http.Client{Timeout: 10 * time.Second}
+		resp, err := client.Get(marketplacePage.DownloadURL)
+		if err != nil {
+			http.Error(w, "failed to fetch page from marketplace: "+err.Error(), http.StatusBadGateway)
+			return
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			http.Error(w, fmt.Sprintf("marketplace download URL returned status %d", resp.StatusCode), http.StatusBadGateway)
+			return
+		}
+		b, rerr := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
+		if rerr != nil {
+			http.Error(w, "failed to read marketplace page: "+rerr.Error(), http.StatusBadGateway)
 			return
 		}
 		pageBytes = b
@@ -2414,9 +2309,8 @@ func ImportInstancePageFromMarketplaceHandler(w http.ResponseWriter, r *http.Req
 		ContentMarkdown: pageReq.ContentMarkdown,
 		ContentBlocks:   pageReq.ContentBlocks,
 		IconSVG:         pageReq.IconSVG,
-		Actions:         pageReq.actionsJSON(),
+		Actions:         pageReq.Actions,
 		SubPages:        pageReq.subPagesJSON(),
-		Components:      pageReq.componentsJSON(),
 	}
 	dto, verr := validateInstancePage(dto)
 	if verr != nil {
@@ -2448,7 +2342,6 @@ func ImportInstancePageFromMarketplaceHandler(w http.ResponseWriter, r *http.Req
 		IconSVG:         dto.IconSVG,
 		Actions:         dto.Actions,
 		SubPages:        dto.SubPages,
-		Components:      dto.Components,
 	})
 	if err != nil {
 		log.Println("ImportInstancePageFromMarketplace error:", err)
@@ -2535,9 +2428,8 @@ func ImportLocalInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		ContentMarkdown: pageReq.ContentMarkdown,
 		ContentBlocks:   pageReq.ContentBlocks,
 		IconSVG:         pageReq.IconSVG,
-		Actions:         pageReq.actionsJSON(),
+		Actions:         pageReq.Actions,
 		SubPages:        pageReq.subPagesJSON(),
-		Components:      pageReq.componentsJSON(),
 	}
 	dto, verr := validateInstancePage(dto)
 	if verr != nil {
@@ -2569,7 +2461,6 @@ func ImportLocalInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		IconSVG:         dto.IconSVG,
 		Actions:         dto.Actions,
 		SubPages:        dto.SubPages,
-		Components:      dto.Components,
 	})
 	if err != nil {
 		log.Println("ImportLocalInstancePage error:", err)
@@ -2590,97 +2481,4 @@ func ImportLocalInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		Message:     fmt.Sprintf("imported instance page %q (slug=%s) from local directory", dto.Name, dto.Slug),
 	})
 	writeJSON(w, map[string]any{"id": id, "message": "Page imported successfully from local directory"})
-}
-
-const (
-	instancePageURLFetchTimeout    = 10 * time.Second
-	instancePageURLFetchDNSTimeout = 5 * time.Second
-	instancePageURLFetchMaxBytes   = 10 << 20
-)
-
-func fetchInstancePageURLBytes(ctx context.Context, raw string) ([]byte, error) {
-	u, err := url.Parse(strings.TrimSpace(raw))
-	if err != nil {
-		return nil, &allowedURLError{http.StatusBadRequest, "invalid URL: " + err.Error()}
-	}
-	if u.Scheme != "http" && u.Scheme != "https" {
-		return nil, &allowedURLError{http.StatusBadRequest, "URL must use http or https"}
-	}
-	if u.Host == "" {
-		return nil, &allowedURLError{http.StatusBadRequest, "URL is missing a host"}
-	}
-	host := u.Hostname()
-	if host == "" {
-		return nil, &allowedURLError{http.StatusBadRequest, "URL is missing a host"}
-	}
-	resolver := net.Resolver{PreferGo: true}
-	dnsCtx, cancelDNS := context.WithTimeout(ctx, instancePageURLFetchDNSTimeout)
-	defer cancelDNS()
-	ips, err := resolver.LookupIPAddr(dnsCtx, host)
-	if err != nil || len(ips) == 0 {
-		return nil, &allowedURLError{http.StatusBadGateway, "could not resolve host: " + host}
-	}
-	for _, ipa := range ips {
-		if !isPublicIP(ipa.IP) {
-			which := ""
-			if ipa.IP != nil {
-				which = " (" + ipa.IP.String() + ")"
-			}
-			return nil, &allowedURLError{
-				http.StatusBadRequest,
-				fmt.Sprintf("refusing to fetch %s: host resolves to a non-public address%s; only public hosts are allowed", host, which),
-			}
-		}
-	}
-	dialCtx, cancelDial := context.WithTimeout(ctx, instancePageURLFetchTimeout)
-	defer cancelDial()
-	port := portFromHost(u.Host, u.Scheme)
-	transport := &http.Transport{
-		Proxy:                 http.ProxyFromEnvironment,
-		ResponseHeaderTimeout: instancePageURLFetchTimeout,
-		TLSHandshakeTimeout:   instancePageURLFetchTimeout,
-		IdleConnTimeout:       instancePageURLFetchTimeout,
-		DialContext: func(_ context.Context, network, _ string) (net.Conn, error) {
-			var lastErr error
-			for _, ipa := range ips {
-				addr := net.JoinHostPort(ipa.IP.String(), port)
-				conn, derr := (&net.Dialer{Timeout: instancePageURLFetchTimeout}).DialContext(dialCtx, network, addr)
-				if derr == nil {
-					return conn, nil
-				}
-				lastErr = derr
-			}
-			return nil, lastErr
-		},
-	}
-	defer transport.CloseIdleConnections()
-	client := &http.Client{Transport: transport, Timeout: instancePageURLFetchTimeout}
-	req, err := http.NewRequestWithContext(dialCtx, http.MethodGet, u.String(), nil)
-	if err != nil {
-		return nil, &allowedURLError{http.StatusBadRequest, "invalid URL: " + err.Error()}
-	}
-	req.Header.Set("User-Agent", "kspanel-instance-page-importer/1.0")
-	req.Header.Set("Accept", "application/json, text/plain;q=0.9, */*;q=0.1")
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, &allowedURLError{http.StatusBadGateway, "fetch failed: " + err.Error()}
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, &allowedURLError{
-			http.StatusBadGateway,
-			fmt.Sprintf("origin returned HTTP %d for %s", resp.StatusCode, u.String()),
-		}
-	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, instancePageURLFetchMaxBytes+1))
-	if err != nil {
-		return nil, &allowedURLError{http.StatusBadGateway, "read body: " + err.Error()}
-	}
-	if int64(len(body)) > instancePageURLFetchMaxBytes {
-		return nil, &allowedURLError{
-			http.StatusRequestEntityTooLarge,
-			fmt.Sprintf("remote body exceeded %d bytes", instancePageURLFetchMaxBytes),
-		}
-	}
-	return body, nil
 }
