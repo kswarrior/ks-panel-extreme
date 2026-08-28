@@ -109,22 +109,6 @@ func normalizeWindow(w int64) int64 {
 	return w
 }
 
-// parseCreatedAt coerces a SQLite DATETIME string into time.Time, tolerating
-// both the canonical "2006-01-02 15:04:05" layout and RFC3339Nano (some
-// writers use ISO). Falls back to zero time on parse failure.
-func parseCreatedAt(s string) time.Time {
-	if t, err := time.Parse("2006-01-02 15:04:05", s); err == nil {
-		return t
-	}
-	if t, err := time.Parse(time.RFC3339Nano, s); err == nil {
-		return t
-	}
-	if t, err := time.Parse(time.RFC3339, s); err == nil {
-		return t
-	}
-	return time.Time{}
-}
-
 // ListApiKeys returns all API keys for the given user, with their password-
 // -less digests already prepared. We never expose the hash to the client – it
 // only ever sees the prefix and the plaintext once at create time.
@@ -144,7 +128,7 @@ func (r *ApiKeyRepository) ListApiKeys(userID int64) ([]models.ApiKey, error) {
 	if n == 0 {
 		return keys, nil
 	}
-	rows, err := r.db.Query(`SELECT id, user_id, name, prefix, created_at, last_used_at, permissions, expires_at, rate_limit, rate_window_seconds, active, description, display_name, accent_color
+	rows, err := r.db.Query(`SELECT id, user_id, name, prefix, created_at, last_used_at, permissions, expires_at, rate_limit, rate_window_seconds, active
 		FROM api_keys WHERE user_id = ? ORDER BY created_at DESC`, userID)
 	if err != nil {
 		return nil, err
@@ -157,11 +141,10 @@ func (r *ApiKeyRepository) ListApiKeys(userID int64) ([]models.ApiKey, error) {
 		var perms string
 		var rate sql.NullInt64
 		var active sql.NullInt64
-		var desc, displayName, accentColor sql.NullString
-		if err := rows.Scan(&k.ID, &k.UserID, &k.Name, &k.Prefix, &created, &lastUsed, &perms, &expiry, &rate, &k.RateWindowSeconds, &active, &desc, &displayName, &accentColor); err != nil {
+		if err := rows.Scan(&k.ID, &k.UserID, &k.Name, &k.Prefix, &created, &lastUsed, &perms, &expiry, &rate, &k.RateWindowSeconds, &active); err != nil {
 			return nil, err
 		}
-		k.CreatedAt = parseCreatedAt(created)
+		k.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created)
 		if lastUsed.Valid {
 			if t, err := time.Parse("2006-01-02 15:04:05", lastUsed.String); err == nil {
 				k.LastUsedAt = &t
@@ -173,15 +156,6 @@ func (r *ApiKeyRepository) ListApiKeys(userID int64) ([]models.ApiKey, error) {
 		k.ExpiresAt = scanExpiry(expiry)
 		k.RateLimit = scanRateLimit(rate)
 		k.Active = active.Valid && active.Int64 == 1
-		if desc.Valid {
-			k.Description = desc.String
-		}
-		if displayName.Valid {
-			k.DisplayName = displayName.String
-		}
-		if accentColor.Valid {
-			k.AccentColor = accentColor.String
-		}
 		keys = append(keys, k)
 	}
 	return keys, rows.Err()
@@ -195,9 +169,6 @@ type CreateApiKeyInput struct {
 	ExpiresAt         *time.Time // nil → no expiry
 	RateLimit         *int64     // nil → no limit
 	RateWindowSeconds int64      // 0 → default 60s
-	Description       string
-	DisplayName       string
-	AccentColor       string
 }
 
 // UpdateApiKeyInput carries the mutable fields for an admin update. The
@@ -217,9 +188,6 @@ type UpdateApiKeyInput struct {
 	RateWindowSet     bool // when true, RateWindowSeconds is written
 	Active            *bool
 	ActiveSet         bool // when true, Active (even if nil) is written
-	Description       string
-	DisplayName       string
-	AccentColor       string
 }
 
 // CreateApiKey returns the new model (with hash already filled) and the raw
@@ -238,7 +206,7 @@ func (r *ApiKeyRepository) CreateApiKey(in CreateApiKeyInput) (*models.ApiKey, s
 	window := normalizeWindow(in.RateWindowSeconds)
 	expFrag, expArg, expOk := expiryFragment(in.ExpiresAt)
 	rlFrag, rlArg, rlOk := rateLimitFragment(in.RateLimit)
-	query := fmt.Sprintf(`INSERT INTO api_keys (user_id, name, key_hash, prefix, permissions, expires_at, rate_limit, rate_window_seconds, description, display_name, accent_color) VALUES (?, ?, ?, ?, ?, %s, %s, ?, ?, ?, ?)`, expFrag, rlFrag)
+	query := fmt.Sprintf(`INSERT INTO api_keys (user_id, name, key_hash, prefix, permissions, expires_at, rate_limit, rate_window_seconds) VALUES (?, ?, ?, ?, ?, %s, %s, ?)`, expFrag, rlFrag)
 	args := []interface{}{in.UserID, in.Name, hash, prefix, SplitPermissions(in.Permissions)}
 	if expOk {
 		args = append(args, expArg)
@@ -246,7 +214,7 @@ func (r *ApiKeyRepository) CreateApiKey(in CreateApiKeyInput) (*models.ApiKey, s
 	if rlOk {
 		args = append(args, rlArg)
 	}
-	args = append(args, window, in.Description, in.DisplayName, in.AccentColor)
+	args = append(args, window)
 	res, err := r.db.Exec(query, args...)
 	if err != nil {
 		return nil, "", err
@@ -255,7 +223,6 @@ func (r *ApiKeyRepository) CreateApiKey(in CreateApiKeyInput) (*models.ApiKey, s
 	if err != nil {
 		return nil, "", err
 	}
-	now := time.Now().UTC()
 	return &models.ApiKey{
 		ID:                id,
 		UserID:            in.UserID,
@@ -265,11 +232,6 @@ func (r *ApiKeyRepository) CreateApiKey(in CreateApiKeyInput) (*models.ApiKey, s
 		ExpiresAt:         in.ExpiresAt,
 		RateLimit:         in.RateLimit,
 		RateWindowSeconds: window,
-		Description:       in.Description,
-		DisplayName:       in.DisplayName,
-		AccentColor:       in.AccentColor,
-		CreatedAt:         now,
-		Active:            true,
 	}, token, nil
 }
 
@@ -281,8 +243,8 @@ func (r *ApiKeyRepository) CreateApiKey(in CreateApiKeyInput) (*models.ApiKey, s
 // the value, or a nil pointer with the *Set flag to clear that limit back to
 // "no limit"/"no expiry".
 func (r *ApiKeyRepository) UpdateApiKeyByID(id int64, in UpdateApiKeyInput) error {
-	set := []string{"name = ?", "permissions = ?", "description = ?", "display_name = ?", "accent_color = ?"}
-	args := []interface{}{in.Name, SplitPermissions(in.Permissions), in.Description, in.DisplayName, in.AccentColor}
+	set := []string{"name = ?", "permissions = ?"}
+	args := []interface{}{in.Name, SplitPermissions(in.Permissions)}
 	if in.ExpiresAtSet {
 		expFrag, expArg, expOk := expiryFragment(in.ExpiresAt)
 		set = append(set, fmt.Sprintf("expires_at = %s", expFrag))
@@ -343,7 +305,7 @@ func (r *ApiKeyRepository) ListAllApiKeys() ([]models.ApiKey, error) {
 	if n == 0 {
 		return keys, nil
 	}
-	rows, err := r.db.Query(`SELECT k.id, k.user_id, u.username, k.name, k.prefix, k.created_at, k.last_used_at, k.permissions, k.expires_at, k.rate_limit, k.rate_window_seconds, k.active, k.description, k.display_name, k.accent_color
+	rows, err := r.db.Query(`SELECT k.id, k.user_id, u.username, k.name, k.prefix, k.created_at, k.last_used_at, k.permissions, k.expires_at, k.rate_limit, k.rate_window_seconds, k.active
 		FROM api_keys k JOIN users u ON u.id = k.user_id
 		ORDER BY k.created_at DESC`)
 	if err != nil {
@@ -357,11 +319,10 @@ func (r *ApiKeyRepository) ListAllApiKeys() ([]models.ApiKey, error) {
 		var perms string
 		var rate sql.NullInt64
 		var active sql.NullInt64
-		var desc, displayName, accentColor sql.NullString
-		if err := rows.Scan(&k.ID, &k.UserID, &k.OwnerName, &k.Name, &k.Prefix, &created, &lastUsed, &perms, &expiry, &rate, &k.RateWindowSeconds, &active, &desc, &displayName, &accentColor); err != nil {
+		if err := rows.Scan(&k.ID, &k.UserID, &k.OwnerName, &k.Name, &k.Prefix, &created, &lastUsed, &perms, &expiry, &rate, &k.RateWindowSeconds, &active); err != nil {
 			return nil, err
 		}
-		k.CreatedAt = parseCreatedAt(created)
+		k.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created)
 		if lastUsed.Valid {
 			if t, err := time.Parse("2006-01-02 15:04:05", lastUsed.String); err == nil {
 				k.LastUsedAt = &t
@@ -373,15 +334,6 @@ func (r *ApiKeyRepository) ListAllApiKeys() ([]models.ApiKey, error) {
 		k.ExpiresAt = scanExpiry(expiry)
 		k.RateLimit = scanRateLimit(rate)
 		k.Active = active.Valid && active.Int64 == 1
-		if desc.Valid {
-			k.Description = desc.String
-		}
-		if displayName.Valid {
-			k.DisplayName = displayName.String
-		}
-		if accentColor.Valid {
-			k.AccentColor = accentColor.String
-		}
 		keys = append(keys, k)
 	}
 	return keys, rows.Err()
@@ -401,7 +353,7 @@ func IsExpired(t *time.Time) bool {
 // (today nothing routes through them).
 func (r *ApiKeyRepository) FindByToken(token string) (*models.ApiKey, error) {
 	hash := hashKey(token)
-	row := r.db.QueryRow(`SELECT id, user_id, name, prefix, created_at, permissions, expires_at, rate_limit, rate_window_seconds, active, description, display_name, accent_color FROM api_keys WHERE key_hash = ?`, hash)
+	row := r.db.QueryRow(`SELECT id, user_id, name, prefix, created_at, permissions, expires_at, rate_limit, rate_window_seconds, active FROM api_keys WHERE key_hash = ?`, hash)
 	var k models.ApiKey
 	var created, perms sql.NullString
 	var id, uid sql.NullInt64
@@ -409,35 +361,25 @@ func (r *ApiKeyRepository) FindByToken(token string) (*models.ApiKey, error) {
 	var expiry sql.NullString
 	var rate sql.NullInt64
 	var active sql.NullInt64
-	var desc, displayName, accentColor sql.NullString
-	if err := row.Scan(&id, &uid, &name, &prefix, &created, &perms, &expiry, &rate, &k.RateWindowSeconds, &active, &desc, &displayName, &accentColor); err != nil || !id.Valid {
+	if err := row.Scan(&id, &uid, &name, &prefix, &created, &perms, &expiry, &rate, &k.RateWindowSeconds, &active); err != nil || !id.Valid {
 		return nil, fmt.Errorf("api key not found")
 	}
 	k.ID = id.Int64
 	k.UserID = uid.Int64
 	k.Name = name.String
 	k.Prefix = prefix.String
-	k.CreatedAt = parseCreatedAt(created.String)
+	k.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created.String)
 	k.Permissions = JoinPermissions(perms.String)
 	k.ExpiresAt = scanExpiry(expiry)
 	k.RateLimit = scanRateLimit(rate)
 	k.Active = active.Valid && active.Int64 == 1
-	if desc.Valid {
-		k.Description = desc.String
-	}
-	if displayName.Valid {
-		k.DisplayName = displayName.String
-	}
-	if accentColor.Valid {
-		k.AccentColor = accentColor.String
-	}
 	return &k, nil
 }
 
 // GetApiKey returns a single key by id. Used by the audit helpers so the
 // "deleted API key X" label can be filled in before the row disappears.
 func (r *ApiKeyRepository) GetApiKey(id int64) (*models.ApiKey, error) {
-	row := r.db.QueryRow(`SELECT id, user_id, name, prefix, created_at, permissions, expires_at, rate_limit, rate_window_seconds, active, description, display_name, accent_color FROM api_keys WHERE id = ?`, id)
+	row := r.db.QueryRow(`SELECT id, user_id, name, prefix, created_at, permissions, expires_at, rate_limit, rate_window_seconds, active FROM api_keys WHERE id = ?`, id)
 	var k models.ApiKey
 	var created, perms sql.NullString
 	var kid, uid sql.NullInt64
@@ -445,37 +387,19 @@ func (r *ApiKeyRepository) GetApiKey(id int64) (*models.ApiKey, error) {
 	var expiry sql.NullString
 	var rate sql.NullInt64
 	var active sql.NullInt64
-	var desc, displayName, accentColor sql.NullString
-	if err := row.Scan(&kid, &uid, &name, &prefix, &created, &perms, &expiry, &rate, &k.RateWindowSeconds, &active, &desc, &displayName, &accentColor); err != nil || !kid.Valid {
+	if err := row.Scan(&kid, &uid, &name, &prefix, &created, &perms, &expiry, &rate, &k.RateWindowSeconds, &active); err != nil || !kid.Valid {
 		return nil, fmt.Errorf("api key not found")
 	}
 	k.ID = kid.Int64
 	k.UserID = uid.Int64
 	k.Name = name.String
 	k.Prefix = prefix.String
-	k.CreatedAt = parseCreatedAt(created.String)
+	k.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created.String)
 	k.Permissions = JoinPermissions(perms.String)
 	k.ExpiresAt = scanExpiry(expiry)
 	k.RateLimit = scanRateLimit(rate)
 	k.Active = active.Valid && active.Int64 == 1
-	if desc.Valid {
-		k.Description = desc.String
-	}
-	if displayName.Valid {
-		k.DisplayName = displayName.String
-	}
-	if accentColor.Valid {
-		k.AccentColor = accentColor.String
-	}
 	return &k, nil
-}
-
-// TouchLastUsed updates the last_used_at timestamp for the key identified by
-// its hash. Used on every successful API-key authenticated request so the UI
-// can surface "last used" without scanning request logs.
-func (r *ApiKeyRepository) TouchLastUsedByHash(hash string) error {
-	_, err := r.db.Exec(`UPDATE api_keys SET last_used_at = ? WHERE key_hash = ?`, time.Now().UTC().Format("2006-01-02 15:04:05"), hash)
-	return err
 }
 
 // RotateApiKey generates a new token for an existing API key, keeping all

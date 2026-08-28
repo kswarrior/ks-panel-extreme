@@ -16,11 +16,23 @@ export interface ApiKey {
   rate_window_seconds?: number;
   /** Whether the key is currently active. When false, the key is soft-revoked. */
   active?: boolean;
-  /** Free-form short note shown alongside the key in the admin list. Persisted server-side. */
+  /**
+   * Free-form short note shown alongside the key in the admin list (mirrors
+   * the role's description). The backend currently ignores unknown fields
+   * on the wire, so this stays client-side until a future migration adds
+   * the matching column.
+   */
   description?: string;
-  /** Friendly label rendered in the UI instead of the machine name. Falls back to `name` when empty. */
+  /**
+   * Friendly label rendered in the UI instead of the machine name. Mirrors
+   * the role's display_name. Optional — falls back to `name` when empty.
+   */
   display_name?: string;
-  /** Optional CSS colour used to tint the key's badge/chip in the admin list. */
+  /**
+   * Optional CSS colour used to tint the key's badge/chip in the admin list.
+   * Mirrors the role's accent colour. Any valid CSS colour string is accepted
+   * (hex / rgb / hsl / named).
+   */
   accent_color?: string;
 }
 
@@ -33,6 +45,11 @@ export interface CreateApiKeyResult extends ApiKey {
  * control whether the corresponding optional field is written to the row
  * (true => write the value, even if it's null/zero => "clear the limit").
  * When a *_set flag is false the existing stored value is left untouched.
+ *
+ * The description / display_name / accent_color fields are passed through so
+ * the UI stays consistent with the role form. The current backend DTO does
+ * not persist them (encoding/json silently drops unknown fields); they're
+ * carried so a future migration can pick them up without a frontend change.
  */
 export interface ApiKeyMutationPayload {
   name: string;

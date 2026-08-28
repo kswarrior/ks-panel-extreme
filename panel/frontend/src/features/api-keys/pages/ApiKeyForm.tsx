@@ -250,8 +250,10 @@ const ApiKeyForm: React.FC = () => {
     setSaving(true);
     setError('');
     try {
-      // The display / description / accent fields are persisted server-side
-      // (migration 050) so the UI round-trips them reliably.
+      // The display / description / accent fields are sent in every payload
+      // so the wire shape matches the role form. The current backend silently
+      // drops unknown JSON keys, so this is forward-compatible with a future
+      // migration that adds the matching api_keys columns.
       const extras = {
         description: form.description.trim(),
         display_name: form.display_name.trim(),

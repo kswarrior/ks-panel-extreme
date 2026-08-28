@@ -305,15 +305,6 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				return err
 			}
 			continue
-		case name == "050_api_key_display.sql":
-			if err := guardedAddColumns(d, db, name, "api_keys", []columnSpec{
-				{"description", "TEXT NOT NULL DEFAULT ''"},
-				{"display_name", "TEXT NOT NULL DEFAULT ''"},
-				{"accent_color", "TEXT NOT NULL DEFAULT ''"},
-			}); err != nil {
-				return err
-			}
-			continue
 		case name == "027_mod_source.sql":
 			if err := guardedAddColumns(d, db, name, "mods", []columnSpec{
 				{"source", "TEXT NOT NULL DEFAULT 'file'"},

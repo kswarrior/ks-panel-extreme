@@ -2,8 +2,6 @@ package api
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"io"
 	"net/http"
 	"strings"
@@ -11,7 +9,6 @@ import (
 
 	"github.com/example/kspanel/internal/api/handlers"
 	"github.com/example/kspanel/internal/auth"
-	"github.com/example/kspanel/internal/models"
 	"github.com/example/kspanel/internal/permissions"
 	"github.com/example/kspanel/internal/repository"
 	"github.com/example/kspanel/internal/security"
@@ -22,12 +19,6 @@ type ctxKey string
 
 // expiryKey stores the absolute expiry time alongside userID.
 const expiryKey ctxKey = "sessionExpiry"
-
-// apiKeyCtxKey stores the authenticated ApiKey when the request was
-// authenticated via an API key token (ksk_...) rather than a session cookie.
-// Permission gates check this first so a scoped key cannot escalate beyond its
-// declared permission list even if the owning user is an admin.
-const apiKeyCtxKey ctxKey = "apiKey"
 
 // AuthMiddleware reads the HMAC-signed session credentials — either the
 // session_id cookie or an `Authorization: Bearer <token>` header — verifies
@@ -50,24 +41,6 @@ const apiKeyCtxKey ctxKey = "apiKey"
 // is written transparently on the response.
 func AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// First, attempt API-key authentication (ksk_...). This runs before
-		// session validation so automation can use `Authorization: Bearer ksk_...`
-		// or `X-API-Key: ksk_...` without needing a cookie. If a candidate
-		// API-key token is present we either succeed via the key or fail
-		// closed – we don't fall back to the session in that case, otherwise
-		// an invalid/stale key would silently succeed as a (potentially
-		// anonymous) session and mask the auth error.
-		if apiToken := extractApiKeyToken(r); apiToken != "" {
-			if ok, resp := tryApiKeyAuth(w, r, next, apiToken); ok {
-				return
-			} else if resp {
-				return
-			}
-			// tryApiKeyAuth returned !ok && !resp means "not an API key token after all"
-			// – fall through to session path (defensive; extractApiKeyToken
-			// already guarantees the prefix, so this branch is unreachable today).
-		}
-
 		// A Bearer token takes precedence over the cookie when both are
 		// present — the SPA is being explicit about which account the
 		// request is for. Cookies are only used as the fallback so the
@@ -153,110 +126,6 @@ func AuthMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// extractApiKeyToken returns a candidate API-key token if the request carries
-// one. Precedence:
-//  1. X-API-Key header (exact value, may or may not include Bearer prefix)
-//  2. Authorization: Bearer ksk_... (only when the bearer value starts with ksk_)
-// Returns "" when no API-key candidate is present so the caller can fall back
-// to session-cookie authentication.
-func extractApiKeyToken(r *http.Request) string {
-	// X-API-Key is the conventional header for machine-to-machine keys; it
-	// carries the raw token without a scheme prefix.
-	if tok := strings.TrimSpace(r.Header.Get("X-API-Key")); tok != "" {
-		// Allow "Bearer ksk_..." in X-API-Key too for leniency.
-		if strings.HasPrefix(strings.ToLower(tok), "bearer ") {
-			tok = strings.TrimSpace(tok[7:])
-		}
-		if strings.HasPrefix(tok, repository.KeyPrefix) {
-			return tok
-		}
-		// If the header is present but doesn't look like an API key, treat it
-		// as absent so the session path can still try (the request will just
-		// fail later with "api key not found" if they meant to use a key).
-	}
-	bearer := extractBearerToken(r)
-	if bearer != "" && strings.HasPrefix(bearer, repository.KeyPrefix) {
-		return bearer
-	}
-	return ""
-}
-
-// tryApiKeyAuth attempts to authenticate the request with the given plaintext
-// API key. Returns (true, true) when the request was fully handled (either
-// success or a terminal error was already written), (false, false) when the
-// token wasn't an API key after all, and (false, true) when an error response
-// was written and the caller should stop.
-func tryApiKeyAuth(w http.ResponseWriter, r *http.Request, next http.Handler, token string) (handled bool, responded bool) {
-	con, err := repository.OpenDB()
-	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
-		return false, true
-	}
-	defer con.Close()
-	repo := repository.NewApiKeyRepository(con)
-	// Ensure the rate-limit table exists; best-effort (a failure to create
-	// does not block auth – rate limiting will just be skipped).
-	_ = repository.EnsureAPIKeyTables(con)
-
-	key, err := repo.FindByToken(token)
-	if err != nil || key == nil {
-		http.Error(w, "invalid api key", http.StatusUnauthorized)
-		return false, true
-	}
-	if !key.Active {
-		http.Error(w, "api key revoked", http.StatusUnauthorized)
-		return false, true
-	}
-	if key.ExpiresAt != nil && time.Now().UTC().After(key.ExpiresAt.UTC()) {
-		http.Error(w, "api key expired", http.StatusUnauthorized)
-		return false, true
-	}
-	// Rate limit check – when a limit is configured, count requests in the
-	// current window. Exceeding returns 429 Too Many Requests.
-	if key.RateLimit != nil && *key.RateLimit > 0 {
-		// We need the hash for the secondary lookup helpers which key by hash.
-		sum := sha256.Sum256([]byte(token))
-		hash := hex.EncodeToString(sum[:])
-		// Ensure table in case it was never created.
-		ok, rerr := repo.CheckAPIKeyRateLimit(hash)
-		if rerr != nil {
-			// On DB error, fail open for availability (log would be ideal).
-			ok = true
-		}
-		if !ok {
-			http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
-			return false, true
-		}
-		// Record this request for future window checks (best-effort).
-		_ = repo.RecordAPIKeyRequest(hash)
-	}
-	// Best-effort: bump last_used_at so the UI can show "last used …".
-	{
-		sum := sha256.Sum256([]byte(token))
-		hash := hex.EncodeToString(sum[:])
-		_ = repo.TouchLastUsedByHash(hash)
-	}
-	ctx := context.WithValue(r.Context(), handlers.UserIDKey, key.UserID)
-	ctx = context.WithValue(ctx, apiKeyCtxKey, key)
-	// Carry the original expiry far in the future so downstream code that
-	// reads expiryKey (rare) sees a valid value; API keys don't have sliding
-	// session expiry.
-	ctx = context.WithValue(ctx, expiryKey, time.Now().Add(24*time.Hour))
-	next.ServeHTTP(w, r.WithContext(ctx))
-	return true, true
-}
-
-// ApiKeyFromContext returns the authenticated API key when the request was
-// authenticated via an API key token, otherwise nil.
-func ApiKeyFromContext(r *http.Request) (*models.ApiKey, bool) {
-	if v := r.Context().Value(apiKeyCtxKey); v != nil {
-		if k, ok := v.(*models.ApiKey); ok && k != nil {
-			return k, true
-		}
-	}
-	return nil, false
-}
-
 // extractBearerToken pulls a session token out of an Authorization header of
 // the form `Bearer <token>`. Returns "" when the header is absent or not a
 // Bearer scheme so callers can fall back to the cookie. We trim surrounding
@@ -289,18 +158,6 @@ func PermissionMiddleware(perm string, checker *permissions.Checker) func(http.H
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return
 			}
-			// API-key scoped check: if the request was authenticated via a
-			// scoped key, enforce the key's permission list first. A key that
-			// lacks the permission is denied even if the owning user would
-			// otherwise have it – the key's scope is the ceiling.
-			if k, ok := ApiKeyFromContext(r); ok {
-				if !hasApiKeyPermission(k, []string{perm}) {
-					http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
-					return
-				}
-				next.ServeHTTP(w, r)
-				return
-			}
 			if err := checker.Ensure(uid, perm); err != nil {
 				http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 				return
@@ -320,14 +177,6 @@ func requirePermission(perm string) func(http.Handler) http.Handler {
 			uid, err := MustAuth(r)
 			if err != nil {
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
-				return
-			}
-			if k, ok := ApiKeyFromContext(r); ok {
-				if !hasApiKeyPermission(k, []string{perm}) {
-					http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
-					return
-				}
-				next.ServeHTTP(w, r)
 				return
 			}
 			con, err := repository.OpenDB()
@@ -368,14 +217,6 @@ func requireAnyPermission(keys ...string) func(http.Handler) http.Handler {
 				http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 				return
 			}
-			if k, ok := ApiKeyFromContext(r); ok {
-				if !hasApiKeyPermission(k, keys) {
-					http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
-					return
-				}
-				next.ServeHTTP(w, r)
-				return
-			}
 			con, err := repository.OpenDB()
 			if err != nil {
 				http.Error(w, "server error", http.StatusInternalServerError)
@@ -390,50 +231,6 @@ func requireAnyPermission(keys ...string) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
-}
-
-// hasApiKeyPermission reports whether the API key's permission list grants ANY
-// of the required keys. It also handles the umbrella-implies-action case for
-// single-key gates: if the required key belongs to a group, holding the group's
-// umbrella counts as holding the specific key. This preserves the
-// "MANAGE_* implies VIEW_*" contract without requiring the key to list every
-// sub-key explicitly.
-func hasApiKeyPermission(k *models.ApiKey, required []string) bool {
-	if k == nil || len(required) == 0 {
-		return false
-	}
-	have := make(map[string]struct{}, len(k.Permissions))
-	for _, p := range k.Permissions {
-		have[p] = struct{}{}
-	}
-	// Fast path: any exact match.
-	for _, r := range required {
-		if _, ok := have[r]; ok {
-			return true
-		}
-	}
-	// Fallback: check umbrella implications for single-key gates.
-	// For each required key, see if it belongs to a group whose umbrella the
-	// key holds. This allows a key with MANAGE_INSTANCES to pass a gate that
-	// only requires VIEW_INSTANCES, matching the role-layer semantics.
-	for _, r := range required {
-		for _, g := range permissions.AreaGroups {
-			if k2, ok := g.Keys[permissions.ActionView]; ok && k2 == r {
-				if _, hasUmbrella := have[g.Umbrella]; hasUmbrella && g.Umbrella != "" {
-					return true
-				}
-			}
-			// Also cover non-view actions where the required key is an umbrella'd sub-key.
-			for _, ak := range g.Keys {
-				if ak == r {
-					if _, hasUmbrella := have[g.Umbrella]; hasUmbrella && g.Umbrella != "" {
-						return true
-					}
-				}
-			}
-		}
-	}
-	return false
 }
 
 // requireUmbrellaOrAction is a thin wrapper over requireAnyPermission that

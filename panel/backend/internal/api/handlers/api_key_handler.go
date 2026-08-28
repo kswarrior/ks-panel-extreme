@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/example/kspanel/internal/models"
@@ -32,10 +31,6 @@ type apiKeyDTO struct {
 	// soft-revoked and requests will be rejected. On update, ActiveSet
 	// controls whether the stored value is touched.
 	Active *bool `json:"active,omitempty"`
-	// Cosmetic fields – rendered in the admin list as badge / label / description.
-	Description string `json:"description,omitempty"`
-	DisplayName string `json:"display_name,omitempty"`
-	AccentColor string `json:"accent_color,omitempty"`
 
 	// The following *Set booleans are only meaningful on UPDATE. When true,
 	// the corresponding field above (even if nil/zero) is written to the
@@ -60,9 +55,6 @@ type apiKeyResponse struct {
 	RateLimit         *int64   `json:"rate_limit,omitempty"`
 	RateWindowSeconds int64    `json:"rate_window_seconds,omitempty"`
 	Active            bool     `json:"active"`
-	Description       string   `json:"description,omitempty"`
-	DisplayName       string   `json:"display_name,omitempty"`
-	AccentColor       string   `json:"accent_color,omitempty"`
 }
 
 func isoString(t time.Time) string {
@@ -129,9 +121,6 @@ func ListApiKeysHandler(w http.ResponseWriter, r *http.Request) {
 			RateLimit:         k.RateLimit,
 			RateWindowSeconds: k.RateWindowSeconds,
 			Active:            k.Active,
-			Description:       k.Description,
-			DisplayName:       k.DisplayName,
-			AccentColor:       k.AccentColor,
 		})
 	}
 	writeJSON(w, out)
@@ -167,8 +156,8 @@ func CreateApiKeyHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid payload", http.StatusBadRequest)
 		return
 	}
-	if msg := validateApiKeyDTO(&req, false); msg != "" {
-		http.Error(w, msg, http.StatusBadRequest)
+	if req.Name == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
 		return
 	}
 	expiry, err := parseExpiryPtr(req.ExpiresAt)
@@ -192,9 +181,6 @@ func CreateApiKeyHandler(w http.ResponseWriter, r *http.Request) {
 		ExpiresAt:         expiry,
 		RateLimit:         req.RateLimit,
 		RateWindowSeconds: req.RateWindowSeconds,
-		Description:       req.Description,
-		DisplayName:       req.DisplayName,
-		AccentColor:       req.AccentColor,
 	})
 	if err != nil {
 		log.Println("CreateApiKey error:", err)
@@ -209,24 +195,17 @@ func CreateApiKeyHandler(w http.ResponseWriter, r *http.Request) {
 		TargetLabel: req.Name,
 		Message:     fmt.Sprintf("created API key %q (%d permissions)", req.Name, len(req.Permissions)),
 	})
-	created := key.CreatedAt
-	if created.IsZero() {
-		created = time.Now().UTC()
-	}
 	writeJSON(w, map[string]any{
 		"id":                  key.ID,
 		"user_id":             key.UserID,
 		"name":                key.Name,
 		"prefix":              key.Prefix,
 		"permissions":         key.Permissions,
-		"created_at":          isoString(created),
+		"created_at":          isoString(key.CreatedAt),
 		"expires_at":          expiryPtr(key.ExpiresAt),
 		"rate_limit":          key.RateLimit,
 		"rate_window_seconds": key.RateWindowSeconds,
 		"active":              true,
-		"description":         key.Description,
-		"display_name":        key.DisplayName,
-		"accent_color":        key.AccentColor,
 		"token":               plaintext, // returned ONCE – never again.
 	})
 }
@@ -252,8 +231,8 @@ func UpdateApiKeyHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid payload", http.StatusBadRequest)
 		return
 	}
-	if msg := validateApiKeyDTO(&req, true); msg != "" {
-		http.Error(w, msg, http.StatusBadRequest)
+	if req.Name == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
 		return
 	}
 	expiry, err := parseExpiryPtr(req.ExpiresAt)
@@ -289,9 +268,6 @@ func UpdateApiKeyHandler(w http.ResponseWriter, r *http.Request) {
 		RateWindowSet:     req.RateWindowSet,
 		Active:            req.Active,
 		ActiveSet:         req.ActiveSet,
-		Description:       req.Description,
-		DisplayName:       req.DisplayName,
-		AccentColor:       req.AccentColor,
 	}); err != nil {
 		log.Println("UpdateApiKey error:", err)
 		http.Error(w, "could not update api key", http.StatusInternalServerError)
@@ -382,9 +358,6 @@ func AdminListApiKeysHandler(w http.ResponseWriter, r *http.Request) {
 			RateLimit:         k.RateLimit,
 			RateWindowSeconds: k.RateWindowSeconds,
 			Active:            k.Active,
-			Description:       k.Description,
-			DisplayName:       k.DisplayName,
-			AccentColor:       k.AccentColor,
 		})
 	}
 	writeJSON(w, out)
@@ -399,8 +372,8 @@ func AdminCreateApiKeyHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid payload", http.StatusBadRequest)
 		return
 	}
-	if msg := validateApiKeyDTO(&req, false); msg != "" {
-		http.Error(w, msg, http.StatusBadRequest)
+	if req.Name == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
 		return
 	}
 	if req.UserID == 0 {
@@ -435,9 +408,6 @@ func AdminCreateApiKeyHandler(w http.ResponseWriter, r *http.Request) {
 		ExpiresAt:         expiry,
 		RateLimit:         req.RateLimit,
 		RateWindowSeconds: req.RateWindowSeconds,
-		Description:       req.Description,
-		DisplayName:       req.DisplayName,
-		AccentColor:       req.AccentColor,
 	})
 	if err != nil {
 		log.Println("AdminCreateApiKey error:", err)
@@ -448,15 +418,6 @@ func AdminCreateApiKeyHandler(w http.ResponseWriter, r *http.Request) {
 	if !key.CreatedAt.IsZero() {
 		created = key.CreatedAt.UTC()
 	}
-	// Audit
-	kid := key.ID
-	RecordActivity(r, repository.ActivityInput{
-		Category:    models.ActivityCategoryAPIKey,
-		Action:      "create",
-		TargetID:    &kid,
-		TargetLabel: req.Name,
-		Message:     fmt.Sprintf("admin created API key %q for user %d (%d permissions)", req.Name, req.UserID, len(req.Permissions)),
-	})
 	writeJSON(w, map[string]any{
 		"id":                  key.ID,
 		"user_id":             key.UserID,
@@ -468,9 +429,6 @@ func AdminCreateApiKeyHandler(w http.ResponseWriter, r *http.Request) {
 		"rate_limit":          key.RateLimit,
 		"rate_window_seconds": key.RateWindowSeconds,
 		"active":              true,
-		"description":         key.Description,
-		"display_name":        key.DisplayName,
-		"accent_color":        key.AccentColor,
 		"token":               plaintext, // returned ONCE – never again.
 	})
 }
@@ -490,8 +448,8 @@ func AdminUpdateApiKeyHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid payload", http.StatusBadRequest)
 		return
 	}
-	if msg := validateApiKeyDTO(&req, true); msg != "" {
-		http.Error(w, msg, http.StatusBadRequest)
+	if req.Name == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
 		return
 	}
 	expiry, err := parseExpiryPtr(req.ExpiresAt)
@@ -517,9 +475,6 @@ func AdminUpdateApiKeyHandler(w http.ResponseWriter, r *http.Request) {
 		RateWindowSet:     req.RateWindowSet,
 		Active:            req.Active,
 		ActiveSet:         req.ActiveSet,
-		Description:       req.Description,
-		DisplayName:       req.DisplayName,
-		AccentColor:       req.AccentColor,
 	}); err != nil {
 		log.Println("AdminUpdateApiKey error:", err)
 		http.Error(w, "could not update api key", http.StatusInternalServerError)
@@ -549,60 +504,9 @@ func AdminDeleteApiKeyHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer con.Close()
 	repo := repository.NewApiKeyRepository(con)
-	// Fetch label for audit before removal; treat not-found as 404.
-	existing, gerr := repo.GetApiKey(id)
-	if gerr != nil || existing == nil {
-		http.Error(w, "api key not found", http.StatusNotFound)
-		return
-	}
-	label := existing.Name
 	if err := repo.DeleteApiKey(id); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	RecordActivity(r, repository.ActivityInput{
-		Category:    models.ActivityCategoryAPIKey,
-		Action:      "delete",
-		TargetID:    &id,
-		TargetLabel: label,
-		Message:     fmt.Sprintf("deleted API key %q", label),
-	})
 	w.WriteHeader(http.StatusNoContent)
-}
-
-// validateApiKeyDTO checks common invariants for both create and update.
-func validateApiKeyDTO(req *apiKeyDTO, isUpdate bool) string {
-	trimmed := strings.TrimSpace(req.Name)
-	if trimmed == "" {
-		return "name is required"
-	}
-	if len(trimmed) > 64 {
-		return "name is too long (max 64)"
-	}
-	req.Name = trimmed
-	if len(req.Description) > 500 {
-		return "description is too long (max 500)"
-	}
-	if len(req.DisplayName) > 64 {
-		return "display_name is too long (max 64)"
-	}
-	if len(req.AccentColor) > 32 {
-		return "accent_color is too long (max 32)"
-	}
-	if len(req.Permissions) > 100 {
-		return "too many permissions (max 100)"
-	}
-	for _, p := range req.Permissions {
-		if len(p) > 64 {
-			return "permission key too long: " + p
-		}
-		if p == "" {
-			return "permission key cannot be empty"
-		}
-	}
-	if req.RateLimit != nil && *req.RateLimit < 0 {
-		return "rate_limit cannot be negative"
-	}
-	_ = isUpdate
-	return ""
 }
