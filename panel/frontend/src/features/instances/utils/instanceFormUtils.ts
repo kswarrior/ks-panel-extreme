@@ -342,6 +342,8 @@ export function serializeEditor(f: EditorState): Record<string, unknown> {
           ...(s.content_blocks ? { content_blocks: s.content_blocks } : {}),
         }));
       }
+      // Components: persist reusable UI blocks.
+      if (p.components && p.components.length > 0) out.components = p.components;
       return out;
     }),
     healthcheck: f.healthcheck.enabled ? {
