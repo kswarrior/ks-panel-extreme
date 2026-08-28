@@ -6,7 +6,6 @@ import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import LimitSelect from '@/shared/components/ui/LimitSelect';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
-import GlassCard from '@/shared/components/ui/Card';
 import { useConfirm } from '@/shared/stores/confirmStore';
 
 function withAlpha(color: string, alpha: number): string {
@@ -53,6 +52,8 @@ const getRoleIconSvg = (icon?: string) => {
   return preset ? preset.svg : null;
 };
 
+const BUILTIN_ROLE_NAMES = new Set(['admin', 'moderator', 'user']);
+
 const RolesPage: React.FC = () => {
   const navigate = useNavigate();
   const confirm = useConfirm();
@@ -60,20 +61,8 @@ const RolesPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [deletingName, setDeletingName] = useState<string | null>(null);
-  const [defaultRoleId, setDefaultRoleId] = useState<number | null>(null);
-  const [allowSelfAssign, setAllowSelfAssign] = useState<Record<string, boolean>>({});
-  const [perms] = useState<string[]>([
-    'instances.view',
-    'instances.create',
-    'instances.reboot',
-    'users.view',
-    'users.manage',
-    'themes.manage',
-  ]);
-  const [permState, setPermState] = useState<Record<string, Record<string, boolean>>>(
-    {},
-  );
   const [search, setSearch] = useState('');
+  const [filterBy, setFilterBy] = useState<'all' | 'builtin' | 'custom' | 'with-perms' | 'without-perms'>('all');
   const PAGE_SIZE_KEY = 'ks.roles.pageSize';
   const readPageSize = (): number => {
     if (typeof window === 'undefined') return 25;
@@ -146,28 +135,34 @@ const filterRef = useRef<HTMLDivElement | null>(null);
     }
   };
 
-  const roleStats = useMemo(() => {
-    const total = roles.length;
-    const withPerms = roles.filter((r) => (r.permissions || []).length > 0).length;
-    const withColor = roles.filter((r) => r.color && r.color.trim() !== '').length;
-    const withIcon = roles.filter((r) => r.icon && r.icon.trim() !== '').length;
-    return { total, withPerms, withColor, withIcon };
-  }, [roles]);
-
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return roles;
-    return roles.filter(
-      (r) =>
-        r.name.toLowerCase().includes(q) ||
-        (r.display_name || '').toLowerCase().includes(q) ||
-        (r.description || '').toLowerCase().includes(q),
-    );
-  }, [roles, search]);
+    let out = roles;
+    if (q) {
+      out = out.filter(
+        (r) =>
+          r.name.toLowerCase().includes(q) ||
+          (r.display_name || '').toLowerCase().includes(q) ||
+          (r.description || '').toLowerCase().includes(q),
+      );
+    }
+    if (filterBy !== 'all') {
+      out = out.filter((r) => {
+        const hasPerms = (r.permissions || []).length > 0;
+        const isBuiltin = BUILTIN_ROLE_NAMES.has(r.name);
+        if (filterBy === 'builtin') return isBuiltin;
+        if (filterBy === 'custom') return !isBuiltin;
+        if (filterBy === 'with-perms') return hasPerms;
+        if (filterBy === 'without-perms') return !hasPerms;
+        return true;
+      });
+    }
+    return out;
+  }, [roles, search, filterBy]);
 
   const visible = useMemo(() => filtered.slice(0, pageSize), [filtered, pageSize]);
 
-  const resetFilters = () => { setSearch(''); };
+  const resetFilters = () => { setSearch(''); setFilterBy('all'); };
 
 return (
     <div>
@@ -201,13 +196,22 @@ return (
                   <div className="p-3 space-y-3">
                     <div>
                       <label className="block text-xs text-gray-400 uppercase tracking-wide mb-1.5">Filter by</label>
-                      <select className="w-full glass-field">
+                      <select className="w-full glass-field" value={filterBy} onChange={(e) => setFilterBy(e.target.value as any)}>
                         <option value="all">All roles</option>
-                        <option value="active">Active</option>
-                        <option value="inactive">Inactive</option>
+                        <option value="builtin">Built-in</option>
+                        <option value="custom">Custom</option>
+                        <option value="with-perms">With permissions</option>
+                        <option value="without-perms">Without permissions</option>
                       </select>
                     </div>
                     <div className="pt-2 border-t border-white/5 flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={resetFilters}
+                        className="px-3 py-1.5 text-sm text-gray-400 hover:text-white"
+                      >
+                        Clear
+                      </button>
                       <button
                         type="button"
                         onClick={() => setFilterOpen(false)}
@@ -283,8 +287,11 @@ return (
 
       <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
         <div className="flex items-center gap-2">
-          {search && (
-            <span className="text-xs text-gray-500">{visible.length} of {filtered.length} shown</span>
+          {(search || filterBy !== 'all') && (
+            <span className="text-xs text-gray-500">{visible.length} of {filtered.length} shown {filterBy !== 'all' ? `· ${filterBy}` : ''}</span>
+          )}
+          {(search || filterBy !== 'all') && (
+            <button type="button" onClick={resetFilters} className="text-xs text-sky-400 hover:text-sky-300">Clear filters</button>
           )}
         </div>
       </div>
@@ -358,34 +365,6 @@ return (
                      ariaLabel={`Actions for role ${r.name}`}
                      items={[
                        {
-                         kind: 'checkbox',
-                         key: 'default',
-                         label: 'Default for new users',
-                         checked: defaultRoleId === r.id,
-                         hint:
-                           defaultRoleId === r.id
-                             ? 'New users get this role'
-                             : 'Click to make this role the default',
-                       },
-                       {
-                         kind: 'toggle',
-                         key: 'self-assign',
-                         label: 'Allow self-assign',
-                         checked: !!allowSelfAssign[r.id],
-                       },
-                       {
-                         kind: 'submenu',
-                         key: 'perms',
-                         label: 'Permissions…',
-                         children: perms.map((p) => ({
-                           kind: 'checkbox' as const,
-                           key: `perm-${p}`,
-                           label: p,
-                           checked: !!permState[r.id]?.[p],
-                         })),
-                       },
-                       { kind: 'separator', key: 'sep1' },
-                       {
                          key: 'edit',
                          label: 'Edit',
                          tone: 'default',
@@ -393,11 +372,11 @@ return (
                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" /> </svg>
                          ),
                        },
-{
+                       {
                           key: 'delete',
                           label: deletingName === r.name ? 'Deleting…' : 'Delete',
                            tone: 'danger',
-                           disabled: deletingName === r.name,
+                           disabled: deletingName === r.name || BUILTIN_ROLE_NAMES.has(r.name),
                            icon: (
                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /> </svg>
                            ),
@@ -412,6 +391,15 @@ return (
 </article>
             );
           })}
+        </div>
+      )}
+
+      {!loading && visible.length === 0 && !error && (
+        <div className="glass-card rounded-xl p-8 text-center border border-white/10">
+          <p className="text-sm text-gray-400">No roles found{(search || filterBy !== 'all') ? ' for the current filters' : ''}.</p>
+          {(search || filterBy !== 'all') && (
+            <button type="button" onClick={resetFilters} className="mt-3 text-xs text-sky-400 hover:text-sky-300">Clear filters</button>
+          )}
         </div>
       )}
     </div>
