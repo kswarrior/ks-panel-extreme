@@ -238,7 +238,7 @@ func (r *ApiKeyRepository) CreateApiKey(in CreateApiKeyInput) (*models.ApiKey, s
 	window := normalizeWindow(in.RateWindowSeconds)
 	expFrag, expArg, expOk := expiryFragment(in.ExpiresAt)
 	rlFrag, rlArg, rlOk := rateLimitFragment(in.RateLimit)
-	query := fmt.Sprintf(`INSERT INTO api_keys (user_id, name, key_hash, prefix, permissions, expires_at, rate_limit, rate_window_seconds) VALUES (?, ?, ?, ?, ?, %s, %s, ?)`, expFrag, rlFrag)
+	query := fmt.Sprintf(`INSERT INTO api_keys (user_id, name, key_hash, prefix, permissions, expires_at, rate_limit, rate_window_seconds, description, display_name, accent_color) VALUES (?, ?, ?, ?, ?, %s, %s, ?, ?, ?, ?)`, expFrag, rlFrag)
 	args := []interface{}{in.UserID, in.Name, hash, prefix, SplitPermissions(in.Permissions)}
 	if expOk {
 		args = append(args, expArg)
@@ -246,7 +246,7 @@ func (r *ApiKeyRepository) CreateApiKey(in CreateApiKeyInput) (*models.ApiKey, s
 	if rlOk {
 		args = append(args, rlArg)
 	}
-	args = append(args, window)
+	args = append(args, window, in.Description, in.DisplayName, in.AccentColor)
 	res, err := r.db.Exec(query, args...)
 	if err != nil {
 		return nil, "", err
@@ -255,6 +255,7 @@ func (r *ApiKeyRepository) CreateApiKey(in CreateApiKeyInput) (*models.ApiKey, s
 	if err != nil {
 		return nil, "", err
 	}
+	now := time.Now().UTC()
 	return &models.ApiKey{
 		ID:                id,
 		UserID:            in.UserID,
@@ -264,6 +265,11 @@ func (r *ApiKeyRepository) CreateApiKey(in CreateApiKeyInput) (*models.ApiKey, s
 		ExpiresAt:         in.ExpiresAt,
 		RateLimit:         in.RateLimit,
 		RateWindowSeconds: window,
+		Description:       in.Description,
+		DisplayName:       in.DisplayName,
+		AccentColor:       in.AccentColor,
+		CreatedAt:         now,
+		Active:            true,
 	}, token, nil
 }
 
@@ -275,8 +281,8 @@ func (r *ApiKeyRepository) CreateApiKey(in CreateApiKeyInput) (*models.ApiKey, s
 // the value, or a nil pointer with the *Set flag to clear that limit back to
 // "no limit"/"no expiry".
 func (r *ApiKeyRepository) UpdateApiKeyByID(id int64, in UpdateApiKeyInput) error {
-	set := []string{"name = ?", "permissions = ?"}
-	args := []interface{}{in.Name, SplitPermissions(in.Permissions)}
+	set := []string{"name = ?", "permissions = ?", "description = ?", "display_name = ?", "accent_color = ?"}
+	args := []interface{}{in.Name, SplitPermissions(in.Permissions), in.Description, in.DisplayName, in.AccentColor}
 	if in.ExpiresAtSet {
 		expFrag, expArg, expOk := expiryFragment(in.ExpiresAt)
 		set = append(set, fmt.Sprintf("expires_at = %s", expFrag))
@@ -337,7 +343,7 @@ func (r *ApiKeyRepository) ListAllApiKeys() ([]models.ApiKey, error) {
 	if n == 0 {
 		return keys, nil
 	}
-	rows, err := r.db.Query(`SELECT k.id, k.user_id, u.username, k.name, k.prefix, k.created_at, k.last_used_at, k.permissions, k.expires_at, k.rate_limit, k.rate_window_seconds, k.active
+	rows, err := r.db.Query(`SELECT k.id, k.user_id, u.username, k.name, k.prefix, k.created_at, k.last_used_at, k.permissions, k.expires_at, k.rate_limit, k.rate_window_seconds, k.active, k.description, k.display_name, k.accent_color
 		FROM api_keys k JOIN users u ON u.id = k.user_id
 		ORDER BY k.created_at DESC`)
 	if err != nil {
@@ -351,10 +357,11 @@ func (r *ApiKeyRepository) ListAllApiKeys() ([]models.ApiKey, error) {
 		var perms string
 		var rate sql.NullInt64
 		var active sql.NullInt64
-		if err := rows.Scan(&k.ID, &k.UserID, &k.OwnerName, &k.Name, &k.Prefix, &created, &lastUsed, &perms, &expiry, &rate, &k.RateWindowSeconds, &active); err != nil {
+		var desc, displayName, accentColor sql.NullString
+		if err := rows.Scan(&k.ID, &k.UserID, &k.OwnerName, &k.Name, &k.Prefix, &created, &lastUsed, &perms, &expiry, &rate, &k.RateWindowSeconds, &active, &desc, &displayName, &accentColor); err != nil {
 			return nil, err
 		}
-		k.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created)
+		k.CreatedAt = parseCreatedAt(created)
 		if lastUsed.Valid {
 			if t, err := time.Parse("2006-01-02 15:04:05", lastUsed.String); err == nil {
 				k.LastUsedAt = &t
@@ -366,6 +373,15 @@ func (r *ApiKeyRepository) ListAllApiKeys() ([]models.ApiKey, error) {
 		k.ExpiresAt = scanExpiry(expiry)
 		k.RateLimit = scanRateLimit(rate)
 		k.Active = active.Valid && active.Int64 == 1
+		if desc.Valid {
+			k.Description = desc.String
+		}
+		if displayName.Valid {
+			k.DisplayName = displayName.String
+		}
+		if accentColor.Valid {
+			k.AccentColor = accentColor.String
+		}
 		keys = append(keys, k)
 	}
 	return keys, rows.Err()
