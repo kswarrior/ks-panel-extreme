@@ -67,6 +67,116 @@ function safeImgSrc(raw?: string): string {
   return safeUrl(u);
 }
 
+// Component token pattern: {{component:name}} where name is alphanumeric/underscore/dash
+const COMPONENT_TOKEN_RE = /\{\{\s*component:([A-Za-z0-9_][A-Za-z0-9_-]*)\s*\}\}/g;
+
+// resolveComponentTokens replaces {{component:name}} tokens in text with the
+// corresponding component's rendered content. If a component is not found,
+// the token is left as-is.
+function resolveComponentTokens(text: string, components: PageComponentDef[]): string {
+  if (!components || components.length === 0) return text;
+  const compMap = new Map(components.map(c => [c.name, c]));
+  return text.replace(COMPONENT_TOKEN_RE, (_match, name: string) => {
+    const comp = compMap.get(name);
+    if (!comp) return _match; // leave unknown token as-is
+    return componentToHtml(comp);
+  });
+}
+
+// componentToHtml converts a component definition to its HTML representation.
+// This is used when substituting {{component:name}} in HTML content.
+function componentToHtml(comp: PageComponentDef): string {
+  switch (comp.type) {
+    case 'html':
+      return comp.content;
+    case 'markdown':
+      return markdownToHtml(comp.content);
+    case 'block':
+      return blocksToHtml(comp.content);
+    default:
+      return comp.content;
+  }
+}
+
+// Minimal markdown-to-HTML converter for component content.
+// Mirrors the subset handled by renderMarkdown but outputs HTML string.
+function markdownToHtml(md: string): string {
+  if (!md.trim()) return '';
+  return md
+    .split('\n')
+    .map(line => {
+      const trimmed = line.trim();
+      if (/^###\s/.test(trimmed)) return `<h3>${trimmed.replace(/^###\s/, '')}</h3>`;
+      if (/^##\s/.test(trimmed)) return `<h2>${trimmed.replace(/^##\s/, '')}</h2>`;
+      if (/^#\s/.test(trimmed)) return `<h1>${trimmed.replace(/^#\s/, '')}</h1>`;
+      if (/^[-*]\s/.test(trimmed)) return `<li>${trimmed.replace(/^[-*]\s/, '')}</li>`;
+      if (/^\d+\.\s/.test(trimmed)) return `<li>${trimmed.replace(/^\d+\.\s/, '')}</li>`;
+      if (trimmed === '') return '';
+      // Inline: **bold**, *italic*, `code`, [text](url)
+      return `<p>${trimmed
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>')}</p>`;
+    })
+    .join('\n')
+    .replace(/(<li>.*<\/li>)/g, '<ul>$1</ul>')
+    .replace(/(<ul>.*<\/ul>)/g, '$1');
+}
+
+// blocksToHtml converts a JSON block array to HTML string.
+function blocksToHtml(json: string): string {
+  let rows: BlockRow[] = [];
+  try {
+    const arr = JSON.parse(json);
+    if (Array.isArray(arr)) rows = arr;
+  } catch { return ''; }
+  if (rows.length === 0) return '';
+  return rows.map(b => {
+    switch (b.type) {
+      case 'heading': {
+        const lvl = (b.level ?? 2) as 1 | 2 | 3;
+        return `<h${lvl}>${b.value}</h${lvl}>`;
+      }
+      case 'text':
+        return `<p>${b.value}</p>`;
+      case 'image':
+        return b.value ? `<img src="${b.value}" alt="" />` : '';
+      case 'button':
+        return b.href ? `<a href="${b.href}" target="_blank" rel="noreferrer">${b.value}</a>` : `<span>${b.value}</span>`;
+      case 'code':
+        return `<pre><code>${b.value}</code></pre>`;
+      case 'spacer':
+        return '<div style="height: 1.5rem"></div>';
+      case 'divider':
+        return '<hr />';
+      case 'stat': {
+        const val = b.value;
+        const label = b.label ? `<div class="stat-label">${b.label}</div>` : '';
+        return `<div class="stat">${label}<div class="stat-value">${val}${b.unit || ''}</div></div>`;
+      }
+      case 'table': {
+        let rows2: string[][] = [];
+        try { const arr = JSON.parse(b.value); if (Array.isArray(arr)) rows2 = arr.map((r: any) => Array.isArray(r) ? r.map((c: any) => String(c ?? '')) : []); } catch {}
+        if (rows2.length === 0) return '<p>[empty table]</p>';
+        const [head, ...body] = rows2;
+        return `<table><thead><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${body.map(r => `<tr>${head.map((_, i) => `<td>${r[i] || ''}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+      }
+      case 'list': {
+        let items: string[] = [];
+        try { const arr = JSON.parse(b.value); if (Array.isArray(arr)) items = arr.map((x: any) => String(x ?? '')); } catch { items = b.value.split('\n').filter(Boolean); }
+        return `<ul>${items.map(i => `<li>${i}</li>`).join('')}</ul>`;
+      }
+      case 'html':
+        return b.value;
+      case 'action':
+        return `<button class="action-btn" disabled>${b.label || b.value || 'Run'}</button>`;
+      default:
+        return '';
+    }
+  }).join('\n');
+}
+
 // renderBlocks converts the JSON block list into React elements. Mirrors the
 // studio's block types one-for-one so what the author composes is what the
 // user sees.
