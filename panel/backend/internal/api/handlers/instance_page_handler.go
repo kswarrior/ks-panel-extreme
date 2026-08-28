@@ -484,6 +484,7 @@ func UpdateInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		IconSVG:         req.IconSVG,
 		Actions:         req.Actions,
 		SubPages:        req.SubPages,
+		Components:      req.Components,
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
