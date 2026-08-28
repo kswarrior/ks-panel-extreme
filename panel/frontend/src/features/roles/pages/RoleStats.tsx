@@ -1,10 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { listRoles, listUsers } from '@/shared/api/admin';
 import type { Role } from '@/shared/types/user';
 import type { User } from '@/shared/types/user';
 import {
-  DonutStat,
   PieChart,
   DashboardSection,
   DashboardGrid,
@@ -18,25 +16,10 @@ import GlassCard from '@/shared/components/ui/Card';
 const BUILTIN_ROLE_NAMES: Set<string> = new Set(['admin', 'moderator', 'user']);
 
 const RoleStats: React.FC = () => {
-  const navigate = useNavigate();
   const [roles, setRoles] = useState<Role[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [filterOpen, setFilterOpen] = useState(false);
-  const filterRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
-        setFilterOpen(false);
-      }
-    }
-    if (filterOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [filterOpen]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -120,53 +103,8 @@ const RoleStats: React.FC = () => {
         title="Role Statistics"
         backHref="/roles"
         backLabel="Roles"
-        action={
-          <div className="flex items-center gap-2">
-            <div className="relative" ref={filterRef}>
-              <button
-                type="button"
-                onClick={() => setFilterOpen(!filterOpen)}
-                className={`ks-btn-header ks-icon-btn transition-colors ${filterOpen ? 'is-open' : ''}`}
-                aria-label="Open filters"
-                aria-expanded={filterOpen}
-                aria-haspopup="true"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-                  <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-                </svg>
-                <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
-              </button>
-              {filterOpen && (
-                <div className="absolute left-0 top-full mt-1 z-30 w-56">
-                  <div className="ks-dropdown min-w-[200px] animate-in fade-in slide-in-from-to duration-150">
-                    <div className="p-3 space-y-3">
-                      <div>
-                        <label className="block text-xs text-gray-400 uppercase tracking-wide mb-1.5">Type</label>
-                        <select className="w-full glass-field">
-                          <option value="all">All roles</option>
-                          <option value="builtin">Built-in</option>
-                          <option value="custom">Custom</option>
-                        </select>
-                      </div>
-                      <div className="pt-2 border-t border-white/5 flex items-center justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setFilterOpen(false)}
-                          className="px-3 py-1.5 text-sm text-gray-400 hover:text-white"
-                        >
-                          Close
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        }
       />
 
-      {/* Key Metrics Strip - removed Role Distribution and Key Metrics per requirements */}
       <DashboardGrid columns={4} className="mb-6">
         <StatCard
           label="Total Roles"
@@ -175,7 +113,45 @@ const RoleStats: React.FC = () => {
           color="text-white"
           dotColor="bg-white"
         />
+        <StatCard
+          label="Built-in"
+          value={stats.builtin}
+          subLabel={`${stats.custom} custom`}
+          icon={<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-5 h-5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>}
+          color="text-emerald-300"
+          dotColor="bg-emerald-400"
+        />
+        <StatCard
+          label="With Permissions"
+          value={stats.withPerms}
+          subLabel={`${stats.total - stats.withPerms} without`}
+          icon={<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-5 h-5"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>}
+          color="text-sky-300"
+          dotColor="bg-sky-400"
+        />
+        <StatCard
+          label="Avg Permissions"
+          value={stats.total ? (stats.totalPerms / stats.total).toFixed(1) : '0'}
+          subLabel={`${stats.totalPerms} total`}
+          icon={<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-5 h-5"><line x1="12" y1="20" x2="12" y2="10" /><line x1="18" y1="20" x2="18" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>}
+          color="text-violet-300"
+          dotColor="bg-violet-400"
+        />
       </DashboardGrid>
+
+      <DashboardSection title="Distribution">
+        <DashboardGrid columns={3}>
+          {permSlices.length > 0 && <PieChart slices={permSlices} title="Permissions" centerLabel={`${stats.withPerms}/${stats.total}`} />}
+          {colorSlices.length > 0 && <PieChart slices={colorSlices} title="Accent Color" centerLabel={`${stats.withColor}/${stats.total}`} />}
+          {iconSlices.length > 0 && <PieChart slices={iconSlices} title="Icon" centerLabel={`${stats.withIcon}/${stats.total}`} />}
+        </DashboardGrid>
+      </DashboardSection>
+
+      {roleUserSlices.length > 0 && (
+        <DashboardSection title="Users per Role">
+          <PieChart slices={roleUserSlices} title="Role Membership" centerLabel={`${users.length} users`} />
+        </DashboardSection>
+      )}
 
       {error && (
         <GlassCard className="text-sm text-red-300 border border-red-700/40">
