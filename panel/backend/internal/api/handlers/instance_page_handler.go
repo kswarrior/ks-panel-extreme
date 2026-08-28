@@ -1630,7 +1630,7 @@ func ListInstancePageModulesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var modules []instancePageModuleManifest
+	modules := make([]instancePageModuleManifest, 0)
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
