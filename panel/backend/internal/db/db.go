@@ -406,6 +406,20 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				return err
 			}
 			continue
+		case name == "049_instance_page_components.sql":
+			// Instance-page components (a JSON array of reusable UI blocks
+			// {name,type,description,content}) persisted on each instance_pages
+			// row so the Studio can save/reload them and so linking a page to a
+			// template ships its components into spec.pages for the runtime to
+			// substitute {{component:name}} references when rendering. Guarded
+			// individually so re-launches stay idempotent on all dialects —
+			// mirrors 047_instance_page_sub_pages.sql.
+			if err := guardedAddColumns(d, db, name, "instance_pages", []columnSpec{
+				{"components", "TEXT NOT NULL DEFAULT ''"},
+			}); err != nil {
+				return err
+			}
+			continue
 		case name == "045_application_files_runs.sql":
 			// Application script files (JSON array of {path,content}) plus
 			// the application_runs history table. The ALTER is guarded per
