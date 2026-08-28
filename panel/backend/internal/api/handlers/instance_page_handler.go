@@ -413,6 +413,29 @@ func ListInstancePagesHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, pages)
 }
 
+// GetInstancePageHandler returns a single instance page by id. This avoids the
+// previous client-side filtering via listInstancePages().find() which shipped
+// the whole library for every detail view.
+func GetInstancePageHandler(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil || id <= 0 {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	con, err := repository.OpenDB()
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	defer con.Close()
+	page, gerr := repository.NewInstancePageRepository(con).Get(id)
+	if gerr != nil || page == nil {
+		http.Error(w, "instance page not found", http.StatusNotFound)
+		return
+	}
+	writeJSON(w, page)
+}
+
 // CreateInstancePageHandler inserts a new instance page after validating.
 func CreateInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 	var req instancePageDTO
