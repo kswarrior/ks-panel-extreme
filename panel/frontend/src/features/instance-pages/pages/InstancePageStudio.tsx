@@ -255,7 +255,6 @@ const InstancePageStudio: React.FC = () => {
   };
 
   // ---- Component row handlers ---------------------------------------------
-  const blankComponent = (): ComponentRow => ({ id: Math.random().toString(36).slice(2), name: '', type: 'html', description: '', content: '' });
   const addComponent = () => setComponents((c) => [...c, blankComponent()]);
   const removeComponent = (id: string) => setComponents((c) => c.filter((x) => x.id !== id));
   const updateComponent = (id: string, patch: Partial<ComponentRow>) => setComponents((c) => c.map((x) => (x.id === id ? { ...x, ...patch } : x)));
