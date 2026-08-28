@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"io"
 	"net/http"
 	"strings"
@@ -9,6 +11,7 @@ import (
 
 	"github.com/example/kspanel/internal/api/handlers"
 	"github.com/example/kspanel/internal/auth"
+	"github.com/example/kspanel/internal/models"
 	"github.com/example/kspanel/internal/permissions"
 	"github.com/example/kspanel/internal/repository"
 	"github.com/example/kspanel/internal/security"
@@ -19,6 +22,12 @@ type ctxKey string
 
 // expiryKey stores the absolute expiry time alongside userID.
 const expiryKey ctxKey = "sessionExpiry"
+
+// apiKeyCtxKey stores the authenticated ApiKey when the request was
+// authenticated via an API key token (ksk_...) rather than a session cookie.
+// Permission gates check this first so a scoped key cannot escalate beyond its
+// declared permission list even if the owning user is an admin.
+const apiKeyCtxKey ctxKey = "apiKey"
 
 // AuthMiddleware reads the HMAC-signed session credentials — either the
 // session_id cookie or an `Authorization: Bearer <token>` header — verifies
@@ -41,6 +50,24 @@ const expiryKey ctxKey = "sessionExpiry"
 // is written transparently on the response.
 func AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// First, attempt API-key authentication (ksk_...). This runs before
+		// session validation so automation can use `Authorization: Bearer ksk_...`
+		// or `X-API-Key: ksk_...` without needing a cookie. If a candidate
+		// API-key token is present we either succeed via the key or fail
+		// closed – we don't fall back to the session in that case, otherwise
+		// an invalid/stale key would silently succeed as a (potentially
+		// anonymous) session and mask the auth error.
+		if apiToken := extractApiKeyToken(r); apiToken != "" {
+			if ok, resp := tryApiKeyAuth(w, r, next, apiToken); ok {
+				return
+			} else if resp {
+				return
+			}
+			// tryApiKeyAuth returned !ok && !resp means "not an API key token after all"
+			// – fall through to session path (defensive; extractApiKeyToken
+			// already guarantees the prefix, so this branch is unreachable today).
+		}
+
 		// A Bearer token takes precedence over the cookie when both are
 		// present — the SPA is being explicit about which account the
 		// request is for. Cookies are only used as the fallback so the
