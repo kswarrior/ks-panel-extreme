@@ -44,7 +44,7 @@ export const emptyForm: Form = {
   mem_overcommit_pct: '0',
   alloc_disk_mib: '0',
   disk_overcommit_pct: '0',
-  instances_dir: './instances',
+  instances_dir: '/var/lib/kspanel/instances',
   category: '',
   location_country: '',
   location_node: '',

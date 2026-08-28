@@ -107,7 +107,7 @@ const NodeForm: React.FC = () => {
               mem_overcommit_pct: String(n.mem_overcommit_pct || 0),
               alloc_disk_mib: String(n.alloc_disk_mib || 0),
               disk_overcommit_pct: String(n.disk_overcommit_pct || 0),
-              instances_dir: n.instances_dir || './instances',
+              instances_dir: n.instances_dir || '/var/lib/kspanel/instances',
               category: n.category || '',
               location_country: n.location_country || '',
               location_node: n.location_node || '',
@@ -700,12 +700,12 @@ const NodeForm: React.FC = () => {
                 />
               </GlassField>
             </div>
-            <GlassField label="Daemon Instance File Directory" htmlFor="instances_dir" hint="Where the daemon keeps per-instance working files (logs, mounts, sockets). Forwarded to ksedge via config.json. Default ./instances.">
+            <GlassField label="Daemon Instance File Directory" htmlFor="instances_dir" hint="Where the daemon keeps per-instance working files (logs, mounts, sockets). Forwarded to ksedge via config.json. Default /var/lib/kspanel/instances. Use ./instances for a path relative to the edge binary directory (./ = edge location).">
               <input
                 id="instances_dir"
                 value={form.instances_dir}
                 onChange={(e) => setForm({ ...form, instances_dir: e.target.value })}
-                placeholder="./instances"
+                placeholder="/var/lib/kspanel/instances"
               />
             </GlassField>
           </div>
