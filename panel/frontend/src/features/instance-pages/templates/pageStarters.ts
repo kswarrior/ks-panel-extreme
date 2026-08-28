@@ -717,7 +717,7 @@ export const PAGE_STARTERS: PageStarter[] = [
       {
         name: 'sys_probe',
         type: 'shell',
-        command: 'echo "kernel $(uname -r)"; echo "arch $(uname -m)"; echo "virt $(systemd-detect-virt 2>/dev/null || echo n/a)"; echo "cpu $(grep -m1 \'model name\' /proc/cpuinfo 2>/dev/null | cut -d: -f2 || grep -m1 \'Processor\' /proc/cpuinfo 2>/dev/null | cut -d: -f2)"; echo "cores $(nproc 2>/dev/null || grep -c processor /proc/cpuinfo)"; echo "mem $(free -h 2>/dev/null | awk \'NR==2{print $2}\')"; echo "os $(. /etc/os-release 2>/dev/null && echo "$PRETTY_NAME")"; echo "uptime $(uptime -p 2>/dev/null || uptime)"; echo "load $(cat /proc/loadavg 2>/dev/null)"',
+        command: 'echo "kernel $(uname -r)"; echo "arch $(uname -m)"; echo "virt $(systemd-detect-virt 2>/dev/null || echo n/a)"; echo "cpu $(grep -m1 \'model name\' /proc/cpuinfo 2>/dev/null | cut -d: -f2 || grep -m1 \'Processor\' /proc/cpuinfo 2>/dev/null | cut -d: -f2)"; echo "cores $(nproc 2>/dev/null || grep -c processor /proc/cpuinfo)"; echo "mem $(free -h 2>/dev/null | awk \'NR==2{print $2}\')"; echo "os $(grep -m1 \'^PRETTY_NAME=\' /etc/os-release 2>/dev/null | cut -d= -f2- | tr -d \'"\')"; echo "uptime $(uptime -p 2>/dev/null || uptime)"; echo "load $(cat /proc/loadavg 2>/dev/null)"',
         timeout: 15,
         description: 'Kernel/arch/virt/CPU/memory/OS/uptime/load key-value probe.',
       },
