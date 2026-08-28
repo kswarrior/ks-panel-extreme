@@ -41,8 +41,22 @@ export interface InstancePage {
   /** JSON-encoded array of InstancePageSubPage (multi-page support).
    *  Empty string == none. */
   sub_pages: string;
+  /** JSON-encoded array of PageComponentDef (reusable UI components).
+   *  Empty string == none. */
+  components: string;
   created_at: string;
   updated_at: string;
+}
+
+// PageComponentDef is a reusable UI component defined in the Instance Page
+// Studio's Components tab. The page content references it with
+// {{component:name}} — the runtime substitutes the token with the component's
+// rendered content (HTML/markdown/blocks converted to HTML as appropriate).
+export interface PageComponentDef {
+  name: string;
+  type: 'html' | 'markdown' | 'block';
+  description?: string;
+  content: string;
 }
 
 // InstancePageSubPage is one extra page shipped inside a library page
