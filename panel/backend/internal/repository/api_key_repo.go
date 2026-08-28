@@ -401,7 +401,7 @@ func IsExpired(t *time.Time) bool {
 // (today nothing routes through them).
 func (r *ApiKeyRepository) FindByToken(token string) (*models.ApiKey, error) {
 	hash := hashKey(token)
-	row := r.db.QueryRow(`SELECT id, user_id, name, prefix, created_at, permissions, expires_at, rate_limit, rate_window_seconds, active FROM api_keys WHERE key_hash = ?`, hash)
+	row := r.db.QueryRow(`SELECT id, user_id, name, prefix, created_at, permissions, expires_at, rate_limit, rate_window_seconds, active, description, display_name, accent_color FROM api_keys WHERE key_hash = ?`, hash)
 	var k models.ApiKey
 	var created, perms sql.NullString
 	var id, uid sql.NullInt64
@@ -409,25 +409,35 @@ func (r *ApiKeyRepository) FindByToken(token string) (*models.ApiKey, error) {
 	var expiry sql.NullString
 	var rate sql.NullInt64
 	var active sql.NullInt64
-	if err := row.Scan(&id, &uid, &name, &prefix, &created, &perms, &expiry, &rate, &k.RateWindowSeconds, &active); err != nil || !id.Valid {
+	var desc, displayName, accentColor sql.NullString
+	if err := row.Scan(&id, &uid, &name, &prefix, &created, &perms, &expiry, &rate, &k.RateWindowSeconds, &active, &desc, &displayName, &accentColor); err != nil || !id.Valid {
 		return nil, fmt.Errorf("api key not found")
 	}
 	k.ID = id.Int64
 	k.UserID = uid.Int64
 	k.Name = name.String
 	k.Prefix = prefix.String
-	k.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created.String)
+	k.CreatedAt = parseCreatedAt(created.String)
 	k.Permissions = JoinPermissions(perms.String)
 	k.ExpiresAt = scanExpiry(expiry)
 	k.RateLimit = scanRateLimit(rate)
 	k.Active = active.Valid && active.Int64 == 1
+	if desc.Valid {
+		k.Description = desc.String
+	}
+	if displayName.Valid {
+		k.DisplayName = displayName.String
+	}
+	if accentColor.Valid {
+		k.AccentColor = accentColor.String
+	}
 	return &k, nil
 }
 
 // GetApiKey returns a single key by id. Used by the audit helpers so the
 // "deleted API key X" label can be filled in before the row disappears.
 func (r *ApiKeyRepository) GetApiKey(id int64) (*models.ApiKey, error) {
-	row := r.db.QueryRow(`SELECT id, user_id, name, prefix, created_at, permissions, expires_at, rate_limit, rate_window_seconds, active FROM api_keys WHERE id = ?`, id)
+	row := r.db.QueryRow(`SELECT id, user_id, name, prefix, created_at, permissions, expires_at, rate_limit, rate_window_seconds, active, description, display_name, accent_color FROM api_keys WHERE id = ?`, id)
 	var k models.ApiKey
 	var created, perms sql.NullString
 	var kid, uid sql.NullInt64
@@ -435,19 +445,37 @@ func (r *ApiKeyRepository) GetApiKey(id int64) (*models.ApiKey, error) {
 	var expiry sql.NullString
 	var rate sql.NullInt64
 	var active sql.NullInt64
-	if err := row.Scan(&kid, &uid, &name, &prefix, &created, &perms, &expiry, &rate, &k.RateWindowSeconds, &active); err != nil || !kid.Valid {
+	var desc, displayName, accentColor sql.NullString
+	if err := row.Scan(&kid, &uid, &name, &prefix, &created, &perms, &expiry, &rate, &k.RateWindowSeconds, &active, &desc, &displayName, &accentColor); err != nil || !kid.Valid {
 		return nil, fmt.Errorf("api key not found")
 	}
 	k.ID = kid.Int64
 	k.UserID = uid.Int64
 	k.Name = name.String
 	k.Prefix = prefix.String
-	k.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created.String)
+	k.CreatedAt = parseCreatedAt(created.String)
 	k.Permissions = JoinPermissions(perms.String)
 	k.ExpiresAt = scanExpiry(expiry)
 	k.RateLimit = scanRateLimit(rate)
 	k.Active = active.Valid && active.Int64 == 1
+	if desc.Valid {
+		k.Description = desc.String
+	}
+	if displayName.Valid {
+		k.DisplayName = displayName.String
+	}
+	if accentColor.Valid {
+		k.AccentColor = accentColor.String
+	}
 	return &k, nil
+}
+
+// TouchLastUsed updates the last_used_at timestamp for the key identified by
+// its hash. Used on every successful API-key authenticated request so the UI
+// can surface "last used" without scanning request logs.
+func (r *ApiKeyRepository) TouchLastUsedByHash(hash string) error {
+	_, err := r.db.Exec(`UPDATE api_keys SET last_used_at = ? WHERE key_hash = ?`, time.Now().UTC().Format("2006-01-02 15:04:05"), hash)
+	return err
 }
 
 // RotateApiKey generates a new token for an existing API key, keeping all
