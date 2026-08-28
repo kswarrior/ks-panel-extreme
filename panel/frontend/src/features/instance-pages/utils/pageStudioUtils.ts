@@ -154,6 +154,54 @@ export function validateSubRows(rows: SubPageRow[]): string {
 }
 
 // ---------------------------------------------------------------------------
+// Component rows — reusable UI blocks ({name,type,description,content})
+// ---------------------------------------------------------------------------
+
+let compSeq = 0;
+export function blankComponent(): ComponentRow {
+  compSeq += 1;
+  return { id: `c${Date.now()}-${compSeq}`, name: '', type: 'html', description: '', content: '' };
+}
+
+export function compRowsFromJSON(json: string | undefined | null): ComponentRow[] {
+  const defs: PageComponentDef[] = parsePageComponents(json);
+  if (defs.length === 0) return [];
+  return defs.map((d) => ({
+    id: `c${compSeq++}-${Math.random().toString(36).slice(2, 8)}`,
+    name: d.name,
+    type: (['html', 'markdown', 'block'].includes(d.type) ? d.type : 'html') as ComponentRow['type'],
+    description: d.description || '',
+    content: d.content || '',
+  }));
+}
+
+export function compsToJSON(rows: ComponentRow[]): string {
+  const defs: PageComponentDef[] = rows
+    .filter((r) => r.name.trim() !== '')
+    .map((r) => ({
+      name: r.name.trim(),
+      type: r.type,
+      description: r.description,
+      content: r.content,
+    }));
+  if (defs.length === 0) return '';
+  return JSON.stringify(defs);
+}
+
+export function validateCompRows(rows: ComponentRow[]): string {
+  const seen = new Set<string>();
+  for (const r of rows) {
+    const name = r.name.trim();
+    if (name === '') continue; // untouched row
+    if (!/^[A-Za-z0-9_][A-Za-z0-9_-]*$/.test(name)) return `Component name "${name}" must start with a letter, number or underscore and contain only letters, numbers, underscores or dashes.`;
+    if (seen.has(name)) return `Duplicate component name "${name}".`;
+    seen.add(name);
+    if (r.type && !['html', 'markdown', 'block'].includes(r.type)) return `Component "${name}" type must be one of: html, markdown, block.`;
+  }
+  return '';
+}
+
+// ---------------------------------------------------------------------------
 // Static preview helpers — used when no instance is bound (no SDK)
 // ---------------------------------------------------------------------------
 
