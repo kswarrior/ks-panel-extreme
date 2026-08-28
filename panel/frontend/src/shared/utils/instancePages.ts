@@ -279,7 +279,11 @@ export function getPageContent(slug: string, spec: Record<string, any> | null | 
   if (p) return pagePayloadFromRow(p);
   const hit = findSubPageEntry(slug, spec);
   if (!hit) return null;
-  return pagePayloadFromSub(hit.sub);
+  // Pass parent's components to sub-page payload.
+  const parentComps = typeof hit.parent?.components === 'string' && hit.parent.components.trim()
+    ? parsePageComponents(hit.parent.components)
+    : undefined;
+  return pagePayloadFromSub(hit.sub, parentComps);
 }
 
 // getPageLabel returns the display label for a resolved slug: the row's
