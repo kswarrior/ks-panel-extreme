@@ -3,6 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
 import { PermissionKey } from '@/shared/types/permissions';
+import SidebarSkeleton from './SidebarSkeleton';
 
 interface SidebarProps {
   open: boolean;
@@ -232,6 +233,7 @@ const instanceSubItems: SubItem[] = [];
 
 const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapsed }) => {
   const { permissions } = useAuthStore();
+  const initialized = useAuthStore((s) => s.initialized);
   const panelName = useSettingsStore((s) => s.panelName);
   const panelLogo = useSettingsStore((s) => s.panelLogo);
   const footerText = useSettingsStore((s) => s.footerText);
@@ -289,22 +291,27 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
         {/* Scrollable navigation area — only this section scrolls */}
         <nav className="flex-1 min-h-0 overflow-y-auto p-3 space-y-1">
           {/* Panel items — displayed directly without dropdown, in serial order */}
-          {canAdmin && adminEntries.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              onClick={onClose}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2 rounded-md text-sm transition text-gray-400 ks-nav-item ${
-                  isActive ? 'ks-nav-active' : ''
-                }`
-              }
-              title={isCollapsed ? item.label : undefined}
-            >
-              {Icons[item.icon]}
-              {!isCollapsed && <span className="truncate">{item.label}</span>}
-            </NavLink>
-          ))}
+          {!initialized ? (
+            <SidebarSkeleton collapsed={isCollapsed} />
+          ) : (
+            canAdmin &&
+            adminEntries.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                onClick={onClose}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-3 py-2 rounded-md text-sm transition text-gray-400 ks-nav-item ${
+                    isActive ? 'ks-nav-active' : ''
+                  }`
+                }
+                title={isCollapsed ? item.label : undefined}
+              >
+                {Icons[item.icon]}
+                {!isCollapsed && <span className="truncate">{item.label}</span>}
+              </NavLink>
+            ))
+          )}
         </nav>
 
         {/* Fixed footer — toggle button: SVG-only vs SVG + text */}
