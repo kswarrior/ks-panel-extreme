@@ -1635,27 +1635,44 @@ func ListInstancePageModulesHandler(w http.ResponseWriter, r *http.Request) {
 		if !entry.IsDir() {
 			continue
 		}
-
-		// Check if this is a valid module directory (has manifest.json)
-		manifestPath := filepath.Join(modulesDir, entry.Name(), "manifest.json")
-		if _, err := os.Stat(manifestPath); os.IsNotExist(err) {
+		// Module storage is `instance_pages/modules/<id>/<version>/manifest.json`
+		// (Upload creates the version sub-dir). The previous List checked only
+		// `modules/<id>/manifest.json` (flat layout) and thus never found any
+		// uploaded module — every List returned []. Support both layouts so
+		// legacy flat bundles and the current versioned bundles are enumerated.
+		base := filepath.Join(modulesDir, entry.Name())
+		// Flat layout (legacy): manifest directly under the id dir.
+		flatManifest := filepath.Join(base, "manifest.json")
+		if data, err := os.ReadFile(flatManifest); err == nil {
+			var manifest instancePageModuleManifest
+			if err := json.Unmarshal(data, &manifest); err == nil {
+				modules = append(modules, manifest)
+			} else {
+				log.Printf("ListInstancePageModules: failed to parse manifest %s: %v", flatManifest, err)
+			}
 			continue
 		}
-
-		// Read and parse manifest
-		data, err := os.ReadFile(manifestPath)
+		// Versioned layout: enumerate each version sub-dir.
+		vers, err := os.ReadDir(base)
 		if err != nil {
-			log.Printf("ListInstancePageModules: failed to read manifest %s: %v", manifestPath, err)
 			continue
 		}
-
-		var manifest instancePageModuleManifest
-		if err := json.Unmarshal(data, &manifest); err != nil {
-			log.Printf("ListInstancePageModules: failed to parse manifest %s: %v", manifestPath, err)
-			continue
+		for _, v := range vers {
+			if !v.IsDir() {
+				continue
+			}
+			manifestPath := filepath.Join(base, v.Name(), "manifest.json")
+			data, err := os.ReadFile(manifestPath)
+			if err != nil {
+				continue
+			}
+			var manifest instancePageModuleManifest
+			if err := json.Unmarshal(data, &manifest); err != nil {
+				log.Printf("ListInstancePageModules: failed to parse manifest %s: %v", manifestPath, err)
+				continue
+			}
+			modules = append(modules, manifest)
 		}
-
-		modules = append(modules, manifest)
 	}
 
 	writeJSON(w, modules)
