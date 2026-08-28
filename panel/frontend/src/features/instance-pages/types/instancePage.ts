@@ -103,6 +103,22 @@ export function parsePageActions(json: string | undefined | null): PageActionDef
   }
 }
 
+// parsePageComponents decodes the persisted components JSON into typed defs.
+// Corrupt payloads degrade to an empty list so a bad row never blocks the UI.
+export function parsePageComponents(json: string | undefined | null): PageComponentDef[] {
+  if (!json || !json.trim()) return [];
+  try {
+    const arr = JSON.parse(json);
+    if (!Array.isArray(arr)) return [];
+    return arr.filter(
+      (c): c is PageComponentDef =>
+        !!c && typeof c === 'object' && typeof c.name === 'string' && typeof c.type === 'string',
+    );
+  } catch {
+    return [];
+  }
+}
+
 export interface CreateInstancePagePayload {
   name: string;
   description: string;
