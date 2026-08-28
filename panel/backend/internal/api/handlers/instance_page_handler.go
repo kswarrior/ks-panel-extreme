@@ -2355,21 +2355,14 @@ func ImportInstancePageFromMarketplaceHandler(w http.ResponseWriter, r *http.Req
 		}
 		pageBytes = b
 	} else {
-		client := &http.Client{Timeout: 10 * time.Second}
-		resp, err := client.Get(marketplacePage.DownloadURL)
-		if err != nil {
-			http.Error(w, "failed to fetch page from marketplace: "+err.Error(), http.StatusBadGateway)
-			return
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			http.Error(w, fmt.Sprintf("marketplace download URL returned status %d", resp.StatusCode), http.StatusBadGateway)
-			return
-		}
-		b, rerr := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
-		if rerr != nil {
-			http.Error(w, "failed to read marketplace page: "+rerr.Error(), http.StatusBadGateway)
+		b, ferr := fetchInstancePageURLBytes(r.Context(), marketplacePage.DownloadURL)
+		if ferr != nil {
+			var ue *allowedURLError
+			if errors.As(ferr, &ue) {
+				http.Error(w, ue.reason, ue.status)
+				return
+			}
+			http.Error(w, "failed to fetch page from marketplace: "+ferr.Error(), http.StatusBadGateway)
 			return
 		}
 		pageBytes = b
@@ -2394,8 +2387,9 @@ func ImportInstancePageFromMarketplaceHandler(w http.ResponseWriter, r *http.Req
 		ContentMarkdown: pageReq.ContentMarkdown,
 		ContentBlocks:   pageReq.ContentBlocks,
 		IconSVG:         pageReq.IconSVG,
-		Actions:         pageReq.Actions,
+		Actions:         pageReq.actionsJSON(),
 		SubPages:        pageReq.subPagesJSON(),
+		Components:      pageReq.componentsJSON(),
 	}
 	dto, verr := validateInstancePage(dto)
 	if verr != nil {
@@ -2427,6 +2421,7 @@ func ImportInstancePageFromMarketplaceHandler(w http.ResponseWriter, r *http.Req
 		IconSVG:         dto.IconSVG,
 		Actions:         dto.Actions,
 		SubPages:        dto.SubPages,
+		Components:      dto.Components,
 	})
 	if err != nil {
 		log.Println("ImportInstancePageFromMarketplace error:", err)
@@ -2513,8 +2508,9 @@ func ImportLocalInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		ContentMarkdown: pageReq.ContentMarkdown,
 		ContentBlocks:   pageReq.ContentBlocks,
 		IconSVG:         pageReq.IconSVG,
-		Actions:         pageReq.Actions,
+		Actions:         pageReq.actionsJSON(),
 		SubPages:        pageReq.subPagesJSON(),
+		Components:      pageReq.componentsJSON(),
 	}
 	dto, verr := validateInstancePage(dto)
 	if verr != nil {
@@ -2546,6 +2542,7 @@ func ImportLocalInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		IconSVG:         dto.IconSVG,
 		Actions:         dto.Actions,
 		SubPages:        dto.SubPages,
+		Components:      dto.Components,
 	})
 	if err != nil {
 		log.Println("ImportLocalInstancePage error:", err)
