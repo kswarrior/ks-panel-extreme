@@ -199,9 +199,13 @@ func hostFSDispatcher(w http.ResponseWriter, r *http.Request, op, hostPath strin
 	case "read":
 		readHostFile(w, clean, info)
 	case "write":
-		writeHostFile(w, r, clean)
+		if !writeHostFile(w, r, clean) {
+			return false
+		}
 	case "upload":
-		writeHostFile(w, r, clean)
+		if !writeHostFile(w, r, clean) {
+			return false
+		}
 	case "mkdir":
 		mkdirHost(w, clean)
 	case "rename":
@@ -286,26 +290,38 @@ func readHostFile(w http.ResponseWriter, hostPath string, info os.FileInfo) {
 // writeHostFile overwrites hostPath with the request body. Used for both
 // `op=write` (in-place file content edits) and `op=upload` (new file
 // uploads). The body is streamed straight to disk via io.Copy so large
-// files don't bloat memory.
-func writeHostFile(w http.ResponseWriter, r *http.Request, hostPath string) {
+// files don't bloat memory. Returns false when the host path is not
+// writable (permission denied) so the caller can fall back to docker exec;
+// the caller must not have written a response in that case.
+func writeHostFile(w http.ResponseWriter, r *http.Request, hostPath string) bool {
 	// Make sure the parent directory exists so a brand-new file upload
 	// into a sub-directory the SPA just created succeeds.
 	if err := os.MkdirAll(filepath.Dir(hostPath), 0o755); err != nil {
+		if os.IsPermission(err) {
+			return false
+		}
 		writeErr(w, http.StatusBadGateway, fmt.Sprintf("mkdir parent: %v", err))
-		return
+		return true
 	}
 	f, err := os.OpenFile(hostPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
 	if err != nil {
+		if os.IsPermission(err) {
+			return false
+		}
 		writeErr(w, http.StatusBadGateway, fmt.Sprintf("open %s: %v", hostPath, err))
-		return
+		return true
 	}
 	defer f.Close()
 	if _, err := io.Copy(f, r.Body); err != nil {
+		if os.IsPermission(err) {
+			return false
+		}
 		writeErr(w, http.StatusBadGateway, fmt.Sprintf("write %s: %v", hostPath, err))
-		return
+		return true
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "path": hostPath})
+	return true
 }
 
 // mkdirHost creates hostPath (and any missing parents) on the host
