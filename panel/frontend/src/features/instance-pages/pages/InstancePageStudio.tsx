@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  listInstancePages,
+  getInstancePage,
   createInstancePage,
   updateInstancePage,
   executePageAction,
@@ -158,18 +158,13 @@ const InstancePageStudio: React.FC = () => {
       setLoading(false);
       return () => { cancelled = true; };
     }
-    listInstancePages()
-      .then((pages) => {
+    getInstancePage(pageId)
+      .then((found) => {
         if (cancelled) return;
-        const found = pages.find((p) => p.id === pageId);
-        if (found) {
-          setPage({ ...found });
-          setActions(defsToActions(found.actions));
-          setSubs(subRowsFromJSON(found.sub_pages));
-          setComponents(compRowsFromJSON(found.components));
-        } else {
-          setError('Instance page not found');
-        }
+        setPage({ ...found });
+        setActions(defsToActions(found.actions));
+        setSubs(subRowsFromJSON(found.sub_pages));
+        setComponents(compRowsFromJSON(found.components));
       })
       .catch((e: any) => {
         if (!cancelled) setError(getErrorMessage(e, 'Failed to load page'));
