@@ -449,6 +449,10 @@ const InstancePageStudio: React.FC = () => {
         setSubs(rows);
         setEditingSubId(null);
       }
+      if (Array.isArray(data.components)) {
+        const rows = compRowsFromJSON(JSON.stringify(data.components));
+        setComponents(rows);
+      }
       setNotice('Page JSON imported into the form. Review and save.');
     } catch (e: any) {
       setError(`Import failed: ${e?.message || e}`);
