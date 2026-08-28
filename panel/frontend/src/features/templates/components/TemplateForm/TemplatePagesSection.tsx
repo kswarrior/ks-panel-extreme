@@ -144,6 +144,10 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
               })),
             }
           : {}),
+        // Reusable UI components for {{component:name}} substitution.
+        ...(parsePageComponents(p.components).length > 0
+          ? { components: parsePageComponents(p.components) }
+          : {}),
       });
       skip.add(p.slug);
     }

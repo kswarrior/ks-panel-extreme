@@ -233,6 +233,8 @@ const InstancePageStudio: React.FC = () => {
     // Replace any previously loaded sub-pages so switching templates can't
     // leave stale routes from another template behind.
     setSubs(s.subPages ? subRowsFromJSON(JSON.stringify(s.subPages)) : []);
+    // Replace components so switching templates can't leave stale components.
+    setComponents(s.components ? compRowsFromJSON(JSON.stringify(s.components)) : []);
     setEditingSubId(null);
     setPreviewTarget('main');
     setNotice(

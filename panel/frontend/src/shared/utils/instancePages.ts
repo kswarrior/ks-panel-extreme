@@ -208,6 +208,22 @@ function parseSpecActions(raw: unknown): PageContent['actions'] {
   return defs.length > 0 ? defs : undefined;
 }
 
+// parseSpecComponents normalises a spec page row's `components` field — it may
+// be a JSON-encoded string (legacy) or an inline array (LinkInstancePageHandler
+// and serializeSpec write an inline array) — into PageComponentDef[] or undefined.
+function parseSpecComponents(raw: unknown): PageContent['components'] {
+  let list: unknown = raw;
+  if (typeof raw === 'string') {
+    if (!raw.trim()) return undefined;
+    try { list = JSON.parse(raw); } catch { return undefined; }
+  }
+  if (!Array.isArray(list)) return undefined;
+  const defs = (list as any[]).filter((c): c is NonNullable<PageContent['components']>[number] =>
+    !!c && typeof c === 'object' && typeof (c as any).name === 'string' && typeof (c as any).type === 'string',
+  );
+  return defs.length > 0 ? defs : undefined;
+}
+
 // hasAnyContent reports whether a spec row carries renderable content.
 function hasAnyContent(p: any): boolean {
   return (
@@ -250,7 +266,7 @@ function pagePayloadFromRow(p: any): PageContent {
     markdown: typeof p.content_markdown === 'string' ? p.content_markdown : undefined,
     blocks: typeof p.content_blocks === 'string' ? p.content_blocks : undefined,
     actions: parseSpecActions(p.actions),
-    components: typeof p.components === 'string' && p.components.trim() ? parsePageComponents(p.components) : undefined,
+    components: parseSpecComponents(p.components),
   };
 }
 
@@ -282,9 +298,7 @@ export function getPageContent(slug: string, spec: Record<string, any> | null | 
   const hit = findSubPageEntry(slug, spec);
   if (!hit) return null;
   // Pass parent's components to sub-page payload.
-  const parentComps = typeof hit.parent?.components === 'string' && hit.parent.components.trim()
-    ? parsePageComponents(hit.parent.components)
-    : undefined;
+  const parentComps = parseSpecComponents(hit.parent?.components);
   return pagePayloadFromSub(hit.sub, parentComps);
 }
 
