@@ -654,6 +654,11 @@ export async function listInstancePages(): Promise<InstancePage[]> {
   return res.data;
 }
 
+export async function getInstancePage(id: number): Promise<InstancePage> {
+  const res = await client.get<InstancePage>(`/api/instance-pages/${id}`);
+  return res.data;
+}
+
 export async function createInstancePage(payload: CreateInstancePagePayload): Promise<{ id: number }> {
   const res = await client.post<{ id: number }>('/api/instance-pages/', payload);
   return res.data;

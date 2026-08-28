@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { listInstancePages, deleteInstancePage } from '@/shared/api/admin';
+import { getInstancePage, deleteInstancePage } from '@/shared/api/admin';
 import type { InstancePage } from '@/shared/types/instancePage';
 import GlassCard from '@/shared/components/ui/Card';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
@@ -52,13 +52,16 @@ const InstancePageDetail: React.FC = () => {
       setLoading(true);
       setError('');
       try {
-        const pages = await listInstancePages();
-        const p = pages.find((x) => x.id === numericId) || null;
+        const p = await getInstancePage(numericId);
         if (cancelled) return;
-        if (!p) { setError('Page not found'); setPage(null); }
-        else setPage(p);
+        setPage(p);
       } catch (e: any) {
-        if (!cancelled) setError(getErrorMessage(e, 'Failed to load page'));
+        if (!cancelled) {
+          const msg = getErrorMessage(e, 'Failed to load page');
+          // Backend returns 404 with "instance page not found" — surface as not found.
+          setError(msg.includes('not found') ? 'Page not found' : msg);
+          setPage(null);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
