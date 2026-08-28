@@ -179,6 +179,8 @@ func (r *RoleRepository) UpdateRole(id int64, name, displayName, color, descript
 
 // DeleteRole removes a role. It refuses to delete any of the built-in admin /
 // moderator / user roles so the platform never loses its baseline roles.
+// It also refuses to delete a role that still has users assigned so the FK
+// ON DELETE RESTRICT does not surface as a raw constraint error.
 func (r *RoleRepository) DeleteRole(id int64) error {
 	var name sql.NullString
 	if err := r.db.QueryRow(`SELECT name FROM roles WHERE id = ?`, id).Scan(&name); err != nil || !name.Valid {
@@ -188,6 +190,10 @@ func (r *RoleRepository) DeleteRole(id int64) error {
 	case "admin", "moderator", "user":
 		return fmt.Errorf("cannot delete built-in role %q", name.String)
 	}
+	var assigned int
+	if err := r.db.QueryRow(`SELECT COUNT(*) FROM users WHERE role_id = ?`, id).Scan(&assigned); err == nil && assigned > 0 {
+		return fmt.Errorf("cannot delete role %q: %d user(s) still assigned", name.String, assigned)
+	}
 	_, err := r.db.Exec(`DELETE FROM roles WHERE id = ?`, id)
 	return err
 }
@@ -195,8 +201,9 @@ func (r *RoleRepository) DeleteRole(id int64) error {
 // SetRoleAllowedAuthTypes persists the admin-curated picking of authority
 // providers a role's users may turn on for their own login. It is a thin
 // wrapper over RoleAuthorityRepository so callers don't need to import
-// two repos. An empty slice clears the restriction (back to
-// "unrestricted"). Called by the admin Roles handler on create / update.
+// two repos. nil == unrestricted (no row, every admin-enabled provider
+// offered); an explicit empty slice == disallow-all (persisted as "[]").
+// Called by the admin Roles handler on create / update.
 func (r *RoleRepository) SetRoleAllowedAuthTypes(roleID int64, allowed []string) error {
 	return NewRoleAuthorityRepository(r.db).SetRoleAllowedAuth(roleID, allowed)
 }

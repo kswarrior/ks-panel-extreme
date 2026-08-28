@@ -342,9 +342,14 @@ func UpdateRoleHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if existing.Name == "admin" {
-			// Optional safety net: keep admin fully privileged.
-			if !containsKey(req.Permissions, permissions.AccessAdminPanelKey) && len(req.Permissions) == 0 {
+			// Safety net: admin must retain ACCESS_ADMIN_PANEL — without it
+			// the last admin can lock everyone out of the panel shell.
+			// If the payload is empty, restore the full permission set;
+			// otherwise ensure the essential key is present.
+			if len(req.Permissions) == 0 {
 				req.Permissions = allPermissionKeys(con)
+			} else if !containsKey(req.Permissions, permissions.AccessAdminPanelKey) {
+				req.Permissions = append(req.Permissions, permissions.AccessAdminPanelKey)
 			}
 		}
 	}
@@ -354,9 +359,11 @@ func UpdateRoleHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not update role", http.StatusInternalServerError)
 		return
 	}
-	// Persist the admin-curated authority restriction list. nil / empty
-	// clears the restriction (back to "unrestricted"), matching the
-	// wire DTO's intent.
+	// Persist the admin-curated authority restriction list. nil
+	// (JSON null / omitted) === unrestricted (no row); an explicit
+	// empty slice (JSON []) === disallow-all (persisted as "[]");
+	// non-empty is the curated subset. sanitizeAllowedAuthTypes
+	// preserves the nil-vs-[] distinction.
 	if err := roleRepo.SetRoleAllowedAuthTypes(id, sanitizeAllowedAuthTypes(con, req.AllowedAuthTypes)); err != nil {
 		log.Println("SetRoleAllowedAuthTypes error:", err)
 	}
@@ -458,14 +465,16 @@ func allPermissionKeys(con *sql.DB) []string {
 // sanitizeAllowedAuthTypes intersects the wire-supplied authority id list
 // with the admin-enabled provider inventory (AuthorityConfig) so a role
 // can never reference an authority the admin later revoked without the
-// restriction going stale. Returns nil when the input is empty (the
-// caller treats nil as "unrestricted"); non-nil / non-empty out stays.
+// restriction going stale. Returns nil when the input is nil (the
+// caller treats nil as "unrestricted"); a non-nil empty slice is
+// preserved as []string{} (explicit "disallow all" — persisted as "[]"
+// rather than deleted) so the nil vs [] distinction round-trips.
 // Errors are swallowed: an inventory read failure keeps the role write
 // going with the user-supplied list rather than blocking the whole edit
 // — the picker UI catches stale ids, the persisted blob is the source
 // of truth at login time.
 func sanitizeAllowedAuthTypes(con *sql.DB, allowed []string) []string {
-	if len(allowed) == 0 {
+	if allowed == nil {
 		return nil
 	}
 	var adminEnabled map[string]struct{}
@@ -492,7 +501,7 @@ func sanitizeAllowedAuthTypes(con *sql.DB, allowed []string) []string {
 		out = append(out, id)
 	}
 	if len(out) == 0 {
-		return nil
+		return []string{}
 	}
 	return out
 }
