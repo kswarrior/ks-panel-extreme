@@ -77,7 +77,7 @@ func NewRouter() http.Handler {
 			return isAllowedOrigin(origin)
 		},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "X-API-Key"},
 		AllowCredentials: true,
 		MaxAge:           86400,
 	})
