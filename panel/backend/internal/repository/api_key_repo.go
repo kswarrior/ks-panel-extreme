@@ -109,6 +109,22 @@ func normalizeWindow(w int64) int64 {
 	return w
 }
 
+// parseCreatedAt coerces a SQLite DATETIME string into time.Time, tolerating
+// both the canonical "2006-01-02 15:04:05" layout and RFC3339Nano (some
+// writers use ISO). Falls back to zero time on parse failure.
+func parseCreatedAt(s string) time.Time {
+	if t, err := time.Parse("2006-01-02 15:04:05", s); err == nil {
+		return t
+	}
+	if t, err := time.Parse(time.RFC3339Nano, s); err == nil {
+		return t
+	}
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return t
+	}
+	return time.Time{}
+}
+
 // ListApiKeys returns all API keys for the given user, with their password-
 // -less digests already prepared. We never expose the hash to the client – it
 // only ever sees the prefix and the plaintext once at create time.
@@ -128,7 +144,7 @@ func (r *ApiKeyRepository) ListApiKeys(userID int64) ([]models.ApiKey, error) {
 	if n == 0 {
 		return keys, nil
 	}
-	rows, err := r.db.Query(`SELECT id, user_id, name, prefix, created_at, last_used_at, permissions, expires_at, rate_limit, rate_window_seconds, active
+	rows, err := r.db.Query(`SELECT id, user_id, name, prefix, created_at, last_used_at, permissions, expires_at, rate_limit, rate_window_seconds, active, description, display_name, accent_color
 		FROM api_keys WHERE user_id = ? ORDER BY created_at DESC`, userID)
 	if err != nil {
 		return nil, err
@@ -141,10 +157,11 @@ func (r *ApiKeyRepository) ListApiKeys(userID int64) ([]models.ApiKey, error) {
 		var perms string
 		var rate sql.NullInt64
 		var active sql.NullInt64
-		if err := rows.Scan(&k.ID, &k.UserID, &k.Name, &k.Prefix, &created, &lastUsed, &perms, &expiry, &rate, &k.RateWindowSeconds, &active); err != nil {
+		var desc, displayName, accentColor sql.NullString
+		if err := rows.Scan(&k.ID, &k.UserID, &k.Name, &k.Prefix, &created, &lastUsed, &perms, &expiry, &rate, &k.RateWindowSeconds, &active, &desc, &displayName, &accentColor); err != nil {
 			return nil, err
 		}
-		k.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created)
+		k.CreatedAt = parseCreatedAt(created)
 		if lastUsed.Valid {
 			if t, err := time.Parse("2006-01-02 15:04:05", lastUsed.String); err == nil {
 				k.LastUsedAt = &t
@@ -156,6 +173,15 @@ func (r *ApiKeyRepository) ListApiKeys(userID int64) ([]models.ApiKey, error) {
 		k.ExpiresAt = scanExpiry(expiry)
 		k.RateLimit = scanRateLimit(rate)
 		k.Active = active.Valid && active.Int64 == 1
+		if desc.Valid {
+			k.Description = desc.String
+		}
+		if displayName.Valid {
+			k.DisplayName = displayName.String
+		}
+		if accentColor.Valid {
+			k.AccentColor = accentColor.String
+		}
 		keys = append(keys, k)
 	}
 	return keys, rows.Err()
@@ -169,6 +195,9 @@ type CreateApiKeyInput struct {
 	ExpiresAt         *time.Time // nil → no expiry
 	RateLimit         *int64     // nil → no limit
 	RateWindowSeconds int64      // 0 → default 60s
+	Description       string
+	DisplayName       string
+	AccentColor       string
 }
 
 // UpdateApiKeyInput carries the mutable fields for an admin update. The
@@ -188,6 +217,9 @@ type UpdateApiKeyInput struct {
 	RateWindowSet     bool // when true, RateWindowSeconds is written
 	Active            *bool
 	ActiveSet         bool // when true, Active (even if nil) is written
+	Description       string
+	DisplayName       string
+	AccentColor       string
 }
 
 // CreateApiKey returns the new model (with hash already filled) and the raw
