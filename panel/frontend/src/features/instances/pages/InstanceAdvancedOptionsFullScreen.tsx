@@ -399,7 +399,9 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
               content_html: np.content_html || '',
               content_markdown: np.content_markdown || '',
               content_blocks: np.content_blocks || '',
-              components: np.components || [],
+              ...(np.actions && np.actions.length > 0 ? { actions: np.actions } : {}),
+              ...(np.sub_pages && np.sub_pages.length > 0 ? { sub_pages: np.sub_pages } : {}),
+              ...(np.components && np.components.length > 0 ? { components: np.components } : {}),
             },
           ],
         };
