@@ -5,6 +5,7 @@ on:
 
 permissions:
   contents: write
+  workflows: write
 
 jobs:
   reset:
@@ -16,9 +17,12 @@ jobs:
         with:
           fetch-depth: 0
           ref: main
+          persist-credentials: true
 
       - name: Replace main with d2121be
         run: |
+          set -e
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
