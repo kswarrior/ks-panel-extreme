@@ -33,6 +33,10 @@ import {
   subRowsFromJSON,
   subsToJSON,
   validateSubRows,
+  blankComponent,
+  compRowsFromJSON,
+  compsToJSON,
+  validateCompRows,
 } from '@/features/instance-pages/utils/pageStudioUtils';
 import {
   PageStudioTabs,
@@ -162,6 +166,7 @@ const InstancePageStudio: React.FC = () => {
           setPage({ ...found });
           setActions(defsToActions(found.actions));
           setSubs(subRowsFromJSON(found.sub_pages));
+          setComponents(compRowsFromJSON(found.components));
         } else {
           setError('Instance page not found');
         }
