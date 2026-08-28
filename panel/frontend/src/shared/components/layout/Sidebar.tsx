@@ -136,7 +136,7 @@ const Icons: Record<string, React.ReactNode> = {
      </svg>
   ),
   Chevron: (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 pointer-events-none" aria-hidden="true">
       <polyline points="6 9 12 15 18 9" />
      </svg>
   ),
@@ -197,7 +197,7 @@ const Icons: Record<string, React.ReactNode> = {
   ),
   // KS Warrior logo for footer
   KSWarrior: (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" aria-hidden="true">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 pointer-events-none" aria-hidden="true">
       <path d="M12 2 4 6v6c0 5 3.4 8.6 8 10 4.6-1.4 8-5 8-10V6l-8-4Z" />
       <path d="M12 14v4M10 16h4M8 18h8" />
     </svg>
@@ -320,13 +320,15 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
           onClick={() => setCollapsed((v) => !v)}
           aria-expanded={!isCollapsed}
           aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          className="shrink-0 z-10 border-t border-gray-800 w-full flex items-center gap-2.5 px-3 py-3 text-left hover:bg-white/5 transition-colors"
+          className={`shrink-0 z-10 border-t border-gray-800 w-full flex items-center gap-2.5 px-3 py-3 text-left hover:bg-white/5 transition-colors ${isCollapsed ? 'justify-center' : ''}`}
         >
-          {Icons.KSWarrior}
+          <span className="shrink-0 flex items-center justify-center text-gray-100 pointer-events-none">
+            {Icons.KSWarrior}
+          </span>
           {!isCollapsed && (
             <>
-              <span className="text-xs font-medium text-gray-400 truncate flex-1 min-w-0">{footerText}</span>
-              <span className="shrink-0 text-gray-500 transition-transform">{Icons.Chevron}</span>
+              <span className="text-xs font-medium text-gray-400 truncate flex-1 min-w-0 pointer-events-none">{footerText}</span>
+              <span className="shrink-0 text-gray-500 transition-transform pointer-events-none">{Icons.Chevron}</span>
             </>
           )}
         </button>
