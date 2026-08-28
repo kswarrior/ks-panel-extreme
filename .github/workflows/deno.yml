@@ -57,7 +57,7 @@ jobs:
       - name: Install OpenCode & start panel (test)
         run: |
           set -e
-          npm install --global opencode-ai  > opencode-install.log 2>&1 &
+          npm install --global opencode-ai
           bash retest.sh > retest.log 2>&1 &
           echo "OpenCode:"
           opencode --version
