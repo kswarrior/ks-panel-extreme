@@ -144,6 +144,7 @@ export function serializeSpec(f: TemplateFormState): string {
           ...(s.content_blocks ? { content_blocks: s.content_blocks } : {}),
         }));
       }
+      if (p.components && p.components.length > 0) out.components = p.components;
       return out;
     }),
     advanced: {
@@ -432,6 +433,43 @@ export function parseSpec(raw: string): Partial<TemplateFormState> {
                     content_markdown: typeof s.content_markdown === 'string' ? s.content_markdown : '',
                     content_blocks: typeof s.content_blocks === 'string' ? s.content_blocks : '',
                   })),
+              }
+            : typeof p.sub_pages === 'string' && p.sub_pages.trim()
+            ? {
+                sub_pages: (() => {
+                  try {
+                    const arr = JSON.parse(p.sub_pages);
+                    if (Array.isArray(arr)) {
+                      return arr.filter((s: any) => !!s && typeof s === 'object' && typeof s.path === 'string' && String(s.path).trim() !== '')
+                        .map((s: any) => ({
+                          path: String(s.path),
+                          name: String(s.name ?? s.path),
+                          content_type: (['html', 'markdown', 'blocks'].includes(s.content_type) ? s.content_type : 'html') as 'html' | 'markdown' | 'blocks',
+                          content_html: typeof s.content_html === 'string' ? s.content_html : '',
+                          content_markdown: typeof s.content_markdown === 'string' ? s.content_markdown : '',
+                          content_blocks: typeof s.content_blocks === 'string' ? s.content_blocks : '',
+                        }));
+                    }
+                  } catch {}
+                  return [];
+                })(),
+              }
+            : {}),
+          ...(parsePageComponents(
+            Array.isArray(p.components)
+              ? JSON.stringify(p.components)
+              : typeof p.components === 'string'
+                ? p.components
+                : null,
+          ).length > 0
+            ? {
+                components: parsePageComponents(
+                  Array.isArray(p.components)
+                    ? JSON.stringify(p.components)
+                    : typeof p.components === 'string'
+                      ? p.components
+                      : null,
+                ),
               }
             : {}),
         });
