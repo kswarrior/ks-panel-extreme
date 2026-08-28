@@ -1,7 +1,7 @@
 // TemplateForm utilities - extracted from TemplateForm.tsx
 
 import type { TemplateFormState, PortMapping, Mount, ResourceLimits, FeatureCaps, EnvVariable, InstallStep, TemplateAction, ActionStep, Label, Device, Healthcheck, Advanced, KvRuntime, MpRuntime, LxdRuntime, PageOverride, RestartPolicy, NetworkMode, LogLevel, InstallAction } from '../types/templateForm';
-import { parsePageActions } from '@/features/instance-pages/types/instancePage';
+import { parsePageActions, parsePageComponents } from '@/features/instance-pages/types/instancePage';
 // emptyForm is a runtime value (not a type) — it seeds every partial
 // `advanced` produced below so serializeSpec can keep assuming the full
 // Advanced shape (it reads e.g. f.advanced.dns.split(',') unguarded).
@@ -144,6 +144,8 @@ export function serializeSpec(f: TemplateFormState): string {
           ...(s.content_blocks ? { content_blocks: s.content_blocks } : {}),
         }));
       }
+      // Reusable UI components for {{component:name}} substitution.
+      if (p.components && p.components.length > 0) out.components = p.components;
       return out;
     }),
     advanced: {
@@ -432,6 +434,24 @@ export function parseSpec(raw: string): Partial<TemplateFormState> {
                     content_markdown: typeof s.content_markdown === 'string' ? s.content_markdown : '',
                     content_blocks: typeof s.content_blocks === 'string' ? s.content_blocks : '',
                   })),
+              }
+            : {}),
+          // Reusable UI components for {{component:name}} substitution.
+          ...(parsePageComponents(
+            Array.isArray(p.components)
+              ? JSON.stringify(p.components)
+              : typeof p.components === 'string'
+                ? p.components
+                : null,
+          ).length > 0
+            ? {
+                components: parsePageComponents(
+                  Array.isArray(p.components)
+                    ? JSON.stringify(p.components)
+                    : typeof p.components === 'string'
+                      ? p.components
+                      : null,
+                ),
               }
             : {}),
         });

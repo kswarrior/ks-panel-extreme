@@ -5,7 +5,7 @@ import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import { CustomPageStudio } from '@/features/templates/components/TemplateFormComponents';
 import type { PageOverride } from '@/features/templates/types/templateForm';
 import { listInstancePages, type InstancePage } from '@/shared/api/admin';
-import { parseSubPages, parsePageActions } from '@/features/instance-pages/types/instancePage';
+import { parseSubPages, parsePageActions, parsePageComponents } from '@/features/instance-pages/types/instancePage';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 
 export interface PageOverrideInput extends PageOverride {}

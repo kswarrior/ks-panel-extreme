@@ -2434,6 +2434,7 @@ func ImportLocalInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		IconSVG:         pageReq.IconSVG,
 		Actions:         pageReq.Actions,
 		SubPages:        pageReq.subPagesJSON(),
+		Components:      pageReq.Components,
 	}
 	dto, verr := validateInstancePage(dto)
 	if verr != nil {
@@ -2465,6 +2466,7 @@ func ImportLocalInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		IconSVG:         dto.IconSVG,
 		Actions:         dto.Actions,
 		SubPages:        dto.SubPages,
+		Components:      dto.Components,
 	})
 	if err != nil {
 		log.Println("ImportLocalInstancePage error:", err)

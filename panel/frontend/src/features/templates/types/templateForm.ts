@@ -1,6 +1,6 @@
 // TemplateForm types - extracted from TemplateForm.tsx
 
-import type { InstancePageSubPage } from '@/features/instance-pages/types/instancePage';
+import type { InstancePageSubPage, PageComponentDef } from '@/features/instance-pages/types/instancePage';
 
 export type DriverKind = 'docker' | 'lxd' | 'kvm' | 'multipass';
 
@@ -153,6 +153,9 @@ export interface PageOverride {
    *  of each is "<slug>/<path>" (e.g. files/edit); they never render as
    *  separate top-level tabs. */
   sub_pages?: InstancePageSubPage[];
+  /** Reusable UI components for {{component:name}} substitution. Copied from
+   *  the library row so the runtime can resolve tokens when rendering. */
+  components?: PageComponentDef[];
 }
 
 export type LogDriver = 'json-file' | 'syslog' | 'journald' | 'none';
