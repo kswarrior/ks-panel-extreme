@@ -57,7 +57,7 @@ const COMMON_JS = `
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function el(id){return document.getElementById(id);}
 function toast(m,t){try{KSPageSDK.toast(m,t||'info');}catch(e){}}
-async function act(name,args){var r=await KSPageSDK.runAction(name,{args:(args||[])});if(r&&r.error&&!r.stdout&&!r.stderr&&!r.data)throw new Error(r.error);return r;}
+async function act(name,args){var r=await KSPageSDK.runAction(name,{args:(args||[])});if(r&&r.ok===false)throw new Error(r.error||r.stderr||('Action failed: '+name));if(r&&r.error&&!r.stdout&&!r.stderr&&!r.data)throw new Error(r.error);return r;}
 // ask() routes destructive-operation confirmations through the panel's themed
 // ConfirmDialog (sdk.confirm bridges to the host origin) instead of the
 // browser-native confirm(). Falls back so pages stay functional everywhere.
@@ -74,6 +74,7 @@ function page(title: string, body: string, js: string): string {
   <h2 style="margin:0;font-size:1.3rem;color:var(--ks-heading)">${title}</h2>
 </div>
 ${body}
+</div>
 <script>
 ${COMMON_JS}
 (async function(){
