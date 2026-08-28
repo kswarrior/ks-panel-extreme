@@ -320,6 +320,7 @@ const InstancePageStudio: React.FC = () => {
         html: src.content_html,
         markdown: src.content_markdown,
         blocks: src.content_blocks,
+        components: compDefs.length ? compDefs : undefined,
       };
     }
     return {
