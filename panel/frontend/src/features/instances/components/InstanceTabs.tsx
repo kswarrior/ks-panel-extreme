@@ -289,22 +289,32 @@ return (
               item.to === '.' || item.to === ''
                 ? `/instances/${instanceId}`
                 : `/instances/${instanceId}/${item.to}`;
+            const sanitized = item.iconKind === 'svg' && item.iconSvg ? sanitizeSvgIcon(item.iconSvg) : '';
+            const isFullSvg = sanitized.trim().toLowerCase().startsWith('<svg');
             const iconEl =
-              item.iconKind === 'svg' && item.iconSvg
-                ? (
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="w-4 h-4 flex-shrink-0"
-                      aria-hidden="true"
-                      dangerouslySetInnerHTML={{ __html: sanitizeSvgIcon(item.iconSvg) }}
-                    />
-                  )
+              item.iconKind === 'svg' && sanitized
+                ? isFullSvg
+                  ? (
+                      <span
+                        className="w-4 h-4 flex-shrink-0 block [&>svg]:w-4 [&>svg]:h-4 [&>svg]:block"
+                        aria-hidden="true"
+                        dangerouslySetInnerHTML={{ __html: sanitized }}
+                      />
+                    )
+                  : (
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="w-4 h-4 flex-shrink-0"
+                        aria-hidden="true"
+                        dangerouslySetInnerHTML={{ __html: sanitized }}
+                      />
+                    )
                 : null;
             return (
               <NavLink
