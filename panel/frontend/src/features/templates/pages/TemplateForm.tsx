@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom';
 import { listTemplates, createTemplate, updateTemplate, listInstancePages, type InstancePage } from '@/shared/api/admin';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
-import { parseSubPages, parsePageActions } from '@/features/instance-pages/types/instancePage';
+import { parseSubPages, parsePageActions, parsePageComponents } from '@/features/instance-pages/types/instancePage';
 import type { Template } from '@/shared/types/instance';
 import FormPage from '@/shared/components/forms/FormPage';
 import GlassField, { glassFieldClass } from '@/shared/components/ui/Field';
@@ -143,6 +143,9 @@ const TemplatePagesImportModal: React.FC<TemplatePagesImportModalProps> = ({
                 content_blocks: sub.content_blocks || '',
               })),
             }
+          : {}),
+        ...(parsePageComponents(p.components).length > 0
+          ? { components: parsePageComponents(p.components) }
           : {}),
       });
       skip.add(p.slug);
