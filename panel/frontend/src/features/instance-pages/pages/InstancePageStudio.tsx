@@ -409,6 +409,8 @@ const InstancePageStudio: React.FC = () => {
     };
     const subDefs = parseSubPages(subsToJSON(subs));
     if (subDefs.length > 0) data.pages = subDefs;
+    const compDefs = parsePageComponents(compsToJSON(components));
+    if (compDefs.length > 0) data.components = compDefs;
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
