@@ -297,6 +297,8 @@ function renderBlocks(json: string, components?: PageComponentDef[]): React.Reac
               const arr = JSON.parse(b.value);
               if (Array.isArray(arr)) items = arr.map((x) => String(x ?? ''));
             } catch { items = b.value.split('\n').filter(Boolean); }
+            // Resolve component tokens in each list item.
+            items = items.map(it => resolveInString(it));
             return (
               <ul key={i} className={`list-disc pl-5 space-y-1 text-sm text-gray-300 ${al}`}>
                 {items.length === 0 ? <li className="text-gray-500">[empty list]</li> : items.map((it, j) => <li key={j}>{it}</li>)}
@@ -318,7 +320,7 @@ function renderBlocks(json: string, components?: PageComponentDef[]): React.Reac
                   disabled={!b.action && !b.value}
                   className="px-4 py-2 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white rounded text-sm font-medium transition"
                 >
-                  {b.label || b.value || b.action || 'Run'}
+                  {resolveInString(b.label || b.value || b.action || 'Run')}
                 </button>
                 {b.action && b.label && <span className="ml-2 text-[11px] text-gray-500 font-mono">{b.action}</span>}
               </div>
