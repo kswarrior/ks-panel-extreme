@@ -1,4 +1,6 @@
 // Instance page resolution — pure custom-page semantics.
+
+import { parsePageComponents, type PageComponentDef } from '@/features/instance-pages/types/instancePage';
 //
 // The legacy built-in React pages (Home / Files / Network / Terminal / …)
 // were removed from the frontend bundle: every instance sub-page is now a
