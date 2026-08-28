@@ -167,6 +167,39 @@ const (
 	maxInstancePageSubPages      = 20
 )
 
+// Component limits: generous content budget per page, hard cap on component
+// count so the definition stays manageable and render-time substitution is
+// bounded.
+const (
+	maxInstancePageComponentsBytes = 512 * 1024
+	maxInstancePageComponents      = 50
+	maxInstancePageComponentNameLen = 64
+)
+
+var validComponentTypes = map[string]bool{
+	"html":     true,
+	"markdown": true,
+	"block":    true,
+}
+
+// validComponentName reports whether s is a safe component name for
+// {{component:name}} substitution: starts with alphanumeric/underscore,
+// contains only alphanumeric/underscore/dash, max 64 chars.
+func validComponentName(s string) bool {
+	if s == "" || len(s) > maxInstancePageComponentNameLen {
+		return false
+	}
+	if !componentStartRe.MatchString(s[:1]) || !componentBodyRe.MatchString(s) {
+		return false
+	}
+	return true
+}
+
+var (
+	componentStartRe = regexp.MustCompile(`^[A-Za-z0-9_]$`)
+	componentBodyRe  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
+)
+
 // instancePageSubPage mirrors one entry of the persisted sub_pages JSON.
 type instancePageSubPage struct {
 	Path            string `json:"path"`
