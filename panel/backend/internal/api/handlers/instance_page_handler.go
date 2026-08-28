@@ -1598,9 +1598,9 @@ func ImportInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		ContentMarkdown: req.ContentMarkdown,
 		ContentBlocks:   req.ContentBlocks,
 		IconSVG:         req.IconSVG,
-		Actions:         req.Actions,
+		Actions:         req.actionsJSON(),
 		SubPages:        req.subPagesJSON(),
-		Components:      req.Components,
+		Components:      req.componentsJSON(),
 	}
 	dto, err = validateInstancePage(dto)
 	if err != nil {
@@ -1632,6 +1632,7 @@ func ImportInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		IconSVG:         dto.IconSVG,
 		Actions:         dto.Actions,
 		SubPages:        dto.SubPages,
+		Components:      dto.Components,
 	})
 	if err != nil {
 		log.Println("ImportInstancePage error:", err)
@@ -2167,22 +2168,19 @@ func ImportInstancePageFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fetch the JSON from the URL
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get(req.URL)
-	if err != nil {
-		http.Error(w, "failed to fetch URL: "+err.Error(), http.StatusBadGateway)
+	// Fetch the JSON from the URL via SSRF-hardened fetcher
+	bodyBytes, ferr := fetchInstancePageURLBytes(r.Context(), req.URL)
+	if ferr != nil {
+		var ue *allowedURLError
+		if errors.As(ferr, &ue) {
+			http.Error(w, ue.reason, ue.status)
+			return
+		}
+		http.Error(w, "failed to fetch URL: "+ferr.Error(), http.StatusBadGateway)
 		return
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		http.Error(w, fmt.Sprintf("URL returned status %d", resp.StatusCode), http.StatusBadGateway)
-		return
-	}
-
 	var pageReq ImportInstancePageRequest
-	if err := json.NewDecoder(resp.Body).Decode(&pageReq); err != nil {
+	if err := json.Unmarshal(bodyBytes, &pageReq); err != nil {
 		http.Error(w, "invalid JSON from URL: "+err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -2200,9 +2198,9 @@ func ImportInstancePageFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		ContentMarkdown: pageReq.ContentMarkdown,
 		ContentBlocks:   pageReq.ContentBlocks,
 		IconSVG:         pageReq.IconSVG,
-		Actions:         pageReq.Actions,
+		Actions:         pageReq.actionsJSON(),
 		SubPages:        pageReq.subPagesJSON(),
-		Components:      pageReq.Components,
+		Components:      pageReq.componentsJSON(),
 	}
 	dto, err = validateInstancePage(dto)
 	if err != nil {
@@ -2234,6 +2232,7 @@ func ImportInstancePageFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		IconSVG:         dto.IconSVG,
 		Actions:         dto.Actions,
 		SubPages:        dto.SubPages,
+		Components:      dto.Components,
 	})
 	if err != nil {
 		log.Println("ImportInstancePageFromURL error:", err)
