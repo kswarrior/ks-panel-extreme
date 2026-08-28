@@ -678,6 +678,15 @@ func LinkInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 			pageEntry["sub_pages"] = subsAny
 		}
 
+		// Components: copy the page's components into the spec entry so the
+		// runtime can substitute {{component:name}} references when rendering.
+		if page.Components != "" {
+			var compsAny []any
+			if jerr := json.Unmarshal([]byte(page.Components), &compsAny); jerr == nil && compsAny != nil {
+				pageEntry["components"] = compsAny
+			}
+		}
+
 		pagesAny, _ := spec["pages"].([]any)
 		out := make([]any, 0, len(pagesAny)+1)
 		replaced := false
@@ -2097,17 +2106,17 @@ func ImportInstancePageFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		Name:            pageReq.Name,
 		Slug:            pageReq.Slug,
 		Kind:            pageReq.Kind,
-		Category:        pageReq.Category,
-		Type:            pageReq.Type,
-		Description:     pageReq.Description,
-		ContentType:     pageReq.ContentType,
-		ContentHTML:     pageReq.ContentHTML,
-		ContentMarkdown: pageReq.ContentMarkdown,
-		ContentBlocks:   pageReq.ContentBlocks,
-		IconSVG:         pageReq.IconSVG,
-		Actions:         pageReq.Actions,
-		SubPages:        pageReq.subPagesJSON(),
-		Components:      pageReq.Components,
+		Category:        req.Category,
+		Type:            req.Type,
+		Description:     req.Description,
+		ContentType:     req.ContentType,
+		ContentHTML:     req.ContentHTML,
+		ContentMarkdown: req.ContentMarkdown,
+		ContentBlocks:   req.ContentBlocks,
+		IconSVG:         req.IconSVG,
+		Actions:         req.Actions,
+		SubPages:        req.subPagesJSON(),
+		Components:      req.Components,
 	}
 	dto, err = validateInstancePage(dto)
 	if err != nil {
