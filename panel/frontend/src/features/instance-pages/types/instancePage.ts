@@ -133,6 +133,7 @@ export interface CreateInstancePagePayload {
   icon_svg: string;
   actions: string;
   sub_pages?: string;
+  components?: string;
 }
 
 export interface UpdateInstancePagePayload {
@@ -149,4 +150,5 @@ export interface UpdateInstancePagePayload {
   icon_svg: string;
   actions: string;
   sub_pages?: string;
+  components?: string;
 }
