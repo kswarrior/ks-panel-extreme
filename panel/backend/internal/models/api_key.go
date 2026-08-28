@@ -27,6 +27,12 @@ type ApiKey struct {
 	// key is soft-revoked — requests with this key will be rejected with 401.
 	// This allows admins to disable a key without deleting it (audit trail).
 	Active bool `json:"active"`
+	// Description is a free-form note shown alongside the key in the admin list.
+	Description string `json:"description,omitempty"`
+	// DisplayName is the friendly label rendered in the UI instead of the machine name.
+	DisplayName string `json:"display_name,omitempty"`
+	// AccentColor is the optional CSS colour used to tint the key's badge in the admin list.
+	AccentColor string `json:"accent_color,omitempty"`
 }
 
 // User struct already exists elsewhere – this file only adds the ApiKey model.
