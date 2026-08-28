@@ -1,7 +1,7 @@
 // InstanceForm utilities - extracted from InstanceForm.tsx
 
 import type { EditorState, PortMapping, Mount, ResourceLimits, FeatureCaps, EnvVariable, InstallStep, TemplateAction, ActionStep, Label, Device, Healthcheck, Advanced, KvRuntime, MpRuntime, LxdRuntime, PageOverride } from '../types/instanceForm';
-import { parsePageActions } from '@/features/instance-pages/types/instancePage';
+import { parsePageActions, parsePageComponents } from '@/features/instance-pages/types/instancePage';
 import { parseConfig } from '@/shared/hooks/useInstance';
 import { emptyEditor, emptyKvm, emptyMp, emptyLxd, kindKey, KIND_META, InstallAction, NetworkMode, RestartPolicy, LogLevel } from '../types/instanceForm';
 
