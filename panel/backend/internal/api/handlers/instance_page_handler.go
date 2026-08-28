@@ -363,6 +363,9 @@ func validateInstancePage(req instancePageDTO) (instancePageDTO, error) {
 	if err := validateSubPages(req.SubPages); err != nil {
 		return req, err
 	}
+	if err := validateComponentsJSON(req.Components); err != nil {
+		return req, err
+	}
 	return req, nil
 }
 
