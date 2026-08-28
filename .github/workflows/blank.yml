@@ -5,6 +5,7 @@ on:
 
 permissions:
   contents: write
+  workflows: write
 
 jobs:
   reset:
@@ -21,7 +22,5 @@ jobs:
           TARGET_COMMIT: d2121bef9c326ebe57d482fa3be2844349341b61
         run: |
           git fetch origin "$TARGET_COMMIT"
-
           git cat-file -e "$TARGET_COMMIT^{commit}"
-
           git push --force origin "$TARGET_COMMIT:refs/heads/main"
