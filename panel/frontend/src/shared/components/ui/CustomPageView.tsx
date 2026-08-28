@@ -180,13 +180,16 @@ function blocksToHtml(json: string): string {
 // renderBlocks converts the JSON block list into React elements. Mirrors the
 // studio's block types one-for-one so what the author composes is what the
 // user sees.
-function renderBlocks(json: string): React.ReactNode {
+function renderBlocks(json: string, components?: PageComponentDef[]): React.ReactNode {
   let rows: BlockRow[] = [];
   try {
     const arr = JSON.parse(json);
     if (Array.isArray(arr)) rows = arr;
   } catch { /* ignore */ }
   if (rows.length === 0) return <p className="text-sm text-gray-500">This page has no content yet.</p>;
+
+  // Helper to resolve component tokens in a string.
+  const resolveInString = (s: string) => resolveComponentTokens(s, components ?? []);
 
   const alignClass = (a?: string) => a === 'center' ? 'text-center' : a === 'right' ? 'text-right' : '';
   const runSavedAction = async (name?: string, confirmText?: string) => {
