@@ -1931,14 +1931,19 @@ func UninstallInstancePageModuleHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	moduleDir := filepath.Join("instance_pages/modules", moduleID, version)
+	if _, err := os.Stat(moduleDir); os.IsNotExist(err) {
+		http.Error(w, "module not found", http.StatusNotFound)
+		return
+	}
 	if err := os.RemoveAll(moduleDir); err != nil {
-		if os.IsNotExist(err) {
-			http.Error(w, "module not found", http.StatusNotFound)
-			return
-		}
 		log.Printf("UninstallInstancePageModule: failed to remove module directory: %v", err)
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
+	}
+	// Clean parent id dir when last version removed
+	parent := filepath.Join("instance_pages/modules", moduleID)
+	if entries, _ := os.ReadDir(parent); len(entries) == 0 {
+		_ = os.Remove(parent)
 	}
 
 	RecordActivity(r, repository.ActivityInput{
