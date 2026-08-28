@@ -2107,6 +2107,7 @@ func ImportInstancePageFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		IconSVG:         pageReq.IconSVG,
 		Actions:         pageReq.Actions,
 		SubPages:        pageReq.subPagesJSON(),
+		Components:      pageReq.Components,
 	}
 	dto, err = validateInstancePage(dto)
 	if err != nil {
