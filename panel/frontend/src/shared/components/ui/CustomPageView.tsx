@@ -30,6 +30,7 @@ export interface PageContent {
   markdown?: string;
   blocks?: string;
   actions?: any[];
+  components?: PageComponentDef[];
 }
 
 const TONE_CLASS: Record<string, string> = {
