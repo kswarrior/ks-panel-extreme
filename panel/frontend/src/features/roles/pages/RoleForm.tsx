@@ -88,7 +88,7 @@ const RoleForm: React.FC = () => {
     setError('');
     try {
       const payload = {
-        name: form.name,
+        name: form.name.trim(),
         display_name: form.display_name.trim(),
         color: form.color,
         description: form.description,

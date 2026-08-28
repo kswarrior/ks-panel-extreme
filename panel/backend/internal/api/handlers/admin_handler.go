@@ -271,6 +271,7 @@ func CreateRoleHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid payload", http.StatusBadRequest)
 		return
 	}
+	req.Name = strings.TrimSpace(req.Name)
 	if req.Name == "" {
 		http.Error(w, "role name is required", http.StatusBadRequest)
 		return
@@ -315,6 +316,7 @@ func UpdateRoleHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid payload", http.StatusBadRequest)
 		return
 	}
+	req.Name = strings.TrimSpace(req.Name)
 	if req.Name == "" {
 		http.Error(w, "role name is required", http.StatusBadRequest)
 		return
