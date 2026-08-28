@@ -1443,6 +1443,8 @@ type ImportInstancePageRequest struct {
 	ContentBlocks   string `json:"content_blocks"`
 	IconSVG         string `json:"icon_svg"`
 	Actions         string `json:"actions"`
+	// Components is a JSON array of reusable UI blocks.
+	Components string `json:"components"`
 	// SubPages is the persisted JSON-array form (API shape). Library JSON
 	// files usually carry the typed `pages` array instead.
 	SubPages string `json:"sub_pages"`
