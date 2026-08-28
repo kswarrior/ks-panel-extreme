@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -198,7 +197,7 @@ func validComponentName(s string) bool {
 
 var (
 	componentStartRe = regexp.MustCompile(`^[A-Za-z0-9_]$`)
-	componentBodyRe  = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_-]*$`)
+	componentBodyRe  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
 )
 
 // instancePageSubPage mirrors one entry of the persisted sub_pages JSON.
@@ -370,30 +369,6 @@ func validateInstancePage(req instancePageDTO) (instancePageDTO, error) {
 	return req, nil
 }
 
-// isSlugConflict reports whether err is a unique-constraint violation on slug.
-// Covers sqlite ("UNIQUE constraint failed"), mysql ("Duplicate entry") and
-// postgres ("duplicate key value violates unique constraint") so the handler
-// can map to HTTP 409 on every dialect instead of leaking a 500.
-func isSlugConflict(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := strings.ToLower(err.Error())
-	if strings.Contains(msg, "unique") && strings.Contains(msg, "slug") {
-		return true
-	}
-	if strings.Contains(msg, "duplicate") && strings.Contains(msg, "slug") {
-		return true
-	}
-	// Postgres/mysql messages sometimes omit the column name but still
-	// contain the constraint keyword; treat any unique/duplicate wording
-	// on instance_pages as a slug conflict when slug is the only UNIQUE col.
-	if strings.Contains(msg, "instance_pages") && (strings.Contains(msg, "unique") || strings.Contains(msg, "duplicate")) {
-		return true
-	}
-	return false
-}
-
 // ListInstancePagesHandler returns every instance page for the admin UI.
 func ListInstancePagesHandler(w http.ResponseWriter, r *http.Request) {
 	con, err := repository.OpenDB()
@@ -410,29 +385,6 @@ func ListInstancePagesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, pages)
-}
-
-// GetInstancePageHandler returns a single instance page by id. This avoids the
-// previous client-side filtering via listInstancePages().find() which shipped
-// the whole library for every detail view.
-func GetInstancePageHandler(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil || id <= 0 {
-		http.Error(w, "invalid id", http.StatusBadRequest)
-		return
-	}
-	con, err := repository.OpenDB()
-	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
-		return
-	}
-	defer con.Close()
-	page, gerr := repository.NewInstancePageRepository(con).Get(id)
-	if gerr != nil || page == nil {
-		http.Error(w, "instance page not found", http.StatusNotFound)
-		return
-	}
-	writeJSON(w, page)
 }
 
 // CreateInstancePageHandler inserts a new instance page after validating.
@@ -474,9 +426,9 @@ func CreateInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		log.Println("CreateInstancePage error:", err)
-		// Check for unique constraint violation (slug already exists) — dialect-agnostic.
+		// Check for unique constraint violation (slug already exists)
 		errMsg := err.Error()
-		if isSlugConflict(err) {
+		if strings.Contains(errMsg, "UNIQUE constraint failed") && strings.Contains(errMsg, "slug") {
 			http.Error(w, "slug already exists", http.StatusConflict)
 		} else if strings.Contains(errMsg, "NOT NULL constraint failed") {
 			http.Error(w, "required field missing: "+errMsg, http.StatusBadRequest)
@@ -534,11 +486,7 @@ func UpdateInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		SubPages:        req.SubPages,
 		Components:      req.Components,
 	}); err != nil {
-		if isSlugConflict(err) {
-			http.Error(w, "slug already exists", http.StatusConflict)
-		} else {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-		}
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	RecordActivity(r, repository.ActivityInput{
@@ -868,16 +816,27 @@ func ExecutePageActionHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Verify the page is enabled for this instance (using instance's own config)
-	// The instance's Config field contains the deploy-time snapshot; use the
-	// same precedence as the SPA (exact slug, original_slug, nested sub-page)
-	// so sub-page actions are reachable when the parent is enabled.
+	// The instance's Config field contains the deploy-time snapshot (template.spec + overrides)
+	var spec map[string]any
+	if instance.Config != "" {
+		_ = json.Unmarshal([]byte(instance.Config), &spec)
+	}
+	enabledPages := getEnabledPages(spec)
 	pageRepo := repository.NewInstancePageRepository(con)
 	page, perr := pageRepo.Get(pageID)
 	if perr != nil || page == nil {
 		http.Error(w, "page not found", http.StatusNotFound)
 		return
 	}
-	if findSpecPageRow(parseSpecRows(instance.Config), page.Slug) == nil {
+
+	pageAllowed := false
+	for _, p := range enabledPages {
+		if p == page.Slug {
+			pageAllowed = true
+			break
+		}
+	}
+	if !pageAllowed {
 		http.Error(w, "page not enabled for this instance", http.StatusForbidden)
 		return
 	}
@@ -1587,14 +1546,14 @@ func ImportInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		IconSVG:         dto.IconSVG,
 		Actions:         dto.Actions,
 		SubPages:        dto.SubPages,
-		Components:      dto.Components,
 	})
 	if err != nil {
 		log.Println("ImportInstancePage error:", err)
-		if isSlugConflict(err) {
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "UNIQUE constraint failed") && strings.Contains(errMsg, "slug") {
 			http.Error(w, "slug already exists", http.StatusConflict)
 		} else {
-			http.Error(w, "could not create instance page: "+err.Error(), http.StatusInternalServerError)
+			http.Error(w, "could not create instance page: "+errMsg, http.StatusInternalServerError)
 		}
 		return
 	}
@@ -1789,11 +1748,8 @@ func UploadInstancePageModuleHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create module directory in storage — remove any previous version first so
-	// stale files from an earlier bundle (e.g. a removed frontend asset) do
-	// not survive the re-upload.
+	// Create module directory in storage
 	moduleDir := filepath.Join("instance_pages/modules", manifest.ID, manifest.Version)
-	_ = os.RemoveAll(moduleDir)
 	if err := os.MkdirAll(moduleDir, 0o755); err != nil {
 		log.Printf("UploadInstancePageModule: failed to create module directory: %v", err)
 		http.Error(w, "server error", http.StatusInternalServerError)
@@ -1897,25 +1853,10 @@ func UninstallInstancePageModuleHandler(w http.ResponseWriter, r *http.Request) 
 }
 
 // ServeInstancePageModuleAssetHandler serves static assets for a module.
-// Routes:
-//   /api/instance-page-modules/{id}/{version}/page.js   -> assetPath = "page.js" (derived from URL)
-//   /api/instance-page-modules/{id}/{version}/page.css  -> assetPath = "page.css"
-//   /api/instance-page-modules/{id}/{version}/assets/*  -> assetPath from wildcard param
 func ServeInstancePageModuleAssetHandler(w http.ResponseWriter, r *http.Request) {
 	moduleID := chi.URLParam(r, "id")
 	version := chi.URLParam(r, "version")
 	assetPath := chi.URLParam(r, "*")
-	// Fixed asset routes (page.js / page.css) have no wildcard segment; derive
-	// the filename from the request path so they serve the expected file.
-	if assetPath == "" {
-		trimmed := strings.TrimSuffix(r.URL.Path, "/")
-		if idx := strings.LastIndex(trimmed, "/"); idx >= 0 {
-			candidate := trimmed[idx+1:]
-			if candidate == "page.js" || candidate == "page.css" {
-				assetPath = candidate
-			}
-		}
-	}
 	if moduleID == "" || version == "" || assetPath == "" {
 		http.Error(w, "module id, version, and asset path are required", http.StatusBadRequest)
 		return
@@ -2140,20 +2081,22 @@ func ImportInstancePageFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fetch the JSON from the URL — SSRF-hardened: only public IPs, DNS-pinned,
-	// size/time capped, same policy as mod/application URL installs.
-	fetched, ferr := fetchManifestFromURL(r.Context(), req.URL)
-	if ferr != nil {
-		var ue *allowedURLError
-		if errors.As(ferr, &ue) {
-			http.Error(w, ue.reason, ue.status)
-			return
-		}
-		http.Error(w, "failed to fetch URL: "+ferr.Error(), http.StatusBadGateway)
+	// Fetch the JSON from the URL
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(req.URL)
+	if err != nil {
+		http.Error(w, "failed to fetch URL: "+err.Error(), http.StatusBadGateway)
 		return
 	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		http.Error(w, fmt.Sprintf("URL returned status %d", resp.StatusCode), http.StatusBadGateway)
+		return
+	}
+
 	var pageReq ImportInstancePageRequest
-	if err := json.Unmarshal(fetched, &pageReq); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&pageReq); err != nil {
 		http.Error(w, "invalid JSON from URL: "+err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -2175,9 +2118,9 @@ func ImportInstancePageFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		SubPages:        pageReq.subPagesJSON(),
 		Components:      pageReq.Components,
 	}
-	dto, verr := validateInstancePage(dto)
-	if verr != nil {
-		http.Error(w, verr.Error(), http.StatusBadRequest)
+	dto, err = validateInstancePage(dto)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	if dto.ContentType == "" {
@@ -2205,14 +2148,14 @@ func ImportInstancePageFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		IconSVG:         dto.IconSVG,
 		Actions:         dto.Actions,
 		SubPages:        dto.SubPages,
-		Components:      dto.Components,
 	})
 	if err != nil {
 		log.Println("ImportInstancePageFromURL error:", err)
-		if isSlugConflict(err) {
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "UNIQUE constraint failed") && strings.Contains(errMsg, "slug") {
 			http.Error(w, "slug already exists", http.StatusConflict)
 		} else {
-			http.Error(w, "could not create instance page: "+err.Error(), http.StatusInternalServerError)
+			http.Error(w, "could not create instance page: "+errMsg, http.StatusInternalServerError)
 		}
 		return
 	}
@@ -2327,17 +2270,24 @@ func ImportInstancePageFromMarketplaceHandler(w http.ResponseWriter, r *http.Req
 		}
 		pageBytes = b
 	} else {
-		fetched, ferr := fetchManifestFromURL(r.Context(), marketplacePage.DownloadURL)
-		if ferr != nil {
-			var ue *allowedURLError
-			if errors.As(ferr, &ue) {
-				http.Error(w, ue.reason, ue.status)
-				return
-			}
-			http.Error(w, "failed to fetch page from marketplace: "+ferr.Error(), http.StatusBadGateway)
+		client := &http.Client{Timeout: 10 * time.Second}
+		resp, err := client.Get(marketplacePage.DownloadURL)
+		if err != nil {
+			http.Error(w, "failed to fetch page from marketplace: "+err.Error(), http.StatusBadGateway)
 			return
 		}
-		pageBytes = fetched
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			http.Error(w, fmt.Sprintf("marketplace download URL returned status %d", resp.StatusCode), http.StatusBadGateway)
+			return
+		}
+		b, rerr := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
+		if rerr != nil {
+			http.Error(w, "failed to read marketplace page: "+rerr.Error(), http.StatusBadGateway)
+			return
+		}
+		pageBytes = b
 	}
 
 	var pageReq ImportInstancePageRequest
@@ -2361,7 +2311,6 @@ func ImportInstancePageFromMarketplaceHandler(w http.ResponseWriter, r *http.Req
 		IconSVG:         pageReq.IconSVG,
 		Actions:         pageReq.Actions,
 		SubPages:        pageReq.subPagesJSON(),
-		Components:      pageReq.Components,
 	}
 	dto, verr := validateInstancePage(dto)
 	if verr != nil {
@@ -2393,14 +2342,14 @@ func ImportInstancePageFromMarketplaceHandler(w http.ResponseWriter, r *http.Req
 		IconSVG:         dto.IconSVG,
 		Actions:         dto.Actions,
 		SubPages:        dto.SubPages,
-		Components:      dto.Components,
 	})
 	if err != nil {
 		log.Println("ImportInstancePageFromMarketplace error:", err)
-		if isSlugConflict(err) {
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "UNIQUE constraint failed") && strings.Contains(errMsg, "slug") {
 			http.Error(w, "slug already exists", http.StatusConflict)
 		} else {
-			http.Error(w, "could not create instance page: "+err.Error(), http.StatusInternalServerError)
+			http.Error(w, "could not create instance page: "+errMsg, http.StatusInternalServerError)
 		}
 		return
 	}
@@ -2481,7 +2430,6 @@ func ImportLocalInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		IconSVG:         pageReq.IconSVG,
 		Actions:         pageReq.Actions,
 		SubPages:        pageReq.subPagesJSON(),
-		Components:      pageReq.Components,
 	}
 	dto, verr := validateInstancePage(dto)
 	if verr != nil {
@@ -2513,14 +2461,14 @@ func ImportLocalInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		IconSVG:         dto.IconSVG,
 		Actions:         dto.Actions,
 		SubPages:        dto.SubPages,
-		Components:      dto.Components,
 	})
 	if err != nil {
 		log.Println("ImportLocalInstancePage error:", err)
-		if isSlugConflict(err) {
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "UNIQUE constraint failed") && strings.Contains(errMsg, "slug") {
 			http.Error(w, "slug already exists", http.StatusConflict)
 		} else {
-			http.Error(w, "could not create instance page: "+err.Error(), http.StatusInternalServerError)
+			http.Error(w, "could not create instance page: "+errMsg, http.StatusInternalServerError)
 		}
 		return
 	}

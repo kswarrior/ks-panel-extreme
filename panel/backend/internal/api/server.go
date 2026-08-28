@@ -470,7 +470,6 @@ func NewRouter() http.Handler {
 		// custom documentation, dashboards, or configuration UIs in the instance panel sidebar.
 		r.Route("/api/instance-pages", func(r chi.Router) {
 			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionView)).Get("/", handlers.ListInstancePagesHandler)
-			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionView)).Get("/{id}", handlers.GetInstancePageHandler)
 			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionCreate)).Post("/", handlers.CreateInstancePageHandler)
 			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionEdit)).Put("/{id}", handlers.UpdateInstancePageHandler)
 			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionDelete)).Delete("/{id}", handlers.DeleteInstancePageHandler)

@@ -209,10 +209,7 @@ const InstanceTabs: React.FC = () => {
               </div>
             </div>
             <div className="rich-menu-grid py-2 overflow-y-auto" style={{ maxHeight: 'calc(70vh - 56px)' }}>
-              {filteredNav.map((item) => {
-                const dSanitized = item.iconKind === 'svg' && item.iconSvg ? sanitizeSvgIcon(item.iconSvg) : '';
-                const dIsFull = dSanitized.trim().toLowerCase().startsWith('<svg');
-                return (
+              {filteredNav.map((item) => (
                 <button
                   key={`page-${item.to}`}
                   type="button"
@@ -223,27 +220,23 @@ const InstanceTabs: React.FC = () => {
                   }}
                   className="ks-dropdown-item text-left rounded-md transition-colors w-full"
                 >
-                  {dSanitized ? (
-                    dIsFull ? (
-                      <span className="w-4 h-4 flex-shrink-0 block text-gray-300 [&>svg]:w-4 [&>svg]:h-4 [&>svg]:block" aria-hidden="true" dangerouslySetInnerHTML={{ __html: dSanitized }} />
-                    ) : (
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="w-4 h-4 flex-shrink-0 text-gray-300"
-                        aria-hidden="true"
-                        dangerouslySetInnerHTML={{ __html: dSanitized }}
-                      />
-                    )
-                  ) : null}
+                  {item.iconKind === 'svg' && item.iconSvg && (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="w-4 h-4 flex-shrink-0 text-gray-300"
+                      aria-hidden="true"
+                      dangerouslySetInnerHTML={{ __html: sanitizeSvgIcon(item.iconSvg) }}
+                    />
+                  )}
                   <span className="flex-1 truncate text-white">{item.label}</span>
                 </button>
-              )})}
+              ))}
               {filteredNav.length === 0 && (
                 <div className="px-3 py-4 text-center text-gray-500 text-sm">
                   No pages found
@@ -296,32 +289,22 @@ return (
               item.to === '.' || item.to === ''
                 ? `/instances/${instanceId}`
                 : `/instances/${instanceId}/${item.to}`;
-            const sanitized = item.iconKind === 'svg' && item.iconSvg ? sanitizeSvgIcon(item.iconSvg) : '';
-            const isFullSvg = sanitized.trim().toLowerCase().startsWith('<svg');
             const iconEl =
-              item.iconKind === 'svg' && sanitized
-                ? isFullSvg
-                  ? (
-                      <span
-                        className="w-4 h-4 flex-shrink-0 block [&>svg]:w-4 [&>svg]:h-4 [&>svg]:block"
-                        aria-hidden="true"
-                        dangerouslySetInnerHTML={{ __html: sanitized }}
-                      />
-                    )
-                  : (
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="w-4 h-4 flex-shrink-0"
-                        aria-hidden="true"
-                        dangerouslySetInnerHTML={{ __html: sanitized }}
-                      />
-                    )
+              item.iconKind === 'svg' && item.iconSvg
+                ? (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="w-4 h-4 flex-shrink-0"
+                      aria-hidden="true"
+                      dangerouslySetInnerHTML={{ __html: sanitizeSvgIcon(item.iconSvg) }}
+                    />
+                  )
                 : null;
             return (
               <NavLink

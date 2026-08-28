@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  getInstancePage,
+  listInstancePages,
   createInstancePage,
   updateInstancePage,
   executePageAction,
@@ -158,13 +158,18 @@ const InstancePageStudio: React.FC = () => {
       setLoading(false);
       return () => { cancelled = true; };
     }
-    getInstancePage(pageId)
-      .then((found) => {
+    listInstancePages()
+      .then((pages) => {
         if (cancelled) return;
-        setPage({ ...found });
-        setActions(defsToActions(found.actions));
-        setSubs(subRowsFromJSON(found.sub_pages));
-        setComponents(compRowsFromJSON(found.components));
+        const found = pages.find((p) => p.id === pageId);
+        if (found) {
+          setPage({ ...found });
+          setActions(defsToActions(found.actions));
+          setSubs(subRowsFromJSON(found.sub_pages));
+          setComponents(compRowsFromJSON(found.components));
+        } else {
+          setError('Instance page not found');
+        }
       })
       .catch((e: any) => {
         if (!cancelled) setError(getErrorMessage(e, 'Failed to load page'));
@@ -353,8 +358,6 @@ const InstancePageStudio: React.FC = () => {
     if (isBuiltin) { setError('Built-in pages cannot be edited. Create a custom page instead.'); return; }
     if (!page.name?.trim() || !page.slug?.trim()) { setError('Name and slug are required before saving.'); return; }
     if (page.slug.trim() !== '.' && !/^[a-z0-9][a-z0-9-._]*$/i.test(page.slug.trim())) { setError('Slug may contain letters, numbers, dots, dashes and underscores only ("." is the reserved Home slug).'); return; }
-    if (page.slug?.trim().includes('..')) { setError('Slug must not contain ".." (path traversal).'); return; }
-    if (page.slug && page.slug.trim().length > 64) { setError('Slug too long (max 64 characters).'); return; }
     const subErr = validateSubRows(subs);
     if (subErr) { setError(subErr); return; }
     const compErr = validateCompRows(components);
