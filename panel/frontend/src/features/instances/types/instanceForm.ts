@@ -224,6 +224,9 @@ export interface PageOverride {
    *  THIS array — dropping it makes every action button on the page fail
    *  with 403 "action is not defined on this page". */
   actions?: import('@/features/instance-pages/types/instancePage').PageActionDef[];
+  /** Reusable UI components copied from the Instance Pages library row.
+   *  Referenced in content with {{component:name}}. */
+  components?: import('@/features/instance-pages/types/instancePage').PageComponentDef[];
   /** Multi-page support: extra pages nested INSIDE this row. Effective route
    *  of each is "<slug>/<path>" (e.g. files/edit); they never render as
    *  separate top-level tabs. */

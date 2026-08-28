@@ -168,6 +168,16 @@ export function specToEditor(spec: string): EditorState {
                 })),
             }
           : {}),
+        // Components: parse from spec row (inline array or JSON string).
+        ...(typeof p.components === 'string' && p.components.trim()
+          ? {
+              components: parsePageComponents(p.components),
+            }
+          : Array.isArray(p.components) && p.components.length > 0
+          ? {
+              components: p.components,
+            }
+          : {}),
       });
     });
 
