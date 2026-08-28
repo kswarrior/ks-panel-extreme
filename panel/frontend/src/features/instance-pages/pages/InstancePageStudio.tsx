@@ -14,7 +14,7 @@ import type {
   CreateInstancePagePayload,
   UpdateInstancePagePayload,
 } from '@/shared/types/instancePage';
-import { parseSubPages } from '@/shared/types/instancePage';
+import { parseSubPages, parsePageComponents } from '@/shared/types/instancePage';
 import { PAGE_STARTERS, type PageStarter } from '../templates/pageStarters';
 import { parseConfig } from '@/shared/hooks/useInstance';
 import { useConfirm } from '@/shared/stores/confirmStore';
