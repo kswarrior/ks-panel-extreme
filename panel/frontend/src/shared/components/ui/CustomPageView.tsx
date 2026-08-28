@@ -254,9 +254,9 @@ function renderBlocks(json: string, components?: PageComponentDef[]): React.Reac
             const tone = TONE_CLASS[b.tone ?? 'default'] ?? TONE_CLASS.default;
             return (
               <div key={i} className={`glass-card rounded-xl p-4 ${al}`}>
-                {b.label && <p className="text-xs uppercase tracking-wide text-gray-400 mb-1">{b.label}</p>}
+                {b.label && <p className="text-xs uppercase tracking-wide text-gray-400 mb-1">{resolveInString(b.label)}</p>}
                 <p className={`text-2xl font-semibold tabular-nums ${tone}`}>
-                  {b.value}<span className="text-sm text-gray-400 ml-1">{b.unit}</span>
+                  {resolveInString(b.value)}<span className="text-sm text-gray-400 ml-1">{b.unit}</span>
                 </p>
               </div>
             );
