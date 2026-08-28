@@ -845,6 +845,39 @@ func ExecutePageActionHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Action allow-list: the payload must exactly match one of the page's saved actions.
+	// This mirrors ExecuteCustomPageActionHandler's trust boundary.
+	var matched map[string]any
+	if page.Actions != "" {
+		var defs []map[string]any
+		if jerr := json.Unmarshal([]byte(page.Actions), &defs); jerr == nil {
+			for _, def := range defs {
+				if savedActionMatches(def, req.Type, req.Command, req.Path, req.Content, req.Args, req.Env) {
+					matched = def
+					break
+				}
+			}
+		}
+	}
+	if matched == nil {
+		http.Error(w, "action is not defined on this page", http.StatusForbidden)
+		return
+	}
+	execType, execCommand, execPath, execContent, execArgs, execEnv, defTimeout, ok := savedActionExecFields(matched)
+	if !ok {
+		http.Error(w, "saved action definition is invalid", http.StatusForbidden)
+		return
+	}
+	execCommand, execArgs, aerr := resolveExecPayload(matched, execType, execCommand, execArgs, req.Args)
+	if aerr != nil {
+		http.Error(w, aerr.Error(), http.StatusForbidden)
+		return
+	}
+	timeout := clampActionTimeout(req.Timeout)
+	if req.Timeout <= 0 {
+		timeout = clampActionTimeout(defTimeout)
+	}
+
 	// Use the edge client to call the page-action endpoint
 	ec := edge.New(*node, token)
 
@@ -852,13 +885,13 @@ func ExecutePageActionHandler(w http.ResponseWriter, r *http.Request) {
 		"token":   token,
 		"kind":    instance.Kind,
 		"name":    instance.Name,
-		"type":    req.Type,
-		"command": req.Command,
-		"path":    req.Path,
-		"content": req.Content,
-		"args":    req.Args,
-		"env":     req.Env,
-		"timeout": reqTimeout,
+		"type":    execType,
+		"command": execCommand,
+		"path":    execPath,
+		"content": execContent,
+		"args":    execArgs,
+		"env":     execEnv,
+		"timeout": timeout,
 	}
 
 	body, _ := json.Marshal(edgeReq)
