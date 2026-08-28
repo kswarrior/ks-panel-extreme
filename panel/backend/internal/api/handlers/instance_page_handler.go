@@ -3,12 +3,16 @@ package handlers
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -197,7 +201,7 @@ func validComponentName(s string) bool {
 
 var (
 	componentStartRe = regexp.MustCompile(`^[A-Za-z0-9_]$`)
-	componentBodyRe  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
+	componentBodyRe  = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_-]*$`)
 )
 
 // instancePageSubPage mirrors one entry of the persisted sub_pages JSON.
@@ -1460,6 +1464,88 @@ type ImportInstancePageRequest struct {
 	// Pages carries the human-facing multi-page definitions (library JSON
 	// files use this shape). Encoded into SubPages on import.
 	Pages []instancePageSubPage `json:"pages"`
+}
+
+// flexibleJSONString handles both string-encoded JSON (e.g. "[{...}]") and inline arrays/objects.
+type flexibleJSONString string
+
+func (f *flexibleJSONString) UnmarshalJSON(data []byte) error {
+	d := bytes.TrimSpace(data)
+	if len(d) == 0 || string(d) == "null" {
+		*f = ""
+		return nil
+	}
+	if d[0] == '"' {
+		var s string
+		if err := json.Unmarshal(d, &s); err != nil {
+			return err
+		}
+		*f = flexibleJSONString(s)
+		return nil
+	}
+	// inline JSON (array or object): keep raw
+	*f = flexibleJSONString(string(d))
+	return nil
+}
+
+func (r *ImportInstancePageRequest) UnmarshalJSON(data []byte) error {
+	type alias ImportInstancePageRequest
+	// shadow to capture flexible fields raw
+	var raw struct {
+		alias
+		Actions    flexibleJSONString `json:"actions"`
+		Components flexibleJSONString `json:"components"`
+		SubPages   flexibleJSONString `json:"sub_pages"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*r = ImportInstancePageRequest(raw.alias)
+	r.Actions = string(raw.Actions)
+	r.Components = string(raw.Components)
+	r.SubPages = string(raw.SubPages)
+	// also normalise inline sub_pages array encoded as string contains JSON array string? Already handled.
+	// If Pages is empty but SubPages looks like JSON array, keep it.
+	return nil
+}
+
+// actionsJSON returns the persisted actions payload: normalises both string and array forms.
+// The Studio export writes actions as an inline array ([{...}]), while the API
+// create path stores it as a JSON-encoded string. Both decode via flexibleJSONString.
+func (r ImportInstancePageRequest) actionsJSON() string {
+	s := strings.TrimSpace(r.Actions)
+	if s == "" {
+		return ""
+	}
+	// If it's already a JSON array, return as-is; validate later.
+	if strings.HasPrefix(s, "[") {
+		return s
+	}
+	// Could be JSON string containing array — try decode
+	if strings.HasPrefix(s, "\"") {
+		var inner string
+		if json.Unmarshal([]byte(s), &inner) == nil {
+			return inner
+		}
+	}
+	return s
+}
+
+func (r ImportInstancePageRequest) componentsJSON() string {
+	s := strings.TrimSpace(r.Components)
+	if s == "" {
+		return ""
+	}
+	if strings.HasPrefix(s, "[") {
+		return s
+	}
+	if strings.HasPrefix(s, "\"") {
+		var inner string
+		if json.Unmarshal([]byte(s), &inner) == nil {
+			return inner
+		}
+	}
+	return s
 }
 
 // subPagesJSON returns the persisted sub_pages payload for this request: an
