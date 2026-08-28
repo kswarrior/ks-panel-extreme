@@ -1546,7 +1546,6 @@ func ImportInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		IconSVG:         dto.IconSVG,
 		Actions:         dto.Actions,
 		SubPages:        dto.SubPages,
-		Components:      dto.Components,
 	})
 	if err != nil {
 		log.Println("ImportInstancePage error:", err)
@@ -2081,10 +2080,6 @@ func ImportInstancePageFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "url is required", http.StatusBadRequest)
 		return
 	}
-	if !strings.HasPrefix(req.URL, "http://") && !strings.HasPrefix(req.URL, "https://") {
-		http.Error(w, "url must start with http:// or https://", http.StatusBadRequest)
-		return
-	}
 
 	// Fetch the JSON from the URL
 	client := &http.Client{Timeout: 10 * time.Second}
@@ -2101,12 +2096,7 @@ func ImportInstancePageFromURLHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var pageReq ImportInstancePageRequest
-	body, rerr := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
-	if rerr != nil {
-		http.Error(w, "failed to read URL body: "+rerr.Error(), http.StatusBadGateway)
-		return
-	}
-	if err := json.Unmarshal(body, &pageReq); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&pageReq); err != nil {
 		http.Error(w, "invalid JSON from URL: "+err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -2158,7 +2148,6 @@ func ImportInstancePageFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		IconSVG:         dto.IconSVG,
 		Actions:         dto.Actions,
 		SubPages:        dto.SubPages,
-		Components:      dto.Components,
 	})
 	if err != nil {
 		log.Println("ImportInstancePageFromURL error:", err)
@@ -2281,10 +2270,6 @@ func ImportInstancePageFromMarketplaceHandler(w http.ResponseWriter, r *http.Req
 		}
 		pageBytes = b
 	} else {
-		if !strings.HasPrefix(marketplacePage.DownloadURL, "http://") && !strings.HasPrefix(marketplacePage.DownloadURL, "https://") {
-			http.Error(w, "marketplace download URL must start with http:// or https://", http.StatusBadRequest)
-			return
-		}
 		client := &http.Client{Timeout: 10 * time.Second}
 		resp, err := client.Get(marketplacePage.DownloadURL)
 		if err != nil {
@@ -2326,7 +2311,6 @@ func ImportInstancePageFromMarketplaceHandler(w http.ResponseWriter, r *http.Req
 		IconSVG:         pageReq.IconSVG,
 		Actions:         pageReq.Actions,
 		SubPages:        pageReq.subPagesJSON(),
-		Components:      pageReq.Components,
 	}
 	dto, verr := validateInstancePage(dto)
 	if verr != nil {
@@ -2358,7 +2342,6 @@ func ImportInstancePageFromMarketplaceHandler(w http.ResponseWriter, r *http.Req
 		IconSVG:         dto.IconSVG,
 		Actions:         dto.Actions,
 		SubPages:        dto.SubPages,
-		Components:      dto.Components,
 	})
 	if err != nil {
 		log.Println("ImportInstancePageFromMarketplace error:", err)
@@ -2447,7 +2430,6 @@ func ImportLocalInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		IconSVG:         pageReq.IconSVG,
 		Actions:         pageReq.Actions,
 		SubPages:        pageReq.subPagesJSON(),
-		Components:      pageReq.Components,
 	}
 	dto, verr := validateInstancePage(dto)
 	if verr != nil {
@@ -2479,7 +2461,6 @@ func ImportLocalInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		IconSVG:         dto.IconSVG,
 		Actions:         dto.Actions,
 		SubPages:        dto.SubPages,
-		Components:      dto.Components,
 	})
 	if err != nil {
 		log.Println("ImportLocalInstancePage error:", err)

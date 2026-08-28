@@ -22,7 +22,7 @@
 //     matched server-side against this page's saved actions and instance-
 //     scoped + permission-gated (see CustomPageView / fetchPanel).
 
-import type { InstancePageSubPage, PageActionDef, PageComponentDef } from '../types/instancePage';
+import type { InstancePageSubPage, PageActionDef } from '../types/instancePage';
 
 export interface PageStarter {
   id: string;
@@ -42,8 +42,6 @@ export interface PageStarter {
   blocks?: string;
   /** Sub-pages shipped with the template (e.g. files -> /edit). */
   subPages?: InstancePageSubPage[];
-  /** Reusable UI components for {{component:name}} substitution. */
-  components?: PageComponentDef[];
 }
 
 // ---------------------------------------------------------------------------

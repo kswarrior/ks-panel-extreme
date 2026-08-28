@@ -233,8 +233,6 @@ const InstancePageStudio: React.FC = () => {
     // Replace any previously loaded sub-pages so switching templates can't
     // leave stale routes from another template behind.
     setSubs(s.subPages ? subRowsFromJSON(JSON.stringify(s.subPages)) : []);
-    // Replace components so switching templates can't leave stale components.
-    setComponents(s.components ? compRowsFromJSON(JSON.stringify(s.components)) : []);
     setEditingSubId(null);
     setPreviewTarget('main');
     setNotice(
@@ -255,6 +253,7 @@ const InstancePageStudio: React.FC = () => {
   };
 
   // ---- Component row handlers ---------------------------------------------
+  const blankComponent = (): ComponentRow => ({ id: Math.random().toString(36).slice(2), name: '', type: 'html', description: '', content: '' });
   const addComponent = () => setComponents((c) => [...c, blankComponent()]);
   const removeComponent = (id: string) => setComponents((c) => c.filter((x) => x.id !== id));
   const updateComponent = (id: string, patch: Partial<ComponentRow>) => setComponents((c) => c.map((x) => (x.id === id ? { ...x, ...patch } : x)));
