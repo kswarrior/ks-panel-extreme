@@ -114,11 +114,11 @@ func (r *RoleRepository) GetRoleByName(name string) (*models.Role, error) {
 }
 
 func (r *RoleRepository) GetRoleByID(id int64) (*models.Role, error) {
-	row := r.db.QueryRow(`SELECT id, name, display_name, color, description FROM roles WHERE id = ?`, id)
+	row := r.db.QueryRow(`SELECT id, name, display_name, color, description, icon FROM roles WHERE id = ?`, id)
 	var rl models.Role
 	var rid sql.NullInt64
-	var rname, rdisp, rcolor, rdesc sql.NullString
-	if err := row.Scan(&rid, &rname, &rdisp, &rcolor, &rdesc); err != nil || !rid.Valid {
+	var rname, rdisp, rcolor, rdesc, ric sql.NullString
+	if err := row.Scan(&rid, &rname, &rdisp, &rcolor, &rdesc, &ric); err != nil || !rid.Valid {
 		return nil, fmt.Errorf("role %d not found", id)
 	}
 	rl.ID = rid.Int64
@@ -126,6 +126,7 @@ func (r *RoleRepository) GetRoleByID(id int64) (*models.Role, error) {
 	rl.DisplayName = rdisp.String
 	rl.Color = rcolor.String
 	rl.Description = rdesc.String
+	rl.Icon = ric.String
 	perms, err := r.getPermissionKeysByRoleID(rl.ID)
 	if err != nil {
 		return nil, err
