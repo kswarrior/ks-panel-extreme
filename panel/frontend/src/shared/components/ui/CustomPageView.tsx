@@ -1078,7 +1078,7 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
   // For markdown and blocks, render as React components (SDK available on window.KSPageSDK)
   return (
     <div className="animate-fade-in">
-      {content.type === 'markdown' && renderMarkdown(content.markdown ?? '')}
+      {content.type === 'markdown' && renderMarkdown(content.markdown ?? '', content.components)}
       {content.type === 'blocks' && renderBlocks(content.blocks ?? '')}
     </div>
   );
