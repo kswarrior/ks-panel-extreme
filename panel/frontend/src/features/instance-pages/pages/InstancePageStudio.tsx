@@ -310,6 +310,8 @@ const InstancePageStudio: React.FC = () => {
   // Preview renders the main page or the selected sub-page (multi-page).
   const editingSub = useMemo(() => subs.find((s) => s.id === previewTarget) ?? null, [subs, previewTarget]);
 
+  const compDefs = useMemo(() => parsePageComponents(compsToJSON(components)), [components]);
+
   const previewContent = useMemo<PageContent>(() => {
     const src = editingSub;
     if (src) {
@@ -326,8 +328,9 @@ const InstancePageStudio: React.FC = () => {
       markdown: page.content_markdown,
       blocks: page.content_blocks,
       actions: actionDefs.length ? actionDefs : undefined,
+      components: compDefs.length ? compDefs : undefined,
     };
-  }, [editingSub, page.content_type, page.content_html, page.content_markdown, page.content_blocks, actionDefs]);
+  }, [editingSub, page.content_type, page.content_html, page.content_markdown, page.content_blocks, actionDefs, compDefs]);
 
   // Test-execute a saved action against the selected instance. The backend
   // only runs it when this page's slug is enabled in that instance's spec.
