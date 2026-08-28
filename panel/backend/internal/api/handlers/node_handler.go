@@ -792,9 +792,10 @@ func SetupLocalNodeHandler(w http.ResponseWriter, r *http.Request) {
 		"skip_verify":        false,
 	}
 	// Honour the operator's daemon instance-file directory override. The
-	// daemon defaults to ./instances when the key is absent, so we only emit
-	// it when the node row carried a non-empty setting — keeps the generated
-	// config minimal for the common case.
+	// daemon defaults to /var/lib/kspanel/instances when the key is absent
+	// (with "./instances" resolved relative to the edge binary), so we only
+	// emit it when the node row carried a non-empty setting — keeps the
+	// generated config minimal for the common case.
 	if dir := strings.TrimSpace(node.InstancesDir); dir != "" {
 		cfg["instances_dir"] = dir
 	}

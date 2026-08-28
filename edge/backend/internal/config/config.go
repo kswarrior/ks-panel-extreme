@@ -140,13 +140,57 @@ func (c Config) ListenPortOr(def int) int {
 	return c.ListenPort
 }
 
+// DefaultInstancesDir is the absolute fallback when neither the config
+// nor the caller supplied a directory.
+const DefaultInstancesDir = "/var/lib/kspanel/instances"
+
 // InstancesDirOr returns the daemon's instance-files directory, falling back
-// to the documented default "./instances" when the operator left it empty.
-// Callers shouldn't peek at the field directly so the fallback stays in one
-// place (mirrors ListenPortOr / HeartbeatIntervalOr).
+// to the documented default "/var/lib/kspanel/instances" when the operator
+// left it empty. A relative value such as "./instances" or
+// "./instances/" is resolved relative to the edge binary directory
+// (./ = edge location) so the operator can keep instance data next to the
+// edge binary on portable installs. Absolute paths are cleaned and returned
+// as-is. Callers shouldn't peek at the field directly so the fallback and
+// relative resolution stay in one place (mirrors ListenPortOr).
 func (c Config) InstancesDirOr(def string) string {
-	if c.InstancesDir == "" {
-		return def
+	raw := strings.TrimSpace(c.InstancesDir)
+	if raw == "" {
+		raw = strings.TrimSpace(def)
 	}
-	return c.InstancesDir
+	if raw == "" {
+		return DefaultInstancesDir
+	}
+	return ResolveInstancesDir(raw)
+}
+
+// ResolveInstancesDir turns an operator-supplied instances_dir string into an
+// absolute, cleaned path. Absolute inputs are returned cleaned; relative
+// inputs (including "./instances" and "./instances/") are joined to the edge
+// binary directory (./ = edge location) and cleaned. Empty input yields
+// DefaultInstancesDir.
+func ResolveInstancesDir(p string) string {
+	p = strings.TrimSpace(p)
+	if p == "" {
+		return DefaultInstancesDir
+	}
+	if filepath.IsAbs(p) {
+		return filepath.Clean(p)
+	}
+	base := edgeBaseDir()
+	return filepath.Clean(filepath.Join(base, p))
+}
+
+// edgeBaseDir is the ./ reference for relative instances_dir values: the
+// directory containing the running ksedge executable, falling back to the
+// current working directory when the executable path is unavailable.
+func edgeBaseDir() string {
+	if exe, err := os.Executable(); err == nil && exe != "" {
+		if dir := filepath.Dir(exe); dir != "" && dir != "." {
+			return filepath.Clean(dir)
+		}
+	}
+	if wd, err := os.Getwd(); err == nil && wd != "" {
+		return filepath.Clean(wd)
+	}
+	return "."
 }
