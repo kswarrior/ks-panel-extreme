@@ -295,13 +295,13 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
               to={item.to}
               onClick={onClose}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2 rounded-md text-sm transition text-gray-400 ks-nav-item ${
+                `flex items-center gap-3 px-3 py-2 rounded-md text-sm transition text-gray-400 ks-nav-item ${isCollapsed ? 'justify-center px-2' : ''} ${
                   isActive ? 'ks-nav-active' : ''
                 }`
               }
               title={isCollapsed ? item.label : undefined}
             >
-              {Icons[item.icon]}
+              <span className="shrink-0 flex items-center justify-center">{Icons[item.icon]}</span>
               {!isCollapsed && <span className="truncate">{item.label}</span>}
             </NavLink>
           ))}
@@ -315,7 +315,7 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
           aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           className={`shrink-0 z-10 border-t border-gray-800 w-full flex items-center gap-2.5 px-3 py-3 text-left text-gray-100 hover:text-white hover:bg-white/10 transition-colors cursor-pointer select-none ${isCollapsed ? 'justify-center' : ''}`}
         >
-          <span className="shrink-0 flex items-center justify-center text-gray-100">{Icons.KSWarrior}</span>
+          <span className="shrink-0 flex items-center justify-center" style={{ color: '#f3f4f6' }}>{Icons.KSWarrior}</span>
           {!isCollapsed && (
             <>
               <span className="text-xs font-medium text-gray-400 truncate flex-1 min-w-0 pointer-events-none">{footerText}</span>
