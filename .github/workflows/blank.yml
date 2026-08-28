@@ -5,22 +5,31 @@ on:
 
 permissions:
   contents: write
-  workflows: write
 
 jobs:
   reset:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout main
         uses: actions/checkout@v4
         with:
+          ref: main
           fetch-depth: 0
+          persist-credentials: true
 
-      - name: Reset main to d2121be
+      - name: Replace repository with d2121be
         env:
-          TARGET_COMMIT: d2121bef9c326ebe57d482fa3be2844349341b61
+          TARGET: d2121bef9c326ebe57d482fa3be2844349341b61
         run: |
-          git fetch origin "$TARGET_COMMIT"
-          git cat-file -e "$TARGET_COMMIT^{commit}"
-          git push --force origin "$TARGET_COMMIT:refs/heads/main"
+          set -e
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git fetch origin "$TARGET"
+
+          git reset --hard "$TARGET"
+          git clean -fdx
+
+          git push --force origin HEAD:main
