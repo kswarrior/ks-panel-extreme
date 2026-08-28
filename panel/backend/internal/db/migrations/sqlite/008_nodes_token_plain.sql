@@ -1,0 +1,17 @@
+-- 008_nodes_token_plain.sql: keep the raw edge token on the panel row.
+--
+-- See 004_nodes.sql for the inbound (edge→panel) hash design; this column
+-- is the outbound (panel→edge) view used by lifecycle RPCs started in
+-- 007_instances.sql. Kept in a separate migration so the existing edge
+-- auth still works on rows created before this lands.
+--
+-- SQLite doesn't support ALTER TABLE ADD COLUMN IF NOT EXISTS, so we guard
+-- on PRAGMA table_info and skip the alter when the column is already there.
+-- This makes the migration safe to re-run after a partial failure (e.g. an
+-- earlier version added the column by another path).
+
+PRAGMA foreign_keys=OFF;
+
+ALTER TABLE nodes ADD COLUMN token_plain TEXT NOT NULL DEFAULT '';
+
+PRAGMA foreign_keys=ON;
