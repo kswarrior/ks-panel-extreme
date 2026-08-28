@@ -248,12 +248,14 @@ function pagePayloadFromRow(p: any): PageContent {
     markdown: typeof p.content_markdown === 'string' ? p.content_markdown : undefined,
     blocks: typeof p.content_blocks === 'string' ? p.content_blocks : undefined,
     actions: parseSpecActions(p.actions),
+    components: typeof p.components === 'string' && p.components.trim() ? parsePageComponents(p.components) : undefined,
   };
 }
 
 // pagePayloadFromSub builds the PageContent payload from one nested sub-page
-// entry (no actions of its own — actions live on the parent row).
-function pagePayloadFromSub(s: any): PageContent {
+// entry (no actions of its own — actions live on the parent row). Components
+// also live on the parent row and are passed in as the second argument.
+function pagePayloadFromSub(s: any, parentComponents?: PageComponentDef[]): PageContent {
   const type: PageContentType = ['html', 'markdown', 'blocks'].includes(s.content_type)
     ? s.content_type
     : s.content_html ? 'html'
@@ -264,6 +266,7 @@ function pagePayloadFromSub(s: any): PageContent {
     html: typeof s.content_html === 'string' ? s.content_html : undefined,
     markdown: typeof s.content_markdown === 'string' ? s.content_markdown : undefined,
     blocks: typeof s.content_blocks === 'string' ? s.content_blocks : undefined,
+    components: parentComponents,
   };
 }
 
