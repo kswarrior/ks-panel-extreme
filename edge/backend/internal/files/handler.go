@@ -298,14 +298,35 @@ func writeHostFile(w http.ResponseWriter, r *http.Request, hostPath string) bool
 	// into a sub-directory the SPA just created succeeds.
 	if err := os.MkdirAll(filepath.Dir(hostPath), 0o755); err != nil {
 		if os.IsPermission(err) {
+			if tryFixPermission(filepath.Dir(hostPath)) {
+				if err2 := os.MkdirAll(filepath.Dir(hostPath), 0o755); err2 == nil {
+					goto openFile
+				}
+			}
 			return false
 		}
 		writeErr(w, http.StatusBadGateway, fmt.Sprintf("mkdir parent: %v", err))
 		return true
 	}
+openFile:
 	f, err := os.OpenFile(hostPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
 	if err != nil {
 		if os.IsPermission(err) {
+			if tryFixPermission(hostPath) {
+				if f2, err2 := os.OpenFile(hostPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644); err2 == nil {
+					defer f2.Close()
+					if _, err := io.Copy(f2, r.Body); err != nil {
+						if os.IsPermission(err) {
+							return false
+						}
+						writeErr(w, http.StatusBadGateway, fmt.Sprintf("write %s: %v", hostPath, err))
+						return true
+					}
+					w.Header().Set("Content-Type", "application/json")
+					_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "path": hostPath})
+					return true
+				}
+			}
 			return false
 		}
 		writeErr(w, http.StatusBadGateway, fmt.Sprintf("open %s: %v", hostPath, err))
@@ -322,6 +343,29 @@ func writeHostFile(w http.ResponseWriter, r *http.Request, hostPath string) bool
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "path": hostPath})
 	return true
+}
+
+// tryFixPermission attempts to make path writable by the current user via
+// passwordless sudo (common in dev/test where the edge runs as an unprivileged
+// user but host bind-mounts are root-owned). Returns true when the fix
+// succeeded and the caller should retry the original operation.
+func tryFixPermission(path string) bool {
+	uid := os.Getuid()
+	gid := os.Getgid()
+	dir := filepath.Dir(path)
+	// Try to chown the directory/file to the current user. Use -n (non-interactive)
+	// so we fail fast when sudo is not available or requires a password.
+	if err := exec.Command("sudo", "-n", "chown", "-R", fmt.Sprintf("%d:%d", uid, gid), dir).Run(); err != nil {
+		// Fallback: try chowning just the file if dir failed
+		_ = exec.Command("sudo", "-n", "chown", fmt.Sprintf("%d:%d", uid, gid), path).Run()
+	}
+	// Ensure the directory is at least u+rwX so we can create files inside.
+	_ = exec.Command("sudo", "-n", "chmod", "-R", "u+rwX", dir).Run()
+	// Verify we can now stat the directory.
+	if _, err := os.Stat(dir); err == nil {
+		return true
+	}
+	return false
 }
 
 // mkdirHost creates hostPath (and any missing parents) on the host
