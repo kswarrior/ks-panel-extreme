@@ -153,6 +153,9 @@ export interface PageOverride {
    *  of each is "<slug>/<path>" (e.g. files/edit); they never render as
    *  separate top-level tabs. */
   sub_pages?: InstancePageSubPage[];
+  /** Reusable UI components copied from the Instance Pages library row.
+   *  The runtime substitutes {{component:name}} tokens with these. */
+  components?: import('@/features/instance-pages/types/instancePage').PageComponentDef[];
 }
 
 export type LogDriver = 'json-file' | 'syslog' | 'journald' | 'none';
