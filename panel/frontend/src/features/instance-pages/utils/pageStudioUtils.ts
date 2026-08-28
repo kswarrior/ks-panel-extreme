@@ -4,10 +4,10 @@
 // pure helpers with no React imports so they can be unit-tested and shared
 // across section components without circular dependencies.
 
-import type { PageActionDef, InstancePageSubPage } from '@/features/instance-pages/types/instancePage';
-import { parseSubPages } from '@/features/instance-pages/types/instancePage';
+import type { PageActionDef, InstancePageSubPage, PageComponentDef } from '@/features/instance-pages/types/instancePage';
+import { parseSubPages, parsePageComponents } from '@/features/instance-pages/types/instancePage';
 import { activePageThemeCss } from '@/shared/components/ui/CustomPageView';
-import type { ActionRow, SubPageRow } from '@/features/instance-pages/types/pageStudio';
+import type { ActionRow, SubPageRow, ComponentRow } from '@/features/instance-pages/types/pageStudio';
 
 // ---------------------------------------------------------------------------
 // Error normalisation
