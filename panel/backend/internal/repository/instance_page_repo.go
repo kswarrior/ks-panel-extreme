@@ -111,8 +111,8 @@ type InstancePageInput struct {
 
 // Create inserts a new instance page.
 func (r *InstancePageRepository) Create(in InstancePageInput) (int64, error) {
-	res, err := r.db.Exec(`INSERT INTO instance_pages (name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		in.Name, in.Slug, in.Kind, in.Category, in.PageType, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.IconSVG, in.Actions, in.SubPages)
+	res, err := r.db.Exec(`INSERT INTO instance_pages (name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages, components) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		in.Name, in.Slug, in.Kind, in.Category, in.PageType, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.IconSVG, in.Actions, in.SubPages, in.Components)
 	if err != nil {
 		return 0, err
 	}
@@ -121,8 +121,8 @@ func (r *InstancePageRepository) Create(in InstancePageInput) (int64, error) {
 
 // Update patches an editable instance page.
 func (r *InstancePageRepository) Update(id int64, in InstancePageInput) error {
-	res, err := r.db.Exec(`UPDATE instance_pages SET name = ?, slug = ?, kind = ?, category = ?, page_type = ?, description = ?, content_type = ?, content_html = ?, content_markdown = ?, content_blocks = ?, icon_svg = ?, actions = ?, sub_pages = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-		in.Name, in.Slug, in.Kind, in.Category, in.PageType, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.IconSVG, in.Actions, in.SubPages, id)
+	res, err := r.db.Exec(`UPDATE instance_pages SET name = ?, slug = ?, kind = ?, category = ?, page_type = ?, description = ?, content_type = ?, content_html = ?, content_markdown = ?, content_blocks = ?, icon_svg = ?, actions = ?, sub_pages = ?, components = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+		in.Name, in.Slug, in.Kind, in.Category, in.PageType, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.IconSVG, in.Actions, in.SubPages, in.Components, id)
 	if err != nil {
 		return err
 	}
