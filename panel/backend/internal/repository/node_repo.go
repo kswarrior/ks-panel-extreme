@@ -771,9 +771,16 @@ func (r *NodeRepository) IngestHeartbeat(in IngestInput) (int64, error) {
 		return 0, err
 	}
 
-	// Uptime pct is now set directly in the UPDATE above (defaults to 0 when
-	// no prior history). The previous separate computeUptimePct + UPDATE round-
-	// trip is eliminated — the panel UI always shows a valid percentage.
+	// Recompute rolling uptime % from the 24h heartbeat window and persist it.
+	// The previous "CASE WHEN uptime_pct IS NULL THEN 0" left new nodes stuck
+	// at 0 forever; the separate compute was removed for performance but the
+	// UI's uptime ring then showed 0% even on healthy edges that had been
+	// heartbeating for hours. Recomputing here restores the honest percentage
+	// without an extra round-trip on the hot path: the bucket insert already
+	// happened, so the next SELECT sees the fresh row.
+	if pct, err := r.computeUptimePct(id.Int64); err == nil {
+		_, _ = r.db.Exec(`UPDATE nodes SET uptime_pct = ? WHERE id = ?`, pct, id.Int64)
+	}
 	return id.Int64, nil
 }
 
@@ -805,6 +812,10 @@ func (r *NodeRepository) MarkStale(threshold time.Duration) (int, error) {
 			`INSERT INTO node_heartbeats (node_id, bucket_at, status) VALUES (?, ?, 'down')
 			 ON CONFLICT(node_id, bucket_at) DO UPDATE SET status = 'down'`,
 			id, bucket)
+		// Keep uptime_pct honest after marking down.
+		if pct, err := r.computeUptimePct(id); err == nil {
+			_, _ = r.db.Exec(`UPDATE nodes SET uptime_pct = ? WHERE id = ?`, pct, id)
+		}
 	}
 	res, err := r.db.Exec(
 		`UPDATE nodes SET status = 'down' WHERE status = 'up' AND (last_seen_at IS NULL OR last_seen_at < ?)`,
