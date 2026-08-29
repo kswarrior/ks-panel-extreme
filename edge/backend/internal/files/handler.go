@@ -158,6 +158,23 @@ func Handler(token string) http.Handler {
 	})
 }
 
+// isDangerousPath reports whether p is a sensitive system path that must
+// never be touched via host_path. This prevents a compromised panel from
+// using the edge as a host-filesystem oracle (e.g. ?host_path=/etc/passwd)
+// or from chown'ing system dirs via tryFixPermission.
+func isDangerousPath(p string) bool {
+	p = filepath.Clean(p)
+	if p == "/" {
+		return true
+	}
+	for _, d := range []string{"/bin", "/sbin", "/usr", "/etc", "/proc", "/sys", "/dev", "/boot", "/lib", "/lib64", "/root"} {
+		if p == d || strings.HasPrefix(p, d+"/") {
+			return true
+		}
+	}
+	return false
+}
+
 // hostFSDispatcher routes the request to the host filesystem when the
 // panel supplied a host_path that points at a bind-mounted directory the
 // edge actually owns. It returns false when the host path is missing or
@@ -171,6 +188,9 @@ func hostFSDispatcher(w http.ResponseWriter, r *http.Request, op, hostPath strin
 		return false
 	}
 	clean := filepath.Clean(hostPath)
+	if !filepath.IsAbs(clean) || isDangerousPath(clean) {
+		return false
+	}
 	// Reject anything that tries to walk outside the configured root via
 	// symlinks by checking the resolved path's parent chain. filepath.EvalSymlinks
 	// can fail if intermediate dirs don't exist yet (a freshly-bound but
@@ -350,6 +370,14 @@ openFile:
 // user but host bind-mounts are root-owned). Returns true when the fix
 // succeeded and the caller should retry the original operation.
 func tryFixPermission(path string) bool {
+	cleanPath := filepath.Clean(path)
+	cleanDir := filepath.Clean(filepath.Dir(path))
+	if isDangerousPath(cleanPath) || isDangerousPath(cleanDir) {
+		return false
+	}
+	if !filepath.IsAbs(cleanPath) {
+		return false
+	}
 	uid := os.Getuid()
 	gid := os.Getgid()
 	dir := filepath.Dir(path)
