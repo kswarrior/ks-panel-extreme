@@ -244,7 +244,7 @@ function renderBlocks(json: string, components?: PageComponentDef[]): React.Reac
           case 'text':
             return <p key={i} className={`text-sm text-gray-300 leading-relaxed whitespace-pre-wrap ${al}`}>{resolveInString(b.value)}</p>;
           case 'image': {
-            const imgSrc = safeImgSrc(b.value);
+            const imgSrc = safeImgSrc(resolveInString(b.value));
             return imgSrc !== '#'
               ? <img key={i} src={imgSrc} alt="" className={`max-w-full rounded-lg border border-white/10 ${al}`} />
               : <div key={i} className="text-xs text-gray-500">[no image url]</div>;
@@ -252,7 +252,7 @@ function renderBlocks(json: string, components?: PageComponentDef[]): React.Reac
           case 'button':
             return (
               <div key={i} className={`${al}`}>
-                <a href={safeUrl(b.href)} target="_blank" rel="noreferrer"
+                <a href={safeUrl(resolveInString(b.href ?? ''))} target="_blank" rel="noreferrer"
                   className="ks-primary-btn inline-flex items-center bg-white text-black px-4 py-2 rounded text-sm hover:bg-gray-200 transition">
                   {resolveInString(b.value)}
                 </a>
@@ -270,7 +270,7 @@ function renderBlocks(json: string, components?: PageComponentDef[]): React.Reac
               <div key={i} className={`glass-card rounded-xl p-4 ${al}`}>
                 {b.label && <p className="text-xs uppercase tracking-wide text-gray-400 mb-1">{resolveInString(b.label)}</p>}
                 <p className={`text-2xl font-semibold tabular-nums ${tone}`}>
-                  {resolveInString(b.value)}<span className="text-sm text-gray-400 ml-1">{b.unit}</span>
+                  {resolveInString(b.value)}<span className="text-sm text-gray-400 ml-1">{resolveInString(b.unit ?? '')}</span>
                 </p>
               </div>
             );
@@ -281,6 +281,8 @@ function renderBlocks(json: string, components?: PageComponentDef[]): React.Reac
               const arr = JSON.parse(b.value);
               if (Array.isArray(arr)) rows2 = arr.map((r: any) => Array.isArray(r) ? r.map((c) => String(c ?? '')) : []);
             } catch { /* ignore */ }
+            // Resolve component tokens inside each cell (React-like composition inside tables)
+            rows2 = rows2.map(row => row.map(cell => resolveInString(cell)));
             const [head, ...body] = rows2;
             if (!head) return <div key={i} className="text-xs text-gray-500">[table needs a JSON array of row arrays]</div>;
             return (
