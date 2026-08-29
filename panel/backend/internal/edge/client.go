@@ -615,6 +615,23 @@ type ExecResponse struct {
 func (c *Client) Exec(req ExecRequest) (ExecResponse, error) {
 	req.Token = c.token
 	req.Action = "exec"
+	// Try WSS tunnel first for reverse_tunnel / local_wss.
+	if handled, body, status, err := c.tryTunnel("POST", "/api/edge/exec-rpc", req); handled {
+		if err != nil {
+			return ExecResponse{}, err
+		}
+		var out ExecResponse
+		if err := unmarshalTunnelResponse(body, status, &out); err != nil {
+			return ExecResponse{}, err
+		}
+		if status >= 300 {
+			if out.Error != "" {
+				return out, fmt.Errorf("edge rejected: %s", out.Error)
+			}
+			return out, fmt.Errorf("edge returned HTTP %d", status)
+		}
+		return out, nil
+	}
 	body, err := json.Marshal(req)
 	if err != nil {
 		return ExecResponse{}, fmt.Errorf("encode request: %w", err)
@@ -669,6 +686,23 @@ type HostExecResponse struct {
 // HostExec runs a one-shot command on the edge host filesystem.
 func (c *Client) HostExec(req HostExecRequest) (HostExecResponse, error) {
 	req.Token = c.token
+	// Try WSS tunnel first for reverse_tunnel / local_wss.
+	if handled, body, status, err := c.tryTunnel("POST", "/api/edge/host-exec", req); handled {
+		if err != nil {
+			return HostExecResponse{}, err
+		}
+		var out HostExecResponse
+		if err := unmarshalTunnelResponse(body, status, &out); err != nil {
+			return HostExecResponse{}, err
+		}
+		if status >= 300 {
+			if out.Error != "" {
+				return out, fmt.Errorf("edge rejected: %s", out.Error)
+			}
+			return out, fmt.Errorf("edge returned HTTP %d", status)
+		}
+		return out, nil
+	}
 	body, err := json.Marshal(req)
 	if err != nil {
 		return HostExecResponse{}, fmt.Errorf("encode request: %w", err)
