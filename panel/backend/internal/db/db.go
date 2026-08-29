@@ -298,6 +298,16 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				return err
 			}
 			continue
+		case name == "050_node_connection_mode.sql":
+			// Connection mode (direct / reverse_tunnel / local_port / local_wss)
+			// controlling how panel and edge find each other. Single column
+			// with 'direct' default so legacy rows keep bidirectional behaviour.
+			if err := guardedAddColumns(d, db, name, "nodes", []columnSpec{
+				{"connection_mode", "TEXT NOT NULL DEFAULT 'direct'"},
+			}); err != nil {
+				return err
+			}
+			continue
 		case name == "034_api_key_active.sql":
 			if err := guardedAddColumns(d, db, name, "api_keys", []columnSpec{
 				{"active", "INTEGER NOT NULL DEFAULT 1"},

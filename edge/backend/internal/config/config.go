@@ -57,6 +57,11 @@ type Config struct {
 	// CLI flag. A value of "./instances" (or "./instances/") is resolved
 	// relative to the edge binary directory (./ = edge location).
 	InstancesDir string `json:"instances_dir,omitempty"`
+	// ConnectionMode mirrors the panel's dropdown: direct / reverse_tunnel /
+	// local_port / local_wss. Stored so the edge can decide whether to keep
+	// the reverse tunnel alive or rely on inbound HTTP. Empty defaults to
+	// direct for legacy configs that predate the field.
+	ConnectionMode string `json:"connection_mode,omitempty"`
 }
 
 // Default returns a Config pre-filled with the documented defaults so a

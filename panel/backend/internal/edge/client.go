@@ -21,9 +21,11 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/example/kspanel/internal/models"
+	"github.com/example/kspanel/internal/tunnel"
 )
 
 // tokenQueryParamRe matches a token=… query parameter inside an error's
@@ -46,9 +48,11 @@ func redactTokenErr(err error) string {
 // the node's UseTLS flag so the panel transparently talks to edges that put
 // it behind a TLS-terminating proxy.
 type Client struct {
-	baseURL string
-	token   string
-	http    *http.Client
+	baseURL        string
+	token          string
+	http           *http.Client
+	nodeID         int64
+	connectionMode string
 }
 
 // BaseURL returns the base URL for the edge node.
@@ -65,16 +69,24 @@ func New(node models.Node, token string) *Client {
 	if node.UseTLS {
 		scheme = "https"
 	}
+	// For WSS local tunnel, treat UseTLS as wss scheme but still http fallback when tunnel not connected.
+	address := node.Address
+	if address == "" || address == "tunnel" {
+		// No direct dial target; baseURL is placeholder. Tunnel will be used.
+		address = "127.0.0.1:4040"
+	}
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{
-			ServerName:         node.Address,
+			ServerName:         address,
 			InsecureSkipVerify: node.SkipTLSVerify,
 		},
 	}
 	return &Client{
-		baseURL: fmt.Sprintf("%s://%s", scheme, node.Address),
-		token:   token,
-		http:    &http.Client{Timeout: 30 * time.Second, Transport: transport},
+		baseURL:        fmt.Sprintf("%s://%s", scheme, address),
+		token:          token,
+		http:           &http.Client{Timeout: 30 * time.Second, Transport: transport},
+		nodeID:         node.ID,
+		connectionMode: strings.ToLower(strings.TrimSpace(node.ConnectionMode)),
 	}
 }
 
@@ -94,17 +106,64 @@ func NewWithTimeout(node models.Node, token string, timeout time.Duration) *Clie
 	if node.UseTLS {
 		scheme = "https"
 	}
+	address := node.Address
+	if address == "" || address == "tunnel" {
+		address = "127.0.0.1:4040"
+	}
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{
-			ServerName:         node.Address,
+			ServerName:         address,
 			InsecureSkipVerify: node.SkipTLSVerify,
 		},
 	}
 	return &Client{
-		baseURL: fmt.Sprintf("%s://%s", scheme, node.Address),
-		token:   token,
-		http:    &http.Client{Timeout: timeout, Transport: transport},
+		baseURL:        fmt.Sprintf("%s://%s", scheme, address),
+		token:          token,
+		http:           &http.Client{Timeout: timeout, Transport: transport},
+		nodeID:         node.ID,
+		connectionMode: strings.ToLower(strings.TrimSpace(node.ConnectionMode)),
 	}
+}
+
+// isTunnel reports whether this client should prefer the WSS tunnel.
+func (c *Client) isTunnel() bool {
+	m := strings.ToLower(strings.TrimSpace(c.connectionMode))
+	return m == "reverse_tunnel" || m == "local_wss"
+}
+
+// tryTunnel attempts to send an RPC over the WSS tunnel. It returns (handled, resp, err).
+// handled==true means the tunnel was used (caller should use resp).
+// handled==false means tunnel not available / not applicable — caller should fall back to HTTP.
+// For reverse_tunnel with no tunnel connected, it returns error directly (handled==true, err).
+func (c *Client) tryTunnel(method, path string, reqBody any) (bool, []byte, int, error) {
+	if !c.isTunnel() {
+		return false, nil, 0, nil
+	}
+	connected := tunnel.Global().IsConnected(c.nodeID)
+	if !connected {
+		if c.connectionMode == "reverse_tunnel" {
+			return true, nil, 0, fmt.Errorf("edge not connected via WSS tunnel (reverse_tunnel mode requires edge to be online)")
+		}
+		// local_wss fallback to direct HTTP when tunnel not yet connected
+		return false, nil, 0, nil
+	}
+	// Tunnel is connected – dispatch via it.
+	timeout := c.http.Timeout
+	if timeout <= 0 {
+		timeout = 30 * time.Second
+	}
+	status, body, err := tunnel.Global().Send(c.nodeID, method, path, reqBody, timeout)
+	return true, body, status, err
+}
+
+func unmarshalTunnelResponse(body []byte, status int, out any) error {
+	if body == nil {
+		return nil
+	}
+	if err := json.Unmarshal(body, out); err != nil {
+		return fmt.Errorf("edge returned HTTP %d", status)
+	}
+	return nil
 }
 
 // LifecycleRequest is the wire format POSTed to the edge's
@@ -253,6 +312,29 @@ type InstallStopResponse struct {
 // immediately so the panel can start polling.
 func (c *Client) InstallStart(req InstallStartRequest) (InstallStartResponse, error) {
 	req.Token = c.token
+	// Try WSS tunnel first for reverse_tunnel / local_wss.
+	if handled, body, status, err := c.tryTunnel("POST", "/api/edge/install", req); handled {
+		if err != nil {
+			return InstallStartResponse{}, err
+		}
+		var out InstallStartResponse
+		if err := unmarshalTunnelResponse(body, status, &out); err != nil {
+			return InstallStartResponse{}, err
+		}
+		if status >= 300 {
+			if out.Error != "" {
+				return out, fmt.Errorf("edge rejected: %s", out.Error)
+			}
+			return out, fmt.Errorf("edge returned HTTP %d", status)
+		}
+		if !out.OK {
+			if out.Error != "" {
+				return out, fmt.Errorf("%s", out.Error)
+			}
+			return out, fmt.Errorf("edge reported failure without a message")
+		}
+		return out, nil
+	}
 	body, err := json.Marshal(req)
 	if err != nil {
 		return InstallStartResponse{}, fmt.Errorf("encode request: %w", err)
@@ -568,6 +650,28 @@ type InspectResponse struct {
 // Inspect calls the edge's /api/edge/inspect endpoint.
 func (c *Client) Inspect(req InspectRequest) (InspectResponse, error) {
 	req.Token = c.token
+	if handled, body, status, err := c.tryTunnel("POST", "/api/edge/inspect", req); handled {
+		if err != nil {
+			return InspectResponse{}, err
+		}
+		var out InspectResponse
+		if err := unmarshalTunnelResponse(body, status, &out); err != nil {
+			return InspectResponse{}, err
+		}
+		if status >= 300 {
+			if out.Error != "" {
+				return out, fmt.Errorf("edge rejected: %s", out.Error)
+			}
+			return out, fmt.Errorf("edge returned HTTP %d", status)
+		}
+		if !out.OK {
+			if out.Error != "" {
+				return out, fmt.Errorf("%s", out.Error)
+			}
+			return out, fmt.Errorf("edge reported failure without a message")
+		}
+		return out, nil
+	}
 	body, err := json.Marshal(req)
 	if err != nil {
 		return InspectResponse{}, fmt.Errorf("encode request: %w", err)
@@ -625,6 +729,22 @@ type SnapshotResponse struct {
 // Snapshot dispatches a create/restore/delete RPC.
 func (c *Client) Snapshot(req SnapshotRequest) (SnapshotResponse, error) {
 	req.Token = c.token
+	if handled, body, status, err := c.tryTunnel("POST", "/api/edge/snapshot", req); handled {
+		if err != nil {
+			return SnapshotResponse{}, err
+		}
+		var out SnapshotResponse
+		if err := unmarshalTunnelResponse(body, status, &out); err != nil {
+			return SnapshotResponse{}, err
+		}
+		if status >= 300 {
+			if out.Error != "" {
+				return out, fmt.Errorf("edge rejected: %s", out.Error)
+			}
+			return out, fmt.Errorf("edge returned HTTP %d", status)
+		}
+		return out, nil
+	}
 	body, err := json.Marshal(req)
 	if err != nil {
 		return SnapshotResponse{}, fmt.Errorf("encode request: %w", err)

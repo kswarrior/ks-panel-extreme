@@ -25,9 +25,10 @@ import (
 // ============================== NODES (admin) ==============================
 
 type createNodeRequest struct {
-	Name    string `json:"name"`
-	Address string `json:"address"`
-	UseTLS  bool   `json:"use_tls"`
+	Name           string `json:"name"`
+	Address        string `json:"address"`
+	UseTLS         bool   `json:"use_tls"`
+	ConnectionMode string `json:"connection_mode,omitempty"`
 	// Advanced per-edge configuration (migration 019). Missing / zero
 	// values fall back to the column DEFAULT so a caller using the legacy
 	// payload shape is unaffected.
@@ -63,6 +64,7 @@ type updateNodeRequest struct {
 	Name           string `json:"name"`
 	Address        string `json:"address"`
 	UseTLS         bool   `json:"use_tls"`
+	ConnectionMode string `json:"connection_mode,omitempty"`
 	HealthEnabled  *bool  `json:"health_enabled,omitempty"`
 	HealthInterval int    `json:"health_interval,omitempty"`
 	HealthTimeout  int    `json:"health_timeout,omitempty"`
@@ -106,6 +108,46 @@ func validateNodeAddress(addr string) error {
 		return fmt.Errorf("address must not contain whitespace")
 	}
 	return nil
+}
+
+// validConnectionModes is the whitelist for the dropdown.
+// direct          — panel has edge URL + edge has panel URL (bidirectional)
+// reverse_tunnel — only edge stores panel URL, WSS tunnel
+// local_port     — edge on panel host via 127.0.0.1:port (HTTP)
+// local_wss      — edge on panel host via WSS tunnel
+var validConnectionModes = map[string]bool{
+	"direct":         true,
+	"reverse_tunnel": true,
+	"local_port":     true,
+	"local_wss":      true,
+}
+
+func normalizeConnectionMode(m string) string {
+	m = strings.TrimSpace(strings.ToLower(m))
+	if m == "" {
+		return "direct"
+	}
+	if validConnectionModes[m] {
+		return m
+	}
+	return "direct"
+}
+
+func isValidConnectionMode(m string) bool {
+	if m == "" {
+		return true // empty falls back to direct
+	}
+	return validConnectionModes[strings.ToLower(strings.TrimSpace(m))]
+}
+
+func isTunnelMode(m string) bool {
+	m = strings.ToLower(strings.TrimSpace(m))
+	return m == "reverse_tunnel" || m == "local_wss"
+}
+
+func isLocalMode(m string) bool {
+	m = strings.ToLower(strings.TrimSpace(m))
+	return m == "local_port" || m == "local_wss"
 }
 
 // nodeIconKeys is the fixed set of symbolic icon keys the NodeForm's icon
@@ -205,13 +247,35 @@ func CreateNodeHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid payload", http.StatusBadRequest)
 		return
 	}
-	if req.Name == "" || req.Address == "" {
-		http.Error(w, "name and address are required", http.StatusBadRequest)
+	if req.Name == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
 		return
 	}
-	if err := validateNodeAddress(req.Address); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	// Normalize connection mode.
+	req.ConnectionMode = normalizeConnectionMode(req.ConnectionMode)
+	if !isValidConnectionMode(req.ConnectionMode) {
+		http.Error(w, "invalid connection_mode", http.StatusBadRequest)
 		return
+	}
+	// Address validation depends on mode:
+	// - reverse_tunnel: address optional (panel never dials edge) – allow "tunnel" placeholder or empty.
+	// - local_* : address is synthesized from port earlier; but req.Address is the effectiveAddress already.
+	// - direct: must be a valid address.
+	if req.ConnectionMode == "reverse_tunnel" {
+		// For tunnel, address may be "tunnel" sentinel or empty; normalize to "tunnel".
+		if strings.TrimSpace(req.Address) == "" {
+			req.Address = "tunnel"
+		}
+		// Do not run strict host:port validation for tunnel.
+	} else {
+		if req.Address == "" {
+			http.Error(w, "address is required", http.StatusBadRequest)
+			return
+		}
+		if err := validateNodeAddress(req.Address); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 	}
 	if msg := validateNodeDisplay(req.Name, req.LocationNode, req.Category, req.Notes, req.Icon, req.Color); msg != "" {
 		http.Error(w, msg, http.StatusBadRequest)
@@ -247,6 +311,7 @@ func CreateNodeHandler(w http.ResponseWriter, r *http.Request) {
 		Name:              req.Name,
 		Address:           req.Address,
 		UseTLS:            req.UseTLS,
+		ConnectionMode:    req.ConnectionMode,
 		HealthEnabled:     healthEnabled,
 		HealthInterval:    req.HealthInterval,
 		HealthTimeout:     req.HealthTimeout,
@@ -303,13 +368,28 @@ func UpdateNodeHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid payload", http.StatusBadRequest)
 		return
 	}
-	if req.Name == "" || req.Address == "" {
-		http.Error(w, "name and address are required", http.StatusBadRequest)
+	if req.Name == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
 		return
 	}
-	if err := validateNodeAddress(req.Address); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	req.ConnectionMode = normalizeConnectionMode(req.ConnectionMode)
+	if !isValidConnectionMode(req.ConnectionMode) {
+		http.Error(w, "invalid connection_mode", http.StatusBadRequest)
 		return
+	}
+	if req.ConnectionMode == "reverse_tunnel" {
+		if strings.TrimSpace(req.Address) == "" {
+			req.Address = "tunnel"
+		}
+	} else {
+		if req.Address == "" {
+			http.Error(w, "address is required", http.StatusBadRequest)
+			return
+		}
+		if err := validateNodeAddress(req.Address); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 	}
 	if msg := validateNodeDisplay(req.Name, req.LocationNode, req.Category, req.Notes, req.Icon, req.Color); msg != "" {
 		http.Error(w, msg, http.StatusBadRequest)
@@ -342,6 +422,7 @@ func UpdateNodeHandler(w http.ResponseWriter, r *http.Request) {
 		Name:              req.Name,
 		Address:           req.Address,
 		UseTLS:            req.UseTLS,
+		ConnectionMode:    req.ConnectionMode,
 		HealthEnabled:     healthEnabled,
 		HealthInterval:    req.HealthInterval,
 		HealthTimeout:     req.HealthTimeout,
@@ -732,8 +813,8 @@ func SetupLocalNodeHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "node not found", http.StatusNotFound)
 		return
 	}
-	if !isLocalAddress(node.Address) {
-		http.Error(w, "setup is only supported for localhost nodes", http.StatusBadRequest)
+	if !isLocalNode(node) {
+		http.Error(w, "setup is only supported for local edge nodes (local_port / local_wss)", http.StatusBadRequest)
 		return
 	}
 	token, err := repo.PlainToken(id)
@@ -742,7 +823,19 @@ func SetupLocalNodeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	port := portFromAddress(node.Address, "4040")
-	panelURL := "http://" + r.Host
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	// Prefer X-Forwarded-Proto when behind a proxy.
+	if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
+		if proto == "https" {
+			scheme = "https"
+		} else if proto == "http" {
+			scheme = "http"
+		}
+	}
+	panelURL := scheme + "://" + r.Host
 
 	// Per-node working directory under the panel data dir so multiple local
 	// edges (or a re-setup) don't stomp each other's binaries.
@@ -790,6 +883,7 @@ func SetupLocalNodeHandler(w http.ResponseWriter, r *http.Request) {
 		"heartbeat_interval": 60,
 		"use_tls_upstream":   node.UseTLS,
 		"skip_verify":        false,
+		"connection_mode":    node.ConnectionMode,
 	}
 	// Honour the operator's daemon instance-file directory override. The
 	// daemon defaults to /var/lib/kspanel/instances when the key is absent
@@ -865,6 +959,24 @@ func SetupLocalNodeHandler(w http.ResponseWriter, r *http.Request) {
 // can reasonably launch the edge binary in-process.
 func isLocalAddress(addr string) bool {
 	return strings.HasPrefix(addr, "127.0.0.1:") || strings.HasPrefix(addr, "localhost:")
+}
+
+// isLocalNode reports whether a node row is a localhost edge that the panel
+// can manage locally (setup/purge). It checks the explicit connection_mode first
+// (local_port / local_wss) and falls back to address sniffing for legacy rows.
+func isLocalNode(n *models.Node) bool {
+	if n == nil {
+		return false
+	}
+	m := strings.ToLower(strings.TrimSpace(n.ConnectionMode))
+	if m == "local_port" || m == "local_wss" {
+		return true
+	}
+	if m == "reverse_tunnel" || m == "direct" {
+		return false
+	}
+	// Legacy fallback: infer from address.
+	return isLocalAddress(n.Address)
 }
 
 // portFromAddress pulls the port segment off a host:port string, falling back
@@ -957,8 +1069,8 @@ func PurgeLocalNodeHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "node not found", http.StatusNotFound)
 		return
 	}
-	if !isLocalAddress(node.Address) {
-		http.Error(w, "purge is only supported for localhost nodes", http.StatusBadRequest)
+	if !isLocalNode(node) {
+		http.Error(w, "purge is only supported for local edge nodes (local_port / local_wss)", http.StatusBadRequest)
 		return
 	}
 	label := node.Name

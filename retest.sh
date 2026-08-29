@@ -14,6 +14,11 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RELEASE_DIR="$ROOT_DIR/release"
 TEST_DIR="/tmp/kspanel-retest"
+# Persistent DB in repo storage (user requested ./storege/kspanel.db — handle both spellings)
+STORAGE_DIR="$ROOT_DIR/storage"
+STOREGE_DIR="$ROOT_DIR/storege"
+STORAGE_DB="$STORAGE_DIR/kspanel.db"
+STOREGE_DB="$STOREGE_DIR/kspanel.db"
 
 # Colors
 RED='\033[0;31m'
@@ -76,7 +81,7 @@ if pgrep -x kspanel >/dev/null 2>&1 || pgrep -x ksedge >/dev/null 2>&1; then
 fi
 
 # ============================================================================
-# Test sandbox setup (/tmp)
+# Test sandbox setup (/tmp) — DB persisted in ./storage/kspanel.db
 # ============================================================================
 
 log_step "Preparing test sandbox at $TEST_DIR..."
@@ -85,6 +90,18 @@ if [[ -d "$TEST_DIR" ]]; then
     rm -rf "$TEST_DIR"
 fi
 mkdir -p "$TEST_DIR"
+# Persistent storage for DB (covers both ./storage and typo ./storege)
+mkdir -p "$STORAGE_DIR" "$STOREGE_DIR"
+# Keep both spellings in sync — canonical is storage/kspanel.db
+if [[ -f "$STOREGE_DB" && ! -f "$STORAGE_DB" ]]; then
+    cp -f "$STOREGE_DB" "$STORAGE_DB"
+fi
+# Always ensure the typo path exists as a symlink/copy of the canonical
+ln -sf "$STORAGE_DB" "$STOREGE_DB" 2>/dev/null || cp -f "$STORAGE_DB" "$STOREGE_DB" 2>/dev/null || true
+# Export so all kspanel invocations (seed, create:user, launch) use the persistent DB
+export KSPANEL_DB="$STORAGE_DB"
+export KSPANEL_DB_DSN="$STORAGE_DB"
+log_info "Persistent DB: $STORAGE_DB (also $STOREGE_DB)"
 
 log_info "Copying binaries from release/ ..."
 cp -f "$RELEASE_DIR/kspanel" "$TEST_DIR/"
@@ -107,6 +124,10 @@ log_ok "Test folder ready:"
 ls -lh "$TEST_DIR"
 
 cd "$TEST_DIR"
+# Keep TEST_DIR/kspanel.db as a symlink to the persistent storage DB for
+# backward-compat tools that look for ./kspanel.db in the test dir
+ln -sf "$STORAGE_DB" "$TEST_DIR/kspanel.db" 2>/dev/null || true
+ln -sf "$STORAGE_DB" "./kspanel.db" 2>/dev/null || true
 
 # ============================================================================
 # Seed, configure, launch
@@ -115,9 +136,11 @@ cd "$TEST_DIR"
 export KSPANEL_SESSION_SECRET="$(openssl rand -base64 32)"
 
 ./kspanel seed
-./kspanel create:user --username kshosting --email kshosting@ksmail.com --password kshosting@55 --role 1
-./kspanel import:template minecraft
-./kspanel setup:localnode --port 4040
+# Re-sync the typo path after seed may have created the canonical DB
+ln -sf "$STORAGE_DB" "$STOREGE_DB" 2>/dev/null || cp -f "$STORAGE_DB" "$STOREGE_DB" 2>/dev/null || true
+./kspanel create:user --username kshosting --email kshosting@ksmail.com --password kshosting@55 --role 1 || true
+./kspanel import:template minecraft || true
+./kspanel setup:localnode --port 4040 || true
 
 echo
 log_step "Launching kspanel on port $LAUNCH_PORT (background)..."
