@@ -47,6 +47,16 @@ const TONE_CLASS: Record<string, string> = {
   bad: 'text-red-300',
 };
 
+// Theme-aware inline styles for stat tones — used by blocks/metrics to ensure
+// every stat card follows the active theme (accent.* tokens) even before the
+// gated utility mappings emit. Fallbacks keep the pre-theme look under Default.
+const TONE_STYLE: Record<string, React.CSSProperties> = {
+  default: { color: 'var(--ks-text-heading, var(--ks-heading, #fff))' },
+  good: { color: 'var(--ks-accent-success, #4ade80)' },
+  warn: { color: 'var(--ks-accent-warning, #fbbf24)' },
+  bad: { color: 'var(--ks-accent-danger, #ef4444)' },
+};
+
 // safeUrl guards author-controlled hrefs rendered in the HOST origin
 // (markdown links, button blocks). Only http(s), mailto and relative targets
 // are allowed; every other explicit scheme (javascript:, vbscript:, data:,
