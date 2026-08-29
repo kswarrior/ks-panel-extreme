@@ -130,12 +130,22 @@ func TerminalHandler(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	fmt.Printf("TerminalHandler dialing edge target=%s node=%s inst=%d\n", strings.ReplaceAll(target, token, "[redacted]"), node.Address, id)
-	edgeConn, _, err := proxyDialer.DialContext(ctx, target, nil)
+	edgeConn, resp, err := proxyDialer.DialContext(ctx, target, nil)
 	if err != nil {
 		// Tell the browser the bridge couldn't reach the edge; the JS
 		// side shows a "couldn't connect to node" banner instead of a
 		// generic WS-failed popup. The dial error's URL contains the raw
 		// edge token, so redact it before sending anything to the browser.
+		fmt.Printf("TerminalHandler DialContext failed: %v resp=%v\n", err, resp)
+		if resp != nil {
+			body := ""
+			if resp.Body != nil {
+				b := make([]byte, 512)
+				n, _ := resp.Body.Read(b)
+				body = string(b[:n])
+			}
+			fmt.Printf("Dial resp status=%d header=%v body=%q\n", resp.StatusCode, resp.Header, body)
+		}
 		safeMsg := strings.ReplaceAll(err.Error(), token, "[redacted]")
 		_ = clientConn.WriteJSON(map[string]any{
 			"type":    "error",
@@ -144,6 +154,7 @@ func TerminalHandler(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(50 * time.Millisecond)
 		return
 	}
+	_ = resp
 	defer edgeConn.Close()
 
 	errCh := make(chan error, 2)
