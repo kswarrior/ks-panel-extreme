@@ -159,6 +159,88 @@ func SecurityMiddleware(next http.Handler) http.Handler {
 		// deny-list / suspicious-path blocks use 403 while a disallowed
 		// method answers 405.
 		blocked := uaBlocked || ipBlocked || globalBlocked || ddosBlocked || ipDenied || methodBlocked || suspiciousBlocked
+
+		// WebSocket upgrades (terminal) require http.Hijacker on the
+		// ResponseWriter. Our statusBytesWriter wraps w but the chain of
+		// chi/cors wrappers between SecurityMiddleware and the handler may
+		// not all preserve Hijacker, causing gorilla/websocket to fail with
+		// "response does not implement http.Hijacker". Bypass the capture
+		// wrapper for WebSocket handshakes so the original hijackable writer
+		// reaches the handler.
+		if strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
+			if blocked {
+				status := http.StatusTooManyRequests
+				switch {
+				case uaBlocked:
+					status = http.StatusForbidden
+				case ddosBlocked:
+					status = http.StatusServiceUnavailable
+				case methodBlocked:
+					status = http.StatusMethodNotAllowed
+				case ipDenied, suspiciousBlocked:
+					status = http.StatusForbidden
+				}
+				w.Header().Set("Retry-After", "60")
+				w.WriteHeader(status)
+				_, _ = w.Write([]byte(http.StatusText(status)))
+			} else {
+				next.ServeHTTP(w, r)
+			}
+			// Still record telemetry without the wrapper — use the status we
+			// already decided (blocked ? status : 200) and skip byte counting.
+			if isAsset {
+				return
+			}
+			status := http.StatusOK
+			if blocked {
+				switch {
+				case uaBlocked:
+					status = http.StatusForbidden
+				case ddosBlocked:
+					status = http.StatusServiceUnavailable
+				case methodBlocked:
+					status = http.StatusMethodNotAllowed
+				case ipDenied, suspiciousBlocked:
+					status = http.StatusForbidden
+				default:
+					status = http.StatusTooManyRequests
+				}
+			}
+			duration := time.Since(start).Milliseconds()
+			var uidPtr *int64
+			if !blocked {
+				if uid, err := handlers.UserIDFromContext(r); err == nil {
+					v := uid
+					uidPtr = &v
+				}
+			}
+			in := repository.SecurityRequestInput{
+				ClientIP:   clientIP,
+				Method:     r.Method,
+				Path:       path,
+				Status:     status,
+				UserID:     uidPtr,
+				UserAgent:  r.UserAgent(),
+				IsAPI:      strings.HasPrefix(path, "/api/"),
+				IsLogin:    repository.IsLoginPath(path),
+				BytesSent:  0,
+				DurationMs: duration,
+				Challenged: false,
+				Blocked:    blocked || status == http.StatusForbidden || status == http.StatusTooManyRequests,
+			}
+			ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 5*time.Second)
+			go func(in repository.SecurityRequestInput) {
+				defer cancel()
+				con, err := repository.OpenDB()
+				if err != nil {
+					return
+				}
+				defer con.Close()
+				repo := repository.NewSecurityRepository(con)
+				_, _ = repo.InsertWithContext(ctx, in)
+			}(in)
+			return
+		}
 		sbw := &statusBytesWriter{ResponseWriter: w, status: http.StatusOK}
 		if blocked {
 			status := http.StatusTooManyRequests
