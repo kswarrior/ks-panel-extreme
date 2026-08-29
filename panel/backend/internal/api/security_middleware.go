@@ -1,7 +1,9 @@
 package api
 
 import (
+	"bufio"
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"strconv"
