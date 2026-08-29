@@ -40,16 +40,10 @@ export interface PageContent {
   components?: PageComponentDef[];
 }
 
-const TONE_CLASS: Record<string, string> = {
-  default: 'text-white',
-  good: 'text-emerald-300',
-  warn: 'text-amber-300',
-  bad: 'text-red-300',
-};
-
-// Theme-aware inline styles for stat tones — used by blocks/metrics to ensure
-// every stat card follows the active theme (accent.* tokens) even before the
-// gated utility mappings emit. Fallbacks keep the pre-theme look under Default.
+// Theme-aware inline styles for stat tones — every stat card follows the
+// active theme (accent.* tokens) via CSS variables so instance pages are
+// theme-complete even before the gated utility mappings emit. Fallbacks keep
+// the Default look.
 const TONE_STYLE: Record<string, React.CSSProperties> = {
   default: { color: 'var(--ks-text-heading, var(--ks-heading, #fff))' },
   good: { color: 'var(--ks-accent-success, #4ade80)' },
