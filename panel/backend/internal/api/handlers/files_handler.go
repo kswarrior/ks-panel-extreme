@@ -579,9 +579,12 @@ func hostPathForInstance(con sqlDB, inst *models.Instance, containerPath string)
 	if len(mounts) == 0 {
 		return ""
 	}
-	cp := strings.TrimRight(containerPath, "/")
-	if cp == "" {
+	cp := path.Clean(containerPath)
+	if cp == "." {
 		cp = "/"
+	}
+	if !path.IsAbs(cp) {
+		cp = "/" + cp
 	}
 	var best struct {
 		host string
@@ -589,9 +592,12 @@ func hostPathForInstance(con sqlDB, inst *models.Instance, containerPath string)
 		rank int
 	}
 	for _, m := range mounts {
-		ctn := strings.TrimRight(m.container(), "/")
-		if ctn == "" {
+		ctn := path.Clean(m.container())
+		if ctn == "." {
 			ctn = "/"
+		}
+		if !path.IsAbs(ctn) {
+			ctn = "/" + ctn
 		}
 		if ctn != "/" && !strings.HasPrefix(cp+"/", ctn+"/") && cp != ctn {
 			continue
