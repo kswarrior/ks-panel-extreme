@@ -675,6 +675,12 @@ func (c *Client) Exec(req ExecRequest) (ExecResponse, error) {
 		}
 		return out, fmt.Errorf("edge returned HTTP %d", resp.StatusCode)
 	}
+	if !out.OK {
+		if out.Error != "" {
+			return out, fmt.Errorf("%s", out.Error)
+		}
+		return out, fmt.Errorf("edge reported failure without a message")
+	}
 	return out, nil
 }
 
@@ -718,6 +724,12 @@ func (c *Client) HostExec(req HostExecRequest) (HostExecResponse, error) {
 			}
 			return out, fmt.Errorf("edge returned HTTP %d", status)
 		}
+		if !out.OK {
+			if out.Error != "" {
+				return out, fmt.Errorf("%s", out.Error)
+			}
+			return out, fmt.Errorf("edge reported failure without a message")
+		}
 		return out, nil
 	}
 	body, err := json.Marshal(req)
@@ -744,6 +756,12 @@ func (c *Client) HostExec(req HostExecRequest) (HostExecResponse, error) {
 			return out, fmt.Errorf("edge rejected: %s", out.Error)
 		}
 		return out, fmt.Errorf("edge returned HTTP %d", resp.StatusCode)
+	}
+	if !out.OK {
+		if out.Error != "" {
+			return out, fmt.Errorf("%s", out.Error)
+		}
+		return out, fmt.Errorf("edge reported failure without a message")
 	}
 	return out, nil
 }
@@ -865,6 +883,12 @@ func (c *Client) Snapshot(req SnapshotRequest) (SnapshotResponse, error) {
 			}
 			return out, fmt.Errorf("edge returned HTTP %d", status)
 		}
+		if !out.OK {
+			if out.Error != "" {
+				return out, fmt.Errorf("%s", out.Error)
+			}
+			return out, fmt.Errorf("edge reported failure without a message")
+		}
 		return out, nil
 	}
 	body, err := json.Marshal(req)
@@ -891,6 +915,12 @@ func (c *Client) Snapshot(req SnapshotRequest) (SnapshotResponse, error) {
 			return out, fmt.Errorf("edge rejected: %s", out.Error)
 		}
 		return out, fmt.Errorf("edge returned HTTP %d", resp.StatusCode)
+	}
+	if !out.OK {
+		if out.Error != "" {
+			return out, fmt.Errorf("%s", out.Error)
+		}
+		return out, fmt.Errorf("edge reported failure without a message")
 	}
 	return out, nil
 }
