@@ -882,7 +882,7 @@ func SetupLocalNodeHandler(w http.ResponseWriter, r *http.Request) {
 		"listen_port":        parseIntDefault(port, 4040),
 		"heartbeat_interval": 60,
 		"use_tls_upstream":   node.UseTLS,
-		"skip_verify":        false,
+		"skip_verify":        node.SkipTLSVerify,
 		"connection_mode":    node.ConnectionMode,
 	}
 	// Honour the operator's daemon instance-file directory override. The

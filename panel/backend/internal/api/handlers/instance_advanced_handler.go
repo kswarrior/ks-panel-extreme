@@ -468,7 +468,7 @@ func TriggerRunHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "automation not found", http.StatusNotFound)
 		return
 	}
-	inst, ec, name, ok := loadInstNode(w, r)
+	inst, _, name, ok := loadInstNode(w, r)
 	if !ok {
 		return
 	}
@@ -478,8 +478,26 @@ func TriggerRunHandler(w http.ResponseWriter, r *http.Request) {
 	for i := range keys {
 		env[keys[i]] = vals[i]
 	}
+	// Use a timeout-aware client so long-running jobs (up to 30 min) don't get
+	// cut off by the default 30 s panel dial timeout.
+	timeout := job.TimeoutSec
+	if timeout <= 0 {
+		timeout = 300
+	}
+	nodeRepo := repository.NewNodeRepository(con)
+	node, nerr := nodeRepo.GetNode(inst.NodeID)
+	if nerr != nil {
+		http.Error(w, "owner node not found", http.StatusBadGateway)
+		return
+	}
+	token, terr := nodeRepo.PlainToken(inst.NodeID)
+	if terr != nil || token == "" {
+		http.Error(w, "node has no usable edge token", http.StatusBadGateway)
+		return
+	}
+	ec2 := edge.NewWithTimeout(*node, token, time.Duration(timeout+10)*time.Second)
 	started := time.Now()
-	resp, execErr := ec.Exec(edge.ExecRequest{
+	resp, execErr := ec2.Exec(edge.ExecRequest{
 		Kind: inst.Kind, Name: name, Command: job.Command, Env: env, TimeoutSec: job.TimeoutSec,
 	})
 	finished := time.Now()

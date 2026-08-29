@@ -192,7 +192,11 @@ func runJob(_ context.Context, job models.Automation, instRepo *repository.Insta
 	}
 
 	started := time.Now()
-	ec := edge.New(*node, token)
+	timeout := job.TimeoutSec
+	if timeout <= 0 {
+		timeout = 300
+	}
+	ec := edge.NewWithTimeout(*node, token, time.Duration(timeout+10)*time.Second)
 	resp, execErr := ec.Exec(edge.ExecRequest{
 		Kind:       inst.Kind,
 		Name:       name,

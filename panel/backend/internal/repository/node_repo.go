@@ -731,7 +731,10 @@ func (r *NodeRepository) IngestHeartbeat(in IngestInput) (int64, error) {
 	var id sql.NullInt64
 	err := r.db.QueryRow(`SELECT id FROM nodes WHERE token_hash = ?`, hash).Scan(&id)
 	if err != nil || !id.Valid {
-		return 0, fmt.Errorf("invalid edge token")
+		// Fallback to token_plain for legacy rows / hash drift (matches tunnel handler).
+		if err2 := r.db.QueryRow(`SELECT id FROM nodes WHERE token_plain = ?`, in.Token).Scan(&id); err2 != nil || !id.Valid {
+			return 0, fmt.Errorf("invalid edge token")
+		}
 	}
 
 	now := time.Now().UTC()
