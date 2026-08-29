@@ -3157,7 +3157,7 @@ button.ks-iconbtn:focus-visible{outline:2px solid var(--ks-info);outline-offset:
       <p id="ed-path" class="ks-mono ks-muted" style="font-size:11px;margin:2px 0 0;word-break:break-all"></p>
     </div>
     <div class="ks-row" style="flex-wrap:wrap">
-      <button type="button" class="ks-btn" id="ed-back" title="Back to the Files page">&#8592; Files</button>
+      <button type="button" class="ks-btn" id="ed-back" title="Back to the Files page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;margin-right:4px"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg> Files</button>
       <button type="button" class="ks-btn" id="ed-reload" title="Re-read the file from disk">Reload</button>
       <button type="button" class="ks-btn ks-btn-blue" id="ed-save" title="Write the file (Ctrl+S)">Save</button>
     </div>
