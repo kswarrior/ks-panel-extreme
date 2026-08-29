@@ -27,6 +27,7 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"database/sql"
@@ -285,6 +286,16 @@ func proxyToEdge(w http.ResponseWriter, r *http.Request, id int64, op, path, con
 			})
 			return
 		}
+		// Reject binary uploads early before consuming the body — avoids
+		// buffering 8 MiB for a request we will not forward anyway.
+		if op == "write" || op == "upload" {
+			writeJSONStatus(w, http.StatusNotImplemented, map[string]any{
+				"error": "binary file upload via WSS tunnel not yet supported",
+				"hint":  "switch this edge to direct or local_port for binary uploads, or use JSON ops (list/stat) via tunnel",
+				"edge":  node.Address,
+			})
+			return
+		}
 		var tunnelBody any
 		if body != nil {
 			const tunnelFileLimit = 8 << 20
@@ -298,19 +309,10 @@ func proxyToEdge(w http.ResponseWriter, r *http.Request, id int64, op, path, con
 				return
 			}
 			if len(b) > 0 {
-				if op == "write" || op == "upload" {
-					writeJSONStatus(w, http.StatusNotImplemented, map[string]any{
-						"error": "binary file upload via WSS tunnel not yet supported",
-						"hint":  "switch this edge to direct or local_port for binary uploads, or use JSON ops (list/stat) via tunnel",
-						"edge":  node.Address,
-					})
-					return
-				}
-				if json.Valid(b) {
-					tunnelBody = json.RawMessage(b)
-				} else {
-					tunnelBody = json.RawMessage(b)
-				}
+				// Tunnel transports JSON RPCs; body should be JSON for the
+				// remaining ops (rename/chmod carry JSON). Preserve raw bytes
+				// as-is so the edge decoder sees the original payload.
+				tunnelBody = json.RawMessage(b)
 			}
 		}
 		status, respBody, err := tunnel.Global().Send(node.ID, method, tunnelPath, tunnelBody, 5*time.Minute)
@@ -899,20 +901,22 @@ func proxyToEdgeWithBody(w http.ResponseWriter, r *http.Request, id int64, op, t
 
 	// Tunnel guard for the URL-upload proxy (shares the same constraints as proxyToEdge).
 	mode := strings.ToLower(strings.TrimSpace(node.ConnectionMode))
-	if mode == "reverse_tunnel" && !tunnel.Global().IsConnected(node.ID) {
-		writeJSONStatus(w, http.StatusBadGateway, map[string]any{
-			"error": "edge not connected via WSS tunnel (reverse_tunnel mode requires edge to be online)",
-			"hint":  "ensure ksedge is running with panel_url and token, and can reach the panel via WSS",
-			"edge":  node.Address,
-		})
-		return
-	}
-	if mode == "reverse_tunnel" && tunnel.Global().IsConnected(node.ID) {
+	isTunnelMode := mode == "reverse_tunnel" || mode == "local_wss"
+	connected := tunnel.Global().IsConnected(node.ID)
+	if isTunnelMode && connected {
 		// Binary upload via tunnel would hit the 8 MiB JSON message limit and the edge's
 		// octet-stream handling – not yet tunneled. Report clearly instead of dialing 127.0.0.1.
 		writeJSONStatus(w, http.StatusNotImplemented, map[string]any{
 			"error": "file upload via WSS tunnel not yet supported for binary payloads",
 			"hint":  "use direct or local_port mode for URL uploads, or use JSON ops via tunnel",
+			"edge":  node.Address,
+		})
+		return
+	}
+	if mode == "reverse_tunnel" && !connected {
+		writeJSONStatus(w, http.StatusBadGateway, map[string]any{
+			"error": "edge not connected via WSS tunnel (reverse_tunnel mode requires edge to be online)",
+			"hint":  "ensure ksedge is running with panel_url and token, and that it can reach the panel via WSS",
 			"edge":  node.Address,
 		})
 		return
@@ -987,4 +991,4 @@ func proxyToEdgeWithBody(w http.ResponseWriter, r *http.Request, id int64, op, t
 // bytesReader returns a fresh reader over the supplied bytes via io.Reader.
 // Kept as a tiny helper so the upload proxy sites read identically to
 // proxyToEdge (which gets an io.Reader from the request body).
-func bytesReader(b []byte) io.Reader { return strings.NewReader(string(b)) }
+func bytesReader(b []byte) io.Reader { return bytes.NewReader(b) }
