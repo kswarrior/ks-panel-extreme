@@ -862,42 +862,27 @@ func ExecutePageActionHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Use the edge client to call the page-action endpoint
-	ec := edge.New(*node, token)
-
-	edgeReq := map[string]any{
-		"token":   token,
-		"kind":    instance.Kind,
-		"name":    instance.Name,
-		"type":    req.Type,
-		"command": req.Command,
-		"path":    req.Path,
-		"content": req.Content,
-		"args":    req.Args,
-		"env":     req.Env,
-		"timeout": reqTimeout,
-	}
-
-	body, _ := json.Marshal(edgeReq)
-	httpReq, _ := http.NewRequestWithContext(r.Context(), "POST", ec.BaseURL()+"/api/edge/page-action", bytes.NewReader(body))
-	httpReq.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{Timeout: time.Duration(reqTimeout+5) * time.Second}
-
-	resp, err := client.Do(httpReq)
+	// Use the tunnel-aware edge client (honours WSS + SkipTLSVerify).
+	ec := edge.NewWithTimeout(*node, token, time.Duration(reqTimeout+5)*time.Second)
+	resp, err := ec.PageAction(edge.PageActionRequest{
+		Kind:    instance.Kind,
+		Name:    instance.Name,
+		Type:    req.Type,
+		Command: req.Command,
+		Path:    req.Path,
+		Content: req.Content,
+		Args:    req.Args,
+		Env:     req.Env,
+		Timeout: reqTimeout,
+	})
 	if err != nil {
 		log.Printf("ExecutePageActionHandler: edge page-action request failed: %v", err)
-		writeJSON(w, map[string]any{
+		writeJSONStatus(w, http.StatusBadGateway, map[string]any{
 			"error": "edge page-action unreachable: " + err.Error(),
 		})
 		return
 	}
-	defer resp.Body.Close()
-
-	respBody, _ := io.ReadAll(resp.Body)
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(resp.StatusCode)
-	_, _ = w.Write(respBody)
+	writeJSON(w, resp)
 }
 
 // validActionTypes enumerates the executable action kinds a saved page

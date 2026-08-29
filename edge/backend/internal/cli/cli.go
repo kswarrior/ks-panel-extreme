@@ -143,7 +143,7 @@ func launchCmd() *cobra.Command {
 				if port != 0 {
 					portForTunnel = port
 				}
-				tc := tunnel.New(cfg.PanelURL, cfg.Token, portForTunnel)
+				tc := tunnel.NewWithSkipVerify(cfg.PanelURL, cfg.Token, portForTunnel, cfg.SkipVerify)
 				go tc.Run(rootCtx)
 			} else {
 				log.Printf("tunnel: disabled (connection_mode=%q not a tunnel mode)", cfg.ConnectionMode)
