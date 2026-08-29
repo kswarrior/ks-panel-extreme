@@ -963,7 +963,9 @@ func isLocalAddress(addr string) bool {
 
 // isLocalNode reports whether a node row is a localhost edge that the panel
 // can manage locally (setup/purge). It checks the explicit connection_mode first
-// (local_port / local_wss) and falls back to address sniffing for legacy rows.
+// (local_port / local_wss) and falls back to address sniffing for legacy rows
+// and for direct-mode rows that still carry a loopback address (pre-050 rows
+// defaulted to 'direct' even when they were created as localhost edges).
 func isLocalNode(n *models.Node) bool {
 	if n == nil {
 		return false
@@ -972,10 +974,13 @@ func isLocalNode(n *models.Node) bool {
 	if m == "local_port" || m == "local_wss" {
 		return true
 	}
-	if m == "reverse_tunnel" || m == "direct" {
+	if m == "reverse_tunnel" {
 		return false
 	}
-	// Legacy fallback: infer from address.
+	// For direct, empty, or unknown modes, fall back to address sniffing so
+	// legacy rows (which were defaulted to 'direct' by the 050 migration)
+	// that actually point at 127.0.0.1/localhost remain manageable via
+	// setup/purge until the operator edits them to the proper local_* mode.
 	return isLocalAddress(n.Address)
 }
 

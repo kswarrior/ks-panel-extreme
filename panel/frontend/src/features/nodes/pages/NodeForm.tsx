@@ -251,7 +251,7 @@ const NodeForm: React.FC = () => {
       const res: CreateNodeResult = await createNode({
         name: form.name,
         address: effectiveAddress,
-        use_tls: form.connection_mode === 'local_wss' ? true : form.use_tls,
+        use_tls: form.use_tls,
         ...advancedPayload(),
       });
       setSetupInfo({ running: true, log: 'Node registered. Installing and launching ksedge…', done: false });
@@ -297,12 +297,12 @@ const NodeForm: React.FC = () => {
         await updateNode(Number(id), {
           name: form.name,
           address: effectiveAddress,
-          use_tls: form.connection_mode === 'local_wss' ? true : form.use_tls,
+          use_tls: form.use_tls,
           ...advancedPayload(),
         });
         navigate('/nodes');
       } else {
-        const useTLS = form.connection_mode === 'local_wss' ? true : form.use_tls;
+        const useTLS = form.use_tls;
         const res: CreateNodeResult = await createNode({
           name: form.name,
           address: effectiveAddress,

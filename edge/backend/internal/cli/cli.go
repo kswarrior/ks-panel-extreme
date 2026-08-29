@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -133,14 +134,20 @@ func launchCmd() *cobra.Command {
 			defer stopSignals()
 			go sender.Run(rootCtx)
 			// WSS reverse tunnel: keep a persistent websocket to the panel so the
-			// panel can push RPCs without dialing the edge directly. Works for
-			// reverse_tunnel and local_wss modes; harmless for direct/local_port.
-			portForTunnel := cfg.ListenPortOr(4040)
-			if port != 0 {
-				portForTunnel = port
+			// panel can push RPCs without dialing the edge directly. Only for
+			// tunnel modes (reverse_tunnel / local_wss); direct and local_port
+			// use plain HTTP and don't need the extra websocket.
+			mode := strings.ToLower(strings.TrimSpace(cfg.ConnectionMode))
+			if mode == "reverse_tunnel" || mode == "local_wss" {
+				portForTunnel := cfg.ListenPortOr(4040)
+				if port != 0 {
+					portForTunnel = port
+				}
+				tc := tunnel.New(cfg.PanelURL, cfg.Token, portForTunnel)
+				go tc.Run(rootCtx)
+			} else {
+				log.Printf("tunnel: disabled (connection_mode=%q not a tunnel mode)", cfg.ConnectionMode)
 			}
-			tc := tunnel.New(cfg.PanelURL, cfg.Token, portForTunnel)
-			go tc.Run(rootCtx)
 
 			return runHealthServer(cfg, rootCtx)
 		},
