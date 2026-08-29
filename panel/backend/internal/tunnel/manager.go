@@ -85,7 +85,11 @@ func (c *Conn) sendRequest(req tunnelRequest, timeout time.Duration) (tunnelResp
 // handleReadLoop reads responses from the edge and dispatches them to pending callers.
 func (c *Conn) handleReadLoop(mgr *Manager) {
 	defer func() {
-		close(c.closed)
+		select {
+		case <-c.closed:
+		default:
+			close(c.closed)
+		}
 		mgr.remove(c.nodeID, c)
 		_ = c.ws.Close()
 	}()
@@ -130,7 +134,12 @@ func (m *Manager) add(nodeID int64, c *Conn) {
 	defer m.mu.Unlock()
 	if old, ok := m.conns[nodeID]; ok && old != c {
 		_ = old.ws.Close()
-		close(old.closed)
+		// Avoid double-close panic if handleReadLoop already closed the channel.
+		select {
+		case <-old.closed:
+		default:
+			close(old.closed)
+		}
 	}
 	m.conns[nodeID] = c
 }
