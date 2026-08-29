@@ -60,6 +60,30 @@ const DDoS: React.FC<DDoSProps> = ({
   // Global traffic limit (RPM ceiling enforced while Under Attack is on).
   const [globalRpmLimit, setGlobalRpmLimit] = useState(initialConfig?.global_rpm_limit ?? 0);
 
+  // Sync local state when parent passes fresh snapshot/config (e.g. after save+reload or browser refresh).
+  useEffect(() => {
+    if (initialSnapshot) {
+      setSnap(initialSnapshot);
+      setUnderAttack(initialSnapshot.under_attack);
+      setLoading(false);
+    }
+  }, [initialSnapshot]);
+
+  useEffect(() => {
+    if (initialConfig) {
+      setDdosAutoStopEnabled(initialConfig.ddos_auto_stop_enabled);
+      setDdosStopMinutes(initialConfig.ddos_stop_minutes);
+      setDdosMaxStopCount(initialConfig.ddos_max_stop_count);
+      setDdosMode(initialConfig.ddos_mode);
+      setDdosAltPort(initialConfig.ddos_alt_port);
+      setDdosGlobalHits(initialConfig.ddos_global_trigger_hits);
+      setDdosGlobalWindow(initialConfig.ddos_global_trigger_window);
+      setGlobalRpmLimit(initialConfig.global_rpm_limit);
+      setConfigLoading(false);
+      return;
+    }
+  }, [initialConfig]);
+
   const loadSnapshot = useCallback(async () => {
     if (initialSnapshot) return;
     try {
@@ -116,18 +140,25 @@ const DDoS: React.FC<DDoSProps> = ({
       return;
     }
     try {
+      let latest: SecurityConfig | null = null;
+      try {
+        latest = await securityGetConfig();
+      } catch {
+        latest = initialConfig ?? null;
+      }
+      const base = latest ?? initialConfig;
       const cfg: SecurityConfig = {
         // Firewall-owned fields are preserved from the loaded config —
         // hardcoding them here used to silently reset the firewall
         // limits every time this form was saved.
-        requests_per_minute_limit: initialConfig?.requests_per_minute_limit ?? 600,
-        window_seconds_limit: initialConfig?.window_seconds_limit ?? 60,
-        ip_allowlist: initialConfig?.ip_allowlist ?? [],
-        ip_denylist: initialConfig?.ip_denylist ?? [],
-        max_body_size_mb: initialConfig?.max_body_size_mb ?? 10,
-        allowed_http_methods: initialConfig?.allowed_http_methods ?? '',
-        block_suspicious_paths: initialConfig?.block_suspicious_paths ?? false,
-        block_unknown_ua: initialConfig?.block_unknown_ua ?? false,
+        requests_per_minute_limit: base?.requests_per_minute_limit ?? 600,
+        window_seconds_limit: base?.window_seconds_limit ?? 60,
+        ip_allowlist: base?.ip_allowlist ?? [],
+        ip_denylist: base?.ip_denylist ?? [],
+        max_body_size_mb: base?.max_body_size_mb ?? 10,
+        allowed_http_methods: base?.allowed_http_methods ?? '',
+        block_suspicious_paths: base?.block_suspicious_paths ?? false,
+        block_unknown_ua: base?.block_unknown_ua ?? false,
         ddos_auto_stop_enabled: ddosAutoStopEnabled,
         ddos_stop_minutes: ddosStopMinutes,
         ddos_max_stop_count: ddosMaxStopCount,
@@ -137,13 +168,23 @@ const DDoS: React.FC<DDoSProps> = ({
         ddos_global_trigger_window: ddosGlobalWindow,
         global_rpm_limit: globalRpmLimit < 0 ? 0 : Math.floor(globalRpmLimit),
         // Session-owned fields are preserved (Sessions tab owns them).
-        session_lifetime_minutes: initialConfig?.session_lifetime_minutes ?? 480,
-        session_idle_timeout_minutes: initialConfig?.session_idle_timeout_minutes ?? 1440,
-        session_max_per_user: initialConfig?.session_max_per_user ?? 0,
+        session_lifetime_minutes: base?.session_lifetime_minutes ?? 480,
+        session_idle_timeout_minutes: base?.session_idle_timeout_minutes ?? 1440,
+        session_max_per_user: base?.session_max_per_user ?? 0,
       };
-      await securityUpdateConfig(cfg);
+      const saved = await securityUpdateConfig(cfg);
+      // Sync to what the server persisted (handles clamping).
+      setDdosAutoStopEnabled(saved.ddos_auto_stop_enabled);
+      setDdosStopMinutes(saved.ddos_stop_minutes);
+      setDdosMaxStopCount(saved.ddos_max_stop_count);
+      setDdosMode(saved.ddos_mode);
+      setDdosAltPort(saved.ddos_alt_port);
+      setDdosGlobalHits(saved.ddos_global_trigger_hits);
+      setDdosGlobalWindow(saved.ddos_global_trigger_window);
+      setGlobalRpmLimit(saved.global_rpm_limit);
       const s = await securitySnapshot();
       setSnap(s);
+      setUnderAttack(s.under_attack);
       setConfigSuccess('Saved.');
       onConfigChange?.();
     } catch (e: any) {

@@ -69,12 +69,16 @@ const Security: React.FC = () => {
     }
   }, []);
 
+  const [configLoaded, setConfigLoaded] = useState(false);
+
   const loadFirewallConfig = useCallback(async () => {
     try {
       const cfg = await securityGetConfig();
       setFwConfig(cfg);
+      setConfigLoaded(true);
     } catch (e: any) {
       console.error('Failed to load firewall config', e);
+      setConfigLoaded(true);
     }
   }, []);
 
@@ -88,12 +92,10 @@ const Security: React.FC = () => {
     }
   }, [snap]);
 
-  const handleConfigChange = useCallback(() => {
+  const handleConfigChange = useCallback(async () => {
     setConfigVersion((v) => v + 1);
-    loadFirewallConfig();
-  }, [loadFirewallConfig]);
-
-  const [configLoaded, setConfigLoaded] = useState(false);
+    await Promise.all([loadFirewallConfig(), load()]);
+  }, [loadFirewallConfig, load]);
 
   useEffect(() => {
     load();
@@ -102,7 +104,7 @@ const Security: React.FC = () => {
   }, [load]);
 
   useEffect(() => {
-    loadFirewallConfig().then(() => setConfigLoaded(true));
+    loadFirewallConfig();
   }, [loadFirewallConfig]);
 
   if (!snap && loading) return <SkeletonGrid count={8} />;

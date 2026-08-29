@@ -44,7 +44,12 @@ const Sessions: React.FC<SessionsProps> = ({ initialConfig, onConfigChange }) =>
   const [busyId, setBusyId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!initialConfig) {
+    if (initialConfig) {
+      setLifetimeMin(initialConfig.session_lifetime_minutes);
+      setIdleMinutes(initialConfig.session_idle_timeout_minutes);
+      setMaxPerUser(initialConfig.session_max_per_user);
+      setConfigLoading(false);
+    } else {
       securityGetConfig()
         .then((cfg) => {
           setLifetimeMin(cfg.session_lifetime_minutes);
@@ -91,30 +96,40 @@ const Sessions: React.FC<SessionsProps> = ({ initialConfig, onConfigChange }) =>
       return;
     }
     try {
+      let latest: SecurityConfig | null = null;
+      try {
+        latest = await securityGetConfig();
+      } catch {
+        latest = initialConfig ?? null;
+      }
+      const base = latest ?? initialConfig;
       // Preserve every non-session field from the loaded config — each
       // tab owns its slice of the shared security config.
       const cfg: SecurityConfig = {
-        requests_per_minute_limit: initialConfig?.requests_per_minute_limit ?? 600,
-        window_seconds_limit: initialConfig?.window_seconds_limit ?? 60,
-        global_rpm_limit: initialConfig?.global_rpm_limit ?? 0,
-        ip_allowlist: initialConfig?.ip_allowlist ?? [],
-        ip_denylist: initialConfig?.ip_denylist ?? [],
-        max_body_size_mb: initialConfig?.max_body_size_mb ?? 10,
-        allowed_http_methods: initialConfig?.allowed_http_methods ?? '',
-        block_suspicious_paths: initialConfig?.block_suspicious_paths ?? false,
-        block_unknown_ua: initialConfig?.block_unknown_ua ?? false,
-        ddos_auto_stop_enabled: initialConfig?.ddos_auto_stop_enabled ?? false,
-        ddos_stop_minutes: initialConfig?.ddos_stop_minutes ?? 5,
-        ddos_max_stop_count: initialConfig?.ddos_max_stop_count ?? 0,
-        ddos_mode: initialConfig?.ddos_mode ?? 'stop',
-        ddos_alt_port: initialConfig?.ddos_alt_port ?? 5050,
-        ddos_global_trigger_hits: initialConfig?.ddos_global_trigger_hits ?? 0,
-        ddos_global_trigger_window: initialConfig?.ddos_global_trigger_window ?? 10,
+        requests_per_minute_limit: base?.requests_per_minute_limit ?? 600,
+        window_seconds_limit: base?.window_seconds_limit ?? 60,
+        global_rpm_limit: base?.global_rpm_limit ?? 0,
+        ip_allowlist: base?.ip_allowlist ?? [],
+        ip_denylist: base?.ip_denylist ?? [],
+        max_body_size_mb: base?.max_body_size_mb ?? 10,
+        allowed_http_methods: base?.allowed_http_methods ?? '',
+        block_suspicious_paths: base?.block_suspicious_paths ?? false,
+        block_unknown_ua: base?.block_unknown_ua ?? false,
+        ddos_auto_stop_enabled: base?.ddos_auto_stop_enabled ?? false,
+        ddos_stop_minutes: base?.ddos_stop_minutes ?? 5,
+        ddos_max_stop_count: base?.ddos_max_stop_count ?? 0,
+        ddos_mode: base?.ddos_mode ?? 'stop',
+        ddos_alt_port: base?.ddos_alt_port ?? 5050,
+        ddos_global_trigger_hits: base?.ddos_global_trigger_hits ?? 0,
+        ddos_global_trigger_window: base?.ddos_global_trigger_window ?? 10,
         session_lifetime_minutes: Math.floor(lifetimeMin),
         session_idle_timeout_minutes: Math.floor(idleMinutes),
         session_max_per_user: maxPerUser < 0 ? 0 : Math.floor(maxPerUser),
       };
-      await securityUpdateConfig(cfg);
+      const saved = await securityUpdateConfig(cfg);
+      setLifetimeMin(saved.session_lifetime_minutes);
+      setIdleMinutes(saved.session_idle_timeout_minutes);
+      setMaxPerUser(saved.session_max_per_user);
       setConfigSuccess('Saved.');
       onConfigChange?.();
     } catch (e: any) {
