@@ -551,7 +551,7 @@ func installSweepLoop(interval time.Duration) {
 					return
 				}
 
-				ec := edge.New(*node, token)
+				ec := edge.NewWithTimeout(*node, token, 15*time.Second)
 				// Use the canonical kind + name columns from the row rather
 				// than re-parsing install_id (which is "<kind>:<name>"). Using
 				// the columns keeps the poll immune to any future change in
@@ -794,7 +794,7 @@ func metricsSweepLoop(interval time.Duration) {
 					name = inst.name
 				}
 
-				ec := edge.New(*node, token)
+				ec := edge.NewWithTimeout(*node, token, 10*time.Second)
 				resp, err := ec.Inspect(edge.InspectRequest{
 					Token: token,
 					Kind:  inst.kind,
