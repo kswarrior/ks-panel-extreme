@@ -187,7 +187,11 @@ func (c *Client) forwardToLocal(method, p string, body json.RawMessage) (int, js
 	}
 	req, err := http.NewRequest(method, localURL, bodyReader)
 	if err != nil {
-		return 500, nil, err.Error()
+		msg := err.Error()
+		if c.token != "" {
+			msg = strings.ReplaceAll(msg, c.token, "REDACTED")
+		}
+		return 500, nil, msg
 	}
 	if len(body) > 0 {
 		req.Header.Set("Content-Type", "application/json")
@@ -196,7 +200,11 @@ func (c *Client) forwardToLocal(method, p string, body json.RawMessage) (int, js
 	client := &http.Client{Timeout: 35 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return 502, nil, fmt.Sprintf("local forward failed: %v", err)
+		msg := fmt.Sprintf("local forward failed: %v", err)
+		if c.token != "" {
+			msg = strings.ReplaceAll(msg, c.token, "REDACTED")
+		}
+		return 502, nil, msg
 	}
 	defer resp.Body.Close()
 	respBody, err := io.ReadAll(resp.Body)
