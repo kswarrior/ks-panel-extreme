@@ -315,6 +315,11 @@ const InstancePageStudio: React.FC = () => {
         html: src.content_html,
         markdown: src.content_markdown,
         blocks: src.content_blocks,
+        // Components are defined at the page family level (React-like reusable
+        // blocks). They must load on both main and sub-pages, so sub-page
+        // preview shares the parent's components and actions.
+        actions: actionDefs.length ? actionDefs : undefined,
+        components: compDefs.length ? compDefs : undefined,
       };
     }
     return {
