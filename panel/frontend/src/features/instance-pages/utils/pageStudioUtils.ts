@@ -232,12 +232,27 @@ window.KSPageSDK = {
 // PREVIEW_BASE_STYLE is the neutral base for the static preview iframe; the
 // ACTIVE panel theme's tokens are appended after it (activePageThemeCss) so
 // the preview renders with the same --ks-* palette the live page gets.
+// Every element references theme tokens (heading/body/link/card/border) so
+// the preview is a live, theme-complete miniature of the real instance page.
 export const PREVIEW_BASE_STYLE = `
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 1rem; color: var(--ks-body, #e5e7eb); background: transparent; }
 * { box-sizing: border-box; }
-h1,h2,h3 { color: var(--ks-heading, #fff); margin: 1rem 0 0.5rem; }
-code { background: var(--ks-input-bg, rgba(0,0,0,0.35)); padding: 0.1rem 0.3rem; border-radius: 3px; }
-pre { background: var(--ks-input-bg, rgba(0,0,0,0.35)); padding: 1rem; border-radius: 6px; overflow-x: auto; }
+body { font-family: var(--ks-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); padding: 1rem; color: var(--ks-body, var(--ks-text-body, #e5e7eb)); background: transparent; line-height: 1.6; }
+h1,h2,h3 { color: var(--ks-heading, var(--ks-text-heading, #fff)); margin: 1rem 0 0.5rem; }
+h1,h2,h3 strong { color: inherit; }
+a { color: var(--ks-link, #7dd3fc); }
+a:hover { color: var(--ks-info, #38bdf8); }
+code { background: var(--ks-input-bg, rgba(0,0,0,0.35)); padding: 0.1rem 0.3rem; border-radius: 3px; color: var(--ks-body, #e5e7eb); border: 1px solid var(--ks-card-border, rgba(255,255,255,0.10)); }
+pre { background: var(--ks-input-bg, rgba(0,0,0,0.35)); padding: 1rem; border-radius: 6px; overflow-x: auto; border: 1px solid var(--ks-card-border, rgba(255,255,255,0.10)); color: var(--ks-body, #e5e7eb); }
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; padding: 0.375rem 0.75rem; border-bottom: 1px solid var(--ks-card-border, rgba(255,255,255,0.10)); font-size: 0.8125rem; }
+th { color: var(--ks-muted, #9ca3af); text-transform: uppercase; font-size: 0.6875rem; letter-spacing: 0.05em; }
+img { max-width: 100%; border-radius: 6px; }
+.ks-card { background: var(--ks-card-bg, rgba(255,255,255,0.04)); border: 1px solid var(--ks-card-border, rgba(255,255,255,0.10)); border-radius: 0.75rem; padding: 1rem; margin-bottom: 0.75rem; }
+.ks-btn { display: inline-block; background: var(--ks-btn-bg, #fff); color: var(--ks-btn-text, #000); border: none; padding: 0.5rem 1rem; border-radius: 0.375rem; font-weight: 500; cursor: pointer; font-size: 0.875rem; }
+.ks-muted { color: var(--ks-muted, #9ca3af); }
+.ks-ok { color: var(--ks-ok, #34d399); }
+.ks-bad { color: var(--ks-bad, #fca5a5); }
+.ks-warn { color: var(--ks-warn, #fcd34d); }
 `;
 
 export function renderPreview(contentType: string, content: string, components?: PageComponentDef[]): string {

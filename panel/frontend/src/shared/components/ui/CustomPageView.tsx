@@ -860,6 +860,15 @@ function customPageThemeCss(theme: Theme): string {
       --ks-card-border: ${cssConst(c.border_color, 'rgba(255,255,255,0.10)')};
       --ks-input-bg: ${cssConst(f.input_background, 'rgba(0,0,0,0.4)')};
       --ks-input-border: ${cssConst(f.input_border_color, 'rgba(255,255,255,0.15)')};
+      /* Host ↔ iframe token parity — block/markdown React renderers use --ks-text-* names */
+      --ks-text-heading: ${cssConst(theme.typography.heading_color, '#ffffff')};
+      --ks-text-body: ${cssConst(theme.typography.body_color, '#9ca3af')};
+      --ks-text-card: ${cssConst(c.text_color, '#ffffff')};
+      --ks-accent-primary: ${cssConst(a.primary, '#38bdf8')};
+      --ks-accent-success: ${okCol};
+      --ks-accent-warning: ${warnCol};
+      --ks-accent-danger: ${badCol};
+      --ks-accent-info: ${infoCol};
     }
     body { color: ${bodyCol}; font-family: ${cssConst(theme.typography.font_family, 'inherit')}; }
     h1,h2,h3 { color: ${cssConst(theme.typography.heading_color, '#fff')}; }
