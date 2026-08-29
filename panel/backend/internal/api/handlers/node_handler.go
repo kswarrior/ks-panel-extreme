@@ -813,8 +813,8 @@ func SetupLocalNodeHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "node not found", http.StatusNotFound)
 		return
 	}
-	if !isLocalAddress(node.Address) {
-		http.Error(w, "setup is only supported for localhost nodes", http.StatusBadRequest)
+	if !isLocalNode(node) {
+		http.Error(w, "setup is only supported for local edge nodes (local_port / local_wss)", http.StatusBadRequest)
 		return
 	}
 	token, err := repo.PlainToken(id)
@@ -823,7 +823,19 @@ func SetupLocalNodeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	port := portFromAddress(node.Address, "4040")
-	panelURL := "http://" + r.Host
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	// Prefer X-Forwarded-Proto when behind a proxy.
+	if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
+		if proto == "https" {
+			scheme = "https"
+		} else if proto == "http" {
+			scheme = "http"
+		}
+	}
+	panelURL := scheme + "://" + r.Host
 
 	// Per-node working directory under the panel data dir so multiple local
 	// edges (or a re-setup) don't stomp each other's binaries.
@@ -871,6 +883,7 @@ func SetupLocalNodeHandler(w http.ResponseWriter, r *http.Request) {
 		"heartbeat_interval": 60,
 		"use_tls_upstream":   node.UseTLS,
 		"skip_verify":        false,
+		"connection_mode":    node.ConnectionMode,
 	}
 	// Honour the operator's daemon instance-file directory override. The
 	// daemon defaults to /var/lib/kspanel/instances when the key is absent
@@ -946,6 +959,24 @@ func SetupLocalNodeHandler(w http.ResponseWriter, r *http.Request) {
 // can reasonably launch the edge binary in-process.
 func isLocalAddress(addr string) bool {
 	return strings.HasPrefix(addr, "127.0.0.1:") || strings.HasPrefix(addr, "localhost:")
+}
+
+// isLocalNode reports whether a node row is a localhost edge that the panel
+// can manage locally (setup/purge). It checks the explicit connection_mode first
+// (local_port / local_wss) and falls back to address sniffing for legacy rows.
+func isLocalNode(n *models.Node) bool {
+	if n == nil {
+		return false
+	}
+	m := strings.ToLower(strings.TrimSpace(n.ConnectionMode))
+	if m == "local_port" || m == "local_wss" {
+		return true
+	}
+	if m == "reverse_tunnel" || m == "direct" {
+		return false
+	}
+	// Legacy fallback: infer from address.
+	return isLocalAddress(n.Address)
 }
 
 // portFromAddress pulls the port segment off a host:port string, falling back
@@ -1038,8 +1069,8 @@ func PurgeLocalNodeHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "node not found", http.StatusNotFound)
 		return
 	}
-	if !isLocalAddress(node.Address) {
-		http.Error(w, "purge is only supported for localhost nodes", http.StatusBadRequest)
+	if !isLocalNode(node) {
+		http.Error(w, "purge is only supported for local edge nodes (local_port / local_wss)", http.StatusBadRequest)
 		return
 	}
 	label := node.Name
