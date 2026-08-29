@@ -208,6 +208,29 @@ function parseSpecActions(raw: unknown): PageContent['actions'] {
   return defs.length > 0 ? defs : undefined;
 }
 
+// parseSpecComponents normalises a spec page row's `components` field — it
+// may be a JSON-encoded string (InstancePage DB row) or an inline array
+// (template spec written by LinkInstancePageHandler / TemplateForm serialize)
+// into PageComponentDef[] or undefined. Handles double-encoded strings too.
+function parseSpecComponents(raw: unknown): PageContent['components'] {
+  let list: unknown = raw;
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (!trimmed) return undefined;
+    try {
+      list = JSON.parse(trimmed);
+      if (typeof list === 'string') {
+        try { list = JSON.parse(list); } catch { return undefined; }
+      }
+    } catch { return undefined; }
+  }
+  if (!Array.isArray(list)) return undefined;
+  const defs = list.filter((c): c is NonNullable<PageContent['components']>[number] =>
+    !!c && typeof c === 'object' && typeof (c as any).name === 'string' && typeof (c as any).type === 'string',
+  );
+  return defs.length > 0 ? defs : undefined;
+}
+
 // hasAnyContent reports whether a spec row carries renderable content.
 function hasAnyContent(p: any): boolean {
   return (
@@ -237,6 +260,8 @@ function findPageRow(slug: string, spec: Record<string, any> | null | undefined)
 }
 
 // pagePayloadFromRow builds the PageContent payload from a top-level spec row.
+// Supports components as either JSON string or inline array (React-like reusable
+// blocks that load on main page and propagate to sub-pages).
 function pagePayloadFromRow(p: any): PageContent {
   const type: PageContentType = ['html', 'markdown', 'blocks'].includes(p.content_type)
     ? p.content_type
@@ -250,7 +275,7 @@ function pagePayloadFromRow(p: any): PageContent {
     markdown: typeof p.content_markdown === 'string' ? p.content_markdown : undefined,
     blocks: typeof p.content_blocks === 'string' ? p.content_blocks : undefined,
     actions: parseSpecActions(p.actions),
-    components: typeof p.components === 'string' && p.components.trim() ? parsePageComponents(p.components) : undefined,
+    components: parseSpecComponents(p.components),
   };
 }
 
@@ -275,16 +300,16 @@ function pagePayloadFromSub(s: any, parentComponents?: PageComponentDef[]): Page
 // getPageContent returns the custom content payload for a resolved slug, or
 // null when the slug has no page row. Slugs with a slash resolve through the
 // parent row's nested sub_pages ("<parent>/<path>"); legacy flattened rows
-// (slug "files/edit") still match directly first.
+// (slug "files/edit") still match directly first. Parent components propagate
+// to sub-pages so a single {{component:name}} definition works React-like on
+// both main and sub-page routes.
 export function getPageContent(slug: string, spec: Record<string, any> | null | undefined): PageContent | null {
   const p = findPageRow(slug, spec);
   if (p) return pagePayloadFromRow(p);
   const hit = findSubPageEntry(slug, spec);
   if (!hit) return null;
-  // Pass parent's components to sub-page payload.
-  const parentComps = typeof hit.parent?.components === 'string' && hit.parent.components.trim()
-    ? parsePageComponents(hit.parent.components)
-    : undefined;
+  // Pass parent's components to sub-page payload (handles string or array).
+  const parentComps = parseSpecComponents(hit.parent?.components);
   return pagePayloadFromSub(hit.sub, parentComps);
 }
 
