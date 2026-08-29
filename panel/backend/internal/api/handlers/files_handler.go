@@ -234,6 +234,110 @@ func proxyToEdge(w http.ResponseWriter, r *http.Request, id int64, op, path, con
 		body = r.Body
 	}
 
+	// Tunnel-aware dispatch: for reverse_tunnel / local_wss with an active
+	// WSS tunnel, multiplex the files RPC over the tunnel instead of dialing
+	// the edge's address directly. This lets a NAT-ed edge behind
+	// reverse_tunnel still serve the file manager without a public IP.
+	mode := strings.ToLower(strings.TrimSpace(node.ConnectionMode))
+	isTunnelMode := mode == "reverse_tunnel" || mode == "local_wss"
+	connected := tunnel.Global().IsConnected(node.ID)
+	if isTunnelMode && connected {
+		tunnelPath := "/api/edge/files?" + q.Encode()
+		// Binary payloads (read/write/upload) are not yet fully tunneled
+		// due to the tunnel's 8 MiB JSON message limit and the edge's
+		// octet-stream vs JSON handling. For JSON ops (list/stat/mkdir/
+		// rename/delete/chmod) the tunnel works transparently; for binary
+		// ops we return a structured hint so the SPA can surface a useful
+		// banner instead of a generic dial failure to 127.0.0.1:4040.
+		if op == "read" {
+			writeJSONStatus(w, http.StatusNotImplemented, map[string]any{
+				"error": "file download via WSS tunnel not yet supported for binary files",
+				"hint":  "use direct or local_port mode for binary downloads, or rely on host_path mounts where the panel reads directly",
+				"edge":  node.Address,
+			})
+			return
+		}
+		var tunnelBody any
+		if body != nil {
+			const tunnelFileLimit = 8 << 20
+			b, _ := io.ReadAll(io.LimitReader(body, tunnelFileLimit+1))
+			if int64(len(b)) > tunnelFileLimit {
+				writeJSONStatus(w, http.StatusRequestEntityTooLarge, map[string]any{
+					"error": "file too large for WSS tunnel (max 8 MiB)",
+					"hint":  "use direct or local_port mode for large file transfers, or upload in chunks",
+					"edge":  node.Address,
+				})
+				return
+			}
+			if len(b) > 0 {
+				if op == "write" || op == "upload" {
+					writeJSONStatus(w, http.StatusNotImplemented, map[string]any{
+						"error": "binary file upload via WSS tunnel not yet supported",
+						"hint":  "switch this edge to direct or local_port for binary uploads, or use JSON ops (list/stat) via tunnel",
+						"edge":  node.Address,
+					})
+					return
+				}
+				if json.Valid(b) {
+					tunnelBody = json.RawMessage(b)
+				} else {
+					tunnelBody = json.RawMessage(b)
+				}
+			}
+		}
+		status, respBody, err := tunnel.Global().Send(node.ID, method, tunnelPath, tunnelBody, 5*time.Minute)
+		if err != nil {
+			safeErr := strings.ReplaceAll(err.Error(), token, "[redacted]")
+			writeJSONStatus(w, http.StatusBadGateway, map[string]any{
+				"error": "tunnel send failed: " + safeErr,
+				"edge":  node.Address,
+			})
+			return
+		}
+		if status == http.StatusNotFound && contentType != "" {
+			if strings.Contains(string(respBody), "404 page not found") {
+				writeJSON(w, map[string]any{
+					"error": "this edge node does not expose the file manager endpoint",
+					"hint":  "the running ksedge binary is older than the panel's files route; rebuild and restart ksedge",
+					"edge":  node.Address,
+				})
+				return
+			}
+		}
+		if status >= 400 {
+			if !json.Valid(respBody) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(status)
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"error": strings.TrimSpace(string(respBody)),
+					"hint":  "the edge returned a non-JSON error response; check that ksedge is up to date and running",
+					"edge":  node.Address,
+				})
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(status)
+			_, _ = w.Write(respBody)
+			return
+		}
+		if contentType != "" {
+			w.Header().Set("Content-Type", contentType)
+		} else {
+			w.Header().Set("Content-Type", "application/json")
+		}
+		w.WriteHeader(status)
+		_, _ = w.Write(respBody)
+		return
+	}
+	if mode == "reverse_tunnel" && !connected {
+		writeJSONStatus(w, http.StatusBadGateway, map[string]any{
+			"error": "edge not connected via WSS tunnel (reverse_tunnel mode requires edge to be online)",
+			"hint":  "ensure ksedge is running with panel_url and token, and that it can reach the panel via WSS",
+			"edge":  node.Address,
+		})
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
 	defer cancel()
 
