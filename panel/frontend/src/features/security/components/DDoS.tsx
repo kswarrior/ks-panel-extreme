@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { securitySnapshot, securityToggleAttack, securityDDOSReset, securityGetConfig, securityUpdateConfig, ddosBackground } from '@/shared/api/admin';
 import type { SecuritySnapshot as SecuritySnapshotT, SecurityConfig, DDOSBackgroundResponse } from '@/features/security/types/security';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';

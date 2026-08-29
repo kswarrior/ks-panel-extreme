@@ -64,21 +64,31 @@ const Firewall: React.FC<FirewallProps> = ({
   const [statusError, setStatusError] = useState('');
 
   useEffect(() => {
-    if (!initialConfig) {
-      securityGetConfig()
-        .then((cfg) => {
-          setFwReqPerMin(cfg.requests_per_minute_limit);
-          setFwWindowSec(cfg.window_seconds_limit);
-          setAllowText(listToText(cfg.ip_allowlist));
-          setDenyText(listToText(cfg.ip_denylist));
-          setBlockUnknownUa(cfg.block_unknown_ua);
-          setBlockSuspicious(cfg.block_suspicious_paths);
-          setAllowedMethods(cfg.allowed_http_methods);
-          setMaxBodyMb(cfg.max_body_size_mb);
-        })
-        .catch((e: any) => setConfigError(e?.response?.data || 'Failed to load firewall config'))
-        .finally(() => setConfigLoading(false));
+    if (initialConfig) {
+      setFwReqPerMin(initialConfig.requests_per_minute_limit);
+      setFwWindowSec(initialConfig.window_seconds_limit);
+      setAllowText(listToText(initialConfig.ip_allowlist));
+      setDenyText(listToText(initialConfig.ip_denylist));
+      setBlockUnknownUa(initialConfig.block_unknown_ua);
+      setBlockSuspicious(initialConfig.block_suspicious_paths);
+      setAllowedMethods(initialConfig.allowed_http_methods ?? '');
+      setMaxBodyMb(initialConfig.max_body_size_mb);
+      setConfigLoading(false);
+      return;
     }
+    securityGetConfig()
+      .then((cfg) => {
+        setFwReqPerMin(cfg.requests_per_minute_limit);
+        setFwWindowSec(cfg.window_seconds_limit);
+        setAllowText(listToText(cfg.ip_allowlist));
+        setDenyText(listToText(cfg.ip_denylist));
+        setBlockUnknownUa(cfg.block_unknown_ua);
+        setBlockSuspicious(cfg.block_suspicious_paths);
+        setAllowedMethods(cfg.allowed_http_methods);
+        setMaxBodyMb(cfg.max_body_size_mb);
+      })
+      .catch((e: any) => setConfigError(e?.response?.data || 'Failed to load firewall config'))
+      .finally(() => setConfigLoading(false));
   }, [initialConfig]);
 
   useEffect(() => {
@@ -104,11 +114,20 @@ const Firewall: React.FC<FirewallProps> = ({
     }
 
     try {
+      // Re-fetch the freshest config before merging so we don't clobber
+      // fields owned by other tabs with a stale initialConfig snapshot.
+      let latest: SecurityConfig | null = null;
+      try {
+        latest = await securityGetConfig();
+      } catch {
+        latest = initialConfig ?? null;
+      }
+      const base = latest ?? initialConfig;
       const cfg: SecurityConfig = {
         requests_per_minute_limit: fwReqPerMin,
         window_seconds_limit: fwWindowSec,
         // Global traffic limit is owned by the DDoS tab now.
-        global_rpm_limit: initialConfig?.global_rpm_limit ?? 0,
+        global_rpm_limit: base?.global_rpm_limit ?? 0,
         ip_allowlist: textToList(allowText),
         ip_denylist: textToList(denyText),
         max_body_size_mb: maxBodyMb < 1 ? 1 : Math.floor(maxBodyMb),
@@ -119,19 +138,29 @@ const Firewall: React.FC<FirewallProps> = ({
         // DDoS-owned fields are preserved from the loaded config —
         // hardcoding them here used to silently disable DDoS protection
         // every time this form was saved.
-        ddos_auto_stop_enabled: initialConfig?.ddos_auto_stop_enabled ?? false,
-        ddos_stop_minutes: initialConfig?.ddos_stop_minutes ?? 5,
-        ddos_max_stop_count: initialConfig?.ddos_max_stop_count ?? 0,
-        ddos_mode: initialConfig?.ddos_mode ?? 'stop',
-        ddos_alt_port: initialConfig?.ddos_alt_port ?? 5050,
-        ddos_global_trigger_hits: initialConfig?.ddos_global_trigger_hits ?? 0,
-        ddos_global_trigger_window: initialConfig?.ddos_global_trigger_window ?? 10,
+        ddos_auto_stop_enabled: base?.ddos_auto_stop_enabled ?? false,
+        ddos_stop_minutes: base?.ddos_stop_minutes ?? 5,
+        ddos_max_stop_count: base?.ddos_max_stop_count ?? 0,
+        ddos_mode: base?.ddos_mode ?? 'stop',
+        ddos_alt_port: base?.ddos_alt_port ?? 5050,
+        ddos_global_trigger_hits: base?.ddos_global_trigger_hits ?? 0,
+        ddos_global_trigger_window: base?.ddos_global_trigger_window ?? 10,
         // Session-owned fields are preserved (Sessions tab owns them).
-        session_lifetime_minutes: initialConfig?.session_lifetime_minutes ?? 480,
-        session_idle_timeout_minutes: initialConfig?.session_idle_timeout_minutes ?? 1440,
-        session_max_per_user: initialConfig?.session_max_per_user ?? 0,
+        session_lifetime_minutes: base?.session_lifetime_minutes ?? 480,
+        session_idle_timeout_minutes: base?.session_idle_timeout_minutes ?? 1440,
+        session_max_per_user: base?.session_max_per_user ?? 0,
       };
-      await securityUpdateConfig(cfg);
+      const saved = await securityUpdateConfig(cfg);
+      // Sync local state to what the server actually persisted (handles
+      // clamping / normalization the backend applied).
+      setFwReqPerMin(saved.requests_per_minute_limit);
+      setFwWindowSec(saved.window_seconds_limit);
+      setAllowText(listToText(saved.ip_allowlist));
+      setDenyText(listToText(saved.ip_denylist));
+      setBlockUnknownUa(saved.block_unknown_ua);
+      setBlockSuspicious(saved.block_suspicious_paths);
+      setAllowedMethods(saved.allowed_http_methods ?? '');
+      setMaxBodyMb(saved.max_body_size_mb);
       setConfigSuccess('Saved.');
       onConfigChange?.();
     } catch (e: any) {
