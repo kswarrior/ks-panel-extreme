@@ -1,8 +1,10 @@
 // NodeForm types - extracted from NodeForm.tsx
 
+export type ConnectionMode = 'direct' | 'reverse_tunnel' | 'local_port' | 'local_wss';
+
 export interface Form {
   name: string;
-  is_localhost: boolean;
+  connection_mode: ConnectionMode;
   port: string;
   address: string;
   use_tls: boolean;
@@ -28,7 +30,7 @@ export interface Form {
 
 export const emptyForm: Form = {
   name: '',
-  is_localhost: false,
+  connection_mode: 'direct',
   port: '4040',
   address: '',
   use_tls: false,
@@ -51,6 +53,18 @@ export const emptyForm: Form = {
   icon: '',
   color: '',
 };
+
+export const CONNECTION_MODES: { value: ConnectionMode; label: string; hint: string }[] = [
+  { value: 'direct', label: 'Direct (Bidirectional)', hint: 'Panel stores edge URL, edge stores panel URL. Both talk HTTP/HTTPS.' },
+  { value: 'reverse_tunnel', label: 'Reverse Tunnel (WSS)', hint: 'Only edge stores panel URL. Edge dials panel via WSS tunnel.' },
+  { value: 'local_port', label: 'Local Edge (Port)', hint: 'Edge runs on panel host via 127.0.0.1:<port> over HTTP.' },
+  { value: 'local_wss', label: 'Local Edge (WSS)', hint: 'Edge runs on panel host via 127.0.0.1:<port> over WSS tunnel.' },
+];
+
+// isLocalMode reports whether the mode runs the edge on the panel host itself.
+export const isLocalMode = (m: ConnectionMode): boolean => m === 'local_port' || m === 'local_wss';
+// isTunnelMode reports whether panel→edge RPCs go over the WSS tunnel.
+export const isTunnelMode = (m: ConnectionMode): boolean => m === 'reverse_tunnel' || m === 'local_wss';
 
 export const KSEDGE_URL =
   'https://github.com/kswarrior/ks-panel-extreme/releases/download/ks-release-32876373128-a36954f895a6/ksedge';
