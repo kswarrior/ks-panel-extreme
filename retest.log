@@ -1,11 +1,12 @@
 [0;34m==>[0m Preparing test sandbox at /tmp/kspanel-retest...
+[0;34m[INFO][0m Persistent DB: /home/runner/work/ks-panel-extreme/ks-panel-extreme/storage/kspanel.db (also /home/runner/work/ks-panel-extreme/ks-panel-extreme/storege/kspanel.db)
 [0;34m[INFO][0m Copying binaries from release/ ...
 [0;32m[OK][0m Test folder ready:
 total 32M
--rwxr-xr-x 1 runner runner 9.5M Aug 29 00:25 ksedge
--rwxr-xr-x 1 runner runner  22M Aug 29 00:25 kspanel
-drwxr-xr-x 3 runner runner 4.0K Aug 29 00:25 localnode
-→ database     sqlite — /tmp/kspanel-retest/kspanel.db
+-rwxr-xr-x 1 runner runner 9.5M Aug 29 02:43 ksedge
+-rwxr-xr-x 1 runner runner  22M Aug 29 02:43 kspanel
+drwxr-xr-x 3 runner runner 4.0K Aug 29 02:43 localnode
+→ database     sqlite — /home/runner/work/ks-panel-extreme/ks-panel-extreme/storage/kspanel.db
 ✓ connected    sqlite ready
 → migrations   running
 ✓ migrations   applied
@@ -14,23 +15,32 @@ drwxr-xr-x 3 runner runner 4.0K Aug 29 00:25 localnode
 
 ✓ panel seed   ready
   next: ./kspanel launch --type sqlite
-→ database     /tmp/kspanel-retest/kspanel.db
+→ database     /home/runner/work/ks-panel-extreme/ks-panel-extreme/storage/kspanel.db
 ✓ ready        schema + roles present
-→ username     kshosting
-→ email        kshosting@ksmail.com
-→ role         admin
-✓ user created id 1
-→ database     /tmp/kspanel-retest/kspanel.db
+✗ user         create: constraint failed: UNIQUE constraint failed: users.email (2067)
+Error: create user: constraint failed: UNIQUE constraint failed: users.email (2067)
+Usage:
+  kspanel create:user [flags]
+
+Flags:
+  -e, --email string      Email for the new account
+  -h, --help              help for create:user
+  -p, --password string   Password for the new account (min 8 chars)
+  -r, --role int          Role number: 1=Admin, 2=Moderator, 3=User
+  -u, --username string   Username for the new account
+
+Error: create user: constraint failed: UNIQUE constraint failed: users.email (2067)
+→ database     /home/runner/work/ks-panel-extreme/ks-panel-extreme/storage/kspanel.db
 ✓ ready        schema present
 → template     Minecraft (docker, eclipse-temurin:21-jre)
-✓ imported     id 1 (built-in "minecraft")
+✓ updated      id 1 (re-imported built-in "minecraft")
 ✓ database     ready
 → node         local-edge @ 127.0.0.1:4040 (id 1)
 → download     ksedge already present, skipping
 → config       localnode/ksedge/config.json
-→ panel        started (pid 2474) on 127.0.0.1:5050
+→ panel        started (pid 2275) on 127.0.0.1:5050
 ✓ panel        ready at http://127.0.0.1:5050
-→ launch       started ksedge (pid 2486) on 127.0.0.1:4040
+→ launch       started ksedge (pid 2285) on 127.0.0.1:4040
 ✓ edge         up and reachable (name="local-edge", log=localnode/ksedge/ksedge.log)
 
 node id:      1
@@ -40,26 +50,26 @@ config:       localnode/ksedge/config.json
 log:          localnode/ksedge/ksedge.log
 
 [0;34m==>[0m Launching kspanel on port 8080 (background)...
-[0;32m[OK][0m kspanel running in background (PID 2514)
+[0;32m[OK][0m kspanel running in background (PID 2293)
 [0;32m[OK][0m Logs:   /tmp/kspanel-retest/kspanel.log
 [0;32m[OK][0m Stop:   kill $(cat /tmp/kspanel-retest/kspanel.pid)
  ██╔═██╗ ╚════██║    ██╔═══╝ ██╔══██║██║╚██╗██║██╔══╝  ██║
  ██║  ██╗███████║    ██║      ██║  ██║██║ ╚████║███████╗███████╗
  ╚═╝  ╚═╝╚══════╝    ╚═╝      ╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝
-→ database     sqlite — /tmp/kspanel-retest/kspanel.db
+→ database     sqlite — /home/runner/work/ks-panel-extreme/ks-panel-extreme/storage/kspanel.db
 ✓ database     sqlite ready
 → ui           embedded bundle
 ✓ ui           served from api/handlers
 
-panel pid:    2514
+panel pid:    2293
 engine:       sqlite
-dsn:          /tmp/kspanel-retest/kspanel.db
+dsn:          /home/runner/work/ks-panel-extreme/ks-panel-extreme/storage/kspanel.db
 listen:       :8080
-open:         http://10.1.0.218:8080
-bind ifs:     10.1.0.218, 172.17.0.1
+open:         http://10.1.0.57:8080
+bind ifs:     10.1.0.57, 172.17.0.1
 go:           1.26.7
 goos:         linux/amd64
 cpus:         4
 
 ✓ panel ready  running
-✗ duplicate    pid 2474: /tmp/kspanel-retest/kspanel launch --port 5050 — stop the old instance so DDoS port switching can free ports cleanly
+✗ duplicate    pid 2275: /tmp/kspanel-retest/kspanel launch --port 5050 — stop the old instance so DDoS port switching can free ports cleanly
