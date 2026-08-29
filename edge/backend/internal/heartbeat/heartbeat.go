@@ -9,10 +9,10 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/example/ksedge/internal/config"
@@ -152,7 +152,8 @@ func (s *Sender) SendOnce() {
 		log.Printf("heartbeat: marshal error: %v", err)
 		return
 	}
-	url := fmt.Sprintf("%s/api/nodes/heartbeat", s.cfg.PanelURL)
+	panelURL := strings.TrimRight(strings.TrimSpace(s.cfg.PanelURL), "/")
+	url := panelURL + "/api/nodes/heartbeat"
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(raw))
 	if err != nil {
 		log.Printf("heartbeat: build request: %v", err)
