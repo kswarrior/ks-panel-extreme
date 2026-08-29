@@ -261,7 +261,7 @@ func upsertLocalNode(repo *repository.NodeRepository, name, address string) (int
 		return existing.ID, token, nil
 	}
 	created, plain, err := repo.CreateNode(repository.CreateNodeInput{
-		Name: name, Address: address, UseTLS: false,
+		Name: name, Address: address, UseTLS: false, ConnectionMode: "local_port",
 	})
 	if err != nil {
 		return 0, "", fmt.Errorf("create node: %w", err)
