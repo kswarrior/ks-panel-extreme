@@ -324,7 +324,7 @@ function renderBlocks(json: string, components?: PageComponentDef[]): React.Reac
           case 'html':
             return b.value ? (
               <div key={i} className={al}>
-                <HtmlBlockFrame html={b.value} />
+                <HtmlBlockFrame html={resolveInString(b.value)} />
               </div>
             ) : null;
           case 'action':
