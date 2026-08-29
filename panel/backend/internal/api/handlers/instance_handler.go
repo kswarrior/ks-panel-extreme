@@ -1659,10 +1659,25 @@ var _ = models.Instance{}
 // onto a node whose edge is down or whose CLI is absent fails fast with a
 // precise "install X" message instead of a 23ms-later 502 cloudflare banner.
 //
-// A node that has never heartbeated has every flag false, which usefully also
-// covers the "edge hasn't called home yet" case — the operator gets told to
-// install/start the driver rather than seeing a generic "edge rejected deploy".
+// When the edge has never heartbeated (HwDriversOK == false and
+// LastSeenAt == nil) we have no driver information at all — the node row
+// was just created and the edge hasn't had time to push its first
+// telemetry. Blocking deploy in that window with "install docker" is
+// misleading: the edge may well have docker installed, we just haven't
+// heard from it yet. Let the deploy proceed to the real dial (which will
+// surface the honest "edge not connected via WSS tunnel" or "edge
+// unreachable" error) instead of a false driver-missing banner. The same
+// logic applies when HwDriversOK is false after a collector failure — we
+// couldn't determine driver availability, so we shouldn't block.
 func driverMissingOn(node models.Node, kind string) string {
+	// No driver info yet (never heartbeated or collector failed) — allow
+	// the deploy to reach the edge and fail with the real dial error.
+	if !node.HwDriversOK && node.LastSeenAt == nil {
+		return ""
+	}
+	if !node.HwDriversOK {
+		return ""
+	}
 	switch strings.ToLower(strings.TrimSpace(kind)) {
 	case "docker":
 		if !node.DriverDocker {
