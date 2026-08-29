@@ -608,6 +608,12 @@ type ExecResponse struct {
 // Exec runs a one-shot command on the edge synchronously and returns the
 // captured I/O. Mirrors LifecycleRequest's auth + dispatch model.
 func (c *Client) Exec(req ExecRequest) (ExecResponse, error) {
+	return c.ExecCtx(context.Background(), req)
+}
+
+// ExecCtx is Exec with a caller-supplied context so the caller can bound the
+// call or cancel it on shutdown (e.g. scheduler sweep cancellation).
+func (c *Client) ExecCtx(ctx context.Context, req ExecRequest) (ExecResponse, error) {
 	req.Token = c.token
 	req.Action = "exec"
 	// Try WSS tunnel first for reverse_tunnel / local_wss.
@@ -638,7 +644,7 @@ func (c *Client) Exec(req ExecRequest) (ExecResponse, error) {
 		return ExecResponse{}, fmt.Errorf("encode request: %w", err)
 	}
 	endpoint := c.baseURL + "/api/edge/exec-rpc"
-	httpReq, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(body))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return ExecResponse{}, fmt.Errorf("build request: %w", err)
 	}
@@ -692,6 +698,11 @@ type HostExecResponse struct {
 
 // HostExec runs a one-shot command on the edge host filesystem.
 func (c *Client) HostExec(req HostExecRequest) (HostExecResponse, error) {
+	return c.HostExecCtx(context.Background(), req)
+}
+
+// HostExecCtx is HostExec with a caller-supplied context.
+func (c *Client) HostExecCtx(ctx context.Context, req HostExecRequest) (HostExecResponse, error) {
 	req.Token = c.token
 	// Try WSS tunnel first for reverse_tunnel / local_wss.
 	if handled, body, status, err := c.tryTunnel("POST", "/api/edge/host-exec", req); handled {
@@ -721,7 +732,7 @@ func (c *Client) HostExec(req HostExecRequest) (HostExecResponse, error) {
 		return HostExecResponse{}, fmt.Errorf("encode request: %w", err)
 	}
 	endpoint := c.baseURL + "/api/edge/host-exec"
-	httpReq, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(body))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return HostExecResponse{}, fmt.Errorf("build request: %w", err)
 	}

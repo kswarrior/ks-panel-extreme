@@ -145,10 +145,16 @@ func sweep(ctx context.Context) {
 // + token, calls the edge RPC, and records the run's stdout/stderr/exit-code
 // into automation_runs. Honest errors are logged but never propagate — a
 // transient DB blip must not crash the scheduler.
-func runJob(_ context.Context, job models.Automation, instRepo *repository.InstanceRepository,
+func runJob(ctx context.Context, job models.Automation, instRepo *repository.InstanceRepository,
 	nodeRepo *repository.NodeRepository, secretRepo *repository.SecretRepository,
 	automationRepo *repository.AutomationRepository, auditRepo *repository.InstanceAuditRepository,
 ) {
+	// Respect cancellation before touching DB or dialing edge.
+	select {
+	case <-ctx.Done():
+		return
+	default:
+	}
 	// job is already models.Automation; resolve instance + node + token.
 	inst, err := instRepo.Get(job.InstanceID)
 	if err != nil {
@@ -192,12 +198,23 @@ func runJob(_ context.Context, job models.Automation, instRepo *repository.Insta
 	}
 
 	started := time.Now()
+	// Check cancellation before dialing edge (edge may be down and the dial would block).
+	select {
+	case <-ctx.Done():
+		return
+	default:
+	}
 	timeout := job.TimeoutSec
 	if timeout <= 0 {
 		timeout = 300
 	}
+	// Bound the edge call by both the job timeout and the scheduler's context
+	// so a panel shutdown cancels the in-flight RPC promptly instead of
+	// waiting for the full 5-minute dial timeout.
+	callCtx, cancel := context.WithTimeout(ctx, time.Duration(timeout+10)*time.Second)
+	defer cancel()
 	ec := edge.NewWithTimeout(*node, token, time.Duration(timeout+10)*time.Second)
-	resp, execErr := ec.Exec(edge.ExecRequest{
+	resp, execErr := ec.ExecCtx(callCtx, edge.ExecRequest{
 		Kind:       inst.Kind,
 		Name:       name,
 		Command:    job.Command,
