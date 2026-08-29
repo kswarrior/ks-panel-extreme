@@ -13,13 +13,15 @@
 // (empty-by-default: no rows → no pages). Home uses slug "." and renders at
 // the index route when its page row was imported.
 
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Outlet, useNavigate, useParams } from 'react-router-dom';
 import { useInstance, parseConfig } from '@/shared/hooks/useInstance';
 import { useInstanceNavSync } from '@/shared/components/layout/InstanceNavContext';
 import { getPageContent, getPageLabel, isPageAllowed } from '@/shared/utils/instancePages';
 import { pageNavigateTarget } from '@/shared/lib/customPageSdk';
 import CustomPageView from '@/shared/components/ui/CustomPageView';
+import Terminal, { type TerminalHandle } from '@/shared/components/ui/Terminal';
+import type { Terminal as XTerm } from '@xterm/xterm';
 
 export const InstancePanel: React.FC = () => {
   const { id } = useParams();
@@ -87,6 +89,165 @@ const NoPagesState: React.FC<{ slug: string }> = ({ slug }) => (
   </div>
 );
 
+// TerminalRealPage — native xterm terminal for the `terminal` slug.
+// Replaces the custom-page HTML terminal (LIB_TERMINAL_HTML) with the
+// panel's real Terminal.tsx xterm bridge (full PTY, fit addon, theme,
+// mobile keyboard, reconnection). This makes the instance terminal behave
+// exactly like a local shell, not a div-based log viewer.
+const TerminalRealPage: React.FC<{ instance: any }> = ({ instance }) => {
+  const termRef = useRef<XTerm | null>(null);
+  const handleRef = useRef<TerminalHandle>(null);
+  const [state, setState] = useState<'connecting' | 'connected' | 'reconnecting' | 'closed' | 'error'>('connecting');
+  const [msg, setMsg] = useState('');
+
+  const host = instance.node_name || ('node-' + (instance.node_id ?? '?'));
+  const user = instance.kind === 'docker' ? 'root' : 'ubuntu';
+  const ext = String(instance.name || 'session').slice(0, 16);
+  let image = 'image';
+  try {
+    const cfg = typeof instance.config === 'string' ? JSON.parse(instance.config) : instance.config;
+    if (cfg && typeof cfg === 'object' && cfg.image) image = String(cfg.image);
+    else if (cfg && typeof cfg === 'object' && cfg.config && cfg.config.image) image = String(cfg.config.image);
+  } catch { /* ignore */ }
+
+  const onStateChange = (s: typeof state, m?: string) => {
+    setState(s);
+    setMsg(m ?? '');
+  };
+
+  const statusEl = (() => {
+    switch (state) {
+      case 'connected':
+        return <span style={{ color: 'var(--ks-ok)' }}>● attached</span>;
+      case 'connecting':
+        return <span style={{ color: 'var(--ks-info)' }}>● connecting…</span>;
+      case 'reconnecting':
+        return <span style={{ color: 'var(--ks-warn)' }}>● reconnecting{msg ? ` in ${msg}` : ''}</span>;
+      case 'error':
+        return <span style={{ color: 'var(--ks-bad)' }}>● error{msg ? `: ${msg}` : ''}</span>;
+      default:
+        return <span className="ks-muted">● {String(instance.status || '')}</span>;
+    }
+  })();
+
+  return (
+    <div className="animate-fade-in">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 600, color: 'var(--ks-heading)', margin: 0 }}>Terminal</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {state !== 'connected' && (
+            <button
+              type="button"
+              onClick={() => handleRef.current?.reconnect()}
+              className="ks-btn"
+              title="Reconnect the live shell now"
+              style={{ borderColor: 'var(--ks-info-line)', color: 'var(--ks-info)' } as React.CSSProperties}
+            >
+              ⟳ Reconnect
+            </button>
+          )}
+          <button type="button" onClick={() => termRef.current?.clear()} className="ks-btn" title="Clear the terminal scrollback">
+            Clear
+          </button>
+        </div>
+      </div>
+
+      <div
+        style={{
+          borderRadius: 10,
+          overflow: 'hidden',
+          border: '1px solid var(--ks-card-border)',
+          background: 'var(--ks-term-bg,#1e1e1e)',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '8px 12px',
+            background: 'var(--ks-card-bg)',
+            borderBottom: '1px solid var(--ks-card-border)',
+          }}
+        >
+          <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#ff5f56' }} />
+          <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#ffbd2e' }} />
+          <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#27c93f' }} />
+          <span
+            className="ks-mono"
+            style={{
+              marginLeft: 8,
+              fontSize: 12,
+              color: 'var(--ks-secondary)',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {user}@{host}: ~ — terminal
+          </span>
+        </div>
+
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            background: 'var(--ks-input-bg)',
+            borderBottom: '1px solid var(--ks-card-border)',
+          }}
+        >
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '6px 12px',
+              fontSize: 12,
+              color: 'var(--ks-heading,#fff)',
+              background: 'var(--ks-term-bg,#1e1e1e)',
+              borderRight: '1px solid var(--ks-card-border)',
+            }}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#38bdf8"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{ width: 12, height: 12, stroke: 'var(--ks-info)' }}
+            >
+              <path d="m4 17 6-6-6-6" />
+              <path d="M12 19h8" />
+            </svg>
+            sh — {ext || 'session'}
+          </span>
+        </div>
+
+        <Terminal ref={handleRef} instanceId={instance.id} onStateChange={onStateChange} onTermRef={(t) => (termRef.current = t)} />
+
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '4px 12px',
+            background: 'var(--ks-info)',
+            color: 'var(--ks-heading,#fff)',
+            fontSize: 11,
+          }}
+        >
+          <span className="ks-mono">{statusEl}</span>
+          <span className="ks-mono" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginLeft: 12 }}>
+            {ext || '—'} · {image}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // InstanceDynamicPage resolves the current URL slug (the `*` catch-all param)
 // against the INSTANCE's own config spec. When the slug maps to a page row
 // with content it renders CustomPageView; otherwise a not-part-of-template /
@@ -111,6 +272,14 @@ export const InstanceDynamicPage: React.FC = () => {
   const spec = instance.config ? parseConfig(instance.config) : null;
   const slug = (wildcard ?? '').replace(/\/+$/, '');
   const effectiveSlug = slug === '' ? '.' : slug;
+
+  // Real terminal: render native xterm for `terminal` slug regardless of
+  // whether the template's page list contains it. This makes the terminal
+  // behave like a built-in PTY (full emulation, mobile keyboard, fit,
+  // theme, reconnection) instead of the div-based log viewer.
+  if (effectiveSlug === 'terminal') {
+    return <TerminalRealPage instance={instance} />;
+  }
 
   if (!isPageAllowed(effectiveSlug, spec)) {
     // The index route on a page-less instance gets the guidance empty state;

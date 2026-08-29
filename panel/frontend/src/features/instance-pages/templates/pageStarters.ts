@@ -878,7 +878,7 @@ export const PAGE_STARTERS: PageStarter[] = [
     name: "Terminal",
     slug: "terminal",
     category: "console",
-    description: "Live shell into the instance over the panel WebSocket bridge",
+    description: "Live shell into the instance over the panel WebSocket bridge — native xterm.js PTY with mobile keyboard, fit, theme and auto-reconnect",
     iconSvg: "<path d=\"m4 17 6-6-6-6\"/><path d=\"M12 19h8\"/>",
     html: LIB_TERMINAL_HTML,
   },
