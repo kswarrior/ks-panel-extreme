@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -53,6 +54,7 @@ type Client struct {
 	token      string
 	listenPort int
 	skipVerify bool
+	mu         sync.Mutex
 }
 
 // New builds a tunnel client. panelURL is the edge's configured panel_url
@@ -128,7 +130,7 @@ func (c *Client) connectAndServe(ctx context.Context) error {
 		Path:     "/api/edge/tunnel",
 		RawQuery: url.Values{"token": {c.token}}.Encode(),
 	}
-	log.Printf("tunnel: dialing %s", wsURL.String())
+	log.Printf("tunnel: dialing %s://%s%s?token=REDACTED", scheme, u.Host, "/api/edge/tunnel")
 	dialer := websocket.Dialer{
 		HandshakeTimeout: 10 * time.Second,
 		TLSClientConfig:  &tls.Config{InsecureSkipVerify: c.skipVerify},
@@ -169,46 +171,18 @@ func (c *Client) handleRequest(ws *websocket.Conn, req tunnelRequest) {
 		Body:   body,
 		Error:  errStr,
 	}
-	// Writes must be serialized; use a mutex-like approach via single control?
-	// gorilla websocket requires single concurrent writer, so we guard with a global.
-	// Simple: use a write mutex per connection. Since we share conn, serialize.
-	// We'll use the conn's built-in mutex by just locking via a package-level sync.
-	// For now, just write directly – Go's websocket will error on concurrent writes,
-	// so we add a per-client mutex via tunnel global (lazy).
-	// We implement a per-connection write with a sync.Mutex stored in context?
-	// Simplest: rely on the fact that handleRequest is called in separate goroutine but
-	// WriteJSON is protected by a mutex we create per client. We'll add a simple
-	// global write lock for now – acceptable for low concurrency.
-	writeMu.Lock()
+	// Writes must be serialized — gorilla/websocket forbids concurrent writers.
+	// Use per-client mutex so multiple tunnel clients don't contend on a global.
+	c.mu.Lock()
 	_ = ws.WriteJSON(resp)
-	writeMu.Unlock()
+	c.mu.Unlock()
 }
-
-// writeMu serializes writes to the shared websocket.
-var writeMu = &syncMutex{}
-
-type syncMutex struct {
-	ch chan struct{}
-}
-
-func init() {
-	writeMu.ch = make(chan struct{}, 1)
-	writeMu.ch <- struct{}{}
-}
-
-func (m *syncMutex) Lock()   { <-m.ch }
-func (m *syncMutex) Unlock() { m.ch <- struct{}{} }
 
 func (c *Client) forwardToLocal(method, p string, body json.RawMessage) (int, json.RawMessage, string) {
 	// Build local URL. p may contain query string for GET.
 	localURL := fmt.Sprintf("http://127.0.0.1:%d%s", c.listenPort, p)
 	var bodyReader io.Reader
-	if body != nil && len(body) > 0 && method != "GET" && method != "HEAD" {
-		bodyReader = bytes.NewReader(body)
-	}
-	// For GET with body (unlikely), still send body if present.
-	if body != nil && len(body) > 0 && (method == "GET" || method == "HEAD") {
-		// Query already in p; body is not needed.
+	if len(body) > 0 {
 		bodyReader = bytes.NewReader(body)
 	}
 	req, err := http.NewRequest(method, localURL, bodyReader)
