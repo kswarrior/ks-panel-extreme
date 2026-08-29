@@ -11,6 +11,8 @@
 package tunnel
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -187,7 +189,17 @@ func (m *Manager) Send(nodeID int64, method, path string, body any, timeout time
 		}
 		raw = b
 	}
-	id := fmt.Sprintf("%d-%d", nodeID, time.Now().UnixNano())
+	// Use cryptographic randomness plus timestamp to avoid collisions when two
+	// goroutines send at the same nanosecond (UnixNano alone collides under
+	// concurrent Sends).
+	var randSuffix string
+	var rb [8]byte
+	if _, err := rand.Read(rb[:]); err == nil {
+		randSuffix = hex.EncodeToString(rb[:])
+	} else {
+		randSuffix = fmt.Sprintf("%d", time.Now().UnixNano())
+	}
+	id := fmt.Sprintf("%d-%d-%s", nodeID, time.Now().UnixNano(), randSuffix)
 	req := tunnelRequest{
 		ID:     id,
 		Type:   "request",

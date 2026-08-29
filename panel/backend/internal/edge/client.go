@@ -641,6 +641,12 @@ func (c *Client) Exec(req ExecRequest) (ExecResponse, error) {
 			}
 			return out, fmt.Errorf("edge returned HTTP %d", status)
 		}
+		if !out.OK {
+			if out.Error != "" {
+				return out, fmt.Errorf("%s", out.Error)
+			}
+			return out, fmt.Errorf("edge reported failure without a message")
+		}
 		return out, nil
 	}
 	body, err := json.Marshal(req)

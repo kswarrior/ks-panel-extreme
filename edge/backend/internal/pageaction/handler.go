@@ -30,17 +30,18 @@ const (
 
 // Input is the request body for page action execution
 type Input struct {
-	Token   string                 `json:"token"`
-	Kind    string                 `json:"kind"`    // docker, lxd, kvm, multipass
-	Name    string                 `json:"name"`    // instance name
-	Type    ActionType             `json:"type"`    // action type
-	Command string                 `json:"command"` // command to execute (for shell)
-	Path    string                 `json:"path"`    // file path (for file ops)
-	Content string                 `json:"content"` // file content (for write)
-	Args    []string               `json:"args"`    // additional arguments
-	Env     map[string]string      `json:"env"`     // environment variables
-	Timeout int                    `json:"timeout"` // timeout in seconds
-	Options map[string]interface{} `json:"options"` // driver-specific options
+	Token    string                 `json:"token"`
+	Kind     string                 `json:"kind"`    // docker, lxd, kvm, multipass
+	Name     string                 `json:"name"`    // instance name
+	Type     ActionType             `json:"type"`    // action type
+	Command  string                 `json:"command"` // command to execute (for shell)
+	Path     string                 `json:"path"`    // file path (for file ops)
+	Content  string                 `json:"content"` // file content (for write)
+	Args     []string               `json:"args"`    // additional arguments
+	Env      map[string]string      `json:"env"`     // environment variables
+	Timeout  int                    `json:"timeout"` // timeout in seconds
+	Options  map[string]interface{} `json:"options"` // driver-specific options
+	ModuleID string                 `json:"module_id,omitempty"` // module-based pages (panel forwards, edge ignores but keeps contract)
 }
 
 // Output is the response from action execution
