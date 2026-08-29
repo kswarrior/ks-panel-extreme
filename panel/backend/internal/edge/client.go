@@ -19,6 +19,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -56,6 +57,16 @@ type Client struct {
 	connectionMode string
 }
 
+// tlsServerName strips the port from an address for SNI. "edge.example.com:4040"
+// -> "edge.example.com", "[::1]:4040" -> "::1", "ftdeycef.com" -> "ftdeycef.com".
+func tlsServerName(address string) string {
+	if h, _, err := net.SplitHostPort(address); err == nil {
+		return h
+	}
+	// No port (bare host) or already host-only.
+	return strings.Trim(address, "[]")
+}
+
 // BaseURL returns the base URL for the edge node.
 func (c *Client) BaseURL() string {
 	return c.baseURL
@@ -78,7 +89,7 @@ func New(node models.Node, token string) *Client {
 	}
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{
-			ServerName:         address,
+			ServerName:         tlsServerName(address),
 			InsecureSkipVerify: node.SkipTLSVerify,
 		},
 	}
@@ -113,7 +124,7 @@ func NewWithTimeout(node models.Node, token string, timeout time.Duration) *Clie
 	}
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{
-			ServerName:         address,
+			ServerName:         tlsServerName(address),
 			InsecureSkipVerify: node.SkipTLSVerify,
 		},
 	}
@@ -868,6 +879,82 @@ func (c *Client) Snapshot(req SnapshotRequest) (SnapshotResponse, error) {
 	var out SnapshotResponse
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 		return SnapshotResponse{}, fmt.Errorf("edge returned HTTP %d", resp.StatusCode)
+	}
+	if resp.StatusCode >= 300 {
+		if out.Error != "" {
+			return out, fmt.Errorf("edge rejected: %s", out.Error)
+		}
+		return out, fmt.Errorf("edge returned HTTP %d", resp.StatusCode)
+	}
+	return out, nil
+}
+
+// PageActionRequest is the wire format POSTed to the edge's
+// /api/edge/page-action endpoint.
+type PageActionRequest struct {
+	Token    string            `json:"token"`
+	Kind     string            `json:"kind"`
+	Name     string            `json:"name"`
+	Type     string            `json:"type"`
+	Command  string            `json:"command,omitempty"`
+	Path     string            `json:"path,omitempty"`
+	Content  string            `json:"content,omitempty"`
+	Args     []string          `json:"args,omitempty"`
+	Env      map[string]string `json:"env,omitempty"`
+	Timeout  int               `json:"timeout,omitempty"`
+	ModuleID string            `json:"module_id,omitempty"`
+}
+
+// PageActionResponse is what the edge hands back.
+type PageActionResponse struct {
+	OK       bool   `json:"ok"`
+	ExitCode int    `json:"exit_code,omitempty"`
+	Stdout   string `json:"stdout,omitempty"`
+	Stderr   string `json:"stderr,omitempty"`
+	Error    string `json:"error,omitempty"`
+	Data     any    `json:"data,omitempty"`
+}
+
+// PageAction dispatches a custom-page action RPC, honouring the WSS tunnel
+// when the node is in reverse_tunnel / local_wss mode (same as Lifecycle,
+// Inspect, etc.). This replaces the previous direct-HTTP dial that bypassed
+// the tunnel and always verified TLS regardless of SkipTLSVerify.
+func (c *Client) PageAction(req PageActionRequest) (PageActionResponse, error) {
+	req.Token = c.token
+	if handled, body, status, err := c.tryTunnel("POST", "/api/edge/page-action", req); handled {
+		if err != nil {
+			return PageActionResponse{}, err
+		}
+		var out PageActionResponse
+		if err := unmarshalTunnelResponse(body, status, &out); err != nil {
+			return PageActionResponse{}, err
+		}
+		if status >= 300 {
+			if out.Error != "" {
+				return out, fmt.Errorf("edge rejected: %s", out.Error)
+			}
+			return out, fmt.Errorf("edge returned HTTP %d", status)
+		}
+		return out, nil
+	}
+	body, err := json.Marshal(req)
+	if err != nil {
+		return PageActionResponse{}, fmt.Errorf("encode request: %w", err)
+	}
+	endpoint := c.baseURL + "/api/edge/page-action"
+	httpReq, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return PageActionResponse{}, fmt.Errorf("build request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	resp, err := c.http.Do(httpReq)
+	if err != nil {
+		return PageActionResponse{}, fmt.Errorf("dial edge: %w", err)
+	}
+	defer resp.Body.Close()
+	var out PageActionResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return PageActionResponse{}, fmt.Errorf("edge returned HTTP %d", resp.StatusCode)
 	}
 	if resp.StatusCode >= 300 {
 		if out.Error != "" {
