@@ -78,6 +78,8 @@ type CreateNodeInput struct {
 	// Color is a #rrggbb hex string. Both default to '' (theme defaults).
 	Icon  string
 	Color string
+	// Connection mode (migration 050). Empty = 'direct' default.
+	ConnectionMode string
 }
 
 // CreateNode returns the new node row and the raw edge token. The token must
@@ -94,20 +96,24 @@ func (r *NodeRepository) CreateNode(in CreateNodeInput) (*models.Node, string, e
 		prefix = prefix[:8]
 	}
 
+	cm := in.ConnectionMode
+	if cm == "" {
+		cm = "direct"
+	}
 	res, err := r.db.Exec(
 		`INSERT INTO nodes (name, address, use_tls, token_hash, token_prefix, token_plain, status,
 			health_enabled, health_interval, health_timeout, health_retries,
 			skip_tls_verify, notes, install_dir, allowed_kinds,
 			alloc_mem_mib, mem_overcommit_pct, alloc_disk_mib, disk_overcommit_pct, instances_dir,
-			category, location_country, location_node, icon, color)
-		 VALUES (?, ?, ?, ?, ?, ?, 'down', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			category, location_country, location_node, icon, color, connection_mode)
+		 VALUES (?, ?, ?, ?, ?, ?, 'down', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		in.Name, in.Address, boolToInt(in.UseTLS), hash, prefix, token,
 		boolToInt(in.HealthEnabled), defaultInt(in.HealthInterval, 60),
 		defaultInt(in.HealthTimeout, 4), defaultInt(in.HealthRetries, 3),
 		boolToInt(in.SkipTLSVerify), in.Notes, in.InstallDir, in.AllowedKinds,
 		in.AllocMemMiB, in.MemOvercommitPct, in.AllocDiskMiB, in.DiskOvercommitPct,
 		in.InstancesDir,
-		in.Category, in.LocationCountry, in.LocationNode, in.Icon, in.Color,
+		in.Category, in.LocationCountry, in.LocationNode, in.Icon, in.Color, cm,
 	)
 	if err != nil {
 		return nil, "", err
@@ -167,7 +173,7 @@ func (r *NodeRepository) ListNodes() ([]models.Node, error) {
 		skip_tls_verify, notes, install_dir, allowed_kinds,
 		alloc_mem_mib, mem_overcommit_pct, alloc_disk_mib, disk_overcommit_pct, instances_dir,
 		category, location_country, location_node, icon, color,
-		probe_fail_count, next_probe_at
+		probe_fail_count, next_probe_at, connection_mode
 		FROM nodes ORDER BY created_at DESC`)
 	if err != nil {
 		// Try one level of fallback (drivers present, telemetry-quality

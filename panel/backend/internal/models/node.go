@@ -77,6 +77,12 @@ type Node struct {
 	// cards. Constrained to #rrggbb by the API handler. Empty = theme
 	// default grey.
 	Color string `json:"color"`
+	// ConnectionMode controls how panel and edge talk.
+	// direct = panel has edge URL + edge has panel URL (bidirectional HTTP).
+	// reverse_tunnel = only edge stores panel URL, tunnels via WSS.
+	// local_port = edge runs on panel host via 127.0.0.1:port (HTTP).
+	// local_wss = edge runs on panel host via WSS tunnel.
+	ConnectionMode string `json:"connection_mode"`
 	// ProbeFailCount is how many consecutive active probes failed in a row
 	// since the last success. The sweep loop flips status->"down" once this
 	// crosses HealthRetries, and resets it to 0 on a green probe.
