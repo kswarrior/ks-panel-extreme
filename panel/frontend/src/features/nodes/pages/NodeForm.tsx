@@ -411,7 +411,7 @@ const NodeForm: React.FC = () => {
 
           {tab === 'general' && (
           <>
-          <GlassField label="Connection mode" htmlFor="connection_mode" hint="How panel and edge find each other. Direct needs both URLs; Reverse Tunnel only needs edge to know panel URL via WSS; Local modes run edge on this host.">
+          <GlassField label="Connection mode" htmlFor="connection_mode" hint={CONNECTION_MODES.find((m) => m.value === form.connection_mode)?.hint || "How panel and edge find each other."}>
             <select
               id="connection_mode"
               value={form.connection_mode}
@@ -422,7 +422,6 @@ const NodeForm: React.FC = () => {
                 <option key={m.value} value={m.value}>{m.label}</option>
               ))}
             </select>
-            <p className="text-xs text-gray-500 mt-1">{CONNECTION_MODES.find((m) => m.value === form.connection_mode)?.hint}</p>
           </GlassField>
 
           <GlassField label="Name" htmlFor="name">
