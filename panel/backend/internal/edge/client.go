@@ -376,23 +376,6 @@ func (c *Client) InstallStart(req InstallStartRequest) (InstallStartResponse, er
 // query param (browsers can't set headers on fetch/EventSource behind proxies).
 func (c *Client) InstallStatus(req InstallStatusRequest) (InstallStatusResponse, error) {
 	req.Token = c.token
-	// Try tunnel for reverse modes – encode query into path.
-	if handled, body, status, err := c.tryTunnel("GET", fmt.Sprintf("/api/edge/install?kind=%s&name=%s&token=%s", req.Kind, req.Name, req.Token), nil); handled {
-		if err != nil {
-			return InstallStatusResponse{}, fmt.Errorf("dial edge: %s", redactTokenErr(err))
-		}
-		var out InstallStatusResponse
-		if err := unmarshalTunnelResponse(body, status, &out); err != nil {
-			return InstallStatusResponse{}, err
-		}
-		if status >= 300 {
-			if out.Error != "" {
-				return out, fmt.Errorf("edge rejected: %s", out.Error)
-			}
-			return out, fmt.Errorf("edge returned HTTP %d", status)
-		}
-		return out, nil
-	}
 	endpoint := c.baseURL + "/api/edge/install"
 	httpReq, err := http.NewRequest(http.MethodGet, endpoint, nil)
 	if err != nil {
@@ -667,6 +650,28 @@ type InspectResponse struct {
 // Inspect calls the edge's /api/edge/inspect endpoint.
 func (c *Client) Inspect(req InspectRequest) (InspectResponse, error) {
 	req.Token = c.token
+	if handled, body, status, err := c.tryTunnel("POST", "/api/edge/inspect", req); handled {
+		if err != nil {
+			return InspectResponse{}, err
+		}
+		var out InspectResponse
+		if err := unmarshalTunnelResponse(body, status, &out); err != nil {
+			return InspectResponse{}, err
+		}
+		if status >= 300 {
+			if out.Error != "" {
+				return out, fmt.Errorf("edge rejected: %s", out.Error)
+			}
+			return out, fmt.Errorf("edge returned HTTP %d", status)
+		}
+		if !out.OK {
+			if out.Error != "" {
+				return out, fmt.Errorf("%s", out.Error)
+			}
+			return out, fmt.Errorf("edge reported failure without a message")
+		}
+		return out, nil
+	}
 	body, err := json.Marshal(req)
 	if err != nil {
 		return InspectResponse{}, fmt.Errorf("encode request: %w", err)
@@ -724,6 +729,22 @@ type SnapshotResponse struct {
 // Snapshot dispatches a create/restore/delete RPC.
 func (c *Client) Snapshot(req SnapshotRequest) (SnapshotResponse, error) {
 	req.Token = c.token
+	if handled, body, status, err := c.tryTunnel("POST", "/api/edge/snapshot", req); handled {
+		if err != nil {
+			return SnapshotResponse{}, err
+		}
+		var out SnapshotResponse
+		if err := unmarshalTunnelResponse(body, status, &out); err != nil {
+			return SnapshotResponse{}, err
+		}
+		if status >= 300 {
+			if out.Error != "" {
+				return out, fmt.Errorf("edge rejected: %s", out.Error)
+			}
+			return out, fmt.Errorf("edge returned HTTP %d", status)
+		}
+		return out, nil
+	}
 	body, err := json.Marshal(req)
 	if err != nil {
 		return SnapshotResponse{}, fmt.Errorf("encode request: %w", err)
