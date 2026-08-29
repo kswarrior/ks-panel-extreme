@@ -27,6 +27,7 @@ import (
 	"github.com/example/ksedge/internal/lifecycle"
 	"github.com/example/ksedge/internal/pageaction"
 	"github.com/example/ksedge/internal/snapshot"
+	"github.com/example/ksedge/internal/tunnel"
 	"github.com/spf13/cobra"
 )
 
@@ -131,6 +132,15 @@ func launchCmd() *cobra.Command {
 			rootCtx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer stopSignals()
 			go sender.Run(rootCtx)
+			// WSS reverse tunnel: keep a persistent websocket to the panel so the
+			// panel can push RPCs without dialing the edge directly. Works for
+			// reverse_tunnel and local_wss modes; harmless for direct/local_port.
+			portForTunnel := cfg.ListenPortOr(4040)
+			if port != 0 {
+				portForTunnel = port
+			}
+			tc := tunnel.New(cfg.PanelURL, cfg.Token, portForTunnel)
+			go tc.Run(rootCtx)
 
 			return runHealthServer(cfg, rootCtx)
 		},
