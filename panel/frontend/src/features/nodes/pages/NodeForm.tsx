@@ -7,8 +7,8 @@ import GlassField, { glassFieldClass } from '@/shared/components/ui/Field';
 import GlassModal from '@/shared/components/ui/Modal';
 import LocationField from '@/shared/components/forms/LocationField/LocationField';
 import FormSkeleton from '@/shared/components/ui/FormSkeleton';
-import type { Form, NodeFormTabId } from '../types/nodeForm';
-import { emptyForm, KSEDGE_URL, ALL_KINDS, NODEFORM_TABS } from '../types/nodeForm';
+import type { ConnectionMode, Form, NodeFormTabId } from '../types/nodeForm';
+import { emptyForm, KSEDGE_URL, ALL_KINDS, NODEFORM_TABS, CONNECTION_MODES, isLocalMode, isTunnelMode } from '../types/nodeForm';
 import { buildEdgeConfig, buildBootstrapCmd } from '../utils/nodeFormUtils';
 import { NODE_ICONS, NODE_COLORS, NodeIcon } from '../utils/nodeIcons';
 
@@ -58,6 +58,7 @@ const NodeForm: React.FC = () => {
     configJson?: string;
     bootstrapCmd?: string;
     isLocalhost?: boolean;
+    isTunnel?: boolean;
     port?: string;
     nodeProbe?: ProbeResult | null;
   } | null>(null);
@@ -86,14 +87,33 @@ const NodeForm: React.FC = () => {
         if (editing) {
           const n = nodes.find((x) => x.id === Number(id));
           if (n) {
-            const isLocal =
-              n.address.startsWith('127.0.0.1:') || n.address.startsWith('localhost:');
-            const port = isLocal ? n.address.split(':').pop() || '4040' : '';
+            const stored = (n as any).connection_mode as ConnectionMode | undefined;
+            let connectionMode: ConnectionMode = stored || 'direct';
+            let port = '4040';
+            let address = n.address || '';
+            // Back-compat: legacy rows without connection_mode infer from address.
+            if (!stored) {
+              const isLocal = n.address.startsWith('127.0.0.1:') || n.address.startsWith('localhost:');
+              if (isLocal) {
+                connectionMode = 'local_port';
+                port = n.address.split(':').pop() || '4040';
+                address = '';
+              } else if (n.address === 'tunnel' || n.address === '') {
+                connectionMode = 'reverse_tunnel';
+                address = '';
+              }
+            } else if (isLocalMode(connectionMode)) {
+              port = n.address.split(':').pop() || '4040';
+              address = '';
+            } else if (connectionMode === 'reverse_tunnel') {
+              address = '';
+              port = '4040';
+            }
             setForm({
               name: n.name,
-              is_localhost: isLocal,
+              connection_mode: connectionMode,
               port: port || '4040',
-              address: isLocal ? '' : n.address,
+              address: address,
               use_tls: n.use_tls,
               health_enabled: n.health_enabled !== false,
               health_interval: String(n.health_interval || 60),
@@ -128,16 +148,22 @@ const NodeForm: React.FC = () => {
   }, [id, editing]);
 
   const effectiveAddress = useMemo(() => {
-    if (form.is_localhost) return `127.0.0.1:${form.port || '4040'}`;
+    if (isLocalMode(form.connection_mode)) return `127.0.0.1:${form.port || '4040'}`;
+    if (form.connection_mode === 'reverse_tunnel') return 'tunnel';
     return form.address.trim();
-  }, [form.is_localhost, form.port, form.address]);
+  }, [form.connection_mode, form.port, form.address]);
 
   const dialPreview = useMemo(() => {
+    const m = form.connection_mode;
+    if (m === 'reverse_tunnel') return 'WSS tunnel — edge dials panel (no direct dial)';
+    if (m === 'local_wss') return `wss://127.0.0.1:${form.port || '4040'} (WSS tunnel)`;
+    if (isLocalMode(m)) return `${form.use_tls ? 'https' : 'http'}://127.0.0.1:${form.port || '4040'}`;
     const scheme = form.use_tls ? 'https' : 'http';
-    if (form.is_localhost) return `${scheme}://${effectiveAddress}`;
-    const bareHost = !form.address.includes(':') && form.address.trim() !== '';
-    return `${scheme}://${effectiveAddress}${bareHost ? '  (default port)' : ''}`;
-  }, [form.is_localhost, form.address, effectiveAddress, form.use_tls]);
+    const addr = form.address.trim();
+    if (!addr) return `${scheme}://<edge-host>:<port>`;
+    const bareHost = !addr.includes(':') && addr.trim() !== '';
+    return `${scheme}://${addr}${bareHost ? '  (default port)' : ''}`;
+  }, [form.connection_mode, form.address, form.port, form.use_tls]);
 
   const allowedKindsSet = useMemo(
     () => new Set(form.allowed_kinds.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean)),
@@ -153,13 +179,14 @@ const NodeForm: React.FC = () => {
   };
 
   const advancedPayload = () => ({
+    connection_mode: form.connection_mode,
     health_enabled: form.health_enabled,
     health_interval: Math.max(1, parseInt(form.health_interval, 10) || 60),
     health_timeout: Math.max(1, parseInt(form.health_timeout, 10) || 4),
     health_retries: Math.max(1, parseInt(form.health_retries, 10) || 3),
     skip_tls_verify: form.skip_tls_verify,
     notes: form.notes.trim(),
-    install_dir: form.is_localhost ? form.install_dir.trim() : '',
+    install_dir: isLocalMode(form.connection_mode) ? form.install_dir.trim() : '',
     allowed_kinds: form.allowed_kinds.trim(),
     alloc_mem_mib: Math.max(0, parseInt(form.alloc_mem_mib, 10) || 0),
     mem_overcommit_pct: Math.max(0, parseInt(form.mem_overcommit_pct, 10) || 0),
@@ -195,18 +222,20 @@ const NodeForm: React.FC = () => {
     if (!form.name.trim()) return 'Name is required';
     if (form.name.length > 100) return 'Name must be 100 characters or fewer';
     if (form.location_node.trim().length > 100) return 'Node label must be 100 characters or fewer';
-    if (!form.is_localhost) {
+    if (form.connection_mode === 'direct') {
       const addrErr = validateRemoteAddress(form.address);
       if (addrErr) return addrErr;
-    } else if (!isValidPortStr(form.port)) {
-      return 'Port must be a number between 1 and 65535';
+    } else if (form.connection_mode === 'reverse_tunnel') {
+      // No address required — edge dials panel via WSS. Name uniqueness still checked.
+    } else if (isLocalMode(form.connection_mode)) {
+      if (!isValidPortStr(form.port)) return 'Port must be a number between 1 and 65535';
     }
     return duplicatePairError();
   };
 
   const submitAndSetup = async () => {
-    if (!form.is_localhost) {
-      setError('Create & setup is only available for localhost nodes');
+    if (!isLocalMode(form.connection_mode)) {
+      setError('Create & setup is only available for local edge modes');
       return;
     }
     const vErr = validateForm();
@@ -222,7 +251,7 @@ const NodeForm: React.FC = () => {
       const res: CreateNodeResult = await createNode({
         name: form.name,
         address: effectiveAddress,
-        use_tls: form.use_tls,
+        use_tls: form.connection_mode === 'local_wss' ? true : form.use_tls,
         ...advancedPayload(),
       });
       setSetupInfo({ running: true, log: 'Node registered. Installing and launching ksedge…', done: false });
@@ -268,15 +297,16 @@ const NodeForm: React.FC = () => {
         await updateNode(Number(id), {
           name: form.name,
           address: effectiveAddress,
-          use_tls: form.use_tls,
+          use_tls: form.connection_mode === 'local_wss' ? true : form.use_tls,
           ...advancedPayload(),
         });
         navigate('/nodes');
       } else {
+        const useTLS = form.connection_mode === 'local_wss' ? true : form.use_tls;
         const res: CreateNodeResult = await createNode({
           name: form.name,
           address: effectiveAddress,
-          use_tls: form.use_tls,
+          use_tls: useTLS,
           ...advancedPayload(),
         });
         setProbing(true);
@@ -288,22 +318,27 @@ const NodeForm: React.FC = () => {
         } finally {
           setProbing(false);
         }
+        const isLocal = isLocalMode(form.connection_mode);
+        const isTunnel = isTunnelMode(form.connection_mode);
         setTokenInfo({
           token: res.token,
-          title: form.is_localhost
+          title: isLocal
             ? 'Local node provisioned — bootstrap command below'
+            : isTunnel
+            ? 'Reverse tunnel node provisioned — edge will dial via WSS'
             : 'Node token (copy now)',
           configJson: buildEdgeConfig(
             form.name,
-            form.use_tls,
+            useTLS,
             res.token,
             form.port,
             form
           ),
-          bootstrapCmd: form.is_localhost
+          bootstrapCmd: isLocal
             ? buildBootstrapCmd(form, res.token, form.port)
             : undefined,
-          isLocalhost: form.is_localhost,
+          isLocalhost: isLocal,
+          isTunnel: isTunnel,
           port: form.port,
           nodeProbe: probeRes,
         });
@@ -343,7 +378,7 @@ const NodeForm: React.FC = () => {
         saving={saving}
         submitLabel={editing ? 'Save' : 'Create'}
         onSubmit={submit}
-        secondaryActions={!editing && form.is_localhost ? (
+        secondaryActions={!editing && isLocalMode(form.connection_mode) ? (
           <button
             type="button"
             onClick={submitAndSetup}
@@ -376,31 +411,26 @@ const NodeForm: React.FC = () => {
 
           {tab === 'general' && (
           <>
-          <div className="ks-card ks-form-card flex items-center justify-between gap-3 p-3 rounded-md">
-            <div className="min-w-0">
-              <p className="text-sm text-gray-200 font-medium">Localhost edge</p>
-              <p className="text-xs text-gray-500">
-                On: run ksedge on this panel host (auto <code>127.0.0.1:&#123;port&#125;</code>). Download from HuggingFace.
-                Off: connect to a remote edge host.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setForm((f) => ({ ...f, is_localhost: !f.is_localhost }))}
-              className={`relative w-11 h-6 rounded-full transition shrink-0 ${form.is_localhost ? 'bg-emerald-600' : 'bg-neutral-700'}`}
-              aria-pressed={form.is_localhost}
-              aria-label="Toggle localhost mode"
+          <GlassField label="Connection mode" htmlFor="connection_mode" hint="How panel and edge find each other. Direct needs both URLs; Reverse Tunnel only needs edge to know panel URL via WSS; Local modes run edge on this host.">
+            <select
+              id="connection_mode"
+              value={form.connection_mode}
+              onChange={(e) => setForm((f) => ({ ...f, connection_mode: e.target.value as ConnectionMode }))}
+              className="w-full bg-black/30 border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-600"
             >
-              <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition ${form.is_localhost ? 'translate-x-5' : ''}`} />
-            </button>
-          </div>
+              {CONNECTION_MODES.map((m) => (
+                <option key={m.value} value={m.value}>{m.label}</option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">{CONNECTION_MODES.find((m) => m.value === form.connection_mode)?.hint}</p>
+          </GlassField>
 
           <GlassField label="Name" htmlFor="name">
             <input
               id="name"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
-              placeholder={form.is_localhost ? 'local-edge' : 'us-east-edge'}
+              placeholder={isLocalMode(form.connection_mode) ? 'local-edge' : form.connection_mode === 'reverse_tunnel' ? 'tunnel-edge' : 'us-east-edge'}
               required
             />
           </GlassField>
@@ -499,29 +529,12 @@ const NodeForm: React.FC = () => {
             </div>
           </div>
 
-          {form.is_localhost ? (
-            <GlassField
-              label="Edge listen port"
-              htmlFor="port"
-              hint="ksedge will listen on 127.0.0.1:<port>. The panel dials this address."
-            >
-              <input
-                id="port"
-                type="number"
-                min="1"
-                max="65535"
-                value={form.port}
-                onChange={(e) => setForm({ ...form, port: e.target.value })}
-                placeholder="4040"
-                required
-              />
-            </GlassField>
-          ) : (
+          {form.connection_mode === 'direct' && (
             <>
               <GlassField
-                label="Address"
+                label="Edge address"
                 htmlFor="address"
-                hint="Anything the panel can dial: host:port (edge.example.com:4040 / 57.6.8.1:3853) OR a bare hostname (ftdeycef.com — useful for Cloudflare tunnels; the scheme default port is used). No http(s):// prefix."
+                hint="Panel dials this. host:port (edge.example.com:4040 / 57.6.8.1:3853) OR bare hostname (ftdeycef.com — Cloudflare tunnel). No http(s):// prefix. Panel stores edge URL, edge stores panel URL (bidirectional)."
               >
                 <input
                   id="address"
@@ -538,7 +551,7 @@ const NodeForm: React.FC = () => {
                   onChange={(e) => setForm({ ...form, use_tls: e.target.checked })}
                   className="h-4 w-4 rounded border-white/10 bg-black/30 focus:ring-white"
                 />
-                <span className="text-sm text-gray-300">Use TLS (HTTPS)</span>
+                <span className="text-sm text-gray-300">Use TLS (HTTPS) — panel will dial https://edge</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer select-none">
                 <input
@@ -552,7 +565,42 @@ const NodeForm: React.FC = () => {
             </>
           )}
 
-          {form.is_localhost && (
+          {form.connection_mode === 'reverse_tunnel' && (
+            <div className="ks-card ks-form-card rounded-md p-3 border border-sky-700/40 bg-sky-900/10">
+              <p className="text-sm text-sky-200 font-medium">Reverse Tunnel (WSS)</p>
+              <p className="text-xs text-sky-300/80 mt-1">
+                Only the edge needs the panel URL. Edge dials <code>{typeof window !== 'undefined' ? window.location.origin : 'https://panel.example.com'}</code> via WSS and keeps a persistent tunnel. Panel never dials edge directly — all lifecycle, exec, files, and inspect RPCs go through the tunnel. No edge address needed. Heartbeats also go over the tunnel.
+              </p>
+              <p className="text-xs text-gray-400 mt-2">Config JSON will contain <code>panel_url</code> + <code>token</code> only. Deploy the edge with <code>./ksedge launch</code> on any host that can reach the panel.</p>
+            </div>
+          )}
+
+          {isLocalMode(form.connection_mode) && (
+            <GlassField
+              label="Edge listen port"
+              htmlFor="port"
+              hint={form.connection_mode === 'local_wss' ? 'ksedge will listen on 127.0.0.1:<port> and also connect back via WSS tunnel. Panel can dial via tunnel or http.' : 'ksedge will listen on 127.0.0.1:<port>. The panel dials this address.'}
+            >
+              <input
+                id="port"
+                type="number"
+                min="1"
+                max="65535"
+                value={form.port}
+                onChange={(e) => setForm({ ...form, port: e.target.value })}
+                placeholder="4040"
+                required
+              />
+            </GlassField>
+          )}
+
+          {form.connection_mode === 'local_wss' && (
+            <div className="ks-card ks-form-card rounded-md p-3 border border-sky-700/40 bg-sky-900/10">
+              <p className="text-xs text-sky-200">Local WSS keeps both paths: panel can dial <code>127.0.0.1:{form.port || '4040'}</code> over HTTP and the edge also maintains a WSS tunnel to panel for reverse operations.</p>
+            </div>
+          )}
+
+          {isLocalMode(form.connection_mode) && (
             <GlassField
               label="Local edge install location"
               htmlFor="install_dir"
@@ -797,11 +845,13 @@ const NodeForm: React.FC = () => {
                       : 'Edge already answering on this port — it responded to our health probe.')
                   : tokenInfo.isLocalhost
                   ? 'Edge not reachable yet — that\'s expected, run the bootstrap command below and click Recheck on the Nodes page.'
+                  : tokenInfo.isTunnel
+                  ? `Tunnel not connected yet — ${tokenInfo.nodeProbe?.note || 'edge has not opened WSS tunnel to panel. Start ksedge with correct panel_url.'}`
                   : `Edge not reachable yet — ${tokenInfo.nodeProbe?.note || 'nothing answered on this address:port. Install ksedge and run ./ksedge launch.'}`}
               </span>
             </div>
           )}
-          {!tokenInfo.isLocalhost && (
+          {!tokenInfo.isLocalhost && !tokenInfo.isTunnel && (
             <>
               <p className="text-sm text-gray-300">Copy this token now — you won't see it again.</p>
               <div className="flex items-center gap-2 mt-2">
@@ -814,6 +864,26 @@ const NodeForm: React.FC = () => {
                 >
                   Copy
                 </button>
+              </div>
+            </>
+          )}
+
+          {tokenInfo.isTunnel && !tokenInfo.isLocalhost && (
+            <>
+              <div className="flex items-center gap-3 p-3 bg-sky-900/20 border border-sky-700/40 rounded-md mb-3">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5 text-sky-300 shrink-0">
+                  <path d="M12 2a10 10 0 0 1 10 10M12 2a10 10 0 0 0-10 10M12 22a10 10 0 0 0 10-10M12 22a10 10 0 0 1-10-10" />
+                  <path d="M8 12h8M12 8v8" />
+                </svg>
+                <p className="text-sm text-sky-200">
+                  Reverse tunnel node registered. Edge only needs <code>panel_url</code> + <code>token</code>. It will dial <code>wss://panel/api/edge/tunnel</code> and tunnel all RPCs. No address to store on panel.
+                </p>
+              </div>
+              <div className="mt-3">
+                <p className="text-sm text-gray-300 mb-1">Config JSON for ksedge (WSS tunnel):</p>
+                <pre className="bg-black border border-white/10 rounded-md px-3 py-2 text-xs text-gray-200 overflow-x-auto max-h-60">
+                  {tokenInfo.configJson}
+                </pre>
               </div>
             </>
           )}
@@ -850,10 +920,18 @@ const NodeForm: React.FC = () => {
               <pre className="bg-black border border-white/10 rounded-md px-3 py-2 text-xs text-gray-200 overflow-x-auto max-h-60 overflow-y-auto">
 {tokenInfo.bootstrapCmd}
               </pre>
+              {tokenInfo.configJson && (
+                <div className="mt-3">
+                  <p className="text-sm text-gray-300 mb-1">Config JSON (also via WSS tunnel if local_wss):</p>
+                  <pre className="bg-black border border-white/10 rounded-md px-3 py-2 text-xs text-gray-200 overflow-x-auto max-h-60">
+                    {tokenInfo.configJson}
+                  </pre>
+                </div>
+              )}
             </>
           )}
 
-          {tokenInfo.configJson && !tokenInfo.isLocalhost && (
+          {tokenInfo.configJson && !tokenInfo.isLocalhost && !tokenInfo.isTunnel && (
             <div className="mt-3">
               <p className="text-sm text-gray-300 mb-1">Config JSON for ksedge:</p>
               <pre className="bg-black border border-white/10 rounded-md px-3 py-2 text-xs text-gray-200 overflow-x-auto max-h-60">
@@ -894,7 +972,7 @@ const NodeForm: React.FC = () => {
 
           {!setupInfo.running && !setupInfo.error && setupInfo.probe && setupInfo.probe.reachable !== 'yes' && (
             <div className="mb-3 flex items-center gap-2 p-3 rounded-md border border-amber-700/40 bg-amber-900/20 text-amber-200 text-sm">
-              <svg xmlns="http://www.w3.org/2000.svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /> </svg>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /> </svg>
               ksedge was launched but didn't answer yet — {setupInfo.probe.note || 'try Recheck on the Nodes page in a moment'}.
             </div>
           )}
