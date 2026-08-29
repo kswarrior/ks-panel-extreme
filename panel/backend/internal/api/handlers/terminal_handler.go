@@ -124,28 +124,23 @@ func TerminalHandler(w http.ResponseWriter, r *http.Request) {
 	// Tunnel-aware guard: reverse_tunnel edges have no dialable address;
 	// they must be online via WSS. Terminal over WSS tunnel is not yet
 	// implemented (requires WS-over-WS multiplexing), so we return a
-	// structured error the browser can render as a banner instead of a
-	// generic dial failure to 127.0.0.1:4040.
+	// structured HTTP error the browser can render as a banner instead of
+	// a generic dial failure to 127.0.0.1:4040. We return the error BEFORE
+	// upgrading so the frontend sees a proper HTTP status (502/501) rather
+	// than a 101 followed by a WS error frame that some clients miss.
 	mode := strings.ToLower(strings.TrimSpace(node.ConnectionMode))
 	if mode == "reverse_tunnel" {
 		if !tunnel.Global().IsConnected(node.ID) {
-			// Need to upgrade first to send JSON error, but we can also
-			// return HTTP error before upgrade if not yet upgraded.
 			http.Error(w, "edge not connected via WSS tunnel (reverse_tunnel terminal requires edge to be online)", http.StatusBadGateway)
 			return
 		}
-		// Tunnel-connected reverse_tunnel: terminal not yet tunnelled.
-		// Upgrade then send hint, since the WS handshake already started.
-		clientConn, err := upgrader.Upgrade(w, r, nil)
-		if err != nil {
-			return
-		}
-		defer clientConn.Close()
-		_ = clientConn.WriteJSON(map[string]any{
-			"type":    "error",
-			"message": "terminal over WSS tunnel not yet implemented for reverse_tunnel; use direct or local_port mode for shell access",
-		})
-		time.Sleep(50 * time.Millisecond)
+		// Tunnel-connected reverse_tunnel: terminal not yet tunnelled via WSS.
+		// Return a clear 501 so the UI can show a banner without needing a
+		// WebSocket upgrade. The previous path upgraded to WS then sent a
+		// JSON error frame, which required the browser to have already
+		// completed the WS handshake — some pollers and curl probes never see
+		// that frame and only see a silent close.
+		http.Error(w, "terminal over WSS tunnel not yet implemented for reverse_tunnel; use direct or local_port mode for shell access", http.StatusNotImplemented)
 		return
 	}
 	// local_wss with active tunnel could also dial via tunnel, but the
@@ -154,9 +149,12 @@ func TerminalHandler(w http.ResponseWriter, r *http.Request) {
 	// where fallback is unavailable. The direct dial below will attempt
 	// 127.0.0.1:<port> which succeeds when the edge is on the same host.
 
-	// Edge WS URL.
+	// Edge WS URL. Token, kind and name are query-escaped so a future token
+	// format that includes special characters does not break the URL or leak
+	// into logs unescaped. Kind/name are similarly escaped so names with
+	// spaces or encoded characters survive the round-trip.
 	target := fmt.Sprintf("%s://%s/api/edge/exec?kind=%s&name=%s&tty=%d&token=%s",
-		scheme, node.Address, inst.Kind, name, tty, token)
+		scheme, node.Address, url.QueryEscape(inst.Kind), url.QueryEscape(name), tty, url.QueryEscape(token))
 
 	// Upgrade the browser side first. The gorilla dialer speaks WS on a
 	// already-upgraded connection; the browser side needs the standard
