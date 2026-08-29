@@ -861,18 +861,52 @@ func ExecutePageActionHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Security: the payload must exactly match one of the page's SAVED actions.
+	// The browser can only name a stored action — it can never invent new
+	// commands, override arguments, or reach a page whose actions don't include
+	// the requested command. Mirrors ExecuteCustomPageActionHandler.
+	var actionsRaw []map[string]any
+	if page.Actions != "" {
+		_ = json.Unmarshal([]byte(page.Actions), &actionsRaw)
+	}
+	var matched map[string]any
+	for _, def := range actionsRaw {
+		if savedActionMatches(def, req.Type, req.Command, req.Path, req.Content, req.Args, req.Env) {
+			matched = def
+			break
+		}
+	}
+	if matched == nil {
+		http.Error(w, "action is not defined on this page", http.StatusForbidden)
+		return
+	}
+	execType, execCommand, execPath, execContent, execArgs, execEnv, defTimeout, ok := savedActionExecFields(matched)
+	if !ok {
+		http.Error(w, "saved action definition is invalid", http.StatusForbidden)
+		return
+	}
+	execCommand, execArgs, aerr := resolveExecPayload(matched, execType, execCommand, execArgs, req.Args)
+	if aerr != nil {
+		http.Error(w, aerr.Error(), http.StatusForbidden)
+		return
+	}
+	timeout := reqTimeout
+	if req.Timeout <= 0 {
+		timeout = clampActionTimeout(defTimeout)
+	}
+
 	// Use the tunnel-aware edge client (honours WSS + SkipTLSVerify).
-	ec := edge.NewWithTimeout(*node, token, time.Duration(reqTimeout+5)*time.Second)
+	ec := edge.NewWithTimeout(*node, token, time.Duration(timeout+5)*time.Second)
 	resp, err := ec.PageAction(edge.PageActionRequest{
 		Kind:    instance.Kind,
 		Name:    instance.Name,
-		Type:    req.Type,
-		Command: req.Command,
-		Path:    req.Path,
-		Content: req.Content,
-		Args:    req.Args,
-		Env:     req.Env,
-		Timeout: reqTimeout,
+		Type:    execType,
+		Command: execCommand,
+		Path:    execPath,
+		Content: execContent,
+		Args:    execArgs,
+		Env:     execEnv,
+		Timeout: timeout,
 	})
 	if err != nil {
 		log.Printf("ExecutePageActionHandler: edge page-action request failed: %v", err)
