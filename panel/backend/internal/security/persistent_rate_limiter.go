@@ -2,11 +2,36 @@ package security
 
 import (
 	"database/sql"
+	"net"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/example/kspanel/internal/repository"
 )
+
+// normalizePersistentIP mirrors ip_rate_limiter.normalizeIP so both limiters
+// key by bare IP. Kept locally to avoid a cross-file unexported dependency
+// cycle; the logic is intentionally identical.
+func normalizePersistentIP(ip string) string {
+	ip = strings.TrimSpace(ip)
+	if ip == "" {
+		return ip
+	}
+	if net.ParseIP(ip) != nil {
+		return ip
+	}
+	if h, _, err := net.SplitHostPort(ip); err == nil && h != "" {
+		return strings.Trim(h, "[]")
+	}
+	if last := strings.LastIndex(ip, ":"); last != -1 {
+		maybeIP := strings.Trim(ip[:last], "[]")
+		if net.ParseIP(maybeIP) != nil {
+			return maybeIP
+		}
+	}
+	return ip
+}
 
 // PersistentIPRateLimiter is a database-backed sliding-window per-IP counter
 // that persists across panel restarts.
@@ -72,6 +97,7 @@ func (l *PersistentIPRateLimiter) loadFromDB() {
 		if err != nil {
 			continue
 		}
+		ip = normalizePersistentIP(ip)
 		l.hits[ip] = append(l.hits[ip], createdAt)
 	}
 }
@@ -84,6 +110,7 @@ func (l *PersistentIPRateLimiter) Allow(ip string) bool {
 	if l.capacity == 0 {
 		return true
 	}
+	ip = normalizePersistentIP(ip)
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	now := time.Now()
