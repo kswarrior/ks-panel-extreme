@@ -333,10 +333,6 @@ func (s *State) IPAllowed(ip string) bool {
 	if s == nil {
 		return true
 	}
-	// Defensive normalize: callers should already supply bare IP, but a
-	// direct string with port would fragment buckets and silently disable
-	// protection. Normalize here as well as in the limiter itself.
-	ip = normalizeIP(ip)
 	if s.persistentLimiter != nil {
 		return s.persistentLimiter.Allow(ip)
 	}

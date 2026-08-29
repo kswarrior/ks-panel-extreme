@@ -8,7 +8,6 @@ import (
 	"github.com/example/kspanel/internal/api/handlers"
 	"github.com/example/kspanel/internal/permissions"
 	"github.com/example/kspanel/internal/repository"
-	"github.com/example/kspanel/internal/tunnel"
 	"github.com/example/kspanel/internal/ui"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -165,11 +164,6 @@ func NewRouter() http.Handler {
 		// Public edge metrics ingest. ksedge authenticates with its edge token in
 		// the body, so this must NOT sit behind the session-cookie auth middleware.
 		r.Post("/api/nodes/heartbeat", handlers.HeartbeatIngestHandler)
-		// Reverse tunnel: edge dials panel via WSS and keeps the socket alive so
-		// the panel can multiplex RPCs back to the edge without dialing it directly.
-		// Token-auth, not session-cookie.
-		r.Get("/api/edge/tunnel", tunnel.Handler)
-		r.HandleFunc("/api/edge/tunnel", tunnel.Handler)
 	})
 
 	// Protected API group

@@ -151,7 +151,6 @@ export async function listNodes(): Promise<Node[]> {
 // zero values fall back to the panel's column defaults so legacy callers that
 // only send name/address/use_tls stay compatible.
 export interface NodeAdvancedFields {
-  connection_mode?: string;
   health_enabled?: boolean;
   health_interval?: number;
   health_timeout?: number;

@@ -1,6 +1,6 @@
 // NodeForm utilities - extracted from NodeForm.tsx
 
-import type { ConnectionMode, Form } from '../types/nodeForm';
+import type { Form } from '../types/nodeForm';
 
 export function buildEdgeConfig(
   name: string,
@@ -10,7 +10,6 @@ export function buildEdgeConfig(
   form: Form
 ): string {
   const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5050';
-  const m: ConnectionMode = (form.connection_mode as ConnectionMode) || 'direct';
   const cfg: Record<string, any> = {
     uuid: 'auto-generated-by-panel',
     name,
@@ -20,7 +19,6 @@ export function buildEdgeConfig(
     heartbeat_interval: 60,
     use_tls_upstream: useTls,
     skip_verify: false,
-    connection_mode: m,
   };
   const instancesDir = form.instances_dir.trim();
   if (instancesDir) {

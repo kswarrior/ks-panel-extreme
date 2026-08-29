@@ -20,12 +20,6 @@ export interface Node {
   /** Let the panel dial a self-signed edge without making the global probe
    * client outright insecure. */
   skip_tls_verify: boolean;
-  /** Connection mode controlling how panel and edge talk.
-   *  direct = panel has edge URL + edge has panel URL (bidirectional HTTP).
-   *  reverse_tunnel = only edge stores panel URL, works via WSS tunnel.
-   *  local_port = edge runs on panel host via 127.0.0.1:port (HTTP).
-   *  local_wss = edge runs on panel host via WSS tunnel (127.0.0.1:port over WSS). */
-  connection_mode: string;
   /** Free-text user-facing notes shown on the node card. */
   notes: string;
   /** Override for the local-edge install directory (empty = ./localnode/ksedge-<id>). */

@@ -25,11 +25,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/example/kspanel/internal/models"
-	"github.com/example/kspanel/internal/tunnel"
 )
 
 // Result is what the repo persists for the card and what the admin probe
@@ -118,40 +116,9 @@ func clientFor(node models.Node) *http.Client {
 // client then dials the default port for the scheme. Per-node HealthTimeout
 // and SkipTLSVerify override the package defaults when set.
 func Probe(node models.Node) Result {
-	// For WSS tunnel modes, probe via tunnel connectivity instead of direct HTTP.
-	mode := strings.ToLower(strings.TrimSpace(node.ConnectionMode))
-	if mode == "reverse_tunnel" || mode == "local_wss" {
-		if tunnel.Global().IsConnected(node.ID) {
-			// Tunnel probe: ask edge for health via tunnel RPC and interpret.
-			// Use the tunnel's generic request path /health (GET) with a short timeout.
-			status, body, err := tunnel.Global().Send(node.ID, "GET", "/health", nil, 5*time.Second)
-			if err != nil {
-				return Result{Reachable: false, Note: fmt.Sprintf("tunnel probe: %v", err)}
-			}
-			if status != http.StatusOK {
-				return Result{Reachable: false, Note: fmt.Sprintf("edge returned HTTP %d via tunnel", status)}
-			}
-			var hr healthResponse
-			if err := json.Unmarshal(body, &hr); err != nil {
-				return Result{Reachable: false, Note: fmt.Sprintf("not a ksedge via tunnel: %v", err)}
-			}
-			if hr.Service != "ksedge" {
-				return Result{Reachable: false, SeenName: hr.Name, Note: fmt.Sprintf("service=%q is not a ksedge", hr.Service)}
-			}
-			return Result{Reachable: true, SeenName: hr.Name}
-		}
-		if mode == "reverse_tunnel" {
-			return Result{Reachable: false, Note: "edge not connected via WSS tunnel"}
-		}
-		// local_wss falls through to direct HTTP probe as fallback when tunnel not connected.
-	}
 	scheme := "http"
 	if node.UseTLS {
 		scheme = "https"
-	}
-	// For tunnel placeholder addresses, Probe cannot use HTTP – already handled above.
-	if node.Address == "" || node.Address == "tunnel" {
-		return Result{Reachable: false, Note: "no address for direct probe (tunnel mode)"}
 	}
 	url := fmt.Sprintf("%s://%s/health", scheme, node.Address)
 	cl := clientFor(node)

@@ -99,7 +99,7 @@ func SecurityMiddleware(next http.Handler) http.Handler {
 		//    allowlist (that list's whole purpose is bypassing throttle).
 		ipBlocked := false
 		if !isAsset && cfg.PerMinuteLimit > 0 && !cfg.IPAllowlisted(clientHost) {
-			if !state.IPAllowed(clientHost) {
+			if !state.IPAllowed(clientIP) {
 				ipBlocked = true
 
 				// 2b) DDoS auto-stop trigger: if auto protection is enabled

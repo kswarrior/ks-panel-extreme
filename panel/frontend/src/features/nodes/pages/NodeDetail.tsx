@@ -6,7 +6,7 @@ import GlassCard from '@/shared/components/ui/Card';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import { NodeIcon } from '../utils/nodeIcons';
 import { HeartbeatIcon, DriverRing, ResourceBar } from '../components/NodesComponents';
-import { formatBytesPair, formatPercent } from '../utils/nodesUtils';
+import { formatBytesPair, formatPercent, isLocalAddress } from '../utils/nodesUtils';
 import { countryByCode } from '@/shared/components/forms/LocationField/countries';
 import { STATE_STYLES, MONITOR_BARS, DRIVER_ARCS } from '../types/nodes';
 import { Gauge } from '@/features/system/components/SystemCharts';
@@ -250,22 +250,7 @@ const NodeDetail: React.FC = () => {
   const ramLabel = formatBytesPair(node.ram_used, node.ram_total);
   const cpuPct = node.cpu_percent != null ? formatPercent(node.cpu_percent) : '0%';
   const diskLabel = formatBytesPair(node.disk_used, node.disk_total);
-  const modeLabel = (() => {
-    const m = (node as any).connection_mode || (node.address === 'tunnel' ? 'reverse_tunnel' : (node.address.startsWith('127.0.0.1:') || node.address.startsWith('localhost:') ? 'local_port' : 'direct'));
-    const map: Record<string,string> = { direct: 'Direct', reverse_tunnel: 'Reverse Tunnel (WSS)', local_port: 'Local (Port)', local_wss: 'Local (WSS)' };
-    return map[m] || m;
-  })();
-  const isLocal = (() => {
-    const m = (node as any).connection_mode;
-    if (m === 'local_port' || m === 'local_wss') return true;
-    if (m === 'reverse_tunnel' || m === 'direct') return false;
-    return node.address.startsWith('127.0.0.1:') || node.address.startsWith('localhost:');
-  })();
-  const hostUrl = (() => {
-    const m = (node as any).connection_mode;
-    if (m === 'reverse_tunnel' || node.address === 'tunnel') return 'WSS tunnel (edge dials panel)';
-    return `${node.use_tls ? 'https' : 'http'}://${node.address}`;
-  })();
+  const hostUrl = `${node.use_tls ? 'https' : 'http'}://${node.address}`;
   const country = node.location_country ? countryByCode(node.location_country) : undefined;
   const hasLocation = !!(node.location_country || node.location_node);
 
@@ -287,7 +272,7 @@ const NodeDetail: React.FC = () => {
             { key: 'copyAddr', label: copied === 'addr' ? 'Copied!' : 'Copy address', tone: 'default' },
             { key: 'copyHost', label: copied === 'host' ? 'Copied!' : 'Copy host URL', tone: 'default' },
             { key: 'rotate', label: rotating ? 'Rotating…' : 'Rotate token', tone: 'default' },
-            ...(isLocal ? [{
+            ...(isLocalAddress(node.address) ? [{
               key: 'purge',
               label: purging ? 'Purging…' : 'Delete edge completely',
               tone: 'danger' as const,
@@ -424,7 +409,6 @@ const NodeDetail: React.FC = () => {
         <GlassCard className="p-3">
           <h4 className="text-xs uppercase tracking-wide text-gray-500 mb-2">Connectivity & Health</h4>
           <div className="space-y-1.5 text-sm">
-            <div className="flex justify-between"><span className="text-gray-400">Mode</span><span className="text-white text-xs px-1.5 py-0.5 rounded border border-white/10 bg-white/5">{modeLabel}</span></div>
             <div className="flex justify-between gap-2"><span className="text-gray-400">Address</span><span className="font-mono text-xs text-white truncate max-w-[160px]" title={node.address}>{node.address} <button onClick={() => copy(node.address, 'addr2')} className="ml-1 p-1 rounded hover:bg-white/10 inline-flex align-middle"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-3 h-3"><rect x="9" y="9" width="10" height="10" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v3" /></svg></button></span></div>
             <div className="flex justify-between"><span className="text-gray-400">TLS</span><span className={node.use_tls ? 'text-emerald-300' : 'text-gray-400'}>{node.use_tls ? 'https' : 'http'}</span></div>
             <div className="flex justify-between"><span className="text-gray-400">Skip TLS verify</span><span className={node.skip_tls_verify ? 'text-amber-300' : 'text-gray-400'}>{node.skip_tls_verify ? 'yes' : 'no'}</span></div>

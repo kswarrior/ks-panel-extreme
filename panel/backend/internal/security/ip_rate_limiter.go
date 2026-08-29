@@ -1,41 +1,9 @@
 package security
 
 import (
-	"net"
-	"strings"
 	"sync"
 	"time"
 )
-
-// normalizeIP strips a possible port suffix from an IP string (e.g.
-// "1.2.3.4:5678" -> "1.2.3.4", "[::1]:1234" -> "::1") so per-IP buckets
-// are keyed by the actual client IP, not the ephemeral source port.
-// Without this, each TCP connection (different source port) would get its
-// own bucket and the per-IP limit would never be reached under a real
-// flood that opens many connections.
-func normalizeIP(ip string) string {
-	ip = strings.TrimSpace(ip)
-	if ip == "" {
-		return ip
-	}
-	// Fast path: if it parses as bare IP, nothing to strip.
-	if net.ParseIP(ip) != nil {
-		return ip
-	}
-	if h, _, err := net.SplitHostPort(ip); err == nil && h != "" {
-		// Handle bracketed IPv6.
-		return strings.Trim(h, "[]")
-	}
-	// Fallback for malformed "ip:port" where SplitHostPort fails due to
-	// missing brackets on IPv6 bare form — try last colon heuristic.
-	if last := strings.LastIndex(ip, ":"); last != -1 {
-		maybeIP := strings.Trim(ip[:last], "[]")
-		if net.ParseIP(maybeIP) != nil {
-			return maybeIP
-		}
-	}
-	return ip
-}
 
 // IPRateLimiter is a tiny in-memory sliding-window per-IP counter the
 // security middleware consults before letting a request reach its
@@ -92,7 +60,6 @@ func (l *IPRateLimiter) Allow(ip string) bool {
 	if l.capacity == 0 {
 		return true
 	}
-	ip = normalizeIP(ip)
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	now := time.Now()

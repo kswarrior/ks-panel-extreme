@@ -1,35 +1,12 @@
 package api
 
 import (
-	"net"
 	"net/http"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 )
-
-// normalizeClientIP strips port from IP string for consistent bucketing.
-// See security.normalizeIP for rationale.
-func normalizeClientIP(ip string) string {
-	ip = strings.TrimSpace(ip)
-	if ip == "" {
-		return ip
-	}
-	if net.ParseIP(ip) != nil {
-		return ip
-	}
-	if h, _, err := net.SplitHostPort(ip); err == nil && h != "" {
-		return strings.Trim(h, "[]")
-	}
-	if last := strings.LastIndex(ip, ":"); last != -1 {
-		maybeIP := strings.Trim(ip[:last], "[]")
-		if net.ParseIP(maybeIP) != nil {
-			return maybeIP
-		}
-	}
-	return ip
-}
 
 // RateLimiter implements a simple in-memory rate limiter with automatic
 // garbage collection of old records. Records are purged on a background
@@ -245,19 +222,19 @@ func getClientID(r *http.Request) string {
 	// X-Forwarded-For and X-Real-IP are only used when behind a trusted proxy.
 	ip := r.RemoteAddr
 	if ip != "" {
-		return normalizeClientIP(ip)
+		return ip
 	}
 	// Fall back to X-Forwarded-For when behind a reverse proxy
 	ip = r.Header.Get("X-Forwarded-For")
 	if ip != "" {
 		if parts := strings.Split(ip, ","); len(parts) > 0 {
-			return normalizeClientIP(strings.TrimSpace(parts[0]))
+			return strings.TrimSpace(parts[0])
 		}
 	}
 	// Fall back to X-Real-IP
 	ip = r.Header.Get("X-Real-IP")
 	if ip != "" {
-		return normalizeClientIP(ip)
+		return ip
 	}
 	return ""
 }

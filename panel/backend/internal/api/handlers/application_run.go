@@ -439,7 +439,7 @@ func runOnLocalNode(ctx context.Context, repo *repository.ApplicationRepository,
 	}
 	var local *models.Node
 	for i := range nodes {
-		if isLocalNode(&nodes[i]) {
+		if isLocalAddress(nodes[i].Address) {
 			local = &nodes[i]
 			break // lowest id wins — deterministic
 		}

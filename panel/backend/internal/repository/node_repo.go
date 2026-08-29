@@ -78,8 +78,6 @@ type CreateNodeInput struct {
 	// Color is a #rrggbb hex string. Both default to '' (theme defaults).
 	Icon  string
 	Color string
-	// Connection mode (migration 050). Empty = 'direct' default.
-	ConnectionMode string
 }
 
 // CreateNode returns the new node row and the raw edge token. The token must
@@ -96,24 +94,20 @@ func (r *NodeRepository) CreateNode(in CreateNodeInput) (*models.Node, string, e
 		prefix = prefix[:8]
 	}
 
-	cm := in.ConnectionMode
-	if cm == "" {
-		cm = "direct"
-	}
 	res, err := r.db.Exec(
 		`INSERT INTO nodes (name, address, use_tls, token_hash, token_prefix, token_plain, status,
 			health_enabled, health_interval, health_timeout, health_retries,
 			skip_tls_verify, notes, install_dir, allowed_kinds,
 			alloc_mem_mib, mem_overcommit_pct, alloc_disk_mib, disk_overcommit_pct, instances_dir,
-			category, location_country, location_node, icon, color, connection_mode)
-		 VALUES (?, ?, ?, ?, ?, ?, 'down', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			category, location_country, location_node, icon, color)
+		 VALUES (?, ?, ?, ?, ?, ?, 'down', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		in.Name, in.Address, boolToInt(in.UseTLS), hash, prefix, token,
 		boolToInt(in.HealthEnabled), defaultInt(in.HealthInterval, 60),
 		defaultInt(in.HealthTimeout, 4), defaultInt(in.HealthRetries, 3),
 		boolToInt(in.SkipTLSVerify), in.Notes, in.InstallDir, in.AllowedKinds,
 		in.AllocMemMiB, in.MemOvercommitPct, in.AllocDiskMiB, in.DiskOvercommitPct,
 		in.InstancesDir,
-		in.Category, in.LocationCountry, in.LocationNode, in.Icon, in.Color, cm,
+		in.Category, in.LocationCountry, in.LocationNode, in.Icon, in.Color,
 	)
 	if err != nil {
 		return nil, "", err
@@ -173,7 +167,7 @@ func (r *NodeRepository) ListNodes() ([]models.Node, error) {
 		skip_tls_verify, notes, install_dir, allowed_kinds,
 		alloc_mem_mib, mem_overcommit_pct, alloc_disk_mib, disk_overcommit_pct, instances_dir,
 		category, location_country, location_node, icon, color,
-		probe_fail_count, next_probe_at, connection_mode
+		probe_fail_count, next_probe_at
 		FROM nodes ORDER BY created_at DESC`)
 	if err != nil {
 		// Try one level of fallback (drivers present, telemetry-quality
@@ -288,7 +282,7 @@ func (r *NodeRepository) GetNode(id int64) (*models.Node, error) {
 		skip_tls_verify, notes, install_dir, allowed_kinds,
 		alloc_mem_mib, mem_overcommit_pct, alloc_disk_mib, disk_overcommit_pct, instances_dir,
 		category, location_country, location_node, icon, color,
-		probe_fail_count, next_probe_at, connection_mode
+		probe_fail_count, next_probe_at
 		FROM nodes WHERE id = ?`, id)
 	if err != nil {
 		return r.getNodeWithDrivers(id)
@@ -323,7 +317,7 @@ func (r *NodeRepository) FindNodeByNameAndAddress(name, address string) (*models
 		skip_tls_verify, notes, install_dir, allowed_kinds,
 		alloc_mem_mib, mem_overcommit_pct, alloc_disk_mib, disk_overcommit_pct, instances_dir,
 		category, location_country, location_node, icon, color,
-		probe_fail_count, next_probe_at, connection_mode
+		probe_fail_count, next_probe_at
 		FROM nodes WHERE name = ? AND address = ? LIMIT 1`, name, address)
 	if err != nil {
 		return nil, err
@@ -388,7 +382,7 @@ func (r *NodeRepository) getNodeLegacy(id int64) (*models.Node, error) {
 	return &nd, nil
 }
 
-// scanFullNode reads a row carrying every migration-011 (and 019, 025, 026, 050)
+// scanFullNode reads a row carrying every migration-011 (and 019, 025, 026)
 // column.
 func scanFullNode(rows *sql.Rows, nd *models.Node) error {
 	var useTLS int
@@ -405,7 +399,6 @@ func scanFullNode(rows *sql.Rows, nd *models.Node) error {
 	var allocMemMiB, memOvercommitPct, allocDiskMiB, diskOvercommitPct int
 	var instancesDir, category, locationCountry, locationNode string
 	var icon, color string
-	var connectionMode sql.NullString
 	if err := rows.Scan(&nd.ID, &nd.Name, &nd.Address, &useTLS, &nd.TokenPrefix,
 		&nd.RAMUsed, &nd.RAMTotal, &nd.CPUPercent, &nd.DiskUsed, &nd.DiskTotal,
 		&nd.UptimeSecs, &nd.Status, &nd.UptimePct, &lastSeen, &created,
@@ -416,7 +409,7 @@ func scanFullNode(rows *sql.Rows, nd *models.Node) error {
 		&skipTLSVerify, &nd.Notes, &nd.InstallDir, &nd.AllowedKinds,
 		&allocMemMiB, &memOvercommitPct, &allocDiskMiB, &diskOvercommitPct, &instancesDir,
 		&category, &locationCountry, &locationNode, &icon, &color,
-		&probeFailCount, &nextProbe, &connectionMode); err != nil {
+		&probeFailCount, &nextProbe); err != nil {
 		return err
 	}
 	applyScannedFields(nd, useTLS, created, lastSeen)
@@ -445,14 +438,6 @@ func scanFullNode(rows *sql.Rows, nd *models.Node) error {
 	nd.LocationNode = locationNode
 	nd.Icon = icon
 	nd.Color = color
-	if connectionMode.Valid {
-		nd.ConnectionMode = connectionMode.String
-	} else {
-		nd.ConnectionMode = "direct"
-	}
-	if nd.ConnectionMode == "" {
-		nd.ConnectionMode = "direct"
-	}
 	if nextProbe.Valid {
 		if t := parseTime(nextProbe); t != nil {
 			nd.NextProbeAt = t
@@ -498,7 +483,6 @@ func scanNodeWithDrivers(rows *sql.Rows, nd *models.Node) error {
 	nd.HealthInterval = 60
 	nd.HealthTimeout = 4
 	nd.HealthRetries = 3
-	nd.ConnectionMode = "direct"
 	return nil
 }
 
@@ -517,7 +501,6 @@ func scanLegacyNode(rows *sql.Rows, nd *models.Node) error {
 	nd.HealthInterval = 60
 	nd.HealthTimeout = 4
 	nd.HealthRetries = 3
-	nd.ConnectionMode = "direct"
 	return nil
 }
 
@@ -580,24 +563,18 @@ type UpdateNodeInput struct {
 	// Display identity (migration 044). Mirror CreateNodeInput.
 	Icon  string
 	Color string
-	// Connection mode (migration 050).
-	ConnectionMode string
 }
 
 // UpdateNode patches the editable columns of an edge. The token
 // hash/prefix stay as they were.
 func (r *NodeRepository) UpdateNode(id int64, in UpdateNodeInput) error {
-	cm := in.ConnectionMode
-	if cm == "" {
-		cm = "direct"
-	}
 	res, err := r.db.Exec(
 		`UPDATE nodes SET name = ?, address = ?, use_tls = ?,
 			health_enabled = ?, health_interval = ?, health_timeout = ?, health_retries = ?,
 			skip_tls_verify = ?, notes = ?, install_dir = ?, allowed_kinds = ?,
 			alloc_mem_mib = ?, mem_overcommit_pct = ?, alloc_disk_mib = ?, disk_overcommit_pct = ?,
 			instances_dir = ?,
-			category = ?, location_country = ?, location_node = ?, icon = ?, color = ?, connection_mode = ?
+			category = ?, location_country = ?, location_node = ?, icon = ?, color = ?
 		 WHERE id = ?`,
 		in.Name, in.Address, boolToInt(in.UseTLS),
 		boolToInt(in.HealthEnabled), defaultInt(in.HealthInterval, 60),
@@ -605,7 +582,7 @@ func (r *NodeRepository) UpdateNode(id int64, in UpdateNodeInput) error {
 		boolToInt(in.SkipTLSVerify), in.Notes, in.InstallDir, in.AllowedKinds,
 		in.AllocMemMiB, in.MemOvercommitPct, in.AllocDiskMiB, in.DiskOvercommitPct,
 		in.InstancesDir,
-		in.Category, in.LocationCountry, in.LocationNode, in.Icon, in.Color, cm,
+		in.Category, in.LocationCountry, in.LocationNode, in.Icon, in.Color,
 		id,
 	)
 	if err != nil {
