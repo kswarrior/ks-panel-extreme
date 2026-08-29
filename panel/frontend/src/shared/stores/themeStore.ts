@@ -149,6 +149,36 @@ export function resolveThemeIdByRoute(
       break; // first matching page wins; fall through to area default
     }
   }
+  // Instance sub-page fallback: /instances/:id/<tab>/... should inherit the theme
+  // assigned to that tab's page (e.g. files/edit follows page:instance.panel.files).
+  // The exact match above fails for sub-paths because tab matchers are exact; this
+  // prefix check ensures complete theme support for every instance page including sub-pages
+  // like files/edit which live inside the Files page family.
+  const instSub = pathname.match(/^\/instances\/\d+\/([^/]+)(\/.*)?$/);
+  if (instSub) {
+    const tab = instSub[1];
+    const tabPageMap: Record<string, string> = {
+      files: 'instance.panel.files',
+      network: 'instance.panel.network',
+      terminal: 'instance.panel.terminal',
+      settings: 'instance.panel.settings',
+      metrics: 'instance.panel.custom',
+      audit: 'instance.panel.custom',
+      automation: 'instance.panel.custom',
+      backups: 'instance.panel.custom',
+      env: 'instance.panel.custom',
+      ports: 'instance.panel.custom',
+      processes: 'instance.panel.custom',
+    };
+    const mapped = tabPageMap[tab] || 'instance.panel.custom';
+    // Prefer exact tab's page assignment if admin set it; otherwise the generic custom catch-all
+    const tidExact = assignments[scopeForPage(mapped)];
+    if (tidExact) return tidExact;
+    if (mapped !== 'instance.panel.custom') {
+      const tidCustom = assignments[scopeForPage('instance.panel.custom')];
+      if (tidCustom) return tidCustom;
+    }
+  }
   const area = areaFor(pathname);
   if (area) {
     const tid = assignments[scopeForArea(area)];
@@ -510,6 +540,7 @@ export interface ApplyOpts {
 function matchingScopeCss(scopes: Record<string, string> | undefined, pathname: string): string {
   if (!scopes) return '';
   const out: string[] = [];
+  let matchedPage = false;
   // Page-level override: the first catalog page whose matcher accepts
   // the pathname wins (mirrors resolveThemeIdByRoute's first-match
   // semantics exactly).
@@ -517,7 +548,34 @@ function matchingScopeCss(scopes: Record<string, string> | undefined, pathname: 
     if (p.match(pathname, '')) {
       const css = scopes[scopeForPage(p.id)];
       if (css) out.push(`/* Custom CSS — page:${p.id} */\n${css}`);
+      matchedPage = true;
       break;
+    }
+  }
+  // Instance sub-page fallback: ensure Custom CSS assigned to page:instance.panel.files
+  // also emits on /instances/123/files/edit (which doesn't match the exact tab matcher).
+  // This guarantees complete theme support for every instance sub-page.
+  if (!matchedPage) {
+    const instSub = pathname.match(/^\/instances\/\d+\/([^/]+)(\/.*)?$/);
+    if (instSub) {
+      const tab = instSub[1];
+      const tabPageMap: Record<string, string> = {
+        files: 'instance.panel.files',
+        network: 'instance.panel.network',
+        terminal: 'instance.panel.terminal',
+        settings: 'instance.panel.settings',
+      };
+      const mapped = tabPageMap[tab];
+      if (mapped) {
+        const css = scopes[scopeForPage(mapped)];
+        if (css) out.push(`/* Custom CSS — page:${mapped} (sub-page) */\n${css}`);
+        matchedPage = true;
+      }
+      // Custom pages (any other slug) fall through to the catch-all
+      if (!matchedPage) {
+        const css = scopes[scopeForPage('instance.panel.custom')];
+        if (css) out.push(`/* Custom CSS — page:instance.panel.custom (sub-page) */\n${css}`);
+      }
     }
   }
   // Area-level default.

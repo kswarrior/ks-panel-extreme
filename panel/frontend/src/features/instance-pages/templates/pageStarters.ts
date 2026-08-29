@@ -58,18 +58,27 @@ function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){retur
 function el(id){return document.getElementById(id);}
 function toast(m,t){try{KSPageSDK.toast(m,t||'info');}catch(e){}}
 async function act(name,args){var r=await KSPageSDK.runAction(name,{args:(args||[])});if(r&&r.ok===false)throw new Error(r.error||r.stderr||('Action failed: '+name));if(r&&r.error&&!r.stdout&&!r.stderr&&!r.data)throw new Error(r.error);return r;}
+// tok resolves a panel theme token to a concrete color for canvas/SVG attributes that cannot consume var().
+// Every instance page is fully theme-aware: tok() mirrors the host's --ks-* tokens with themed fallbacks.
+function tok(name,fb){try{var v=getComputedStyle(document.documentElement).getPropertyValue(name).trim();return v||fb;}catch(e){return fb;}}
 // ask() routes destructive-operation confirmations through the panel's themed
 // ConfirmDialog (sdk.confirm bridges to the host origin) instead of the
 // browser-native confirm(). Falls back so pages stay functional everywhere.
 async function ask(m){try{if(window.KSPageSDK&&typeof window.KSPageSDK.confirm==='function')return await window.KSPageSDK.confirm(m);}catch(e){}return window.confirm(m);}
-function pre(text,maxH){return '<pre style="max-height:'+(maxH||420)+'px;overflow:auto;font-size:12px;margin:0">'+esc(text==null?'':text)+'</pre>';}
+function pre(text,maxH){return '<pre style="max-height:'+(maxH||420)+'px;overflow:auto;font-size:12px;margin:0;background:var(--ks-input-bg);border:1px solid var(--ks-card-border);color:var(--ks-body);border-radius:var(--ks-radius-md,6px);padding:0.75rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">'+esc(text==null?'':text)+'</pre>';}
 function card(title,innerHtml){return '<div class="ks-card"><h3 style="margin:0 0 .5rem;font-size:.95rem;color:var(--ks-heading)">'+title+'</h3>'+innerHtml+'</div>';}
 `;
+
+// Instance pages are fully theme-aware: every starter inherits the active panel theme
+// (all --ks-* tokens baked by CustomPageView.customPageThemeCss). This preamble ensures
+// complete theme support in every page (typography, selection, scrollbars, links) so the
+// theme chosen in the panel's Theme system applies to all instance pages.
+const INSTANCE_THEME_SUPPORT_CSS = `<style id="ks-instance-theme-support">/* Instance pages — complete theme support (inherits active panel theme) */ .ks-page{color:var(--ks-body);font-family:var(--ks-font-family, inherit)} ::selection{background:var(--ks-accent-primary, #38bdf8);color:#fff} ::-webkit-scrollbar{width:8px;height:8px} ::-webkit-scrollbar-thumb{background:var(--ks-card-border, rgba(255,255,255,0.15));border-radius:9999px} ::-webkit-scrollbar-track{background:transparent} a{color:var(--ks-link)} a:hover{color:var(--ks-info)} pre,code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace} table th{background:var(--ks-input-bg);color:var(--ks-muted)} table td{border-color:var(--ks-card-border)}</style>`;
 
 // page() wraps a body + script into the standard starter skeleton. The
 // generated script is a plain async IIFE whose errors land in #content.
 function page(title: string, body: string, js: string): string {
-  return `<div class="ks-page">
+  return `${INSTANCE_THEME_SUPPORT_CSS}<div class="ks-page">
 <div class="ks-row" style="justify-content:space-between;margin-bottom:0.75rem">
   <h2 style="margin:0;font-size:1.3rem;color:var(--ks-heading)">${title}</h2>
 </div>
@@ -88,6 +97,15 @@ ${js}
 })();
 document.currentScript.remove();
 </script>`;
+}
+
+// withTheme ensures every LIB page carries the instance theme support preamble so the
+// active panel theme (all --ks-* tokens baked by CustomPageView) visibly themes every surface.
+// Files already ships its own themed <style> — withTheme skips injection there via id check.
+function withTheme(html: string): string {
+  if (!html) return html;
+  if (html.includes('ks-instance-theme-support') || html.includes('ks-theme')) return html;
+  return INSTANCE_THEME_SUPPORT_CSS + html;
 }
 
 // ---------------------------------------------------------------------------
@@ -865,6 +883,19 @@ export const PAGE_STARTERS: PageStarter[] = [
     html: LIB_TERMINAL_HTML,
   },
 ];
+
+// Complete theme support: every starter's HTML (including sub-pages like files/edit) inherits
+// the active panel theme's --ks-* tokens baked by CustomPageView. This post-process injects
+// the shared INSTANCE_THEME_SUPPORT_CSS preamble where a page lacks it, guaranteeing that
+// "the theme Works in all instances pages" — Home, Files, Terminal, Metrics, etc.
+for (const s of PAGE_STARTERS) {
+  if (s.html) s.html = withTheme(s.html);
+  if (Array.isArray((s as any).subPages)) {
+    for (const sp of (s as any).subPages as any[]) {
+      if (sp && typeof sp.content_html === 'string' && sp.content_html) sp.content_html = withTheme(sp.content_html);
+    }
+  }
+}
 
 export default PAGE_STARTERS;
 

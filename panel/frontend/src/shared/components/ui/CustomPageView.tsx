@@ -816,8 +816,9 @@ function cssConst(v: unknown, fallback: string): string {
 // every token family the panel theme exposes (card, button, forms,
 // typography, accent, dropdown, tabs, modal, utilities) so instance pages
 // follow the theme exactly like host UI, fulfilling "complete theme support
-// in every page".
-function customPageThemeCss(theme: Theme): string {
+// in every page". It also bakes the Theme Studio's Custom CSS (global +
+// instance area/page scopes) so admin-authored raw CSS themes instance pages too.
+function customPageThemeCss(theme: Theme, pageSlugOrPath?: string): string {
   const f = theme.forms;
   const b = theme.button;
   const c = theme.card;
@@ -875,7 +876,7 @@ function customPageThemeCss(theme: Theme): string {
   const statBorder = cssConst(cards?.stat_border_color ?? c.border_color, 'rgba(255,255,255,0.10)');
   const formBg = cssConst(cards?.form_background ?? c.background, 'rgba(255,255,255,0.04)');
   const formBorder = cssConst(cards?.form_border_color ?? c.border_color, 'rgba(255,255,255,0.10)');
-  return `
+  let baseCss = `
     /* Theme tokens — re-emitted from the ACTIVE panel theme. These override
        the stock :root defaults above so pages consuming var(--ks-*) follow
        the admin's theme exactly like the host UI does. Complete set covers
@@ -1079,15 +1080,41 @@ function customPageThemeCss(theme: Theme): string {
     /* Utility: make any inline hardcoded dark overlay respect theme via attribute override */
     div[style*=\"rgba(0,0,0,0.55)\"] { background: var(--ks-modal-overlay, rgba(0,0,0,0.60)) !important; }
     @media (max-width:640px){ .ks-hidden-sm{display:none!important} }`;
+  // Bake Theme Studio Custom CSS for instance pages (global + instance scopes) so "theme Works in all instances pages"
+  let customBlock = '';
+  const customCSS = (theme as any).customCSS as { global?: string; scopes?: Record<string, string> } | undefined;
+  if (customCSS) {
+    if (customCSS.global && String(customCSS.global).trim()) customBlock += `\n/* Custom CSS — global (instance page) */\n${String(customCSS.global)}\n`;
+    if (customCSS.scopes && typeof customCSS.scopes === 'object') {
+      for (const [scope, css] of Object.entries(customCSS.scopes)) {
+        if (!css || !String(css).trim()) continue;
+        if (scope === 'area:instance' || scope.startsWith('page:instance')) {
+          if (pageSlugOrPath) {
+            const isArea = scope === 'area:instance';
+            const isCustomCatchAll = scope === 'page:instance.panel.custom';
+            if (isArea || isCustomCatchAll || scope.includes(pageSlugOrPath) || pageSlugOrPath.includes(scope.replace('page:', ''))) {
+              customBlock += `\n/* Custom CSS — ${scope} */\n${String(css)}\n`;
+            }
+          } else {
+            customBlock += `\n/* Custom CSS — ${scope} */\n${String(css)}\n`;
+          }
+        }
+      }
+    }
+  }
+  if (customBlock) baseCss += customBlock;
+  return baseCss;
 }
 
 // activePageThemeCss returns the ACTIVE panel theme baked into an iframe
 // stylesheet (the same CSS CustomPageView injects into HTML pages). Exported
 // for sibling surfaces that render page content on opaque origins — the
 // Studio's static preview and html blocks — so every sandboxed frame follows
-// the admin's theme without inheriting host CSS variables.
-export function activePageThemeCss(): string {
-  return customPageThemeCss(useThemeStore.getState().active());
+// the admin's theme without inheriting host CSS variables. Accepts an
+// optional pageSlug/path so instance-page Custom CSS scopes are filtered
+// precisely (global + area:instance + matching page:instance.*).
+export function activePageThemeCss(pageSlugOrPath?: string): string {
+  return customPageThemeCss(useThemeStore.getState().active(), pageSlugOrPath);
 }
 
 // CustomPageView renders a custom page's content. HTML mode renders inside a
@@ -1147,14 +1174,18 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
     } as InstanceContext);
     // Resolve {{component:name}} tokens in HTML content.
     const resolvedHtml = resolveComponentTokens(content.html ?? '', content.components ?? []);
+    // Bake the active theme + any admin Custom CSS scoped to instance pages so every
+    // instance page (Home, Files, Terminal, custom slug, sub-pages) follows the theme
+    // system like host UI — completing "theme Works in all instances pages".
+    const themeCss = customPageThemeCss(activeTheme, pageSlug ?? location.pathname);
     return buildIframeDocument(
       resolvedHtml,
       safeInlineJson(ctx),
       safeInlineJson(Array.isArray(content.actions) ? content.actions : []),
       location.search,
-      customPageThemeCss(activeTheme),
+      themeCss,
     );
-  }, [content.type, content.html, content.components, content.actions, instanceContext, location.search, activeTheme]);
+  }, [content.type, content.html, content.components, content.actions, instanceContext, location.search, activeTheme, pageSlug]);
 
   // Bridge: parent-side handler for everything the iframe sends up.
   useEffect(() => {
