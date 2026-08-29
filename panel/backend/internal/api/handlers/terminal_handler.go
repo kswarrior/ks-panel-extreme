@@ -69,12 +69,14 @@ func TerminalHandler(w http.ResponseWriter, r *http.Request) {
 
 	con, err := repository.OpenDB()
 	if err != nil {
+		fmt.Printf("TerminalHandler OpenDB failed: %v\n", err)
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
 	defer con.Close()
 	inst, err := repository.NewInstanceRepository(con).Get(id)
 	if err != nil {
+		fmt.Printf("TerminalHandler Get instance %d failed: %v\n", id, err)
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
@@ -87,11 +89,13 @@ func TerminalHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	node, err := repository.NewNodeRepository(con).GetNode(inst.NodeID)
 	if err != nil {
+		fmt.Printf("TerminalHandler GetNode %d failed: %v\n", inst.NodeID, err)
 		http.Error(w, "owner node not found", http.StatusNotFound)
 		return
 	}
 	token, err := repository.NewNodeRepository(con).PlainToken(inst.NodeID)
 	if err != nil || token == "" {
+		fmt.Printf("TerminalHandler PlainToken node %d err=%v tokenEmpty=%v\n", inst.NodeID, err, token == "")
 		writeJSONStatus(w, http.StatusBadGateway, map[string]any{
 			"error": "node has no usable edge token (rotate it first)",
 		})
@@ -116,6 +120,7 @@ func TerminalHandler(w http.ResponseWriter, r *http.Request) {
 	// Upgrade dance.
 	clientConn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
+		fmt.Printf("TerminalHandler Upgrade failed: %v\n", err)
 		// upgrader.Upgrade already wrote an error response.
 		return
 	}
@@ -124,6 +129,7 @@ func TerminalHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
+	fmt.Printf("TerminalHandler dialing edge target=%s node=%s inst=%d\n", strings.ReplaceAll(target, token, "[redacted]"), node.Address, id)
 	edgeConn, _, err := proxyDialer.DialContext(ctx, target, nil)
 	if err != nil {
 		// Tell the browser the bridge couldn't reach the edge; the JS
