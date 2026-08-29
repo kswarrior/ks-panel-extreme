@@ -216,10 +216,35 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
     });
     ro.observe(containerRef.current);
 
+    // Mobile: tapping anywhere inside the xterm container must synchronously
+    // focus the hidden textarea so the OS virtual keyboard appears. Without
+    // this, phones show no keyboard because the container div itself is not
+    // an editable element. xterm's own click handler is async in some
+    // versions and breaks the user-gesture requirement on iOS/Android.
+    const el = containerRef.current;
+    const focusTerm = () => {
+      try { term.focus(); } catch { /* noop */ }
+    };
+    const handleTouchStart = (e: TouchEvent) => {
+      // Prevent the synthetic mouse event that would blur the textarea again
+      if (e.cancelable) e.preventDefault();
+      focusTerm();
+    };
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (e.cancelable) e.preventDefault();
+      focusTerm();
+    };
+    el.addEventListener('click', focusTerm);
+    el.addEventListener('touchstart', handleTouchStart as EventListener, { passive: false });
+    el.addEventListener('touchend', handleTouchEnd as EventListener, { passive: false });
+
     // Initial size to the bridge so the edge spawns at the right geometry.
     setTimeout(() => sendResize(term.cols, term.rows), 100);
 
     return () => {
+      el.removeEventListener('click', focusTerm);
+      el.removeEventListener('touchstart', handleTouchStart as EventListener);
+      el.removeEventListener('touchend', handleTouchEnd as EventListener);
       dataSub.dispose();
       resizeSub.dispose();
       ro.disconnect();

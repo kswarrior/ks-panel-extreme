@@ -652,6 +652,22 @@ function buildVars(theme: Theme, opts?: ApplyOpts): string {
   --ks-text-heading: ${t.heading_color};
   --ks-text-card: ${c.text_color};
   --ks-link: ${t.link_color};
+  /* Instance-page token aliases — host ↔ iframe parity so markdown/blocks
+     and HTML-iframe pages consume the same semantic tokens (the iframe
+     stylesheet uses --ks-heading/--ks-body/--ks-muted/--ks-ok/--ks-warn
+     etc; the host now exposes the same names). */
+  --ks-heading: ${t.heading_color};
+  --ks-body: ${t.body_color};
+  --ks-secondary: ${rgbaAt(t.body_color, 0.88, '#d1d5db')};
+  --ks-muted: ${t.body_color};
+  --ks-faint: ${safeCssValue(theme.forms.label_hint_color, '#6b7280')};
+  --ks-ok: ${rgbaAt(a.success, 1, '#34d399')};
+  --ks-warn: ${rgbaAt(a.warning, 1, '#fbbf24')};
+  --ks-bad: ${rgbaAt(a.danger, 1, '#ef4444')};
+  --ks-info: ${rgbaAt(a.info, 1, '#38bdf8')};
+  --ks-purple: #c4b5fd;
+  --ks-pink: #f0abfc;
+  --ks-cyan: #22d3ee;
   --ks-radius-sm: ${sh.border_radius_sm}px;
   --ks-radius-md: ${sh.border_radius_md}px;
   --ks-radius-lg: ${sh.border_radius_lg}px;

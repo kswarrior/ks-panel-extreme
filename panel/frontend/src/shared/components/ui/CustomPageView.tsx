@@ -203,14 +203,16 @@ function blocksToHtml(json: string): string {
 
 // renderBlocks converts the JSON block list into React elements. Mirrors the
 // studio's block types one-for-one so what the author composes is what the
-// user sees.
+// user sees. Every surface is fully theme-aware via CSS variables so block
+// pages follow the active theme (heading/body/link/accent/card tokens)
+// exactly like HTML iframe pages do.
 function renderBlocks(json: string, components?: PageComponentDef[]): React.ReactNode {
   let rows: BlockRow[] = [];
   try {
     const arr = JSON.parse(json);
     if (Array.isArray(arr)) rows = arr;
   } catch { /* ignore */ }
-  if (rows.length === 0) return <p className="text-sm text-gray-500">This page has no content yet.</p>;
+  if (rows.length === 0) return <p className="text-sm" style={{ color: 'var(--ks-text-body, var(--ks-muted, #9ca3af))' }}>This page has no content yet.</p>;
 
   // Helper to resolve component tokens in a string.
   const resolveInString = (s: string) => resolveComponentTokens(s, components ?? []);
@@ -244,43 +246,44 @@ function renderBlocks(json: string, components?: PageComponentDef[]): React.Reac
         switch (b.type) {
           case 'heading': {
             const lvl = (b.level ?? 2) as 1 | 2 | 3;
-            const cls = `text-white font-semibold ${al} ${lvl === 1 ? 'text-2xl' : lvl === 2 ? 'text-xl' : 'text-lg'}`;
+            const cls = `font-semibold ${al} ${lvl === 1 ? 'text-2xl' : lvl === 2 ? 'text-xl' : 'text-lg'}`;
+            const headingStyle: React.CSSProperties = { color: 'var(--ks-text-heading, var(--ks-heading, #fff))' };
             return lvl === 1
-              ? <h1 key={i} className={cls}>{resolveInString(b.value)}</h1>
+              ? <h1 key={i} className={cls} style={headingStyle}>{resolveInString(b.value)}</h1>
               : lvl === 2
-              ? <h2 key={i} className={cls}>{resolveInString(b.value)}</h2>
-              : <h3 key={i} className={cls}>{resolveInString(b.value)}</h3>;
+              ? <h2 key={i} className={cls} style={headingStyle}>{resolveInString(b.value)}</h2>
+              : <h3 key={i} className={cls} style={headingStyle}>{resolveInString(b.value)}</h3>;
           }
           case 'text':
-            return <p key={i} className={`text-sm text-gray-300 leading-relaxed whitespace-pre-wrap ${al}`}>{resolveInString(b.value)}</p>;
+            return <p key={i} className={`text-sm leading-relaxed whitespace-pre-wrap ${al}`} style={{ color: 'var(--ks-text-body, var(--ks-body, #d1d5db))' }}>{resolveInString(b.value)}</p>;
           case 'image': {
             const imgSrc = safeImgSrc(resolveInString(b.value));
             return imgSrc !== '#'
-              ? <img key={i} src={imgSrc} alt="" className={`max-w-full rounded-lg border border-white/10 ${al}`} />
-              : <div key={i} className="text-xs text-gray-500">[no image url]</div>;
+              ? <img key={i} src={imgSrc} alt="" className={`max-w-full rounded-lg ${al}`} style={{ border: '1px solid var(--ks-card-border, rgba(255,255,255,0.10))' }} />
+              : <div key={i} className="text-xs" style={{ color: 'var(--ks-text-body, #9ca3af)' }}>[no image url]</div>;
           }
           case 'button':
             return (
               <div key={i} className={`${al}`}>
                 <a href={safeUrl(resolveInString(b.href ?? ''))} target="_blank" rel="noreferrer"
-                  className="ks-primary-btn inline-flex items-center bg-white text-black px-4 py-2 rounded text-sm hover:bg-gray-200 transition">
+                  className="ks-primary-btn inline-flex items-center px-4 py-2 rounded text-sm font-medium transition">
                   {resolveInString(b.value)}
                 </a>
               </div>
             );
           case 'code':
-            return <pre key={i} className="bg-black/40 border border-white/10 rounded-lg p-3 overflow-auto text-xs font-mono text-gray-200">{resolveInString(b.value)}</pre>;
+            return <pre key={i} className="rounded-lg p-3 overflow-auto text-xs font-mono" style={{ background: 'var(--ks-card-bg, rgba(255,255,255,0.04))', border: '1px solid var(--ks-card-border, rgba(255,255,255,0.10))', color: 'var(--ks-text-body, #e5e7eb)' }}>{resolveInString(b.value)}</pre>;
           case 'spacer':
             return <div key={i} className="h-6" />;
           case 'divider':
-            return <hr key={i} className="border-white/10" />;
+            return <hr key={i} style={{ borderColor: 'var(--ks-card-border, rgba(255,255,255,0.10))' }} />;
           case 'stat': {
-            const tone = TONE_CLASS[b.tone ?? 'default'] ?? TONE_CLASS.default;
+            const toneStyle = TONE_STYLE[b.tone ?? 'default'] ?? TONE_STYLE.default;
             return (
-              <div key={i} className={`glass-card rounded-xl p-4 ${al}`}>
-                {b.label && <p className="text-xs uppercase tracking-wide text-gray-400 mb-1">{resolveInString(b.label)}</p>}
-                <p className={`text-2xl font-semibold tabular-nums ${tone}`}>
-                  {resolveInString(b.value)}<span className="text-sm text-gray-400 ml-1">{resolveInString(b.unit ?? '')}</span>
+              <div key={i} className={`glass-card ks-stat-card rounded-xl p-4 ${al}`}>
+                {b.label && <p className="text-xs uppercase tracking-wide mb-1" style={{ color: 'var(--ks-text-body, #9ca3af)' }}>{resolveInString(b.label)}</p>}
+                <p className="text-2xl font-semibold tabular-nums" style={toneStyle}>
+                  {resolveInString(b.value)}<span className="text-sm ml-1" style={{ color: 'var(--ks-text-body, #9ca3af)' }}>{resolveInString(b.unit ?? '')}</span>
                 </p>
               </div>
             );
@@ -294,23 +297,23 @@ function renderBlocks(json: string, components?: PageComponentDef[]): React.Reac
             // Resolve component tokens inside each cell (React-like composition inside tables)
             rows2 = rows2.map(row => row.map(cell => resolveInString(cell)));
             const [head, ...body] = rows2;
-            if (!head) return <div key={i} className="text-xs text-gray-500">[table needs a JSON array of row arrays]</div>;
+            if (!head) return <div key={i} className="text-xs" style={{ color: 'var(--ks-text-body, #9ca3af)' }}>[table needs a JSON array of row arrays]</div>;
             return (
-              <div key={i} className="overflow-x-auto rounded-lg border border-white/10">
+              <div key={i} className="overflow-x-auto rounded-lg" style={{ border: '1px solid var(--ks-card-border, rgba(255,255,255,0.10))' }}>
                 <table className="w-full text-xs">
                   <thead>
-                    <tr className="bg-black/40">
-                      {head.map((c, j) => <th key={j} className="text-left px-3 py-2 text-gray-300 font-semibold">{c}</th>)}
+                    <tr style={{ background: 'var(--ks-card-bg, rgba(0,0,0,0.35))' }}>
+                      {head.map((c, j) => <th key={j} className="text-left px-3 py-2 font-semibold" style={{ color: 'var(--ks-text-body, #d1d5db)', borderBottom: '1px solid var(--ks-card-border, rgba(255,255,255,0.10))' }}>{c}</th>)}
                     </tr>
                   </thead>
                   <tbody>
                     {body.map((r, ri) => (
-                      <tr key={ri} className="border-t border-white/[0.06]">
-                        {head.map((_, ci) => <td key={ci} className="px-3 py-1.5 text-gray-200 font-mono break-all">{r[ci] ?? ''}</td>)}
+                      <tr key={ri} style={{ borderTop: '1px solid var(--ks-card-border, rgba(255,255,255,0.06))' }}>
+                        {head.map((_, ci) => <td key={ci} className="px-3 py-1.5 font-mono break-all" style={{ color: 'var(--ks-text-body, #e5e7eb)' }}>{r[ci] ?? ''}</td>)}
                       </tr>
                     ))}
                     {body.length === 0 && (
-                      <tr><td colSpan={head.length} className="px-3 py-2 text-center text-gray-500">No rows</td></tr>
+                      <tr><td colSpan={head.length} className="px-3 py-2 text-center" style={{ color: 'var(--ks-text-body, #9ca3af)' }}>No rows</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -326,8 +329,8 @@ function renderBlocks(json: string, components?: PageComponentDef[]): React.Reac
             // Resolve component tokens in each list item.
             items = items.map(it => resolveInString(it));
             return (
-              <ul key={i} className={`list-disc pl-5 space-y-1 text-sm text-gray-300 ${al}`}>
-                {items.length === 0 ? <li className="text-gray-500">[empty list]</li> : items.map((it, j) => <li key={j}>{it}</li>)}
+              <ul key={i} className={`list-disc pl-5 space-y-1 text-sm ${al}`} style={{ color: 'var(--ks-text-body, #d1d5db)' }}>
+                {items.length === 0 ? <li style={{ color: 'var(--ks-text-body, #6b7280)' }}>[empty list]</li> : items.map((it, j) => <li key={j}>{it}</li>)}
               </ul>
             );
           }
@@ -344,11 +347,12 @@ function renderBlocks(json: string, components?: PageComponentDef[]): React.Reac
                   type="button"
                   onClick={() => runSavedAction(b.action || b.value, b.confirmText)}
                   disabled={!b.action && !b.value}
-                  className="px-4 py-2 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white rounded text-sm font-medium transition"
+                  className="ks-primary-btn px-4 py-2 disabled:opacity-50 rounded text-sm font-medium transition"
+                  style={{ background: 'var(--ks-btn-bg, var(--ks-accent-primary, #0ea5e9))', color: 'var(--ks-btn-text, #fff)', border: 'none' }}
                 >
                   {resolveInString(b.label || b.value || b.action || 'Run')}
                 </button>
-                {b.action && b.label && <span className="ml-2 text-[11px] text-gray-500 font-mono">{b.action}</span>}
+                {b.action && b.label && <span className="ml-2 text-[11px] font-mono" style={{ color: 'var(--ks-text-body, #6b7280)' }}>{b.action}</span>}
               </div>
             );
           default:
@@ -406,6 +410,11 @@ ${activePageThemeCss()}
 // and paragraphs into React nodes. We avoid pulling a heavy dependency by
 // supporting just the common subset (headings, **bold**, *italic*, `code`,
 // links, lists, paragraphs).
+// A minimal markdown renderer — fully theme-aware via CSS variables so markdown
+// pages follow the active theme (heading/body/link tokens) like every other
+// instance-page surface. We avoid pulling a heavy dependency by supporting
+// just the common subset (headings, **bold**, *italic*, `code`, links, lists,
+// paragraphs).
 function renderMarkdown(md: string, components?: PageComponentDef[]): React.ReactNode {
   // Resolve {{component:name}} tokens before rendering markdown.
   const resolvedMd = resolveComponentTokens(md, components ?? []);
@@ -416,8 +425,8 @@ function renderMarkdown(md: string, components?: PageComponentDef[]): React.Reac
 
   const flushList = () => {
     if (list.length === 0) return;
-    if (listType === 'ul') out.push(<ul key={out.length} className="list-disc pl-5 space-y-1 text-sm text-gray-300">{list}</ul>);
-    else if (listType === 'ol') out.push(<ol key={out.length} className="list-decimal pl-5 space-y-1 text-sm text-gray-300">{list}</ol>);
+    if (listType === 'ul') out.push(<ul key={out.length} className="list-disc pl-5 space-y-1 text-sm" style={{ color: 'var(--ks-text-body, var(--ks-body, #d1d5db))' }}>{list}</ul>);
+    else if (listType === 'ol') out.push(<ol key={out.length} className="list-decimal pl-5 space-y-1 text-sm" style={{ color: 'var(--ks-text-body, var(--ks-body, #d1d5db))' }}>{list}</ol>);
     list = [];
     listType = null;
   };
@@ -431,10 +440,10 @@ function renderMarkdown(md: string, components?: PageComponentDef[]): React.Reac
     let idx = 0;
     while ((m = regex.exec(text)) !== null) {
       if (m.index > last) parts.push(text.slice(last, m.index));
-      if (m[2] !== undefined) parts.push(<strong key={idx++} className="text-white font-semibold">{m[2]}</strong>);
+      if (m[2] !== undefined) parts.push(<strong key={idx++} className="font-semibold" style={{ color: 'var(--ks-text-heading, var(--ks-heading, #fff))' }}>{m[2]}</strong>);
       else if (m[3] !== undefined) parts.push(<em key={idx++}>{m[3]}</em>);
-      else if (m[4] !== undefined) parts.push(<code key={idx++} className="font-mono text-xs bg-black/30 px-1 rounded">{m[4]}</code>);
-      else if (m[5] !== undefined && m[6] !== undefined) parts.push(<a key={idx++} href={safeUrl(m[6])} target="_blank" rel="noreferrer" className="text-sky-300 hover:underline">{m[5]}</a>);
+      else if (m[4] !== undefined) parts.push(<code key={idx++} className="font-mono text-xs px-1 rounded" style={{ background: 'var(--ks-card-bg, rgba(0,0,0,0.35))', border: '1px solid var(--ks-card-border, rgba(255,255,255,0.10))', color: 'var(--ks-text-body, #e5e7eb)' }}>{m[4]}</code>);
+      else if (m[5] !== undefined && m[6] !== undefined) parts.push(<a key={idx++} href={safeUrl(m[6])} target="_blank" rel="noreferrer" className="hover:underline" style={{ color: 'var(--ks-link, var(--ks-text-link, #7dd3fc))' }}>{m[5]}</a>);
       last = m.index + m[0].length;
     }
     if (last < text.length) parts.push(text.slice(last));
@@ -446,11 +455,11 @@ function renderMarkdown(md: string, components?: PageComponentDef[]): React.Reac
     if (/^#{1,3}\s/.test(trimmed)) {
       flushList();
       const lvl = trimmed.match(/^#+/)![0].length;
-      const text = trimmed.replace(/^#+\s/, '');
-      const cls = `text-white font-semibold ${lvl === 1 ? 'text-2xl' : 'text-xl'}`;
+      const t = trimmed.replace(/^#+\s/, '');
+      const cls = `font-semibold ${lvl === 1 ? 'text-2xl' : 'text-xl'}`;
       out.push(lvl === 1
-        ? <h1 key={out.length} className={cls}>{inline(text)}</h1>
-        : <h2 key={out.length} className={cls}>{inline(text)}</h2>);
+        ? <h1 key={out.length} className={cls} style={{ color: 'var(--ks-text-heading, var(--ks-heading, #fff))' }}>{inline(t)}</h1>
+        : <h2 key={out.length} className={cls} style={{ color: 'var(--ks-text-heading, var(--ks-heading, #fff))' }}>{inline(t)}</h2>);
     } else if (/^[-*]\s/.test(trimmed)) {
       if (listType && listType !== 'ul') flushList();
       listType = 'ul';
@@ -463,7 +472,7 @@ function renderMarkdown(md: string, components?: PageComponentDef[]): React.Reac
       flushList();
     } else {
       flushList();
-      out.push(<p key={out.length} className="text-sm text-gray-300 leading-relaxed">{inline(trimmed)}</p>);
+      out.push(<p key={out.length} className="text-sm leading-relaxed" style={{ color: 'var(--ks-text-body, var(--ks-body, #d1d5db))' }}>{inline(trimmed)}</p>);
     }
   }
   flushList();
