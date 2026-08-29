@@ -61,6 +61,34 @@ var filesProxyHTTPClient = &http.Client{
 	Timeout: 10 * time.Minute,
 }
 
+// tlsServerNameFiles strips the port from an address for SNI (mirrors edge.Client helper).
+func tlsServerNameFiles(address string) string {
+	if h, _, err := net.SplitHostPort(address); err == nil {
+		return h
+	}
+	return strings.Trim(address, "[]")
+}
+
+// httpClientForNode returns an HTTP client that honours the node's TLS
+// settings (UseTLS is already reflected in the scheme, but SkipTLSVerify
+// must be wired into the transport for self-signed edges). Falls back to
+// the shared filesProxyHTTPClient when the node has no special TLS needs
+// so we keep connection reuse.
+func httpClientForNode(node *models.Node) *http.Client {
+	if node == nil || !node.SkipTLSVerify {
+		return filesProxyHTTPClient
+	}
+	return &http.Client{
+		Timeout: 10 * time.Minute,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				ServerName:         tlsServerNameFiles(node.Address),
+				InsecureSkipVerify: true,
+			},
+		},
+	}
+}
+
 // supportedFileOps is the set of operations the panel knows how to proxy
 // to the edge. Anything outside this set returns 400 — keeps the SPA from
 // silently doing nothing on a typo.
@@ -353,7 +381,8 @@ func proxyToEdge(w http.ResponseWriter, r *http.Request, id int64, op, path, con
 			req.Header.Set("Content-Type", ct)
 		}
 	}
-	resp, err := filesProxyHTTPClient.Do(req)
+	client := httpClientForNode(node)
+	resp, err := client.Do(req)
 	if err != nil {
 		safeErr := strings.ReplaceAll(err.Error(), token, "[redacted]")
 		log.Printf("proxyToEdge: dial edge failed: %v", safeErr)
@@ -912,7 +941,8 @@ func proxyToEdgeWithBody(w http.ResponseWriter, r *http.Request, id int64, op, t
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Content-Length", strconv.Itoa(len(body)))
 
-	resp, err := filesProxyHTTPClient.Do(req)
+	client := httpClientForNode(node)
+	resp, err := client.Do(req)
 	if err != nil {
 		safeErr := strings.ReplaceAll(err.Error(), token, "[redacted]")
 		writeJSONStatus(w, http.StatusBadGateway, map[string]any{

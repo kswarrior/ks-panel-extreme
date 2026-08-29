@@ -26,18 +26,30 @@ import (
 	"strings"
 	"time"
 
+	"github.com/example/kspanel/internal/models"
 	"github.com/example/kspanel/internal/repository"
 	"github.com/example/kspanel/internal/tunnel"
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/websocket"
 )
 
-// proxyDialer is the gorilla dialer we use to connect PANEL → EDGE. We
-// honour InsecureSkipVerify because edges on internal networks often sit
-// behind self-signed certs; the same trade-off is made by edge.Client.
+// proxyDialer is the gorilla dialer we use to connect PANEL → EDGE. The
+// per-node variant honours SkipTLSVerify (self-signed edges) so the probe
+// and lifecycle clients stay consistent: an edge with SkipTLSVerify=true
+// skips verification, otherwise the dial validates.
 var proxyDialer = websocket.Dialer{
 	HandshakeTimeout: 10 * time.Second,
 	TLSClientConfig:  &tls.Config{InsecureSkipVerify: true},
+}
+
+func dialerForNode(node *models.Node) *websocket.Dialer {
+	if node != nil && !node.SkipTLSVerify {
+		return &websocket.Dialer{
+			HandshakeTimeout: 10 * time.Second,
+			TLSClientConfig:  &tls.Config{},
+		}
+	}
+	return &proxyDialer
 }
 
 // upgrader for the browser-side WebSocket. We accept any origin because
@@ -158,7 +170,8 @@ func TerminalHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
-	edgeConn, _, err := proxyDialer.DialContext(ctx, target, nil)
+	dialer := dialerForNode(node)
+	edgeConn, _, err := dialer.DialContext(ctx, target, nil)
 	if err != nil {
 		// Tell the browser the bridge couldn't reach the edge; the JS
 		// side shows a "couldn't connect to node" banner instead of a
