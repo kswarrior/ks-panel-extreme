@@ -169,7 +169,14 @@ const Authentication: React.FC<AuthenticationProps> = ({ initialSnapshot, onConf
     setError('');
     setSuccess('');
 
-    const base = cfgRef.current;
+    let fresh: AuthorityConfig | null = null;
+    try {
+      fresh = await getAuthority();
+      cfgRef.current = fresh;
+    } catch {
+      // Fall back to stale ref on transient failure.
+    }
+    const base = fresh ?? cfgRef.current;
     if (!base) {
       setError('Configuration not loaded yet.');
       setSaving(false);

@@ -287,7 +287,16 @@ const Authority: React.FC<AuthorityProps> = ({ onConfigChange }) => {
     setAuthSuccess('');
     setAppSecretToast('');
 
-    const base = cfgRef.current;
+    // Re-fetch the freshest config before merging so we don't clobber
+    // fields owned by the sibling Authentication tab with a stale snapshot.
+    let fresh: AuthorityConfig | null = null;
+    try {
+      fresh = await getAuthority();
+      cfgRef.current = fresh;
+    } catch {
+      // Fall back to the last hydrated ref if the re-fetch fails (e.g. transient network).
+    }
+    const base = fresh ?? cfgRef.current;
     if (!base) {
       setAuthError('Configuration not loaded yet.');
       setAuthSaving(false);

@@ -48,10 +48,12 @@ func (r *AuthorityRepository) Get() (*models.AuthorityConfig, error) {
 		return nil, err
 	}
 	if !ok || strings.TrimSpace(raw) == "" {
+		cfg = backfillDefaults(cfg)
 		return maskSecrets(cfg), nil
 	}
 	if err := json.Unmarshal([]byte(raw), cfg); err != nil {
-		return maskSecrets(models.DefaultAuthorityConfig()), nil
+		cfg = backfillDefaults(models.DefaultAuthorityConfig())
+		return maskSecrets(cfg), nil
 	}
 	cfg = backfillDefaults(cfg)
 	return maskSecrets(cfg), nil
@@ -64,10 +66,10 @@ func (r *AuthorityRepository) GetRaw() (*models.AuthorityConfig, error) {
 		return nil, err
 	}
 	if !ok || strings.TrimSpace(raw) == "" {
-		return cfg, nil
+		return backfillDefaults(cfg), nil
 	}
 	if err := json.Unmarshal([]byte(raw), cfg); err != nil {
-		return models.DefaultAuthorityConfig(), nil
+		return backfillDefaults(models.DefaultAuthorityConfig()), nil
 	}
 	return backfillDefaults(cfg), nil
 }
