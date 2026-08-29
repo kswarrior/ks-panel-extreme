@@ -72,48 +72,9 @@ func (c *Client) BaseURL() string {
 	return c.baseURL
 }
 
-// New builds a Client for a registered node. The token is the same shared
-// secret the edge presented during heartbeat ingest — we reuse it on the
-// outbound direction so the edge can authenticate the caller without a
-// second credential store.
-func New(node models.Node, token string) *Client {
-	scheme := "http"
-	if node.UseTLS {
-		scheme = "https"
-	}
-	// For WSS local tunnel, treat UseTLS as wss scheme but still http fallback when tunnel not connected.
-	address := node.Address
-	if address == "" || address == "tunnel" {
-		// No direct dial target; baseURL is placeholder. Tunnel will be used.
-		address = "127.0.0.1:4040"
-	}
-	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			ServerName:         tlsServerName(address),
-			InsecureSkipVerify: node.SkipTLSVerify,
-		},
-	}
-	return &Client{
-		baseURL:        fmt.Sprintf("%s://%s", scheme, address),
-		token:          token,
-		http:           &http.Client{Timeout: 30 * time.Second, Transport: transport},
-		nodeID:         node.ID,
-		connectionMode: strings.ToLower(strings.TrimSpace(node.ConnectionMode)),
-	}
-}
-
-// NewWithTimeout mirrors New but lets the caller pick the HTTP client timeout.
-// Used by the deploy path: a deploy that hasn't returned a provisional answer
-// inside ~15s is almost certainly stuck on a slow edge driver (cold image pull,
-// apt+wget bootstrap of the Minecraft template's first-boot command, …) and a
-// panel run behind a CDN/Cloudflare tunnel would otherwise lets the upstream
-// proxy's own ~30s origin-response window fire first — surfacing Cloudflare's
-// raw HTML "origin returned an invalid or incomplete response" page instead
-// of the structured {error,detail,node,kind,name} JSON the SPA renders as a
-// banner. By bounding the deploy RPC strictly under the proxy window we
-// guarantee the panel returns its JSON 502 in time and the user sees the
-// deploy failure banner, not a Cloudflare error page.
-func NewWithTimeout(node models.Node, token string, timeout time.Duration) *Client {
+// newClientForNode is the shared constructor for New/NewWithTimeout so TLS +
+// address handling stays DRY and a future scheme change can't diverge.
+func newClientForNode(node models.Node, token string, timeout time.Duration) *Client {
 	scheme := "http"
 	if node.UseTLS {
 		scheme = "https"
@@ -137,6 +98,29 @@ func NewWithTimeout(node models.Node, token string, timeout time.Duration) *Clie
 	}
 }
 
+// New builds a Client for a registered node. The token is the same shared
+// secret the edge presented during heartbeat ingest — we reuse it on the
+// outbound direction so the edge can authenticate the caller without a
+// second credential store.
+func New(node models.Node, token string) *Client {
+	return newClientForNode(node, token, 30*time.Second)
+}
+
+// NewWithTimeout mirrors New but lets the caller pick the HTTP client timeout.
+// Used by the deploy path: a deploy that hasn't returned a provisional answer
+// inside ~15s is almost certainly stuck on a slow edge driver (cold image pull,
+// apt+wget bootstrap of the Minecraft template's first-boot command, …) and a
+// panel run behind a CDN/Cloudflare tunnel would otherwise lets the upstream
+// proxy's own ~30s origin-response window fire first — surfacing Cloudflare's
+// raw HTML "origin returned an invalid or incomplete response" page instead
+// of the structured {error,detail,node,kind,name} JSON the SPA renders as a
+// banner. By bounding the deploy RPC strictly under the proxy window we
+// guarantee the panel returns its JSON 502 in time and the user sees the
+// deploy failure banner, not a Cloudflare error page.
+func NewWithTimeout(node models.Node, token string, timeout time.Duration) *Client {
+	return newClientForNode(node, token, timeout)
+}
+
 // isTunnel reports whether this client should prefer the WSS tunnel.
 func (c *Client) isTunnel() bool {
 	m := strings.ToLower(strings.TrimSpace(c.connectionMode))
@@ -153,7 +137,7 @@ func (c *Client) tryTunnel(method, path string, reqBody any) (bool, []byte, int,
 	}
 	connected := tunnel.Global().IsConnected(c.nodeID)
 	if !connected {
-		if c.connectionMode == "reverse_tunnel" {
+		if strings.ToLower(strings.TrimSpace(c.connectionMode)) == "reverse_tunnel" {
 			return true, nil, 0, fmt.Errorf("edge not connected via WSS tunnel (reverse_tunnel mode requires edge to be online)")
 		}
 		// local_wss fallback to direct HTTP when tunnel not yet connected
@@ -410,7 +394,7 @@ func (c *Client) InstallStatus(req InstallStatusRequest) (InstallStatusResponse,
 				}
 				return out, nil
 			}
-		} else if c.connectionMode == "reverse_tunnel" {
+		} else if strings.ToLower(strings.TrimSpace(c.connectionMode)) == "reverse_tunnel" {
 			return InstallStatusResponse{}, fmt.Errorf("edge not connected via WSS tunnel (reverse_tunnel mode requires edge to be online)")
 		}
 	}
