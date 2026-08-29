@@ -151,7 +151,7 @@ const Security: React.FC = () => {
             <div>
               {tab === 'firewall' && (
                 <Firewall
-                  key={tab}
+                  key={`${tab}-${configVersion}`}
                   initialConfig={fwConfig}
                   onConfigChange={handleConfigChange}
                 />
@@ -159,7 +159,7 @@ const Security: React.FC = () => {
 
               {tab === 'ddos' && (
                 <DDoS
-                  key={tab}
+                  key={`${tab}-${configVersion}`}
                   initialSnapshot={snap}
                   initialConfig={fwConfig}
                   onConfigChange={handleConfigChange}
@@ -187,7 +187,7 @@ const Security: React.FC = () => {
 
               {tab === 'sessions' && (
                 <Sessions
-                  key={tab}
+                  key={`${tab}-${configVersion}`}
                   initialConfig={fwConfig}
                   onConfigChange={handleConfigChange}
                 />
