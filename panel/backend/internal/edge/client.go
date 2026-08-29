@@ -69,16 +69,24 @@ func New(node models.Node, token string) *Client {
 	if node.UseTLS {
 		scheme = "https"
 	}
+	// For WSS local tunnel, treat UseTLS as wss scheme but still http fallback when tunnel not connected.
+	address := node.Address
+	if address == "" || address == "tunnel" {
+		// No direct dial target; baseURL is placeholder. Tunnel will be used.
+		address = "127.0.0.1:4040"
+	}
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{
-			ServerName:         node.Address,
+			ServerName:         address,
 			InsecureSkipVerify: node.SkipTLSVerify,
 		},
 	}
 	return &Client{
-		baseURL: fmt.Sprintf("%s://%s", scheme, node.Address),
-		token:   token,
-		http:    &http.Client{Timeout: 30 * time.Second, Transport: transport},
+		baseURL:        fmt.Sprintf("%s://%s", scheme, address),
+		token:          token,
+		http:           &http.Client{Timeout: 30 * time.Second, Transport: transport},
+		nodeID:         node.ID,
+		connectionMode: strings.ToLower(strings.TrimSpace(node.ConnectionMode)),
 	}
 }
 
@@ -98,17 +106,64 @@ func NewWithTimeout(node models.Node, token string, timeout time.Duration) *Clie
 	if node.UseTLS {
 		scheme = "https"
 	}
+	address := node.Address
+	if address == "" || address == "tunnel" {
+		address = "127.0.0.1:4040"
+	}
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{
-			ServerName:         node.Address,
+			ServerName:         address,
 			InsecureSkipVerify: node.SkipTLSVerify,
 		},
 	}
 	return &Client{
-		baseURL: fmt.Sprintf("%s://%s", scheme, node.Address),
-		token:   token,
-		http:    &http.Client{Timeout: timeout, Transport: transport},
+		baseURL:        fmt.Sprintf("%s://%s", scheme, address),
+		token:          token,
+		http:           &http.Client{Timeout: timeout, Transport: transport},
+		nodeID:         node.ID,
+		connectionMode: strings.ToLower(strings.TrimSpace(node.ConnectionMode)),
 	}
+}
+
+// isTunnel reports whether this client should prefer the WSS tunnel.
+func (c *Client) isTunnel() bool {
+	m := strings.ToLower(strings.TrimSpace(c.connectionMode))
+	return m == "reverse_tunnel" || m == "local_wss"
+}
+
+// tryTunnel attempts to send an RPC over the WSS tunnel. It returns (handled, resp, err).
+// handled==true means the tunnel was used (caller should use resp).
+// handled==false means tunnel not available / not applicable — caller should fall back to HTTP.
+// For reverse_tunnel with no tunnel connected, it returns error directly (handled==true, err).
+func (c *Client) tryTunnel(method, path string, reqBody any) (bool, []byte, int, error) {
+	if !c.isTunnel() {
+		return false, nil, 0, nil
+	}
+	connected := tunnel.Global().IsConnected(c.nodeID)
+	if !connected {
+		if c.connectionMode == "reverse_tunnel" {
+			return true, nil, 0, fmt.Errorf("edge not connected via WSS tunnel (reverse_tunnel mode requires edge to be online)")
+		}
+		// local_wss fallback to direct HTTP when tunnel not yet connected
+		return false, nil, 0, nil
+	}
+	// Tunnel is connected – dispatch via it.
+	timeout := c.http.Timeout
+	if timeout <= 0 {
+		timeout = 30 * time.Second
+	}
+	status, body, err := tunnel.Global().Send(c.nodeID, method, path, reqBody, timeout)
+	return true, body, status, err
+}
+
+func unmarshalTunnelResponse(body []byte, status int, out any) error {
+	if body == nil {
+		return nil
+	}
+	if err := json.Unmarshal(body, out); err != nil {
+		return fmt.Errorf("edge returned HTTP %d", status)
+	}
+	return nil
 }
 
 // LifecycleRequest is the wire format POSTed to the edge's
@@ -257,6 +312,29 @@ type InstallStopResponse struct {
 // immediately so the panel can start polling.
 func (c *Client) InstallStart(req InstallStartRequest) (InstallStartResponse, error) {
 	req.Token = c.token
+	// Try WSS tunnel first for reverse_tunnel / local_wss.
+	if handled, body, status, err := c.tryTunnel("POST", "/api/edge/install", req); handled {
+		if err != nil {
+			return InstallStartResponse{}, err
+		}
+		var out InstallStartResponse
+		if err := unmarshalTunnelResponse(body, status, &out); err != nil {
+			return InstallStartResponse{}, err
+		}
+		if status >= 300 {
+			if out.Error != "" {
+				return out, fmt.Errorf("edge rejected: %s", out.Error)
+			}
+			return out, fmt.Errorf("edge returned HTTP %d", status)
+		}
+		if !out.OK {
+			if out.Error != "" {
+				return out, fmt.Errorf("%s", out.Error)
+			}
+			return out, fmt.Errorf("edge reported failure without a message")
+		}
+		return out, nil
+	}
 	body, err := json.Marshal(req)
 	if err != nil {
 		return InstallStartResponse{}, fmt.Errorf("encode request: %w", err)
@@ -298,6 +376,23 @@ func (c *Client) InstallStart(req InstallStartRequest) (InstallStartResponse, er
 // query param (browsers can't set headers on fetch/EventSource behind proxies).
 func (c *Client) InstallStatus(req InstallStatusRequest) (InstallStatusResponse, error) {
 	req.Token = c.token
+	// Try tunnel for reverse modes – encode query into path.
+	if handled, body, status, err := c.tryTunnel("GET", fmt.Sprintf("/api/edge/install?kind=%s&name=%s&token=%s", req.Kind, req.Name, req.Token), nil); handled {
+		if err != nil {
+			return InstallStatusResponse{}, fmt.Errorf("dial edge: %s", redactTokenErr(err))
+		}
+		var out InstallStatusResponse
+		if err := unmarshalTunnelResponse(body, status, &out); err != nil {
+			return InstallStatusResponse{}, err
+		}
+		if status >= 300 {
+			if out.Error != "" {
+				return out, fmt.Errorf("edge rejected: %s", out.Error)
+			}
+			return out, fmt.Errorf("edge returned HTTP %d", status)
+		}
+		return out, nil
+	}
 	endpoint := c.baseURL + "/api/edge/install"
 	httpReq, err := http.NewRequest(http.MethodGet, endpoint, nil)
 	if err != nil {
