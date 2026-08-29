@@ -498,6 +498,7 @@ func scanNodeWithDrivers(rows *sql.Rows, nd *models.Node) error {
 	nd.HealthInterval = 60
 	nd.HealthTimeout = 4
 	nd.HealthRetries = 3
+	nd.ConnectionMode = "direct"
 	return nil
 }
 
