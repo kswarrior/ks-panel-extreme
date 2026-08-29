@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -774,7 +776,10 @@ func probeReachableString(reachable bool) string {
 // ksedgeDownloadURL is the public artifact the bootstrap snippet uses. We keep
 // it here so the panel's "Create & setup" button can pull the same binary the
 // manual curl command would, without the operator having to copy anything.
-const ksedgeDownloadURL = "https://github.com/kswarrior/ks-panel-extreme/releases/download/ks-release-32876373128-a36954f895a6/ksedge"
+// Uses the latest release redirect so the panel never pins to a stale tag
+// (previously ks-release-32876373128-a36954f895a6 would 404 after the next
+// release). GitHub follows the redirect automatically via http.Client.
+const ksedgeDownloadURL = "https://github.com/kswarrior/ks-panel-extreme/releases/latest/download/ksedge"
 
 // setupLocalResponse is the JSON shape the panel hands back from the
 // "Create & setup" button so the UI can render an inline log + probe verdict.
@@ -1229,7 +1234,13 @@ func findEdgePIDs(dir string) []int {
 // usable (e.g. macOS dev box). Matches the full dir path in the command line.
 // Returns the parsed pids, or nil on any error.
 func pgrepEdge(dir string) []int {
-	cmd := exec.Command("pgrep", "-f", "ksedge launch")
+	// Include the dir in the pattern so we never match a sibling ksedge
+	// launched from a different localnode/ subdirectory.
+	pattern := "ksedge launch"
+	if strings.TrimSpace(dir) != "" {
+		pattern = "ksedge launch.*" + regexpQuoteMeta(dir)
+	}
+	cmd := exec.Command("pgrep", "-f", pattern)
 	out, err := cmd.Output()
 	if err != nil {
 		return nil
@@ -1240,16 +1251,45 @@ func pgrepEdge(dir string) []int {
 			pids = append(pids, pid)
 		}
 	}
+	// On Linux, additionally verify cwd == dir to avoid regex false-positives
+	// from a dir substring appearing elsewhere in the command line.
+	if len(pids) > 0 && dir != "" {
+		var filtered []int
+		for _, pid := range pids {
+			if cwd, err := os.Readlink(filepath.Join("/proc", strconv.Itoa(pid), "cwd")); err == nil && cwd == dir {
+				filtered = append(filtered, pid)
+			} else if err != nil {
+				// /proc not available (macOS) or unreadable — keep pid since
+				// pattern already matched dir; better to over-match than miss.
+				filtered = append(filtered, pid)
+			}
+		}
+		return filtered
+	}
 	return pids
 }
 
+// regexpQuoteMeta escapes s so it can be used as a literal inside a regexp
+// without pulling in the regexp package (keeps import minimal).
+func regexpQuoteMeta(s string) string {
+	var buf bytes.Buffer
+	for _, r := range s {
+		if strings.ContainsRune(`\.+*?()|[]{}^$`, r) {
+			buf.WriteRune('\\')
+		}
+		buf.WriteRune(r)
+	}
+	return buf.String()
+}
+
 func isAlive(pid int) bool {
-	if err := syscall.Kill(pid, 0); err == nil {
+	err := syscall.Kill(pid, 0)
+	if err == nil {
 		return true
 	}
 	// ESRCH means the process is gone; anything else (EPERM) we treat as
 	// alive so we don't skip a kill we should have done.
-	return errnoIsPerm(syscall.Kill(pid, 0))
+	return errnoIsPerm(err)
 }
 
 func anyAlive(pids []int) bool {
@@ -1262,7 +1302,15 @@ func anyAlive(pids []int) bool {
 }
 
 // errnoIsPerm reports whether err is an EPERM (process exists but is owned by
-// someone else). Kept tiny to avoid importing errors on every platform.
+// someone else). Uses errors.Is for locale-independent check, with a string
+// fallback for wrapped syscall errors on platforms where EPERM string differs.
 func errnoIsPerm(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "operation not permitted")
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, syscall.EPERM) || errors.Is(err, syscall.EACCES) {
+		return true
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "operation not permitted") ||
+		strings.Contains(strings.ToLower(err.Error()), "permission denied")
 }

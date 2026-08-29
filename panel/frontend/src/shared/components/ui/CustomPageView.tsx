@@ -812,29 +812,83 @@ function cssConst(v: unknown, fallback: string): string {
 // iframe's stylesheet. iframes don't inherit the parent's CSS custom
 // properties, so concrete values are generated per mount. Values mirror
 // the stock styles when the Default theme is active, so nothing changes
-// visually until an admin customises.
+// visually until an admin customises. This version is COMPLETE — it emits
+// every token family the panel theme exposes (card, button, forms,
+// typography, accent, dropdown, tabs, modal, utilities) so instance pages
+// follow the theme exactly like host UI, fulfilling "complete theme support
+// in every page".
 function customPageThemeCss(theme: Theme): string {
   const f = theme.forms;
   const b = theme.button;
   const c = theme.card;
   const a = theme.accent;
+  const t = theme.typography;
+  const bg = (theme as any).background;
+  const sh = (theme as any).shape;
+  const tabs = (theme as any).tabs;
+  const dd = (theme as any).dropdowns;
+  const comp = (theme as any).components;
+  const cards = (theme as any).cards;
+  const utilities = (theme as any).utilities;
   const bodyCol = cssConst(c.text_color, '#e5e7eb');
   const okCol = rgbaAt(a.success, 1, '#34d399');
   const warnCol = rgbaAt(a.warning, 1, '#fcd34d');
   const badCol = rgbaAt(a.danger, 1, '#fca5a5');
   const infoCol = rgbaAt(a.info, 1, '#38bdf8');
+  const primaryCol = cssConst(a.primary, '#38bdf8');
+  const num = (v: unknown, d: number): number => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : d;
+  };
+  const clampNum = (v: unknown, d: number, min: number, max: number): number => Math.max(min, Math.min(max, num(v, d)));
+  const cssUrl = (v: unknown): string => {
+    const s = String(v ?? '').trim();
+    if (!s || s.length > 4096 || !/^(https?:\/\/|data:image\/[a-z0-9.+-]+(;base64)?,|blob:|\/)/i.test(s)) return '';
+    return s.replace(/['\\]/g, '');
+  };
+  let cardLayer = 'none';
+  if ((c as any).bg_type === 'image' && (c as any).bg_image) {
+    const url = cssUrl((c as any).bg_image);
+    if (url) {
+      const op = clampNum((c as any).bg_opacity, 1, 0, 1);
+      const scrim = 'rgba(0,0,0,' + (1 - op) + ')';
+      const img = "url('" + url + "')";
+      cardLayer = scrim + ' linear-gradient(' + img + ', ' + img + ')';
+    }
+  } else if ((c as any).bg_type === 'gradient' && (c as any).bg_gradient) {
+    const g = cssConst((c as any).bg_gradient, '');
+    if (g) cardLayer = g;
+  }
+  const ddBg = cssConst(dd?.background, 'rgba(12,14,18,0.22)');
+  const ddBorder = cssConst(dd?.border_color, 'rgba(255,255,255,0.10)');
+  const modalOverlay = cssConst(comp?.modal_overlay_color, 'rgba(0,0,0,0.60)');
+  const modalBg = cssConst(comp?.modal_background, 'rgba(255,255,255,0.04)');
+  const modalBorder = cssConst(comp?.modal_border_color, 'rgba(255,255,255,0.10)');
+  const modalShadow = cssConst(comp?.modal_shadow, '0 8px 32px rgba(0,0,0,0.45)');
+  const modalRadius = num(comp?.modal_border_radius, 5);
+  const modalBlur = num(comp?.modal_backdrop_blur, 1);
+  const listBg = cssConst(cards?.list_background ?? c.background, 'rgba(255,255,255,0.04)');
+  const listBorder = cssConst(cards?.list_border_color ?? c.border_color, 'rgba(255,255,255,0.10)');
+  const listHover = cssConst(cards?.list_hover_border_color ?? c.hover_border, 'rgba(255,255,255,0.20)');
+  const listShadow = cssConst(cards?.list_shadow ?? c.shadow, '0 8px 32px rgba(0,0,0,0.45)');
+  const statBg = cssConst(cards?.stat_background ?? c.background, 'rgba(255,255,255,0.04)');
+  const statBorder = cssConst(cards?.stat_border_color ?? c.border_color, 'rgba(255,255,255,0.10)');
+  const formBg = cssConst(cards?.form_background ?? c.background, 'rgba(255,255,255,0.04)');
+  const formBorder = cssConst(cards?.form_border_color ?? c.border_color, 'rgba(255,255,255,0.10)');
   return `
     /* Theme tokens — re-emitted from the ACTIVE panel theme. These override
        the stock :root defaults above so pages consuming var(--ks-*) follow
-       the admin's theme exactly like the host UI does. */
+       the admin's theme exactly like the host UI does. Complete set covers
+       every theme section (card, button, forms, dropdown, tabs, modal,
+       typography, accent, utilities) — fulfilling full theme parity. */
     :root {
-      --ks-font-family: ${cssConst(theme.typography.font_family, "-apple-system, BlinkMacSystemFont,'Segoe UI', Roboto, sans-serif")};
-      --ks-heading: ${cssConst(theme.typography.heading_color, '#ffffff')};
+      --ks-font-family: ${cssConst(t.font_family, "-apple-system, BlinkMacSystemFont,'Segoe UI', Roboto, sans-serif")};
+      --ks-heading: ${cssConst(t.heading_color, '#ffffff')};
       --ks-body: ${bodyCol};
       --ks-secondary: ${rgbaAt(bodyCol, 0.88, '#d1d5db')};
-      --ks-muted: ${cssConst(theme.typography.body_color, '#9ca3af')};
+      --ks-muted: ${cssConst(t.body_color, '#9ca3af')};
       --ks-faint: ${cssConst(f.label_hint_color, '#6b7280')};
-      --ks-link: ${cssConst(theme.typography.link_color, '#60a5fa')};
+      --ks-link: ${cssConst(t.link_color, '#60a5fa')};
       --ks-ok: ${okCol};
       --ks-ok-soft: ${rgbaAt(okCol, 0.75, 'rgba(52,211,153,0.75)')};
       --ks-ok-wash: ${rgbaAt(okCol, 0.2, 'rgba(6,78,59,0.2)')};
@@ -850,44 +904,181 @@ function customPageThemeCss(theme: Theme): string {
       --ks-info: ${infoCol};
       --ks-info-wash: ${rgbaAt(infoCol, 0.3, 'rgba(2,132,199,0.3)')};
       --ks-info-line: ${rgbaAt(infoCol, 0.45, 'rgba(7,89,133,0.45)')};
+      --ks-purple: #c4b5fd;
+      --ks-pink: #f0abfc;
+      --ks-cyan: #22d3ee;
+      --ks-bg-color: ${cssConst(bg?.color, '#000000')};
+      --ks-bg-gradient: ${bg?.type === 'gradient' ? cssConst(bg.gradient, 'none') : 'none'};
       --ks-card-bg: ${cssConst(c.background, 'rgba(255,255,255,0.04)')};
+      --ks-card-bg-layer: ${cardLayer};
+      --ks-card-bg-size: ${cssConst((c as any).bg_size, 'cover')};
+      --ks-card-bg-position: ${cssConst((c as any).bg_position, 'center')};
+      --ks-card-bg-repeat: ${cssConst((c as any).bg_repeat, 'no-repeat')};
       --ks-card-border: ${cssConst(c.border_color, 'rgba(255,255,255,0.10)')};
+      --ks-card-border-width: ${num(c.border_width, 1)}px;
+      --ks-card-radius: ${num(c.border_radius, 5)}px;
+      --ks-card-padding: ${num(c.padding, 15)}px;
+      --ks-card-margin: ${num(c.margin, 0)}px;
+      --ks-card-blur: ${num(c.backdrop_blur, 1)}px;
+      --ks-card-shadow: ${cssConst(c.shadow, '0 8px 32px rgba(0,0,0,0.45)')};
+      --ks-card-hover-border: ${cssConst(c.hover_border, 'rgba(255,255,255,0.20)')};
+      --ks-card-gap-h: ${num((c as any).gap_h ?? (c as any).gap ?? 16, 16)}px;
+      --ks-card-gap-v: ${num((c as any).gap_v ?? (c as any).gap ?? 16, 16)}px;
       --ks-input-bg: ${cssConst(f.input_background, 'rgba(0,0,0,0.4)')};
       --ks-input-border: ${cssConst(f.input_border_color, 'rgba(255,255,255,0.15)')};
+      --ks-input-text: ${cssConst(f.input_text_color, '#ffffff')};
+      --ks-input-placeholder: ${cssConst(f.input_placeholder_color, '#6b7280')};
+      --ks-input-focus-border: ${cssConst(f.input_focus_border_color, 'rgba(255,255,255,0.40)')};
+      --ks-input-focus-ring: ${cssConst(f.input_focus_ring_color, 'rgba(255,255,255,0.60)')};
+      --ks-input-radius: ${num(f.input_border_radius, 6)}px;
+      --ks-input-px: ${num(f.input_padding_x, 12)}px;
+      --ks-input-py: ${num(f.input_padding_y, 8)}px;
+      --ks-input-font: ${num(f.input_font_size, 14)}px;
+      --ks-select-bg: ${cssConst(f.select_background, 'rgba(0,0,0,0.30)')};
+      --ks-select-text: ${cssConst(f.select_text_color, '#ffffff')};
+      --ks-select-border: ${cssConst(f.select_border_color, 'rgba(255,255,255,0.10)')};
+      --ks-select-radius: ${num(f.select_border_radius, 6)}px;
+      --ks-textarea-bg: ${cssConst(f.textarea_background, 'rgba(0,0,0,0.30)')};
+      --ks-textarea-text: ${cssConst(f.textarea_text_color, '#ffffff')};
+      --ks-textarea-border: ${cssConst(f.textarea_border_color, 'rgba(255,255,255,0.10)')};
+      --ks-label-text: ${cssConst(f.label_text_color, '#e5e7eb')};
+      --ks-label-hint: ${cssConst(f.label_hint_color, '#6b7280')};
+      --ks-hint-text: ${cssConst(f.hint_text_color, '#6b7280')};
+      --ks-hint-error: ${cssConst((f as any).hint_error_color, '#f87171')};
+      --ks-hint-success: ${cssConst((f as any).hint_success_color, '#34d399')};
+      --ks-btn-bg: ${cssConst(b.background, '#ffffff')};
+      --ks-btn-text: ${cssConst(b.text_color, '#000000')};
+      --ks-btn-hover: ${cssConst(b.hover_background, '#e5e7eb')};
+      --ks-btn-border: ${cssConst(b.border, 'none')};
+      --ks-btn-radius: ${num(b.border_radius, 5)}px;
+      --ks-btn-px: ${num(b.padding_x, 19)}px;
+      --ks-btn-py: ${num(b.padding_y, 8)}px;
+      --ks-btn-font: ${num(b.font_size, 14)}px;
+      --ks-btn-ghost-bg: ${cssConst(b.ghost_background, 'transparent')};
+      --ks-btn-ghost-text: ${cssConst(b.ghost_text_color, '#e5e7eb')};
+      --ks-btn-ghost-hover: ${cssConst(b.ghost_hover_background, 'rgba(255,255,255,0.10)')};
+      --ks-btn-ghost-border: ${cssConst(b.ghost_border, '1px solid rgba(255,255,255,0.10)')};
+      --ks-btn-ghost-radius: ${num(b.ghost_border_radius, 5)}px;
+      --ks-btn-icon-bg: ${cssConst(b.icon_background, 'rgba(255,255,255,0.10)')};
+      --ks-btn-icon-text: ${cssConst(b.icon_text_color, '#ffffff')};
+      --ks-btn-icon-hover: ${cssConst(b.icon_hover_background, 'rgba(255,255,255,0.20)')};
+      --ks-btn-icon-border: ${cssConst(b.icon_border, 'none')};
+      --ks-btn-icon-radius: ${num(b.icon_border_radius, 5)}px;
+      --ks-btn-icon-size: ${num(b.icon_size, 14)}px;
+      --ks-tab-active-bg: ${cssConst(tabs?.active_background, '#ffffff')};
+      --ks-tab-active-text: ${cssConst(tabs?.active_text_color, '#000000')};
+      --ks-tab-inactive-bg: ${cssConst(tabs?.inactive_background, 'transparent')};
+      --ks-tab-inactive-text: ${cssConst(tabs?.inactive_text_color, '#d1d5db')};
+      --ks-tab-hover-bg: ${cssConst(tabs?.hover_background, 'rgba(255,255,255,0.05)')};
+      --ks-tab-hover-text: ${cssConst(tabs?.hover_text_color, '#ffffff')};
+      --ks-tab-border: ${cssConst(tabs?.border, 'none')};
+      --ks-tab-radius: ${num(tabs?.border_radius, 5)}px;
+      --ks-dropdown-bg: ${ddBg};
+      --ks-dropdown-border: ${ddBorder};
+      --ks-dropdown-border-width: ${num(dd?.border_width, 1)}px;
+      --ks-dropdown-radius: ${num(dd?.border_radius, 5)}px;
+      --ks-dropdown-shadow: ${cssConst(dd?.shadow, '0 12px 40px rgba(0,0,0,0.55)')};
+      --ks-dropdown-blur: ${num(dd?.backdrop_blur, 25)}px;
+      --ks-dropdown-item-text: ${cssConst(dd?.item_text_color, '#e5e7eb')};
+      --ks-dropdown-item-hover: ${cssConst(dd?.item_hover_background, 'rgba(255,255,255,0.08)')};
+      --ks-modal-bg: ${modalBg};
+      --ks-modal-border: ${modalBorder};
+      --ks-modal-shadow: ${modalShadow};
+      --ks-modal-radius: ${modalRadius}px;
+      --ks-modal-blur: ${modalBlur}px;
+      --ks-modal-overlay: ${modalOverlay};
+      --ks-listcard-bg: ${listBg};
+      --ks-listcard-border: ${listBorder};
+      --ks-listcard-hover: ${listHover};
+      --ks-listcard-shadow: ${listShadow};
+      --ks-statcard-bg: ${statBg};
+      --ks-statcard-border: ${statBorder};
+      --ks-statcard-icon: ${cssConst(cards?.stat_icon_color, '#ffffff')};
+      --ks-formcard-bg: ${formBg};
+      --ks-formcard-border: ${formBorder};
+      --ks-term-bg: ${cssConst(f.input_background, 'rgba(0,0,0,0.50)')};
+      --ks-term-text: ${cssConst(f.input_text_color, '#d4d4d4')};
+      --ks-term-border: ${cssConst(c.border_color, 'rgba(255,255,255,0.10)')};
+      --ks-radius-sm: ${num(sh?.border_radius_sm, 4)}px;
+      --ks-radius-md: ${num(sh?.border_radius_md, 6)}px;
+      --ks-radius-lg: ${num(sh?.border_radius_lg, 12)}px;
+      --ks-z-dropdown: ${num(utilities?.z_dropdown, 50)};
+      --ks-z-modal: ${num(utilities?.z_modal, 60)};
+      --ks-z-tooltip: ${num(utilities?.z_tooltip, 70)};
+      --ks-z-toast: ${num(utilities?.z_toast, 80)};
       /* Host ↔ iframe token parity — block/markdown React renderers use --ks-text-* names */
-      --ks-text-heading: ${cssConst(theme.typography.heading_color, '#ffffff')};
-      --ks-text-body: ${cssConst(theme.typography.body_color, '#9ca3af')};
+      --ks-text-heading: ${cssConst(t.heading_color, '#ffffff')};
+      --ks-text-body: ${cssConst(t.body_color, '#9ca3af')};
       --ks-text-card: ${cssConst(c.text_color, '#ffffff')};
-      --ks-accent-primary: ${cssConst(a.primary, '#38bdf8')};
+      --ks-accent-primary: ${primaryCol};
       --ks-accent-success: ${okCol};
       --ks-accent-warning: ${warnCol};
       --ks-accent-danger: ${badCol};
       --ks-accent-info: ${infoCol};
+      --ks-base-size: ${num(t.base_size, 14)}px;
     }
-    body { color: ${bodyCol}; font-family: ${cssConst(theme.typography.font_family, 'inherit')}; }
-    h1,h2,h3 { color: ${cssConst(theme.typography.heading_color, '#fff')}; }
-    a { color: ${cssConst(theme.typography.link_color, '#7dd3fc')}; }
+    html { font-size: var(--ks-base-size); }
+    body { color: ${bodyCol}; font-family: ${cssConst(t.font_family, 'inherit')}; background-color: transparent; line-height: 1.6; }
+    h1,h2,h3 { color: ${cssConst(t.heading_color, '#fff')}; }
+    h4,h5,h6 { color: ${cssConst(t.heading_color, '#fff')}; }
+    a { color: ${cssConst(t.link_color, '#7dd3fc')}; }
     a:hover { color: ${infoCol}; }
-    input, textarea, select { background: ${cssConst(f.input_background, 'rgba(0,0,0,0.4)')}; border-color: ${cssConst(f.input_border_color, 'rgba(255,255,255,0.15)')}; color: ${cssConst(f.input_text_color, '#e5e7eb')}; border-radius: ${f.input_border_radius ?? 6}px; padding: ${f.input_padding_y ?? 8}px ${f.input_padding_x ?? 12}px; font-size: ${f.input_font_size ?? 14}px; }
-    input:focus, textarea:focus, select:focus { border-color: ${cssConst(f.input_focus_border_color, '#38bdf8')}; box-shadow: 0 0 0 ${f.focus_ring_width ?? 2}px ${cssConst(f.input_focus_ring_color, 'rgba(255,255,255,0.6)')}; }
-    label { color: ${cssConst(f.label_hint_color, '#9ca3af')}; }
-    th { color: ${cssConst(f.label_hint_color, '#9ca3af')}; }
-    th, td { border-bottom-color: ${cssConst(c.border_color, 'rgba(255,255,255,0.08)')}; }
-    .ks-btn { background: ${cssConst(b.background, '#fff')}; color: ${cssConst(b.text_color, '#000')}; border-radius: ${b.border_radius ?? 6}px; font-size: ${b.font_size ?? 14}px; }
-    .ks-btn:hover { background: ${cssConst(b.hover_background, '#e5e7eb')}; }
-    .ks-btn-blue { background: ${infoCol}; color: ${cssConst(b.text_color, '#fff')}; }
-    .ks-btn-blue:hover { background: ${infoCol}; filter: brightness(1.15); }
-    .ks-btn-red { background: ${rgbaAt(a.danger, 1, '#b91c1c')}; color: #fff; }
-    .ks-btn-red:hover { background: ${rgbaAt(a.danger, 1, '#dc2626')}; filter: brightness(1.15); }
-    .ks-btn-green { background: ${rgbaAt(a.success, 1, '#059669')}; color: #0b0d10; }
-    .ks-btn-green:hover { background: ${rgbaAt(a.success, 1, '#10b981')}; }
-    .ks-card { background: ${cssConst(c.background, 'rgba(255,255,255,0.04)')}; border-color: ${cssConst(c.border_color, 'rgba(255,255,255,0.1)')}; border-radius: ${c.border_radius ?? 12}px; padding: ${c.padding ?? 16}px; }
-    .ks-muted { color: ${cssConst(theme.typography.body_color, '#9ca3af')}; }
-    .ks-ok { color: ${okCol}; }
-    .ks-bad { color: ${badCol}; }
-    .ks-warn { color: ${warnCol}; }
-    .ks-badge { border-color: ${cssConst(c.border_color, 'rgba(255,255,255,0.15)')}; background: ${cssConst(f.input_background, 'rgba(0,0,0,0.3)')}; }
-    .ks-bar > span { background: ${infoCol}; }`;
+    code { background: var(--ks-input-bg, rgba(0,0,0,0.35)); border: 1px solid var(--ks-card-border, rgba(255,255,255,0.10)); color: var(--ks-body, #e5e7eb); padding: 0.1rem 0.3rem; border-radius: var(--ks-radius-sm, 4px); }
+    pre { background: var(--ks-input-bg, rgba(0,0,0,0.35)); border: 1px solid var(--ks-card-border, rgba(255,255,255,0.10)); color: var(--ks-body, #e5e7eb); padding: 1rem; border-radius: var(--ks-radius-md, 6px); overflow-x: auto; }
+    input, textarea, select { background: var(--ks-input-bg, rgba(0,0,0,0.4)); border: 1px solid var(--ks-input-border, rgba(255,255,255,0.15)); color: var(--ks-input-text, #e5e7eb); border-radius: var(--ks-input-radius, 6px); padding: var(--ks-input-py, 8px) var(--ks-input-px, 12px); font-size: var(--ks-input-font, 14px); }
+    input::placeholder, textarea::placeholder { color: var(--ks-input-placeholder, #6b7280); opacity: 1; }
+    input:focus, textarea:focus, select:focus { outline: none; border-color: var(--ks-input-focus-border, #38bdf8); box-shadow: 0 0 0 2px var(--ks-input-focus-ring, rgba(255,255,255,0.6)); }
+    label { color: var(--ks-label-hint, #9ca3af); font-size: 12px; }
+    th { color: var(--ks-label-hint, #9ca3af); background: var(--ks-card-bg, rgba(0,0,0,0.35)); }
+    th, td { border-bottom: 1px solid var(--ks-card-border, rgba(255,255,255,0.08)); }
+    table { border-collapse: collapse; width: 100%; }
+    hr { border: none; border-top: 1px solid var(--ks-card-border, rgba(255,255,255,0.10)); margin: 1rem 0; }
+    .ks-btn { background: var(--ks-btn-bg, #fff); color: var(--ks-btn-text, #000); border: var(--ks-btn-border, none); border-radius: var(--ks-btn-radius, 6px); font-size: var(--ks-btn-font, 14px); padding: var(--ks-btn-py, 8px) var(--ks-btn-px, 19px); font-weight: 500; cursor: pointer; display: inline-block; transition: background .15s ease, filter .15s ease; }
+    .ks-btn:hover { background: var(--ks-btn-hover, #e5e7eb); }
+    .ks-btn:disabled { opacity: 0.55; cursor: default; }
+    .ks-btn-blue { background: var(--ks-info, ${infoCol}); color: #fff; }
+    .ks-btn-blue:hover { background: var(--ks-info, ${infoCol}); filter: brightness(1.15); }
+    .ks-btn-red { background: var(--ks-accent-danger, ${rgbaAt(a.danger, 1, '#b91c1c')}); color: #fff; }
+    .ks-btn-red:hover { background: var(--ks-accent-danger, ${rgbaAt(a.danger, 1, '#dc2626')}); filter: brightness(1.15); }
+    .ks-btn-green { background: var(--ks-accent-success, ${rgbaAt(a.success, 1, '#059669')}); color: #0b0d10; }
+    .ks-btn-green:hover { background: var(--ks-accent-success, ${rgbaAt(a.success, 1, '#10b981')}); filter: brightness(1.08); }
+    .ks-btn-ghost { background: var(--ks-btn-ghost-bg, transparent); color: var(--ks-btn-ghost-text, #e5e7eb); border: var(--ks-btn-ghost-border, 1px solid rgba(255,255,255,0.10)); border-radius: var(--ks-btn-ghost-radius, 5px); }
+    .ks-btn-ghost:hover { background: var(--ks-btn-ghost-hover, rgba(255,255,255,0.10)); }
+    .ks-btn-icon, .ks-iconbtn { background: var(--ks-btn-icon-bg, rgba(255,255,255,0.10)); color: var(--ks-btn-icon-text, #fff); border: var(--ks-btn-icon-border, none); border-radius: var(--ks-btn-icon-radius, 5px); }
+    .ks-btn-icon:hover, .ks-iconbtn:hover { background: var(--ks-btn-icon-hover, rgba(255,255,255,0.20)); }
+    .ks-card { background-color: var(--ks-card-bg, rgba(255,255,255,0.04)) !important; background-image: var(--ks-card-bg-layer, none) !important; background-size: var(--ks-card-bg-size, cover); background-position: var(--ks-card-bg-position, center); background-repeat: var(--ks-card-bg-repeat, no-repeat); border: var(--ks-card-border-width, 1px) solid var(--ks-card-border, rgba(255,255,255,0.10)) !important; border-radius: var(--ks-card-radius, 12px) !important; padding: var(--ks-card-padding, 16px) !important; box-shadow: var(--ks-card-shadow, 0 8px 32px rgba(0,0,0,0.45)) !important; backdrop-filter: blur(var(--ks-card-blur, 1px)); -webkit-backdrop-filter: blur(var(--ks-card-blur, 1px)); }
+    .ks-card:hover { border-color: var(--ks-card-hover-border, rgba(255,255,255,0.20)) !important; }
+    .ks-list-card { background: var(--ks-listcard-bg, var(--ks-card-bg)) !important; border-color: var(--ks-listcard-border, var(--ks-card-border)) !important; box-shadow: var(--ks-listcard-shadow, var(--ks-card-shadow)) !important; }
+    .ks-list-card:hover { border-color: var(--ks-listcard-hover, var(--ks-card-hover-border)) !important; }
+    .ks-stat-card { background: var(--ks-statcard-bg, var(--ks-card-bg)) !important; border-color: var(--ks-statcard-border, var(--ks-card-border)) !important; }
+    .ks-form-card { background: var(--ks-formcard-bg, var(--ks-card-bg)) !important; border-color: var(--ks-formcard-border, var(--ks-card-border)) !important; }
+    .ks-muted { color: var(--ks-muted, #9ca3af) !important; }
+    .ks-faint { color: var(--ks-faint, #6b7280) !important; }
+    .ks-ok { color: var(--ks-ok, #34d399) !important; }
+    .ks-bad { color: var(--ks-bad, #fca5a5) !important; }
+    .ks-warn { color: var(--ks-warn, #fcd34d) !important; }
+    .ks-info { color: var(--ks-info, #38bdf8) !important; }
+    .ks-badge { border: 1px solid var(--ks-card-border, rgba(255,255,255,0.15)) !important; background: var(--ks-input-bg, rgba(0,0,0,0.3)) !important; color: var(--ks-body) !important; border-radius: 9999px; padding: 0.125rem 0.5rem; font-size: 0.6875rem; display: inline-block; }
+    .ks-bar { position: relative; background: var(--ks-input-bg, rgba(0,0,0,0.4)); border-radius: 9999px; height: 8px; overflow: hidden; min-width: 80px; }
+    .ks-bar > span { background: var(--ks-info, #38bdf8) !important; position: absolute; inset: 0 auto 0 0; border-radius: 9999px; }
+    .ks-row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .ks-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .ks-menu, .ks-dropdown { background: var(--ks-dropdown-bg, rgba(12,14,18,0.22)) !important; border: var(--ks-dropdown-border-width, 1px) solid var(--ks-dropdown-border, rgba(255,255,255,0.10)) !important; border-radius: var(--ks-dropdown-radius, 10px) !important; box-shadow: var(--ks-dropdown-shadow, 0 12px 40px rgba(0,0,0,0.55)) !important; backdrop-filter: blur(var(--ks-dropdown-blur, 25px)); -webkit-backdrop-filter: blur(var(--ks-dropdown-blur, 25px)); color: var(--ks-dropdown-item-text, #e5e7eb) !important; }
+    .ks-menu button, .ks-dropdown button { color: var(--ks-dropdown-item-text, #e5e7eb); }
+    .ks-menu button:hover, .ks-dropdown button:hover { background: var(--ks-dropdown-item-hover, rgba(255,255,255,0.08)) !important; }
+    .ks-tab { background: var(--ks-tab-inactive-bg, transparent) !important; color: var(--ks-tab-inactive-text, #d1d5db) !important; border: var(--ks-tab-border, none) !important; border-radius: var(--ks-tab-radius, 5px) !important; }
+    .ks-tab:hover { background: var(--ks-tab-hover-bg, rgba(255,255,255,0.05)) !important; color: var(--ks-tab-hover-text, #fff) !important; }
+    .ks-tab-active { background: var(--ks-tab-active-bg, #fff) !important; color: var(--ks-tab-active-text, #000) !important; }
+    .ks-modal-overlay, [data-overlay=\"1\"], [data-close=\"1\"] { background: var(--ks-modal-overlay, rgba(0,0,0,0.60)) !important; }
+    .ks-modal-card, .ks-modal-panel { background: var(--ks-modal-bg, var(--ks-card-bg)) !important; border: 1px solid var(--ks-modal-border, var(--ks-card-border)) !important; box-shadow: var(--ks-modal-shadow, var(--ks-card-shadow)) !important; border-radius: var(--ks-modal-radius, 5px) !important; backdrop-filter: blur(var(--ks-modal-blur, 1px)); -webkit-backdrop-filter: blur(var(--ks-modal-blur, 1px)); }
+    .ks-term-bg { background: var(--ks-term-bg, #1e1e1e) !important; color: var(--ks-term-text, #d4d4d4) !important; border-color: var(--ks-term-border) !important; }
+    /* Scrollbar theming inside instance pages */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-thumb { background: var(--ks-card-border, rgba(255,255,255,0.15)); border-radius: 9999px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    /* Utility: make any inline hardcoded dark overlay respect theme via attribute override */
+    div[style*=\"rgba(0,0,0,0.55)\"] { background: var(--ks-modal-overlay, rgba(0,0,0,0.60)) !important; }
+    @media (max-width:640px){ .ks-hidden-sm{display:none!important} }`;
 }
 
 // activePageThemeCss returns the ACTIVE panel theme baked into an iframe

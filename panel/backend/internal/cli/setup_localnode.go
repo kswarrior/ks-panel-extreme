@@ -68,7 +68,8 @@ func init() {
 // ksedgeDownloadURL is the public artefact the bootstrap snippet uses. Kept
 // in this package (matching the one used by the admin HTTP setup handler) so
 // the CLI is self-contained — no cross-package constant chase required.
-const ksedgeDownloadURL = "https://github.com/kswarrior/ks-panel-extreme/releases/download/ks-release-32876373128-a36954f895a6/ksedge"
+// Uses the latest release redirect so the CLI never pins to a stale tag.
+const ksedgeDownloadURL = "https://github.com/kswarrior/ks-panel-extreme/releases/latest/download/ksedge"
 
 func runSetupLocalnode(cmd *cobra.Command, args []string) error {
 	if setupLocalnodePort <= 0 || setupLocalnodePort > 65535 {
