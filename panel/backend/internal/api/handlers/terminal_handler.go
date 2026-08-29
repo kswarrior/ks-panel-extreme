@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/example/kspanel/internal/repository"
+	"github.com/example/kspanel/internal/tunnel"
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/websocket"
 )
@@ -106,6 +107,39 @@ func TerminalHandler(w http.ResponseWriter, r *http.Request) {
 	if qs := r.URL.Query().Get("tty"); qs == "0" || qs == "false" {
 		tty = 0
 	}
+
+	// Tunnel-aware guard: reverse_tunnel edges have no dialable address;
+	// they must be online via WSS. Terminal over WSS tunnel is not yet
+	// implemented (requires WS-over-WS multiplexing), so we return a
+	// structured error the browser can render as a banner instead of a
+	// generic dial failure to 127.0.0.1:4040.
+	mode := strings.ToLower(strings.TrimSpace(node.ConnectionMode))
+	if mode == "reverse_tunnel" {
+		if !tunnel.Global().IsConnected(node.ID) {
+			// Need to upgrade first to send JSON error, but we can also
+			// return HTTP error before upgrade if not yet upgraded.
+			http.Error(w, "edge not connected via WSS tunnel (reverse_tunnel terminal requires edge to be online)", http.StatusBadGateway)
+			return
+		}
+		// Tunnel-connected reverse_tunnel: terminal not yet tunnelled.
+		// Upgrade then send hint, since the WS handshake already started.
+		clientConn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer clientConn.Close()
+		_ = clientConn.WriteJSON(map[string]any{
+			"type":    "error",
+			"message": "terminal over WSS tunnel not yet implemented for reverse_tunnel; use direct or local_port mode for shell access",
+		})
+		time.Sleep(50 * time.Millisecond)
+		return
+	}
+	// local_wss with active tunnel could also dial via tunnel, but the
+	// loopback HTTP dial still works (edge listens on 127.0.0.1), so we
+	// keep the direct path for now and only guard the disconnected case
+	// where fallback is unavailable. The direct dial below will attempt
+	// 127.0.0.1:<port> which succeeds when the edge is on the same host.
 
 	// Edge WS URL.
 	target := fmt.Sprintf("%s://%s/api/edge/exec?kind=%s&name=%s&tty=%d&token=%s",
