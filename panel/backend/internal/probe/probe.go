@@ -77,13 +77,12 @@ var insecureClient = &http.Client{
 // httpClient owns the http.Transport so callers reuse connections across
 // sequential probes (the admin "Recheck" button can smash the page). Sane
 // timeout: an edge that takes longer than 4s to answer its own liveness probe
-// is not healthy enough to draw green.
+// is not healthy enough to draw green. It verifies TLS by default; edges
+// with SkipTLSVerify use insecureClient instead.
 var httpClient = &http.Client{
 	Timeout: 4 * time.Second,
 	Transport: &http.Transport{
-		// Self-signed edges are the common case in homelab deployments, so
-		// the probe mirrors the lifecycle client's InsecureSkipVerify.
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		TLSClientConfig: &tls.Config{},
 	},
 }
 

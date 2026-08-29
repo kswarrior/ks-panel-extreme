@@ -16,6 +16,7 @@ package tunnel
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -51,6 +52,7 @@ type Client struct {
 	panelURL   string
 	token      string
 	listenPort int
+	skipVerify bool
 }
 
 // New builds a tunnel client. panelURL is the edge's configured panel_url
@@ -61,6 +63,17 @@ func New(panelURL, token string, listenPort int) *Client {
 		panelURL:   panelURL,
 		token:      token,
 		listenPort: listenPort,
+	}
+}
+
+// NewWithSkipVerify mirrors New but honours the skip-verify flag for
+// self-signed panels (mirrors heartbeat.Sender's TLS handling).
+func NewWithSkipVerify(panelURL, token string, listenPort int, skipVerify bool) *Client {
+	return &Client{
+		panelURL:   panelURL,
+		token:      token,
+		listenPort: listenPort,
+		skipVerify: skipVerify,
 	}
 }
 
@@ -118,6 +131,7 @@ func (c *Client) connectAndServe(ctx context.Context) error {
 	log.Printf("tunnel: dialing %s", wsURL.String())
 	dialer := websocket.Dialer{
 		HandshakeTimeout: 10 * time.Second,
+		TLSClientConfig:  &tls.Config{InsecureSkipVerify: c.skipVerify},
 	}
 	conn, _, err := dialer.DialContext(ctx, wsURL.String(), nil)
 	if err != nil {
