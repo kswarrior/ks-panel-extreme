@@ -25,9 +25,10 @@ import (
 // ============================== NODES (admin) ==============================
 
 type createNodeRequest struct {
-	Name    string `json:"name"`
-	Address string `json:"address"`
-	UseTLS  bool   `json:"use_tls"`
+	Name           string `json:"name"`
+	Address        string `json:"address"`
+	UseTLS         bool   `json:"use_tls"`
+	ConnectionMode string `json:"connection_mode,omitempty"`
 	// Advanced per-edge configuration (migration 019). Missing / zero
 	// values fall back to the column DEFAULT so a caller using the legacy
 	// payload shape is unaffected.
@@ -63,6 +64,7 @@ type updateNodeRequest struct {
 	Name           string `json:"name"`
 	Address        string `json:"address"`
 	UseTLS         bool   `json:"use_tls"`
+	ConnectionMode string `json:"connection_mode,omitempty"`
 	HealthEnabled  *bool  `json:"health_enabled,omitempty"`
 	HealthInterval int    `json:"health_interval,omitempty"`
 	HealthTimeout  int    `json:"health_timeout,omitempty"`
