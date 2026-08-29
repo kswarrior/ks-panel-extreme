@@ -1,7 +1,7 @@
 // TemplateForm utilities - extracted from TemplateForm.tsx
 
 import type { TemplateFormState, PortMapping, Mount, ResourceLimits, FeatureCaps, EnvVariable, InstallStep, TemplateAction, ActionStep, Label, Device, Healthcheck, Advanced, KvRuntime, MpRuntime, LxdRuntime, PageOverride, RestartPolicy, NetworkMode, LogLevel, InstallAction } from '../types/templateForm';
-import { parsePageActions } from '@/features/instance-pages/types/instancePage';
+import { parsePageActions, parsePageComponents } from '@/features/instance-pages/types/instancePage';
 // emptyForm is a runtime value (not a type) — it seeds every partial
 // `advanced` produced below so serializeSpec can keep assuming the full
 // Advanced shape (it reads e.g. f.advanced.dns.split(',') unguarded).
@@ -133,6 +133,9 @@ export function serializeSpec(f: TemplateFormState): string {
       // Saved actions are part of the row — persist them or the runtime
       // allow-list ends up empty and every action 403s on the instance.
       if (p.actions && p.actions.length > 0) out.actions = p.actions;
+      // Components: persist reusable UI blocks so {{component:name}} tokens
+      // resolve on both main page and sub-pages (React-like reusability).
+      if (p.components && p.components.length > 0) out.components = p.components;
       // Multi-page support: nested sub-pages ride on the parent row.
       if (p.sub_pages && p.sub_pages.length > 0) {
         out.sub_pages = p.sub_pages.map((s) => ({
@@ -419,6 +422,19 @@ export function parseSpec(raw: string): Partial<TemplateFormState> {
                 ),
               }
             : {}),
+          // Components: preserve reusable UI blocks (inline array or JSON string).
+          ...(() => {
+            let comps: ReturnType<typeof parsePageComponents> = [];
+            if (typeof p.components === 'string' && p.components.trim()) {
+              comps = parsePageComponents(p.components);
+            } else if (Array.isArray(p.components) && p.components.length > 0) {
+              try {
+                comps = parsePageComponents(JSON.stringify(p.components));
+                if (comps.length === 0) comps = p.components as any;
+              } catch { comps = p.components as any; }
+            }
+            return comps.length > 0 ? { components: comps } : {};
+          })(),
           // Multi-page support: keep nested sub-pages attached to the row.
           ...(Array.isArray(p.sub_pages)
             ? {
