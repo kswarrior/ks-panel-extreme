@@ -87,6 +87,24 @@ type updateNodeRequest struct {
 	Color             string `json:"color,omitempty"`
 }
 
+// isValidPortStr reports whether p is a decimal port 1..65535.
+func isValidPortStr(p string) bool {
+	p = strings.TrimSpace(p)
+	if len(p) == 0 || len(p) > 5 {
+		return false
+	}
+	for _, c := range p {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	n, err := strconv.Atoi(p)
+	if err != nil {
+		return false
+	}
+	return n >= 1 && n <= 65535
+}
+
 // validateNodeAddress accepts any of:
 //
 //	host:port            -> "edge.example.com:4040", "57.6.8.1:3853"
@@ -94,9 +112,9 @@ type updateNodeRequest struct {
 //	                        client dials the scheme default port automatically)
 //	IPv6 host literal    -> "[::1]:4040" or bare "::1"
 //
-// It rejects addresses with a scheme embedded (http(s)://…) and obviously
-// junk strings so the UI's reproduction is predictable. Returns nil when the
-// address is acceptable.
+// It rejects addresses with a scheme embedded (http(s)://…), whitespace, and
+// out-of-range ports so a typo surfaces as a clean 400 instead of a later
+// 502 from the edge dial. Returns nil when the address is acceptable.
 func validateNodeAddress(addr string) error {
 	addr = strings.TrimSpace(addr)
 	if addr == "" {
@@ -108,6 +126,54 @@ func validateNodeAddress(addr string) error {
 	// Anything with whitespace inside is invalid.
 	if strings.ContainsAny(addr, " \t\r\n") {
 		return fmt.Errorf("address must not contain whitespace")
+	}
+	// Reject the tunnel sentinel for non-tunnel modes — "tunnel" is only
+	// valid when connection_mode is reverse_tunnel (handled by the caller).
+	if addr == "tunnel" {
+		return fmt.Errorf("address \"tunnel\" is only valid for reverse_tunnel mode")
+	}
+	// IPv6 literal in brackets.
+	if strings.HasPrefix(addr, "[") {
+		end := strings.Index(addr, "]")
+		if end == -1 {
+			return fmt.Errorf("IPv6 addresses must use [host] or [host]:port form")
+		}
+		rest := addr[end+1:]
+		if rest == "" {
+			return nil
+		}
+		if !strings.HasPrefix(rest, ":") {
+			return fmt.Errorf("IPv6 addresses must use [host] or [host]:port form")
+		}
+		port := rest[1:]
+		if port == "" {
+			return fmt.Errorf("port is required after ':'")
+		}
+		if !isValidPortStr(port) {
+			return fmt.Errorf("port must be a number between 1 and 65535")
+		}
+		return nil
+	}
+	// Bare IPv6 without brackets (e.g. "::1" or "2001:db8::1") — contains
+	// multiple colons. Without brackets a port cannot be disambiguated, so
+	// we treat the whole string as a bare host and skip port validation.
+	// The edge must be registered as "[::1]:4040" when a port is needed.
+	if strings.Count(addr, ":") > 1 {
+		return nil
+	}
+	// host:port or bare host
+	if idx := strings.LastIndex(addr, ":"); idx >= 0 {
+		hostPart := strings.TrimSpace(addr[:idx])
+		portPart := strings.TrimSpace(addr[idx+1:])
+		if hostPart == "" {
+			return fmt.Errorf("host is required before ':'")
+		}
+		if portPart == "" {
+			return fmt.Errorf("port is required after ':'")
+		}
+		if !isValidPortStr(portPart) {
+			return fmt.Errorf("port must be a number between 1 and 65535")
+		}
 	}
 	return nil
 }
@@ -129,10 +195,7 @@ func normalizeConnectionMode(m string) string {
 	if m == "" {
 		return "direct"
 	}
-	if validConnectionModes[m] {
-		return m
-	}
-	return "direct"
+	return m
 }
 
 func isValidConnectionMode(m string) bool {
