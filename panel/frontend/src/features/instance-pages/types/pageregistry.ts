@@ -95,6 +95,15 @@ export const AREAS: AreaEntry[] = [
         path: '/instances/:id/settings',
         match: defaultInstanceMatcher('settings'),
       },
+      {
+        id: 'instance.panel.custom',
+        label: 'Instance · Custom Page',
+        path: '/instances/:id/:page',
+        // Catch-all for any custom instance page (including sub-pages like
+        // files/edit). Placed after explicit tab entries so per-page
+        // assignments for Home/Files/Network/Terminal/Settings win.
+        match: (pathname) => /^\/instances\/\d+\/[^/]+(?:\/[^/]+)*\/?$/.test(pathname),
+      },
     ],
   },
   {
@@ -199,9 +208,19 @@ export const CATALOGUE: Array<PageEntry & { areaId: AreaId; areaLabel: string }>
 // CATALOGUE — every entry already knows its own `match` predicate — and
 // return the first page whose matcher claims the path. Used by the resolver
 // to pick an area-level default when no per-page assignment exists.
+//
+// Instance custom pages (/instances/:id/<slug> and sub-pages) are not
+// enumerated individually; the catch-all instance.panel.custom covers them
+// via the catalogue walk, but we also keep an explicit prefix fast-path
+// so any future slug instantly resolves to the 'instance' area even if the
+// catalogue entry is reordered or the pathname has a trailing query fragment.
 export function areaFor(pathname: string): AreaId | null {
   for (const p of CATALOGUE) {
     if (p.match(pathname, '')) return p.areaId;
   }
+  // Fallback: every per-instance route lives under /instances/<numeric-id>
+  // and must follow the instance area's theme (assignment > default). This
+  // covers custom pages and any future tabs without requiring a registry edit.
+  if (/^\/instances\/\d+(\/|$)/.test(pathname)) return 'instance';
   return null;
 }
