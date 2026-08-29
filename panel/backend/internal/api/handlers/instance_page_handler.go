@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"archive/zip"
-	"bytes"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -1227,42 +1226,27 @@ func ExecuteCustomPageActionHandler(w http.ResponseWriter, r *http.Request) {
 		timeout = clampActionTimeout(defTimeout)
 	}
 
-	// Use the edge client to call the page-action endpoint
-	ec := edge.New(*node, token)
-
-	edgeReq := map[string]any{
-		"token":   token,
-		"kind":    instance.Kind,
-		"name":    instance.Name,
-		"type":    execType,
-		"command": execCommand,
-		"path":    execPath,
-		"content": execContent,
-		"args":    execArgs,
-		"env":     execEnv,
-		"timeout": timeout,
-	}
-
-	body, _ := json.Marshal(edgeReq)
-	httpReq, _ := http.NewRequestWithContext(r.Context(), "POST", ec.BaseURL()+"/api/edge/page-action", bytes.NewReader(body))
-	httpReq.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{Timeout: time.Duration(timeout+5) * time.Second}
-
-	resp, err := client.Do(httpReq)
+	// Use the tunnel-aware edge client (honours WSS + SkipTLSVerify).
+	ec := edge.NewWithTimeout(*node, token, time.Duration(timeout+5)*time.Second)
+	resp, err := ec.PageAction(edge.PageActionRequest{
+		Kind:    instance.Kind,
+		Name:    instance.Name,
+		Type:    execType,
+		Command: execCommand,
+		Path:    execPath,
+		Content: execContent,
+		Args:    execArgs,
+		Env:     execEnv,
+		Timeout: timeout,
+	})
 	if err != nil {
 		log.Printf("ExecuteCustomPageActionHandler: edge page-action request failed: %v", err)
-		writeJSON(w, map[string]any{
+		writeJSONStatus(w, http.StatusBadGateway, map[string]any{
 			"error": "edge page-action unreachable: " + err.Error(),
 		})
 		return
 	}
-	defer resp.Body.Close()
-
-	respBody, _ := io.ReadAll(resp.Body)
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(resp.StatusCode)
-	_, _ = w.Write(respBody)
+	writeJSON(w, resp)
 }
 
 // ExecuteModulePageActionHandler executes an action from a module-based page
@@ -1348,47 +1332,28 @@ func ExecuteModulePageActionHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Use the edge client to call the page-action endpoint. The edge exposes
-	// exactly one action RPC (/api/edge/page-action); module actions ride the
-	// same validated payload (module_id is panel-side metadata the edge
-	// ignores). The previous /api/edge/page-module/{id}/{m}/action target
-	// was never implemented on the edge, so every module action 404'd.
-	ec := edge.New(*node, token)
-
-	edgeReq := map[string]any{
-		"token":     token,
-		"kind":      instance.Kind,
-		"name":      instance.Name,
-		"module_id": req.ModuleID,
-		"type":      req.Type,
-		"command":   req.Command,
-		"path":      req.Path,
-		"content":   req.Content,
-		"args":      req.Args,
-		"env":       req.Env,
-		"timeout":   reqTimeout,
-	}
-
-	body, _ := json.Marshal(edgeReq)
-	httpReq, _ := http.NewRequestWithContext(r.Context(), "POST", ec.BaseURL()+"/api/edge/page-action", bytes.NewReader(body))
-	httpReq.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{Timeout: time.Duration(reqTimeout+5) * time.Second}
-
-	resp, err := client.Do(httpReq)
+	// Use the tunnel-aware edge client (honours WSS + SkipTLSVerify).
+	ec := edge.NewWithTimeout(*node, token, time.Duration(reqTimeout+5)*time.Second)
+	resp, err := ec.PageAction(edge.PageActionRequest{
+		Kind:     instance.Kind,
+		Name:     instance.Name,
+		ModuleID: req.ModuleID,
+		Type:     req.Type,
+		Command:  req.Command,
+		Path:     req.Path,
+		Content:  req.Content,
+		Args:     req.Args,
+		Env:      req.Env,
+		Timeout:  reqTimeout,
+	})
 	if err != nil {
 		log.Printf("ExecuteModulePageActionHandler: edge page-module action request failed: %v", err)
-		writeJSON(w, map[string]any{
+		writeJSONStatus(w, http.StatusBadGateway, map[string]any{
 			"error": "edge page-module action unreachable: " + err.Error(),
 		})
 		return
 	}
-	defer resp.Body.Close()
-
-	respBody, _ := io.ReadAll(resp.Body)
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(resp.StatusCode)
-	_, _ = w.Write(respBody)
+	writeJSON(w, resp)
 }
 
 // getEnabledModules returns the list of enabled module IDs from the spec.
