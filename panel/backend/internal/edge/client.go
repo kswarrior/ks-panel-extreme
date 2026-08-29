@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -376,6 +377,32 @@ func (c *Client) InstallStart(req InstallStartRequest) (InstallStartResponse, er
 // query param (browsers can't set headers on fetch/EventSource behind proxies).
 func (c *Client) InstallStatus(req InstallStatusRequest) (InstallStatusResponse, error) {
 	req.Token = c.token
+	// Try WSS tunnel first for reverse_tunnel / local_wss.
+	if c.isTunnel() {
+		connected := tunnel.Global().IsConnected(c.nodeID)
+		if connected {
+			path := fmt.Sprintf("/api/edge/install?kind=%s&name=%s&token=%s",
+				urlQueryEscape(req.Kind), urlQueryEscape(req.Name), urlQueryEscape(req.Token))
+			if handled, body, status, err := c.tryTunnel("GET", path, nil); handled {
+				if err != nil {
+					return InstallStatusResponse{}, fmt.Errorf("dial edge: %s", redactTokenErr(err))
+				}
+				var out InstallStatusResponse
+				if err := unmarshalTunnelResponse(body, status, &out); err != nil {
+					return InstallStatusResponse{}, err
+				}
+				if status >= 300 {
+					if out.Error != "" {
+						return out, fmt.Errorf("edge rejected: %s", out.Error)
+					}
+					return out, fmt.Errorf("edge returned HTTP %d", status)
+				}
+				return out, nil
+			}
+		} else if c.connectionMode == "reverse_tunnel" {
+			return InstallStatusResponse{}, fmt.Errorf("edge not connected via WSS tunnel (reverse_tunnel mode requires edge to be online)")
+		}
+	}
 	endpoint := c.baseURL + "/api/edge/install"
 	httpReq, err := http.NewRequest(http.MethodGet, endpoint, nil)
 	if err != nil {
@@ -408,6 +435,10 @@ func (c *Client) InstallStatus(req InstallStatusRequest) (InstallStatusResponse,
 	return out, nil
 }
 
+func urlQueryEscape(s string) string {
+	return url.QueryEscape(s)
+}
+
 // InstallStop POSTs the cancel + optional stop_command to the edge's
 // /api/edge/install/stop endpoint. The edge cancels the running workflow's
 // context (install.Run observes the context between + within steps and aborts
@@ -421,6 +452,23 @@ func (c *Client) InstallStatus(req InstallStatusRequest) (InstallStatusResponse,
 // run the stop_command for the container-side cleanup.
 func (c *Client) InstallStop(req InstallStopRequest) (InstallStopResponse, error) {
 	req.Token = c.token
+	// Try WSS tunnel first for reverse_tunnel / local_wss.
+	if handled, body, status, err := c.tryTunnel("POST", "/api/edge/install/stop", req); handled {
+		if err != nil {
+			return InstallStopResponse{}, err
+		}
+		var out InstallStopResponse
+		if err := unmarshalTunnelResponse(body, status, &out); err != nil {
+			return InstallStopResponse{}, err
+		}
+		if status >= 300 && status != http.StatusNotFound {
+			if out.Error != "" {
+				return out, fmt.Errorf("edge rejected: %s", out.Error)
+			}
+			return out, fmt.Errorf("edge returned HTTP %d", status)
+		}
+		return out, nil
+	}
 	body, err := json.Marshal(req)
 	if err != nil {
 		return InstallStopResponse{}, fmt.Errorf("encode request: %w", err)
@@ -464,6 +512,29 @@ func (c *Client) Lifecycle(req LifecycleRequest) (LifecycleResponse, error) {
 // this client's structured error.
 func (c *Client) LifecycleCtx(ctx context.Context, req LifecycleRequest) (LifecycleResponse, error) {
 	req.Token = c.token
+	// Try WSS tunnel first for reverse_tunnel / local_wss.
+	if handled, body, status, err := c.tryTunnel("POST", "/api/edge/lifecycle", req); handled {
+		if err != nil {
+			return LifecycleResponse{}, err
+		}
+		var out LifecycleResponse
+		if err := unmarshalTunnelResponse(body, status, &out); err != nil {
+			return LifecycleResponse{}, err
+		}
+		if status >= 300 {
+			if out.Error != "" {
+				return out, fmt.Errorf("edge rejected: %s", out.Error)
+			}
+			return out, fmt.Errorf("edge returned HTTP %d", status)
+		}
+		if !out.OK {
+			if out.Error != "" {
+				return out, fmt.Errorf("%s", out.Error)
+			}
+			return out, fmt.Errorf("edge reported failure without a message")
+		}
+		return out, nil
+	}
 	body, err := json.Marshal(req)
 	if err != nil {
 		return LifecycleResponse{}, fmt.Errorf("encode request: %w", err)
