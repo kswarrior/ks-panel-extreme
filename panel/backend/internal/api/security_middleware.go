@@ -347,6 +347,20 @@ func (s *statusBytesWriter) Write(b []byte) (int, error) {
 	return n, err
 }
 
+func (s *statusBytesWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	hijacker, ok := s.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, errors.New("statusBytesWriter: underlying ResponseWriter does not support hijacking")
+	}
+	return hijacker.Hijack()
+}
+
+func (s *statusBytesWriter) Flush() {
+	if flusher, ok := s.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
+}
+
 // Header passthrough is implicit via the embedded ResponseWriter.
 
 // contentLengthHeader pulls the Content-Length response header (if set) so

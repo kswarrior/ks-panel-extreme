@@ -69,14 +69,12 @@ func TerminalHandler(w http.ResponseWriter, r *http.Request) {
 
 	con, err := repository.OpenDB()
 	if err != nil {
-		fmt.Printf("TerminalHandler OpenDB failed: %v\n", err)
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
 	defer con.Close()
 	inst, err := repository.NewInstanceRepository(con).Get(id)
 	if err != nil {
-		fmt.Printf("TerminalHandler Get instance %d failed: %v\n", id, err)
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
@@ -89,13 +87,11 @@ func TerminalHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	node, err := repository.NewNodeRepository(con).GetNode(inst.NodeID)
 	if err != nil {
-		fmt.Printf("TerminalHandler GetNode %d failed: %v\n", inst.NodeID, err)
 		http.Error(w, "owner node not found", http.StatusNotFound)
 		return
 	}
 	token, err := repository.NewNodeRepository(con).PlainToken(inst.NodeID)
 	if err != nil || token == "" {
-		fmt.Printf("TerminalHandler PlainToken node %d err=%v tokenEmpty=%v\n", inst.NodeID, err, token == "")
 		writeJSONStatus(w, http.StatusBadGateway, map[string]any{
 			"error": "node has no usable edge token (rotate it first)",
 		})
@@ -120,7 +116,6 @@ func TerminalHandler(w http.ResponseWriter, r *http.Request) {
 	// Upgrade dance.
 	clientConn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		fmt.Printf("TerminalHandler Upgrade failed: %v\n", err)
 		// upgrader.Upgrade already wrote an error response.
 		return
 	}
@@ -129,23 +124,12 @@ func TerminalHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
-	fmt.Printf("TerminalHandler dialing edge target=%s node=%s inst=%d\n", strings.ReplaceAll(target, token, "[redacted]"), node.Address, id)
-	edgeConn, resp, err := proxyDialer.DialContext(ctx, target, nil)
+	edgeConn, _, err := proxyDialer.DialContext(ctx, target, nil)
 	if err != nil {
 		// Tell the browser the bridge couldn't reach the edge; the JS
 		// side shows a "couldn't connect to node" banner instead of a
 		// generic WS-failed popup. The dial error's URL contains the raw
 		// edge token, so redact it before sending anything to the browser.
-		fmt.Printf("TerminalHandler DialContext failed: %v resp=%v\n", err, resp)
-		if resp != nil {
-			body := ""
-			if resp.Body != nil {
-				b := make([]byte, 512)
-				n, _ := resp.Body.Read(b)
-				body = string(b[:n])
-			}
-			fmt.Printf("Dial resp status=%d header=%v body=%q\n", resp.StatusCode, resp.Header, body)
-		}
 		safeMsg := strings.ReplaceAll(err.Error(), token, "[redacted]")
 		_ = clientConn.WriteJSON(map[string]any{
 			"type":    "error",
@@ -154,7 +138,6 @@ func TerminalHandler(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(50 * time.Millisecond)
 		return
 	}
-	_ = resp
 	defer edgeConn.Close()
 
 	errCh := make(chan error, 2)
