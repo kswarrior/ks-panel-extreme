@@ -160,6 +160,7 @@ func runSetupLocalnode(cmd *cobra.Command, args []string) error {
 		"heartbeat_interval": 60,
 		"use_tls_upstream":   false,
 		"skip_verify":        false,
+		"connection_mode":    "local_port",
 	}
 	cfgBytes, _ := json.MarshalIndent(edgeCfg, "", "  ")
 	if err := os.WriteFile(configPath, cfgBytes, 0o644); err != nil {
