@@ -21,9 +21,11 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/example/kspanel/internal/models"
+	"github.com/example/kspanel/internal/tunnel"
 )
 
 // tokenQueryParamRe matches a token=… query parameter inside an error's
@@ -46,9 +48,11 @@ func redactTokenErr(err error) string {
 // the node's UseTLS flag so the panel transparently talks to edges that put
 // it behind a TLS-terminating proxy.
 type Client struct {
-	baseURL string
-	token   string
-	http    *http.Client
+	baseURL        string
+	token          string
+	http           *http.Client
+	nodeID         int64
+	connectionMode string
 }
 
 // BaseURL returns the base URL for the edge node.
