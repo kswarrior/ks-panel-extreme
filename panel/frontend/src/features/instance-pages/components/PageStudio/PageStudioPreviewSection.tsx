@@ -60,6 +60,20 @@ export const PageStudioPreviewSection: React.FC<PageStudioPreviewSectionProps> =
   onToggleFullPreview,
   sectionCls,
 }) => {
+  // Static preview should mirror live preview's component token resolution so
+  // authors see React-like composition ({{component:name}} works on main and
+  // sub-pages) even before binding an instance.
+  const staticSrcDoc = (() => {
+    const type = (previewContent.type as string) || contentType;
+    const raw = previewContent.type === 'html' ? (previewContent.html ?? '')
+      : previewContent.type === 'markdown' ? (previewContent.markdown ?? '')
+      : previewContent.type === 'blocks' ? (previewContent.blocks ?? '')
+      : currentContent;
+    // Fallback to legacy contentType/currentContent when previewContent is empty (e.g. initial load)
+    const fallbackType = type || contentType;
+    const fallbackContent = raw !== undefined && raw !== null && raw !== '' ? raw : currentContent;
+    return renderPreview(fallbackType, fallbackContent, previewContent.components as any);
+  })();
   const inner = (
     <div className={fullPreview ? 'flex h-full flex-col gap-3 overflow-auto p-4' : 'space-y-4'}>
       <div className="flex items-end justify-between gap-3 flex-wrap">
@@ -129,7 +143,7 @@ export const PageStudioPreviewSection: React.FC<PageStudioPreviewSectionProps> =
       ) : (
         <div className={`border border-white/10 rounded-lg overflow-hidden bg-black/30 ${fullPreview ? 'flex-1 min-h-0 flex flex-col' : ''}`} style={fullPreview ? undefined : { minHeight: '500px' }}>
           <iframe
-            srcDoc={renderPreview(contentType, currentContent)}
+            srcDoc={staticSrcDoc}
             className={fullPreview ? 'w-full flex-1 min-h-0 border-0' : 'w-full h-[600px] border-0'}
             title="Static Page Preview"
             sandbox="allow-scripts"

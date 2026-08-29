@@ -71,16 +71,30 @@ function safeImgSrc(raw?: string): string {
 const COMPONENT_TOKEN_RE = /\{\{\s*component:([A-Za-z0-9_][A-Za-z0-9_-]*)\s*\}\}/g;
 
 // resolveComponentTokens replaces {{component:name}} tokens in text with the
-// corresponding component's rendered content. If a component is not found,
-// the token is left as-is.
+// corresponding component's rendered content. Supports React-like nested
+// composition: a component's own content may contain further tokens, which
+// are resolved iteratively (up to 5 passes, bounded to avoid infinite loops
+// from cyclic references). Runs on both main page and sub-pages via the
+// parent's shared component list.
 function resolveComponentTokens(text: string, components: PageComponentDef[]): string {
   if (!components || components.length === 0) return text;
   const compMap = new Map(components.map(c => [c.name, c]));
-  return text.replace(COMPONENT_TOKEN_RE, (_match, name: string) => {
-    const comp = compMap.get(name);
-    if (!comp) return _match; // leave unknown token as-is
-    return componentToHtml(comp);
-  });
+  let cur = text;
+  for (let iter = 0; iter < 5; iter++) {
+    let changed = false;
+    const next = cur.replace(COMPONENT_TOKEN_RE, (_match, name: string) => {
+      const comp = compMap.get(name);
+      if (!comp) return _match; // leave unknown token as-is
+      changed = true;
+      return componentToHtml(comp);
+    });
+    cur = next;
+    if (!changed) break;
+    // Reset regex lastIndex for global pattern reuse across iterations.
+    COMPONENT_TOKEN_RE.lastIndex = 0;
+  }
+  COMPONENT_TOKEN_RE.lastIndex = 0;
+  return cur;
 }
 
 // componentToHtml converts a component definition to its HTML representation.
