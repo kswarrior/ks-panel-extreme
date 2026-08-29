@@ -240,8 +240,62 @@ code { background: var(--ks-input-bg, rgba(0,0,0,0.35)); padding: 0.1rem 0.3rem;
 pre { background: var(--ks-input-bg, rgba(0,0,0,0.35)); padding: 1rem; border-radius: 6px; overflow-x: auto; }
 `;
 
-export function renderPreview(contentType: string, content: string): string {
-  const safeContent = content || '';
+export function renderPreview(contentType: string, content: string, components?: PageComponentDef[]): string {
+  let safeContent = content || '';
+  // React-like component substitution for static preview: resolve {{component:name}}
+  // tokens so authors see the same composition they'd get on a live instance
+  // (main or sub-page). Supports nested components via up to 5 passes.
+  if (components && components.length > 0) {
+    const COMPONENT_TOKEN_RE = /\{\{\s*component:([A-Za-z0-9_][A-Za-z0-9_-]*)\s*\}\}/g;
+    const compMap = new Map(components.map((c) => [c.name, c]));
+    const compToPreviewHtml = (comp: PageComponentDef): string => {
+      switch (comp.type) {
+        case 'html': return comp.content;
+        case 'markdown': {
+          // Lightweight markdown → html for preview (mirrors CustomPageView)
+          if (!comp.content.trim()) return '';
+          return comp.content
+            .split('\n')
+            .map((line) => {
+              const t = line.trim();
+              if (/^###\s/.test(t)) return `<h3>${t.replace(/^###\s/, '')}</h3>`;
+              if (/^##\s/.test(t)) return `<h2>${t.replace(/^##\s/, '')}</h2>`;
+              if (/^#\s/.test(t)) return `<h1>${t.replace(/^#\s/, '')}</h1>`;
+              if (/^[-*]\s/.test(t)) return `<li>${t.replace(/^[-*]\s/, '')}</li>`;
+              if (t === '') return '';
+              return `<p>${t.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/\*([^*]+)\*/g, '<em>$1</em>').replace(/` + "`([^`]+)`" + `/g, '<code>$1</code>')}</p>`;
+            })
+            .join('\n');
+        }
+        case 'block': {
+          try {
+            const rows = JSON.parse(comp.content);
+            if (Array.isArray(rows)) {
+              return rows.map((b: any) => {
+                if (b.type === 'heading') return `<h${b.level ?? 2}>${b.value ?? ''}</h${b.level ?? 2}>`;
+                if (b.type === 'text') return `<p>${b.value ?? ''}</p>`;
+                if (b.type === 'html') return b.value ?? '';
+                return `<div>${b.value ?? ''}</div>`;
+              }).join('\n');
+            }
+          } catch { return ''; }
+          return '';
+        }
+        default: return comp.content;
+      }
+    };
+    let prev = '';
+    let cur = safeContent;
+    for (let iter = 0; iter < 5 && cur !== prev; iter++) {
+      prev = cur;
+      cur = cur.replace(COMPONENT_TOKEN_RE, (_m: string, name: string) => {
+        const comp = compMap.get(name);
+        if (!comp) return _m;
+        return compToPreviewHtml(comp);
+      });
+    }
+    safeContent = cur;
+  }
   const head = (extraStyle = '') => `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 ${STATIC_SDK_STUB}
