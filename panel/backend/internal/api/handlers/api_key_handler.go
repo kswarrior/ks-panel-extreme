@@ -31,6 +31,10 @@ type apiKeyDTO struct {
 	// soft-revoked and requests will be rejected. On update, ActiveSet
 	// controls whether the stored value is touched.
 	Active *bool `json:"active,omitempty"`
+	// IsSystem marks the key as a global system key (not tied to any user).
+	// System keys are excluded from per-user listings and appear in the admin
+	// list with owner_name "System". On update, IsSystemSet governs.
+	IsSystem *bool `json:"is_system,omitempty"`
 
 	// The following *Set booleans are only meaningful on UPDATE. When true,
 	// the corresponding field above (even if nil/zero) is written to the
@@ -40,6 +44,7 @@ type apiKeyDTO struct {
 	RateLimitSet  bool `json:"rate_limit_set"`
 	RateWindowSet bool `json:"rate_window_set"`
 	ActiveSet     bool `json:"active_set"`
+	IsSystemSet   bool `json:"is_system_set"`
 }
 
 type apiKeyResponse struct {
@@ -55,6 +60,7 @@ type apiKeyResponse struct {
 	RateLimit         *int64   `json:"rate_limit,omitempty"`
 	RateWindowSeconds int64    `json:"rate_window_seconds,omitempty"`
 	Active            bool     `json:"active"`
+	IsSystem          bool     `json:"is_system"`
 }
 
 func isoString(t time.Time) string {
@@ -121,6 +127,7 @@ func ListApiKeysHandler(w http.ResponseWriter, r *http.Request) {
 			RateLimit:         k.RateLimit,
 			RateWindowSeconds: k.RateWindowSeconds,
 			Active:            k.Active,
+			IsSystem:          k.IsSystem,
 		})
 	}
 	writeJSON(w, out)
@@ -181,6 +188,7 @@ func CreateApiKeyHandler(w http.ResponseWriter, r *http.Request) {
 		ExpiresAt:         expiry,
 		RateLimit:         req.RateLimit,
 		RateWindowSeconds: req.RateWindowSeconds,
+		IsSystem:          false,
 	})
 	if err != nil {
 		log.Println("CreateApiKey error:", err)
@@ -206,6 +214,7 @@ func CreateApiKeyHandler(w http.ResponseWriter, r *http.Request) {
 		"rate_limit":          key.RateLimit,
 		"rate_window_seconds": key.RateWindowSeconds,
 		"active":              true,
+		"is_system":           key.IsSystem,
 		"token":               plaintext, // returned ONCE – never again.
 	})
 }
@@ -358,14 +367,16 @@ func AdminListApiKeysHandler(w http.ResponseWriter, r *http.Request) {
 			RateLimit:         k.RateLimit,
 			RateWindowSeconds: k.RateWindowSeconds,
 			Active:            k.Active,
+			IsSystem:          k.IsSystem,
 		})
 	}
 	writeJSON(w, out)
 }
 
 // AdminCreateApiKeyHandler lets an admin mint an API key owned by an arbitrary
-// user (req.UserID). The plaintext is returned once, exactly like the self-serve
-// flow, and must be copied out immediately.
+// user (req.UserID) or as a system-wide key (is_system=true). The plaintext
+// is returned once, exactly like the self-serve flow, and must be copied out
+// immediately.
 func AdminCreateApiKeyHandler(w http.ResponseWriter, r *http.Request) {
 	var req apiKeyDTO
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -376,7 +387,8 @@ func AdminCreateApiKeyHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "name is required", http.StatusBadRequest)
 		return
 	}
-	if req.UserID == 0 {
+	isSystem := req.IsSystem != nil && *req.IsSystem
+	if !isSystem && req.UserID == 0 {
 		http.Error(w, "user_id is required", http.StatusBadRequest)
 		return
 	}
@@ -393,21 +405,39 @@ func AdminCreateApiKeyHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer con.Close()
 
-	// Confirm the target user exists so we don't create an orphan key.
-	userRepo := repository.NewUserRepository(con)
-	if _, err := userRepo.GetByID(req.UserID); err != nil {
-		http.Error(w, "user not found", http.StatusBadRequest)
-		return
+	uid, _ := UserIDFromContext(r)
+	targetUserID := req.UserID
+	if isSystem {
+		// System keys are not tied to any single user for listing, but we
+		// still need a valid FK. Use the creating admin's uid as owner so
+		// the row passes FK, while is_system=1 hides it from per-user lists
+		// and the admin provider renders OwnerName as "System".
+		if uid != 0 {
+			targetUserID = uid
+		} else {
+			// Fallback: keep supplied user_id if caller somehow has no uid.
+			if targetUserID == 0 {
+				targetUserID = 1
+			}
+		}
+	} else {
+		// Confirm the target user exists so we don't create an orphan key.
+		userRepo := repository.NewUserRepository(con)
+		if _, err := userRepo.GetByID(req.UserID); err != nil {
+			http.Error(w, "user not found", http.StatusBadRequest)
+			return
+		}
 	}
 
 	repo := repository.NewApiKeyRepository(con)
 	key, plaintext, err := repo.CreateApiKey(repository.CreateApiKeyInput{
-		UserID:            req.UserID,
+		UserID:            targetUserID,
 		Name:              req.Name,
 		Permissions:       req.Permissions,
 		ExpiresAt:         expiry,
 		RateLimit:         req.RateLimit,
 		RateWindowSeconds: req.RateWindowSeconds,
+		IsSystem:          isSystem,
 	})
 	if err != nil {
 		log.Println("AdminCreateApiKey error:", err)
