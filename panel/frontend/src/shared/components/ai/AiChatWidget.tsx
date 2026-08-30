@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useRef, useState, useMe
 import { createPortal } from 'react-dom';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { PermissionKey, hasPermissionAny } from '@/shared/types/permissions';
-import { getAiConfig, updateAiConfig, sendAiChat, type AiConfig, type AiProvider, type AiChatMessage } from '@/shared/api/ai';
+import { getAiConfig, updateAiConfig, sendAiChatStream, type AiConfig, type AiProvider, type AiChatMessage } from '@/shared/api/ai';
 
 const BotIcon: React.FC<{ size?: number; className?: string }> = ({ size = 28, className = '' }) => (
   <svg
@@ -47,6 +47,7 @@ const AiChatWidget: React.FC = () => {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
+  const [retryInfo, setRetryInfo] = useState<string | null>(null);
   const [selectedProvider, setSelectedProvider] = useState<string>('');
   const [selectedModel, setSelectedModel] = useState<string>('');
 
@@ -58,6 +59,7 @@ const AiChatWidget: React.FC = () => {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const modelToggleRef = useRef<HTMLButtonElement | null>(null);
   const modelDropdownRef = useRef<HTMLDivElement | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const [panelPos, setPanelPos] = useState<{ left: number; top: number; width: number } | null>(null);
   const [modelPos, setModelPos] = useState<{ left: number; top: number; width: number } | null>(null);
