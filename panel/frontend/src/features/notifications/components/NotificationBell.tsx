@@ -58,28 +58,74 @@ const NotificationBell: React.FC = () => {
 
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<number | null>(null);
-  const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const [pos, setPos] = useState<{ left: number; top: number }>({ left: 0, top: 0 });
+
+  const place = useCallback(() => {
+    const el = triggerRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const w = 380;
+    let left = r.right - w;
+    let top = r.bottom + 6;
+    if (left < 8) left = 8;
+    if (left + w > vw - 8) left = vw - w - 8;
+    setPos({ left, top });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    place();
+  }, [open, place]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onResize = () => place();
+    const onScroll = () => place();
+    window.addEventListener('resize', onResize);
+    window.addEventListener('scroll', onScroll, true);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('scroll', onScroll);
+    };
+  }, [open, place]);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const m = menuRef.current;
+    const t = triggerRef.current;
+    if (!m || !t) return;
+    const mb = m.getBoundingClientRect();
+    const tb = t.getBoundingClientRect();
+    const vh = window.innerHeight;
+    if (mb.bottom > vh - 8) {
+      const flipped = Math.max(8, tb.top - 6 - mb.height);
+      if (flipped !== pos.top) setPos((p) => ({ ...p, top: flipped }));
+    }
+  }, [open, pos.top]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open]);
 
   // Poll unread count every 20s + fetch recent on open
   useEffect(() => {
     fetchUnread();
     fetchRecent();
     const iv = setInterval(fetchUnread, 20000);
-    // also poll recent silently when dropdown closed to keep badge fresh for toasts? we just poll unread
     return () => clearInterval(iv);
   }, [fetchUnread, fetchRecent]);
 
   useEffect(() => {
     if (open) fetchRecent();
   }, [open, fetchRecent]);
-
-  useEffect(() => {
-    const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    if (open) document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
-  }, [open]);
 
   const onMarkRead = async (n: Notification) => {
     if (n.is_read) return;
@@ -108,11 +154,20 @@ const NotificationBell: React.FC = () => {
     } catch {}
   };
 
+  // Portal dropdown — mirrors RichMenu's theme-aware glass-dropdown + scrim
+  // so the panel's Theme Studio Dropdowns tab (bg, blur, border, shadow,
+  // radius) tints this surface identically to the profile menu. The bell
+  // trigger keeps the existing ks-icon-btn chrome; the panel itself is
+  // portal-pinned to the trigger's box with smart flip, escapes clipping
+  // from header overflow/transform and stays above all stacking contexts.
   return (
-    <div ref={ref} className="relative">
+    <>
       <button
+        ref={triggerRef}
         type="button"
         aria-label={`Notifications${unread ? `, ${unread} unread` : ''}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         className="relative inline-flex items-center justify-center w-9 h-9 rounded-full glass-chrome border border-white/10 text-gray-200 hover:text-white hover:bg-white/10 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
       >
@@ -131,9 +186,34 @@ const NotificationBell: React.FC = () => {
         )}
       </button>
 
-      {open && (
-        <div className="absolute right-0 top-full mt-2 w-[380px] max-w-[92vw] z-50 animate-slide-up">
-          <div className="glass-strong rounded-xl border border-white/15 shadow-[0_16px_48px_rgba(0,0,0,0.6)] overflow-hidden backdrop-blur-2xl">
+      {open &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <>
+            {/* Invisible scrim — closes on outside click, identical to RichMenu */}
+            <div
+              onClick={() => setOpen(false)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setOpen(false);
+              }}
+              style={{ position: 'fixed', inset: 0, zIndex: 2147483639 }}
+              aria-hidden="true"
+            />
+            <div
+              ref={menuRef}
+              role="menu"
+              aria-label="Notifications"
+              style={{
+                position: 'fixed',
+                left: pos.left,
+                top: pos.top,
+                width: 380,
+                maxWidth: '92vw',
+                zIndex: 2147483640,
+              }}
+              className="glass-dropdown rounded-xl overflow-hidden animate-slide-up"
+            >
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/[0.04]">
               <div className="flex items-center gap-2">
@@ -268,10 +348,11 @@ const NotificationBell: React.FC = () => {
                 </button>
               </div>
             )}
-          </div>
-        </div>
-      )}
-    </div>
+            </div>
+          </>
+          , document.body
+        )}
+    </>
   );
 };
 
