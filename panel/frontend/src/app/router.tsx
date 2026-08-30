@@ -53,6 +53,7 @@ import InstancePageStudio from '@/features/instance-pages/pages/InstancePageStud
 import InstancePageStats from '@/features/instance-pages/pages/InstancePageStats';
 import Tickets from '@/features/tickets/pages/Tickets';
 import TicketDetail from '@/features/tickets/pages/TicketDetail';
+import TicketChat from '@/features/tickets/pages/TicketChat';
 import TicketForm from '@/features/tickets/pages/TicketForm';
 import TicketStats from '@/features/tickets/pages/TicketStats';
 import InstancePanel, { InstanceDynamicPage } from '@/features/instances/pages/InstanceDetail';
@@ -164,6 +165,7 @@ const Router: React.FC = () => (
       <Route path="/tickets/stats" element={<AuthOnly><TicketStats /></AuthOnly>} />
       <Route path="/tickets/new" element={<AuthOnly><TicketForm /></AuthOnly>} />
       <Route path="/tickets/:id/edit" element={<AuthOnly><TicketForm /></AuthOnly>} />
+      <Route path="/tickets/:id/chat" element={<AuthOnly><TicketChat /></AuthOnly>} />
       <Route path="/tickets/:id" element={<AuthOnly><TicketDetail /></AuthOnly>} />
 
       {/* Permission-gated pages. */}
