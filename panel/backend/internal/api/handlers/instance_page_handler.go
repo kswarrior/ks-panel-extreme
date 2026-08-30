@@ -2,12 +2,15 @@ package handlers
 
 import (
 	"archive/zip"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -2099,7 +2102,36 @@ func ImportInstancePageFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fetch the JSON from the URL
+	// SSRF-hardened fetch: scheme must be http(s), host must resolve to public IP only, size capped.
+	u, err := url.Parse(strings.TrimSpace(req.URL))
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		http.Error(w, "url must be an http(s) URL with a host", http.StatusBadRequest)
+		return
+	}
+	host := u.Hostname()
+	if host == "" {
+		http.Error(w, "url is missing a host", http.StatusBadRequest)
+		return
+	}
+	// Resolve and validate every IP is public (prevents SSRF to private metadata/internal services)
+	resolver := net.Resolver{PreferGo: true}
+	dnsCtx, cancelDNS := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancelDNS()
+	ips, err := resolver.LookupIPAddr(dnsCtx, host)
+	if err != nil || len(ips) == 0 {
+		http.Error(w, "could not resolve host: "+host, http.StatusBadGateway)
+		return
+	}
+	for _, ipa := range ips {
+		if ip := ipa.IP; ip == nil || !isPublicIP(ip) {
+			which := ""
+			if ip != nil {
+				which = " (" + ip.String() + ")"
+			}
+			http.Error(w, fmt.Sprintf("refusing to fetch %s: host resolves to a non-public address%s", host, which), http.StatusBadRequest)
+			return
+		}
+	}
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Get(req.URL)
 	if err != nil {
@@ -2113,8 +2145,19 @@ func ImportInstancePageFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Cap response to 10 MiB (instance page JSON must fit content limits anyway)
+	const maxImportURLBytes = 10 << 20
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxImportURLBytes+1))
+	if err != nil {
+		http.Error(w, "failed to read URL body: "+err.Error(), http.StatusBadGateway)
+		return
+	}
+	if int64(len(body)) > maxImportURLBytes {
+		http.Error(w, fmt.Sprintf("remote body exceeded %d bytes", maxImportURLBytes), http.StatusRequestEntityTooLarge)
+		return
+	}
 	var pageReq ImportInstancePageRequest
-	if err := json.NewDecoder(resp.Body).Decode(&pageReq); err != nil {
+	if err := json.Unmarshal(body, &pageReq); err != nil {
 		http.Error(w, "invalid JSON from URL: "+err.Error(), http.StatusBadRequest)
 		return
 	}
