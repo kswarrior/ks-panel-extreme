@@ -228,24 +228,119 @@ const AiChatWidget: React.FC = () => {
     }
     const userMsg: AiChatMessage = { role: 'user', content: text };
     const newHistory = [...messages, userMsg];
-    setMessages(newHistory);
+    // Optimistically add user + placeholder assistant for streaming
+    setMessages([...newHistory, { role: 'assistant', content: '' }]);
     setInput('');
     setSending(true);
     setChatError(null);
-    try {
-      const res = await sendAiChat({
-        provider_id: selectedProvider,
-        model: selectedModel,
-        messages: newHistory,
-      });
-      setMessages((prev) => [...prev, { role: 'assistant', content: res.reply }]);
-    } catch (e: any) {
-      const msg = e?.response?.data?.error || e?.message || 'Chat failed';
-      setChatError(typeof msg === 'string' ? msg : JSON.stringify(msg));
-    } finally {
+    setRetryInfo(null);
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+    let streamed = '';
+    let success = false;
+    const maxAttempts = 25;
+    const delayMs = 5000;
+    let attempt = 0;
+
+    while (attempt <= maxAttempts && !success) {
+      try {
+        if (attempt > 0) {
+          setRetryInfo(`Retrying… ${attempt}/${maxAttempts}`);
+        }
+        // Reset streamed placeholder for each attempt
+        streamed = '';
+        setMessages((prev) => {
+          const base = prev.slice(0, newHistory.length);
+          // keep placeholder assistant
+          const hasPlaceholder = prev.length > newHistory.length && prev[prev.length - 1].role === 'assistant';
+          if (hasPlaceholder) return [...base, { role: 'assistant', content: '' }];
+          return [...base, { role: 'assistant', content: '' }];
+        });
+
+        await sendAiChatStream(
+          {
+            provider_id: selectedProvider,
+            model: selectedModel,
+            messages: newHistory,
+          },
+          (delta) => {
+            streamed += delta;
+            setMessages((prev) => {
+              const base = prev.slice(0, newHistory.length);
+              return [...base, { role: 'assistant', content: streamed }];
+            });
+          },
+          { signal: controller.signal, maxRetries: 0, retryDelayMs: delayMs }
+        );
+        success = true;
+        setRetryInfo(null);
+        // Clean up empty placeholder if no content streamed (should not happen)
+        setMessages((prev) => {
+          const last = prev[prev.length - 1];
+          if (last?.role === 'assistant' && !last.content.trim()) {
+            return prev.slice(0, -1);
+          }
+          return prev;
+        });
+      } catch (e: any) {
+        if (e?.name === 'AbortError') {
+          setRetryInfo(null);
+          break;
+        }
+        const status: number | undefined = e?.response?.status ?? e?.status;
+        const isClientError = status === 400 || status === 401 || status === 403 || status === 404;
+        if (isClientError) {
+          const msg = e?.response?.data?.error || e?.message || 'Chat failed';
+          setChatError(typeof msg === 'string' ? msg : JSON.stringify(msg));
+          // Remove placeholder assistant
+          setMessages((prev) => {
+            const last = prev[prev.length - 1];
+            if (last?.role === 'assistant' && !last.content.trim()) return prev.slice(0, -1);
+            return prev;
+          });
+          break;
+        }
+        attempt += 1;
+        if (attempt > maxAttempts) {
+          const msg = e?.message || 'Chat failed after retries';
+          setChatError(`${msg} (tried ${maxAttempts} times, giving up)`);
+          setMessages((prev) => {
+            const last = prev[prev.length - 1];
+            if (last?.role === 'assistant' && !last.content.trim()) return prev.slice(0, -1);
+            return prev;
+          });
+          break;
+        }
+        setRetryInfo(`Retrying… ${attempt}/${maxAttempts} in 5s`);
+        // Wait 5s before next attempt, abortable
+        try {
+          await new Promise<void>((resolve, reject) => {
+            const t = setTimeout(resolve, delayMs);
+            controller.signal.addEventListener('abort', () => {
+              clearTimeout(t);
+              reject(new DOMException('Aborted', 'AbortError'));
+            }, { once: true });
+          });
+        } catch {
+          break;
+        }
+        if (controller.signal.aborted) break;
+      }
+    }
+    setSending(false);
+    abortRef.current = null;
+    setRetryInfo(null);
+  };
+
+  // Abort stream on unmount or when panel closes
+  useEffect(() => {
+    if (!open && abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
       setSending(false);
     }
-  };
+  }, [open]);
 
   const handleSaveConfig = async () => {
     if (!canManage) return;
