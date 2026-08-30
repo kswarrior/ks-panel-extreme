@@ -771,7 +771,8 @@ const AiChatWidget: React.FC = () => {
                                   })()}
                                 </div>
                               </div>
-                            ))}
+                            );
+                            })}
                           </div>
                         )}
                       </div>
