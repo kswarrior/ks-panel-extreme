@@ -1,11 +1,12 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import type { Notification } from '../types/notification';
 import { CATEGORY_META, PRIORITY_META } from '../types/notification';
 
 export const CategoryBadge: React.FC<{ cat: string }> = ({ cat }) => {
   const m = CATEGORY_META[cat as keyof typeof CATEGORY_META] || CATEGORY_META.general;
   return (
-    <span className="inline-flex items-center gap-1.5 text-[10px] font-bold tracking-wide uppercase px-2 py-1 rounded-md border bg-white/[0.05] border-white/10" style={{ color: m.color }}>
+    <span className="inline-flex items-center gap-1.5 text-[10px] font-bold tracking-wide uppercase px-2 py-1 rounded-md border" style={{ background: 'color-mix(in srgb, var(--ks-card-bg) 70%, transparent)', borderColor: 'var(--ks-card-border)', color: m.color }}>
       <span className="w-1.5 h-1.5 rounded-full" style={{ background: m.color }} />
       {m.label}
     </span>
@@ -21,6 +22,15 @@ export const PriorityBadge: React.FC<{ pri: string }> = ({ pri }) => {
     </span>
   );
 };
+
+function parseMediaCard(json?: string): { type: string; url: string }[] {
+  if (!json || json === '[]') return [];
+  try {
+    const arr = JSON.parse(json);
+    if (!Array.isArray(arr)) return [];
+    return arr.map((it: any) => typeof it === 'string' ? { type: 'image', url: it } : { type: (it.type || 'image').toLowerCase(), url: it.url || '' }).filter((m: any) => m.url).slice(0, 3);
+  } catch { return []; }
+}
 
 const timeAgoFull = (iso: string) => {
   const d = new Date(iso);

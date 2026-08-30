@@ -28,6 +28,9 @@ export interface Notification {
   link?: string;
   action_label?: string;
   metadata?: string;
+  notes?: string;
+  cover_image?: string;
+  media_json?: string;
   is_read: boolean;
   is_broadcast: boolean;
   created_at: string;
@@ -50,6 +53,10 @@ export interface CreateNotificationPayload {
   link?: string;
   action_label?: string;
   metadata?: string;
+  notes?: string;
+  cover_image?: string;
+  media_json?: string;
+  media?: { type: string; url: string }[];
   broadcast?: boolean;
 }
 
