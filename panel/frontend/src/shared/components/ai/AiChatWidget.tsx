@@ -59,10 +59,10 @@ const AiChatWidget: React.FC = () => {
   const modelToggleRef = useRef<HTMLButtonElement | null>(null);
   const modelDropdownRef = useRef<HTMLDivElement | null>(null);
 
-  const [panelPos, setPanelPos] = useState<{ right: number; bottom: number; width: number } | null>(null);
+  const [panelPos, setPanelPos] = useState<{ left: number; top: number; width: number } | null>(null);
   const [modelPos, setModelPos] = useState<{ left: number; top: number; width: number } | null>(null);
 
-  // Place panel like notification but drop-up (above trigger)
+  // Place panel like notification but drop-up (above trigger) — portal fixed
   const placePanel = useCallback(() => {
     const el = triggerRef.current;
     if (!el) return;
@@ -70,27 +70,24 @@ const AiChatWidget: React.FC = () => {
     const w = 380;
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    // Horizontal: align right edge with trigger's right
-    let right = vw - r.right - 8;
-    // Ensure not off-screen left
-    // Compute left to check
+    // Horizontal: align right edge with trigger's right, keep 8px margin
     let left = r.right - w;
-    if (left < 8) {
-      left = 8;
-      right = vw - (left + w) - 8;
-      if (right < 8) right = 8;
-    }
+    if (left < 8) left = 8;
+    if (left + w > vw - 8) left = vw - w - 8;
     // Vertical: drop-up above trigger, 12px gap
-    // Estimate panel height 520 max, but use actual if measured
     const estH = panelRef.current ? panelRef.current.getBoundingClientRect().height : 520;
-    let bottom = vh - r.top + 12;
-    // If not enough space above, flip below (rare for bottom button)
+    const gap = 12;
+    let top = r.top - estH - gap;
+    // Flip below if not enough space above and more space below (mobile landscape)
     const spaceAbove = r.top;
     const spaceBelow = vh - r.bottom;
-    if (spaceAbove < 200 && spaceBelow > spaceAbove) {
-      bottom = -1; // signal to use top instead
+    if (top < 8 && spaceBelow > spaceAbove) {
+      top = r.bottom + gap;
     }
-    setPanelPos({ right: Math.max(8, right), bottom: bottom > 0 ? bottom : vh - r.bottom - estH - 12, width: w });
+    // Clamp to viewport
+    if (top < 8) top = 8;
+    if (top + estH > vh - 8) top = Math.max(8, vh - estH - 8);
+    setPanelPos({ left, top, width: w });
   }, []);
 
   const placeModelDropdown = useCallback(() => {
@@ -341,13 +338,12 @@ const AiChatWidget: React.FC = () => {
   const selectedProviderObj = cfg?.providers.find((p) => p.id === selectedProvider) || null;
   const modelLabel = selectedProvider && selectedModel ? `${selectedProvider} / ${selectedModel}` : selectedProvider || 'Select model';
 
-  // Panel style: fixed near trigger, drop-up
+  // Panel style: fixed near trigger, drop-up — like notification bell portal
   const panelStyle: React.CSSProperties = panelPos
     ? {
         position: 'fixed',
-        right: panelPos.right,
-        bottom: panelPos.bottom > 0 ? panelPos.bottom : undefined,
-        top: panelPos.bottom > 0 ? undefined : 12,
+        left: panelPos.left,
+        top: panelPos.top,
         width: panelPos.width,
         maxWidth: '92vw',
         zIndex: 2147483640,
