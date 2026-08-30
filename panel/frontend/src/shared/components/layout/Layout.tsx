@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import Header from './Header';
 import Sidebar from './Sidebar';
 import ThemedBackground from './ThemedBackground';
+import AiChatWidget from '@/shared/components/ai/AiChatWidget';
 
 const Layout: React.FC = () => {
   const location = useLocation();
@@ -43,6 +44,13 @@ const Layout: React.FC = () => {
           <Outlet />
         </main>
       </div>
+      {/* Floating bottom-right AI assistant — cycle SVG bot icon + drop-up chat panel.
+          Permission-aware: shows chat when AI_CHAT_USE held, and the gear/config
+          (providers / model ids / system prompt) only when AI_CHAT_MANAGE held.
+          Rendered here (outside the scroll container) so the fixed positioning
+          is viewport-relative and survives route changes. Hidden on /auth pages
+          via the early return above. */}
+      <AiChatWidget />
     </div>
   );
 };
