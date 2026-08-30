@@ -9,6 +9,7 @@ import client from '@/shared/api/client';
 import Avatar from '@/shared/components/ui/Avatar';
 import RichMenu, { type RichMenuItem } from '@/shared/components/ui/RichMenu';
 import InstanceTabs from '@/features/instances/components/InstanceTabs';
+import NotificationBell from '@/features/notifications/components/NotificationBell';
 
 interface HeaderProps {
   onToggleSidebar: () => void;
@@ -376,39 +377,46 @@ const Header: React.FC<HeaderProps> = ({
         {inInstancePanel && <InstanceTabs />}
       </div>
 
-      {/* Profile menu via RichMenu. Custom trigger keeps the existing
-       * circular profile button styling. Hidden when in instance panel. */}
+      {/* Right cluster: notification bell + profile. The bell is the
+       * powerful real-time surface — badge polls unread-count every 20s and
+       * the dropdown surfaces the 10 most recent rows with inline mark-read.
+       * Kept outside the profile RichMenu so the unread count stays glanceable
+       * without opening any menu. Hidden inside instance panel to keep that
+       * chrome minimal (instance tabs own the header there). */}
       {!inInstancePanel && (
-        <RichMenu
-          items={items}
-          onSelect={onSelect}
-          onToggle={onToggle}
-          width={248}
-          header={headerNode}
-          placement="bottom-right"
-          ariaLabel="Profile menu"
-          trigger={({ toggle }) => (
-            <button
-              type="button"
-              onClick={toggle}
-              aria-haspopup="menu"
-              aria-label="Profile menu"
-              className="ks-icon-btn inline-flex items-center justify-center w-9 h-9 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500"
-            >
-              {/* The trigger shows the active user's profile avatar/logo
-               * (uploaded image, accent symbol, or initials) so the admin
-               * sees who they are acting as — the same Discord-style affordance
-               * the rest of the panel already uses. */}
-              <Avatar
-                name={user?.username || 'Guest'}
-                size={28}
-                accentColor={user?.accent_color || undefined}
-                symbol={user?.avatar_symbol}
-                imageUrl={user?.has_avatar ? `/api/users/${user.id}/avatar` : undefined}
-              />
-            </button>
-          )}
-        />
+        <div className="flex items-center gap-2">
+          <NotificationBell />
+          <RichMenu
+            items={items}
+            onSelect={onSelect}
+            onToggle={onToggle}
+            width={248}
+            header={headerNode}
+            placement="bottom-right"
+            ariaLabel="Profile menu"
+            trigger={({ toggle }) => (
+              <button
+                type="button"
+                onClick={toggle}
+                aria-haspopup="menu"
+                aria-label="Profile menu"
+                className="ks-icon-btn inline-flex items-center justify-center w-9 h-9 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500"
+              >
+                {/* The trigger shows the active user's profile avatar/logo
+                 * (uploaded image, accent symbol, or initials) so the admin
+                 * sees who they are acting as — the same Discord-style affordance
+                 * the rest of the panel already uses. */}
+                <Avatar
+                  name={user?.username || 'Guest'}
+                  size={28}
+                  accentColor={user?.accent_color || undefined}
+                  symbol={user?.avatar_symbol}
+                  imageUrl={user?.has_avatar ? `/api/users/${user.id}/avatar` : undefined}
+                />
+              </button>
+            )}
+          />
+        </div>
       )}
     </header>
   );
