@@ -945,7 +945,36 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	// {{KEY}} in command, image, mounts, volumes, labels, devices,
 	// advanced settings, etc. — not just in install steps.
 	substituteEnvVars(cfg, finalEnv)
-	cfgBytes, _ := json.Marshal(cfg)
+	// Keep the full config (with plaintext secrets) for the edge deploy
+	// RPC, but persist a redacted copy where IsSecret env keys are
+	// stripped so the `instances.config` JSON column never stores
+	// secrets at rest — they are kept only in `instance_secrets`
+	// (secretbox-encrypted) and in the live container's env.
+	cfgBytesForDeploy, _ := json.Marshal(cfg)
+	cfgForStore := cfg
+	if len(envSpecs) > 0 {
+		// Shallow clone cfg and its env map so the redaction does not
+		// mutate the deploy payload the goroutine will use.
+		clone := make(map[string]any, len(cfg))
+		for k, v := range cfg {
+			clone[k] = v
+		}
+		if em, ok := clone["env"].(map[string]any); ok {
+			emClone := make(map[string]any, len(em))
+			for k, v := range em {
+				emClone[k] = v
+			}
+			for _, spec := range envSpecs {
+				if spec.IsSecret {
+					delete(emClone, spec.Name)
+				}
+			}
+			clone["env"] = emClone
+		}
+		cfgForStore = clone
+	}
+	cfgBytes, _ := json.Marshal(cfgForStore)
+	_ = cfgBytesForDeploy
 
 	// Create the instance row immediately with status="creating" so the
 	// panel responds in <100ms (well under any upstream proxy timeout).
