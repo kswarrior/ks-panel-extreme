@@ -454,9 +454,9 @@ func CreateInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		log.Println("CreateInstancePage error:", err)
-		// Check for unique constraint violation (slug already exists)
+		// Check for unique constraint violation (slug already exists) across dialects
 		errMsg := err.Error()
-		if strings.Contains(errMsg, "UNIQUE constraint failed") && strings.Contains(errMsg, "slug") {
+		if isDuplicateSlugError(errMsg) {
 			http.Error(w, "slug already exists", http.StatusConflict)
 		} else if strings.Contains(errMsg, "NOT NULL constraint failed") {
 			http.Error(w, "required field missing: "+errMsg, http.StatusBadRequest)
@@ -514,6 +514,10 @@ func UpdateInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		SubPages:        req.SubPages,
 		Components:      req.Components,
 	}); err != nil {
+		if isDuplicateSlugError(err.Error()) {
+			http.Error(w, "slug already exists", http.StatusConflict)
+			return
+		}
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -1564,7 +1568,7 @@ func ImportInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Println("ImportInstancePage error:", err)
 		errMsg := err.Error()
-		if strings.Contains(errMsg, "UNIQUE constraint failed") && strings.Contains(errMsg, "slug") {
+		if isDuplicateSlugError(errMsg) {
 			http.Error(w, "slug already exists", http.StatusConflict)
 		} else {
 			http.Error(w, "could not create instance page: "+errMsg, http.StatusInternalServerError)
@@ -2167,7 +2171,7 @@ func ImportInstancePageFromURLHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Println("ImportInstancePageFromURL error:", err)
 		errMsg := err.Error()
-		if strings.Contains(errMsg, "UNIQUE constraint failed") && strings.Contains(errMsg, "slug") {
+		if isDuplicateSlugError(errMsg) {
 			http.Error(w, "slug already exists", http.StatusConflict)
 		} else {
 			http.Error(w, "could not create instance page: "+errMsg, http.StatusInternalServerError)
