@@ -876,6 +876,9 @@ function customPageThemeCss(theme: Theme, pageSlugOrPath?: string): string {
   const statBorder = cssConst(cards?.stat_border_color ?? c.border_color, 'rgba(255,255,255,0.10)');
   const formBg = cssConst(cards?.form_background ?? c.background, 'rgba(255,255,255,0.04)');
   const formBorder = cssConst(cards?.form_border_color ?? c.border_color, 'rgba(255,255,255,0.10)');
+  const _toggleTrackH = clampNum((f as any).toggle_track_height, 24, 12, 48);
+  const _toggleThumbS = clampNum((f as any).toggle_thumb_size, 20, 8, _toggleTrackH - 2);
+  const _toggleTravel = Math.max(2, Math.round(_toggleTrackH * (44 / 24) - _toggleThumbS - Math.round((_toggleTrackH - _toggleThumbS) / 2) * 2));
   let baseCss = `
     /* Theme tokens — re-emitted from the ACTIVE panel theme. These override
        the stock :root defaults above so pages consuming var(--ks-*) follow
@@ -963,11 +966,11 @@ function customPageThemeCss(theme: Theme, pageSlugOrPath?: string): string {
       --ks-toggle-off: ${cssConst((f as any).toggle_track_off, 'rgba(255,255,255,0.10)')};
       --ks-toggle-on: ${cssConst((f as any).toggle_track_on, '#10b981')};
       --ks-toggle-thumb: ${cssConst((f as any).toggle_thumb_color, '#ffffff')};
-      --ks-toggle-w: ${Math.round(clampNum((f as any).toggle_track_height, 24, 12, 48) * (44/24))}px;
-      --ks-toggle-h: ${clampNum((f as any).toggle_track_height, 24, 12, 48)}px;
-      --ks-toggle-thumb-size: ${clampNum((f as any).toggle_thumb_size, 20, 8, clampNum((f as any).toggle_track_height, 24, 12, 48)-2)}px;
-      --ks-toggle-offset: ${Math.round((clampNum((f as any).toggle_track_height, 24, 12, 48) - clampNum((f as any).toggle_thumb_size, 20, 8, clampNum((f as any).toggle_track_height, 24, 12, 48)-2))/2)}px;
-      --ks-toggle-travel: ${Math.max(2, Math.round(clampNum((f as any).toggle_track_height, 24, 12, 48)*(44/24) - clampNum((f as any).toggle_thumb_size, 20, 8, clampNum((f as any).toggle_track_height, 24, 12, 48)-2) - Math.round((clampNum((f as any).toggle_track_height, 24, 12, 48) - clampNum((f as any).toggle_thumb_size, 20, 8, clampNum((f as any).toggle_track_height, 24, 12, 48)-2))/2)*2))}px;
+      --ks-toggle-w: ${Math.round(_toggleTrackH * (44 / 24))}px;
+      --ks-toggle-h: ${_toggleTrackH}px;
+      --ks-toggle-thumb-size: ${_toggleThumbS}px;
+      --ks-toggle-offset: ${Math.round((_toggleTrackH - _toggleThumbS) / 2)}px;
+      --ks-toggle-travel: ${_toggleTravel}px;
       --ks-toggle-radius: ${clampNum((f as any).toggle_border_radius, 9999, 0, 9999)}px;
       --ks-label-size: ${num((f as any).label_font_size, 14)}px;
       --ks-label-weight: ${num((f as any).label_font_weight, 500)};
