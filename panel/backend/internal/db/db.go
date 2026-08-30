@@ -469,6 +469,12 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			}); err != nil {
 				return err
 			}
+			// Backfill running rows that pre-date the column so uptime doesn't jump to 0
+			// on upgrade — seed started_at from the last status transition (updated_at)
+			// or creation time. Stopped rows keep NULL so they correctly show "—".
+			if _, err := db.Exec(`UPDATE instances SET started_at = COALESCE(updated_at, created_at) WHERE status = 'running' AND started_at IS NULL`); err != nil {
+				log.Printf("migration %s backfill failed: %v", name, err)
+			}
 			continue
 		}
 

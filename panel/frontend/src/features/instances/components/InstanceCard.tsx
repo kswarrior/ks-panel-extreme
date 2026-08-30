@@ -139,19 +139,20 @@ export function formatCpu(cpu: number | null): string {
   return Number.isInteger(cpu) ? `${cpu} vCPU` : `${cpu.toFixed(1)} vCPU`;
 }
 
-// Uptime since the instance was deployed (created_at). Updated every second
-// while mounted; the result is shown as "12m 4s"/"3d 4h"/etc.
-function useUptime(sinceISO: string | undefined, status: string): string {
+// Uptime since the instance last entered "running" (started_at).
+// Falls back to updated_at / created_at for rows that pre-date the
+// started_at column (migration 051). Updated every second while mounted.
+function useUptime(sinceISO: string | undefined | null, status: string): string {
   const [, force] = useState(0);
   useEffect(() => {
-    if (!sinceISO || status === 'stopped' || status === 'destroyed') return;
+    if (!sinceISO || status !== 'running') return;
     const t = setInterval(() => force((v) => v + 1), 1000);
     return () => clearInterval(t);
   }, [sinceISO, status]);
   if (!sinceISO) return '—';
   const start = new Date(sinceISO).getTime();
   if (!Number.isFinite(start)) return '—';
-  if (status === 'stopped' || status === 'destroyed') return '—';
+  if (status !== 'running') return '—';
   let s = Math.max(0, Math.floor((Date.now() - start) / 1000));
   const d = Math.floor(s / 86400); s -= d * 86400;
   const h = Math.floor(s / 3600); s -= h * 3600;
@@ -224,7 +225,7 @@ const InstanceCard: React.FC<InstanceCardProps> = ({ instance, actions, showOwne
     console.error('Error parsing config:', e);
   }
   const res = parseLimits(parseConfig(instance.config), cached);
-  const uptime = useUptime(instance.created_at, instance.status);
+  const uptime = useUptime(instance.started_at || instance.updated_at || instance.created_at, instance.status);
   const glassModifier = useThemeStore((s) => {
     const g = s.active().card.glass_style;
     if (!g || g === 'frosted') return '';
