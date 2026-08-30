@@ -1240,8 +1240,8 @@ body { color: var(--ks-text-body); }
   -webkit-backdrop-filter: blur(var(--ks-header-blur)) !important;
   border-color: var(--ks-header-border) !important;
   color: var(--ks-header-text);
-  height: var(--ks-header-height, 68px) !important;
-  min-height: var(--ks-header-height, 68px) !important;
+  height: var(--ks-header-height, 56px) !important;
+  min-height: var(--ks-header-height, 56px) !important;
 }
 
 /* Loading animation speed. The Loading component renders the spin/bounce/
