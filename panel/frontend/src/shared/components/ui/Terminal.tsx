@@ -112,6 +112,7 @@ interface TerminalProps {
   // "Clear" button can call term.clear() and "Reconnect" can send a
   // fresh resize frame.
   onTermRef?: (term: XTerm | null) => void;
+  onTitleChange?: (title: string) => void;
 }
 
 // TerminalHandle exposes imperative actions the host page can wire to

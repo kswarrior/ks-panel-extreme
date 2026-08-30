@@ -99,36 +99,34 @@ const TerminalRealPage: React.FC<{ instance: any }> = ({ instance }) => {
   const handleRef = useRef<TerminalHandle>(null);
   const [state, setState] = useState<'connecting' | 'connected' | 'reconnecting' | 'closed' | 'error'>('connecting');
   const [msg, setMsg] = useState('');
+  const [cwd, setCwd] = useState('~');
 
   const host = instance.node_name || ('node-' + (instance.node_id ?? '?'));
   const user = instance.kind === 'docker' ? 'root' : 'ubuntu';
-  const ext = String(instance.name || 'session').slice(0, 16);
-  let image = 'image';
-  try {
-    const cfg = typeof instance.config === 'string' ? JSON.parse(instance.config) : instance.config;
-    if (cfg && typeof cfg === 'object' && cfg.image) image = String(cfg.image);
-    else if (cfg && typeof cfg === 'object' && cfg.config && cfg.config.image) image = String(cfg.config.image);
-  } catch { /* ignore */ }
 
   const onStateChange = (s: typeof state, m?: string) => {
     setState(s);
     setMsg(m ?? '');
   };
 
-  const statusEl = (() => {
-    switch (state) {
-      case 'connected':
-        return <span style={{ color: 'var(--ks-ok)' }}>● attached</span>;
-      case 'connecting':
-        return <span style={{ color: 'var(--ks-info)' }}>● connecting…</span>;
-      case 'reconnecting':
-        return <span style={{ color: 'var(--ks-warn)' }}>● reconnecting{msg ? ` in ${msg}` : ''}</span>;
-      case 'error':
-        return <span style={{ color: 'var(--ks-bad)' }}>● error{msg ? `: ${msg}` : ''}</span>;
-      default:
-        return <span className="ks-muted">● {String(instance.status || '')}</span>;
-    }
-  })();
+  const handleTitleChange = (title: string) => {
+    if (!title) return;
+    try {
+      let t = String(title);
+      const m = t.match(/file:\/\/[^\/]*(\/.*)/);
+      if (m) {
+        setCwd(m[1]);
+        return;
+      }
+      const pathMatch = t.match(/([~\/][^\s]*)\s*$/);
+      if (pathMatch) {
+        let p = pathMatch[1].split(' — ')[0].split(' - ')[0];
+        if (p) setCwd(p);
+        return;
+      }
+      if (t.indexOf('/') >= 0) setCwd(t);
+    } catch {}
+  };
 
   return (
     <div className="animate-fade-in">
@@ -162,87 +160,31 @@ const TerminalRealPage: React.FC<{ instance: any }> = ({ instance }) => {
         }}
       >
         <div
+          className="ks-mono"
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 8,
-            padding: '8px 12px',
-            background: 'var(--ks-card-bg)',
+            gap: 6,
+            padding: '6px 10px',
+            background: 'var(--ks-term-bg,#1e1e1e)',
             borderBottom: '1px solid var(--ks-card-border)',
-          }}
-        >
-          <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#ff5f56' }} />
-          <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#ffbd2e' }} />
-          <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#27c93f' }} />
-          <span
-            className="ks-mono"
-            style={{
-              marginLeft: 8,
-              fontSize: 12,
-              color: 'var(--ks-secondary)',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}
-          >
-            {user}@{host}: ~ — terminal
-          </span>
-        </div>
-
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            background: 'var(--ks-input-bg)',
-            borderBottom: '1px solid var(--ks-card-border)',
-          }}
-        >
-          <span
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '6px 12px',
-              fontSize: 12,
-              color: 'var(--ks-heading,#fff)',
-              background: 'var(--ks-term-bg,#1e1e1e)',
-              borderRight: '1px solid var(--ks-card-border)',
-            }}
-          >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="#38bdf8"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              style={{ width: 12, height: 12, stroke: 'var(--ks-info)' }}
-            >
-              <path d="m4 17 6-6-6-6" />
-              <path d="M12 19h8" />
-            </svg>
-            sh — {ext || 'session'}
-          </span>
-        </div>
-
-        <Terminal ref={handleRef} instanceId={instance.id} onStateChange={onStateChange} onTermRef={(t) => (termRef.current = t)} />
-
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '4px 12px',
-            background: 'var(--ks-info)',
-            color: 'var(--ks-heading,#fff)',
             fontSize: 11,
+            color: 'var(--ks-muted)',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
           }}
         >
-          <span className="ks-mono">{statusEl}</span>
-          <span className="ks-mono" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginLeft: 12 }}>
-            {ext || '—'} · {image}
-          </span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ width: 11, height: 11, flexShrink: 0, opacity: 0.7 }}>
+            <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
+            <path d="M8 13h4" />
+            <path d="M12 9v8" />
+          </svg>
+          <span>{user}@{host}:</span>
+          <span style={{ color: 'var(--ks-secondary)', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cwd}</span>
         </div>
+
+        <Terminal ref={handleRef} instanceId={instance.id} onStateChange={onStateChange} onTermRef={(t) => (termRef.current = t)} onTitleChange={handleTitleChange} />
       </div>
     </div>
   );
