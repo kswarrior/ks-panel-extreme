@@ -101,6 +101,21 @@ ManageApplicationsKey = "MANAGE_APPLICATIONS"
 	// guards the cross-user ops (broadcast, send-to-user, admin list-all).
 	ManageNotificationsKey = "MANAGE_NOTIFICATIONS"
 
+	// ManageAiChatKey is the umbrella for the floating AI assistant widget
+	// (bottom-right bot icon + drop-up chat panel). Holding the umbrella
+	// grants every AI verb. The granular keys below narrow it so a role can
+	// be limited to just chatting vs. configuring providers/models/prompts.
+	ManageAiChatKey = "MANAGE_AI_CHAT"
+	// AiChatUseKey allows opening the widget and sending messages to the
+	// configured provider/model (the "chat text" path). Does NOT allow
+	// adding providers, editing model ids or the system prompt.
+	AiChatUseKey = "AI_CHAT_USE"
+	// AiChatManageKey allows adding/editing providers, model ids and the
+	// system prompt that backs the chat. Implies the chat verb as well on
+	// the frontend guard (umbrella OR manage), but on the route layer
+	// the config write itself is manage-only.
+	AiChatManageKey = "AI_CHAT_MANAGE"
+
 	// ----------------------------------------------------------------------
 	// Granular per-area CRUD capability keys.
 	//
@@ -282,6 +297,15 @@ var AreaGroups = []Group{
 		CreateLocalThemesKey,
 		UseGlobalThemesKey,
 		AssignThemesKey,
+	}},
+	// AI Chat cluster: floating bottom-right assistant (bot icon + drop-up
+	// chat panel). VIEW covers "can chat" (send messages + see history);
+	// EDIT covers "can configure providers / model ids / system prompt".
+	// The umbrella MANAGE_AI_CHAT implies both so the seeded admin keeps
+	// full control. Frontend guards check umbrella OR the matching verb.
+	{Label: "AI Chat", Umbrella: ManageAiChatKey, Keys: map[Action]string{
+		ActionView: AiChatUseKey,
+		ActionEdit: AiChatManageKey,
 	}},
 	// Account / profile customization cluster: VIEW_ACCOUNT is the page-level
 	// umbrella (opens the Account page). It doesn't use the CRUD verbs — self
