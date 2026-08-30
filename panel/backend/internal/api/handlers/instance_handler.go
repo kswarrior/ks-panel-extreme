@@ -950,7 +950,6 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	// stripped so the `instances.config` JSON column never stores
 	// secrets at rest — they are kept only in `instance_secrets`
 	// (secretbox-encrypted) and in the live container's env.
-	cfgBytesForDeploy, _ := json.Marshal(cfg)
 	cfgForStore := cfg
 	if len(envSpecs) > 0 {
 		// Shallow clone cfg and its env map so the redaction does not
@@ -974,7 +973,6 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 		cfgForStore = clone
 	}
 	cfgBytes, _ := json.Marshal(cfgForStore)
-	_ = cfgBytesForDeploy
 
 	// Create the instance row immediately with status="creating" so the
 	// panel responds in <100ms (well under any upstream proxy timeout).
