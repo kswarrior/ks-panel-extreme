@@ -125,7 +125,7 @@ const TicketChat: React.FC = () => {
         </span>
       </div>
 
-      <GlassCard className={`${glassModifier} rounded-xl overflow-hidden flex flex-col border relative`} style={{ minHeight: 560 }}>
+      <div className={`glass-card ${glassModifier} rounded-xl overflow-hidden flex flex-col border relative min-h-[560px]`}>
         <CardMediaLayer />
         <div className="shrink-0 flex items-center justify-between gap-3 px-4 py-3 border-b" style={{ borderColor: 'var(--ks-card-border)', background: 'color-mix(in srgb, var(--ks-card-bg) 60%, transparent)' }}>
           <div className="flex items-center gap-3 min-w-0">
