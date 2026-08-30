@@ -28,7 +28,21 @@ const BotIcon: React.FC<{ size?: number; className?: string }> = ({ size = 28, c
   </svg>
 );
 
-const AiChatWidget: React.FC = () => {
+// Error boundary so AI widget never crashes the whole page (show page blank screen fix)
+class AiChatErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
+  state = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(error: any, info: any) {
+    // eslint-disable-next-line no-console
+    console.error('AiChatWidget crashed', error, info);
+  }
+  render() {
+    if (this.state.hasError) return null;
+    return this.props.children as any;
+  }
+}
+
+const AiChatWidgetInner: React.FC = () => {
   const permissions = useAuthStore((s) => s.permissions);
   const user = useAuthStore((s) => s.user);
   const canUse = hasPermissionAny(permissions, PermissionKey.MANAGE_AI_CHAT, PermissionKey.AI_CHAT_USE, PermissionKey.AI_CHAT_MANAGE);
@@ -64,72 +78,68 @@ const AiChatWidget: React.FC = () => {
 
   // Place panel like notification but drop-up (above trigger) — portal fixed
   const placePanel = useCallback(() => {
-    const el = triggerRef.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    const w = 380;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    // Horizontal: align right edge with trigger's right, keep 8px margin
-    let left = r.right - w;
-    if (left < 8) left = 8;
-    if (left + w > vw - 8) left = vw - w - 8;
-    // Vertical: drop-up above trigger, 12px gap
-    const estH = panelRef.current ? panelRef.current.getBoundingClientRect().height : 520;
-    const gap = 12;
-    let top = r.top - estH - gap;
-    // Flip below if not enough space above and more space below (mobile landscape)
-    const spaceAbove = r.top;
-    const spaceBelow = vh - r.bottom;
-    if (top < 8 && spaceBelow > spaceAbove) {
-      top = r.bottom + gap;
-    }
-    // Clamp to viewport
-    if (top < 8) top = 8;
-    if (top + estH > vh - 8) top = Math.max(8, vh - estH - 8);
-    setPanelPos({ left, top, width: w });
+    try {
+      const el = triggerRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const w = 380;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      let left = r.right - w;
+      if (left < 8) left = 8;
+      if (left + w > vw - 8) left = vw - w - 8;
+      const estH = panelRef.current ? panelRef.current.getBoundingClientRect().height : 520;
+      const gap = 12;
+      let top = r.top - estH - gap;
+      const spaceAbove = r.top;
+      const spaceBelow = vh - r.bottom;
+      if (top < 8 && spaceBelow > spaceAbove) {
+        top = r.bottom + gap;
+      }
+      if (top < 8) top = 8;
+      if (top + estH > vh - 8) top = Math.max(8, vh - estH - 8);
+      setPanelPos({ left, top, width: w });
+    } catch {}
   }, []);
 
   const placeModelDropdown = useCallback(() => {
-    const el = modelToggleRef.current;
-    const panelEl = panelRef.current;
-    if (!el || !panelEl) return;
-    const r = el.getBoundingClientRect();
-    const panelR = panelEl.getBoundingClientRect();
-    const w = 320;
-    // Dropdown below toggle, aligned to panel's right edge or toggle's left
-    let left = r.left;
-    // Keep within panel
-    if (left + w > panelR.right - 8) left = panelR.right - w - 8;
-    if (left < panelR.left + 8) left = panelR.left + 8;
-    // Clamp to viewport
-    if (left < 8) left = 8;
-    if (left + w > window.innerWidth - 8) left = window.innerWidth - w - 8;
-    const top = r.bottom + 6;
-    // If dropdown would overflow viewport bottom, flip above toggle
-    const vh = window.innerHeight;
-    if (top + 280 > vh - 8) {
-      const flippedTop = r.top - 280 - 6;
-      setModelPos({ left, top: Math.max(8, flippedTop), width: w });
-    } else {
-      setModelPos({ left, top, width: w });
-    }
+    try {
+      const el = modelToggleRef.current;
+      const panelEl = panelRef.current;
+      if (!el || !panelEl) return;
+      const r = el.getBoundingClientRect();
+      const panelR = panelEl.getBoundingClientRect();
+      const w = 320;
+      let left = r.left;
+      if (left + w > panelR.right - 8) left = panelR.right - w - 8;
+      if (left < panelR.left + 8) left = panelR.left + 8;
+      if (left < 8) left = 8;
+      if (left + w > window.innerWidth - 8) left = window.innerWidth - w - 8;
+      const top = r.bottom + 6;
+      const vh = window.innerHeight;
+      if (top + 280 > vh - 8) {
+        const flippedTop = r.top - 280 - 6;
+        setModelPos({ left, top: Math.max(8, flippedTop), width: w });
+      } else {
+        setModelPos({ left, top, width: w });
+      }
+    } catch {}
   }, []);
 
   useLayoutEffect(() => {
     if (!open) return;
-    placePanel();
+    try { placePanel(); } catch {}
   }, [open, placePanel, showConfig]);
 
   useEffect(() => {
     if (!open) return;
     const onResize = () => {
-      placePanel();
-      if (showModelDropdown) placeModelDropdown();
+      try { placePanel(); } catch {}
+      if (showModelDropdown) try { placeModelDropdown(); } catch {}
     };
     const onScroll = () => {
-      placePanel();
-      if (showModelDropdown) placeModelDropdown();
+      try { placePanel(); } catch {}
+      if (showModelDropdown) try { placeModelDropdown(); } catch {}
     };
     window.addEventListener('resize', onResize);
     window.addEventListener('scroll', onScroll, true);
@@ -141,10 +151,9 @@ const AiChatWidget: React.FC = () => {
 
   useLayoutEffect(() => {
     if (!showModelDropdown) return;
-    placeModelDropdown();
+    try { placeModelDropdown(); } catch {}
   }, [showModelDropdown, placeModelDropdown, modelSearch]);
 
-  // Escape closes in order: model dropdown -> config -> panel
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -158,7 +167,6 @@ const AiChatWidget: React.FC = () => {
     return () => document.removeEventListener('keydown', onKey);
   }, [open, showModelDropdown, showConfig]);
 
-  // Fetch config when opening
   useEffect(() => {
     if (!open) return;
     if (!user) return;
@@ -168,24 +176,31 @@ const AiChatWidget: React.FC = () => {
     getAiConfig()
       .then((c) => {
         if (cancelled) return;
-        setCfg(c);
-        setSysPromptDraft(c.system_prompt || '');
-        setProvidersDraft(c.providers || []);
-        if (c.providers && c.providers.length > 0) {
-          const enabled = c.providers.filter((p) => p.enabled);
-          const list = enabled.length > 0 ? enabled : c.providers;
-          const defProv = c.default_provider && list.find((p) => p.id === c.default_provider) ? c.default_provider : list[0].id;
-          setSelectedProvider((prev) => prev || defProv);
+        // Defensive: ensure providers is array
+        const safe = {
+          ...c,
+          providers: Array.isArray(c.providers) ? c.providers.map(p => ({ ...p, models: Array.isArray(p.models) ? p.models : [] })) : [],
+          system_prompt: c.system_prompt || '',
+        } as AiConfig;
+        setCfg(safe);
+        setSysPromptDraft(safe.system_prompt || '');
+        setProvidersDraft(safe.providers || []);
+        const provs = safe.providers || [];
+        if (provs.length > 0) {
+          const enabled = provs.filter((p) => p.enabled);
+          const list = enabled.length > 0 ? enabled : provs;
+          const defProv = safe.default_provider && list.find((p) => p.id === safe.default_provider) ? safe.default_provider : list[0]?.id || '';
+          if (defProv) setSelectedProvider((prev) => prev || defProv);
           const prov = list.find((p) => p.id === defProv) || list[0];
-          if (prov && prov.models.length > 0) {
-            const defModel = c.default_model && prov.models.includes(c.default_model) ? c.default_model : prov.models[0];
+          const models = Array.isArray(prov?.models) ? prov.models : [];
+          if (models.length > 0) {
+            const defModel = safe.default_model && models.includes(safe.default_model) ? safe.default_model : models[0];
             setSelectedModel((prev) => prev || defModel);
           }
         }
       })
       .catch((e: any) => {
         if (cancelled) return;
-        // If user lacks permission, the GET is 403 — don't surface as error when we already show permission banner
         if (e?.response?.status === 403 && !canUse) return;
         const msg = e?.response?.data?.error || e?.message || 'Failed to load AI config';
         setCfgError(typeof msg === 'string' ? msg : JSON.stringify(msg));
@@ -200,16 +215,17 @@ const AiChatWidget: React.FC = () => {
 
   useEffect(() => {
     if (!cfg || !selectedProvider) return;
-    const prov = cfg.providers.find((p) => p.id === selectedProvider);
+    const prov = (cfg.providers ?? []).find((p) => p.id === selectedProvider);
     if (!prov) return;
-    if (prov.models.length > 0 && !prov.models.includes(selectedModel)) {
-      setSelectedModel(prov.models[0]);
+    const models = Array.isArray(prov.models) ? prov.models : [];
+    if (models.length > 0 && !models.includes(selectedModel)) {
+      setSelectedModel(models[0]);
     }
   }, [selectedProvider, cfg, selectedModel]);
 
   useEffect(() => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      try { scrollRef.current.scrollTop = scrollRef.current.scrollHeight; } catch {}
     }
   }, [messages, sending, open, showConfig]);
 
@@ -250,7 +266,6 @@ const AiChatWidget: React.FC = () => {
     setCfgSaving(true);
     setCfgError(null);
     try {
-      // Ensure no duplicate ids
       const seen = new Set<string>();
       for (const p of providersDraft) {
         const id = (p.id || '').trim();
@@ -260,14 +275,18 @@ const AiChatWidget: React.FC = () => {
       }
       const payload: AiConfig = {
         system_prompt: sysPromptDraft,
-        providers: providersDraft,
+        providers: providersDraft.map(p => ({ ...p, models: Array.isArray(p.models) ? p.models : [] })),
         default_provider: selectedProvider,
         default_model: selectedModel,
       };
       const saved = await updateAiConfig(payload);
-      setCfg(saved);
-      setProvidersDraft(saved.providers || []);
-      setSysPromptDraft(saved.system_prompt || '');
+      const safe = {
+        ...saved,
+        providers: Array.isArray(saved.providers) ? saved.providers.map(p => ({ ...p, models: Array.isArray(p.models) ? p.models : [] })) : [],
+      } as AiConfig;
+      setCfg(safe);
+      setProvidersDraft(safe.providers || []);
+      setSysPromptDraft(safe.system_prompt || '');
       setCfgError(null);
       setShowConfig(false);
     } catch (e: any) {
@@ -279,7 +298,6 @@ const AiChatWidget: React.FC = () => {
   };
 
   const addProvider = () => {
-    // Use timestamp to avoid duplicate ids after deletions
     const uniq = Date.now().toString(36).slice(-4);
     setProvidersDraft((prev) => [
       ...prev,
@@ -302,13 +320,13 @@ const AiChatWidget: React.FC = () => {
   const removeProvider = (idx: number) => {
     setProvidersDraft((prev) => {
       const next = prev.filter((_, i) => i !== idx);
-      // If removed provider was selected, clear selection
       const removed = prev[idx];
       if (removed && removed.id === selectedProvider) {
         if (next.length > 0) {
           const first = next.find((p) => p.enabled) || next[0];
+          const models = Array.isArray(first.models) ? first.models : [];
           setSelectedProvider(first.id);
-          if (first.models.length > 0) setSelectedModel(first.models[0]);
+          if (models.length > 0) setSelectedModel(models[0]);
           else setSelectedModel('');
         } else {
           setSelectedProvider('');
@@ -321,24 +339,25 @@ const AiChatWidget: React.FC = () => {
 
   if (!user) return null;
 
-  const hasProviders = cfg ? cfg.providers.length > 0 : false;
-  const enabledProviders = cfg ? cfg.providers.filter((p) => p.enabled) : [];
+  const providers = Array.isArray(cfg?.providers) ? cfg!.providers : [];
+  const hasProviders = providers.length > 0;
+  const enabledProviders = providers.filter((p) => p.enabled);
   const canChat = canUse && hasProviders && enabledProviders.length > 0;
 
   const filteredProviders = useMemo(() => {
     if (!cfg) return [];
+    const list = Array.isArray(cfg.providers) ? cfg.providers : [];
     const q = modelSearch.trim().toLowerCase();
-    if (!q) return cfg.providers;
-    return cfg.providers.filter((p) => {
-      if (p.id.toLowerCase().includes(q) || p.name.toLowerCase().includes(q) || p.base_url.toLowerCase().includes(q)) return true;
-      return p.models.some((m) => m.toLowerCase().includes(q));
+    if (!q) return list;
+    return list.filter((p) => {
+      const models = Array.isArray(p.models) ? p.models : [];
+      if ((p.id || '').toLowerCase().includes(q) || (p.name || '').toLowerCase().includes(q) || (p.base_url || '').toLowerCase().includes(q)) return true;
+      return models.some((m) => (m || '').toLowerCase().includes(q));
     });
   }, [cfg, modelSearch]);
 
-  const selectedProviderObj = cfg?.providers.find((p) => p.id === selectedProvider) || null;
   const modelLabel = selectedProvider && selectedModel ? `${selectedProvider} / ${selectedModel}` : selectedProvider || 'Select model';
 
-  // Panel style: fixed near trigger, drop-up — like notification bell portal
   const panelStyle: React.CSSProperties = panelPos
     ? {
         position: 'fixed',
@@ -359,7 +378,6 @@ const AiChatWidget: React.FC = () => {
 
   return (
     <>
-      {/* Fixed cycle toggle — bottom right, always visible when authenticated */}
       <button
         ref={triggerRef}
         id="ks-ai-toggle"
@@ -389,7 +407,6 @@ const AiChatWidget: React.FC = () => {
         typeof document !== 'undefined' &&
         createPortal(
           <>
-            {/* Scrim — like notification dropdown: closes on outside tap/click */}
             <div
               onClick={() => {
                 setOpen(false);
@@ -407,7 +424,6 @@ const AiChatWidget: React.FC = () => {
               style={{ position: 'fixed', inset: 0, zIndex: 2147483639 }}
               aria-hidden="true"
             />
-            {/* Panel — portal, fixed, theme-aware glass */}
             <div
               ref={panelRef}
               role="dialog"
@@ -418,7 +434,6 @@ const AiChatWidget: React.FC = () => {
               onClick={(e) => e.stopPropagation()}
               onTouchStart={(e) => e.stopPropagation()}
             >
-              {/* Header — left title, right: [Clear][Model dropdown][Settings][Close] */}
               <div className="flex items-center justify-between px-3 py-2.5 border-b border-white/10 bg-white/[0.04] gap-2 shrink-0">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white shrink-0">
@@ -432,7 +447,6 @@ const AiChatWidget: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
-                  {/* Clear SVG — top left of model dropdown toggle */}
                   {!showConfig && messages.length > 0 && canUse && (
                     <button
                       type="button"
@@ -449,8 +463,6 @@ const AiChatWidget: React.FC = () => {
                       </svg>
                     </button>
                   )}
-
-                  {/* Model dropdown — left of settings icon, searchable, row-inline */}
                   {!showConfig && canUse && (
                     <div className="relative">
                       <button
@@ -478,7 +490,6 @@ const AiChatWidget: React.FC = () => {
                       </button>
                     </div>
                   )}
-
                   {canManage && (
                     <button
                       type="button"
@@ -514,7 +525,6 @@ const AiChatWidget: React.FC = () => {
                 </div>
               </div>
 
-              {/* Body — either full settings or chat */}
               {showConfig && canManage ? (
                 <div className="flex-1 overflow-auto px-4 py-3 space-y-3 bg-[#0a0a0c]/40 overscroll-contain touch-pan-y">
                   <p className="text-xs font-semibold tracking-wide uppercase text-indigo-200">Providers · Models · System Prompt</p>
@@ -588,7 +598,7 @@ const AiChatWidget: React.FC = () => {
                                 </div>
                                 <div>
                                   <label className="block text-[11px] text-gray-400 mb-1">Models (comma-separated IDs)</label>
-                                  <input value={p.models.join(', ')} onChange={(e) => updateProvider(idx, { models: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })} placeholder="gpt-4o, gpt-4o-mini, gpt-3.5-turbo" className="w-full rounded-md bg-[#0a0a0c] border border-white/10 px-2 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30" />
+                                  <input value={Array.isArray(p.models) ? p.models.join(', ') : ''} onChange={(e) => updateProvider(idx, { models: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })} placeholder="gpt-4o, gpt-4o-mini, gpt-3.5-turbo" className="w-full rounded-md bg-[#0a0a0c] border border-white/10 px-2 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30" />
                                   <p className="text-[11px] text-gray-500 mt-1">IDs must match the provider's catalog (e.g. openai: gpt-4o).</p>
                                 </div>
                               </div>
@@ -696,7 +706,6 @@ const AiChatWidget: React.FC = () => {
               )}
             </div>
 
-            {/* Model dropdown portal — row-aligned searchable, like notification */}
             {showModelDropdown && !showConfig && canUse && modelPos && typeof document !== 'undefined' && createPortal(
               <>
                 <div
@@ -749,7 +758,9 @@ const AiChatWidget: React.FC = () => {
                     ) : filteredProviders.length === 0 ? (
                       <p className="text-xs text-gray-400 px-2 py-3">No providers match “{modelSearch}”.</p>
                     ) : (
-                      filteredProviders.map((p) => (
+                      filteredProviders.map((p) => {
+                        const models = Array.isArray(p.models) ? p.models : [];
+                        return (
                         <div key={p.id} className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5">
                           <div className="flex items-center justify-between gap-2">
                             <div className="min-w-0">
@@ -760,10 +771,10 @@ const AiChatWidget: React.FC = () => {
                           </div>
                           {p.base_url && <p className="text-[11px] text-gray-500 truncate mt-1">{p.base_url}</p>}
                           <div className="mt-2 flex flex-wrap gap-1.5">
-                            {p.models.length === 0 ? (
+                            {models.length === 0 ? (
                               <span className="text-xs text-gray-500">No models</span>
                             ) : (
-                              p.models.map((m) => {
+                              models.map((m) => {
                                 const active = p.id === selectedProvider && m === selectedModel;
                                 return (
                                   <button
@@ -788,7 +799,8 @@ const AiChatWidget: React.FC = () => {
                             type="button"
                             onClick={() => {
                               setSelectedProvider(p.id);
-                              if (p.models.length > 0 && !p.models.includes(selectedModel)) setSelectedModel(p.models[0]);
+                              const ms = Array.isArray(p.models) ? p.models : [];
+                              if (ms.length > 0 && !ms.includes(selectedModel)) setSelectedModel(ms[0]);
                               setShowModelDropdown(false);
                               setModelSearch('');
                             }}
@@ -797,11 +809,11 @@ const AiChatWidget: React.FC = () => {
                             Use provider →
                           </button>
                         </div>
-                      ))
+                      )})
                     )}
                   </div>
                   <div className="px-3 py-2 border-t border-white/10 bg-black/20 text-[11px] text-gray-400 flex items-center justify-between shrink-0">
-                    <span>{cfg ? `${cfg.providers.length} providers` : ''}</span>
+                    <span>{cfg ? `${(Array.isArray(cfg.providers) ? cfg.providers.length : 0)} providers` : ''}</span>
                     <button type="button" onClick={() => setShowModelDropdown(false)} className="text-gray-300 hover:text-white active:text-white touch-manipulation">Close</button>
                   </div>
                 </div>
@@ -814,5 +826,11 @@ const AiChatWidget: React.FC = () => {
     </>
   );
 };
+
+const AiChatWidget: React.FC = () => (
+  <AiChatErrorBoundary>
+    <AiChatWidgetInner />
+  </AiChatErrorBoundary>
+);
 
 export default AiChatWidget;
