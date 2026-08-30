@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useNotificationStore } from '@/shared/stores/notificationStore';
 import { markRead, markAllRead, deleteNotification } from '@/features/notifications/api/notifications';
