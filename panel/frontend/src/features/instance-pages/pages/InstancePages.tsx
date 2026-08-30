@@ -115,6 +115,176 @@ const InstancePages: React.FC = () => {
   const [importSearch, setImportSearch] = useState('');
   const [importSource, setImportSource] = useState<'templates' | 'starters'>('templates');
 
+  const loadTemplatePages = useCallback(async () => {
+    setTemplatePagesLoading(true);
+    setTemplatePagesError('');
+    try {
+      const templates = await listTemplates();
+      const entries: TemplatePageEntry[] = [];
+      for (const t of templates) {
+        if (!t.spec) continue;
+        try {
+          const spec = JSON.parse(t.spec);
+          const pages = Array.isArray(spec.pages) ? spec.pages : [];
+          for (const p of pages) {
+            if (!p || typeof p !== 'object' || !p.slug) continue;
+            const slug = String(p.slug).trim();
+            if (!slug) continue;
+            entries.push({
+              key: `${t.id}:${slug}`,
+              templateId: t.id,
+              templateName: t.name,
+              slug,
+              label: typeof p.label === 'string' && p.label.trim() ? p.label.trim() : slug,
+              kind: typeof p.kind === 'string' ? p.kind : 'custom',
+              description: typeof p.description === 'string' ? p.description : undefined,
+              icon_svg: typeof p.icon_svg === 'string' ? p.icon_svg : '',
+              content_type: typeof p.content_type === 'string' ? p.content_type : undefined,
+              content_html: typeof p.content_html === 'string' ? p.content_html : '',
+              content_markdown: typeof p.content_markdown === 'string' ? p.content_markdown : '',
+              content_blocks: typeof p.content_blocks === 'string' ? p.content_blocks : '',
+              actions: Array.isArray(p.actions) ? p.actions : undefined,
+              sub_pages: Array.isArray(p.sub_pages) ? p.sub_pages : undefined,
+              components: Array.isArray(p.components) ? p.components : undefined,
+            });
+          }
+        } catch {
+          // ignore corrupt spec
+        }
+      }
+      setTemplatePages(entries);
+    } catch (e: any) {
+      setTemplatePagesError(getErrorMessage(e, 'Failed to load template pages'));
+    } finally {
+      setTemplatePagesLoading(false);
+    }
+  }, []);
+
+  // auto-load template pages when Import tab is opened
+  useEffect(() => {
+    if (addTab === 'import' && importSource === 'templates' && templatePages.length === 0 && !templatePagesLoading && !templatePagesError) {
+      loadTemplatePages();
+    }
+  }, [addTab, importSource, templatePages.length, templatePagesLoading, templatePagesError, loadTemplatePages]);
+
+  const toggleImportSelect = (key: string) => {
+    setSelectedImportKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const handleImportFromTemplates = async () => {
+    if (importSource === 'templates') {
+      if (selectedImportKeys.size === 0) { setImportError('Select at least one page to import'); return; }
+      setImportLoading(true);
+      setImportError('');
+      try {
+        let imported = 0;
+        let skipped = 0;
+        const errors: string[] = [];
+        for (const key of selectedImportKeys) {
+          const entry = templatePages.find((e) => e.key === key);
+          if (!entry) continue;
+          try {
+            await createInstancePage({
+              name: entry.label || entry.slug,
+              description: entry.description || `Imported from template "${entry.templateName}"`,
+              slug: entry.slug,
+              kind: 'custom',
+              category: '',
+              type: '',
+              content_type: (['html', 'markdown', 'blocks'].includes(entry.content_type || '') ? entry.content_type : 'markdown') as 'html' | 'markdown' | 'blocks',
+              content_html: entry.content_html || '',
+              content_markdown: entry.content_markdown || '',
+              content_blocks: entry.content_blocks || '',
+              icon_svg: entry.icon_svg || '',
+              actions: entry.actions ? JSON.stringify(entry.actions) : '',
+              sub_pages: entry.sub_pages ? JSON.stringify(entry.sub_pages) : '',
+              components: entry.components ? JSON.stringify(entry.components) : '',
+            });
+            imported++;
+          } catch (e: any) {
+            const msg = getErrorMessage(e, 'Import failed');
+            if (msg.toLowerCase().includes('slug already exists') || msg.toLowerCase().includes('already exists')) {
+              skipped++;
+            } else {
+              errors.push(`${entry.slug}: ${msg}`);
+            }
+          }
+        }
+        if (imported > 0) {
+          closeAdd();
+          await load();
+        }
+        if (errors.length > 0) {
+          setImportError(errors.join('; '));
+        } else if (skipped > 0 && imported === 0) {
+          setImportError(`All selected pages already exist (skipped ${skipped})`);
+        } else if (skipped > 0) {
+          setImportError(`Imported ${imported}, skipped ${skipped} already existing`);
+        }
+      } catch (e: any) {
+        setImportError(getErrorMessage(e, 'Import failed'));
+      } finally {
+        setImportLoading(false);
+      }
+    } else {
+      // import from starters: selectedImportKeys holds starter ids
+      if (selectedImportKeys.size === 0) { setImportError('Select at least one starter to import'); return; }
+      setImportLoading(true);
+      setImportError('');
+      try {
+        let imported = 0;
+        let skipped = 0;
+        const errors: string[] = [];
+        for (const sid of selectedImportKeys) {
+          const s = PAGE_STARTERS.find((x) => x.id === sid);
+          if (!s) continue;
+          try {
+            await createInstancePage({
+              name: s.name,
+              description: s.description || '',
+              slug: s.slug,
+              kind: 'custom',
+              category: s.category || '',
+              type: '',
+              content_type: (s.contentType || 'html') as 'html' | 'markdown' | 'blocks',
+              content_html: s.html || '',
+              content_markdown: s.markdown || '',
+              content_blocks: s.blocks || '',
+              icon_svg: s.iconSvg || '',
+              actions: s.actions ? JSON.stringify(s.actions) : '',
+              sub_pages: (s as any).subPages ? JSON.stringify((s as any).subPages) : '',
+              components: '',
+            });
+            imported++;
+          } catch (e: any) {
+            const msg = getErrorMessage(e, 'Import failed');
+            if (msg.toLowerCase().includes('slug already exists') || msg.toLowerCase().includes('already exists')) {
+              skipped++;
+            } else {
+              errors.push(`${s.slug}: ${msg}`);
+            }
+          }
+        }
+        if (imported > 0) {
+          closeAdd();
+          await load();
+        }
+        if (errors.length > 0) setImportError(errors.join('; '));
+        else if (skipped > 0 && imported === 0) setImportError(`All selected pages already exist (skipped ${skipped})`);
+        else if (skipped > 0) setImportError(`Imported ${imported}, skipped ${skipped} already existing`);
+      } catch (e: any) {
+        setImportError(getErrorMessage(e, 'Import failed'));
+      } finally {
+        setImportLoading(false);
+      }
+    }
+  };
+
   const handleImport = async () => {
     setImportLoading(true);
     setImportError('');
@@ -125,6 +295,10 @@ const InstancePages: React.FC = () => {
       } else if (addTab === 'url') {
         if (!importUrl.trim()) { setImportError('Please enter a URL'); setImportLoading(false); return; }
         await importInstancePageFromURL(importUrl.trim());
+      } else if (addTab === 'import') {
+        setImportLoading(false);
+        await handleImportFromTemplates();
+        return;
       } else {
         setImportLoading(false);
         return;
@@ -145,6 +319,9 @@ const InstancePages: React.FC = () => {
     setImportFile(null);
     setImportUrl('');
     setImportError('');
+    setSelectedImportKeys(new Set());
+    setImportSearch('');
+    setImportSource('templates');
   };
 
   const closeAdd = () => {
@@ -152,6 +329,8 @@ const InstancePages: React.FC = () => {
     setImportError('');
     setImportFile(null);
     setImportUrl('');
+    setSelectedImportKeys(new Set());
+    setImportSearch('');
   };
 
   const load = useCallback(async () => {
@@ -238,12 +417,27 @@ const InstancePages: React.FC = () => {
 
   const ImportModalContent = () => {
     if (!addOpen) return null;
+    // filtered lists for import tab search
+    const qImport = importSearch.trim().toLowerCase();
+    const filteredTemplatePages = !qImport ? templatePages : templatePages.filter((e) =>
+      e.slug.toLowerCase().includes(qImport) ||
+      e.label.toLowerCase().includes(qImport) ||
+      e.templateName.toLowerCase().includes(qImport)
+    );
+    const filteredStarters = !qImport ? PAGE_STARTERS : PAGE_STARTERS.filter((s) =>
+      s.name.toLowerCase().includes(qImport) ||
+      s.slug.toLowerCase().includes(qImport) ||
+      s.category.toLowerCase().includes(qImport) ||
+      s.description.toLowerCase().includes(qImport)
+    );
+    const existingSlugs = new Set(pages.map((p) => p.slug));
+
     return (
       <Modal
         open={addOpen}
         onClose={closeAdd}
         title="Add Instance Page"
-        maxWidth="max-w-lg"
+        maxWidth={addTab === 'import' ? 'max-w-2xl' : 'max-w-lg'}
         footer={
           addTab === 'file' ? (
             <>
@@ -257,6 +451,13 @@ const InstancePages: React.FC = () => {
               <button onClick={closeAdd} className="ks-btn-cancel ks-btn-ghost">Cancel</button>
               <button onClick={handleImport} disabled={importLoading || !importUrl.trim()} className="ks-btn-form ks-btn-primary">
                 Import from URL
+              </button>
+            </>
+          ) : addTab === 'import' ? (
+            <>
+              <button onClick={closeAdd} className="ks-btn-cancel ks-btn-ghost">Cancel</button>
+              <button onClick={handleImportFromTemplates} disabled={importLoading || selectedImportKeys.size === 0} className="ks-btn-form ks-btn-primary">
+                {importLoading ? 'Importing…' : selectedImportKeys.size === 0 ? 'Select pages to import' : `Import ${selectedImportKeys.size} page${selectedImportKeys.size > 1 ? 's' : ''}`}
               </button>
             </>
           ) : (
@@ -273,24 +474,31 @@ const InstancePages: React.FC = () => {
         <div className="flex gap-1 mb-3 bg-black/30 border border-white/10 rounded-md p-1">
           <button
             onClick={() => setAddTab('file')}
-            className={`ks-tab flex-1 px-3 py-1.5 rounded text-sm flex items-center justify-center gap-1.5 ${addTab === 'file' ? 'ks-tab-active' : ''}`}
+            className={`ks-tab flex-1 px-2 py-1.5 rounded text-xs sm:text-sm flex items-center justify-center gap-1 sm:gap-1.5 ${addTab === 'file' ? 'ks-tab-active' : ''}`}
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /> </svg>
-            Upload file
+            <span className="hidden sm:inline">Upload</span><span className="sm:hidden">File</span>
           </button>
           <button
             onClick={() => setAddTab('url')}
-            className={`ks-tab flex-1 px-3 py-1.5 rounded text-sm flex items-center justify-center gap-1.5 ${addTab === 'url' ? 'ks-tab-active' : ''}`}
+            className={`ks-tab flex-1 px-2 py-1.5 rounded text-xs sm:text-sm flex items-center justify-center gap-1 sm:gap-1.5 ${addTab === 'url' ? 'ks-tab-active' : ''}`}
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /> </svg>
-            From URL
+            URL
           </button>
           <button
             onClick={() => setAddTab('studio')}
-            className={`ks-tab flex-1 px-3 py-1.5 rounded text-sm flex items-center justify-center gap-1.5 ${addTab === 'studio' ? 'ks-tab-active' : ''}`}
+            className={`ks-tab flex-1 px-2 py-1.5 rounded text-xs sm:text-sm flex items-center justify-center gap-1 sm:gap-1.5 ${addTab === 'studio' ? 'ks-tab-active' : ''}`}
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" /> </svg>
             Studio
+          </button>
+          <button
+            onClick={() => setAddTab('import')}
+            className={`ks-tab flex-1 px-2 py-1.5 rounded text-xs sm:text-sm flex items-center justify-center gap-1 sm:gap-1.5 ${addTab === 'import' ? 'ks-tab-active' : ''}`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polyline points="16 16 12 12 8 16" /><line x1="12" y1="12" x2="12" y2="21" /><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" /> </svg>
+            Import
           </button>
         </div>
 
