@@ -174,10 +174,13 @@ func (r *TicketRepository) List(filterCategory, filterPriority, filterStatus, se
 		args = append(args, uid, uid)
 	}
 	whereClause := strings.Join(where, " AND ")
-	// Count
+	// Count — early return on 0 avoids modernc's phantom all-NULL row on empty result
 	var total int
 	if err := r.db.QueryRow(`SELECT COUNT(*) FROM tickets t WHERE `+whereClause, args...).Scan(&total); err != nil {
 		return nil, 0, err
+	}
+	if total == 0 {
+		return []models.Ticket{}, 0, nil
 	}
 	if limit <= 0 || limit > 100 {
 		limit = 50
@@ -274,24 +277,55 @@ func (r *TicketRepository) Create(in CreateTicketInput) (*models.Ticket, error) 
 		return nil, err
 	}
 	defer tx.Rollback()
-	var dueStr sql.NullString
-	if in.DueAt != nil {
-		dueStr = sql.NullString{String: in.DueAt.UTC().Format("2006-01-02 15:04:05"), Valid: true}
+	// modernc.org/sqlite rejects Go nil as a driver.Value, so nullable
+	// columns are handled via literal SQL NULL when not set (mirrors
+	// activity_repo.Create's pattern) instead of binding a nil.
+	var res sql.Result
+	if in.AssignedTo == nil && in.DueAt == nil {
+		res, err = tx.Exec(
+			`INSERT INTO tickets (ticket_no, subject, description, category, priority, status, created_by, assigned_to, created_at, updated_at, closed_at, due_at, tags)
+			 VALUES (?, ?, ?, ?, ?, 'open', ?, NULL, ?, ?, NULL, NULL, ?)`,
+			"TMP",
+			in.Subject, in.Description, in.Category, in.Priority,
+			in.CreatedBy,
+			now, now,
+			tags,
+		)
+	} else if in.AssignedTo != nil && in.DueAt == nil {
+		res, err = tx.Exec(
+			`INSERT INTO tickets (ticket_no, subject, description, category, priority, status, created_by, assigned_to, created_at, updated_at, closed_at, due_at, tags)
+			 VALUES (?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, NULL, NULL, ?)`,
+			"TMP",
+			in.Subject, in.Description, in.Category, in.Priority,
+			in.CreatedBy, *in.AssignedTo,
+			now, now,
+			tags,
+		)
+	} else if in.AssignedTo == nil && in.DueAt != nil {
+		dueStr := in.DueAt.UTC().Format("2006-01-02 15:04:05")
+		res, err = tx.Exec(
+			`INSERT INTO tickets (ticket_no, subject, description, category, priority, status, created_by, assigned_to, created_at, updated_at, closed_at, due_at, tags)
+			 VALUES (?, ?, ?, ?, ?, 'open', ?, NULL, ?, ?, NULL, ?, ?)`,
+			"TMP",
+			in.Subject, in.Description, in.Category, in.Priority,
+			in.CreatedBy,
+			now, now,
+			dueStr,
+			tags,
+		)
+	} else {
+		dueStr := in.DueAt.UTC().Format("2006-01-02 15:04:05")
+		res, err = tx.Exec(
+			`INSERT INTO tickets (ticket_no, subject, description, category, priority, status, created_by, assigned_to, created_at, updated_at, closed_at, due_at, tags)
+			 VALUES (?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, NULL, ?, ?)`,
+			"TMP",
+			in.Subject, in.Description, in.Category, in.Priority,
+			in.CreatedBy, *in.AssignedTo,
+			now, now,
+			dueStr,
+			tags,
+		)
 	}
-	var assigned sql.NullInt64
-	if in.AssignedTo != nil {
-		assigned = sql.NullInt64{Int64: *in.AssignedTo, Valid: true}
-	}
-	res, err := tx.Exec(
-		`INSERT INTO tickets (ticket_no, subject, description, category, priority, status, created_by, assigned_to, created_at, updated_at, closed_at, due_at, tags)
-		 VALUES (?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, NULL, ?, ?)`,
-		"TMP",
-		in.Subject, in.Description, in.Category, in.Priority,
-		in.CreatedBy, assigned,
-		now, now,
-		dueStr,
-		tags,
-	)
 	if err != nil {
 		return nil, err
 	}
