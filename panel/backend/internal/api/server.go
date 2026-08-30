@@ -31,8 +31,9 @@ func NewRouter() http.Handler {
 	appsG := permissions.AreaGroups[7]
 	instancePagesG := permissions.AreaGroups[8]
 	ticketsG := permissions.AreaGroups[9]
-	settingsG := permissions.AreaGroups[10]
-	themesG := permissions.AreaGroups[11]
+	// Notifications sits between Tickets and Settings in AreaGroups (see permissions/keys.go)
+	settingsG := permissions.AreaGroups[11]
+	themesG := permissions.AreaGroups[12]
 
 	// Boot the Mod Engine v2 runtime: spin up a Goja VM for every active mod
 	// so its slots + hooks are live before the first request lands. A per-mod

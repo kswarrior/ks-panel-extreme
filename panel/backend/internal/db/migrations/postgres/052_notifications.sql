@@ -12,8 +12,8 @@ CREATE TABLE IF NOT EXISTS notifications (
     link          TEXT    NOT NULL DEFAULT '',
     action_label  TEXT    NOT NULL DEFAULT '',
     metadata      TEXT    NOT NULL DEFAULT '',
-    is_read       BOOLEAN NOT NULL DEFAULT FALSE,
-    is_broadcast  BOOLEAN NOT NULL DEFAULT FALSE,
+    is_read       INTEGER NOT NULL DEFAULT 0,
+    is_broadcast  INTEGER NOT NULL DEFAULT 0,
     created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     read_at       TIMESTAMP
 );
