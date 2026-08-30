@@ -1551,6 +1551,7 @@ func ImportInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		IconSVG:         dto.IconSVG,
 		Actions:         dto.Actions,
 		SubPages:        dto.SubPages,
+		Components:      dto.Components,
 	})
 	if err != nil {
 		log.Println("ImportInstancePage error:", err)
@@ -2153,6 +2154,7 @@ func ImportInstancePageFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		IconSVG:         dto.IconSVG,
 		Actions:         dto.Actions,
 		SubPages:        dto.SubPages,
+		Components:      dto.Components,
 	})
 	if err != nil {
 		log.Println("ImportInstancePageFromURL error:", err)
@@ -2347,6 +2349,7 @@ func ImportInstancePageFromMarketplaceHandler(w http.ResponseWriter, r *http.Req
 		IconSVG:         dto.IconSVG,
 		Actions:         dto.Actions,
 		SubPages:        dto.SubPages,
+		Components:      dto.Components,
 	})
 	if err != nil {
 		log.Println("ImportInstancePageFromMarketplace error:", err)

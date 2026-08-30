@@ -570,6 +570,220 @@ const InstancePages: React.FC = () => {
             </GlassCard>
           </>
         )}
+
+        {addTab === 'import' && (
+          <div className="space-y-3">
+            <p className="text-xs text-gray-400">
+              Import pages that are already defined in your templates or available as Studio starters. Selected pages are copied into the Instance Pages library.
+            </p>
+
+            {/* Source switcher: Templates vs Starters */}
+            <div className="flex gap-1 bg-black/30 border border-white/10 rounded-md p-1">
+              <button
+                onClick={() => { setImportSource('templates'); setSelectedImportKeys(new Set()); setImportSearch(''); }}
+                className={`flex-1 px-3 py-1.5 rounded text-xs font-medium flex items-center justify-center gap-1.5 ${importSource === 'templates' ? 'bg-white text-black' : 'text-gray-400 hover:text-white'}`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><rect x="3" y="3" width="18" height="18" rx="2" /><line x1="3" y1="9" x2="21" y2="9" /><line x1="9" y1="21" x2="9" y2="9" /></svg>
+                From Templates
+              </button>
+              <button
+                onClick={() => { setImportSource('starters'); setSelectedImportKeys(new Set()); setImportSearch(''); }}
+                className={`flex-1 px-3 py-1.5 rounded text-xs font-medium flex items-center justify-center gap-1.5 ${importSource === 'starters' ? 'bg-white text-black' : 'text-gray-400 hover:text-white'}`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M12 2l3 7h7l-5.5 4 2 7-6-5-6 5 2-7-5.5-4z" /></svg>
+                From Starters
+              </button>
+            </div>
+
+            <input
+              type="text"
+              value={importSearch}
+              onChange={(e) => setImportSearch(e.target.value)}
+              placeholder={importSource === 'templates' ? 'Search by slug, label or template…' : 'Search by name, slug or category…'}
+              className="w-full bg-black/30 border border-white/10 rounded-md text-sm text-white px-3 py-1.5 focus:outline-none focus:border-white/40"
+              aria-label="Search pages to import"
+            />
+
+            {importSource === 'templates' ? (
+              <>
+                {templatePagesLoading && (
+                  <div className="px-4 py-6 space-y-3 animate-pulse border border-white/10 rounded-md bg-black/30">
+                    {[0, 1, 2].map((i) => (
+                      <div key={i} className="flex items-center gap-3">
+                        <div className="h-3 w-1/3 rounded bg-white/10" style={{ animationDelay: `${i * 120}ms` }} />
+                        <div className="h-3 flex-1 rounded bg-white/[0.06]" style={{ animationDelay: `${i * 120 + 60}ms` }} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {templatePagesError && (
+                  <div className="text-xs text-red-400 border border-red-700/40 rounded px-3 py-2 bg-red-900/20 flex items-center justify-between">
+                    <span>{templatePagesError}</span>
+                    <button onClick={loadTemplatePages} className="text-xs underline hover:text-red-300">Retry</button>
+                  </div>
+                )}
+                {!templatePagesLoading && !templatePagesError && filteredTemplatePages.length === 0 && templatePages.length === 0 && (
+                  <div className="px-4 py-8 text-center text-gray-500 text-sm border border-white/10 rounded-md bg-black/20">
+                    <p>No template pages found.</p>
+                    <p className="text-xs text-gray-600 mt-1">Create a template and add pages in its Pages tab first.</p>
+                  </div>
+                )}
+                {!templatePagesLoading && !templatePagesError && filteredTemplatePages.length === 0 && templatePages.length > 0 && (
+                  <div className="px-4 py-6 text-center text-gray-500 text-sm border border-white/10 rounded-md bg-black/20">
+                    No pages match your search.
+                  </div>
+                )}
+                {!templatePagesLoading && filteredTemplatePages.length > 0 && (
+                  <div className="border border-white/10 rounded-md bg-black/30 max-h-[42vh] overflow-y-auto divide-y divide-white/5">
+                    {filteredTemplatePages.map((e) => {
+                      const isSelected = selectedImportKeys.has(e.key);
+                      const alreadyExists = existingSlugs.has(e.slug);
+                      return (
+                        <button
+                          key={e.key}
+                          type="button"
+                          disabled={alreadyExists}
+                          onClick={() => !alreadyExists && toggleImportSelect(e.key)}
+                          className={`w-full px-4 py-3 flex items-center gap-3 text-left transition-colors ${
+                            alreadyExists
+                              ? 'opacity-50 cursor-not-allowed'
+                              : isSelected
+                                ? 'bg-emerald-900/20 border-l-2 border-emerald-500'
+                                : 'hover:bg-white/5'
+                          }`}
+                          aria-pressed={isSelected}
+                          aria-disabled={alreadyExists}
+                        >
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${isSelected ? 'bg-emerald-900/40 border border-emerald-700/60' : 'bg-sky-900/30 border border-sky-700/40'}`}>
+                            {e.icon_svg ? (
+                              <span className="w-5 h-5 flex items-center justify-center [&>svg]:w-5 [&>svg]:h-5 [&>svg]:block" dangerouslySetInnerHTML={{ __html: sanitizeSvgIcon(e.icon_svg) }} />
+                            ) : (
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-sky-300">
+                                <rect x="3" y="3" width="18" height="18" rx="2" />
+                                <line x1="3" y1="9" x2="21" y2="9" />
+                              </svg>
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm text-white truncate">{e.label}</span>
+                              <code className="text-[11px] text-gray-500 font-mono">/{e.slug === '.' ? '' : e.slug}</code>
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-900/20 text-amber-300 border border-amber-700/30 truncate max-w-[120px]">{e.templateName}</span>
+                            </div>
+                            {e.description && <p className="text-[11px] text-gray-500 truncate mt-0.5">{e.description}</p>}
+                            {alreadyExists && <p className="text-[11px] text-amber-400 mt-0.5">Already in library — slug exists</p>}
+                          </div>
+                          <div className="shrink-0">
+                            {alreadyExists ? (
+                              <span className="text-xs px-2 py-1 rounded border border-white/10 text-gray-500">Exists</span>
+                            ) : (
+                              <span className={`text-xs px-2 py-1 rounded border ${isSelected ? 'bg-emerald-600/30 border-emerald-500 text-emerald-200' : 'border-white/10 text-gray-400'}`}>
+                                {isSelected ? 'Selected' : 'Select'}
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                {selectedImportKeys.size > 0 && (
+                  <p className="text-[11px] text-emerald-300">{selectedImportKeys.size} page{selectedImportKeys.size > 1 ? 's' : ''} selected — will be copied into the library.</p>
+                )}
+              </>
+            ) : (
+              <>
+                {filteredStarters.length === 0 ? (
+                  <div className="px-4 py-6 text-center text-gray-500 text-sm border border-white/10 rounded-md bg-black/20">
+                    No starters match your search.
+                  </div>
+                ) : (
+                  <div className="border border-white/10 rounded-md bg-black/30 max-h-[42vh] overflow-y-auto divide-y divide-white/5">
+                    {filteredStarters.map((s) => {
+                      const isSelected = selectedImportKeys.has(s.id);
+                      const alreadyExists = existingSlugs.has(s.slug);
+                      return (
+                        <button
+                          key={s.id}
+                          type="button"
+                          disabled={alreadyExists}
+                          onClick={() => !alreadyExists && toggleImportSelect(s.id)}
+                          className={`w-full px-4 py-3 flex items-center gap-3 text-left transition-colors ${
+                            alreadyExists
+                              ? 'opacity-50 cursor-not-allowed'
+                              : isSelected
+                                ? 'bg-emerald-900/20 border-l-2 border-emerald-500'
+                                : 'hover:bg-white/5'
+                          }`}
+                          aria-pressed={isSelected}
+                          aria-disabled={alreadyExists}
+                        >
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${isSelected ? 'bg-emerald-900/40 border border-emerald-700/60' : 'bg-sky-900/30 border border-sky-700/40'}`}>
+                            {s.iconSvg ? (
+                              <span className="w-5 h-5 flex items-center justify-center [&>svg]:w-5 [&>svg]:h-5 [&>svg]:block" dangerouslySetInnerHTML={{ __html: sanitizeSvgIcon(s.iconSvg) }} />
+                            ) : (
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5 text-sky-300"><rect x="3" y="3" width="18" height="18" rx="2" /><line x1="3" y1="9" x2="21" y2="9" /></svg>
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm text-white truncate">{s.name}</span>
+                              <code className="text-[11px] text-gray-500 font-mono">/{s.slug === '.' ? '' : s.slug}</code>
+                              <span className="text-[10px] uppercase tracking-wide bg-white/5 text-gray-400 border border-white/10 px-1 py-0 rounded">{s.category}</span>
+                            </div>
+                            <p className="text-[11px] text-gray-500 truncate mt-0.5">{s.description}</p>
+                            {alreadyExists && <p className="text-[11px] text-amber-400 mt-0.5">Already in library — slug exists</p>}
+                          </div>
+                          <div className="shrink-0">
+                            {alreadyExists ? (
+                              <span className="text-xs px-2 py-1 rounded border border-white/10 text-gray-500">Exists</span>
+                            ) : (
+                              <span className={`text-xs px-2 py-1 rounded border ${isSelected ? 'bg-emerald-600/30 border-emerald-500 text-emerald-200' : 'border-white/10 text-gray-400'}`}>
+                                {isSelected ? 'Selected' : 'Select'}
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                {selectedImportKeys.size > 0 && (
+                  <p className="text-[11px] text-emerald-300">{selectedImportKeys.size} starter{selectedImportKeys.size > 1 ? 's' : ''} selected — will be copied into the library.</p>
+                )}
+              </>
+            )}
+
+            {importError && <p className="text-red-400 text-xs border border-red-700/40 rounded px-3 py-2 bg-red-900/20">{importError}</p>}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedImportKeys(new Set())}
+                disabled={selectedImportKeys.size === 0}
+                className="text-xs text-gray-400 hover:text-white disabled:opacity-40"
+              >
+                Clear selection
+              </button>
+              <span className="text-xs text-gray-600">•</span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (importSource === 'templates') {
+                    const allKeys = filteredTemplatePages.filter((e) => !existingSlugs.has(e.slug)).map((e) => e.key);
+                    setSelectedImportKeys(new Set(allKeys));
+                  } else {
+                    const allIds = filteredStarters.filter((s) => !existingSlugs.has(s.slug)).map((s) => s.id);
+                    setSelectedImportKeys(new Set(allIds));
+                  }
+                }}
+                disabled={importSource === 'templates' ? filteredTemplatePages.filter((e) => !existingSlugs.has(e.slug)).length === 0 : filteredStarters.filter((s) => !existingSlugs.has(s.slug)).length === 0}
+                className="text-xs text-sky-300 hover:text-sky-200 disabled:opacity-40"
+              >
+                Select all visible
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     );
   };
@@ -647,7 +861,7 @@ const InstancePages: React.FC = () => {
             onClick={openAdd}
             aria-label="Add Instance Page"
             className="ks-btn-header ks-icon-btn"
-            title="Add Instance Page — upload a file, import from URL, or open Studio"
+            title="Add Instance Page — upload, URL, Studio or import from templates"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
               <line x1="12" y1="5" x2="12" y2="19" />
@@ -760,7 +974,7 @@ const InstancePages: React.FC = () => {
                 <line x1="11" y1="17" x2="15" y2="17" opacity="0.5" />
               </svg>
               <p className="text-lg font-medium text-gray-300">No instance pages yet</p>
-              <p className="text-sm text-gray-400 text-center max-w-md">Click the <strong className="text-sky-300">+</strong> button to upload a page, import from a URL, or open Studio.</p>
+              <p className="text-sm text-gray-400 text-center max-w-md">Click the <strong className="text-sky-300">+</strong> button to upload a page, import from URL, open Studio or import from templates.</p>
             </div>
           </div>
         )}
