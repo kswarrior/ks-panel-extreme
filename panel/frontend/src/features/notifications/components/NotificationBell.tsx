@@ -216,11 +216,11 @@ const NotificationBell: React.FC = () => {
               }}
               className="glass-dropdown rounded-xl overflow-hidden animate-slide-up"
             >
-            {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/[0.04]">
+            {/* Header — 100% theme: uses dropdown vars, never hard-coded white on white */}
+            <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'var(--ks-dropdown-header-sep, rgba(255,255,255,0.10))', background: 'color-mix(in srgb, var(--ks-dropdown-bg) 92%, transparent)' }}>
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" aria-hidden="true" />
-                <h3 className="text-sm font-semibold text-white tracking-tight">Notifications</h3>
+                <h3 className="text-sm font-semibold tracking-tight" style={{ color: 'var(--ks-dropdown-item-text, #e5e7eb)' }}>Notifications</h3>
                 {unread > 0 && (
                   <span className="text-[10px] font-bold tracking-wide px-1.5 py-0.5 rounded-full bg-red-500 text-white">{unread} new</span>
                 )}
@@ -229,64 +229,93 @@ const NotificationBell: React.FC = () => {
                 {unread > 0 && (
                   <button
                     onClick={onMarkAll}
-                    className="text-[11px] font-medium text-sky-300 hover:text-sky-200 px-2 py-1 rounded-md hover:bg-white/10 transition-colors"
+                    className="text-[11px] font-medium px-2 py-1 rounded-md transition-colors"
+                    style={{ color: 'var(--ks-info, #38bdf8)' }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--ks-dropdown-item-hover)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                   >
                     Mark all read
                   </button>
                 )}
                 <button
                   onClick={() => { setOpen(false); navigate('/notifications'); }}
-                  className="text-[11px] font-medium text-gray-400 hover:text-white px-2 py-1 rounded-md hover:bg-white/10 transition-colors"
+                  className="text-[11px] font-medium px-2 py-1 rounded-md transition-colors"
+                  style={{ color: 'var(--ks-muted, #9ca3af)' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--ks-dropdown-item-hover)'; e.currentTarget.style.color = 'var(--ks-dropdown-item-text)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--ks-muted)'; }}
                 >
                   View all
                 </button>
                 <button
                   onClick={() => setOpen(false)}
                   aria-label="Close"
-                  className="w-7 h-7 grid place-items-center rounded-md text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                  className="w-7 h-7 grid place-items-center rounded-md transition-colors"
+                  style={{ color: 'var(--ks-muted)' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--ks-dropdown-item-hover)'; e.currentTarget.style.color = 'var(--ks-dropdown-item-text)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--ks-muted)'; }}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                 </button>
               </div>
             </div>
 
-            {/* List */}
-            <div className="max-h-[380px] overflow-y-auto divide-y divide-white/[0.06] overscroll-contain">
+            {/* List — theme-aware: text uses dropdown vars, hover uses theme hover */}
+            <div className="max-h-[380px] overflow-y-auto overscroll-contain" style={{ borderColor: 'var(--ks-dropdown-header-sep)' }}>
               {recent.length === 0 ? (
                 <div className="py-10 px-6 text-center">
-                  <div className="w-12 h-12 mx-auto rounded-full bg-white/[0.06] border border-white/10 grid place-items-center mb-3">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-6 h-6 text-gray-500"><path d="M6 8a6 6 0 0 1 12 0c0 7-6 5-6 10" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg>
+                  <div className="w-12 h-12 mx-auto rounded-full grid place-items-center mb-3 border" style={{ background: 'color-mix(in srgb, var(--ks-dropdown-bg) 60%, transparent)', borderColor: 'var(--ks-dropdown-header-sep)', color: 'var(--ks-muted)' }}>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-6 h-6"><path d="M6 8a6 6 0 0 1 12 0c0 7-6 5-6 10" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg>
                   </div>
-                  <p className="text-sm text-gray-300 font-medium">All caught up</p>
-                  <p className="text-xs text-gray-500 mt-1">New alerts will appear here instantly.</p>
-                  <button onClick={() => { setOpen(false); navigate('/notifications'); }} className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-sky-300 hover:text-sky-200 hover:underline">
+                  <p className="text-sm font-medium" style={{ color: 'var(--ks-dropdown-item-text)' }}>All caught up</p>
+                  <p className="text-xs mt-1" style={{ color: 'var(--ks-muted)' }}>New alerts will appear here instantly.</p>
+                  <button onClick={() => { setOpen(false); navigate('/notifications'); }} className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium hover:underline" style={{ color: 'var(--ks-info, #38bdf8)' }}>
                     Open notification center
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3"><path d="M9 18l6-6-6-6" /></svg>
                   </button>
                 </div>
               ) : (
-                recent.map((n) => {
+                <div className="divide-y" style={{ borderColor: 'color-mix(in srgb, var(--ks-dropdown-header-sep) 60%, transparent)' }}>
+                {recent.map((n) => {
                   const pri = PRIORITY_META[n.priority] || PRIORITY_META.normal;
                   const cat = CATEGORY_META[n.category] || CATEGORY_META.general;
+                  const cover = (n as any).cover_image as string | undefined;
+                  const notes = (n as any).notes as string | undefined;
                   return (
                     <div
                       key={n.id}
-                      className={`group relative flex gap-3 px-4 py-3 hover:bg-white/[0.04] transition-colors ${!n.is_read ? 'bg-sky-500/[0.04]' : ''}`}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => { setOpen(false); navigate(`/notifications/${n.id}`); }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { setOpen(false); navigate(`/notifications/${n.id}`); }}}
+                      className={`group relative flex gap-3 px-4 py-3 text-left w-full cursor-pointer transition-colors ${!n.is_read ? '' : ''}`}
+                      style={{ background: !n.is_read ? 'color-mix(in srgb, var(--ks-info, #38bdf8) 7%, transparent)' : 'transparent' }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--ks-dropdown-item-hover)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = !n.is_read ? 'color-mix(in srgb, var(--ks-info, #38bdf8) 7%, transparent)' : 'transparent')}
                     >
                       {/* unread accent bar */}
-                      {!n.is_read && <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-sky-400" aria-hidden="true" />}
-                      <div className="shrink-0 w-9 h-9 rounded-lg bg-white/[0.06] border border-white/10 grid place-items-center mt-0.5 relative overflow-hidden">
-                        <CategoryIcon cat={n.category} />
-                        {!n.is_read && <span className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-black ${pri.dot}`} aria-hidden="true" />}
+                      {!n.is_read && <div className="absolute left-0 top-0 bottom-0 w-0.5" style={{ background: 'var(--ks-info, #38bdf8)' }} aria-hidden="true" />}
+                      <div className="shrink-0 w-9 h-9 rounded-lg grid place-items-center mt-0.5 relative overflow-hidden border" style={{ background: 'color-mix(in srgb, var(--ks-dropdown-bg) 70%, transparent)', borderColor: 'var(--ks-dropdown-header-sep)', color: cat.color }}>
+                        {cover ? (
+                          <img src={cover} alt="" className="w-full h-full object-cover" loading="lazy" />
+                        ) : (
+                          <CategoryIcon cat={n.category} />
+                        )}
+                        {!n.is_read && <span className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 ${pri.dot}`} style={{ borderColor: 'var(--ks-dropdown-bg)' }} aria-hidden="true" />}
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
-                          <p className={`text-[13px] leading-tight truncate pr-2 ${!n.is_read ? 'font-semibold text-white' : 'font-medium text-gray-200'}`} title={n.title}>{n.title}</p>
-                          <span className="shrink-0 text-[10px] text-gray-500 font-mono mt-0.5">{timeAgo(n.created_at)}</span>
+                          <p className={`text-[13px] leading-tight truncate pr-2 ${!n.is_read ? 'font-semibold' : 'font-medium'}`} style={{ color: 'var(--ks-dropdown-item-text)' }} title={n.title}>{n.title}</p>
+                          <span className="shrink-0 text-[10px] font-mono mt-0.5" style={{ color: 'var(--ks-muted)' }}>{timeAgo(n.created_at)}</span>
                         </div>
-                        {n.message && <p className="text-xs text-gray-400 line-clamp-2 mt-1 leading-relaxed">{n.message}</p>}
+                        {n.actor_name && <p className="text-[11px] truncate" style={{ color: 'var(--ks-muted)' }}>by {n.actor_name}{n.is_broadcast ? ' • broadcast' : ''}</p>}
+                        {notes ? (
+                          <p className="text-xs line-clamp-2 mt-1 leading-relaxed" style={{ color: 'var(--ks-muted)' }}>{notes}</p>
+                        ) : n.message ? (
+                          <p className="text-xs line-clamp-2 mt-1 leading-relaxed" style={{ color: 'var(--ks-muted)' }}>{n.message}</p>
+                        ) : null}
+                        {cover ? null : null}
                         <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                          <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md border bg-white/[0.04] border-white/10 text-gray-300">
+                          <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md border" style={{ background: 'color-mix(in srgb, var(--ks-dropdown-bg) 50%, transparent)', borderColor: 'var(--ks-dropdown-header-sep)', color: 'var(--ks-dropdown-item-text)' }}>
                             <span className="w-1.5 h-1.5 rounded-full" style={{ background: cat.color }} aria-hidden="true" />
                             {cat.label}
                           </span>
@@ -294,19 +323,20 @@ const NotificationBell: React.FC = () => {
                             <span className={`w-1.5 h-1.5 rounded-full ${pri.dot}`} aria-hidden="true" />
                             {pri.label}
                           </span>
-                          {n.is_broadcast && <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-fuchsia-500/20 border border-fuchsia-400/30 text-fuchsia-200">Broadcast</span>}
+                          {n.is_broadcast && <span className="text-[10px] px-1.5 py-0.5 rounded-md border" style={{ background: 'color-mix(in srgb, #e879f9 14%, transparent)', borderColor: 'color-mix(in srgb, #e879f9 30%, transparent)', color: '#f0abfc' }}>Broadcast</span>}
                         </div>
+                        {(n as any).media_json && (n as any).media_json !== '[]' && (() => { try { const m = JSON.parse((n as any).media_json); if (!Array.isArray(m) || m.length===0) return null; const first = m[0]; const url = first?.url || first; const type = (first?.type || '').toLowerCase(); const isVideo = type==='video' || /\.mp4|\.webm|\.mov/i.test(url); const isGif = type==='gif' || /\.gif/i.test(url); return <div className="mt-2 rounded-lg overflow-hidden border" style={{ borderColor: 'var(--ks-dropdown-header-sep)' }}>{isVideo ? <video src={url} className="w-full h-20 object-cover" muted playsInline /> : <img src={url} alt="" className="w-full h-20 object-cover" loading="lazy" />}{isGif && <span className="absolute top-1 left-1 text-[8px] font-bold px-1 py-0.5 rounded bg-black/60 text-white">GIF</span>}</div>; } catch { return null; } })()}
                         {(n.link || n.action_label) && (
                           <div className="mt-2 flex items-center gap-2">
                             {n.link && (
-                              <a
-                                href={n.link}
-                                onClick={(e) => { e.preventDefault(); setOpen(false); window.location.href = n.link!; }}
-                                className="inline-flex items-center gap-1 text-[11px] font-medium text-sky-300 hover:text-sky-200 hover:underline"
+                              <span
+                                onClick={(e) => { e.stopPropagation(); setOpen(false); window.location.href = n.link!; }}
+                                className="inline-flex items-center gap-1 text-[11px] font-medium hover:underline cursor-pointer"
+                                style={{ color: 'var(--ks-info, #38bdf8)' }}
                               >
                                 {n.action_label || 'Open'}
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3"><path d="M7 17L17 7" /><path d="M8 7h9v9" /></svg>
-                              </a>
+                              </span>
                             )}
                           </div>
                         )}
@@ -314,37 +344,42 @@ const NotificationBell: React.FC = () => {
                       <div className="shrink-0 flex flex-col items-center gap-1 ml-1">
                         {!n.is_read ? (
                           <button
-                            onClick={() => onMarkRead(n)}
+                            onClick={(e) => { e.stopPropagation(); onMarkRead(n); }}
                             disabled={busy === n.id}
                             title="Mark as read"
-                            className="w-7 h-7 grid place-items-center rounded-md bg-sky-500/15 border border-sky-400/20 text-sky-300 hover:bg-sky-500/25 hover:text-sky-200 transition-colors disabled:opacity-50"
+                            className="w-7 h-7 grid place-items-center rounded-md border transition-colors disabled:opacity-50"
+                            style={{ background: 'color-mix(in srgb, var(--ks-info, #38bdf8) 14%, transparent)', borderColor: 'color-mix(in srgb, var(--ks-info, #38bdf8) 30%, transparent)', color: 'var(--ks-info, #38bdf8)' }}
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5"><path d="M20 6L9 17l-5-5" /></svg>
                           </button>
                         ) : (
-                          <span className="w-7 h-7 grid place-items-center rounded-md bg-white/[0.04] border border-white/10 text-gray-500">
+                          <span className="w-7 h-7 grid place-items-center rounded-md border" style={{ background: 'color-mix(in srgb, var(--ks-dropdown-bg) 50%, transparent)', borderColor: 'var(--ks-dropdown-header-sep)', color: 'var(--ks-muted)' }}>
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5"><path d="M20 6L9 17l-5-5" /></svg>
                           </span>
                         )}
                         <button
-                          onClick={() => onDelete(n.id)}
+                          onClick={(e) => { e.stopPropagation(); onDelete(n.id); }}
                           title="Delete"
-                          className="w-7 h-7 grid place-items-center rounded-md text-gray-500 hover:text-red-300 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-colors opacity-0 group-hover:opacity-100"
+                          className="w-7 h-7 grid place-items-center rounded-md border border-transparent transition-colors opacity-0 group-hover:opacity-100"
+                          style={{ color: 'var(--ks-muted)' }}
+                          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--ks-bad, #ef4444)'; e.currentTarget.style.background = 'color-mix(in srgb, var(--ks-bad, #ef4444) 12%, transparent)'; e.currentTarget.style.borderColor = 'color-mix(in srgb, var(--ks-bad, #ef4444) 22%, transparent)'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--ks-muted)'; e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'transparent'; }}
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-3.5 h-3.5"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
                         </button>
                       </div>
                     </div>
                   );
-                })
+                })}
+                </div>
               )}
             </div>
 
-            {/* Footer */}
+            {/* Footer — theme-aware */}
             {recent.length > 0 && (
-              <div className="px-3 py-2 border-t border-white/10 bg-black/20 flex items-center justify-between">
-                <span className="text-[11px] text-gray-500">{recent.length} recent · {unread} unread</span>
-                <button onClick={() => { setOpen(false); navigate('/notifications'); }} className="inline-flex items-center gap-1 text-xs font-semibold text-white bg-white hover:bg-gray-100 px-3 py-1.5 rounded-md transition-colors">
+              <div className="px-3 py-2 border-t flex items-center justify-between" style={{ borderColor: 'var(--ks-dropdown-header-sep)', background: 'color-mix(in srgb, var(--ks-dropdown-bg) 88%, transparent)' }}>
+                <span className="text-[11px]" style={{ color: 'var(--ks-muted)' }}>{recent.length} recent · {unread} unread</span>
+                <button onClick={() => { setOpen(false); navigate('/notifications'); }} className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-md transition-colors" style={{ background: 'var(--ks-btn-bg, #fff)', color: 'var(--ks-btn-text, #000)' }}>
                   Manage notifications
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3"><path d="M9 18l6-6-6-6" /></svg>
                 </button>
