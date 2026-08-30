@@ -93,6 +93,28 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
+		// Suspended users are blocked even when they still hold a valid
+		// session cookie/bearer (e.g. an admin suspended them while they
+		// were logged in). The IsUserSuspended check is cheap (single row)
+		// and the DB connection is opened per-request here (short-lived) so
+		// the invalidation takes effect on the very next request without
+		// waiting for the session to expire or be revoked via the manager.
+		if con, err := repository.OpenDB(); err == nil {
+			if suspended, until, _ := repository.NewUserRepository(con).IsUserSuspended(uid); suspended {
+				_ = con.Close()
+				if fromCookie {
+					http.SetCookie(w, auth.ClearSessionCookie(r))
+				}
+				if until != nil {
+					http.Error(w, "account suspended until "+until.Format("2006-01-02 15:04"), http.StatusForbidden)
+				} else {
+					http.Error(w, "account suspended indefinitely", http.StatusForbidden)
+				}
+				return
+			}
+			_ = con.Close()
+		}
+
 		// Compute the absolute expiry we carry in context for any handler
 		// that wants it (e.g. to render a countdown or to keep the
 		// cookie + context in lockstep). Existing expiry-rounding falls
