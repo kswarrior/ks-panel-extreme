@@ -2367,7 +2367,7 @@ func ImportInstancePageFromMarketplaceHandler(w http.ResponseWriter, r *http.Req
 	if err != nil {
 		log.Println("ImportInstancePageFromMarketplace error:", err)
 		errMsg := err.Error()
-		if strings.Contains(errMsg, "UNIQUE constraint failed") && strings.Contains(errMsg, "slug") {
+		if isDuplicateSlugError(errMsg) {
 			http.Error(w, "slug already exists", http.StatusConflict)
 		} else {
 			http.Error(w, "could not create instance page: "+errMsg, http.StatusInternalServerError)
@@ -2488,7 +2488,7 @@ func ImportLocalInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Println("ImportLocalInstancePage error:", err)
 		errMsg := err.Error()
-		if strings.Contains(errMsg, "UNIQUE constraint failed") && strings.Contains(errMsg, "slug") {
+		if isDuplicateSlugError(errMsg) {
 			http.Error(w, "slug already exists", http.StatusConflict)
 		} else {
 			http.Error(w, "could not create instance page: "+errMsg, http.StatusInternalServerError)
