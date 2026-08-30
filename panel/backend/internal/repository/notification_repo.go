@@ -172,7 +172,7 @@ func (r *NotificationRepository) List(f NotificationFilter) ([]models.Notificati
 		offset = 0
 	}
 
-	query := `SELECT id, user_id, actor_id, actor_name, category, priority, title, message, link, action_label, metadata, is_read, is_broadcast, created_at, read_at
+	query := `SELECT id, user_id, actor_id, actor_name, category, priority, title, message, link, action_label, metadata, notes, cover_image, media_json, is_read, is_broadcast, created_at, read_at
 		FROM notifications WHERE ` + where + ` ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`
 	args = append(args, limit, offset)
 
@@ -187,11 +187,11 @@ func (r *NotificationRepository) List(f NotificationFilter) ([]models.Notificati
 		var n models.Notification
 		var actorID sql.NullInt64
 		var actorName sql.NullString
-		var cat, pri, title, msg, link, alabel, meta sql.NullString
+		var cat, pri, title, msg, link, alabel, meta, notes, cover, media sql.NullString
 		var isRead, isBroadcast sql.NullInt64
 		var createdStr, readStr sql.NullString
 		var uid int64
-		if err := rows.Scan(&n.ID, &uid, &actorID, &actorName, &cat, &pri, &title, &msg, &link, &alabel, &meta, &isRead, &isBroadcast, &createdStr, &readStr); err != nil {
+		if err := rows.Scan(&n.ID, &uid, &actorID, &actorName, &cat, &pri, &title, &msg, &link, &alabel, &meta, &notes, &cover, &media, &isRead, &isBroadcast, &createdStr, &readStr); err != nil {
 			return nil, 0, err
 		}
 		n.UserID = uid
@@ -207,6 +207,9 @@ func (r *NotificationRepository) List(f NotificationFilter) ([]models.Notificati
 		n.Link = link.String
 		n.ActionLabel = alabel.String
 		n.Metadata = meta.String
+		n.Notes = notes.String
+		n.CoverImage = cover.String
+		n.MediaJSON = media.String
 		n.IsRead = isRead.Valid && isRead.Int64 != 0
 		n.IsBroadcast = isBroadcast.Valid && isBroadcast.Int64 != 0
 		if t, err := parseNotifTime(createdStr.String); err == nil {
@@ -227,17 +230,17 @@ func (r *NotificationRepository) List(f NotificationFilter) ([]models.Notificati
 
 // Get returns one notification if it belongs to userID.
 func (r *NotificationRepository) Get(id, userID int64) (*models.Notification, error) {
-	q := `SELECT id, user_id, actor_id, actor_name, category, priority, title, message, link, action_label, metadata, is_read, is_broadcast, created_at, read_at
+	q := `SELECT id, user_id, actor_id, actor_name, category, priority, title, message, link, action_label, metadata, notes, cover_image, media_json, is_read, is_broadcast, created_at, read_at
 		FROM notifications WHERE id = ? AND user_id = ?`
 	row := r.db.QueryRow(q, id, userID)
 	var n models.Notification
 	var actorID sql.NullInt64
 	var actorName sql.NullString
-	var cat, pri, title, msg, link, alabel, meta sql.NullString
+	var cat, pri, title, msg, link, alabel, meta, notes, cover, media sql.NullString
 	var isRead, isBroadcast sql.NullInt64
 	var createdStr, readStr sql.NullString
 	var uid int64
-	if err := row.Scan(&n.ID, &uid, &actorID, &actorName, &cat, &pri, &title, &msg, &link, &alabel, &meta, &isRead, &isBroadcast, &createdStr, &readStr); err != nil {
+	if err := row.Scan(&n.ID, &uid, &actorID, &actorName, &cat, &pri, &title, &msg, &link, &alabel, &meta, &notes, &cover, &media, &isRead, &isBroadcast, &createdStr, &readStr); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
@@ -256,6 +259,9 @@ func (r *NotificationRepository) Get(id, userID int64) (*models.Notification, er
 	n.Link = link.String
 	n.ActionLabel = alabel.String
 	n.Metadata = meta.String
+	n.Notes = notes.String
+	n.CoverImage = cover.String
+	n.MediaJSON = media.String
 	n.IsRead = isRead.Valid && isRead.Int64 != 0
 	n.IsBroadcast = isBroadcast.Valid && isBroadcast.Int64 != 0
 	if t, err := parseNotifTime(createdStr.String); err == nil {

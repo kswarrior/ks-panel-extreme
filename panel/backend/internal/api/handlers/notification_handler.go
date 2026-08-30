@@ -42,6 +42,11 @@ func isValidNotificationPriority(p string) bool {
 // returns an error to the caller as notification failures must not break the
 // primary action (deploy, suspend, probe, …). Errors are logged.
 func EmitNotification(userID int64, actorID *int64, actorName string, category models.NotificationCategory, priority models.NotificationPriority, title, message, link, actionLabel, metadata string) {
+	EmitNotificationRich(userID, actorID, actorName, category, priority, title, message, link, actionLabel, metadata, "", "", "[]")
+}
+
+// EmitNotificationRich is the rich variant that also carries notes + cover image + media gallery (images/videos/gif).
+func EmitNotificationRich(userID int64, actorID *int64, actorName string, category models.NotificationCategory, priority models.NotificationPriority, title, message, link, actionLabel, metadata, notes, coverImage, mediaJSON string) {
 	if strings.TrimSpace(title) == "" {
 		return
 	}
@@ -69,6 +74,9 @@ func EmitNotification(userID int64, actorID *int64, actorName string, category m
 		Link:        link,
 		ActionLabel: actionLabel,
 		Metadata:    metadata,
+		Notes:       notes,
+		CoverImage:  coverImage,
+		MediaJSON:   mediaJSON,
 	})
 	if err != nil {
 		log.Println("notification emit: create:", err)
@@ -78,6 +86,11 @@ func EmitNotification(userID int64, actorID *int64, actorName string, category m
 // EmitBroadcast fans out a notification to every user. Intended for admin
 // announcements, system updates, security alerts etc.
 func EmitBroadcast(actorID *int64, actorName string, category models.NotificationCategory, priority models.NotificationPriority, title, message, link, actionLabel string) {
+	EmitBroadcastRich(actorID, actorName, category, priority, title, message, link, actionLabel, "", "", "[]")
+}
+
+// EmitBroadcastRich is the rich broadcast variant with notes + cover + media.
+func EmitBroadcastRich(actorID *int64, actorName string, category models.NotificationCategory, priority models.NotificationPriority, title, message, link, actionLabel, notes, coverImage, mediaJSON string) {
 	if strings.TrimSpace(title) == "" {
 		return
 	}
