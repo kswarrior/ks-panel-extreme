@@ -661,47 +661,61 @@ const AiChatWidget: React.FC = () => {
                           <p className="text-xs text-gray-400 border border-dashed border-white/15 rounded-lg px-3 py-2">No providers yet. Add one to enable chat.</p>
                         ) : (
                           <div className="space-y-2">
-                            {providersDraft.map((p, idx) => (
-                              <div key={idx} className="rounded-xl border border-white/10 bg-white/[0.04] p-3 space-y-2">
-                                <div className="grid grid-cols-2 gap-2">
-                                  <div>
-                                    <label className="block text-[11px] text-gray-400 mb-1">ID</label>
-                                    <input value={p.id} onChange={(e) => updateProvider(idx, { id: e.target.value })} placeholder="openai" className="w-full rounded-md bg-[#0a0a0c] border border-white/10 px-2 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30" />
+                            {providersDraft.map((p, idx) => {
+                              const dup = p.id && providersDraft.filter((x) => x.id.trim() === p.id.trim()).length > 1;
+                              return (
+                                <div key={idx} className={`rounded-xl border p-3 space-y-2 ${dup ? 'border-red-500/40 bg-red-500/5' : 'border-white/10 bg-white/[0.04]'}`}>
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="inline-flex items-center gap-2 text-xs font-semibold text-indigo-200">
+                                      <span className="w-6 h-6 rounded-full bg-indigo-600 text-white grid place-items-center text-[11px]">#{idx + 1}</span>
+                                      {p.name?.trim() ? p.name : `Provider ${idx + 1}`}
+                                      <span className={`w-2 h-2 rounded-full ${p.enabled ? 'bg-emerald-400' : 'bg-gray-500'}`} title={p.enabled ? 'enabled' : 'disabled'} />
+                                    </span>
+                                    <div className="flex items-center gap-1.5">
+                                      <label className="flex items-center gap-1.5 text-xs text-gray-200 cursor-pointer touch-manipulation">
+                                        <input type="checkbox" checked={!!p.enabled} onChange={(e) => updateProvider(idx, { enabled: e.target.checked })} className="accent-indigo-500 w-3.5 h-3.5" />
+                                        Enabled
+                                      </label>
+                                      <button type="button" onClick={() => removeProvider(idx)} className="text-xs px-2 py-1 rounded-md bg-white/5 hover:bg-red-500/15 active:bg-red-500/25 text-red-300 border border-white/10 hover:border-red-500/20 transition-colors touch-manipulation" title="Remove this provider">
+                                        Remove
+                                      </button>
+                                    </div>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                      <label className="block text-[11px] text-gray-400 mb-1">ID {dup && <span className="text-red-300">(duplicate!)</span>}</label>
+                                      <input value={p.id} onChange={(e) => updateProvider(idx, { id: e.target.value })} placeholder="openai" className={`w-full rounded-md bg-[#0a0a0c] border px-2 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 ${dup ? 'border-red-500/50 focus:ring-red-500/30' : 'border-white/10 focus:ring-indigo-500/30'}`} />
+                                    </div>
+                                    <div>
+                                      <label className="block text-[11px] text-gray-400 mb-1">Name</label>
+                                      <input value={p.name} onChange={(e) => { const v = e.target.value; updateProvider(idx, { name: v }); if (!p.id || p.id.startsWith('provider-')) { const slug = v.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-_]/g, ''); if (slug) updateProvider(idx, { id: slug }); } }} placeholder="OpenAI" className="w-full rounded-md bg-[#0a0a0c] border border-white/10 px-2 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30" />
+                                    </div>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                      <label className="block text-[11px] text-gray-400 mb-1">Type</label>
+                                      <select value={p.type} onChange={(e) => updateProvider(idx, { type: e.target.value })} className="w-full rounded-md bg-[#0a0a0c] border border-white/10 px-2 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500/30">
+                                        <option value="openai">openai</option>
+                                        <option value="anthropic">anthropic</option>
+                                        <option value="openai-compatible">openai-compatible</option>
+                                        <option value="custom">custom</option>
+                                      </select>
+                                    </div>
+                                    <div>
+                                      <label className="block text-[11px] text-gray-400 mb-1">Base URL</label>
+                                      <input value={p.base_url} onChange={(e) => updateProvider(idx, { base_url: e.target.value })} placeholder="https://api.openai.com/v1" className="w-full rounded-md bg-[#0a0a0c] border border-white/10 px-2 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30" />
+                                    </div>
                                   </div>
                                   <div>
-                                    <label className="block text-[11px] text-gray-400 mb-1">Name</label>
-                                    <input value={p.name} onChange={(e) => updateProvider(idx, { name: e.target.value })} placeholder="OpenAI" className="w-full rounded-md bg-[#0a0a0c] border border-white/10 px-2 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30" />
+                                    <label className="block text-[11px] text-gray-400 mb-1">API key</label>
+                                    <div className="relative">
+                                      <input value={p.api_key} onChange={(e) => updateProvider(idx, { api_key: e.target.value })} placeholder={p.api_key === '*' ? '(masked — enter new key to replace)' : 'sk-...'} type={showApiKey[idx] ? 'text' : 'password'} className="w-full rounded-md bg-[#0a0a0c] border border-white/10 pl-2 pr-8 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30" />
+                                      <button type="button" onClick={() => setShowApiKey((prev) => ({ ...prev, [idx]: !prev[idx] }))} className="absolute right-1 top-1/2 -translate-y-1/2 w-7 h-7 grid place-items-center rounded-md text-gray-400 hover:text-white hover:bg-white/10" title={showApiKey[idx] ? 'Hide' : 'Show'}>
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+                                      </button>
+                                    </div>
+                                    {p.api_key === '*' && <p className="text-[11px] text-amber-300/80 mt-1">Stored key is masked as "*". Leave as "*" to keep it, or type a new key to replace.</p>}
                                   </div>
-                                </div>
-                                <div className="grid grid-cols-2 gap-2">
-                                  <div>
-                                    <label className="block text-[11px] text-gray-400 mb-1">Type</label>
-                                    <select value={p.type} onChange={(e) => updateProvider(idx, { type: e.target.value })} className="w-full rounded-md bg-[#0a0a0c] border border-white/10 px-2 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500/30">
-                                      <option value="openai">openai</option>
-                                      <option value="anthropic">anthropic</option>
-                                      <option value="openai-compatible">openai-compatible</option>
-                                      <option value="custom">custom</option>
-                                    </select>
-                                  </div>
-                                  <div className="flex items-end gap-2">
-                                    <label className="flex items-center gap-2 text-xs text-gray-200 cursor-pointer pb-2 touch-manipulation">
-                                      <input type="checkbox" checked={!!p.enabled} onChange={(e) => updateProvider(idx, { enabled: e.target.checked })} className="accent-indigo-500" />
-                                      Enabled
-                                    </label>
-                                    <button type="button" onClick={() => removeProvider(idx)} className="ml-auto text-xs px-2 py-1 rounded-md bg-white/5 hover:bg-red-500/15 active:bg-red-500/25 text-red-300 border border-white/10 hover:border-red-500/20 transition-colors touch-manipulation">
-                                      Remove
-                                    </button>
-                                  </div>
-                                </div>
-                                <div>
-                                  <label className="block text-[11px] text-gray-400 mb-1">Base URL</label>
-                                  <input value={p.base_url} onChange={(e) => updateProvider(idx, { base_url: e.target.value })} placeholder="https://api.openai.com/v1" className="w-full rounded-md bg-[#0a0a0c] border border-white/10 px-2 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30" />
-                                </div>
-                                <div>
-                                  <label className="block text-[11px] text-gray-400 mb-1">API key</label>
-                                  <input value={p.api_key} onChange={(e) => updateProvider(idx, { api_key: e.target.value })} placeholder={p.api_key === '*' ? '(masked — enter new key to replace)' : 'sk-...'} type="password" className="w-full rounded-md bg-[#0a0a0c] border border-white/10 px-2 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30" />
-                                  {p.api_key === '*' && <p className="text-[11px] text-amber-300/80 mt-1">Stored key is masked as "*". Leave as "*" to keep it, or type a new key to replace.</p>}
-                                </div>
                                 <div>
                                   <label className="block text-[11px] text-gray-400 mb-1">Models — tap to add, tap chip to remove</label>
                                   <div className="min-h-[36px] p-1.5 rounded-md bg-[#0a0a0c] border border-white/10 flex flex-wrap gap-1.5 items-center">
