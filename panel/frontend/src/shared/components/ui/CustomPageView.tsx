@@ -876,9 +876,6 @@ function customPageThemeCss(theme: Theme, pageSlugOrPath?: string): string {
   const statBorder = cssConst(cards?.stat_border_color ?? c.border_color, 'rgba(255,255,255,0.10)');
   const formBg = cssConst(cards?.form_background ?? c.background, 'rgba(255,255,255,0.04)');
   const formBorder = cssConst(cards?.form_border_color ?? c.border_color, 'rgba(255,255,255,0.10)');
-  const _toggleTrackH = clampNum((f as any).toggle_track_height, 24, 12, 48);
-  const _toggleThumbS = clampNum((f as any).toggle_thumb_size, 20, 8, _toggleTrackH - 2);
-  const _toggleTravel = Math.max(2, Math.round(_toggleTrackH * (44 / 24) - _toggleThumbS - Math.round((_toggleTrackH - _toggleThumbS) / 2) * 2));
   let baseCss = `
     /* Theme tokens — re-emitted from the ACTIVE panel theme. These override
        the stock :root defaults above so pages consuming var(--ks-*) follow
@@ -950,34 +947,6 @@ function customPageThemeCss(theme: Theme, pageSlugOrPath?: string): string {
       --ks-hint-text: ${cssConst(f.hint_text_color, '#6b7280')};
       --ks-hint-error: ${cssConst((f as any).hint_error_color, '#f87171')};
       --ks-hint-success: ${cssConst((f as any).hint_success_color, '#34d399')};
-      --ks-check-off-bg: ${cssConst((f as any).checkbox_bg_unchecked, 'rgba(0,0,0,0.30)')};
-      --ks-check-on: ${cssConst((f as any).checkbox_bg_checked, '#10b981')};
-      --ks-check-border: ${cssConst((f as any).checkbox_border_unchecked, 'rgba(255,255,255,0.20)')};
-      --ks-check-border-on: ${cssConst((f as any).checkbox_border_checked, '#10b981')};
-      --ks-check-mark: ${cssConst((f as any).checkbox_checkmark_color, '#0b0d10')};
-      --ks-check-size: ${num((f as any).checkbox_size, 16)}px;
-      --ks-check-radius: ${num((f as any).checkbox_border_radius, 4)}px;
-      --ks-radio-off-bg: ${cssConst((f as any).radio_bg_unchecked, 'rgba(0,0,0,0.30)')};
-      --ks-radio-on: ${cssConst((f as any).radio_bg_checked, '#10b981')};
-      --ks-radio-border: ${cssConst((f as any).radio_border_unchecked, 'rgba(255,255,255,0.20)')};
-      --ks-radio-border-on: ${cssConst((f as any).radio_border_checked, '#10b981')};
-      --ks-radio-dot: ${cssConst((f as any).radio_dot_color, '#0b0d10')};
-      --ks-radio-size: ${num((f as any).radio_size, 16)}px;
-      --ks-toggle-off: ${cssConst((f as any).toggle_track_off, 'rgba(255,255,255,0.10)')};
-      --ks-toggle-on: ${cssConst((f as any).toggle_track_on, '#10b981')};
-      --ks-toggle-thumb: ${cssConst((f as any).toggle_thumb_color, '#ffffff')};
-      --ks-toggle-w: ${Math.round(_toggleTrackH * (44 / 24))}px;
-      --ks-toggle-h: ${_toggleTrackH}px;
-      --ks-toggle-thumb-size: ${_toggleThumbS}px;
-      --ks-toggle-offset: ${Math.round((_toggleTrackH - _toggleThumbS) / 2)}px;
-      --ks-toggle-travel: ${_toggleTravel}px;
-      --ks-toggle-radius: ${clampNum((f as any).toggle_border_radius, 9999, 0, 9999)}px;
-      --ks-label-size: ${num((f as any).label_font_size, 14)}px;
-      --ks-label-weight: ${num((f as any).label_font_weight, 500)};
-      --ks-hint-size: ${num((f as any).hint_font_size, 12)}px;
-      --ks-field-bg: ${cssConst((f as any).field_bg, 'transparent')};
-      --ks-field-gap: ${num((f as any).field_gap, 6)}px;
-      --ks-field-mb: ${num((f as any).field_margin_bottom, 0)}px;
       --ks-btn-bg: ${cssConst(b.background, '#ffffff')};
       --ks-btn-text: ${cssConst(b.text_color, '#000000')};
       --ks-btn-hover: ${cssConst(b.hover_background, '#e5e7eb')};
