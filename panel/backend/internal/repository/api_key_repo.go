@@ -113,6 +113,9 @@ func normalizeWindow(w int64) int64 {
 // -less digests already prepared. We never expose the hash to the client – it
 // only ever sees the prefix and the plaintext once at create time.
 //
+// System keys (is_system=1) are excluded so a user's self-service listing
+// never shows global keys.
+//
 // Note: modernc.org/sqlite v1.6.0 occasionally surfaces an empty "phantom"
 // iteration via rows.Next() on genuinely empty result sets, with all columns
 // reported as NULL. Scanning such a row into a non-nullable Go type fails
@@ -121,15 +124,15 @@ func normalizeWindow(w int64) int64 {
 // when there is nothing to show.
 func (r *ApiKeyRepository) ListApiKeys(userID int64) ([]models.ApiKey, error) {
 	var n int
-	if err := r.db.QueryRow(`SELECT COUNT(*) FROM api_keys WHERE user_id = ?`, userID).Scan(&n); err != nil {
+	if err := r.db.QueryRow(`SELECT COUNT(*) FROM api_keys WHERE user_id = ? AND COALESCE(is_system,0)=0`, userID).Scan(&n); err != nil {
 		return nil, err
 	}
 	keys := make([]models.ApiKey, 0, n)
 	if n == 0 {
 		return keys, nil
 	}
-	rows, err := r.db.Query(`SELECT id, user_id, name, prefix, created_at, last_used_at, permissions, expires_at, rate_limit, rate_window_seconds, active
-		FROM api_keys WHERE user_id = ? ORDER BY created_at DESC`, userID)
+	rows, err := r.db.Query(`SELECT id, user_id, name, prefix, created_at, last_used_at, permissions, expires_at, rate_limit, rate_window_seconds, active, is_system
+		FROM api_keys WHERE user_id = ? AND COALESCE(is_system,0)=0 ORDER BY created_at DESC`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +144,8 @@ func (r *ApiKeyRepository) ListApiKeys(userID int64) ([]models.ApiKey, error) {
 		var perms string
 		var rate sql.NullInt64
 		var active sql.NullInt64
-		if err := rows.Scan(&k.ID, &k.UserID, &k.Name, &k.Prefix, &created, &lastUsed, &perms, &expiry, &rate, &k.RateWindowSeconds, &active); err != nil {
+		var isSystem sql.NullInt64
+		if err := rows.Scan(&k.ID, &k.UserID, &k.Name, &k.Prefix, &created, &lastUsed, &perms, &expiry, &rate, &k.RateWindowSeconds, &active, &isSystem); err != nil {
 			return nil, err
 		}
 		k.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created)
@@ -156,6 +160,7 @@ func (r *ApiKeyRepository) ListApiKeys(userID int64) ([]models.ApiKey, error) {
 		k.ExpiresAt = scanExpiry(expiry)
 		k.RateLimit = scanRateLimit(rate)
 		k.Active = active.Valid && active.Int64 == 1
+		k.IsSystem = isSystem.Valid && isSystem.Int64 == 1
 		keys = append(keys, k)
 	}
 	return keys, rows.Err()
@@ -169,6 +174,7 @@ type CreateApiKeyInput struct {
 	ExpiresAt         *time.Time // nil → no expiry
 	RateLimit         *int64     // nil → no limit
 	RateWindowSeconds int64      // 0 → default 60s
+	IsSystem          bool
 }
 
 // UpdateApiKeyInput carries the mutable fields for an admin update. The
@@ -188,6 +194,8 @@ type UpdateApiKeyInput struct {
 	RateWindowSet     bool // when true, RateWindowSeconds is written
 	Active            *bool
 	ActiveSet         bool // when true, Active (even if nil) is written
+	IsSystem          *bool
+	IsSystemSet       bool // when true, IsSystem (even if nil) is written
 }
 
 // CreateApiKey returns the new model (with hash already filled) and the raw

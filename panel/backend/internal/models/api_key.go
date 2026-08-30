@@ -27,6 +27,10 @@ type ApiKey struct {
 	// key is soft-revoked — requests with this key will be rejected with 401.
 	// This allows admins to disable a key without deleting it (audit trail).
 	Active bool `json:"active"`
+	// IsSystem indicates whether the key is a system-wide key not tied to any
+	// single user account. System keys are excluded from per-user listings and
+	// show owner_name "System" in the admin list.
+	IsSystem bool `json:"is_system"`
 }
 
 // User struct already exists elsewhere – this file only adds the ApiKey model.

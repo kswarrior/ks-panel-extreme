@@ -321,6 +321,13 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				return err
 			}
 			continue
+		case name == "055_api_key_system.sql":
+			if err := guardedAddColumns(d, db, name, "api_keys", []columnSpec{
+				{"is_system", "INTEGER NOT NULL DEFAULT 0"},
+			}); err != nil {
+				return err
+			}
+			continue
 		case name == "027_mod_source.sql":
 			if err := guardedAddColumns(d, db, name, "mods", []columnSpec{
 				{"source", "TEXT NOT NULL DEFAULT 'file'"},
