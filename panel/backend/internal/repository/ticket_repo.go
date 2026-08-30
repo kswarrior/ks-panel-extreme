@@ -551,10 +551,6 @@ func (r *TicketRepository) GetComment(id int64) (*models.TicketComment, error) {
 }
 
 func (r *TicketRepository) DeleteComment(commentID, ticketID int64) error {
-	res, err := r.db.QueryRow(`SELECT COUNT(*) FROM ticket_comments WHERE id = ? AND ticket_id = ?`, commentID, ticketID).Scan(new(int))
-	_ = res
-	_ = err
-	// use exec
 	r2, err := r.db.Exec(`DELETE FROM ticket_comments WHERE id = ? AND ticket_id = ?`, commentID, ticketID)
 	if err != nil {
 		return err

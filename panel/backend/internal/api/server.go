@@ -732,6 +732,30 @@ func NewRouter() http.Handler {
 		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Get("/api/security/authentication/recovery-codes", handlers.SecurityRecoveryCodesStatusHandler)
 		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Post("/api/security/authentication/recovery-codes/generate", handlers.SecurityRecoveryCodesGenerateHandler)
 		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Post("/api/security/authentication/recovery-codes/consume", handlers.SecurityRecoveryCodesConsumeHandler)
+
+		// ─────────────────────────────────────────────────────────────────
+		// Notifications — powerful per-user inbox. Every authenticated user
+		// can read + mutate ONLY their own rows (list, get, mark-read, delete,
+		// clear). Creating / broadcasting cross-user notifications is gated by
+		// MANAGE_NOTIFICATIONS (admin announcement surface). The inbox is the
+		// styled successor to the Activity timeline: richer priorities,
+		// categories, action links, and real-time badge via polling.
+		//
+		// Literal sub-paths must be registered BEFORE the param {id} route so
+		// chi's radix tree resolves "/read-all" and "/stats" as fixed segments
+		// rather than capturing them as id="read-all"/"stats".
+		// ─────────────────────────────────────────────────────────────────
+		r.Get("/api/notifications", handlers.ListNotificationsHandler)
+		r.Get("/api/notifications/unread-count", handlers.UnreadCountHandler)
+		r.Get("/api/notifications/stats", handlers.NotificationStatsHandler)
+		r.Put("/api/notifications/read-all", handlers.MarkAllReadHandler)
+		r.Delete("/api/notifications", handlers.ClearNotificationsHandler)
+		r.Get("/api/notifications/{id}", handlers.GetNotificationHandler)
+		r.Put("/api/notifications/{id}/read", handlers.MarkReadHandler)
+		r.Delete("/api/notifications/{id}", handlers.DeleteNotificationHandler)
+		// Broadcast / single-user creation — admin-only. Payload controls
+		// broadcast vs targeted via `broadcast` boolean.
+		r.With(requirePermission("MANAGE_NOTIFICATIONS")).Post("/api/notifications", handlers.CreateNotificationHandler)
 	})
 
 	// Serve SPA from embedded UI – any route not matched above falls through to UI
