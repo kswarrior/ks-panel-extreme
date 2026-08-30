@@ -1,7 +1,7 @@
 export interface ApiKey {
   id: number;
   user_id: number;
-  /** Owner's username – only populated by the admin (all-keys) endpoint. */
+  /** Owner's username – only populated by the admin (all-keys) endpoint. For system keys this is "System". */
   owner_name?: string;
   name: string;
   prefix: string;
@@ -16,6 +16,8 @@ export interface ApiKey {
   rate_window_seconds?: number;
   /** Whether the key is currently active. When false, the key is soft-revoked. */
   active?: boolean;
+  /** Whether the key is a system-wide key not tied to any single user account. System keys are excluded from per-user listings. */
+  is_system?: boolean;
   /**
    * Free-form short note shown alongside the key in the admin list (mirrors
    * the role's description). The backend currently ignores unknown fields
@@ -62,6 +64,9 @@ export interface ApiKeyMutationPayload {
   rate_window_set?: boolean;
   active?: boolean;
   active_set?: boolean;
+  is_system?: boolean;
+  is_system_set?: boolean;
+  user_id?: number;
   description?: string;
   display_name?: string;
   accent_color?: string;

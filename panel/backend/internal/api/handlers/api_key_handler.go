@@ -261,8 +261,8 @@ func UpdateApiKeyHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer con.Close()
 	repo := repository.NewApiKeyRepository(con)
-	// Ownership check: self-service keys must belong to the caller.
-	if existing, gerr := repo.GetApiKey(id); gerr != nil || existing == nil || existing.UserID != uid {
+	// Ownership check: self-service keys must belong to the caller and must not be system keys.
+	if existing, gerr := repo.GetApiKey(id); gerr != nil || existing == nil || existing.UserID != uid || existing.IsSystem {
 		http.Error(w, "api key not found", http.StatusNotFound)
 		return
 	}
@@ -314,7 +314,7 @@ func DeleteApiKeyHandler(w http.ResponseWriter, r *http.Request) {
 	// deleted even though the row is gone. Ownership check first.
 	var label string
 	existing, gerr := repo.GetApiKey(id)
-	if gerr != nil || existing == nil || existing.UserID != uid {
+	if gerr != nil || existing == nil || existing.UserID != uid || existing.IsSystem {
 		http.Error(w, "api key not found", http.StatusNotFound)
 		return
 	}
@@ -459,6 +459,7 @@ func AdminCreateApiKeyHandler(w http.ResponseWriter, r *http.Request) {
 		"rate_limit":          key.RateLimit,
 		"rate_window_seconds": key.RateWindowSeconds,
 		"active":              true,
+		"is_system":           isSystem,
 		"token":               plaintext, // returned ONCE – never again.
 	})
 }
@@ -505,6 +506,8 @@ func AdminUpdateApiKeyHandler(w http.ResponseWriter, r *http.Request) {
 		RateWindowSet:     req.RateWindowSet,
 		Active:            req.Active,
 		ActiveSet:         req.ActiveSet,
+		IsSystem:          req.IsSystem,
+		IsSystemSet:       req.IsSystemSet,
 	}); err != nil {
 		log.Println("AdminUpdateApiKey error:", err)
 		http.Error(w, "could not update api key", http.StatusInternalServerError)
