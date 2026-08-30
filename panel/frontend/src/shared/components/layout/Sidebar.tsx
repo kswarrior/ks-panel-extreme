@@ -220,6 +220,7 @@ interface SubItem {
 
 const adminSubItems: SubItem[] = [
   { to: '/system', label: 'System', permission: '', icon: 'Dashboard' },
+  { to: '/notifications', label: 'Notifications', permission: '', icon: 'Notifications' },
   { to: '/security', label: 'Security', permission: '', icon: 'Security' },
   { to: '/activity', label: 'Activity', permission: '', icon: 'Activity' },
   { to: '/database', label: 'Database', permission: '', icon: 'Database' },

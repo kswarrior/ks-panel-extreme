@@ -25,6 +25,8 @@ export const PermissionKey = {
   MANAGE_MODS: 'MANAGE_MODS',
   MANAGE_APPLICATIONS: 'MANAGE_APPLICATIONS',
   MANAGE_INSTANCE_PAGES: 'MANAGE_INSTANCE_PAGES',
+  MANAGE_TICKETS: 'MANAGE_TICKETS',
+  MANAGE_NOTIFICATIONS: 'MANAGE_NOTIFICATIONS',
   // Gates the "Updates" tab on the admin System page — checking for a newer
   // release + downloading + swapping + restarting the panel binary. Admin
   // gets it by default; other roles can be denied the self-update verb
@@ -83,6 +85,11 @@ export const PermissionKey = {
   INSTANCE_PAGES_CREATE: 'INSTANCE_PAGES_CREATE',
   INSTANCE_PAGES_EDIT: 'INSTANCE_PAGES_EDIT',
   INSTANCE_PAGES_DELETE: 'INSTANCE_PAGES_DELETE',
+
+  NOTIFICATIONS_VIEW: 'NOTIFICATIONS_VIEW',
+  NOTIFICATIONS_CREATE: 'NOTIFICATIONS_CREATE',
+  NOTIFICATIONS_EDIT: 'NOTIFICATIONS_EDIT',
+  NOTIFICATIONS_DELETE: 'NOTIFICATIONS_DELETE',
 
   SETTINGS_VIEW: 'SETTINGS_VIEW',
   SETTINGS_EDIT: 'SETTINGS_EDIT',
@@ -230,6 +237,26 @@ export const PERMISSION_AREAS: PermissionArea[] = [
       CREATE: PermissionKey.INSTANCE_PAGES_CREATE,
       EDIT: PermissionKey.INSTANCE_PAGES_EDIT,
       DELETE: PermissionKey.INSTANCE_PAGES_DELETE,
+    },
+  },
+  {
+    label: 'Tickets',
+    umbrella: PermissionKey.MANAGE_TICKETS,
+    keys: {
+      VIEW: PermissionKey.TICKETS_VIEW,
+      CREATE: PermissionKey.TICKETS_CREATE,
+      EDIT: PermissionKey.TICKETS_EDIT,
+      DELETE: PermissionKey.TICKETS_DELETE,
+    },
+  },
+  {
+    label: 'Notifications',
+    umbrella: PermissionKey.MANAGE_NOTIFICATIONS,
+    keys: {
+      VIEW: PermissionKey.NOTIFICATIONS_VIEW,
+      CREATE: PermissionKey.NOTIFICATIONS_CREATE,
+      EDIT: PermissionKey.NOTIFICATIONS_EDIT,
+      DELETE: PermissionKey.NOTIFICATIONS_DELETE,
     },
   },
   {
