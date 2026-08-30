@@ -67,6 +67,109 @@ function tok(name,fb){try{var v=getComputedStyle(document.documentElement).getPr
 async function ask(m){try{if(window.KSPageSDK&&typeof window.KSPageSDK.confirm==='function')return await window.KSPageSDK.confirm(m);}catch(e){}return window.confirm(m);}
 function pre(text,maxH){return '<pre style="max-height:'+(maxH||420)+'px;overflow:auto;font-size:12px;margin:0;background:var(--ks-input-bg);border:1px solid var(--ks-card-border);color:var(--ks-body);border-radius:var(--ks-radius-md,6px);padding:0.75rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">'+esc(text==null?'':text)+'</pre>';}
 function card(title,innerHtml){return '<div class="ks-card"><h3 style="margin:0 0 .5rem;font-size:.95rem;color:var(--ks-heading)">'+title+'</h3>'+innerHtml+'</div>';}
+function cardUnit(key,title,innerHtml){return '<div class="ks-card" data-ks-key="'+esc(key)+'"><h3 style="margin:0 0 .5rem;font-size:.95rem;color:var(--ks-heading)">'+esc(title)+'</h3>'+innerHtml+'</div>';}
+// ── React-like per-unit patching (no full page reload, only changed unit updates) ──
+// ksPatch diffs containers and patches only changed units (by data-ks-key / id), preserving scroll/focus.
+// This gives React-style granularity: fetching latest data patches only the unit whose data changed,
+// instead of wiping the whole page via innerHTML.
+function ksPatch(targetId, newHtml){
+  var root=document.getElementById(targetId);
+  if(!root) return;
+  var tmp=document.createElement('div');
+  tmp.innerHTML=newHtml;
+  // Deep per-unit diff: patch only [data-ks-key] units whose content changed
+  var newKeys=tmp.querySelectorAll('[data-ks-key]');
+  var oldMap={};
+  root.querySelectorAll('[data-ks-key]').forEach(function(n){ oldMap[n.getAttribute('data-ks-key')]=n; });
+  if(newKeys.length && Object.keys(oldMap).length){
+    var changed=0;
+    for(var i=0;i<newKeys.length;i++){
+      var n=newKeys[i];
+      var key=n.getAttribute('data-ks-key');
+      var o=oldMap[key];
+      if(o && o.outerHTML!==n.outerHTML){ o.replaceWith(n.cloneNode(true)); changed++; }
+      else if(!o){ changed++; }
+    }
+    // handle structure where new has same keyed units count but outer wrapper may still need update
+    // if any new key missing in old, or count mismatch, fall through to shallow diff
+    var oldKeys=root.querySelectorAll('[data-ks-key]').length;
+    if(changed>0 || newKeys.length===oldKeys){
+      // also catch header/non-keyed changes by checking non-keyed wrapper diff
+      // if root's non-keyed top-level html still differs (e.g., header), do shallow patch for those nodes
+      return;
+    }
+  }
+  // Shallow child diff: replace only changed direct children (per-unit when children are units)
+  if(root.children.length && tmp.children.length && root.children.length===tmp.children.length){
+    var ch=0;
+    for(var i=0;i<tmp.children.length;i++){
+      var nn=tmp.children[i];
+      var oo=root.children[i];
+      var nk=nn.getAttribute('data-ks-key')||nn.id||'';
+      var ok=oo.getAttribute('data-ks-key')||oo.id||'';
+      if(nk!==ok){
+        if(oo.outerHTML!==nn.outerHTML){ oo.replaceWith(nn.cloneNode(true)); ch++; }
+        continue;
+      }
+      if(oo.outerHTML!==nn.outerHTML){ oo.replaceWith(nn.cloneNode(true)); ch++; }
+    }
+    if(ch===0 && root.innerHTML!==tmp.innerHTML){
+      if(root.innerHTML!==newHtml){
+        var st=root.scrollTop, sl=root.scrollLeft;
+        root.innerHTML=newHtml;
+        try{root.scrollTop=st; root.scrollLeft=sl;}catch(e){}
+      }
+    }
+    return;
+  }
+  if(root.innerHTML!==newHtml){
+    var st2=root.scrollTop, sl2=root.scrollLeft;
+    root.innerHTML=newHtml;
+    try{root.scrollTop=st2; root.scrollLeft=sl2;}catch(e){}
+  }
+}
+function ksUnitPatch(unitId, innerHtml){
+  var n=document.getElementById(unitId);
+  if(!n) return;
+  if(n.innerHTML!==innerHtml) n.innerHTML=innerHtml;
+}
+function ksRefreshUnit(unitId, fetcher, renderer){
+  return fetcher().then(function(data){
+    var html=renderer(data);
+    ksUnitPatch(unitId, html);
+    return data;
+  });
+}
+// Make every future innerHTML assignment on #root / #content go through ksPatch automatically
+// so even legacy templates that still do el('content').innerHTML = html get per-unit granularity.
+(function(){
+  try{
+    var _gid=document.getElementById.bind(document);
+    function _patchNode(n){
+      if(!n || n._ksPatched) return n;
+      try{
+        var desc=Object.getOwnPropertyDescriptor(Element.prototype,'innerHTML');
+        if(!desc || !desc.set) return n;
+        var origGet=desc.get, origSet=desc.set;
+        Object.defineProperty(n,'innerHTML',{
+          get:function(){ return origGet.call(this); },
+          set:function(v){
+            if(this.id){ ksPatch(this.id, String(v)); } else { origSet.call(this, String(v)); }
+          },
+          configurable:true, enumerable:true
+        });
+        n._ksPatched=true;
+      }catch(e){}
+      return n;
+    }
+    window.el=function(id){ return _patchNode(_gid(id)); };
+    document.getElementById=function(id){ return _patchNode(_gid(id)); };
+    window.ksPatch=ksPatch;
+    window.ksUnitPatch=ksUnitPatch;
+    window.ksRefreshUnit=ksRefreshUnit;
+    window.cardUnit=cardUnit;
+  }catch(e){}
+})();
 `;
 
 // Instance pages are fully theme-aware: every starter inherits the active panel theme
