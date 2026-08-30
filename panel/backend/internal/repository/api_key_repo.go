@@ -214,7 +214,11 @@ func (r *ApiKeyRepository) CreateApiKey(in CreateApiKeyInput) (*models.ApiKey, s
 	window := normalizeWindow(in.RateWindowSeconds)
 	expFrag, expArg, expOk := expiryFragment(in.ExpiresAt)
 	rlFrag, rlArg, rlOk := rateLimitFragment(in.RateLimit)
-	query := fmt.Sprintf(`INSERT INTO api_keys (user_id, name, key_hash, prefix, permissions, expires_at, rate_limit, rate_window_seconds) VALUES (?, ?, ?, ?, ?, %s, %s, ?)`, expFrag, rlFrag)
+	isSystemVal := 0
+	if in.IsSystem {
+		isSystemVal = 1
+	}
+	query := fmt.Sprintf(`INSERT INTO api_keys (user_id, name, key_hash, prefix, permissions, expires_at, rate_limit, rate_window_seconds, is_system) VALUES (?, ?, ?, ?, ?, %s, %s, ?, ?)`, expFrag, rlFrag)
 	args := []interface{}{in.UserID, in.Name, hash, prefix, SplitPermissions(in.Permissions)}
 	if expOk {
 		args = append(args, expArg)
@@ -222,7 +226,7 @@ func (r *ApiKeyRepository) CreateApiKey(in CreateApiKeyInput) (*models.ApiKey, s
 	if rlOk {
 		args = append(args, rlArg)
 	}
-	args = append(args, window)
+	args = append(args, window, isSystemVal)
 	res, err := r.db.Exec(query, args...)
 	if err != nil {
 		return nil, "", err
@@ -240,6 +244,8 @@ func (r *ApiKeyRepository) CreateApiKey(in CreateApiKeyInput) (*models.ApiKey, s
 		ExpiresAt:         in.ExpiresAt,
 		RateLimit:         in.RateLimit,
 		RateWindowSeconds: window,
+		Active:            true,
+		IsSystem:          in.IsSystem,
 	}, token, nil
 }
 
@@ -279,6 +285,14 @@ func (r *ApiKeyRepository) UpdateApiKeyByID(id int64, in UpdateApiKeyInput) erro
 			args = append(args, 0)
 		}
 	}
+	if in.IsSystemSet {
+		set = append(set, "is_system = ?")
+		if in.IsSystem != nil && *in.IsSystem {
+			args = append(args, 1)
+		} else {
+			args = append(args, 0)
+		}
+	}
 	args = append(args, id)
 	query := fmt.Sprintf("UPDATE api_keys SET %s WHERE id = ?", strings.Join(set, ", "))
 	_, err := r.db.Exec(query, args...)
@@ -300,7 +314,7 @@ func (r *ApiKeyRepository) DeleteApiKey(id int64) error {
 
 // ListAllApiKeys returns every API key across all users, joined with the owner's
 // username so the admin panel can show who each key belongs to. Ordered by the
-// most recently created first.
+// most recently created first. System keys are included with OwnerName "System".
 //
 // See the note on ListApiKeys for why we COUNT(*) before scanning – the same
 // modernc.org/sqlite empty-set quirk would otherwise cause a NULL scan error.
@@ -313,8 +327,8 @@ func (r *ApiKeyRepository) ListAllApiKeys() ([]models.ApiKey, error) {
 	if n == 0 {
 		return keys, nil
 	}
-	rows, err := r.db.Query(`SELECT k.id, k.user_id, u.username, k.name, k.prefix, k.created_at, k.last_used_at, k.permissions, k.expires_at, k.rate_limit, k.rate_window_seconds, k.active
-		FROM api_keys k JOIN users u ON u.id = k.user_id
+	rows, err := r.db.Query(`SELECT k.id, k.user_id, u.username, k.name, k.prefix, k.created_at, k.last_used_at, k.permissions, k.expires_at, k.rate_limit, k.rate_window_seconds, k.active, k.is_system
+		FROM api_keys k LEFT JOIN users u ON u.id = k.user_id
 		ORDER BY k.created_at DESC`)
 	if err != nil {
 		return nil, err
@@ -327,8 +341,18 @@ func (r *ApiKeyRepository) ListAllApiKeys() ([]models.ApiKey, error) {
 		var perms string
 		var rate sql.NullInt64
 		var active sql.NullInt64
-		if err := rows.Scan(&k.ID, &k.UserID, &k.OwnerName, &k.Name, &k.Prefix, &created, &lastUsed, &perms, &expiry, &rate, &k.RateWindowSeconds, &active); err != nil {
+		var isSystem sql.NullInt64
+		var owner sql.NullString
+		if err := rows.Scan(&k.ID, &k.UserID, &owner, &k.Name, &k.Prefix, &created, &lastUsed, &perms, &expiry, &rate, &k.RateWindowSeconds, &active, &isSystem); err != nil {
 			return nil, err
+		}
+		if isSystem.Valid && isSystem.Int64 == 1 {
+			k.IsSystem = true
+			k.OwnerName = "System"
+		} else {
+			if owner.Valid {
+				k.OwnerName = owner.String
+			}
 		}
 		k.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created)
 		if lastUsed.Valid {
@@ -361,7 +385,7 @@ func IsExpired(t *time.Time) bool {
 // (today nothing routes through them).
 func (r *ApiKeyRepository) FindByToken(token string) (*models.ApiKey, error) {
 	hash := hashKey(token)
-	row := r.db.QueryRow(`SELECT id, user_id, name, prefix, created_at, permissions, expires_at, rate_limit, rate_window_seconds, active FROM api_keys WHERE key_hash = ?`, hash)
+	row := r.db.QueryRow(`SELECT id, user_id, name, prefix, created_at, permissions, expires_at, rate_limit, rate_window_seconds, active, is_system FROM api_keys WHERE key_hash = ?`, hash)
 	var k models.ApiKey
 	var created, perms sql.NullString
 	var id, uid sql.NullInt64
@@ -369,7 +393,8 @@ func (r *ApiKeyRepository) FindByToken(token string) (*models.ApiKey, error) {
 	var expiry sql.NullString
 	var rate sql.NullInt64
 	var active sql.NullInt64
-	if err := row.Scan(&id, &uid, &name, &prefix, &created, &perms, &expiry, &rate, &k.RateWindowSeconds, &active); err != nil || !id.Valid {
+	var isSystem sql.NullInt64
+	if err := row.Scan(&id, &uid, &name, &prefix, &created, &perms, &expiry, &rate, &k.RateWindowSeconds, &active, &isSystem); err != nil || !id.Valid {
 		return nil, fmt.Errorf("api key not found")
 	}
 	k.ID = id.Int64
@@ -381,13 +406,14 @@ func (r *ApiKeyRepository) FindByToken(token string) (*models.ApiKey, error) {
 	k.ExpiresAt = scanExpiry(expiry)
 	k.RateLimit = scanRateLimit(rate)
 	k.Active = active.Valid && active.Int64 == 1
+	k.IsSystem = isSystem.Valid && isSystem.Int64 == 1
 	return &k, nil
 }
 
 // GetApiKey returns a single key by id. Used by the audit helpers so the
 // "deleted API key X" label can be filled in before the row disappears.
 func (r *ApiKeyRepository) GetApiKey(id int64) (*models.ApiKey, error) {
-	row := r.db.QueryRow(`SELECT id, user_id, name, prefix, created_at, permissions, expires_at, rate_limit, rate_window_seconds, active FROM api_keys WHERE id = ?`, id)
+	row := r.db.QueryRow(`SELECT id, user_id, name, prefix, created_at, permissions, expires_at, rate_limit, rate_window_seconds, active, is_system FROM api_keys WHERE id = ?`, id)
 	var k models.ApiKey
 	var created, perms sql.NullString
 	var kid, uid sql.NullInt64
@@ -395,7 +421,8 @@ func (r *ApiKeyRepository) GetApiKey(id int64) (*models.ApiKey, error) {
 	var expiry sql.NullString
 	var rate sql.NullInt64
 	var active sql.NullInt64
-	if err := row.Scan(&kid, &uid, &name, &prefix, &created, &perms, &expiry, &rate, &k.RateWindowSeconds, &active); err != nil || !kid.Valid {
+	var isSystem sql.NullInt64
+	if err := row.Scan(&kid, &uid, &name, &prefix, &created, &perms, &expiry, &rate, &k.RateWindowSeconds, &active, &isSystem); err != nil || !kid.Valid {
 		return nil, fmt.Errorf("api key not found")
 	}
 	k.ID = kid.Int64
@@ -407,6 +434,7 @@ func (r *ApiKeyRepository) GetApiKey(id int64) (*models.ApiKey, error) {
 	k.ExpiresAt = scanExpiry(expiry)
 	k.RateLimit = scanRateLimit(rate)
 	k.Active = active.Valid && active.Int64 == 1
+	k.IsSystem = isSystem.Valid && isSystem.Int64 == 1
 	return &k, nil
 }
 
