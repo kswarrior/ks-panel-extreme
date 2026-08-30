@@ -432,8 +432,13 @@ const Header: React.FC<HeaderProps> = ({
                     imageUrl={user?.has_avatar ? `/api/users/${user.id}/avatar` : undefined}
                   />
                 </span>
-                {/* Profit badge — small cycle at bottom-right, like notification's unread dot but green for profit */}
-                <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-[#0f0f12] hidden" aria-hidden="true" />
+                {/* Profit indicator — tiny green cycle at bottom-right with dollar icon, like notification's unread dot */}
+                <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-emerald-500 border-2 border-[#0f0f12] flex items-center justify-center shadow-[0_2px_6px_rgba(16,185,129,0.5)]" aria-hidden="true">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-2.5 h-2.5">
+                    <path d="M12 2v20" />
+                    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                  </svg>
+                </span>
               </button>
             )}
           />

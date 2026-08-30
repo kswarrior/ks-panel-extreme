@@ -153,6 +153,10 @@ const UserApiKeys: React.FC = () => {
   };
 
   const openCreate = () => {
+    if (!canCreate) {
+      setError('You need API_KEYS_CREATE or MANAGE_API_KEYS permission to create API keys.');
+      return;
+    }
     setEditingKey(null);
     setFormName('');
     setFormPerms([]);
@@ -169,6 +173,10 @@ const UserApiKeys: React.FC = () => {
     setShowCreate(true);
   };
   const openEdit = (k: ApiKey) => {
+    if (!canEdit) {
+      alert('You need API_KEYS_EDIT or MANAGE_API_KEYS permission to edit API keys.');
+      return;
+    }
     setEditingKey(k);
     setFormName(k.name);
     setFormPerms(k.permissions || []);
@@ -302,11 +310,13 @@ const UserApiKeys: React.FC = () => {
         </div>
         <div className="flex items-center gap-2">
           <SearchDropdown value={search} onChange={setSearch} placeholder="Search name, prefix…" ariaLabel="Search API keys" />
-          <button onClick={openCreate} className="ks-icon-btn" aria-label="Add API Key" title="Add API Key">
+          <button onClick={openCreate} disabled={!canCreate} className="ks-icon-btn disabled:opacity-40 disabled:cursor-not-allowed" aria-label="Add API Key" title={canCreate ? "Add API Key" : "Requires API_KEYS_CREATE or MANAGE_API_KEYS"}>
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
           </button>
         </div>
       </div>
+      {!canView && <p className="text-amber-300 text-xs mb-3 border border-amber-700/40 bg-amber-900/20 rounded px-3 py-2">You need API_KEYS_VIEW or MANAGE_API_KEYS permission to view your API keys. Ask an admin to grant it.</p>}
+      {!canCreate && canView && <p className="text-amber-300/80 text-xs mb-3 border border-amber-700/30 bg-amber-900/10 rounded px-3 py-2">You can view keys but need API_KEYS_CREATE to create new ones.</p>}
       {error && <p className="text-red-400 mb-3">{error}</p>}
       {loading && <SkeletonGrid count={6} />}
       {!loading && filteredKeys.length > 0 && (
@@ -335,8 +345,8 @@ const UserApiKeys: React.FC = () => {
                 <footer className="mt-auto pt-2 border-t border-white/[0.06] flex items-center justify-between gap-2">
                   <span className="text-[11px] text-gray-500 truncate">Created {new Date(k.created_at).toLocaleDateString()}{k.last_used_at && <> · Last used {new Date(k.last_used_at).toLocaleDateString()}</>}</span>
                   <div className="flex items-center gap-2 shrink-0">
-                    <button onClick={() => openEdit(k)} className="text-[11px] text-sky-300 hover:text-sky-200">Edit</button>
-                    <button onClick={() => remove(k)} className="text-[11px] text-red-300 hover:text-red-200">Delete</button>
+                    <button onClick={() => openEdit(k)} disabled={!canEdit} className={`text-[11px] ${canEdit ? 'text-sky-300 hover:text-sky-200' : 'text-gray-500 cursor-not-allowed'}`} title={canEdit ? "" : "Requires API_KEYS_EDIT"}>Edit</button>
+                    <button onClick={() => remove(k)} disabled={!canDelete} className={`text-[11px] ${canDelete ? 'text-red-300 hover:text-red-200' : 'text-gray-500 cursor-not-allowed'}`} title={canDelete ? "" : "Requires API_KEYS_DELETE"}>Delete</button>
                   </div>
                 </footer>
               </article>
