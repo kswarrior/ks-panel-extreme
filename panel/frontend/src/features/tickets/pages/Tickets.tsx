@@ -104,11 +104,11 @@ const Tickets: React.FC = () => {
         <div className="flex items-baseline gap-3">
           <h2 className="text-xl font-semibold text-white tracking-tight">Tickets</h2>
           {stats && (
-            <span className="hidden sm:inline-flex items-center gap-2 text-xs text-gray-500">
-              <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-sky-400" />{stats.open} open</span>
-              <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400" />{stats.pending} pending</span>
-              <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-violet-400" />{stats.in_progress} in progress</span>
-              <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-400" />{stats.resolved} resolved</span>
+            <span className="hidden sm:inline-flex items-center gap-2 text-xs" style={{ color: 'var(--ks-muted)' }}>
+              <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: 'var(--ks-info)' }} />{stats.open} open</span>
+              <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: 'var(--ks-warn)' }} />{stats.pending} pending</span>
+              <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: 'var(--ks-purple)' }} />{stats.in_progress} in progress</span>
+              <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: 'var(--ks-ok)' }} />{stats.resolved} resolved</span>
             </span>
           )}
         </div>
@@ -124,7 +124,7 @@ const Tickets: React.FC = () => {
               aria-haspopup="true"
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></svg>
-              {hasActiveFilter && <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />}
+              {hasActiveFilter && <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--ks-info)' }} />}
             </button>
             {filterOpen && (
               <div className="absolute right-0 top-full mt-1 z-30 w-72">
