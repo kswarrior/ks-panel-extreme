@@ -5,14 +5,18 @@ import {
   deleteInstancePage,
   importInstancePageFromFile,
   importInstancePageFromURL,
+  listTemplates,
+  createInstancePage,
 } from '@/shared/api/admin';
 import type { InstancePage } from '@/shared/types/instancePage';
+import type { Template } from '@/shared/types/instance';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import GlassCard from '@/shared/components/ui/Card';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import Modal from '@/shared/components/ui/Modal';
 import { useConfirm } from '@/shared/stores/confirmStore';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
+import { PAGE_STARTERS } from '@/features/instance-pages/templates/pageStarters';
 
 type SortKey = 'name' | 'kind' | 'category' | 'updated' | 'newest';
 
@@ -77,13 +81,39 @@ const InstancePages: React.FC = () => {
   const filterRef = useRef<HTMLDivElement>(null);
 
   // ---- Add-page modal state (mirrors the Templates "Install" dialog:
-  //      one entry point with three tabs — Upload file / From URL / Studio) ----
+  //      one entry point with tabs — Upload file / From URL / Studio / Import) ----
   const [addOpen, setAddOpen] = useState(false);
-  const [addTab, setAddTab] = useState<'file' | 'url' | 'studio'>('file');
+  const [addTab, setAddTab] = useState<'file' | 'url' | 'studio' | 'import'>('file');
   const [importLoading, setImportLoading] = useState(false);
   const [importError, setImportError] = useState('');
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importUrl, setImportUrl] = useState('');
+
+  // ---- Import tab: pull pages that are already defined in templates
+  //      (template.spec.pages) into the library, plus the Studio starters ----
+  type TemplatePageEntry = {
+    key: string; // `${templateId}:${slug}`
+    templateId: number;
+    templateName: string;
+    slug: string;
+    label: string;
+    kind: string;
+    description?: string;
+    icon_svg?: string;
+    content_type?: string;
+    content_html?: string;
+    content_markdown?: string;
+    content_blocks?: string;
+    actions?: any[];
+    sub_pages?: any[];
+    components?: any[];
+  };
+  const [templatePages, setTemplatePages] = useState<TemplatePageEntry[]>([]);
+  const [templatePagesLoading, setTemplatePagesLoading] = useState(false);
+  const [templatePagesError, setTemplatePagesError] = useState('');
+  const [selectedImportKeys, setSelectedImportKeys] = useState<Set<string>>(new Set());
+  const [importSearch, setImportSearch] = useState('');
+  const [importSource, setImportSource] = useState<'templates' | 'starters'>('templates');
 
   const handleImport = async () => {
     setImportLoading(true);
