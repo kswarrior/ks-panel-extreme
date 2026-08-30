@@ -264,6 +264,8 @@ func NewRouter() http.Handler {
 			r.With(requireUmbrellaOrAction(usersG, permissions.ActionCreate)).Post("/", handlers.CreateUserHandler)
 			r.With(requireUmbrellaOrAction(usersG, permissions.ActionEdit)).Put("/{id}", handlers.UpdateUserHandler)
 			r.With(requireUmbrellaOrAction(usersG, permissions.ActionDelete)).Delete("/{id}", handlers.DeleteUserHandler)
+			r.With(requireUmbrellaOrAction(usersG, permissions.ActionEdit)).Post("/{id}/suspend", handlers.SuspendUserHandler)
+			r.With(requireUmbrellaOrAction(usersG, permissions.ActionEdit)).Post("/{id}/unsuspend", handlers.UnsuspendUserHandler)
 		})
 
 		// Admin: roles management (same umbrella-or-action pattern).
@@ -550,6 +552,8 @@ func NewRouter() http.Handler {
 			// workload on the edge only when a create-time-only field changed.
 			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionEdit)).Put("/{id}", handlers.UpdateInstanceHandler)
 			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionDelete)).Delete("/{id}", handlers.DestroyInstanceHandler)
+			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionEdit)).Post("/{id}/suspend", handlers.SuspendInstanceHandler)
+			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionEdit)).Post("/{id}/unsuspend", handlers.UnsuspendInstanceHandler)
 		})
 
 		// Instance actions: invoke a template-defined named action (e.g. the

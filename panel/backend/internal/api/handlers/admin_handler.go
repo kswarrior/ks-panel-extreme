@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/example/kspanel/internal/auth"
 	"github.com/example/kspanel/internal/models"
@@ -226,6 +227,111 @@ func DeleteUserHandler(w http.ResponseWriter, r *http.Request) {
 		Message:     fmt.Sprintf("deleted user %q", label),
 	})
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// SuspendUserHandler suspends a user with optional auto-unsuspend time.
+func SuspendUserHandler(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	var req struct {
+		Reason        string `json:"reason"`
+		DurationHours *int   `json:"duration_hours,omitempty"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid payload", http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(req.Reason) == "" {
+		http.Error(w, "reason is required", http.StatusBadRequest)
+		return
+	}
+	callerID, err := UserIDFromContext(r)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if callerID == id {
+		http.Error(w, "cannot suspend your own account", http.StatusBadRequest)
+		return
+	}
+	con, err := repository.OpenDB()
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	defer con.Close()
+	caller, err := repository.NewUserRepository(con).GetByID(callerID)
+	callerName := "unknown"
+	if err == nil && caller != nil {
+		callerName = caller.Username
+	}
+	userRepo := repository.NewUserRepository(con)
+	targetUser, err := userRepo.GetByID(id)
+	if err != nil {
+		http.Error(w, "user not found", http.StatusNotFound)
+		return
+	}
+	var suspendedUntil *time.Time
+	if req.DurationHours != nil && *req.DurationHours > 0 {
+		t := time.Now().Add(time.Duration(*req.DurationHours) * time.Hour)
+		suspendedUntil = &t
+	}
+	newCount, err := userRepo.SuspendUser(id, suspendedUntil, req.Reason, callerID, callerName)
+	if err != nil {
+		log.Println("SuspendUser error:", err)
+		http.Error(w, "failed to suspend user", http.StatusInternalServerError)
+		return
+	}
+	RecordActivity(r, repository.ActivityInput{
+		Category:    models.ActivityCategoryUser,
+		Action:      "suspend",
+		TargetID:    &id,
+		TargetLabel: targetUser.Username,
+		Message:     fmt.Sprintf("suspended user %q (count: %d, reason: %s)", targetUser.Username, newCount, req.Reason),
+	})
+	writeJSON(w, map[string]any{"suspension_count": newCount})
+}
+
+// UnsuspendUserHandler unsuspends a user.
+func UnsuspendUserHandler(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	if _, err := UserIDFromContext(r); err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	con, err := repository.OpenDB()
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	defer con.Close()
+	userRepo := repository.NewUserRepository(con)
+	targetUser, err := userRepo.GetByID(id)
+	if err != nil {
+		http.Error(w, "user not found", http.StatusNotFound)
+		return
+	}
+	count, err := userRepo.UnsuspendUser(id)
+	if err != nil {
+		log.Println("UnsuspendUser error:", err)
+		http.Error(w, "failed to unsuspend user", http.StatusInternalServerError)
+		return
+	}
+	RecordActivity(r, repository.ActivityInput{
+		Category:    models.ActivityCategoryUser,
+		Action:      "unsuspend",
+		TargetID:    &id,
+		TargetLabel: targetUser.Username,
+		Message:     fmt.Sprintf("unsuspended user %q (total suspensions: %d)", targetUser.Username, count),
+	})
+	writeJSON(w, map[string]any{"suspension_count": count})
 }
 
 // ============================== ROLES ==============================
