@@ -127,8 +127,29 @@ const NotificationsPage: React.FC = () => {
     if (!bcastTitle.trim()) { setBcastError('Title is required'); return; }
     setBcastBusy(true); setBcastError('');
     try {
-      await createNotification({ title: bcastTitle.trim(), message: bcastMsg, category: bcastCategory as any, priority: bcastPriority as any, link: bcastLink.trim() || undefined, action_label: bcastLabel.trim() || undefined, broadcast: true });
-      setBcastOpen(false); setBcastTitle(''); setBcastMsg(''); setBcastLink(''); setBcastLabel(''); load();
+      // media: split by comma/newline/space, detect type via extension
+      const mediaList = bcastMedia.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean).slice(0, 20).map((url) => {
+        const low = url.toLowerCase();
+        let type: string = 'image';
+        if (low.endsWith('.mp4') || low.endsWith('.webm') || low.endsWith('.mov')) type = 'video';
+        else if (low.endsWith('.gif')) type = 'gif';
+        return { type, url };
+      });
+      await createNotification({
+        title: bcastTitle.trim(),
+        message: bcastMsg,
+        notes: bcastNotes.trim() || undefined,
+        cover_image: bcastCover.trim() || undefined,
+        media: mediaList.length ? mediaList : undefined,
+        category: bcastCategory as any,
+        priority: bcastPriority as any,
+        link: bcastLink.trim() || undefined,
+        action_label: bcastLabel.trim() || undefined,
+        broadcast: true,
+      });
+      setBcastOpen(false);
+      setBcastTitle(''); setBcastMsg(''); setBcastNotes(''); setBcastCover(''); setBcastMedia(''); setBcastLink(''); setBcastLabel('');
+      load();
     } catch (e: any) { setBcastError(e?.response?.data || 'Failed to broadcast'); }
     finally { setBcastBusy(false); }
   };
