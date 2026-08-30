@@ -285,6 +285,11 @@ func SuspendUserHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to suspend user", http.StatusInternalServerError)
 		return
 	}
+	// Invalidate all tracked sessions so the suspended user is kicked out
+	// immediately (their current bearer/cookie stops working at the next
+	// AuthMiddleware check). Without this they could continue using an
+	// already-issued session until it naturally expires.
+	auth.InvalidateUserSessions(id)
 	RecordActivity(r, repository.ActivityInput{
 		Category:    models.ActivityCategoryUser,
 		Action:      "suspend",

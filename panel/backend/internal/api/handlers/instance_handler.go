@@ -1327,6 +1327,19 @@ func instanceAction(w http.ResponseWriter, r *http.Request, action string) {
 		http.Error(w, "instance not found", http.StatusNotFound)
 		return
 	}
+	// Suspended instances are blocked from lifecycle mutations (start/stop/
+	// restart) until an admin unsuspends them. Destroy is exempt so a
+	// suspended workload can still be cleaned up.
+	if action != "destroy" {
+		if suspended, until, _ := instRepo.IsInstanceSuspended(id); suspended {
+			msg := "instance is suspended indefinitely"
+			if until != nil {
+				msg = fmt.Sprintf("instance is suspended until %s", until.Format("2006-01-02 15:04"))
+			}
+			writeJSONStatus(w, http.StatusForbidden, map[string]any{"error": msg})
+			return
+		}
+	}
 	node, err := nodeRepo.GetNode(inst.NodeID)
 	if err != nil {
 		http.Error(w, "owning node not found", http.StatusBadRequest)
