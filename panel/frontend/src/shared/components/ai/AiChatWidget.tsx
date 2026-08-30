@@ -53,6 +53,8 @@ const AiChatWidget: React.FC = () => {
 
   const [sysPromptDraft, setSysPromptDraft] = useState('');
   const [providersDraft, setProvidersDraft] = useState<AiProvider[]>([]);
+  const [modelDrafts, setModelDrafts] = useState<Record<number, string>>({});
+  const [showApiKey, setShowApiKey] = useState<Record<number, boolean>>({});
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
@@ -399,7 +401,6 @@ const AiChatWidget: React.FC = () => {
   const removeProvider = (idx: number) => {
     setProvidersDraft((prev) => {
       const next = prev.filter((_, i) => i !== idx);
-      // If removed provider was selected, clear selection
       const removed = prev[idx];
       if (removed && removed.id === selectedProvider) {
         if (next.length > 0) {
@@ -414,6 +415,24 @@ const AiChatWidget: React.FC = () => {
       }
       return next;
     });
+  };
+
+  // Model chip editor helpers — per provider
+  const addModelToProvider = (idx: number, modelId: string) => {
+    const trimmed = modelId.trim();
+    if (!trimmed) return;
+    setProvidersDraft((prev) =>
+      prev.map((p, i) => {
+        if (i !== idx) return p;
+        if (p.models.includes(trimmed)) return p;
+        return { ...p, models: [...p.models, trimmed] };
+      })
+    );
+  };
+  const removeModelFromProvider = (idx: number, modelId: string) => {
+    setProvidersDraft((prev) =>
+      prev.map((p, i) => (i === idx ? { ...p, models: p.models.filter((m) => m !== modelId) } : p))
+    );
   };
 
   if (!user) return null;
@@ -684,9 +703,58 @@ const AiChatWidget: React.FC = () => {
                                   {p.api_key === '*' && <p className="text-[11px] text-amber-300/80 mt-1">Stored key is masked as "*". Leave as "*" to keep it, or type a new key to replace.</p>}
                                 </div>
                                 <div>
-                                  <label className="block text-[11px] text-gray-400 mb-1">Models (comma-separated IDs)</label>
-                                  <input value={p.models.join(', ')} onChange={(e) => updateProvider(idx, { models: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })} placeholder="gpt-4o, gpt-4o-mini, gpt-3.5-turbo" className="w-full rounded-md bg-[#0a0a0c] border border-white/10 px-2 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30" />
-                                  <p className="text-[11px] text-gray-500 mt-1">IDs must match the provider's catalog (e.g. openai: gpt-4o).</p>
+                                  <label className="block text-[11px] text-gray-400 mb-1">Models — tap to add, tap chip to remove</label>
+                                  <div className="min-h-[36px] p-1.5 rounded-md bg-[#0a0a0c] border border-white/10 flex flex-wrap gap-1.5 items-center">
+                                    {p.models.length === 0 ? (
+                                      <span className="text-xs text-gray-500 px-1">No models — add below</span>
+                                    ) : (
+                                      p.models.map((m) => (
+                                        <span key={m} className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-indigo-600 text-white border border-indigo-500">
+                                          {m}
+                                          <button type="button" onClick={() => removeModelFromProvider(idx, m)} className="hover:text-red-200" aria-label={`Remove ${m}`}>
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                                          </button>
+                                        </span>
+                                      ))
+                                    )}
+                                  </div>
+                                  <div className="flex gap-1.5 mt-1.5">
+                                    <input
+                                      value={modelDrafts[idx] ?? ''}
+                                      onChange={(e) => setModelDrafts((prev) => ({ ...prev, [idx]: e.target.value }))}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                          e.preventDefault();
+                                          const v = (modelDrafts[idx] ?? '').trim();
+                                          if (v) {
+                                            addModelToProvider(idx, v);
+                                            setModelDrafts((prev) => ({ ...prev, [idx]: '' }));
+                                          }
+                                        }
+                                      }}
+                                      placeholder="e.g. gpt-4o or claude-3-opus"
+                                      className="flex-1 rounded-md bg-[#0a0a0c] border border-white/10 px-2 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const v = (modelDrafts[idx] ?? '').trim();
+                                        if (v) {
+                                          addModelToProvider(idx, v);
+                                          setModelDrafts((prev) => ({ ...prev, [idx]: '' }));
+                                        }
+                                      }}
+                                      className="px-3 py-1.5 rounded-md bg-white/10 hover:bg-white/15 active:bg-white/20 text-sm text-white border border-white/10 transition-colors"
+                                    >
+                                      Add
+                                    </button>
+                                  </div>
+                                  <p className="text-[11px] text-gray-500 mt-1">Press Enter or Add — each model is a separate chip. IDs must match provider catalog.</p>
+                                  {(() => {
+                                    const ids = providersDraft.map((x) => x.id.trim()).filter(Boolean);
+                                    const dup = p.id && ids.filter((id) => id === p.id.trim()).length > 1;
+                                    return dup ? <p className="text-[11px] text-red-300 mt-1">Duplicate ID — each provider needs a unique ID.</p> : null;
+                                  })()}
                                 </div>
                               </div>
                             ))}
