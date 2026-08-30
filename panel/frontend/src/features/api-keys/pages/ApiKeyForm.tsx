@@ -22,6 +22,7 @@ interface Form {
   description: string;
   display_name: string;
   accent_color: string;
+  is_system: boolean;
 }
 
 const emptyForm: Form = {
@@ -31,6 +32,7 @@ const emptyForm: Form = {
   description: '',
   display_name: '',
   accent_color: '',
+  is_system: false,
 };
 
 // Curated accent palette shown as quick swatches — same set the role form
@@ -129,6 +131,7 @@ const ApiKeyForm: React.FC = () => {
               description: key.description || '',
               display_name: key.display_name || '',
               accent_color: key.accent_color || '',
+              is_system: !!key.is_system,
             });
             // Pre-fill limits from existing value.
             if (key.expires_at) {
@@ -226,7 +229,7 @@ const ApiKeyForm: React.FC = () => {
       setError('Name is required');
       return;
     }
-    if (!editing && !form.user_id) {
+    if (!editing && !form.is_system && !form.user_id) {
       setError('Owner user is required');
       return;
     }
@@ -272,6 +275,8 @@ const ApiKeyForm: React.FC = () => {
           rate_limit_set: true,
           rate_window_seconds: noRateLimit ? 0 : (typeof rateWindow === 'number' ? rateWindow : Number(rateWindow)),
           rate_window_set: !noRateLimit,
+          is_system: form.is_system,
+          is_system_set: true,
           ...extras,
         });
         navigate('/api-keys');
@@ -279,11 +284,12 @@ const ApiKeyForm: React.FC = () => {
         const expiresISO = noExpiry ? null : inputToISO(expiresAtLocal) || null;
         const created = await createAdminApiKey({
           name: form.name,
-          user_id: form.user_id,
+          user_id: form.is_system ? 0 : form.user_id,
           permissions: form.permissions,
           expires_at: expiresISO,
           rate_limit: noRateLimit ? null : rateLimitNum,
           rate_window_seconds: noRateLimit ? 0 : (typeof rateWindow === 'number' ? rateWindow : Number(rateWindow)),
+          is_system: form.is_system,
           ...extras,
         });
         setCreatedToken(created);
