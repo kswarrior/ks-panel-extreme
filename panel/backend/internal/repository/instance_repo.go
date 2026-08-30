@@ -52,7 +52,7 @@ func (r *InstanceRepository) List() ([]models.Instance, error) {
 	defer rows.Close()
 	for rows.Next() {
 		var inst models.Instance
-		var created, updated string
+		var startedAt, created, updated sql.NullString
 		var ownerID sql.NullInt64
 		var suspended sql.NullInt64
 		var suspendedUntil sql.NullString
@@ -64,7 +64,7 @@ func (r *InstanceRepository) List() ([]models.Instance, error) {
 			&inst.InstallState, &inst.InstallID, &inst.InstallStep, &inst.InstallError, &inst.InstallStepsJSON,
 			&inst.InstallKind, &inst.InstallAutoStop, &inst.InstallActionID,
 			&suspended, &suspendedUntil, &suspensionCount, &suspensionHistory,
-			&created, &updated); err != nil {
+			&startedAt, &created, &updated); err != nil {
 			return nil, err
 		}
 		if ownerID.Valid {
@@ -83,8 +83,14 @@ func (r *InstanceRepository) List() ([]models.Instance, error) {
 		if suspensionHistory.Valid {
 			inst.SuspensionHistory = suspensionHistory.String
 		}
-		inst.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created)
-		inst.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updated)
+		if startedAt.Valid && startedAt.String != "" {
+			t, _ := time.Parse("2006-01-02 15:04:05", startedAt.String)
+			if !t.IsZero() {
+				inst.StartedAt = &t
+			}
+		}
+		inst.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created.String)
+		inst.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updated.String)
 		out = append(out, inst)
 	}
 	return out, rows.Err()
@@ -110,7 +116,7 @@ func (r *InstanceRepository) ListByOwner(ownerID int64) ([]models.Instance, erro
 		i.install_state, i.install_id, i.install_step, i.install_error, i.install_steps_json,
 		i.install_kind, i.install_auto_stop, i.install_action_id,
 		i.suspended, i.suspended_until, i.suspension_count, i.suspension_history,
-		i.created_at, i.updated_at
+		i.started_at, i.created_at, i.updated_at
 		FROM instances i
 		LEFT JOIN nodes n     ON n.id = i.node_id
 		LEFT JOIN templates t ON t.id = i.template_id
@@ -124,7 +130,7 @@ func (r *InstanceRepository) ListByOwner(ownerID int64) ([]models.Instance, erro
 	out := make([]models.Instance, 0, 8)
 	for rows.Next() {
 		var inst models.Instance
-		var created, updated string
+		var startedAt, created, updated sql.NullString
 		var ownerID sql.NullInt64
 		var suspended sql.NullInt64
 		var suspendedUntil sql.NullString
@@ -136,7 +142,7 @@ func (r *InstanceRepository) ListByOwner(ownerID int64) ([]models.Instance, erro
 			&inst.InstallState, &inst.InstallID, &inst.InstallStep, &inst.InstallError, &inst.InstallStepsJSON,
 			&inst.InstallKind, &inst.InstallAutoStop, &inst.InstallActionID,
 			&suspended, &suspendedUntil, &suspensionCount, &suspensionHistory,
-			&created, &updated); err != nil {
+			&startedAt, &created, &updated); err != nil {
 			return nil, err
 		}
 		if ownerID.Valid {
@@ -155,8 +161,14 @@ func (r *InstanceRepository) ListByOwner(ownerID int64) ([]models.Instance, erro
 		if suspensionHistory.Valid {
 			inst.SuspensionHistory = suspensionHistory.String
 		}
-		inst.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created)
-		inst.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updated)
+		if startedAt.Valid && startedAt.String != "" {
+			t, _ := time.Parse("2006-01-02 15:04:05", startedAt.String)
+			if !t.IsZero() {
+				inst.StartedAt = &t
+			}
+		}
+		inst.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created.String)
+		inst.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updated.String)
 		out = append(out, inst)
 	}
 	return out, rows.Err()
@@ -168,7 +180,7 @@ func (r *InstanceRepository) Get(id int64) (*models.Instance, error) {
 	var instID, nodeID, tplID, ownerID sql.NullInt64
 	var nodeName, tplName, ownerName, name, displayName, icon, color, kind, status, externalID, config, errStr, installState, installID, installError, installStepsJSON, installKind, installActionID sql.NullString
 	var installStep, installAutoStop sql.NullInt64
-	var created, updated sql.NullString
+	var startedAt, created, updated sql.NullString
 	var suspended sql.NullInt64
 	var suspendedUntil sql.NullString
 	var suspensionCount sql.NullInt64
@@ -179,7 +191,7 @@ func (r *InstanceRepository) Get(id int64) (*models.Instance, error) {
 		i.install_state, i.install_id, i.install_step, i.install_error, i.install_steps_json,
 		i.install_kind, i.install_auto_stop, i.install_action_id,
 		i.suspended, i.suspended_until, i.suspension_count, i.suspension_history,
-		i.created_at, i.updated_at
+		i.started_at, i.created_at, i.updated_at
 		FROM instances i
 		LEFT JOIN nodes n     ON n.id = i.node_id
 		LEFT JOIN templates t ON t.id = i.template_id
@@ -191,7 +203,7 @@ func (r *InstanceRepository) Get(id int64) (*models.Instance, error) {
 		&installState, &installID, &installStep, &installError, &installStepsJSON,
 		&installKind, &installAutoStop, &installActionID,
 		&suspended, &suspendedUntil, &suspensionCount, &suspensionHistory,
-		&created, &updated)
+		&startedAt, &created, &updated)
 	if err != nil || !instID.Valid {
 		return nil, fmt.Errorf("instance not found")
 	}
@@ -249,6 +261,12 @@ func (r *InstanceRepository) Get(id int64) (*models.Instance, error) {
 	}
 	if installActionID.Valid {
 		inst.InstallActionID = installActionID.String
+	}
+	if startedAt.Valid && startedAt.String != "" {
+		t, _ := time.Parse("2006-01-02 15:04:05", startedAt.String)
+		if !t.IsZero() {
+			inst.StartedAt = &t
+		}
 	}
 	inst.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created.String)
 	inst.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updated.String)
