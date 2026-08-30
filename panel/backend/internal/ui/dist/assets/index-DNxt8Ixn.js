@@ -2743,14 +2743,21 @@ button.ks-iconbtn:focus-visible{outline:2px solid var(--ks-info);outline-offset:
   function menuHtml(name) {
     var e = state.entries.filter(function (x) { return x.name === name; })[0];
     if (!e) return '';
-    var rows = '';
+    var info = '';
+    var sizeTxt = e.is_dir ? '—' : fmtBytes(e.size);
+    var modeTxt = e.mode ? esc(e.mode) : '—';
+    var dateTxt = e.mod_time ? new Date(e.mod_time * 1000).toLocaleString() : '—';
+    info = '<div class=\\"ks-menu-info ks-only-sm\\"><div class=\\"ks-menu-info-row\\"><span class=\\"ks-menu-info-label\\">Size</span><span class=\\"ks-menu-info-value\\">' + esc(sizeTxt) + '</span></div>' + '<div class=\\"ks-menu-info-row\\"><span class=\\"ks-menu-info-label\\">Perms</span><span class=\\"ks-menu-info-value\\">' + modeTxt + '</span></div>' + '<div class=\\"ks-menu-info-row\\"><span class=\\"ks-menu-info-label\\">Modified</span><span class=\\"ks-menu-info-value\\">' + esc(dateTxt) + '</span></div></div>';
+    var rows = info;
     MENU_ITEMS.forEach(function (it) {
       if (it.act === 'download' && e.is_dir) return;
       if (it.act === 'edit' && e.is_dir) return;
-      rows += '<button type="button" data-menu-act="' + it.act + '" data-menu-name="' + esc(name) + '"' + (it.danger ? ' class="danger"' : '') + '>'
+      var cls = it.danger ? 'danger' : '';
+      if (it.act === 'download') cls = cls ? cls + ' ks-only-sm' : 'ks-only-sm';
+      rows += '<button type=\\"button\\" data-menu-act=\\"' + it.act + '\\" data-menu-name=\\"' + esc(name) + '\\"' + (cls ? ' class=\\"' + cls + '\\"' : '') + '>'
         + menuIcon(it.act, it.danger) + '<span>' + it.label + '</span></button>';
     });
-    return '<div class="ks-menu" id="row-menu">' + rows + '</div>';
+    return '<div class=\\"ks-menu\\" id=\\"row-menu\\">' + rows + '</div>';
   }
   function positionMenu() {
     var menu = document.getElementById('row-menu');
@@ -4859,21 +4866,10 @@ def deploy_instance(template, node):
   }
   setInterval(function () { renderScreen(); }, 120);
 
-  function statusLabel() {
-    switch (state) {
-      case 'connected': return '<span style="color:var(--ks-ok)">● attached</span>';
-      case 'connecting': return '<span style="color:var(--ks-info)">● connecting…</span>';
-      case 'reconnecting': return '<span style="color:var(--ks-warn)">● reconnecting</span>';
-      case 'error': return '<span style="color:var(--ks-bad)">● error</span>';
-      default: return '<span class="ks-muted">● ' + esc((sdk && sdk.instance && sdk.instance.status) || '') + '</span>';
-    }
-  }
-
   function render() {
     var inst = sdk.instance;
     var host = inst.node_name || ('node-' + (inst.node_id != null ? inst.node_id : '?'));
     var user = inst.kind === 'docker' ? 'root' : 'ubuntu';
-    var ext = (inst.name || 'session');
     document.getElementById('root').innerHTML = ''
       + '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px">'
       + '<h2 style="font-size:20px;font-weight:600;color:var(--ks-heading);margin:0">Terminal</h2>'
