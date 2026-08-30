@@ -15,23 +15,6 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func isStaffForTickets(con *sql.DB, uid int64) bool {
-	perms, err := repoPermissionsForUser(con, uid)
-	if err != nil {
-		return false
-	}
-	set := make(map[string]bool, len(perms))
-	for _, p := range perms {
-		set[p] = true
-	}
-	// MANAGE_TICKETS umbrella or TICKETS_EDIT means staff (can see all + internal notes)
-	return set["MANAGE_TICKETS"] || set["TICKETS_EDIT"] || set["TICKETS_VIEW"] && set["TICKETS_EDIT"]
-	// Actually TICKETS_VIEW alone is not staff for internal notes but we allow all
-	// VIEW holders to see all tickets. Simpler: any holder of TICKETS_VIEW or MANAGE_TICKETS is "staff" for listing.
-	// We'll do explicit: if they have ANY ticket view capability they see all tickets.
-	// Internal notes still require EDIT.
-}
-
 func hasTicketView(con *sql.DB, uid int64) bool {
 	perms, _ := repoPermissionsForUser(con, uid)
 	for _, p := range perms {

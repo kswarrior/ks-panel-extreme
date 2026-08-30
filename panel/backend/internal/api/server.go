@@ -30,8 +30,9 @@ func NewRouter() http.Handler {
 	modsG := permissions.AreaGroups[6]
 	appsG := permissions.AreaGroups[7]
 	instancePagesG := permissions.AreaGroups[8]
-	settingsG := permissions.AreaGroups[9]
-	themesG := permissions.AreaGroups[10]
+	ticketsG := permissions.AreaGroups[9]
+	settingsG := permissions.AreaGroups[10]
+	themesG := permissions.AreaGroups[11]
 
 	// Boot the Mod Engine v2 runtime: spin up a Goja VM for every active mod
 	// so its slots + hooks are live before the first request lands. A per-mod
@@ -512,6 +513,29 @@ func NewRouter() http.Handler {
 			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionView)).Get("/{id}/{version}/page.js", handlers.ServeInstancePageModuleAssetHandler)
 			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionView)).Get("/{id}/{version}/page.css", handlers.ServeInstancePageModuleAssetHandler)
 			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionView)).Get("/{id}/{version}/assets/*", handlers.ServeInstancePageModuleAssetHandler)
+		})
+
+		// Tickets: support system. Every authenticated user can list their own
+		// tickets; staff (MANAGE_TICKETS / TICKETS_VIEW) sees all. Granular
+		// TICKETS_* verbs narrow each mutation: CREATE for opening,
+		// EDIT for status/priority/assignment/reply, DELETE for removal.
+		// The handler itself enforces owner-vs-staff visibility for GET
+		// so a single GET /api/tickets endpoint covers both "my tickets"
+		// and "all tickets" without a second /me/tickets route.
+		r.Route("/api/tickets", func(r chi.Router) {
+			r.With(requireUmbrellaOrAction(ticketsG, permissions.ActionView)).Get("/", handlers.ListTicketsHandler)
+			r.With(requireUmbrellaOrAction(ticketsG, permissions.ActionView)).Get("/stats", handlers.TicketStatsHandler)
+			r.With(requireUmbrellaOrAction(ticketsG, permissions.ActionView)).Get("/users", handlers.ListUsersForAssignHandler)
+			r.With(requireUmbrellaOrAction(ticketsG, permissions.ActionCreate)).Post("/", handlers.CreateTicketHandler)
+			r.With(requireUmbrellaOrAction(ticketsG, permissions.ActionView)).Get("/{id}", handlers.GetTicketHandler)
+			r.With(requireUmbrellaOrAction(ticketsG, permissions.ActionEdit)).Put("/{id}", handlers.UpdateTicketHandler)
+			r.With(requireUmbrellaOrAction(ticketsG, permissions.ActionDelete)).Delete("/{id}", handlers.DeleteTicketHandler)
+			r.With(requireUmbrellaOrAction(ticketsG, permissions.ActionEdit)).Post("/{id}/assign", handlers.AssignTicketHandler)
+			// Comments (threaded replies). List is VIEW-gated like the ticket itself;
+			// create is EDIT-gated because replying mutates the ticket's state.
+			r.With(requireUmbrellaOrAction(ticketsG, permissions.ActionView)).Get("/{id}/comments", handlers.ListTicketCommentsHandler)
+			r.With(requireUmbrellaOrAction(ticketsG, permissions.ActionEdit)).Post("/{id}/comments", handlers.AddTicketCommentHandler)
+			r.With(requireUmbrellaOrAction(ticketsG, permissions.ActionDelete)).Delete("/{id}/comments/{commentId}", handlers.DeleteTicketCommentHandler)
 		})
 
 		// Mod Engine v2 slot registry. Read-only, panel-wide: every active
