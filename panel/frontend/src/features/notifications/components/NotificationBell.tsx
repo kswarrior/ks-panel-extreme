@@ -169,12 +169,14 @@ const NotificationBell: React.FC = () => {
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="relative inline-flex items-center justify-center w-9 h-9 rounded-full glass-chrome border border-white/10 text-gray-200 hover:text-white hover:bg-white/10 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+        className="relative inline-flex items-center justify-center w-9 h-9 rounded-full glass-chrome border border-white/10 text-gray-200 hover:text-white hover:bg-white/10 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40 group"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" aria-hidden="true">
-          <path d="M6 8a6 6 0 0 1 12 0c0 7-6 5-6 10" />
-          <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-          <path d="M4 8a8 8 0 0 0 2.5 5.8" opacity="0.35" />
+        {/* Stylish bell — dome + flared rim + clapper + top highlight, matches node/instance icon stroke */}
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px] transition-transform duration-200 group-hover:scale-110 group-hover:rotate-[-8deg]" aria-hidden="true">
+          <path d="M12 4a5 5 0 0 0-5 5v4.5l-1.4 1.4a1 1 0 0 0 .7 1.7h11.4a1 1 0 0 0 .7-1.7L17 13.4V9a5 5 0 0 0-5-5z" />
+          <path d="M9.5 18.2a3 3 0 0 0 5 0" />
+          <circle cx="12" cy="7" r="0.7" fill="currentColor" stroke="none" opacity="0.85" />
+          <path d="M12 4v1.2" opacity="0.28" strokeWidth="1.2" />
         </svg>
         {unread > 0 && (
           <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 inline-flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none border border-black/50 shadow-[0_2px_8px_rgba(239,68,68,0.6)] animate-pulse">
