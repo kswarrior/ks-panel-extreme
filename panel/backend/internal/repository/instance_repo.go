@@ -40,7 +40,7 @@ func (r *InstanceRepository) List() ([]models.Instance, error) {
 		i.install_state, i.install_id, i.install_step, i.install_error, i.install_steps_json,
 		i.install_kind, i.install_auto_stop, i.install_action_id,
 		i.suspended, i.suspended_until, i.suspension_count, i.suspension_history,
-		i.created_at, i.updated_at
+		i.started_at, i.created_at, i.updated_at
 		FROM instances i
 		LEFT JOIN nodes n     ON n.id = i.node_id
 		LEFT JOIN templates t ON t.id = i.template_id

@@ -461,6 +461,15 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				return err
 			}
 			continue
+		case name == "051_instance_started_at.sql":
+			// started_at tracks when instance last entered "running" (deploy/start/restart).
+			// NULL = never started or currently stopped. Guarded so re-launches stay idempotent.
+			if err := guardedAddColumns(d, db, name, "instances", []columnSpec{
+				{"started_at", d.datetimeType()},
+			}); err != nil {
+				return err
+			}
+			continue
 		}
 
 		// Generic path: read + exec the file verbatim. The Postgres files

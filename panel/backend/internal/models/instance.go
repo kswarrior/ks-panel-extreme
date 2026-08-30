@@ -56,8 +56,11 @@ type InstancePage struct {
 	// substitute the tokens when rendering. Empty string == no components.
 	Components string `json:"components"`
 	IconSVG    string `json:"icon_svg"`
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
+	// StartedAt is when the instance last transitioned to "running" (deploy/start/restart).
+	// NULL = never started or stopped. Used for uptime display in InstanceCard.
+	StartedAt *time.Time `json:"started_at,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // Instance is one deployed workload living on an edge node.
