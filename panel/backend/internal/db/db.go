@@ -810,6 +810,14 @@ func SeedCore(d Dialect, db *sql.DB) error {
 		return err
 	}
 	if _, err := db.Exec(translateSeedInsert(prefix, pgConflict, `(key, description) VALUES
+		('MANAGE_TICKETS', 'Manage tickets (support system umbrella – view, create, edit, delete)'),
+		('TICKETS_VIEW',   'View tickets (list + detail)'),
+		('TICKETS_CREATE', 'Create new tickets'),
+		('TICKETS_EDIT',   'Edit tickets, change status/priority, assign, reply'),
+		('TICKETS_DELETE', 'Delete tickets and comments')`, "permissions")); err != nil {
+		return err
+	}
+	if _, err := db.Exec(translateSeedInsert(prefix, pgConflict, `(key, description) VALUES
 		('MANAGE_PANEL_UPDATE', 'Check for and apply panel updates (downloads a new binary, replaces the running one and restarts the panel)')`, "permissions")); err != nil {
 		return err
 	}
@@ -844,6 +852,7 @@ func SeedCore(d Dialect, db *sql.DB) error {
 		SELECT r.id, p.id FROM roles r, permissions p
 		WHERE r.name='moderator' AND p.key IN ('VIEW_INSTANCES', 'VIEW_ACCOUNT', 'VIEW_SETTINGS', 'MANAGE_THEMES', 'MANAGE_MODS', 'MANAGE_APPLICATIONS', 'USE_APPLICATIONS',
 		'APPLICATIONS_VIEW', 'APPLICATIONS_CREATE', 'APPLICATIONS_EDIT',
+		'MANAGE_TICKETS', 'TICKETS_VIEW', 'TICKETS_CREATE', 'TICKETS_EDIT',
 		'USE_LOCAL_THEMES', 'USE_GLOBAL_THEMES', 'ASSIGN_THEMES',
 		'ACCOUNT_EDIT_BANNER', 'ACCOUNT_EDIT_ABOUT', 'ACCOUNT_EDIT_ACCENT',
 		'ACCOUNT_USE_AVATAR_SYMBOL', 'ACCOUNT_UPLOAD_AVATAR')`, "role_permissions")); err != nil {

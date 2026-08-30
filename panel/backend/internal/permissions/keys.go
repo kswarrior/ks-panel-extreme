@@ -73,6 +73,13 @@ const (
 // requested capability.
 ManageApplicationsKey = "MANAGE_APPLICATIONS"
 
+	// ManageTicketsKey gates the Tickets support system. Tickets are user-
+	// opened requests (general, billing, technical, feature, bug, abuse)
+	// triaged by staff. MANAGE_TICKETS is the umbrella that grants the
+	// whole surface; the granular TICKETS_* verbs narrow it so a role can
+	// be limited to e.g. just viewing or just creating tickets.
+	ManageTicketsKey = "MANAGE_TICKETS"
+
 	// ManageInstancePagesKey gates the Instance Pages admin page — operators define
 	// reusable page definitions (custom HTML/markdown/blocks with icons) that can be
 	// used across instance templates.
@@ -146,10 +153,15 @@ ApplicationsCreateKey = "APPLICATIONS_CREATE"
 ApplicationsEditKey   = "APPLICATIONS_EDIT"
 ApplicationsDeleteKey = "APPLICATIONS_DELETE"
 
-InstancePagesViewKey   = "INSTANCE_PAGES_VIEW"
-InstancePagesCreateKey = "INSTANCE_PAGES_CREATE"
-InstancePagesEditKey   = "INSTANCE_PAGES_EDIT"
-InstancePagesDeleteKey = "INSTANCE_PAGES_DELETE"
+	InstancePagesViewKey   = "INSTANCE_PAGES_VIEW"
+	InstancePagesCreateKey = "INSTANCE_PAGES_CREATE"
+	InstancePagesEditKey   = "INSTANCE_PAGES_EDIT"
+	InstancePagesDeleteKey = "INSTANCE_PAGES_DELETE"
+
+	TicketsViewKey   = "TICKETS_VIEW"
+	TicketsCreateKey = "TICKETS_CREATE"
+	TicketsEditKey   = "TICKETS_EDIT"
+	TicketsDeleteKey = "TICKETS_DELETE"
 
 	SettingsViewKey  = "SETTINGS_VIEW"
 	SettingsEditKey  = "SETTINGS_EDIT"
@@ -236,6 +248,9 @@ var AreaGroups = []Group{
 	}},
 	{Label: "Instance Pages", Umbrella: ManageInstancePagesKey, Keys: map[Action]string{
 		ActionView: InstancePagesViewKey, ActionCreate: InstancePagesCreateKey, ActionEdit: InstancePagesEditKey, ActionDelete: InstancePagesDeleteKey,
+	}},
+	{Label: "Tickets", Umbrella: ManageTicketsKey, Keys: map[Action]string{
+		ActionView: TicketsViewKey, ActionCreate: TicketsCreateKey, ActionEdit: TicketsEditKey, ActionDelete: TicketsDeleteKey,
 	}},
 	{Label: "Settings", Umbrella: ViewSettingsKey, Keys: map[Action]string{
 		ActionView: SettingsViewKey, ActionEdit: SettingsEditKey,
