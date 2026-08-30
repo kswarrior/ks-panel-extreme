@@ -412,6 +412,13 @@ func NewRouter() http.Handler {
 			// guarded (only public IPs, DNS-pinned, size/time capped) — see
 			// InstallModFromURLHandler for the full policy.
 			r.With(requireUmbrellaOrAction(modsG, permissions.ActionCreate)).Post("/url", handlers.InstallModFromURLHandler)
+			// Static literals before param routes so chi's radix tree resolves
+			// "/samples" and "/engine" as literals instead of capturing them
+			// as {id}="samples"/"engine".
+			r.With(requireUmbrellaOrAction(modsG, permissions.ActionView)).Get("/samples", handlers.ListSampleModsHandler)
+			r.With(requireUmbrellaOrAction(modsG, permissions.ActionCreate)).Post("/samples/{key}", handlers.InstallSampleModHandler)
+			r.With(requireUmbrellaOrAction(modsG, permissions.ActionView)).Get("/engine", handlers.ModEngineStatusHandler)
+			r.With(requireUmbrellaOrAction(modsG, permissions.ActionEdit)).Put("/engine", handlers.SetModEngineEnabledHandler)
 			r.With(requireUmbrellaOrAction(modsG, permissions.ActionView)).Get("/{id}", handlers.GetModHandler)
 			r.With(requireUmbrellaOrAction(modsG, permissions.ActionEdit)).Put("/{id}", handlers.UpdateModHandler)
 			r.With(requireUmbrellaOrAction(modsG, permissions.ActionDelete)).Delete("/{id}", handlers.DeleteModHandler)
@@ -429,16 +436,6 @@ func NewRouter() http.Handler {
 			// Per-mod runtime log ring (ks.log output + engine lifecycle
 			// events). View-gated like the mod itself.
 			r.With(requireUmbrellaOrAction(modsG, permissions.ActionView)).Get("/{id}/logs", handlers.ModLogsHandler)
-			// Built-in sample mods ("test mods"): the catalog is read-only;
-			// installing creates a real (inactive) mod row through the same
-			// validated pipeline as an upload, so CREATE gates it.
-			r.With(requireUmbrellaOrAction(modsG, permissions.ActionView)).Get("/samples", handlers.ListSampleModsHandler)
-			r.With(requireUmbrellaOrAction(modsG, permissions.ActionCreate)).Post("/samples/{key}", handlers.InstallSampleModHandler)
-			// Engine diagnostics + kill switch. Status is view-gated; the
-			// toggle stops every running runtime panel-wide, so it is
-			// edit-gated like activation.
-			r.With(requireUmbrellaOrAction(modsG, permissions.ActionView)).Get("/engine", handlers.ModEngineStatusHandler)
-			r.With(requireUmbrellaOrAction(modsG, permissions.ActionEdit)).Put("/engine", handlers.SetModEngineEnabledHandler)
 		})
 
 		// Admin: Applications management. MANAGE_APPLICATIONS (umbrella) implies every action;
@@ -478,8 +475,18 @@ func NewRouter() http.Handler {
 		// custom documentation, dashboards, or configuration UIs in the instance panel sidebar.
 		r.Route("/api/instance-pages", func(r chi.Router) {
 			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionView)).Get("/", handlers.ListInstancePagesHandler)
-			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionView)).Get("/{id}", handlers.GetInstancePageHandler)
 			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionCreate)).Post("/", handlers.CreateInstancePageHandler)
+			// Static literals before param routes so "/execute-action", "/marketplace",
+			// "/local", "/import" etc. are not captured as {id}.
+			r.With(requirePermission("VIEW_INSTANCES")).Post("/execute-action", handlers.ExecuteCustomPageActionHandler)
+			r.With(requirePermission("VIEW_INSTANCES")).Post("/execute-module-action", handlers.ExecuteModulePageActionHandler)
+			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionCreate)).Post("/import", handlers.ImportInstancePageHandler)
+			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionCreate)).Post("/import/url", handlers.ImportInstancePageFromURLHandler)
+			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionView)).Get("/marketplace", handlers.GetMarketplacePagesHandler)
+			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionCreate)).Post("/import/marketplace", handlers.ImportInstancePageFromMarketplaceHandler)
+			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionView)).Get("/local", handlers.ListLocalInstancePagesHandler)
+			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionCreate)).Post("/import/local", handlers.ImportLocalInstancePageHandler)
+			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionView)).Get("/{id}", handlers.GetInstancePageHandler)
 			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionEdit)).Put("/{id}", handlers.UpdateInstancePageHandler)
 			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionDelete)).Delete("/{id}", handlers.DeleteInstancePageHandler)
 			// Link an existing instance page into one or more templates'
@@ -491,20 +498,6 @@ func NewRouter() http.Handler {
 			// edge's page-action endpoint which runs the command inside the
 			// instance container.
 			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionEdit)).Post("/{id}/actions", handlers.ExecutePageActionHandler)
-			// Execute an action from a custom page (called by the page's JS SDK).
-			// Gated by VIEW_INSTANCES since the page runs in the instance panel.
-			r.With(requirePermission("VIEW_INSTANCES")).Post("/execute-action", handlers.ExecuteCustomPageActionHandler)
-			// Execute an action from a module-based page (called by the page's JS SDK).
-			// Gated by VIEW_INSTANCES since the page runs in the instance panel.
-			r.With(requirePermission("VIEW_INSTANCES")).Post("/execute-module-action", handlers.ExecuteModulePageActionHandler)
-
-			// Import endpoints
-			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionCreate)).Post("/import", handlers.ImportInstancePageHandler)
-			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionCreate)).Post("/import/url", handlers.ImportInstancePageFromURLHandler)
-			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionView)).Get("/marketplace", handlers.GetMarketplacePagesHandler)
-			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionCreate)).Post("/import/marketplace", handlers.ImportInstancePageFromMarketplaceHandler)
-			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionView)).Get("/local", handlers.ListLocalInstancePagesHandler)
-			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionCreate)).Post("/import/local", handlers.ImportLocalInstancePageHandler)
 		})
 
 		// Admin: Instance Page Modules management. MANAGE_INSTANCE_PAGES (umbrella) implies every action;
@@ -541,6 +534,10 @@ func NewRouter() http.Handler {
 		r.Route("/api/instances", func(r chi.Router) {
 			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionView)).Get("/", handlers.ListInstancesHandler)
 			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionCreate)).Post("/", handlers.DeployInstanceHandler)
+			// Bulk cached live-state resources for the InstanceCard. Static
+			// literal before param so "/cached-resources" is not captured as
+			// {id}="cached-resources".
+			r.With(requirePermission("VIEW_INSTANCES")).Get("/cached-resources", handlers.ListCachedResourcesHandler)
 			// Per-id read: consumed by custom HTML pages through the SDK
 			// fetchPanel bridge to poll this instance's live status +
 			// install-workflow state. Same data the list endpoint returns.
