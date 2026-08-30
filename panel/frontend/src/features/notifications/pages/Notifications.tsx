@@ -35,10 +35,13 @@ const NotificationsPage: React.FC = () => {
 
   const [busyId, setBusyId] = useState<number | null>(null);
 
-  // Broadcast modal state
+  // Broadcast modal state — rich: notes + cover + media gallery (images/videos/gif)
   const [bcastOpen, setBcastOpen] = useState(false);
   const [bcastTitle, setBcastTitle] = useState('');
   const [bcastMsg, setBcastMsg] = useState('');
+  const [bcastNotes, setBcastNotes] = useState('');
+  const [bcastCover, setBcastCover] = useState('');
+  const [bcastMedia, setBcastMedia] = useState(''); // comma or newline separated URLs
   const [bcastCategory, setBcastCategory] = useState('general');
   const [bcastPriority, setBcastPriority] = useState('normal');
   const [bcastLink, setBcastLink] = useState('');
