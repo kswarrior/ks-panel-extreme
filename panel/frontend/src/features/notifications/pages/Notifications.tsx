@@ -163,7 +163,7 @@ const NotificationsPage: React.FC = () => {
             </button>
             {filterOpen && (
               <div className="absolute right-0 top-full mt-1 z-30 w-72">
-                <div className="ks-dropdown min-w-[280px] animate-in fade-in slide-in-from-to duration-150 p-3 space-y-3 glass-strong rounded-xl border border-white/15 shadow-[0_12px_40px_rgba(0,0,0,0.55)] backdrop-blur-2xl">
+                <div className="glass-dropdown rounded-xl p-3 space-y-3 min-w-[280px] animate-in fade-in slide-in-from-to duration-150">
                   <div>
                     <label className="block text-xs text-gray-400 uppercase tracking-wide mb-1.5">Category</label>
                     <select value={cat} onChange={(e) => setCat(e.target.value)} className="w-full glass-field ks-select">
@@ -282,10 +282,10 @@ const NotificationsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Broadcast modal */}
+      {/* Broadcast modal — theme-aware like profile dropdown: uses ks-modal-panel so Theme Studio Components tab can tint it */}
       {bcastOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-label="Broadcast notification">
-          <div className="glass-strong rounded-xl w-full max-w-lg max-h-[90dvh] overflow-y-auto border border-white/15 shadow-[0_16px_48px_rgba(0,0,0,0.6)]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 ks-modal-overlay" role="dialog" aria-modal="true" aria-label="Broadcast notification">
+          <div className="ks-modal-panel glass-strong rounded-xl w-full max-w-lg max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 sticky top-0 bg-white/[0.05] backdrop-blur-xl z-10">
               <h3 className="text-base font-semibold text-white flex items-center gap-2">
                 <span className="w-7 h-7 rounded-md bg-fuchsia-500/20 border border-fuchsia-400/30 grid place-items-center">
