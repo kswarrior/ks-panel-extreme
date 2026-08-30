@@ -1045,8 +1045,13 @@ function customPageThemeCss(theme: Theme, pageSlugOrPath?: string): string {
     .ks-btn-green:hover { background: var(--ks-accent-success, ${rgbaAt(a.success, 1, '#10b981')}); filter: brightness(1.08); }
     .ks-btn-ghost { background: var(--ks-btn-ghost-bg, transparent); color: var(--ks-btn-ghost-text, #e5e7eb); border: var(--ks-btn-ghost-border, 1px solid rgba(255,255,255,0.10)); border-radius: var(--ks-btn-ghost-radius, 5px); }
     .ks-btn-ghost:hover { background: var(--ks-btn-ghost-hover, rgba(255,255,255,0.10)); }
-    .ks-btn-icon, .ks-iconbtn { background: var(--ks-btn-icon-bg, rgba(255,255,255,0.10)); color: var(--ks-btn-icon-text, #fff); border: var(--ks-btn-icon-border, none); border-radius: var(--ks-btn-icon-radius, 5px); }
-    .ks-btn-icon:hover, .ks-iconbtn:hover { background: var(--ks-btn-icon-hover, rgba(255,255,255,0.20)); }
+    .ks-btn-icon, .ks-iconbtn, .ks-btn-header { background: var(--ks-btn-icon-bg, rgba(255,255,255,0.10)); color: var(--ks-btn-icon-text, #fff); border: var(--ks-btn-icon-border, none); border-radius: var(--ks-btn-icon-radius, 5px); }
+    .ks-btn-icon:hover, .ks-iconbtn:hover, .ks-btn-header:hover { background: var(--ks-btn-icon-hover, rgba(255,255,255,0.20)); }
+    .ks-btn-header { display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:7px 10px;font-size:12px;font-weight:500;cursor:pointer;transition: background .15s ease; line-height:1; min-height:32px; min-width:32px; }
+    .ks-btn-header svg { width:14px;height:14px; }
+    .ks-btn-header.is-open { background: var(--ks-btn-icon-hover, rgba(255,255,255,0.20)) !important; }
+    .ks-page-header { display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:0.75rem; }
+    .ks-page-header-actions { display:flex;align-items:center;gap:8px;flex-wrap:wrap; }
     .ks-card { background-color: var(--ks-card-bg, rgba(255,255,255,0.04)) !important; background-image: var(--ks-card-bg-layer, none) !important; background-size: var(--ks-card-bg-size, cover); background-position: var(--ks-card-bg-position, center); background-repeat: var(--ks-card-bg-repeat, no-repeat); border: var(--ks-card-border-width, 1px) solid var(--ks-card-border, rgba(255,255,255,0.10)) !important; border-radius: var(--ks-card-radius, 12px) !important; padding: var(--ks-card-padding, 16px) !important; box-shadow: var(--ks-card-shadow, 0 8px 32px rgba(0,0,0,0.45)) !important; backdrop-filter: blur(var(--ks-card-blur, 1px)); -webkit-backdrop-filter: blur(var(--ks-card-blur, 1px)); }
     .ks-card:hover { border-color: var(--ks-card-hover-border, rgba(255,255,255,0.20)) !important; }
     .ks-list-card { background: var(--ks-listcard-bg, var(--ks-card-bg)) !important; border-color: var(--ks-listcard-border, var(--ks-card-border)) !important; box-shadow: var(--ks-listcard-shadow, var(--ks-card-shadow)) !important; }
