@@ -19,8 +19,8 @@ const JS_URL =
   /(href|xlink:href|src|from|to|values|style)\s*=\s*("\s*(javascript|vbscript|data:text\/html)[^"]*"|\s*'(javascript|vbscript|data:text\/html)[^']*'|(?:javascript|vbscript|data:text\/html)[^\s>]*)/gi;
 
 // External references (<use xlink:href="http://…">) may pull attacker SVG.
-// Only same-document fragment refs (#id) are kept.
-const EXTERNAL_REF = /(xlink:href|href)\s*=\s*("[^"#][^"]*"|'[^#'][^']*')/gi;
+// Only same-document fragment refs (#id) are kept. Unquoted values (href=http://evil) also stripped.
+const EXTERNAL_REF = /(xlink:href|href)\s*=\s*("[^"#][^"]*"|'[^#'][^']*'|[^"#\s>][^\s>]*)\/gi;
 
 // sanitizeSvgIcon strips script-execution vectors from an SVG icon string.
 // Runs to a fixpoint so nested payloads ("<scr<script>ipt>") cannot survive.
