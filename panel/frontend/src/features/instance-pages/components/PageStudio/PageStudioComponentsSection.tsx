@@ -28,8 +28,8 @@ export const PageStudioComponentsSection: React.FC<PageStudioComponentsSectionPr
           <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">Section E · Components</h4>
           <p className="text-xs text-gray-500">Reusable page components. Reference them in content with <code className="text-gray-400">{"{{component:name}}"}</code>.</p>
         </div>
-        <button type="button" onClick={onAdd} className="px-3 py-1.5 text-sm bg-emerald-600 text-white rounded hover:bg-emerald-500">
-          + Add component
+        <button type="button" onClick={onAdd} className="ks-btn-header ks-icon-btn" aria-label="Add component" title="Add component">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         </button>
       </div>
 

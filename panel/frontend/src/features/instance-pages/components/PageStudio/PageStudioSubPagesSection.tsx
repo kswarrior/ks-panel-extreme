@@ -64,10 +64,10 @@ export const PageStudioSubPagesSection: React.FC<PageStudioSubPagesSectionProps>
             <div key={sub.id} className="ks-card ks-form-card rounded-md overflow-hidden">
               <div className="p-3 flex items-center gap-3 flex-wrap">
                 <div className="flex flex-col gap-0.5 shrink-0">
-                  <button type="button" aria-label="Move up" onClick={() => onMove?.(idx, -1)} disabled={idx === 0} className="p-1 rounded text-gray-400 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed">
+                  <button type="button" aria-label="Move up" onClick={() => onMove?.(idx, -1)} disabled={idx === 0} className="ks-btn-header ks-icon-btn disabled:opacity-30 disabled:cursor-not-allowed" title="Move up">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M18 15l-6-6-6 6" /></svg>
                   </button>
-                  <button type="button" aria-label="Move down" onClick={() => onMove?.(idx, 1)} disabled={idx === subs.length - 1} className="p-1 rounded text-gray-400 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed">
+                  <button type="button" aria-label="Move down" onClick={() => onMove?.(idx, 1)} disabled={idx === subs.length - 1} className="ks-btn-header ks-icon-btn disabled:opacity-30 disabled:cursor-not-allowed" title="Move down">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M6 9l6 6 6-6" /></svg>
                   </button>
                 </div>
@@ -78,11 +78,11 @@ export const PageStudioSubPagesSection: React.FC<PageStudioSubPagesSectionProps>
                   </div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
-                  <button type="button" onClick={() => onRemove(sub.id)} className="p-2 rounded hover:bg-white/5 text-red-400 hover:text-red-300" aria-label="Remove">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+                  <button type="button" onClick={() => onRemove(sub.id)} className="ks-btn-header ks-icon-btn" aria-label="Remove sub-page" title="Remove sub-page">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
                   </button>
-                  <button type="button" onClick={() => onEditingChange(isEditing ? null : sub.id)} className="p-2 rounded hover:bg-white/5 text-gray-400 hover:text-white" aria-label="Options">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><polyline points="6 9 12 15 18 9" /></svg>
+                  <button type="button" onClick={() => onEditingChange(isEditing ? null : sub.id)} className="ks-btn-header ks-icon-btn" aria-label="Toggle sub-page editor" title="Toggle editor">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polyline points="6 9 12 15 18 9" /></svg>
                   </button>
                 </div>
               </div>

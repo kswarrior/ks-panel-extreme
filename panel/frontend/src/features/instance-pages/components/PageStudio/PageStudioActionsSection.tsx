@@ -47,8 +47,8 @@ export const PageStudioActionsSection: React.FC<PageStudioActionsSectionProps> =
           <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">Section D · Actions (on-demand)</h4>
           <p className="text-xs text-gray-500">Actions are persisted with this page. Pages can run them via <code>KSPageSDK.runAction(name)</code>; Action-button blocks reference them by name.</p>
         </div>
-        <button type="button" onClick={onAdd} className="px-3 py-1.5 text-sm bg-emerald-600 text-white rounded hover:bg-emerald-500">
-          + Add action
+        <button type="button" onClick={onAdd} className="ks-btn-header ks-icon-btn" aria-label="Add action" title="Add action">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         </button>
       </div>
 
@@ -75,26 +75,29 @@ export const PageStudioActionsSection: React.FC<PageStudioActionsSectionProps> =
                     onClick={() => onTest(action)}
                     disabled={!pageId || !previewInstanceId || executingAction === action.id}
                     title={!pageId ? 'Save the page first' : !previewInstanceId ? 'Pick a test instance on Preview' : 'Run against selected instance'}
-                    className="px-3 py-1.5 text-xs bg-sky-600 text-white rounded hover:bg-sky-500 disabled:opacity-50"
+                    className="ks-btn-header ks-icon-btn disabled:opacity-50"
+                    aria-label="Test action"
                   >
-                    {executingAction === action.id ? 'Executing…' : 'Test'}
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polygon points="5 3 19 12 5 21 5 3"/></svg>
                   </button>
                   <button
                     type="button"
                     onClick={() => setEditingId(isEditing ? null : action.id)}
-                    className="p-2 rounded hover:bg-white/5 text-gray-400 hover:text-white"
+                    className="ks-btn-header ks-icon-btn"
                     aria-label="Toggle edit"
+                    title="Toggle edit"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><polyline points="6 9 12 15 18 9" /></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polyline points="6 9 12 15 18 9" /></svg>
                   </button>
                   <button
                     type="button"
                     onClick={() => onRemove(action.id)}
                     disabled={actions.length <= 1}
-                    className="p-2 rounded hover:bg-white/5 text-red-400 hover:text-red-300 disabled:opacity-40"
-                    aria-label="Remove"
+                    className="ks-btn-header ks-icon-btn disabled:opacity-40"
+                    aria-label="Remove action"
+                    title="Remove action"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                   </button>
                 </div>
               </div>

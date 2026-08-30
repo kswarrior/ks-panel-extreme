@@ -185,11 +185,11 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
           <button
             type="button"
             onClick={openImportModal}
-            className="inline-flex items-center gap-2 text-sm bg-sky-600/90 text-white px-3 py-1.5 rounded hover:bg-sky-500 shrink-0"
+            className="ks-btn-header ks-icon-btn"
             title="Add pages from the Instance Pages library (Home, Files, Docker manager, …)"
+            aria-label="Add pages"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-            Add pages
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
           </button>
         </div>
 
@@ -214,7 +214,8 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
                       aria-label="Move page up"
                       onClick={() => onPageMove(i, -1)}
                       disabled={i === 0}
-                      className="p-1 rounded text-gray-400 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed"
+                      className="ks-btn-header ks-icon-btn disabled:opacity-30 disabled:cursor-not-allowed"
+                      title="Move up"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M18 15l-6-6-6 6" /></svg>
                     </button>
@@ -223,7 +224,8 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
                       aria-label="Move page down"
                       onClick={() => onPageMove(i, 1)}
                       disabled={i === pages.length - 1}
-                      className="p-1 rounded text-gray-400 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed"
+                      className="ks-btn-header ks-icon-btn disabled:opacity-30 disabled:cursor-not-allowed"
+                      title="Move down"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M6 9l6 6 6-6" /></svg>
                     </button>
