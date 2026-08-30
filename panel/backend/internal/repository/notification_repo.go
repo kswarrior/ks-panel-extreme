@@ -32,6 +32,9 @@ type CreateNotificationInput struct {
 	Link        string
 	ActionLabel string
 	Metadata    string
+	Notes       string
+	CoverImage  string
+	MediaJSON   string
 	IsBroadcast bool
 }
 
@@ -48,9 +51,13 @@ func (r *NotificationRepository) Create(in CreateNotificationInput) (int64, erro
 	if in.Priority == "" {
 		in.Priority = models.NotificationPriorityNormal
 	}
+	// Default media_json to '[]' so gallery code can always JSON.parse without null-check
+	if strings.TrimSpace(in.MediaJSON) == "" {
+		in.MediaJSON = "[]"
+	}
 	q := `INSERT INTO notifications
-		(user_id, actor_id, actor_name, category, priority, title, message, link, action_label, metadata, is_broadcast, is_read)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`
+		(user_id, actor_id, actor_name, category, priority, title, message, link, action_label, metadata, notes, cover_image, media_json, is_broadcast, is_read)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`
 	var actorID interface{}
 	if in.ActorID != nil {
 		actorID = *in.ActorID
@@ -67,20 +74,20 @@ func (r *NotificationRepository) Create(in CreateNotificationInput) (int64, erro
 	if in.ActorID == nil {
 		// splice NULL for actor_id
 		q2 := `INSERT INTO notifications
-			(user_id, actor_name, category, priority, title, message, link, action_label, metadata, is_broadcast, is_read)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`
+			(user_id, actor_name, category, priority, title, message, link, action_label, metadata, notes, cover_image, media_json, is_broadcast, is_read)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`
 		isB := 0
 		if in.IsBroadcast {
 			isB = 1
 		}
-		res, err = r.db.Exec(q2, in.UserID, in.ActorName, string(in.Category), string(in.Priority), in.Title, in.Message, in.Link, in.ActionLabel, in.Metadata, isB)
+		res, err = r.db.Exec(q2, in.UserID, in.ActorName, string(in.Category), string(in.Priority), in.Title, in.Message, in.Link, in.ActionLabel, in.Metadata, in.Notes, in.CoverImage, in.MediaJSON, isB)
 	} else {
 		isB := 0
 		if in.IsBroadcast {
 			isB = 1
 		}
 		// use original q but with concrete actor_id
-		res, err = r.db.Exec(q, in.UserID, actorID, in.ActorName, string(in.Category), string(in.Priority), in.Title, in.Message, in.Link, in.ActionLabel, in.Metadata, isB)
+		res, err = r.db.Exec(q, in.UserID, actorID, in.ActorName, string(in.Category), string(in.Priority), in.Title, in.Message, in.Link, in.ActionLabel, in.Metadata, in.Notes, in.CoverImage, in.MediaJSON, isB)
 	}
 	if err != nil {
 		return 0, err

@@ -476,6 +476,18 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				log.Printf("migration %s backfill failed: %v", name, err)
 			}
 			continue
+		case name == "054_notifications_media.sql":
+			// Rich notification detail: notes + cover_image + media_json gallery
+			// for detail page and dropdown previews (images / videos / gifs).
+			// Guarded so re-launches stay idempotent on all dialects.
+			if err := guardedAddColumns(d, db, name, "notifications", []columnSpec{
+				{"notes", "TEXT NOT NULL DEFAULT ''"},
+				{"cover_image", "TEXT NOT NULL DEFAULT ''"},
+				{"media_json", "TEXT NOT NULL DEFAULT '[]'"},
+			}); err != nil {
+				return err
+			}
+			continue
 		}
 
 		// Generic path: read + exec the file verbatim. The Postgres files
