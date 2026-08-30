@@ -10,6 +10,7 @@ import Avatar from '@/shared/components/ui/Avatar';
 import RichMenu, { type RichMenuItem } from '@/shared/components/ui/RichMenu';
 import InstanceTabs from '@/features/instances/components/InstanceTabs';
 import NotificationBell from '@/features/notifications/components/NotificationBell';
+import { PermissionKey, hasPermissionAny } from '@/shared/types/permissions';
 
 interface HeaderProps {
   onToggleSidebar: () => void;
@@ -26,8 +27,9 @@ const Header: React.FC<HeaderProps> = ({
   onToggleSidebar,
   inInstancePanel,
 }) => {
-  const { user, clearAuth, accounts, activeAccountId, switchAccount, removeAccount, setAuth } =
+  const { user, clearAuth, accounts, activeAccountId, switchAccount, removeAccount, setAuth, permissions } =
     useAuthStore();
+  const canViewApiKeys = hasPermissionAny(permissions, PermissionKey.MANAGE_API_KEYS, PermissionKey.API_KEYS_VIEW, PermissionKey.API_KEYS_CREATE, PermissionKey.API_KEYS_EDIT, PermissionKey.API_KEYS_DELETE);
   const navigate = useNavigate();
   const location = useLocation();
   const [loggingOut, setLoggingOut] = React.useState<boolean>(false);
@@ -116,7 +118,7 @@ const Header: React.FC<HeaderProps> = ({
       hint: t.id === 'default' ? 'Built-in baseline theme' : undefined,
     }));
 
-    return [
+    const baseItems: RichMenuItem[] = [
       {
         kind: 'toggle',
         key: 'compact',
@@ -177,6 +179,19 @@ const Header: React.FC<HeaderProps> = ({
            </svg>
         ),
       },
+      ...(canViewApiKeys
+        ? [
+            {
+              key: 'api-keys',
+              label: 'API Keys',
+              icon: (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5" aria-hidden="true">
+                  <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
+                </svg>
+              ),
+            } as RichMenuItem,
+          ]
+        : []),
       {
         key: 'themes',
         label: 'Manage themes…',
@@ -204,10 +219,12 @@ const Header: React.FC<HeaderProps> = ({
         ),
       },
     ];
-  }, [merged, prefs, activeThemeId, currentArea, loggingOut, accounts, activeAccountId]);
+    return baseItems;
+  }, [merged, prefs, activeThemeId, currentArea, loggingOut, accounts, activeAccountId, canViewApiKeys]);
 
   const onSelect = (key: string) => {
     if (key === 'account') navigate('/account');
+    else if (key === 'api-keys') navigate('/account/api-keys');
     else if (key === 'themes') navigate('/themes');
     else if (key === 'add-account') {
       // Send the user to the login page in "add account" mode so the cookie
