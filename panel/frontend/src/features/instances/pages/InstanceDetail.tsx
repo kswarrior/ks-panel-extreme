@@ -229,6 +229,14 @@ export const InstanceDynamicPage: React.FC = () => {
     );
   }
 
+  // Real terminal: render native xterm for `terminal` slug when the template
+  // explicitly enables it. Terminal is now gated by the same whitelist as every
+  // other page (empty-by-default); the previous unconditional bypass showed a
+  // terminal UI that immediately failed with 403 from the backend guard.
+  if (effectiveSlug === 'terminal') {
+    return <TerminalRealPage instance={instance} />;
+  }
+
   // Label: the row's label, a nested sub-page's name ("Editor" for
   // files/edit), "Home" for ".", or the raw slug as last resort.
   const label = getPageLabel(effectiveSlug, spec) ?? (effectiveSlug === '.' ? 'Home' : effectiveSlug);

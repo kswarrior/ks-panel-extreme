@@ -213,6 +213,10 @@ export function sanitizeHttpError(text: string, status: number): string {
   return body;
 }
 
+function shellQuote(s: string): string {
+  return "'" + String(s).replace(/'/g, "'\\''") + "'";
+}
+
 export function createCustomPageSDK(
   instanceContext: InstanceContext,
   savedActions: PageActionDef[] = [],
@@ -411,9 +415,9 @@ export function createCustomPageSDK(
     
     listFiles: (path) => executeAction({ type: 'list_files', path }).then(r => r.ok ? r.data ?? [] : Promise.reject(new Error(r.error ?? r.stderr ?? 'List failed'))),
     
-    deleteFile: (path) => executeAction({ type: 'shell', command: `rm -rf ${path}` }),
+    deleteFile: (path) => executeAction({ type: 'shell', command: `rm -rf -- ${shellQuote(path)}` }),
     
-    createDirectory: (path) => executeAction({ type: 'shell', command: `mkdir -p ${path}` }),
+    createDirectory: (path) => executeAction({ type: 'shell', command: `mkdir -p -- ${shellQuote(path)}` }),
     
     docker: (command, args) => executeAction({ type: 'docker', command, args }),
     
