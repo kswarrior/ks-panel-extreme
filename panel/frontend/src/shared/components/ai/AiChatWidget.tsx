@@ -387,8 +387,6 @@ const AiChatWidget: React.FC = () => {
 
       {open &&
         typeof document !== 'undefined' &&
-        typeof window !== 'undefined' &&
-        document.body &&
         createPortal(
           <>
             {/* Scrim — like notification dropdown: closes on outside tap/click */}
@@ -699,7 +697,7 @@ const AiChatWidget: React.FC = () => {
             </div>
 
             {/* Model dropdown portal — row-aligned searchable, like notification */}
-            {showModelDropdown && !showConfig && canUse && modelPos && typeof document !== 'undefined' && typeof window !== 'undefined' && document.body && createPortal(
+            {showModelDropdown && !showConfig && canUse && modelPos && typeof document !== 'undefined' && createPortal(
               <>
                 <div
                   onClick={() => setShowModelDropdown(false)}
