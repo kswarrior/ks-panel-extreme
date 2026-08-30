@@ -322,8 +322,22 @@ func KillProcessHandler(w http.ResponseWriter, r *http.Request) {
 		// keep-alive `sleep`). The process is still gone, so report success
 		// rather than a 502 that surfaces as "Panel unreachable (HTTP 502)"
 		// in the iframe SDK.
-		if stdout == "" && stderr == "" {
+		//
+		// Docker's exec session appends "exit status 137/143" to stderr when
+		// the container stops mid-exec (SIGKILL/SIGTERM), so stderr is NOT
+		// empty even though stdout is. Treat any empty stdout as session-
+		// closed success, marking it stopped_instance when exit-status hints
+		// at container termination.
+		if strings.TrimSpace(stdout) == "" {
+			lowerStderr := strings.ToLower(stderr)
+			isExit := strings.Contains(lowerStderr, "exit status")
 			detail := fmt.Sprintf("sent %s to pid %d (killed=true, session closed)", signal, pid)
+			if isExit {
+				detail = fmt.Sprintf("sent %s to pid %d (killed=true, container stopped)", signal, pid)
+				auditInst(r, inst.ID, "process.kill", detail)
+				writeJSON(w, map[string]any{"ok": true, "killed": true, "escalated": false, "stopped_instance": true})
+				return
+			}
 			auditInst(r, inst.ID, "process.kill", detail)
 			writeJSON(w, map[string]any{"ok": true, "killed": true, "escalated": false})
 			return
