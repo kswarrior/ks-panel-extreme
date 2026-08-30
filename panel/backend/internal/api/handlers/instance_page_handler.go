@@ -2332,6 +2332,30 @@ func ImportInstancePageFromMarketplaceHandler(w http.ResponseWriter, r *http.Req
 		}
 		pageBytes = b
 	} else {
+		mu, err := url.Parse(strings.TrimSpace(marketplacePage.DownloadURL))
+		if err != nil || (mu.Scheme != "http" && mu.Scheme != "https") || mu.Host == "" {
+			http.Error(w, "marketplace DownloadURL must be an http(s) URL", http.StatusBadRequest)
+			return
+		}
+		mhost := mu.Hostname()
+		resolver := net.Resolver{PreferGo: true}
+		dnsCtx, cancelDNS := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancelDNS()
+		ips, err := resolver.LookupIPAddr(dnsCtx, mhost)
+		if err != nil || len(ips) == 0 {
+			http.Error(w, "could not resolve marketplace host: "+mhost, http.StatusBadGateway)
+			return
+		}
+		for _, ipa := range ips {
+			if ip := ipa.IP; ip == nil || !isPublicIP(ip) {
+				which := ""
+				if ip != nil {
+					which = " (" + ip.String() + ")"
+				}
+				http.Error(w, fmt.Sprintf("refusing to fetch %s: host resolves to a non-public address%s", mhost, which), http.StatusBadRequest)
+				return
+			}
+		}
 		client := &http.Client{Timeout: 10 * time.Second}
 		resp, err := client.Get(marketplacePage.DownloadURL)
 		if err != nil {

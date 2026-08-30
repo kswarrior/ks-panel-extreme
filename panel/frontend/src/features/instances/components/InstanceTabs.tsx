@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useInstanceNav } from '@/shared/components/layout/InstanceNavContext';
 import { createPortal } from 'react-dom';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
@@ -7,6 +7,7 @@ import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 const InstanceTabs: React.FC = () => {
   const { nav, instanceId, loading } = useInstanceNav();
   const location = useLocation();
+  const navigate = useNavigate();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showFade, setShowFade] = useState(false);
   const [iconOnly, setIconOnly] = useState(false);
@@ -29,7 +30,7 @@ const InstanceTabs: React.FC = () => {
         item.to === '.' || item.to === ''
           ? `/instances/${instanceId}`
           : `/instances/${instanceId}/${item.to}`;
-      window.location.href = absTo;
+      navigate(absTo);
     }
   };
 
