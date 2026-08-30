@@ -126,7 +126,7 @@ var (
 	iconDangerousElementRe = regexp.MustCompile(`(?is)<\s*/?\s*(script|foreignObject|iframe|object|embed|animate|set|handler)\b[^>]*>?`)
 	iconEventHandlerRe     = regexp.MustCompile(`(?i)\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)`)
 	iconJSURLRe            = regexp.MustCompile(`(?i)(href|xlink:href|src|from|to|values|style)\s*=\s*("\s*(javascript|vbscript|data:text/html)[^"]*"|\s*'(javascript|vbscript|data:text/html)[^']*'|(?:javascript|vbscript|data:text/html)[^\s>]*)`)
-	iconUseExternalRefRe   = regexp.MustCompile(`(?i)(xlink:href|href)\s*=\s*("[^"#][^"]*"|'[^#'][^']*')`)
+	iconUseExternalRefRe   = regexp.MustCompile(`(?i)(xlink:href|href)\s*=\s*("[^"#][^"]*"|'[^#'][^']*'|[^"#\s>][^\s>]* )`)
 )
 
 // sanitizeIconSVG strips script-execution vectors from an author-supplied SVG
