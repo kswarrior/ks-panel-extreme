@@ -404,45 +404,58 @@ func (r *TicketRepository) Update(id int64, in UpdateTicketInput) (*models.Ticke
 		}
 	}
 	now := time.Now().UTC().Format("2006-01-02 15:04:05")
-	var closedAt sql.NullString
+	// Build nullable assignments as literal NULL when not set to avoid
+	// passing Go nil / sql.Null* to modernc which rejects them.
+	var closedVal *string
 	if status == "closed" || status == "resolved" {
 		if existing.ClosedAt == nil {
-			closedAt = sql.NullString{String: now, Valid: true}
+			closedVal = &now
 		} else {
-			closedAt = sql.NullString{String: existing.ClosedAt.UTC().Format("2006-01-02 15:04:05"), Valid: true}
+			s := existing.ClosedAt.UTC().Format("2006-01-02 15:04:05")
+			closedVal = &s
 		}
-	} else {
-		closedAt = sql.NullString{Valid: false}
 	}
-	// assigned_to handling
-	var assigned sql.NullInt64
+	var assignedVal *int64
 	if in.AssignedSet {
-		if in.AssignedTo != nil {
-			assigned = sql.NullInt64{Int64: *in.AssignedTo, Valid: true}
-		} else {
-			assigned = sql.NullInt64{Valid: false}
-		}
+		assignedVal = in.AssignedTo
 	} else {
-		if existing.AssignedTo != nil {
-			assigned = sql.NullInt64{Int64: *existing.AssignedTo, Valid: true}
-		}
+		assignedVal = existing.AssignedTo
 	}
-	var due sql.NullString
+	var dueVal *string
 	if in.DueSet {
 		if in.DueAt != nil {
-			due = sql.NullString{String: in.DueAt.UTC().Format("2006-01-02 15:04:05"), Valid: true}
+			s := in.DueAt.UTC().Format("2006-01-02 15:04:05")
+			dueVal = &s
 		} else {
-			due = sql.NullString{Valid: false}
+			dueVal = nil
 		}
-	} else {
-		if existing.DueAt != nil {
-			due = sql.NullString{String: existing.DueAt.UTC().Format("2006-01-02 15:04:05"), Valid: true}
-		}
+	} else if existing.DueAt != nil {
+		s := existing.DueAt.UTC().Format("2006-01-02 15:04:05")
+		dueVal = &s
 	}
-	_, err = r.db.Exec(
-		`UPDATE tickets SET subject = ?, description = ?, category = ?, priority = ?, status = ?, assigned_to = ?, updated_at = ?, closed_at = ?, due_at = ?, tags = ? WHERE id = ?`,
-		subject, description, category, priority, status, assigned, now, closedAt, due, tags, id,
-	)
+
+	// Dynamic query to avoid binding NULL via driver
+	assignedSQL := "assigned_to = NULL"
+	closedSQL := "closed_at = NULL"
+	dueSQL := "due_at = NULL"
+	args := []any{subject, description, category, priority, status}
+	if assignedVal != nil {
+		assignedSQL = "assigned_to = ?"
+		args = append(args, *assignedVal)
+	}
+	args = append(args, now)
+	if closedVal != nil {
+		closedSQL = "closed_at = ?"
+		args = append(args, *closedVal)
+	}
+	if dueVal != nil {
+		dueSQL = "due_at = ?"
+		args = append(args, *dueVal)
+	}
+	args = append(args, tags, id)
+	query := fmt.Sprintf(`UPDATE tickets SET subject = ?, description = ?, category = ?, priority = ?, status = ?, %s, updated_at = ?, %s, %s, tags = ? WHERE id = ?`,
+		assignedSQL, closedSQL, dueSQL)
+	_, err = r.db.Exec(query, args...)
 	if err != nil {
 		return nil, err
 	}

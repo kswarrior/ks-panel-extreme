@@ -152,6 +152,9 @@ func (r *NotificationRepository) List(f NotificationFilter) ([]models.Notificati
 	if err := r.db.QueryRow(countQ, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
+	if total == 0 {
+		return []models.Notification{}, 0, nil
+	}
 
 	limit := f.Limit
 	if limit <= 0 || limit > 100 {
