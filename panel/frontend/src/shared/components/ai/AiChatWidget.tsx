@@ -74,8 +74,8 @@ const AiChatWidget: React.FC = () => {
     let left = r.right - w;
     if (left < 8) left = 8;
     if (left + w > vw - 8) left = vw - w - 8;
-    // Vertical: drop-up above trigger, 12px gap
-    const estH = panelRef.current ? panelRef.current.getBoundingClientRect().height : 520;
+    // Vertical: drop-up above trigger, 12px gap — panel now taller (640 max) so estimate higher
+    const estH = panelRef.current ? panelRef.current.getBoundingClientRect().height : 600;
     const gap = 12;
     let top = r.top - estH - gap;
     // Flip below if not enough space above and more space below (mobile landscape)
@@ -414,7 +414,7 @@ const AiChatWidget: React.FC = () => {
               aria-label="AI Assistant"
               aria-modal="true"
               style={panelStyle}
-              className="flex flex-col rounded-2xl border border-white/15 bg-[#0f0f12]/95 backdrop-blur-xl shadow-2xl overflow-hidden animate-slide-up max-h-[min(72dvh,560px)] touch-manipulation"
+              className="flex flex-col rounded-2xl border border-white/15 bg-[#0f0f12]/95 backdrop-blur-xl shadow-2xl overflow-hidden animate-slide-up max-h-[min(78dvh,640px)] min-h-[480px] touch-manipulation"
               onClick={(e) => e.stopPropagation()}
               onTouchStart={(e) => e.stopPropagation()}
             >
@@ -633,7 +633,7 @@ const AiChatWidget: React.FC = () => {
                     </div>
                   )}
 
-                  <div ref={scrollRef} className="flex-1 overflow-auto px-4 py-3 space-y-3 min-h-[180px] max-h-[320px] bg-[#0a0a0c]/40 overscroll-contain touch-pan-y">
+                  <div ref={scrollRef} className="flex-1 overflow-auto px-4 py-3 space-y-3 min-h-[320px] max-h-[440px] bg-[#0a0a0c]/40 overscroll-contain touch-pan-y">
                     {messages.length === 0 ? (
                       <div className="text-center py-8">
                         <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-indigo-500/15 text-indigo-300 mb-3">
