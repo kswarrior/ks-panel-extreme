@@ -529,14 +529,13 @@ func NewRouter() http.Handler {
 			r.With(requireUmbrellaOrAction(ticketsG, permissions.ActionView)).Get("/users", handlers.ListUsersForAssignHandler)
 			r.With(requireUmbrellaOrAction(ticketsG, permissions.ActionCreate)).Post("/", handlers.CreateTicketHandler)
 			r.With(requireUmbrellaOrAction(ticketsG, permissions.ActionView)).Get("/{id}", handlers.GetTicketHandler)
-			r.With(requireUmbrellaOrAction(ticketsG, permissions.ActionEdit)).Put("/{id}", handlers.UpdateTicketHandler)
-			r.With(requireUmbrellaOrAction(ticketsG, permissions.ActionDelete)).Delete("/{id}", handlers.DeleteTicketHandler)
+			// Update/Delete/Assign/Comment allow any ticket holder; handler enforces owner-vs-staff.
+			r.With(requireAnyPermission(permissions.ManageTicketsKey, permissions.TicketsViewKey, permissions.TicketsCreateKey, permissions.TicketsEditKey, permissions.TicketsDeleteKey)).Put("/{id}", handlers.UpdateTicketHandler)
+			r.With(requireAnyPermission(permissions.ManageTicketsKey, permissions.TicketsViewKey, permissions.TicketsDeleteKey, permissions.TicketsCreateKey)).Delete("/{id}", handlers.DeleteTicketHandler)
 			r.With(requireUmbrellaOrAction(ticketsG, permissions.ActionEdit)).Post("/{id}/assign", handlers.AssignTicketHandler)
-			// Comments (threaded replies). List is VIEW-gated like the ticket itself;
-			// create is EDIT-gated because replying mutates the ticket's state.
 			r.With(requireUmbrellaOrAction(ticketsG, permissions.ActionView)).Get("/{id}/comments", handlers.ListTicketCommentsHandler)
-			r.With(requireUmbrellaOrAction(ticketsG, permissions.ActionEdit)).Post("/{id}/comments", handlers.AddTicketCommentHandler)
-			r.With(requireUmbrellaOrAction(ticketsG, permissions.ActionDelete)).Delete("/{id}/comments/{commentId}", handlers.DeleteTicketCommentHandler)
+			r.With(requireAnyPermission(permissions.ManageTicketsKey, permissions.TicketsViewKey, permissions.TicketsCreateKey, permissions.TicketsEditKey)).Post("/{id}/comments", handlers.AddTicketCommentHandler)
+			r.With(requireAnyPermission(permissions.ManageTicketsKey, permissions.TicketsViewKey, permissions.TicketsDeleteKey, permissions.TicketsEditKey)).Delete("/{id}/comments/{commentId}", handlers.DeleteTicketCommentHandler)
 		})
 
 		// Mod Engine v2 slot registry. Read-only, panel-wide: every active
