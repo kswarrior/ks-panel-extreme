@@ -317,6 +317,20 @@ func CreateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "link must be 1000 characters or fewer", http.StatusBadRequest)
 		return
 	}
+	if ll := strings.ToLower(strings.TrimSpace(req.Link)); ll != "" {
+		if strings.HasPrefix(ll, "javascript:") || strings.HasPrefix(ll, "data:") || strings.HasPrefix(ll, "vbscript:") || strings.HasPrefix(ll, "file:") {
+			http.Error(w, "link must not use javascript/data scheme", http.StatusBadRequest)
+			return
+		}
+	}
+	if len(req.ActionLabel) > 255 {
+		http.Error(w, "action_label must be 255 characters or fewer", http.StatusBadRequest)
+		return
+	}
+	if len(req.Metadata) > 5000 {
+		http.Error(w, "metadata must be 5000 characters or fewer", http.StatusBadRequest)
+		return
+	}
 	cat := models.NotificationCategory(strings.ToLower(strings.TrimSpace(req.Category)))
 	if cat == "" {
 		cat = models.NotificationCategoryGeneral

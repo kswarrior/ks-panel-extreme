@@ -124,8 +124,8 @@ func GetTicketHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "ticket not found", http.StatusNotFound)
 		return
 	}
-	// Access check: non-staff can only see own tickets
-	if !hasTicketView(con, uid) {
+	// Access check: only staff (MANAGE_TICKETS) can see any ticket; others only own
+	if !isTicketStaff(con, uid) {
 		if tk.CreatedBy != uid && (tk.AssignedTo == nil || *tk.AssignedTo != uid) {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
@@ -133,8 +133,6 @@ func GetTicketHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	// Load comments with appropriate visibility
 	includeInternal := canSeeInternal(con, uid)
-	// Creator/assignee can also see internal if they are staff? already gated.
-	// If user is ticket owner and also staff edit, they'd see internal anyway.
 	comments, _ := repo.ListComments(id, includeInternal)
 	if comments == nil {
 		comments = []models.TicketComment{}
@@ -380,8 +378,7 @@ func UpdateTicketHandler(w http.ResponseWriter, r *http.Request) {
 	// Simple rule: owner can edit own ticket's content unless closed; staff can edit everything.
 	isOwner := existing.CreatedBy == uid
 	isStaff := canSeeInternal(con, uid)
-	if !isOwner && !isStaff && !hasTicketView(con, uid) {
-		// non-owner non-staff with only own view: check assigned_to
+	if !isOwner && !isStaff {
 		if existing.AssignedTo == nil || *existing.AssignedTo != uid {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
@@ -609,8 +606,8 @@ func AddTicketCommentHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "ticket not found", http.StatusNotFound)
 		return
 	}
-	// Access check: must be able to view ticket
-	if !hasTicketView(con, uid) {
+	// Access check: staff sees any, others only own/assigned
+	if !isTicketStaff(con, uid) {
 		if tk.CreatedBy != uid && (tk.AssignedTo == nil || *tk.AssignedTo != uid) {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
@@ -662,7 +659,7 @@ func ListTicketCommentsHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "ticket not found", http.StatusNotFound)
 		return
 	}
-	if !hasTicketView(con, uid) {
+	if !isTicketStaff(con, uid) {
 		if tk.CreatedBy != uid && (tk.AssignedTo == nil || *tk.AssignedTo != uid) {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
