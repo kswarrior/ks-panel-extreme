@@ -436,15 +436,17 @@ const AiChatWidget: React.FC = () => {
     });
   };
 
-  // Model chip editor helpers — per provider
+  // Model chip editor helpers — per provider (supports comma-separated paste and multiple adds)
   const addModelToProvider = (idx: number, modelId: string) => {
-    const trimmed = modelId.trim();
-    if (!trimmed) return;
+    const parts = modelId.split(',').map((s) => s.trim()).filter(Boolean);
+    if (parts.length === 0) return;
     setProvidersDraft((prev) =>
       prev.map((p, i) => {
         if (i !== idx) return p;
-        if (p.models.includes(trimmed)) return p;
-        return { ...p, models: [...p.models, trimmed] };
+        const existing = new Set(p.models);
+        const toAdd = parts.filter((m) => !existing.has(m));
+        if (toAdd.length === 0) return p;
+        return { ...p, models: [...p.models, ...toAdd] };
       })
     );
   };
