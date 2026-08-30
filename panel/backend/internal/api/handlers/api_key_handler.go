@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/example/kspanel/internal/models"
+	"github.com/example/kspanel/internal/permissions"
 	"github.com/example/kspanel/internal/repository"
 	"github.com/go-chi/chi/v5"
 )
@@ -65,6 +67,35 @@ type apiKeyResponse struct {
 
 func isoString(t time.Time) string {
 	return t.Format("2006-01-02T15:04:05Z07:00")
+}
+
+// ensurePermissionsAllowed verifies that every permission in requested is
+// already held by uid. Empty request is always allowed. This prevents a
+// low-privilege user from minting a key with elevated scopes (e.g. a
+// regular user granting themselves MANAGE_USERS). The check uses the live
+// role_permissions snapshot so revocations take effect immediately.
+func ensurePermissionsAllowed(db *sql.DB, uid int64, requested []string) error {
+	if len(requested) == 0 {
+		return nil
+	}
+	checker := permissions.NewChecker(db)
+	owned, err := checker.ListUserPermissions(uid)
+	if err != nil {
+		return fmt.Errorf("could not verify permissions")
+	}
+	ownedSet := make(map[string]struct{}, len(owned))
+	for _, k := range owned {
+		ownedSet[k] = struct{}{}
+	}
+	for _, want := range requested {
+		if want == "" {
+			continue
+		}
+		if _, ok := ownedSet[want]; !ok {
+			return fmt.Errorf("forbidden: cannot grant permission %q you do not hold", want)
+		}
+	}
+	return nil
 }
 
 // parseExpiry coerces a client-supplied expiry string into a *time.Time. It
@@ -167,6 +198,11 @@ func CreateApiKeyHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "name is required", http.StatusBadRequest)
 		return
 	}
+	// System keys are admin-only; reject any attempt to sneak is_system via self-service.
+	if req.IsSystem != nil && *req.IsSystem {
+		http.Error(w, "system keys can only be created via admin panel", http.StatusForbidden)
+		return
+	}
 	expiry, err := parseExpiryPtr(req.ExpiresAt)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -179,6 +215,12 @@ func CreateApiKeyHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer con.Close()
+
+	// Enforce: user can only grant permissions they themselves hold.
+	if err := ensurePermissionsAllowed(con, uid, req.Permissions); err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
 
 	repo := repository.NewApiKeyRepository(con)
 	key, plaintext, err := repo.CreateApiKey(repository.CreateApiKeyInput{
@@ -244,6 +286,10 @@ func UpdateApiKeyHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "name is required", http.StatusBadRequest)
 		return
 	}
+	if req.IsSystem != nil && *req.IsSystem {
+		http.Error(w, "system keys cannot be toggled via self-service", http.StatusForbidden)
+		return
+	}
 	expiry, err := parseExpiryPtr(req.ExpiresAt)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -260,6 +306,11 @@ func UpdateApiKeyHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer con.Close()
+	// Enforce subset: cannot escalate to permissions you don't hold.
+	if err := ensurePermissionsAllowed(con, uid, req.Permissions); err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
 	repo := repository.NewApiKeyRepository(con)
 	// Ownership check: self-service keys must belong to the caller and must not be system keys.
 	if existing, gerr := repo.GetApiKey(id); gerr != nil || existing == nil || existing.UserID != uid || existing.IsSystem {
