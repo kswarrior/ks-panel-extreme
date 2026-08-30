@@ -274,6 +274,7 @@ const UserApiKeys: React.FC = () => {
   };
 
   const remove = async (k: ApiKey) => {
+    if (!canDelete) { alert('You need API_KEYS_DELETE or MANAGE_API_KEYS permission to delete API keys.'); return; }
     if (!(await confirm({ title: 'Delete API key', message: `Delete API key "${k.name}"?`, tone: 'danger', confirmLabel: 'Delete' }))) return;
     try {
       await deleteApiKey(k.id);
@@ -284,6 +285,7 @@ const UserApiKeys: React.FC = () => {
   };
 
   const toggleActive = async (k: ApiKey, nextActive: boolean) => {
+    if (!canEdit) { alert('You need API_KEYS_EDIT or MANAGE_API_KEYS permission to edit API keys.'); return; }
     try {
       await updateApiKey(k.id, {
         name: k.name,

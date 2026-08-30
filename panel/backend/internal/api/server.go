@@ -281,8 +281,10 @@ func NewRouter() http.Handler {
 
 		// Admin: permissions listing (the role editor needs it). Gated by
 		// the Roles umbrella-or-view so a narrowed "ROLES_VIEW" role can
-		// still build the Permissions block on roles/new.
-		r.With(requireUmbrellaOrAction(rolesG, permissions.ActionView)).Get("/api/permissions", handlers.ListPermissionsHandler)
+		// still build the Permissions block on roles/new. Also allow anyone who
+		// can manage API keys to fetch the catalog for the self-service key picker
+		// (UserApiKeys page) – they need to see which scopes they could request.
+		r.With(requireAnyPermission(permissions.ManageRolesKey, permissions.RolesViewKey, permissions.ManageApiKeysKey, permissions.ApiKeysViewKey, permissions.ApiKeysCreateKey, permissions.ApiKeysEditKey)).Get("/api/permissions", handlers.ListPermissionsHandler)
 
 		// Admin: authority-provider inventory the Roles form renders its
 		// "allowed authorities" picker from. Returns only the admin-
