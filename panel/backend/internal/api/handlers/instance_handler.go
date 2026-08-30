@@ -212,7 +212,12 @@ func ListMyInstancesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer con.Close()
 
-	// Parse pagination parameters.
+	// Parse pagination parameters. Only slice when the caller opted into
+	// pagination (page or page_size query present); the SPA's listMyInstances()
+	// calls /api/me/instances with no params and expects the full owned fleet
+	// (same shape as the admin listInstances which is never paginated). Capping
+	// the old default of 20 would silently hide instances past the first page.
+	paginate := r.URL.Query().Has("page") || r.URL.Query().Has("page_size")
 	page := 1
 	pageSize := 20
 	if v := r.URL.Query().Get("page"); v != "" {
@@ -234,16 +239,17 @@ func ListMyInstancesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Apply pagination in memory since the full list is already joined.
-	start := (page - 1) * pageSize
-	end := start + pageSize
-	if start < len(insts) {
-		if end > len(insts) {
-			end = len(insts)
+	if paginate {
+		start := (page - 1) * pageSize
+		end := start + pageSize
+		if start < len(insts) {
+			if end > len(insts) {
+				end = len(insts)
+			}
+			insts = insts[start:end]
+		} else {
+			insts = []models.Instance{}
 		}
-		insts = insts[start:end]
-	} else {
-		insts = []models.Instance{}
 	}
 	writeJSON(w, insts)
 }

@@ -216,14 +216,6 @@ export const InstanceDynamicPage: React.FC = () => {
   const slug = (wildcard ?? '').replace(/\/+$/, '');
   const effectiveSlug = slug === '' ? '.' : slug;
 
-  // Real terminal: render native xterm for `terminal` slug regardless of
-  // whether the template's page list contains it. This makes the terminal
-  // behave like a built-in PTY (full emulation, mobile keyboard, fit,
-  // theme, reconnection) instead of the div-based log viewer.
-  if (effectiveSlug === 'terminal') {
-    return <TerminalRealPage instance={instance} />;
-  }
-
   if (!isPageAllowed(effectiveSlug, spec)) {
     // The index route on a page-less instance gets the guidance empty state;
     // every other unknown slug gets the classic not-in-template card.
