@@ -4897,7 +4897,7 @@ def deploy_instance(template, node):
       + '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px">'
       + '<h2 style="font-size:20px;font-weight:600;color:var(--ks-heading);margin:0">Terminal</h2>'
       + '<div style="display:flex;align-items:center;gap:8px">'
-      + (state !== 'connected' ? '<button type="button" id="btn-reconnect" class="ks-btn-header ks-icon-btn" title="Reconnect the live shell now" style="border-color:var(--ks-info-line)!important;color:var(--ks-info)!important"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>' : '')
+      + (state !== 'connected' ? '<button type="button" id="btn-reconnect" class="ks-btn-header ks-icon-btn" title="Reconnect" aria-label="Reconnect"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>' : '')
       + '<button type="button" id="btn-clear" class="ks-btn-header ks-icon-btn" title="Clear the terminal scrollback"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>'
       + '</div></div>'
 
