@@ -34,6 +34,7 @@ func NewRouter() http.Handler {
 	// Notifications sits between Tickets and Settings in AreaGroups (see permissions/keys.go)
 	settingsG := permissions.AreaGroups[11]
 	themesG := permissions.AreaGroups[12]
+	aiChatG := permissions.AreaGroups[13]
 
 	// Boot the Mod Engine v2 runtime: spin up a Goja VM for every active mod
 	// so its slots + hooks are live before the first request lands. A per-mod
@@ -756,6 +757,21 @@ func NewRouter() http.Handler {
 		// Broadcast / single-user creation — admin-only. Payload controls
 		// broadcast vs targeted via `broadcast` boolean.
 		r.With(requirePermission("MANAGE_NOTIFICATIONS")).Post("/api/notifications", handlers.CreateNotificationHandler)
+
+		// ─────────────────────────────────────────────────────────────────
+		// AI Chat — floating bottom-right assistant (bot icon + drop-up chat
+		// panel). Every authenticated user sees the widget shell; actually
+		// sending a message requires AI_CHAT_USE (VIEW) and configuring
+		// providers/models/system prompt requires AI_CHAT_MANAGE (EDIT).
+		// The GET is intentionally inside the authenticated group so the
+		// widget can discover providers + system prompt to render the UI;
+		// api keys are masked as "*" so the GET is safe. Writes are gated
+		// by the manage verb, chats by the use verb — the umbrella
+		// MANAGE_AI_CHAT implies both so the seeded admin keeps full control.
+		// ─────────────────────────────────────────────────────────────────
+		r.With(requireUmbrellaOrAction(aiChatG, permissions.ActionView)).Get("/api/ai/config", handlers.GetAiConfigHandler)
+		r.With(requireUmbrellaOrAction(aiChatG, permissions.ActionEdit)).Put("/api/ai/config", handlers.UpdateAiConfigHandler)
+		r.With(requireUmbrellaOrAction(aiChatG, permissions.ActionView)).Post("/api/ai/chat", handlers.AiChatHandler)
 	})
 
 	// Serve SPA from embedded UI – any route not matched above falls through to UI

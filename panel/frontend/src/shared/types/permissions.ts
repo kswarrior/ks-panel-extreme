@@ -32,6 +32,13 @@ export const PermissionKey = {
   // gets it by default; other roles can be denied the self-update verb
   // without losing the rest of the system telemetry (ACCESS_ADMIN_PANEL).
   MANAGE_PANEL_UPDATE: 'MANAGE_PANEL_UPDATE',
+  // AI Chat — floating bottom-right assistant (bot icon + drop-up chat panel).
+  // MANAGE_AI_CHAT is the umbrella that implies both verbs so the seeded admin
+  // keeps full control. AI_CHAT_USE opens the widget + sends messages; AI_CHAT_MANAGE
+  // allows adding/editing providers, model ids and the system prompt.
+  MANAGE_AI_CHAT: 'MANAGE_AI_CHAT',
+  AI_CHAT_USE: 'AI_CHAT_USE',
+  AI_CHAT_MANAGE: 'AI_CHAT_MANAGE',
 
   // ----------------------------------------------------------------------
   // Granular per-area CRUD keys (AREAS_ACTION: USERS_VIEW, NODES_CREATE, ...).
@@ -286,6 +293,17 @@ export const PERMISSION_AREAS: PermissionArea[] = [
       PermissionKey.USE_GLOBAL_THEMES,
       PermissionKey.ASSIGN_THEMES,
     ],
+  },
+  // AI Chat — floating bottom-right assistant (bot icon + drop-up chat panel).
+  // VIEW covers "can chat" (send messages + see chat text); EDIT covers
+  // "can configure providers / model ids / system prompt".
+  {
+    label: 'AI Chat',
+    umbrella: PermissionKey.MANAGE_AI_CHAT,
+    keys: {
+      VIEW: PermissionKey.AI_CHAT_USE,
+      EDIT: PermissionKey.AI_CHAT_MANAGE,
+    },
   },
   // Account / profile customization cluster. VIEW_ACCOUNT is the page-level
   // umbrella (opens the Account page). The Account area doesn't use the CRUD
