@@ -2861,8 +2861,8 @@ button.ks-iconbtn:focus-visible{outline:2px solid var(--ks-info);outline-offset:
             : '<button type="button" data-edit="' + esc(e.name) + '" style="border:none;background:transparent;padding:0;color:var(--ks-body);cursor:pointer;font-size:13px;font-family:inherit" title="Open in editor">' + esc(e.name) + '</button>')
           + '</span></td>'
           + '<td class="ks-hidden-sm ks-mono ks-muted" style="padding:8px 12px;text-align:right;font-size:12px;white-space:nowrap">' + (e.is_dir ? '\\u2014' : fmtBytes(e.size)) + '</td>'
-          + '<td class="ks-hidden-md ks-mono ks-muted" style="padding:8px 12px;text-align:right;font-size:12px">' + (e.mode ? esc(e.mode) : '') + '</td>'
-          + '<td class="ks-hidden-md ks-muted" style="padding:8px 12px;text-align:right;font-size:12px;white-space:nowrap">' + (e.mod_time ? new Date(e.mod_time * 1000).toLocaleString() : '') + '</td>'
+          + '<td class="ks-hidden-sm ks-hidden-md ks-mono ks-muted" style="padding:8px 12px;text-align:right;font-size:12px">' + (e.mode ? esc(e.mode) : '') + '</td>'
+          + '<td class="ks-hidden-sm ks-hidden-md ks-muted" style="padding:8px 12px;text-align:right;font-size:12px;white-space:nowrap">' + (e.mod_time ? new Date(e.mod_time * 1000).toLocaleString() : '') + '</td>'
           + '<td style="padding:4px;text-align:right;white-space:nowrap;width:44px">'
           + (e.is_dir ? '' : '<button type="button" class="ks-iconbtn ks-hidden-sm" data-download="' + esc(e.name) + '" title="Download" style="color:var(--ks-muted)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>')
           + '<button type="button" class="ks-iconbtn" data-menu="' + esc(e.name) + '" title="Actions" aria-label="Actions for ' + esc(e.name) + '"'
