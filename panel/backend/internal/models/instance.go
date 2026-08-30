@@ -56,9 +56,6 @@ type InstancePage struct {
 	// substitute the tokens when rendering. Empty string == no components.
 	Components string `json:"components"`
 	IconSVG    string `json:"icon_svg"`
-	// StartedAt is when the instance last transitioned to "running" (deploy/start/restart).
-	// NULL = never started or stopped. Used for uptime display in InstanceCard.
-	StartedAt *time.Time `json:"started_at,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -131,6 +128,9 @@ type Instance struct {
 	// SuspensionHistory is a JSON array of suspension records for audit trail.
 	SuspensionHistory string `json:"-"`
 
+	// StartedAt is when the instance last transitioned to "running" (deploy/start/restart).
+	// NULL = never started or stopped. Used for uptime display in InstanceCard.
+	StartedAt *time.Time `json:"started_at,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
