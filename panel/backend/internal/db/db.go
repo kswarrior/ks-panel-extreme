@@ -821,6 +821,14 @@ func SeedCore(d Dialect, db *sql.DB) error {
 		('MANAGE_PANEL_UPDATE', 'Check for and apply panel updates (downloads a new binary, replaces the running one and restarts the panel)')`, "permissions")); err != nil {
 		return err
 	}
+	if _, err := db.Exec(translateSeedInsert(prefix, pgConflict, `(key, description) VALUES
+		('MANAGE_NOTIFICATIONS', 'Manage notifications (broadcast announcements, send to user, admin ops)'),
+		('NOTIFICATIONS_VIEW',   'View notifications (list + detail)'),
+		('NOTIFICATIONS_CREATE', 'Create notifications / broadcast announcements'),
+		('NOTIFICATIONS_EDIT',   'Mark notifications read / update'),
+		('NOTIFICATIONS_DELETE', 'Delete notifications')`, "permissions")); err != nil {
+		return err
+	}
 	// Keep the MANAGE_THEMES description current on legacy installs.
 	if _, err := db.Exec(`UPDATE permissions SET description = 'Manage the theme system (umbrella key – enables the theme surface for a role)' WHERE key = 'MANAGE_THEMES'`); err != nil {
 		return err
@@ -861,6 +869,7 @@ func SeedCore(d Dialect, db *sql.DB) error {
 	if _, err := db.Exec(translateSeedInsert(prefix, pgConflict, `(role_id, permission_id)
 		SELECT r.id, p.id FROM roles r, permissions p
 		WHERE r.name='user' AND p.key IN ('VIEW_INSTANCES', 'VIEW_ACCOUNT', 'USE_APPLICATIONS',
+		'TICKETS_VIEW', 'TICKETS_CREATE', 'TICKETS_EDIT',
 		'ACCOUNT_EDIT_BANNER', 'ACCOUNT_EDIT_ABOUT', 'ACCOUNT_EDIT_ACCENT',
 		'ACCOUNT_USE_AVATAR_SYMBOL', 'ACCOUNT_UPLOAD_AVATAR')`, "role_permissions")); err != nil {
 		return err

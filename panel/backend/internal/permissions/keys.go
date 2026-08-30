@@ -94,6 +94,13 @@ ManageApplicationsKey = "MANAGE_APPLICATIONS"
 	// INSERT in db.go SeedCore.
 	ManagePanelUpdateKey = "MANAGE_PANEL_UPDATE"
 
+	// ManageNotificationsKey gates the powerful notification inbox — creating
+	// broadcast announcements, clearing another user's inbox, and the admin
+	// notification-ops surface. Every authenticated user can ALWAYS read +
+	// mutate their OWN inbox (list / mark-read / delete); this key only
+	// guards the cross-user ops (broadcast, send-to-user, admin list-all).
+	ManageNotificationsKey = "MANAGE_NOTIFICATIONS"
+
 	// ----------------------------------------------------------------------
 	// Granular per-area CRUD capability keys.
 	//
@@ -162,6 +169,11 @@ ApplicationsDeleteKey = "APPLICATIONS_DELETE"
 	TicketsCreateKey = "TICKETS_CREATE"
 	TicketsEditKey   = "TICKETS_EDIT"
 	TicketsDeleteKey = "TICKETS_DELETE"
+
+	NotificationsViewKey   = "NOTIFICATIONS_VIEW"
+	NotificationsCreateKey = "NOTIFICATIONS_CREATE"
+	NotificationsEditKey   = "NOTIFICATIONS_EDIT"
+	NotificationsDeleteKey = "NOTIFICATIONS_DELETE"
 
 	SettingsViewKey  = "SETTINGS_VIEW"
 	SettingsEditKey  = "SETTINGS_EDIT"
@@ -251,6 +263,9 @@ var AreaGroups = []Group{
 	}},
 	{Label: "Tickets", Umbrella: ManageTicketsKey, Keys: map[Action]string{
 		ActionView: TicketsViewKey, ActionCreate: TicketsCreateKey, ActionEdit: TicketsEditKey, ActionDelete: TicketsDeleteKey,
+	}},
+	{Label: "Notifications", Umbrella: ManageNotificationsKey, Keys: map[Action]string{
+		ActionView: NotificationsViewKey, ActionCreate: NotificationsCreateKey, ActionEdit: NotificationsEditKey, ActionDelete: NotificationsDeleteKey,
 	}},
 	{Label: "Settings", Umbrella: ViewSettingsKey, Keys: map[Action]string{
 		ActionView: SettingsViewKey, ActionEdit: SettingsEditKey,

@@ -20,6 +20,7 @@ const (
 	ActivityCategoryAutomationCategory ActivityCategory = "automation"
 	ActivityCategorySnapshot           ActivityCategory = "snapshot"
 	ActivityCategorySecurity           ActivityCategory = "security"
+	ActivityCategoryTicket             ActivityCategory = "ticket"
 )
 
 // ActivityLog is one row of the admin audit timeline.
