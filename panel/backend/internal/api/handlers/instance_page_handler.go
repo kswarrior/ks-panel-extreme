@@ -302,6 +302,14 @@ func validSubPagePath(p string) bool {
 	return true
 }
 
+// isDuplicateSlugError reports whether errMsg signals a UNIQUE violation on instance_pages.slug
+// across SQLite (UNIQUE constraint failed), MySQL (Duplicate entry) and Postgres
+// (duplicate key value violates unique constraint).
+func isDuplicateSlugError(errMsg string) bool {
+	low := strings.ToLower(errMsg)
+	return strings.Contains(low, "duplicate") || strings.Contains(low, "unique")
+}
+
 func validateInstancePage(req instancePageDTO) (instancePageDTO, error) {
 	if req.Name == "" {
 		return req, newErrString("name is required")
