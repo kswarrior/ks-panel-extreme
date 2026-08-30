@@ -196,7 +196,7 @@ func validComponentName(s string) bool {
 
 var (
 	componentStartRe = regexp.MustCompile(`^[A-Za-z0-9_]$`)
-	componentBodyRe  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
+	componentBodyRe  = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_-]*$`)
 )
 
 // instancePageSubPage mirrors one entry of the persisted sub_pages JSON.
