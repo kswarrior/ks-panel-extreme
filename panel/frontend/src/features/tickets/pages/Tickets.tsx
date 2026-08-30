@@ -188,10 +188,11 @@ const Tickets: React.FC = () => {
               <article
                 id={`ks-ticket-${t.id}`}
                 key={t.id}
-                className={`ks-card ks-list-card group relative glass-card rounded-xl flex flex-col gap-3 hover:border-white/20 transition-colors ${glassModifier} ${isUrgent ? 'ring-1 ring-red-500/20' : ''}`}
+                className={`ks-card ks-list-card group relative glass-card rounded-xl flex flex-col gap-3 transition-colors ${glassModifier}`}
+                style={isUrgent ? { boxShadow: '0 0 0 1px color-mix(in srgb, var(--ks-bad) 20%, transparent)' } : undefined}
               >
                 <CardMediaLayer />
-                <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+                <div className="pointer-events-none absolute inset-x-0 top-0 h-px" style={{ background: 'linear-gradient(to right, transparent, var(--ks-card-border), transparent)' }} />
                 <header className="flex items-start gap-3 min-w-0 p-3 pb-0">
                   <div className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center border ${isUrgent ? 'bg-red-500/10 border-red-500/30 text-red-300' : 'bg-white/[0.05] border-white/10 text-gray-300'}`} aria-hidden="true">
                     <CategoryIcon category={t.category} />
