@@ -260,7 +260,7 @@ const TicketChat: React.FC = () => {
             </>
           )}
         </div>
-      </GlassCard>
+      </div>
     </div>
   );
 };
