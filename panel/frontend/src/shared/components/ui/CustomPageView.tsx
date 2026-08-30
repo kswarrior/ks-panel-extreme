@@ -967,7 +967,7 @@ function customPageThemeCss(theme: Theme, pageSlugOrPath?: string): string {
       --ks-toggle-h: ${clampNum((f as any).toggle_track_height, 24, 12, 48)}px;
       --ks-toggle-thumb-size: ${clampNum((f as any).toggle_thumb_size, 20, 8, clampNum((f as any).toggle_track_height, 24, 12, 48)-2)}px;
       --ks-toggle-offset: ${Math.round((clampNum((f as any).toggle_track_height, 24, 12, 48) - clampNum((f as any).toggle_thumb_size, 20, 8, clampNum((f as any).toggle_track_height, 24, 12, 48)-2))/2)}px;
-      --ks-toggle-travel: ${Math.max(2, Math.round(clampNum((f as any).toggle_track_height, 24, 12, 48)*(44/24) - clampNum((f as any).toggle_thumb_size, 20, 8, clampNum((f as any).toggle_track_height, 24, 12, 48)-2) - Math.round((clampNum((f as any).toggle_track_height, 24, 12, 48) - clampNum((f as any).toggle_thumb_size, 20, 8, clampNum((f as any).toggle_track_height, 24, 12, 48)-2))/2)*2)}px;
+      --ks-toggle-travel: ${Math.max(2, Math.round(clampNum((f as any).toggle_track_height, 24, 12, 48)*(44/24) - clampNum((f as any).toggle_thumb_size, 20, 8, clampNum((f as any).toggle_track_height, 24, 12, 48)-2) - Math.round((clampNum((f as any).toggle_track_height, 24, 12, 48) - clampNum((f as any).toggle_thumb_size, 20, 8, clampNum((f as any).toggle_track_height, 24, 12, 48)-2))/2)*2))}px;
       --ks-toggle-radius: ${clampNum((f as any).toggle_border_radius, 9999, 0, 9999)}px;
       --ks-label-size: ${num((f as any).label_font_size, 14)}px;
       --ks-label-weight: ${num((f as any).label_font_weight, 500)};
