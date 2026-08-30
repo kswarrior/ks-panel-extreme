@@ -246,9 +246,10 @@ func NewRouter() http.Handler {
 		//  -> r.Get("/api/themes", handlers.ListThemesHandler)   // (moved up)
 
 		// API Keys (self-service: user manages their own keys).
-		// Gates: VIEW for list, CREATE for create, EDIT for update, DELETE for revoke.
-		// The umbrella MANAGE_API_KEYS implies all, so admin roles keep working.
-		r.With(requireUmbrellaOrAction(apikeysG, permissions.ActionView)).Get("/api/me/api-keys", handlers.ListApiKeysHandler)
+		// List is open to any authenticated user (they see only their own keys);
+		// mutating verbs are gated by the granular API_KEYS_* keys – the umbrella
+		// MANAGE_API_KEYS implies all, so admins keep working.
+		r.Get("/api/me/api-keys", handlers.ListApiKeysHandler)
 		r.With(requireUmbrellaOrAction(apikeysG, permissions.ActionCreate)).Post("/api/me/api-keys", handlers.CreateApiKeyHandler)
 		r.With(requireUmbrellaOrAction(apikeysG, permissions.ActionEdit)).Put("/api/me/api-keys/{id}", handlers.UpdateApiKeyHandler)
 		r.With(requireUmbrellaOrAction(apikeysG, permissions.ActionDelete)).Delete("/api/me/api-keys/{id}", handlers.DeleteApiKeyHandler)

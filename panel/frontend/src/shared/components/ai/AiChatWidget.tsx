@@ -683,7 +683,7 @@ const AiChatWidget: React.FC = () => {
                             {providersDraft.map((p, idx) => {
                               const dup = p.id && providersDraft.filter((x) => x.id.trim() === p.id.trim()).length > 1;
                               return (
-                                <div key={idx} className={`rounded-xl border p-3 space-y-2 ${dup ? 'border-red-500/40 bg-red-500/5' : 'border-white/10 bg-white/[0.04]'}`}>
+                                <div key={`${p.id}-${idx}`} className={`rounded-xl border p-3 space-y-2 ${dup ? 'border-red-500/40 bg-red-500/5' : 'border-white/10 bg-white/[0.04]'}`}>
                                   <div className="flex items-center justify-between gap-2">
                                     <span className="inline-flex items-center gap-2 text-xs font-semibold text-indigo-200">
                                       <span className="w-6 h-6 rounded-full bg-indigo-600 text-white grid place-items-center text-[11px]">#{idx + 1}</span>

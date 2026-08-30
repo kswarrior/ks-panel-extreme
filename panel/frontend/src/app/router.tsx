@@ -7,6 +7,7 @@ import Register from '@/features/auth/pages/Register';
 import VerifyEmail from '@/features/auth/pages/VerifyEmail';
 import InstanceList from '@/features/instances/pages/InstancesRouter';
 import Account from '@/features/account/pages/Account';
+import UserApiKeys from '@/features/account/pages/UserApiKeys';
 import UsersPage from '@/features/users/pages/Users';
 import UserForm from '@/features/users/pages/UserForm';
 import UserDetail from '@/features/users/pages/UserDetail';
@@ -135,6 +136,16 @@ const Router: React.FC = () => (
           <RequireAuth>
             <RequirePermission permission={PermissionKey.VIEW_ACCOUNT}>
               <Account />
+             </RequirePermission>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/account/api-keys"
+        element={
+          <RequireAuth>
+            <RequirePermission permission={PermissionKey.VIEW_ACCOUNT}>
+              <UserApiKeys />
              </RequirePermission>
           </RequireAuth>
         }
