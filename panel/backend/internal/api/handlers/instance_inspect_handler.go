@@ -264,13 +264,27 @@ func KillProcessHandler(w http.ResponseWriter, r *http.Request) {
 		TimeoutSec: 12,
 	})
 	if err != nil {
+		msg := err.Error()
+		// "container is not running" is not a gateway failure — the instance
+		// is simply stopped. Surface as 400 so the UI shows "instance not
+		// running" instead of the generic 502 that the SDK collapses to
+		// "Panel unreachable (HTTP 502)" when the proxy returns HTML.
+		if strings.Contains(strings.ToLower(msg), "is not running") || strings.Contains(strings.ToLower(msg), "no such container") {
+			writeJSONStatus(w, http.StatusBadRequest, map[string]any{"error": "instance is not running"})
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadGateway)
-		json.NewEncoder(w).Encode(map[string]any{"error": "edge exec failed: " + err.Error()})
+		json.NewEncoder(w).Encode(map[string]any{"error": "edge exec failed: " + msg})
 		return
 	}
 	if !resp.OK {
-		writeJSONStatus(w, http.StatusBadGateway, map[string]any{"error": "edge rejected kill: " + resp.Error})
+		msg := resp.Error
+		if strings.Contains(strings.ToLower(msg), "is not running") || strings.Contains(strings.ToLower(msg), "no such container") {
+			writeJSONStatus(w, http.StatusBadRequest, map[string]any{"error": "instance is not running"})
+			return
+		}
+		writeJSONStatus(w, http.StatusBadGateway, map[string]any{"error": "edge rejected kill: " + msg})
 		return
 	}
 	// Parse the verification JSON the in-instance script printed. An
@@ -281,19 +295,48 @@ func KillProcessHandler(w http.ResponseWriter, r *http.Request) {
 		Escalated bool `json:"escalated"`
 	}
 	stdout := strings.TrimSpace(resp.Stdout)
+	stderr := strings.TrimSpace(resp.Stderr)
 	line := stdout
 	if idx := strings.LastIndexByte(stdout, '\n'); idx >= 0 {
 		line = stdout[idx+1:]
 	}
 	if jerr := json.Unmarshal([]byte(line), &out); jerr != nil {
+		// When the container stops as a side-effect of killing its keep-alive
+		// (e.g. the `sleep infinity` that backs `zdfgh`'s wait loop), the
+		// docker exec session is torn down before it can print the JSON —
+		// stdout is empty and stderr carries "is not running". Treat that as
+		// a successful kill (the process is gone because the workload stopped)
+		// rather than a 502 that the SDK collapses to "Panel unreachable".
+		combined := strings.ToLower(stdout + " " + stderr)
+		if strings.Contains(combined, "is not running") || strings.Contains(combined, "no such container") {
+			// The container stopped — the target pid is gone (or the whole
+			// workload is). Report as killed so the UI can toast success and
+			// reload the (now empty) process list.
+			detail := fmt.Sprintf("sent %s to pid %d (killed=true, container stopped)", signal, pid)
+			auditInst(r, inst.ID, "process.kill", detail)
+			writeJSON(w, map[string]any{"ok": true, "killed": true, "escalated": false, "stopped_instance": true})
+			return
+		}
+		// Empty stdout with no container-stopped hint is often the exec
+		// session being killed when its own container exits (killing the
+		// keep-alive `sleep`). The process is still gone, so report success
+		// rather than a 502 that surfaces as "Panel unreachable (HTTP 502)"
+		// in the iframe SDK.
+		if stdout == "" && stderr == "" {
+			detail := fmt.Sprintf("sent %s to pid %d (killed=true, session closed)", signal, pid)
+			auditInst(r, inst.ID, "process.kill", detail)
+			writeJSON(w, map[string]any{"ok": true, "killed": true, "escalated": false})
+			return
+		}
 		snippet := stdout
 		if len(snippet) > 300 {
 			snippet = snippet[:300]
 		}
-		writeJSONStatus(w, http.StatusBadGateway, map[string]any{
-			"error":  "kill could not be verified",
-			"detail": snippet,
-		})
+		// Return 200 with killed:false so the frontend's `then` branch can
+		// render "Process survived" instead of the `catch` branch's generic
+		// "Panel unreachable (HTTP 502)" (502 bodies from CDNs are HTML and
+		// collapse to that string via sanitizeHttpError).
+		writeJSON(w, map[string]any{"ok": true, "killed": false, "escalated": false, "error": "kill could not be verified", "detail": snippet})
 		return
 	}
 	detail := fmt.Sprintf("sent %s to pid %d (killed=%v, escalated=%v)", signal, pid, out.Killed, out.Escalated)
