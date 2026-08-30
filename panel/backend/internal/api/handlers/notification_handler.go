@@ -123,6 +123,9 @@ func EmitBroadcastRich(actorID *int64, actorName string, category models.Notific
 			Message:     message,
 			Link:        link,
 			ActionLabel: actionLabel,
+			Notes:       notes,
+			CoverImage:  coverImage,
+			MediaJSON:   mediaJSON,
 			IsBroadcast: true,
 		})
 	}
@@ -286,7 +289,15 @@ type createNotificationRequest struct {
 	Link        string `json:"link,omitempty"`
 	ActionLabel string `json:"action_label,omitempty"`
 	Metadata    string `json:"metadata,omitempty"`
-	Broadcast   bool   `json:"broadcast,omitempty"`
+	Notes       string `json:"notes,omitempty"`
+	CoverImage  string `json:"cover_image,omitempty"`
+	MediaJSON   string `json:"media_json,omitempty"`
+	// Media as structured array [{type,url}] — alternative to MediaJSON string, accepted for convenience
+	Media       []struct {
+		Type string `json:"type"`
+		URL  string `json:"url"`
+	} `json:"media,omitempty"`
+	Broadcast bool `json:"broadcast,omitempty"`
 }
 
 // CreateNotificationHandler creates a notification for a specific user or
@@ -344,6 +355,64 @@ func CreateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "metadata must be 5000 characters or fewer", http.StatusBadRequest)
 		return
 	}
+	if len(req.Notes) > 8000 {
+		http.Error(w, "notes must be 8000 characters or fewer", http.StatusBadRequest)
+		return
+	}
+	if len(req.CoverImage) > 2000 {
+		http.Error(w, "cover_image must be 2000 characters or fewer", http.StatusBadRequest)
+		return
+	}
+	if ll := strings.ToLower(strings.TrimSpace(req.CoverImage)); ll != "" {
+		if strings.HasPrefix(ll, "javascript:") || strings.HasPrefix(ll, "data:") || strings.HasPrefix(ll, "vbscript:") || strings.HasPrefix(ll, "file:") {
+			http.Error(w, "cover_image must not use javascript/data scheme", http.StatusBadRequest)
+			return
+		}
+	}
+	// Resolve media_json: prefer structured Media array if provided
+	mediaJSON := strings.TrimSpace(req.MediaJSON)
+	if len(req.Media) > 0 {
+		if len(req.Media) > 20 {
+			http.Error(w, "media must have at most 20 items", http.StatusBadRequest)
+			return
+		}
+		for _, m := range req.Media {
+			if len(m.URL) > 2000 {
+				http.Error(w, "media url must be 2000 characters or fewer", http.StatusBadRequest)
+				return
+			}
+			ll := strings.ToLower(strings.TrimSpace(m.URL))
+			if strings.HasPrefix(ll, "javascript:") || strings.HasPrefix(ll, "data:") || strings.HasPrefix(ll, "vbscript:") || strings.HasPrefix(ll, "file:") {
+				http.Error(w, "media url must not use javascript/data scheme", http.StatusBadRequest)
+				return
+			}
+			if m.Type != "" && m.Type != "image" && m.Type != "video" && m.Type != "gif" {
+				http.Error(w, "media type must be image, video or gif", http.StatusBadRequest)
+				return
+			}
+		}
+		if b, err := json.Marshal(req.Media); err == nil {
+			mediaJSON = string(b)
+		}
+	} else if mediaJSON != "" {
+		// Validate it is valid JSON array
+		var arr []interface{}
+		if err := json.Unmarshal([]byte(mediaJSON), &arr); err != nil {
+			http.Error(w, "media_json must be a valid JSON array", http.StatusBadRequest)
+			return
+		}
+		if len(arr) > 20 {
+			http.Error(w, "media_json must have at most 20 items", http.StatusBadRequest)
+			return
+		}
+	}
+	if mediaJSON == "" {
+		mediaJSON = "[]"
+	}
+	if len(mediaJSON) > 20000 {
+		http.Error(w, "media_json must be 20000 characters or fewer", http.StatusBadRequest)
+		return
+	}
 	cat := models.NotificationCategory(strings.ToLower(strings.TrimSpace(req.Category)))
 	if cat == "" {
 		cat = models.NotificationCategoryGeneral
@@ -393,6 +462,9 @@ func CreateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 			Link:        req.Link,
 			ActionLabel: req.ActionLabel,
 			Metadata:    req.Metadata,
+			Notes:       req.Notes,
+			CoverImage:  req.CoverImage,
+			MediaJSON:   mediaJSON,
 		}, ids)
 		if err != nil {
 			log.Println("CreateNotification broadcast error:", err)
@@ -441,6 +513,9 @@ func CreateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 		Link:        req.Link,
 		ActionLabel: req.ActionLabel,
 		Metadata:    req.Metadata,
+		Notes:       req.Notes,
+		CoverImage:  req.CoverImage,
+		MediaJSON:   mediaJSON,
 	})
 	if err != nil {
 		log.Println("CreateNotification error:", err)
