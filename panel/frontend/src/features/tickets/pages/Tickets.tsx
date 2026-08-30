@@ -198,7 +198,7 @@ const Tickets: React.FC = () => {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[11px] font-mono font-semibold tracking-wide text-sky-300 bg-sky-500/10 border border-sky-500/20 px-1.5 py-0.5 rounded">{t.ticket_no}</span>
+                      <span className="text-[11px] font-mono font-semibold tracking-wide px-1.5 py-0.5 rounded border" style={{ color: 'var(--ks-info)', background: 'color-mix(in srgb, var(--ks-info) 12%, transparent)', borderColor: 'color-mix(in srgb, var(--ks-info) 20%, transparent)' }}>{t.ticket_no}</span>
                       <TicketStatusBadge status={t.status} />
                       <TicketPriorityBadge priority={t.priority} />
                     </div>
@@ -239,8 +239,8 @@ const Tickets: React.FC = () => {
                   )}
                 </div>
 
-                <footer className="mt-auto pt-2.5 mx-3 border-t border-white/[0.06] flex items-center justify-between gap-2 pb-3">
-                  <Link to={`/tickets/${t.id}`} className="text-[11px] text-gray-400 hover:text-white transition-colors">View details →</Link>
+                <footer className="mt-auto pt-2.5 mx-3 border-t flex items-center justify-between gap-2 pb-3" style={{ borderColor: 'var(--ks-card-border)' }}>
+                  <Link to={`/tickets/${t.id}`} className="text-[11px] transition-colors hover:opacity-80" style={{ color: 'var(--ks-muted)' }}>View details →</Link>
                   <div className="flex items-center gap-1">
                     <Link to={`/tickets/${t.id}/chat`} className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border" style={{ background: 'var(--ks-card-bg)', borderColor: 'var(--ks-card-border)', color: 'var(--ks-text-body)' }}>
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-3 h-3"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>

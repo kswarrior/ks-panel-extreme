@@ -1,21 +1,23 @@
 import React from 'react';
 import type { TicketPriority, TicketStatus, TicketCategory } from '../types/ticket';
 
-// Status badge matching nodes STATE_STYLES but for tickets
-export const STATUS_META: Record<TicketStatus, { label: string; bg: string; text: string; dot: string; icon?: string }> = {
-  open:        { label: 'Open',        bg: 'bg-sky-500/15 border-sky-500/30',    text: 'text-sky-300',    dot: 'bg-sky-400' },
-  pending:     { label: 'Pending',     bg: 'bg-amber-500/15 border-amber-500/30', text: 'text-amber-300',  dot: 'bg-amber-400' },
-  in_progress: { label: 'In Progress', bg: 'bg-violet-500/15 border-violet-500/30', text: 'text-violet-300', dot: 'bg-violet-400' },
-  resolved:   { label: 'Resolved',    bg: 'bg-emerald-500/15 border-emerald-500/30', text:'text-emerald-300',dot:'bg-emerald-400'},
-  closed:     { label: 'Closed',      bg: 'bg-gray-500/15 border-gray-500/30',   text: 'text-gray-300',   dot: 'bg-gray-400' },
+// Status/priority meta – 100% theme-aware via CSS variables.
+// Uses panel theme tokens (--ks-info, --ks-warn, --ks-ok, --ks-bad, --ks-purple, --ks-muted)
+// so a theme change recolors every badge without a rebuild.
+export const STATUS_META: Record<TicketStatus, { label: string; color: string }> = {
+  open:        { label: 'Open',        color: 'var(--ks-info)' },
+  pending:     { label: 'Pending',     color: 'var(--ks-warn)' },
+  in_progress: { label: 'In Progress', color: 'var(--ks-purple)' },
+  resolved:    { label: 'Resolved',    color: 'var(--ks-ok)' },
+  closed:      { label: 'Closed',      color: 'var(--ks-muted)' },
 };
 
-export const PRIORITY_META: Record<TicketPriority, { label: string; bg: string; text: string; dot: string }> = {
-  low:      { label: 'Low',      bg: 'bg-gray-500/15 border-gray-500/30', text: 'text-gray-400', dot: 'bg-gray-400' },
-  medium:   { label: 'Medium',   bg: 'bg-sky-500/15 border-sky-500/30',    text: 'text-sky-300',  dot: 'bg-sky-400' },
-  high:     { label: 'High',     bg: 'bg-amber-500/15 border-amber-500/30', text: 'text-amber-300',dot: 'bg-amber-400' },
-  urgent:   { label: 'Urgent',   bg: 'bg-orange-500/15 border-orange-500/30',text: 'text-orange-300',dot:'bg-orange-400'},
-  critical: { label: 'Critical', bg: 'bg-red-500/20 border-red-500/40',     text: 'text-red-300',  dot: 'bg-red-500' },
+export const PRIORITY_META: Record<TicketPriority, { label: string; color: string }> = {
+  low:      { label: 'Low',      color: 'var(--ks-muted)' },
+  medium:   { label: 'Medium',   color: 'var(--ks-info)' },
+  high:     { label: 'High',     color: 'var(--ks-warn)' },
+  urgent:   { label: 'Urgent',   color: '#fb923c' },
+  critical: { label: 'Critical', color: 'var(--ks-bad)' },
 };
 
 export const CATEGORY_META: Record<string, { label: string; icon: string }> = {
@@ -32,8 +34,11 @@ export const TicketStatusBadge: React.FC<{ status: TicketStatus; size?: 'sm' | '
   const m = STATUS_META[status] || STATUS_META.open;
   const sz = size === 'xs' ? 'text-[10px] px-1.5 py-0.5' : 'text-xs px-2 py-1';
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-md border font-semibold uppercase tracking-wide ${m.bg} ${m.text} ${sz}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${m.dot}`} />
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-md border font-semibold uppercase tracking-wide ${sz}`}
+      style={{ background: `color-mix(in srgb, ${m.color} 14%, transparent)`, borderColor: `color-mix(in srgb, ${m.color} 30%, transparent)`, color: m.color }}
+    >
+      <span className="w-1.5 h-1.5 rounded-full" style={{ background: m.color }} />
       {m.label}
     </span>
   );
@@ -43,8 +48,11 @@ export const TicketPriorityBadge: React.FC<{ priority: TicketPriority; size?: 's
   const m = PRIORITY_META[priority] || PRIORITY_META.medium;
   const sz = size === 'xs' ? 'text-[10px] px-1.5 py-0.5' : 'text-xs px-2 py-1';
   return (
-    <span className={`inline-flex items-center gap-1 rounded-md border font-medium ${m.bg} ${m.text} ${sz}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${m.dot}`} />
+    <span
+      className={`inline-flex items-center gap-1 rounded-md border font-medium ${sz}`}
+      style={{ background: `color-mix(in srgb, ${m.color} 14%, transparent)`, borderColor: `color-mix(in srgb, ${m.color} 30%, transparent)`, color: m.color }}
+    >
+      <span className="w-1.5 h-1.5 rounded-full" style={{ background: m.color }} />
       {m.label}
     </span>
   );
