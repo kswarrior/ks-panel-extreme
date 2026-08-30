@@ -848,6 +848,12 @@ func SeedCore(d Dialect, db *sql.DB) error {
 		('NOTIFICATIONS_DELETE', 'Delete notifications')`, "permissions")); err != nil {
 		return err
 	}
+	if _, err := db.Exec(translateSeedInsert(prefix, pgConflict, `(key, description) VALUES
+		('MANAGE_AI_CHAT', 'Manage AI chat (umbrella – grants chat + provider/model/system-prompt config)'),
+		('AI_CHAT_USE',    'Use AI chat (open widget and send messages)'),
+		('AI_CHAT_MANAGE', 'Configure AI providers, model ids and system prompt')`, "permissions")); err != nil {
+		return err
+	}
 	// Keep the MANAGE_THEMES description current on legacy installs.
 	if _, err := db.Exec(`UPDATE permissions SET description = 'Manage the theme system (umbrella key – enables the theme surface for a role)' WHERE key = 'MANAGE_THEMES'`); err != nil {
 		return err
@@ -881,6 +887,7 @@ func SeedCore(d Dialect, db *sql.DB) error {
 		'APPLICATIONS_VIEW', 'APPLICATIONS_CREATE', 'APPLICATIONS_EDIT',
 		'MANAGE_TICKETS', 'TICKETS_VIEW', 'TICKETS_CREATE', 'TICKETS_EDIT',
 		'USE_LOCAL_THEMES', 'USE_GLOBAL_THEMES', 'ASSIGN_THEMES',
+		'AI_CHAT_USE',
 		'ACCOUNT_EDIT_BANNER', 'ACCOUNT_EDIT_ABOUT', 'ACCOUNT_EDIT_ACCENT',
 		'ACCOUNT_USE_AVATAR_SYMBOL', 'ACCOUNT_UPLOAD_AVATAR')`, "role_permissions")); err != nil {
 		return err
@@ -889,6 +896,7 @@ func SeedCore(d Dialect, db *sql.DB) error {
 		SELECT r.id, p.id FROM roles r, permissions p
 		WHERE r.name='user' AND p.key IN ('VIEW_INSTANCES', 'VIEW_ACCOUNT', 'USE_APPLICATIONS',
 		'TICKETS_VIEW', 'TICKETS_CREATE',
+		'AI_CHAT_USE',
 		'ACCOUNT_EDIT_BANNER', 'ACCOUNT_EDIT_ABOUT', 'ACCOUNT_EDIT_ACCENT',
 		'ACCOUNT_USE_AVATAR_SYMBOL', 'ACCOUNT_UPLOAD_AVATAR')`, "role_permissions")); err != nil {
 		return err
