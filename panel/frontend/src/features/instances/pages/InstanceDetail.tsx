@@ -182,6 +182,7 @@ const TerminalRealPage: React.FC<{ instance: any }> = ({ instance }) => {
           </svg>
           <span>{user}@{host}:</span>
           <span style={{ color: 'var(--ks-secondary)', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cwd}</span>
+          <span style={{ color: 'var(--ks-secondary)', marginLeft: 1 }}>$</span>
         </div>
 
         <Terminal ref={handleRef} instanceId={instance.id} onStateChange={onStateChange} onTermRef={(t) => (termRef.current = t)} onTitleChange={handleTitleChange} />
