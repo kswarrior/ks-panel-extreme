@@ -77,11 +77,11 @@ const INSTANCE_THEME_SUPPORT_CSS = `<style id="ks-instance-theme-support">/* Ins
 
 // page() wraps a body + script into the standard starter skeleton. The
 // generated script is a plain async IIFE whose errors land in #content.
+// Header (title + top-right icon actions) is now supplied inside body via
+// ks-page-header / ks-page-header-actions so every page follows the main
+// panel's Templates/Nodes header pattern (title left, icon buttons right).
 function page(title: string, body: string, js: string): string {
   return `${INSTANCE_THEME_SUPPORT_CSS}<div class="ks-page">
-<div class="ks-row" style="justify-content:space-between;margin-bottom:0.75rem">
-  <h2 style="margin:0;font-size:1.3rem;color:var(--ks-heading)">${title}</h2>
-</div>
 ${body}
 </div>
 <script>
@@ -115,16 +115,19 @@ function withTheme(html: string): string {
 
 const DOCKER_MANAGER = page(
   'Docker Containers',
-  `<div class="ks-row" style="margin-bottom:0.6rem">
-    <button class="ks-btn ks-btn-blue" id="refresh">Refresh</button>
-    <button class="ks-btn" id="prune">Prune dangling images</button>
-    <span id="note" class="ks-muted" style="font-size:11px"></span>
+  `<div class="ks-page-header">
+    <h2 style="margin:0;font-size:1.3rem;color:var(--ks-heading)">Docker Containers</h2>
+    <div class="ks-page-header-actions">
+      <button class="ks-btn-header ks-icon-btn" id="refresh" title="Refresh" aria-label="Refresh"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>
+      <button class="ks-btn-header ks-icon-btn" id="prune" title="Prune dangling images" aria-label="Prune dangling images"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+    </div>
   </div>
+  <div style="margin-bottom:0.6rem"><span id="note" class="ks-muted" style="font-size:11px"></span></div>
   <div id="content" class="ks-muted">Loading…</div>
   <div id="logs" style="display:none;margin-top:0.75rem">
     <div class="ks-row" style="justify-content:space-between;margin-bottom:0.35rem">
       <code id="logtitle" class="ks-muted"></code>
-      <button class="ks-btn" id="closelogs">Close logs</button>
+      <button class="ks-btn-header ks-icon-btn" id="closelogs" title="Close" aria-label="Close"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <pre id="logbox" style="background:var(--ks-input-bg);border-radius:8px;padding:0.75rem;max-height:320px;overflow:auto;font-size:12px"></pre>
   </div>`,
@@ -182,15 +185,18 @@ const DOCKER_MANAGER = page(
 
 const SERVICE_CONTROL = page(
   'Services',
-  `<div class="ks-row" style="margin-bottom:0.6rem">
-    <input id="q" placeholder="filter services…" style="flex:1;max-width:260px" />
-    <button class="ks-btn ks-btn-blue" id="refresh">Refresh</button>
+  `<div class="ks-page-header">
+    <h2 style="margin:0;font-size:1.3rem;color:var(--ks-heading)">Services</h2>
+    <div class="ks-page-header-actions">
+      <button class="ks-btn-header ks-icon-btn" id="refresh" title="Refresh" aria-label="Refresh"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>
+    </div>
   </div>
+  <div class="ks-row" style="margin-bottom:0.6rem"><input id="q" placeholder="filter services…" style="flex:1;max-width:260px" /></div>
   <div id="content" class="ks-muted">Loading…</div>
   <div id="detail" style="display:none;margin-top:0.75rem">
     <div class="ks-row" style="justify-content:space-between;margin-bottom:0.35rem">
       <code id="detailtitle" class="ks-muted"></code>
-      <button class="ks-btn" id="closedetail">Close</button>
+      <button class="ks-btn-header ks-icon-btn" id="closedetail" title="Close" aria-label="Close"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <pre id="detailbox" style="background:var(--ks-input-bg);border-radius:8px;padding:0.75rem;max-height:320px;overflow:auto;font-size:12px"></pre>
   </div>`,
@@ -247,8 +253,11 @@ const SERVICE_CONTROL = page(
 
 const CRON_SCHEDULER = page(
   'Cron Jobs',
-  `<div class="ks-row" style="margin-bottom:0.6rem">
-    <button class="ks-btn ks-btn-blue" id="refresh">Refresh</button>
+  `<div class="ks-page-header">
+    <h2 style="margin:0;font-size:1.3rem;color:var(--ks-heading)">Cron Jobs</h2>
+    <div class="ks-page-header-actions">
+      <button class="ks-btn-header ks-icon-btn" id="refresh" title="Refresh" aria-label="Refresh"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>
+    </div>
   </div>
   <div id="content" class="ks-muted">Loading…</div>`,
   `
