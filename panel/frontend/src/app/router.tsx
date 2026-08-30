@@ -51,6 +51,10 @@ import InstancePages from '@/features/instance-pages/pages/InstancePages';
 import InstancePageDetail from '@/features/instance-pages/pages/InstancePageDetail';
 import InstancePageStudio from '@/features/instance-pages/pages/InstancePageStudio';
 import InstancePageStats from '@/features/instance-pages/pages/InstancePageStats';
+import Tickets from '@/features/tickets/pages/Tickets';
+import TicketDetail from '@/features/tickets/pages/TicketDetail';
+import TicketForm from '@/features/tickets/pages/TicketForm';
+import TicketStats from '@/features/tickets/pages/TicketStats';
 import InstancePanel, { InstanceDynamicPage } from '@/features/instances/pages/InstanceDetail';
 import Database from '@/features/database/pages/Database';
 import RequireAuth from '@/shared/components/ui/RequireAuth';
@@ -151,6 +155,16 @@ const Router: React.FC = () => (
       <Route path="/database" element={<AuthOnly><Database /></AuthOnly>} />
       <Route path="/themes" element={<AuthOnly><AdminThemes /></AuthOnly>} />
       <Route path="/themes/studio" element={<AuthOnly><ThemeStudio /></AuthOnly>} />
+
+      {/* Tickets — powerful support system. Visible to any authenticated user (like Instances).
+          The handler itself narrows visibility: staff sees all tickets, regular users see
+          only tickets they created or are assigned to. Internal notes are filtered
+          server-side by TICKETS_EDIT. */}
+      <Route path="/tickets" element={<AuthOnly><Tickets /></AuthOnly>} />
+      <Route path="/tickets/stats" element={<AuthOnly><TicketStats /></AuthOnly>} />
+      <Route path="/tickets/new" element={<AuthOnly><TicketForm /></AuthOnly>} />
+      <Route path="/tickets/:id/edit" element={<AuthOnly><TicketForm /></AuthOnly>} />
+      <Route path="/tickets/:id" element={<AuthOnly><TicketDetail /></AuthOnly>} />
 
       {/* Permission-gated pages. */}
       <Route

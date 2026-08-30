@@ -202,6 +202,19 @@ const Icons: Record<string, React.ReactNode> = {
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="m9 15 2 2 4-4" />
      </svg>
   ),
+  Tickets: (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
+      <path d="M2 9a3 3 0 0 1 3-3h5l4 4-4 4H5a3 3 0 0 1-3-3z" />
+      <path d="M22 9a3 3 0 0 0-3-3h-5l-4 4 4 4h5a3 3 0 0 0 3-3z" />
+      <path d="M9 13H8M16 17H8" opacity="0.5" />
+      <circle cx="12" cy="12" r="1" fill="currentColor" />
+    </svg>
+  ),
+  Notifications: (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
+      <path d="M6 8a6 6 0 0 1 12 0c0 7-6 5-6 9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /><path d="M4 8h16" opacity={0.15} />
+    </svg>
+  ),
   // KS Warrior logo for footer
   KSWarrior: (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 pointer-events-none" aria-hidden="true">
@@ -220,6 +233,7 @@ interface SubItem {
 
 const adminSubItems: SubItem[] = [
   { to: '/system', label: 'System', permission: '', icon: 'Dashboard' },
+  { to: '/tickets', label: 'Tickets', permission: '', icon: 'Tickets' },
   { to: '/notifications', label: 'Notifications', permission: '', icon: 'Notifications' },
   { to: '/security', label: 'Security', permission: '', icon: 'Security' },
   { to: '/activity', label: 'Activity', permission: '', icon: 'Activity' },
