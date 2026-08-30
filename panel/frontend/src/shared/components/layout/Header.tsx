@@ -417,13 +417,13 @@ const Header: React.FC<HeaderProps> = ({
                 onClick={toggle}
                 aria-haspopup="menu"
                 aria-label="Profile menu"
-                className="relative inline-flex items-center justify-center w-9 h-9 rounded-full glass-chrome border border-white/10 text-gray-200 hover:text-white hover:bg-white/10 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40 group overflow-hidden"
+                className="ks-icon-btn relative inline-flex items-center justify-center w-9 h-9 rounded-full glass-chrome border border-white/10 text-gray-200 hover:text-white hover:bg-white/10 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40 group overflow-hidden"
               >
                 {/* Cycle shape like notification bell — shows user's profile avatar
                     centred in the circular chrome. Matches NotificationBell's
                     w-9 h-9 glass-chrome border so the two top-right icons are
-                    visually paired. */}
-                <span className="absolute inset-0 rounded-full bg-white/0 group-hover:bg-white/5 transition-colors" aria-hidden="true" />
+                    visually paired. Keeps ks-icon-btn for theme compatibility. */}
+                <span className="absolute inset-0 rounded-full bg-white/0 group-hover:bg-white/5 transition-colors pointer-events-none" aria-hidden="true" />
                 <Avatar
                   name={user?.username || 'Guest'}
                   size={28}
