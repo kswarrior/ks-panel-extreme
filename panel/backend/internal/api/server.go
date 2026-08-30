@@ -245,13 +245,13 @@ func NewRouter() http.Handler {
 		// assigned theme is part of just using the panel.
 		//  -> r.Get("/api/themes", handlers.ListThemesHandler)   // (moved up)
 
-		// API Keys (managed by every authenticated user for themselves).
-		// We use /api/me/api-keys so admins inherit this without an extra
-		// permission gate – it's their own key, exposed in /account area.
-		r.Get("/api/me/api-keys", handlers.ListApiKeysHandler)
-		r.Post("/api/me/api-keys", handlers.CreateApiKeyHandler)
-		r.Put("/api/me/api-keys/{id}", handlers.UpdateApiKeyHandler)
-		r.Delete("/api/me/api-keys/{id}", handlers.DeleteApiKeyHandler)
+		// API Keys (self-service: user manages their own keys).
+		// Gates: VIEW for list, CREATE for create, EDIT for update, DELETE for revoke.
+		// The umbrella MANAGE_API_KEYS implies all, so admin roles keep working.
+		r.With(requireUmbrellaOrAction(apikeysG, permissions.ActionView)).Get("/api/me/api-keys", handlers.ListApiKeysHandler)
+		r.With(requireUmbrellaOrAction(apikeysG, permissions.ActionCreate)).Post("/api/me/api-keys", handlers.CreateApiKeyHandler)
+		r.With(requireUmbrellaOrAction(apikeysG, permissions.ActionEdit)).Put("/api/me/api-keys/{id}", handlers.UpdateApiKeyHandler)
+		r.With(requireUmbrellaOrAction(apikeysG, permissions.ActionDelete)).Delete("/api/me/api-keys/{id}", handlers.DeleteApiKeyHandler)
 
 		// Self-service Instances: every authenticated user (VIEW_INSTANCES)
 		// sees only the instances they own. Admins may additionally manage
