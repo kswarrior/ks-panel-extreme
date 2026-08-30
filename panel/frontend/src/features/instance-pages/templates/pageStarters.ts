@@ -273,11 +273,14 @@ const CRON_SCHEDULER = page(
 
 const DISK_ANALYZER = page(
   'Disk Usage',
-  `<div class="ks-row" style="margin-bottom:0.6rem">
-    <button class="ks-btn ks-btn-blue" id="refresh">Refresh</button>
-    <button class="ks-btn ks-btn-red" id="cleantmp">Clean old /tmp files</button>
-    <span id="note" class="ks-muted" style="font-size:11px"></span>
+  `<div class="ks-page-header">
+    <h2 style="margin:0;font-size:1.3rem;color:var(--ks-heading)">Disk Usage</h2>
+    <div class="ks-page-header-actions">
+      <button class="ks-btn-header ks-icon-btn" id="refresh" title="Refresh" aria-label="Refresh"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>
+      <button class="ks-btn-header ks-icon-btn" id="cleantmp" title="Clean old /tmp files" aria-label="Clean tmp"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+    </div>
   </div>
+  <div style="margin-bottom:0.6rem"><span id="note" class="ks-muted" style="font-size:11px"></span></div>
   <div id="content" class="ks-muted">Loading…</div>`,
   `
     async function load(){
@@ -303,11 +306,14 @@ const DISK_ANALYZER = page(
 
 const UPDATE_CENTER = page(
   'Package Updates',
-  `<div class="ks-row" style="margin-bottom:0.6rem">
-    <button class="ks-btn ks-btn-blue" id="check">Check updates</button>
-    <button class="ks-btn ks-btn-green" id="upgrade" style="display:none">Apply upgrades</button>
-    <span id="mgr" class="ks-muted" style="font-size:11px"></span>
+  `<div class="ks-page-header">
+    <h2 style="margin:0;font-size:1.3rem;color:var(--ks-heading)">Package Updates</h2>
+    <div class="ks-page-header-actions">
+      <button class="ks-btn-header ks-icon-btn" id="check" title="Check updates" aria-label="Check updates"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/><path d="M11 8v3l2 2"/></svg></button>
+      <button class="ks-btn-header ks-icon-btn" id="upgrade" style="display:none" title="Apply upgrades" aria-label="Apply upgrades"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
+    </div>
   </div>
+  <div style="margin-bottom:0.6rem"><span id="mgr" class="ks-muted" style="font-size:11px"></span></div>
   <div id="content" class="ks-muted">Run a check to list available package updates.</div>`,
   `
     var mgr = '';
@@ -330,7 +336,7 @@ const UPDATE_CENTER = page(
         return;
       }
       el('content').innerHTML = card('Available updates', pre(out));
-      el('upgrade').style.display = 'inline-block';
+      el('upgrade').style.display = 'inline-flex';
     }
     async function upgrade(){
       if (!(await ask('Install ALL available package upgrades now? This can take several minutes.'))) return;
@@ -350,8 +356,11 @@ const UPDATE_CENTER = page(
 
 const FIREWALL_VIEW = page(
   'Firewall Status',
-  `<div class="ks-row" style="margin-bottom:0.6rem">
-    <button class="ks-btn ks-btn-blue" id="refresh">Refresh</button>
+  `<div class="ks-page-header">
+    <h2 style="margin:0;font-size:1.3rem;color:var(--ks-heading)">Firewall Status</h2>
+    <div class="ks-page-header-actions">
+      <button class="ks-btn-header ks-icon-btn" id="refresh" title="Refresh" aria-label="Refresh"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>
+    </div>
   </div>
   <div id="content" class="ks-muted">Loading…</div>`,
   `
@@ -375,7 +384,11 @@ const FIREWALL_VIEW = page(
 
 const USER_REGISTRY = page(
   'Users & Groups',
-  `<div id="content" class="ks-muted">Loading…</div>`,
+  `<div class="ks-page-header">
+    <h2 style="margin:0;font-size:1.3rem;color:var(--ks-heading)">Users &amp; Groups</h2>
+    <div class="ks-page-header-actions"></div>
+  </div>
+  <div id="content" class="ks-muted">Loading…</div>`,
   `
     var passwdOut = '', groupCount = '-', lastOut = '';
     try { passwdOut = ((await act('accounts_report')).stdout || '') + ''; } catch(e){}
@@ -405,7 +418,11 @@ const USER_REGISTRY = page(
 
 const SYSTEM_PROBE = page(
   'System Info',
-  `<div id="content" class="ks-muted">Loading…</div>`,
+  `<div class="ks-page-header">
+    <h2 style="margin:0;font-size:1.3rem;color:var(--ks-heading)">System Info</h2>
+    <div class="ks-page-header-actions"></div>
+  </div>
+  <div id="content" class="ks-muted">Loading…</div>`,
   `
     async function load(){
       el('content').innerHTML = '<p class="ks-muted">Probing…</p>';
