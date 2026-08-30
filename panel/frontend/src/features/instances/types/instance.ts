@@ -76,6 +76,8 @@ export interface Instance {
   install_action_id?: string;
   created_at: string;
   updated_at: string;
+  /** When the instance last entered "running". Null when stopped/never started. */
+  started_at?: string | null;
   // Suspension fields (migration 038)
   suspended?: number;
   suspended_until?: string | null;

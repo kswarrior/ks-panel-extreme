@@ -320,9 +320,11 @@ func nullableInt64(v int64) any {
 
 // SetStatus mirrors an edge-reported lifecycle status into the row. Used by
 // start/stop/destroy handlers and by a future inspect reconciliation loop.
+// It also maintains started_at for uptime: set to now when entering running,
+// cleared when entering stopped/destroyed, otherwise left as-is.
 func (r *InstanceRepository) SetStatus(id int64, status, extID, errMsg string) error {
-	res, err := r.db.Exec(`UPDATE instances SET status = ?, external_id = COALESCE(NULLIF(?,''), external_id), error = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-		status, extID, errMsg, id)
+	res, err := r.db.Exec(`UPDATE instances SET status = ?, external_id = COALESCE(NULLIF(?,''), external_id), error = ?, started_at = CASE WHEN ? = 'running' THEN CURRENT_TIMESTAMP WHEN ? IN ('stopped','destroyed') THEN NULL ELSE started_at END, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+		status, extID, errMsg, status, status, id)
 	if err != nil {
 		return err
 	}
