@@ -73,7 +73,205 @@ function card(title,innerHtml){return '<div class="ks-card"><h3 style="margin:0 
 // (all --ks-* tokens baked by CustomPageView.customPageThemeCss). This preamble ensures
 // complete theme support in every page (typography, selection, scrollbars, links) so the
 // theme chosen in the panel's Theme system applies to all instance pages.
-const INSTANCE_THEME_SUPPORT_CSS = `<style id="ks-instance-theme-support">/* Instance pages — complete theme support (inherits active panel theme) */ .ks-page{color:var(--ks-body);font-family:var(--ks-font-family, inherit)} ::selection{background:var(--ks-accent-primary, #38bdf8);color:#fff} ::-webkit-scrollbar{width:8px;height:8px} ::-webkit-scrollbar-thumb{background:var(--ks-card-border, rgba(255,255,255,0.15));border-radius:9999px} ::-webkit-scrollbar-track{background:transparent} a{color:var(--ks-link)} a:hover{color:var(--ks-info)} pre,code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace} table th{background:var(--ks-input-bg);color:var(--ks-muted)} table td{border-color:var(--ks-card-border)} .ks-btn-header{display:inline-flex;align-items:center;justify-content:center;gap:6px;background:var(--ks-btn-icon-bg, rgba(255,255,255,0.10));color:var(--ks-btn-icon-text, #fff);border:var(--ks-btn-icon-border, none);border-radius:var(--ks-btn-icon-radius, 8px);padding:7px 10px;font-size:12px;font-weight:500;cursor:pointer;transition:background .15s ease;line-height:1;min-height:32px;min-width:32px} .ks-btn-header:hover{background:var(--ks-btn-icon-hover, rgba(255,255,255,0.20))} .ks-btn-header svg{width:14px;height:14px} .ks-btn-header.is-open{background:var(--ks-btn-icon-hover, rgba(255,255,255,0.20))} .ks-page-header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:0.75rem} .ks-page-header-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap} @keyframes ks-overlay-in{from{opacity:0}to{opacity:1}} @keyframes ks-modal-in{from{opacity:0;transform:translateY(8px) scale(0.98)}to{opacity:1;transform:translateY(0) scale(1)}} .ks-ip-modal-overlay{position:fixed;inset:0;z-index:var(--ks-z-modal,60);display:flex;align-items:center;justify-content:center;background:var(--ks-modal-overlay, rgba(0,0,0,0.60));backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:16px;animation:ks-overlay-in .18s ease} .ks-ip-modal-panel{background:var(--ks-modal-bg, var(--ks-card-bg, rgba(255,255,255,0.07)));border:1px solid var(--ks-modal-border, var(--ks-card-border, rgba(255,255,255,0.10)));box-shadow:var(--ks-modal-shadow, var(--ks-card-shadow, 0 8px 32px rgba(0,0,0,0.6)));border-radius:var(--ks-modal-radius, 12px);backdrop-filter:blur(var(--ks-modal-blur, 12px)) saturate(180%);-webkit-backdrop-filter:blur(var(--ks-modal-blur, 12px)) saturate(180%);width:100%;max-width:512px;max-height:90vh;max-height:90dvh;overflow-y:auto;animation:ks-modal-in .22s cubic-bezier(0.22,1,0.36,1);display:flex;flex-direction:column} .ks-ip-modal-header{display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid rgba(255,255,255,0.10);position:sticky;top:0;background:rgba(255,255,255,0.05);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);z-index:10;border-radius:var(--ks-modal-radius,12px) var(--ks-modal-radius,12px) 0 0} .ks-ip-modal-title{font-size:18px;font-weight:600;color:var(--ks-heading, #fff);margin:0;line-height:1.2} .ks-ip-modal-close{border:none;background:transparent;color:var(--ks-muted, #9ca3af);cursor:pointer;padding:4px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;transition:color .15s ease, background .15s ease} .ks-ip-modal-close:hover{color:var(--ks-heading, #fff);background:rgba(255,255,255,0.08)} .ks-ip-modal-body{padding:20px 24px;display:flex;flex-direction:column;gap:16px;flex:1} .ks-ip-modal-footer{display:flex;justify-content:flex-end;gap:8px;padding:16px 24px;border-top:1px solid rgba(255,255,255,0.10);flex-wrap:wrap;background:rgba(255,255,255,0.02);border-radius:0 0 var(--ks-modal-radius,12px) var(--ks-modal-radius,12px)} .ks-ip-tabs{display:flex;gap:4px;background:rgba(0,0,0,0.30);border:1px solid rgba(255,255,255,0.10);border-radius:8px;padding:4px} .ks-ip-tab{flex:1;padding:8px 12px;border-radius:6px;font-size:13px;font-weight:500;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .15s ease;background:transparent;color:var(--ks-muted, #9ca3af);font-family:inherit;line-height:1} .ks-ip-tab-active{background:var(--ks-tab-active-bg, #fff) !important;color:var(--ks-tab-active-text, #000) !important;box-shadow:0 1px 3px rgba(0,0,0,0.2)} .ks-ip-tab:hover:not(.ks-ip-tab-active){background:var(--ks-tab-hover-bg, rgba(255,255,255,0.08)) !important;color:var(--ks-tab-hover-text, #fff) !important} .ks-ip-input{width:100%;box-sizing:border-box;background:var(--ks-input-bg, rgba(0,0,0,0.30)) !important;border:1px solid var(--ks-input-border, rgba(255,255,255,0.10)) !important;border-radius:var(--ks-input-radius, 6px) !important;color:var(--ks-input-text, #fff) !important;padding:8px 12px !important;font-size:13px !important;transition:border-color .15s ease, box-shadow .15s ease} .ks-ip-input:focus{border-color:var(--ks-input-focus-border, rgba(255,255,255,0.40)) !important;box-shadow:0 0 0 2px var(--ks-input-focus-ring, rgba(255,255,255,0.15)) !important;outline:none !important} .ks-ip-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;font-weight:500;font-size:13px;padding:8px 16px;border-radius:6px;cursor:pointer;transition:all .15s ease;border:none;font-family:inherit;line-height:1} .ks-ip-btn-ghost{background:var(--ks-btn-ghost-bg, transparent);color:var(--ks-btn-ghost-text, #e5e7eb);border:var(--ks-btn-ghost-border, 1px solid rgba(255,255,255,0.10))} .ks-ip-btn-ghost:hover{background:var(--ks-btn-ghost-hover, rgba(255,255,255,0.10));color:#fff} .ks-ip-btn-primary{background:var(--ks-btn-bg, #fff);color:var(--ks-btn-text, #000);border:var(--ks-btn-border, none)} .ks-ip-btn-primary:hover{background:var(--ks-btn-hover, #e5e7eb)} .ks-ip-btn:disabled{opacity:0.5;cursor:not-allowed} @media(max-width:640px){.ks-ip-modal-panel{width:96vw;margin:8px;max-height:92vh}} @media(prefers-reduced-motion:reduce){.ks-ip-modal-overlay,.ks-ip-modal-panel{animation:none !important}} .ks-ip-scroll-area{max-height:calc(100vh - 240px);max-height:calc(100dvh - 240px);overflow:auto} .ks-page [style*="grid-template-columns:repeat(auto-fill"]{max-height:calc(100vh - 260px);max-height:calc(100dvh - 260px);overflow:auto;padding-right:4px} .ks-ip-modal-overlay{overscroll-behavior:contain} html[data-ks-reduced-motion='1'] .ks-ip-modal-overlay,html[data-ks-reduced-motion='1'] .ks-ip-modal-panel{animation:none !important} @keyframes ks-skeleton-p{0%,100%{opacity:1}50%{opacity:.45}} .ks-skeleton{background:var(--ks-skeleton-base, rgba(255,255,255,0.06)) !important;border-radius:var(--ks-skeleton-radius,6px) !important;animation:ks-skeleton-p 1.45s ease-in-out infinite} .ks-skeleton-bar{background:var(--ks-skeleton-shimmer, rgba(255,255,255,0.13)) !important;border-radius:var(--ks-skeleton-radius,6px) !important;animation:ks-skeleton-p 1.45s ease-in-out infinite} .ks-skeleton-avatar{width:32px;height:32px;border-radius:9999px;background:var(--ks-skeleton-shimmer, rgba(255,255,255,0.13)) !important;animation:ks-skeleton-p 1.45s ease-in-out infinite;flex-shrink:0} .ks-skeleton-table th .ks-skeleton-bar,.ks-skeleton-table td .ks-skeleton-bar{height:10px} @media(prefers-reduced-motion:reduce){.ks-skeleton,.ks-skeleton-bar,.ks-skeleton-avatar,.ks-skeleton-card{animation:none !important}} html[data-ks-reduced-motion='1'] .ks-skeleton,html[data-ks-reduced-motion='1'] .ks-skeleton-bar,html[data-ks-reduced-motion='1'] .ks-skeleton-avatar,html[data-ks-reduced-motion='1'] .ks-skeleton-card{animation:none !important}</style>`;
+const INSTANCE_THEME_SUPPORT_CSS = `<style id="ks-instance-theme-support">/* Instance pages — unified panel design system
+   Mirrors panel main pages (panel/frontend/src/index.css + shared/stores/themeStore buildVars
+   + shared/components/ui/CustomPageView customPageThemeCss) using --ks-* tokens so the
+   active Theme Studio theme applies 1:1. Every card, button, tab, form, badge, table,
+   dropdown, modal, and skeleton follows the host theme exactly. */
+.ks-page{color:var(--ks-body, #e5e7eb);font-family:var(--ks-font-family, -apple-system, BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif);line-height:1.6}
+::selection{background:var(--ks-accent-primary, #38bdf8);color:#fff}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-thumb{background:var(--ks-card-border, rgba(255,255,255,0.15));border-radius:9999px}
+::-webkit-scrollbar-track{background:transparent}
+a{color:var(--ks-link, #7dd3fc);text-decoration:none}
+a:hover{color:var(--ks-info, #38bdf8);text-decoration:underline}
+pre,code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+table{border-collapse:collapse;width:100%}
+table th{background:var(--ks-input-bg, rgba(0,0,0,0.30));color:var(--ks-muted, #9ca3af);text-transform:uppercase;font-size:11px;letter-spacing:.05em;padding:8px 12px;text-align:left;border-bottom:1px solid var(--ks-card-border, rgba(255,255,255,0.10))}
+table td{padding:8px 12px;text-align:left;font-size:13px;border-bottom:1px solid var(--ks-card-border, rgba(255,255,255,0.08));color:var(--ks-body, #d1d5db)}
+hr{border:none;border-top:1px solid var(--ks-card-border, rgba(255,255,255,0.10));margin:1rem 0}
+
+/* ── Glass / Cards (panel's glass-card → ks-card) ── */
+.glass,.glass-strong,.glass-chrome{border:1px solid rgba(255,255,255,0.10)}
+.glass{background:rgba(255,255,255,0.04);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:0 8px 32px rgba(0,0,0,0.5)}
+.glass-strong{background:rgba(255,255,255,0.07);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border-color:rgba(255,255,255,0.15);box-shadow:0 8px 32px rgba(0,0,0,0.6)}
+.glass-chrome{background:rgba(0,0,0,0.40);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+.glass-card,.ks-card,.ks-list-card,.ks-stat-card,.ks-form-card,.ks-modal-card{position:relative;border-radius:var(--ks-card-radius,12px) !important;transition:border-color .2s ease, box-shadow .2s ease}
+.glass-card,.ks-card{background-color:var(--ks-card-bg, rgba(255,255,255,0.04)) !important;background-image:var(--ks-card-bg-layer, none) !important;background-size:var(--ks-card-bg-size, cover);background-position:var(--ks-card-bg-position, center);background-repeat:var(--ks-card-bg-repeat, no-repeat);border:var(--ks-card-border-width,1px) solid var(--ks-card-border, rgba(255,255,255,0.10)) !important;box-shadow:var(--ks-card-shadow, 0 8px 32px rgba(0,0,0,0.45)) !important;backdrop-filter:blur(var(--ks-card-blur, 8px));-webkit-backdrop-filter:blur(var(--ks-card-blur, 8px));padding:var(--ks-card-padding,16px) !important}
+.glass-card:hover,.ks-card:hover{border-color:var(--ks-card-hover-border, rgba(255,255,255,0.20)) !important}
+.ks-list-card{background:var(--ks-listcard-bg, var(--ks-card-bg, rgba(255,255,255,0.04))) !important;border-color:var(--ks-listcard-border, var(--ks-card-border, rgba(255,255,255,0.10))) !important;box-shadow:var(--ks-listcard-shadow, var(--ks-card-shadow, 0 8px 32px rgba(0,0,0,0.45))) !important}
+.ks-list-card:hover{border-color:var(--ks-listcard-hover, var(--ks-card-hover-border, rgba(255,255,255,0.20))) !important}
+.ks-stat-card{background:var(--ks-statcard-bg, var(--ks-card-bg, rgba(255,255,255,0.04))) !important;border-color:var(--ks-statcard-border, var(--ks-card-border, rgba(255,255,255,0.10))) !important}
+.ks-form-card{background:var(--ks-formcard-bg, var(--ks-card-bg, rgba(255,255,255,0.04))) !important;border-color:var(--ks-formcard-border, var(--ks-card-border, rgba(255,255,255,0.10))) !important}
+.ks-modal-card{background:var(--ks-modal-bg, var(--ks-card-bg, rgba(255,255,255,0.04))) !important;border-color:var(--ks-modal-border, var(--ks-card-border, rgba(255,255,255,0.10))) !important;box-shadow:var(--ks-modal-shadow, 0 8px 32px rgba(0,0,0,0.6)) !important;backdrop-filter:blur(var(--ks-modal-blur, 16px)) saturate(180%);-webkit-backdrop-filter:blur(var(--ks-modal-blur, 16px)) saturate(180%)}
+.ks-card h1,.ks-card h2,.ks-card h3{color:var(--ks-heading, #fff);margin:0 0 .5rem;font-weight:600}
+
+/* ── Page header (title left, icon buttons right) — matches panel main pages ── */
+.ks-page-header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:0.75rem}
+.ks-page-header-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+
+/* ── Buttons — panel's ks-btn family, themed via --ks-btn-* (Theme Studio → Button) ── */
+.ks-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;font-weight:500;transition:background .15s ease, border-color .15s ease, opacity .15s ease, filter .15s ease;cursor:pointer;font-family:inherit;line-height:1;white-space:nowrap;user-select:none}
+.ks-btn:disabled,.ks-btn-primary:disabled,.ks-btn-secondary:disabled,.ks-btn-ghost:disabled,.ks-btn-danger:disabled,.ks-btn-icon:disabled,.ks-btn-header:disabled{opacity:.5;cursor:not-allowed !important}
+.ks-btn-primary,.ks-btn{background:var(--ks-btn-bg, #fff) !important;color:var(--ks-btn-text, #000) !important;border:var(--ks-btn-border, none) !important;border-radius:var(--ks-btn-radius, 6px) !important;padding:var(--ks-btn-py, 8px) var(--ks-btn-px, 19px) !important;font-size:var(--ks-btn-font, 14px) !important}
+.ks-btn-primary:hover,.ks-btn:hover{background:var(--ks-btn-hover, #e5e7eb) !important;filter:none}
+.ks-btn-secondary,.ks-btn-ghost,.ks-btn-cancel{background:var(--ks-btn-ghost-bg, transparent) !important;color:var(--ks-btn-ghost-text, #e5e7eb) !important;border:var(--ks-btn-ghost-border, 1px solid rgba(255,255,255,0.10)) !important;border-radius:var(--ks-btn-ghost-radius, 6px) !important;padding:var(--ks-btn-ghost-py, 8px) var(--ks-btn-ghost-px, 12px) !important;font-size:var(--ks-btn-ghost-font, 14px) !important}
+.ks-btn-secondary:hover,.ks-btn-ghost:hover,.ks-btn-cancel:hover{background:var(--ks-btn-ghost-hover, rgba(255,255,255,0.10)) !important;color:#fff !important}
+.ks-btn-danger,.ks-btn-danger-sm{background:var(--ks-accent-danger, #b91c1c) !important;color:#fff !important;border:1px solid var(--ks-bad-line, rgba(185,28,28,0.5)) !important;border-radius:6px !important;padding:8px 14px !important;font-size:13px !important}
+.ks-btn-danger:hover,.ks-btn-danger-sm:hover{background:var(--ks-accent-danger, #dc2626) !important;filter:brightness(1.1)}
+.ks-btn-icon,.ks-btn-header,.ks-icon-btn,.ks-iconbtn{display:inline-flex;align-items:center;justify-content:center;gap:6px;background:var(--ks-btn-icon-bg, rgba(255,255,255,0.10)) !important;color:var(--ks-btn-icon-text, #fff) !important;border:var(--ks-btn-icon-border, none) !important;border-radius:var(--ks-btn-icon-radius, 8px) !important;padding:7px 10px !important;font-size:12px !important;font-weight:500 !important;cursor:pointer;transition:background .15s ease !important;line-height:1;min-height:32px;min-width:32px}
+.ks-btn-icon:hover,.ks-btn-header:hover,.ks-icon-btn:hover,.ks-iconbtn:hover{background:var(--ks-btn-icon-hover, rgba(255,255,255,0.20)) !important}
+.ks-btn-icon svg,.ks-btn-header svg,.ks-icon-btn svg,.ks-iconbtn svg{width:var(--ks-btn-icon-size, 14px);height:var(--ks-btn-icon-size, 14px)}
+.ks-btn-header.is-open,.ks-btn-icon.is-open{background:var(--ks-btn-icon-hover, rgba(255,255,255,0.20)) !important}
+.ks-btn-sm{padding:4px 10px !important;font-size:12px !important;border-radius:4px !important}
+.ks-btn-lg{padding:12px 24px !important;font-size:16px !important;border-radius:8px !important}
+.ks-btn-outline{background:transparent !important;color:var(--ks-btn-ghost-text, #e5e7eb) !important;border:1px solid rgba(255,255,255,0.30) !important}
+.ks-btn-outline:hover{background:rgba(255,255,255,0.10) !important}
+.ks-btn-form{padding:10px 18px !important;font-size:14px !important;border-radius:6px !important}
+/* Compat: legacy ks-btn-blue/green/red used in dashboard examples */
+.ks-btn-blue{background:var(--ks-info, #0284c7) !important;color:#fff !important;border:none !important}
+.ks-btn-blue:hover{background:var(--ks-info, #0ea5e9) !important;filter:brightness(1.1)}
+.ks-btn-green{background:var(--ks-accent-success, #059669) !important;color:#0b0d10 !important;border:none !important}
+.ks-btn-green:hover{background:var(--ks-accent-success, #10b981) !important;filter:brightness(1.08)}
+.ks-btn-red{background:var(--ks-accent-danger, #b91c1c) !important;color:#fff !important;border:none !important}
+.ks-btn-red:hover{background:var(--ks-accent-danger, #dc2626) !important;filter:brightness(1.08)}
+/* Instance-page aliases keep old templates working */
+.ks-ip-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;font-weight:500;font-size:13px;padding:8px 16px;border-radius:6px;cursor:pointer;transition:all .15s ease;border:none;font-family:inherit;line-height:1}
+.ks-ip-btn-ghost{background:var(--ks-btn-ghost-bg, transparent) !important;color:var(--ks-btn-ghost-text, #e5e7eb) !important;border:var(--ks-btn-ghost-border, 1px solid rgba(255,255,255,0.10)) !important}
+.ks-ip-btn-ghost:hover{background:var(--ks-btn-ghost-hover, rgba(255,255,255,0.10)) !important;color:#fff !important}
+.ks-ip-btn-primary{background:var(--ks-btn-bg, #fff) !important;color:var(--ks-btn-text, #000) !important;border:var(--ks-btn-border, none) !important}
+.ks-ip-btn-primary:hover{background:var(--ks-btn-hover, #e5e7eb) !important}
+.ks-ip-btn:disabled{opacity:0.5;cursor:not-allowed}
+
+/* ── Tabs — panel's pill bar (Templates/Nodes/Security pages) ── */
+.ks-tabs{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+.ks-tab{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:var(--ks-tab-py, 8px) var(--ks-tab-px, 12px);border-radius:var(--ks-tab-radius, 6px);font-size:var(--ks-tab-font, 14px);font-weight:500;border:var(--ks-tab-border, none);cursor:pointer;transition:all .15s ease;background:var(--ks-tab-inactive-bg, transparent);color:var(--ks-tab-inactive-text, #d1d5db);font-family:inherit;line-height:1;white-space:nowrap}
+.ks-tab:hover{background:var(--ks-tab-hover-bg, rgba(255,255,255,0.08)) !important;color:var(--ks-tab-hover-text, #fff) !important}
+.ks-tab-active,.ks-tab[aria-selected="true"],.ks-tab.is-active{background:var(--ks-tab-active-bg, #fff) !important;color:var(--ks-tab-active-text, #000) !important;box-shadow:0 1px 3px rgba(0,0,0,0.2)}
+/* Instance compat */
+.ks-ip-tabs{display:flex;gap:4px;background:rgba(0,0,0,0.30);border:1px solid rgba(255,255,255,0.10);border-radius:8px;padding:4px}
+.ks-ip-tab{flex:1;padding:8px 12px;border-radius:6px;font-size:13px;font-weight:500;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .15s ease;background:transparent;color:var(--ks-muted, #9ca3af);font-family:inherit;line-height:1}
+.ks-ip-tab-active{background:var(--ks-tab-active-bg, #fff) !important;color:var(--ks-tab-active-text, #000) !important;box-shadow:0 1px 3px rgba(0,0,0,0.2) !important}
+.ks-ip-tab:hover:not(.ks-ip-tab-active){background:var(--ks-tab-hover-bg, rgba(255,255,255,0.08)) !important;color:var(--ks-tab-hover-text, #fff) !important}
+
+/* ── Forms — panel's ks-input / ks-select / ks-textarea / ks-label / ks-toggle etc ── */
+/* Generic element reset so bare <input> inside any template matches panel */
+.ks-page input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not(.ks-btn):not(.ks-tab):not(.ks-btn-header):not(.ks-btn-icon),
+.ks-page textarea,
+.ks-page select{box-sizing:border-box;background:var(--ks-input-bg, rgba(0,0,0,0.30)) !important;border:1px solid var(--ks-input-border, rgba(255,255,255,0.10)) !important;border-radius:var(--ks-input-radius, 6px) !important;color:var(--ks-input-text, #fff) !important;padding:var(--ks-input-py, 8px) var(--ks-input-px, 12px) !important;font-size:var(--ks-input-font, 14px) !important;transition:border-color .15s ease, box-shadow .15s ease !important;font-family:inherit;outline:none}
+.ks-page input::placeholder,.ks-page textarea::placeholder{color:var(--ks-input-placeholder, #6b7280) !important;opacity:1}
+.ks-page input:focus,.ks-page textarea:focus,.ks-page select:focus{border-color:var(--ks-input-focus-border, rgba(255,255,255,0.40)) !important;box-shadow:0 0 0 var(--ks-focus-ring-width, 2px) var(--ks-input-focus-ring, rgba(255,255,255,0.15)) !important}
+.ks-input,.ks-ip-input{width:100%;box-sizing:border-box;background:var(--ks-input-bg, rgba(0,0,0,0.30)) !important;border:1px solid var(--ks-input-border, rgba(255,255,255,0.10)) !important;border-radius:var(--ks-input-radius, 6px) !important;color:var(--ks-input-text, #fff) !important;padding:var(--ks-input-py, 8px) var(--ks-input-px, 12px) !important;font-size:var(--ks-input-font, 14px) !important;transition:border-color .15s ease, box-shadow .15s ease !important;font-family:inherit}
+.ks-input::placeholder,.ks-ip-input::placeholder{color:var(--ks-input-placeholder, #6b7280) !important;opacity:1}
+.ks-input:focus,.ks-ip-input:focus{border-color:var(--ks-input-focus-border, rgba(255,255,255,0.40)) !important;box-shadow:0 0 0 2px var(--ks-input-focus-ring, rgba(255,255,255,0.15)) !important;outline:none !important}
+.ks-input-sm{padding:6px 10px !important;font-size:12px !important}
+.ks-input-lg{padding:12px 16px !important;font-size:16px !important}
+.ks-input-error{border-color:var(--ks-bad, #ef4444) !important;box-shadow:0 0 0 2px rgba(239,68,68,0.2) !important}
+.ks-input-success{border-color:var(--ks-ok, #22c55e) !important}
+.ks-input-disabled{opacity:.5;cursor:not-allowed;background:rgba(0,0,0,0.20) !important}
+.ks-input-mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace !important;font-size:12px !important}
+.ks-select{width:100%;box-sizing:border-box;appearance:none;background-color:var(--ks-select-bg, var(--ks-input-bg, rgba(0,0,0,0.30))) !important;border:1px solid var(--ks-select-border, var(--ks-input-border, rgba(255,255,255,0.10))) !important;border-radius:var(--ks-select-radius, 6px) !important;color:var(--ks-select-text, var(--ks-input-text, #fff)) !important;padding:var(--ks-select-py, 8px) var(--ks-select-px, 12px) !important;padding-right:32px !important;font-size:var(--ks-select-font, 14px) !important;background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;background-size:16px;cursor:pointer}
+.ks-select-sm{padding:6px 10px !important;padding-right:28px !important;font-size:12px !important}
+.ks-select-lg{padding:12px 16px !important;padding-right:36px !important;font-size:16px !important}
+.ks-textarea{width:100%;box-sizing:border-box;background:var(--ks-textarea-bg, var(--ks-input-bg, rgba(0,0,0,0.30))) !important;border:1px solid var(--ks-textarea-border, var(--ks-input-border, rgba(255,255,255,0.10))) !important;border-radius:var(--ks-textarea-radius, 6px) !important;color:var(--ks-textarea-text, var(--ks-input-text, #fff)) !important;padding:var(--ks-textarea-py, 8px) var(--ks-textarea-px, 12px) !important;font-size:var(--ks-textarea-font, 14px) !important;resize:vertical;min-height:6rem;line-height:1.5}
+.ks-textarea-sm{min-height:4rem !important}
+.ks-textarea-lg{min-height:10rem !important}
+.ks-checkbox{width:var(--ks-checkbox-size, 16px);height:var(--ks-checkbox-size, 16px);accent-color:var(--ks-checkbox-bg-checked, #10b981);border-radius:var(--ks-checkbox-radius, 4px);cursor:pointer}
+.ks-checkbox-sm{width:14px;height:14px}
+.ks-checkbox-lg{width:20px;height:20px}
+.ks-radio{width:var(--ks-radio-size, 16px);height:var(--ks-radio-size, 16px);accent-color:var(--ks-radio-bg-checked, #10b981);cursor:pointer}
+.ks-radio-sm{width:14px;height:14px}
+.ks-radio-lg{width:20px;height:20px}
+.ks-toggle{position:relative;display:inline-flex;align-items:center;height:var(--ks-toggle-height, 24px);width:44px;border-radius:var(--ks-toggle-radius, 9999px);background:var(--ks-toggle-off, rgba(255,255,255,0.10));border:1px solid rgba(255,255,255,0.10);cursor:pointer;transition:background .15s ease}
+.ks-toggle.is-on,.ks-toggle:has(input:checked){background:var(--ks-toggle-on, #10b981) !important;border-color:var(--ks-toggle-on, #10b981) !important}
+.ks-toggle input{position:absolute;opacity:0;width:0;height:0}
+.ks-toggle__thumb,.ks-toggle-thumb{position:absolute;left:2px;top:2px;width:var(--ks-toggle-thumb, 20px);height:var(--ks-toggle-thumb, 20px);border-radius:9999px;background:var(--ks-toggle-thumb-color, #fff);box-shadow:0 1px 3px rgba(0,0,0,0.45);transition:transform .15s cubic-bezier(0.22,1,0.36,1)}
+.ks-toggle.is-on .ks-toggle__thumb,.ks-toggle.is-on .ks-toggle-thumb,.ks-toggle:has(input:checked) .ks-toggle__thumb{transform:translateX(20px)}
+.ks-label,.ks-page label:not(.ks-toggle):not(.ks-checkbox):not(.ks-radio){display:block;font-size:14px;font-weight:500;color:var(--ks-label-text, #e5e7eb);margin-bottom:4px}
+.ks-label-sm{font-size:12px !important}
+.ks-label-lg{font-size:16px !important}
+.ks-label-required::after{content:' *';color:var(--ks-bad, #f87171)}
+.ks-hint{font-size:12px;color:var(--ks-hint-text, #6b7280);margin-top:4px;line-height:1.4}
+.ks-hint-error{color:var(--ks-hint-error, #f87171) !important}
+.ks-hint-success{color:var(--ks-hint-success, #34d399) !important}
+.ks-field{display:flex;flex-direction:column;gap:6px}
+.ks-field-inline{display:flex;flex-direction:row;align-items:center;gap:12px}
+.ks-field-inline .ks-label{margin-bottom:0 !important}
+.ks-form-group{display:flex;flex-direction:column;gap:16px}
+.ks-form-row{display:flex;flex-wrap:wrap;gap:16px}
+.ks-form-row > .ks-field{flex:1;min-width:200px}
+.ks-file-input{width:100%;font-size:14px;color:var(--ks-body, #d1d5db)}
+.ks-file-input::file-selector-button{margin-right:12px;padding:6px 14px;border-radius:6px;border:0;background:var(--ks-btn-icon-bg, rgba(255,255,255,0.10));color:var(--ks-btn-icon-text, #fff);font-size:13px;cursor:pointer}
+.ks-color-input{width:40px;height:40px;border-radius:6px;border:1px solid var(--ks-card-border, rgba(255,255,255,0.10));padding:0;background:transparent;cursor:pointer}
+.ks-range{width:100%;height:6px;background:rgba(255,255,255,0.10);border-radius:9999px;appearance:none;cursor:pointer;accent-color:var(--ks-accent-success, #10b981)}
+.ks-range::-webkit-slider-thumb{appearance:none;width:16px;height:16px;background:var(--ks-accent-success, #10b981);border-radius:9999px;border:2px solid #fff}
+.ks-search-input{padding-left:36px !important;background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='1.7' opacity='0.7'%3E%3Ccircle cx='11' cy='11' r='7'%3E%3C/circle%3E%3Cpath d='M20 20L16 16'%3E%3C/path%3E%3C/svg%3E") !important;background-repeat:no-repeat !important;background-position:10px center !important;background-size:16px !important}
+
+/* ── Badges / Bars / Utilities — panel's .ks-badge / .ks-bar / .ks-row etc ── */
+.ks-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:9999px;font-size:11px;border:1px solid var(--ks-card-border, rgba(255,255,255,0.15));background:var(--ks-input-bg, rgba(0,0,0,0.30));color:var(--ks-body, #d1d5db)}
+.ks-bar{position:relative;background:var(--ks-input-bg, rgba(0,0,0,0.30));border-radius:9999px;height:8px;overflow:hidden;min-width:80px}
+.ks-bar > span{position:absolute;inset:0 auto 0 0;background:var(--ks-info, #38bdf8);border-radius:9999px;transition:width .3s ease}
+.ks-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ks-muted{color:var(--ks-muted, #9ca3af) !important}
+.ks-faint{color:var(--ks-faint, #6b7280) !important}
+.ks-ok{color:var(--ks-ok, #34d399) !important}
+.ks-bad{color:var(--ks-bad, #fca5a5) !important}
+.ks-warn{color:var(--ks-warn, #fcd34d) !important}
+.ks-info{color:var(--ks-info, #38bdf8) !important}
+.ks-mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.ks-heading{color:var(--ks-heading, #fff)}
+.ks-body{color:var(--ks-body, #e5e7eb)}
+
+/* ── Dropdowns / Menus — matches panel's .glass-dropdown / .ks-dropdown ── */
+.ks-dropdown,.ks-menu,.glass-dropdown{position:relative;background:var(--ks-dropdown-bg, rgba(12,14,18,0.22)) !important;backdrop-filter:blur(var(--ks-dropdown-blur, 28px)) saturate(180%) !important;-webkit-backdrop-filter:blur(var(--ks-dropdown-blur, 28px)) saturate(180%) !important;border:var(--ks-dropdown-border-width,1px) solid var(--ks-dropdown-border, rgba(255,255,255,0.10)) !important;border-radius:var(--ks-dropdown-radius, 10px) !important;box-shadow:var(--ks-dropdown-shadow, 0 12px 40px rgba(0,0,0,0.55)) !important;color:var(--ks-dropdown-item-text, #e5e7eb) !important}
+.ks-dropdown::before,.glass-dropdown::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:-1;background-image:var(--ks-dropdown-bg-image-layer, none);background-size:cover;background-position:center;filter:blur(var(--ks-dropdown-bg-blur, 0px))}
+.ks-menu button,.ks-dropdown button{color:var(--ks-dropdown-item-text, #e5e7eb);background:transparent;border:none;cursor:pointer}
+.ks-menu button:hover,.ks-dropdown button:hover{background:var(--ks-dropdown-item-hover, rgba(255,255,255,0.08)) !important}
+.ks-menu{position:absolute;min-width:var(--ks-dropdown-min-width, 180px);padding:var(--ks-dropdown-padding, 4px);z-index:var(--ks-z-dropdown, 50)}
+.ks-menu button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:var(--ks-dropdown-item-py, 8px) var(--ks-dropdown-item-px, 12px);border-radius:6px;font-size:var(--ks-dropdown-font, 13px)}
+.rich-check{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;border:1px solid rgba(255,255,255,0.28);background:rgba(0,0,0,0.25);flex-shrink:0}
+.rich-check.is-on{background:#fff;border-color:#fff;color:#0b0d10}
+.rich-toggle{position:relative;display:inline-block;width:34px;height:18px;border-radius:9999px;background:rgba(255,255,255,0.16);border:1px solid rgba(255,255,255,0.18);flex-shrink:0}
+.rich-toggle.is-on{background:#38bdf8;border-color:rgba(56,189,248,0.55)}
+.rich-toggle__knob{position:absolute;top:1px;left:1px;width:14px;height:14px;border-radius:9999px;background:#f8fafc;box-shadow:0 1px 3px rgba(0,0,0,0.45);transition:transform .14s ease}
+.rich-toggle.is-on .rich-toggle__knob{transform:translateX(16px)}
+.rich-separator{height:1px;margin:4px 6px;background:var(--ks-dropdown-header-sep, rgba(255,255,255,0.10))}
+.glass-dropdown{}
+
+/* ── Modal — panel's dialog surface ── */
+@keyframes ks-overlay-in{from{opacity:0}to{opacity:1}}
+@keyframes ks-modal-in{from{opacity:0;transform:translateY(8px) scale(0.98)}to{opacity:1;transform:translateY(0) scale(1)}}
+.ks-ip-modal-overlay{position:fixed;inset:0;z-index:var(--ks-z-modal,60);display:flex;align-items:center;justify-content:center;background:var(--ks-modal-overlay, rgba(0,0,0,0.60));backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:16px;animation:ks-overlay-in .18s ease}
+.ks-ip-modal-panel{background:var(--ks-modal-bg, var(--ks-card-bg, rgba(255,255,255,0.07)));border:1px solid var(--ks-modal-border, var(--ks-card-border, rgba(255,255,255,0.10)));box-shadow:var(--ks-modal-shadow, var(--ks-card-shadow, 0 8px 32px rgba(0,0,0,0.6)));border-radius:var(--ks-modal-radius, 12px);backdrop-filter:blur(var(--ks-modal-blur, 16px)) saturate(180%);-webkit-backdrop-filter:blur(var(--ks-modal-blur, 16px)) saturate(180%);width:100%;max-width:512px;max-height:90vh;max-height:90dvh;overflow-y:auto;animation:ks-modal-in .22s cubic-bezier(0.22,1,0.36,1);display:flex;flex-direction:column}
+.ks-ip-modal-header{display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid rgba(255,255,255,0.10);position:sticky;top:0;background:rgba(255,255,255,0.05);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);z-index:10;border-radius:var(--ks-modal-radius,12px) var(--ks-modal-radius,12px) 0 0}
+.ks-ip-modal-title{font-size:18px;font-weight:600;color:var(--ks-heading, #fff);margin:0;line-height:1.2}
+.ks-ip-modal-close{border:none;background:transparent;color:var(--ks-muted, #9ca3af);cursor:pointer;padding:4px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;transition:color .15s ease, background .15s ease}
+.ks-ip-modal-close:hover{color:var(--ks-heading, #fff);background:rgba(255,255,255,0.08)}
+.ks-ip-modal-body{padding:20px 24px;display:flex;flex-direction:column;gap:16px;flex:1}
+.ks-ip-modal-footer{display:flex;justify-content:flex-end;gap:8px;padding:16px 24px;border-top:1px solid rgba(255,255,255,0.10);flex-wrap:wrap;background:rgba(255,255,255,0.02);border-radius:0 0 var(--ks-modal-radius,12px) var(--ks-modal-radius,12px)}
+@media(max-width:640px){.ks-ip-modal-panel{width:96vw;margin:8px;max-height:92vh}}
+@media(prefers-reduced-motion:reduce){.ks-ip-modal-overlay,.ks-ip-modal-panel{animation:none !important}}
+.ks-ip-modal-overlay{overscroll-behavior:contain}
+html[data-ks-reduced-motion='1'] .ks-ip-modal-overlay,html[data-ks-reduced-motion='1'] .ks-ip-modal-panel{animation:none !important}
+
+/* ── Skeletons — matches panel's Loading skeleton tokens ── */
+@keyframes ks-skeleton-p{0%,100%{opacity:1}50%{opacity:.45}}
+.ks-skeleton{background:var(--ks-skeleton-base, rgba(255,255,255,0.06)) !important;border-radius:var(--ks-skeleton-radius,6px) !important;animation:ks-skeleton-p 1.45s ease-in-out infinite}
+.ks-skeleton-bar{background:var(--ks-skeleton-shimmer, rgba(255,255,255,0.13)) !important;border-radius:var(--ks-skeleton-radius,6px) !important;animation:ks-skeleton-p 1.45s ease-in-out infinite}
+.ks-skeleton-avatar{width:32px;height:32px;border-radius:9999px;background:var(--ks-skeleton-shimmer, rgba(255,255,255,0.13)) !important;animation:ks-skeleton-p 1.45s ease-in-out infinite;flex-shrink:0}
+.ks-skeleton-table th .ks-skeleton-bar,.ks-skeleton-table td .ks-skeleton-bar{height:10px}
+@media(prefers-reduced-motion:reduce){.ks-skeleton,.ks-skeleton-bar,.ks-skeleton-avatar,.ks-skeleton-card{animation:none !important}}
+html[data-ks-reduced-motion='1'] .ks-skeleton,html[data-ks-reduced-motion='1'] .ks-skeleton-bar,html[data-ks-reduced-motion='1'] .ks-skeleton-avatar,html[data-ks-reduced-motion='1'] .ks-skeleton-card{animation:none !important}
+
+/* ── Scroll / Layout helpers ── */
+.ks-ip-scroll-area{max-height:calc(100vh - 240px);max-height:calc(100dvh - 240px);overflow:auto}
+.ks-page [style*="grid-template-columns:repeat(auto-fill"]{max-height:calc(100vh - 260px);max-height:calc(100dvh - 260px);overflow:auto;padding-right:4px}
+.ks-hidden-sm{display:contents}
+@media(max-width:640px){.ks-hidden-sm{display:none !important}}
+@media(min-width:641px){.ks-only-sm{display:none !important}}
+/* Terminal */
+.ks-term-bg{background:var(--ks-term-bg, #1e1e1e) !important;color:var(--ks-term-text, #d4d4d4) !important;border-color:var(--ks-term-border, rgba(255,255,255,0.10)) !important}
+</style>`;
 
 // page() wraps a body + script into the standard starter skeleton. The
 // generated script is a plain async IIFE whose errors land in #content.
@@ -192,7 +390,7 @@ const SERVICE_CONTROL = page(
       <button class="ks-btn-header ks-icon-btn" id="refresh" title="Refresh" aria-label="Refresh"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>
     </div>
   </div>
-  <div class="ks-row" style="margin-bottom:0.6rem"><input id="q" placeholder="filter services…" style="flex:1;max-width:260px" /></div>
+  <div class="ks-row" style="margin-bottom:0.6rem"><input id="q" class="ks-input ks-search-input" placeholder="filter services…" style="flex:1;max-width:260px" /></div>
   <div id="content"><div class="ks-card" style="padding:0;overflow:hidden"><div style="display:grid;grid-template-columns:1.2fr 80px 70px 1.5fr 140px;gap:12px;padding:12px 14px;border-bottom:1px solid var(--ks-card-border);background:var(--ks-input-bg)"><div class="ks-skeleton-bar" style="height:10px;width:36px"></div><div class="ks-skeleton-bar" style="height:10px;width:44px"></div><div class="ks-skeleton-bar" style="height:10px;width:28px"></div><div class="ks-skeleton-bar" style="height:10px;width:72px"></div><div class="ks-skeleton-bar" style="height:10px;width:48px"></div></div><div style="display:grid;grid-template-columns:1.2fr 80px 70px 1.5fr 140px;gap:12px;padding:12px 14px;border-top:1px solid var(--ks-card-border)"><div class="ks-skeleton-bar" style="height:10px;width:92px"></div><div class="ks-skeleton" style="height:10px;width:34px"></div><div class="ks-skeleton" style="height:10px;width:28px"></div><div class="ks-skeleton-bar" style="height:10px;width:86px"></div><div style="display:flex;gap:6px"><div class="ks-skeleton-bar" style="height:16px;width:30px;border-radius:9999px"></div><div class="ks-skeleton-bar" style="height:16px;width:30px;border-radius:9999px"></div></div></div><div style="display:grid;grid-template-columns:1.2fr 80px 70px 1.5fr 140px;gap:12px;padding:12px 14px;border-top:1px solid var(--ks-card-border)"><div class="ks-skeleton-bar" style="height:10px;width:108px"></div><div class="ks-skeleton" style="height:10px;width:34px"></div><div class="ks-skeleton" style="height:10px;width:28px"></div><div class="ks-skeleton-bar" style="height:10px;width:96px"></div><div style="display:flex;gap:6px"><div class="ks-skeleton-bar" style="height:16px;width:30px;border-radius:9999px"></div><div class="ks-skeleton-bar" style="height:16px;width:30px;border-radius:9999px"></div></div></div><div style="display:grid;grid-template-columns:1.2fr 80px 70px 1.5fr 140px;gap:12px;padding:12px 14px;border-top:1px solid var(--ks-card-border)"><div class="ks-skeleton-bar" style="height:10px;width:88px"></div><div class="ks-skeleton" style="height:10px;width:34px"></div><div class="ks-skeleton" style="height:10px;width:28px"></div><div class="ks-skeleton-bar" style="height:10px;width:82px"></div><div style="display:flex;gap:6px"><div class="ks-skeleton-bar" style="height:16px;width:30px;border-radius:9999px"></div><div class="ks-skeleton-bar" style="height:16px;width:30px;border-radius:9999px"></div></div></div><div style="display:grid;grid-template-columns:1.2fr 80px 70px 1.5fr 140px;gap:12px;padding:12px 14px;border-top:1px solid var(--ks-card-border)"><div class="ks-skeleton-bar" style="height:10px;width:102px"></div><div class="ks-skeleton" style="height:10px;width:34px"></div><div class="ks-skeleton" style="height:10px;width:28px"></div><div class="ks-skeleton-bar" style="height:10px;width:90px"></div><div style="display:flex;gap:6px"><div class="ks-skeleton-bar" style="height:16px;width:30px;border-radius:9999px"></div><div class="ks-skeleton-bar" style="height:16px;width:30px;border-radius:9999px"></div></div></div><div style="display:grid;grid-template-columns:1.2fr 80px 70px 1.5fr 140px;gap:12px;padding:12px 14px;border-top:1px solid var(--ks-card-border)"><div class="ks-skeleton-bar" style="height:10px;width:96px"></div><div class="ks-skeleton" style="height:10px;width:34px"></div><div class="ks-skeleton" style="height:10px;width:28px"></div><div class="ks-skeleton-bar" style="height:10px;width:84px"></div><div style="display:flex;gap:6px"><div class="ks-skeleton-bar" style="height:16px;width:30px;border-radius:9999px"></div><div class="ks-skeleton-bar" style="height:16px;width:30px;border-radius:9999px"></div></div></div></div></div>
   <div id="detail" style="display:none;margin-top:0.75rem">
     <div class="ks-row" style="justify-content:space-between;margin-bottom:0.35rem">
