@@ -869,7 +869,7 @@ func SeedCore(d Dialect, db *sql.DB) error {
 	if _, err := db.Exec(translateSeedInsert(prefix, pgConflict, `(role_id, permission_id)
 		SELECT r.id, p.id FROM roles r, permissions p
 		WHERE r.name='user' AND p.key IN ('VIEW_INSTANCES', 'VIEW_ACCOUNT', 'USE_APPLICATIONS',
-		'TICKETS_VIEW', 'TICKETS_CREATE', 'TICKETS_EDIT',
+		'TICKETS_VIEW', 'TICKETS_CREATE',
 		'ACCOUNT_EDIT_BANNER', 'ACCOUNT_EDIT_ABOUT', 'ACCOUNT_EDIT_ACCENT',
 		'ACCOUNT_USE_AVATAR_SYMBOL', 'ACCOUNT_UPLOAD_AVATAR')`, "role_permissions")); err != nil {
 		return err
