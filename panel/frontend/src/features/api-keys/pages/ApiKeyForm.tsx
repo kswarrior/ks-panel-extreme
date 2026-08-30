@@ -408,7 +408,7 @@ const ApiKeyForm: React.FC = () => {
               <span className="text-[11px] text-gray-500">Preview</span>
            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <GlassField label="Name" htmlFor="name" hint="Machine name used internally and in API responses.">
                 <input
                   id="name"
@@ -417,32 +417,48 @@ const ApiKeyForm: React.FC = () => {
                   required
                 />
              </GlassField>
-              {!editing ? (
-                <GlassField label="Owner" htmlFor="user_id">
-                  {users.length === 0 ? (
-                    <p className="text-xs text-red-400">No users available</p>
-                  ) : (
-                    <select
-                      id="user_id"
-                      value={form.user_id}
-                      onChange={(e) => setForm({ ...form, user_id: Number(e.target.value) })}
-                      required
-                      className={glassFieldClass}
-                    >
-                      {users.map((u) => (
-                        <option key={u.id} value={u.id}>
-                          {u.username} ({u.email})
-                       </option>
-                      ))}
-                   </select>
-                  )}
-               </GlassField>
+              {!form.is_system ? (
+                !editing ? (
+                  <GlassField label="Owner" htmlFor="user_id">
+                    {users.length === 0 ? (
+                      <p className="text-xs text-red-400">No users available</p>
+                    ) : (
+                      <select
+                        id="user_id"
+                        value={form.user_id}
+                        onChange={(e) => setForm({ ...form, user_id: Number(e.target.value) })}
+                        required
+                        className={glassFieldClass}
+                      >
+                        {users.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.username} ({u.email})
+                         </option>
+                        ))}
+                     </select>
+                    )}
+                 </GlassField>
+                ) : (
+                  <GlassField label="Owner" htmlFor="owner_name_disabled">
+                    <input id="owner_name_disabled" value={`User #${form.user_id}`} disabled />
+                 </GlassField>
+                )
               ) : (
-                <GlassField label="Owner" htmlFor="owner_name_disabled">
-                  <input id="owner_name_disabled" value={`User #${form.user_id}`} disabled />
+                <GlassField label="Owner" htmlFor="owner_system_disabled" hint="System keys have no single owner.">
+                  <input id="owner_system_disabled" value="System (no owner)" disabled />
                </GlassField>
               )}
            </div>
+            <label className="flex items-center gap-2 text-sm text-gray-200 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={form.is_system}
+                onChange={(e) => setForm({ ...form, is_system: e.target.checked })}
+                className="accent-white"
+              />
+              System key
+              <span className="text-xs text-gray-400">When on, saves as System — no owner required, hidden from per-user lists.</span>
+            </label>
 
             <GlassField label="Display Name" htmlFor="display_name" hint="Friendly label shown in the UI. Falls back to Name when empty. Emoji decoration (e.g. “⚠ Deploy Key ⚠”) is supported.">
               <input

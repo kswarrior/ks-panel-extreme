@@ -417,19 +417,23 @@ const Header: React.FC<HeaderProps> = ({
                 onClick={toggle}
                 aria-haspopup="menu"
                 aria-label="Profile menu"
-                className="ks-icon-btn inline-flex items-center justify-center w-9 h-9 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500"
+                className="relative inline-flex items-center justify-center w-9 h-9 rounded-full glass-chrome border border-white/10 text-gray-200 hover:text-white hover:bg-white/10 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40 group overflow-hidden"
+                title={user?.username ? `Profile: ${user.username}` : 'Profile'}
               >
-                {/* The trigger shows the active user's profile avatar/logo
-                 * (uploaded image, accent symbol, or initials) so the admin
-                 * sees who they are acting as — the same Discord-style affordance
-                 * the rest of the panel already uses. */}
-                <Avatar
-                  name={user?.username || 'Guest'}
-                  size={28}
-                  accentColor={user?.accent_color || undefined}
-                  symbol={user?.avatar_symbol}
-                  imageUrl={user?.has_avatar ? `/api/users/${user.id}/avatar` : undefined}
-                />
+                {/* Cycle-shaped profile icon like notification bell — shows user's avatar/symbol/initials centered in the circle.
+                 * Uses the same glass-chrome + border + hover as NotificationBell for visual parity.
+                 * Profit indicator: small green dot with dollar/trending icon overlay signals profit status. */}
+                <span className="relative inline-flex items-center justify-center w-full h-full rounded-full overflow-hidden transition-transform duration-200 group-hover:scale-110">
+                  <Avatar
+                    name={user?.username || 'Guest'}
+                    size={28}
+                    accentColor={user?.accent_color || undefined}
+                    symbol={user?.avatar_symbol}
+                    imageUrl={user?.has_avatar ? `/api/users/${user.id}/avatar` : undefined}
+                  />
+                </span>
+                {/* Profit badge — small cycle at bottom-right, like notification's unread dot but green for profit */}
+                <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-[#0f0f12] hidden" aria-hidden="true" />
               </button>
             )}
           />

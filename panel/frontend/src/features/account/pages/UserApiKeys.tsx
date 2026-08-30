@@ -9,12 +9,14 @@ import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import GlassModal from '@/shared/components/ui/Modal';
 import GlassField, { glassFieldClass } from '@/shared/components/ui/Field';
 import { useConfirm } from '@/shared/stores/confirmStore';
+import { useAuthStore } from '@/shared/stores/authStore';
 import {
   ALL_ACTIONS,
   AREA_PERM_KEYS,
   PERMISSION_AREAS,
   type PermissionArea,
 } from '@/shared/types/permissions';
+import { hasPermissionAny, PermissionKey } from '@/shared/types/permissions';
 
 const COLOR_SWATCHES: Array<{ value: string; label: string }> = [
   { value: '', label: 'None' },
@@ -56,6 +58,11 @@ function permGroupKeySet(area: PermissionArea): Set<string> {
 const UserApiKeys: React.FC = () => {
   const navigate = useNavigate();
   const confirm = useConfirm();
+  const permissions = useAuthStore((s) => s.permissions);
+  const canView = hasPermissionAny(permissions, PermissionKey.MANAGE_API_KEYS, PermissionKey.API_KEYS_VIEW, PermissionKey.API_KEYS_CREATE, PermissionKey.API_KEYS_EDIT, PermissionKey.API_KEYS_DELETE);
+  const canCreate = hasPermissionAny(permissions, PermissionKey.MANAGE_API_KEYS, PermissionKey.API_KEYS_CREATE);
+  const canEdit = hasPermissionAny(permissions, PermissionKey.MANAGE_API_KEYS, PermissionKey.API_KEYS_EDIT);
+  const canDelete = hasPermissionAny(permissions, PermissionKey.MANAGE_API_KEYS, PermissionKey.API_KEYS_DELETE);
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [perms, setPerms] = useState<Permission[]>([]);
   const [loading, setLoading] = useState(true);
