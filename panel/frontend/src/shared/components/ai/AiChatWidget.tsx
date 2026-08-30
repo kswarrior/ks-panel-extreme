@@ -415,6 +415,25 @@ const AiChatWidget: React.FC = () => {
       }
       return next;
     });
+    // Clean up per-provider draft states (shift indices)
+    setModelDrafts((prev) => {
+      const next: Record<number, string> = {};
+      Object.entries(prev).forEach(([k, v]) => {
+        const i = Number(k);
+        if (i < idx) next[i] = v;
+        else if (i > idx) next[i - 1] = v;
+      });
+      return next;
+    });
+    setShowApiKey((prev) => {
+      const next: Record<number, boolean> = {};
+      Object.entries(prev).forEach(([k, v]) => {
+        const i = Number(k);
+        if (i < idx) next[i] = v;
+        else if (i > idx) next[i - 1] = v;
+      });
+      return next;
+    });
   };
 
   // Model chip editor helpers — per provider
@@ -688,7 +707,7 @@ const AiChatWidget: React.FC = () => {
                                     </div>
                                     <div>
                                       <label className="block text-[11px] text-gray-400 mb-1">Name</label>
-                                      <input value={p.name} onChange={(e) => { const v = e.target.value; updateProvider(idx, { name: v }); if (!p.id || p.id.startsWith('provider-')) { const slug = v.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-_]/g, ''); if (slug) updateProvider(idx, { id: slug }); } }} placeholder="OpenAI" className="w-full rounded-md bg-[#0a0a0c] border border-white/10 px-2 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30" />
+                                      <input value={p.name} onChange={(e) => { const v = e.target.value; const patch: Partial<AiProvider> = { name: v }; if (!p.id || p.id.startsWith('provider-')) { const slug = v.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-_]/g, ''); if (slug) patch.id = slug; } updateProvider(idx, patch); }} placeholder="OpenAI" className="w-full rounded-md bg-[#0a0a0c] border border-white/10 px-2 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30" />
                                     </div>
                                   </div>
                                   <div className="grid grid-cols-2 gap-2">
