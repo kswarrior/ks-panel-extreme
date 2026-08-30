@@ -35,6 +35,16 @@ func canSeeInternal(con *sql.DB, uid int64) bool {
 	return false
 }
 
+func isTicketStaff(con *sql.DB, uid int64) bool {
+	perms, _ := repoPermissionsForUser(con, uid)
+	for _, p := range perms {
+		if p == "MANAGE_TICKETS" {
+			return true
+		}
+	}
+	return false
+}
+
 // ListTicketsHandler returns paginated tickets.
 // Query params: category, priority, status, search, mine, limit, offset, include_internal (staff)
 // Non-staff automatically sees only own tickets unless they hold MANAGE_TICKETS/TICKETS_VIEW.
@@ -75,11 +85,7 @@ func ListTicketsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	isStaff := hasTicketView(con, uid) // staff sees all; if not, List will narrow to own
-	// For more precise internal notes handling, compute edit capability separately.
-	// For list, we just need to know if they can see all.
-	// If they have no view perm at all, they still see own (repo handles non-staff path)
-	// So isStaff = has view.
+	isStaff := isTicketStaff(con, uid) // only MANAGE_TICKETS sees all; others see own even if they have VIEW
 	tickets, total, err := repo.List(category, priority, status, search, mineOnly, uid, limit, offset, isStaff)
 	if err != nil {
 		log.Println("ListTickets error:", err)
@@ -550,7 +556,7 @@ func TicketStatsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer con.Close()
 	repo := repository.NewTicketRepository(con)
-	isStaff := hasTicketView(con, uid)
+	isStaff := isTicketStaff(con, uid)
 	stats, err := repo.Stats(uid, isStaff)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
