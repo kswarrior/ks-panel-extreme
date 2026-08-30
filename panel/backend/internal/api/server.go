@@ -770,10 +770,14 @@ func NewRouter() http.Handler {
 		// api keys are masked as "*" so the GET is safe. Writes are gated
 		// by the manage verb, chats by the use verb — the umbrella
 		// MANAGE_AI_CHAT implies both so the seeded admin keeps full control.
+		// Streaming: POST /api/ai/chat/stream returns SSE (data: {"delta":"..."})
+		// and the frontend retries every 5s up to 25 times if the stream cannot
+		// be established — see AiChatWidget handleSend streaming+retry.
 		// ─────────────────────────────────────────────────────────────────
 		r.With(requireUmbrellaOrAction(aiChatG, permissions.ActionView)).Get("/api/ai/config", handlers.GetAiConfigHandler)
 		r.With(requireUmbrellaOrAction(aiChatG, permissions.ActionEdit)).Put("/api/ai/config", handlers.UpdateAiConfigHandler)
 		r.With(requireUmbrellaOrAction(aiChatG, permissions.ActionView)).Post("/api/ai/chat", handlers.AiChatHandler)
+		r.With(requireUmbrellaOrAction(aiChatG, permissions.ActionView)).Post("/api/ai/chat/stream", handlers.AiChatStreamHandler)
 	})
 
 	// Serve SPA from embedded UI – any route not matched above falls through to UI

@@ -349,3 +349,331 @@ func mockReply(lastUser, model, providerName string) string {
 	// the mock provider-agnostic.
 	return fmt.Sprintf("🤖 [%s · %s]\n\nYou said: %q\n\nThis is a mock reply — configure a provider API key and base URL to get live completions. Your message was received and the chat UI is working.", providerName, model, lastUser)
 }
+
+// AiChatStreamHandler serves POST /api/ai/chat/stream — streaming SSE proxy.
+// Same validation as AiChatHandler but streams chunks via Server-Sent Events.
+// If provider is unreachable or not configured, streams a chunked mock reply
+// so the UI still demonstrates streaming. Frontend retries every 5s up to 25
+// times if the stream cannot be established (handled client-side).
+func AiChatStreamHandler(w http.ResponseWriter, r *http.Request) {
+	con, err := repository.OpenDB()
+	if err != nil {
+		http.Error(w, `{"error":"server error"}`, http.StatusInternalServerError)
+		return
+	}
+	defer con.Close()
+
+	var req models.AiChatRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error":"invalid json: need provider_id, model, messages"}`, http.StatusBadRequest)
+		return
+	}
+	req.ProviderID = strings.TrimSpace(req.ProviderID)
+	req.Model = strings.TrimSpace(req.Model)
+	if req.ProviderID == "" {
+		http.Error(w, `{"error":"provider_id required"}`, http.StatusBadRequest)
+		return
+	}
+	if req.Model == "" {
+		http.Error(w, `{"error":"model required"}`, http.StatusBadRequest)
+		return
+	}
+	if len(req.Messages) == 0 {
+		http.Error(w, `{"error":"messages required"}`, http.StatusBadRequest)
+		return
+	}
+	if len(req.Messages) > 50 {
+		http.Error(w, `{"error":"too many messages (max 50)"}`, http.StatusBadRequest)
+		return
+	}
+	for i, m := range req.Messages {
+		if m.Content == "" {
+			http.Error(w, fmt.Sprintf(`{"error":"message %d content empty"}`, i), http.StatusBadRequest)
+			return
+		}
+		if len(m.Content) > 8000 {
+			http.Error(w, fmt.Sprintf(`{"error":"message %d too long (max 8000)"}`, i), http.StatusBadRequest)
+			return
+		}
+		if m.Role != "user" && m.Role != "assistant" && m.Role != "system" {
+			http.Error(w, fmt.Sprintf(`{"error":"message %d invalid role %q"}`, i, m.Role), http.StatusBadRequest)
+			return
+		}
+	}
+
+	repo := repository.NewAiChatRepository(con)
+	cfg, err := repo.GetRaw()
+	if err != nil {
+		http.Error(w, `{"error":"failed to read ai config"}`, http.StatusInternalServerError)
+		return
+	}
+	var prov *models.AiProvider
+	for i := range cfg.Providers {
+		if cfg.Providers[i].ID == req.ProviderID {
+			prov = &cfg.Providers[i]
+			break
+		}
+	}
+	if prov == nil {
+		http.Error(w, fmt.Sprintf(`{"error":"unknown provider %q"}`, req.ProviderID), http.StatusBadRequest)
+		return
+	}
+	if !prov.Enabled {
+		http.Error(w, fmt.Sprintf(`{"error":"provider %q is disabled"}`, req.ProviderID), http.StatusBadRequest)
+		return
+	}
+	if len(prov.Models) > 0 {
+		found := false
+		for _, m := range prov.Models {
+			if m == req.Model {
+				found = true
+				break
+			}
+		}
+		if !found {
+			http.Error(w, fmt.Sprintf(`{"error":"model %q not configured for provider %q"}`, req.Model, req.ProviderID), http.StatusBadRequest)
+			return
+		}
+	}
+	hasSystem := false
+	for _, m := range req.Messages {
+		if m.Role == "system" {
+			hasSystem = true
+			break
+		}
+	}
+	messages := req.Messages
+	if !hasSystem && strings.TrimSpace(cfg.SystemPrompt) != "" {
+		messages = append([]models.AiChatMessage{{Role: "system", Content: cfg.SystemPrompt}}, messages...)
+	}
+
+	// Prepare SSE headers
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+	flusher, canFlush := w.(http.Flusher)
+	if !canFlush {
+		http.Error(w, `{"error":"streaming unsupported"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Try real streaming if provider looks configured
+	if strings.TrimSpace(prov.ApiKey) != "" && strings.TrimSpace(prov.BaseURL) != "" {
+		if err := streamFromProvider(w, r, prov, req.Model, messages, flusher); err == nil {
+			return
+		}
+		// fall through to mock streaming on error
+	}
+
+	// Mock streaming: chunk the mock reply token by token
+	lastUser := ""
+	for i := len(req.Messages) - 1; i >= 0; i-- {
+		if req.Messages[i].Role == "user" {
+			lastUser = req.Messages[i].Content
+			break
+		}
+	}
+	reply := mockReply(lastUser, req.Model, prov.Name)
+	streamMockReply(w, r, flusher, reply)
+}
+
+func streamMockReply(w http.ResponseWriter, r *http.Request, flusher http.Flusher, reply string) {
+	// Chunk by words to simulate token streaming
+	words := strings.Fields(reply)
+	// Keep original newlines: we chunk by 12 chars for smoother stream if words is small
+	if len(words) < 5 {
+		words = chunkString(reply, 12)
+	}
+	for _, chunk := range words {
+		select {
+		case <-r.Context().Done():
+			return
+		default:
+		}
+		// Preserve space between words except first
+		delta := chunk + " "
+		// For char-chunked mode, don't add extra space
+		if len(chunk) == 12 && !strings.Contains(chunk, " ") {
+			delta = chunk
+		}
+		payload, _ := json.Marshal(map[string]string{"delta": delta})
+		fmt.Fprintf(w, "data: %s\n\n", string(payload))
+		flusher.Flush()
+		time.Sleep(18 * time.Millisecond)
+	}
+	// Ensure final newline handling trimmed
+	fmt.Fprintf(w, "data: %s\n\n", `{"delta":"","done":true}`)
+	flusher.Flush()
+	fmt.Fprintf(w, "data: [DONE]\n\n")
+	flusher.Flush()
+}
+
+func chunkString(s string, n int) []string {
+	var out []string
+	for len(s) > 0 {
+		if len(s) <= n {
+			out = append(out, s)
+			break
+		}
+		out = append(out, s[:n])
+		s = s[n:]
+	}
+	return out
+}
+
+func streamFromProvider(w http.ResponseWriter, r *http.Request, prov *models.AiProvider, model string, messages []models.AiChatMessage, flusher http.Flusher) error {
+	base := strings.TrimRight(prov.BaseURL, "/")
+	url := base + "/chat/completions"
+	isAnthropic := prov.Type == "anthropic"
+	if isAnthropic {
+		url = base + "/v1/messages"
+	}
+	type msg struct {
+		Role    string `json:"role"`
+		Content string `json:"content"`
+	}
+	msgs := make([]msg, 0, len(messages))
+	for _, m := range messages {
+		msgs = append(msgs, msg{Role: m.Role, Content: m.Content})
+	}
+	var body []byte
+	var err error
+	if isAnthropic {
+		system := ""
+		filtered := msgs
+		if len(msgs) > 0 && msgs[0].Role == "system" {
+			system = msgs[0].Content
+			filtered = msgs[1:]
+		}
+		anthMessages := make([]msg, 0, len(filtered))
+		for _, m := range filtered {
+			if m.Role == "system" {
+				continue
+			}
+			anthMessages = append(anthMessages, m)
+		}
+		payload := map[string]any{
+			"model":      model,
+			"messages":   anthMessages,
+			"max_tokens": 1024,
+			"stream":     true,
+		}
+		if system != "" {
+			payload["system"] = system
+		}
+		body, err = json.Marshal(payload)
+	} else {
+		payload := map[string]any{
+			"model":    model,
+			"messages": msgs,
+			"stream":   true,
+		}
+		body, err = json.Marshal(payload)
+	}
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "text/event-stream")
+	if isAnthropic {
+		req.Header.Set("x-api-key", prov.ApiKey)
+		req.Header.Set("anthropic-version", "2023-06-01")
+	} else {
+		req.Header.Set("Authorization", "Bearer "+prov.ApiKey)
+	}
+	client := &http.Client{Timeout: 0}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return fmt.Errorf("provider http %d: %s", resp.StatusCode, string(b))
+	}
+	// Stream SSE from provider to client, translating to our simple {delta} format
+	buf := make([]byte, 4096)
+	leftover := ""
+	for {
+		select {
+		case <-r.Context().Done():
+			return nil
+		default:
+		}
+		n, readErr := resp.Body.Read(buf)
+		if n > 0 {
+			chunk := leftover + string(buf[:n])
+			lines := strings.Split(chunk, "\n")
+			// Keep incomplete last line in leftover
+			if !strings.HasSuffix(chunk, "\n") {
+				leftover = lines[len(lines)-1]
+				lines = lines[:len(lines)-1]
+			} else {
+				leftover = ""
+			}
+			for _, line := range lines {
+				line = strings.TrimSpace(line)
+				if line == "" || line == "data: [DONE]" {
+					continue
+				}
+				if !strings.HasPrefix(line, "data:") {
+					continue
+				}
+				raw := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+				if raw == "[DONE]" {
+					continue
+				}
+				var delta string
+				if isAnthropic {
+					// Anthropic: {"type":"content_block_delta","delta":{"text":"..."}}
+					var evt struct {
+						Type  string `json:"type"`
+						Delta struct {
+							Text string `json:"text"`
+						} `json:"delta"`
+					}
+					if err := json.Unmarshal([]byte(raw), &evt); err == nil {
+						if evt.Type == "content_block_delta" && evt.Delta.Text != "" {
+							delta = evt.Delta.Text
+						}
+					}
+				} else {
+					// OpenAI: {"choices":[{"delta":{"content":"..."}}]}
+					var evt struct {
+						Choices []struct {
+							Delta struct {
+								Content string `json:"content"`
+							} `json:"delta"`
+						} `json:"choices"`
+					}
+					if err := json.Unmarshal([]byte(raw), &evt); err == nil {
+						if len(evt.Choices) > 0 {
+							delta = evt.Choices[0].Delta.Content
+						}
+					}
+				}
+				if delta != "" {
+					payload, _ := json.Marshal(map[string]string{"delta": delta})
+					fmt.Fprintf(w, "data: %s\n\n", string(payload))
+					flusher.Flush()
+				}
+			}
+		}
+		if readErr != nil {
+			if readErr == io.EOF {
+				break
+			}
+			return readErr
+		}
+	}
+	fmt.Fprintf(w, "data: %s\n\n", `{"delta":"","done":true}`)
+	flusher.Flush()
+	fmt.Fprintf(w, "data: [DONE]\n\n")
+	flusher.Flush()
+	return nil
+}
