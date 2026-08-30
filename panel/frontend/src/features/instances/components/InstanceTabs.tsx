@@ -91,13 +91,11 @@ const InstanceTabs: React.FC = () => {
     return null;
   }
 
-  // While the instance fetch is in flight (or the spec has been parsed but
-  // resolveInstanceNav hasn't produced entries yet) render a shimmering
-  // skeleton placeholder instead of `null`. Without this the tab bar would
-  // flicker to empty for a few hundred ms on every navigation — the user
-  // landed on the sub-page without a header, looking like the whole
-  // nav had disappeared.
-  if (loading || nav.length === 0) {
+  // While the instance fetch is in flight render a shimmering skeleton
+  // placeholder instead of `null`. After loading, an empty nav (empty-by-
+  // default instance with no pages) renders nothing — the InstanceDynamicPage
+  // shows the NoPagesState guidance instead of a perpetual skeleton.
+  if (loading) {
     return (
       <div className="flex-1 min-w-0 relative bg-transparent">
         <div className="relative">
@@ -122,6 +120,9 @@ const InstanceTabs: React.FC = () => {
         />
       </div>
     );
+  }
+  if (nav.length === 0) {
+    return null;
   }
 
   // All Pages Dropdown Portal — the left edge is clamped to the viewport so

@@ -158,10 +158,12 @@ function blocksToHtml(json: string): string {
       }
       case 'text':
         return `<p>${b.value}</p>`;
-      case 'image':
-        return b.value ? `<img src="${b.value}" alt="" />` : '';
+      case 'image': {
+        const src = safeImgSrc(b.value);
+        return src !== '#' ? `<img src="${src}" alt="" />` : '';
+      }
       case 'button':
-        return b.href ? `<a href="${b.href}" target="_blank" rel="noreferrer">${b.value}</a>` : `<span>${b.value}</span>`;
+        return b.href ? `<a href="${safeUrl(b.href)}" target="_blank" rel="noreferrer">${b.value}</a>` : `<span>${b.value}</span>`;
       case 'code':
         return `<pre><code>${b.value}</code></pre>`;
       case 'spacer':
