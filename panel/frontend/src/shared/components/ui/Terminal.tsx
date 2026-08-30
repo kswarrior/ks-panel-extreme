@@ -125,7 +125,7 @@ export interface TerminalHandle {
   reconnect: () => void;
 }
 
-const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStateChange, onTermRef }, ref) => {
+const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStateChange, onTermRef, onTitleChange }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -137,6 +137,10 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
   const reconnectRef = useRef<(() => void) | null>(null);
   const [state, setStateRaw] = useState<ConnState>('connecting');
   const [errMsg, setErrMsg] = useState('');
+  const onTitleChangeRef = useRef(onTitleChange);
+  useEffect(() => {
+    onTitleChangeRef.current = onTitleChange;
+  }, [onTitleChange]);
 
   // Bridge the imperative `reconnect()` to the parent's ref. We resolve it
   // lazily (no static dependency array) so the parent always picks up the
@@ -207,6 +211,7 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
 
     const dataSub = term.onData((d) => sendStdin(d));
     const resizeSub = term.onResize(({ cols, rows }) => sendResize(cols, rows));
+    const titleSub = term.onTitleChange((t) => onTitleChangeRef.current?.(t));
 
     const ro = new ResizeObserver(() => {
       try {
@@ -248,6 +253,7 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
       el.removeEventListener('touchend', handleTouchEnd as EventListener);
       dataSub.dispose();
       resizeSub.dispose();
+      titleSub?.dispose();
       ro.disconnect();
       term.dispose();
       termRef.current = null;
