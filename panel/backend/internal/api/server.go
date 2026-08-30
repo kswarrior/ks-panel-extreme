@@ -617,12 +617,9 @@ func NewRouter() http.Handler {
 		r.With(requirePermission("VIEW_INSTANCES")).Get("/api/instances/{id}/metrics", handlers.MetricsHandler)
 		r.With(requirePermission("VIEW_INSTANCES")).Get("/api/instances/{id}/ports", handlers.ListPortsHandler)
 
-		// Bulk cached live-state resources for the InstanceCard. Reads the
-		// live_state table once (no edge dial) and returns the per-instance
-		// cpu/mem/disk snapshot the card uses as a fallback when the stored
-		// config has no `limits` block. Same VIEW_INSTANCES gate as the rest
-		// of the instance-scoped routes.
-		r.With(requirePermission("VIEW_INSTANCES")).Get("/api/instances/cached-resources", handlers.ListCachedResourcesHandler)
+		// Bulk cached live-state resources (now inside r.Route("/api/instances") as
+		// GET "/cached-resources" so the static literal is resolved before
+		// "/{id}"). See the Route block above.
 
 		// Snapshots (driver-managed backups the edge creates/restores/deletes).
 		r.Route("/api/instances/{id}/snapshots", func(r chi.Router) {
