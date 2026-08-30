@@ -47,6 +47,7 @@ import System from '@/features/system/pages/System';
 import Security from '@/features/security/pages/Security';
 import Activity from '@/features/activity/pages/Activity';
 import Notifications from '@/features/notifications/pages/Notifications';
+import NotificationDetail from '@/features/notifications/pages/NotificationDetail';
 import InstancePages from '@/features/instance-pages/pages/InstancePages';
 import InstancePageDetail from '@/features/instance-pages/pages/InstancePageDetail';
 import InstancePageStudio from '@/features/instance-pages/pages/InstancePageStudio';
@@ -151,6 +152,7 @@ const Router: React.FC = () => (
           so they open to anyone with a session. */}
       <Route path="/system" element={<AuthOnly><System /></AuthOnly>} />
       <Route path="/notifications" element={<AuthOnly><Notifications /></AuthOnly>} />
+      <Route path="/notifications/:id" element={<AuthOnly><NotificationDetail /></AuthOnly>} />
       <Route path="/security" element={<AuthOnly><Security /></AuthOnly>} />
       <Route path="/activity" element={<AuthOnly><Activity /></AuthOnly>} />
       <Route path="/database" element={<AuthOnly><Database /></AuthOnly>} />

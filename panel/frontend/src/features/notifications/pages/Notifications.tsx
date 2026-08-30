@@ -329,6 +329,25 @@ const NotificationsPage: React.FC = () => {
                 <label className="ks-label">Message</label>
                 <textarea value={bcastMsg} onChange={(e) => setBcastMsg(e.target.value)} placeholder="Detailed message…" rows={3} className="ks-textarea w-full" maxLength={5000} />
               </div>
+              <div>
+                <label className="ks-label">Notes <span className="text-gray-500 font-normal">(extra detail for drop + detail page)</span></label>
+                <textarea value={bcastNotes} onChange={(e) => setBcastNotes(e.target.value)} placeholder="Short notes, e.g. 'Reboot at 02:00 UTC, save work' — shown as second line in dropdown" rows={2} className="ks-textarea w-full" maxLength={8000} />
+              </div>
+              <div>
+                <label className="ks-label">Cover image URL <span className="text-gray-500 font-normal">(image / gif — shown as hero)</span></label>
+                <input value={bcastCover} onChange={(e) => setBcastCover(e.target.value)} placeholder="https://example.com/cover.jpg or .gif" className="ks-input w-full font-mono text-xs" maxLength={2000} />
+                {bcastCover && (
+                  <div className="mt-2 rounded-lg overflow-hidden border aspect-video max-h-40" style={{ borderColor: 'var(--ks-card-border)' }}>
+                    {/* eslint-disable-next-line jsx-a11y/alt-text */}
+                    <img src={bcastCover} alt="cover preview" className="w-full h-full object-cover" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
+                  </div>
+                )}
+              </div>
+              <div>
+                <label className="ks-label">Media gallery <span className="text-gray-500 font-normal">(images / videos / gif URLs, comma or newline — max 20)</span></label>
+                <textarea value={bcastMedia} onChange={(e) => setBcastMedia(e.target.value)} placeholder={"https://example.com/a.jpg, https://example.com/b.mp4\nhttps://example.com/c.gif"} rows={2} className="ks-textarea w-full font-mono text-xs" maxLength={20000} />
+                <p className="text-[11px] mt-1" style={{ color: 'var(--ks-muted)' }}>Videos auto-play muted, gifs render as images. Leave empty for text-only.</p>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="ks-label">Category</label>
