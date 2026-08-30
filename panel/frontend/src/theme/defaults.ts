@@ -94,7 +94,7 @@ export const DEFAULT_THEME: Theme = {
     background: 'rgba(0,0,0,0.40)',
     backdrop_blur: 23,
     border_color: 'rgba(255,255,255,0.10)',
-    height: 55,
+    height: 68,
     text_color: '#ffffff',
   },
 
