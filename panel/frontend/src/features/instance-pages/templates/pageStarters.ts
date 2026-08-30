@@ -71,47 +71,72 @@ function cardUnit(key,title,innerHtml){return '<div class="ks-card" data-ks-key=
 // ── React-like per-unit patching (no full page reload, only changed unit updates) ──
 // ksPatch diffs containers and patches only changed units (by data-ks-key / id), preserving scroll/focus.
 // This gives React-style granularity: fetching latest data patches only the unit whose data changed,
-// instead of wiping the whole page via innerHTML.
+// instead of wiping the whole page via innerHTML. Deep-keyed units ([data-ks-key]) are patched
+// individually like React reconciliation; non-keyed chrome (headers, skeletons) uses shallow child diff.
 function ksPatch(targetId, newHtml){
   var root=document.getElementById(targetId);
   if(!root) return;
   var tmp=document.createElement('div');
   tmp.innerHTML=newHtml;
-  // Deep per-unit diff: patch only [data-ks-key] units whose content changed
   var newKeys=tmp.querySelectorAll('[data-ks-key]');
+  var oldNodes=root.querySelectorAll('[data-ks-key]');
   var oldMap={};
-  root.querySelectorAll('[data-ks-key]').forEach(function(n){ oldMap[n.getAttribute('data-ks-key')]=n; });
-  if(newKeys.length && Object.keys(oldMap).length){
-    var changed=0;
+  for(var oi=0;oi<oldNodes.length;oi++){ var on=oldNodes[oi]; oldMap[on.getAttribute('data-ks-key')]=on; }
+  var hasKeyed = newKeys.length>0;
+  if(hasKeyed){
+    // 1) patch / add keyed units
     for(var i=0;i<newKeys.length;i++){
       var n=newKeys[i];
       var key=n.getAttribute('data-ks-key');
       var o=oldMap[key];
-      if(o && o.outerHTML!==n.outerHTML){ o.replaceWith(n.cloneNode(true)); changed++; }
-      else if(!o){ changed++; }
+      if(o && o.outerHTML!==n.outerHTML){ o.replaceWith(n.cloneNode(true)); }
+      else if(!o){
+        // new unit: append to its parent container in root if possible; fallback to shallow later
+      }
+      if(o) delete oldMap[key];
     }
-    // handle structure where new has same keyed units count but outer wrapper may still need update
-    // if any new key missing in old, or count mismatch, fall through to shallow diff
-    var oldKeys=root.querySelectorAll('[data-ks-key]').length;
-    if(changed>0 || newKeys.length===oldKeys){
-      // also catch header/non-keyed changes by checking non-keyed wrapper diff
-      // if root's non-keyed top-level html still differs (e.g., header), do shallow patch for those nodes
+    // 2) remove old units that disappeared
+    for(var k in oldMap){ try{ oldMap[k].remove(); }catch(e){} }
+    // 3) shallow diff for direct children that do NOT contain keyed units (headers, banners, skeletons)
+    if(root.children.length && tmp.children.length && root.children.length===tmp.children.length){
+      for(var i=0;i<tmp.children.length;i++){
+        var nn=tmp.children[i];
+        var oo=root.children[i];
+        var nnHasKey = !!nn.querySelector('[data-ks-key]') || nn.hasAttribute('data-ks-key');
+        var ooHasKey = !!oo.querySelector('[data-ks-key]') || oo.hasAttribute('data-ks-key');
+        if(nnHasKey || ooHasKey) continue; // already handled via deep keyed patch (or their children were)
+        if(oo.outerHTML!==nn.outerHTML){ oo.replaceWith(nn.cloneNode(true)); }
+      }
+    }
+    // if still no direct children match (e.g., initial skeleton -> loaded grid), fall back to innerHTML if
+    // root has no keyed units yet but new does — skeleton will be replaced via the remove/add above,
+    // but if root was skeleton (no keys) and new has keys, we need to replace whole inner
+    if(oldNodes.length===0 && newKeys.length>0){
+      // first real load after skeleton: tmp has keys, root had none — replace inner but preserve scroll
+      // Only if root's current html is skeleton (no keys) we can safely replace
+      if(root.innerHTML!==newHtml){
+        var st0=root.scrollTop, sl0=root.scrollLeft;
+        root.innerHTML=newHtml;
+        try{root.scrollTop=st0; root.scrollLeft=sl0;}catch(e){}
+      }
       return;
     }
+    // after deep patch, if counts match and no structural skeleton mismatch, we're done
+    return;
   }
-  // Shallow child diff: replace only changed direct children (per-unit when children are units)
+  // No keyed units: shallow child diff (per-unit when children are units)
   if(root.children.length && tmp.children.length && root.children.length===tmp.children.length){
     var ch=0;
     for(var i=0;i<tmp.children.length;i++){
-      var nn=tmp.children[i];
-      var oo=root.children[i];
-      var nk=nn.getAttribute('data-ks-key')||nn.id||'';
-      var ok=oo.getAttribute('data-ks-key')||oo.id||'';
+      var nn2=tmp.children[i];
+      var oo2=root.children[i];
+      var nk=nn2.getAttribute('data-ks-key')||nn2.id||'';
+      var ok=oo2.getAttribute('data-ks-key')||oo2.id||'';
       if(nk!==ok){
-        if(oo.outerHTML!==nn.outerHTML){ oo.replaceWith(nn.cloneNode(true)); ch++; }
+        if(oo2.outerHTML!==nn2.outerHTML){ oo2.replaceWith(nn2.cloneNode(true)); ch++; }
         continue;
       }
-      if(oo.outerHTML!==nn.outerHTML){ oo.replaceWith(nn.cloneNode(true)); ch++; }
+      if(oo2.outerHTML!==nn2.outerHTML){ oo2.replaceWith(nn2.cloneNode(true)); ch++; }
     }
     if(ch===0 && root.innerHTML!==tmp.innerHTML){
       if(root.innerHTML!==newHtml){
