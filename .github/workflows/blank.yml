@@ -1,4 +1,4 @@
-name: Reset Main Files to 3ecba62
+name: Reset Main Files to 65e111a
 
 on:
   workflow_dispatch:
@@ -20,7 +20,7 @@ jobs:
 
       - name: Replace main files from 3ecba62
         env:
-          TARGET: 3ecba6246567e48bb270d02d3677fc10ada17055
+          TARGET: 65e111a9df697beebea2b18cc1ab6658fa49a6da
         run: |
           set -e
 
