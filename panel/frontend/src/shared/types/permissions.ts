@@ -114,6 +114,44 @@ export const PermissionKey = {
   ACCOUNT_EDIT_ACCENT: 'ACCOUNT_EDIT_ACCENT',
   ACCOUNT_USE_AVATAR_SYMBOL: 'ACCOUNT_USE_AVATAR_SYMBOL',
   ACCOUNT_UPLOAD_AVATAR: 'ACCOUNT_UPLOAD_AVATAR',
+
+  // ----------------------------------------------------------------------
+  // Ownership-scope keys — Own vs All per area.
+  // Each area gains two scope keys that decide whether an actor may touch
+  // only own resources (OWN) or any resource (ALL). Mirrors
+  // internal/permissions/keys.go. The backend evaluates them inside handlers
+  // to filter lists / forbid cross-user mutations (e.g. Instances Own → only
+  // own instances visible, All → full fleet; Create with Own → owner_id forced
+  // to self).
+  // ----------------------------------------------------------------------
+  USERS_OWN: 'USERS_OWN',
+  USERS_ALL: 'USERS_ALL',
+  ROLES_OWN: 'ROLES_OWN',
+  ROLES_ALL: 'ROLES_ALL',
+  NODES_OWN: 'NODES_OWN',
+  NODES_ALL: 'NODES_ALL',
+  TEMPLATES_OWN: 'TEMPLATES_OWN',
+  TEMPLATES_ALL: 'TEMPLATES_ALL',
+  INSTANCES_OWN: 'INSTANCES_OWN',
+  INSTANCES_ALL: 'INSTANCES_ALL',
+  API_KEYS_OWN: 'API_KEYS_OWN',
+  API_KEYS_ALL: 'API_KEYS_ALL',
+  MODS_OWN: 'MODS_OWN',
+  MODS_ALL: 'MODS_ALL',
+  APPLICATIONS_OWN: 'APPLICATIONS_OWN',
+  APPLICATIONS_ALL: 'APPLICATIONS_ALL',
+  INSTANCE_PAGES_OWN: 'INSTANCE_PAGES_OWN',
+  INSTANCE_PAGES_ALL: 'INSTANCE_PAGES_ALL',
+  TICKETS_OWN: 'TICKETS_OWN',
+  TICKETS_ALL: 'TICKETS_ALL',
+  NOTIFICATIONS_OWN: 'NOTIFICATIONS_OWN',
+  NOTIFICATIONS_ALL: 'NOTIFICATIONS_ALL',
+  SETTINGS_OWN: 'SETTINGS_OWN',
+  SETTINGS_ALL: 'SETTINGS_ALL',
+  THEMES_OWN: 'THEMES_OWN',
+  THEMES_ALL: 'THEMES_ALL',
+  ACCOUNT_OWN: 'ACCOUNT_OWN',
+  ACCOUNT_ALL: 'ACCOUNT_ALL',
 } as const;
 
 export type PermissionKey = (typeof PermissionKey)[keyof typeof PermissionKey];
@@ -146,6 +184,9 @@ export interface PermissionArea {
   keys: Partial<Record<PermAction, string>>;
   /** Extra non-CRUD keys for the area (Themes' USE/ASSIGN_THEMES). */
   extraKeys?: string[];
+  /** Ownership scope: may act only on own resources (Own) vs any (All). */
+  ownKey?: string;
+  allKey?: string;
 }
 
 /**
@@ -163,6 +204,8 @@ export const PERMISSION_AREAS: PermissionArea[] = [
       EDIT: PermissionKey.USERS_EDIT,
       DELETE: PermissionKey.USERS_DELETE,
     },
+    ownKey: PermissionKey.USERS_OWN,
+    allKey: PermissionKey.USERS_ALL,
   },
   {
     label: 'Roles',
@@ -173,6 +216,8 @@ export const PERMISSION_AREAS: PermissionArea[] = [
       EDIT: PermissionKey.ROLES_EDIT,
       DELETE: PermissionKey.ROLES_DELETE,
     },
+    ownKey: PermissionKey.ROLES_OWN,
+    allKey: PermissionKey.ROLES_ALL,
   },
   {
     label: 'Nodes',
@@ -183,6 +228,8 @@ export const PERMISSION_AREAS: PermissionArea[] = [
       EDIT: PermissionKey.NODES_EDIT,
       DELETE: PermissionKey.NODES_DELETE,
     },
+    ownKey: PermissionKey.NODES_OWN,
+    allKey: PermissionKey.NODES_ALL,
   },
   {
     label: 'Templates',
@@ -193,6 +240,8 @@ export const PERMISSION_AREAS: PermissionArea[] = [
       EDIT: PermissionKey.TEMPLATES_EDIT,
       DELETE: PermissionKey.TEMPLATES_DELETE,
     },
+    ownKey: PermissionKey.TEMPLATES_OWN,
+    allKey: PermissionKey.TEMPLATES_ALL,
   },
   {
     label: 'Instances',
@@ -203,6 +252,8 @@ export const PERMISSION_AREAS: PermissionArea[] = [
       EDIT: PermissionKey.INSTANCES_EDIT,
       DELETE: PermissionKey.INSTANCES_DELETE,
     },
+    ownKey: PermissionKey.INSTANCES_OWN,
+    allKey: PermissionKey.INSTANCES_ALL,
   },
   {
     label: 'API Keys',
@@ -213,6 +264,8 @@ export const PERMISSION_AREAS: PermissionArea[] = [
       EDIT: PermissionKey.API_KEYS_EDIT,
       DELETE: PermissionKey.API_KEYS_DELETE,
     },
+    ownKey: PermissionKey.API_KEYS_OWN,
+    allKey: PermissionKey.API_KEYS_ALL,
   },
   {
     label: 'Mods',
@@ -223,6 +276,8 @@ export const PERMISSION_AREAS: PermissionArea[] = [
       EDIT: PermissionKey.MODS_EDIT,
       DELETE: PermissionKey.MODS_DELETE,
     },
+    ownKey: PermissionKey.MODS_OWN,
+    allKey: PermissionKey.MODS_ALL,
   },
   {
     label: 'Applications',
@@ -233,6 +288,8 @@ export const PERMISSION_AREAS: PermissionArea[] = [
       EDIT: PermissionKey.APPLICATIONS_EDIT,
       DELETE: PermissionKey.APPLICATIONS_DELETE,
     },
+    ownKey: PermissionKey.APPLICATIONS_OWN,
+    allKey: PermissionKey.APPLICATIONS_ALL,
   },
   {
     label: 'Instance Pages',
@@ -243,6 +300,8 @@ export const PERMISSION_AREAS: PermissionArea[] = [
       EDIT: PermissionKey.INSTANCE_PAGES_EDIT,
       DELETE: PermissionKey.INSTANCE_PAGES_DELETE,
     },
+    ownKey: PermissionKey.INSTANCE_PAGES_OWN,
+    allKey: PermissionKey.INSTANCE_PAGES_ALL,
   },
   {
     label: 'Tickets',
@@ -253,6 +312,8 @@ export const PERMISSION_AREAS: PermissionArea[] = [
       EDIT: PermissionKey.TICKETS_EDIT,
       DELETE: PermissionKey.TICKETS_DELETE,
     },
+    ownKey: PermissionKey.TICKETS_OWN,
+    allKey: PermissionKey.TICKETS_ALL,
   },
   {
     label: 'Notifications',
@@ -263,6 +324,8 @@ export const PERMISSION_AREAS: PermissionArea[] = [
       EDIT: PermissionKey.NOTIFICATIONS_EDIT,
       DELETE: PermissionKey.NOTIFICATIONS_DELETE,
     },
+    ownKey: PermissionKey.NOTIFICATIONS_OWN,
+    allKey: PermissionKey.NOTIFICATIONS_ALL,
   },
   {
     label: 'Settings',
@@ -271,6 +334,8 @@ export const PERMISSION_AREAS: PermissionArea[] = [
       VIEW: PermissionKey.SETTINGS_VIEW,
       EDIT: PermissionKey.SETTINGS_EDIT,
     },
+    ownKey: PermissionKey.SETTINGS_OWN,
+    allKey: PermissionKey.SETTINGS_ALL,
   },
   {
     label: 'Themes',
@@ -286,6 +351,8 @@ export const PERMISSION_AREAS: PermissionArea[] = [
       PermissionKey.USE_GLOBAL_THEMES,
       PermissionKey.ASSIGN_THEMES,
     ],
+    ownKey: PermissionKey.THEMES_OWN,
+    allKey: PermissionKey.THEMES_ALL,
   },
   // Account / profile customization cluster. VIEW_ACCOUNT is the page-level
   // umbrella (opens the Account page). The Account area doesn't use the CRUD
@@ -307,12 +374,14 @@ export const PERMISSION_AREAS: PermissionArea[] = [
       PermissionKey.ACCOUNT_USE_AVATAR_SYMBOL,
       PermissionKey.ACCOUNT_UPLOAD_AVATAR,
     ],
+    ownKey: PermissionKey.ACCOUNT_OWN,
+    allKey: PermissionKey.ACCOUNT_ALL,
   },
 ];
 
-/** All perm keys that belong to a regulatable area (umbrella + sub-keys), for quick membership tests. */
+/** All perm keys that belong to a regulatable area (umbrella + sub-keys + Own/All), for quick membership tests. */
 export const AREA_PERM_KEYS: Set<string> = new Set(
-  PERMISSION_AREAS.flatMap((a) => [a.umbrella, ...Object.values(a.keys), ...(a.extraKeys ?? [])].filter(Boolean)),
+  PERMISSION_AREAS.flatMap((a) => [a.umbrella, ...Object.values(a.keys), ...(a.extraKeys ?? []), a.ownKey, a.allKey].filter(Boolean) as string[]),
 );
 
 /**

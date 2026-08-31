@@ -15,6 +15,8 @@ function groupKeySet(area: PermissionArea): Set<string> {
   if (area.umbrella) s.add(area.umbrella);
   for (const k of Object.values(area.keys)) if (k) s.add(k);
   for (const k of area.extraKeys ?? []) s.add(k);
+  if (area.ownKey) s.add(area.ownKey);
+  if (area.allKey) s.add(area.allKey);
   return s;
 }
 
@@ -172,6 +174,14 @@ const RolePermissions: React.FC<RolePermissionsProps> = ({
             if (p) subRows.push(p);
           }
           for (const k of area.extraKeys ?? []) {
+            const p = permByKey.get(k);
+            if (p) subRows.push(p);
+          }
+          // Ownership scope rows (Own / All) — rendered after CRUD + extras so the
+          // Instances example shows "INSTANCES_VIEW / CREATE / EDIT / DELETE" first,
+          // then the Own/All scope toggles that decide whether those verbs are
+          // scoped to owned rows or to the full fleet.
+          for (const k of [area.ownKey, area.allKey].filter(Boolean) as string[]) {
             const p = permByKey.get(k);
             if (p) subRows.push(p);
           }
