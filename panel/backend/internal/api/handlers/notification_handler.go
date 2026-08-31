@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/example/kspanel/internal/models"
+	"github.com/example/kspanel/internal/permissions"
 	"github.com/example/kspanel/internal/repository"
 	"github.com/go-chi/chi/v5"
 )
@@ -352,6 +353,21 @@ func CreateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer con.Close()
+	// Ownership scope for notifications: Own → may only notify self, All/umbrella → broadcast or any user.
+	if actorID != 0 {
+		checker := permissions.NewChecker(con)
+		hasOwn, hasAll, _ := checker.HasScope(actorID, permissions.NotificationsOwnKey, permissions.NotificationsAllKey, permissions.ManageNotificationsKey)
+		if !hasAll && hasOwn {
+			if req.Broadcast {
+				http.Error(w, "forbidden: own-scope cannot broadcast", http.StatusForbidden)
+				return
+			}
+			if req.UserID != nil && *req.UserID != actorID {
+				http.Error(w, "forbidden: own-scope may only notify yourself", http.StatusForbidden)
+				return
+			}
+		}
+	}
 	repo := repository.NewNotificationRepository(con)
 
 	// Broadcast path

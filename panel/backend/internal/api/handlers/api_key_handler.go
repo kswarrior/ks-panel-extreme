@@ -510,6 +510,17 @@ func AdminUpdateApiKeyHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer con.Close()
+	// Scope check for admin update: Own → may only update own keys.
+	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
+		checker := permissions.NewChecker(con)
+		hasOwn, hasAll, _ := checker.HasScope(uid, permissions.ApiKeysOwnKey, permissions.ApiKeysAllKey, permissions.ManageApiKeysKey)
+		if !hasAll && hasOwn {
+			if existing, gerr := repository.NewApiKeyRepository(con).GetApiKey(id); gerr != nil || existing == nil || existing.UserID != uid {
+				http.Error(w, "forbidden: own-scope may only edit own keys", http.StatusForbidden)
+				return
+			}
+		}
+	}
 	repo := repository.NewApiKeyRepository(con)
 	if err := repo.UpdateApiKeyByID(id, repository.UpdateApiKeyInput{
 		Name:              req.Name,
@@ -550,6 +561,17 @@ func AdminDeleteApiKeyHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer con.Close()
+	// Scope check for admin delete: Own → may only delete own keys.
+	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
+		checker := permissions.NewChecker(con)
+		hasOwn, hasAll, _ := checker.HasScope(uid, permissions.ApiKeysOwnKey, permissions.ApiKeysAllKey, permissions.ManageApiKeysKey)
+		if !hasAll && hasOwn {
+			if existing, gerr := repository.NewApiKeyRepository(con).GetApiKey(id); gerr != nil || existing == nil || existing.UserID != uid {
+				http.Error(w, "forbidden: own-scope may only delete own keys", http.StatusForbidden)
+				return
+			}
+		}
+	}
 	repo := repository.NewApiKeyRepository(con)
 	if err := repo.DeleteApiKey(id); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
