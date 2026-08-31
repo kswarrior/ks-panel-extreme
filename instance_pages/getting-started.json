@@ -1,0 +1,12 @@
+{
+  "name": "Getting Started",
+  "slug": "getting-started",
+  "kind": "custom",
+  "category": "documentation",
+  "description": "A getting started guide for new users",
+  "content_type": "markdown",
+  "content_html": "",
+  "content_markdown": "# Getting Started\n\nWelcome to your new instance! This guide will help you get up and running quickly.\n\n## First Steps\n\n1. **Connect to your instance** - Use the Terminal tab to access the console\n2. **Configure your environment** - Check the Env tab for environment variables\n3. **Deploy your application** - Use the Files tab to upload your code\n\n## Useful Commands\n\n```bash\n# Check system status\nsystemctl status\n\n# View logs\njournalctl -u your-service\n```\n\n## Next Steps\n\n- Read the [Documentation](https://example.com/docs)\n- Join our [Community](https://example.com/community)\n- Report [Issues](https://example.com/issues)\n\n---\n\n*This page was imported from the instance_pages directory.*",
+  "content_blocks": "",
+  "icon_svg": "<path d=\"M12 2L2 7l10 5 10-5-10-5z\"/>"
+}

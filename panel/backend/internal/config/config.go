@@ -1,0 +1,147 @@
+package config
+
+import (
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
+)
+
+// DefaultPort returns the default HTTP port for the API server.
+func DefaultPort() int { return 5050 }
+
+// DataDir returns the directory where KSPANEL keeps persistent files
+// (database, uploaded logos, backups, kspanel.env). It always anchors to the
+// SQLite database location: while SQLite is live that is the DSN itself;
+// once Postgres/MySQL is live the DSN is a connection string, so deriving
+// file locations from it would scatter kspanel.env/backups into directories
+// named after DSN fragments and desynchronise SaveDBConfig's write path from
+// LoadEnvFile's read path. In that case files stay next to the SQLite anchor
+// (KSPANEL_DB or ./kspanel.db).
+func DataDir() string {
+	if cfg := DatabaseConfig(); cfg.Engine == "sqlite" && cfg.DSN != "" {
+		return filepath.Dir(cfg.DSN)
+	}
+	return filepath.Dir(defaultSQLitePath())
+}
+
+// DBConfig bundles the engine selection + connection string that kspanel
+// needs to dial its database. For the default SQLite backend the DSN is a
+// plain file path (KSPANEL_DB or ./kspanel.db); for Postgres / MySQL it is the
+// engine's standard connection string in KSPANEL_DB_DSN.
+//
+// Engine selection order (highest priority wins):
+//   1. --type / --dsn CLI flags (seed/launch) injected via SetDatabaseType.
+//   2. KSPANEL_DB_TYPE / KSPANEL_DB_DSN env vars.
+//   3. SQLite default.
+//
+// The SQLite-shortcut KSPANEL_DB still maps to DSN when only it is set, so
+// the env format operators have used for years keeps working untouched.
+type DBConfig struct {
+	Engine string // "sqlite" | "postgres" | "mysql"
+	DSN    string // file path for sqlite; conn string for postgres / mysql
+}
+
+// databaseTypeOverride is set by the seed/launch CLI subcommands when the
+// operator passes --type / --dsn. It wins over KSPANEL_DB_TYPE. Production
+// paths that don't go through the CLI leave it empty.
+var (
+	databaseTypeOverride    string
+	databaseDSNOverride     string
+)
+
+// SetDatabaseType records the --type / --dsn passed to seed or launch. Any
+// non-empty value shadows the matching env var for the rest of the process.
+func SetDatabaseType(engine, dsn string) {
+	databaseTypeOverride = strings.ToLower(strings.TrimSpace(engine))
+	databaseDSNOverride = dsn
+}
+
+// DatabaseConfig returns the effective DB configuration the panel should
+// open. Callers should use this instead of probing env vars directly so the
+// CLI flag precedence stays in one place.
+func DatabaseConfig() DBConfig {
+	engine := "sqlite"
+	if v := strings.ToLower(strings.TrimSpace(os.Getenv("KSPANEL_DB_TYPE"))); v != "" {
+		engine = v
+	}
+	dsn := ""
+	if v := os.Getenv("KSPANEL_DB_DSN"); v != "" {
+		dsn = v
+	}
+
+	// CLI overrides win.
+	if databaseTypeOverride != "" {
+		engine = databaseTypeOverride
+	}
+	if databaseDSNOverride != "" {
+		dsn = databaseDSNOverride
+	}
+
+	// Canonicalise engine aliases so Engine always carries the dialect's
+	// canonical name ("sqlite" | "postgres" | "mysql") no matter which
+	// spelling an operator wrote in kspanel.env or --type. Consumers
+	// (datamove, handlers) compare against db.Dialect.Name().
+	switch engine {
+	case "postgresql", "pg":
+		engine = "postgres"
+	case "mariadb":
+		engine = "mysql"
+	}
+
+	// SQLite short-cut: KSPANEL_DB still works as the file path for ops
+	// that haven't migrated to KSPANEL_DB_DSN. We only adopt it if the
+	// DSN is still unset (so an explicit --dsn / KSPANEL_DB_DSN keeps
+	// precedence).
+	if dsn == "" && (engine == "sqlite" || engine == "") {
+		if v := os.Getenv("KSPANEL_DB"); v != "" {
+			dsn = v
+		}
+	}
+
+	// SQLite default DSN: ./kspanel.db in the cwd. Postgres / MySQL
+	// require an explicit DSN; we surface that loudly via an empty value
+	// and let the opener fail with a useful error rather than guessing a
+	// localhost default the operator didn't authorise.
+	if engine == "" {
+		engine = "sqlite"
+	}
+	if dsn == "" && engine == "sqlite" {
+		dsn = defaultSQLitePath()
+	}
+	return DBConfig{Engine: engine, DSN: dsn}
+}
+
+// DatabasePath returns the SQLite DB path (or the explicit DSN target for
+// non-SQLite engines) — kept as a backward-compat shim so the dozens of
+// callers that already use it keep working without a refactor.
+func DatabasePath() string {
+	return DatabaseConfig().DSN
+}
+
+// DefaultSQLitePath returns the file path the SQLite engine should open when
+// no KSPANEL_DB / KSPANEL_DB_DSN is set. Falls back to a path next to the
+// config source file only as a last resort (e.g. when Getwd fails — unlikely
+// in normal use but defensive against weird CGO staging paths).
+//
+// Exported for the engine-switch handler: "switch back to SQLite" must resolve
+// to this default, never to DatabasePath() (which returns the CURRENT config's
+// DSN and would hand a postgres/mysql connection string to the sqlite driver
+// when the panel is running on that engine).
+func DefaultSQLitePath() string {
+	return defaultSQLitePath()
+}
+
+// defaultSQLitePath is the unexported core of DefaultSQLitePath.
+func defaultSQLitePath() string {
+	if env := os.Getenv("KSPANEL_DB"); env != "" {
+		return env
+	}
+	cwd, err := os.Getwd()
+	if err == nil {
+		return filepath.Join(cwd, "kspanel.db")
+	}
+	_, b, _, _ := runtime.Caller(0)
+	base := filepath.Dir(b)
+	return filepath.Join(base, "kspanel.db")
+}

@@ -1,0 +1,12 @@
+-- 037_user_suspension.sql: add suspension fields to users table
+--
+-- This migration is handled entirely in Go (db.go:RunMigrations) via guardedAddColumns
+-- for idempotent column additions on SQLite/MySQL. The columns added are:
+--   suspended          INTEGER NOT NULL DEFAULT 0
+--   suspended_until    DATETIME
+--   suspension_count   INTEGER NOT NULL DEFAULT 0
+--   suspension_history TEXT
+-- And index: CREATE INDEX IF NOT EXISTS idx_users_suspended ON users(suspended)
+--
+-- The Postgres version uses native ADD COLUMN IF NOT EXISTS and is also
+-- guarded by the same Go code for consistency.
