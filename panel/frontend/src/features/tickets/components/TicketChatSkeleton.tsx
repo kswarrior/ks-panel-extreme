@@ -15,9 +15,8 @@ const TicketChatSkeleton: React.FC = () => {
 
   return (
     <div
-      className="glass-card rounded-xl overflow-hidden flex flex-col border animate-pulse"
+      className="glass-card rounded-xl overflow-hidden flex flex-col border animate-pulse w-full flex-1 min-h-0 h-full"
       style={{
-        minHeight: 520,
         borderColor: 'var(--ks-card-border)',
         backgroundColor: 'var(--ks-card-bg)',
       }}
