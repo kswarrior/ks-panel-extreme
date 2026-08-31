@@ -71,8 +71,8 @@ const TicketChatPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="max-w-[1280px] mx-auto space-y-4">
-        <div className="flex items-center gap-2">
+      <div className="w-full max-w-none mx-0 flex flex-col gap-4 min-h-0 h-[calc(100dvh-5rem)] sm:h-[calc(100dvh-5.5rem)]">
+        <div className="flex items-center gap-2 shrink-0">
           <div className="h-7 w-24 rounded" style={{ background: 'var(--ks-skeleton-base, rgba(255,255,255,0.08))' }} />
           <div className="h-4 w-px" style={{ background: 'var(--ks-card-border)' }} />
           <div className="h-6 w-32 rounded" style={{ background: 'var(--ks-skeleton-shimmer, rgba(255,255,255,0.14))' }} />
@@ -84,7 +84,7 @@ const TicketChatPage: React.FC = () => {
 
   if (error) {
     return (
-      <div className="max-w-[1280px] mx-auto p-4">
+      <div className="w-full max-w-none mx-0 p-4">
         <div
           className="glass-card rounded-xl p-6 text-center border"
           style={{
@@ -114,9 +114,9 @@ const TicketChatPage: React.FC = () => {
   const canSeeInternal = permissions.includes('MANAGE_TICKETS') || permissions.includes('TICKETS_EDIT');
 
   return (
-    <div className="max-w-[1280px] mx-auto space-y-4">
+    <div className="w-full max-w-none mx-0 flex flex-col gap-4 min-h-0 h-[calc(100dvh-5rem)] sm:h-[calc(100dvh-5.5rem)] -m-1 sm:-m-0 p-1">
       {/* Breadcrumb & ticket header — force single-line aligned, long text truncated with ellipsis */}
-      <div className="flex items-center gap-2 min-w-0 overflow-hidden flex-nowrap">
+      <div className="flex items-center gap-2 min-w-0 overflow-hidden flex-nowrap shrink-0">
         <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden flex-nowrap">
           <Link to="/tickets" className="ks-btn-ghost inline-flex items-center gap-1 text-sm px-2 py-1 rounded shrink-0" style={{ color: 'var(--ks-text-body)' }}>
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4 shrink-0">
