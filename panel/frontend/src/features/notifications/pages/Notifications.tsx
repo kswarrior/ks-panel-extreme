@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { listNotifications, markRead, markAllRead, deleteNotification, clearNotifications, getNotificationStats, createNotification } from '../api/notifications';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { markRead, markAllRead, deleteNotification, clearNotifications, getNotificationStats } from '../api/notifications';
 import type { Notification, NotificationStats } from '../types/notification';
 import { CATEGORY_META, PRIORITY_META } from '../types/notification';
 import NotificationCard from '../components/NotificationCard';
@@ -35,17 +36,6 @@ const NotificationsPage: React.FC = () => {
 
   const [busyId, setBusyId] = useState<number | null>(null);
 
-  // Broadcast modal state
-  const [bcastOpen, setBcastOpen] = useState(false);
-  const [bcastTitle, setBcastTitle] = useState('');
-  const [bcastMsg, setBcastMsg] = useState('');
-  const [bcastCategory, setBcastCategory] = useState('general');
-  const [bcastPriority, setBcastPriority] = useState('normal');
-  const [bcastLink, setBcastLink] = useState('');
-  const [bcastLabel, setBcastLabel] = useState('');
-  const [bcastBusy, setBcastBusy] = useState(false);
-  const [bcastError, setBcastError] = useState('');
-
   const setUnread = useNotificationStore((s) => s.setUnread);
 
   const load = useCallback(async () => {
@@ -58,8 +48,6 @@ const NotificationsPage: React.FC = () => {
       if (read === 'unread') params.is_read = false;
       if (read === 'read') params.is_read = true;
       if (search.trim()) params.q = search.trim();
-      // We need total count from header; axios in notifications api doesn't expose header.
-      // So we fetch via client directly to read header, else fallback to stats.
       const sp = new URLSearchParams();
       if (params.category) sp.set('category', params.category);
       if (params.priority) sp.set('priority', params.priority);
@@ -72,7 +60,6 @@ const NotificationsPage: React.FC = () => {
       setRows(res.data);
       const hdr = res.headers['x-total-count'] || res.headers['X-Total-Count'];
       setTotal(hdr ? Number(hdr) : res.data.length);
-      // stats for chips
       try {
         const s = await getNotificationStats();
         setStats(s);
@@ -103,7 +90,7 @@ const NotificationsPage: React.FC = () => {
   };
 
   const onMarkAll = async () => {
-    try { const r = await markAllRead(); setRows((prev) => prev.map((x) => ({ ...x, is_read: true }))); if (stats) setStats({ ...stats, unread: 0 }); setUnread(0); } catch (e: any) { setError(e?.response?.data || 'Failed to mark all read'); }
+    try { await markAllRead(); setRows((prev) => prev.map((x) => ({ ...x, is_read: true }))); if (stats) setStats({ ...stats, unread: 0 }); setUnread(0); } catch (e: any) { setError(e?.response?.data || 'Failed to mark all read'); }
   };
 
   const onDelete = async (id: number) => {
@@ -120,16 +107,6 @@ const NotificationsPage: React.FC = () => {
     try { await clearNotifications(false); setRows([]); setTotal(0); if (stats) setStats({ ...stats, total: 0, unread: 0, by_category: {}, by_priority: {} }); setUnread(0); } catch (e: any) { setError(e?.response?.data || 'Failed to clear'); }
   };
 
-  const onBroadcast = async () => {
-    if (!bcastTitle.trim()) { setBcastError('Title is required'); return; }
-    setBcastBusy(true); setBcastError('');
-    try {
-      await createNotification({ title: bcastTitle.trim(), message: bcastMsg, category: bcastCategory as any, priority: bcastPriority as any, link: bcastLink.trim() || undefined, action_label: bcastLabel.trim() || undefined, broadcast: true });
-      setBcastOpen(false); setBcastTitle(''); setBcastMsg(''); setBcastLink(''); setBcastLabel(''); load();
-    } catch (e: any) { setBcastError(e?.response?.data || 'Failed to broadcast'); }
-    finally { setBcastBusy(false); }
-  };
-
   const hasFilters = cat !== 'all' || pri !== 'all' || read !== 'all' || !!search.trim();
   const resetFilters = () => { setCat('all'); setPri('all'); setRead('all'); setSearch(''); };
 
@@ -138,7 +115,7 @@ const NotificationsPage: React.FC = () => {
 
   return (
     <div>
-      {/* Header */}
+      {/* Header — mirrors Templates page: Search + Filter + Stat icon + Plus (Broadcast) */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
         <div className="flex items-baseline gap-3">
           <h2 className="text-xl font-semibold text-white tracking-tight flex items-center gap-2">
@@ -200,44 +177,32 @@ const NotificationsPage: React.FC = () => {
             <button onClick={onClearRead} className="ks-btn-ghost px-3 py-1.5 rounded-md text-xs font-medium border border-white/10 hover:bg-white/10">Clear read</button>
           </div>
 
+          {/* Stat icon button — like Templates page (top-right, navigates to dedicated stats page) */}
+          <Link
+            to="/notifications/stats"
+            aria-label="Notification Statistics"
+            className="ks-btn-header ks-icon-btn"
+            title="View notification statistics dashboard"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>
+          </Link>
+
+          {/* Broadcast as plus button — like Templates page (top-right plus navigates to full broadcast page) */}
           {canBroadcast && (
-            <button onClick={() => setBcastOpen(true)} className="inline-flex items-center gap-1.5 bg-white text-black text-xs font-bold px-3 py-1.5 rounded-md hover:bg-gray-100 shadow">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5"><path d="M12 8a6 6 0 0 1 12 0c0 7-6 5-6 10" /><path d="M4 8a8 8 0 0 0 2.5 5.8" /></svg>
-              Broadcast
-            </button>
+            <Link
+              to="/notifications/broadcast"
+              aria-label="Broadcast notification"
+              className="ks-btn-header ks-icon-btn"
+              title="Broadcast notification"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            </Link>
           )}
         </div>
       </div>
-
-      {/* Stats strip — glass chips */}
-      {stats && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-          <div className="ks-card ks-stat-card p-3 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-sky-500/15 border border-sky-400/20 grid place-items-center text-sky-300">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4"><path d="M6 8a6 6 0 0 1 12 0c0 7-6 5-6 10" /></svg>
-            </div>
-            <div><p className="text-[11px] uppercase tracking-wide text-gray-500 font-bold">Total</p><p className="text-lg font-bold text-white leading-none">{stats.total}</p></div>
-          </div>
-          <div className={`ks-card ks-stat-card p-3 flex items-center gap-3 ${unreadCount > 0 ? 'border-red-400/30 bg-red-500/10' : ''}`}>
-            <div className={`w-9 h-9 rounded-lg border grid place-items-center ${unreadCount > 0 ? 'bg-red-500/15 border-red-400/30 text-red-300' : 'bg-white/[0.05] border-white/10 text-gray-400'}`}>
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4"><circle cx="12" cy="12" r="10" /><path d="M12 8v4l3 3" /></svg>
-            </div>
-            <div><p className="text-[11px] uppercase tracking-wide text-gray-500 font-bold">Unread</p><p className={`text-lg font-bold leading-none ${unreadCount > 0 ? 'text-red-300' : 'text-white'}`}>{unreadCount}</p></div>
-          </div>
-          <div className="ks-card ks-stat-card p-3 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-emerald-500/15 border border-emerald-400/20 grid place-items-center text-emerald-300">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4"><path d="M20 6L9 17l-5-5" /></svg>
-            </div>
-            <div><p className="text-[11px] uppercase tracking-wide text-gray-500 font-bold">Read</p><p className="text-lg font-bold text-white leading-none">{Math.max(0, stats.total - stats.unread)}</p></div>
-          </div>
-          <div className="ks-card ks-stat-card p-3 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-fuchsia-500/15 border border-fuchsia-400/20 grid place-items-center text-fuchsia-300">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4"><path d="M18 8A6 6 0 0 0 6 8c0 7 6 6 6 10" /></svg>
-            </div>
-            <div><p className="text-[11px] uppercase tracking-wide text-gray-500 font-bold">Broadcasts</p><p className="text-lg font-bold text-white leading-none">{rows.filter((r) => r.is_broadcast).length}</p></div>
-          </div>
-        </div>
-      )}
 
       {/* Action bar */}
       <div className="flex items-center justify-between mb-3">
@@ -279,63 +244,6 @@ const NotificationsPage: React.FC = () => {
           <button disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))} className="ks-btn-ghost px-3 py-1.5 rounded-md text-xs border border-white/10 disabled:opacity-40">Prev</button>
           <span className="text-xs text-gray-500 font-mono">page {page + 1} / {totalPages} · {total} total</span>
           <button disabled={page + 1 >= totalPages} onClick={() => setPage((p) => p + 1)} className="ks-btn-ghost px-3 py-1.5 rounded-md text-xs border border-white/10 disabled:opacity-40">Next</button>
-        </div>
-      )}
-
-      {/* Broadcast modal — theme-aware like profile dropdown: uses ks-modal-panel so Theme Studio Components tab can tint it */}
-      {bcastOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 ks-modal-overlay" role="dialog" aria-modal="true" aria-label="Broadcast notification">
-          <div className="ks-modal-panel glass-strong rounded-xl w-full max-w-lg max-h-[90dvh] overflow-y-auto">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 sticky top-0 bg-white/[0.05] backdrop-blur-xl z-10">
-              <h3 className="text-base font-semibold text-white flex items-center gap-2">
-                <span className="w-7 h-7 rounded-md bg-fuchsia-500/20 border border-fuchsia-400/30 grid place-items-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4 text-fuchsia-300"><path d="M12 8a6 6 0 0 1 12 0c0 7-6 5-6 10" /></svg>
-                </span>
-                Broadcast notification
-              </h3>
-              <button onClick={() => setBcastOpen(false)} className="text-gray-400 hover:text-white p-1"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
-            </div>
-            <div className="px-6 py-4 space-y-4">
-              <p className="text-xs text-gray-400">This sends a notification to <span className="text-white font-semibold">every user</span> on the panel. Use it for maintenance windows, security alerts, or announcements.</p>
-              <div>
-                <label className="ks-label">Title *</label>
-                <input value={bcastTitle} onChange={(e) => setBcastTitle(e.target.value)} placeholder="Maintenance in 10 minutes" className="ks-input w-full" maxLength={500} />
-              </div>
-              <div>
-                <label className="ks-label">Message</label>
-                <textarea value={bcastMsg} onChange={(e) => setBcastMsg(e.target.value)} placeholder="Detailed message…" rows={3} className="ks-textarea w-full" maxLength={5000} />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="ks-label">Category</label>
-                  <select value={bcastCategory} onChange={(e) => setBcastCategory(e.target.value)} className="ks-select w-full">
-                    {Object.entries(CATEGORY_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="ks-label">Priority</label>
-                  <select value={bcastPriority} onChange={(e) => setBcastPriority(e.target.value)} className="ks-select w-full">
-                    {Object.entries(PRIORITY_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="ks-label">Link (optional)</label>
-                <input value={bcastLink} onChange={(e) => setBcastLink(e.target.value)} placeholder="/system or https://…" className="ks-input w-full font-mono text-xs" maxLength={1000} />
-              </div>
-              <div>
-                <label className="ks-label">Action label</label>
-                <input value={bcastLabel} onChange={(e) => setBcastLabel(e.target.value)} placeholder="Open dashboard" className="ks-input w-full" maxLength={255} />
-              </div>
-              {bcastError && <p className="text-sm text-red-400 border border-red-500/30 bg-red-500/10 rounded-md px-3 py-2">{bcastError}</p>}
-            </div>
-            <div className="flex justify-end gap-2 px-6 py-4 border-t border-white/10">
-              <button onClick={() => setBcastOpen(false)} className="ks-btn-ghost px-4 py-1.5 rounded-md text-sm border border-white/10">Cancel</button>
-              <button onClick={onBroadcast} disabled={bcastBusy || !bcastTitle.trim()} className="inline-flex items-center gap-1.5 bg-white text-black font-bold px-4 py-1.5 rounded-md text-sm hover:bg-gray-100 disabled:opacity-40">
-                {bcastBusy ? 'Sending…' : 'Broadcast to all'}
-              </button>
-            </div>
-          </div>
         </div>
       )}
     </div>

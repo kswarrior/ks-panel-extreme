@@ -47,6 +47,8 @@ import System from '@/features/system/pages/System';
 import Security from '@/features/security/pages/Security';
 import Activity from '@/features/activity/pages/Activity';
 import Notifications from '@/features/notifications/pages/Notifications';
+import NotificationStats from '@/features/notifications/pages/NotificationStats';
+import NotificationBroadcast from '@/features/notifications/pages/NotificationBroadcast';
 import InstancePages from '@/features/instance-pages/pages/InstancePages';
 import InstancePageDetail from '@/features/instance-pages/pages/InstancePageDetail';
 import InstancePageStudio from '@/features/instance-pages/pages/InstancePageStudio';
@@ -150,6 +152,8 @@ const Router: React.FC = () => (
       {/* Auth-only pages — no granular perm key exists for these areas,
           so they open to anyone with a session. */}
       <Route path="/system" element={<AuthOnly><System /></AuthOnly>} />
+      <Route path="/notifications/stats" element={<AuthOnly><NotificationStats /></AuthOnly>} />
+      <Route path="/notifications/broadcast" element={<AuthOnly><NotificationBroadcast /></AuthOnly>} />
       <Route path="/notifications" element={<AuthOnly><Notifications /></AuthOnly>} />
       <Route path="/security" element={<AuthOnly><Security /></AuthOnly>} />
       <Route path="/activity" element={<AuthOnly><Activity /></AuthOnly>} />
