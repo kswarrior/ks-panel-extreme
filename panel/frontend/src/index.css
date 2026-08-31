@@ -631,3 +631,38 @@ nav.overflow-x-auto::-webkit-scrollbar-thumb:hover {
   display: none;
 }
 
+/* ------------------------------------------------------------------ *
+ *  Header profile toggle — always circular (cycle shape)
+ * ------------------------------------------------------------------ *
+ *  Top-right profile avatar button must stay a perfect circle despite
+ *  the theme system painting .ks-icon-btn with
+ *  `border-radius: var(--ks-btn-icon-radius) !important` (typically a
+ *  rounded-square 6-8px).  Using an attribute selector raises
+ *  specificity (0,2,0) over the generic (0,1,0) so this wins even
+ *  when the ThemeStore injects its <style> after index.css, and both
+ *  declarations carry !important. The CSS vars are also forced here as
+ *  a fallback for the variable-based override set inline on the button. */
+.ks-icon-btn[aria-label='Profile menu'] {
+  --ks-btn-icon-radius: 9999px !important;
+  --ks-btn-icon-padding: 0px !important;
+  --ks-btn-icon-bg: transparent !important;
+  --ks-btn-icon-border: none !important;
+  border-radius: 9999px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  width: 36px !important;
+  height: 36px !important;
+  min-width: 36px !important;
+  min-height: 36px !important;
+  aspect-ratio: 1 / 1 !important;
+  border: none !important;
+  background: transparent !important;
+}
+.ks-icon-btn[aria-label='Profile menu']:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+.ks-icon-btn[aria-label='Profile menu'] img,
+.ks-icon-btn[aria-label='Profile menu'] > div {
+  border-radius: 9999px !important;
+}
+
