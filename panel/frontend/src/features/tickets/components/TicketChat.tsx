@@ -1,0 +1,560 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { Ticket, TicketComment } from '../types/ticket';
+import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
+import { useThemeStore } from '@/shared/stores/themeStore';
+import { formatTicketDateTime } from './TicketComponents';
+
+// ------------------------------------------------------------------
+// Helpers
+// ------------------------------------------------------------------
+
+function fmtDateGroup(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const now = new Date();
+  const same = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (same(d, now)) return 'Today';
+  if (same(d, yesterday)) return 'Yesterday';
+  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+function fmtTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+}
+
+function fmtFull(iso: string): string {
+  return formatTicketDateTime(iso);
+}
+
+function linkify(text: string): React.ReactNode[] {
+  const urlRe = /(https?:\/\/[^\s]+)/g;
+  const parts = text.split(urlRe);
+  return parts.map((p, i) => {
+    if (/^https?:\/\//.test(p)) {
+      return (
+        <a key={i} href={p} target="_blank" rel="noreferrer" className="underline decoration-white/30 hover:decoration-white underline-offset-2 break-all" style={{ color: 'inherit' }}>
+          {p}
+        </a>
+      );
+    }
+    return <React.Fragment key={i}>{p}</React.Fragment>;
+  });
+}
+
+// tiny hash for avatar color when not own
+function avatarBg(authorId: number, isInternal: boolean): React.CSSProperties {
+  if (isInternal) {
+    return {
+      background: 'color-mix(in srgb, var(--ks-accent-warning, #fbbf24) 22%, var(--ks-card-bg, rgba(255,255,255,0.08)))',
+      color: 'var(--ks-accent-warning, #f59e0b)',
+      borderColor: 'color-mix(in srgb, var(--ks-accent-warning) 30%, transparent)',
+    } as React.CSSProperties;
+  }
+  // Deterministic hue based on id – mixes between card bg and accent so it adapts to light/dark themes
+  const hues = [
+    'var(--ks-accent-primary, #38bdf8)',
+    'var(--ks-accent-info, #38bdf8)',
+    'var(--ks-accent-success, #4ade80)',
+    'var(--ks-accent-warning, #fbbf24)',
+    '#a78bfa',
+    '#f472b6',
+  ];
+  const c = hues[Math.abs(authorId) % hues.length];
+  return {
+    background: `color-mix(in srgb, ${c} 18%, var(--ks-card-bg, rgba(255,255,255,0.08)))`,
+    borderColor: `color-mix(in srgb, ${c} 30%, transparent)`,
+    color: c,
+  } as React.CSSProperties;
+}
+
+export interface TicketChatProps {
+  ticket: Ticket;
+  comments: TicketComment[];
+  currentUserId?: number | null;
+  currentUsername?: string | null;
+  isStaff?: boolean;
+  live: boolean;
+  onToggleLive: () => void;
+  onRefresh: () => void;
+  onSend: (body: string, isInternal: boolean) => Promise<void>;
+  onDelete: (c: TicketComment) => void;
+  isClosed?: boolean;
+}
+
+// ------------------------------------------------------------------
+// Component
+// ------------------------------------------------------------------
+
+const TicketChat: React.FC<TicketChatProps> = ({
+  ticket,
+  comments,
+  currentUserId,
+  currentUsername,
+  isStaff,
+  live,
+  onToggleLive,
+  onRefresh,
+  onSend,
+  onDelete,
+  isClosed = false,
+}) => {
+  const glassModifier = useThemeStore((s) => {
+    const g = s.active().card.glass_style;
+    if (!g || g === 'frosted') return '';
+    return g === 'solid' ? 'ks-card-glass-solid' : 'ks-card-glass-strong';
+  });
+
+  const [replyBody, setReplyBody] = useState('');
+  const [isInternal, setIsInternal] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [showInternalOnly, setShowInternalOnly] = useState(false);
+  const [filter, setFilter] = useState('');
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const endRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [atBottom, setAtBottom] = useState(true);
+  const [unread, setUnread] = useState(0);
+  const prevCountRef = useRef(comments.length);
+
+  // theme-aware vars for composer: we read them via inline styles so light themes flip correctly
+  const composerBg: React.CSSProperties = {
+    background: 'color-mix(in srgb, var(--ks-card-bg) 92%, transparent)',
+    borderColor: 'var(--ks-card-border)',
+  };
+  const headerBg: React.CSSProperties = {
+    background: 'color-mix(in srgb, var(--ks-card-bg) 80%, transparent)',
+    borderColor: 'var(--ks-card-border)',
+    backdropFilter: 'blur(var(--ks-card-blur))',
+  } as any;
+
+  const filteredComments = useMemo(() => {
+    let cs = comments;
+    if (showInternalOnly) cs = cs.filter((c) => c.is_internal);
+    if (filter.trim()) {
+      const q = filter.trim().toLowerCase();
+      cs = cs.filter((c) => c.body.toLowerCase().includes(q) || (c.author_name || '').toLowerCase().includes(q));
+    }
+    return cs;
+  }, [comments, showInternalOnly, filter]);
+
+  // Track scroll position to decide auto-scroll vs unread badge
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    setAtBottom(nearBottom);
+    if (nearBottom) setUnread(0);
+  }, []);
+
+  // Detect new messages while scrolled up -> bump unread
+  useEffect(() => {
+    const prev = prevCountRef.current;
+    const cur = filteredComments.length;
+    if (cur > prev && !atBottom) {
+      setUnread((u) => u + (cur - prev));
+    }
+    if (cur > prev && atBottom) {
+      // auto scroll
+      requestAnimationFrame(() => endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }));
+    }
+    prevCountRef.current = cur;
+  }, [filteredComments.length, atBottom]);
+
+  // Initial scroll to bottom
+  useEffect(() => {
+    const t = setTimeout(() => endRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' }), 80);
+    return () => clearTimeout(t);
+  }, [filteredComments.length === 0 ? 0 : 1]); // only on mount; real updates handled above
+  // Also scroll when ticket changes
+  useEffect(() => {
+    setUnread(0);
+    setAtBottom(true);
+    const t = setTimeout(() => endRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' }), 100);
+    return () => clearTimeout(t);
+  }, [ticket.id]);
+
+  const scrollToBottom = useCallback((smooth = true) => {
+    endRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'end' });
+    setUnread(0);
+    setAtBottom(true);
+  }, []);
+
+  const handleSend = async () => {
+    const body = replyBody.trim();
+    if (!body || sending || isClosed) return;
+    setSending(true);
+    try {
+      await onSend(body, isInternal);
+      setReplyBody('');
+      setIsInternal(false);
+      // optimistic scroll
+      setTimeout(() => scrollToBottom(true), 80);
+      // refocus
+      textareaRef.current?.focus();
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  // Auto-resize textarea up to 120px
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+  }, [replyBody]);
+
+  const participantLabel = useMemo(() => {
+    const parts: string[] = [];
+    if (ticket.creator_name) parts.push(ticket.creator_name);
+    if (ticket.assignee_name) parts.push(`→ ${ticket.assignee_name}`);
+    else parts.push('unassigned');
+    return parts.join(' ');
+  }, [ticket.creator_name, ticket.assignee_name]);
+
+  // Group by date then by consecutive author (for tighter chat grouping)
+  const dateGroups = useMemo(() => {
+    const map = new Map<string, TicketComment[]>();
+    const order: string[] = [];
+    for (const c of filteredComments) {
+      const k = fmtDateGroup(c.created_at);
+      if (!map.has(k)) {
+        map.set(k, []);
+        order.push(k);
+      }
+      map.get(k)!.push(c);
+    }
+    return order.map((k) => ({ date: k, items: map.get(k)! }));
+  }, [filteredComments]);
+
+  return (
+    <div
+      id="chat"
+      className={`glass-card ${glassModifier} rounded-xl overflow-hidden flex flex-col border relative`}
+      style={{
+        minHeight: 520,
+        borderColor: 'var(--ks-card-border)',
+        backgroundColor: 'var(--ks-card-bg)',
+        // @ts-ignore
+        backdropFilter: 'blur(var(--ks-card-blur))',
+      }}
+    >
+      <CardMediaLayer />
+
+      {/* Header – themed */}
+      <div className="shrink-0 sticky top-0 z-10 flex items-center gap-3 px-4 py-3 border-b backdrop-blur-xl" style={headerBg}>
+        <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 border" style={{ background: 'var(--ks-accent-primary, #0ea5e9)', borderColor: 'var(--ks-card-border)', color: 'var(--ks-btn-text, #fff)' }}>
+          {(ticket.creator_name || ticket.subject || 'T').charAt(0).toUpperCase()}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-semibold truncate flex items-center gap-2" style={{ color: 'var(--ks-text-heading, #fff)' }}>
+            <span className="truncate">Chat — {ticket.subject}</span>
+            <span className={`w-2 h-2 rounded-full shrink-0 ${isClosed ? 'bg-gray-500' : 'bg-emerald-400 animate-pulse'}`} />
+            <span className="hidden sm:inline-flex items-center gap-1 text-xs font-normal px-2 py-0.5 rounded-full border" style={{ background: isClosed ? 'rgba(107,114,128,0.12)' : 'rgba(16,185,129,0.14)', borderColor: isClosed ? 'rgba(107,114,128,0.2)' : 'rgba(16,185,129,0.25)', color: isClosed ? 'var(--ks-text-body)' : '#6ee7b7' }}>
+              {isClosed ? 'Closed' : 'Live'}
+            </span>
+          </div>
+          <div className="text-xs truncate flex items-center gap-1.5" style={{ color: 'var(--ks-text-body, #9ca3af)' }}>
+            <span className="truncate">{participantLabel}</span>
+            <span className="opacity-40">•</span>
+            <span>{filteredComments.length} of {comments.length} messages</span>
+          </div>
+        </div>
+
+        <div className="shrink-0 hidden lg:flex items-center gap-1.5">
+          <div className="relative hidden xl:flex items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-3.5 h-3.5 absolute left-2.5 pointer-events-none" style={{ color: 'var(--ks-text-body)' }}><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
+            <input
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              placeholder="Search chat…"
+              className="glass-field !py-1.5 !pl-8 !pr-3 text-xs w-[150px] placeholder:text-[var(--ks-text-body)]/60"
+              style={{ fontSize: 12 } as any}
+            />
+          </div>
+          {isStaff && (
+            <label className="inline-flex items-center gap-1.5 text-xs cursor-pointer select-none px-2 py-1 rounded-full border" style={{ background: showInternalOnly ? 'color-mix(in srgb, var(--ks-accent-warning) 14%, transparent)' : 'transparent', borderColor: 'var(--ks-card-border)', color: showInternalOnly ? 'var(--ks-accent-warning)' : 'var(--ks-text-body)' }}>
+              <input type="checkbox" checked={showInternalOnly} onChange={(e) => setShowInternalOnly(e.target.checked)} className="rounded border-white/20 bg-black/30 text-amber-500 focus:ring-amber-500/30 w-3 h-3" />
+              Internal
+            </label>
+          )}
+          <button
+            onClick={() => onToggleLive()}
+            className={`text-[11px] px-2.5 py-1 rounded-full border font-medium transition-colors ${live ? 'text-emerald-300' : ''}`}
+            style={{
+              background: live ? 'rgba(16,185,129,0.14)' : 'transparent',
+              borderColor: live ? 'rgba(16,185,129,0.25)' : 'var(--ks-card-border)',
+              color: live ? '#6ee7b7' : 'var(--ks-text-body)',
+            }}
+            title={live ? 'Live polling is on (2.5s)' : 'Live polling is paused'}
+          >
+            Live {live ? '• on' : '• off'}
+          </button>
+          <button onClick={onRefresh} className="ks-btn-ghost text-xs px-2.5 py-1 rounded-full border hover:bg-white/10" style={{ borderColor: 'var(--ks-card-border)', color: 'var(--ks-text-body)' }}>
+            Refresh
+          </button>
+        </div>
+
+        {/* Mobile live toggle */}
+        <button onClick={onToggleLive} className="lg:hidden shrink-0 w-8 h-8 rounded-full border flex items-center justify-center" style={{ borderColor: 'var(--ks-card-border)', background: live ? 'rgba(16,185,129,0.18)' : 'transparent', color: live ? '#6ee7b7' : 'var(--ks-text-body)' }}>
+          <span className={`w-2.5 h-2.5 rounded-full ${live ? 'bg-emerald-400 animate-pulse' : 'bg-gray-500'}`} />
+        </button>
+      </div>
+
+      {/* Messages viewport */}
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="flex-1 min-h-[380px] max-h-[58vh] overflow-y-auto p-3 sm:p-4 space-y-4 scroll-smooth"
+        style={{
+          background: 'color-mix(in srgb, var(--ks-card-bg) 40%, transparent)',
+        }}
+      >
+        {filteredComments.length === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center py-16 text-center">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-3 border" style={{ background: 'color-mix(in srgb, var(--ks-card-bg) 70%, transparent)', borderColor: 'var(--ks-card-border)', color: 'var(--ks-text-body)' }}>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} className="w-7 h-7"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>
+            </div>
+            <p className="text-sm font-medium" style={{ color: 'var(--ks-text-heading)' }}>{filter || showInternalOnly ? 'No messages match' : 'No messages yet'}</p>
+            <p className="text-xs mt-1 max-w-sm" style={{ color: 'var(--ks-text-body)' }}>
+              {filter ? 'Try a different search or clear the filter.' : 'Start the conversation — your crew will reply here in real time. Messages sync live every few seconds.'}
+            </p>
+            {!filter && !showInternalOnly && (
+              <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs" style={{ color: 'var(--ks-text-body)' }}>
+                <span className="px-2 py-1 rounded-full border" style={{ background: 'color-mix(in srgb, var(--ks-card-bg) 60%, transparent)', borderColor: 'var(--ks-card-border)' }}>Enter to send</span>
+                <span className="px-2 py-1 rounded-full border" style={{ background: 'color-mix(in srgb, var(--ks-card-bg) 60%, transparent)', borderColor: 'var(--ks-card-border)' }}>Shift+Enter for new line</span>
+              </div>
+            )}
+            {(filter || showInternalOnly) && (
+              <button onClick={() => { setFilter(''); setShowInternalOnly(false); }} className="mt-3 ks-btn-ghost text-xs px-3 py-1.5 rounded-full border" style={{ borderColor: 'var(--ks-card-border)', color: 'var(--ks-text-body)' }}>Clear filters</button>
+            )}
+          </div>
+        ) : (
+          <>
+            {dateGroups.map((group) => (
+              <div key={group.date} className="space-y-3">
+                <div className="flex items-center justify-center py-1 sticky top-0 z-[1]">
+                  <span className="text-[11px] px-3 py-1 rounded-full border backdrop-blur" style={{ background: 'color-mix(in srgb, var(--ks-card-bg) 85%, transparent)', borderColor: 'var(--ks-card-border)', color: 'var(--ks-text-body)' }}>
+                    {group.date}
+                  </span>
+                </div>
+                {group.items.map((c, idx) => {
+                  const isOwn = currentUserId != null && c.author_id === currentUserId;
+                  const isInternal = !!c.is_internal;
+                  const prev = idx > 0 ? group.items[idx - 1] : null;
+                  const isGrouped = !!prev && prev.author_id === c.author_id && Math.abs(new Date(c.created_at).getTime() - new Date(prev.created_at).getTime()) < 1000 * 60 * 5;
+                  const showHeader = !isGrouped;
+                  const initial = (c.author_name || `U${c.author_id}`).charAt(0).toUpperCase();
+                  // Role badges
+                  const isReporter = c.author_id === ticket.created_by;
+                  const isAssignee = !!ticket.assigned_to && c.author_id === ticket.assigned_to;
+
+                  // Bubble design – fully theme adaptive
+                  // own: primary button surface; other: card surface with border; internal: warning tint over card
+                  const bubbleStyle: React.CSSProperties = isInternal
+                    ? {
+                        background: 'color-mix(in srgb, var(--ks-accent-warning, #fbbf24) 16%, var(--ks-card-bg))',
+                        borderColor: 'color-mix(in srgb, var(--ks-accent-warning) 35%, transparent)',
+                        color: 'var(--ks-text-heading, #fff)',
+                      }
+                    : isOwn
+                    ? {
+                        background: 'var(--ks-btn-bg, #fff)',
+                        color: 'var(--ks-btn-text, #000)',
+                        borderColor: 'color-mix(in srgb, var(--ks-btn-bg) 60%, transparent)',
+                      }
+                    : {
+                        background: 'color-mix(in srgb, var(--ks-card-bg) 88%, transparent)',
+                        borderColor: 'var(--ks-card-border)',
+                        color: 'var(--ks-text-heading, #e5e7eb)',
+                        backdropFilter: 'blur(var(--ks-card-blur))',
+                      } as any;
+
+                  return (
+                    <div key={c.id} className={`flex gap-2.5 ${isOwn ? 'justify-end' : 'justify-start'} ${isInternal ? 'opacity-[0.98]' : ''}`}>
+                      {!isOwn && (
+                        <div
+                          className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border mt-1 ${isGrouped ? 'invisible' : ''}`}
+                          style={avatarBg(c.author_id, isInternal)}
+                          title={c.author_name || `User #${c.author_id}`}
+                        >
+                          {initial}
+                        </div>
+                      )}
+
+                      <div className={`group relative max-w-[78%] flex flex-col ${isOwn ? 'items-end' : 'items-start'}`}>
+                        {showHeader && (
+                          <div className={`flex items-center gap-1.5 mb-1 text-[11px] ${isOwn ? 'flex-row-reverse' : ''}`} style={{ color: 'var(--ks-text-body)' }}>
+                            <span className="font-medium" style={{ color: isOwn ? 'var(--ks-text-heading)' : 'var(--ks-text-heading)' }}>{c.author_name || `User #${c.author_id}`}</span>
+                            {isReporter && <span className="px-1 py-0.5 rounded border text-[10px] font-medium" style={{ background: 'color-mix(in srgb, var(--ks-accent-info, #38bdf8) 16%, transparent)', borderColor: 'color-mix(in srgb, var(--ks-accent-info) 30%, transparent)', color: 'var(--ks-accent-info, #38bdf8)' }}>Reporter</span>}
+                            {isAssignee && ticket.assigned_to && <span className="px-1 py-0.5 rounded border text-[10px] font-medium" style={{ background: 'color-mix(in srgb, var(--ks-accent-primary, #a78bfa) 16%, transparent)', borderColor: 'color-mix(in srgb, var(--ks-accent-primary) 30%, transparent)', color: 'var(--ks-accent-primary, #a78bfa)' }}>Assignee</span>}
+                            {isInternal && <span className="px-1 py-0.5 rounded border text-[10px] font-medium" style={{ background: 'color-mix(in srgb, var(--ks-accent-warning) 18%, transparent)', borderColor: 'color-mix(in srgb, var(--ks-accent-warning) 30%, transparent)', color: 'var(--ks-accent-warning)' }}>Internal</span>}
+                            <span title={fmtFull(c.created_at)}>{fmtTime(c.created_at)}</span>
+                          </div>
+                        )}
+
+                        <div
+                          className={`relative px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words border shadow-sm ${isOwn ? 'rounded-br-sm' : 'rounded-tl-sm'}`}
+                          style={{ ...bubbleStyle, borderWidth: 1 }}
+                        >
+                          {linkify(c.body)}
+                        </div>
+
+                        <div className={`flex items-center gap-1.5 mt-1 text-[10px] ${isOwn ? 'flex-row-reverse' : ''}`} style={{ color: 'var(--ks-text-body)' }}>
+                          <span title={fmtFull(c.created_at)}>{fmtTime(c.created_at)}</span>
+                          {isOwn && <span className="inline-flex items-center gap-0.5" style={{ color: 'var(--ks-accent-success, #4ade80)' }}><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3 h-3"><path d="M20 6L9 17l-5-5" /></svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3 h-3 -ml-1"><path d="M20 6L9 17l-5-5" /></svg></span>}
+                          {!showHeader && <span className="hidden sm:inline opacity-60">{c.author_name || `User #${c.author_id}`}</span>}
+                          {(currentUserId === c.author_id || isStaff) && (
+                            <button
+                              onClick={() => onDelete(c)}
+                              className="opacity-0 group-hover:opacity-100 focus:opacity-100 ml-1 hover:underline transition-opacity"
+                              style={{ color: 'var(--ks-accent-danger, #f87171)' }}
+                            >
+                              Delete
+                            </button>
+                          )}
+                          <button
+                            onClick={() => {
+                              const v = `> ${c.author_name || `User #${c.author_id}`}: ${c.body.split('\n')[0].slice(0, 80)}\n`;
+                              setReplyBody((prev) => (prev ? prev + '\n' + v : v));
+                              textareaRef.current?.focus();
+                            }}
+                            className="opacity-0 group-hover:opacity-100 focus:opacity-100 ml-1 hover:underline transition-opacity"
+                            style={{ color: 'var(--ks-text-body)' }}
+                          >
+                            Reply
+                          </button>
+                        </div>
+                      </div>
+
+                      {isOwn && (
+                        <div className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold mt-1 border ${isGrouped ? 'invisible' : ''}`} style={{ background: 'var(--ks-btn-bg, #fff)', color: 'var(--ks-btn-text, #000)', borderColor: 'var(--ks-card-border)' }}>
+                          {(currentUsername || 'Y').charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+            <div ref={endRef} />
+
+            {/* Typing indicator – local echo when user is composing */}
+            {replyBody.length > 0 && !sending && (
+              <div className="flex items-center gap-2 text-xs px-1" style={{ color: 'var(--ks-text-body)' }}>
+                <span className="inline-flex gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: 'var(--ks-text-body)', animationDelay: '0ms' }} />
+                  <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: 'var(--ks-text-body)', animationDelay: '150ms' }} />
+                  <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: 'var(--ks-text-body)', animationDelay: '300ms' }} />
+                </span>
+                You are typing…
+              </div>
+            )}
+            {sending && (
+              <div className="flex items-center gap-2 text-xs px-1" style={{ color: 'var(--ks-text-body)' }}>
+                <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={3} opacity={0.25} /><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth={3} strokeLinecap="round" /></svg>
+                Sending…
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Scroll-to-bottom FAB when scrolled up */}
+      {!atBottom && filteredComments.length > 5 && (
+        <button
+          onClick={() => scrollToBottom(true)}
+          className="absolute bottom-[88px] left-1/2 -translate-x-1/2 z-10 inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border shadow-lg backdrop-blur"
+          style={{ background: 'var(--ks-btn-bg)', color: 'var(--ks-btn-text)', borderColor: 'var(--ks-card-border)' }}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3 h-3"><path d="M19 14l-7 7-7-7" /><path d="M12 21V3" /></svg>
+          {unread > 0 ? `${unread} new ${unread === 1 ? 'message' : 'messages'} • Go to bottom` : 'Go to bottom'}
+        </button>
+      )}
+
+      {/* Composer – real chatting place */}
+      <div className="shrink-0 border-t backdrop-blur-xl p-3" style={composerBg}>
+        {isClosed ? (
+          <div className="text-center py-3 text-sm rounded-xl border" style={{ color: 'var(--ks-text-body)', background: 'color-mix(in srgb, var(--ks-card-bg) 60%, transparent)', borderColor: 'var(--ks-card-border)' }}>
+            This ticket is closed — chat is read-only. Reopen to continue chatting.
+          </div>
+        ) : (
+          <>
+            <div className="flex items-end gap-2">
+              <div className="flex-1 relative">
+                <textarea
+                  ref={textareaRef}
+                  value={replyBody}
+                  onChange={(e) => setReplyBody(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder={isInternal ? 'Internal note (staff only)… Shift+Enter for newline, Enter to send' : `Message as ${currentUsername || 'you'} — Enter to send, Shift+Enter for newline`}
+                  rows={1}
+                  className="w-full glass-field resize-none pr-14 py-2.5 text-sm min-h-[42px] max-h-[120px] placeholder:text-[var(--ks-text-body)]/60"
+                  maxLength={10000}
+                  disabled={sending}
+                  style={{ lineHeight: 1.5 } as any}
+                />
+                <div className="absolute right-2 bottom-2 flex items-center gap-1">
+                  <span className="hidden sm:inline text-[10px]" style={{ color: 'var(--ks-text-body)', opacity: 0.7 }}>{replyBody.length}/10000</span>
+                </div>
+              </div>
+              <button
+                onClick={handleSend}
+                disabled={sending || !replyBody.trim()}
+                className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed border"
+                style={{ background: 'var(--ks-btn-bg)', color: 'var(--ks-btn-text)', borderColor: 'var(--ks-card-border)' }}
+                aria-label="Send message"
+                title="Send (Enter)"
+              >
+                {sending ? (
+                  <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={3} opacity={0.25} /><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth={3} strokeLinecap="round" /></svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 translate-x-[1px]"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
+                )}
+              </button>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2 mt-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <label className="flex items-center gap-2 text-xs cursor-pointer select-none group">
+                  <input type="checkbox" checked={isInternal} onChange={(e) => setIsInternal(e.target.checked)} className="rounded border-white/20 bg-black/30 text-amber-500 focus:ring-amber-500/30 w-3.5 h-3.5" />
+                  <span
+                    className="px-2 py-1 rounded-full border text-xs transition-colors"
+                    style={{
+                      background: isInternal ? 'color-mix(in srgb, var(--ks-accent-warning) 18%, transparent)' : 'color-mix(in srgb, var(--ks-card-bg) 60%, transparent)',
+                      borderColor: isInternal ? 'color-mix(in srgb, var(--ks-accent-warning) 30%, transparent)' : 'var(--ks-card-border)',
+                      color: isInternal ? 'var(--ks-accent-warning)' : 'var(--ks-text-body)',
+                    }}
+                  >
+                    Internal note (staff only)
+                  </span>
+                </label>
+                {showInternalOnly && <span className="text-[11px] px-2 py-0.5 rounded-full border" style={{ background: 'color-mix(in srgb, var(--ks-accent-warning) 14%, transparent)', borderColor: 'color-mix(in srgb, var(--ks-accent-warning) 30%, transparent)', color: 'var(--ks-accent-warning)' }}>Filtering: internal only</span>}
+              </div>
+              <div className="hidden sm:flex items-center gap-2 text-xs" style={{ color: 'var(--ks-text-body)' }}>
+                <span className="inline-flex items-center gap-1"><span className={`w-2 h-2 rounded-full ${live ? 'bg-emerald-400 animate-pulse' : 'bg-gray-500'}`} />{live ? 'Live' : 'Paused'}</span>
+                <span>•</span>
+                <span>Auto-refresh {live ? '2.5s' : 'off'}</span>
+                <span className="hidden xl:inline">•</span>
+                <span className="hidden xl:inline">{filteredComments.length} visible</span>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default TicketChat;
