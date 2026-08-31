@@ -450,6 +450,15 @@ func UpdateInstanceHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "instance not found", http.StatusNotFound)
 		return
 	}
+	// Ownership scope for config edit: Own → must own the instance.
+	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
+		checker := permissions.NewChecker(con)
+		hasOwn, hasAll, _ := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		if !hasAll && hasOwn && inst.OwnerID != uid {
+			http.Error(w, "forbidden: own-scope may only edit own instances", http.StatusForbidden)
+			return
+		}
+	}
 
 	oldCfg := map[string]any{}
 	if inst.Config != "" {
@@ -728,6 +737,22 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer con.Close()
+
+	// Ownership scope for create: Own → may create only for self, All/umbrella → any user.
+	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
+		checker := permissions.NewChecker(con)
+		hasOwn, hasAll, _ := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		if !hasAll && hasOwn {
+			if req.OwnerID != 0 && req.OwnerID != uid {
+				http.Error(w, "forbidden: own-scope may only create instances for yourself", http.StatusForbidden)
+				return
+			}
+			req.OwnerID = uid
+		}
+		if req.OwnerID == 0 {
+			req.OwnerID = uid
+		}
+	}
 
 	tmplRepo := repository.NewTemplateRepository(con)
 	nodeRepo := repository.NewNodeRepository(con)
@@ -1359,6 +1384,15 @@ func instanceAction(w http.ResponseWriter, r *http.Request, action string) {
 	if err != nil {
 		http.Error(w, "instance not found", http.StatusNotFound)
 		return
+	}
+	// Ownership scope enforcement for instance lifecycle: Own → must own the instance.
+	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
+		checker := permissions.NewChecker(con)
+		hasOwn, hasAll, _ := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		if !hasAll && hasOwn && inst.OwnerID != uid {
+			http.Error(w, "forbidden: own-scope may only manage own instances", http.StatusForbidden)
+			return
+		}
 	}
 	// Suspended instances are blocked from lifecycle mutations (start/stop/
 	// restart) until an admin unsuspends them. Destroy is exempt so a
