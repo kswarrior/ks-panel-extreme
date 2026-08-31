@@ -17,6 +17,7 @@ const TicketDetail: React.FC = () => {
   const navigate = useNavigate();
   const confirm = useConfirm();
   const user = useAuthStore((s) => s.user);
+  const permissions = useAuthStore((s) => s.permissions);
   const glassModifier = useThemeStore((s) => {
     const g = s.active().card.glass_style;
     if (!g || g === 'frosted') return '';
@@ -158,10 +159,8 @@ const TicketDetail: React.FC = () => {
   const isClosed = ticket.status === 'closed';
   const isMine = user?.id === ticket.created_by;
   const isAssignee = user?.id === ticket.assigned_to;
-  const isStaff = !!user && (user as any).role === 'admin'; // fallback; true staff if canSeeInternal would be resolved via perms, but we approximate via TicketChat isStaff via assigned check + generic staff
-  // Better: consider anyone who is assignee or creator? But internal notes visibility is controlled server-side; we show internal toggle if user is assignee or staff-like.
-  // We'll let TicketChat decide staff badge via ticket data + current user. For now pass isStaff derived from assigned_to match or generic admin check.
-  const canSeeInternal = true; // TicketChat will internally gate via server; showing the toggle is harmless – server will reject if not allowed.
+  const isStaff = permissions.includes('MANAGE_TICKETS') || permissions.includes('TICKETS_EDIT');
+  const canSeeInternal = isStaff;
 
   const dueOverdue = ticket.due_at && !isClosed && new Date(ticket.due_at) < new Date();
 
