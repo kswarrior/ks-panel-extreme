@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/example/kspanel/internal/models"
+	"github.com/example/kspanel/internal/permissions"
 	"github.com/example/kspanel/internal/repository"
 	"github.com/go-chi/chi/v5"
 )
@@ -42,7 +43,28 @@ func isTicketStaff(con *sql.DB, uid int64) bool {
 			return true
 		}
 	}
+	// Ownership scope: TICKETS_ALL also grants full visibility, mirroring the umbrella.
+	if checker := permissions.NewChecker(con); checker != nil {
+		if hasOwn, hasAll, _ := checker.HasScope(uid, permissions.TicketsOwnKey, permissions.TicketsAllKey, permissions.ManageTicketsKey); hasAll {
+			_ = hasOwn
+			return true
+		}
+	}
 	return false
+}
+
+// ticketsScopeAll returns true when the user may act on ANY ticket (All/umbrella), false when restricted to own.
+func ticketsScopeAll(con *sql.DB, uid int64) bool {
+	checker := permissions.NewChecker(con)
+	hasOwn, hasAll, _ := checker.HasScope(uid, permissions.TicketsOwnKey, permissions.TicketsAllKey, permissions.ManageTicketsKey)
+	if hasAll {
+		return true
+	}
+	if hasOwn {
+		return false
+	}
+	// Legacy fallback: treat absence of explicit scope as All for staff, Own for others — preserved via isTicketStaff.
+	return isTicketStaff(con, uid)
 }
 
 // ListTicketsHandler returns paginated tickets.

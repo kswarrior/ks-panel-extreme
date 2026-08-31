@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/example/kspanel/internal/models"
+	"github.com/example/kspanel/internal/permissions"
 	"github.com/example/kspanel/internal/repository"
 	"github.com/go-chi/chi/v5"
 )
@@ -328,13 +329,49 @@ func DeleteApiKeyHandler(w http.ResponseWriter, r *http.Request) {
 
 // AdminListApiKeysHandler returns every API key in the panel, joined with the
 // owning user's name so the admin page can show ownership.
+// Ownership scope: Own → only own keys, All/umbrella → all keys.
 func AdminListApiKeysHandler(w http.ResponseWriter, r *http.Request) {
+	uid, _ := UserIDFromContext(r)
 	con, err := repository.OpenDB()
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
 	defer con.Close()
+
+	// Scope-aware branching for admin list.
+	if uid != 0 {
+		checker := permissions.NewChecker(con)
+		hasOwn, hasAll, _ := checker.HasScope(uid, permissions.ApiKeysOwnKey, permissions.ApiKeysAllKey, permissions.ManageApiKeysKey)
+		if !hasAll && hasOwn {
+			repoOwn := repository.NewApiKeyRepository(con)
+			keys, err := repoOwn.ListApiKeys(uid)
+			if err != nil {
+				log.Println("AdminListApiKeys (own) error:", err)
+				http.Error(w, "server error", http.StatusInternalServerError)
+				return
+			}
+			out := make([]apiKeyResponse, 0, len(keys))
+			for _, k := range keys {
+				out = append(out, apiKeyResponse{
+					ID:                k.ID,
+					UserID:            k.UserID,
+					OwnerName:         k.OwnerName,
+					Name:              k.Name,
+					Prefix:            k.Prefix,
+					CreatedAt:         isoString(k.CreatedAt),
+					LastUsedAt:        lastUsedPtr(k.LastUsedAt),
+					Permissions:       k.Permissions,
+					ExpiresAt:         expiryPtr(k.ExpiresAt),
+					RateLimit:         k.RateLimit,
+					RateWindowSeconds: k.RateWindowSeconds,
+					Active:            k.Active,
+				})
+			}
+			writeJSON(w, out)
+			return
+		}
+	}
 
 	repo := repository.NewApiKeyRepository(con)
 	keys, err := repo.ListAllApiKeys()
@@ -392,6 +429,16 @@ func AdminCreateApiKeyHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer con.Close()
+
+	// Scope check for admin create: Own → may only create for self.
+	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
+		checker := permissions.NewChecker(con)
+		hasOwn, hasAll, _ := checker.HasScope(uid, permissions.ApiKeysOwnKey, permissions.ApiKeysAllKey, permissions.ManageApiKeysKey)
+		if !hasAll && hasOwn && req.UserID != uid {
+			http.Error(w, "forbidden: own-scope may only create keys for yourself", http.StatusForbidden)
+			return
+		}
+	}
 
 	// Confirm the target user exists so we don't create an orphan key.
 	userRepo := repository.NewUserRepository(con)
