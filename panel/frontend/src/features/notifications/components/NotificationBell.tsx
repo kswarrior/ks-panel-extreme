@@ -177,6 +177,7 @@ const NotificationBell: React.FC = () => {
               : 'bg-white/[0.06] border-white/[0.09] text-zinc-300 hover:bg-white/[0.11] hover:border-white/15 hover:text-white'
         }`}
       >
+        {/* Android phone + temple-ball bell: dome with top knob and hanging ball clapper */}
         <svg
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 24 24"
@@ -185,11 +186,23 @@ const NotificationBell: React.FC = () => {
           strokeWidth={unread > 0 ? 2 : 1.85}
           strokeLinecap="round"
           strokeLinejoin="round"
-          className={`w-[19px] h-[19px] transition-transform duration-200 ${open ? 'rotate-12 scale-[1.02]' : 'rotate-0'} ${unread > 0 && !open ? 'drop-shadow-[0_1px_6px_rgba(255,255,255,0.18)]' : ''}`}
+          className={`w-[20px] h-[20px] transition-transform duration-200 ${open ? 'rotate-[10deg] scale-[1.04]' : 'rotate-0'} ${unread > 0 && !open ? 'drop-shadow-[0_1px_6px_rgba(255,255,255,0.18)]' : ''}`}
           aria-hidden="true"
         >
-          <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-12 0v3.158c0 .538-.214 1.055-.595 1.436L4 17h5" />
-          <path d="M13.73 21a2 2 0 01-3.46 0" />
+          {/* top knob */}
+          <circle cx="12" cy="3.35" r="1.1" fill="currentColor" stroke="none" opacity={unread > 0 ? 1 : 0.95} />
+          {/* android dome / body */}
+          <path
+            d="M12 5.45a6 6 0 0 0-6 6V14c0 .5-.2 1-.55 1.35L4.2 16.6a.6.6 0 0 0 .42 1.05h14.76a.6.6 0 0 0 .42-1.05l-1.24-1.25A1.9 1.9 0 0 1 18 14v-2.55a6 6 0 0 0-6-6Z"
+            fill={unread > 0 ? 'currentColor' : 'none'}
+            fillOpacity={unread > 0 ? 0.14 : 0}
+          />
+          {/* bottom rim */}
+          <path d="M8.2 17.65h7.6" strokeWidth="1.55" />
+          {/* string + temple ball */}
+          <path d="M12 17.65v1.45" strokeWidth="1.35" />
+          <circle cx="12" cy="20.15" r="1.55" fill="currentColor" stroke="none" />
+          <circle cx="11.45" cy="19.65" r="0.42" fill="white" opacity="0.62" />
         </svg>
         {unread > 0 && (
           <>
@@ -271,7 +284,7 @@ const NotificationBell: React.FC = () => {
               {recent.length === 0 ? (
                 <div className="py-10 px-6 text-center">
                   <div className="w-12 h-12 mx-auto rounded-full bg-white/[0.06] border border-white/10 grid place-items-center mb-3">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6 text-gray-500"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-12 0v3.158c0 .538-.214 1.055-.595 1.436L4 17h5" /><path d="M13.73 21a2 2 0 01-3.46 0" /></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6 text-gray-500"><circle cx="12" cy="3.35" r="1.05" fill="currentColor" stroke="none" opacity="0.9" /><path d="M12 5.45a6 6 0 0 0-6 6V14c0 .5-.2 1-.55 1.35L4.2 16.6a.6.6 0 0 0 .42 1.05h14.76a.6.6 0 0 0 .42-1.05l-1.24-1.25A1.9 1.9 0 0 1 18 14v-2.55a6 6 0 0 0-6-6Z" /><path d="M8.2 17.65h7.6" strokeWidth="1.5" /><path d="M12 17.65v1.45" strokeWidth="1.3" /><circle cx="12" cy="20.15" r="1.5" fill="currentColor" stroke="none" /></svg>
                   </div>
                   <p className="text-sm text-gray-300 font-medium">All caught up</p>
                   <p className="text-xs text-gray-500 mt-1">New alerts will appear here instantly.</p>
