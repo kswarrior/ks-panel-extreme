@@ -563,21 +563,15 @@ const TicketChat: React.FC<TicketChatProps> = ({
               <button
                 onClick={handleSend}
                 disabled={sending || !replyBody.trim()}
-                className="inline-flex items-center justify-center gap-1.5 px-5 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed border shrink-0"
+                className="inline-flex items-center justify-center px-4 py-2 rounded-lg text-xl font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed border shrink-0 leading-none"
                 style={{ background: 'var(--ks-btn-bg)', color: 'var(--ks-btn-text)', borderColor: 'var(--ks-card-border)', borderRadius: 'var(--ks-dropdown-radius, 8px)' }}
                 aria-label="Send message"
                 title="Send (Enter)"
               >
                 {sending ? (
-                  <>
-                    <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={3} opacity={0.25} /><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth={3} strokeLinecap="round" /></svg>
-                    Sending…
-                  </>
+                  <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={3} opacity={0.25} /><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth={3} strokeLinecap="round" /></svg>
                 ) : (
-                  <>
-                    Send
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
-                  </>
+                  <>⌯⌲</>
                 )}
               </button>
             </div>
