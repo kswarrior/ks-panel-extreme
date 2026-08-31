@@ -1,4 +1,4 @@
-name: Reset Main Files to d2121be
+name: Reset Main Files to 3ecba62
 
 on:
   workflow_dispatch:
@@ -18,7 +18,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Replace main files from d2121be
+      - name: Replace main files from 3ecba62
         env:
           TARGET: d2121bef9c326ebe57d482fa3be2844349341b61
         run: |
