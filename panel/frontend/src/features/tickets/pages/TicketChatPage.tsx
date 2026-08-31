@@ -1,15 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Link, useParams, useNavigate } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { getTicket, addTicketComment, deleteTicketComment } from '../api/tickets';
 import type { Ticket, TicketComment } from '../types/ticket';
 import TicketChat from '../components/TicketChat';
 import TicketChatSkeleton from '../components/TicketChatSkeleton';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { useConfirm } from '@/shared/stores/confirmStore';
-import { TicketStatusBadge, TicketPriorityBadge, formatTicketDateTime } from '../components/TicketComponents';
-import GlassCard from '@/shared/components/ui/Card';
-import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
-import { useThemeStore } from '@/shared/stores/themeStore';
+import { TicketStatusBadge, TicketPriorityBadge } from '../components/TicketComponents';
 
 // TicketChatPage — individual TSX for chat (separate from details).
 // Addresses: "In ticket details i want open chat button not chat i want a individual tsx for chat"
@@ -17,15 +14,9 @@ import { useThemeStore } from '@/shared/stores/themeStore';
 // the live chat lifecycle and shows its own loading skeleton.
 const TicketChatPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const confirm = useConfirm();
   const user = useAuthStore((s) => s.user);
   const permissions = useAuthStore((s) => s.permissions);
-  const glassModifier = useThemeStore((s) => {
-    const g = s.active().card.glass_style;
-    if (!g || g === 'frosted') return '';
-    return g === 'solid' ? 'ks-card-glass-solid' : 'ks-card-glass-strong';
-  });
 
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [comments, setComments] = useState<TicketComment[]>([]);
@@ -168,32 +159,6 @@ const TicketChatPage: React.FC = () => {
           </button>
         </span>
       </div>
-
-      {/* Compact ticket summary */}
-      <GlassCard className={`p-4 ${glassModifier} relative overflow-hidden`}>
-        <CardMediaLayer />
-        <div className="flex items-start gap-3">
-          <div className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center border" style={{ background: 'color-mix(in srgb, var(--ks-card-bg) 70%, transparent)', borderColor: 'var(--ks-card-border)', color: 'var(--ks-text-heading)' }}>
-            <span className="text-sm font-bold">{(ticket.subject || 'T').charAt(0).toUpperCase()}</span>
-          </div>
-          <div className="min-w-0 flex-1">
-            <h1 className="text-sm font-semibold truncate" style={{ color: 'var(--ks-text-heading)' }}>
-              {ticket.subject}
-            </h1>
-            <p className="text-xs truncate" style={{ color: 'var(--ks-text-body)' }}>
-              {ticket.creator_name || `#${ticket.created_by}`} • {formatTicketDateTime(ticket.created_at)} • {ticket.category} • {ticket.priority}
-            </p>
-          </div>
-          <div className="shrink-0 hidden sm:flex items-center gap-1.5">
-            <Link to={`/tickets/${ticket.id}`} className="ks-btn-ghost text-xs px-3 py-1.5 rounded-lg border" style={{ borderColor: 'var(--ks-card-border)', color: 'var(--ks-text-body)' }}>
-              View details
-            </Link>
-            <Link to={`/tickets/${ticket.id}/edit`} className="ks-btn-ghost text-xs px-3 py-1.5 rounded-lg border" style={{ borderColor: 'var(--ks-card-border)', color: 'var(--ks-text-body)' }}>
-              Edit
-            </Link>
-          </div>
-        </div>
-      </GlassCard>
 
       {/* Individual chat TSX — now the sole place for real chat */}
       <TicketChat
