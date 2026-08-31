@@ -326,7 +326,7 @@ const Login: React.FC = () => {
             {/* Submit button */}
             <button
               type="submit"
-              disabled={submitting || hasFieldError && !identifierTrimmed || !password}
+              disabled={submitting}
               aria-busy={submitting}
               className={`animate-slide-up [animation-delay:0.3s] [animation-fill-mode:backwards] relative w-full py-3 rounded-xl font-semibold text-sm tracking-wide transition-all duration-200 active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-900 disabled:cursor-not-allowed overflow-hidden ${
                 submitting

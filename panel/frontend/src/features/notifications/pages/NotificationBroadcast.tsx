@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import FormPage from '@/shared/components/forms/FormPage';
-import GlassField, { glassFieldClass } from '@/shared/components/ui/Field';
+import GlassField from '@/shared/components/ui/Field';
 import { CATEGORY_META, PRIORITY_META } from '../types/notification';
 import { createNotification } from '../api/notifications';
 import { useAuthStore } from '@/shared/stores/authStore';
@@ -102,7 +102,6 @@ const NotificationBroadcast: React.FC = () => {
               placeholder="Maintenance in 10 minutes"
               maxLength={500}
               required
-              className={glassFieldClass}
             />
           </GlassField>
 
@@ -118,7 +117,6 @@ const NotificationBroadcast: React.FC = () => {
               placeholder="We will restart the panel in 10 minutes. Save your work."
               rows={4}
               maxLength={5000}
-              className={glassFieldClass + ' min-h-[96px]'}
             />
           </GlassField>
 

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { getNotificationStats, listNotifications } from '../api/notifications';
+import { getNotificationStats } from '../api/notifications';
 import type { NotificationStats as Stats } from '../types/notification';
 import { CATEGORY_META, PRIORITY_META } from '../types/notification';
 import {
