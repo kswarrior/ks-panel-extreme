@@ -7,7 +7,6 @@ import TicketChatSkeleton from '../components/TicketChatSkeleton';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { useConfirm } from '@/shared/stores/confirmStore';
 
-
 // TicketChatPage — individual TSX for chat (separate from details).
 // Addresses: "In ticket details i want open chat button not chat i want a individual tsx for chat"
 // The details page now shows an Open Chat button that routes here; this page owns
@@ -129,7 +128,7 @@ const TicketChatPage: React.FC = () => {
           <span className="shrink-0" style={{ color: 'color-mix(in srgb, var(--ks-text-body) 40%, transparent)' }}>/</span>
           <Link to={`/tickets/${ticket.id}`} className="inline-flex items-center gap-1.5 text-sm hover:underline min-w-0 overflow-hidden shrink" style={{ color: 'var(--ks-text-body)' }}>
             <span className="shrink-0 font-mono font-semibold tracking-wide px-2 py-0.5 rounded border" style={{ color: 'var(--ks-accent-info, #38bdf8)', background: 'color-mix(in srgb, var(--ks-accent-info, #38bdf8) 12%, transparent)', borderColor: 'color-mix(in srgb, var(--ks-accent-info, #38bdf8) 22%, transparent)' }}>
-              #{ticket.ticket_no ? ticket.ticket_no.replace(/^TKT-0*/, '') || '0' : ticket.id}
+              {ticket.ticket_no ? ticket.ticket_no.replace(/^TKT-/, '') : String(ticket.id)}
             </span>
             <span className="hidden sm:inline truncate min-w-0 max-w-[18ch] md:max-w-[28ch] lg:max-w-[40ch]" style={{ color: 'var(--ks-text-heading)' }} title={ticket.subject}>
               {ticket.subject}
