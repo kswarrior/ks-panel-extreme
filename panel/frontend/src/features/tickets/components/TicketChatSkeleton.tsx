@@ -103,16 +103,14 @@ const TicketChatSkeleton: React.FC = () => {
         </div>
       </div>
 
-      {/* Composer skeleton */}
+      {/* Composer skeleton — input full width, button below aligned with internal note */}
       <div className="shrink-0 border-t p-3 space-y-2" style={{ background: 'color-mix(in srgb, var(--ks-card-bg) 92%, transparent)', borderColor: 'var(--ks-card-border)' }}>
-        <div className="flex items-end gap-2">
-          <div className="flex-1 h-[42px] rounded-lg" style={base} />
-          <div className="w-10 h-10 rounded-full shrink-0" style={shimmer} />
-        </div>
-        <div className="flex items-center gap-2">
+        <div className="h-[42px] w-full rounded-lg" style={base} />
+        <div className="flex items-center justify-between gap-2">
           <div className="h-6 w-44 rounded-full" style={base} />
-          <div className="ml-auto h-3 w-32 rounded hidden sm:block" style={base} />
+          <div className="h-8 w-24 rounded-lg shrink-0" style={shimmer} />
         </div>
+        <div className="hidden sm:block h-3 w-40 rounded" style={base} />
       </div>
     </div>
   );

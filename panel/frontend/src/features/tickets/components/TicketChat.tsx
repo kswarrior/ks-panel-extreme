@@ -521,73 +521,75 @@ const TicketChat: React.FC<TicketChatProps> = ({
         </button>
       )}
 
-      {/* Composer – real chatting place */}
+      {/* Composer – real chatting place: input full-width, send button below aligned with internal note */}
       <div className="shrink-0 border-t backdrop-blur-xl p-3" style={composerBg}>
         {isClosed ? (
           <div className="text-center py-3 text-sm rounded-xl border" style={{ color: 'var(--ks-text-body)', background: 'color-mix(in srgb, var(--ks-card-bg) 60%, transparent)', borderColor: 'var(--ks-card-border)' }}>
             This ticket is closed — chat is read-only. Reopen to continue chatting.
           </div>
         ) : (
-          <>
-            <div className="flex items-end gap-2">
-              <div className="flex-1 relative">
-                <textarea
-                  ref={textareaRef}
-                  value={replyBody}
-                  onChange={(e) => setReplyBody(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder={isInternal ? 'Internal note (staff only)… Shift+Enter for newline, Enter to send' : `Message as ${currentUsername || 'you'} — Enter to send, Shift+Enter for newline`}
-                  rows={1}
-                  className="w-full glass-field resize-none pr-14 py-2.5 text-sm min-h-[42px] max-h-[120px] placeholder:text-[var(--ks-text-body)]/60"
-                  maxLength={10000}
-                  disabled={sending}
-                  style={{ lineHeight: 1.5 } as any}
-                />
-                <div className="absolute right-2 bottom-2 flex items-center gap-1">
-                  <span className="hidden sm:inline text-[10px]" style={{ color: 'var(--ks-text-body)', opacity: 0.7 }}>{replyBody.length}/10000</span>
-                </div>
-              </div>
+          <div className="space-y-2">
+            {/* Input — full width */}
+            <div className="relative">
+              <textarea
+                ref={textareaRef}
+                value={replyBody}
+                onChange={(e) => setReplyBody(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Type Message"
+                rows={1}
+                className="w-full glass-field resize-none py-2.5 text-sm min-h-[42px] max-h-[120px] placeholder:text-[var(--ks-text-body)]/60"
+                maxLength={10000}
+                disabled={sending}
+                style={{ lineHeight: 1.5 } as any}
+              />
+              <span className="hidden sm:inline absolute right-2 bottom-2 text-[10px] pointer-events-none" style={{ color: 'var(--ks-text-body)', opacity: 0.7 }}>{replyBody.length}/10000</span>
+            </div>
+            {/* Controls — internal note left, send button right (aligned, button below input) */}
+            <div className="flex items-center justify-between gap-2">
+              <label className="flex items-center gap-2 text-xs cursor-pointer select-none group">
+                <input type="checkbox" checked={isInternal} onChange={(e) => setIsInternal(e.target.checked)} className="rounded border-white/20 bg-black/30 text-amber-500 focus:ring-amber-500/30 w-3.5 h-3.5" />
+                <span
+                  className="px-2 py-1 rounded-full border text-xs transition-colors"
+                  style={{
+                    background: isInternal ? 'color-mix(in srgb, var(--ks-accent-warning) 18%, transparent)' : 'color-mix(in srgb, var(--ks-card-bg) 60%, transparent)',
+                    borderColor: isInternal ? 'color-mix(in srgb, var(--ks-accent-warning) 30%, transparent)' : 'var(--ks-card-border)',
+                    color: isInternal ? 'var(--ks-accent-warning)' : 'var(--ks-text-body)',
+                  }}
+                >
+                  Internal note (staff only)
+                </span>
+              </label>
               <button
                 onClick={handleSend}
                 disabled={sending || !replyBody.trim()}
-                className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed border"
-                style={{ background: 'var(--ks-btn-bg)', color: 'var(--ks-btn-text)', borderColor: 'var(--ks-card-border)' }}
+                className="inline-flex items-center justify-center gap-1.5 px-5 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed border shrink-0"
+                style={{ background: 'var(--ks-btn-bg)', color: 'var(--ks-btn-text)', borderColor: 'var(--ks-card-border)', borderRadius: 'var(--ks-dropdown-radius, 8px)' }}
                 aria-label="Send message"
                 title="Send (Enter)"
               >
                 {sending ? (
-                  <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={3} opacity={0.25} /><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth={3} strokeLinecap="round" /></svg>
+                  <>
+                    <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={3} opacity={0.25} /><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth={3} strokeLinecap="round" /></svg>
+                    Sending…
+                  </>
                 ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 translate-x-[1px]"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
+                  <>
+                    Send
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
+                  </>
                 )}
               </button>
             </div>
-            <div className="flex flex-wrap items-center justify-between gap-2 mt-2">
-              <div className="flex items-center gap-2 flex-wrap">
-                <label className="flex items-center gap-2 text-xs cursor-pointer select-none group">
-                  <input type="checkbox" checked={isInternal} onChange={(e) => setIsInternal(e.target.checked)} className="rounded border-white/20 bg-black/30 text-amber-500 focus:ring-amber-500/30 w-3.5 h-3.5" />
-                  <span
-                    className="px-2 py-1 rounded-full border text-xs transition-colors"
-                    style={{
-                      background: isInternal ? 'color-mix(in srgb, var(--ks-accent-warning) 18%, transparent)' : 'color-mix(in srgb, var(--ks-card-bg) 60%, transparent)',
-                      borderColor: isInternal ? 'color-mix(in srgb, var(--ks-accent-warning) 30%, transparent)' : 'var(--ks-card-border)',
-                      color: isInternal ? 'var(--ks-accent-warning)' : 'var(--ks-text-body)',
-                    }}
-                  >
-                    Internal note (staff only)
-                  </span>
-                </label>
-                {showInternalOnly && <span className="text-[11px] px-2 py-0.5 rounded-full border" style={{ background: 'color-mix(in srgb, var(--ks-accent-warning) 14%, transparent)', borderColor: 'color-mix(in srgb, var(--ks-accent-warning) 30%, transparent)', color: 'var(--ks-accent-warning)' }}>Filtering: internal only</span>}
-              </div>
-              <div className="hidden sm:flex items-center gap-2 text-xs" style={{ color: 'var(--ks-text-body)' }}>
-                <span className="inline-flex items-center gap-1"><span className={`w-2 h-2 rounded-full ${live ? 'bg-emerald-400 animate-pulse' : 'bg-gray-500'}`} />{live ? 'Live' : 'Paused'}</span>
-                <span>•</span>
-                <span>Auto-refresh {live ? '2.5s' : 'off'}</span>
-                <span className="hidden xl:inline">•</span>
-                <span className="hidden xl:inline">{filteredComments.length} visible</span>
-              </div>
+            {showInternalOnly && <div className="text-[11px] px-2 py-0.5 rounded-full border w-fit" style={{ background: 'color-mix(in srgb, var(--ks-accent-warning) 14%, transparent)', borderColor: 'color-mix(in srgb, var(--ks-accent-warning) 30%, transparent)', color: 'var(--ks-accent-warning)' }}>Filtering: internal only</div>}
+            <div className="hidden sm:flex items-center gap-2 text-xs" style={{ color: 'var(--ks-text-body)' }}>
+              <span className="inline-flex items-center gap-1"><span className={`w-2 h-2 rounded-full ${live ? 'bg-emerald-400 animate-pulse' : 'bg-gray-500'}`} />{live ? 'Live' : 'Paused'}</span>
+              <span>•</span>
+              <span>Auto-refresh {live ? '2.5s' : 'off'}</span>
+              <span className="hidden xl:inline">•</span>
+              <span className="hidden xl:inline">{filteredComments.length} visible</span>
             </div>
-          </>
+          </div>
         )}
       </div>
     </div>
