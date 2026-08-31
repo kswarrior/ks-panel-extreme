@@ -340,10 +340,11 @@ func (r *NotificationRepository) ListAllUserIDs() ([]int64, error) {
 
 // Summary holds aggregate stats for the /stats endpoint.
 type NotificationStats struct {
-	Total     int            `json:"total"`
-	Unread    int            `json:"unread"`
+	Total      int            `json:"total"`
+	Unread     int            `json:"unread"`
 	ByCategory map[string]int `json:"by_category"`
 	ByPriority map[string]int `json:"by_priority"`
+	Broadcast  int            `json:"broadcast"`
 }
 
 // Stats returns totals for the header chips/dashboard.
@@ -379,6 +380,7 @@ func (r *NotificationRepository) Stats(userID int64) (NotificationStats, error) 
 			}
 		}
 	}
+	_ = r.db.QueryRow(`SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_broadcast = 1`, userID).Scan(&s.Broadcast)
 	return s, nil
 }
 
