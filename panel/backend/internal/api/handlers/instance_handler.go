@@ -15,6 +15,7 @@ import (
 	"github.com/example/kspanel/internal/edge"
 	"github.com/example/kspanel/internal/models"
 	"github.com/example/kspanel/internal/modengine"
+	"github.com/example/kspanel/internal/permissions"
 	"github.com/example/kspanel/internal/repository"
 	"github.com/go-chi/chi/v5"
 )
@@ -151,6 +152,12 @@ type installStepSpec struct {
 }
 
 // ListInstancesHandler returns every instance with joined node/template names.
+// Ownership scoping: if the caller holds INSTANCES_ALL (or the umbrella
+// MANAGE_INSTANCES) they see the full fleet; if they hold only INSTANCES_OWN
+// they see only their own instances; when neither scope is granted the handler
+// falls back to the legacy behaviour (full fleet) so existing seeded roles
+// that carry only INSTANCES_VIEW keep working. The same Own/All contract is
+// mirrored in GetInstanceHandler / DeployInstanceHandler / instanceAction.
 func ListInstancesHandler(w http.ResponseWriter, r *http.Request) {
 	con, err := repository.OpenDB()
 	if err != nil {
@@ -158,6 +165,22 @@ func ListInstancesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer con.Close()
+	uid, _ := UserIDFromContext(r)
+	// Scope-aware branching: All → full list, Own → owned only.
+	if uid != 0 {
+		checker := permissions.NewChecker(con)
+		hasOwn, hasAll, _ := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		if !hasAll && hasOwn {
+			owned, err := repository.NewInstanceRepository(con).ListByOwner(uid)
+			if err != nil {
+				log.Println("ListInstances (own) error:", err)
+				http.Error(w, "server error", http.StatusInternalServerError)
+				return
+			}
+			writeJSON(w, owned)
+			return
+		}
+	}
 	insts, err := repository.NewInstanceRepository(con).List()
 	if err != nil {
 		log.Println("ListInstances error:", err)
@@ -174,6 +197,7 @@ func ListInstancesHandler(w http.ResponseWriter, r *http.Request) {
 // instance-scoped fetchPanel() bridge, which only permits paths under
 // /api/instances/{id}/…. The list endpoint already exposes every row to any
 // VIEW_INSTANCES holder, so this per-id read grants no new data surface.
+// Ownership scoping: Own → caller must own the instance, All/umbrella → any.
 func GetInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
@@ -191,6 +215,15 @@ func GetInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil || inst == nil {
 		http.Error(w, "instance not found", http.StatusNotFound)
 		return
+	}
+	// Ownership scope enforcement.
+	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
+		checker := permissions.NewChecker(con)
+		hasOwn, hasAll, _ := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		if !hasAll && hasOwn && inst.OwnerID != uid {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
 	}
 	writeJSON(w, inst)
 }
