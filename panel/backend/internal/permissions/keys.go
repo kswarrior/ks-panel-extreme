@@ -301,40 +301,40 @@ type Group struct {
 var AreaGroups = []Group{
 	{Label: "Users", Umbrella: ManageUsersKey, Keys: map[Action]string{
 		ActionView: UsersViewKey, ActionCreate: UsersCreateKey, ActionEdit: UsersEditKey, ActionDelete: UsersDeleteKey,
-	}},
+	}, OwnKey: UsersOwnKey, AllKey: UsersAllKey},
 	{Label: "Roles", Umbrella: ManageRolesKey, Keys: map[Action]string{
 		ActionView: RolesViewKey, ActionCreate: RolesCreateKey, ActionEdit: RolesEditKey, ActionDelete: RolesDeleteKey,
-	}},
+	}, OwnKey: RolesOwnKey, AllKey: RolesAllKey},
 	{Label: "Nodes", Umbrella: ManageNodesKey, Keys: map[Action]string{
 		ActionView: NodesViewKey, ActionCreate: NodesCreateKey, ActionEdit: NodesEditKey, ActionDelete: NodesDeleteKey,
-	}},
+	}, OwnKey: NodesOwnKey, AllKey: NodesAllKey},
 	{Label: "Templates", Umbrella: ManageTemplatesKey, Keys: map[Action]string{
 		ActionView: TemplatesViewKey, ActionCreate: TemplatesCreateKey, ActionEdit: TemplatesEditKey, ActionDelete: TemplatesDeleteKey,
-	}},
+	}, OwnKey: TemplatesOwnKey, AllKey: TemplatesAllKey},
 	{Label: "Instances", Umbrella: ManageInstancesKey, Keys: map[Action]string{
 		ActionView: InstancesViewKey, ActionCreate: InstancesCreateKey, ActionEdit: InstancesEditKey, ActionDelete: InstancesDeleteKey,
-	}},
+	}, OwnKey: InstancesOwnKey, AllKey: InstancesAllKey},
 	{Label: "API Keys", Umbrella: ManageApiKeysKey, Keys: map[Action]string{
 		ActionView: ApiKeysViewKey, ActionCreate: ApiKeysCreateKey, ActionEdit: ApiKeysEditKey, ActionDelete: ApiKeysDeleteKey,
-	}},
+	}, OwnKey: ApiKeysOwnKey, AllKey: ApiKeysAllKey},
 	{Label: "Mods", Umbrella: ManageModsKey, Keys: map[Action]string{
 		ActionView: ModsViewKey, ActionCreate: ModsCreateKey, ActionEdit: ModsEditKey, ActionDelete: ModsDeleteKey,
-	}},
+	}, OwnKey: ModsOwnKey, AllKey: ModsAllKey},
 	{Label: "Applications", Umbrella: ManageApplicationsKey, Keys: map[Action]string{
 		ActionView: ApplicationsViewKey, ActionCreate: ApplicationsCreateKey, ActionEdit: ApplicationsEditKey, ActionDelete: ApplicationsDeleteKey,
-	}},
+	}, OwnKey: ApplicationsOwnKey, AllKey: ApplicationsAllKey},
 	{Label: "Instance Pages", Umbrella: ManageInstancePagesKey, Keys: map[Action]string{
 		ActionView: InstancePagesViewKey, ActionCreate: InstancePagesCreateKey, ActionEdit: InstancePagesEditKey, ActionDelete: InstancePagesDeleteKey,
-	}},
+	}, OwnKey: InstancePagesOwnKey, AllKey: InstancePagesAllKey},
 	{Label: "Tickets", Umbrella: ManageTicketsKey, Keys: map[Action]string{
 		ActionView: TicketsViewKey, ActionCreate: TicketsCreateKey, ActionEdit: TicketsEditKey, ActionDelete: TicketsDeleteKey,
-	}},
+	}, OwnKey: TicketsOwnKey, AllKey: TicketsAllKey},
 	{Label: "Notifications", Umbrella: ManageNotificationsKey, Keys: map[Action]string{
 		ActionView: NotificationsViewKey, ActionCreate: NotificationsCreateKey, ActionEdit: NotificationsEditKey, ActionDelete: NotificationsDeleteKey,
-	}},
+	}, OwnKey: NotificationsOwnKey, AllKey: NotificationsAllKey},
 	{Label: "Settings", Umbrella: ViewSettingsKey, Keys: map[Action]string{
 		ActionView: SettingsViewKey, ActionEdit: SettingsEditKey,
-	}},
+	}, OwnKey: SettingsOwnKey, AllKey: SettingsAllKey},
 	// Themes cluster: MANAGE_THEMES is the umbrella (ticking it enables the
 	// theme surface for a role). CREATE/EDIT map to the matching CRUD verbs
 	// and the USE/ASSIGN verbs are carried in ExtraKeys — keeping the
@@ -347,7 +347,7 @@ var AreaGroups = []Group{
 		CreateLocalThemesKey,
 		UseGlobalThemesKey,
 		AssignThemesKey,
-	}},
+	}, OwnKey: ThemesOwnKey, AllKey: ThemesAllKey},
 	// Account / profile customization cluster: VIEW_ACCOUNT is the page-level
 	// umbrella (opens the Account page). It doesn't use the CRUD verbs — self
 	// service profile customization is split into the five finer-grained
@@ -362,7 +362,7 @@ var AreaGroups = []Group{
 		AccountEditAccentKey,
 		AccountUseAvatarSymbolKey,
 		AccountUploadAvatarKey,
-	}},
+	}, OwnKey: AccountOwnKey, AllKey: AccountAllKey},
 }
 
 // AllGroups is the ordered slice of every regulatable area. It is the union of

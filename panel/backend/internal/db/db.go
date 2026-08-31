@@ -829,6 +829,42 @@ func SeedCore(d Dialect, db *sql.DB) error {
 		('NOTIFICATIONS_DELETE', 'Delete notifications')`, "permissions")); err != nil {
 		return err
 	}
+	// Ownership-scope keys — Own vs All per area. Each regulatable group gains
+	// two scope keys that decide whether an actor may touch only their own
+	// resources (OWN) or any resource (ALL). They are seeded here so the admin
+	// role automatically acquires them (admin gets every permission) and the
+	// Roles form can render the Own/All toggles for every group.
+	if _, err := db.Exec(translateSeedInsert(prefix, pgConflict, `(key, description) VALUES
+		('USERS_OWN', 'Users — only own user (view/edit/delete own profile, limited admin)'),
+		('USERS_ALL', 'Users — any user (full admin over all accounts)'),
+		('ROLES_OWN', 'Roles — only own role (view own role)'),
+		('ROLES_ALL', 'Roles — any role (full admin over all roles)'),
+		('NODES_OWN', 'Nodes — only own nodes (visibility scoped to owned)'),
+		('NODES_ALL', 'Nodes — any node (full admin over all nodes)'),
+		('TEMPLATES_OWN', 'Templates — only own templates'),
+		('TEMPLATES_ALL', 'Templates — any template'),
+		('INSTANCES_OWN', 'Instances — only own instances (view/create/edit/delete scoped to owned)'),
+		('INSTANCES_ALL', 'Instances — any instance (full admin over entire fleet)'),
+		('API_KEYS_OWN', 'API Keys — only own keys'),
+		('API_KEYS_ALL', 'API Keys — any key (admin over all users keys)'),
+		('MODS_OWN', 'Mods — only own mods'),
+		('MODS_ALL', 'Mods — any mod'),
+		('APPLICATIONS_OWN', 'Applications — only own apps'),
+		('APPLICATIONS_ALL', 'Applications — any application'),
+		('INSTANCE_PAGES_OWN', 'Instance Pages — only own pages'),
+		('INSTANCE_PAGES_ALL', 'Instance Pages — any page'),
+		('TICKETS_OWN', 'Tickets — only own tickets (created by / assigned to self)'),
+		('TICKETS_ALL', 'Tickets — any ticket'),
+		('NOTIFICATIONS_OWN', 'Notifications — only own notifications'),
+		('NOTIFICATIONS_ALL', 'Notifications — any notification (broadcast)'),
+		('SETTINGS_OWN', 'Settings — only own settings scope (no effect, placeholder)'),
+		('SETTINGS_ALL', 'Settings — any settings'),
+		('THEMES_OWN', 'Themes — only own themes'),
+		('THEMES_ALL', 'Themes — any theme'),
+		('ACCOUNT_OWN', 'Account — only own account'),
+		('ACCOUNT_ALL', 'Account — any account')`, "permissions")); err != nil {
+		return err
+	}
 	// Keep the MANAGE_THEMES description current on legacy installs.
 	if _, err := db.Exec(`UPDATE permissions SET description = 'Manage the theme system (umbrella key – enables the theme surface for a role)' WHERE key = 'MANAGE_THEMES'`); err != nil {
 		return err
