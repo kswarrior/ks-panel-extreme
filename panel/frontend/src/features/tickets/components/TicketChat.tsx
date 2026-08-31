@@ -116,6 +116,7 @@ const TicketChat: React.FC<TicketChatProps> = ({
   const [sending, setSending] = useState(false);
   const [showInternalOnly, setShowInternalOnly] = useState(false);
   const [filter, setFilter] = useState('');
+  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -218,6 +219,24 @@ const TicketChat: React.FC<TicketChatProps> = ({
     el.style.height = 'auto';
     el.style.height = Math.min(el.scrollHeight, 120) + 'px';
   }, [replyBody]);
+
+  // Close 3-dot menu on outside click / escape
+  useEffect(() => {
+    if (openMenuId === null) return;
+    const onDocClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-chat-menu]')) setOpenMenuId(null);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpenMenuId(null);
+    };
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [openMenuId]);
 
   const participantLabel = useMemo(() => {
     const parts: string[] = [];
@@ -387,26 +406,14 @@ const TicketChat: React.FC<TicketChatProps> = ({
                     {group.date}
                   </span>
                 </div>
-                {group.items.map((c, idx) => {
+                {group.items.map((c) => {
                   const isOwn = currentUserId != null && c.author_id === currentUserId;
                   const isInternal = !!c.is_internal;
-                  const prev = idx > 0 ? group.items[idx - 1] : null;
-                  const isGrouped = !!prev && prev.author_id === c.author_id && Math.abs(new Date(c.created_at).getTime() - new Date(prev.created_at).getTime()) < 1000 * 60 * 5;
-                  const showHeader = !isGrouped;
                   const initial = (c.author_name || `U${c.author_id}`).charAt(0).toUpperCase();
-                  // Role badges
-                  const isReporter = c.author_id === ticket.created_by;
-                  const isAssignee = !!ticket.assigned_to && c.author_id === ticket.assigned_to;
+                  const canDelete = currentUserId === c.author_id || !!isStaff;
 
-                  // Bubble design – fully theme adaptive
-                  // own: primary button surface; other: card surface with border; internal: warning tint over card
-                  const bubbleStyle: React.CSSProperties = isInternal
-                    ? {
-                        background: 'color-mix(in srgb, var(--ks-accent-warning, #fbbf24) 16%, var(--ks-card-bg))',
-                        borderColor: 'color-mix(in srgb, var(--ks-accent-warning) 35%, transparent)',
-                        color: 'var(--ks-text-heading, #fff)',
-                      }
-                    : isOwn
+                  // Minimal bubble: [Icon] [message] – own still slightly distinct but all left-aligned
+                  const bubbleStyle: React.CSSProperties = isOwn
                     ? {
                         background: 'var(--ks-btn-bg, #fff)',
                         color: 'var(--ks-btn-text, #000)',
@@ -420,67 +427,92 @@ const TicketChat: React.FC<TicketChatProps> = ({
                       } as any;
 
                   return (
-                    <div key={c.id} className={`flex gap-2.5 ${isOwn ? 'justify-end' : 'justify-start'} ${isInternal ? 'opacity-[0.98]' : ''}`}>
-                      {!isOwn && (
-                        <div
-                          className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border mt-1 ${isGrouped ? 'invisible' : ''}`}
-                          style={avatarBg(c.author_id, isInternal)}
-                          title={c.author_name || `User #${c.author_id}`}
-                        >
-                          {initial}
-                        </div>
-                      )}
+                    <div key={c.id} className="flex gap-2.5 items-start">
+                      {/* [Icon] */}
+                      <div
+                        className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border mt-0.5"
+                        style={isOwn ? { background: 'var(--ks-btn-bg, #fff)', color: 'var(--ks-btn-text, #000)', borderColor: 'var(--ks-card-border)' } : avatarBg(c.author_id, false)}
+                        title={c.author_name || `User #${c.author_id}`}
+                      >
+                        {isOwn ? (currentUsername || 'Y').charAt(0).toUpperCase() : initial}
+                      </div>
 
-                      <div className={`group relative max-w-[78%] flex flex-col ${isOwn ? 'items-end' : 'items-start'}`}>
-                        {showHeader && (
-                          <div className={`flex items-center gap-1.5 mb-1 text-[11px] ${isOwn ? 'flex-row-reverse' : ''}`} style={{ color: 'var(--ks-text-body)' }}>
-                            <span className="font-medium" style={{ color: isOwn ? 'var(--ks-text-heading)' : 'var(--ks-text-heading)' }}>{c.author_name || `User #${c.author_id}`}</span>
-                            {isReporter && <span className="px-1 py-0.5 rounded border text-[10px] font-medium" style={{ background: 'color-mix(in srgb, var(--ks-accent-info, #38bdf8) 16%, transparent)', borderColor: 'color-mix(in srgb, var(--ks-accent-info) 30%, transparent)', color: 'var(--ks-accent-info, #38bdf8)' }}>Reporter</span>}
-                            {isAssignee && ticket.assigned_to && <span className="px-1 py-0.5 rounded border text-[10px] font-medium" style={{ background: 'color-mix(in srgb, var(--ks-accent-primary, #a78bfa) 16%, transparent)', borderColor: 'color-mix(in srgb, var(--ks-accent-primary) 30%, transparent)', color: 'var(--ks-accent-primary, #a78bfa)' }}>Assignee</span>}
-                            {isInternal && <span className="px-1 py-0.5 rounded border text-[10px] font-medium" style={{ background: 'color-mix(in srgb, var(--ks-accent-warning) 18%, transparent)', borderColor: 'color-mix(in srgb, var(--ks-accent-warning) 30%, transparent)', color: 'var(--ks-accent-warning)' }}>Internal</span>}
-                            <span title={fmtFull(c.created_at)}>{fmtTime(c.created_at)}</span>
-                          </div>
-                        )}
-
+                      {/* [message] + below: time + 3-dot */}
+                      <div className="flex flex-col max-w-[78%] min-w-0">
                         <div
-                          className={`relative px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words border shadow-sm ${isOwn ? 'rounded-br-sm' : 'rounded-tl-sm'}`}
+                          className="relative px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words border shadow-sm rounded-tl-sm"
                           style={{ ...bubbleStyle, borderWidth: 1 }}
                         >
                           {linkify(c.body)}
                         </div>
 
-                        <div className={`flex items-center gap-1.5 mt-1 text-[10px] ${isOwn ? 'flex-row-reverse' : ''}`} style={{ color: 'var(--ks-text-body)' }}>
-                          <span title={fmtFull(c.created_at)}>{fmtTime(c.created_at)}</span>
-                          {isOwn && <span className="inline-flex items-center gap-0.5" style={{ color: 'var(--ks-accent-success, #4ade80)' }}><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3 h-3"><path d="M20 6L9 17l-5-5" /></svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3 h-3 -ml-1"><path d="M20 6L9 17l-5-5" /></svg></span>}
-                          {!showHeader && <span className="hidden sm:inline opacity-60">{c.author_name || `User #${c.author_id}`}</span>}
-                          {(currentUserId === c.author_id || isStaff) && (
+                        {/* below chat: time + 3 dot */}
+                        <div className="flex items-center gap-1.5 mt-1.5 px-1 text-[11px]" style={{ color: 'var(--ks-text-body)' }}>
+                          <span title={fmtFull(c.created_at)} className="shrink-0">{fmtTime(c.created_at)}</span>
+                          <div className="relative shrink-0" data-chat-menu>
                             <button
-                              onClick={() => onDelete(c)}
-                              className="opacity-0 group-hover:opacity-100 focus:opacity-100 ml-1 hover:underline transition-opacity"
-                              style={{ color: 'var(--ks-accent-danger, #f87171)' }}
+                              onClick={() => setOpenMenuId(openMenuId === c.id ? null : c.id)}
+                              className="w-6 h-6 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors"
+                              style={{ color: 'var(--ks-text-body)' }}
+                              aria-label="More actions"
+                              title="More"
                             >
-                              Delete
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
+                                <circle cx="5" cy="12" r="2" />
+                                <circle cx="12" cy="12" r="2" />
+                                <circle cx="19" cy="12" r="2" />
+                              </svg>
                             </button>
-                          )}
-                          <button
-                            onClick={() => {
-                              const v = `> ${c.author_name || `User #${c.author_id}`}: ${c.body.split('\n')[0].slice(0, 80)}\n`;
-                              setReplyBody((prev) => (prev ? prev + '\n' + v : v));
-                              textareaRef.current?.focus();
-                            }}
-                            className="opacity-0 group-hover:opacity-100 focus:opacity-100 ml-1 hover:underline transition-opacity"
-                            style={{ color: 'var(--ks-text-body)' }}
-                          >
-                            Reply
-                          </button>
+                            {openMenuId === c.id && (
+                              <div
+                                className="absolute left-0 top-full mt-1 z-20 min-w-[140px] rounded-xl border shadow-xl overflow-hidden py-1 backdrop-blur-xl"
+                                style={{
+                                  background: 'color-mix(in srgb, var(--ks-card-bg) 96%, var(--ks-card-bg))',
+                                  borderColor: 'var(--ks-card-border)',
+                                }}
+                              >
+                                <button
+                                  onClick={() => {
+                                    const v = `> ${c.author_name || `User #${c.author_id}`}: ${c.body.split('\n')[0].slice(0, 80)}\n`;
+                                    setReplyBody((prev) => (prev ? prev + '\n' + v : v));
+                                    textareaRef.current?.focus();
+                                    setOpenMenuId(null);
+                                  }}
+                                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/10 flex items-center gap-2"
+                                  style={{ color: 'var(--ks-text-heading)' }}
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-3.5 h-3.5"><path d="M9 14L4 9l5-5" /><path d="M4 9h10.5A2.5 2.5 0 0 1 17 11.5v7.5" /></svg>
+                                  Reply
+                                </button>
+                                <button
+                                  onClick={async () => {
+                                    try { await navigator.clipboard.writeText(c.body); } catch {}
+                                    setOpenMenuId(null);
+                                  }}
+                                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/10 flex items-center gap-2"
+                                  style={{ color: 'var(--ks-text-heading)' }}
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-3.5 h-3.5"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v3" /></svg>
+                                  Copy
+                                </button>
+                                {canDelete && (
+                                  <button
+                                    onClick={() => {
+                                      setOpenMenuId(null);
+                                      onDelete(c);
+                                    }}
+                                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/10 flex items-center gap-2"
+                                    style={{ color: 'var(--ks-accent-danger, #f87171)' }}
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-3.5 h-3.5"><path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /></svg>
+                                    Delete
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
-
-                      {isOwn && (
-                        <div className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold mt-1 border ${isGrouped ? 'invisible' : ''}`} style={{ background: 'var(--ks-btn-bg, #fff)', color: 'var(--ks-btn-text, #000)', borderColor: 'var(--ks-card-border)' }}>
-                          {(currentUsername || 'Y').charAt(0).toUpperCase()}
-                        </div>
-                      )}
                     </div>
                   );
                 })}
