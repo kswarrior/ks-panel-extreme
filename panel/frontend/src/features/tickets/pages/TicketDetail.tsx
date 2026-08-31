@@ -1,14 +1,14 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { getTicket, addTicketComment, deleteTicketComment, updateTicket, assignTicket, deleteTicket, listAssignableUsers } from '../api/tickets';
-import type { Ticket, TicketComment } from '../types/ticket';
+import { getTicket, updateTicket, assignTicket, deleteTicket, listAssignableUsers } from '../api/tickets';
+import type { Ticket } from '../types/ticket';
 import GlassCard from '@/shared/components/ui/Card';
 import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
 import { useThemeStore } from '@/shared/stores/themeStore';
 import { useConfirm } from '@/shared/stores/confirmStore';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { TicketStatusBadge, TicketPriorityBadge, CategoryIcon, formatTicketDateTime } from '../components/TicketComponents';
-import TicketChat from '../components/TicketChat';
+import TicketDetailSkeleton from '../components/TicketDetailSkeleton';
 
 const STATUS_ORDER: Ticket['status'][] = ['open', 'pending', 'in_progress', 'resolved', 'closed'];
 
@@ -25,68 +25,43 @@ const TicketDetail: React.FC = () => {
   });
 
   const [ticket, setTicket] = useState<Ticket | null>(null);
-  const [comments, setComments] = useState<TicketComment[]>([]);
+  const [commentCount, setCommentCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [assignUsers, setAssignUsers] = useState<{ ID: number; Username: string }[]>([]);
   const [assignValue, setAssignValue] = useState<string>('');
   const [statusValue, setStatusValue] = useState<Ticket['status']>('open');
   const [priorityValue, setPriorityValue] = useState<Ticket['priority']>('medium');
-  const [live, setLive] = useState(true);
 
-  const load = useCallback(async (showLoader = true) => {
+  const load = useCallback(async () => {
     if (!id) return;
-    if (showLoader) setLoading(true);
+    setLoading(true);
     setError('');
     try {
       const detail = await getTicket(Number(id));
       setTicket(detail.ticket);
-      setComments(detail.comments);
+      setCommentCount(detail.comments.length);
       setStatusValue(detail.ticket.status);
       setPriorityValue(detail.ticket.priority);
       setAssignValue(detail.ticket.assigned_to ? String(detail.ticket.assigned_to) : '');
     } catch (e: any) {
-      if (showLoader) setError(e?.response?.data || 'Failed to load ticket');
+      setError(e?.response?.data || 'Failed to load ticket');
     } finally {
-      if (showLoader) setLoading(false);
+      setLoading(false);
     }
   }, [id]);
 
-  useEffect(() => { load(true); }, [load]);
-
-  // Live polling for real chat – every 2.5s (paused when not live or closed)
-  useEffect(() => {
-    if (!live || !id || ticket?.status === 'closed') return;
-    const iv = setInterval(() => load(false), 2500);
-    return () => clearInterval(iv);
-  }, [live, id, ticket?.status, load]);
+  useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
     listAssignableUsers().then(setAssignUsers).catch(() => {});
   }, []);
 
-  const handleSend = async (body: string, isInternal: boolean) => {
-    if (!id) return;
-    await addTicketComment(Number(id), body, isInternal);
-    await load(false);
-  };
-
-  const handleDeleteComment = async (c: TicketComment) => {
-    if (!id) return;
-    if (!(await confirm({ title: 'Delete message', message: 'Delete this message from the chat?', tone: 'danger', confirmLabel: 'Delete' }))) return;
-    try {
-      await deleteTicketComment(Number(id), c.id);
-      await load(false);
-    } catch (e: any) {
-      alert(e?.response?.data || 'Failed to delete message');
-    }
-  };
-
   const handleStatusChange = async (newStatus: Ticket['status']) => {
     if (!id || !ticket) return;
     try {
       await updateTicket(Number(id), { status: newStatus });
-      await load(false);
+      await load();
     } catch (e: any) {
       alert(e?.response?.data || 'Failed to change status');
     }
@@ -96,7 +71,7 @@ const TicketDetail: React.FC = () => {
     if (!id) return;
     try {
       await updateTicket(Number(id), { priority: newPriority });
-      await load(false);
+      await load();
     } catch (e: any) {
       alert(e?.response?.data || 'Failed to change priority');
     }
@@ -107,7 +82,7 @@ const TicketDetail: React.FC = () => {
     const val = assignValue === '' ? null : Number(assignValue);
     try {
       await assignTicket(Number(id), val);
-      await load(false);
+      await load();
     } catch (e: any) {
       alert(e?.response?.data || 'Failed to assign');
     }
@@ -125,21 +100,7 @@ const TicketDetail: React.FC = () => {
   };
 
   if (loading) {
-    return (
-      <div className="max-w-[1280px] mx-auto space-y-4 animate-pulse">
-        <div className="h-6 w-48 rounded" style={{ background: 'var(--ks-card-bg)' }} />
-        <div className="grid grid-cols-1 xl:grid-cols-[1.45fr_0.85fr] gap-4">
-          <div className="space-y-4">
-            <div className="glass-card rounded-xl h-48" />
-            <div className="glass-card rounded-xl h-[520px]" />
-          </div>
-          <div className="space-y-4">
-            <div className="glass-card rounded-xl h-64" />
-            <div className="glass-card rounded-xl h-64" />
-          </div>
-        </div>
-      </div>
-    );
+    return <TicketDetailSkeleton />;
   }
   if (error) {
     return (
@@ -159,8 +120,6 @@ const TicketDetail: React.FC = () => {
   const isClosed = ticket.status === 'closed';
   const isMine = user?.id === ticket.created_by;
   const isAssignee = user?.id === ticket.assigned_to;
-  const isStaff = permissions.includes('MANAGE_TICKETS') || permissions.includes('TICKETS_EDIT');
-  const canSeeInternal = isStaff;
 
   const dueOverdue = ticket.due_at && !isClosed && new Date(ticket.due_at) < new Date();
 
@@ -182,13 +141,12 @@ const TicketDetail: React.FC = () => {
         <TicketPriorityBadge priority={ticket.priority} />
         <span className="ml-auto hidden sm:inline-flex items-center gap-2 text-xs" style={{ color: 'var(--ks-text-body)' }}>
           <span className={`w-2 h-2 rounded-full ${isClosed ? 'bg-gray-500' : 'bg-emerald-400 animate-pulse'}`} />
-          {isClosed ? 'Closed' : 'Live chat'} • {comments.length} messages
-          <button onClick={() => setLive((v) => !v)} className="ml-1 text-[11px] px-2 py-0.5 rounded-full border font-medium" style={{ background: live ? 'rgba(16,185,129,0.14)' : 'transparent', borderColor: live ? 'rgba(16,185,129,0.25)' : 'var(--ks-card-border)', color: live ? '#6ee7b7' : 'var(--ks-text-body)' }}>{live ? 'Live • on' : 'Live • off'}</button>
+          {isClosed ? 'Closed' : 'Live chat'} • {commentCount || ticket.comment_count} messages
         </span>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-[1.45fr_0.85fr] gap-4">
-        {/* Left: Ticket overview + Real Chat (dedicated TSX) */}
+        {/* Left: Ticket overview + Open Chat button (chat is now individual page) */}
         <div className="space-y-4 min-w-0">
           {/* Ticket overview – fully themed */}
           <GlassCard className={`p-5 ${glassModifier} relative overflow-hidden`}>
@@ -258,24 +216,39 @@ const TicketDetail: React.FC = () => {
             {/* Mobile actions */}
             <div className="sm:hidden mt-4 flex gap-2">
               <Link to={`/tickets/${ticket.id}/edit`} className="flex-1 text-center ks-btn-ghost text-xs px-3 py-2 rounded-lg border" style={{ borderColor: 'var(--ks-card-border)', color: 'var(--ks-text-body)' }}>Edit ticket</Link>
-              <a href="#chat" className="flex-1 text-center text-xs px-3 py-2 rounded-full font-medium border" style={{ background: 'var(--ks-btn-bg)', color: 'var(--ks-btn-text)', borderColor: 'var(--ks-card-border)' }}>Open chat</a>
+              <Link to={`/tickets/${ticket.id}/chat`} className="flex-1 text-center text-xs px-3 py-2 rounded-full font-medium border inline-flex items-center justify-center gap-1.5" style={{ background: 'var(--ks-btn-bg)', color: 'var(--ks-btn-text)', borderColor: 'var(--ks-card-border)' }}>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-3.5 h-3.5"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>
+                Open chat
+              </Link>
             </div>
           </GlassCard>
 
-          {/* Real chat – extracted to dedicated TSX */}
-          <TicketChat
-            ticket={ticket}
-            comments={comments}
-            currentUserId={user?.id ?? null}
-            currentUsername={user?.username ?? null}
-            isStaff={canSeeInternal}
-            live={live}
-            onToggleLive={() => setLive((v) => !v)}
-            onRefresh={() => load(false)}
-            onSend={handleSend}
-            onDelete={handleDeleteComment}
-            isClosed={isClosed}
-          />
+          {/* Open chat — individual page (replaces inline chat) */}
+          <GlassCard className={`p-6 ${glassModifier} relative overflow-hidden flex flex-col items-center text-center`}>
+            <CardMediaLayer />
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center border mb-3" style={{ background: 'color-mix(in srgb, var(--ks-accent-info, #0ea5e9) 14%, transparent)', borderColor: 'color-mix(in srgb, var(--ks-accent-info) 22%, transparent)', color: 'var(--ks-accent-info, #0ea5e9)' }}>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-6 h-6"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>
+            </div>
+            <h3 className="text-sm font-semibold" style={{ color: 'var(--ks-text-heading)' }}>Chat for this ticket</h3>
+            <p className="text-xs mt-1 max-w-md leading-relaxed" style={{ color: 'var(--ks-text-body)' }}>
+              Messages are now on a dedicated page. Open chat to view {commentCount || ticket.comment_count} { (commentCount || ticket.comment_count) === 1 ? 'message' : 'messages' }, reply in real time, and keep internal notes separate.
+            </p>
+            <div className="mt-3 flex items-center gap-2 text-xs" style={{ color: 'var(--ks-text-body)' }}>
+              <span className={`w-2 h-2 rounded-full ${isClosed ? 'bg-gray-500' : 'bg-emerald-400 animate-pulse'}`} />
+              <span>{isClosed ? 'Closed • read-only' : 'Live • 2.5s sync'}</span>
+              <span>•</span>
+              <span>{commentCount || ticket.comment_count} messages</span>
+            </div>
+            <Link to={`/tickets/${ticket.id}/chat`} className="mt-4 inline-flex items-center gap-2 text-sm px-5 py-2.5 rounded-full font-medium border transition-colors" style={{ background: 'var(--ks-accent-info, #0ea5e9)', color: '#fff', borderColor: 'transparent' }}>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-4 h-4"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>
+              Open chat
+            </Link>
+            <div className="mt-2 flex flex-wrap justify-center gap-1.5">
+              <span className="text-[11px] px-2 py-1 rounded-full border" style={{ background: 'color-mix(in srgb, var(--ks-card-bg) 60%, transparent)', borderColor: 'var(--ks-card-border)', color: 'var(--ks-text-body)' }}>Bubbles</span>
+              <span className="text-[11px] px-2 py-1 rounded-full border" style={{ background: 'color-mix(in srgb, var(--ks-card-bg) 60%, transparent)', borderColor: 'var(--ks-card-border)', color: 'var(--ks-text-body)' }}>Internal notes</span>
+              <span className="text-[11px] px-2 py-1 rounded-full border" style={{ background: 'color-mix(in srgb, var(--ks-card-bg) 60%, transparent)', borderColor: 'var(--ks-card-border)', color: 'var(--ks-text-body)' }}>Real-time</span>
+            </div>
+          </GlassCard>
         </div>
 
         {/* Right: Triage + Details + Quick actions – fully themed */}
@@ -327,10 +300,10 @@ const TicketDetail: React.FC = () => {
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2 pt-2">
-                <button onClick={() => document.getElementById('chat')?.scrollIntoView({ behavior: 'smooth' })} className="inline-flex items-center justify-center gap-1.5 text-xs px-3 py-2 rounded-lg border" style={{ background: 'var(--ks-accent-info, #0ea5e9)', color: '#fff', borderColor: 'transparent' }}>
+                <Link to={`/tickets/${ticket.id}/chat`} className="inline-flex items-center justify-center gap-1.5 text-xs px-3 py-2 rounded-lg border font-medium" style={{ background: 'var(--ks-accent-info, #0ea5e9)', color: '#fff', borderColor: 'transparent' }}>
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-3.5 h-3.5"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>
                   Open chat
-                </button>
+                </Link>
                 <Link to={`/tickets/${ticket.id}/edit`} className="inline-flex items-center justify-center gap-1.5 text-xs px-3 py-2 rounded-lg border" style={{ borderColor: 'var(--ks-card-border)', color: 'var(--ks-text-body)' }}>Edit ticket</Link>
               </div>
             </div>
@@ -351,7 +324,7 @@ const TicketDetail: React.FC = () => {
                 {ticket.due_at && <div className="flex justify-between gap-2"><dt style={{ color: 'var(--ks-text-body)' }}>Due</dt><dd style={{ color: dueOverdue ? 'var(--ks-accent-danger)' : 'var(--ks-accent-warning)', fontWeight: dueOverdue ? 600 : 400 }}>{formatTicketDateTime(ticket.due_at)}</dd></div>}
                 <div className="flex justify-between gap-2"><dt style={{ color: 'var(--ks-text-body)' }}>Reporter</dt><dd className="font-medium" style={{ color: 'var(--ks-text-heading)' }}>{ticket.creator_name || `#${ticket.created_by}`}{isMine && <span className="ml-1" style={{ color: 'var(--ks-accent-info)' }}>(you)</span>}</dd></div>
                 <div className="flex justify-between gap-2"><dt style={{ color: 'var(--ks-text-body)' }}>Assignee</dt><dd className="font-medium" style={{ color: 'var(--ks-accent-primary, #a78bfa)' }}>{ticket.assignee_name || '— Unassigned'}{isAssignee && <span className="ml-1" style={{ color: 'var(--ks-accent-primary)' }}>(you)</span>}</dd></div>
-                <div className="flex justify-between gap-2"><dt style={{ color: 'var(--ks-text-body)' }}>Messages</dt><dd style={{ color: 'var(--ks-text-heading)' }}>{comments.length} • {ticket.comment_count} total</dd></div>
+                <div className="flex justify-between gap-2"><dt style={{ color: 'var(--ks-text-body)' }}>Messages</dt><dd style={{ color: 'var(--ks-text-heading)' }}>{commentCount} • {ticket.comment_count} total</dd></div>
               </div>
               {tags.length > 0 && (
                 <div className="pt-2 border-t" style={{ borderColor: 'color-mix(in srgb, var(--ks-card-border) 60%, transparent)' }}>
@@ -365,7 +338,7 @@ const TicketDetail: React.FC = () => {
           <div className="glass-card rounded-xl p-4 border relative overflow-hidden" style={{ borderColor: 'var(--ks-card-border)', background: 'color-mix(in srgb, var(--ks-card-bg) 70%, transparent)' }}>
             <CardMediaLayer />
             <h4 className="text-xs font-semibold mb-1.5 flex items-center gap-1.5" style={{ color: 'var(--ks-text-heading)' }}><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} className="w-4 h-4"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>How chat works</h4>
-            <p className="text-xs leading-relaxed" style={{ color: 'var(--ks-text-body)' }}>This is a <span className="font-medium" style={{ color: 'var(--ks-text-heading)' }}>complete real chatting</span> place — messages sync live, bubbles show who said what, internal notes stay staff-only, and the input supports Enter to send. The ticket and chat are one — no popups, no reloads.</p>
+            <p className="text-xs leading-relaxed" style={{ color: 'var(--ks-text-body)' }}>Chat is now a <span className="font-medium" style={{ color: 'var(--ks-text-heading)' }}>dedicated page</span> — open chat to see real live bubbles, staff-only internal notes, and inline reply. The ticket stays clean — chat lives separately.</p>
             <div className="mt-2.5 flex flex-wrap gap-1.5">
               <span className="text-[11px] px-2 py-1 rounded-full font-medium border" style={{ background: 'var(--ks-btn-bg)', color: 'var(--ks-btn-text)', borderColor: 'var(--ks-card-border)' }}>Live 2.5s</span>
               <span className="text-[11px] px-2 py-1 rounded-full border" style={{ background: 'color-mix(in srgb, var(--ks-card-bg) 60%, transparent)', borderColor: 'var(--ks-card-border)', color: 'var(--ks-text-body)' }}>Bubbles</span>
