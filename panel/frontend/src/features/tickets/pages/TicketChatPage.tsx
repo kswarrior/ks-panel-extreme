@@ -162,20 +162,22 @@ const TicketChatPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Individual chat TSX — now the sole place for real chat */}
-      <TicketChat
-        ticket={ticket}
-        comments={comments}
-        currentUserId={user?.id ?? null}
-        currentUsername={user?.username ?? null}
-        isStaff={canSeeInternal}
-        live={live}
-        onToggleLive={() => setLive((v) => !v)}
-        onRefresh={() => load(false)}
-        onSend={handleSend}
-        onDelete={handleDeleteComment}
-        isClosed={isClosed}
-      />
+      {/* Individual chat TSX — fills remaining viewport, input pinned to footer */}
+      <div className="flex-1 min-h-0 flex flex-col w-full">
+        <TicketChat
+          ticket={ticket}
+          comments={comments}
+          currentUserId={user?.id ?? null}
+          currentUsername={user?.username ?? null}
+          isStaff={canSeeInternal}
+          live={live}
+          onToggleLive={() => setLive((v) => !v)}
+          onRefresh={() => load(false)}
+          onSend={handleSend}
+          onDelete={handleDeleteComment}
+          isClosed={isClosed}
+        />
+      </div>
     </div>
   );
 };

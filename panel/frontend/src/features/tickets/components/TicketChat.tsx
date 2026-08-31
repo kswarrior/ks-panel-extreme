@@ -264,9 +264,8 @@ const TicketChat: React.FC<TicketChatProps> = ({
   return (
     <div
       id="chat"
-      className={`glass-card ${glassModifier} rounded-xl overflow-hidden flex flex-col border relative`}
+      className={`glass-card ${glassModifier} rounded-xl overflow-hidden flex flex-col border relative w-full flex-1 min-h-0 h-full`}
       style={{
-        minHeight: 520,
         borderColor: 'var(--ks-card-border)',
         backgroundColor: 'var(--ks-card-bg)',
         // @ts-ignore
@@ -335,11 +334,11 @@ const TicketChat: React.FC<TicketChatProps> = ({
         </button>
       </div>
 
-      {/* Messages viewport */}
+      {/* Messages viewport — fills available height, scrolls, input stays pinned in footer */}
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex-1 min-h-[380px] max-h-[58vh] overflow-y-auto p-3 sm:p-4 space-y-4 scroll-smooth"
+        className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-4 scroll-smooth min-w-0 overscroll-contain"
         style={{
           background: 'color-mix(in srgb, var(--ks-card-bg) 40%, transparent)',
         }}
@@ -552,8 +551,8 @@ const TicketChat: React.FC<TicketChatProps> = ({
         </button>
       )}
 
-      {/* Composer – real chatting place: input full-width, send button below aligned with internal note */}
-      <div className="shrink-0 border-t backdrop-blur-xl p-3" style={composerBg}>
+      {/* Composer – pinned footer, input + send */}
+      <div className="shrink-0 mt-auto border-t backdrop-blur-xl p-3 sticky bottom-0 z-10" style={composerBg}>
         {isClosed ? (
           <div className="text-center py-3 text-sm rounded-xl border" style={{ color: 'var(--ks-text-body)', background: 'color-mix(in srgb, var(--ks-card-bg) 60%, transparent)', borderColor: 'var(--ks-card-border)' }}>
             This ticket is closed — chat is read-only. Reopen to continue chatting.
