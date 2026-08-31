@@ -3,6 +3,7 @@ import { useNavigate, useParams, Link } from 'react-router-dom';
 import { createTicket, getTicket, updateTicket } from '../api/tickets';
 import type { Ticket, TicketCategory, TicketPriority } from '../types/ticket';
 import GlassCard from '@/shared/components/ui/Card';
+import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 
 const CATEGORIES: { value: TicketCategory; label: string }[] = [
   { value: 'general', label: 'General' },
@@ -112,7 +113,21 @@ const TicketForm: React.FC = () => {
   };
 
   if (initialLoading) {
-    return <div className="p-8 text-gray-400">Loading ticket…</div>;
+    return (
+      <div className="max-w-3xl mx-auto space-y-4">
+        <div className="flex items-center gap-2">
+          <div className="h-6 w-24 rounded" style={{ background: 'var(--ks-skeleton-base, rgba(255,255,255,0.08))' }} />
+          <div className="h-4 w-px" style={{ background: 'var(--ks-card-border)' }} />
+          <div className="h-6 w-32 rounded" style={{ background: 'var(--ks-skeleton-shimmer, rgba(255,255,255,0.14))' }} />
+        </div>
+        <FormSkeleton fields={6} />
+        <div className="glass-card rounded-xl p-4 border border-white/5 bg-white/[0.02] animate-pulse space-y-2">
+          <div className="h-3 w-40 rounded" style={{ background: 'var(--ks-skeleton-shimmer, #262626)' }} />
+          <div className="h-2.5 w-full rounded" style={{ background: 'var(--ks-skeleton-base, #262626)' }} />
+          <div className="h-2.5 w-5/6 rounded" style={{ background: 'var(--ks-skeleton-base, #262626)' }} />
+        </div>
+      </div>
+    );
   }
 
   return (

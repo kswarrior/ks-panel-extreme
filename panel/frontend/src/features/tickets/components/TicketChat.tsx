@@ -83,6 +83,8 @@ export interface TicketChatProps {
   onSend: (body: string, isInternal: boolean) => Promise<void>;
   onDelete: (c: TicketComment) => void;
   isClosed?: boolean;
+  // Optional loading flag — when true and no comments yet, shows skeleton bubbles
+  loading?: boolean;
 }
 
 // ------------------------------------------------------------------
@@ -101,6 +103,7 @@ const TicketChat: React.FC<TicketChatProps> = ({
   onSend,
   onDelete,
   isClosed = false,
+  loading = false,
 }) => {
   const glassModifier = useThemeStore((s) => {
     const g = s.active().card.glass_style;
@@ -322,7 +325,41 @@ const TicketChat: React.FC<TicketChatProps> = ({
           background: 'color-mix(in srgb, var(--ks-card-bg) 40%, transparent)',
         }}
       >
-        {filteredComments.length === 0 ? (
+        {loading ? (
+          <div className="space-y-4 animate-pulse">
+            <div className="flex justify-center">
+              <div className="h-5 w-24 rounded-full" style={{ background: 'var(--ks-skeleton-base, rgba(255,255,255,0.08))' }} />
+            </div>
+            <div className="flex gap-2.5">
+              <div className="w-7 h-7 rounded-full shrink-0 mt-1" style={{ background: 'var(--ks-skeleton-shimmer, rgba(255,255,255,0.14))' }} />
+              <div className="flex-1 max-w-[78%] space-y-2">
+                <div className="h-2.5 w-24 rounded" style={{ background: 'var(--ks-skeleton-base, rgba(255,255,255,0.08))' }} />
+                <div className="rounded-2xl rounded-tl-sm border p-3 space-y-2" style={{ background: 'color-mix(in srgb, var(--ks-card-bg) 88%, transparent)', borderColor: 'var(--ks-card-border)' }}>
+                  <div className="h-3 w-3/4 rounded" style={{ background: 'var(--ks-skeleton-shimmer, rgba(255,255,255,0.14))' }} />
+                  <div className="h-3 w-1/2 rounded" style={{ background: 'var(--ks-skeleton-base, rgba(255,255,255,0.08))' }} />
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2.5 justify-end">
+              <div className="flex-1 max-w-[78%] flex flex-col items-end gap-1.5">
+                <div className="rounded-2xl rounded-br-sm border p-3 space-y-2" style={{ background: 'var(--ks-btn-bg, #fff)', borderColor: 'var(--ks-card-border)' }}>
+                  <div className="h-3 w-52 rounded" style={{ background: 'var(--ks-skeleton-shimmer, rgba(255,255,255,0.14))', opacity: 0.6 }} />
+                  <div className="h-3 w-40 rounded" style={{ background: 'var(--ks-skeleton-base, rgba(255,255,255,0.08))', opacity: 0.6 }} />
+                </div>
+              </div>
+              <div className="w-7 h-7 rounded-full shrink-0 mt-1" style={{ background: 'var(--ks-skeleton-shimmer, rgba(255,255,255,0.14))' }} />
+            </div>
+            <div className="flex gap-2.5">
+              <div className="w-7 h-7 rounded-full shrink-0 mt-1" style={{ background: 'var(--ks-skeleton-shimmer, rgba(255,255,255,0.14))' }} />
+              <div className="rounded-2xl rounded-tl-sm border p-3" style={{ background: 'color-mix(in srgb, var(--ks-card-bg) 88%, transparent)', borderColor: 'var(--ks-card-border)' }}>
+                <div className="h-3 w-48 rounded" style={{ background: 'var(--ks-skeleton-shimmer, rgba(255,255,255,0.14))' }} />
+              </div>
+            </div>
+            <div className="flex justify-center">
+              <div className="h-5 w-20 rounded-full" style={{ background: 'var(--ks-skeleton-base, rgba(255,255,255,0.08))' }} />
+            </div>
+          </div>
+        ) : filteredComments.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center py-16 text-center">
             <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-3 border" style={{ background: 'color-mix(in srgb, var(--ks-card-bg) 70%, transparent)', borderColor: 'var(--ks-card-border)', color: 'var(--ks-text-body)' }}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} className="w-7 h-7"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>
