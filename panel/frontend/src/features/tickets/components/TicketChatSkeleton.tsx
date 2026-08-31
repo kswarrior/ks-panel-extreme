@@ -40,8 +40,8 @@ const TicketChatSkeleton: React.FC = () => {
         </div>
       </div>
 
-      {/* Messages skeleton — bubbles */}
-      <div className="flex-1 min-h-[380px] max-h-[58vh] overflow-hidden p-3 sm:p-4 space-y-4">
+      {/* Messages skeleton — fills viewport, composer pinned */}
+      <div className="flex-1 min-h-0 overflow-hidden p-3 sm:p-4 space-y-4">
         {/* date pill */}
         <div className="flex justify-center">
           <div className="h-5 w-24 rounded-full" style={base} />
@@ -102,8 +102,8 @@ const TicketChatSkeleton: React.FC = () => {
         </div>
       </div>
 
-      {/* Composer skeleton — input full width, button below aligned with internal note */}
-      <div className="shrink-0 border-t p-3 space-y-2" style={{ background: 'color-mix(in srgb, var(--ks-card-bg) 92%, transparent)', borderColor: 'var(--ks-card-border)' }}>
+      {/* Composer skeleton — pinned footer */}
+      <div className="shrink-0 mt-auto border-t p-3 space-y-2" style={{ background: 'color-mix(in srgb, var(--ks-card-bg) 92%, transparent)', borderColor: 'var(--ks-card-border)' }}>
         <div className="h-[42px] w-full rounded-lg" style={base} />
         <div className="flex items-center justify-between gap-2">
           <div className="h-6 w-44 rounded-full" style={base} />
