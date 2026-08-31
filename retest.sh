@@ -120,10 +120,7 @@ log_ok "Test folder ready:"
 ls -lh "$TEST_DIR"
 
 cd "$TEST_DIR"
-# Keep TEST_DIR/kspanel.db as a symlink to the persistent storage DB for
-# backward-compat tools that look for ./kspanel.db in the test dir
-ln -sf "$STORAGE_DB" "$TEST_DIR/kspanel.db" 2>/dev/null || true
-ln -sf "$STORAGE_DB" "./kspanel.db" 2>/dev/null || true
+# DB lives directly at $TEST_DIR/kspanel.db (ephemeral, no symlinks needed)
 
 # ============================================================================
 # Seed, configure, launch
@@ -132,8 +129,6 @@ ln -sf "$STORAGE_DB" "./kspanel.db" 2>/dev/null || true
 export KSPANEL_SESSION_SECRET="$(openssl rand -base64 32)"
 
 ./kspanel seed
-# Re-sync the typo path after seed may have created the canonical DB
-ln -sf "$STORAGE_DB" "$STOREGE_DB" 2>/dev/null || cp -f "$STORAGE_DB" "$STOREGE_DB" 2>/dev/null || true
 ./kspanel create:user --username kshosting --email kshosting@ksmail.com --password kshosting@55 --role 1 || true
 ./kspanel import:template minecraft || true
 ./kspanel setup:localnode --port 4040 || true
