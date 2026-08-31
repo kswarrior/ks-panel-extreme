@@ -43,6 +43,21 @@ func ListUsersHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer con.Close()
 
+	// Ownership scope: Own → only self, All/umbrella → all users.
+	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
+		checker := permissions.NewChecker(con)
+		hasOwn, hasAll, _ := checker.HasScope(uid, permissions.UsersOwnKey, permissions.UsersAllKey, permissions.ManageUsersKey)
+		if !hasAll && hasOwn {
+			u, err := repository.NewUserRepository(con).GetByID(uid)
+			if err != nil {
+				http.Error(w, "server error", http.StatusInternalServerError)
+				return
+			}
+			writeJSON(w, []models.User{*u})
+			return
+		}
+	}
+
 	repo := repository.NewUserRepository(con)
 	users, err := repo.ListUsers()
 	if err != nil {
@@ -77,6 +92,16 @@ func CreateUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer con.Close()
+
+	// Ownership scope for user creation: Own → cannot create other users.
+	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
+		checker := permissions.NewChecker(con)
+		hasOwn, hasAll, _ := checker.HasScope(uid, permissions.UsersOwnKey, permissions.UsersAllKey, permissions.ManageUsersKey)
+		if !hasAll && hasOwn {
+			http.Error(w, "forbidden: own-scope cannot create other users", http.StatusForbidden)
+			return
+		}
+	}
 
 	hash, err := auth.HashPassword(req.Password)
 	if err != nil {
@@ -128,6 +153,16 @@ func UpdateUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer con.Close()
+
+	// Ownership scope: Own → may only edit self.
+	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
+		checker := permissions.NewChecker(con)
+		hasOwn, hasAll, _ := checker.HasScope(uid, permissions.UsersOwnKey, permissions.UsersAllKey, permissions.ManageUsersKey)
+		if !hasAll && hasOwn && id != uid {
+			http.Error(w, "forbidden: own-scope may only edit own user", http.StatusForbidden)
+			return
+		}
+	}
 
 	// If password is being updated, validate it with the policy and
 	// against the target user's password history (Authentication tab).
@@ -208,6 +243,12 @@ func DeleteUserHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer con.Close()
 
+	// Ownership scope for user deletion/suspension: Own → may only affect self (but self-delete is already blocked by DeleteUser logic).
+	if hasOwn, hasAll, _ := permissions.NewChecker(con).HasScope(callerID, permissions.UsersOwnKey, permissions.UsersAllKey, permissions.ManageUsersKey); !hasAll && hasOwn && id != callerID {
+		http.Error(w, "forbidden: own-scope may only delete own user", http.StatusForbidden)
+		return
+	}
+
 	repo := repository.NewUserRepository(con)
 	// Resolve the target identity up-front so the audit row carries a useful
 	// label even after the user row itself is gone.
@@ -263,6 +304,11 @@ func SuspendUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer con.Close()
+	// Ownership scope for suspend: Own → may only suspend self (but self-suspend already blocked, so effectively Own cannot suspend anyone).
+	if hasOwn, hasAll, _ := permissions.NewChecker(con).HasScope(callerID, permissions.UsersOwnKey, permissions.UsersAllKey, permissions.ManageUsersKey); !hasAll && hasOwn {
+		http.Error(w, "forbidden: own-scope cannot suspend other users", http.StatusForbidden)
+		return
+	}
 	caller, err := repository.NewUserRepository(con).GetByID(callerID)
 	callerName := "unknown"
 	if err == nil && caller != nil {
