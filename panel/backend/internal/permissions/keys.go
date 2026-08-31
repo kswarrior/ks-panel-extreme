@@ -193,6 +193,66 @@ ApplicationsDeleteKey = "APPLICATIONS_DELETE"
 	AccountEditAccentKey      = "ACCOUNT_EDIT_ACCENT"      // change the profile accent colour (also used by banner fallback)
 	AccountUseAvatarSymbolKey = "ACCOUNT_USE_AVATAR_SYMBOL" // pick a default avatar symbol when no uploaded picture
 	AccountUploadAvatarKey    = "ACCOUNT_UPLOAD_AVATAR"    // upload / replace / remove the avatar image
+
+	// ----------------------------------------------------------------------
+	// Ownership-scope keys — Own vs All per area.
+	//
+	// Each regulatable area gains two scope keys:
+	//   <AREA>_OWN – the holder may act only on resources they own (or on
+	//     themselves, for Users/Users-like areas).
+	//   <AREA>_ALL – the holder may act on ANY resource in the area.
+	//
+	// The route layer still gates on the umbrella OR the granular action key
+	// (KeysForAction). The scope keys are evaluated INSIDE the handler to
+	// decide whether to filter to owned rows or to allow cross-user mutation.
+	// A role that holds the area umbrella or an action key plus the Own scope
+	// is restricted to self-owned rows; a role that holds the same plus the
+	// All scope (or the umbrella, which conceptually implies All) may touch
+	// any row.  When neither scope is granted the handler falls back to the
+	// legacy behaviour (treat as All) so existing seeded roles keep working.
+	// ----------------------------------------------------------------------
+
+	UsersOwnKey = "USERS_OWN"
+	UsersAllKey = "USERS_ALL"
+
+	RolesOwnKey = "ROLES_OWN"
+	RolesAllKey = "ROLES_ALL"
+
+	NodesOwnKey = "NODES_OWN"
+	NodesAllKey = "NODES_ALL"
+
+	TemplatesOwnKey = "TEMPLATES_OWN"
+	TemplatesAllKey = "TEMPLATES_ALL"
+
+	InstancesOwnKey = "INSTANCES_OWN"
+	InstancesAllKey = "INSTANCES_ALL"
+
+	ApiKeysOwnKey = "API_KEYS_OWN"
+	ApiKeysAllKey = "API_KEYS_ALL"
+
+	ModsOwnKey = "MODS_OWN"
+	ModsAllKey = "MODS_ALL"
+
+	ApplicationsOwnKey = "APPLICATIONS_OWN"
+	ApplicationsAllKey = "APPLICATIONS_ALL"
+
+	InstancePagesOwnKey = "INSTANCE_PAGES_OWN"
+	InstancePagesAllKey = "INSTANCE_PAGES_ALL"
+
+	TicketsOwnKey = "TICKETS_OWN"
+	TicketsAllKey = "TICKETS_ALL"
+
+	NotificationsOwnKey = "NOTIFICATIONS_OWN"
+	NotificationsAllKey = "NOTIFICATIONS_ALL"
+
+	SettingsOwnKey = "SETTINGS_OWN"
+	SettingsAllKey = "SETTINGS_ALL"
+
+	ThemesOwnKey = "THEMES_OWN"
+	ThemesAllKey = "THEMES_ALL"
+
+	AccountOwnKey = "ACCOUNT_OWN"
+	AccountAllKey = "ACCOUNT_ALL"
 )
 
 // Action enumerates the granular CRUD verbs every regulatable area exposes.
@@ -227,6 +287,11 @@ type Group struct {
 	// Action enum. Used by the Themes cluster for its USE_*/ASSIGN_THEMES
 	// verbs. Rendered as additional sub-rows after the CRUD sub-rows.
 	ExtraKeys []string
+	// OwnKey / AllKey are the ownership-scope keys for the area:
+	//   OwnKey – may act only on resources they own (or on themselves)
+	//   AllKey – may act on ANY resource in the area
+	OwnKey string
+	AllKey string
 }
 
 // AreaGroups is the single source of truth for the regulatable CRUD areas
