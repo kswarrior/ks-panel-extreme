@@ -370,6 +370,47 @@ var AreaGroups = []Group{
 // Permissions block can iterate a single list. Ordered for stable rendering.
 func AllGroups() []Group { return AreaGroups }
 
+// GroupByLabel returns the Group with the given label, or nil if not found.
+func GroupByLabel(label string) *Group {
+	for i := range AreaGroups {
+		if AreaGroups[i].Label == label {
+			return &AreaGroups[i]
+		}
+	}
+	return nil
+}
+
+// ScopeKeys returns the ownership-scope keys for the area: Own and All.
+// Empty strings are omitted.
+func (g Group) ScopeKeys() []string {
+	var out []string
+	if g.OwnKey != "" {
+		out = append(out, g.OwnKey)
+	}
+	if g.AllKey != "" {
+		out = append(out, g.AllKey)
+	}
+	return out
+}
+
+// AllKeys returns every key that belongs to the group: umbrella + CRUD +
+// extras + scope (Own/All). Used by the Roles form parent checkbox to decide
+// whether the whole group is on/off.
+func (g Group) AllKeys() []string {
+	var out []string
+	if g.Umbrella != "" {
+		out = append(out, g.Umbrella)
+	}
+	for _, k := range g.Keys {
+		if k != "" {
+			out = append(out, k)
+		}
+	}
+	out = append(out, g.ExtraKeys...)
+	out = append(out, g.ScopeKeys()...)
+	return out
+}
+
 // UmbrellaForAction returns the set of permission keys that grant the given
 // action on the supplied area group: the umbrella (if present) plus the
 // granular action key (if the area exposes one). Used by route gating so a
