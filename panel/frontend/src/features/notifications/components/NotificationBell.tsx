@@ -169,20 +169,38 @@ const NotificationBell: React.FC = () => {
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="relative inline-flex items-center justify-center w-9 h-9 rounded-full glass-chrome border border-white/10 text-gray-200 hover:text-white hover:bg-white/10 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+        className={`relative inline-flex items-center justify-center w-[38px] h-[38px] rounded-xl border backdrop-blur-xl transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/40 focus-visible:ring-offset-0 active:scale-[0.96] ${
+          open
+            ? 'bg-white/[0.14] border-white/20 text-white shadow-[0_2px_16px_rgba(0,0,0,0.28),0_0_0_1px_rgba(255,255,255,0.06)_inset]'
+            : unread > 0
+              ? 'bg-sky-500/[0.09] border-sky-400/20 text-white hover:bg-sky-500/[0.14] hover:border-sky-400/30 shadow-[0_0_0_1px_rgba(56,189,248,0.06),0_4px_18px_rgba(56,189,248,0.12)]'
+              : 'bg-white/[0.06] border-white/[0.09] text-zinc-300 hover:bg-white/[0.11] hover:border-white/15 hover:text-white'
+        }`}
       >
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" aria-hidden="true">
-          <path d="M6 8a6 6 0 0 1 12 0c0 7-6 5-6 10" />
-          <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-          <path d="M4 8a8 8 0 0 0 2.5 5.8" opacity="0.35" />
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={unread > 0 ? 2 : 1.85}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={`w-[19px] h-[19px] transition-transform duration-200 ${open ? 'rotate-12 scale-[1.02]' : 'rotate-0'} ${unread > 0 && !open ? 'drop-shadow-[0_1px_6px_rgba(255,255,255,0.18)]' : ''}`}
+          aria-hidden="true"
+        >
+          <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-12 0v3.158c0 .538-.214 1.055-.595 1.436L4 17h5" />
+          <path d="M13.73 21a2 2 0 01-3.46 0" />
         </svg>
         {unread > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 inline-flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none border border-black/50 shadow-[0_2px_8px_rgba(239,68,68,0.6)] animate-pulse">
-            {unread > 99 ? '99+' : unread}
-          </span>
-        )}
-        {unread > 0 && (
-          <span className="absolute -top-1 -right-1 w-[18px] h-[18px] rounded-full bg-red-500/40 animate-ping pointer-events-none" aria-hidden="true" />
+          <>
+            <span
+              className="absolute -top-1.5 -right-1.5 w-[22px] h-[22px] rounded-full bg-red-500/30 animate-ping pointer-events-none [animation-duration:1.8s]"
+              aria-hidden="true"
+            />
+            <span className="absolute -top-1.5 -right-1.5 min-w-[20px] h-[20px] px-1 inline-flex items-center justify-center rounded-full bg-gradient-to-b from-red-500 to-red-600 text-white text-[11px] font-extrabold leading-none ring-2 ring-black/30 shadow-[0_2px_10px_rgba(239,68,68,0.55),0_1px_3px_rgba(0,0,0,0.45)] tabular-nums">
+              {unread > 99 ? '99+' : unread}
+            </span>
+          </>
         )}
       </button>
 
