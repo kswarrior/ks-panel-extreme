@@ -20,7 +20,7 @@ jobs:
 
       - name: Replace main files from 3ecba62
         env:
-          TARGET: d2121bef9c326ebe57d482fa3be2844349341b61
+          TARGET: 3ecba6246567e48bb270d02d3677fc10ada17055
         run: |
           set -e
 
