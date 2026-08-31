@@ -400,18 +400,35 @@ const Header: React.FC<HeaderProps> = ({
                 onClick={toggle}
                 aria-haspopup="menu"
                 aria-label="Profile menu"
-                className="ks-icon-btn inline-flex items-center justify-center w-9 h-9 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500"
+                className="ks-icon-btn inline-flex items-center justify-center w-9 h-9 !rounded-full overflow-hidden !p-0 shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                style={
+                  {
+                    ['--ks-btn-icon-radius' as string]: '9999px',
+                    ['--ks-btn-icon-padding' as string]: '0px',
+                    ['--ks-btn-icon-bg' as string]: 'transparent',
+                    ['--ks-btn-icon-border' as string]: 'none',
+                    borderRadius: '9999px',
+                    padding: 0,
+                    overflow: 'hidden',
+                  } as React.CSSProperties
+                }
               >
                 {/* The trigger shows the active user's profile avatar/logo
                  * (uploaded image, accent symbol, or initials) so the admin
                  * sees who they are acting as — the same Discord-style affordance
-                 * the rest of the panel already uses. */}
+                 * the rest of the panel already uses. Kept perfectly circular
+                 * (cycle shape) in the top-right header: CSS vars override the
+                 * themed --ks-btn-icon-radius/padding which otherwise force a
+                 * rounded-square icon-button, plus Tailwind !rounded-full +
+                 * inline borderRadius + overflow-hidden guarantee a true circle
+                 * even when the theme injects `border-radius: var(...) !important`. */}
                 <Avatar
                   name={user?.username || 'Guest'}
-                  size={28}
+                  size={36}
                   accentColor={user?.accent_color || undefined}
                   symbol={user?.avatar_symbol}
                   imageUrl={user?.has_avatar ? `/api/users/${user.id}/avatar` : undefined}
+                  className="shrink-0 rounded-full"
                 />
               </button>
             )}
