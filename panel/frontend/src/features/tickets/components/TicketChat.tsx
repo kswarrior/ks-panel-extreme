@@ -408,7 +408,6 @@ const TicketChat: React.FC<TicketChatProps> = ({
                 </div>
                 {group.items.map((c) => {
                   const isOwn = currentUserId != null && c.author_id === currentUserId;
-                  const isInternal = !!c.is_internal;
                   const initial = (c.author_name || `U${c.author_id}`).charAt(0).toUpperCase();
                   const canDelete = currentUserId === c.author_id || !!isStaff;
 
