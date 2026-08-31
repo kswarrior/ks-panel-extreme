@@ -271,7 +271,7 @@ const NotificationBell: React.FC = () => {
               {recent.length === 0 ? (
                 <div className="py-10 px-6 text-center">
                   <div className="w-12 h-12 mx-auto rounded-full bg-white/[0.06] border border-white/10 grid place-items-center mb-3">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-6 h-6 text-gray-500"><path d="M6 8a6 6 0 0 1 12 0c0 7-6 5-6 10" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6 text-gray-500"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-12 0v3.158c0 .538-.214 1.055-.595 1.436L4 17h5" /><path d="M13.73 21a2 2 0 01-3.46 0" /></svg>
                   </div>
                   <p className="text-sm text-gray-300 font-medium">All caught up</p>
                   <p className="text-xs text-gray-500 mt-1">New alerts will appear here instantly.</p>
