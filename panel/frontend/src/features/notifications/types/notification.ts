@@ -39,6 +39,8 @@ export interface NotificationStats {
   unread: number;
   by_category: Record<string, number>;
   by_priority: Record<string, number>;
+  broadcast?: number;
+  read?: number;
 }
 
 export interface CreateNotificationPayload {
