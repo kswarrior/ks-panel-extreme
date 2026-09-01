@@ -252,10 +252,10 @@ func NewRouter() http.Handler {
 		r.Put("/api/me/api-keys/{id}", handlers.UpdateApiKeyHandler)
 		r.Delete("/api/me/api-keys/{id}", handlers.DeleteApiKeyHandler)
 
-		// Self-service Instances: every authenticated user (VIEW_INSTANCES)
-		// sees only the instances they own. Admins may additionally manage
-		// the whole fleet under /api/instances.
-		r.With(requirePermission("VIEW_INSTANCES")).Get("/api/me/instances", handlers.ListMyInstancesHandler)
+		// Self-service Instances — now strictly permission-gated (permission is King).
+		// Requires any instance view permission (MANAGE_INSTANCES umbrella or
+		// INSTANCES_VIEW / OWN / ALL). No longer visible to any authenticated user.
+		r.With(requireUmbrellaOrAction(instancesG, permissions.ActionView)).Get("/api/me/instances", handlers.ListMyInstancesHandler)
 
 		// Admin: users management. MANAGE_USERS (umbrella) implies every
 		// action on this area, so each route accepts the umbrella OR the
@@ -480,8 +480,8 @@ func NewRouter() http.Handler {
 			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionCreate)).Post("/", handlers.CreateInstancePageHandler)
 			// Static literals before param routes so "/execute-action", "/marketplace",
 			// "/local", "/import" etc. are not captured as {id}.
-			r.With(requirePermission("VIEW_INSTANCES")).Post("/execute-action", handlers.ExecuteCustomPageActionHandler)
-			r.With(requirePermission("VIEW_INSTANCES")).Post("/execute-module-action", handlers.ExecuteModulePageActionHandler)
+			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionView)).Post("/execute-action", handlers.ExecuteCustomPageActionHandler)
+			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionView)).Post("/execute-module-action", handlers.ExecuteModulePageActionHandler)
 			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionCreate)).Post("/import", handlers.ImportInstancePageHandler)
 			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionCreate)).Post("/import/url", handlers.ImportInstancePageFromURLHandler)
 			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionView)).Get("/marketplace", handlers.GetMarketplacePagesHandler)
@@ -561,7 +561,7 @@ func NewRouter() http.Handler {
 			// Bulk cached live-state resources for the InstanceCard. Static
 			// literal before param so "/cached-resources" is not captured as
 			// {id}="cached-resources".
-			r.With(requirePermission("VIEW_INSTANCES")).Get("/cached-resources", handlers.ListCachedResourcesHandler)
+			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionView)).Get("/cached-resources", handlers.ListCachedResourcesHandler)
 			// Per-id read: consumed by custom HTML pages through the SDK
 			// fetchPanel bridge to poll this instance's live status +
 			// install-workflow state. Same data the list endpoint returns.
@@ -583,14 +583,14 @@ func NewRouter() http.Handler {
 		// read access can run a user-invokable action; the per-action
 		// `user_invokable: false` filter lives in the template spec and the
 		// panel's actions inventory, not at the route gate).
-		r.With(requirePermission("VIEW_INSTANCES")).Post("/api/instances/{id}/actions/{actionId}/invoke", handlers.InvokeActionHandler)
+		r.With(requireUmbrellaOrAction(instancesG, permissions.ActionView)).Post("/api/instances/{id}/actions/{actionId}/invoke", handlers.InvokeActionHandler)
 		// Stop an in-flight action workflow. Same VIEW_INSTANCES gate as
 		// invoke: an operator who can run an action can also cancel it. The
 		// handler additionally checks install_action_id so Stop only ever
 		// targets the action currently reported as running by the banner —
 		// a stale "Stop" click on an action that already finished can't
 		// cancel a different action by mistake.
-		r.With(requirePermission("VIEW_INSTANCES")).Post("/api/instances/{id}/actions/{actionId}/stop", handlers.StopActionHandler)
+		r.With(requireUmbrellaOrAction(instancesG, permissions.ActionView)).Post("/api/instances/{id}/actions/{actionId}/stop", handlers.StopActionHandler)
 
 		// Instance-scoped terminal bridge. The browser opens a WebSocket
 		// against this endpoint; the panel authenticates the user via its
@@ -598,48 +598,48 @@ func NewRouter() http.Handler {
 		// ksedge /api/edge/exec. VIEW_INSTANCES gates the route because
 		// the page it backs (the "Terminal" tab in /instances/:id) is
 		// already exposed under that permission.
-		r.With(requirePermission("VIEW_INSTANCES")).Get("/api/instances/{id}/terminal", handlers.TerminalHandler)
+		r.With(requireUmbrellaOrAction(instancesG, permissions.ActionView)).Get("/api/instances/{id}/terminal", handlers.TerminalHandler)
 
 		// Instance-scoped File Manager. The browser dials these JSON/stream
 		// routes; the panel authenticates the session cookie, looks up the
 		// owning edge, and proxies the request to ksedge /api/edge/files.
 		// Same VIEW_INSTANCES gate as the terminal bridge so any user that
 		// can see an instance can also browse its files.
-		r.With(requirePermission("VIEW_INSTANCES")).Get("/api/instances/{id}/files", handlers.InstanceFilesHandler)
-		r.With(requirePermission("VIEW_INSTANCES")).Post("/api/instances/{id}/files", handlers.InstanceFilesHandler)
-		r.With(requirePermission("VIEW_INSTANCES")).Delete("/api/instances/{id}/files", handlers.InstanceFilesHandler)
-		r.With(requirePermission("VIEW_INSTANCES")).Get("/api/instances/{id}/files/read", handlers.InstanceFileReadHandler)
+		r.With(requireUmbrellaOrAction(instancesG, permissions.ActionView)).Get("/api/instances/{id}/files", handlers.InstanceFilesHandler)
+		r.With(requireUmbrellaOrAction(instancesG, permissions.ActionView)).Post("/api/instances/{id}/files", handlers.InstanceFilesHandler)
+		r.With(requireUmbrellaOrAction(instancesG, permissions.ActionView)).Delete("/api/instances/{id}/files", handlers.InstanceFilesHandler)
+		r.With(requireUmbrellaOrAction(instancesG, permissions.ActionView)).Get("/api/instances/{id}/files/read", handlers.InstanceFileReadHandler)
 		// Upload-from-URL. The panel fetches the remote URL through the same
 		// SSRF-hardened path the Mod Engine's install-from-URL uses, then
 		// proxies the bytes to the edge as op=upload. VIEW_INSTANCES gate
 		// mirrors the rest of the files surface.
-		r.With(requirePermission("VIEW_INSTANCES")).Post("/api/instances/{id}/files/url", handlers.InstanceFileURLUploadHandler)
+		r.With(requireUmbrellaOrAction(instancesG, permissions.ActionView)).Post("/api/instances/{id}/files/url", handlers.InstanceFileURLUploadHandler)
 
 		// ----- Per-instance advanced pages -----
 		// Secrets / env vault. VIEW_INSTANCES gates everything; reveal/delete
 		// are audited both in the per-instance timeline and globally.
 		r.Route("/api/instances/{id}/secrets", func(r chi.Router) {
-			r.With(requirePermission("VIEW_INSTANCES")).Get("/", handlers.ListSecretsHandler)
-			r.With(requirePermission("VIEW_INSTANCES")).Post("/", handlers.SetSecretHandler)
-			r.With(requirePermission("VIEW_INSTANCES")).Get("/{key}", handlers.RevealSecretHandler)
-			r.With(requirePermission("VIEW_INSTANCES")).Delete("/{key}", handlers.DeleteSecretHandler)
+			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionView)).Get("/", handlers.ListSecretsHandler)
+			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionView)).Post("/", handlers.SetSecretHandler)
+			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionView)).Get("/{key}", handlers.RevealSecretHandler)
+			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionView)).Delete("/{key}", handlers.DeleteSecretHandler)
 		})
 
 		// Automation jobs + runs. Trigger is the manual "Run now" hit.
 		r.Route("/api/instances/{id}/automation", func(r chi.Router) {
-			r.With(requirePermission("VIEW_INSTANCES")).Get("/", handlers.ListAutomationHandler)
-			r.With(requirePermission("VIEW_INSTANCES")).Post("/", handlers.CreateAutomationHandler)
-			r.With(requirePermission("VIEW_INSTANCES")).Get("/runs", handlers.ListAutomationRunsHandler)
-			r.With(requirePermission("VIEW_INSTANCES")).Put("/{job_id}", handlers.UpdateAutomationHandler)
-			r.With(requirePermission("VIEW_INSTANCES")).Delete("/{job_id}", handlers.DeleteAutomationHandler)
-			r.With(requirePermission("VIEW_INSTANCES")).Post("/{job_id}/run", handlers.TriggerRunHandler)
+			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionView)).Get("/", handlers.ListAutomationHandler)
+			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionView)).Post("/", handlers.CreateAutomationHandler)
+			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionView)).Get("/runs", handlers.ListAutomationRunsHandler)
+			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionView)).Put("/{job_id}", handlers.UpdateAutomationHandler)
+			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionView)).Delete("/{job_id}", handlers.DeleteAutomationHandler)
+			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionView)).Post("/{job_id}/run", handlers.TriggerRunHandler)
 		})
 
 		// Live Processes / Metrics / Ports (sourced from edge inspect, cached).
-		r.With(requirePermission("VIEW_INSTANCES")).Get("/api/instances/{id}/processes", handlers.ListProcessesHandler)
-		r.With(requirePermission("VIEW_INSTANCES")).Post("/api/instances/{id}/processes/kill", handlers.KillProcessHandler)
-		r.With(requirePermission("VIEW_INSTANCES")).Get("/api/instances/{id}/metrics", handlers.MetricsHandler)
-		r.With(requirePermission("VIEW_INSTANCES")).Get("/api/instances/{id}/ports", handlers.ListPortsHandler)
+		r.With(requireUmbrellaOrAction(instancesG, permissions.ActionView)).Get("/api/instances/{id}/processes", handlers.ListProcessesHandler)
+		r.With(requireUmbrellaOrAction(instancesG, permissions.ActionView)).Post("/api/instances/{id}/processes/kill", handlers.KillProcessHandler)
+		r.With(requireUmbrellaOrAction(instancesG, permissions.ActionView)).Get("/api/instances/{id}/metrics", handlers.MetricsHandler)
+		r.With(requireUmbrellaOrAction(instancesG, permissions.ActionView)).Get("/api/instances/{id}/ports", handlers.ListPortsHandler)
 
 		// Bulk cached live-state resources (now inside r.Route("/api/instances") as
 		// GET "/cached-resources" so the static literal is resolved before
@@ -647,14 +647,14 @@ func NewRouter() http.Handler {
 
 		// Snapshots (driver-managed backups the edge creates/restores/deletes).
 		r.Route("/api/instances/{id}/snapshots", func(r chi.Router) {
-			r.With(requirePermission("VIEW_INSTANCES")).Get("/", handlers.ListSnapshotsHandler)
-			r.With(requirePermission("VIEW_INSTANCES")).Post("/", handlers.CreateSnapshotHandler)
-			r.With(requirePermission("VIEW_INSTANCES")).Post("/{snap_name}/restore", handlers.RestoreSnapshotHandler)
-			r.With(requirePermission("VIEW_INSTANCES")).Delete("/{snap_name}", handlers.DeleteSnapshotHandler)
+			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionView)).Get("/", handlers.ListSnapshotsHandler)
+			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionView)).Post("/", handlers.CreateSnapshotHandler)
+			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionView)).Post("/{snap_name}/restore", handlers.RestoreSnapshotHandler)
+			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionView)).Delete("/{snap_name}", handlers.DeleteSnapshotHandler)
 		})
 
 		// Per-instance audit timeline.
-		r.With(requirePermission("VIEW_INSTANCES")).Get("/api/instances/{id}/audit", handlers.ListInstanceAuditHandler)
+		r.With(requireUmbrellaOrAction(instancesG, permissions.ActionView)).Get("/api/instances/{id}/audit", handlers.ListInstanceAuditHandler)
 
 		// System snapshot (ACCESS_ADMIN_PANEL). One round-trip carries
 		// every tile the System page renders so the page can paint in a
