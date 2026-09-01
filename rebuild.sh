@@ -7,9 +7,9 @@
 # information from, while preserving all runtime functionality.
 #
 # Usage:
-#   ./build.sh                 # Production build (hardened)
-#   ./build.sh dev             # Development build (debuggable)
-#   ./build.sh --help          # Show help
+#   ./rebuild.sh                 # Production build (hardened)
+#   ./rebuild.sh dev             # Development build (debuggable)
+#   ./rebuild.sh --help          # Show help
 #
 # Environment Variables (production):
 #   VERSION            Semantic version (e.g., 1.2.3)
@@ -36,7 +36,9 @@
 #   Checksums: SHA-256 for all release artifacts
 #   Signing: Optional cryptographic signing via cosign
 
-set -euo pipefail
+set -Eeuo pipefail
+umask 022
+export LC_ALL=C
 
 # ============================================================================
 # Configuration
@@ -53,12 +55,21 @@ KSPANEL_OLD_BIN="$KSPANEL_RELEASE_BIN.old"
 KSEDGE_RELEASE_BIN="$RELEASE_DIR/ksedge"
 KSEDGE_OLD_BIN="$KSEDGE_RELEASE_BIN.old"
 
+LOCK_DIR="$ROOT_DIR/.build.lock"
+
 # Build mode: "production" (default) or "development"
 BUILD_MODE="${1:-production}"
 
 # Target architecture (can be overridden via env)
+# Defer go env lookup to dependency check; fall back to uname if go missing
 TARGET_GOOS="${GOOS:-linux}"
-TARGET_GOARCH="${GOARCH:-$(go env GOARCH)}"
+if [[ -n "${GOARCH:-}" ]]; then
+    TARGET_GOARCH="$GOARCH"
+elif command -v go >/dev/null 2>&1; then
+    TARGET_GOARCH="$(go env GOARCH 2>/dev/null || echo amd64)"
+else
+    TARGET_GOARCH="$(uname -m 2>/dev/null | sed -e 's/x86_64/amd64/' -e 's/aarch64/arm64/' -e 's/armv.*l/arm/' || echo amd64)"
+fi
 
 # Obfuscation
 GARBLE_ENABLE="${GARBLE_ENABLE:-0}"
@@ -67,35 +78,60 @@ GARBLE_ENABLE="${GARBLE_ENABLE:-0}"
 SIGN_KEY="${SIGN_KEY:-}"
 SIGN_CMD="${SIGN_CMD:-cosign sign-blob}"
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# Colors for output (disabled when not a TTY)
+if [[ -t 1 ]] && command -v tput >/dev/null 2>&1 && [[ "$(tput colors 2>/dev/null || echo 0)" -ge 8 ]]; then
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[1;33m'
+    BLUE='\033[0;34m'
+    NC='\033[0m'
+else
+    RED=''
+    GREEN=''
+    YELLOW=''
+    BLUE=''
+    NC=''
+fi
 
 # ============================================================================
 # Helper Functions
 # ============================================================================
 
-log_info() { echo -e "${BLUE}[INFO]${NC} $*"; }
-log_ok() { echo -e "${GREEN}[OK]${NC} $*"; }
-log_warn() { echo -e "${YELLOW}[WARN]${NC} $*"; }
-log_err() { echo -e "${RED}[ERR]${NC} $*" >&2; }
-log_step() { echo -e "${BLUE}==>${NC} $*"; }
+log_info() { printf "${BLUE}[INFO]${NC} %s\n" "$*"; }
+log_ok() { printf "${GREEN}[OK]${NC} %s\n" "$*"; }
+log_warn() { printf "${YELLOW}[WARN]${NC} %s\n" "$*"; }
+log_err() { printf "${RED}[ERR]${NC} %s\n" "$*" >&2; }
+log_step() { printf "${BLUE}==>${NC} %s\n" "$*"; }
 
 die() { log_err "$*"; exit 1; }
+
+require_cmd() {
+    local cmd="$1"
+    local hint="${2:-}"
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        if [[ -n "$hint" ]]; then
+            die "required command '$cmd' not found — $hint"
+        else
+            die "required command '$cmd' not found"
+        fi
+    fi
+}
 
 # file_type: print file(1)'s output when the utility is installed; on
 # minimal hosts without file(1), fall back to reading the 4-byte ELF magic
 # (7f 45 4c 46) directly so build verification doesn't false-fail.
 file_type() {
+    local target="$1"
+    if [[ ! -e "$target" ]]; then
+        echo "$target: not found"
+        return 1
+    fi
     if command -v file >/dev/null 2>&1; then
-        file "$1"
-    elif [ "$(head -c 4 "$1" 2>/dev/null | od -An -tx1 | tr -d ' \n')" = "7f454c46" ]; then
-        echo "$1: ELF"
+        file -- "$target" 2>/dev/null || echo "$target: unknown format"
+    elif [[ "$(head -c 4 -- "$target" 2>/dev/null | od -An -tx1 2>/dev/null | tr -d ' \n')" = "7f454c46" ]]; then
+        echo "$target: ELF"
     else
-        echo "$1: unknown format"
+        echo "$target: unknown format"
         return 1
     fi
 }
@@ -104,12 +140,14 @@ file_type() {
 # its detailed output, e.g. "with debug_info").
 has_file_cmd() { command -v file >/dev/null 2>&1; }
 
+has_cmd() { command -v "$1" >/dev/null 2>&1; }
+
 show_help() {
     cat <<'EOF'
 KS Panel & KSEdge — Hardened Production Build Script
 
 Usage:
-  ./build.sh [mode] [options]
+  ./rebuild.sh [mode] [options]
 
 Modes:
   production    Hardened release build (default)
@@ -126,11 +164,11 @@ Environment Variables:
   SIGN_CMD           Custom signing command (default: cosign sign-blob)
 
 Examples:
-  ./build.sh                          # Production build
-  ./build.sh dev                      # Development build
-  VERSION=1.2.3 ./build.sh            # Production build with version
-  GARBLE_ENABLE=1 ./build.sh          # Production build with obfuscation
-  SIGN_KEY=/path/key ./build.sh       # Production build with signing
+  ./rebuild.sh                          # Production build
+  ./rebuild.sh dev                      # Development build
+  VERSION=1.2.3 ./rebuild.sh            # Production build with version
+  GARBLE_ENABLE=1 ./rebuild.sh          # Production build with obfuscation
+  SIGN_KEY=/path/key ./rebuild.sh       # Production build with signing
 
 Output (production):
   release/
@@ -148,6 +186,87 @@ EOF
 }
 
 # ============================================================================
+# Dependency Checks
+# ============================================================================
+
+check_dependencies() {
+    log_step "Checking build dependencies..."
+    require_cmd go "install Go 1.22+ from https://go.dev/dl/"
+    require_cmd node "install Node.js 20+ from https://nodejs.org/"
+    require_cmd npm "install Node.js 20+ (includes npm)"
+    # sha256sum or shasum fallback
+    if ! has_cmd sha256sum && ! has_cmd shasum; then
+        die "sha256sum or shasum is required"
+    fi
+    # Optional but warn early
+    if [[ "$GARBLE_ENABLE" == "1" ]] && ! has_cmd garble; then
+        log_warn "GARBLE_ENABLE=1 but garble not found — will skip obfuscation (install: go install mvdan.cc/garble@latest)"
+    fi
+    if [[ -n "$SIGN_KEY" ]] && ! has_cmd cosign; then
+        # cosign may be invoked via SIGN_CMD which could be a wrapper; check first word
+        local sign_bin
+        sign_bin="$(printf '%s' "$SIGN_CMD" | awk '{print $1}')"
+        if ! has_cmd "$sign_bin"; then
+            log_warn "SIGN_KEY set but signing tool '$sign_bin' not found — will skip signing"
+        fi
+    fi
+    # Informational checks
+    if ! has_cmd strings; then
+        log_warn "strings (binutils) not found — source-leakage and secret scans will be limited"
+    fi
+    if ! has_cmd readelf && ! has_cmd llvm-readelf; then
+        log_warn "readelf not found — symbol-table verification will be limited"
+    fi
+    if ! has_cmd strip && [[ "${STRIP_BINARY:-true}" == "true" ]] && [[ "$TARGET_GOOS" == "linux" ]]; then
+        log_warn "strip not found — binary stripping will be skipped"
+    fi
+    log_ok "Dependency check passed (go $(go version 2>/dev/null | awk '{print $3}'), node $(node --version 2>/dev/null), npm $(npm --version 2>/dev/null))"
+}
+
+# ============================================================================
+# Lock & Cleanup (concurrency safety)
+# ============================================================================
+
+acquire_lock() {
+    if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+        local holder=""
+        if [[ -f "$LOCK_DIR/pid" ]]; then
+            holder="$(cat "$LOCK_DIR/pid" 2>/dev/null || true)"
+        fi
+        die "another build is running (lock $LOCK_DIR exists${holder:+ pid $holder}) — remove it if stale: rm -rf \"$LOCK_DIR\""
+    fi
+    echo "$$" > "$LOCK_DIR/pid" 2>/dev/null || true
+    log_info "Acquired build lock $LOCK_DIR"
+}
+
+release_lock() {
+    rm -rf "$LOCK_DIR" 2>/dev/null || true
+}
+
+cleanup_on_exit() {
+    local rc=$?
+    # Remove stale temp files but preserve release artifacts on success
+    rm -rf "$ROOT_DIR/.build-tmp" 2>/dev/null || true
+    # Remove stray partials
+    rm -f "$RELEASE_DIR"/*.tmp "$RELEASE_DIR"/*.part 2>/dev/null || true
+    # If we failed, try to restore .old backups if new binary missing
+    if [[ $rc -ne 0 ]]; then
+        if [[ -f "$KSPANEL_OLD_BIN" && ! -f "$KSPANEL_RELEASE_BIN" ]]; then
+            mv -f "$KSPANEL_OLD_BIN" "$KSPANEL_RELEASE_BIN" 2>/dev/null || true
+            log_warn "Restored previous kspanel from backup due to failure"
+        fi
+        if [[ -f "$KSEDGE_OLD_BIN" && ! -f "$KSEDGE_RELEASE_BIN" ]]; then
+            mv -f "$KSEDGE_OLD_BIN" "$KSEDGE_RELEASE_BIN" 2>/dev/null || true
+            log_warn "Restored previous ksedge from backup due to failure"
+        fi
+    else
+        rm -f "$KSPANEL_OLD_BIN" "$KSEDGE_OLD_BIN" 2>/dev/null || true
+    fi
+    release_lock
+    return $rc
+}
+
+# ============================================================================
 # Build Mode Configuration
 # ============================================================================
 
@@ -162,7 +281,11 @@ configure_build_mode() {
             VITE_MODE="production"
             NPM_CMD="ci"
             ENABLE_OBFUSCATION="${GARBLE_ENABLE}"
-            ENABLE_SIGNING="${SIGN_KEY:+1}"
+            if [[ -n "$SIGN_KEY" ]]; then
+                ENABLE_SIGNING="1"
+            else
+                ENABLE_SIGNING="0"
+            fi
             ENABLE_SECRET_SCAN=true
             ENABLE_SOURCE_LEAK_CHECK=true
             ENABLE_REPRODUCIBLE=true
@@ -192,10 +315,21 @@ configure_build_mode() {
             ;;
     esac
 
+    # Validate target
+    if [[ -z "$TARGET_GOOS" || -z "$TARGET_GOARCH" ]]; then
+        die "GOOS/GOARCH must not be empty (GOOS=$TARGET_GOOS GOARCH=$TARGET_GOARCH)"
+    fi
+
     # Export for subcommands
     export CGO_ENABLED=0
     export GOOS="$TARGET_GOOS"
     export GOARCH="$TARGET_GOARCH"
+
+    # Reproducible builds: ensure SOURCE_DATE_EPOCH is numeric if set
+    if [[ -n "${SOURCE_DATE_EPOCH:-}" ]] && ! [[ "$SOURCE_DATE_EPOCH" =~ ^[0-9]+$ ]]; then
+        log_warn "SOURCE_DATE_EPOCH is not numeric ($SOURCE_DATE_EPOCH) — ignoring"
+        unset SOURCE_DATE_EPOCH
+    fi
 }
 
 # ============================================================================
@@ -216,7 +350,8 @@ resolve_version_info() {
     if [[ -n "${COMMIT:-}" ]]; then
         KSPANEL_COMMIT="$COMMIT"
     else
-        KSPANEL_COMMIT="$(git -C "$PANEL_BACKEND_DIR" rev-parse --short HEAD 2>/dev/null || echo "unknown")"
+        # Prefer repo root; fallback to backend dir for git worktree cases
+        KSPANEL_COMMIT="$(git -C "$ROOT_DIR" rev-parse --short HEAD 2>/dev/null || git -C "$PANEL_BACKEND_DIR" rev-parse --short HEAD 2>/dev/null || echo "unknown")"
     fi
 
     # Build date: from env, or current UTC
@@ -228,7 +363,11 @@ resolve_version_info() {
 
     # For reproducible builds, allow SOURCE_DATE_EPOCH override
     if [[ -n "${SOURCE_DATE_EPOCH:-}" && "$ENABLE_REPRODUCIBLE" == "true" ]]; then
-        KSPANEL_BUILD_DATE="$(date -u -d @"$SOURCE_DATE_EPOCH" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -r "$SOURCE_DATE_EPOCH" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "$KSPANEL_BUILD_DATE")"
+        local epoch_date=""
+        epoch_date="$(date -u -d "@$SOURCE_DATE_EPOCH" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -r "$SOURCE_DATE_EPOCH" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || true)"
+        if [[ -n "$epoch_date" ]]; then
+            KSPANEL_BUILD_DATE="$epoch_date"
+        fi
     fi
 
     log_info "Version:  $KSPANEL_VERSION"
@@ -242,21 +381,19 @@ resolve_version_info() {
 # ============================================================================
 
 build_ldflags() {
-    local base_ldflags="$GO_LDFLAGS_BASE"
-    local version_ldflags=""
+    local version_ldflags
+    version_ldflags="-X github.com/example/kspanel/internal/version.Version=${KSPANEL_VERSION} -X github.com/example/kspanel/internal/version.Commit=${KSPANEL_COMMIT} -X github.com/example/kspanel/internal/version.BuildDate=${KSPANEL_BUILD_DATE}"
 
-    # Version stamping (intentional, required for update system)
-    version_ldflags="-X github.com/example/kspanel/internal/version.Version=${KSPANEL_VERSION} \
-        -X github.com/example/kspanel/internal/version.Commit=${KSPANEL_COMMIT} \
-        -X github.com/example/kspanel/internal/version.BuildDate=${KSPANEL_BUILD_DATE}"
+    if [[ -n "$GO_LDFLAGS_BASE" ]]; then
+        KSPANEL_LDFLAGS="${GO_LDFLAGS_BASE} ${version_ldflags}"
+    else
+        KSPANEL_LDFLAGS="${version_ldflags}"
+    fi
+    KSEDGE_LDFLAGS="${GO_LDFLAGS_BASE}"
 
-    # Combine
-    KSPANEL_LDFLAGS="${base_ldflags} ${version_ldflags}"
-    KSEDGE_LDFLAGS="${base_ldflags}"
-
-    # Trim leading/trailing whitespace
-    KSPANEL_LDFLAGS="$(echo "$KSPANEL_LDFLAGS" | xargs)"
-    KSEDGE_LDFLAGS="$(echo "$KSEDGE_LDFLAGS" | xargs)"
+    # Trim leading/trailing whitespace without spawning xargs
+    KSPANEL_LDFLAGS="$(printf '%s' "$KSPANEL_LDFLAGS" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    KSEDGE_LDFLAGS="$(printf '%s' "$KSEDGE_LDFLAGS" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
 
     log_info "kspanel ldflags: $KSPANEL_LDFLAGS"
     log_info "ksedge ldflags:  $KSEDGE_LDFLAGS"
@@ -268,12 +405,13 @@ build_ldflags() {
 
 clean_build_artifacts() {
     log_step "Cleaning previous build artifacts..."
-    rm -rf "$PANEL_FRONTEND_DIR/dist"
-    rm -rf "$PANEL_BACKEND_DIR/internal/ui/dist"
-    rm -rf "$KSPANEL_RELEASE_BIN" "$KSPANEL_OLD_BIN"
-    rm -rf "$KSEDGE_RELEASE_BIN" "$KSEDGE_OLD_BIN"
-    rm -rf "$ROOT_DIR/.build-tmp"
-    mkdir -p "$RELEASE_DIR"
+    rm -rf -- "${PANEL_FRONTEND_DIR:?}/dist"
+    rm -rf -- "${PANEL_BACKEND_DIR:?}/internal/ui/dist"
+    rm -f -- "${KSPANEL_RELEASE_BIN:?}" "${KSPANEL_OLD_BIN:?}"
+    rm -f -- "${KSEDGE_RELEASE_BIN:?}" "${KSEDGE_OLD_BIN:?}"
+    rm -rf -- "${ROOT_DIR:?}/.build-tmp"
+    mkdir -p -- "$RELEASE_DIR"
+    chmod 755 -- "$RELEASE_DIR" 2>/dev/null || true
 }
 
 # ============================================================================
@@ -283,23 +421,30 @@ clean_build_artifacts() {
 build_frontend() {
     log_step "Building kspanel frontend (Vite $VITE_MODE)..."
 
+    require_cmd node
+    require_cmd npm
+
     # Ensure node_modules exists
     if [[ ! -d "$PANEL_FRONTEND_DIR/node_modules" ]] || [[ ! -f "$PANEL_FRONTEND_DIR/node_modules/vite/bin/vite.js" ]]; then
         log_info "Installing npm dependencies..."
-        (cd "$PANEL_FRONTEND_DIR" && npm "$NPM_CMD")
+        (cd "$PANEL_FRONTEND_DIR" && npm "$NPM_CMD" --prefer-offline --no-audit --no-fund)
     fi
 
     # Fix esbuild permissions (required in some sandboxed environments)
     find "$PANEL_FRONTEND_DIR/node_modules" -path '*/@esbuild/linux-x64/bin/esbuild' -exec chmod +x {} + 2>/dev/null || true
     local ESBUILD_SHIM="$PANEL_FRONTEND_DIR/node_modules/esbuild/bin/esbuild"
-    [[ -f "$ESBUILD_SHIM" ]] && chmod +x "$ESBUILD_SHIM" 2>/dev/null || true
+    if [[ -f "$ESBUILD_SHIM" ]]; then
+        chmod +x "$ESBUILD_SHIM" 2>/dev/null || true
+    fi
 
     # Ensure .bin shims exist
     mkdir -p "$PANEL_FRONTEND_DIR/node_modules/.bin"
-    [[ -f "$PANEL_FRONTEND_DIR/node_modules/vite/bin/vite.js" ]] && \
+    if [[ -f "$PANEL_FRONTEND_DIR/node_modules/vite/bin/vite.js" ]]; then
         ln -sf ../vite/bin/vite.js "$PANEL_FRONTEND_DIR/node_modules/.bin/vite" 2>/dev/null || true
-    [[ -f "$ESBUILD_SHIM" ]] && \
+    fi
+    if [[ -f "$ESBUILD_SHIM" ]]; then
         ln -sf ../esbuild/bin/esbuild "$PANEL_FRONTEND_DIR/node_modules/.bin/esbuild" 2>/dev/null || true
+    fi
 
     # Build with Vite (production mode: no sourcemaps, minified)
     # Retry guard: this workspace has an external process that
@@ -309,19 +454,44 @@ build_frontend() {
     # and rebuild once more if it vanished mid-flight.
     local vite_args=()
     if [[ "$VITE_MODE" == "production" ]]; then
-        vite_args=(--mode production --sourcemap=false)
+        vite_args=(--mode production)
+        # Vite 5 supports --sourcemap flag; fallback to env for older configs
+        # We explicitly disable sourcemaps via CLI + ensure vite.config respects it.
     else
-        vite_args=(--mode development --sourcemap=true)
+        vite_args=(--mode development)
     fi
     local attempt
+    local vite_ok=false
     for attempt in 1 2 3; do
-        (cd "$PANEL_FRONTEND_DIR" && node ./node_modules/vite/bin/vite.js build "${vite_args[@]}")
+        log_info "Vite build attempt $attempt/3..."
+        # Temporarily disable set -e around vite so we can capture exit code and retry
+        set +e
+        if [[ "$VITE_MODE" == "production" ]]; then
+            (cd "$PANEL_FRONTEND_DIR" && node ./node_modules/vite/bin/vite.js build "${vite_args[@]}" --sourcemap=false)
+        else
+            (cd "$PANEL_FRONTEND_DIR" && node ./node_modules/vite/bin/vite.js build "${vite_args[@]}" --sourcemap=true)
+        fi
+        local vite_rc=$?
+        set -e
+        if [[ $vite_rc -ne 0 ]]; then
+            log_warn "vite build failed (exit $vite_rc) on attempt $attempt"
+            if [[ $attempt -eq 3 ]]; then
+                die "frontend build failed after 3 attempts"
+            fi
+            sleep 2
+            continue
+        fi
         if [[ -f "$PANEL_BACKEND_DIR/internal/ui/dist/index.html" ]]; then
+            vite_ok=true
             break
         fi
         log_warn "frontend dist missing after vite attempt $attempt — retrying"
         sleep 2
     done
+
+    if [[ "$vite_ok" != "true" ]] || [[ ! -f "$PANEL_BACKEND_DIR/internal/ui/dist/index.html" ]]; then
+        die "frontend build failed: $PANEL_BACKEND_DIR/internal/ui/dist/index.html not found after 3 attempts"
+    fi
 
     log_ok "Frontend built and embedded into $PANEL_BACKEND_DIR/internal/ui/dist"
 }
@@ -340,36 +510,64 @@ build_go_binary() {
 
     log_step "Building $name binary..."
 
-    # Remove stale directory if exists
+    if [[ ! -d "$cmd_dir" ]]; then
+        log_err "$name: cmd dir not found: $cmd_dir"
+        return 1
+    fi
+
+    # Remove stale directory if exists (defensive: output_bin should be a file)
     if [[ -d "$output_bin" ]]; then
         log_warn "Removing stale directory at $output_bin..."
-        rm -rf "$output_bin"
+        rm -rf -- "$output_bin"
     fi
 
     # Backup existing binary
     if [[ -f "$output_bin" ]]; then
-        mv "$output_bin" "$old_bin"
+        mv -f -- "$output_bin" "$old_bin"
     fi
 
-    # Build command
-    local go_cmd=(go build -buildvcs=false -trimpath)
-    [[ -n "$build_tags" ]] && go_cmd+=(-tags "$build_tags")
-    [[ -n "$GO_GCFLAGS" ]] && go_cmd+=(-gcflags "$GO_GCFLAGS")
-    go_cmd+=(-ldflags "$ldflags")
-    go_cmd+=(-o "$output_bin" .)
+    # Decide builder: garble vs go (garble only for production + enabled)
+    local use_garble=false
+    if [[ "$ENABLE_OBFUSCATION" == "1" ]] && has_cmd garble; then
+        use_garble=true
+        log_info "Using garble for $name (obfuscation enabled)"
+    fi
 
-    log_info "Running: ${go_cmd[*]}"
+    local rc=0
+    if [[ "$use_garble" == "true" ]]; then
+        # garble build supports same flags as go build (including -trimpath, -ldflags)
+        local garble_cmd=(garble -literals -tiny -debug build -buildvcs=false -trimpath)
+        [[ -n "$build_tags" ]] && garble_cmd+=(-tags "$build_tags")
+        [[ -n "$GO_GCFLAGS" ]] && garble_cmd+=(-gcflags "$GO_GCFLAGS")
+        garble_cmd+=(-ldflags "$ldflags")
+        garble_cmd+=(-o "$output_bin" .)
+        log_info "Running: ${garble_cmd[*]} (in $cmd_dir)"
+        if ! (cd "$cmd_dir" && "${garble_cmd[@]}"); then
+            rc=1
+        fi
+    else
+        local go_cmd=(go build -buildvcs=false -trimpath)
+        [[ -n "$build_tags" ]] && go_cmd+=(-tags "$build_tags")
+        [[ -n "$GO_GCFLAGS" ]] && go_cmd+=(-gcflags "$GO_GCFLAGS")
+        go_cmd+=(-ldflags "$ldflags")
+        go_cmd+=(-o "$output_bin" .)
+        log_info "Running: ${go_cmd[*]} (in $cmd_dir)"
+        if ! (cd "$cmd_dir" && "${go_cmd[@]}"); then
+            rc=1
+        fi
+    fi
 
-    if ! (cd "$cmd_dir" && "${go_cmd[@]}"); then
+    if [[ $rc -ne 0 ]]; then
         log_err "$name build failed"
         if [[ -f "$old_bin" ]]; then
-            mv "$old_bin" "$output_bin"
+            mv -f -- "$old_bin" "$output_bin" 2>/dev/null || true
             log_info "Restored previous binary from $old_bin"
         fi
         return 1
     fi
 
-    rm -f "$old_bin"
+    rm -f -- "$old_bin"
+    chmod 755 -- "$output_bin" 2>/dev/null || true
     log_ok "$name built at $output_bin"
     return 0
 }
@@ -387,21 +585,37 @@ strip_binary() {
         return 0
     fi
 
+    # Only strip ELF/Linux targets
+    if [[ "$TARGET_GOOS" != "linux" ]]; then
+        log_info "Skipping strip for $name (non-linux target $TARGET_GOOS)"
+        return 0
+    fi
+
     log_step "Stripping $name binary..."
 
-    if ! command -v strip >/dev/null 2>&1; then
+    if ! has_cmd strip; then
         log_warn "strip command not found, skipping"
         return 0
     fi
 
+    if [[ ! -f "$bin" ]]; then
+        log_err "strip: binary not found: $bin"
+        return 1
+    fi
+
+    # Verify ELF before stripping
+    if ! file_type "$bin" | grep -q "ELF"; then
+        log_warn "strip: $name is not ELF, skipping strip"
+        return 0
+    fi
+
     # Strip only non-essential symbols, preserve Go runtime symbols
-    # -s: strip all symbols (but we'll use more targeted approach)
     # --strip-unneeded: remove all symbols not needed for relocation processing
-    if strip --strip-unneeded "$bin" 2>/dev/null; then
+    if strip --strip-unneeded -- "$bin" 2>/dev/null; then
         log_ok "$name stripped successfully"
     else
         log_warn "strip --strip-unneeded failed, trying basic strip..."
-        if strip "$bin" 2>/dev/null; then
+        if strip -- "$bin" 2>/dev/null; then
             log_ok "$name stripped (basic)"
         else
             log_warn "strip failed, leaving binary unstripped"
@@ -412,12 +626,9 @@ strip_binary() {
     # Verify binary still executes
     if ! "$bin" --version >/dev/null 2>&1 && ! "$bin" -version >/dev/null 2>&1 && ! "$bin" version >/dev/null 2>&1; then
         # Try a more generic check - just verify it's a valid ELF.
-        # Prefer file(1); fall back to reading the 4-byte ELF magic
-        # (7f 45 4c 46) directly when file(1) isn't installed, so a
-        # minimal host doesn't false-positive "corrupted after strip".
-        if command -v file >/dev/null 2>&1 && file "$bin" | grep -q "ELF"; then
+        if has_cmd file && file -- "$bin" 2>/dev/null | grep -q "ELF"; then
             log_ok "$name verified as valid ELF binary after strip"
-        elif [ "$(head -c 4 "$bin" 2>/dev/null | od -An -tx1 | tr -d ' \n')" = "7f454c46" ]; then
+        elif [[ "$(head -c 4 -- "$bin" 2>/dev/null | od -An -tx1 2>/dev/null | tr -d ' \n')" = "7f454c46" ]]; then
             log_ok "$name verified as valid ELF binary after strip (magic bytes)"
         else
             log_err "$name appears corrupted after strip!"
@@ -431,7 +642,7 @@ strip_binary() {
 }
 
 # ============================================================================
-# Obfuscation (Garble)
+# Obfuscation (Garble) — now integrated into build_go_binary; kept for compat
 # ============================================================================
 
 apply_obfuscation() {
@@ -442,21 +653,14 @@ apply_obfuscation() {
         return 0
     fi
 
-    log_step "Applying Go obfuscation to $name..."
-
-    if ! command -v garble >/dev/null 2>&1; then
-        log_warn "garble not installed, skipping obfuscation"
+    if ! has_cmd garble; then
+        log_warn "garble not installed, skipping post-build obfuscation"
         log_warn "Install with: go install mvdan.cc/garble@latest"
         return 0
     fi
 
-    # Garble requires rebuilding with garble build
-    # This is a post-build obfuscation step - we need to rebuild with garble
-    # For now, we note this as a build-time option
-    log_warn "Post-build garble obfuscation not directly supported."
-    log_warn "For obfuscation, rebuild with: garble -trimpath -ldflags=\"$KSPANEL_LDFLAGS\" build -o $bin ."
-    log_warn "See BUILD_SECURITY.md for garble integration details."
-
+    # Obfuscation already applied at build time via garble build
+    log_info "Obfuscation already applied at compile time for $name (garble)"
     return 0
 }
 
@@ -474,7 +678,19 @@ check_source_leakage() {
 
     log_step "Checking $name for source path leakage..."
 
+    if ! has_cmd strings; then
+        log_warn "strings not found — skipping leakage check for $name"
+        return 0
+    fi
+
+    if [[ ! -f "$bin" ]]; then
+        log_warn "$name: binary not found for leakage check"
+        return 0
+    fi
+
     local leaks=0
+    local strings_output
+    strings_output="$(strings -- "$bin" 2>/dev/null || true)"
 
     # Check for absolute paths (common patterns)
     local patterns=(
@@ -494,16 +710,16 @@ check_source_leakage() {
     )
 
     for pattern in "${patterns[@]}"; do
-        if strings "$bin" 2>/dev/null | grep -q "$pattern"; then
+        if printf '%s' "$strings_output" | grep -q -F -- "$pattern"; then
             log_warn "$name: Potential path leakage found: $pattern"
-            ((leaks++))
+            leaks=$((leaks+1))
         fi
     done
 
     # Check for build-specific paths
-    if strings "$bin" 2>/dev/null | grep -q "$ROOT_DIR"; then
+    if printf '%s' "$strings_output" | grep -q -F -- "$ROOT_DIR"; then
         log_warn "$name: Build root directory found in binary: $ROOT_DIR"
-        ((leaks++))
+        leaks=$((leaks+1))
     fi
 
     if [[ $leaks -eq 0 ]]; then
@@ -529,6 +745,16 @@ scan_secrets() {
 
     log_step "Scanning $name for embedded secrets..."
 
+    if ! has_cmd strings; then
+        log_warn "strings not found — skipping secret scan for $name"
+        return 0
+    fi
+
+    if [[ ! -f "$bin" ]]; then
+        log_warn "$name: binary not found for secret scan"
+        return 0
+    fi
+
     local patterns=(
         # API keys
         "sk-[a-zA-Z0-9]{32,}"
@@ -539,21 +765,21 @@ scan_secrets() {
         "-----BEGIN (RSA|DSA|EC|OPENSSH|PGP) PRIVATE KEY-----"
         # JWT
         "eyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}"
-        # Generic secrets
-        "password\s*[:=]\s*[^\s]{8,}"
-        "secret\s*[:=]\s*[^\s]{16,}"
-        "token\s*[:=]\s*[^\s]{16,}"
-        "api[_-]?key\s*[:=]\s*[^\s]{16,}"
+        # Generic secrets (POSIX-compatible: [[:space:]] instead of \s)
+        "password[[:space:]]*[:=][[:space:]]*[^[:space:]]{8,}"
+        "secret[[:space:]]*[:=][[:space:]]*[^[:space:]]{16,}"
+        "token[[:space:]]*[:=][[:space:]]*[^[:space:]]{16,}"
+        "api[_-]?key[[:space:]]*[:=][[:space:]]*[^[:space:]]{16,}"
     )
 
     local found=0
     local strings_output
-    strings_output=$(strings "$bin" 2>/dev/null || true)
+    strings_output="$(strings -- "$bin" 2>/dev/null || true)"
 
     for pattern in "${patterns[@]}"; do
-        if echo "$strings_output" | grep -E -q -e "$pattern"; then
+        if printf '%s' "$strings_output" | grep -E -q -e "$pattern"; then
             log_warn "$name: Potential secret pattern matched: $pattern"
-            ((found++))
+            found=$((found+1))
         fi
     done
 
@@ -596,22 +822,36 @@ verify_binary() {
 
     # Architecture
     local arch_info
-    arch_info=$(file_type "$bin")
+    arch_info="$(file_type "$bin")"
     log_info "$name: $arch_info"
 
     # Check for debug info (production should not have it)
     if [[ "$BUILD_MODE" == "production" ]] && has_file_cmd; then
-        if file "$bin" | grep -q "with debug_info"; then
+        local file_out
+        file_out="$(file -- "$bin" 2>/dev/null || true)"
+        if printf '%s' "$file_out" | grep -q "with debug_info"; then
             log_warn "$name: Binary contains debug info (unexpected for production)"
+        elif printf '%s' "$file_out" | grep -q "not stripped"; then
+            log_warn "$name: Binary not stripped (unexpected for production)"
         else
             log_ok "$name: No debug info (as expected)"
         fi
 
         # Check for symbol table
-        if readelf -S "$bin" 2>/dev/null | grep -q "\.symtab"; then
-            log_warn "$name: Binary contains symbol table (.symtab)"
+        local readelf_bin=""
+        if has_cmd readelf; then
+            readelf_bin="readelf"
+        elif has_cmd llvm-readelf; then
+            readelf_bin="llvm-readelf"
+        fi
+        if [[ -n "$readelf_bin" ]]; then
+            if "$readelf_bin" -S -- "$bin" 2>/dev/null | grep -q "\.symtab"; then
+                log_warn "$name: Binary contains symbol table (.symtab)"
+            else
+                log_ok "$name: No symbol table (as expected)"
+            fi
         else
-            log_ok "$name: No symbol table (as expected)"
+            log_info "readelf not found — skipping symtab check for $name"
         fi
     fi
 
@@ -632,24 +872,40 @@ verify_binary() {
 # Checksum Generation
 # ============================================================================
 
+sha256_cmd() {
+    if has_cmd sha256sum; then
+        echo "sha256sum"
+    elif has_cmd shasum; then
+        echo "shasum -a 256"
+    else
+        die "no SHA-256 tool found (need sha256sum or shasum)"
+    fi
+}
+
 generate_checksums() {
     log_step "Generating SHA-256 checksums..."
 
-    cd "$RELEASE_DIR"
+    local sum_bin
+    sum_bin="$(sha256_cmd)"
 
-    local checksums_file="checksums.txt"
-    > "$checksums_file"
+    # Use subshell to avoid polluting cwd
+    (
+        cd -- "$RELEASE_DIR" || die "cannot cd to $RELEASE_DIR"
+        local checksums_file="checksums.txt"
+        : > "$checksums_file"
 
-    for bin in kspanel ksedge; do
-        if [[ -f "$bin" ]]; then
-            sha256sum "$bin" > "${bin}.sha256"
-            sha256sum "$bin" >> "$checksums_file"
-            log_ok "Generated ${bin}.sha256"
-        fi
-    done
+        for bin in kspanel ksedge; do
+            if [[ -f "$bin" ]]; then
+                # shellcheck disable=SC2086
+                $sum_bin -- "$bin" > "${bin}.sha256"
+                $sum_bin -- "$bin" >> "$checksums_file"
+                log_ok "Generated ${bin}.sha256"
+            fi
+        done
 
-    log_ok "Checksums written to $checksums_file"
-    cat "$checksums_file"
+        log_ok "Checksums written to $checksums_file"
+        cat -- "$checksums_file"
+    )
 }
 
 # ============================================================================
@@ -664,8 +920,11 @@ sign_artifacts() {
 
     log_step "Signing release artifacts..."
 
-    if ! command -v cosign >/dev/null 2>&1; then
-        log_warn "cosign not installed, skipping signing"
+    local sign_bin
+    sign_bin="$(printf '%s' "$SIGN_CMD" | awk '{print $1}')"
+
+    if ! has_cmd "$sign_bin"; then
+        log_warn "signing tool '$sign_bin' not installed, skipping signing"
         log_warn "Install with: go install github.com/sigstore/cosign/v2/cmd/cosign@latest"
         return 0
     fi
@@ -675,18 +934,20 @@ sign_artifacts() {
         return 0
     fi
 
-    cd "$RELEASE_DIR"
-
-    for bin in kspanel ksedge checksums.txt; do
-        if [[ -f "$bin" ]]; then
-            log_info "Signing $bin..."
-            if COSIGN_PRIVATE_KEY="$SIGN_KEY" cosign sign-blob --yes "$bin" --output-signature "${bin}.sig" 2>/dev/null; then
-                log_ok "Signed $bin -> ${bin}.sig"
-            else
-                log_warn "Failed to sign $bin"
+    (
+        cd -- "$RELEASE_DIR" || die "cannot cd to $RELEASE_DIR"
+        for bin in kspanel ksedge checksums.txt; do
+            if [[ -f "$bin" ]]; then
+                log_info "Signing $bin..."
+                # Do not hide stderr — surface cosign errors
+                if COSIGN_PRIVATE_KEY="$SIGN_KEY" $SIGN_CMD --yes "$bin" --output-signature "${bin}.sig"; then
+                    log_ok "Signed $bin -> ${bin}.sig"
+                else
+                    log_warn "Failed to sign $bin"
+                fi
             fi
-        fi
-    done
+        done
+    )
 }
 
 # ============================================================================
@@ -724,8 +985,12 @@ security_verification() {
     if [[ "$BUILD_MODE" == "production" ]] && has_file_cmd; then
         for bin in kspanel ksedge; do
             local path="$RELEASE_DIR/$bin"
-            if file "$path" | grep -q "with debug_info"; then
+            local out
+            out="$(file -- "$path" 2>/dev/null || true)"
+            if printf '%s' "$out" | grep -q "with debug_info"; then
                 log_warn "Debug info present: $path"
+            elif printf '%s' "$out" | grep -q "not stripped"; then
+                log_warn "Binary not stripped: $path"
             else
                 log_ok "No debug info: $path"
             fi
@@ -744,7 +1009,7 @@ security_verification() {
 
     # Frontend source maps check
     if [[ "$BUILD_MODE" == "production" ]]; then
-        if find "$PANEL_BACKEND_DIR/internal/ui/dist" -name "*.map" 2>/dev/null | grep -q .; then
+        if find "$PANEL_BACKEND_DIR/internal/ui/dist" -name "*.map" -print -quit 2>/dev/null | grep -q .; then
             log_warn "Source maps found in embedded frontend (production should not have them)"
             all_ok=false
         else
@@ -755,12 +1020,20 @@ security_verification() {
     # Permissions check
     for bin in kspanel ksedge; do
         local path="$RELEASE_DIR/$bin"
+        if [[ ! -e "$path" ]]; then
+            continue
+        fi
         local perms
-        perms=$(stat -c "%a" "$path" 2>/dev/null || stat -f "%A" "$path" 2>/dev/null)
+        perms="$(stat -c "%a" -- "$path" 2>/dev/null || stat -f "%Lp" -- "$path" 2>/dev/null || stat -f "%A" -- "$path" 2>/dev/null || echo "unknown")"
         if [[ "$perms" == "755" ]]; then
             log_ok "Correct permissions (755): $path"
         else
             log_warn "Permissions are $perms (expected 755): $path"
+            # Auto-fix in production
+            if [[ "$BUILD_MODE" == "production" ]]; then
+                chmod 755 -- "$path" 2>/dev/null || true
+                log_info "Fixed permissions for $path to 755"
+            fi
         fi
     done
 
@@ -775,13 +1048,18 @@ security_verification() {
     done
 
     # Verify checksums
-    cd "$RELEASE_DIR"
-    if sha256sum -c checksums.txt 2>/dev/null; then
-        log_ok "All checksums verified"
-    else
-        log_err "Checksum verification failed"
-        all_ok=false
-    fi
+    (
+        cd -- "$RELEASE_DIR" || die "cannot cd to $RELEASE_DIR"
+        local sum_bin
+        sum_bin="$(sha256_cmd)"
+        # shellcheck disable=SC2086
+        if $sum_bin -c checksums.txt; then
+            log_ok "All checksums verified"
+        else
+            log_err "Checksum verification failed"
+            exit 1
+        fi
+    ) || all_ok=false
 
     if [[ "$all_ok" == "true" ]]; then
         log_ok "Security verification PASSED"
@@ -799,15 +1077,26 @@ security_verification() {
 sync_pagelib() {
     local src="$ROOT_DIR/instance_pages"
     local dst="$PANEL_BACKEND_DIR/internal/pagelib/library"
+    # Safety: ensure dst is inside backend tree
+    case "$dst" in
+        "$PANEL_BACKEND_DIR"/*) ;;
+        *) die "refusing to sync pagelib to unexpected path: $dst" ;;
+    esac
     log_step "Syncing instance-pages library into backend embed tree..."
     if [[ ! -d "$src" ]]; then
         log_err "instance_pages missing at $src — cannot embed library"
         exit 1
     fi
-    rm -rf "$dst"
-    mkdir -p "$dst"
-    [[ -f "$src/marketplace.json" ]] && cp "$src/marketplace.json" "$dst/"
-    log_ok "Embedded marketplace catalog ($(ls "$dst" | wc -l) file(s); page templates live in the frontend Studio)"
+    rm -rf -- "$dst"
+    mkdir -p -- "$dst"
+    if [[ -f "$src/marketplace.json" ]]; then
+        cp -- "$src/marketplace.json" "$dst/" || die "failed to copy marketplace.json"
+    else
+        log_warn "marketplace.json not found in $src"
+    fi
+    local count
+    count="$(find "$dst" -type f 2>/dev/null | wc -l | tr -d ' ')"
+    log_ok "Embedded marketplace catalog (${count} file(s); page templates live in the frontend Studio)"
 }
 
 # ============================================================================
@@ -816,13 +1105,13 @@ sync_pagelib() {
 
 cleanup_temp_files() {
     log_step "Cleaning up temporary build files..."
-    rm -rf "$ROOT_DIR/.build-tmp"
+    rm -rf -- "$ROOT_DIR/.build-tmp" 2>/dev/null || true
     # Remove any stray .old files in release dir (shouldn't exist after successful build)
-    rm -f "$RELEASE_DIR"/*.old
-    rm -f "$RELEASE_DIR"/*.tmp
-    rm -f "$RELEASE_DIR"/*.part
-    rm -f "$RELEASE_DIR"/*.debug
-    rm -f "$RELEASE_DIR"/*.dSYM
+    rm -f -- "$RELEASE_DIR"/*.old 2>/dev/null || true
+    rm -f -- "$RELEASE_DIR"/*.tmp 2>/dev/null || true
+    rm -f -- "$RELEASE_DIR"/*.part 2>/dev/null || true
+    rm -f -- "$RELEASE_DIR"/*.debug 2>/dev/null || true
+    rm -f -- "$RELEASE_DIR"/*.dSYM 2>/dev/null || true
     log_ok "Temporary files cleaned"
 }
 
@@ -831,10 +1120,16 @@ cleanup_temp_files() {
 # ============================================================================
 
 main() {
+    # Lock + trap must be earliest
+    acquire_lock
+    trap cleanup_on_exit EXIT
+    trap 'die "interrupted"' INT TERM
+
     log_step "KS Panel & KSEdge Build System"
     log_info "Mode: $BUILD_MODE | Target: $TARGET_GOOS/$TARGET_GOARCH"
 
     configure_build_mode
+    check_dependencies
     resolve_version_info
     build_ldflags
     clean_build_artifacts
@@ -868,9 +1163,9 @@ main() {
     strip_binary "$KSPANEL_RELEASE_BIN" "kspanel" || exit 1
     strip_binary "$KSEDGE_RELEASE_BIN" "ksedge" || exit 1
 
-    chmod 755 "$KSPANEL_RELEASE_BIN" "$KSEDGE_RELEASE_BIN"
+    chmod 755 -- "$KSPANEL_RELEASE_BIN" "$KSEDGE_RELEASE_BIN" 2>/dev/null || true
 
-    # Obfuscation (if enabled)
+    # Obfuscation (if enabled — already handled at compile time)
     apply_obfuscation "$KSPANEL_RELEASE_BIN" "kspanel"
     apply_obfuscation "$KSEDGE_RELEASE_BIN" "ksedge"
 
@@ -895,7 +1190,7 @@ main() {
     log_step "Build completed successfully!"
     echo
     echo "Release artifacts:"
-    ls -lh "$RELEASE_DIR"/
+    ls -lh -- "$RELEASE_DIR"/
     echo
     if [[ "$BUILD_MODE" == "production" ]]; then
         echo "Production build complete. Binaries are hardened:"
@@ -905,11 +1200,23 @@ main() {
         echo "  Source leakage: Verified clean"
         echo "  Secret scan: No obvious secrets found"
         echo "  Checksums: SHA-256 generated"
-        [[ "$ENABLE_SIGNING" == "1" ]] && echo "  Signing: Artifacts signed" || true
-        [[ "$ENABLE_OBFUSCATION" == "1" ]] && echo "  Obfuscation: garble available (rebuild with garble build for full effect)" || true
+        if [[ "$ENABLE_SIGNING" == "1" ]]; then
+            echo "  Signing: Artifacts signed"
+        fi
+        if [[ "$ENABLE_OBFUSCATION" == "1" ]]; then
+            if has_cmd garble; then
+                echo "  Obfuscation: garble applied (literals + tiny + debug)"
+            else
+                echo "  Obfuscation: requested but garble not installed"
+            fi
+        fi
     else
         echo "Development build complete. Binaries contain debug symbols."
     fi
+
+    # Explicit success exit will trigger cleanup_on_exit with rc=0
+    release_lock
+    trap - EXIT
 }
 
 # ============================================================================
