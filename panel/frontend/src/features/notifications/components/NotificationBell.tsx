@@ -169,12 +169,12 @@ const NotificationBell: React.FC = () => {
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className={`relative inline-flex items-center justify-center w-9 h-9 rounded-lg border backdrop-blur-xl transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/40 focus-visible:ring-offset-0 active:scale-[0.96] ${
+        className={`relative inline-flex items-center justify-center w-9 h-9 rounded-lg border border-transparent bg-transparent backdrop-blur-none transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/40 focus-visible:ring-offset-0 active:scale-[0.96] ${
           open
-            ? 'bg-white/[0.14] border-white/20 text-white shadow-[0_2px_16px_rgba(0,0,0,0.28),0_0_0_1px_rgba(255,255,255,0.06)_inset]'
+            ? 'bg-white/10 text-white'
             : unread > 0
-              ? 'bg-sky-500/[0.09] border-sky-400/20 text-white hover:bg-sky-500/[0.14] hover:border-sky-400/30 shadow-[0_0_0_1px_rgba(56,189,248,0.06),0_4px_18px_rgba(56,189,248,0.12)]'
-              : 'bg-white/[0.06] border-white/[0.09] text-zinc-300 hover:bg-white/[0.11] hover:border-white/15 hover:text-white'
+              ? 'text-white hover:bg-white/10 hover:text-white'
+              : 'text-zinc-300 hover:bg-white/10 hover:text-white'
         }`}
       >
         {/* Android phone + temple-ball bell: dome with top knob and hanging ball clapper */}
