@@ -1278,13 +1278,30 @@ func PurgeLocalNodeHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Per-node working dir the admin setup created. This is the only place a
 	// panel-managed local edge lives, so it's both the kill target and the
-	// rm target. Honour an operator-set install_dir so a purge cleans the
-	// same place setup wrote to.
+	// rm target. Honour an operator-set install_dir ONLY when it is a
+	// non-default custom path; the UI's default "./localnode/" is a shared
+	// CLI layout (localnode/ksedge/) that collides with the per-node
+	// isolation (ksedge-<id>). For default/empty we always use the per-node
+	// dir so setup + purge stay symmetric and we don't accidentally nuke the
+	// CLI edge.
 	var dir string
-	if strings.TrimSpace(node.InstallDir) != "" {
-		dir = strings.TrimSpace(node.InstallDir)
-	} else {
+	trim := strings.TrimSpace(node.InstallDir)
+	isDefaultInstallDir := trim == "" ||
+		trim == "./localnode" || trim == "./localnode/" ||
+		trim == "localnode" || trim == "localnode/" ||
+		trim == "./localnode/ksedge" || trim == "./localnode/ksedge/" ||
+		trim == "localnode/ksedge" || trim == "localnode/ksedge/"
+	if isDefaultInstallDir {
 		dir = filepath.Join(config.DataDir(), "localnode", fmt.Sprintf("ksedge-%d", id))
+	} else {
+		if filepath.IsAbs(trim) {
+			dir = filepath.Clean(trim)
+		} else {
+			// Relative custom path — resolve against DataDir so the purge
+			// operates inside the panel's data tree, not the panel's cwd
+			// (which varies between systemd, retest.sh, etc.).
+			dir = filepath.Join(config.DataDir(), filepath.Clean(trim))
+		}
 	}
 
 	logLines := []string{}
