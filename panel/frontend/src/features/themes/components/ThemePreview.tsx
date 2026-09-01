@@ -9,6 +9,13 @@ import type { Theme } from '../types/theme';
 // about what it would look like if it were applied, including drafts.
 const ThemePreview: React.FC<{ theme: Theme; className?: string }> = ({ theme, className = '' }) => {
   const halfHex = (h: string) => h.length === 7 ? h + '80' : h;
+  // Scale the mini sidebar width from the themed sidebar.width (160–320)
+  // so the width slider is visibly reflected in the preview. Default 225
+  // maps to the original 28px; extremes map to ~20px / ~40px keeping the
+  // diagram readable while still showing the delta.
+  const rawW = (theme.sidebar as any)?.width;
+  const clampedW = Math.max(160, Math.min(320, typeof rawW === 'number' && Number.isFinite(rawW) ? rawW : 225));
+  const sidebarW = Math.round(28 * clampedW / 225);
 
   return (
     <div
@@ -27,11 +34,11 @@ const ThemePreview: React.FC<{ theme: Theme; className?: string }> = ({ theme, c
       }}
       aria-hidden="true"
     >
-      {/* mini sidebar */}
+      {/* mini sidebar — width scales with theme.sidebar.width */}
       <div
         style={{
           position: 'absolute', top: 0, left: 0, bottom: 0,
-          width: 28, opacity: 0.95,
+          width: sidebarW, opacity: 0.95,
           background: theme.sidebar.background,
           borderColor: theme.sidebar.border_color,
           borderWidth: 0, borderRightWidth: 1, borderStyle: 'solid',
@@ -48,14 +55,14 @@ const ThemePreview: React.FC<{ theme: Theme; className?: string }> = ({ theme, c
 
       {/* mini header */}
       <div style={{
-        position: 'absolute', top: 0, left: 28, right: 0, height: 14,
+        position: 'absolute', top: 0, left: sidebarW, right: 0, height: 14,
         background: theme.header.background,
         borderColor: theme.header.border_color,
         borderBottomWidth: 1, borderStyle: 'solid',
       }} />
 
       {/* mini cards */}
-      <div style={{ position: 'absolute', top: 22, left: 34, right: 6, display: 'flex', gap: 4 }}>
+      <div style={{ position: 'absolute', top: 22, left: sidebarW + 6, right: 6, display: 'flex', gap: 4 }}>
         {[0, 1].map((i) => (
           <div key={i} style={{
             flex: 1, height: 64,

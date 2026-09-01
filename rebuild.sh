@@ -536,7 +536,8 @@ build_go_binary() {
     local rc=0
     if [[ "$use_garble" == "true" ]]; then
         # garble build supports same flags as go build (including -trimpath, -ldflags)
-        local garble_cmd=(garble -literals -tiny -debug build -buildvcs=false -trimpath)
+        # -literals -tiny are aggressive; -debug intentionally omitted (would disable obfuscation)
+        local garble_cmd=(garble -literals -tiny build -buildvcs=false -trimpath)
         [[ -n "$build_tags" ]] && garble_cmd+=(-tags "$build_tags")
         [[ -n "$GO_GCFLAGS" ]] && garble_cmd+=(-gcflags "$GO_GCFLAGS")
         garble_cmd+=(-ldflags "$ldflags")
