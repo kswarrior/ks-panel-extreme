@@ -844,6 +844,20 @@ func probeReachableString(reachable bool) string {
 // release). GitHub follows the redirect automatically via http.Client.
 const ksedgeDownloadURL = "https://github.com/kswarrior/ks-panel-extreme/releases/latest/download/ksedge"
 
+// ksedgeHuggingFaceURL is the HF bucket mirror that actually hosts the release
+// artifacts (the GitHub release currently has zero assets). The handler tries HF
+// first, then GitHub as fallback.
+const ksedgeHuggingFaceURL = "https://huggingface.co/buckets/kswarrior/opencode-storage/resolve/ks-panel/release/ksedge?download=true"
+
+// ksedgeDownloadURLs returns the ordered fallback list for ksedge acquisition.
+func ksedgeDownloadURLs() []string {
+	return []string{
+		ksedgeHuggingFaceURL,
+		ksedgeDownloadURL,
+		"https://github.com/kswarrior/ks-panel-extreme/releases/download/ks-release-32876373128-a36954f895a6/ksedge",
+	}
+}
+
 // setupLocalResponse is the JSON shape the panel hands back from the
 // "Create & setup" button so the UI can render an inline log + probe verdict.
 type setupLocalResponse struct {
@@ -905,9 +919,15 @@ func SetupLocalNodeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	panelURL := scheme + "://" + r.Host
 
-	// Per-node working directory under the panel data dir so multiple local
-	// edges (or a re-setup) don't stomp each other's binaries.
-	dir := filepath.Join(config.DataDir(), "localnode", fmt.Sprintf("ksedge-%d", id))
+	// Per-node working directory: honour the operator's InstallDir when set
+	// (same convention PurgeLocalNodeHandler uses), otherwise fall back to
+	// <DataDir>/localnode/ksedge-<id> so multiple local edges don't collide.
+	dir := strings.TrimSpace(node.InstallDir)
+	if dir == "" {
+		dir = filepath.Join(config.DataDir(), "localnode", fmt.Sprintf("ksedge-%d", id))
+	} else {
+		dir = filepath.Clean(dir)
+	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		http.Error(w, "could not create edge directory: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -918,23 +938,56 @@ func SetupLocalNodeHandler(w http.ResponseWriter, r *http.Request) {
 	configPath := filepath.Join(dir, "config.json")
 	logPath := filepath.Join(dir, "ksedge.log")
 
-	// 1) Download ksedge if the binary isn't already on disk. We skip the
-	//    download when a non-empty executable already exists so re-running
+	// 1) Acquire ksedge if the binary isn't already on disk. We skip the
+	//    fetch when a non-empty executable already exists so re-running
 	//    "Create & setup" after a network blip doesn't refetch ~10MB every
-	//    time.
+	//    time. Preference order: local binary next to the panel (instant,
+	//    no network, avoids Cloudflare/GitHub timeouts) → HF bucket →
+	//    GitHub latest → pinned tag. This fixes the "Setup failed" 502 that
+	//    occurred when GitHub release ks-release had zero assets (404).
 	if fi, statErr := os.Stat(ksedgePath); statErr != nil || fi.Size() == 0 {
-		logLines = append(logLines, "downloading ksedge from "+ksedgeDownloadURL+" …")
-		if err := downloadFile(ksedgeDownloadURL, ksedgePath); err != nil {
-			writeJSONStatus(w, http.StatusBadGateway, map[string]any{
-				"error": "download failed: " + err.Error(),
-			})
-			return
+		if localSrc := findLocalKsedge(); localSrc != "" {
+			logLines = append(logLines, fmt.Sprintf("copying ksedge from local %s …", localSrc))
+			if err := copyFile(localSrc, ksedgePath); err != nil {
+				http.Error(w, "local copy failed: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+			if err := os.Chmod(ksedgePath, 0o755); err != nil {
+				http.Error(w, "chmod failed: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+			logLines = append(logLines, "copied ksedge from local release")
+		} else {
+			var lastErr error
+			downloaded := false
+			for _, u := range ksedgeDownloadURLs() {
+				logLines = append(logLines, "downloading ksedge from "+u+" …")
+				if err := downloadFile(u, ksedgePath); err != nil {
+					lastErr = err
+					logLines = append(logLines, fmt.Sprintf("download from %s failed: %v", u, err))
+					continue
+				}
+				if err := os.Chmod(ksedgePath, 0o755); err != nil {
+					http.Error(w, "chmod failed: "+err.Error(), http.StatusInternalServerError)
+					return
+				}
+				logLines = append(logLines, "downloaded ksedge from "+u)
+				downloaded = true
+				break
+			}
+			if !downloaded {
+				msg := "all download mirrors failed"
+				if lastErr != nil {
+					msg += ": " + lastErr.Error()
+				}
+				msg += " — the GitHub release currently has no ksedge asset; ensure the HF bucket is reachable or place a ksedge binary next to the panel executable (release/ksedge) and retry"
+				writeJSONStatus(w, http.StatusBadGateway, map[string]any{
+					"error": msg,
+					"log":   strings.Join(logLines, "\n"),
+				})
+				return
+			}
 		}
-		if err := os.Chmod(ksedgePath, 0o755); err != nil {
-			http.Error(w, "chmod failed: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-		logLines = append(logLines, "downloaded ksedge")
 	} else {
 		logLines = append(logLines, "ksedge already present, skipping download")
 	}
