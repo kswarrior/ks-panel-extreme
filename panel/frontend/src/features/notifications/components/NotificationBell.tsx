@@ -169,7 +169,7 @@ const NotificationBell: React.FC = () => {
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className={`relative inline-flex items-center justify-center w-[38px] h-[38px] rounded-xl border backdrop-blur-xl transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/40 focus-visible:ring-offset-0 active:scale-[0.96] ${
+        className={`relative inline-flex items-center justify-center w-9 h-9 rounded-lg border backdrop-blur-xl transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/40 focus-visible:ring-offset-0 active:scale-[0.96] ${
           open
             ? 'bg-white/[0.14] border-white/20 text-white shadow-[0_2px_16px_rgba(0,0,0,0.28),0_0_0_1px_rgba(255,255,255,0.06)_inset]'
             : unread > 0
@@ -186,7 +186,7 @@ const NotificationBell: React.FC = () => {
           strokeWidth={unread > 0 ? 2 : 1.85}
           strokeLinecap="round"
           strokeLinejoin="round"
-          className={`w-[20px] h-[20px] transition-transform duration-200 ${open ? 'rotate-[10deg] scale-[1.04]' : 'rotate-0'} ${unread > 0 && !open ? 'drop-shadow-[0_1px_6px_rgba(255,255,255,0.18)]' : ''}`}
+          className={`w-5 h-5 transition-transform duration-200 ${open ? 'rotate-[10deg] scale-[1.04]' : 'rotate-0'} ${unread > 0 && !open ? 'drop-shadow-[0_1px_6px_rgba(255,255,255,0.18)]' : ''}`}
           aria-hidden="true"
         >
           {/* top knob */}
@@ -207,10 +207,10 @@ const NotificationBell: React.FC = () => {
         {unread > 0 && (
           <>
             <span
-              className="absolute -top-1.5 -right-1.5 w-[22px] h-[22px] rounded-full bg-red-500/30 animate-ping pointer-events-none [animation-duration:1.8s]"
+              className="absolute -top-1 -right-1 w-[18px] h-[18px] rounded-full bg-red-500/30 animate-ping pointer-events-none [animation-duration:1.8s]"
               aria-hidden="true"
             />
-            <span className="absolute -top-1.5 -right-1.5 min-w-[20px] h-[20px] px-1 inline-flex items-center justify-center rounded-full bg-gradient-to-b from-red-500 to-red-600 text-white text-[11px] font-extrabold leading-none ring-2 ring-black/30 shadow-[0_2px_10px_rgba(239,68,68,0.55),0_1px_3px_rgba(0,0,0,0.45)] tabular-nums">
+            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 inline-flex items-center justify-center rounded-full bg-gradient-to-b from-red-500 to-red-600 text-white text-[10px] font-extrabold leading-none ring-2 ring-black/30 shadow-[0_2px_10px_rgba(239,68,68,0.55),0_1px_3px_rgba(0,0,0,0.45)] tabular-nums">
               {unread > 99 ? '99+' : unread}
             </span>
           </>
