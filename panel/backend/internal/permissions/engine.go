@@ -42,11 +42,13 @@ func (c *Checker) ListUserPermissions(userID int64) ([]string, error) {
 
 	perms := []string{}
 	for rows.Next() {
-		var key string
+		var key sql.NullString
 		if err := rows.Scan(&key); err != nil {
 			return nil, err
 		}
-		perms = append(perms, key)
+		if key.Valid && key.String != "" {
+			perms = append(perms, key.String)
+		}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -164,14 +166,17 @@ func (c *Checker) HasScope(userID int64, ownKey, allKey, umbrella string) (bool,
 	defer rows.Close()
 	var hasOwn, hasAll bool
 	for rows.Next() {
-		var k string
+		var k sql.NullString
 		if err := rows.Scan(&k); err != nil {
 			return false, false, err
 		}
-		if k == ownKey {
+		if !k.Valid {
+			continue
+		}
+		if k.String == ownKey {
 			hasOwn = true
 		}
-		if k == allKey || k == umbrella {
+		if k.String == allKey || k.String == umbrella {
 			hasAll = true
 		}
 	}
