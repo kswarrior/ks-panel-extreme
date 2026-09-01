@@ -163,7 +163,7 @@ const Login: React.FC = () => {
 
       <div className="relative z-10 w-full max-w-sm sm:max-w-md animate-fade-in">
         {/* Brand header - logo left, name + subtitle stacked right */}
-        <div className="flex items-center gap-4 mb-6 animate-scale-in w-full text-left">
+        <div className="flex items-center gap-4 mb-6 animate-scale-in w-full text-left px-6 sm:px-7">
           {panelLogo ? (
             <img
               src={panelLogo.url}
