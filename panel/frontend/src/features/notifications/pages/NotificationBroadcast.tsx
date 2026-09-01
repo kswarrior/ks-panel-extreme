@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import FormPage from '@/shared/components/forms/FormPage';
-import GlassField from '@/shared/components/ui/Field';
+import GlassField, { glassFieldClass } from '@/shared/components/ui/Field';
 import { CATEGORY_META, PRIORITY_META } from '../types/notification';
 import { createNotification } from '../api/notifications';
 import { useAuthStore } from '@/shared/stores/authStore';
