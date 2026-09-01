@@ -154,56 +154,6 @@ const ApiKeyForm: React.FC = () => {
     return () => { cancelled = true; };
   }, [id, editing]);
 
-  // ── Permission helpers (mirror RoleForm) ────────────────────────────────
-  const areaByKey = useMemo(() => {
-    const m = new Map<string, PermissionArea>();
-    for (const a of PERMISSION_AREAS) {
-      for (const k of permGroupKeySet(a)) m.set(k, a);
-    }
-    return m;
-  }, []);
-  const findAreaForKey = (key: string): PermissionArea | undefined => areaByKey.get(key);
-
-  const restPerms = useMemo(
-    () => perms.filter((p) => !AREA_PERM_KEYS.has(p.key)),
-    [perms],
-  );
-
-  const permByKey = useMemo(() => {
-    const m = new Map<string, Permission>();
-    for (const p of perms) m.set(p.key, p);
-    return m;
-  }, [perms]);
-
-  const togglePerm = (key: string) => {
-    setForm((f) => {
-      const has = f.permissions.includes(key);
-      if (has) {
-        return { ...f, permissions: f.permissions.filter((p) => p !== key) };
-      }
-      // Granting a sub-cap also grants the umbrella so the role's key set
-      // stays self-consistent — same contract the role form honours.
-      const next = [...f.permissions, key];
-      const area = findAreaForKey(key);
-      if (area && area.umbrella && !next.includes(area.umbrella)) {
-        next.push(area.umbrella);
-      }
-      return { ...f, permissions: next };
-    });
-  };
-
-  const toggleGroup = (area: PermissionArea, enable: boolean) => {
-    setForm((f) => {
-      const groupKeys = permGroupKeySet(area);
-      if (enable) {
-        const merged = new Set(f.permissions);
-        groupKeys.forEach((k) => merged.add(k));
-        return { ...f, permissions: Array.from(merged) };
-      }
-      return { ...f, permissions: f.permissions.filter((p) => !groupKeys.has(p)) };
-    });
-  };
-
   // bumpExpiry extends the configured expiry forward by N days. When nothing
   // is configured yet, the new expiry is N days from "now". Lets an admin
   // "add more time" with a single click.
@@ -607,70 +557,19 @@ const ApiKeyForm: React.FC = () => {
           )}
 
           {tab === 'permissions' && (
-          <>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-white">Permissions</h3>
-              <span className="text-[11px] text-gray-500">
-                {form.permissions.length} selected
-             </span>
-           </div>
-            <p className="text-xs text-gray-400">
-              Tick an area group to grant every verb at once, or expand it and pick individual verbs. Granting a sub-verb also grants the area&rsquo;s umbrella so the key stays valid at the gate level.
-           </p>
-            <div className="space-y-1.5 border border-white/10 rounded-md p-3 max-h-[28rem] overflow-y-auto">
-              {PERMISSION_AREAS.map((area) => {
-                const umbrellaPerm = area.umbrella ? permByKey.get(area.umbrella) : undefined;
-                // Don't render a group card if none of its keys are present
-                // in the permissions endpoint payload (older install).
-                const groupKeys = permGroupKeySet(area);
-                const present = [...groupKeys].some((k) => permByKey.has(k));
-                if (!present) return null;
-
-                const allOn = [...groupKeys].every((k) => form.permissions.includes(k));
-                const someOn = !allOn && [...groupKeys].some((k) => form.permissions.includes(k));
-
-                // Build the ordered sub-rows: CRUD verbs first, then any
-                // area-specific extras (Themes, Account).
-                const subRows: Permission[] = [];
-                for (const action of ALL_ACTIONS) {
-                  const k = area.keys[action];
-                  if (!k) continue;
-                  const p = permByKey.get(k);
-                  if (p) subRows.push(p);
-                }
-                for (const k of area.extraKeys ?? []) {
-                  const p = permByKey.get(k);
-                  if (p) subRows.push(p);
-                }
-
-                return (
-                  <ApiKeyAreaGroupCard
-                    key={area.label}
-                    area={area}
-                    umbrellaPerm={umbrellaPerm}
-                    subRows={subRows}
-                    allOn={allOn}
-                    someOn={someOn}
-                    selected={form.permissions}
-                    onToggleGroup={(en) => toggleGroup(area, en)}
-                    onTogglePerm={togglePerm}
-                  />
-                );
-              })}
-
-              {/* Non-area permissions fall through to the flat list below
-                  so forward-compat keys never need a form edit. */}
-              {restPerms.length > 0 && (
-                <div className="pt-2 mt-2 border-t border-white/10 space-y-1">
-                  {restPerms.map((p) => (
-                    <ApiKeyFlatPermRow key={p.key} p={p} checked={form.permissions.includes(p.key)} onToggle={() => togglePerm(p.key)} />
-                  ))}
-               </div>
-              )}
-</div>
-          </div>
-          </>
+            <RolePermissions
+              formPermissions={form.permissions}
+              setFormPermissions={(updater) =>
+                setForm((prev) => {
+                  const next =
+                    typeof updater === 'function'
+                      ? (updater as (v: string[]) => string[])(prev.permissions)
+                      : updater;
+                  return { ...prev, permissions: next };
+                })
+              }
+              permissions={perms}
+            />
           )}
 
           {error && <p className="text-sm text-red-400">{error}</p>}
@@ -710,106 +609,5 @@ const ApiKeyForm: React.FC = () => {
     </>
   );
 };
-
-// --------------------------------------------------------------------------
-// Local helpers + sub-components for the Permissions block. Kept local to
-// ApiKeyForm so the form owns its own row markup (matches the RoleForm
-// convention). Mirrors RoleForm's helpers verbatim — extract to a shared
-// module when a third form needs them.
-// --------------------------------------------------------------------------
-
-/** Every permission key that belongs to an area group: umbrella + sub verbs + extras. */
-function permGroupKeySet(area: PermissionArea): Set<string> {
-  const s = new Set<string>();
-  if (area.umbrella) s.add(area.umbrella);
-  for (const k of Object.values(area.keys)) if (k) s.add(k);
-  for (const k of area.extraKeys ?? []) s.add(k);
-  return s;
-}
-
-/** Indeterminate-aware parent checkbox ref callback. */
-function useIndeterminate(indeterminate: boolean) {
-  const ref = useRef<HTMLInputElement | null>(null);
-  useEffect(() => {
-    if (ref.current) ref.current.indeterminate = indeterminate;
-  }, [indeterminate]);
-  return ref;
-}
-
-/** The parent group card for a regulatable area (parent checkbox + nested sub rows). */
-const ApiKeyAreaGroupCard: React.FC<{
-  area: PermissionArea;
-  umbrellaPerm: Permission | undefined;
-  subRows: Permission[];
-  allOn: boolean;
-  someOn: boolean;
-  selected: string[];
-  onToggleGroup: (enable: boolean) => void;
-  onTogglePerm: (key: string) => void;
-}> = ({ area, umbrellaPerm, subRows, allOn, someOn, selected, onToggleGroup, onTogglePerm }) => {
-  const parentRef = useIndeterminate(someOn);
-  return (
-    <div className="ks-form-card rounded px-2 py-2 border-indigo-400/30" style={{ boxShadow: 'none' }}>
-      <label className="flex items-start gap-2 cursor-pointer">
-        <input
-          type="checkbox"
-          ref={parentRef}
-          checked={allOn}
-          onChange={(e) => onToggleGroup(e.target.checked)}
-          className="mt-0.5 accent-indigo-400"
-        />
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-indigo-100">{area.label}</span>
-            <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-indigo-900/60 text-indigo-200 border border-indigo-700/60">
-              group
-           </span>
-            {area.umbrella && (
-              <span className="text-[10px] font-mono text-indigo-300/70 truncate">{area.umbrella}</span>
-            )}
-         </div>
-          <div className="text-xs text-gray-400 mt-0.5">
-            {umbrellaPerm?.description ?? `Manage ${area.label.toLowerCase()} (umbrella + granular verbs).`}
-         </div>
-       </div>
-     </label>
-      <div className="mt-2 space-y-1.5">
-        {subRows.map((p) => (
-          <label
-            key={p.key}
-            className="flex items-start gap-2 ml-auto pl-4 pr-2 py-1.5 rounded hover:bg-white/5 cursor-pointer w-full sm:w-[60%] min-w-[14rem]"
-          >
-            <input
-              type="checkbox"
-              checked={selected.includes(p.key)}
-              onChange={() => onTogglePerm(p.key)}
-              className="mt-0.5 accent-indigo-400"
-            />
-            <div className="flex-1">
-              <div className="text-sm font-medium text-white">{p.key}</div>
-              <div className="text-xs text-gray-400">{p.description}</div>
-           </div>
-         </label>
-        ))}
-     </div>
-   </div>
-  );
-};
-
-/** Single-cell permission row used by the flat non-area list. */
-const ApiKeyFlatPermRow: React.FC<{ p: Permission; checked: boolean; onToggle: () => void }> = ({ p, checked, onToggle }) => (
-  <label className="flex items-start gap-2 px-2 py-1.5 rounded hover:bg-white/5 cursor-pointer">
-    <input
-      type="checkbox"
-      checked={checked}
-      onChange={onToggle}
-      className="mt-0.5 accent-white"
-    />
-    <div className="flex-1">
-      <div className="text-sm font-medium text-white">{p.key}</div>
-      <div className="text-xs text-gray-400">{p.description}</div>
-   </div>
- </label>
-);
 
 export default ApiKeyForm;
