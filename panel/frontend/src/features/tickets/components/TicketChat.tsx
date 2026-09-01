@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Ticket, TicketComment } from '../types/ticket';
 import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
+import Avatar from '@/shared/components/ui/Avatar';
+import { useAuthStore } from '@/shared/stores/authStore';
 import { useThemeStore } from '@/shared/stores/themeStore';
 import { formatTicketDateTime } from './TicketComponents';
 
@@ -45,16 +47,9 @@ function linkify(text: string): React.ReactNode[] {
   });
 }
 
-// tiny hash for avatar color when not own
-function avatarBg(authorId: number, isInternal: boolean): React.CSSProperties {
-  if (isInternal) {
-    return {
-      background: 'color-mix(in srgb, var(--ks-accent-warning, #fbbf24) 22%, var(--ks-card-bg, rgba(255,255,255,0.08)))',
-      color: 'var(--ks-accent-warning, #f59e0b)',
-      borderColor: 'color-mix(in srgb, var(--ks-accent-warning) 30%, transparent)',
-    } as React.CSSProperties;
-  }
-  // Deterministic hue based on id – mixes between card bg and accent so it adapts to light/dark themes
+// fallback avatar color for users without accent/symbol/image – keeps chat readable
+// while still matching the top-right header's Avatar logic (uploaded image > symbol > initials)
+function avatarFallbackBg(authorId: number): React.CSSProperties {
   const hues = [
     'var(--ks-accent-primary, #38bdf8)',
     'var(--ks-accent-info, #38bdf8)',
@@ -125,15 +120,23 @@ const TicketChat: React.FC<TicketChatProps> = ({
   const [unread, setUnread] = useState(0);
   const prevCountRef = useRef(comments.length);
 
-  // theme-aware vars for composer: we read them via inline styles so light themes flip correctly
+  // Auth user for header's profile logo – mirrors the top-right header's Avatar so chat feels personal
+  const authUser = useAuthStore((s) => s.user);
+
+  // theme-aware vars: composer stays card-tinted, but HEADER is intentionally NOT white –
+  // it uses the panel header tokens ( --ks-header-bg / border / text ) which are dark by default
+  // and stay dark even when a light theme makes --ks-card-bg white. This satisfies
+  // "top of chat not white and text" – header text stays --ks-header-text (readable) on a dark header.
   const composerBg: React.CSSProperties = {
     background: 'color-mix(in srgb, var(--ks-card-bg) 92%, transparent)',
     borderColor: 'var(--ks-card-border)',
   };
   const headerBg: React.CSSProperties = {
-    background: 'color-mix(in srgb, var(--ks-card-bg) 80%, transparent)',
-    borderColor: 'var(--ks-card-border)',
-    backdropFilter: 'blur(var(--ks-card-blur))',
+    background: 'var(--ks-header-bg, rgba(18,18,22,0.96))',
+    borderColor: 'var(--ks-header-border, rgba(255,255,255,0.08))',
+    backdropFilter: 'blur(var(--ks-header-blur, 18px))',
+    // ensure header text inherits header tokens, not card tokens
+    color: 'var(--ks-header-text, #fff)',
   } as any;
 
   const filteredComments = useMemo(() => {
@@ -274,20 +277,26 @@ const TicketChat: React.FC<TicketChatProps> = ({
     >
       <CardMediaLayer />
 
-      {/* Header – themed */}
+      {/* Header – uses panel header tokens so it is NEVER white, even when card theme is light. Text uses header text color for contrast. */}
       <div className="shrink-0 sticky top-0 z-10 flex items-center gap-3 px-4 py-3 border-b backdrop-blur-xl" style={headerBg}>
-        <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 border" style={{ background: 'var(--ks-accent-primary, #0ea5e9)', borderColor: 'var(--ks-card-border)', color: 'var(--ks-btn-text, #fff)' }}>
-          {(ticket.creator_name || ticket.subject || 'T').charAt(0).toUpperCase()}
-        </div>
+        {/* Creator's profile logo – same Avatar component that drives the top-right header's profile logo */}
+        <Avatar
+          name={ticket.creator_display_name || ticket.creator_name || ticket.subject || 'T'}
+          size={32}
+          accentColor={ticket.creator_accent_color || undefined}
+          symbol={ticket.creator_avatar_symbol}
+          imageUrl={ticket.creator_has_avatar ? `/api/users/${ticket.created_by}/avatar` : undefined}
+          className="shrink-0"
+        />
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold truncate flex items-center gap-2" style={{ color: 'var(--ks-text-heading, #fff)' }}>
+          <div className="text-sm font-semibold truncate flex items-center gap-2" style={{ color: 'var(--ks-header-text, #fff)' }}>
             <span className="truncate">Chat — {ticket.subject}</span>
             <span className={`w-2 h-2 rounded-full shrink-0 ${isClosed ? 'bg-gray-500' : 'bg-emerald-400 animate-pulse'}`} />
-            <span className="hidden sm:inline-flex items-center gap-1 text-xs font-normal px-2 py-0.5 rounded-full border" style={{ background: isClosed ? 'rgba(107,114,128,0.12)' : 'rgba(16,185,129,0.14)', borderColor: isClosed ? 'rgba(107,114,128,0.2)' : 'rgba(16,185,129,0.25)', color: isClosed ? 'var(--ks-text-body)' : '#6ee7b7' }}>
+            <span className="hidden sm:inline-flex items-center gap-1 text-xs font-normal px-2 py-0.5 rounded-full border" style={{ background: isClosed ? 'rgba(107,114,128,0.14)' : 'rgba(16,185,129,0.14)', borderColor: isClosed ? 'rgba(107,114,128,0.22)' : 'rgba(16,185,129,0.25)', color: isClosed ? 'var(--ks-header-text, #9ca3af)' : '#6ee7b7' }}>
               {isClosed ? 'Closed' : 'Live'}
             </span>
           </div>
-          <div className="text-xs truncate flex items-center gap-1.5" style={{ color: 'var(--ks-text-body, #9ca3af)' }}>
+          <div className="text-xs truncate flex items-center gap-1.5" style={{ color: 'color-mix(in srgb, var(--ks-header-text, #fff) 70%, transparent)' }}>
             <span className="truncate">{participantLabel}</span>
             <span className="opacity-40">•</span>
             <span>{filteredComments.length} of {comments.length} messages</span>

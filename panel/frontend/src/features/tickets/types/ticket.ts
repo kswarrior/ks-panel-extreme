@@ -12,9 +12,17 @@ export interface Ticket {
   status: TicketStatus;
   created_by: number;
   creator_name?: string;
+  creator_display_name?: string;
+  creator_accent_color?: string;
+  creator_avatar_symbol?: string;
+  creator_has_avatar?: boolean;
   creator_email?: string;
   assigned_to?: number | null;
   assignee_name?: string;
+  assignee_display_name?: string;
+  assignee_accent_color?: string;
+  assignee_avatar_symbol?: string;
+  assignee_has_avatar?: boolean;
   created_at: string;
   updated_at: string;
   closed_at?: string | null;
