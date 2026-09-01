@@ -2,7 +2,7 @@ import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
-import { PermissionKey } from '@/shared/types/permissions';
+import { PermissionKey, PERMISSION_AREAS, hasPermissionAny } from '@/shared/types/permissions';
 import SidebarSkeleton from './SidebarSkeleton';
 
 interface SidebarProps {
