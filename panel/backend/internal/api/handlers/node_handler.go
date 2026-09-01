@@ -1124,18 +1124,85 @@ func parseIntDefault(s string, def int) int {
 	return def
 }
 
+// findLocalKsedge returns the path of a ksedge binary that already ships
+// alongside the panel (so setup-local can copy instead of downloading).
+// It checks next to the running executable and in the repo's release dir.
+func findLocalKsedge() string {
+	candidates := []string{}
+	if exe, err := os.Executable(); err == nil {
+		if resolved, rerr := filepath.EvalSymlinks(exe); rerr == nil {
+			exe = resolved
+		}
+		dir := filepath.Dir(exe)
+		candidates = append(candidates,
+			filepath.Join(dir, "ksedge"),
+			filepath.Join(dir, "release", "ksedge"),
+			filepath.Join(dir, "..", "release", "ksedge"),
+		)
+	}
+	candidates = append(candidates,
+		filepath.Join("release", "ksedge"),
+		filepath.Join(".", "ksedge"),
+	)
+	for _, p := range candidates {
+		if fi, err := os.Stat(filepath.Clean(p)); err == nil && fi.Size() > 0 && fi.Mode().IsRegular() {
+			if abs, aerr := filepath.Abs(p); aerr == nil {
+				return abs
+			}
+			return p
+		}
+	}
+	return ""
+}
+
+// copyFile streams src to dst via a temp file and renames atomically.
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	tmp := dst + ".tmp"
+	out, err := os.Create(tmp)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		out.Close()
+		os.Remove(tmp)
+		return err
+	}
+	if err := out.Close(); err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	return os.Rename(tmp, dst)
+}
+
 // downloadFile streams a URL to disk with a generous timeout (the ksedge
 // artifact is ~10MB; a slow connection can take a minute or two). We write
 // through a temp file and rename so a partial download never leaves a
 // truncated binary behind that the "already present" fast path would trust.
 func downloadFile(url, dest string) error {
 	client := &http.Client{Timeout: 5 * time.Minute}
-	resp, err := client.Get(url)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("User-Agent", "kspanel-setup-local/1.0")
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
+		// Drain body for keep-alive and surface a short snippet to help debug
+		// 404/502 from a missing release asset vs a proxy error.
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		snip := strings.TrimSpace(string(body))
+		if snip != "" && len(snip) < 200 {
+			return fmt.Errorf("HTTP %d: %s", resp.StatusCode, snip)
+		}
 		return fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
 	tmp := dest + ".tmp"

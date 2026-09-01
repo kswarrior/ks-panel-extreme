@@ -67,7 +67,7 @@ export const isLocalMode = (m: ConnectionMode): boolean => m === 'local_port' ||
 export const isTunnelMode = (m: ConnectionMode): boolean => m === 'reverse_tunnel' || m === 'local_wss';
 
 export const KSEDGE_URL =
-  'https://github.com/kswarrior/ks-panel-extreme/releases/download/ks-release-32876373128-a36954f895a6/ksedge';
+  'https://huggingface.co/buckets/kswarrior/opencode-storage/resolve/ks-panel/release/ksedge?download=true';
 
 export const ALL_KINDS: { key: string; label: string; color: string }[] = [
   { key: 'docker', label: 'Docker', color: '#60a5fa' },

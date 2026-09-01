@@ -1,6 +1,7 @@
 // NodeForm utilities - extracted from NodeForm.tsx
 
 import type { ConnectionMode, Form } from '../types/nodeForm';
+import { KSEDGE_URL } from '../types/nodeForm';
 
 export function buildEdgeConfig(
   name: string,
@@ -41,5 +42,5 @@ EOF
 ./ksedge launch &`;
 }
 
-export const KSEDGE_URL =
-  'https://github.com/kswarrior/ks-panel-extreme/releases/download/ks-release-32876373128-a36954f895a6/ksedge';
+// KSEDGE_URL re-exported from types for backwards compat (prefer import from types/nodeForm).
+export { KSEDGE_URL };

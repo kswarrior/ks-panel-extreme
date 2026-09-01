@@ -71,6 +71,16 @@ func init() {
 // Uses the latest release redirect so the CLI never pins to a stale tag.
 const ksedgeDownloadURL = "https://github.com/kswarrior/ks-panel-extreme/releases/latest/download/ksedge"
 
+const ksedgeHuggingFaceURL = "https://huggingface.co/buckets/kswarrior/opencode-storage/resolve/ks-panel/release/ksedge?download=true"
+
+func ksedgeDownloadURLs() []string {
+	return []string{
+		ksedgeHuggingFaceURL,
+		ksedgeDownloadURL,
+		"https://github.com/kswarrior/ks-panel-extreme/releases/download/ks-release-32876373128-a36954f895a6/ksedge",
+	}
+}
+
 func runSetupLocalnode(cmd *cobra.Command, args []string) error {
 	if setupLocalnodePort <= 0 || setupLocalnodePort > 65535 {
 		print.Fail("setup:localnode", fmt.Sprintf("invalid --port %d (1-65535)", setupLocalnodePort))
@@ -134,16 +144,43 @@ func runSetupLocalnode(cmd *cobra.Command, args []string) error {
 	configPath := filepath.Join(dir, "config.json")
 	logPath := filepath.Join(dir, "ksedge.log")
 
-	// 1) Download ksedge if not already on disk.
+	// 1) Download ksedge if not already on disk. Prefer a local binary next
+	// to the panel (instant, no network) then HF → GitHub fallbacks.
 	if fi, statErr := os.Stat(ksedgePath); statErr != nil || fi.Size() == 0 {
-		print.Step("download", ksedgeDownloadURL)
-		if err := downloadKsedge(ksedgeDownloadURL, ksedgePath); err != nil {
-			print.Fail("setup:localnode", fmt.Sprintf("download ksedge: %v", err))
-			return fmt.Errorf("download ksedge: %w", err)
-		}
-		if err := os.Chmod(ksedgePath, 0o755); err != nil {
-			print.Fail("setup:localnode", fmt.Sprintf("chmod: %v", err))
-			return fmt.Errorf("chmod: %w", err)
+		if localSrc := findLocalKsedgeCLI(); localSrc != "" {
+			print.Step("download", fmt.Sprintf("copying from local %s", localSrc))
+			if err := copyFileCLI(localSrc, ksedgePath); err != nil {
+				print.Fail("setup:localnode", fmt.Sprintf("local copy: %v", err))
+				return fmt.Errorf("local copy: %w", err)
+			}
+			if err := os.Chmod(ksedgePath, 0o755); err != nil {
+				print.Fail("setup:localnode", fmt.Sprintf("chmod: %v", err))
+				return fmt.Errorf("chmod: %w", err)
+			}
+			print.Step("download", "copied ksedge from local release")
+		} else {
+			var lastErr error
+			downloaded := false
+			for _, u := range ksedgeDownloadURLs() {
+				print.Step("download", u)
+				if err := downloadKsedge(u, ksedgePath); err != nil {
+					lastErr = err
+					print.Step("download", fmt.Sprintf("failed %s: %v", u, err))
+					continue
+				}
+				if err := os.Chmod(ksedgePath, 0o755); err != nil {
+					print.Fail("setup:localnode", fmt.Sprintf("chmod: %v", err))
+					return fmt.Errorf("chmod: %w", err)
+				}
+				print.Step("download", fmt.Sprintf("downloaded ksedge from %s", u))
+				downloaded = true
+				break
+			}
+			if !downloaded {
+				msg := fmt.Sprintf("all download mirrors failed: %v", lastErr)
+				print.Fail("setup:localnode", msg)
+				return fmt.Errorf("download ksedge: %w", lastErr)
+			}
 		}
 	} else {
 		print.Step("download", "ksedge already present, skipping")
@@ -358,18 +395,79 @@ func panelReachable(panelURL string) bool {
 	return resp.StatusCode == http.StatusOK
 }
 
+func findLocalKsedgeCLI() string {
+	candidates := []string{}
+	if exe, err := os.Executable(); err == nil {
+		if resolved, rerr := filepath.EvalSymlinks(exe); rerr == nil {
+			exe = resolved
+		}
+		dir := filepath.Dir(exe)
+		candidates = append(candidates,
+			filepath.Join(dir, "ksedge"),
+			filepath.Join(dir, "release", "ksedge"),
+			filepath.Join(dir, "..", "release", "ksedge"),
+		)
+	}
+	candidates = append(candidates,
+		filepath.Join("release", "ksedge"),
+		filepath.Join(".", "ksedge"),
+	)
+	for _, p := range candidates {
+		if fi, err := os.Stat(filepath.Clean(p)); err == nil && fi.Size() > 0 && fi.Mode().IsRegular() {
+			if abs, aerr := filepath.Abs(p); aerr == nil {
+				return abs
+			}
+			return p
+		}
+	}
+	return ""
+}
+
+func copyFileCLI(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	tmp := dst + ".tmp"
+	out, err := os.Create(tmp)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		out.Close()
+		os.Remove(tmp)
+		return err
+	}
+	if err := out.Close(); err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	return os.Rename(tmp, dst)
+}
+
 // downloadKsedge streams a URL to disk with a generous timeout. The ksedge
 // artefact is ~10MB; a slow connection can take a minute. We write through a
 // temp file and rename so a partial download never leaves a truncated binary
 // behind that a subsequent run would mistakenly treat as "already present".
 func downloadKsedge(url, dest string) error {
 	client := &http.Client{Timeout: 5 * time.Minute}
-	resp, err := client.Get(url)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("User-Agent", "kspanel-setup-local/1.0")
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		snip := strings.TrimSpace(string(body))
+		if snip != "" && len(snip) < 200 {
+			return fmt.Errorf("HTTP %d: %s", resp.StatusCode, snip)
+		}
 		return fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
 	tmp := dest + ".tmp"
