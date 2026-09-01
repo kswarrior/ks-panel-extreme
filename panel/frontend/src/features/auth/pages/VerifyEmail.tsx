@@ -196,9 +196,9 @@ const VerifyEmail: React.FC = () => {
                   required
                   autoComplete="email"
                   placeholder=" "
-                  className="peer w-full h-[45px] bg-black/20 ks-auth-input placeholder-transparent border rounded-lg pl-10 pr-3 py-3 text-sm text-white transition-all duration-200 focus:bg-black/30 focus:border-white/30 focus:ring-2 focus:ring-white/10 outline-none border-white/10"
+                  className="peer w-full h-[45px] bg-transparent ks-auth-input placeholder-transparent border-0 border-b rounded-none pl-10 pr-3 py-3 text-sm text-white transition-colors duration-200 focus:bg-transparent focus:ring-0 outline-none border-white/15 focus:border-white/40"
                 />
-                <label className="absolute left-10 top-[13px] text-sm font-medium text-gray-400 transition-all duration-200 pointer-events-none peer-placeholder-shown:top-[13px] peer-placeholder-shown:text-sm peer-focus:-top-2.5 peer-focus:left-2 peer-focus:text-xs peer-focus:text-white peer-focus:bg-neutral-900 peer-focus:px-1.5 peer-focus:rounded peer-[:not(:placeholder-shown)]:-top-2.5 peer-[:not(:placeholder-shown)]:left-2 peer-[:not(:placeholder-shown)]:text-xs peer-[:not(:placeholder-shown)]:text-gray-300 peer-[:not(:placeholder-shown)]:bg-neutral-900 peer-[:not(:placeholder-shown)]:px-1.5 peer-[:not(:placeholder-shown)]:rounded" htmlFor="verify-email">
+                <label className="absolute left-10 top-[13px] text-sm font-medium text-gray-400 transition-all duration-200 pointer-events-none peer-placeholder-shown:top-[13px] peer-placeholder-shown:text-sm peer-focus:-top-2.5 peer-focus:left-2 peer-focus:text-xs peer-focus:text-white peer-focus:bg-transparent peer-focus:px-1 peer-[:not(:placeholder-shown)]:-top-2.5 peer-[:not(:placeholder-shown)]:left-2 peer-[:not(:placeholder-shown)]:text-xs peer-[:not(:placeholder-shown)]:text-gray-300 peer-[:not(:placeholder-shown)]:bg-transparent peer-[:not(:placeholder-shown)]:px-1" htmlFor="verify-email">
                   Email
                 </label>
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500 group-focus-within:text-white transition-colors" aria-hidden="true">
@@ -224,9 +224,9 @@ const VerifyEmail: React.FC = () => {
                   required
                   autoComplete="one-time-code"
                   placeholder=" "
-                  className="peer w-full h-[45px] bg-black/20 ks-auth-input placeholder-transparent border rounded-lg pl-10 pr-3 py-3 text-sm text-white tracking-[0.5em] text-center placeholder:tracking-normal transition-all duration-200 focus:bg-black/30 focus:border-white/30 focus:ring-2 focus:ring-white/10 outline-none border-white/10"
+                  className="peer w-full h-[45px] bg-transparent ks-auth-input placeholder-transparent border-0 border-b rounded-none pl-10 pr-3 py-3 text-sm text-white tracking-[0.5em] text-center placeholder:tracking-normal transition-colors duration-200 focus:bg-transparent focus:ring-0 outline-none border-white/15 focus:border-white/40"
                 />
-                <label className="absolute left-10 top-[13px] text-sm font-medium text-gray-400 transition-all duration-200 pointer-events-none peer-placeholder-shown:top-[13px] peer-placeholder-shown:text-sm peer-focus:-top-2.5 peer-focus:left-2 peer-focus:text-xs peer-focus:text-white peer-focus:bg-neutral-900 peer-focus:px-1.5 peer-focus:rounded peer-[:not(:placeholder-shown)]:-top-2.5 peer-[:not(:placeholder-shown)]:left-2 peer-[:not(:placeholder-shown)]:text-xs peer-[:not(:placeholder-shown)]:text-gray-300 peer-[:not(:placeholder-shown)]:bg-neutral-900 peer-[:not(:placeholder-shown)]:px-1.5 peer-[:not(:placeholder-shown)]:rounded" htmlFor="verify-code">
+                <label className="absolute left-10 top-[13px] text-sm font-medium text-gray-400 transition-all duration-200 pointer-events-none peer-placeholder-shown:top-[13px] peer-placeholder-shown:text-sm peer-focus:-top-2.5 peer-focus:left-2 peer-focus:text-xs peer-focus:text-white peer-focus:bg-transparent peer-focus:px-1 peer-[:not(:placeholder-shown)]:-top-2.5 peer-[:not(:placeholder-shown)]:left-2 peer-[:not(:placeholder-shown)]:text-xs peer-[:not(:placeholder-shown)]:text-gray-300 peer-[:not(:placeholder-shown)]:bg-transparent peer-[:not(:placeholder-shown)]:px-1" htmlFor="verify-code">
                   Verification Code
                 </label>
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500 group-focus-within:text-white transition-colors" aria-hidden="true">
