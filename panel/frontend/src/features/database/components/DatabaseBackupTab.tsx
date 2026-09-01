@@ -61,6 +61,18 @@ export const DatabaseBackupTab: React.FC = () => {
 
   useEffect(() => { load(); }, [load]);
 
+  // Allow the top-right header buttons in Database.tsx to open the sub-page modals.
+  useEffect(() => {
+    const onCreate = () => setCreateOpen(true);
+    const onUpload = () => { setUploadTab('file'); setUploadOpen(true); };
+    window.addEventListener('backup:create', onCreate);
+    window.addEventListener('backup:upload', onUpload);
+    return () => {
+      window.removeEventListener('backup:create', onCreate);
+      window.removeEventListener('backup:upload', onUpload);
+    };
+  }, []);
+
   const handleCreate = async () => {
     const n = name.trim();
     if (!n) { setMsg({ tone: 'err', text: 'Enter a backup name.' }); return; }
