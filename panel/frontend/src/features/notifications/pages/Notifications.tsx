@@ -6,7 +6,6 @@ import { CATEGORY_META, PRIORITY_META } from '../types/notification';
 import NotificationCard from '../components/NotificationCard';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
-import Card from '@/shared/components/ui/Card';
 import client from '@/shared/api/client';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { useNotificationStore } from '@/shared/stores/notificationStore';
@@ -225,7 +224,20 @@ const NotificationsPage: React.FC = () => {
         </div>
       )}
 
-      {!loading && rows.length === 0 && !error && (
+      {!loading && hasFilters && rows.length === 0 && !error && (
+        <div className="ks-card ks-form-card rounded-xl text-center text-gray-400">
+          No notifications match your filters.
+          <div className="mt-2 flex justify-center">
+            <button onClick={resetFilters} aria-label="Clear filters" className="ks-btn-icon ks-icon-btn" title="Clear filters">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                <polyline points="1 4 1 10 7 10" />
+                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+      {!loading && !hasFilters && rows.length === 0 && !error && (
         <div className="flex flex-col items-center justify-center min-h-[40vh] px-4 animate-fade-in">
           <div className="flex flex-col items-center gap-4">
             <svg
