@@ -1,25 +1,27 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { listMyInstances } from '@/features/auth/api/me';
-import { destroyInstance } from '@/shared/api/admin';
+import {
+  listInstances,
+  startInstance,
+  stopInstance,
+  restartInstance,
+  destroyInstance,
+  suspendInstance,
+  unsuspendInstance,
+} from '@/shared/api/admin';
 import type { Instance } from '@/shared/types/instance';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
-import InstanceCard from '@/features/instances/components/InstanceCard';
+import InstanceCard, { CardAction } from '@/features/instances/components/InstanceCard';
+import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import GlassCard from '@/shared/components/ui/Card';
 import { useAuthStore } from '@/shared/stores/authStore';
-import SearchDropdown from '@/shared/components/ui/SearchDropdown';
-import { PermissionKey } from '@/shared/types/permissions';
+import { PermissionKey, PERMISSION_AREAS, hasAreaAccess, hasPermissionAny } from '@/shared/types/permissions';
 import { useConfirm } from '@/shared/stores/confirmStore';
 
-type StatusBucket = 'running' | 'attention' | 'stopped';
-
-const ATTENTION_STATES = new Set(['errored', 'install_failed', 'creating', 'installing']);
-
-const bucketize = (status: string): StatusBucket => {
-  if (status === 'running') return 'running';
-  if (ATTENTION_STATES.has(status)) return 'attention';
-  return 'stopped';
-};
+// ── Types ────────────────────────────────────────────────────────────────
+type KindKey = 'docker' | 'lxd' | 'kvm' | 'multipass' | 'unknown';
+type StatusKey = 'all' | 'running' | 'stopped' | 'creating' | 'installing' | 'errored' | 'install_failed' | 'destroyed' | 'suspended' | 'attention';
 
 const EmptyStateIllustration: React.FC = () => (
   <div className="flex flex-col items-center gap-4">
@@ -47,18 +49,81 @@ const EmptyStateIllustration: React.FC = () => (
   </div>
 );
 
+// ── Unified Instances page ───────────────────────────────────────────────
+// Single file that replaces the former dual-file setup (Instances + AdminInstances).
+// Permission branching mirrors backend scope: users with INSTANCES_ALL /
+// MANAGE_INSTANCES see the fleet via listInstances; others see only own
+// instances via listMyInstances. UI chrome (search, filters, actions, owner
+// badge, suspend) is gated so non-privileged users get a clean self-service
+// view while privileged users get full fleet management — like every other
+// area page that uses a single file + permission checks.
 const Instances: React.FC = () => {
   const navigate = useNavigate();
   const confirm = useConfirm();
+  const permissions = useAuthStore((s) => s.permissions);
+
+  // Permission resolution — derives from the canonical Instances area so
+  // granular keys (INSTANCES_VIEW / CREATE / EDIT / DELETE / OWN / ALL)
+  // are honoured without hard-coding umbrella checks.
+  const instancesArea = useMemo(
+    () => PERMISSION_AREAS.find((a) => a.label === 'Instances')!,
+    [],
+  );
+  const canViewAll = useMemo(
+    () =>
+      permissions.includes(PermissionKey.MANAGE_INSTANCES) ||
+      permissions.includes(PermissionKey.INSTANCES_ALL) ||
+      hasPermissionAny(permissions, PermissionKey.INSTANCES_ALL, PermissionKey.MANAGE_INSTANCES),
+    [permissions],
+  );
+  // `isPrivileged` controls fleet vs own data + privileged chrome.
+  // Matches the old InstructionsRouter "MANAGE_INSTANCES" gate but also
+  // respects INSTANCES_ALL for granular roles.
+  const isPrivileged = useMemo(
+    () => permissions.includes(PermissionKey.MANAGE_INSTANCES) || permissions.includes(PermissionKey.INSTANCES_ALL),
+    [permissions],
+  );
+  const canCreate = useMemo(() => hasAreaAccess(permissions, instancesArea, 'CREATE'), [permissions, instancesArea]);
+  const canEdit = useMemo(() => hasAreaAccess(permissions, instancesArea, 'EDIT'), [permissions, instancesArea]);
+  const canDelete = useMemo(() => hasAreaAccess(permissions, instancesArea, 'DELETE'), [permissions, instancesArea]);
+  const canControl = useMemo(() => isPrivileged || canEdit, [isPrivileged, canEdit]);
+  const canSuspend = isPrivileged;
+
   const [instances, setInstances] = useState<Instance[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [filter, setFilter] = useState<'all' | StatusBucket>('all');
-  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [suspendingId, setSuspendingId] = useState<number | null>(null);
+
+  // Search + filter state — superset of both former pages
+  const [search, setSearch] = useState('');
+  const [kindFilter, setKindFilter] = useState<KindKey | 'all'>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusKey>('all');
   const [filterOpen, setFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
-  const permissions = useAuthStore((s) => s.permissions);
-  const canManageInstances = permissions.includes(PermissionKey.MANAGE_INSTANCES);
+
+  const fmtErr = (reason: any): string => reason?.response?.data || reason?.message || 'unknown';
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      // Privileged → fleet-wide list (backend scopes by Own/All if needed);
+      // otherwise → own instances only. Mirrors ListInstancesHandler scope
+      // logic so non-privileged never see fleet data even if they hit
+      // /api/instances/ directly.
+      const list = isPrivileged ? await listInstances() : await listMyInstances();
+      setInstances(list);
+    } catch (e: any) {
+      setError(fmtErr(e));
+    } finally {
+      setLoading(false);
+    }
+  }, [isPrivileged]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   // Close filter dropdown when clicking outside
   useEffect(() => {
@@ -73,58 +138,183 @@ const Instances: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [filterOpen]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
+  const act = async (id: number, action: 'start' | 'stop' | 'restart' | 'destroy') => {
+    setBusyId(id);
     try {
-      const list = await listMyInstances();
-      setInstances(list);
-    } catch (e: any) {
-      setError(e?.response?.data || e?.message || 'Failed to load');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  const deleteInstanceHandle = async (id: number) => {
-    if (!(await confirm({ title: 'Delete instance', message: 'Delete this instance? This action cannot be undone.', tone: 'danger', confirmLabel: 'Delete' }))) return;
-    setDeletingId(id);
-    try {
-      await destroyInstance(id);
+      if (action === 'destroy') await destroyInstance(id);
+      else if (action === 'start') await startInstance(id);
+      else if (action === 'stop') await stopInstance(id);
+      else if (action === 'restart') await restartInstance(id);
       await load();
     } catch (e: any) {
-      alert(e?.response?.data || 'Failed to delete instance');
+      alert(fmtErr(e) || `Failed to ${action} instance`);
     } finally {
-      setDeletingId(null);
+      setBusyId(null);
     }
   };
 
-  const openCreateInstance = () => navigate('/instances/new');
+  const suspend = async (instance: Instance, durationHours?: number) => {
+    const reason = prompt(`Suspend "${instance.name}"?\n\nReason (required):`);
+    if (!reason?.trim()) return;
+    setSuspendingId(instance.id);
+    try {
+      await suspendInstance(instance.id, { reason: reason.trim(), duration_hours: durationHours });
+      await load();
+    } catch (e: any) {
+      alert(fmtErr(e) || 'Failed to suspend instance');
+    } finally {
+      setSuspendingId(null);
+    }
+  };
+
+  const unsuspend = async (instance: Instance) => {
+    if (!(await confirm({ title: 'Unsuspend instance', message: `Unsuspend "${instance.name}"?`, tone: 'default', confirmLabel: 'Unsuspend' }))) return;
+    setSuspendingId(instance.id);
+    try {
+      await unsuspendInstance(instance.id);
+      await load();
+    } catch (e: any) {
+      alert(fmtErr(e) || 'Failed to unsuspend instance');
+    } finally {
+      setSuspendingId(null);
+    }
+  };
+
+  const handleEdit = (instance: Instance) => {
+    navigate(`/instance/${instance.id}/edit`);
+  };
+
+  const handleDelete = async (instance: Instance) => {
+    if (!(await confirm({ title: 'Destroy instance', message: `Destroy "${instance.name}"? This runs driver destroy on the edge and removes the row.`, tone: 'danger', confirmLabel: 'Destroy' }))) return;
+    setBusyId(instance.id);
+    try {
+      await destroyInstance(instance.id);
+      await load();
+    } catch (e: any) {
+      alert(fmtErr(e) || 'Failed to destroy instance');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const actionsFor = (i: Instance): CardAction[] => [
+    ...(canEdit
+      ? [
+          {
+            label: 'Edit',
+            tone: 'edit' as const,
+            onClick: () => handleEdit(i),
+            disabled: busyId === i.id,
+          },
+        ]
+      : []),
+    ...(canControl
+      ? [
+          {
+            label: 'Start',
+            tone: 'start' as const,
+            onClick: () => act(i.id, 'start'),
+            disabled: busyId === i.id || i.status === 'running',
+          },
+          {
+            label: 'Stop',
+            tone: 'stop' as const,
+            onClick: () => act(i.id, 'stop'),
+            disabled: busyId === i.id || i.status === 'stopped',
+          },
+          {
+            label: 'Restart',
+            tone: 'restart' as const,
+            onClick: () => act(i.id, 'restart'),
+            disabled: busyId === i.id || i.status !== 'running',
+          },
+        ]
+      : []),
+    ...(canDelete
+      ? [
+          {
+            label: 'Destroy',
+            tone: 'destroy' as const,
+            onClick: async () => {
+              if (await confirm({ title: 'Destroy instance', message: `Destroy "${i.name}"? This runs driver destroy on the edge and removes the row.`, tone: 'danger', confirmLabel: 'Destroy' })) act(i.id, 'destroy');
+            },
+            busy: busyId === i.id,
+            disabled: busyId === i.id,
+          },
+        ]
+      : []),
+  ];
+
+  const kindKey = (k: string): KindKey => {
+    return (['docker', 'lxd', 'kvm', 'multipass'].includes(k) ? k : 'unknown') as KindKey;
+  };
+
+  const ATTENTION_STATES = useMemo(() => new Set(['errored', 'install_failed', 'creating', 'installing']), []);
 
   const filtered = useMemo(() => {
-    if (filter === 'all') return instances;
-    return instances.filter((i) => bucketize(i.status) === filter);
-  }, [instances, filter]);
+    const q = search.trim().toLowerCase();
+    let out = instances;
+    if (q) {
+      out = out.filter((i) =>
+        i.name.toLowerCase().includes(q) ||
+        (i.template_name || '').toLowerCase().includes(q) ||
+        (i.node_name || '').toLowerCase().includes(q) ||
+        (i.owner_name || '').toLowerCase().includes(q) ||
+        (i.external_id || '').toLowerCase().includes(q),
+      );
+    }
+    if (kindFilter !== 'all') out = out.filter((i) => kindKey(i.kind) === kindFilter);
+    if (statusFilter !== 'all') {
+      if (statusFilter === 'attention') {
+        out = out.filter((i) => ATTENTION_STATES.has(i.status));
+      } else if (statusFilter === 'suspended') {
+        out = out.filter((i) => i.suspended === 1);
+      } else {
+        out = out.filter((i) => i.status === statusFilter);
+      }
+    }
+    return out;
+  }, [instances, search, kindFilter, statusFilter, ATTENTION_STATES]);
 
-  const isEmpty = !loading && instances.length === 0;
-  const hasResults = !loading && instances.length > 0;
+  const resetFilters = () => {
+    setSearch('');
+    setKindFilter('all');
+    setStatusFilter('all');
+  };
+
+  const stats = useMemo(() => {
+    let running = 0;
+    let stopped = 0;
+    let creating = 0;
+    let installing = 0;
+    let errored = 0;
+    let installFailed = 0;
+    let destroyed = 0;
+    let suspended = 0;
+    for (const i of instances) {
+      switch (i.status) {
+        case 'running': running += 1; break;
+        case 'stopped': stopped += 1; break;
+        case 'creating': creating += 1; break;
+        case 'installing': installing += 1; break;
+        case 'errored': errored += 1; break;
+        case 'install_failed': installFailed += 1; break;
+        case 'destroyed': destroyed += 1; break;
+      }
+      if (i.suspended === 1) suspended += 1;
+    }
+    return { running, stopped, creating, installing, errored, installFailed, destroyed, suspended, total: instances.length };
+  }, [instances]);
+
+  const hasActiveFilters = kindFilter !== 'all' || statusFilter !== 'all' || search.trim() !== '';
+  const showActions = isPrivileged || canControl || canDelete;
+  const showOwner = isPrivileged;
 
   return (
-    <div className="space-y-6">
-      {/* ── Header Bar (like Templates page) ───────────────────────────── */}
+    <div>
       <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
         <h2 className="text-xl font-semibold text-white">Instances</h2>
         <div className="flex items-center gap-2">
-          <SearchDropdown
-            value=""
-            onChange={() => {}}
-            placeholder="Search instances…"
-            ariaLabel="Search instances"
-          />
           <Link
             to="/instances/stats"
             aria-label="Instance Statistics"
@@ -133,20 +323,14 @@ const Instances: React.FC = () => {
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>
           </Link>
-          {canManageInstances && (
-            <button
-              onClick={openCreateInstance}
-              aria-label="New Instance"
-              className="ks-btn-header ks-icon-btn"
-              title="New Instance"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-            </button>
-          )}
-          {/* Filter dropdown toggle */}
+          <SearchDropdown
+            value={search}
+            onChange={setSearch}
+            placeholder={isPrivileged ? 'Search name, template, node, owner…' : 'Search instances…'}
+            ariaLabel="Search instances"
+          />
+
+          {/* Filter Dropdown — unified driver + status (like Templates/Nodes) */}
           <div className="relative" ref={filterRef}>
             <button
               type="button"
@@ -159,28 +343,56 @@ const Instances: React.FC = () => {
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
                 <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
               </svg>
-              {(filter !== 'all') && (
+              {hasActiveFilters && (
                 <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
               )}
             </button>
+
             {filterOpen && (
-              <div className="absolute right-0 top-full mt-1 z-30 w-56">
-                <div className="ks-dropdown min-w-[200px] animate-in fade-in slide-in-from-to duration-150">
+              <div className="absolute right-0 top-full mt-1 z-30 w-64">
+                <div className="ks-dropdown min-w-[220px] animate-in fade-in slide-in-from-to duration-150">
                   <div className="p-3 space-y-3">
+                    <div>
+                      <label className="block text-xs text-gray-400 uppercase tracking-wide mb-1.5">Driver</label>
+                      <select
+                        value={kindFilter}
+                        onChange={(e) => setKindFilter(e.target.value as any)}
+                        className="w-full glass-field"
+                      >
+                        <option value="all">All drivers</option>
+                        <option value="docker">Docker</option>
+                        <option value="lxd">LXD</option>
+                        <option value="kvm">KVM</option>
+                        <option value="multipass">Multipass</option>
+                      </select>
+                    </div>
                     <div>
                       <label className="block text-xs text-gray-400 uppercase tracking-wide mb-1.5">Status</label>
                       <select
-                        value={filter}
-                        onChange={(e) => setFilter(e.target.value as 'all' | 'running' | 'attention' | 'stopped')}
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value as any)}
                         className="w-full glass-field"
                       >
-                        <option value="all">All</option>
+                        <option value="all">All statuses</option>
                         <option value="running">Running</option>
-                        <option value="attention">Attention</option>
                         <option value="stopped">Stopped</option>
+                        <option value="creating">Creating</option>
+                        <option value="installing">Installing</option>
+                        <option value="errored">Errored</option>
+                        <option value="install_failed">Install failed</option>
+                        <option value="destroyed">Destroyed</option>
+                        <option value="attention">Attention</option>
+                        {isPrivileged && <option value="suspended">Suspended</option>}
                       </select>
                     </div>
-                    <div className="pt-2 border-t border-white/5 flex items-center justify-end gap-2">
+                    <div className="pt-2 border-t border-white/5 flex items-center justify-between gap-2">
+                      <button
+                        type="button"
+                        onClick={resetFilters}
+                        className="text-xs text-gray-400 hover:text-white"
+                      >
+                        Clear
+                      </button>
                       <button
                         type="button"
                         onClick={() => setFilterOpen(false)}
@@ -194,48 +406,66 @@ const Instances: React.FC = () => {
               </div>
             )}
           </div>
+
+          {canCreate && (
+            <button
+              onClick={() => navigate('/instances/new')}
+              aria-label="Deploy new instance"
+              className="ks-btn-header ks-icon-btn"
+              title="Deploy new instance"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            </button>
+          )}
         </div>
       </div>
 
-      {error && (
-        <GlassCard className="text-sm text-red-300 border border-red-700/40 animate-fade-in">
-          {error}
-        </GlassCard>
-      )}
+      {error && <p className="text-red-400 mb-3 text-sm">{typeof error === 'string' ? error : JSON.stringify(error)}</p>}
+      {loading && <SkeletonGrid count={6} />}
 
-      {loading && <SkeletonGrid count={4} />}
-
-      {!loading && hasResults && filtered.length > 0 && (
-        <div id="instance-grid" className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      {!loading && filtered.length > 0 && (
+        <div className="ks-card-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3" id="ks-instances-grid">
           {filtered.map((i) => (
-            <InstanceCard key={i.id} instance={i} />
+            <InstanceCard
+              key={i.id}
+              id={`ks-instance-${i.id}`}
+              instance={i}
+              showOwner={showOwner}
+              actions={showActions ? actionsFor(i) : undefined}
+              onEdit={canEdit ? () => handleEdit(i) : undefined}
+              onDelete={canDelete ? () => handleDelete(i) : undefined}
+              onSuspend={canSuspend ? suspend : undefined}
+              onUnsuspend={canSuspend ? unsuspend : undefined}
+              suspendingId={suspendingId}
+              deleteDisabled={busyId === i.id}
+            />
           ))}
         </div>
       )}
 
-      {!loading && hasResults && filtered.length === 0 && (
-        <GlassCard className="text-center animate-fade-in">
-          <div className="mx-auto w-12 h-12 rounded-full bg-white/[0.04] border border-white/10 flex items-center justify-center text-gray-300 mb-3">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
-              <circle cx="11" cy="11" r="7" />
-              <path d="m21 21-4.3-4.3" />
-            </svg>
+      {!loading && filtered.length === 0 && instances.length > 0 && !error && (
+        <div className="ks-card ks-form-card rounded-xl text-center text-gray-400">
+          No instances match your filters.
+          <div className="mt-2 flex justify-center">
+            <button onClick={resetFilters} aria-label="Clear filters" className="ks-btn-icon ks-icon-btn" title="Clear filters">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                <polyline points="1 4 1 10 7 10" />
+                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+               </svg>
+            </button>
           </div>
-          <p className="text-sm text-white">No instances match this filter.</p>
-          <p className="text-xs text-gray-400 mt-1">Try a different status or refresh the page.</p>
-          <button
-            type="button"
-            onClick={() => setFilter('all')}
-            className="mt-4 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border border-white/15 bg-white/[0.04] text-white hover:bg-white/10 transition-colors"
-          >
-            Show everything
-          </button>
-        </GlassCard>
-      )}
+        </div>
+       )}
 
-      {!loading && isEmpty && !error && (
+      {!loading && instances.length === 0 && !error && (
         <div className="flex flex-col items-center justify-center min-h-[40vh] px-4 animate-fade-in">
           <EmptyStateIllustration />
+          {isPrivileged && stats.total === 0 && (
+            <p className="text-sm text-gray-500 mt-3">Deploy your first instance to get started.</p>
+          )}
         </div>
       )}
     </div>
