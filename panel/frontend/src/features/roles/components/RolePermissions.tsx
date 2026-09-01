@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import Modal from '@/shared/components/ui/Modal';
 import type { PermissionArea } from '@/shared/types/permissions';
 import type { Permission } from '@/shared/types/user';
@@ -114,6 +114,8 @@ const RolePermissions: React.FC<RolePermissionsProps> = ({ formPermissions, setF
   const [importOpen, setImportOpen] = useState(false);
   const [importSelection, setImportSelection] = useState<Set<string>>(new Set());
   const [importSearch, setImportSearch] = useState('');
+  // per-key scope map: key -> 'OWN' | 'ALL' for each checked permission
+  const [keyScopes, setKeyScopes] = useState<Record<string, 'OWN' | 'ALL'>>({});
 
   const permByKey = useMemo(() => {
     const m = new Map<string, Permission>();
@@ -145,17 +147,115 @@ const RolePermissions: React.FC<RolePermissionsProps> = ({ formPermissions, setF
     return list;
   }, [selectedGroups, importSearch]);
 
+  // Keep keyScopes in sync when formPermissions changes externally (e.g. role load or import)
+  // For any checked key without an entry, default to current area global scope (ALL if present else OWN else ALL)
+  useEffect(() => {
+    if (!configureArea) return;
+    const area = configureArea;
+    const rowsKeys = [
+      ...(area.umbrella ? [area.umbrella] : []),
+      ...Object.values(area.keys).filter(Boolean) as string[],
+      ...(area.extraKeys ?? []),
+    ].filter((k) => permByKey.has(k));
+    let changed = false;
+    const next: Record<string, 'OWN' | 'ALL'> = { ...keyScopes };
+    // Determine default from existing global scope if available
+    const globalHasAll = formPermissions.includes(area.allKey!);
+    const globalHasOwn = formPermissions.includes(area.ownKey!);
+    const globalDefault: 'OWN' | 'ALL' = globalHasAll ? 'ALL' : globalHasOwn ? 'OWN' : 'ALL';
+    for (const k of rowsKeys) {
+      if (formPermissions.includes(k) && !next[k]) {
+        next[k] = globalDefault;
+        changed = true;
+      }
+      if (!formPermissions.includes(k) && next[k]) {
+        delete next[k];
+        changed = true;
+      }
+    }
+    if (changed) setKeyScopes(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formPermissions, configureArea, permByKey]);
+
+  // helper to sync area OWN/ALL keys in formPermissions from per-key map
+  const syncAreaScopesToPermissions = (area: PermissionArea, scopes: Record<string, 'OWN' | 'ALL'>) => {
+    const checkedKeys = [
+      ...(area.umbrella ? [area.umbrella] : []),
+      ...Object.values(area.keys).filter(Boolean) as string[],
+      ...(area.extraKeys ?? []),
+    ].filter((k) => permByKey.has(k) && formPermissions.includes(k) || scopes[k]); // actually use scopes to know checked
+    // But we need to consider currently checked keys (formPermissions) + scopes
+    // Simpler: look at scopes entries for this area's keys that are checked
+    const areaKeysSet = new Set([
+      ...(area.umbrella ? [area.umbrella] : []),
+      ...Object.values(area.keys).filter(Boolean) as string[],
+      ...(area.extraKeys ?? []),
+    ]);
+    const values = Object.entries(scopes)
+      .filter(([k]) => areaKeysSet.has(k) && formPermissions.includes(k))
+      .map(([, v]) => v);
+    // If no checked keys, keep existing scopes as is (don't auto-remove)
+    // For bulk operations we will have at least one checked key, so values non-empty
+    // Derive hasOwn/hasAll
+    const hasOwn = values.includes('OWN');
+    const hasAll = values.includes('ALL');
+    setFormPermissions((f) => {
+      let next = [...f];
+      // Remove existing scopes for this area first
+      next = next.filter((k) => k !== area.ownKey && k !== area.allKey);
+      if (values.length === 0) {
+        // No checked keys: keep no scopes (group will be removed anyway) – but if area still has checked keys via f, fallback to global
+        // Instead, if there are checked keys but no scopes (should not happen), default to ALL
+        const hasChecked = [...areaKeysSet].some((k) => f.includes(k));
+        if (hasChecked) {
+          // default to ALL
+          if (area.allKey && !next.includes(area.allKey)) next.push(area.allKey);
+        }
+        return next;
+      }
+      if (hasOwn && area.ownKey && !next.includes(area.ownKey)) next.push(area.ownKey);
+      if (hasAll && area.allKey && !next.includes(area.allKey)) next.push(area.allKey);
+      // Ensure at least one verb remains if we added scopes but somehow no verb – handled elsewhere
+      return next;
+    });
+  };
+
   // ---- permission mutators ----
   const togglePerm = (key: string) => {
+    const area = findAreaForKey(key);
+    const isRemoving = formPermissions.includes(key);
+    if (isRemoving) {
+      setKeyScopes((prev) => {
+        const n = { ...prev };
+        delete n[key];
+        // after removal, sync scopes
+        if (area) {
+          // defer sync to next tick? we can sync after state update via effect, but do inline
+          // we need to compute new scopes without this key
+          setTimeout(() => syncAreaScopesToPermissions(area, n), 0);
+        }
+        return n;
+      });
+    } else {
+      // adding
+      const defaultScope: 'OWN' | 'ALL' =
+        keyScopes[key] ?? (formPermissions.includes(area?.allKey!) ? 'ALL' : formPermissions.includes(area?.ownKey!) ? 'OWN' : 'ALL');
+      setKeyScopes((prev) => {
+        const n = { ...prev, [key]: defaultScope };
+        if (area) setTimeout(() => syncAreaScopesToPermissions(area, n), 0);
+        return n;
+      });
+    }
     setFormPermissions((f) => {
       const has = f.includes(key);
       if (has) return f.filter((p) => p !== key);
       const next = [...f, key];
-      const area = findAreaForKey(key);
       if (area?.umbrella && !next.includes(area.umbrella)) next.push(area.umbrella);
       // ensure a scope is present – default to ALL when first verb of area is enabled
       if (area?.ownKey && area?.allKey && !next.includes(area.ownKey) && !next.includes(area.allKey)) {
         next.push(area.allKey);
+        // also set per-key scope to ALL for this key if not set
+        setKeyScopes((prev) => ({ ...prev, [key]: prev[key] ?? 'ALL' }));
       }
       return next;
     });
@@ -171,6 +271,25 @@ const RolePermissions: React.FC<RolePermissionsProps> = ({ formPermissions, setF
       }
       return f.filter((p) => !groupKeys.has(p));
     });
+    // also manage keyScopes for this area
+    if (enable) {
+      setKeyScopes((prev) => {
+        const n = { ...prev };
+        const keys = [
+          ...(area.umbrella ? [area.umbrella] : []),
+          ...Object.values(area.keys).filter(Boolean) as string[],
+          ...(area.extraKeys ?? []),
+        ].filter((k) => permByKey.has(k));
+        for (const k of keys) if (!n[k]) n[k] = 'ALL';
+        return n;
+      });
+    } else {
+      setKeyScopes((prev) => {
+        const n = { ...prev };
+        for (const k of groupKeySet(area)) delete n[k];
+        return n;
+      });
+    }
   };
 
   const handleRemoveGroup = (area: PermissionArea) => {
@@ -178,31 +297,50 @@ const RolePermissions: React.FC<RolePermissionsProps> = ({ formPermissions, setF
     if (configureArea?.label === area.label) setConfigureArea(null);
   };
 
-  const handleScopeChange = (area: PermissionArea, scope: 'OWN' | 'ALL') => {
+  const handlePerKeyScopeChange = (area: PermissionArea, key: string, scope: 'OWN' | 'ALL') => {
+    setKeyScopes((prev) => {
+      const n = { ...prev, [key]: scope };
+      syncAreaScopesToPermissions(area, n);
+      return n;
+    });
+  };
+
+  const handleBulkScope = (area: PermissionArea, scope: 'OWN' | 'ALL') => {
+    // set all checked keys in this area to scope
+    const keys = [
+      ...(area.umbrella ? [area.umbrella] : []),
+      ...Object.values(area.keys).filter(Boolean) as string[],
+      ...(area.extraKeys ?? []),
+    ].filter((k) => permByKey.has(k) && formPermissions.includes(k));
+    setKeyScopes((prev) => {
+      const n = { ...prev };
+      for (const k of keys) n[k] = scope;
+      syncAreaScopesToPermissions(area, n);
+      return n;
+    });
+    // also ensure formPermissions has correct global scope immediately (optimistic)
     setFormPermissions((f) => {
-      let next = [...f];
-      // Remove opposite, add selected
-      if (scope === 'OWN') {
-        if (!next.includes(area.ownKey!)) next.push(area.ownKey!);
-        next = next.filter((k) => k !== area.allKey);
-      } else {
-        if (!next.includes(area.allKey!)) next.push(area.allKey!);
-        next = next.filter((k) => k !== area.ownKey);
-      }
-      // Ensure at least the umbrella / one verb stays – if group was empty, add VIEW if exists as minimal
-      const hasAny = [...groupKeySet(area)].some((k) => next.includes(k) && k !== area.ownKey && k !== area.allKey);
-      if (!hasAny) {
-        // add umbrella or VIEW as anchor so group remains visible
-        const anchor = area.umbrella || area.keys.VIEW || area.extraKeys?.[0];
-        if (anchor && !next.includes(anchor)) next.push(anchor);
-      }
+      let next = f.filter((k) => k !== area.ownKey && k !== area.allKey);
+      if (scope === 'OWN' && area.ownKey) next.push(area.ownKey);
+      if (scope === 'ALL' && area.allKey) next.push(area.allKey);
+      // ensure umbrella stays
+      if (area.umbrella && !next.includes(area.umbrella) && keys.length > 0) next.push(area.umbrella);
       return next;
     });
   };
 
-  const getScopeValue = (area: PermissionArea): 'OWN' | 'ALL' => {
-    if (formPermissions.includes(area.allKey!)) return 'ALL';
-    if (formPermissions.includes(area.ownKey!)) return 'OWN';
+  const getBulkStatus = (area: PermissionArea): 'OWN' | 'ALL' | 'SUITABLE' | 'NONE' => {
+    const keys = [
+      ...(area.umbrella ? [area.umbrella] : []),
+      ...Object.values(area.keys).filter(Boolean) as string[],
+      ...(area.extraKeys ?? []),
+    ].filter((k) => permByKey.has(k) && formPermissions.includes(k));
+    if (keys.length === 0) return 'NONE';
+    const vals = keys.map((k) => keyScopes[k] ?? (formPermissions.includes(area.allKey!) ? 'ALL' : formPermissions.includes(area.ownKey!) ? 'OWN' : 'ALL'));
+    const hasOwn = vals.includes('OWN');
+    const hasAll = vals.includes('ALL');
+    if (hasOwn && hasAll) return 'SUITABLE';
+    if (hasOwn) return 'OWN';
     return 'ALL';
   };
 
@@ -217,15 +355,24 @@ const RolePermissions: React.FC<RolePermissionsProps> = ({ formPermissions, setF
 
   const handleConfirmImport = () => {
     if (importSelection.size === 0) return;
+    const newScopes: Record<string, 'OWN' | 'ALL'> = {};
     setFormPermissions((f) => {
       const merged = new Set(f);
       for (const label of importSelection) {
         const area = PERMISSION_AREAS.find((a) => a.label === label);
         if (!area) continue;
         for (const k of groupKeySet(area)) merged.add(k);
+        // prepare scopes for imported area's keys
+        const keys = [
+          ...(area.umbrella ? [area.umbrella] : []),
+          ...Object.values(area.keys).filter(Boolean) as string[],
+          ...(area.extraKeys ?? []),
+        ].filter((k) => permByKey.has(k));
+        for (const k of keys) newScopes[k] = 'ALL';
       }
       return Array.from(merged);
     });
+    setKeyScopes((prev) => ({ ...prev, ...newScopes }));
     setImportSelection(new Set());
     setImportOpen(false);
     setImportSearch('');
@@ -244,7 +391,6 @@ const RolePermissions: React.FC<RolePermissionsProps> = ({ formPermissions, setF
     // umbrella first
     if (configureArea.umbrella) {
       const p = permByKey.get(configureArea.umbrella);
-      // Only include if backend actually has it – fallback still shows row so UI not empty
       rows.push({
         key: configureArea.umbrella,
         perm: p,
@@ -269,7 +415,7 @@ const RolePermissions: React.FC<RolePermissionsProps> = ({ formPermissions, setF
 
   // ---- render configure subpage ----
   if (configureArea) {
-    const scopeVal = getScopeValue(configureArea);
+    const bulk = getBulkStatus(configureArea);
     return (
       <div className="space-y-4">
         {/* Subpage header: left Back, right [SVG][Group Name] */}
@@ -308,6 +454,7 @@ const RolePermissions: React.FC<RolePermissionsProps> = ({ formPermissions, setF
             <div className="space-y-2">
               {configRows.map((row) => {
                 const checked = formPermissions.includes(row.key);
+                const perKeyVal: 'OWN' | 'ALL' = keyScopes[row.key] ?? (formPermissions.includes(configureArea.allKey!) ? 'ALL' : formPermissions.includes(configureArea.ownKey!) ? 'OWN' : 'ALL');
                 return (
                   <div
                     key={row.key}
@@ -336,8 +483,8 @@ const RolePermissions: React.FC<RolePermissionsProps> = ({ formPermissions, setF
                       <div className="shrink-0 ml-auto flex flex-col items-end gap-1">
                         <label className="text-[10px] uppercase tracking-wide text-gray-500">Scope</label>
                         <select
-                          value={scopeVal}
-                          onChange={(e) => handleScopeChange(configureArea, e.target.value as 'OWN' | 'ALL')}
+                          value={perKeyVal}
+                          onChange={(e) => handlePerKeyScopeChange(configureArea, row.key, e.target.value as 'OWN' | 'ALL')}
                           className="text-xs bg-black/40 border border-white/10 rounded-md px-2 py-1.5 text-white focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/20 min-w-[5.5rem]"
                         >
                           <option value="OWN">Own</option>
@@ -351,30 +498,55 @@ const RolePermissions: React.FC<RolePermissionsProps> = ({ formPermissions, setF
             </div>
           )}
 
-          {/* Scope summary + quick toggle */}
+          {/* Bottom bulk scope control – [Own][Suitable][All] */}
           {configureArea.ownKey && configureArea.allKey && (
-            <div className="pt-3 mt-3 border-t border-white/10 flex items-center justify-between gap-3">
+            <div className="pt-3 mt-3 border-t border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <span className="text-xs text-gray-500">
-                Current scope for <span className="text-gray-300">{configureArea.label}</span>: <span className="text-white font-medium">{scopeVal === 'OWN' ? 'Own only' : 'All'}</span>
+                {bulk === 'SUITABLE' ? (
+                  <>
+                    Mixed scope for <span className="text-gray-300">{configureArea.label}</span>: <span className="text-white font-medium">some Own, some All</span>
+                  </>
+                ) : bulk === 'OWN' ? (
+                  <>
+                    Current scope for <span className="text-gray-300">{configureArea.label}</span>: <span className="text-white font-medium">Own only</span>
+                  </>
+                ) : bulk === 'ALL' ? (
+                  <>
+                    Current scope for <span className="text-gray-300">{configureArea.label}</span>: <span className="text-white font-medium">All</span>
+                  </>
+                ) : (
+                  <span className="text-white font-medium">No verbs selected</span>
+                )}
               </span>
-              <div className="inline-flex rounded-lg overflow-hidden border border-white/10 text-xs">
+              <div className="inline-flex rounded-lg overflow-hidden border border-white/10 text-xs self-start sm:self-auto">
                 <button
                   type="button"
-                  onClick={() => handleScopeChange(configureArea, 'OWN')}
-                  className={`px-3 py-1.5 transition-colors ${scopeVal === 'OWN' ? 'bg-white text-black' : 'bg-white/5 text-gray-300 hover:bg-white/10'}`}
+                  onClick={() => handleBulkScope(configureArea, 'OWN')}
+                  className={`px-3 py-1.5 transition-colors ${bulk === 'OWN' ? 'bg-white text-black' : 'bg-white/5 text-gray-300 hover:bg-white/10'}`}
                 >
                   Own
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleScopeChange(configureArea, 'ALL')}
-                  className={`px-3 py-1.5 border-l border-white/10 transition-colors ${scopeVal === 'ALL' ? 'bg-white text-black' : 'bg-white/5 text-gray-300 hover:bg-white/10'}`}
+                  className={`px-3 py-1.5 border-l border-r border-white/10 transition-colors ${bulk === 'SUITABLE' ? 'bg-amber-500 text-black' : 'bg-white/5 text-gray-500 cursor-default'}`}
+                  title={bulk === 'SUITABLE' ? 'Mixed — some verbs Own, some All' : 'Shows as Suitable when some verbs are Own and some All'}
+                  aria-pressed={bulk === 'SUITABLE'}
+                >
+                  Suitable
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleBulkScope(configureArea, 'ALL')}
+                  className={`px-3 py-1.5 transition-colors ${bulk === 'ALL' ? 'bg-white text-black' : 'bg-white/5 text-gray-300 hover:bg-white/10'}`}
                 >
                   All
                 </button>
               </div>
             </div>
           )}
+          <p className="text-[11px] text-gray-500">
+            Click <span className="text-gray-300">Own</span> to set all checked verbs to Own, <span className="text-gray-300">All</span> to set all to All. <span className="text-gray-300">Suitable</span> lights up when some verbs are Own and some All.
+          </p>
         </div>
       </div>
     );
@@ -477,7 +649,7 @@ const RolePermissions: React.FC<RolePermissionsProps> = ({ formPermissions, setF
       </div>
 
       <p className="text-[11px] text-gray-500">
-        Tip: <span className="text-gray-400">Configure</span> opens the group’s verbs. Checking <span className="text-gray-400">VIEW</span> reveals the <span className="text-gray-300">Own / All</span> scope selector — every enabled key shows the same selector.
+        Tip: <span className="text-gray-400">Configure</span> opens the group’s verbs. Checking <span className="text-gray-400">VIEW</span> reveals the <span className="text-gray-300">Own / All</span> scope selector — every enabled key shows the same selector. Bulk <span className="text-white">Own/All</span> at bottom sets all.
       </p>
 
       {/* Import modal – groups only */}
