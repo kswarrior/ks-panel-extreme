@@ -14,9 +14,8 @@ import type { Instance } from '@/shared/types/instance';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import InstanceCard, { CardAction } from '@/features/instances/components/InstanceCard';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
-import GlassCard from '@/shared/components/ui/Card';
 import { useAuthStore } from '@/shared/stores/authStore';
-import { PermissionKey, PERMISSION_AREAS, hasAreaAccess, hasPermissionAny } from '@/shared/types/permissions';
+import { PermissionKey, PERMISSION_AREAS, hasAreaAccess } from '@/shared/types/permissions';
 import { useConfirm } from '@/shared/stores/confirmStore';
 
 // ── Types ────────────────────────────────────────────────────────────────
@@ -69,15 +68,8 @@ const Instances: React.FC = () => {
     () => PERMISSION_AREAS.find((a) => a.label === 'Instances')!,
     [],
   );
-  const canViewAll = useMemo(
-    () =>
-      permissions.includes(PermissionKey.MANAGE_INSTANCES) ||
-      permissions.includes(PermissionKey.INSTANCES_ALL) ||
-      hasPermissionAny(permissions, PermissionKey.INSTANCES_ALL, PermissionKey.MANAGE_INSTANCES),
-    [permissions],
-  );
   // `isPrivileged` controls fleet vs own data + privileged chrome.
-  // Matches the old InstructionsRouter "MANAGE_INSTANCES" gate but also
+  // Matches the old InstancesRouter "MANAGE_INSTANCES" gate but also
   // respects INSTANCES_ALL for granular roles.
   const isPrivileged = useMemo(
     () => permissions.includes(PermissionKey.MANAGE_INSTANCES) || permissions.includes(PermissionKey.INSTANCES_ALL),
