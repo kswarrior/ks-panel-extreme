@@ -421,10 +421,12 @@ const Header: React.FC<HeaderProps> = ({
                  * themed --ks-btn-icon-radius/padding which otherwise force a
                  * rounded-square icon-button, plus Tailwind !rounded-full +
                  * inline borderRadius + overflow-hidden guarantee a true circle
-                 * even when the theme injects `border-radius: var(...) !important`. */}
+                 * even when the theme injects `border-radius: var(...) !important`.
+                 * Sized to match the sidebar toggle (w-9 h-9 outer, 20px inner icon)
+                 * so the top-right cluster feels balanced. */}
                 <Avatar
                   name={user?.username || 'Guest'}
-                  size={36}
+                  size={28}
                   accentColor={user?.accent_color || undefined}
                   symbol={user?.avatar_symbol}
                   imageUrl={user?.has_avatar ? `/api/users/${user.id}/avatar` : undefined}
