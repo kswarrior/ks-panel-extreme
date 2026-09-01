@@ -793,7 +793,7 @@ function buildVars(theme: Theme, opts?: ApplyOpts): string {
   --ks-sidebar-active-bg: ${s.active_background};
   --ks-sidebar-active-text: ${s.active_text_color};
   --ks-sidebar-hover-bg: ${s.hover_background};
-  --ks-sidebar-width: ${s.width}px;
+  --ks-sidebar-width: ${clampNum(s.width, DEFAULT_THEME.sidebar.width, 160, 320)}px;
 
   --ks-header-bg: ${h.background};
   --ks-header-blur: ${h.backdrop_blur}px;
@@ -1198,17 +1198,26 @@ body { color: var(--ks-text-body); }
   -webkit-backdrop-filter: blur(var(--ks-sidebar-blur)) !important;
   border-color: var(--ks-sidebar-border) !important;
 }
-/* Themed width applies on md+ ONLY while the sidebar is expanded.
-   Two bugs this fixes: the old unconditional !important clobbered the
-   collapse toggle's w-16 utility (sidebar never narrowed), and it also
-   forced the width onto the mobile off-canvas drawer where an admin-set
-   320px swallowed most of a 360px phone. Below md the drawer keeps the
-   stock w-64 utility; .ks-sidebar-collapsed (set by Sidebar.tsx) lets the
-   w-16 utility win again. */
-@media (min-width: 768px) {
+/* Themed width — sidebar width from the Theme Studio is now fully
+   supported on every breakpoint. The collapsed state keeps w-16 (64px)
+   via .ks-sidebar-collapsed; the :not() guard guarantees the collapsed
+   width is never clobbered. On mobile the drawer is clamped to 85vw so
+   an admin-set 320px doesn't swallow a 360px phone, while still
+   respecting the themed width up to that limit. flex-basis + max-width
+   are set alongside width/min-width so the flex parent (Layout) honors
+   the themed size without shrinking. */
+.ks-sidebar-bg:not(.ks-sidebar-collapsed) {
+  width: var(--ks-sidebar-width, 225px) !important;
+  min-width: var(--ks-sidebar-width, 225px) !important;
+  max-width: var(--ks-sidebar-width, 225px) !important;
+  flex-basis: var(--ks-sidebar-width, 225px) !important;
+}
+@media (max-width: 767px) {
   .ks-sidebar-bg:not(.ks-sidebar-collapsed) {
-    width: var(--ks-sidebar-width, 224px) !important;
-    min-width: var(--ks-sidebar-width, 224px) !important;
+    width: min(var(--ks-sidebar-width, 225px), 85vw) !important;
+    min-width: min(var(--ks-sidebar-width, 225px), 85vw) !important;
+    max-width: min(var(--ks-sidebar-width, 225px), 85vw) !important;
+    flex-basis: min(var(--ks-sidebar-width, 225px), 85vw) !important;
   }
 }
 
