@@ -318,7 +318,7 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
         aria-label="Main navigation"
       >
         {/* Fixed top brand area — never scrolls */}
-        <div className="shrink-0 z-10 px-3 py-4 border-b border-gray-800 flex items-center gap-2.5">
+        <div className={`shrink-0 z-10 px-3 py-4 border-b border-gray-800 flex items-center gap-2.5 ${isCollapsed ? 'justify-center' : ''}`}>
           {panelLogo ? (
             <img
               src={panelLogo.url}
