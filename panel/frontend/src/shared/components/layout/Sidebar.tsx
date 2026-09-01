@@ -230,12 +230,12 @@ interface SubItem {
 }
 
 const adminSubItems: SubItem[] = [
-  { to: '/system', label: 'System', permission: '', icon: 'Dashboard' },
-  { to: '/tickets', label: 'Tickets', permission: '', icon: 'Tickets' },
+  { to: '/system', label: 'System', permission: PermissionKey.ACCESS_ADMIN_PANEL, icon: 'Dashboard' },
+  { to: '/tickets', label: 'Tickets', permission: PermissionKey.MANAGE_TICKETS, icon: 'Tickets' },
   { to: '/notifications', label: 'Notifications', permission: '', icon: 'Notifications' },
-  { to: '/security', label: 'Security', permission: '', icon: 'Security' },
+  { to: '/security', label: 'Security', permission: PermissionKey.ACCESS_ADMIN_PANEL, icon: 'Security' },
   { to: '/activity', label: 'Activity', permission: '', icon: 'Activity' },
-  { to: '/database', label: 'Database', permission: '', icon: 'Database' },
+  { to: '/database', label: 'Database', permission: PermissionKey.ACCESS_ADMIN_PANEL, icon: 'Database' },
   { to: '/users', label: 'Users', permission: PermissionKey.MANAGE_USERS, icon: 'Users' },
   { to: '/roles', label: 'Roles', permission: PermissionKey.MANAGE_ROLES, icon: 'Roles' },
   { to: '/settings', label: 'Settings', permission: PermissionKey.VIEW_SETTINGS, icon: 'Settings' },
@@ -245,8 +245,8 @@ const adminSubItems: SubItem[] = [
   { to: '/instance-pages', label: 'Instance Pages', permission: PermissionKey.MANAGE_INSTANCE_PAGES, icon: 'Templates' },
   { to: '/mods', label: 'Mods', permission: PermissionKey.MANAGE_MODS, icon: 'Mods' },
   { to: '/applications', label: 'Applications', permission: PermissionKey.MANAGE_APPLICATIONS, icon: 'Applications' },
-  { to: '/themes', label: 'Themes', permission: '', icon: 'Themes' },
-  { to: '/instances', label: 'All Instances', permission: PermissionKey.MANAGE_INSTANCES, icon: 'Instances' },
+  { to: '/themes', label: 'Themes', permission: PermissionKey.MANAGE_THEMES, icon: 'Themes' },
+  { to: '/instances', label: 'All Instances', permission: PermissionKey.VIEW_INSTANCES, icon: 'Instances' },
 ];
 
 const instanceSubItems: SubItem[] = [];
@@ -259,7 +259,46 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
   const footerText = useSettingsStore((s) => s.footerText);
   const isCollapsed = collapsed !== undefined ? collapsed : false;
 
-  const adminEntries = adminSubItems.filter((i) => !i.permission || permissions.includes(i.permission));
+  // Area-aware permission check: umbrella permission admits any granular key of that area,
+  // so a role with only USERS_VIEW still sees the Users page (mirrors RequirePermission).
+  // VIEW_INSTANCES additionally admits instance-area VIEW/MANAGE keys.
+  const hasSidebarAccess = (required: string): boolean => {
+    if (!required) return true;
+    if (permissions.includes(required)) return true;
+    const area = PERMISSION_AREAS.find((a) => a.umbrella === required);
+    if (area) {
+      const allKeys: string[] = [];
+      if (area.umbrella) allKeys.push(area.umbrella);
+      for (const k of Object.values(area.keys)) if (k) allKeys.push(k as string);
+      if (area.extraKeys) allKeys.push(...area.extraKeys);
+      if (area.ownKey) allKeys.push(area.ownKey);
+      if (area.allKey) allKeys.push(area.allKey);
+      if (hasPermissionAny(permissions, ...allKeys)) return true;
+    }
+    // Instances list page: VIEW_INSTANCES page key should also admit instance-area perms
+    if (required === PermissionKey.VIEW_INSTANCES) {
+      const instArea = PERMISSION_AREAS.find((a) => a.label === 'Instances');
+      if (instArea) {
+        const instKeys = [
+          instArea.umbrella,
+          instArea.keys.VIEW as string | undefined,
+          instArea.ownKey,
+          instArea.allKey,
+        ].filter(Boolean) as string[];
+        if (hasPermissionAny(permissions, ...instKeys)) return true;
+      }
+      // also allow granular INSTANCES_* directly
+      if (hasPermissionAny(permissions, PermissionKey.MANAGE_INSTANCES, PermissionKey.INSTANCES_VIEW, PermissionKey.INSTANCES_CREATE, PermissionKey.INSTANCES_EDIT, PermissionKey.INSTANCES_DELETE)) return true;
+    }
+    // Themes: MANAGE_THEMES umbrella also handled above, but also allow bare theme sub-caps
+    // (already covered by area lookup). For safety, allow any theme key explicitly.
+    if (required === PermissionKey.MANAGE_THEMES) {
+      if (hasPermissionAny(permissions, PermissionKey.USE_LOCAL_THEMES, PermissionKey.CREATE_LOCAL_THEMES, PermissionKey.USE_GLOBAL_THEMES, PermissionKey.CREATE_GLOBAL_THEMES, PermissionKey.EDIT_THEMES, PermissionKey.ASSIGN_THEMES)) return true;
+    }
+    return false;
+  };
+
+  const adminEntries = adminSubItems.filter((i) => hasSidebarAccess(i.permission));
   const canAdmin = adminEntries.length > 0;
 
   return (

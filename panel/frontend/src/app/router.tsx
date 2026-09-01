@@ -149,28 +149,33 @@ const Router: React.FC = () => (
           user). There is no longer an "Admin Panel" routing shell or an
           ACCESS_ADMIN_PANEL gate around the whole surface. */}
 
-      {/* Auth-only pages — no granular perm key exists for these areas,
-          so they open to anyone with a session. */}
-      <Route path="/system" element={<AuthOnly><System /></AuthOnly>} />
-      <Route path="/notifications/stats" element={<AuthOnly><NotificationStats /></AuthOnly>} />
-      <Route path="/notifications/broadcast" element={<AuthOnly><NotificationBroadcast /></AuthOnly>} />
-      <Route path="/notifications" element={<AuthOnly><Notifications /></AuthOnly>} />
-      <Route path="/security" element={<AuthOnly><Security /></AuthOnly>} />
-      <Route path="/activity" element={<AuthOnly><Activity /></AuthOnly>} />
-      <Route path="/database" element={<AuthOnly><Database /></AuthOnly>} />
-      <Route path="/themes" element={<AuthOnly><AdminThemes /></AuthOnly>} />
-      <Route path="/themes/studio" element={<AuthOnly><ThemeStudio /></AuthOnly>} />
+      {/* System / Security / Database — gated by ACCESS_ADMIN_PANEL (backend
+          requires it). AuthOnly would expose 403 from the API (Forbidden). */}
+      <Route path="/system" element={<RequireAuth><RequirePermission permission={PermissionKey.ACCESS_ADMIN_PANEL}><System /></RequirePermission></RequireAuth>} />
+      <Route path="/security" element={<RequireAuth><RequirePermission permission={PermissionKey.ACCESS_ADMIN_PANEL}><Security /></RequirePermission></RequireAuth>} />
+      <Route path="/database" element={<RequireAuth><RequirePermission permission={PermissionKey.ACCESS_ADMIN_PANEL}><Database /></RequirePermission></RequireAuth>} />
 
-      {/* Tickets — powerful support system. Visible to any authenticated user (like Instances).
-          The handler itself narrows visibility: staff sees all tickets, regular users see
-          only tickets they created or are assigned to. Internal notes are filtered
-          server-side by TICKETS_EDIT. */}
-      <Route path="/tickets" element={<AuthOnly><Tickets /></AuthOnly>} />
-      <Route path="/tickets/stats" element={<AuthOnly><TicketStats /></AuthOnly>} />
-      <Route path="/tickets/new" element={<AuthOnly><TicketForm /></AuthOnly>} />
-      <Route path="/tickets/:id/edit" element={<AuthOnly><TicketForm /></AuthOnly>} />
-      <Route path="/tickets/:id/chat" element={<AuthOnly><TicketChatPage /></AuthOnly>} />
-      <Route path="/tickets/:id" element={<AuthOnly><TicketDetail /></AuthOnly>} />
+      {/* Notifications — inbox is open to any authenticated user (backend list is public),
+          but broadcast / stats are admin-only. Keep list open, gate the admin surfaces. */}
+      <Route path="/notifications/stats" element={<AuthOnly><NotificationStats /></AuthOnly>} />
+      <Route path="/notifications/broadcast" element={<RequireAuth><RequirePermission permission={PermissionKey.MANAGE_NOTIFICATIONS}><NotificationBroadcast /></RequirePermission></RequireAuth>} />
+      <Route path="/notifications" element={<AuthOnly><Notifications /></AuthOnly>} />
+      <Route path="/activity" element={<AuthOnly><Activity /></AuthOnly>} />
+
+      {/* Themes — public read is open, but the management surface (list + studio)
+          is gated by MANAGE_THEMES (any theme sub-cap also admits via RequirePermission). */}
+      <Route path="/themes" element={<RequireAuth><RequirePermission permission={PermissionKey.MANAGE_THEMES}><AdminThemes /></RequirePermission></RequireAuth>} />
+      <Route path="/themes/studio" element={<RequireAuth><RequirePermission permission={PermissionKey.MANAGE_THEMES}><ThemeStudio /></RequirePermission></RequireAuth>} />
+
+      {/* Tickets — gated by MANAGE_TICKETS (area-aware: TICKETS_VIEW etc also admits).
+          The handler narrows to own tickets for non-staff, but the route gate prevents
+          Forbidden for users without any ticket perm. */}
+      <Route path="/tickets" element={<RequireAuth><RequirePermission permission={PermissionKey.MANAGE_TICKETS}><Tickets /></RequirePermission></RequireAuth>} />
+      <Route path="/tickets/stats" element={<RequireAuth><RequirePermission permission={PermissionKey.MANAGE_TICKETS}><TicketStats /></RequirePermission></RequireAuth>} />
+      <Route path="/tickets/new" element={<RequireAuth><RequirePermission permission={PermissionKey.MANAGE_TICKETS}><TicketForm /></RequirePermission></RequireAuth>} />
+      <Route path="/tickets/:id/edit" element={<RequireAuth><RequirePermission permission={PermissionKey.MANAGE_TICKETS}><TicketForm /></RequirePermission></RequireAuth>} />
+      <Route path="/tickets/:id/chat" element={<RequireAuth><RequirePermission permission={PermissionKey.MANAGE_TICKETS}><TicketChatPage /></RequirePermission></RequireAuth>} />
+      <Route path="/tickets/:id" element={<RequireAuth><RequirePermission permission={PermissionKey.MANAGE_TICKETS}><TicketDetail /></RequirePermission></RequireAuth>} />
 
       {/* Permission-gated pages. */}
       <Route
