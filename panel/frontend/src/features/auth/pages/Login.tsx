@@ -162,35 +162,35 @@ const Login: React.FC = () => {
       <ThemedBackground />
 
       <div className="relative z-10 w-full max-w-sm sm:max-w-md animate-fade-in">
-        {/* Brand header */}
-        <div className="flex flex-col items-center justify-center mb-6 animate-scale-in">
-          <div className="flex items-center gap-3 mb-3">
-            {panelLogo ? (
-              <img
-                src={panelLogo.url}
-                alt={`${panelName} logo`}
-                className="w-11 h-11 rounded-xl object-contain bg-neutral-900 border border-neutral-700 backdrop-blur-sm animate-pulse-glow shadow-lg"
-                loading="eager"
-              />
-            ) : (
-              <div className="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-neutral-900 border border-neutral-700 backdrop-blur-sm animate-pulse-glow shadow-lg" aria-hidden="true">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6 text-white" aria-hidden="true">
-                  <path d="M12 2 4 6v6c0 5 3.4 8.6 8 10 4.6-1.4 8-5 8-10V6l-8-4Z" />
-                </svg>
-              </div>
-            )}
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white drop-shadow-sm">
+        {/* Brand header - logo left, name + subtitle stacked right */}
+        <div className="flex items-center gap-4 mb-6 animate-scale-in w-full text-left">
+          {panelLogo ? (
+            <img
+              src={panelLogo.url}
+              alt={`${panelName} logo`}
+              className="w-16 h-16 rounded-2xl object-contain bg-neutral-900 border border-neutral-700 backdrop-blur-sm animate-pulse-glow shadow-lg shrink-0"
+              loading="eager"
+            />
+          ) : (
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-neutral-900 border border-neutral-700 backdrop-blur-sm animate-pulse-glow shadow-lg shrink-0" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8 text-white" aria-hidden="true">
+                <path d="M12 2 4 6v6c0 5 3.4 8.6 8 10 4.6-1.4 8-5 8-10V6l-8-4Z" />
+              </svg>
+            </div>
+          )}
+          <div className="flex flex-col items-start text-left min-w-0">
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white drop-shadow-sm leading-tight">
               {panelName || 'KS Panel'}
             </h1>
-          </div>
-          <p className="text-sm text-gray-300/80 tracking-wide">
-            {addAccountMode ? 'Add another account' : 'Sign in to your account'}
-          </p>
-          {addAccountMode && (
-            <p className="mt-1 text-xs text-gray-400">
-              Your current session will stay active
+            <p className="text-sm text-gray-300/80 tracking-wide mt-0.5">
+              {addAccountMode ? 'Add another account' : 'Sign in to your account'}
             </p>
-          )}
+            {addAccountMode && (
+              <p className="mt-1 text-xs text-gray-400">
+                Your current session will stay active
+              </p>
+            )}
+          </div>
         </div>
 
         {/* Form card */}
