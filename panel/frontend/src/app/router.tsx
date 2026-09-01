@@ -564,13 +564,12 @@ const Router: React.FC = () => (
         }
       />
       {/* Fleet-wide instance management (deploy / edit). The LIST lives
-          at /instances (InstancesRouter dispatches to the admin list when
-          MANAGE_INSTANCES is held); these are the deploy + edit sub-actions
-          for MANAGE_INSTANCES holders. The static "/new" segment ranks
-          higher in react-router v6's specificity rules than the
-          /instances/:id/* splat the panel uses, so they never clash
-          with the self-serve panel route; the edit form lives outside
-          that prefix entirely at /instance/:id/edit. */}
+          at /instances (single Instances page with permission-aware branching);
+          these are the deploy + edit sub-actions for MANAGE_INSTANCES holders.
+          The static "/new" segment ranks higher in react-router v6's
+          specificity rules than the /instances/:id/* splat the panel uses, so
+          they never clash with the self-serve panel route; the edit form lives
+          outside that prefix entirely at /instance/:id/edit. */}
       <Route
         path="/instances/new"
         element={
