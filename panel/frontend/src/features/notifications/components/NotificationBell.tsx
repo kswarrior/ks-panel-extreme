@@ -1,10 +1,12 @@
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '@/shared/stores/authStore';
 import { useNotificationStore } from '@/shared/stores/notificationStore';
 import { markRead, markAllRead, deleteNotification } from '@/features/notifications/api/notifications';
 import { CATEGORY_META, PRIORITY_META } from '../types/notification';
 import type { Notification } from '../types/notification';
+import { PERMISSION_AREAS, hasPermissionAny } from '@/shared/types/permissions';
 
 const timeAgo = (iso: string): string => {
   const d = new Date(iso);
@@ -62,6 +64,14 @@ const NotificationBell: React.FC = () => {
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [pos, setPos] = useState<{ left: number; top: number }>({ left: 0, top: 0 });
 
+  const permissions = useAuthStore((s) => s.permissions);
+  const canViewNotifications = useMemo(() => {
+    const area = PERMISSION_AREAS.find((a) => a.label === 'Notifications');
+    if (!area) return permissions.includes('MANAGE_NOTIFICATIONS');
+    const keys = [area.umbrella, ...Object.values(area.keys), ...(area.extraKeys ?? []), area.ownKey, area.allKey].filter(Boolean) as string[];
+    return hasPermissionAny(permissions, ...keys);
+  }, [permissions]);
+
   const place = useCallback(() => {
     const el = triggerRef.current;
     if (!el) return;
@@ -115,17 +125,21 @@ const NotificationBell: React.FC = () => {
     return () => document.removeEventListener('keydown', onKey);
   }, [open]);
 
-  // Poll unread count every 20s + fetch recent on open
+  // Poll unread count every 20s + fetch recent on open — only when permitted (permission is King)
   useEffect(() => {
+    if (!canViewNotifications) return;
     fetchUnread();
     fetchRecent();
     const iv = setInterval(fetchUnread, 20000);
     return () => clearInterval(iv);
-  }, [fetchUnread, fetchRecent]);
+  }, [fetchUnread, fetchRecent, canViewNotifications]);
 
   useEffect(() => {
+    if (!canViewNotifications) return;
     if (open) fetchRecent();
-  }, [open, fetchRecent]);
+  }, [open, fetchRecent, canViewNotifications]);
+
+  if (!canViewNotifications) return null;
 
   const onMarkRead = async (n: Notification) => {
     if (n.is_read) return;
