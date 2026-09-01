@@ -1,0 +1,316 @@
+// Database Backup tab — named snapshots of the SQLite database.
+
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  listDatabaseBackups,
+  createDatabaseBackup,
+  downloadDatabaseBackup,
+  uploadDatabaseBackup,
+  uploadDatabaseBackupByURL,
+  restoreDatabaseBackup,
+  deleteDatabaseBackup,
+} from '@/shared/api/admin';
+import type { DatabaseBackup } from '../types/database';
+import { formatBytes } from '../utils/databaseUtils';
+import { glassFieldClass } from '@/shared/components/ui/Field';
+
+function fmtDate(iso: string): string {
+  if (!iso) return '—';
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  } catch { return iso; }
+}
+
+export const DatabaseBackupTab: React.FC = () => {
+  const [backups, setBackups] = useState<DatabaseBackup[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [msg, setMsg] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
+
+  const [name, setName] = useState('');
+  const [creating, setCreating] = useState(false);
+
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const [url, setUrl] = useState('');
+  const [urlBusy, setUrlBusy] = useState(false);
+
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const list = await listDatabaseBackups();
+      setBackups(list);
+    } catch (e: any) {
+      setError(e?.response?.data || e?.message || 'Failed to load backups');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleCreate = async () => {
+    const n = name.trim();
+    if (!n) { setMsg({ tone: 'err', text: 'Enter a backup name.' }); return; }
+    if (n.length > 64) { setMsg({ tone: 'err', text: 'Name too long (max 64 chars).' }); return; }
+    setCreating(true);
+    setMsg(null);
+    try {
+      const b = await createDatabaseBackup(n);
+      setMsg({ tone: 'ok', text: `Backup created: ${b.filename} (${formatBytes(b.size_bytes)})` });
+      setName('');
+      await load();
+    } catch (e: any) {
+      setMsg({ tone: 'err', text: e?.response?.data || e?.message || 'Create failed' });
+    } finally { setCreating(false); }
+  };
+
+  const handleDownload = async (b: DatabaseBackup) => {
+    setBusyId(b.id);
+    try {
+      const blob = await downloadDatabaseBackup(b.id);
+      const objectUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = b.filename || `${b.id}.db`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(objectUrl);
+      a.remove();
+    } catch (e: any) {
+      setMsg({ tone: 'err', text: e?.response?.data || e?.message || 'Download failed' });
+    } finally { setBusyId(null); }
+  };
+
+  const handleRestore = async (b: DatabaseBackup) => {
+    if (!window.confirm(`Restore database from "${b.filename}"?\n\nThis will replace the live database file. The current file is stowed as .bak and the panel must be restarted.`)) return;
+    setBusyId(b.id);
+    setMsg(null);
+    try {
+      const r = await restoreDatabaseBackup(b.id);
+      setMsg({ tone: 'ok', text: r.message || `Restored from ${b.filename} — restart kspanel launch to apply.` });
+    } catch (e: any) {
+      setMsg({ tone: 'err', text: e?.response?.data || e?.message || 'Restore failed' });
+    } finally { setBusyId(null); }
+  };
+
+  const handleDelete = async (b: DatabaseBackup) => {
+    if (!window.confirm(`Delete backup "${b.filename}"? This cannot be undone.`)) return;
+    setBusyId(b.id);
+    setMsg(null);
+    try {
+      await deleteDatabaseBackup(b.id);
+      setMsg({ tone: 'ok', text: `Deleted ${b.filename}` });
+      await load();
+    } catch (e: any) {
+      setMsg({ tone: 'err', text: e?.response?.data || e?.message || 'Delete failed' });
+    } finally { setBusyId(null); }
+  };
+
+  const handleUpload = async () => {
+    const f = fileRef.current?.files?.[0];
+    if (!f) { setMsg({ tone: 'err', text: 'Choose a .db file first.' }); return; }
+    setUploading(true);
+    setMsg(null);
+    try {
+      const b = await uploadDatabaseBackup(f);
+      setMsg({ tone: 'ok', text: `Uploaded ${b.filename} (${formatBytes(b.size_bytes)})` });
+      if (fileRef.current) fileRef.current.value = '';
+      await load();
+    } catch (e: any) {
+      setMsg({ tone: 'err', text: e?.response?.data || e?.message || 'Upload failed' });
+    } finally { setUploading(false); }
+  };
+
+  const handleUrlUpload = async () => {
+    const u = url.trim();
+    if (!u) { setMsg({ tone: 'err', text: 'Enter a URL.' }); return; }
+    setUrlBusy(true);
+    setMsg(null);
+    try {
+      const b = await uploadDatabaseBackupByURL(u);
+      setMsg({ tone: 'ok', text: `Fetched backup ${b.filename} from URL (${formatBytes(b.size_bytes)})` });
+      setUrl('');
+      await load();
+    } catch (e: any) {
+      setMsg({ tone: 'err', text: e?.response?.data || e?.message || 'URL upload failed' });
+    } finally { setUrlBusy(false); }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="glass-card rounded-xl p-4 space-y-4">
+        <div className="flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-sky-300">
+            <path d="M12 2l7 4v5c0 5-3.5 7.5-7 9-3.5-1.5-7-4-7-9V6z" />
+            <path d="M9 12l2 2 4-4" />
+          </svg>
+          <h3 className="text-sm font-semibold text-white">Backups</h3>
+          <span className="text-xs text-gray-500 ml-2">{backups.length} saved</span>
+          <button onClick={load} disabled={loading} className="ml-auto text-xs text-gray-400 hover:text-white disabled:opacity-40">Refresh</button>
+        </div>
+
+        <p className="text-xs text-gray-400">
+          Create named snapshots of the current database (SQLite <code className="font-mono text-gray-300">VACUUM INTO</code>). Each backup lives under <code className="font-mono text-gray-300">{`<DataDir>/backups`}</code> and can be restored, downloaded, or re-uploaded. Restore replaces the live <code className="font-mono text-gray-300">kspanel.db</code> — restart <code className="font-mono text-gray-300">kspanel launch</code> to apply.
+        </p>
+
+        {/* Create */}
+        <div className="ks-card rounded-lg p-3 space-y-2 border border-white/10">
+          <div className="text-[11px] uppercase tracking-wide text-gray-500">Create backup</div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleCreate(); }}
+              placeholder="my-backup  (letters, numbers, -, _)"
+              maxLength={64}
+              disabled={creating}
+              className={glassFieldClass + ' flex-1 disabled:opacity-50 font-mono text-sm'}
+            />
+            <button
+              onClick={handleCreate}
+              disabled={creating}
+              className="ks-primary-btn inline-flex items-center gap-2 px-4 py-1.5 rounded-md text-sm disabled:opacity-40 shrink-0"
+            >
+              {creating && (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 animate-spin"><path d="M21 12a9 9 0 1 1-6.22-8.55" strokeLinecap="round" /></svg>
+              )}
+              Save
+            </button>
+          </div>
+        </div>
+
+        {/* Upload */}
+        <div className="ks-card rounded-lg p-3 space-y-3 border border-white/10">
+          <div className="text-[11px] uppercase tracking-wide text-gray-500">Upload backup</div>
+          <div className="flex gap-2 flex-wrap items-end">
+            <div className="flex-1 min-w-[14rem]">
+              <label className="text-[11px] text-gray-500">From file (.db)</label>
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".db,.sqlite,.sqlite3,application/octet-stream"
+                disabled={uploading}
+                className="block w-full mt-1 text-sm text-gray-300 file:mr-3 file:px-3 file:py-1.5 file:rounded file:border-0 file:bg-white file:text-black file:text-sm hover:file:bg-gray-200 disabled:opacity-50"
+              />
+            </div>
+            <button
+              onClick={handleUpload}
+              disabled={uploading}
+              className="ks-btn-ghost border border-white/10 px-3 py-1.5 rounded-md text-sm disabled:opacity-40 inline-flex items-center gap-2"
+            >
+              {uploading && <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 animate-spin"><path d="M21 12a9 9 0 1 1-6.22-8.55" strokeLinecap="round" /></svg>}
+              Upload
+            </button>
+          </div>
+          <div className="flex gap-2 flex-wrap items-end">
+            <div className="flex-1 min-w-[14rem]">
+              <label className="text-[11px] text-gray-500">From URL</label>
+              <input
+                type="text"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleUrlUpload(); }}
+                placeholder="https://example.com/kspanel-backup.db"
+                disabled={urlBusy}
+                className={glassFieldClass + ' font-mono text-sm disabled:opacity-50'}
+              />
+              <p className="text-[10px] text-gray-500 mt-1">SSRF-guarded — only public hosts, DNS-pinned, 512 MiB cap.</p>
+            </div>
+            <button
+              onClick={handleUrlUpload}
+              disabled={urlBusy}
+              className="ks-btn-ghost border border-white/10 px-3 py-1.5 rounded-md text-sm disabled:opacity-40 inline-flex items-center gap-2"
+            >
+              {urlBusy && <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 animate-spin"><path d="M21 12a9 9 0 1 1-6.22-8.55" strokeLinecap="round" /></svg>}
+              Fetch &amp; Save
+            </button>
+          </div>
+        </div>
+
+        {msg && (
+          <div className={`rounded-md p-2 text-sm border ${msg.tone === 'ok' ? 'bg-emerald-900/20 border-emerald-700/40 text-emerald-200' : 'bg-red-900/20 border-red-700/40 text-red-200'}`}>
+            {msg.text}
+          </div>
+        )}
+        {error && <p className="text-red-400 text-sm">{error}</p>}
+      </div>
+
+      {/* List */}
+      <div className="glass-card rounded-xl p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="text-sm font-semibold text-white">Saved backups</h4>
+          <span className="text-xs text-gray-500">{loading ? 'loading…' : `${backups.length} file(s)`}</span>
+        </div>
+
+        {loading ? (
+          <div className="text-sm text-gray-500">Loading…</div>
+        ) : backups.length === 0 ? (
+          <div className="rounded-md border border-white/10 bg-black/20 p-6 text-center">
+            <p className="text-sm text-gray-400">No backups yet.</p>
+            <p className="text-xs text-gray-500 mt-1">Create one by name above — every backup is stored as a timestamped <code className="font-mono text-gray-300">kspanel-&lt;ts&gt;-&lt;name&gt;.db</code> file.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto -mx-4 px-4">
+            <table className="w-full text-sm">
+              <thead className="text-[11px] uppercase tracking-wide text-gray-500">
+                <tr className="border-b border-white/10">
+                  <th className="text-left py-2 pr-2 font-medium">File</th>
+                  <th className="text-left py-2 px-2 font-medium">Created</th>
+                  <th className="text-right py-2 px-2 font-medium">Size</th>
+                  <th className="text-left py-2 px-2 font-medium">Source</th>
+                  <th className="text-right py-2 pl-2 font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {backups.map((b) => (
+                  <tr key={b.id} className="hover:bg-white/[0.03]">
+                    <td className="py-2 pr-2 align-top">
+                      <div className="font-mono text-gray-200 text-xs break-all" title={b.filename}>{b.filename}</div>
+                      <div className="text-[11px] text-gray-500 font-mono truncate max-w-[16rem]" title={b.sha256}>{b.sha256.slice(0, 12)}…</div>
+                    </td>
+                    <td className="py-2 px-2 align-top text-xs text-gray-300 whitespace-nowrap" title={b.created_at}>{fmtDate(b.created_at)}</td>
+                    <td className="py-2 px-2 align-top text-right tabular-nums text-gray-300 whitespace-nowrap">{formatBytes(b.size_bytes)}</td>
+                    <td className="py-2 px-2 align-top">
+                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide border ${b.source === 'uploaded' ? 'bg-amber-900/20 border-amber-700/40 text-amber-200' : b.source === 'vacuum-into' ? 'bg-emerald-900/20 border-emerald-700/40 text-emerald-200' : 'bg-white/5 border-white/10 text-gray-300'}`}>
+                        {b.source}
+                      </span>
+                    </td>
+                    <td className="py-2 pl-2 align-top">
+                      <div className="flex items-center justify-end gap-1 flex-wrap">
+                        <button
+                          onClick={() => handleRestore(b)}
+                          disabled={busyId === b.id}
+                          title="Restore — replaces live DB, restart required"
+                          className="px-2 py-1 rounded bg-amber-700/30 hover:bg-amber-700/50 border border-amber-700/40 text-amber-200 text-xs disabled:opacity-40"
+                        >Restore</button>
+                        <button
+                          onClick={() => handleDownload(b)}
+                          disabled={busyId === b.id}
+                          className="px-2 py-1 rounded bg-sky-900/30 hover:bg-sky-900/50 border border-sky-700/40 text-sky-200 text-xs disabled:opacity-40"
+                        >Download</button>
+                        <button
+                          onClick={() => handleDelete(b)}
+                          disabled={busyId === b.id}
+                          className="px-2 py-1 rounded bg-red-900/20 hover:bg-red-900/40 border border-red-700/40 text-red-200 text-xs disabled:opacity-40"
+                        >Delete</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default DatabaseBackupTab;

@@ -10,6 +10,7 @@ import type { DatabaseEngineInfo, DatabaseEngineSwitchResponse } from '@/shared/
 import type { DatabaseInfo, DatabaseTable } from '@/features/system/types/system';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import { MetaRow, StatTile, DeltaPill, Meter, Sparkline, PragmaTile, ChangeDatabaseCard } from '../components/DatabaseComponents';
+import DatabaseBackupTab from '../components/DatabaseBackupTab';
 import type { DatabaseTabId } from '../types/database';
 import { DATABASE_TABS } from '../types/database';
 // HISTORY_WINDOW / REFRESH_MS live once in utils — types/database.ts must not
@@ -97,7 +98,7 @@ const DatabasePage: React.FC = () => {
 
       {loading && !info && <SkeletonGrid count={4} />}
 
-      {info && !info.engine_not_supported && (
+      {info && (
         <div className="space-y-4">
           <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
             <h2 className="text-xl font-semibold text-white shrink-0">Database</h2>
@@ -115,7 +116,7 @@ const DatabasePage: React.FC = () => {
             </div>
           </div>
 
-          {tab === 'overview' && (
+          {tab === 'overview' && !info.engine_not_supported && (
           <>
           <div className="mb-4">
             <div className="text-xl font-semibold text-white capitalize">{info.engine}</div>
@@ -153,18 +154,8 @@ const DatabasePage: React.FC = () => {
           </>
           )}
 
-
-
-          {tab === 'change' && (
+          {tab === 'overview' && info.engine_not_supported && (
           <>
-          <ChangeDatabaseCard currentEngine={info.engine} currentPath={info.path} />
-          </>
-          )}
-        </div>
-      )}
-
-      {info && info.engine_not_supported && (
-        <div className="space-y-4">
           <div className="glass-card rounded-xl">
             <h3 className="text-sm font-semibold text-white mb-1 inline-flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-sky-400" />
@@ -177,8 +168,20 @@ const DatabasePage: React.FC = () => {
               connected to: <span className="text-gray-300">{info.path}</span> <span className="text-gray-600">· captured {ago(secondsSince || 0)} ago</span>
             </div>
           </div>
+          </>
+          )}
 
+          {tab === 'change' && (
+          <>
           <ChangeDatabaseCard currentEngine={info.engine} currentPath={info.path} />
+          </>
+          )}
+
+          {tab === 'backup' && (
+          <>
+          <DatabaseBackupTab />
+          </>
+          )}
         </div>
       )}
     </div>
