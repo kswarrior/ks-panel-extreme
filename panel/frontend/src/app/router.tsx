@@ -95,7 +95,7 @@ const Router: React.FC = () => (
         path="/instances"
         element={
           <RequireAuth>
-            <RequirePermission permission={PermissionKey.VIEW_INSTANCES}>
+            <RequirePermission permission={PermissionKey.MANAGE_INSTANCES}>
               <InstanceList />
              </RequirePermission>
           </RequireAuth>
@@ -105,20 +105,20 @@ const Router: React.FC = () => (
         path="/instances/stats"
         element={
           <RequireAuth>
-            <RequirePermission permission={PermissionKey.VIEW_INSTANCES}>
+            <RequirePermission permission={PermissionKey.MANAGE_INSTANCES}>
               <InstanceStats />
             </RequirePermission>
           </RequireAuth>
         }
       />
-      {/* Instance panel (top-level) — visible to any user with VIEW_INSTANCES.
+      {/* Instance panel (top-level) — visible to any user with instance view permission.
           When you're inside an instance, the global sidebar opens its
           "Instances" group and reveals this entry. */}
       <Route
         path="/instances/:id/*"
         element={
           <RequireAuth>
-            <RequirePermission permission={PermissionKey.VIEW_INSTANCES}>
+            <RequirePermission permission={PermissionKey.MANAGE_INSTANCES}>
               <InstancePanel />
              </RequirePermission>
           </RequireAuth>

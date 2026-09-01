@@ -246,7 +246,7 @@ const adminSubItems: SubItem[] = [
   { to: '/mods', label: 'Mods', permission: PermissionKey.MANAGE_MODS, icon: 'Mods' },
   { to: '/applications', label: 'Applications', permission: PermissionKey.MANAGE_APPLICATIONS, icon: 'Applications' },
   { to: '/themes', label: 'Themes', permission: PermissionKey.MANAGE_THEMES, icon: 'Themes' },
-  { to: '/instances', label: 'All Instances', permission: PermissionKey.VIEW_INSTANCES, icon: 'Instances' },
+  { to: '/instances', label: 'All Instances', permission: PermissionKey.MANAGE_INSTANCES, icon: 'Instances' },
 ];
 
 const instanceSubItems: SubItem[] = [];
