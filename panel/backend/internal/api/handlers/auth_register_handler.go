@@ -293,6 +293,16 @@ func PublicAuthFlagsHandler(w http.ResponseWriter, r *http.Request) {
 			"session_lifetime_minutes":     480,
 			"session_idle_timeout_minutes": 1440,
 			"session_max_per_user":         0,
+			"password_policy": map[string]any{
+				"min_length":     12,
+				"max_length":     128,
+				"require_upper":  true,
+				"require_lower":  true,
+				"require_number": true,
+				"require_symbol": true,
+				"no_common":      true,
+				"no_personal":    true,
+			},
 		})
 		return
 	}
@@ -318,6 +328,25 @@ func PublicAuthFlagsHandler(w http.ResponseWriter, r *http.Request) {
 	// Public read so login page can show "Auto logout after X" with real data
 	// without requiring auth; these values are not sensitive.
 	secCfg := repository.NewSecurityRepository(con).GetConfig()
+	// Real password policy (from Authority -> Password provider).
+	// Public so register page can render live per-rule checklist with red/green dots.
+	authCfg, _ := repository.NewAuthorityRepository(con).GetRaw()
+	var pwdPolicy any = nil
+	if authCfg != nil && authCfg.PasswordPolicy != nil {
+		pwdPolicy = authCfg.PasswordPolicy
+	} else {
+		// Fallback to secure defaults matching auth.DefaultPasswordPolicy()
+		pwdPolicy = map[string]any{
+			"min_length":     12,
+			"max_length":     128,
+			"require_upper":  true,
+			"require_lower":  true,
+			"require_number": true,
+			"require_symbol": true,
+			"no_common":      true,
+			"no_personal":    true,
+		}
+	}
 	writeJSON(w, map[string]any{
 		"register_allow":               repo.IsRegisterAllowed(),
 		"verify_required":              repo.IsVerifyRequired(),
@@ -328,6 +357,7 @@ func PublicAuthFlagsHandler(w http.ResponseWriter, r *http.Request) {
 		"session_lifetime_minutes":     secCfg.SessionLifetimeMinutes,
 		"session_idle_timeout_minutes": secCfg.SessionIdleTimeoutMinutes,
 		"session_max_per_user":         secCfg.SessionMaxPerUser,
+		"password_policy":              pwdPolicy,
 	})
 }
 
