@@ -287,7 +287,13 @@ func VerifyEmailHandler(w http.ResponseWriter, r *http.Request) {
 func PublicAuthFlagsHandler(w http.ResponseWriter, r *http.Request) {
 	con, err := repository.OpenDB()
 	if err != nil {
-		writeJSON(w, map[string]any{"register_allow": false, "verify_required": false})
+		writeJSON(w, map[string]any{
+			"register_allow":               false,
+			"verify_required":              false,
+			"session_lifetime_minutes":     480,
+			"session_idle_timeout_minutes": 1440,
+			"session_max_per_user":         0,
+		})
 		return
 	}
 	defer con.Close()
@@ -308,13 +314,20 @@ func PublicAuthFlagsHandler(w http.ResponseWriter, r *http.Request) {
 	for _, p := range providerInventory(con) {
 		oauthProviders = append(oauthProviders, map[string]string{"id": p.ID, "label": p.Label})
 	}
+	// Real security session policy (from Security -> Sessions tab).
+	// Public read so login page can show "Auto logout after X" with real data
+	// without requiring auth; these values are not sensitive.
+	secCfg := repository.NewSecurityRepository(con).GetConfig()
 	writeJSON(w, map[string]any{
-		"register_allow":    repo.IsRegisterAllowed(),
-		"verify_required":   repo.IsVerifyRequired(),
-		"device_limit":      limit,
-		"device_used":       used,
-		"has_device_cookie": deviceID != "",
-		"oauth_providers":   oauthProviders,
+		"register_allow":               repo.IsRegisterAllowed(),
+		"verify_required":              repo.IsVerifyRequired(),
+		"device_limit":                 limit,
+		"device_used":                  used,
+		"has_device_cookie":            deviceID != "",
+		"oauth_providers":              oauthProviders,
+		"session_lifetime_minutes":     secCfg.SessionLifetimeMinutes,
+		"session_idle_timeout_minutes": secCfg.SessionIdleTimeoutMinutes,
+		"session_max_per_user":         secCfg.SessionMaxPerUser,
 	})
 }
 
