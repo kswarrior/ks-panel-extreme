@@ -919,15 +919,16 @@ func SetupLocalNodeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	panelURL := scheme + "://" + r.Host
 
-	// Per-node working directory: honour the operator's InstallDir when set
-	// (same convention PurgeLocalNodeHandler uses), otherwise fall back to
-	// <DataDir>/localnode/ksedge-<id> so multiple local edges don't collide.
-	dir := strings.TrimSpace(node.InstallDir)
-	if dir == "" {
-		dir = filepath.Join(config.DataDir(), "localnode", fmt.Sprintf("ksedge-%d", id))
-	} else {
-		dir = filepath.Clean(dir)
-	}
+	// Per-node working directory under the panel data dir so multiple local
+	// edges (or a re-setup) don't stomp each other's binaries. We
+	// intentionally ignore node.InstallDir here (even when set) — the
+	// stored InstallDir defaults to a shared "./localnode/" path that
+	// collides with the CLI's "localnode/ksedge/ksedge" layout and makes
+	//ksedgePath a directory (causing "fork/exec localnode/ksedge: no such
+	// file or directory"). The per-node dir is always safe and isolated;
+	// PurgeLocalNodeHandler already handles both the custom InstallDir and
+	// the per-node dir, so a later purge will still clean up.
+	dir := filepath.Join(config.DataDir(), "localnode", fmt.Sprintf("ksedge-%d", id))
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		http.Error(w, "could not create edge directory: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -945,7 +946,9 @@ func SetupLocalNodeHandler(w http.ResponseWriter, r *http.Request) {
 	//    no network, avoids Cloudflare/GitHub timeouts) → HF bucket →
 	//    GitHub latest → pinned tag. This fixes the "Setup failed" 502 that
 	//    occurred when GitHub release ks-release had zero assets (404).
-	if fi, statErr := os.Stat(ksedgePath); statErr != nil || fi.Size() == 0 {
+	//    Treat a directory at ksedgePath (leftover from CLI layout
+	//    localnode/ksedge/) as missing so we don't try to exec a directory.
+	if fi, statErr := os.Stat(ksedgePath); statErr != nil || fi.IsDir() || fi.Size() == 0 {
 		if localSrc := findLocalKsedge(); localSrc != "" {
 			logLines = append(logLines, fmt.Sprintf("copying ksedge from local %s …", localSrc))
 			if err := copyFile(localSrc, ksedgePath); err != nil {
@@ -1031,7 +1034,12 @@ func SetupLocalNodeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer logFile.Close()
-	cmd := exec.Command(ksedgePath, "launch")
+	absKsedge, absErr := filepath.Abs(ksedgePath)
+	if absErr != nil {
+		http.Error(w, "abs path: "+absErr.Error(), http.StatusInternalServerError)
+		return
+	}
+	cmd := exec.Command(absKsedge, "launch")
 	cmd.Dir = dir
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
