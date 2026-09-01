@@ -236,11 +236,13 @@ func (r *RoleRepository) getPermissionKeysByRoleID(roleID int64) ([]string, erro
 	defer rows.Close()
 	keys := []string{}
 	for rows.Next() {
-		var k string
+		var k sql.NullString
 		if err := rows.Scan(&k); err != nil {
 			return nil, err
 		}
-		keys = append(keys, k)
+		if k.Valid && k.String != "" {
+			keys = append(keys, k.String)
+		}
 	}
 	return keys, rows.Err()
 }
