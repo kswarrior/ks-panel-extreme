@@ -280,6 +280,9 @@ func MaxBodySize(maxBytes int64) func(http.Handler) http.Handler {
 // "Request Size Limit") instead of a compile-time constant. The state
 // singleton is captured once at chain construction; each request only
 // pays an atomic pointer load.
+// Backup upload endpoints need a far larger window than the generic
+// 10 MiB default — a database snapshot can be hundreds of megabytes — so
+// those paths are exempted to a dedicated 1 GiB ceiling.
 func DynamicMaxBodySize() func(http.Handler) http.Handler {
 	state := security.Get()
 	return func(next http.Handler) http.Handler {
@@ -287,6 +290,15 @@ func DynamicMaxBodySize() func(http.Handler) http.Handler {
 			limit := int64(10 << 20)
 			if c := state.Cfg(); c != nil && c.MaxBodySizeBytes > 0 {
 				limit = c.MaxBodySizeBytes
+			}
+			// Backup uploads can legitimately be very large; lift the cap
+			// for those routes so the LimitReader does not silently
+			// truncate a valid SQLite file mid-stream.
+			if strings.HasPrefix(r.URL.Path, "/api/database/backups") {
+				const backupLimit = 1 << 30 // 1 GiB
+				if limit < backupLimit {
+					limit = backupLimit
+				}
 			}
 			r.Body = io.NopCloser(io.LimitReader(r.Body, limit))
 			next.ServeHTTP(w, r)

@@ -478,8 +478,11 @@ func sanitizeLabel(label string) string {
 
 // validID guards against path traversal — a request for
 // /backup/..%2F..%2Fetc%2Fpasswd has to fail before it can reach os.Open.
+// Dots are allowed inside the label (e.g. "my.backup") so we only reject
+// path separators and the ".." traversal sequence, plus the degenerate
+// single-dot / double-dot ids.
 func validID(id string) bool {
-	if id == "" || strings.ContainsAny(id, "/\\.") || strings.Contains(id, "..") {
+	if id == "" || id == "." || id == ".." || strings.ContainsAny(id, "/\\") || strings.Contains(id, "..") {
 		return false
 	}
 	return true
