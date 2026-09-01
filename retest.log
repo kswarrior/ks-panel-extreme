@@ -3,9 +3,9 @@
 [0;34m[INFO][0m Copying binaries from release/ ...
 [0;32m[OK][0m Test folder ready:
 total 33M
--rwxr-xr-x 1 runner runner 9.5M Sep  1 01:44 ksedge
--rwxr-xr-x 1 runner runner  23M Sep  1 01:44 kspanel
-drwxr-xr-x 3 runner runner 4.0K Sep  1 01:44 localnode
+-rwxr-xr-x 1 runner runner 9.5M Sep  1 15:33 ksedge
+-rwxr-xr-x 1 runner runner  23M Sep  1 15:33 kspanel
+drwxr-xr-x 3 runner runner 4.0K Sep  1 15:33 localnode
 → database     sqlite — /tmp/kspanel-retest/kspanel.db
 ✓ connected    sqlite ready
 → migrations   running
@@ -22,6 +22,12 @@ drwxr-xr-x 3 runner runner 4.0K Sep  1 01:44 localnode
 → role         admin
 ✓ user created id 1
 → database     /tmp/kspanel-retest/kspanel.db
+✓ ready        schema + roles present
+→ username     kswarrior
+→ email        kswarriorpro@gmail.com
+→ role         user
+✓ user created id 2
+→ database     /tmp/kspanel-retest/kspanel.db
 ✓ ready        schema present
 → template     Minecraft (docker, eclipse-temurin:21-jre)
 ✓ imported     id 1 (built-in "minecraft")
@@ -29,9 +35,9 @@ drwxr-xr-x 3 runner runner 4.0K Sep  1 01:44 localnode
 → node         local-edge @ 127.0.0.1:4040 (id 1)
 → download     ksedge already present, skipping
 → config       localnode/ksedge/config.json
-→ panel        started (pid 2475) on 127.0.0.1:5050
+→ panel        started (pid 2477) on 127.0.0.1:5050
 ✓ panel        ready at http://127.0.0.1:5050
-→ launch       started ksedge (pid 2488) on 127.0.0.1:4040
+→ launch       started ksedge (pid 2503) on 127.0.0.1:4040
 ✓ edge         up and reachable (name="local-edge", log=localnode/ksedge/ksedge.log)
 
 node id:      1
@@ -56,11 +62,11 @@ panel pid:    2515
 engine:       sqlite
 dsn:          /tmp/kspanel-retest/kspanel.db
 listen:       :8080
-open:         http://10.1.0.138:8080
-bind ifs:     10.1.0.138, 172.17.0.1
+open:         http://10.1.1.147:8080
+bind ifs:     10.1.1.147, 172.17.0.1
 go:           1.26.7
 goos:         linux/amd64
 cpus:         4
 
 ✓ panel ready  running
-✗ duplicate    pid 2475: /tmp/kspanel-retest/kspanel launch --port 5050 — stop the old instance so DDoS port switching can free ports cleanly
+✗ duplicate    pid 2477: /tmp/kspanel-retest/kspanel launch --port 5050 — stop the old instance so DDoS port switching can free ports cleanly
