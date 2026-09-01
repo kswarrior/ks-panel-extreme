@@ -1,6 +1,5 @@
 import React, { PropsWithChildren } from 'react';
 import { useAuthStore } from '@/shared/stores/authStore';
-import { Navigate } from 'react-router-dom';
 import { AREA_PERM_KEYS, PERMISSION_AREAS, hasPermissionAny } from '@/shared/types/permissions';
 
 interface Props extends PropsWithChildren {
@@ -41,8 +40,22 @@ const RequirePermission: React.FC<Props> = ({ permission, anyOf, children }) => 
   }
 
   if (!ok) {
-    // Simple redirect – could also render a Forbidden page.
-    return <Navigate to="/instances" replace />;
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] text-center p-8">
+        <div className="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-4">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6 text-amber-400">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+        </div>
+        <h2 className="text-lg font-semibold text-white">Permission denied</h2>
+        <p className="text-sm text-gray-400 mt-2 max-w-md">
+          You do not have the required permission to view this page.
+          {permission && <span className="block mt-1 font-mono text-xs text-amber-300/80">{permission}</span>}
+        </p>
+      </div>
+    );
   }
   return <>{children}</>;
 };

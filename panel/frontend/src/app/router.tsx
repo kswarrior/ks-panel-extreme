@@ -155,12 +155,13 @@ const Router: React.FC = () => (
       <Route path="/security" element={<RequireAuth><RequirePermission permission={PermissionKey.ACCESS_ADMIN_PANEL}><Security /></RequirePermission></RequireAuth>} />
       <Route path="/database" element={<RequireAuth><RequirePermission permission={PermissionKey.ACCESS_ADMIN_PANEL}><Database /></RequirePermission></RequireAuth>} />
 
-      {/* Notifications — inbox is open to any authenticated user (backend list is public),
-          but broadcast / stats are admin-only. Keep list open, gate the admin surfaces. */}
-      <Route path="/notifications/stats" element={<AuthOnly><NotificationStats /></AuthOnly>} />
+      {/* Notifications — now fully permission-gated (permission is King). Every surface
+          requires MANAGE_NOTIFICATIONS (umbrella) or any granular NOTIFICATIONS_* key.
+          No inbox is public. */}
+      <Route path="/notifications/stats" element={<RequireAuth><RequirePermission permission={PermissionKey.MANAGE_NOTIFICATIONS}><NotificationStats /></RequirePermission></RequireAuth>} />
       <Route path="/notifications/broadcast" element={<RequireAuth><RequirePermission permission={PermissionKey.MANAGE_NOTIFICATIONS}><NotificationBroadcast /></RequirePermission></RequireAuth>} />
-      <Route path="/notifications" element={<AuthOnly><Notifications /></AuthOnly>} />
-      <Route path="/activity" element={<AuthOnly><Activity /></AuthOnly>} />
+      <Route path="/notifications" element={<RequireAuth><RequirePermission permission={PermissionKey.MANAGE_NOTIFICATIONS}><Notifications /></RequirePermission></RequireAuth>} />
+      <Route path="/activity" element={<RequireAuth><RequirePermission permission={PermissionKey.ACCESS_ADMIN_PANEL}><Activity /></RequirePermission></RequireAuth>} />
 
       {/* Themes — public read is open, but the management surface (list + studio)
           is gated by MANAGE_THEMES (any theme sub-cap also admits via RequirePermission). */}
