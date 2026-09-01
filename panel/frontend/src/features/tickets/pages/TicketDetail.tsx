@@ -178,6 +178,10 @@ const TicketDetail: React.FC = () => {
                 )}
               </div>
               <div className="shrink-0 hidden sm:flex items-center gap-1.5">
+                <Link to={`/tickets/${ticket.id}/chat`} className="inline-flex items-center gap-1.5 text-xs px-3.5 py-1.5 rounded-full font-medium border shadow-sm" style={{ background: 'var(--ks-btn-bg)', color: 'var(--ks-btn-text)', borderColor: 'var(--ks-card-border)' }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-3.5 h-3.5"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>
+                  Open chat
+                </Link>
                 <Link to={`/tickets/${ticket.id}/edit`} className="ks-btn-ghost text-xs px-3 py-1.5 rounded-lg border" style={{ borderColor: 'var(--ks-card-border)', color: 'var(--ks-text-body)' }}>Edit</Link>
                 <button onClick={handleDeleteTicket} className="ks-btn-ghost text-xs px-3 py-1.5 rounded-lg border hover:bg-red-500/10" style={{ borderColor: 'color-mix(in srgb, var(--ks-accent-danger) 25%, transparent)', color: 'var(--ks-text-body)' }}>Delete</button>
               </div>
@@ -215,40 +219,13 @@ const TicketDetail: React.FC = () => {
               </div>
             </div>
 
-            {/* Mobile actions */}
+            {/* Mobile actions – keep single Open chat entry */}
             <div className="sm:hidden mt-4 flex gap-2">
               <Link to={`/tickets/${ticket.id}/edit`} className="flex-1 text-center ks-btn-ghost text-xs px-3 py-2 rounded-lg border" style={{ borderColor: 'var(--ks-card-border)', color: 'var(--ks-text-body)' }}>Edit ticket</Link>
               <Link to={`/tickets/${ticket.id}/chat`} className="flex-1 text-center text-xs px-3 py-2 rounded-full font-medium border inline-flex items-center justify-center gap-1.5" style={{ background: 'var(--ks-btn-bg)', color: 'var(--ks-btn-text)', borderColor: 'var(--ks-card-border)' }}>
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-3.5 h-3.5"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>
                 Open chat
               </Link>
-            </div>
-          </GlassCard>
-
-          {/* Open chat — individual page (replaces inline chat) */}
-          <GlassCard className={`p-6 ${glassModifier} relative overflow-hidden flex flex-col items-center text-center`}>
-            <CardMediaLayer />
-            <div className="w-12 h-12 rounded-2xl flex items-center justify-center border mb-3" style={{ background: 'color-mix(in srgb, var(--ks-accent-info, #0ea5e9) 14%, transparent)', borderColor: 'color-mix(in srgb, var(--ks-accent-info) 22%, transparent)', color: 'var(--ks-accent-info, #0ea5e9)' }}>
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-6 h-6"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>
-            </div>
-            <h3 className="text-sm font-semibold" style={{ color: 'var(--ks-text-heading)' }}>Chat for this ticket</h3>
-            <p className="text-xs mt-1 max-w-md leading-relaxed" style={{ color: 'var(--ks-text-body)' }}>
-              Messages are now on a dedicated page. Open chat to view {commentCount || ticket.comment_count} { (commentCount || ticket.comment_count) === 1 ? 'message' : 'messages' }, reply in real time, and keep internal notes separate.
-            </p>
-            <div className="mt-3 flex items-center gap-2 text-xs" style={{ color: 'var(--ks-text-body)' }}>
-              <span className={`w-2 h-2 rounded-full ${isClosed ? 'bg-gray-500' : 'bg-emerald-400 animate-pulse'}`} />
-              <span>{isClosed ? 'Closed • read-only' : 'Live • 2.5s sync'}</span>
-              <span>•</span>
-              <span>{commentCount || ticket.comment_count} messages</span>
-            </div>
-            <Link to={`/tickets/${ticket.id}/chat`} className="mt-4 inline-flex items-center gap-2 text-sm px-5 py-2.5 rounded-full font-medium border transition-colors" style={{ background: 'var(--ks-accent-info, #0ea5e9)', color: '#fff', borderColor: 'transparent' }}>
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-4 h-4"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>
-              Open chat
-            </Link>
-            <div className="mt-2 flex flex-wrap justify-center gap-1.5">
-              <span className="text-[11px] px-2 py-1 rounded-full border" style={{ background: 'color-mix(in srgb, var(--ks-card-bg) 60%, transparent)', borderColor: 'var(--ks-card-border)', color: 'var(--ks-text-body)' }}>Bubbles</span>
-              <span className="text-[11px] px-2 py-1 rounded-full border" style={{ background: 'color-mix(in srgb, var(--ks-card-bg) 60%, transparent)', borderColor: 'var(--ks-card-border)', color: 'var(--ks-text-body)' }}>Internal notes</span>
-              <span className="text-[11px] px-2 py-1 rounded-full border" style={{ background: 'color-mix(in srgb, var(--ks-card-bg) 60%, transparent)', borderColor: 'var(--ks-card-border)', color: 'var(--ks-text-body)' }}>Real-time</span>
             </div>
           </GlassCard>
         </div>
@@ -301,12 +278,8 @@ const TicketDetail: React.FC = () => {
                   <button onClick={handleAssign} className="ks-btn-ghost text-xs px-3 py-1.5 rounded-lg border" style={{ borderColor: 'var(--ks-card-border)', color: 'var(--ks-text-body)' }}>Assign</button>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-2 pt-2">
-                <Link to={`/tickets/${ticket.id}/chat`} className="inline-flex items-center justify-center gap-1.5 text-xs px-3 py-2 rounded-lg border font-medium" style={{ background: 'var(--ks-accent-info, #0ea5e9)', color: '#fff', borderColor: 'transparent' }}>
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-3.5 h-3.5"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>
-                  Open chat
-                </Link>
-                <Link to={`/tickets/${ticket.id}/edit`} className="inline-flex items-center justify-center gap-1.5 text-xs px-3 py-2 rounded-lg border" style={{ borderColor: 'var(--ks-card-border)', color: 'var(--ks-text-body)' }}>Edit ticket</Link>
+              <div className="pt-2">
+                <Link to={`/tickets/${ticket.id}/edit`} className="w-full inline-flex items-center justify-center gap-1.5 text-xs px-3 py-2 rounded-lg border" style={{ borderColor: 'var(--ks-card-border)', color: 'var(--ks-text-body)' }}>Edit ticket</Link>
               </div>
             </div>
           </GlassCard>
