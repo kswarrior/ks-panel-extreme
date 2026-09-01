@@ -4,6 +4,8 @@ import { getTicket, updateTicket, assignTicket, deleteTicket, listAssignableUser
 import type { Ticket } from '../types/ticket';
 import GlassCard from '@/shared/components/ui/Card';
 import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
+import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
+import Avatar from '@/shared/components/ui/Avatar';
 import { useThemeStore } from '@/shared/stores/themeStore';
 import { useConfirm } from '@/shared/stores/confirmStore';
 import { useAuthStore } from '@/shared/stores/authStore';
