@@ -313,7 +313,7 @@ var AreaGroups = []Group{
 	}, OwnKey: TemplatesOwnKey, AllKey: TemplatesAllKey},
 	{Label: "Instances", Umbrella: ManageInstancesKey, Keys: map[Action]string{
 		ActionView: InstancesViewKey, ActionCreate: InstancesCreateKey, ActionEdit: InstancesEditKey, ActionDelete: InstancesDeleteKey,
-	}, OwnKey: InstancesOwnKey, AllKey: InstancesAllKey},
+	}, ExtraKeys: []string{ViewInstancesKey}, OwnKey: InstancesOwnKey, AllKey: InstancesAllKey},
 	{Label: "API Keys", Umbrella: ManageApiKeysKey, Keys: map[Action]string{
 		ActionView: ApiKeysViewKey, ActionCreate: ApiKeysCreateKey, ActionEdit: ApiKeysEditKey, ActionDelete: ApiKeysDeleteKey,
 	}, OwnKey: ApiKeysOwnKey, AllKey: ApiKeysAllKey},

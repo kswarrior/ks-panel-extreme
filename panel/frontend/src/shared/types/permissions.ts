@@ -252,6 +252,7 @@ export const PERMISSION_AREAS: PermissionArea[] = [
       EDIT: PermissionKey.INSTANCES_EDIT,
       DELETE: PermissionKey.INSTANCES_DELETE,
     },
+    extraKeys: [PermissionKey.VIEW_INSTANCES],
     ownKey: PermissionKey.INSTANCES_OWN,
     allKey: PermissionKey.INSTANCES_ALL,
   },
