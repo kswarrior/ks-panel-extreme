@@ -5,7 +5,7 @@ import RouteThemeSync from '@/shared/components/layout/RouteThemeSync';
 import Login from '@/features/auth/pages/Login';
 import Register from '@/features/auth/pages/Register';
 import VerifyEmail from '@/features/auth/pages/VerifyEmail';
-import InstanceList from '@/features/instances/pages/InstancesRouter';
+import Instances from '@/features/instances/pages/Instances';
 import Account from '@/features/account/pages/Account';
 import UsersPage from '@/features/users/pages/Users';
 import UserForm from '@/features/users/pages/UserForm';
@@ -96,7 +96,7 @@ const Router: React.FC = () => (
         element={
           <RequireAuth>
             <RequirePermission permission={PermissionKey.MANAGE_INSTANCES}>
-              <InstanceList />
+              <Instances />
              </RequirePermission>
           </RequireAuth>
         }
