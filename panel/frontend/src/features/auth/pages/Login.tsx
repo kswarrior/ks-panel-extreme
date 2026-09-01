@@ -29,6 +29,10 @@ const Login: React.FC = () => {
   const initialized = useAuthStore((s) => s.initialized);
   const [registerAllowed, setRegisterAllowed] = useState(false);
   const [oauthProviders, setOauthProviders] = useState<{ id: string; label: string }[]>([]);
+  const [sessionLifetime, setSessionLifetime] = useState<number | null>(null);
+  const [sessionIdle, setSessionIdle] = useState<number | null>(null);
+  const [sessionMaxPerUser, setSessionMaxPerUser] = useState<number | null>(null);
+
 
   React.useEffect(() => {
     let cancelled = false;
@@ -46,6 +50,9 @@ const Login: React.FC = () => {
         register_allow: boolean;
         verify_required: boolean;
         oauth_providers?: { id: string; label: string }[];
+        session_lifetime_minutes?: number;
+        session_idle_timeout_minutes?: number;
+        session_max_per_user?: number;
       }>('/api/auth/flags');
 
       const [panelRes, flagsRes] = await Promise.allSettled([panelReq, flagsReq]);
@@ -69,6 +76,9 @@ const Login: React.FC = () => {
       if (flagsRes.status === 'fulfilled') {
         setRegisterAllowed(!!flagsRes.value.data?.register_allow);
         setOauthProviders(flagsRes.value.data?.oauth_providers ?? []);
+        if (flagsRes.value.data?.session_lifetime_minutes != null) setSessionLifetime(Number(flagsRes.value.data.session_lifetime_minutes));
+        if (flagsRes.value.data?.session_idle_timeout_minutes != null) setSessionIdle(Number(flagsRes.value.data.session_idle_timeout_minutes));
+        if (flagsRes.value.data?.session_max_per_user != null) setSessionMaxPerUser(Number(flagsRes.value.data.session_max_per_user));
       }
     })().catch(() => {
       /* silent: defaults keep login usable */
@@ -94,6 +104,31 @@ const Login: React.FC = () => {
   const identifierError = touched.identifier && !identifierTrimmed ? 'Username or email is required' : '';
   const passwordError = touched.password && !password ? 'Password is required' : '';
   const hasFieldError = !!identifierError || !!passwordError;
+
+  const formatMinutes = (m: number | null) => {
+    if (m == null) return null;
+    if (m < 60) return `${m}m`;
+    const h = Math.floor(m / 60);
+    const rem = m % 60;
+    if (rem === 0) {
+      if (h % 24 === 0) {
+        const d = h / 24;
+        return d === 1 ? '1d' : `${d}d`;
+      }
+      return `${h}h`;
+    }
+    return `${h}h ${rem}m`;
+  };
+  const sessionText = (() => {
+    const life = formatMinutes(sessionLifetime);
+    const idle = formatMinutes(sessionIdle);
+    if (!life && !idle) return null;
+    // Real data from Security -> Sessions tab (SecurityConfig)
+    // Shows absolute lifetime and idle timeout; max per user only if capped
+    if (life && idle) return `Session ${life} • Idle ${idle}`;
+    if (life) return `Session ${life}`;
+    return `Idle ${idle}`;
+  })();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -323,6 +358,30 @@ const Login: React.FC = () => {
               )}
             </div>
 
+            {/* Session (real data from Security -> Sessions) on left, Create account on right - between password and Sign In */}
+            <div className="flex items-center justify-between gap-3 -mt-2 animate-slide-up [animation-delay:0.25s] [animation-fill-mode:backwards]">
+              <span className="text-xs text-gray-400 flex items-center gap-1.5 min-w-0">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-3.5 h-3.5 shrink-0 opacity-70" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+                <span className="truncate" title={sessionText ? `Lifetime ${formatMinutes(sessionLifetime) ?? '-'} • Idle ${formatMinutes(sessionIdle) ?? '-'}${sessionMaxPerUser ? ` • Max ${sessionMaxPerUser}/user` : ''}` : undefined}>
+                  {sessionText ?? 'Session • fetching...'}
+                </span>
+              </span>
+              {registerAllowed && !addAccountMode ? (
+                <button
+                  type="button"
+                  onClick={() => navigate('/auth/register')}
+                  className="shrink-0 text-xs font-medium text-white underline decoration-white/20 underline-offset-4 hover:decoration-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40 rounded-sm px-0.5"
+                >
+                  Create new account
+                </button>
+              ) : (
+                <span className="shrink-0 text-xs text-transparent select-none" aria-hidden="true">.</span>
+              )}
+            </div>
+
             {/* Submit button */}
             <button
               type="submit"
@@ -391,18 +450,7 @@ const Login: React.FC = () => {
                 Powered by <span className="font-medium text-gray-300">{footerText || 'KS Warrior'}</span>
               </p>
 
-              {registerAllowed && !addAccountMode && (
-                <p className="text-center text-sm text-gray-400">
-                  Don&apos;t have an account?{' '}
-                  <button
-                    type="button"
-                    onClick={() => navigate('/auth/register')}
-                    className="font-medium text-white underline decoration-white/20 underline-offset-4 hover:decoration-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40 rounded-sm px-0.5"
-                  >
-                    Create new account
-                  </button>
-                </p>
-              )}
+
               {addAccountMode && (
                 <p className="text-center">
                   <button
@@ -418,9 +466,6 @@ const Login: React.FC = () => {
           </div>
         </form>
 
-        <p className="mt-6 text-center text-[11px] text-gray-500/70">
-          Secure authentication • Session protected with HMAC
-        </p>
       </div>
 
       <style>{`
