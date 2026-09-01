@@ -330,45 +330,47 @@
     background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='1.5'%3E%3Ccircle cx='11' cy='11' r='8'%3E%3C/circle%3E%3Cpath d='M21 21l-4.35-4.35'%3E%3C/path%3E%3C/svg%3E");
   }
 
-/* Auth underline inputs (Login / Register / VerifyEmail). Keeps the
-   transparent underline aesthetic (no fill — floating labels sit on top)
-   while text, resting border and focus border follow the Theme Studio's
-   Forms tab via the always-emitted --ks-form-* variables. */
+/* Auth underline inputs (Login / Register / VerifyEmail). Fully transparent
+   underline aesthetic — no fill, only a bottom border — so the
+   ThemedBackground shows through. Floating labels sit on top. Text, resting
+   border and focus border follow the Theme Studio's Forms tab via the
+   always-emitted --ks-form-* variables. */
 .ks-auth-input {
+  background-color: transparent !important;
   color: var(--ks-form-input-text, #ffffff);
-  border-color: var(--ks-form-input-border, rgba(255, 255, 255, 0.10));
+  border-color: var(--ks-form-input-border, rgba(255, 255, 255, 0.15));
 }
 .ks-auth-input:focus {
   outline: none;
+  background-color: transparent !important;
   border-color: var(--ks-form-focus-border, rgba(255, 255, 255, 0.40));
 }
 
 /* Browser autofill (Chrome/Edge) paints a white/yellow background on saved
-   credentials — keep it transparent like the normal bg-black/20 state, not
-   opaque black (#18181b) and not white. The long background-color transition
-   delays the UA's white paint for 5000s so the input keeps its original
-   rgba(0,0,0,0.2) / 0.3 background which is semi-transparent over the page's
-   ThemedBackground (showing aurora/blur through). Text stays white. */
+   credentials — keep it fully transparent for the underline style. The long
+   background-color transition delays the UA's white paint for 5000s so the
+   input keeps its transparent background over ThemedBackground (showing
+   aurora/blur through). Text stays white. */
 .ks-auth-input:-webkit-autofill,
 .ks-auth-input:-webkit-autofill:hover,
 .ks-auth-input:-webkit-autofill:focus,
 .ks-auth-input:-webkit-autofill:active {
-  -webkit-box-shadow: none !important;
-  box-shadow: none !important;
+  -webkit-box-shadow: 0 0 0 1000px transparent inset !important;
+  box-shadow: 0 0 0 1000px transparent inset !important;
   -webkit-text-fill-color: #ffffff !important;
   caret-color: #ffffff !important;
-  background-color: rgba(0, 0, 0, 0.2) !important;
+  background-color: transparent !important;
   transition: background-color 5000s ease-in-out 0s !important;
 }
 .ks-auth-input:-webkit-autofill:focus {
-  background-color: rgba(0, 0, 0, 0.3) !important;
+  background-color: transparent !important;
 }
 /* Chrome newer internal state */
 input:-internal-autofill-selected {
-  background-color: rgba(0, 0, 0, 0.2) !important;
+  background-color: transparent !important;
 }
 input:-internal-autofill-selected:focus {
-  background-color: rgba(0, 0, 0, 0.3) !important;
+  background-color: transparent !important;
 }
 
 /* Floating dropdown panels — the "Apply to…" scope menu and the header

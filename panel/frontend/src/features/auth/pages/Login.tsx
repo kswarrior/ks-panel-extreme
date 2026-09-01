@@ -268,12 +268,12 @@ const Login: React.FC = () => {
                   aria-invalid={!!identifierError || (touched.identifier && !!error)}
                   aria-describedby={identifierError ? 'identifier-error' : undefined}
                   placeholder=" "
-                  className={`peer w-full h-[45px] bg-black/20 ks-auth-input placeholder-transparent border rounded-lg pl-10 pr-3 py-3 text-sm text-white transition-all duration-200 focus:bg-black/30 focus:border-white/30 focus:ring-2 focus:ring-white/10 outline-none ${
-                    identifierError ? '!border-red-500/60 focus:!border-red-500 focus:!ring-red-500/20' : 'border-white/10'
+                  className={`peer w-full h-[45px] bg-transparent ks-auth-input placeholder-transparent border-0 border-b rounded-none pl-10 pr-3 py-3 text-sm text-white transition-colors duration-200 focus:bg-transparent focus:ring-0 outline-none ${
+                    identifierError ? '!border-red-500/60 focus:!border-red-500' : 'border-white/15 focus:border-white/40'
                   }`}
                 />
                 <label
-                  className="absolute left-10 top-[13px] text-sm font-medium text-gray-400 transition-all duration-200 pointer-events-none peer-placeholder-shown:top-[13px] peer-placeholder-shown:text-sm peer-focus:-top-2.5 peer-focus:left-2 peer-focus:text-xs peer-focus:text-white peer-focus:bg-neutral-900 peer-focus:px-1.5 peer-focus:rounded peer-[:not(:placeholder-shown)]:-top-2.5 peer-[:not(:placeholder-shown)]:left-2 peer-[:not(:placeholder-shown)]:text-xs peer-[:not(:placeholder-shown)]:text-gray-300 peer-[:not(:placeholder-shown)]:bg-neutral-900 peer-[:not(:placeholder-shown)]:px-1.5 peer-[:not(:placeholder-shown)]:rounded"
+                  className="absolute left-10 top-[13px] text-sm font-medium text-gray-400 transition-all duration-200 pointer-events-none peer-placeholder-shown:top-[13px] peer-placeholder-shown:text-sm peer-focus:-top-2.5 peer-focus:left-2 peer-focus:text-xs peer-focus:text-white peer-focus:bg-transparent peer-focus:px-1 peer-[:not(:placeholder-shown)]:-top-2.5 peer-[:not(:placeholder-shown)]:left-2 peer-[:not(:placeholder-shown)]:text-xs peer-[:not(:placeholder-shown)]:text-gray-300 peer-[:not(:placeholder-shown)]:bg-transparent peer-[:not(:placeholder-shown)]:px-1"
                   htmlFor="identifier"
                 >
                   Username or Email
@@ -311,12 +311,12 @@ const Login: React.FC = () => {
                   aria-invalid={!!passwordError || (touched.password && !!error)}
                   aria-describedby={passwordError ? 'password-error' : 'password-help'}
                   placeholder=" "
-                  className={`peer w-full h-[45px] bg-black/20 ks-auth-input placeholder-transparent border rounded-lg pl-10 pr-11 py-3 text-sm text-white transition-all duration-200 focus:bg-black/30 focus:border-white/30 focus:ring-2 focus:ring-white/10 outline-none ${
-                    passwordError ? '!border-red-500/60 focus:!border-red-500 focus:!ring-red-500/20' : 'border-white/10'
+                  className={`peer w-full h-[45px] bg-transparent ks-auth-input placeholder-transparent border-0 border-b rounded-none pl-10 pr-11 py-3 text-sm text-white transition-colors duration-200 focus:bg-transparent focus:ring-0 outline-none ${
+                    passwordError ? '!border-red-500/60 focus:!border-red-500' : 'border-white/15 focus:border-white/40'
                   }`}
                 />
                 <label
-                  className="absolute left-10 top-[13px] text-sm font-medium text-gray-400 transition-all duration-200 pointer-events-none peer-placeholder-shown:top-[13px] peer-placeholder-shown:text-sm peer-focus:-top-2.5 peer-focus:left-2 peer-focus:text-xs peer-focus:text-white peer-focus:bg-neutral-900 peer-focus:px-1.5 peer-focus:rounded peer-[:not(:placeholder-shown)]:-top-2.5 peer-[:not(:placeholder-shown)]:left-2 peer-[:not(:placeholder-shown)]:text-xs peer-[:not(:placeholder-shown)]:text-gray-300 peer-[:not(:placeholder-shown)]:px-1.5 peer-[:not(:placeholder-shown)]:rounded"
+                  className="absolute left-10 top-[13px] text-sm font-medium text-gray-400 transition-all duration-200 pointer-events-none peer-placeholder-shown:top-[13px] peer-placeholder-shown:text-sm peer-focus:-top-2.5 peer-focus:left-2 peer-focus:text-xs peer-focus:text-white peer-focus:bg-transparent peer-focus:px-1 peer-[:not(:placeholder-shown)]:-top-2.5 peer-[:not(:placeholder-shown)]:left-2 peer-[:not(:placeholder-shown)]:text-xs peer-[:not(:placeholder-shown)]:text-gray-300 peer-[:not(:placeholder-shown)]:bg-transparent peer-[:not(:placeholder-shown)]:px-1"
                   htmlFor="password"
                 >
                   Password
