@@ -14,6 +14,11 @@ import TicketDetailSkeleton from '../components/TicketDetailSkeleton';
 
 const STATUS_ORDER: Ticket['status'][] = ['open', 'pending', 'in_progress', 'resolved', 'closed'];
 
+function fallbackAccent(id: number): string {
+  const hues = ['#38bdf8', '#0ea5e9', '#4ade80', '#fbbf24', '#a78bfa', '#f472b6'];
+  return hues[Math.abs(id ?? 0) % hues.length];
+}
+
 const TicketDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -180,8 +185,18 @@ const TicketDetail: React.FC = () => {
                   <span className="capitalize inline-flex items-center gap-1"><CategoryIcon category={ticket.category} className="w-3 h-3" />{ticket.category}</span>
                   <span style={{ opacity: 0.4 }}>•</span>
                   <span>opened by</span>
-                  <span className="font-medium" style={{ color: 'var(--ks-text-heading)' }}>{ticket.creator_name || `#${ticket.created_by}`}</span>
-                  {ticket.creator_email && <span className="hidden sm:inline">({ticket.creator_email})</span>}
+                  <span className="inline-flex items-center gap-1.5 font-medium" style={{ color: 'var(--ks-text-heading)' }}>
+                    <Avatar
+                      name={ticket.creator_display_name || ticket.creator_name || `#${ticket.created_by}`}
+                      size={18}
+                      accentColor={(ticket.creator_accent_color && ticket.creator_accent_color.trim()) ? ticket.creator_accent_color : fallbackAccent(ticket.created_by)}
+                      symbol={ticket.creator_avatar_symbol}
+                      imageUrl={ticket.creator_has_avatar ? `/api/users/${ticket.created_by}/avatar` : undefined}
+                      className="shrink-0"
+                    />
+                    {ticket.creator_display_name || ticket.creator_name || `#${ticket.created_by}`}
+                  </span>
+                  {ticket.creator_email && <span className="hidden sm:inline opacity-70">({ticket.creator_email})</span>}
                   <span style={{ opacity: 0.4 }}>•</span>
                   <span>{formatTicketDateTime(ticket.created_at)}</span>
                 </div>
@@ -218,10 +233,29 @@ const TicketDetail: React.FC = () => {
                 <div className="mt-1 font-medium" style={{ color: dueOverdue ? 'var(--ks-accent-danger, #ef4444)' : 'var(--ks-text-heading)' }}>{ticket.due_at ? formatTicketDateTime(ticket.due_at) : '—'}</div>
                 {dueOverdue && <div className="text-[10px]" style={{ color: 'var(--ks-accent-danger)' }}>Overdue</div>}
               </div>
-              <div className="rounded-xl p-3 border" style={{ background: 'color-mix(in srgb, var(--ks-card-bg) 60%, transparent)', borderColor: 'var(--ks-card-border)' }}>
+              <div className="rounded-xl p-3 border flex flex-col gap-1.5" style={{ background: 'color-mix(in srgb, var(--ks-card-bg) 60%, transparent)', borderColor: 'var(--ks-card-border)' }}>
                 <div className="uppercase tracking-wide text-[10px]" style={{ color: 'var(--ks-text-body)' }}>Assignee</div>
-                <div className="mt-1 font-medium truncate" style={{ color: 'var(--ks-accent-primary, #a78bfa)' }}>{ticket.assignee_name || 'Unassigned'}</div>
-                <div className="text-[11px]" style={{ color: 'var(--ks-text-body)' }}>{ticket.assigned_to ? `#${ticket.assigned_to}` : 'Needs triage'}</div>
+                {ticket.assigned_to ? (
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Avatar
+                      name={ticket.assignee_display_name || ticket.assignee_name || `#${ticket.assigned_to}`}
+                      size={22}
+                      accentColor={(ticket.assignee_accent_color && ticket.assignee_accent_color.trim()) ? ticket.assignee_accent_color : fallbackAccent(ticket.assigned_to as number)}
+                      symbol={ticket.assignee_avatar_symbol}
+                      imageUrl={ticket.assignee_has_avatar ? `/api/users/${ticket.assigned_to}/avatar` : undefined}
+                      className="shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <div className="text-xs font-medium truncate" style={{ color: 'var(--ks-text-heading)' }}>{ticket.assignee_display_name || ticket.assignee_name || `#${ticket.assigned_to}`}</div>
+                      <div className="text-[11px] truncate" style={{ color: 'var(--ks-text-body)' }}>#{ticket.assigned_to}</div>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="mt-1 font-medium truncate" style={{ color: 'var(--ks-text-body)' }}>Unassigned</div>
+                    <div className="text-[11px]" style={{ color: 'var(--ks-text-body)' }}>Needs triage</div>
+                  </>
+                )}
               </div>
               <div className="rounded-xl p-3 border" style={{ background: 'color-mix(in srgb, var(--ks-card-bg) 60%, transparent)', borderColor: 'var(--ks-card-border)' }}>
                 <div className="uppercase tracking-wide text-[10px]" style={{ color: 'var(--ks-text-body)' }}>Last update</div>
@@ -313,8 +347,36 @@ const TicketDetail: React.FC = () => {
                 {ticket.updated_at !== ticket.created_at && <div className="flex justify-between gap-2"><dt style={{ color: 'var(--ks-text-body)' }}>Updated</dt><dd style={{ color: 'var(--ks-text-heading)' }}>{formatTicketDateTime(ticket.updated_at)}</dd></div>}
                 {ticket.closed_at && <div className="flex justify-between gap-2"><dt style={{ color: 'var(--ks-text-body)' }}>Closed</dt><dd style={{ color: 'var(--ks-text-heading)' }}>{formatTicketDateTime(ticket.closed_at)}</dd></div>}
                 {ticket.due_at && <div className="flex justify-between gap-2"><dt style={{ color: 'var(--ks-text-body)' }}>Due</dt><dd style={{ color: dueOverdue ? 'var(--ks-accent-danger)' : 'var(--ks-accent-warning)', fontWeight: dueOverdue ? 600 : 400 }}>{formatTicketDateTime(ticket.due_at)}</dd></div>}
-                <div className="flex justify-between gap-2"><dt style={{ color: 'var(--ks-text-body)' }}>Reporter</dt><dd className="font-medium" style={{ color: 'var(--ks-text-heading)' }}>{ticket.creator_name || `#${ticket.created_by}`}{isMine && <span className="ml-1" style={{ color: 'var(--ks-accent-info)' }}>(you)</span>}</dd></div>
-                <div className="flex justify-between gap-2"><dt style={{ color: 'var(--ks-text-body)' }}>Assignee</dt><dd className="font-medium" style={{ color: 'var(--ks-accent-primary, #a78bfa)' }}>{ticket.assignee_name || '— Unassigned'}{isAssignee && <span className="ml-1" style={{ color: 'var(--ks-accent-primary)' }}>(you)</span>}</dd></div>
+                <div className="flex justify-between gap-2 items-center"><dt style={{ color: 'var(--ks-text-body)' }}>Reporter</dt><dd className="font-medium inline-flex items-center gap-1.5 min-w-0 max-w-[60%]" style={{ color: 'var(--ks-text-heading)' }}>
+                  <Avatar
+                    name={ticket.creator_display_name || ticket.creator_name || `#${ticket.created_by}`}
+                    size={20}
+                    accentColor={(ticket.creator_accent_color && ticket.creator_accent_color.trim()) ? ticket.creator_accent_color : fallbackAccent(ticket.created_by)}
+                    symbol={ticket.creator_avatar_symbol}
+                    imageUrl={ticket.creator_has_avatar ? `/api/users/${ticket.created_by}/avatar` : undefined}
+                    className="shrink-0"
+                  />
+                  <span className="truncate">{ticket.creator_display_name || ticket.creator_name || `#${ticket.created_by}`}</span>
+                  {isMine && <span className="shrink-0 text-[10px] px-1 py-0.5 rounded border" style={{ color: 'var(--ks-accent-info)', borderColor: 'color-mix(in srgb, var(--ks-accent-info) 25%, transparent)', background: 'color-mix(in srgb, var(--ks-accent-info) 12%, transparent)' }}>you</span>}
+                </dd></div>
+                <div className="flex justify-between gap-2 items-center"><dt style={{ color: 'var(--ks-text-body)' }}>Assignee</dt><dd className="font-medium inline-flex items-center gap-1.5 min-w-0 max-w-[60%]" style={{ color: 'var(--ks-text-heading)' }}>
+                  {ticket.assigned_to ? (
+                    <>
+                      <Avatar
+                        name={ticket.assignee_display_name || ticket.assignee_name || `#${ticket.assigned_to}`}
+                        size={20}
+                        accentColor={(ticket.assignee_accent_color && ticket.assignee_accent_color.trim()) ? ticket.assignee_accent_color : fallbackAccent(ticket.assigned_to as number)}
+                        symbol={ticket.assignee_avatar_symbol}
+                        imageUrl={ticket.assignee_has_avatar ? `/api/users/${ticket.assigned_to}/avatar` : undefined}
+                        className="shrink-0"
+                      />
+                      <span className="truncate">{ticket.assignee_display_name || ticket.assignee_name || `#${ticket.assigned_to}`}</span>
+                      {isAssignee && <span className="shrink-0 text-[10px] px-1 py-0.5 rounded border" style={{ color: 'var(--ks-accent-primary)', borderColor: 'color-mix(in srgb, var(--ks-accent-primary) 25%, transparent)', background: 'color-mix(in srgb, var(--ks-accent-primary) 12%, transparent)' }}>you</span>}
+                    </>
+                  ) : (
+                    <span style={{ color: 'var(--ks-text-body)' }}>— Unassigned</span>
+                  )}
+                </dd></div>
                 <div className="flex justify-between gap-2"><dt style={{ color: 'var(--ks-text-body)' }}>Messages</dt><dd style={{ color: 'var(--ks-text-heading)' }}>{commentCount} • {ticket.comment_count} total</dd></div>
               </div>
               {tags.length > 0 && (
