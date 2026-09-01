@@ -196,7 +196,7 @@ const Login: React.FC = () => {
         {/* Form card */}
         <form onSubmit={handleSubmit} className="relative" noValidate autoComplete="on" aria-labelledby="login-heading">
           <h2 id="login-heading" className="sr-only">Login form</h2>
-          <div className="rounded-2xl p-6 sm:p-7 space-y-6 shadow-none border border-white/[0.05] backdrop-blur-sm bg-white/[0.015]">
+          <div className="rounded-2xl p-6 sm:p-7 space-y-6 bg-transparent border border-transparent shadow-none backdrop-blur-none">
             {/* Global error banner */}
             {error && (
               <div
@@ -233,12 +233,12 @@ const Login: React.FC = () => {
                   aria-invalid={!!identifierError || (touched.identifier && !!error)}
                   aria-describedby={identifierError ? 'identifier-error' : undefined}
                   placeholder=" "
-                  className={`peer w-full bg-black/20 ks-auth-input placeholder-transparent border rounded-lg pl-10 pr-3 py-3 text-sm text-white transition-all duration-200 focus:bg-black/30 focus:border-white/30 focus:ring-2 focus:ring-white/10 outline-none ${
+                  className={`peer w-full bg-black/20 ks-auth-input placeholder-transparent border rounded-lg pl-10 pr-3 py-4 text-sm text-white transition-all duration-200 focus:bg-black/30 focus:border-white/30 focus:ring-2 focus:ring-white/10 outline-none ${
                     identifierError ? '!border-red-500/60 focus:!border-red-500 focus:!ring-red-500/20' : 'border-white/10'
                   }`}
                 />
                 <label
-                  className="absolute left-10 top-3 text-sm font-medium text-gray-400 transition-all duration-200 pointer-events-none peer-placeholder-shown:top-3 peer-placeholder-shown:text-sm peer-focus:-top-2.5 peer-focus:left-2 peer-focus:text-xs peer-focus:text-white peer-focus:bg-neutral-900 peer-focus:px-1.5 peer-focus:rounded peer-[:not(:placeholder-shown)]:-top-2.5 peer-[:not(:placeholder-shown)]:left-2 peer-[:not(:placeholder-shown)]:text-xs peer-[:not(:placeholder-shown)]:text-gray-300 peer-[:not(:placeholder-shown)]:bg-neutral-900 peer-[:not(:placeholder-shown)]:px-1.5 peer-[:not(:placeholder-shown)]:rounded"
+                  className="absolute left-10 top-4 text-sm font-medium text-gray-400 transition-all duration-200 pointer-events-none peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:-top-2.5 peer-focus:left-2 peer-focus:text-xs peer-focus:text-white peer-focus:bg-neutral-900 peer-focus:px-1.5 peer-focus:rounded peer-[:not(:placeholder-shown)]:-top-2.5 peer-[:not(:placeholder-shown)]:left-2 peer-[:not(:placeholder-shown)]:text-xs peer-[:not(:placeholder-shown)]:text-gray-300 peer-[:not(:placeholder-shown)]:bg-neutral-900 peer-[:not(:placeholder-shown)]:px-1.5 peer-[:not(:placeholder-shown)]:rounded"
                   htmlFor="identifier"
                 >
                   Username or Email
@@ -276,12 +276,12 @@ const Login: React.FC = () => {
                   aria-invalid={!!passwordError || (touched.password && !!error)}
                   aria-describedby={passwordError ? 'password-error' : 'password-help'}
                   placeholder=" "
-                  className={`peer w-full bg-black/20 ks-auth-input placeholder-transparent border rounded-lg pl-10 pr-11 py-3 text-sm text-white transition-all duration-200 focus:bg-black/30 focus:border-white/30 focus:ring-2 focus:ring-white/10 outline-none ${
+                  className={`peer w-full bg-black/20 ks-auth-input placeholder-transparent border rounded-lg pl-10 pr-11 py-4 text-sm text-white transition-all duration-200 focus:bg-black/30 focus:border-white/30 focus:ring-2 focus:ring-white/10 outline-none ${
                     passwordError ? '!border-red-500/60 focus:!border-red-500 focus:!ring-red-500/20' : 'border-white/10'
                   }`}
                 />
                 <label
-                  className="absolute left-10 top-3 text-sm font-medium text-gray-400 transition-all duration-200 pointer-events-none peer-placeholder-shown:top-3 peer-placeholder-shown:text-sm peer-focus:-top-2.5 peer-focus:left-2 peer-focus:text-xs peer-focus:text-white peer-focus:bg-neutral-900 peer-focus:px-1.5 peer-focus:rounded peer-[:not(:placeholder-shown)]:-top-2.5 peer-[:not(:placeholder-shown)]:left-2 peer-[:not(:placeholder-shown)]:text-xs peer-[:not(:placeholder-shown)]:text-gray-300 peer-[:not(:placeholder-shown)]:px-1.5 peer-[:not(:placeholder-shown)]:rounded"
+                  className="absolute left-10 top-4 text-sm font-medium text-gray-400 transition-all duration-200 pointer-events-none peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:-top-2.5 peer-focus:left-2 peer-focus:text-xs peer-focus:text-white peer-focus:bg-neutral-900 peer-focus:px-1.5 peer-focus:rounded peer-[:not(:placeholder-shown)]:-top-2.5 peer-[:not(:placeholder-shown)]:left-2 peer-[:not(:placeholder-shown)]:text-xs peer-[:not(:placeholder-shown)]:text-gray-300 peer-[:not(:placeholder-shown)]:px-1.5 peer-[:not(:placeholder-shown)]:rounded"
                   htmlFor="password"
                 >
                   Password
@@ -328,7 +328,7 @@ const Login: React.FC = () => {
               type="submit"
               disabled={submitting}
               aria-busy={submitting}
-              className={`animate-slide-up [animation-delay:0.3s] [animation-fill-mode:backwards] relative w-full py-3 rounded-xl font-semibold text-sm tracking-wide transition-all duration-200 active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-900 disabled:cursor-not-allowed overflow-hidden ${
+              className={`animate-slide-up [animation-delay:0.3s] [animation-fill-mode:backwards] relative w-full py-4 rounded-xl font-semibold text-sm tracking-wide transition-all duration-200 active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-900 disabled:cursor-not-allowed overflow-hidden ${
                 submitting
                   ? 'bg-neutral-800 text-white cursor-wait opacity-90'
                   : 'bg-white hover:bg-gray-100 active:bg-gray-200 text-black shadow-lg shadow-black/20 hover:shadow-xl hover:shadow-black/30 disabled:opacity-60 disabled:hover:bg-white disabled:hover:shadow-lg disabled:active:scale-100'
