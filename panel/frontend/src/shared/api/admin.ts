@@ -205,9 +205,15 @@ export async function rotateNodeToken(id: number): Promise<{ token: string }> {
 // host for a localhost-mode node. Returns an inline log + probe verdict so the
 // modal can confirm the edge came up instead of leaving the operator to
 // manually recheck the card.
+// NOTE: This can take 60-90s on first run (download + launch) so we lift the
+// global 15s client timeout for THIS call only; otherwise a Cloudflare-fronted
+// origin that needs a cold download would 502 with "origin_bad_gateway" while
+// the panel was still streaming the HF/GitHub artifact.
 export async function setupLocalNode(id: number): Promise<SetupLocalResult> {
   const res = await client.post<SetupLocalResult>(
     `/api/nodes/${id}/setup-local`,
+    null,
+    { timeout: 300000 },
   );
   return res.data;
 }

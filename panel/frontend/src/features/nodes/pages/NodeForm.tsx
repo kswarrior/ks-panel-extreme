@@ -259,11 +259,15 @@ const NodeForm: React.FC = () => {
       try {
         setupRes = await setupLocalNode(res.id);
       } catch (e: any) {
+        const data = e?.response?.data;
+        // Backend on mirror failure returns {error, log}; surface log in the modal's "Setup log" pane.
+        const errLog = typeof data === 'object' && data && typeof (data as any).log === 'string' ? (data as any).log : '';
+        const errMsg = typeof data === 'string' ? data : typeof data === 'object' && data && (data as any).error ? String((data as any).error) : JSON.stringify(data || e?.message || 'setup failed');
         setSetupInfo({
           running: false,
           done: true,
-          log: 'Setup failed.',
-          error: typeof e?.response?.data === 'string' ? e.response.data : JSON.stringify(e?.response?.data || e?.message || 'setup failed'),
+          log: errLog || 'Setup failed.',
+          error: errMsg,
           probe: null,
         });
         return;
