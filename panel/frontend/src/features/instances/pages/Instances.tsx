@@ -90,26 +90,6 @@ const Instances: React.FC = () => {
     load();
   }, [load]);
 
-  // The greeting only depends on the local hour, but we tick once a minute
-  // so a tab left open doesn't get stuck on yesterday's welcome.
-  useEffect(() => {
-    const t = window.setInterval(() => setNow(new Date()), 60_000);
-    return () => window.clearInterval(t);
-  }, []);
-
-  const stats = useMemo(() => {
-    let running = 0;
-    let attention = 0;
-    let stopped = 0;
-    for (const i of instances) {
-      const b = bucketize(i.status);
-      if (b === 'running') running += 1;
-      else if (b === 'attention') attention += 1;
-      else stopped += 1;
-    }
-    return { running, attention, stopped, total: instances.length };
-  }, [instances]);
-
   const deleteInstanceHandle = async (id: number) => {
     if (!(await confirm({ title: 'Delete instance', message: 'Delete this instance? This action cannot be undone.', tone: 'danger', confirmLabel: 'Delete' }))) return;
     setDeletingId(id);
