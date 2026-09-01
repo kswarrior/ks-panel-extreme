@@ -343,6 +343,30 @@
   border-color: var(--ks-form-focus-border, rgba(255, 255, 255, 0.40));
 }
 
+/* Browser autofill (Chrome/Edge) paints a white/yellow background on saved
+   credentials — override to stay transparent/dark like the normal
+   bg-black/20 state. The 1000px inset shadow covers the UA's background,
+   long transition keeps it from flashing back, and text-fill keeps text white. */
+.ks-auth-input:-webkit-autofill,
+.ks-auth-input:-webkit-autofill:hover,
+.ks-auth-input:-webkit-autofill:focus,
+.ks-auth-input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px rgba(0, 0, 0, 0.2) inset !important;
+  box-shadow: 0 0 0 1000px rgba(0, 0, 0, 0.2) inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  caret-color: #ffffff !important;
+  transition: background-color 9999s ease-in-out 0s !important;
+  background-clip: text !important;
+}
+.ks-auth-input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px rgba(0, 0, 0, 0.3) inset !important;
+  box-shadow: 0 0 0 1000px rgba(0, 0, 0, 0.3) inset !important;
+}
+/* Chrome newer internal state */
+input:-internal-autofill-selected {
+  background-color: rgba(0, 0, 0, 0.2) !important;
+}
+
 /* Floating dropdown panels — the "Apply to…" scope menu and the header
    profile menu. Defined OUTSIDE @layer/@apply on purpose: arbitrary rgba()
    inside @apply is fragile across Tailwind versions. These panels render as
