@@ -47,18 +47,11 @@ function linkify(text: string): React.ReactNode[] {
   });
 }
 
-// Deterministic fallback accent for users without a custom accent_color – gives each author a stable hue
-// while still allowing the top-right header's Avatar logic (image > symbol > initials) to drive the look
+// Deterministic fallback accent for users without a custom accent_color – hex values so Avatar's ring (`${accent}33`) stays valid CSS.
+// Keeps the chat readable while still matching the top-right header's Avatar logic (image > symbol > initials).
 function fallbackAccent(authorId: number): string {
-  const hues = [
-    'var(--ks-accent-primary, #38bdf8)',
-    'var(--ks-accent-info, #38bdf8)',
-    'var(--ks-accent-success, #4ade80)',
-    'var(--ks-accent-warning, #fbbf24)',
-    '#a78bfa',
-    '#f472b6',
-  ];
-  return hues[Math.abs(authorId) % hues.length];
+  const hues = ['#38bdf8', '#0ea5e9', '#4ade80', '#fbbf24', '#a78bfa', '#f472b6'];
+  return hues[Math.abs(authorId ?? 0) % hues.length];
 }
 
 export interface TicketChatProps {
@@ -278,7 +271,7 @@ const TicketChat: React.FC<TicketChatProps> = ({
         <Avatar
           name={ticket.creator_display_name || ticket.creator_name || ticket.subject || 'T'}
           size={32}
-          accentColor={ticket.creator_accent_color || undefined}
+          accentColor={(ticket.creator_accent_color && ticket.creator_accent_color.trim()) ? ticket.creator_accent_color : fallbackAccent(ticket.created_by)}
           symbol={ticket.creator_avatar_symbol}
           imageUrl={ticket.creator_has_avatar ? `/api/users/${ticket.created_by}/avatar` : undefined}
           className="shrink-0"
@@ -462,7 +455,8 @@ const TicketChat: React.FC<TicketChatProps> = ({
 
                   // Author identity for Avatar – mirrors top-right header's Avatar logic: image > symbol > initials
                   const authorName = c.author_display_name?.trim() || c.author_name || `User #${c.author_id}`;
-                  const avatarAccent = c.author_accent_color || undefined;
+                  const rawAccent = (c.author_accent_color || '').trim();
+                  const avatarAccent = rawAccent ? rawAccent : fallbackAccent(c.author_id);
                   const avatarSymbol = c.author_avatar_symbol || undefined;
                   const avatarImageUrl = c.author_has_avatar ? `/api/users/${c.author_id}/avatar` : undefined;
 
@@ -487,8 +481,20 @@ const TicketChat: React.FC<TicketChatProps> = ({
                         )}
                       </div>
 
-                      {/* [message] + below: time + 3-dot */}
+                      {/* [message] + below: name, bubble, time + 3-dot */}
                       <div className="flex flex-col max-w-[78%] min-w-0">
+                        {/* Author name line – so the profile logo context is clear, matches header's identity block */}
+                        <div className="flex items-center gap-1.5 mb-1 px-1 min-w-0">
+                          <span className="text-[11px] font-semibold truncate" style={{ color: isOwn ? 'var(--ks-accent-primary, #38bdf8)' : 'var(--ks-text-body)' }} title={authorName}>
+                            {isOwn ? 'You' : authorName}
+                          </span>
+                          {!isOwn && c.author_name && c.author_display_name && c.author_display_name.trim() && c.author_display_name.trim() !== c.author_name && (
+                            <span className="text-[10px] truncate opacity-60" style={{ color: 'var(--ks-text-body)' }}>@{c.author_name}</span>
+                          )}
+                          {c.is_internal && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full border font-medium leading-none" style={{ background: 'color-mix(in srgb, var(--ks-accent-warning) 16%, transparent)', borderColor: 'color-mix(in srgb, var(--ks-accent-warning) 30%, transparent)', color: 'var(--ks-accent-warning)' }}>internal</span>
+                          )}
+                        </div>
                         <div
                           className="relative px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words border shadow-sm rounded-tl-sm"
                           style={{ ...bubbleStyle, borderWidth: 1 }}
