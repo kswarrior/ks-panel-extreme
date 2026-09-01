@@ -226,54 +226,29 @@ const NotificationsPage: React.FC = () => {
       )}
 
       {!loading && rows.length === 0 && !error && (
-        <Card className="p-10 text-center border overflow-hidden relative">
+        <div className="flex flex-col items-center justify-center min-h-[40vh] px-4 animate-fade-in">
           <div className="flex flex-col items-center gap-4">
-            {/* Icon container – mirrors top-right header NotificationBell button styling so empty state feels coherent */}
-            <div
-              className="w-16 h-16 rounded-2xl border backdrop-blur-xl grid place-items-center shadow-[0_2px_16px_rgba(0,0,0,0.28),0_0_0_1px_rgba(255,255,255,0.06)_inset]"
-              style={{
-                background: 'color-mix(in srgb, var(--ks-card-bg) 92%, transparent)',
-                borderColor: 'var(--ks-card-border)',
-                color: 'var(--ks-text-body)',
-              }}
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="w-20 h-20 text-gray-400"
+              aria-hidden="true"
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={1.85}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="w-8 h-8"
-                aria-hidden="true"
-              >
-                <circle cx="12" cy="3.35" r="1.1" fill="currentColor" stroke="none" />
-                <path d="M12 5.45a6 6 0 0 0-6 6V14c0 .5-.2 1-.55 1.35L4.2 16.6a.6.6 0 0 0 .42 1.05h14.76a.6.6 0 0 0 .42-1.05l-1.24-1.25A1.9 1.9 0 0 1 18 14v-2.55a6 6 0 0 0-6-6Z" />
-                <path d="M8.2 17.65h7.6" strokeWidth="1.55" />
-                <path d="M12 17.65v1.45" strokeWidth="1.35" />
-                <circle cx="12" cy="20.15" r="1.55" fill="currentColor" stroke="none" />
-                <circle cx="11.45" cy="19.65" r="0.42" fill="white" opacity="0.62" />
-              </svg>
-            </div>
-            <p className="font-semibold" style={{ color: 'var(--ks-text-heading)' }}>No notifications</p>
-            <p className="text-xs max-w-sm" style={{ color: 'var(--ks-text-body)' }}>You're all caught up. New system alerts, node updates, and admin broadcasts will appear here. Try adjusting filters or check back later.</p>
-            {hasFilters && (
-              <button
-                onClick={resetFilters}
-                className="mt-1 inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md border transition-colors"
-                style={{
-                  color: 'var(--ks-text-heading)',
-                  background: 'color-mix(in srgb, var(--ks-card-bg) 85%, transparent)',
-                  borderColor: 'var(--ks-card-border)',
-                }}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3"><polyline points="1 4 1 10 7 10" /><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" /></svg>
-                Clear filters
-              </button>
-            )}
+              <circle cx="12" cy="3.35" r="1.1" fill="currentColor" stroke="none" />
+              <path d="M12 5.45a6 6 0 0 0-6 6V14c0 .5-.2 1-.55 1.35L4.2 16.6a.6.6 0 0 0 .42 1.05h14.76a.6.6 0 0 0 .42-1.05l-1.24-1.25A1.9 1.9 0 0 1 18 14v-2.55a6 6 0 0 0-6-6Z" />
+              <path d="M8.2 17.65h7.6" strokeWidth="1.55" />
+              <path d="M12 17.65v1.45" strokeWidth="1.35" />
+              <circle cx="12" cy="20.15" r="1.55" fill="currentColor" stroke="none" />
+              <circle cx="11.45" cy="19.65" r="0.42" fill="white" opacity="0.62" />
+            </svg>
+            <p className="text-lg font-medium text-gray-300">No notifications</p>
           </div>
-        </Card>
+        </div>
       )}
 
       {/* Pagination */}
