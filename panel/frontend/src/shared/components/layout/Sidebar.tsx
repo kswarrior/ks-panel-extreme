@@ -205,7 +205,12 @@ const Icons: Record<string, React.ReactNode> = {
   ),
   Notifications: (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
-      <path d="M6 8a6 6 0 0 1 12 0c0 7-6 5-6 9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /><path d="M4 8h16" opacity={0.15} />
+      <circle cx="12" cy="3.35" r="1.1" fill="currentColor" stroke="none" />
+      <path d="M12 5.45a6 6 0 0 0-6 6V14c0 .5-.2 1-.55 1.35L4.2 16.6a.6.6 0 0 0 .42 1.05h14.76a.6.6 0 0 0 .42-1.05l-1.24-1.25A1.9 1.9 0 0 1 18 14v-2.55a6 6 0 0 0-6-6Z" />
+      <path d="M8.2 17.65h7.6" strokeWidth="1.55" />
+      <path d="M12 17.65v1.45" strokeWidth="1.35" />
+      <circle cx="12" cy="20.15" r="1.55" fill="currentColor" stroke="none" />
+      <circle cx="11.45" cy="19.65" r="0.42" fill="white" opacity="0.62" />
     </svg>
   ),
   // KS Warrior logo for footer
