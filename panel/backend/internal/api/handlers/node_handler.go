@@ -920,15 +920,30 @@ func SetupLocalNodeHandler(w http.ResponseWriter, r *http.Request) {
 	panelURL := scheme + "://" + r.Host
 
 	// Per-node working directory under the panel data dir so multiple local
-	// edges (or a re-setup) don't stomp each other's binaries. We
-	// intentionally ignore node.InstallDir here (even when set) — the
-	// stored InstallDir defaults to a shared "./localnode/" path that
-	// collides with the CLI's "localnode/ksedge/ksedge" layout and makes
-	//ksedgePath a directory (causing "fork/exec localnode/ksedge: no such
-	// file or directory"). The per-node dir is always safe and isolated;
-	// PurgeLocalNodeHandler already handles both the custom InstallDir and
-	// the per-node dir, so a later purge will still clean up.
-	dir := filepath.Join(config.DataDir(), "localnode", fmt.Sprintf("ksedge-%d", id))
+	// edges (or a re-setup) don't stomp each other's binaries. We honour
+	// node.InstallDir ONLY when it is a non-default custom path (the stored
+	// default "./localnode/" collides with the CLI's "localnode/ksedge/"
+	// layout and makes ksedgePath a directory → fork/exec ENOENT). Default/
+	// empty values fall back to the isolated per-node dir; a custom absolute
+	// (or non-default relative) is respected so "dedicated disk" installs
+	// still work. This mirrors PurgeLocalNodeHandler's isDefault check so
+	// setup ↔ purge stay symmetric.
+	trim := strings.TrimSpace(node.InstallDir)
+	isDefaultInstallDir := trim == "" ||
+		trim == "./localnode" || trim == "./localnode/" ||
+		trim == "localnode" || trim == "localnode/" ||
+		trim == "./localnode/ksedge" || trim == "./localnode/ksedge/" ||
+		trim == "localnode/ksedge" || trim == "localnode/ksedge/"
+	var dir string
+	if isDefaultInstallDir {
+		dir = filepath.Join(config.DataDir(), "localnode", fmt.Sprintf("ksedge-%d", id))
+	} else {
+		if filepath.IsAbs(trim) {
+			dir = filepath.Clean(trim)
+		} else {
+			dir = filepath.Join(config.DataDir(), filepath.Clean(trim))
+		}
+	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		http.Error(w, "could not create edge directory: "+err.Error(), http.StatusInternalServerError)
 		return
