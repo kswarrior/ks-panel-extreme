@@ -27,6 +27,7 @@ const Register: React.FC = () => {
   const [sessionLifetime, setSessionLifetime] = useState<number | null>(null);
   const [sessionIdle, setSessionIdle] = useState<number | null>(null);
   const [sessionMaxPerUser, setSessionMaxPerUser] = useState<number | null>(null);
+  const [pwdPolicy, setPwdPolicy] = useState<{ min_length: number; max_length: number; require_upper: boolean; require_lower: boolean; require_number: boolean; require_symbol: boolean; no_common?: boolean; no_personal?: boolean } | null>(null);
   const navigate = useNavigate();
   const panelName = useSettingsStore((s) => s.panelName);
   const panelLogo = useSettingsStore((s) => s.panelLogo);
@@ -41,12 +42,14 @@ const Register: React.FC = () => {
           session_lifetime_minutes?: number;
           session_idle_timeout_minutes?: number;
           session_max_per_user?: number;
+          password_policy?: { min_length: number; max_length: number; require_upper: boolean; require_lower: boolean; require_number: boolean; require_symbol: boolean; no_common?: boolean; no_personal?: boolean };
         }>('/api/auth/flags');
         if (!cancelled) {
           setOauthProviders(flags.data?.oauth_providers ?? []);
           if (flags.data?.session_lifetime_minutes != null) setSessionLifetime(Number(flags.data.session_lifetime_minutes));
           if (flags.data?.session_idle_timeout_minutes != null) setSessionIdle(Number(flags.data.session_idle_timeout_minutes));
           if (flags.data?.session_max_per_user != null) setSessionMaxPerUser(Number(flags.data.session_max_per_user));
+          if (flags.data?.password_policy) setPwdPolicy(flags.data.password_policy);
         }
       } catch {
         /* provider list stays empty on failure — form still works */
@@ -78,6 +81,37 @@ const Register: React.FC = () => {
     return `Idle ${idle}`;
   })();
 
+  // Live password checklist — uses real policy from backend (fallback to secure defaults)
+  const policy = pwdPolicy ?? { min_length: 12, max_length: 128, require_upper: true, require_lower: true, require_number: true, require_symbol: true, no_common: true, no_personal: true };
+  const checks = (() => {
+    const pwd = password;
+    const user = username.trim().toLowerCase();
+    const mail = email.trim().toLowerCase();
+    const hasUpper = /[A-Z]/.test(pwd);
+    const hasLower = /[a-z]/.test(pwd);
+    const hasNumber = /[0-9]/.test(pwd);
+    const hasSpecial = /[^A-Za-z0-9]/.test(pwd);
+    const unique = new Set(pwd).size;
+    const commonList = ["password","123456","12345678","qwerty","abc123","letmein","monkey","password1","admin","welcome"];
+    const isCommon = commonList.includes(pwd.toLowerCase());
+    const containsPersonal = !!((user && pwd.toLowerCase().includes(user)) || (mail && pwd.toLowerCase().includes(mail)));
+    const list: { label: string; pass: boolean; show: boolean }[] = [];
+    list.push({ label: `At least ${policy.min_length} characters`, pass: pwd.length >= policy.min_length, show: true });
+    if (policy.max_length) list.push({ label: `No more than ${policy.max_length} characters`, pass: pwd.length <= policy.max_length, show: pwd.length > policy.max_length });
+    if (policy.require_upper) list.push({ label: `At least one uppercase letter`, pass: hasUpper, show: true });
+    if (policy.require_lower) list.push({ label: `At least one lowercase letter`, pass: hasLower, show: true });
+    if (policy.require_number) list.push({ label: `At least one number`, pass: hasNumber, show: true });
+    if (policy.require_symbol) list.push({ label: `At least one special character`, pass: hasSpecial, show: true });
+    // Unique chars (default 8, but policy may not expose; keep if pwd long enough to hint)
+    if (pwd.length >= 8) list.push({ label: `At least 8 unique characters`, pass: unique >= 8, show: true });
+    if (policy.no_common) list.push({ label: `Not a common password`, pass: !isCommon && pwd.length > 0, show: true });
+    if (policy.no_personal && (user || mail)) list.push({ label: `Not containing personal info`, pass: !containsPersonal, show: true });
+    return list;
+  })();
+  const confirmPass = confirm.length > 0 ? password === confirm : false;
+  const confirmShow = confirm.length > 0 || password.length > 0;
+
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -85,8 +119,8 @@ const Register: React.FC = () => {
       setError('All fields are required');
       return;
     }
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters');
+    if (password.length < policy.min_length) {
+      setError(`Password must be at least ${policy.min_length} characters`);
       return;
     }
     if (password !== confirm) {
@@ -261,6 +295,20 @@ const Register: React.FC = () => {
               </div>
             </div>
 
+            {/* Live password checklist - below password input while typing */}
+            {password.length > 0 && (
+              <div className="-mt-1 space-y-1.5 animate-slide-up [animation-delay:0.22s] [animation-fill-mode:backwards]">
+                {checks.map((c, i) => (
+                  c.show ? (
+                    <div key={i} className="flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full shrink-0 transition-colors duration-200 ${c.pass ? 'bg-emerald-500' : 'bg-red-500'}`} aria-hidden="true" />
+                      <span className={`text-xs leading-none transition-colors duration-200 ${c.pass ? 'text-emerald-300' : 'text-gray-400'}`}>{c.label}</span>
+                    </div>
+                  ) : null
+                ))}
+              </div>
+            )}
+
             {/* Confirm password */}
             <div className="animate-slide-up [animation-delay:0.25s] [animation-fill-mode:backwards]">
               <div className="relative group">
@@ -285,6 +333,14 @@ const Register: React.FC = () => {
                 </div>
               </div>
             </div>
+            {confirmShow && (
+              <div className="-mt-1 animate-slide-up [animation-delay:0.27s] [animation-fill-mode:backwards]">
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full shrink-0 transition-colors duration-200 ${confirmPass ? 'bg-emerald-500' : 'bg-red-500'}`} aria-hidden="true" />
+                  <span className={`text-xs leading-none transition-colors duration-200 ${confirmPass ? 'text-emerald-300' : 'text-gray-400'}`}>Passwords match</span>
+                </div>
+              </div>
+            )}
 
             {/* Session (real data) on left, Sign in on right - between confirm and Create Account */}
             <div className="flex items-center justify-between gap-3 -mt-2 animate-slide-up [animation-delay:0.3s] [animation-fill-mode:backwards]">
