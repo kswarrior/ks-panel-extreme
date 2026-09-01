@@ -126,25 +126,41 @@ const TicketDetail: React.FC = () => {
   const dueOverdue = ticket.due_at && !isClosed && new Date(ticket.due_at) < new Date();
 
   return (
-    <div className="max-w-[1280px] mx-auto space-y-4">
-      {/* Breadcrumb – theme aware */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <Link
-          to="/tickets"
-          className="ks-btn-ghost inline-flex items-center gap-1 text-sm px-2 py-1 rounded"
-          style={{ color: 'var(--ks-text-body)' }}
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4"><path d="M19 12H5" /><path d="M12 19l-7-7 7-7" /></svg>
-          Tickets
-        </Link>
-        <span style={{ color: 'color-mix(in srgb, var(--ks-text-body) 40%, transparent)' }}>/</span>
-        <span className="font-mono text-sm font-semibold tracking-wide px-2 py-0.5 rounded border" style={{ color: 'var(--ks-accent-info, #38bdf8)', background: 'color-mix(in srgb, var(--ks-accent-info, #38bdf8) 12%, transparent)', borderColor: 'color-mix(in srgb, var(--ks-accent-info, #38bdf8) 22%, transparent)' }}>{ticket.ticket_no}</span>
-        <TicketStatusBadge status={ticket.status} />
-        <TicketPriorityBadge priority={ticket.priority} />
-        <span className="ml-auto hidden sm:inline-flex items-center gap-2 text-xs" style={{ color: 'var(--ks-text-body)' }}>
-          <span className={`w-2 h-2 rounded-full ${isClosed ? 'bg-gray-500' : 'bg-emerald-400 animate-pulse'}`} />
-          {isClosed ? 'Closed' : 'Live chat'} • {commentCount || ticket.comment_count} messages
-        </span>
+    <div className="space-y-4">
+      {/* Header – matches nodes/templates detail header, fully theme-aware via CSS vars + CardMenu */}
+      <div className="flex items-center gap-3">
+        <button onClick={() => navigate('/tickets')} className="ks-btn-header ks-icon-btn shrink-0" aria-label="Back to Tickets">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5"><polyline points="15 18 9 12 15 6" /></svg>
+        </button>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-xl font-semibold truncate" style={{ color: 'var(--ks-text-heading)' }} title={ticket.subject}>{ticket.subject}</h2>
+          <p className="text-xs truncate flex items-center gap-1.5 flex-wrap" style={{ color: 'var(--ks-text-body)' }}>
+            <span className="font-mono font-semibold px-1.5 py-0.5 rounded border" style={{ color: 'var(--ks-accent-info, #38bdf8)', background: 'color-mix(in srgb, var(--ks-accent-info, #38bdf8) 12%, transparent)', borderColor: 'color-mix(in srgb, var(--ks-accent-info, #38bdf8) 22%, transparent)' }}>{ticket.ticket_no}</span>
+            <span className="capitalize inline-flex items-center gap-1"><CategoryIcon category={ticket.category} className="w-3 h-3" />{ticket.category}</span>
+            <span style={{ opacity: 0.4 }}>•</span>
+            <span className="hidden sm:inline">{formatTicketDateTime(ticket.created_at)}</span>
+            <span className="hidden sm:inline-flex items-center gap-1.5 ml-1"><TicketStatusBadge status={ticket.status} /><TicketPriorityBadge priority={ticket.priority} /></span>
+            <span className="hidden lg:inline-flex items-center gap-1.5 ml-1">
+              <span className={`w-2 h-2 rounded-full ${isClosed ? 'bg-gray-500' : 'bg-emerald-400 animate-pulse'}`} />
+              {commentCount || ticket.comment_count} messages
+            </span>
+          </p>
+        </div>
+        <CardMenu
+          ariaLabel={`Actions for ticket ${ticket.ticket_no}`}
+          items={[
+            { key: 'chat', label: 'Open chat', tone: 'default' },
+            { key: 'edit', label: 'Edit ticket', tone: 'default' },
+            { key: 'copy', label: 'Copy ticket ID', tone: 'default' },
+            { key: 'delete', label: 'Delete ticket', tone: 'danger' },
+          ]}
+          onSelect={(k) => {
+            if (k === 'chat') navigate(`/tickets/${ticket.id}/chat`);
+            if (k === 'edit') navigate(`/tickets/${ticket.id}/edit`);
+            if (k === 'copy') navigator.clipboard.writeText(ticket.ticket_no).catch(() => {});
+            if (k === 'delete') handleDeleteTicket();
+          }}
+        />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-[1.45fr_0.85fr] gap-4">
