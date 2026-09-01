@@ -196,7 +196,7 @@ const Login: React.FC = () => {
         {/* Form card */}
         <form onSubmit={handleSubmit} className="relative" noValidate autoComplete="on" aria-labelledby="login-heading">
           <h2 id="login-heading" className="sr-only">Login form</h2>
-          <div className="glass rounded-2xl p-6 sm:p-7 space-y-6 shadow-[0_16px_48px_rgba(0,0,0,0.5)] border border-white/10 backdrop-blur-xl bg-white/[0.06]">
+          <div className="rounded-2xl p-6 sm:p-7 space-y-6 shadow-none border border-white/[0.05] backdrop-blur-sm bg-white/[0.015]">
             {/* Global error banner */}
             {error && (
               <div
