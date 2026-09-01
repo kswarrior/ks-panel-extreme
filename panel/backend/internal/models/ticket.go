@@ -33,14 +33,18 @@ type Ticket struct {
 // TicketComment is one reply / internal note on a ticket.
 // is_internal = 1 means the note is visible only to staff (TICKETS_EDIT holders).
 type TicketComment struct {
-	ID         int64     `json:"id"`
-	TicketID   int64     `json:"ticket_id"`
-	AuthorID   int64     `json:"author_id"`
-	AuthorName string    `json:"author_name,omitempty"`
-	Body       string    `json:"body"`
-	IsInternal bool      `json:"is_internal"`
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
+	ID                 int64     `json:"id"`
+	TicketID           int64     `json:"ticket_id"`
+	AuthorID           int64     `json:"author_id"`
+	AuthorName         string    `json:"author_name,omitempty"`
+	AuthorDisplayName  string    `json:"author_display_name,omitempty"`
+	AuthorAccentColor  string    `json:"author_accent_color,omitempty"`
+	AuthorAvatarSymbol string    `json:"author_avatar_symbol,omitempty"`
+	AuthorHasAvatar    bool      `json:"author_has_avatar,omitempty"`
+	Body               string    `json:"body"`
+	IsInternal         bool      `json:"is_internal"`
+	CreatedAt          time.Time `json:"created_at"`
+	UpdatedAt          time.Time `json:"updated_at"`
 }
 
 // TicketStats aggregates counts for the stats dashboard.

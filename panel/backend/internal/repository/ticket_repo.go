@@ -534,9 +534,16 @@ func (r *TicketRepository) ListComments(ticketID int64, includeInternal bool) ([
 		c.IsInternal = isInternal != 0
 		c.CreatedAt = parseTicketTime(created.String)
 		c.UpdatedAt = parseTicketTime(updated.String)
-		var name sql.NullString
-		_ = r.db.QueryRow(`SELECT username FROM users WHERE id = ?`, c.AuthorID).Scan(&name)
+		var name, displayName, accentColor, avatarSymbol sql.NullString
+		var avatarMime, avatarFilename sql.NullString
+		_ = r.db.QueryRow(`SELECT username, display_name, accent_color, avatar_symbol, avatar_mime, avatar_filename FROM users WHERE id = ?`, c.AuthorID).Scan(&name, &displayName, &accentColor, &avatarSymbol, &avatarMime, &avatarFilename)
 		c.AuthorName = name.String
+		c.AuthorDisplayName = displayName.String
+		c.AuthorAccentColor = accentColor.String
+		c.AuthorAvatarSymbol = avatarSymbol.String
+		if avatarMime.Valid && avatarFilename.Valid && avatarMime.String != "" && avatarFilename.String != "" {
+			c.AuthorHasAvatar = true
+		}
 		out = append(out, c)
 	}
 	return out, rows.Err()
@@ -591,9 +598,16 @@ func (r *TicketRepository) GetComment(id int64) (*models.TicketComment, error) {
 	c.IsInternal = isInternal != 0
 	c.CreatedAt = parseTicketTime(created.String)
 	c.UpdatedAt = parseTicketTime(updated.String)
-	var name sql.NullString
-	_ = r.db.QueryRow(`SELECT username FROM users WHERE id = ?`, c.AuthorID).Scan(&name)
+	var name, displayName, accentColor, avatarSymbol sql.NullString
+	var avatarMime, avatarFilename sql.NullString
+	_ = r.db.QueryRow(`SELECT username, display_name, accent_color, avatar_symbol, avatar_mime, avatar_filename FROM users WHERE id = ?`, c.AuthorID).Scan(&name, &displayName, &accentColor, &avatarSymbol, &avatarMime, &avatarFilename)
 	c.AuthorName = name.String
+	c.AuthorDisplayName = displayName.String
+	c.AuthorAccentColor = accentColor.String
+	c.AuthorAvatarSymbol = avatarSymbol.String
+	if avatarMime.Valid && avatarFilename.Valid && avatarMime.String != "" && avatarFilename.String != "" {
+		c.AuthorHasAvatar = true
+	}
 	return &c, nil
 }
 
