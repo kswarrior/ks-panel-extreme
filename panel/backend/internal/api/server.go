@@ -31,7 +31,7 @@ func NewRouter() http.Handler {
 	appsG := permissions.AreaGroups[7]
 	instancePagesG := permissions.AreaGroups[8]
 	ticketsG := permissions.AreaGroups[9]
-	// Notifications sits between Tickets and Settings in AreaGroups (see permissions/keys.go)
+	notificationsG := permissions.AreaGroups[10]
 	settingsG := permissions.AreaGroups[11]
 	themesG := permissions.AreaGroups[12]
 
@@ -681,10 +681,9 @@ func NewRouter() http.Handler {
 		r.With(requirePermission("MANAGE_PANEL_UPDATE")).Post("/api/system/reinstall-background", handlers.ReinstallBackgroundHandler)
 		r.With(requirePermission("MANAGE_PANEL_UPDATE")).Post("/api/system/stop", handlers.SystemStopHandler)
 
-		// Activity feed (ACCESS_ADMIN_PANEL). The list is admin-wide when
-		// the caller has admin rights; non-admins get only their own rows
-		// — the handler narrows the SQL itself so the gate stays useful.
-		r.Get("/api/activity", handlers.ListActivityHandler)
+		// Activity feed — now strictly permission-gated (permission is King).
+		// No longer open to any authenticated user; requires ACCESS_ADMIN_PANEL.
+		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Get("/api/activity", handlers.ListActivityHandler)
 
 		// Database page (ACCESS_ADMIN_PANEL). The GET is the read-only
 		// SQLite-flavoured inspector; the two POSTs drive the admin
