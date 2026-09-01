@@ -129,6 +129,7 @@ export const DatabaseBackupTab: React.FC = () => {
       const b = await uploadDatabaseBackup(f);
       setMsg({ tone: 'ok', text: `Uploaded ${b.filename} (${formatBytes(b.size_bytes)})` });
       if (fileRef.current) fileRef.current.value = '';
+      setUploadOpen(false);
       await load();
     } catch (e: any) {
       setMsg({ tone: 'err', text: e?.response?.data || e?.message || 'Upload failed' });
@@ -144,6 +145,7 @@ export const DatabaseBackupTab: React.FC = () => {
       const b = await uploadDatabaseBackupByURL(u);
       setMsg({ tone: 'ok', text: `Fetched backup ${b.filename} from URL (${formatBytes(b.size_bytes)})` });
       setUrl('');
+      setUploadOpen(false);
       await load();
     } catch (e: any) {
       setMsg({ tone: 'err', text: e?.response?.data || e?.message || 'URL upload failed' });
@@ -153,94 +155,39 @@ export const DatabaseBackupTab: React.FC = () => {
   return (
     <div className="space-y-4">
       <div className="glass-card rounded-xl p-4 space-y-4">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-sky-300">
             <path d="M12 2l7 4v5c0 5-3.5 7.5-7 9-3.5-1.5-7-4-7-9V6z" />
             <path d="M9 12l2 2 4-4" />
           </svg>
           <h3 className="text-sm font-semibold text-white">Backups</h3>
           <span className="text-xs text-gray-500 ml-2">{backups.length} saved</span>
-          <button onClick={load} disabled={loading} className="ml-auto text-xs text-gray-400 hover:text-white disabled:opacity-40">Refresh</button>
+          <div className="ml-auto flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => setCreateOpen(true)}
+              className="ks-btn-header ks-icon-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] text-white"
+              title="Create a new named backup"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+              Create
+            </button>
+            <button
+              onClick={() => { setUploadTab('file'); setUploadOpen(true); }}
+              className="ks-btn-header ks-icon-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] text-white"
+              title="Upload a backup from file or URL"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
+              Upload
+            </button>
+            <button onClick={load} disabled={loading} className="ks-btn-header ks-icon-btn p-1.5 rounded-md text-gray-400 hover:text-white disabled:opacity-40" title="Refresh list" aria-label="Refresh">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`}><polyline points="1 4 1 10 7 10" /><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" /></svg>
+            </button>
+          </div>
         </div>
 
         <p className="text-xs text-gray-400">
           Create named snapshots of the current database (SQLite <code className="font-mono text-gray-300">VACUUM INTO</code>). Each backup lives under <code className="font-mono text-gray-300">{`<DataDir>/backups`}</code> and can be restored, downloaded, or re-uploaded. Restore replaces the live <code className="font-mono text-gray-300">kspanel.db</code> — restart <code className="font-mono text-gray-300">kspanel launch</code> to apply.
         </p>
-
-        {/* Create */}
-        <div className="ks-card rounded-lg p-3 space-y-2 border border-white/10">
-          <div className="text-[11px] uppercase tracking-wide text-gray-500">Create backup</div>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleCreate(); }}
-              placeholder="my-backup  (letters, numbers, -, _)"
-              maxLength={64}
-              disabled={creating}
-              className={glassFieldClass + ' flex-1 disabled:opacity-50 font-mono text-sm'}
-            />
-            <button
-              onClick={handleCreate}
-              disabled={creating}
-              className="ks-primary-btn inline-flex items-center gap-2 px-4 py-1.5 rounded-md text-sm disabled:opacity-40 shrink-0"
-            >
-              {creating && (
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 animate-spin"><path d="M21 12a9 9 0 1 1-6.22-8.55" strokeLinecap="round" /></svg>
-              )}
-              Save
-            </button>
-          </div>
-        </div>
-
-        {/* Upload */}
-        <div className="ks-card rounded-lg p-3 space-y-3 border border-white/10">
-          <div className="text-[11px] uppercase tracking-wide text-gray-500">Upload backup</div>
-          <div className="flex gap-2 flex-wrap items-end">
-            <div className="flex-1 min-w-[14rem]">
-              <label className="text-[11px] text-gray-500">From file (.db)</label>
-              <input
-                ref={fileRef}
-                type="file"
-                accept=".db,.sqlite,.sqlite3,application/octet-stream"
-                disabled={uploading}
-                className="block w-full mt-1 text-sm text-gray-300 file:mr-3 file:px-3 file:py-1.5 file:rounded file:border-0 file:bg-white file:text-black file:text-sm hover:file:bg-gray-200 disabled:opacity-50"
-              />
-            </div>
-            <button
-              onClick={handleUpload}
-              disabled={uploading}
-              className="ks-btn-ghost border border-white/10 px-3 py-1.5 rounded-md text-sm disabled:opacity-40 inline-flex items-center gap-2"
-            >
-              {uploading && <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 animate-spin"><path d="M21 12a9 9 0 1 1-6.22-8.55" strokeLinecap="round" /></svg>}
-              Upload
-            </button>
-          </div>
-          <div className="flex gap-2 flex-wrap items-end">
-            <div className="flex-1 min-w-[14rem]">
-              <label className="text-[11px] text-gray-500">From URL</label>
-              <input
-                type="text"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleUrlUpload(); }}
-                placeholder="https://example.com/kspanel-backup.db"
-                disabled={urlBusy}
-                className={glassFieldClass + ' font-mono text-sm disabled:opacity-50'}
-              />
-              <p className="text-[10px] text-gray-500 mt-1">SSRF-guarded — only public hosts, DNS-pinned, 512 MiB cap.</p>
-            </div>
-            <button
-              onClick={handleUrlUpload}
-              disabled={urlBusy}
-              className="ks-btn-ghost border border-white/10 px-3 py-1.5 rounded-md text-sm disabled:opacity-40 inline-flex items-center gap-2"
-            >
-              {urlBusy && <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 animate-spin"><path d="M21 12a9 9 0 1 1-6.22-8.55" strokeLinecap="round" /></svg>}
-              Fetch &amp; Save
-            </button>
-          </div>
-        </div>
 
         {msg && (
           <div className={`rounded-md p-2 text-sm border ${msg.tone === 'ok' ? 'bg-emerald-900/20 border-emerald-700/40 text-emerald-200' : 'bg-red-900/20 border-red-700/40 text-red-200'}`}>
@@ -249,6 +196,117 @@ export const DatabaseBackupTab: React.FC = () => {
         )}
         {error && <p className="text-red-400 text-sm">{error}</p>}
       </div>
+
+      {/* Create sub-page modal */}
+      <GlassModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        title="Create Backup"
+        footer={
+          <>
+            <button onClick={() => setCreateOpen(false)} className="ks-btn-cancel ks-btn-ghost border border-white/10 px-4 py-1.5 rounded-md text-sm text-gray-300 hover:text-white">Cancel</button>
+            <button
+              onClick={handleCreate}
+              disabled={creating}
+              className="ks-primary-btn inline-flex items-center gap-2 px-4 py-1.5 rounded-md text-sm disabled:opacity-40"
+            >
+              {creating && <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 animate-spin"><path d="M21 12a9 9 0 1 1-6.22-8.55" strokeLinecap="round" /></svg>}
+              Create
+            </button>
+          </>
+        }
+      >
+        <p className="text-xs text-gray-400">Give the snapshot a short name. It becomes part of the on-disk filename <code className="font-mono text-gray-300">kspanel-&lt;timestamp&gt;-&lt;name&gt;.db</code> (letters, numbers, “-”, “_”).</p>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleCreate(); }}
+          placeholder="my-backup  (letters, numbers, -, _)"
+          maxLength={64}
+          disabled={creating}
+          autoFocus
+          className={glassFieldClass + ' font-mono text-sm disabled:opacity-50'}
+        />
+      </GlassModal>
+
+      {/* Upload sub-page modal with tabs: file / URL */}
+      <GlassModal
+        open={uploadOpen}
+        onClose={() => setUploadOpen(false)}
+        title="Upload Backup"
+        footer={
+          uploadTab === 'file' ? (
+            <>
+              <button onClick={() => setUploadOpen(false)} className="ks-btn-cancel ks-btn-ghost border border-white/10 px-4 py-1.5 rounded-md text-sm text-gray-300 hover:text-white">Cancel</button>
+              <button
+                onClick={handleUpload}
+                disabled={uploading}
+                className="ks-btn-ghost border border-white/10 px-4 py-1.5 rounded-md text-sm disabled:opacity-40 inline-flex items-center gap-2 bg-white text-black hover:bg-gray-200"
+              >
+                {uploading && <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 animate-spin"><path d="M21 12a9 9 0 1 1-6.22-8.55" strokeLinecap="round" /></svg>}
+                Upload
+              </button>
+            </>
+          ) : (
+            <>
+              <button onClick={() => setUploadOpen(false)} className="ks-btn-cancel ks-btn-ghost border border-white/10 px-4 py-1.5 rounded-md text-sm text-gray-300 hover:text-white">Cancel</button>
+              <button
+                onClick={handleUrlUpload}
+                disabled={urlBusy}
+                className="ks-btn-ghost border border-white/10 px-4 py-1.5 rounded-md text-sm disabled:opacity-40 inline-flex items-center gap-2 bg-white text-black hover:bg-gray-200"
+              >
+                {urlBusy && <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 animate-spin"><path d="M21 12a9 9 0 1 1-6.22-8.55" strokeLinecap="round" /></svg>}
+                Fetch &amp; Save
+              </button>
+            </>
+          )
+        }
+      >
+        <div className="flex gap-1 p-1 bg-black/30 border border-white/10 rounded-md">
+          <button
+            onClick={() => setUploadTab('file')}
+            className={`flex-1 px-3 py-1.5 rounded text-sm inline-flex items-center justify-center gap-1.5 ${uploadTab === 'file' ? 'bg-white text-black' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
+            From file
+          </button>
+          <button
+            onClick={() => setUploadTab('url')}
+            className={`flex-1 px-3 py-1.5 rounded text-sm inline-flex items-center justify-center gap-1.5 ${uploadTab === 'url' ? 'bg-white text-black' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
+            From URL
+          </button>
+        </div>
+
+        {uploadTab === 'file' ? (
+          <div className="space-y-2">
+            <p className="text-xs text-gray-400">Choose a <code className="font-mono text-gray-300">.db</code> file. It is verified as a valid SQLite database before it is stored.</p>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".db,.sqlite,.sqlite3,application/octet-stream"
+              disabled={uploading}
+              className="block w-full text-sm text-gray-300 file:mr-3 file:px-3 file:py-1.5 file:rounded file:border-0 file:bg-white file:text-black file:text-sm hover:file:bg-gray-200 disabled:opacity-50"
+            />
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <p className="text-xs text-gray-400">The panel fetches the URL <span className="text-emerald-300">server-side</span> (SSRF-guarded — only public hosts, DNS-pinned, 512 MiB cap).</p>
+            <input
+              type="text"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleUrlUpload(); }}
+              placeholder="https://example.com/kspanel-backup.db"
+              disabled={urlBusy}
+              className={glassFieldClass + ' font-mono text-sm disabled:opacity-50'}
+            />
+            <p className="text-[11px] text-gray-500">The remote file must be a valid SQLite database.</p>
+          </div>
+        )}
+      </GlassModal>
 
       {/* List */}
       <div className="glass-card rounded-xl p-4">
