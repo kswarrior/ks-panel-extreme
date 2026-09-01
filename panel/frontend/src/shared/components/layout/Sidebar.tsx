@@ -360,13 +360,15 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
                 to={item.to}
                 onClick={onClose}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2 rounded-md text-sm transition text-gray-400 ks-nav-item ${
-                    isActive ? 'ks-nav-active' : ''
-                  }`
+                  `flex items-center rounded-md text-sm transition text-gray-400 ks-nav-item ${
+                    isCollapsed ? 'justify-center px-2 py-2' : 'gap-3 px-3 py-2'
+                  } ${isActive ? 'ks-nav-active' : ''}`
                 }
                 title={isCollapsed ? item.label : undefined}
               >
-                {Icons[item.icon]}
+                <span className={`shrink-0 flex items-center justify-center ${isCollapsed ? 'text-gray-100' : ''}`}>
+                  {Icons[item.icon]}
+                </span>
                 {!isCollapsed && <span className="truncate">{item.label}</span>}
               </NavLink>
             ))

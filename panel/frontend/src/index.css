@@ -694,3 +694,35 @@ nav.overflow-x-auto::-webkit-scrollbar-thumb:hover {
   border-radius: 9999px !important;
 }
 
+/* ------------------------------------------------------------------ *
+ *  Sidebar collapsed (icon-only) — desktop fix
+ * ------------------------------------------------------------------ *
+ *  The footer toggle switches the sidebar to `ks-sidebar-collapsed w-16`.
+ *  The themed width vars (`--ks-sidebar-width`) are guarded by
+ *  `:not(.ks-sidebar-collapsed)` in themeStore, but Tailwind's `w-16`
+ *  is not `!important` so any later `!important` width could clobber it.
+ *  This static rule pins the collapsed width to 64px on every breakpoint
+ *  and forces nav rows + footer to center their single SVG. Without this,
+ *  desktop (md:static flex) keeps the flex-basis at the themed 225px
+ *  while the visual width clips to 64px via overflow-hidden — the SVG
+ *  then sits outside the clipped box and appears invisible, whereas
+ *  mobile (fixed overlay) is out-of-flow so the clip doesn't hide it. */
+.ks-sidebar-collapsed {
+  width: 64px !important;
+  min-width: 64px !important;
+  max-width: 64px !important;
+  flex-basis: 64px !important;
+}
+.ks-sidebar-collapsed .ks-nav-item {
+  justify-content: center !important;
+  padding-left: 0.5rem !important;
+  padding-right: 0.5rem !important;
+  gap: 0 !important;
+}
+.ks-sidebar-collapsed nav svg,
+.ks-sidebar-collapsed button svg {
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: block !important;
+}
+
