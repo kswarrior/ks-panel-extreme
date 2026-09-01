@@ -1120,7 +1120,15 @@ cleanup_temp_files() {
 # ============================================================================
 
 main() {
-    # Lock + trap must be earliest
+    # Fast-path help without lock/diagnostics
+    case "$BUILD_MODE" in
+        --help|-h|help)
+            show_help
+            exit 0
+            ;;
+    esac
+
+    # Lock + trap must be earliest for real builds
     acquire_lock
     trap cleanup_on_exit EXIT
     trap 'die "interrupted"' INT TERM
