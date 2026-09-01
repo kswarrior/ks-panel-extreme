@@ -336,13 +336,11 @@
    border and focus border follow the Theme Studio's Forms tab via the
    always-emitted --ks-form-* variables. */
 .ks-auth-input {
-  background-color: transparent !important;
   color: var(--ks-form-input-text, #ffffff);
   border-color: var(--ks-form-input-border, rgba(255, 255, 255, 0.15));
 }
 .ks-auth-input:focus {
   outline: none;
-  background-color: transparent !important;
   border-color: var(--ks-form-focus-border, rgba(255, 255, 255, 0.40));
 }
 
