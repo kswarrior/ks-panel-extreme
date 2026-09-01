@@ -388,7 +388,7 @@ const TicketDetail: React.FC = () => {
             </dl>
           </GlassCard>
 
-          <div className="glass-card rounded-xl p-4 border relative overflow-hidden" style={{ borderColor: 'var(--ks-card-border)', background: 'color-mix(in srgb, var(--ks-card-bg) 70%, transparent)' }}>
+          <GlassCard className={`p-4 ${glassModifier} relative overflow-hidden`}>
             <CardMediaLayer />
             <h4 className="text-xs font-semibold mb-1.5 flex items-center gap-1.5" style={{ color: 'var(--ks-text-heading)' }}><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} className="w-4 h-4"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>How chat works</h4>
             <p className="text-xs leading-relaxed" style={{ color: 'var(--ks-text-body)' }}>Chat is now a <span className="font-medium" style={{ color: 'var(--ks-text-heading)' }}>dedicated page</span> — open chat to see real live bubbles, staff-only internal notes, and inline reply. The ticket stays clean — chat lives separately.</p>
@@ -398,7 +398,7 @@ const TicketDetail: React.FC = () => {
               <span className="text-[11px] px-2 py-1 rounded-full border" style={{ background: 'color-mix(in srgb, var(--ks-card-bg) 60%, transparent)', borderColor: 'var(--ks-card-border)', color: 'var(--ks-text-body)' }}>Internal notes</span>
               <span className="text-[11px] px-2 py-1 rounded-full border" style={{ background: 'color-mix(in srgb, var(--ks-card-bg) 60%, transparent)', borderColor: 'var(--ks-card-border)', color: 'var(--ks-text-body)' }}>Read receipts</span>
             </div>
-          </div>
+          </GlassCard>
         </div>
       </div>
     </div>
