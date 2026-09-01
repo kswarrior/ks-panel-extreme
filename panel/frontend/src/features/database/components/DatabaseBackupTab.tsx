@@ -1,4 +1,5 @@
 // Database Backup tab — named snapshots of the SQLite database.
+// Top-right Create / Upload buttons open sub-page modals (file + URL).
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -13,6 +14,7 @@ import {
 import type { DatabaseBackup } from '../types/database';
 import { formatBytes } from '../utils/databaseUtils';
 import { glassFieldClass } from '@/shared/components/ui/Field';
+import GlassModal from '@/shared/components/ui/Modal';
 
 function fmtDate(iso: string): string {
   if (!iso) return '—';
@@ -39,6 +41,11 @@ export const DatabaseBackupTab: React.FC = () => {
 
   const [busyId, setBusyId] = useState<string | null>(null);
 
+  // Sub-page modals opened from the top-right buttons.
+  const [createOpen, setCreateOpen] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [uploadTab, setUploadTab] = useState<'file' | 'url'>('file');
+
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -64,6 +71,7 @@ export const DatabaseBackupTab: React.FC = () => {
       const b = await createDatabaseBackup(n);
       setMsg({ tone: 'ok', text: `Backup created: ${b.filename} (${formatBytes(b.size_bytes)})` });
       setName('');
+      setCreateOpen(false);
       await load();
     } catch (e: any) {
       setMsg({ tone: 'err', text: e?.response?.data || e?.message || 'Create failed' });
