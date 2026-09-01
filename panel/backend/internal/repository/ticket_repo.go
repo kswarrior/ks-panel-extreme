@@ -90,17 +90,29 @@ func (r *TicketRepository) enrichTickets(tickets []models.Ticket) ([]models.Tick
 		ids[i] = t.ID
 		idIdx[t.ID] = i
 	}
-	// Fill creator / assignee names
+	// Fill creator / assignee names + avatar fields
 	for i := range tickets {
 		t := &tickets[i]
-		var cName, cEmail sql.NullString
-		_ = r.db.QueryRow(`SELECT username, email FROM users WHERE id = ?`, t.CreatedBy).Scan(&cName, &cEmail)
+		var cName, cDisplayName, cAccentColor, cAvatarSymbol, cAvatarMime, cAvatarFilename, cEmail sql.NullString
+		_ = r.db.QueryRow(`SELECT username, display_name, accent_color, avatar_symbol, avatar_mime, avatar_filename, email FROM users WHERE id = ?`, t.CreatedBy).Scan(&cName, &cDisplayName, &cAccentColor, &cAvatarSymbol, &cAvatarMime, &cAvatarFilename, &cEmail)
 		t.CreatorName = cName.String
+		t.CreatorDisplayName = cDisplayName.String
+		t.CreatorAccentColor = cAccentColor.String
+		t.CreatorAvatarSymbol = cAvatarSymbol.String
 		t.CreatorEmail = cEmail.String
+		if cAvatarMime.Valid && cAvatarFilename.Valid && cAvatarMime.String != "" && cAvatarFilename.String != "" {
+			t.CreatorHasAvatar = true
+		}
 		if t.AssignedTo != nil {
-			var aName sql.NullString
-			_ = r.db.QueryRow(`SELECT username FROM users WHERE id = ?`, *t.AssignedTo).Scan(&aName)
+			var aName, aDisplayName, aAccentColor, aAvatarSymbol, aAvatarMime, aAvatarFilename sql.NullString
+			_ = r.db.QueryRow(`SELECT username, display_name, accent_color, avatar_symbol, avatar_mime, avatar_filename FROM users WHERE id = ?`, *t.AssignedTo).Scan(&aName, &aDisplayName, &aAccentColor, &aAvatarSymbol, &aAvatarMime, &aAvatarFilename)
 			t.AssigneeName = aName.String
+			t.AssigneeDisplayName = aDisplayName.String
+			t.AssigneeAccentColor = aAccentColor.String
+			t.AssigneeAvatarSymbol = aAvatarSymbol.String
+			if aAvatarMime.Valid && aAvatarFilename.Valid && aAvatarMime.String != "" && aAvatarFilename.String != "" {
+				t.AssigneeHasAvatar = true
+			}
 		}
 	}
 	// Comment counts + last reply

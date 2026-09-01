@@ -30,6 +30,10 @@ export interface TicketComment {
   ticket_id: number;
   author_id: number;
   author_name?: string;
+  author_display_name?: string;
+  author_accent_color?: string;
+  author_avatar_symbol?: string;
+  author_has_avatar?: boolean;
   body: string;
   is_internal: boolean;
   created_at: string;
