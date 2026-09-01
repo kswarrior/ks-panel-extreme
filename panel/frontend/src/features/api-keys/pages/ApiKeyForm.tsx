@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { createAdminApiKey, listAdminApiKeys, listPermissions, listUsers, updateAdminApiKey } from '@/shared/api/admin';
 import type { ApiKey, CreateApiKeyResult } from '@/shared/types/apiKey';
@@ -7,13 +7,7 @@ import FormPage from '@/shared/components/forms/FormPage';
 import GlassField, { glassFieldClass } from '@/shared/components/ui/Field';
 import GlassModal from '@/shared/components/ui/Modal';
 import FormSkeleton from '@/shared/components/ui/FormSkeleton';
-import {
-  ALL_ACTIONS,
-  AREA_PERM_KEYS,
-  PERMISSION_AREAS,
-  type PermAction,
-  type PermissionArea,
-} from '@/shared/types/permissions';
+import RolePermissions from '@/features/roles/components/RolePermissions';
 
 interface Form {
   name: string;
