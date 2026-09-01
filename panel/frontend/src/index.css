@@ -344,32 +344,31 @@
 }
 
 /* Browser autofill (Chrome/Edge) paints a white/yellow background on saved
-   credentials — override to stay dark like the normal bg-black/20 state.
-   The 1000px inset shadow must be a solid opaque dark (not rgba 0.2 over
-   white, which would blend to light grey). We use neutral-900 #18181b for
-   normal and a slightly lighter #27272a for focus to mirror bg-black/20 → 30. */
+   credentials — keep it transparent like the normal bg-black/20 state, not
+   opaque black (#18181b) and not white. The long background-color transition
+   delays the UA's white paint for 5000s so the input keeps its original
+   rgba(0,0,0,0.2) / 0.3 background which is semi-transparent over the page's
+   ThemedBackground (showing aurora/blur through). Text stays white. */
 .ks-auth-input:-webkit-autofill,
 .ks-auth-input:-webkit-autofill:hover,
 .ks-auth-input:-webkit-autofill:focus,
 .ks-auth-input:-webkit-autofill:active {
-  -webkit-box-shadow: 0 0 0 1000px #18181b inset !important;
-  box-shadow: 0 0 0 1000px #18181b inset !important;
+  -webkit-box-shadow: none !important;
+  box-shadow: none !important;
   -webkit-text-fill-color: #ffffff !important;
   caret-color: #ffffff !important;
-  transition: background-color 9999s ease-in-out 0s !important;
-  -webkit-background-clip: text !important;
-  background-clip: text !important;
+  background-color: rgba(0, 0, 0, 0.2) !important;
+  transition: background-color 5000s ease-in-out 0s !important;
 }
 .ks-auth-input:-webkit-autofill:focus {
-  -webkit-box-shadow: 0 0 0 1000px #27272a inset !important;
-  box-shadow: 0 0 0 1000px #27272a inset !important;
+  background-color: rgba(0, 0, 0, 0.3) !important;
 }
 /* Chrome newer internal state */
 input:-internal-autofill-selected {
-  background-color: #18181b !important;
+  background-color: rgba(0, 0, 0, 0.2) !important;
 }
 input:-internal-autofill-selected:focus {
-  background-color: #27272a !important;
+  background-color: rgba(0, 0, 0, 0.3) !important;
 }
 
 /* Floating dropdown panels — the "Apply to…" scope menu and the header
