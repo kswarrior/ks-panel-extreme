@@ -54,11 +54,9 @@ const Instances: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState<'all' | StatusBucket>('all');
-  const [now, setNow] = useState<Date>(() => new Date());
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [filterOpen, setFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
-  const user = useAuthStore((s) => s.user);
   const permissions = useAuthStore((s) => s.permissions);
   const canManageInstances = permissions.includes(PermissionKey.MANAGE_INSTANCES);
 
@@ -132,7 +130,6 @@ const Instances: React.FC = () => {
     return instances.filter((i) => bucketize(i.status) === filter);
   }, [instances, filter]);
 
-  const greetingName = user?.username || user?.display_name || user?.email || 'there';
   const isEmpty = !loading && instances.length === 0;
   const hasResults = !loading && instances.length > 0;
 
