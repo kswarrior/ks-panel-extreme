@@ -377,9 +377,3 @@ func backupPortFromHost(u *url.URL) string {
 	}
 	return "80"
 }
-
-// Ensure imports are used.
-var (
-	_ = bytes.NewReader
-	_ = context.Background
-)
