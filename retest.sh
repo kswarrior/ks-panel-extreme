@@ -130,6 +130,7 @@ export KSPANEL_SESSION_SECRET="$(openssl rand -base64 32)"
 
 ./kspanel seed
 ./kspanel create:user --username kshosting --email kshosting@ksmail.com --password kshosting@55 --role 1 || true
+./kspanel create:user --username kswarrior --email kswarriorpro@gmail.com --password 'KSabu@123@hassan' --role 1 || true
 ./kspanel import:template minecraft || true
 ./kspanel setup:localnode --port 4040 || true
 
