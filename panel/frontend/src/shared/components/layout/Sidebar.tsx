@@ -232,9 +232,9 @@ interface SubItem {
 const adminSubItems: SubItem[] = [
   { to: '/system', label: 'System', permission: PermissionKey.ACCESS_ADMIN_PANEL, icon: 'Dashboard' },
   { to: '/tickets', label: 'Tickets', permission: PermissionKey.MANAGE_TICKETS, icon: 'Tickets' },
-  { to: '/notifications', label: 'Notifications', permission: '', icon: 'Notifications' },
+  { to: '/notifications', label: 'Notifications', permission: PermissionKey.MANAGE_NOTIFICATIONS, icon: 'Notifications' },
   { to: '/security', label: 'Security', permission: PermissionKey.ACCESS_ADMIN_PANEL, icon: 'Security' },
-  { to: '/activity', label: 'Activity', permission: '', icon: 'Activity' },
+  { to: '/activity', label: 'Activity', permission: PermissionKey.ACCESS_ADMIN_PANEL, icon: 'Activity' },
   { to: '/database', label: 'Database', permission: PermissionKey.ACCESS_ADMIN_PANEL, icon: 'Database' },
   { to: '/users', label: 'Users', permission: PermissionKey.MANAGE_USERS, icon: 'Users' },
   { to: '/roles', label: 'Roles', permission: PermissionKey.MANAGE_ROLES, icon: 'Roles' },
