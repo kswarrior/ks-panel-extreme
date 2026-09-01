@@ -47,9 +47,9 @@ function linkify(text: string): React.ReactNode[] {
   });
 }
 
-// fallback avatar color for users without accent/symbol/image – keeps chat readable
-// while still matching the top-right header's Avatar logic (uploaded image > symbol > initials)
-function avatarFallbackBg(authorId: number): React.CSSProperties {
+// Deterministic fallback accent for users without a custom accent_color – gives each author a stable hue
+// while still allowing the top-right header's Avatar logic (image > symbol > initials) to drive the look
+function fallbackAccent(authorId: number): string {
   const hues = [
     'var(--ks-accent-primary, #38bdf8)',
     'var(--ks-accent-info, #38bdf8)',
@@ -58,12 +58,7 @@ function avatarFallbackBg(authorId: number): React.CSSProperties {
     '#a78bfa',
     '#f472b6',
   ];
-  const c = hues[Math.abs(authorId) % hues.length];
-  return {
-    background: `color-mix(in srgb, ${c} 18%, var(--ks-card-bg, rgba(255,255,255,0.08)))`,
-    borderColor: `color-mix(in srgb, ${c} 30%, transparent)`,
-    color: c,
-  } as React.CSSProperties;
+  return hues[Math.abs(authorId) % hues.length];
 }
 
 export interface TicketChatProps {
@@ -305,17 +300,17 @@ const TicketChat: React.FC<TicketChatProps> = ({
 
         <div className="shrink-0 hidden lg:flex items-center gap-1.5">
           <div className="relative hidden xl:flex items-center">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-3.5 h-3.5 absolute left-2.5 pointer-events-none" style={{ color: 'var(--ks-text-body)' }}><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-3.5 h-3.5 absolute left-2.5 pointer-events-none" style={{ color: 'color-mix(in srgb, var(--ks-header-text, #fff) 60%, transparent)' }}><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
             <input
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               placeholder="Search chat…"
               className="glass-field !py-1.5 !pl-8 !pr-3 text-xs w-[150px] placeholder:text-[var(--ks-text-body)]/60"
-              style={{ fontSize: 12 } as any}
+              style={{ fontSize: 12, borderColor: 'var(--ks-header-border, rgba(255,255,255,0.08))', color: 'var(--ks-header-text, #fff)' } as any}
             />
           </div>
           {isStaff && (
-            <label className="inline-flex items-center gap-1.5 text-xs cursor-pointer select-none px-2 py-1 rounded-full border" style={{ background: showInternalOnly ? 'color-mix(in srgb, var(--ks-accent-warning) 14%, transparent)' : 'transparent', borderColor: 'var(--ks-card-border)', color: showInternalOnly ? 'var(--ks-accent-warning)' : 'var(--ks-text-body)' }}>
+            <label className="inline-flex items-center gap-1.5 text-xs cursor-pointer select-none px-2 py-1 rounded-full border" style={{ background: showInternalOnly ? 'color-mix(in srgb, var(--ks-accent-warning) 14%, transparent)' : 'transparent', borderColor: 'var(--ks-header-border, rgba(255,255,255,0.08))', color: showInternalOnly ? 'var(--ks-accent-warning)' : 'color-mix(in srgb, var(--ks-header-text, #fff) 70%, transparent)' }}>
               <input type="checkbox" checked={showInternalOnly} onChange={(e) => setShowInternalOnly(e.target.checked)} className="rounded border-white/20 bg-black/30 text-amber-500 focus:ring-amber-500/30 w-3 h-3" />
               Internal
             </label>
@@ -325,22 +320,48 @@ const TicketChat: React.FC<TicketChatProps> = ({
             className={`text-[11px] px-2.5 py-1 rounded-full border font-medium transition-colors ${live ? 'text-emerald-300' : ''}`}
             style={{
               background: live ? 'rgba(16,185,129,0.14)' : 'transparent',
-              borderColor: live ? 'rgba(16,185,129,0.25)' : 'var(--ks-card-border)',
-              color: live ? '#6ee7b7' : 'var(--ks-text-body)',
+              borderColor: live ? 'rgba(16,185,129,0.25)' : 'var(--ks-header-border, rgba(255,255,255,0.08))',
+              color: live ? '#6ee7b7' : 'color-mix(in srgb, var(--ks-header-text, #fff) 70%, transparent)',
             }}
             title={live ? 'Live polling is on (2.5s)' : 'Live polling is paused'}
           >
             Live {live ? '• on' : '• off'}
           </button>
-          <button onClick={onRefresh} className="ks-btn-ghost text-xs px-2.5 py-1 rounded-full border hover:bg-white/10" style={{ borderColor: 'var(--ks-card-border)', color: 'var(--ks-text-body)' }}>
+          <button onClick={onRefresh} className="ks-btn-ghost text-xs px-2.5 py-1 rounded-full border hover:bg-white/10" style={{ borderColor: 'var(--ks-header-border, rgba(255,255,255,0.08))', color: 'color-mix(in srgb, var(--ks-header-text, #fff) 70%, transparent)' }}>
             Refresh
           </button>
+          {/* Current user's profile logo – mirrors the top-right header's Avatar so user sees their own identity in chat header */}
+          {authUser && (
+            <div className="ml-1 pl-2 border-l flex items-center gap-2" style={{ borderColor: 'var(--ks-header-border, rgba(255,255,255,0.08))' }}>
+              <Avatar
+                name={authUser.display_name || authUser.username || 'You'}
+                size={28}
+                accentColor={authUser.accent_color || undefined}
+                symbol={authUser.avatar_symbol}
+                imageUrl={authUser.has_avatar ? `/api/users/${authUser.id}/avatar` : undefined}
+                className="shrink-0"
+              />
+              <span className="hidden xl:inline text-xs font-medium max-w-[10ch] truncate" style={{ color: 'var(--ks-header-text, #fff)' }}>{authUser.display_name || authUser.username}</span>
+            </div>
+          )}
         </div>
 
-        {/* Mobile live toggle */}
-        <button onClick={onToggleLive} className="lg:hidden shrink-0 w-8 h-8 rounded-full border flex items-center justify-center" style={{ borderColor: 'var(--ks-card-border)', background: live ? 'rgba(16,185,129,0.18)' : 'transparent', color: live ? '#6ee7b7' : 'var(--ks-text-body)' }}>
-          <span className={`w-2.5 h-2.5 rounded-full ${live ? 'bg-emerald-400 animate-pulse' : 'bg-gray-500'}`} />
-        </button>
+        {/* Mobile live toggle + tiny avatar */}
+        <div className="lg:hidden shrink-0 flex items-center gap-2">
+          {authUser && (
+            <Avatar
+              name={authUser.display_name || authUser.username || 'You'}
+              size={28}
+              accentColor={authUser.accent_color || undefined}
+              symbol={authUser.avatar_symbol}
+              imageUrl={authUser.has_avatar ? `/api/users/${authUser.id}/avatar` : undefined}
+              className="shrink-0"
+            />
+          )}
+          <button onClick={onToggleLive} className="shrink-0 w-8 h-8 rounded-full border flex items-center justify-center" style={{ borderColor: 'var(--ks-header-border, rgba(255,255,255,0.08))', background: live ? 'rgba(16,185,129,0.18)' : 'transparent', color: live ? '#6ee7b7' : 'color-mix(in srgb, var(--ks-header-text, #fff) 70%, transparent)' }}>
+            <span className={`w-2.5 h-2.5 rounded-full ${live ? 'bg-emerald-400 animate-pulse' : 'bg-gray-500'}`} />
+          </button>
+        </div>
       </div>
 
       {/* Messages viewport — fills available height, scrolls, input stays pinned in footer */}
@@ -416,32 +437,54 @@ const TicketChat: React.FC<TicketChatProps> = ({
                 </div>
                 {group.items.map((c) => {
                   const isOwn = currentUserId != null && c.author_id === currentUserId;
-                  const initial = (c.author_name || `U${c.author_id}`).charAt(0).toUpperCase();
                   const canDelete = currentUserId === c.author_id || !!isStaff;
 
-                  // Minimal bubble: [Icon] [message] – own still slightly distinct but all left-aligned
+                  // Bubble styling: own vs other – own uses btn bg for contrast, others use card tint
                   const bubbleStyle: React.CSSProperties = isOwn
                     ? {
                         background: 'var(--ks-btn-bg, #fff)',
                         color: 'var(--ks-btn-text, #000)',
                         borderColor: 'color-mix(in srgb, var(--ks-btn-bg) 60%, transparent)',
                       }
-                    : {
-                        background: 'color-mix(in srgb, var(--ks-card-bg) 88%, transparent)',
-                        borderColor: 'var(--ks-card-border)',
-                        color: 'var(--ks-text-heading, #e5e7eb)',
-                        backdropFilter: 'blur(var(--ks-card-blur))',
-                      } as any;
+                    : c.is_internal
+                      ? {
+                          background: 'color-mix(in srgb, var(--ks-accent-warning, #fbbf24) 10%, var(--ks-card-bg) 88%)',
+                          borderColor: 'color-mix(in srgb, var(--ks-accent-warning) 20%, var(--ks-card-border))',
+                          color: 'var(--ks-text-heading, #e5e7eb)',
+                          backdropFilter: 'blur(var(--ks-card-blur))',
+                        } as any
+                      : {
+                          background: 'color-mix(in srgb, var(--ks-card-bg) 88%, transparent)',
+                          borderColor: 'var(--ks-card-border)',
+                          color: 'var(--ks-text-heading, #e5e7eb)',
+                          backdropFilter: 'blur(var(--ks-card-blur))',
+                        } as any;
+
+                  // Author identity for Avatar – mirrors top-right header's Avatar logic: image > symbol > initials
+                  const authorName = c.author_display_name?.trim() || c.author_name || `User #${c.author_id}`;
+                  const avatarAccent = c.author_accent_color || undefined;
+                  const avatarSymbol = c.author_avatar_symbol || undefined;
+                  const avatarImageUrl = c.author_has_avatar ? `/api/users/${c.author_id}/avatar` : undefined;
 
                   return (
                     <div key={c.id} className="flex gap-2.5 items-start">
-                      {/* [Icon] */}
-                      <div
-                        className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border mt-0.5"
-                        style={isOwn ? { background: 'var(--ks-btn-bg, #fff)', color: 'var(--ks-btn-text, #000)', borderColor: 'var(--ks-card-border)' } : avatarBg(c.author_id, false)}
-                        title={c.author_name || `User #${c.author_id}`}
-                      >
-                        {isOwn ? (currentUsername || 'Y').charAt(0).toUpperCase() : initial}
+                      {/* Profile logo – same Avatar component as top-right header's profile logo */}
+                      <div className="shrink-0 mt-0.5 relative">
+                        <Avatar
+                          name={authorName}
+                          size={32}
+                          accentColor={avatarAccent}
+                          symbol={avatarSymbol}
+                          imageUrl={avatarImageUrl}
+                          className="shrink-0"
+                        />
+                        {/* Tiny "You" badge on own messages so user spots their own bubble */}
+                        {isOwn && (
+                          <span className="absolute -bottom-1 -right-1 text-[7px] font-bold px-1 py-[1px] rounded-full border leading-none" style={{ background: 'var(--ks-accent-success, #22c55e)', color: '#fff', borderColor: 'var(--ks-card-bg)' }}>you</span>
+                        )}
+                        {c.is_internal && (
+                          <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full border flex items-center justify-center" style={{ background: 'var(--ks-accent-warning, #f59e0b)', borderColor: 'var(--ks-card-bg)', color: '#000', fontSize: 7, lineHeight: 1 }} title="Internal note">!</span>
+                        )}
                       </div>
 
                       {/* [message] + below: time + 3-dot */}
