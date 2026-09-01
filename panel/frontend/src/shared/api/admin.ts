@@ -531,6 +531,69 @@ export async function switchDatabaseEngine(
   return res.data;
 }
 
+// ---- Database → Backup tab ------------------------------------------------
+// Named on-disk snapshots under <DataDir>/backups. Create is VACUUM INTO
+// (SQLite snapshots); download streams the raw .db; upload accepts a
+// multipart file or a remote URL. All gated by ACCESS_ADMIN_PANEL on the
+// backend so only database admins can read/restore backups.
+export interface DatabaseBackup {
+  id: string;
+  filename: string;
+  path: string;
+  size_bytes: number;
+  created_at: string;
+  sha256: string;
+  source: string;
+  is_live_safe: boolean;
+}
+
+export async function listDatabaseBackups(): Promise<DatabaseBackup[]> {
+  const res = await client.get<DatabaseBackup[]>('/api/database/backups');
+  return Array.isArray(res.data) ? res.data : [];
+}
+
+export async function createDatabaseBackup(name: string): Promise<DatabaseBackup> {
+  const res = await client.post<DatabaseBackup>('/api/database/backups', { name });
+  return res.data;
+}
+
+export async function downloadDatabaseBackup(id: string): Promise<Blob> {
+  const res = await client.get(`/api/database/backups/${encodeURIComponent(id)}/download`, {
+    responseType: 'blob',
+  });
+  return res.data as Blob;
+}
+
+export async function uploadDatabaseBackup(file: File): Promise<DatabaseBackup> {
+  const fd = new FormData();
+  fd.append('file', file);
+  const res = await client.post<DatabaseBackup>('/api/database/backups/upload', fd, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 0,
+  });
+  return res.data;
+}
+
+export async function uploadDatabaseBackupByURL(url: string): Promise<DatabaseBackup> {
+  const res = await client.post<DatabaseBackup>(
+    '/api/database/backups/upload/url',
+    { url },
+    { timeout: 0 },
+  );
+  return res.data;
+}
+
+export async function restoreDatabaseBackup(id: string): Promise<{ ok: boolean; message: string }> {
+  const res = await client.post<{ ok: boolean; message: string }>(
+    `/api/database/backups/${encodeURIComponent(id)}/restore`,
+  );
+  return res.data;
+}
+
+export async function deleteDatabaseBackup(id: string): Promise<void> {
+  await client.delete(`/api/database/backups/${encodeURIComponent(id)}`);
+}
+
 // ---- Security (per-request telemetry aggregated) --------------------------
 // One round-trip carries every tile the Security admin page renders so the
 // page can paint in a single fetch and refresh on an interval without

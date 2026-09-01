@@ -697,6 +697,21 @@ func NewRouter() http.Handler {
 		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Get("/api/database/engines", handlers.DatabaseEnginesHandler)
 		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Post("/api/database/engine", handlers.SetDatabaseEngineHandler)
 
+		// Database → Backup tab (ACCESS_ADMIN_PANEL). Named backups that live
+		// under <DataDir>/backups. Create is VACUUM INTO (SQLite-only);
+		// download streams the raw .db; upload accepts a multipart SQLite
+		// file or a remote URL (SSRF-hardened). Restore is destructive and
+		// requires a panel restart to take effect.
+		// Literal sub-paths (/upload) must be registered BEFORE the param
+		// {id} routes so chi resolves them as literals, not as id="upload".
+		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Get("/api/database/backups", handlers.ListDatabaseBackupsHandler)
+		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Post("/api/database/backups", handlers.CreateDatabaseBackupHandler)
+		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Post("/api/database/backups/upload", handlers.UploadDatabaseBackupHandler)
+		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Post("/api/database/backups/upload/url", handlers.UploadDatabaseBackupURLHandler)
+		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Get("/api/database/backups/{id}/download", handlers.DownloadDatabaseBackupHandler)
+		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Post("/api/database/backups/{id}/restore", handlers.RestoreDatabaseBackupHandler)
+		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Delete("/api/database/backups/{id}", handlers.DeleteDatabaseBackupHandler)
+
 		// Security page (ACCESS_ADMIN_PANEL). Per-request security telemetry
 		// aggregated into the headline counters + top-N lists the page renders.
 		// The toggle endpoint flips the persisted Attack Status flag in the
