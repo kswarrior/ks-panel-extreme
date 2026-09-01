@@ -21,53 +21,6 @@ const bucketize = (status: string): StatusBucket => {
   return 'stopped';
 };
 
-// greetingFor maps the local hour to a time-of-day salutation used in the
-// hero header. Kept module-private since only this page renders it.
-function greetingFor(d: Date): string {
-  const h = d.getHours();
-  if (h < 5) return 'Good night';
-  if (h < 12) return 'Good morning';
-  if (h < 18) return 'Good afternoon';
-  return 'Good evening';
-}
-
-const HeroIllustration: React.FC = () => (
-  <svg
-    viewBox="0 0 220 160"
-    xmlns="http://www.w3.org/2000/svg"
-    className="w-full h-auto"
-    aria-hidden="true"
-  >
-    <defs>
-      <linearGradient id="heroGlow" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.35" />
-        <stop offset="60%" stopColor="#a78bfa" stopOpacity="0.18" />
-        <stop offset="100%" stopColor="#34d399" stopOpacity="0.0" />
-      </linearGradient>
-      <linearGradient id="heroCard" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stopColor="rgba(255,255,255,0.18)" />
-        <stop offset="100%" stopColor="rgba(255,255,255,0.02)" />
-      </linearGradient>
-    </defs>
-    <circle cx="170" cy="38" r="90" fill="url(#heroGlow)" />
-    <g opacity="0.85">
-      <rect x="36" y="44" width="148" height="92" rx="14" fill="url(#heroCard)" stroke="rgba(255,255,255,0.18)" />
-      <rect x="36" y="44" width="148" height="20" rx="14" fill="rgba(255,255,255,0.08)" />
-      <circle cx="50" cy="54" r="3" fill="rgba(248,113,113,0.7)" />
-      <circle cx="62" cy="54" r="3" fill="rgba(250,204,21,0.7)" />
-      <circle cx="74" cy="54" r="3" fill="rgba(74,222,128,0.7)" />
-      <rect x="48" y="76" width="60" height="6" rx="3" fill="rgba(148,163,184,0.45)" />
-      <rect x="48" y="88" width="96" height="6" rx="3" fill="rgba(148,163,184,0.28)" />
-      <rect x="48" y="100" width="80" height="6" rx="3" fill="rgba(148,163,184,0.28)" />
-      <rect x="48" y="116" width="42" height="10" rx="5" fill="rgba(56,189,248,0.45)" />
-    </g>
-    <g opacity="0.85">
-      <circle cx="190" cy="110" r="22" fill="rgba(52,211,153,0.15)" stroke="rgba(52,211,153,0.5)" />
-      <path d="M180 110l8 8 14-16" stroke="rgba(52,211,153,0.9)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-    </g>
-  </svg>
-);
-
 const EmptyStateIllustration: React.FC = () => (
   <div className="flex flex-col items-center gap-4">
     <svg
@@ -266,35 +219,6 @@ const Instances: React.FC = () => {
           </div>
         </div>
       </div>
-
-      {/* ── Hero (simplified) ──────────────────────────────────────────── */}
-      <GlassCard className="relative overflow-hidden animate-fade-in">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
-        <div className="pointer-events-none absolute -top-24 -right-16 w-72 h-72 rounded-full bg-sky-500/15 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-24 -left-10 w-64 h-64 rounded-full bg-emerald-500/10 blur-3xl" />
-        <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-6 items-center p-6 lg:p-8 relative">
-          <div>
-            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-200 text-[11px] uppercase tracking-wider font-semibold">
-              <span className="relative flex w-1.5 h-1.5">
-                <span className="absolute inline-flex w-full h-full rounded-full bg-emerald-400 opacity-70 animate-ping" />
-                <span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-emerald-300" />
-              </span>
-              Instances
-            </div>
-            <h1 className="mt-3 text-3xl lg:text-4xl font-semibold text-white tracking-tight">
-              {greetingFor(now)}, <span className="bg-gradient-to-r from-sky-300 via-violet-300 to-emerald-300 bg-clip-text text-transparent">{greetingName}</span>
-            </h1>
-            <p className="mt-2 text-sm lg:text-base text-gray-300 max-w-xl">
-              Your fleet at a glance. Open any card to jump straight into Files, Network, Terminal,
-              Env, Automation, and the rest of the panel — everything you need to manage your workloads lives one
-              click away.
-            </p>
-          </div>
-          <div className="hidden lg:block">
-            <HeroIllustration />
-          </div>
-        </div>
-      </GlassCard>
 
       {error && (
         <GlassCard className="text-sm text-red-300 border border-red-700/40 animate-fade-in">
