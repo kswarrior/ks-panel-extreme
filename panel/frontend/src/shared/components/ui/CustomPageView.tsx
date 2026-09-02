@@ -507,7 +507,7 @@ interface CustomPageViewProps {
 // UI side-effects; none of them expose raw DOM/network handles.
 const BRIDGE_METHODS = [
   'executeAction', 'runAction', 'fetchPanel',
-  'shell', 'readFile', 'writeFile', 'listFiles', 'deleteFile', 'createDirectory',
+  'shell', 'readFile', 'writeFile', 'listFiles', 'deleteFile', 'createDirectory', 'downloadFile',
   'docker', 'kvm', 'lxd',
   'toast',
   // Panel-owned confirm dialog: the iframe asks, the HOST renders the themed
@@ -1291,6 +1291,7 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
               case 'listFiles': return sdk.listFiles(list[0]);
               case 'deleteFile': return sdk.deleteFile(list[0]);
               case 'createDirectory': return sdk.createDirectory(list[0]);
+              case 'downloadFile': return sdk.downloadFile(list[0]);
               case 'docker': return sdk.docker(list[0], list[1]);
               case 'kvm': return sdk.kvm(list[0], list[1]);
               case 'lxd': return sdk.lxd(list[0], list[1]);
