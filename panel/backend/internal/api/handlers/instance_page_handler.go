@@ -115,8 +115,8 @@ func validSlug(s string) bool {
 }
 
 var (
-	slugStartRe = regexp.MustCompile(`^[A-Za-z0-9]$`)
-	slugBodyRe  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
+	slugStartRe = regexp.MustCompile(`^[a-z0-9]$`)
+	slugBodyRe  = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*$`)
 )
 
 // icon SVG sanitization: icons are rendered INLINE in the panel host origin
@@ -333,7 +333,7 @@ func validateInstancePage(req instancePageDTO) (instancePageDTO, error) {
 		return req, newErrString("slug is required")
 	}
 	if !validSlug(req.Slug) {
-		return req, newErrString("slug must start with a letter or number and contain only letters, numbers, dots, dashes or underscores (max 64 chars)")
+		return req, newErrString("slug must start with a lowercase letter or number and contain only lowercase letters, numbers, dots, dashes or underscores (max 64 chars)")
 	}
 	if len(req.ContentHTML) > maxInstancePageContentBytes {
 		return req, newErrString("content_html too large (max 1MB)")
