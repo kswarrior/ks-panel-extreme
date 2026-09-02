@@ -109,12 +109,7 @@ func (r *NodeRepository) CreateNode(in CreateNodeInput) (*models.Node, string, e
 	// FK to users(id) when PRAGMA foreign_keys=ON. The list handlers treat
 	// NULL as "orphan / visible to all", so a zero OwnerID from the CLI's
 	// setup:localnode path must not become a concrete 0 FK.
-	var ownerID interface{}
-	if in.OwnerID != 0 {
-		ownerID = in.OwnerID
-	} else {
-		ownerID = nil
-	}
+	ownerID := sql.NullInt64{Int64: in.OwnerID, Valid: in.OwnerID != 0}
 	res, err := r.db.Exec(
 		`INSERT INTO nodes (name, address, use_tls, token_hash, token_prefix, token_plain, status,
 			health_enabled, health_interval, health_timeout, health_retries,
