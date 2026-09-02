@@ -114,7 +114,11 @@ const InstancePages: React.FC = () => {
   const [templatePagesError, setTemplatePagesError] = useState('');
   const [selectedImportKeys, setSelectedImportKeys] = useState<Set<string>>(new Set());
   const [importSearch, setImportSearch] = useState('');
-  const [importSource, setImportSource] = useState<'templates' | 'starters'>('templates');
+  // `staterpages` is the user-facing alias for `starters` — both resolve to
+  // the same PAGE_STARTERS library that gets bulk-added directly to
+  // instance_pages (single transaction) instead of per-page browser loops.
+  const [importSource, setImportSource] = useState<'templates' | 'starters' | 'staterpages'>('templates');
+  const normalizedImportSource = importSource === 'staterpages' ? 'starters' : importSource;
 
   const loadTemplatePages = useCallback(async () => {
     setTemplatePagesLoading(true);
@@ -163,10 +167,10 @@ const InstancePages: React.FC = () => {
 
   // auto-load template pages when Import tab is opened
   useEffect(() => {
-    if (addTab === 'import' && importSource === 'templates' && templatePages.length === 0 && !templatePagesLoading && !templatePagesError) {
+    if (addTab === 'import' && normalizedImportSource === 'templates' && templatePages.length === 0 && !templatePagesLoading && !templatePagesError) {
       loadTemplatePages();
     }
-  }, [addTab, importSource, templatePages.length, templatePagesLoading, templatePagesError, loadTemplatePages]);
+  }, [addTab, importSource, normalizedImportSource, templatePages.length, templatePagesLoading, templatePagesError, loadTemplatePages]);
 
   const toggleImportSelect = (key: string) => {
     setSelectedImportKeys((prev) => {
@@ -178,54 +182,77 @@ const InstancePages: React.FC = () => {
   };
 
   const handleImportFromTemplates = async () => {
-    if (importSource === 'templates') {
+    const source = normalizedImportSource;
+    if (source === 'templates') {
       if (selectedImportKeys.size === 0) { setImportError('Select at least one page to import'); return; }
       setImportLoading(true);
       setImportError('');
       try {
-        let imported = 0;
-        let skipped = 0;
-        const errors: string[] = [];
+        // Build payloads for bulk — directly add staterpages/template-pages to
+        // instance_pages in a single transaction instead of per-page browser loops.
+        const payloads: any[] = [];
         for (const key of selectedImportKeys) {
           const entry = templatePages.find((e) => e.key === key);
           if (!entry) continue;
-          try {
-            await createInstancePage({
-              name: entry.label || entry.slug,
-              description: entry.description || `Imported from template "${entry.templateName}"`,
-              slug: entry.slug,
-              kind: 'custom',
-              category: '',
-              type: '',
-              content_type: (['html', 'markdown', 'blocks'].includes(entry.content_type || '') ? entry.content_type : 'markdown') as 'html' | 'markdown' | 'blocks',
-              content_html: entry.content_html || '',
-              content_markdown: entry.content_markdown || '',
-              content_blocks: entry.content_blocks || '',
-              icon_svg: entry.icon_svg || '',
-              actions: entry.actions ? JSON.stringify(entry.actions) : '',
-              sub_pages: entry.sub_pages ? JSON.stringify(entry.sub_pages) : '',
-              components: entry.components ? JSON.stringify(entry.components) : '',
-            });
-            imported++;
-          } catch (e: any) {
-            const msg = getErrorMessage(e, 'Import failed');
-            if (msg.toLowerCase().includes('slug already exists') || msg.toLowerCase().includes('already exists')) {
-              skipped++;
-            } else {
-              errors.push(`${entry.slug}: ${msg}`);
-            }
+          payloads.push({
+            name: entry.label || entry.slug,
+            description: entry.description || `Imported from template "${entry.templateName}"`,
+            slug: entry.slug,
+            kind: 'custom',
+            category: '',
+            type: '',
+            content_type: (['html', 'markdown', 'blocks'].includes(entry.content_type || '') ? entry.content_type : 'markdown') as 'html' | 'markdown' | 'blocks',
+            content_html: entry.content_html || '',
+            content_markdown: entry.content_markdown || '',
+            content_blocks: entry.content_blocks || '',
+            icon_svg: entry.icon_svg || '',
+            actions: entry.actions ? JSON.stringify(entry.actions) : '',
+            sub_pages: entry.sub_pages ? JSON.stringify(entry.sub_pages) : '',
+            components: entry.components ? JSON.stringify(entry.components) : '',
+          });
+        }
+        if (payloads.length === 0) { setImportError('No valid pages to import'); setImportLoading(false); return; }
+        try {
+          const res = await bulkCreateInstancePages(payloads);
+          if (res.imported > 0) {
+            closeAdd();
+            await load();
           }
-        }
-        if (imported > 0) {
-          closeAdd();
-          await load();
-        }
-        if (errors.length > 0) {
-          setImportError(errors.join('; '));
-        } else if (skipped > 0 && imported === 0) {
-          setImportError(`All selected pages already exist (skipped ${skipped})`);
-        } else if (skipped > 0) {
-          setImportError(`Imported ${imported}, skipped ${skipped} already existing`);
+          if (res.errors && res.errors.length > 0) {
+            setImportError(res.errors.join('; '));
+          } else if (res.skipped > 0 && res.imported === 0) {
+            setImportError(`All selected pages already exist (skipped ${res.skipped})`);
+          } else if (res.skipped > 0) {
+            setImportError(`Imported ${res.imported}, skipped ${res.skipped} already existing`);
+          }
+        } catch (bulkErr: any) {
+          // Fallback: if bulk endpoint is unavailable (old backend), do parallel
+          // batch of 6 concurrent creates instead of sequential loop — still
+          // ~6x faster and avoids 20+ sequential round-trips.
+          const status = bulkErr?.response?.status;
+          if (status !== 404 && status !== 405) throw bulkErr;
+          let imported = 0;
+          let skipped = 0;
+          const errors: string[] = [];
+          const entries = payloads.map((p, i) => ({ p, key: [...selectedImportKeys][i] }));
+          const chunkSize = 6;
+          for (let i = 0; i < entries.length; i += chunkSize) {
+            const chunk = entries.slice(i, i + chunkSize);
+            const results = await Promise.allSettled(chunk.map(({ p }) => createInstancePage(p)));
+            results.forEach((r, ci) => {
+              const slug = chunk[ci].p.slug;
+              if (r.status === 'fulfilled') imported++;
+              else {
+                const msg = getErrorMessage((r as PromiseRejectedResult).reason, 'Import failed');
+                if (msg.toLowerCase().includes('slug already exists') || msg.toLowerCase().includes('already exists')) skipped++;
+                else errors.push(`${slug}: ${msg}`);
+              }
+            });
+          }
+          if (imported > 0) { closeAdd(); await load(); }
+          if (errors.length > 0) setImportError(errors.join('; '));
+          else if (skipped > 0 && imported === 0) setImportError(`All selected pages already exist (skipped ${skipped})`);
+          else if (skipped > 0) setImportError(`Imported ${imported}, skipped ${skipped} already existing`);
         }
       } catch (e: any) {
         setImportError(getErrorMessage(e, 'Import failed'));
@@ -233,51 +260,70 @@ const InstancePages: React.FC = () => {
         setImportLoading(false);
       }
     } else {
-      // import from starters: selectedImportKeys holds starter ids
+      // import from starters / staterpages: selectedImportKeys holds starter ids
+      // Bulk path: staterpages are starter pages bulk-added directly to pages
+      // (single transaction) — not "starter to use browser to pages" per-item.
       if (selectedImportKeys.size === 0) { setImportError('Select at least one starter to import'); return; }
       setImportLoading(true);
       setImportError('');
       try {
-        let imported = 0;
-        let skipped = 0;
-        const errors: string[] = [];
+        const startersSource = PAGE_STARTERS as any[];
+        const payloads: any[] = [];
         for (const sid of selectedImportKeys) {
-          const s = PAGE_STARTERS.find((x) => x.id === sid);
+          const s = startersSource.find((x) => x.id === sid);
           if (!s) continue;
-          try {
-            await createInstancePage({
-              name: s.name,
-              description: s.description || '',
-              slug: s.slug,
-              kind: 'custom',
-              category: s.category || '',
-              type: '',
-              content_type: (s.contentType || 'html') as 'html' | 'markdown' | 'blocks',
-              content_html: s.html || '',
-              content_markdown: s.markdown || '',
-              content_blocks: s.blocks || '',
-              icon_svg: s.iconSvg || '',
-              actions: s.actions ? JSON.stringify(s.actions) : '',
-              sub_pages: (s as any).subPages ? JSON.stringify((s as any).subPages) : '',
-              components: '',
-            });
-            imported++;
-          } catch (e: any) {
-            const msg = getErrorMessage(e, 'Import failed');
-            if (msg.toLowerCase().includes('slug already exists') || msg.toLowerCase().includes('already exists')) {
-              skipped++;
-            } else {
-              errors.push(`${s.slug}: ${msg}`);
-            }
+          payloads.push({
+            name: s.name,
+            description: s.description || '',
+            slug: s.slug,
+            kind: 'custom',
+            category: s.category || '',
+            type: '',
+            content_type: (s.contentType || 'html') as 'html' | 'markdown' | 'blocks',
+            content_html: s.html || '',
+            content_markdown: s.markdown || '',
+            content_blocks: s.blocks || '',
+            icon_svg: s.iconSvg || '',
+            actions: s.actions ? JSON.stringify(s.actions) : '',
+            sub_pages: (s as any).subPages ? JSON.stringify((s as any).subPages) : '',
+            components: '',
+          });
+        }
+        if (payloads.length === 0) { setImportError('No valid starters to import'); setImportLoading(false); return; }
+        try {
+          const res = await bulkCreateInstancePages(payloads);
+          if (res.imported > 0) {
+            closeAdd();
+            await load();
           }
+          if (res.errors && res.errors.length > 0) setImportError(res.errors.join('; '));
+          else if (res.skipped > 0 && res.imported === 0) setImportError(`All selected pages already exist (skipped ${res.skipped})`);
+          else if (res.skipped > 0) setImportError(`Imported ${res.imported}, skipped ${res.skipped} already existing`);
+        } catch (bulkErr: any) {
+          const status = bulkErr?.response?.status;
+          if (status !== 404 && status !== 405) throw bulkErr;
+          let imported = 0;
+          let skipped = 0;
+          const errors: string[] = [];
+          const chunkSize = 6;
+          for (let i = 0; i < payloads.length; i += chunkSize) {
+            const chunk = payloads.slice(i, i + chunkSize);
+            const results = await Promise.allSettled(chunk.map((p) => createInstancePage(p)));
+            results.forEach((r, ci) => {
+              const slug = chunk[ci].slug;
+              if (r.status === 'fulfilled') imported++;
+              else {
+                const msg = getErrorMessage((r as PromiseRejectedResult).reason, 'Import failed');
+                if (msg.toLowerCase().includes('slug already exists') || msg.toLowerCase().includes('already exists')) skipped++;
+                else errors.push(`${slug}: ${msg}`);
+              }
+            });
+          }
+          if (imported > 0) { closeAdd(); await load(); }
+          if (errors.length > 0) setImportError(errors.join('; '));
+          else if (skipped > 0 && imported === 0) setImportError(`All selected pages already exist (skipped ${skipped})`);
+          else if (skipped > 0) setImportError(`Imported ${imported}, skipped ${skipped} already existing`);
         }
-        if (imported > 0) {
-          closeAdd();
-          await load();
-        }
-        if (errors.length > 0) setImportError(errors.join('; '));
-        else if (skipped > 0 && imported === 0) setImportError(`All selected pages already exist (skipped ${skipped})`);
-        else if (skipped > 0) setImportError(`Imported ${imported}, skipped ${skipped} already existing`);
       } catch (e: any) {
         setImportError(getErrorMessage(e, 'Import failed'));
       } finally {
@@ -578,21 +624,21 @@ const InstancePages: React.FC = () => {
               Import pages that are already defined in your templates or available as Studio starters. Selected pages are copied into the Instance Pages library.
             </p>
 
-            {/* Source switcher: Templates vs Starters */}
+            {/* Source switcher: Templates vs Stater Pages (starter pages) — both aliases route to bulk staterpages → pages */}
             <div className="flex gap-1 bg-black/30 border border-white/10 rounded-md p-1">
               <button
                 onClick={() => { setImportSource('templates'); setSelectedImportKeys(new Set()); setImportSearch(''); }}
-                className={`flex-1 px-3 py-1.5 rounded text-xs font-medium flex items-center justify-center gap-1.5 ${importSource === 'templates' ? 'bg-white text-black' : 'text-gray-400 hover:text-white'}`}
+                className={`flex-1 px-3 py-1.5 rounded text-xs font-medium flex items-center justify-center gap-1.5 ${normalizedImportSource === 'templates' ? 'bg-white text-black' : 'text-gray-400 hover:text-white'}`}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><rect x="3" y="3" width="18" height="18" rx="2" /><line x1="3" y1="9" x2="21" y2="9" /><line x1="9" y1="21" x2="9" y2="9" /></svg>
                 From Templates
               </button>
               <button
                 onClick={() => { setImportSource('starters'); setSelectedImportKeys(new Set()); setImportSearch(''); }}
-                className={`flex-1 px-3 py-1.5 rounded text-xs font-medium flex items-center justify-center gap-1.5 ${importSource === 'starters' ? 'bg-white text-black' : 'text-gray-400 hover:text-white'}`}
+                className={`flex-1 px-3 py-1.5 rounded text-xs font-medium flex items-center justify-center gap-1.5 ${normalizedImportSource === 'starters' ? 'bg-white text-black' : 'text-gray-400 hover:text-white'}`}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M12 2l3 7h7l-5.5 4 2 7-6-5-6 5 2-7-5.5-4z" /></svg>
-                From Starters
+                From Starter Pages
               </button>
             </div>
 
@@ -600,12 +646,12 @@ const InstancePages: React.FC = () => {
               type="text"
               value={importSearch}
               onChange={(e) => setImportSearch(e.target.value)}
-              placeholder={importSource === 'templates' ? 'Search by slug, label or template…' : 'Search by name, slug or category…'}
+              placeholder={normalizedImportSource === 'templates' ? 'Search by slug, label or template…' : 'Search by name, slug or category…'}
               className="w-full bg-black/30 border border-white/10 rounded-md text-sm text-white px-3 py-1.5 focus:outline-none focus:border-white/40"
               aria-label="Search pages to import"
             />
 
-            {importSource === 'templates' ? (
+            {normalizedImportSource === 'templates' ? (
               <>
                 {templatePagesLoading && (
                   <div className="px-4 py-6 space-y-3 animate-pulse border border-white/10 rounded-md bg-black/30">
