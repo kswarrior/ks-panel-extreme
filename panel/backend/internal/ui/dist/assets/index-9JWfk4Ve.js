@@ -2365,7 +2365,7 @@ document.currentScript.remove();
       html += '<div class="ks-card"><p class="ks-muted" style="font-size:12px;margin:0;padding:6px 12px">No snapshots yet. Click “Create snapshot” to add one.</p></div>';
     } else {
       state.rows.forEach(function (s) {
-        html += '<div class="ks-card" data-ks-key="' + esc(String((typeof key!=='undefined'&&key?key:(typeof p!=='undefined'&&p?(p.pid||p.port||p.laddr||p.proto||p.id||''): (typeof j!=='undefined'&&j?(j.id||j.name||''): (typeof s!=='undefined'&&s?(s.key||s.name||s.id||s.external_ref||''): (typeof r!=='undefined'&&r?(r.id||r.action||r.created_at||''):''))))))) + '" style="display:flex;flex-direction:column;gap:10px">'
+        html += '<div class="ks-card" data-ks-key="' + esc(String(r.id || r.created_at || r.action)) + '" style="display:flex;flex-direction:column;gap:10px">'
           + '<div><div style="font-size:13px;font-weight:600;color:var(--ks-heading);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(s.name) + '</div>'
           + '<span class="ks-badge ks-mono" style="margin-top:4px">' + esc(s.external_ref || '—') + '</span></div>'
           + '<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ks-muted);">'
@@ -2585,7 +2585,7 @@ document.currentScript.remove();
         var shown;
         if (s.is_secret) shown = state.revealed[s.key] != null ? state.revealed[s.key] : (s.masked_value || '••••');
         else shown = s.value || '—';
-        html += '<div class="ks-card" data-ks-key="' + esc(String((typeof key!=='undefined'&&key?key:(typeof p!=='undefined'&&p?(p.pid||p.port||p.laddr||p.proto||p.id||''): (typeof j!=='undefined'&&j?(j.id||j.name||''): (typeof s!=='undefined'&&s?(s.key||s.name||s.id||s.external_ref||''): (typeof r!=='undefined'&&r?(r.id||r.action||r.created_at||''):''))))))) + '" style="display:flex;flex-direction:column;gap:10px">'
+        html += '<div class="ks-card" data-ks-key="' + esc(s.key) + '" style="display:flex;flex-direction:column;gap:10px">'
           + '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">'
           + '<div style="min-width:0"><div style="font-size:13px;font-weight:600;color:var(--ks-heading);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(s.key) + '</div>'
           + '<span class="ks-badge" style="margin-top:4px;color:' + (s.is_secret ? 'var(--ks-warn)' : 'var(--ks-info)') + ';border-color:' + (s.is_secret ? 'var(--ks-warn-line)' : 'var(--ks-info-line)') + '">' + (s.is_secret ? 'secret' : 'env') + '</span></div>'
@@ -4687,7 +4687,7 @@ def deploy_instance(template, node):
         var st = p.state || '—';
         var sc = stateColor(st);
         var pc = protoColor(p.proto || 'tcp');
-        html += '<div class="ks-card" data-ks-key="' + esc(String((typeof key!=='undefined'&&key?key:(typeof p!=='undefined'&&p?(p.pid||p.port||p.laddr||p.proto||p.id||''): (typeof j!=='undefined'&&j?(j.id||j.name||''): (typeof s!=='undefined'&&s?(s.key||s.name||s.id||s.external_ref||''): (typeof r!=='undefined'&&r?(r.id||r.action||r.created_at||''):''))))))) + '" style="display:flex;flex-direction:column;gap:10px">'
+        html += '<div class="ks-card" data-ks-key="' + esc((p.laddr||'') + '|' + (p.raddr||'') + '|' + (p.pid!=null?String(p.pid):'') + '|' + (p.proto||'')) + '" style="display:flex;flex-direction:column;gap:10px">'
           + '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">'
           + '<div style="min-width:0;font-size:13px;font-weight:600;color:var(--ks-heading);display:flex;align-items:center;gap:8px">'
           + '<span class="ks-mono" style="font-size:10px;font-weight:400;padding:2px 6px;border-radius:4px;border:1px solid currentColor;color:' + pc + ';text-transform:uppercase">' + esc(p.proto || 'tcp') + '</span>'
@@ -4780,7 +4780,7 @@ def deploy_instance(template, node):
         var cmd = p.cmd || p.name || '';
         var expanded = !!state.expanded[key];
         var displayCmd = (!expanded && String(cmd).length > 50) ? String(cmd).substring(0, 50) + '...' : cmd;
-        html += '<div class="ks-card" data-ks-key="' + esc(String((typeof key!=='undefined'&&key?key:(typeof p!=='undefined'&&p?(p.pid||p.port||p.laddr||p.proto||p.id||''): (typeof j!=='undefined'&&j?(j.id||j.name||''): (typeof s!=='undefined'&&s?(s.key||s.name||s.id||s.external_ref||''): (typeof r!=='undefined'&&r?(r.id||r.action||r.created_at||''):''))))))) + '" style="display:flex;flex-direction:column;gap:10px">'
+        html += '<div class="ks-card" data-ks-key="' + esc(String(p.pid)) + '" style="display:flex;flex-direction:column;gap:10px">'
           + '<div><div style="font-size:13px;font-weight:600;color:var(--ks-heading)">PID ' + esc(p.pid) + '</div>'
           + '<span class="ks-badge ks-mono" style="margin-top:4px">' + esc(p.user || '—') + '</span></div>'
           + '<div style="display:flex;align-items:flex-start;gap:8px"><span class="ks-mono ks-muted" style="font-size:12px;flex-shrink:0">Command:</span>'
