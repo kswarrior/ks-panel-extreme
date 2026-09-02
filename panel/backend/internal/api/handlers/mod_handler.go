@@ -115,6 +115,8 @@ func toModResponse(repo *repository.ModRepository, mod *models.Mod) modResponse 
 
 // ListModsHandler returns every mod (active + inactive) with its requested
 // permissions and grant state. MANAGE_MODS-gated by the router.
+// Ownership scope (migration 054): MODS_OWN → only mods the caller uploaded;
+// MODS_ALL / MANAGE_MODS umbrella → full catalog.
 func ListModsHandler(w http.ResponseWriter, r *http.Request) {
 	repo, closeFn := openModRepo()
 	if repo == nil {
@@ -132,7 +134,27 @@ func ListModsHandler(w http.ResponseWriter, r *http.Request) {
 	out := make([]modResponse, 0, len(mods))
 	// Pre-fetch per-mod permissions; the repo holds one connection (SetMaxOpenConns(1))
 	// so we resolve them sequentially rather than racing goroutines.
+	// Ownership scope (migration 054): own-scope callers only see mods they own.
+	var scopeOwn map[int]bool
+	if uid, _ := UserIDFromContext(r); uid != 0 {
+		if con, err := repository.OpenDB(); err == nil {
+			chk := permissions.NewChecker(con)
+			hasOwn, hasAll, _ := chk.HasScope(uid, permissions.ModsOwnKey, permissions.ModsAllKey, permissions.ManageModsKey)
+			con.Close()
+			if !hasAll && hasOwn {
+				scopeOwn = make(map[int]bool)
+				for i := range mods {
+					if mods[i].OwnerID != uid {
+						scopeOwn[i] = true
+					}
+				}
+			}
+		}
+	}
 	for i := range mods {
+		if scopeOwn != nil && scopeOwn[i] {
+			continue
+		}
 		out = append(out, toModResponse(repo, &mods[i]))
 	}
 	writeJSON(w, out)

@@ -33,15 +33,18 @@ const themeColumns = "id, name, description, spec, builtin, created_by, owner_id
 func scanTheme(scanner interface{ Scan(...any) error }) (*models.Theme, error) {
 	var t models.Theme
 	var spec string
-	var createdBy sql.NullInt64
+	var createdBy, ownerID sql.NullInt64
 	var created, updated string
-	if err := scanner.Scan(&t.ID, &t.Name, &t.Description, &spec, &t.Builtin, &createdBy, &created, &updated); err != nil {
+	if err := scanner.Scan(&t.ID, &t.Name, &t.Description, &spec, &t.Builtin, &createdBy, &ownerID, &created, &updated); err != nil {
 		return nil, err
 	}
 	t.Spec = json.RawMessage(spec)
 	if createdBy.Valid {
 		c := createdBy.Int64
 		t.CreatedBy = &c
+	}
+	if ownerID.Valid {
+		t.OwnerID = ownerID.Int64
 	}
 	t.CreatedAt, _ = parseSQLiteTime(created)
 	t.UpdatedAt, _ = parseSQLiteTime(updated)

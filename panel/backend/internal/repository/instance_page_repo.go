@@ -29,8 +29,10 @@ func (r *InstancePageRepository) List() ([]models.InstancePage, error) {
 	if n == 0 {
 		return out, nil
 	}
-	rows, err := r.db.Query(`SELECT id, name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages, components, created_at, updated_at
-		FROM instance_pages ORDER BY name ASC`)
+	rows, err := r.db.Query(`SELECT p.id, p.name, p.slug, p.kind, p.category, p.page_type, p.description, p.content_type, p.content_html, p.content_markdown, p.content_blocks, p.icon_svg, p.actions, p.sub_pages, p.components, p.created_at, p.updated_at,
+		COALESCE(p.owner_id, 0),
+		COALESCE((SELECT username FROM users WHERE id = p.owner_id), '')
+		FROM instance_pages p ORDER BY p.name ASC`)
 	if err != nil {
 		return nil, err
 	}
@@ -39,12 +41,18 @@ func (r *InstancePageRepository) List() ([]models.InstancePage, error) {
 		var p models.InstancePage
 		var created, updated string
 		var actions, subPages, components sql.NullString
-		if err := rows.Scan(&p.ID, &p.Name, &p.Slug, &p.Kind, &p.Category, &p.PageType, &p.Description, &p.ContentType, &p.ContentHTML, &p.ContentMarkdown, &p.ContentBlocks, &p.IconSVG, &actions, &subPages, &components, &created, &updated); err != nil {
+		var ownerID sql.NullInt64
+		var ownerName sql.NullString
+		if err := rows.Scan(&p.ID, &p.Name, &p.Slug, &p.Kind, &p.Category, &p.PageType, &p.Description, &p.ContentType, &p.ContentHTML, &p.ContentMarkdown, &p.ContentBlocks, &p.IconSVG, &actions, &subPages, &components, &created, &updated, &ownerID, &ownerName); err != nil {
 			return nil, err
 		}
 		p.Actions = actions.String
 		p.SubPages = subPages.String
 		p.Components = components.String
+		if ownerID.Valid {
+			p.OwnerID = ownerID.Int64
+			p.OwnerName = ownerName.String
+		}
 		p.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created)
 		p.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updated)
 		out = append(out, p)
@@ -55,11 +63,13 @@ func (r *InstancePageRepository) List() ([]models.InstancePage, error) {
 // Get fetches a single instance page by id.
 func (r *InstancePageRepository) Get(id int64) (*models.InstancePage, error) {
 	var p models.InstancePage
-	var pid sql.NullInt64
-	var name, slug, kind, category, pageType, desc, contentType, contentHTML, contentMarkdown, contentBlocks, iconSVG, actions, subPages, components, created, updated sql.NullString
-	err := r.db.QueryRow(`SELECT id, name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages, components, created_at, updated_at
-		FROM instance_pages WHERE id = ?`, id).Scan(
-		&pid, &name, &slug, &kind, &category, &pageType, &desc, &contentType, &contentHTML, &contentMarkdown, &contentBlocks, &iconSVG, &actions, &subPages, &components, &created, &updated)
+	var pid, ownerID sql.NullInt64
+	var name, slug, kind, category, pageType, desc, contentType, contentHTML, contentMarkdown, contentBlocks, iconSVG, actions, subPages, components, created, updated, ownerName sql.NullString
+	err := r.db.QueryRow(`SELECT p.id, p.name, p.slug, p.kind, p.category, p.page_type, p.description, p.content_type, p.content_html, p.content_markdown, p.content_blocks, p.icon_svg, p.actions, p.sub_pages, p.components, p.created_at, p.updated_at,
+		COALESCE(p.owner_id, 0),
+		COALESCE((SELECT username FROM users WHERE id = p.owner_id), '')
+		FROM instance_pages p WHERE p.id = ?`, id).Scan(
+		&pid, &name, &slug, &kind, &category, &pageType, &desc, &contentType, &contentHTML, &contentMarkdown, &contentBlocks, &iconSVG, &actions, &subPages, &components, &created, &updated, &ownerID, &ownerName)
 	if err != nil || !pid.Valid {
 		return nil, fmt.Errorf("instance page not found")
 	}
@@ -74,6 +84,10 @@ func (r *InstancePageRepository) Get(id int64) (*models.InstancePage, error) {
 	p.ContentHTML = contentHTML.String
 	p.ContentMarkdown = contentMarkdown.String
 	p.ContentBlocks = contentBlocks.String
+	if ownerID.Valid {
+		p.OwnerID = ownerID.Int64
+		p.OwnerName = ownerName.String
+	}
 	p.IconSVG = iconSVG.String
 	p.Actions = actions.String
 	p.SubPages = subPages.String
@@ -107,12 +121,18 @@ type InstancePageInput struct {
 	// Components is a JSON array of reusable UI blocks ("" == none). The
 	// caller (handler) validates shape; see validateInstancePage.
 	Components string
+	// OwnerID ties the page to the user that authored it. Migration 054
+	// wires the INSTANCE_PAGES_OWN / _ALL scope keys; see the
+	// handler for the full contract.
+	OwnerID int64
 }
 
-// Create inserts a new instance page.
+// Create inserts a new instance page. The handler populates OwnerID
+// from the caller so the migration-054 scope filter has a value to
+// match against (pre-054 rows stay orphan — visible only to admins).
 func (r *InstancePageRepository) Create(in InstancePageInput) (int64, error) {
-	res, err := r.db.Exec(`INSERT INTO instance_pages (name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages, components) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		in.Name, in.Slug, in.Kind, in.Category, in.PageType, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.IconSVG, in.Actions, in.SubPages, in.Components)
+	res, err := r.db.Exec(`INSERT INTO instance_pages (name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages, components, owner_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		in.Name, in.Slug, in.Kind, in.Category, in.PageType, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.IconSVG, in.Actions, in.SubPages, in.Components, in.OwnerID)
 	if err != nil {
 		return 0, err
 	}
