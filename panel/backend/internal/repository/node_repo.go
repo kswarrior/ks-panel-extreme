@@ -224,9 +224,16 @@ func (r *NodeRepository) ListNodes() ([]models.Node, error) {
 		if err := scanFullNode(rows, &nd); err != nil {
 			return nil, err
 		}
-		nd.State = DeriveState(nd.Status, nd.LastSeenAt,
+			nd.State = DeriveState(nd.Status, nd.LastSeenAt,
 			allMetricsOK(nd), anyMetricPartial(nd), probeTrue(nd.ProbeReachable), nd.ProbeCheckedAt)
 		nodes = append(nodes, nd)
+	}
+	// Enrich with owner_id (migration 054) — one extra scalar row so the
+	// scope filter in the handler has a value to match.
+	for i := range nodes {
+		if ow, ok := nodeOwnerMap(r.db)[nodes[i].ID]; ok {
+			nodes[i].OwnerID = ow
+		}
 	}
 	return nodes, rows.Err()
 }
@@ -447,6 +454,31 @@ func (r *NodeRepository) getNodeLegacy(id int64) (*models.Node, error) {
 	nd.LastSeenAt = parseTime(lastSeen)
 	nd.State = DeriveState(nd.Status, nd.LastSeenAt, true, false, false, nil)
 	return &nd, nil
+}
+
+// nodeOwnerMap bulk-loads the `owner_id` (migration 054) for every node
+// row the list helpers already scanned through the multi-fallback path.
+// Each row is matched by its id; rows that hit a pre-054 path with no
+// owner_id column keep the zero value ("orphan") — the handler's
+// scope filter treats that as "visible only to admins" (the same
+// contract instances already enforce for unattributed rows).
+func nodeOwnerMap(db *sql.DB) map[int64]int64 {
+	m := make(map[int64]int64)
+	rows, err := db.Query(`SELECT id, COALESCE(owner_id, 0) FROM nodes`)
+	if err != nil {
+		return m
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id, oid sql.NullInt64
+		if err := rows.Scan(&id, &oid); err != nil {
+			continue
+		}
+		if id.Valid && oid.Valid {
+			m[id.Int64] = oid.Int64
+		}
+	}
+	return m
 }
 
 // scanFullNode reads a row carrying every migration-011 (and 019, 025, 026, 050)
