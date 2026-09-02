@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/example/kspanel/internal/models"
+	"github.com/example/kspanel/internal/permissions"
 	"github.com/example/kspanel/internal/repository"
 	"github.com/go-chi/chi/v5"
 )
@@ -222,6 +223,22 @@ func ListTemplatesHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
+	// Ownership scope (migration 054): TEMPLATES_OWN → only templates the
+	// caller authored; TEMPLATES_ALL / MANAGE_TEMPLATES umbrella → full list.
+	if uid, _ := UserIDFromContext(r); uid != 0 {
+		checker := permissions.NewChecker(con)
+		hasOwn, hasAll, _ := checker.HasScope(uid, permissions.TemplatesOwnKey, permissions.TemplatesAllKey, permissions.ManageTemplatesKey)
+		if !hasAll && hasOwn {
+			filtered := make([]models.Template, 0, len(temps))
+			for _, t := range temps {
+				if t.OwnerID == uid {
+					filtered = append(filtered, t)
+				}
+			}
+			writeJSON(w, filtered)
+			return
+		}
+	}
 	writeJSON(w, temps)
 }
 
@@ -250,8 +267,10 @@ func CreateTemplateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer con.Close()
+	uid, _ := UserIDFromContext(r)
 	id, err := repository.NewTemplateRepository(con).Create(repository.TemplateInput{
 		Name: req.Name, Description: req.Description, Kind: req.Kind, Image: req.Image, Spec: spec,
+		OwnerID: uid,
 	})
 	if err != nil {
 		log.Println("CreateTemplate error:", err)
