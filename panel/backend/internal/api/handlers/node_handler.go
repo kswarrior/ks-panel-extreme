@@ -441,6 +441,30 @@ func CreateNodeHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// nodeOwnForbidden returns a 403 when the caller holds NODES_OWN
+// without NODES_ALL and is trying to touch a node they don't own.
+// Call it at the top of every per-node handler (update / delete /
+// rotate-token / local-setup / purge / probes / heartbeats); a nil
+// *models.Node (e.g. a missing row) falls through and lets the
+// handler return its own 404. The helper keeps the six callsites
+// consistent and mirrors InstanceOwnForbidden in instance_handler.go.
+func nodeOwnForbidden(w http.ResponseWriter, r *http.Request, ownerID int64) bool {
+	if uid, _ := UserIDFromContext(r); uid != 0 {
+		con, err := repository.OpenDB()
+		if err != nil {
+			return false
+		}
+		defer con.Close()
+		chk := permissions.NewChecker(con)
+		hasOwn, hasAll, _ := chk.HasScope(uid, permissions.NodesOwnKey, permissions.NodesAllKey, permissions.ManageNodesKey)
+		if !hasAll && hasOwn && ownerID != uid {
+			http.Error(w, "forbidden: own-scope may only access nodes you registered", http.StatusForbidden)
+			return true
+		}
+	}
+	return false
+}
+
 // UpdateNodeHandler edits the display name / dial address / TLS toggle.
 func UpdateNodeHandler(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
@@ -487,6 +511,13 @@ func UpdateNodeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer con.Close()
 	repo := repository.NewNodeRepository(con)
+	// Ownership scope (migration 054): own-scope callers may only edit
+	// nodes they own.
+	if nd, gerr := repo.GetNode(id); gerr == nil && nd != nil {
+		if nodeOwnForbidden(w, r, nd.OwnerID) {
+			return
+		}
+	}
 	healthEnabled := true
 	if req.HealthEnabled != nil {
 		healthEnabled = *req.HealthEnabled
@@ -557,8 +588,13 @@ func DeleteNodeHandler(w http.ResponseWriter, r *http.Request) {
 	// Capture the node name up-front so the audit row carries a useful
 	// label even after the row is removed.
 	var label string
+	var ownerID int64
 	if nd, gerr := repo.GetNode(id); gerr == nil && nd != nil {
 		label = nd.Name
+		ownerID = nd.OwnerID
+	}
+	if nodeOwnForbidden(w, r, ownerID) {
+		return
 	}
 	if err := repo.DeleteNode(id); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -588,9 +624,14 @@ func RotateNodeTokenHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer con.Close()
 	repo := repository.NewNodeRepository(con)
+	// Scope check (migration 054): rotate-token is an edit-level verb
+	// so own-scope callers may only touch their own nodes.
 	var label string
 	if nd, gerr := repo.GetNode(id); gerr == nil && nd != nil {
 		label = nd.Name
+		if nodeOwnForbidden(w, r, nd.OwnerID) {
+			return
+		}
 	}
 	token, err := repo.RotateToken(id)
 	if err != nil {
