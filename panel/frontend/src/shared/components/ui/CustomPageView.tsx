@@ -859,6 +859,34 @@ document.currentScript.remove();
 </head>
 <body>
 ${htmlContent}
+<script>
+// Skeleton fallback: if a starter page's loader never replaced its
+// placeholder (SDK never ready, fetch never returned), the iframe would
+// show an infinite shimmer. After 3.5s replace remaining skeletons with a
+// clear fallback so the page never appears "stuck loading" — this was the
+// regression where many starter pages showed only skeletons after an AI
+// added loading states.
+setTimeout(function(){
+  try{
+    var r=document.getElementById('root');
+    var c=document.getElementById('content');
+    var hasSkeleton=function(el){return el && el.innerHTML && el.innerHTML.indexOf('ks-skeleton')!==-1;};
+    if(hasSkeleton(r)){
+      r.innerHTML='<div class="ks-card" style="border:1px solid var(--ks-bad-line, rgba(239,68,68,0.3))"><p style="color:var(--ks-bad,#fca5a5);font-size:13px;margin:0 0 6px;font-weight:600">Page did not load — fallback</p><p class="ks-muted" style="font-size:12px;margin:0">The page was still showing its loading skeleton after 3s. This usually means the SDK or data fetch failed. Try refreshing the instance page. If this persists, check that the instance is running and the edge is online.</p></div>';
+    }
+    if(hasSkeleton(c)){
+      c.innerHTML='<p class="ks-bad" style="font-size:12px;padding:12px;background:var(--ks-bad-wash);border:1px solid var(--ks-bad-line);border-radius:6px">Failed to load content — please refresh or check instance status.</p>';
+    }
+    if(!r && !c && document.body.innerHTML.indexOf('ks-skeleton')!==-1){
+      var b=document.createElement('div');
+      b.className='ks-card';
+      b.style.cssText='margin:12px;border:1px solid var(--ks-bad-line)';
+      b.innerHTML='<p style="color:var(--ks-bad);font-size:12px">Some sections are still showing loading placeholders. Refresh to retry.</p>';
+      document.body.appendChild(b);
+    }
+  }catch(e){}
+}, 3500);
+</script>
 </body>
 </html>`;
 }
