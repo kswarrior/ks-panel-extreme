@@ -108,24 +108,44 @@ func (r *NodeRepository) CreateNode(in CreateNodeInput) (*models.Node, string, e
 	// owner_id must be NULL for unowned rows — inserting 0 violates the
 	// FK to users(id) when PRAGMA foreign_keys=ON. The list handlers treat
 	// NULL as "orphan / visible to all", so a zero OwnerID from the CLI's
-	// setup:localnode path must not become a concrete 0 FK.
-	ownerID := sql.NullInt64{Int64: in.OwnerID, Valid: in.OwnerID != 0}
-	res, err := r.db.Exec(
-		`INSERT INTO nodes (name, address, use_tls, token_hash, token_prefix, token_plain, status,
-			health_enabled, health_interval, health_timeout, health_retries,
-			skip_tls_verify, notes, install_dir, allowed_kinds,
-			alloc_mem_mib, mem_overcommit_pct, alloc_disk_mib, disk_overcommit_pct, instances_dir,
-			category, location_country, location_node, icon, color, connection_mode, owner_id)
-		 VALUES (?, ?, ?, ?, ?, ?, 'down', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		in.Name, in.Address, boolToInt(in.UseTLS), hash, prefix, token,
-		boolToInt(in.HealthEnabled), defaultInt(in.HealthInterval, 60),
-		defaultInt(in.HealthTimeout, 4), defaultInt(in.HealthRetries, 3),
-		boolToInt(in.SkipTLSVerify), in.Notes, in.InstallDir, in.AllowedKinds,
-		in.AllocMemMiB, in.MemOvercommitPct, in.AllocDiskMiB, in.DiskOvercommitPct,
-		in.InstancesDir,
-		in.Category, in.LocationCountry, in.LocationNode, in.Icon, in.Color, cm,
-		ownerID,
-	)
+	// setup:localnode path must not become a concrete 0 FK. Use two query
+	// variants so the NULL case is a literal NULL, not a driver-typed nil
+	// that the sqlite driver rejects as "invalid driver.Value type <nil>".
+	var res sql.Result
+	if in.OwnerID != 0 {
+		res, err = r.db.Exec(
+			`INSERT INTO nodes (name, address, use_tls, token_hash, token_prefix, token_plain, status,
+				health_enabled, health_interval, health_timeout, health_retries,
+				skip_tls_verify, notes, install_dir, allowed_kinds,
+				alloc_mem_mib, mem_overcommit_pct, alloc_disk_mib, disk_overcommit_pct, instances_dir,
+				category, location_country, location_node, icon, color, connection_mode, owner_id)
+			 VALUES (?, ?, ?, ?, ?, ?, 'down', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			in.Name, in.Address, boolToInt(in.UseTLS), hash, prefix, token,
+			boolToInt(in.HealthEnabled), defaultInt(in.HealthInterval, 60),
+			defaultInt(in.HealthTimeout, 4), defaultInt(in.HealthRetries, 3),
+			boolToInt(in.SkipTLSVerify), in.Notes, in.InstallDir, in.AllowedKinds,
+			in.AllocMemMiB, in.MemOvercommitPct, in.AllocDiskMiB, in.DiskOvercommitPct,
+			in.InstancesDir,
+			in.Category, in.LocationCountry, in.LocationNode, in.Icon, in.Color, cm,
+			in.OwnerID,
+		)
+	} else {
+		res, err = r.db.Exec(
+			`INSERT INTO nodes (name, address, use_tls, token_hash, token_prefix, token_plain, status,
+				health_enabled, health_interval, health_timeout, health_retries,
+				skip_tls_verify, notes, install_dir, allowed_kinds,
+				alloc_mem_mib, mem_overcommit_pct, alloc_disk_mib, disk_overcommit_pct, instances_dir,
+				category, location_country, location_node, icon, color, connection_mode, owner_id)
+			 VALUES (?, ?, ?, ?, ?, ?, 'down', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
+			in.Name, in.Address, boolToInt(in.UseTLS), hash, prefix, token,
+			boolToInt(in.HealthEnabled), defaultInt(in.HealthInterval, 60),
+			defaultInt(in.HealthTimeout, 4), defaultInt(in.HealthRetries, 3),
+			boolToInt(in.SkipTLSVerify), in.Notes, in.InstallDir, in.AllowedKinds,
+			in.AllocMemMiB, in.MemOvercommitPct, in.AllocDiskMiB, in.DiskOvercommitPct,
+			in.InstancesDir,
+			in.Category, in.LocationCountry, in.LocationNode, in.Icon, in.Color, cm,
+		)
+	}
 	if err != nil {
 		return nil, "", err
 	}
