@@ -18,9 +18,8 @@ import (
 	"time"
 
 	"github.com/example/kspanel/internal/config"
-	"github.com/example/kspanel/internal/permissions"
-	"github.com/example/kspanel/internal/repository"
 	"github.com/example/kspanel/internal/models"
+	"github.com/example/kspanel/internal/permissions"
 	"github.com/example/kspanel/internal/probe"
 	"github.com/example/kspanel/internal/repository"
 	"github.com/go-chi/chi/v5"
