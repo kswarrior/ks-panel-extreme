@@ -4684,7 +4684,7 @@ def deploy_instance(template, node):
         var st = p.state || '—';
         var sc = stateColor(st);
         var pc = protoColor(p.proto || 'tcp');
-        html += '<div class="ks-card" data-ks-key="' + esc(String((typeof key!=='undefined'&&key?key:(typeof p!=='undefined'&&p?(p.pid||p.port||p.laddr||p.proto||p.id||''): (typeof j!=='undefined'&&j?(j.id||j.name||''): (typeof s!=='undefined'&&s?(s.key||s.name||s.id||s.external_ref||''): (typeof r!=='undefined'&&r?(r.id||r.action||r.created_at||''):''))))))) + '" style="display:flex;flex-direction:column;gap:10px">'
+        html += '<div class="ks-card" data-ks-key="' + esc(String(p.pid || p.port || p.laddr || '')) + '" style="display:flex;flex-direction:column;gap:10px">'
           + '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">'
           + '<div style="min-width:0;font-size:13px;font-weight:600;color:var(--ks-heading);display:flex;align-items:center;gap:8px">'
           + '<span class="ks-mono" style="font-size:10px;font-weight:400;padding:2px 6px;border-radius:4px;border:1px solid currentColor;color:' + pc + ';text-transform:uppercase">' + esc(p.proto || 'tcp') + '</span>'
