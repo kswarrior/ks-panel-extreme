@@ -138,14 +138,34 @@ func AdminListThemesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer closeFn()
 
-	ts, err := repo.ListThemesWithOwner()
+		ts, err := repo.ListThemesWithOwner()
 	if err != nil {
 		log.Println("ListThemesWithOwner error:", err)
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
 	out := make([]storedTheme, 0, len(ts))
+	// Ownership scope (migration 054): THEMES_OWN → only themes the caller
+	// authored; THEMES_ALL / MANAGE_THEMES umbrella → full catalog.
+	// Built-in themes (builtin == true) stay visible to everyone because
+	// they ship with the panel and are not really owned by anyone.
+	var scopeOwn bool
+	var scopeUID int64
+	if uid, _ := UserIDFromContext(r); uid != 0 {
+		if con, perr := repository.OpenDB(); perr == nil {
+			chk := permissions.NewChecker(con)
+			hasOwn, hasAll, _ := chk.HasScope(uid, permissions.ThemesOwnKey, permissions.ThemesAllKey, permissions.ManageThemesKey)
+			con.Close()
+			if !hasAll && hasOwn {
+				scopeOwn = true
+				scopeUID = uid
+			}
+		}
+	}
 	for _, t := range ts {
+		if scopeOwn && !t.Theme.Builtin && t.Theme.OwnerID != scopeUID {
+			continue
+		}
 		out = append(out, storedThemeFromOwner(t))
 	}
 	writeJSON(w, out)

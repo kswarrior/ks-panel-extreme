@@ -21,6 +21,7 @@ import (
 	"github.com/example/kspanel/internal/edge"
 	"github.com/example/kspanel/internal/models"
 	"github.com/example/kspanel/internal/pagelib"
+	"github.com/example/kspanel/internal/permissions"
 	"github.com/example/kspanel/internal/repository"
 	"github.com/go-chi/chi/v5"
 )
@@ -456,6 +457,7 @@ func CreateInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer con.Close()
+	ownerID, _ := UserIDFromContext(r)
 	id, err := repository.NewInstancePageRepository(con).Create(repository.InstancePageInput{
 		Name:            req.Name,
 		Slug:            req.Slug,
@@ -471,6 +473,7 @@ func CreateInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		Actions:         req.Actions,
 		SubPages:        req.SubPages,
 		Components:      req.Components,
+		OwnerID:           ownerID,
 	})
 	if err != nil {
 		log.Println("CreateInstancePage error:", err)
