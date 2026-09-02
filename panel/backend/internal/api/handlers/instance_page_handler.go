@@ -656,7 +656,7 @@ func BulkCreateInstancePagesHandler(w http.ResponseWriter, r *http.Request) {
 			skipped++
 			continue
 		}
-		res, eerr := stmt.Exec(dto.Name, dto.Slug, dto.Kind, dto.Category, dto.PageType, dto.Description, dto.ContentType, dto.ContentHTML, dto.ContentMarkdown, dto.ContentBlocks, dto.IconSVG, dto.Actions, dto.SubPages, dto.Components)
+		res, eerr := stmt.Exec(dto.Name, dto.Slug, dto.Kind, dto.Category, dto.Type, dto.Description, dto.ContentType, dto.ContentHTML, dto.ContentMarkdown, dto.ContentBlocks, dto.IconSVG, dto.Actions, dto.SubPages, dto.Components)
 		if eerr != nil {
 			if isDuplicateSlugError(eerr.Error()) {
 				skipped++
