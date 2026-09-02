@@ -116,16 +116,26 @@ func (r *ApplicationRepository) CreateApplication(in CreateApplicationInput) (*m
 	}
 	defer tx.Rollback()
 
-	appUploaded := sql.NullInt64{Int64: in.UploadedBy, Valid: in.UploadedBy != 0}
-	appOwner := sql.NullInt64{Int64: in.UploadedBy, Valid: in.UploadedBy != 0}
-	res, err := tx.Exec(
-		`INSERT INTO applications (name, slug, category, version, description, icon, runtime, entrypoint,
-			config_schema, files, permissions, active, uploaded_by, owner_id, source, source_url, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`,
-		in.Name, in.Slug, in.Category, in.Version, in.Description, in.Icon,
-		in.Runtime, in.Entrypoint, cfgSchema, files, string(perms),
-		appUploaded, appOwner, source, in.SourceURL, now, now,
-	)
+	var res sql.Result
+	if in.UploadedBy != 0 {
+		res, err = tx.Exec(
+			`INSERT INTO applications (name, slug, category, version, description, icon, runtime, entrypoint,
+				config_schema, files, permissions, active, uploaded_by, owner_id, source, source_url, created_at, updated_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`,
+			in.Name, in.Slug, in.Category, in.Version, in.Description, in.Icon,
+			in.Runtime, in.Entrypoint, cfgSchema, files, string(perms),
+			in.UploadedBy, in.UploadedBy, source, in.SourceURL, now, now,
+		)
+	} else {
+		res, err = tx.Exec(
+			`INSERT INTO applications (name, slug, category, version, description, icon, runtime, entrypoint,
+				config_schema, files, permissions, active, source, source_url, created_at, updated_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
+			in.Name, in.Slug, in.Category, in.Version, in.Description, in.Icon,
+			in.Runtime, in.Entrypoint, cfgSchema, files, string(perms),
+			source, in.SourceURL, now, now,
+		)
+	}
 	if err != nil {
 		return nil, err
 	}

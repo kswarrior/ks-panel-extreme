@@ -219,13 +219,20 @@ func (r *ModRepository) CreateMod(in CreateModInput) (*models.Mod, error) {
 	}
 	defer tx.Rollback()
 
-	modUploaded := sql.NullInt64{Int64: in.UploadedBy, Valid: in.UploadedBy != 0}
-	modOwner := sql.NullInt64{Int64: in.UploadedBy, Valid: in.UploadedBy != 0}
-	res, err := tx.Exec(
-		`INSERT INTO mods (name, slug, version, description, manifest, spec, active, uploaded_by, owner_id, engine_version, source, source_url, package_size, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		in.Name, in.Slug, in.Version, in.Description, manifest, spec, modUploaded, modOwner, engineVersion, source, in.SourceURL, in.PackageSize, now, now,
-	)
+	var res sql.Result
+	if in.UploadedBy != 0 {
+		res, err = tx.Exec(
+			`INSERT INTO mods (name, slug, version, description, manifest, spec, active, uploaded_by, owner_id, engine_version, source, source_url, package_size, created_at, updated_at)
+			 VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			in.Name, in.Slug, in.Version, in.Description, manifest, spec, in.UploadedBy, in.UploadedBy, engineVersion, source, in.SourceURL, in.PackageSize, now, now,
+		)
+	} else {
+		res, err = tx.Exec(
+			`INSERT INTO mods (name, slug, version, description, manifest, spec, active, engine_version, source, source_url, package_size, created_at, updated_at)
+			 VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`,
+			in.Name, in.Slug, in.Version, in.Description, manifest, spec, engineVersion, source, in.SourceURL, in.PackageSize, now, now,
+		)
+	}
 	if err != nil {
 		return nil, err
 	}
