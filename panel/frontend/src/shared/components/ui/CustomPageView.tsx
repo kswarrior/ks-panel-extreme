@@ -725,7 +725,12 @@ function buildIframeDocument(htmlContent: string, instanceContextJson: string, s
     var oldMap={}; for(var oi=0;oi<oldNodes.length;oi++){ var on=oldNodes[oi]; oldMap[on.getAttribute('data-ks-key')]=on; }
     var hasKeyed=newKeys.length>0;
     if(hasKeyed){
-      for(var i=0;i<newKeys.length;i++){ var n=newKeys[i]; var key=n.getAttribute('data-ks-key'); var o=oldMap[key]; if(o && o.outerHTML!==n.outerHTML){ o.replaceWith(n.cloneNode(true)); } else if(!o){ /* new unit handled below */ } if(o) delete oldMap[key]; }
+      function findParentInRoot(node, tmpRoot, realRoot){
+        var path=[]; var cur=node.parentElement;
+        while(cur && cur!==tmpRoot){ var p=cur.parentElement; if(!p) break; var idx=Array.prototype.indexOf.call(p.children, cur); path.unshift(idx); cur=p; }
+        var target=realRoot; for(var pi=0; pi<path.length; pi++){ if(!target || target.children.length<=path[pi]) return realRoot; target=target.children[path[pi]]; } return target;
+      }
+      for(var i=0;i<newKeys.length;i++){ var n=newKeys[i]; var key=n.getAttribute('data-ks-key'); var o=oldMap[key]; if(o && o.outerHTML!==n.outerHTML){ o.replaceWith(n.cloneNode(true)); } else if(!o){ try{ var pr=findParentInRoot(n, tmp, root); pr.appendChild(n.cloneNode(true)); }catch(e){} } if(o) delete oldMap[key]; }
       for(var k in oldMap){ try{ oldMap[k].remove(); }catch(e){} }
       if(root.children.length && tmp.children.length && root.children.length===tmp.children.length){
         for(var i=0;i<tmp.children.length;i++){ var nn=tmp.children[i]; var oo=root.children[i]; var nnHasKey=!!nn.querySelector('[data-ks-key]')||nn.hasAttribute('data-ks-key'); var ooHasKey=!!oo.querySelector('[data-ks-key]')||oo.hasAttribute('data-ks-key'); if(nnHasKey||ooHasKey) continue; if(oo.outerHTML!==nn.outerHTML){ oo.replaceWith(nn.cloneNode(true)); } }
