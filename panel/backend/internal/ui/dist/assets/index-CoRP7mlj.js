@@ -4777,7 +4777,7 @@ def deploy_instance(template, node):
         var cmd = p.cmd || p.name || '';
         var expanded = !!state.expanded[key];
         var displayCmd = (!expanded && String(cmd).length > 50) ? String(cmd).substring(0, 50) + '...' : cmd;
-        html += '<div class="ks-card" data-ks-key="' + esc(String((typeof key!=='undefined'&&key?key:(typeof p!=='undefined'&&p?(p.pid||p.port||p.laddr||p.proto||p.id||''): (typeof j!=='undefined'&&j?(j.id||j.name||''): (typeof s!=='undefined'&&s?(s.key||s.name||s.id||s.external_ref||''): (typeof r!=='undefined'&&r?(r.id||r.action||r.created_at||''):''))))))) + '" style="display:flex;flex-direction:column;gap:10px">'
+        html += '<div class="ks-card" data-ks-key="' + esc(String(p.pid || '')) + '" style="display:flex;flex-direction:column;gap:10px">'
           + '<div><div style="font-size:13px;font-weight:600;color:var(--ks-heading)">PID ' + esc(p.pid) + '</div>'
           + '<span class="ks-badge ks-mono" style="margin-top:4px">' + esc(p.user || '—') + '</span></div>'
           + '<div style="display:flex;align-items:flex-start;gap:8px"><span class="ks-mono ks-muted" style="font-size:12px;flex-shrink:0">Command:</span>'
