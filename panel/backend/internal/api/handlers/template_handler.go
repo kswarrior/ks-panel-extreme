@@ -443,8 +443,10 @@ func InstallTemplateFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer con.Close()
+	ownerID, _ := UserIDFromContext(r)
 	id, err := repository.NewTemplateRepository(con).Create(repository.TemplateInput{
 		Name: name, Description: description, Kind: kind, Image: image, Spec: spec,
+		OwnerID: ownerID,
 	})
 	if err != nil {
 		log.Println("CreateTemplate from URL error:", err)
@@ -601,6 +603,9 @@ func templatePortFromHost(hostport, scheme string) string {
 }
 
 // UpdateTemplateHandler patches an editable template.
+// Ownership scope (migration 054): TEMPLATES_OWN may only edit templates
+// the caller authored; TEMPLATES_ALL / MANAGE_TEMPLATES umbrella keep
+// full edit. Own-restricted callers are enforced by the scope branch.
 func UpdateTemplateHandler(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
@@ -623,6 +628,16 @@ func UpdateTemplateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer con.Close()
+	if uid, _ := UserIDFromContext(r); uid != 0 {
+		chk := permissions.NewChecker(con)
+		hasOwn, hasAll, _ := chk.HasScope(uid, permissions.TemplatesOwnKey, permissions.TemplatesAllKey, permissions.ManageTemplatesKey)
+		if !hasAll && hasOwn {
+			if ex, gerr := repository.NewTemplateRepository(con).Get(id); gerr == nil && ex != nil && ex.OwnerID != uid {
+				http.Error(w, "forbidden: own-scope may only edit templates you authored", http.StatusForbidden)
+				return
+			}
+		}
+	}
 	if err := repository.NewTemplateRepository(con).Update(id, repository.TemplateInput{
 		Name: req.Name, Description: req.Description, Kind: req.Kind, Image: req.Image, Spec: spec,
 	}); err != nil {
@@ -652,11 +667,21 @@ func DeleteTemplateHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	defer con.Close()
+		defer con.Close()
 	tmplRepo := repository.NewTemplateRepository(con)
 	var label string
+	var ownerID int64
 	if existing, gerr := tmplRepo.Get(id); gerr == nil && existing != nil {
 		label = existing.Name
+		ownerID = existing.OwnerID
+	}
+	if uid, _ := UserIDFromContext(r); uid != 0 {
+		chk := permissions.NewChecker(con)
+		hasOwn, hasAll, _ := chk.HasScope(uid, permissions.TemplatesOwnKey, permissions.TemplatesAllKey, permissions.ManageTemplatesKey)
+		if !hasAll && hasOwn && ownerID != uid {
+			http.Error(w, "forbidden: own-scope may only delete templates you authored", http.StatusForbidden)
+			return
+		}
 	}
 	if err := tmplRepo.Delete(id); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -690,6 +715,17 @@ func DownloadTemplateHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil || tmpl == nil {
 		http.Error(w, "template not found", http.StatusNotFound)
 		return
+	}
+	// Ownership scope (migration 054): own-scope callers may only
+	// download templates they authored; the download route already
+	// passed the per-action VIEW gate, this is the extra filter.
+	if uid, _ := UserIDFromContext(r); uid != 0 {
+		chk := permissions.NewChecker(con)
+		hasOwn, hasAll, _ := chk.HasScope(uid, permissions.TemplatesOwnKey, permissions.TemplatesAllKey, permissions.ManageTemplatesKey)
+		if !hasAll && hasOwn && tmpl.OwnerID != uid {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
 	}
 
 	exportData := map[string]any{

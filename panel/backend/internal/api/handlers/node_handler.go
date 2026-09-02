@@ -18,6 +18,8 @@ import (
 	"time"
 
 	"github.com/example/kspanel/internal/config"
+	"github.com/example/kspanel/internal/permissions"
+	"github.com/example/kspanel/internal/repository"
 	"github.com/example/kspanel/internal/models"
 	"github.com/example/kspanel/internal/probe"
 	"github.com/example/kspanel/internal/repository"
@@ -301,6 +303,22 @@ func ListNodesHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
+	// Ownership scope (migration 054): NODES_OWN → only nodes the caller
+	// registered; NODES_ALL / MANAGE_NODES umbrella → full fleet.
+	if uid, _ := UserIDFromContext(r); uid != 0 {
+		chk := permissions.NewChecker(con)
+		hasOwn, hasAll, _ := chk.HasScope(uid, permissions.NodesOwnKey, permissions.NodesAllKey, permissions.ManageNodesKey)
+		if !hasAll && hasOwn {
+			filtered := make([]models.Node, 0, len(nodes))
+			for _, n := range nodes {
+				if n.OwnerID == uid {
+					filtered = append(filtered, n)
+				}
+			}
+			writeJSON(w, filtered)
+			return
+		}
+	}
 	writeJSON(w, nodes)
 }
 
@@ -372,6 +390,7 @@ func CreateNodeHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "a node with this name and label pair already exists — change the name or the node label", http.StatusConflict)
 		return
 	}
+	uid, _ := UserIDFromContext(r)
 	node, token, err := repo.CreateNode(repository.CreateNodeInput{
 		Name:              req.Name,
 		Address:           req.Address,
@@ -395,6 +414,7 @@ func CreateNodeHandler(w http.ResponseWriter, r *http.Request) {
 		LocationNode:    req.LocationNode,
 		Icon:            req.Icon,
 		Color:           req.Color,
+		OwnerID:           uid,
 	})
 	if err != nil {
 		log.Println("CreateNode error:", err)
