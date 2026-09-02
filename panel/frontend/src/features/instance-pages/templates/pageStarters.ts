@@ -1257,6 +1257,14 @@ for (const s of PAGE_STARTERS) {
   }
 }
 
+// Aliases for the "staterpages to pages" wording: the library is starter
+// pages that get bulk-added directly to instance_pages. Both names resolve to
+// the same array so callers using either term hit the fast bulk path without
+// browser-per-page loops.
+export const PAGE_STARTER_PAGES = PAGE_STARTERS;
+export const PAGE_STATERPAGES = PAGE_STARTERS;
+export const STATER_PAGES = PAGE_STARTERS;
+
 export default PAGE_STARTERS;
 
 

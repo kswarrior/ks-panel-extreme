@@ -478,6 +478,9 @@ func NewRouter() http.Handler {
 		r.Route("/api/instance-pages", func(r chi.Router) {
 			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionView)).Get("/", handlers.ListInstancePagesHandler)
 			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionCreate)).Post("/", handlers.CreateInstancePageHandler)
+			// Bulk create — fast-path for "Select all visible → Import" (single TX, single round-trip).
+			// Must sit before param routes so "/bulk" is not captured as {id}.
+			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionCreate)).Post("/bulk", handlers.BulkCreateInstancePagesHandler)
 			// Static literals before param routes so "/execute-action", "/marketplace",
 			// "/local", "/import" etc. are not captured as {id}.
 			r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Post("/execute-action", handlers.ExecuteCustomPageActionHandler)
