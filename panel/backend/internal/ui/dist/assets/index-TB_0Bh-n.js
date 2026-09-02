@@ -4775,8 +4775,8 @@ def deploy_instance(template, node):
       html += '<div class="ks-card" style="margin-top:12px"><p class="ks-muted" style="font-size:12px;margin:0;padding:6px 12px">No processes reported. The instance may be stopped or the edge’s inspect endpoint is unavailable.</p></div>';
     } else {
       html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;margin-top:12px">';
-      state.rows.forEach(function (p, i) {
-        var key = p.pid + '-' + i;
+      state.rows.forEach(function (p) {
+        var key = String(p.pid);
         var cmd = p.cmd || p.name || '';
         var expanded = !!state.expanded[key];
         var displayCmd = (!expanded && String(cmd).length > 50) ? String(cmd).substring(0, 50) + '...' : cmd;
