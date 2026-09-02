@@ -2124,7 +2124,7 @@ document.currentScript.remove();
         html += '<div class="ks-ip-scroll-area" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;max-height:calc(100vh - 260px);max-height:calc(100dvh - 260px);overflow:auto;padding-right:4px">';
         state.runs.forEach(function (r) {
           var failed = r.error || r.exit_code !== 0;
-          html += '<div class="ks-card" data-ks-key="' + esc(String((typeof key!=='undefined'&&key?key:(typeof p!=='undefined'&&p?(p.pid||p.port||p.laddr||p.proto||p.id||''): (typeof j!=='undefined'&&j?(j.id||j.name||''): (typeof s!=='undefined'&&s?(s.key||s.name||s.id||s.external_ref||''): (typeof r!=='undefined'&&r?(r.id||r.action||r.created_at||''):''))))))) + '" style="display:flex;flex-direction:column;gap:10px">'
+          html += '<div class="ks-card" data-ks-key="' + esc(String(r.id || r.created_at || '')) + '" style="display:flex;flex-direction:column;gap:10px">'
             + '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px">'
             + '<span class="ks-badge" style="color:' + (r.trigger === 'schedule' ? 'var(--ks-info)' : 'var(--ks-purple)') + '">' + esc(r.trigger) + '</span>'
             + '<span class="ks-mono" style="font-size:12px;color:' + (failed ? 'var(--ks-bad)' : 'var(--ks-ok)') + '">' + (r.error ? 'err' : 'exit ' + esc(r.exit_code)) + '</span></div>'
