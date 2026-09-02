@@ -722,7 +722,7 @@ function buildIframeDocument(htmlContent: string, instanceContextJson: string, s
     var tmp=document.createElement('div'); tmp.innerHTML=newHtml;
     var newKeys=tmp.querySelectorAll('[data-ks-key]');
     var oldNodes=root.querySelectorAll('[data-ks-key]');
-    var oldMap={}; for(var oi=0;oi<oldNodes.length;oi++){ var on=oldNodes[oi]; oldMap[on.getAttribute('data-ks-key')]=on; }
+    var oldMap=Object.create(null); for(var oi=0;oi<oldNodes.length;oi++){ var on=oldNodes[oi]; oldMap[on.getAttribute('data-ks-key')]=on; }
     var hasKeyed=newKeys.length>0;
     if(hasKeyed){
       for(var i=0;i<newKeys.length;i++){ var n=newKeys[i]; var key=n.getAttribute('data-ks-key'); var o=oldMap[key]; if(o && o.outerHTML!==n.outerHTML){ o.replaceWith(n.cloneNode(true)); } else if(!o){ /* new unit handled below */ } if(o) delete oldMap[key]; }
