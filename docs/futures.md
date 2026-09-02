@@ -2,7 +2,7 @@
 
 > **Exhaustive feature inventory.** Every implemented, partial, planned, and explicitly-deferred capability is listed — *nothing small is skipped*. Sorted by implementation status. Items are not promised in any specific release order.
 >
-> **Last exhaustive sync:** 2026-09-02 — walked `panel/backend` (157 Go files, 53 migrations ×3 dialects), `panel/frontend/src` (237 files, 60+ routes, 100+ components), `edge/backend` (22 Go files, 4 drivers, 10 handlers), `docs/*`, `tools/*`, `instance_pages/*`, `release/*`, `go.mod`, `panel/backend/internal/permissions`, `panel/backend/internal/api/server.go` (806 lines, 100+ routes), and `panel/frontend/src/app/router.tsx` (604 lines). Evidence pinned to file:line where useful.
+> **Last exhaustive sync:** 2026-09-02 — walked `panel/backend` (157 Go files, 55 migrations ×3 dialects), `panel/frontend/src` (237 files, 60+ routes, 100+ components), `edge/backend` (22 Go files, 4 drivers, 10 handlers), `docs/*`, `tools/*`, `instance_pages/*`, `release/*`, `go.mod`, `panel/backend/internal/permissions`, `panel/backend/internal/api/server.go` (806 lines, 100+ routes), and `panel/frontend/src/app/router.tsx` (604 lines). Evidence pinned to file:line where useful.
 
 ---
 
@@ -249,7 +249,7 @@
 
 - **Backend handlers enumerated:** 38 files `activity×2, admin, api_key, application×2, auth×2, authentication_admin, authority, database×2, ddos_script, files, instance×2, instance_advanced, instance_page×2, me×2, mod×2, node, notification, oauth, profile, security×2, session_admin, settings, system, template, terminal, theme, ticket, update` → 100+ `*Handler` functions captured.
 - **API routes enumerated:** `server.go NewRouter 806 lines` — public ~20 + protected ~90 (nodes, templates, mods, apps, pages×2, tickets, instances×8 groups, files×5, secrets×4, automation×6, inspect×7, system×8, activity, database×7, security×12, notifications×9, themes×7, scopes `OWN|ALL`) — every route pin pointed.
-- **DB enumerated:** 53 migrations ×3 dialects (`001–053`) — each DDL purpose listed; `012_activity`, `017_mods`, `020_mod_v2`, `021_secrets`, `022_automation`, `023_instance_advanced`, `025_alloc`, `027_security_requests`, `029_applications`, `032_pages`, `046_drop_builtin`, `052_tickets`, `053_notifications`, etc.
+- **DB enumerated:** 55 migrations ×3 dialects (`001–053`) — each DDL purpose listed; `012_activity`, `017_mods`, `020_mod_v2`, `021_secrets`, `022_automation`, `023_instance_advanced`, `025_alloc`, `027_security_requests`, `029_applications`, `032_pages`, `046_drop_builtin`, `052_tickets`, `053_notifications`, etc.
 - **Permissions enumerated:** all 90 keys (umbrellas + granular + theme + account + OWN/ALL) + `AreaGroups[13]` order.
 - **Frontend enumerated:** `src/main.tsx + App.tsx + router.tsx 60+ routes` + `index.html vite tailwind` + 7 layout + 27 shared UI + 15 theme-studio + 9 page-studio + 4 system + 5 security + 2 database + 2 notifications + 4 tickets + 3 roles + 3 instances + 9 templates + nodes + activity + every page `Stats|Detail|Form|Studio` file listed by absolute path in inventory.
 - **Edge enumerated:** `config, cli, health, heartbeat, tunnel, lifecycle, exec, execrpc, hostexec, execstage, files+hostFSDispatcher, inspect, install engine+handler, snapshot, pageaction, drivers docker|lxd|kvm|multipass+helpers`.
