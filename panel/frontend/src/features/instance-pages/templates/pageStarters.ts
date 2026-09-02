@@ -879,9 +879,8 @@ export const PAGE_STARTERS: PageStarter[] = [
       },
       {
         name: 'prune_dangling',
-        type: 'docker',
-        command: 'image',
-        args: ['prune', '--force'],
+        type: 'shell',
+        command: 'docker image prune --force',
         timeout: 120,
         description: 'Remove dangling docker images to free disk space.',
       },
