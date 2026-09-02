@@ -507,7 +507,7 @@ interface CustomPageViewProps {
 // UI side-effects; none of them expose raw DOM/network handles.
 const BRIDGE_METHODS = [
   'executeAction', 'runAction', 'fetchPanel',
-  'shell', 'readFile', 'writeFile', 'listFiles', 'deleteFile', 'createDirectory', 'downloadFile',
+  'shell', 'readFile', 'writeFile', 'listFiles', 'deleteFile', 'createDirectory',
   'docker', 'kvm', 'lxd',
   'toast',
   // Panel-owned confirm dialog: the iframe asks, the HOST renders the themed
@@ -722,15 +722,11 @@ function buildIframeDocument(htmlContent: string, instanceContextJson: string, s
     var tmp=document.createElement('div'); tmp.innerHTML=newHtml;
     var newKeys=tmp.querySelectorAll('[data-ks-key]');
     var oldNodes=root.querySelectorAll('[data-ks-key]');
-    var oldMap=Object.create(null); for(var oi=0;oi<oldNodes.length;oi++){ var on=oldNodes[oi]; oldMap[on.getAttribute('data-ks-key')]=on; }
+    var oldMap={}; for(var oi=0;oi<oldNodes.length;oi++){ var on=oldNodes[oi]; oldMap[on.getAttribute('data-ks-key')]=on; }
     var hasKeyed=newKeys.length>0;
     if(hasKeyed){
       for(var i=0;i<newKeys.length;i++){ var n=newKeys[i]; var key=n.getAttribute('data-ks-key'); var o=oldMap[key]; if(o && o.outerHTML!==n.outerHTML){ o.replaceWith(n.cloneNode(true)); } else if(!o){ /* new unit handled below */ } if(o) delete oldMap[key]; }
       for(var k in oldMap){ try{ oldMap[k].remove(); }catch(e){} }
-      if(newKeys.length !== oldNodes.length){
-        if(root.innerHTML!==newHtml){ var stA=root.scrollTop, slA=root.scrollLeft; root.innerHTML=newHtml; try{root.scrollTop=stA; root.scrollLeft=slA;}catch(e){} }
-        return;
-      }
       if(root.children.length && tmp.children.length && root.children.length===tmp.children.length){
         for(var i=0;i<tmp.children.length;i++){ var nn=tmp.children[i]; var oo=root.children[i]; var nnHasKey=!!nn.querySelector('[data-ks-key]')||nn.hasAttribute('data-ks-key'); var ooHasKey=!!oo.querySelector('[data-ks-key]')||oo.hasAttribute('data-ks-key'); if(nnHasKey||ooHasKey) continue; if(oo.outerHTML!==nn.outerHTML){ oo.replaceWith(nn.cloneNode(true)); } }
       }
@@ -1291,7 +1287,6 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
               case 'listFiles': return sdk.listFiles(list[0]);
               case 'deleteFile': return sdk.deleteFile(list[0]);
               case 'createDirectory': return sdk.createDirectory(list[0]);
-              case 'downloadFile': return sdk.downloadFile(list[0]);
               case 'docker': return sdk.docker(list[0], list[1]);
               case 'kvm': return sdk.kvm(list[0], list[1]);
               case 'lxd': return sdk.lxd(list[0], list[1]);

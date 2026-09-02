@@ -124,7 +124,6 @@ export interface CustomPageAPI {
   listFiles: (path: string) => Promise<FileEntry[]>;
   deleteFile: (path: string) => Promise<ActionResult>;
   createDirectory: (path: string) => Promise<ActionResult>;
-  downloadFile: (path: string) => Promise<Blob>;
   
   // Driver-specific commands
   docker: (command: string, args?: string[]) => Promise<ActionResult>;
@@ -419,13 +418,6 @@ export function createCustomPageSDK(
     deleteFile: (path) => executeAction({ type: 'shell', command: `rm -rf -- ${shellQuote(path)}` }),
     
     createDirectory: (path) => executeAction({ type: 'shell', command: `mkdir -p -- ${shellQuote(path)}` }),
-    
-    downloadFile: async (path: string): Promise<Blob> => {
-      const url = `${apiBase}/files/read?path=${encodeURIComponent(path)}`;
-      const res = await fetch(url, { credentials: 'include' });
-      if (!res.ok) throw new Error(sanitizeHttpError(await res.text(), res.status));
-      return res.blob();
-    },
     
     docker: (command, args) => executeAction({ type: 'docker', command, args }),
     
