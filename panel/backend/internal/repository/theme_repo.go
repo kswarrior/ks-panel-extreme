@@ -158,10 +158,13 @@ func (r *ThemeRepository) CreateTheme(in UpsertThemeInput) (*models.Theme, error
 		spec = "{}"
 	}
 	now := time.Now().UTC().Format("2006-01-02 15:04:05")
-	owner := in.CreatedBy
+	var themeOwner, themeCreator any = in.CreatedBy, in.CreatedBy
+	if in.CreatedBy == 0 {
+		themeOwner, themeCreator = nil, nil
+	}
 	if _, err := r.db.Exec(
 		`INSERT INTO themes (id, name, description, spec, builtin, created_by, owner_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		in.ID, in.Name, in.Description, spec, in.Builtin, in.CreatedBy, owner, now, now,
+		in.ID, in.Name, in.Description, spec, in.Builtin, themeCreator, themeOwner, now, now,
 	); err != nil {
 		return nil, err
 	}
