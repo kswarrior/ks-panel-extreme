@@ -213,17 +213,27 @@ const InstancePages: React.FC = () => {
         }
         if (payloads.length === 0) { setImportError('No valid pages to import'); setImportLoading(false); return; }
         try {
-          const res = await bulkCreateInstancePages(payloads);
-          if (res.imported > 0) {
+          // Chunk into 100-page batches (server max) — single round-trip for typical "Select all visible".
+          let totalImported = 0;
+          let totalSkipped = 0;
+          const totalErrors: string[] = [];
+          for (let i = 0; i < payloads.length; i += 100) {
+            const chunk = payloads.slice(i, i + 100);
+            const res = await bulkCreateInstancePages(chunk);
+            totalImported += res.imported;
+            totalSkipped += res.skipped;
+            if (res.errors && res.errors.length) totalErrors.push(...res.errors);
+          }
+          if (totalImported > 0) {
             closeAdd();
             await load();
           }
-          if (res.errors && res.errors.length > 0) {
-            setImportError(res.errors.join('; '));
-          } else if (res.skipped > 0 && res.imported === 0) {
-            setImportError(`All selected pages already exist (skipped ${res.skipped})`);
-          } else if (res.skipped > 0) {
-            setImportError(`Imported ${res.imported}, skipped ${res.skipped} already existing`);
+          if (totalErrors.length > 0) {
+            setImportError(totalErrors.join('; '));
+          } else if (totalSkipped > 0 && totalImported === 0) {
+            setImportError(`All selected pages already exist (skipped ${totalSkipped})`);
+          } else if (totalSkipped > 0) {
+            setImportError(`Imported ${totalImported}, skipped ${totalSkipped} already existing`);
           }
         } catch (bulkErr: any) {
           // Fallback: if bulk endpoint is unavailable (old backend), do parallel
@@ -291,14 +301,23 @@ const InstancePages: React.FC = () => {
         }
         if (payloads.length === 0) { setImportError('No valid starters to import'); setImportLoading(false); return; }
         try {
-          const res = await bulkCreateInstancePages(payloads);
-          if (res.imported > 0) {
+          let totalImported = 0;
+          let totalSkipped = 0;
+          const totalErrors: string[] = [];
+          for (let i = 0; i < payloads.length; i += 100) {
+            const chunk = payloads.slice(i, i + 100);
+            const res = await bulkCreateInstancePages(chunk);
+            totalImported += res.imported;
+            totalSkipped += res.skipped;
+            if (res.errors && res.errors.length) totalErrors.push(...res.errors);
+          }
+          if (totalImported > 0) {
             closeAdd();
             await load();
           }
-          if (res.errors && res.errors.length > 0) setImportError(res.errors.join('; '));
-          else if (res.skipped > 0 && res.imported === 0) setImportError(`All selected pages already exist (skipped ${res.skipped})`);
-          else if (res.skipped > 0) setImportError(`Imported ${res.imported}, skipped ${res.skipped} already existing`);
+          if (totalErrors.length > 0) setImportError(totalErrors.join('; '));
+          else if (totalSkipped > 0 && totalImported === 0) setImportError(`All selected pages already exist (skipped ${totalSkipped})`);
+          else if (totalSkipped > 0) setImportError(`Imported ${totalImported}, skipped ${totalSkipped} already existing`);
         } catch (bulkErr: any) {
           const status = bulkErr?.response?.status;
           if (status !== 404 && status !== 405) throw bulkErr;
@@ -815,7 +834,7 @@ const InstancePages: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
-                  if (importSource === 'templates') {
+                  if (normalizedImportSource === 'templates') {
                     const allKeys = filteredTemplatePages.filter((e) => !existingSlugs.has(e.slug)).map((e) => e.key);
                     setSelectedImportKeys(new Set(allKeys));
                   } else {
@@ -823,7 +842,7 @@ const InstancePages: React.FC = () => {
                     setSelectedImportKeys(new Set(allIds));
                   }
                 }}
-                disabled={importSource === 'templates' ? filteredTemplatePages.filter((e) => !existingSlugs.has(e.slug)).length === 0 : filteredStarters.filter((s) => !existingSlugs.has(s.slug)).length === 0}
+                disabled={normalizedImportSource === 'templates' ? filteredTemplatePages.filter((e) => !existingSlugs.has(e.slug)).length === 0 : filteredStarters.filter((s) => !existingSlugs.has(s.slug)).length === 0}
                 className="text-xs text-sky-300 hover:text-sky-200 disabled:opacity-40"
               >
                 Select all visible
