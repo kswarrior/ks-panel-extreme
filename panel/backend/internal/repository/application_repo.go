@@ -118,11 +118,11 @@ func (r *ApplicationRepository) CreateApplication(in CreateApplicationInput) (*m
 
 	res, err := tx.Exec(
 		`INSERT INTO applications (name, slug, category, version, description, icon, runtime, entrypoint,
-			config_schema, files, permissions, active, uploaded_by, source, source_url, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`,
+			config_schema, files, permissions, active, uploaded_by, owner_id, source, source_url, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`,
 		in.Name, in.Slug, in.Category, in.Version, in.Description, in.Icon,
 		in.Runtime, in.Entrypoint, cfgSchema, files, string(perms),
-		in.UploadedBy, source, in.SourceURL, now, now,
+		in.UploadedBy, in.UploadedBy, source, in.SourceURL, now, now,
 	)
 	if err != nil {
 		return nil, err

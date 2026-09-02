@@ -24,7 +24,7 @@ func NewThemeRepository(db *sql.DB) *ThemeRepository {
 // listTheme is the shared SELECT used by ListThemes (public) and ListThemesWithOwner
 // (admin). It carries the spec verbatim as a raw string; the caller decides
 // whether to attach the creator's username.
-const themeColumns = "id, name, description, spec, builtin, created_by, created_at, updated_at"
+const themeColumns = "id, name, description, spec, builtin, created_by, owner_id, created_at, updated_at"
 
 // scanTheme scans one row into a *models.Theme, parsing the SQLite datetime
 // strings the driver emits. `spec` is preserved as a json.RawMessage so the
@@ -155,9 +155,13 @@ func (r *ThemeRepository) CreateTheme(in UpsertThemeInput) (*models.Theme, error
 		spec = "{}"
 	}
 	now := time.Now().UTC().Format("2006-01-02 15:04:05")
+	var owner int64
+	if in.CreatedBy != nil {
+		owner = *in.CreatedBy
+	}
 	if _, err := r.db.Exec(
-		`INSERT INTO themes (id, name, description, spec, builtin, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		in.ID, in.Name, in.Description, spec, in.Builtin, in.CreatedBy, now, now,
+		`INSERT INTO themes (id, name, description, spec, builtin, created_by, owner_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		in.ID, in.Name, in.Description, spec, in.Builtin, in.CreatedBy, owner, now, now,
 	); err != nil {
 		return nil, err
 	}
