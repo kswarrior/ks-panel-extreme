@@ -608,16 +608,17 @@ func BulkCreateInstancePagesHandler(w http.ResponseWriter, r *http.Request) {
 	defer con.Close()
 
 	// Pre-load existing slugs so we can skip without UNIQUE constraint hits.
+	// Rows is closed before Begin to avoid holding a read cursor across the
+	// write transaction (SQLite: "database is locked" if cursor stays open).
 	existing := make(map[string]bool)
-	rows, err := con.Query(`SELECT slug FROM instance_pages`)
-	if err == nil {
-		defer rows.Close()
+	if rows, qerr := con.Query(`SELECT slug FROM instance_pages`); qerr == nil {
 		for rows.Next() {
 			var s string
 			if err := rows.Scan(&s); err == nil {
 				existing[s] = true
 			}
 		}
+		rows.Close()
 	}
 
 	tx, err := con.Begin()
