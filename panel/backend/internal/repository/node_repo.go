@@ -136,7 +136,7 @@ func (r *NodeRepository) CreateNode(in CreateNodeInput) (*models.Node, string, e
 				skip_tls_verify, notes, install_dir, allowed_kinds,
 				alloc_mem_mib, mem_overcommit_pct, alloc_disk_mib, disk_overcommit_pct, instances_dir,
 				category, location_country, location_node, icon, color, connection_mode, owner_id)
-			 VALUES (?, ?, ?, ?, ?, ?, 'down', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
+			 VALUES (?, ?, ?, ?, ?, ?, 'down', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
 			in.Name, in.Address, boolToInt(in.UseTLS), hash, prefix, token,
 			boolToInt(in.HealthEnabled), defaultInt(in.HealthInterval, 60),
 			defaultInt(in.HealthTimeout, 4), defaultInt(in.HealthRetries, 3),
@@ -270,6 +270,11 @@ func (r *NodeRepository) listNodesWithDrivers() ([]models.Node, error) {
 		nd.State = DeriveState(nd.Status, nd.LastSeenAt, true, false, false, nil)
 		nodes = append(nodes, nd)
 	}
+	for i := range nodes {
+		if ow, ok := nodeOwnerMap(r.db)[nodes[i].ID]; ok {
+			nodes[i].OwnerID = ow
+		}
+	}
 	return nodes, rows.Err()
 }
 
@@ -309,6 +314,11 @@ func (r *NodeRepository) listNodesLegacy() ([]models.Node, error) {
 		// binary.
 		nd.State = DeriveState(nd.Status, nd.LastSeenAt, true, false, false, nil)
 		nodes = append(nodes, nd)
+	}
+	for i := range nodes {
+		if ow, ok := nodeOwnerMap(r.db)[nodes[i].ID]; ok {
+			nodes[i].OwnerID = ow
+		}
 	}
 	return nodes, rows.Err()
 }
@@ -371,6 +381,9 @@ func (r *NodeRepository) GetNode(id int64) (*models.Node, error) {
 	}
 	nd.State = DeriveState(nd.Status, nd.LastSeenAt,
 		allMetricsOK(nd), anyMetricPartial(nd), probeTrue(nd.ProbeReachable), nd.ProbeCheckedAt)
+	if ow, ok := nodeOwnerMap(r.db)[nd.ID]; ok {
+		nd.OwnerID = ow
+	}
 	return &nd, nil
 }
 

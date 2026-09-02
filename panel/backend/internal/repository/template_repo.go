@@ -31,8 +31,10 @@ func (r *TemplateRepository) List() ([]models.Template, error) {
 	if n == 0 {
 		return out, nil
 	}
-	rows, err := r.db.Query(`SELECT id, name, description, kind, image, spec, created_at, updated_at
-		FROM templates ORDER BY name ASC`)
+	rows, err := r.db.Query(`SELECT t.id, t.name, t.description, t.kind, t.image, t.spec, t.created_at, t.updated_at,
+		COALESCE(t.owner_id, 0),
+		COALESCE((SELECT username FROM users WHERE id = t.owner_id), '')
+		FROM templates t ORDER BY t.name ASC`)
 	if err != nil {
 		return nil, err
 	}
@@ -40,8 +42,14 @@ func (r *TemplateRepository) List() ([]models.Template, error) {
 	for rows.Next() {
 		var t models.Template
 		var created, updated string
-		if err := rows.Scan(&t.ID, &t.Name, &t.Description, &t.Kind, &t.Image, &t.Spec, &created, &updated); err != nil {
+		var ownerID sql.NullInt64
+		var ownerName sql.NullString
+		if err := rows.Scan(&t.ID, &t.Name, &t.Description, &t.Kind, &t.Image, &t.Spec, &created, &updated, &ownerID, &ownerName); err != nil {
 			return nil, err
+		}
+		if ownerID.Valid {
+			t.OwnerID = ownerID.Int64
+			t.OwnerName = ownerName.String
 		}
 		t.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created)
 		t.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updated)
@@ -50,15 +58,38 @@ func (r *TemplateRepository) List() ([]models.Template, error) {
 	return out, rows.Err()
 }
 
+// ListByOwner returns the subset of templates owned by ownerID. Migration
+// 054 wired the TEMPLATES_OWN scope key — the admin Templates handler
+// calls this when a caller holds TEMPLATES_OWN without TEMPLATES_ALL.
+func (r *TemplateRepository) ListByOwner(ownerID int64) ([]models.Template, error) {
+	all, err := r.List()
+	if err != nil {
+		return nil, err
+	}
+	if ownerID == 0 {
+		return all, nil
+	}
+	out := make([]models.Template, 0)
+	for _, t := range all {
+		if t.OwnerID == ownerID {
+			out = append(out, t)
+		}
+	}
+	return out, nil
+}
+
 // Get fetches a single template by id. Used at deploy time to populate the
 // edge RPC config.
 func (r *TemplateRepository) Get(id int64) (*models.Template, error) {
 	var t models.Template
-	var tid sql.NullInt64
+	var tid, ownerID sql.NullInt64
 	var name, desc, kind, image, spec, created, updated sql.NullString
-	err := r.db.QueryRow(`SELECT id, name, description, kind, image, spec, created_at, updated_at
-		FROM templates WHERE id = ?`, id).Scan(
-		&tid, &name, &desc, &kind, &image, &spec, &created, &updated)
+	var ownerName sql.NullString
+	err := r.db.QueryRow(`SELECT t.id, t.name, t.description, t.kind, t.image, t.spec, t.created_at, t.updated_at,
+		COALESCE(t.owner_id, 0),
+		COALESCE((SELECT username FROM users WHERE id = t.owner_id), '')
+		FROM templates t WHERE t.id = ?`, id).Scan(
+		&tid, &name, &desc, &kind, &image, &spec, &created, &updated, &ownerID, &ownerName)
 	if err != nil || !tid.Valid {
 		return nil, fmt.Errorf("template not found")
 	}
@@ -68,6 +99,10 @@ func (r *TemplateRepository) Get(id int64) (*models.Template, error) {
 	t.Kind = kind.String
 	t.Image = image.String
 	t.Spec = spec.String
+	if ownerID.Valid {
+		t.OwnerID = ownerID.Int64
+		t.OwnerName = ownerName.String
+	}
 	t.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created.String)
 	t.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updated.String)
 	return &t, nil
@@ -78,11 +113,14 @@ func (r *TemplateRepository) Get(id int64) (*models.Template, error) {
 // seeding a built-in blueprint into the DB.
 func (r *TemplateRepository) GetByName(name string) (*models.Template, error) {
 	var t models.Template
-	var tid sql.NullInt64
+	var tid, ownerID sql.NullInt64
 	var nm, desc, kind, image, spec, created, updated sql.NullString
-	err := r.db.QueryRow(`SELECT id, name, description, kind, image, spec, created_at, updated_at
-		FROM templates WHERE name = ?`, name).Scan(
-		&tid, &nm, &desc, &kind, &image, &spec, &created, &updated)
+	var ownerName sql.NullString
+	err := r.db.QueryRow(`SELECT t.id, t.name, t.description, t.kind, t.image, t.spec, t.created_at, t.updated_at,
+		COALESCE(t.owner_id, 0),
+		COALESCE((SELECT username FROM users WHERE id = t.owner_id), '')
+		FROM templates t WHERE t.name = ?`, name).Scan(
+		&tid, &nm, &desc, &kind, &image, &spec, &created, &updated, &ownerID, &ownerName)
 	if err != nil || !tid.Valid {
 		return nil, fmt.Errorf("template not found")
 	}
@@ -92,25 +130,32 @@ func (r *TemplateRepository) GetByName(name string) (*models.Template, error) {
 	t.Kind = kind.String
 	t.Image = image.String
 	t.Spec = spec.String
+	if ownerID.Valid {
+		t.OwnerID = ownerID.Int64
+		t.OwnerName = ownerName.String
+	}
 	t.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created.String)
 	t.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updated.String)
 	return &t, nil
 }
 
 // CreateInput is the editable surface the admin handler passes.
+// OwnerID is the user that authored the template; see
+// models.Template.OwnerID for the scope contract (migration 054).
 type TemplateInput struct {
 	Name        string
 	Description string
 	Kind        string
 	Image       string
 	Spec        string
+	OwnerID     int64
 }
 
 // Create inserts a new template. The handler validates Spec is well-formed
 // JSON before calling here so the column never holds garbage.
 func (r *TemplateRepository) Create(in TemplateInput) (int64, error) {
-	res, err := r.db.Exec(`INSERT INTO templates (name, description, kind, image, spec) VALUES (?, ?, ?, ?, ?)`,
-		in.Name, in.Description, in.Kind, in.Image, in.Spec)
+	res, err := r.db.Exec(`INSERT INTO templates (name, description, kind, image, spec, owner_id) VALUES (?, ?, ?, ?, ?, ?)`,
+		in.Name, in.Description, in.Kind, in.Image, in.Spec, in.OwnerID)
 	if err != nil {
 		return 0, err
 	}
