@@ -693,6 +693,20 @@ func UpdateModHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer closeFn()
+	// Ownership scope (migration 054): own-scope callers may only edit mods they own.
+	if uid, _ := UserIDFromContext(r); uid != 0 {
+		if ex, gerr := repo.GetMod(id); gerr == nil && ex != nil && ex.OwnerID != 0 && ex.OwnerID != uid {
+			if con, perr := repository.OpenDB(); perr == nil {
+				chk := permissions.NewChecker(con)
+				hasOwn, hasAll, _ := chk.HasScope(uid, permissions.ModsOwnKey, permissions.ModsAllKey, permissions.ManageModsKey)
+				con.Close()
+				if !hasAll && hasOwn {
+					http.Error(w, "forbidden: own-scope may only edit mods you uploaded", http.StatusForbidden)
+					return
+				}
+			}
+		}
+	}
 	mod, err := repo.UpdateMod(id, repository.UpdateModInput{
 		Name:        dto.Name,
 		Version:     dto.Version,
@@ -731,6 +745,20 @@ func DeleteModHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer closeFn()
+	// Ownership scope (migration 054): own-scope callers may only delete mods they own.
+	if uid, _ := UserIDFromContext(r); uid != 0 {
+		if ex, gerr := repo.GetMod(id); gerr == nil && ex != nil && ex.OwnerID != 0 && ex.OwnerID != uid {
+			if con, perr := repository.OpenDB(); perr == nil {
+				chk := permissions.NewChecker(con)
+				hasOwn, hasAll, _ := chk.HasScope(uid, permissions.ModsOwnKey, permissions.ModsAllKey, permissions.ManageModsKey)
+				con.Close()
+				if !hasAll && hasOwn {
+					http.Error(w, "forbidden: own-scope may only delete mods you uploaded", http.StatusForbidden)
+					return
+				}
+			}
+		}
+	}
 	// Capture the label AND slug up front so the audit row survives the
 	// delete and the engine teardown has a stable identity. Without the
 	// slug we leak the mod's Goja runtime + bus subscriptions until the
