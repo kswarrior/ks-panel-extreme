@@ -54,6 +54,10 @@ func asPorts(v any) []portMapping {
 	switch sl := v.(type) {
 	case []portMapping:
 		return sl
+	case []PortAllocation:
+		for _, p := range sl {
+			out = append(out, portMapping{Host: p.Host, Container: p.Container, Protocol: p.Protocol, IP: p.IP})
+		}
 	case []any:
 		for _, it := range sl {
 			m, ok := it.(map[string]any)
@@ -63,12 +67,19 @@ func asPorts(v any) []portMapping {
 			pm := portMapping{}
 			if n, ok := m["host"].(float64); ok {
 				pm.Host = int(n)
+			} else if n2, ok := m["host_port"].(float64); ok {
+				pm.Host = int(n2)
 			}
 			if n, ok := m["container"].(float64); ok {
 				pm.Container = int(n)
+			} else if n2, ok := m["container_port"].(float64); ok {
+				pm.Container = int(n2)
 			}
 			if s, ok := m["protocol"].(string); ok {
 				pm.Protocol = s
+			}
+			if s, ok := m["ip"].(string); ok {
+				pm.IP = s
 			}
 			out = append(out, pm)
 		}

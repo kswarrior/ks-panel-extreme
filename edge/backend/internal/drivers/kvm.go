@@ -234,6 +234,10 @@ func (d *kvm) Exec(ctx context.Context, name string, tty bool, cols, rows int, c
 // a clean captured-exec path (the serial console is interactive only), so we
 // lean on libvirt's own counters instead of running a script inside the
 // guest. Processes/ports stay empty — the panel renders "no data" for them.
+func (d *kvm) UpdatePorts(ctx context.Context, name string, allocs []PortAllocation) error {
+	return nil
+}
+
 func (d *kvm) Runner(ctx context.Context, name string) (metrics, processes, ports, info string, err error) {
 	if err := binMissing("virsh"); err != nil {
 		return "{}", "[]", "[]", "{}", err

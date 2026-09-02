@@ -7,4 +7,3 @@
 -- (deploy, start, restart). NULL means never started or stopped.
 -- Postgres version uses native ADD COLUMN IF NOT EXISTS and is also
 -- guarded by the same Go code for consistency.
-ALTER TABLE IF EXISTS instances ADD COLUMN IF NOT EXISTS started_at TIMESTAMP;

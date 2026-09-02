@@ -27,6 +27,7 @@ type portMapping struct {
 	Host      int    `json:"host"`
 	Container int    `json:"container"`
 	Protocol  string `json:"protocol"`
+	IP        string `json:"ip,omitempty"`
 }
 
 // asStringMap and asStringList peel apart the untyped config map the panel
@@ -43,7 +44,11 @@ func (d *docker) Deploy(ctx context.Context, name string, cfg map[string]any) (R
 		if proto == "" {
 			proto = "tcp"
 		}
-		args = append(args, "-p", fmt.Sprintf("%d:%d/%s", p.Host, p.Container, proto))
+		spec := fmt.Sprintf("%d:%d/%s", p.Host, p.Container, proto)
+		if strings.TrimSpace(p.IP) != "" {
+			spec = fmt.Sprintf("%s:%d:%d/%s", strings.TrimSpace(p.IP), p.Host, p.Container, proto)
+		}
+		args = append(args, "-p", spec)
 	}
 	// Bind mounts. The spec accepts `mounts` (panel admin form format) or
 	// `volumes` (docker native format); both produce a host:container[:mode]
@@ -579,6 +584,141 @@ func (d *docker) Runner(ctx context.Context, name string) (metrics, processes, p
 		}
 	}
 	return metrics, processes, ports, info, err
+}
+
+// UpdatePorts reconciles the desired host->container port allocations.
+// It re-creates the container with the new -p flags when it is running;
+// for stopped / missing containers it is a no-op (DB-only path) so the
+// panel can persist allocations that take effect on the next start.
+// Only the docker driver implements a live reconcile; the three other
+// drivers are expected to no-op.
+func (d *docker) UpdatePorts(ctx context.Context, name string, allocs []PortAllocation) error {
+	if err := binMissing("docker"); err != nil {
+		return err
+	}
+	status := dockerStatus(ctx, name)
+	if status == "" {
+		return nil
+	}
+	if status != "running" {
+		return nil
+	}
+	// Live container: inspect to preserve image and a subset of the
+	// original run flags (env, binds, restart, network), then rm and run
+	// with the new -p set. We keep the reconstruction minimal so a
+	// simple alpine/nginx deploy round-trips cleanly; extra flags the
+	// operator never set are dropped rather than invented.
+	out, err := asExec(ctx, "", "docker", "inspect", name)
+	if err != nil {
+		if isAlreadyGoneErr(err) {
+			return nil
+		}
+		return err
+	}
+	var data []map[string]any
+	if err := json.Unmarshal([]byte(out), &data); err != nil || len(data) == 0 {
+		return fmt.Errorf("docker inspect parse failed: %w", err)
+	}
+	raw := data[0]
+	cfg, _ := raw["Config"].(map[string]any)
+	hostCfg, _ := raw["HostConfig"].(map[string]any)
+	// Resolve image.
+	image := ""
+	if cfg != nil {
+		if s, ok := cfg["Image"].(string); ok {
+			image = strings.TrimSpace(s)
+		}
+	}
+	if image == "" {
+		img, _ := asExec(ctx, "", "docker", "inspect", name, "--format", "{{.Config.Image}}")
+		image = strings.TrimSpace(img)
+	}
+	if image == "" {
+		return fmt.Errorf("cannot determine image for %s", name)
+	}
+	// Resolve the true container name (e.g. /test-ports-3) so a hash-based
+	// lookup (external_id) doesn't create a container named after the hash.
+	containerName := name
+	if n, ok := raw["Name"].(string); ok && strings.TrimSpace(n) != "" {
+		if trimmed := strings.TrimPrefix(strings.TrimSpace(n), "/"); trimmed != "" {
+			containerName = trimmed
+		}
+	}
+	// Remove old container. `rm -f` also stops it, so we don't need a
+	// separate stop; when the panel re-creates it immediately the
+	// `docker ps --format` check in verify reflects the new bindings.
+	if _, err := asExec(ctx, "", "docker", "rm", "-f", name); err != nil {
+		if !isAlreadyGoneErr(err) {
+			return fmt.Errorf("docker rm -f: %w", err)
+		}
+	}
+	args := []string{"run", "--name", containerName}
+	for _, p := range allocs {
+		proto := p.Protocol
+		if proto == "" {
+			proto = "tcp"
+		}
+		spec := fmt.Sprintf("%d:%d/%s", p.Host, p.Container, proto)
+		if strings.TrimSpace(p.IP) != "" {
+			spec = fmt.Sprintf("%s:%d:%d/%s", strings.TrimSpace(p.IP), p.Host, p.Container, proto)
+		}
+		args = append(args, "-p", spec)
+	}
+	// Preserve binds / restart / network when present.
+	if hostCfg != nil {
+		if binds, ok := hostCfg["Binds"].([]any); ok {
+			for _, b := range binds {
+				if s, ok := b.(string); ok && strings.TrimSpace(s) != "" {
+					args = append(args, "-v", s)
+				}
+			}
+		}
+		if rp, ok := hostCfg["RestartPolicy"].(map[string]any); ok {
+			if rn, ok := rp["Name"].(string); ok && rn != "" && rn != "no" {
+				args = append(args, "--restart", rn)
+			}
+		}
+		if mode, ok := hostCfg["NetworkMode"].(string); ok && mode != "" && mode != "default" && mode != "bridge" {
+			args = append(args, "--network", mode)
+		}
+	}
+	if cfg != nil {
+		if envs, ok := cfg["Env"].([]any); ok {
+			for _, e := range envs {
+				if s, ok := e.(string); ok && strings.TrimSpace(s) != "" {
+					args = append(args, "-e", s)
+				}
+			}
+		}
+		if labels, ok := cfg["Labels"].(map[string]any); ok {
+			for k, v := range labels {
+				if k == "" {
+					continue
+				}
+				args = append(args, "-l", fmt.Sprintf("%s=%v", k, v))
+			}
+		}
+		if wd, ok := cfg["WorkingDir"].(string); ok && strings.TrimSpace(wd) != "" {
+			args = append(args, "-w", wd)
+		}
+		if user, ok := cfg["User"].(string); ok && strings.TrimSpace(user) != "" {
+			args = append(args, "-u", user)
+		}
+	}
+	args = append(args, "-d", image)
+	if cfg != nil {
+		if cmd, ok := cfg["Cmd"].([]any); ok && len(cmd) > 0 {
+			for _, c := range cmd {
+				if s, ok := c.(string); ok {
+					args = append(args, s)
+				}
+			}
+		}
+	}
+	if _, err := asExec(ctx, "", "docker", args...); err != nil {
+		return fmt.Errorf("docker run (recreate with new ports): %w", err)
+	}
+	return nil
 }
 
 // Snapshot creates, restores, or deletes a snapshot of the instance.

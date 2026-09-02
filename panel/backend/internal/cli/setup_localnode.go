@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -187,8 +188,11 @@ func runSetupLocalnode(cmd *cobra.Command, args []string) error {
 	}
 
 	// 2) Write the config the edge will read on launch.
-	panelURL := "http://" + panelHostForEdge()
-	panelPort := panelPortForEdge()
+	// Call panelPortForEdge once so panelURL and panelPort stay in sync when
+	// the default 5050 is auto-bumped to a free port.
+	effectivePanelPort := panelPortForEdge()
+	panelURL := "http://127.0.0.1:" + effectivePanelPort
+	panelPort := effectivePanelPort
 	edgeCfg := map[string]any{
 		"uuid":               fmt.Sprintf("cli-localnode-%d", nodeID),
 		"name":               setupLocalnodeName,
@@ -317,13 +321,49 @@ func panelHostForEdge() string {
 
 // panelPortForEdge returns just the port segment of panelHostForEdge so the
 // panel-launch path can spawn `kspanel launch --port <n>` on the same port
-// the edge will dial.
+// the edge will dial. If the default port (5050) is already occupied, it
+// auto-selects a free ephemeral port so the edge config points at a port the
+// panel can actually bind (matching launch.go's fallback).
 func panelPortForEdge() string {
 	port := os.Getenv("KSPANEL_PORT")
 	if port == "" {
 		port = strconv.Itoa(config.DefaultPort())
 	}
+	// Auto-fallback only for the default 5050 — explicit env ports (e.g.
+	// KSPANEL_PORT=8080) are respected verbatim so the operator's intent is
+	// not silently ignored.
+	if port == strconv.Itoa(config.DefaultPort()) {
+		if p, err := strconv.Atoi(port); err == nil {
+			if !isPanelPortAvailable(p) {
+				if free, ferr := findFreePort(); ferr == nil {
+					print.Step("panel", fmt.Sprintf("port %s was in use — auto-selected :%d for edge panel_url", port, free))
+					return strconv.Itoa(free)
+				}
+			}
+		}
+	}
 	return port
+}
+
+// isPanelPortAvailable reports whether a TCP listen on :port succeeds.
+func isPanelPortAvailable(port int) bool {
+	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	if err != nil {
+		return false
+	}
+	ln.Close()
+	return true
+}
+
+// findFreePort asks the kernel for an ephemeral port (bind :0) and returns
+// the assigned port number.
+func findFreePort() (int, error) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return 0, err
+	}
+	defer ln.Close()
+	return ln.Addr().(*net.TCPAddr).Port, nil
 }
 
 // ensurePanelUp verifies the panel HTTP server is reachable at panelURL (the
@@ -331,11 +371,42 @@ func panelPortForEdge() string {
 // land). If nothing answers, it auto-launches this same binary as
 // `kspanel launch --port <port>` detached and waits a moment for it to bind.
 // Returns nil once the panel responds to /health, or an error if it can't be
-// brought up within the timeout.
+// brought up within the timeout. If the requested port is the default 5050
+// and is already occupied by a non-panel process, it auto-selects a free
+// port, rewrites the edge config, and launches there so the edge heartbeats
+// still land.
 func ensurePanelUp(panelURL, port string) error {
 	if panelReachable(panelURL) {
 		print.Step("panel", fmt.Sprintf("already running at %s", panelURL))
 		return nil
+	}
+
+	// Default-port auto-fallback: if 5050 is occupied by something that is
+	// NOT the panel (panelReachable was false but listen would fail), pick a
+	// free port now and rewrite the edge config so the later launch and the
+	// edge's panel_url stay in sync. This mirrors launch.go's own fallback
+	// but does it before we fork the panel so the log shows the corrected port.
+	if port == strconv.Itoa(config.DefaultPort()) {
+		if p, err := strconv.Atoi(port); err == nil && !isPanelPortAvailable(p) {
+			if free, ferr := findFreePort(); ferr == nil {
+				newPortStr := strconv.Itoa(free)
+				newURL := "http://127.0.0.1:" + newPortStr
+				print.Step("panel", fmt.Sprintf("port %s was in use — auto-selected :%s for panel launch", port, newPortStr))
+				// Rewrite edge config that was just written with the old URL.
+				if data, rerr := os.ReadFile(filepath.Join("localnode", "ksedge", "config.json")); rerr == nil {
+					var cfg map[string]any
+					if jerr := json.Unmarshal(data, &cfg); jerr == nil {
+						cfg["panel_url"] = newURL
+						if out, merr := json.MarshalIndent(cfg, "", "  "); merr == nil {
+							_ = os.WriteFile(filepath.Join("localnode", "ksedge", "config.json"), out, 0o644)
+							print.Step("config", fmt.Sprintf("rewrote panel_url to %s (free port)", newURL))
+						}
+					}
+				}
+				panelURL = newURL
+				port = newPortStr
+			}
+		}
 	}
 
 	exe, err := os.Executable()

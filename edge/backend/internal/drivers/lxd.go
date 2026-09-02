@@ -235,6 +235,10 @@ func (d *lxd) Exec(ctx context.Context, name string, tty bool, cols, rows int, c
 	}, nil
 }
 
+func (d *lxd) UpdatePorts(ctx context.Context, name string, allocs []PortAllocation) error {
+	return nil
+}
+
 // Runner gathers live metrics/processes/ports inside an LXD container by
 // running the portable /proc shell scripts via `lxc exec`.
 func (d *lxd) Runner(ctx context.Context, name string) (metrics, processes, ports, info string, err error) {

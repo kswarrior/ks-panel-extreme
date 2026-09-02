@@ -32,7 +32,7 @@ export interface PageStarter {
   description: string;
   /** Inner SVG markup (no <svg> wrapper). */
   iconSvg: string;
-  html: string;
+  html?: string;
   /** Saved executable actions the template ships with (loaded into the
    *  Studio's Actions tab when the template is applied). */
   actions?: PageActionDef[];
@@ -800,6 +800,192 @@ const SYSTEM_PROBE = page(
 );
 
 // ---------------------------------------------------------------------------
+// MINECRAFT TOOLING — starter pages for Minecraft operators.
+// Each page is pure KSPageSDK (shell|read_file|write_file|list_files with
+// open_args≤4 + {{args}} + validActionArg) + blocks/html + ThemePreview.
+// No new backend — all actions hit edge/pageaction readSession inside container.
+// ---------------------------------------------------------------------------
+
+const MC_PROPERTIES_BLOCKS = JSON.stringify([
+  { type: "heading", value: "Server Properties", level: 1, align: "center" },
+  { type: "text", value: "Manage server.properties for your Minecraft server (Paper/Spigot/Vanilla/Fabric). Controls server-port, online-mode, motd, difficulty, max-players, white-list, view-distance, enable-command-block. Changes require restart (touch restart.flag or container restart). File lives at server.properties in the instance root.", align: "left" },
+  { type: "divider" },
+  { type: "heading", value: "Current File", level: 2 },
+  { type: "text", value: "Live status via read_file + stat. Use the action buttons below to fetch, inspect, and persist the file. World directory is verified with list_files world.", align: "left" },
+  { type: "stat", label: "File", value: "server.properties", unit: "", tone: "default" },
+  { type: "code", value: "# server.properties — example\nserver-port=25565\nonline-mode=true\nmotd=A Minecraft Server\nmax-players=20\ndifficulty=easy\ngamemode=survival\nwhite-list=false\nenable-command-block=false\nview-distance=10\nmax-tick-time=60000" },
+  { type: "heading", value: "Key Settings", level: 3 },
+  { type: "table", value: "[[\"Key\",\"Value\",\"Description\"],[\"server-port\",\"25565\",\"UDP/TCP port\"],[\"online-mode\",\"true\",\"Mojang auth\"],[\"motd\",\"A Minecraft Server\",\"Message of the day\"],[\"max-players\",\"20\",\"Player cap\"],[\"difficulty\",\"easy\",\"Game difficulty\"],[\"white-list\",\"false\",\"Whitelist toggle\"]]" },
+  { type: "heading", value: "Quick Actions", level: 3 },
+  { type: "text", value: "Save overwrites server.properties inside the container (write_file, guarded by isDangerousPath on host and validActionArg for shell variants). Check World verifies world/ exists via list_files." },
+  { type: "action", label: "Read server.properties", action: "read_properties" },
+  { type: "action", label: "Stat server.properties", action: "stat_properties" },
+  { type: "action", label: "Save server.properties", action: "save_properties", confirmText: "Overwrite server.properties with the example content? This will replace the live file." },
+  { type: "action", label: "Check world/", action: "check_world" },
+  { type: "spacer" },
+  { type: "text", value: "Tip: missing world/ suggests a fresh install or a custom world path — use the World Import page to unzip a world archive.", align: "left" },
+  { type: "divider" },
+  { type: "list", value: "[\"Stat shows mtime/size via shell ls -l\",\"Code preview shows full file\",\"Save is write_file (panel → edge → container)\",\"Check World is list_files world\"]" }
+]);
+
+const MC_PLAYERS = page(
+  'Player Manager',
+  `<div class="ks-page-header">
+    <h2 style="margin:0;font-size:1.3rem;color:var(--ks-heading)">Player Manager</h2>
+    <div class="ks-page-header-actions">
+      <button class="ks-btn-header ks-icon-btn" id="refresh" title="Refresh" aria-label="Refresh"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>
+    </div>
+  </div>
+  <div class="ks-row" style="margin-bottom:0.6rem;gap:8px;flex-wrap:wrap">
+    <input id="playerInput" class="ks-input ks-search-input" placeholder="player name" style="flex:1;min-width:140px;max-width:200px" />
+    <button class="ks-btn ks-btn-sm" id="btnWhitelist" title="whitelist add"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3 h-3" style="margin-right:4px"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg> Whitelist Add</button>
+    <button class="ks-btn ks-btn-sm" id="btnOp" title="op"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3 h-3" style="margin-right:4px"><path d="M12 2l3 7h7l-5.5 4 2 7-6-5-6 5 2-7-5.5-4z"/></svg> Op</button>
+    <button class="ks-btn ks-btn-sm ks-btn-danger" id="btnBan" title="ban"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3 h-3" style="margin-right:4px"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> Ban</button>
+  </div>
+  <div id="content"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:12px"><div class="ks-card"><div class="ks-skeleton-bar" style="height:10px;width:42%;margin-bottom:10px"></div><div class="ks-skeleton-bar" style="height:22px;width:36%;margin-bottom:8px"></div><div class="ks-skeleton-bar" style="height:10px;width:58%"></div></div><div class="ks-card"><div class="ks-skeleton-bar" style="height:10px;width:48%;margin-bottom:10px"></div><div class="ks-skeleton-bar" style="height:22px;width:28%;margin-bottom:8px"></div><div class="ks-skeleton-bar" style="height:10px;width:64%"></div></div><div class="ks-card"><div class="ks-skeleton-bar" style="height:10px;width:38%;margin-bottom:10px"></div><div class="ks-skeleton-bar" style="height:22px;width:22%;margin-bottom:8px"></div><div class="ks-skeleton-bar" style="height:10px;width:52%"></div></div></div><div class="ks-card" style="padding:0;overflow:hidden;margin-bottom:12px"><div style="display:grid;grid-template-columns:1.2fr 0.8fr 1fr;gap:12px;padding:12px 14px;border-bottom:1px solid var(--ks-card-border);background:var(--ks-input-bg)"><div class="ks-skeleton-bar" style="height:10px;width:34px"></div><div class="ks-skeleton-bar" style="height:10px;width:40px"></div><div class="ks-skeleton-bar" style="height:10px;width:60px"></div></div><div style="display:grid;grid-template-columns:1.2fr 0.8fr 1fr;gap:12px;padding:12px 14px;border-top:1px solid var(--ks-card-border)"><div class="ks-skeleton-bar" style="height:10px;width:68px"></div><div class="ks-skeleton-bar" style="height:10px;width:54px"></div><div class="ks-skeleton-bar" style="height:10px;width:72px"></div></div><div style="display:grid;grid-template-columns:1.2fr 0.8fr 1fr;gap:12px;padding:12px 14px;border-top:1px solid var(--ks-card-border)"><div class="ks-skeleton-bar" style="height:10px;width:72px"></div><div class="ks-skeleton-bar" style="height:10px;width:48px"></div><div class="ks-skeleton-bar" style="height:10px;width:84px"></div></div></div><div class="ks-card"><div class="ks-skeleton-bar" style="height:10px;width:36%;margin-bottom:8px"></div><div class="ks-skeleton-bar" style="height:10px;width:72%;margin-bottom:8px"></div></div></div>
+  <div id="playerdata" style="margin-top:12px"><div class="ks-card" style="padding:0;overflow:hidden"><div style="display:grid;grid-template-columns:1fr 100px;gap:12px;padding:12px 14px;border-bottom:1px solid var(--ks-card-border);background:var(--ks-input-bg)"><div class="ks-skeleton-bar" style="height:10px;width:48px"></div><div class="ks-skeleton-bar" style="height:10px;width:36px"></div></div><div style="display:grid;grid-template-columns:1fr 100px;gap:12px;padding:12px 14px;border-top:1px solid var(--ks-card-border)"><div class="ks-skeleton-bar" style="height:10px;width:82px"></div><div class="ks-skeleton" style="height:10px;width:28px"></div></div></div></div>`,
+  `
+    async function load(){
+      el('content').innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:12px"><div class="ks-card"><div class="ks-skeleton-bar" style="height:10px;width:42%;margin-bottom:10px"></div><div class="ks-skeleton-bar" style="height:22px;width:36%;margin-bottom:8px"></div></div><div class="ks-card"><div class="ks-skeleton-bar" style="height:10px;width:48%;margin-bottom:10px"></div><div class="ks-skeleton-bar" style="height:22px;width:28%;margin-bottom:8px"></div></div><div class="ks-card"><div class="ks-skeleton-bar" style="height:10px;width:38%;margin-bottom:10px"></div><div class="ks-skeleton-bar" style="height:22px;width:22%;margin-bottom:8px"></div></div></div><div class="ks-card" style="padding:0;overflow:hidden"><div style="display:grid;grid-template-columns:1.2fr 0.8fr 1fr;gap:12px;padding:12px 14px;border-bottom:1px solid var(--ks-card-border);background:var(--ks-input-bg)"><div class="ks-skeleton-bar" style="height:10px;width:34px"></div><div class="ks-skeleton-bar" style="height:10px;width:40px"></div><div class="ks-skeleton-bar" style="height:10px;width:60px"></div></div><div style="display:grid;grid-template-columns:1.2fr 0.8fr 1fr;gap:12px;padding:12px 14px;border-top:1px solid var(--ks-card-border)"><div class="ks-skeleton-bar" style="height:10px;width:68px"></div><div class="ks-skeleton-bar" style="height:10px;width:54px"></div><div class="ks-skeleton-bar" style="height:10px;width:72px"></div></div></div>';
+      var w = '', o = '', b = '', pd = '';
+      try { var r = await act('read_whitelist'); w = (r.data || r.stdout || '') + ''; } catch(e){ w = 'whitelist.json: ' + e.message; }
+      try { var r2 = await act('read_ops'); o = (r2.data || r2.stdout || '') + ''; } catch(e){ o = 'ops.json: ' + e.message; }
+      try { var r3 = await act('read_banned'); b = (r3.data || r3.stdout || '') + ''; } catch(e){ b = 'banned-players.json: ' + e.message; }
+      try { var r4 = await act('list_playerdata'); pd = JSON.stringify(r4.data || r4.stdout || '', null, 2); } catch(e){ pd = 'world/playerdata: ' + e.message; }
+      function tryJson(s){ try{ var j=JSON.parse(s); return Array.isArray(j)? j : []; } catch{ return s ? s.trim().split('\n').filter(Boolean) : []; } }
+      var wl = tryJson(w);
+      var ops = tryJson(o);
+      var banned = tryJson(b);
+      el('content').innerHTML =
+        '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0.75rem;margin-bottom:0.75rem">' +
+        '<div class="ks-card" data-ks-key="stat-whitelist"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">Whitelisted</div><div style="font-size:1.6rem;font-weight:600;color:var(--ks-heading)">' + wl.length + '</div><div class="ks-muted" style="font-size:11px">whitelist.json</div></div>' +
+        '<div class="ks-card" data-ks-key="stat-ops"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">Operators</div><div style="font-size:1.6rem;font-weight:600;color:var(--ks-info)">' + ops.length + '</div><div class="ks-muted" style="font-size:11px">ops.json</div></div>' +
+        '<div class="ks-card" data-ks-key="stat-banned"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">Banned</div><div style="font-size:1.6rem;font-weight:600;color:var(--ks-bad)">' + banned.length + '</div><div class="ks-muted" style="font-size:11px">banned-players.json</div></div>' +
+        '</div>' +
+        cardUnit('whitelist','Whitelist (whitelist.json)', wl.length ? '<table><thead><tr><th>Player</th><th>UUID</th></tr></thead><tbody>' + wl.map(function(x){ var n = (x && x.name) || String(x); var u = (x && x.uuid) || ''; return '<tr data-ks-key="'+esc(n)+'"><td>' + esc(n) + '</td><td class="ks-mono" style="font-size:11px">' + esc(u || String(x).slice(0,80)) + '</td></tr>'; }).join('') + '</tbody></table>' + pre(w) : pre(w)) +
+        cardUnit('ops','Ops (ops.json)', ops.length ? '<table><thead><tr><th>Player</th><th>Level</th></tr></thead><tbody>' + ops.map(function(x){ return '<tr data-ks-key="'+esc(String((x&&x.name)||x))+'"><td>' + esc((x && x.name) || String(x)) + '</td><td>' + esc(String((x && x.level) || '')) + '</td></tr>'; }).join('') + '</tbody></table>' + pre(o) : pre(o)) +
+        cardUnit('banned','Banned (banned-players.json)', banned.length ? '<table><thead><tr><th>Player</th><th>Reason</th></tr></thead><tbody>' + banned.map(function(x){ return '<tr data-ks-key="'+esc(String((x&&x.name)||x))+'"><td>' + esc((x && x.name) || String(x)) + '</td><td>' + esc((x && x.reason) || '') + '</td></tr>'; }).join('') + '</tbody></table>' + pre(b) : pre(b));
+      el('playerdata').innerHTML = cardUnit('playerdata','World Playerdata (world/playerdata via list_files)', pre(pd));
+    }
+    el('refresh').onclick = load;
+    el('btnWhitelist').onclick = async function(){ var v=el('playerInput').value.trim(); if(!v){ toast('Enter player name','error'); return; } if(!(await ask('whitelist add ' + v + '?'))) return; try{ var r=await act('whitelist_add', [v]); toast('whitelist add: exit ' + (r.exit_code!=null?r.exit_code:'?'), r.exit_code===0?'success':'error'); load(); } catch(e){ toast(e.message,'error'); } };
+    el('btnOp').onclick = async function(){ var v=el('playerInput').value.trim(); if(!v){ toast('Enter player name','error'); return; } if(!(await ask('op ' + v + '?'))) return; try{ var r=await act('op_player', [v]); toast('op: exit ' + (r.exit_code!=null?r.exit_code:'?'), r.exit_code===0?'success':'error'); load(); } catch(e){ toast(e.message,'error'); } };
+    el('btnBan').onclick = async function(){ var v=el('playerInput').value.trim(); if(!v){ toast('Enter player name','error'); return; } if(!(await ask('ban ' + v + '?'))) return; try{ var r=await act('ban_player', [v]); toast('ban: exit ' + (r.exit_code!=null?r.exit_code:'?'), r.exit_code===0?'success':'error'); load(); } catch(e){ toast(e.message,'error'); } };
+    await load();
+  `,
+);
+
+const MC_WORLD = page(
+  'World Import',
+  `<div class="ks-page-header">
+    <h2 style="margin:0;font-size:1.3rem;color:var(--ks-heading)">World Import</h2>
+    <div class="ks-page-header-actions">
+      <button class="ks-btn-header ks-icon-btn" id="refresh" title="Refresh" aria-label="Refresh"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>
+    </div>
+  </div>
+  <div class="ks-card" style="margin-bottom:0.75rem">
+    <h3 style="margin:0 0 0.35rem;font-size:0.95rem;color:var(--ks-heading)">Version Compatibility</h3>
+    <p class="ks-muted" style="font-size:12px;margin:0">Worlds from <strong>1.13+</strong> use flattened chunk format; <strong>1.18+</strong> expanded height to -64…320 and <strong>1.20+</strong> added biomes. Importing a newer world into an older server jar can corrupt chunks — always <strong>back up world/</strong> via the Files tab and match the jar version. This page <code>list_files world/</code> and runs <code>unzip -o {{args}} -d world/</code> (<span class="ks-mono">validActionArg</span> + <span class="ks-mono">shellQuoteArg</span>) and guards host writes with <code>isDangerousPath</code> (<code>edge/backend/internal/files/handler.go:1</code>).</p>
+  </div>
+  <div class="ks-row" style="margin-bottom:0.6rem;gap:8px;flex-wrap:wrap">
+    <input id="zipInput" class="ks-input ks-search-input" placeholder="world.zip path (e.g. /tmp/world.zip or uploaded file)" style="flex:1;min-width:220px" />
+    <button class="ks-btn ks-btn-sm" id="btnUnzip"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3 h-3" style="margin-right:4px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Unzip to world/</button>
+    <button class="ks-btn ks-btn-sm ks-btn-secondary" id="btnList"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3 h-3" style="margin-right:4px"><path d="M3 12a9 9 0 1 0 9-9"/><polyline points="9 9 9 15 15 9"/></svg> List world/</button>
+  </div>
+  <div id="content"><div class="ks-card" style="margin-bottom:12px"><div class="ks-skeleton-bar" style="height:14px;width:30%;margin-bottom:12px"></div><div class="ks-skeleton-bar" style="height:10px;width:92%;margin-bottom:8px"></div><div class="ks-skeleton-bar" style="height:10px;width:84%;margin-bottom:8px"></div><div class="ks-skeleton-bar" style="height:10px;width:88%;margin-bottom:8px"></div></div><div class="ks-card"><div class="ks-skeleton-bar" style="height:14px;width:42%;margin-bottom:12px"></div><div class="ks-skeleton-bar" style="height:10px;width:78%;margin-bottom:8px"></div></div></div>
+  <div id="unzipOut" style="display:none;margin-top:0.75rem"></div>`,
+  `
+    async function load(){
+      el('content').innerHTML = '<div class="ks-card" style="margin-bottom:12px"><div class="ks-skeleton-bar" style="height:14px;width:30%;margin-bottom:12px"></div><div class="ks-skeleton-bar" style="height:10px;width:92%;margin-bottom:8px"></div><div class="ks-skeleton-bar" style="height:10px;width:84%"></div></div><div class="ks-card"><div class="ks-skeleton-bar" style="height:14px;width:42%;margin-bottom:12px"></div><div class="ks-skeleton-bar" style="height:10px;width:78%;margin-bottom:8px"></div></div>';
+      try{
+        var r = await act('list_world');
+        var data = r.data || r.stdout || '';
+        var txt = '';
+        if (Array.isArray(data)) txt = data.map(function(f){ return (f.is_dir?'d ':'f ') + f.name + '  ' + (f.size||0) + '  ' + (f.mode||''); }).join('\n');
+        else txt = String(data);
+        el('content').innerHTML = cardUnit('world','world/ (list_files)', pre(txt || '(empty — fresh install)')) + card('Tip', '<p class="ks-muted" style="font-size:12px;margin:0">If world/ is missing, upload a world.zip to <code>/tmp</code> via the Files tab, then unzip here. Host <code>isDangerousPath</code> blocks writes to <code>/bin /etc /usr</code> etc., so only instance-relative paths are allowed.</p>');
+      } catch(e){
+        el('content').innerHTML = '<p class="ks-bad">list world failed: ' + esc(e.message) + '</p>';
+      }
+    }
+    el('refresh').onclick = load;
+    el('btnList').onclick = load;
+    el('btnUnzip').onclick = async function(){
+      var v = el('zipInput').value.trim();
+      if(!v){ toast('Enter zip path','error'); return; }
+      if(!(await ask('Unzip ' + v + ' into world/ ? This overwrites files with the same names.'))) return;
+      el('unzipOut').style.display = 'block';
+      el('unzipOut').innerHTML = '<div class="ks-card">' + pre('unzipping ' + v + ' → world/ ...') + '</div>';
+      try{
+        var r = await act('unzip_world', [v]);
+        var out = (r.stdout||'') + (r.stderr||'');
+        el('unzipOut').innerHTML = cardUnit('unzip','Unzip result (exit ' + (r.exit_code!=null?r.exit_code:'?') + ')', pre(out || '(no output — check world/ listing)'));
+        toast('Unzip finished', r.exit_code===0?'success':'error');
+        load();
+      } catch(e){ el('unzipOut').innerHTML = '<div class="ks-card" style="border-color:var(--ks-bad-line)"><p class="ks-bad">' + esc(e.message) + '</p></div>'; toast(e.message,'error'); }
+    };
+    await load();
+  `,
+);
+
+const MC_PLUGINS = page(
+  'Plugin Manager',
+  `<div class="ks-page-header">
+    <h2 style="margin:0;font-size:1.3rem;color:var(--ks-heading)">Plugin Manager</h2>
+    <div class="ks-page-header-actions">
+      <button class="ks-btn-header ks-icon-btn" id="refresh" title="Refresh" aria-label="Refresh"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>
+      <button class="ks-btn-header ks-icon-btn" id="btnRestart" title="Touch restart.flag" aria-label="Restart"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74"/><polyline points="16 8 21 8 21 3"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74"/><polyline points="8 16 3 16 3 21"/></svg></button>
+    </div>
+  </div>
+  <div class="ks-row" style="margin-bottom:0.6rem;gap:8px;flex-wrap:wrap">
+    <input id="pluginUrl" class="ks-input ks-search-input" placeholder="https://example.com/plugin.jar or plugin name for rm" style="flex:1;min-width:220px" />
+    <button class="ks-btn ks-btn-sm" id="btnInstall"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3 h-3" style="margin-right:4px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> wget to plugins/</button>
+    <button class="ks-btn ks-btn-sm ks-btn-danger" id="btnRemove"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3 h-3" style="margin-right:4px"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> rm .jar</button>
+  </div>
+  <div class="ks-row" style="margin-bottom:0.6rem;gap:8px;flex-wrap:wrap">
+    <input id="configPath" class="ks-input" placeholder="plugins/ExamplePlugin/config.yml" value="plugins/ExamplePlugin/config.yml" style="flex:1;min-width:200px" />
+    <input id="configContent" class="ks-input" placeholder="key: value" value="enable: true" style="flex:1;min-width:140px" />
+    <button class="ks-btn ks-btn-sm ks-btn-secondary" id="btnWriteConfig"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3 h-3" style="margin-right:4px"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Write config</button>
+  </div>
+  <div id="content"><div class="ks-card" style="padding:0;overflow:hidden"><div style="display:grid;grid-template-columns:1.2fr 80px 60px 90px;gap:12px;padding:12px 14px;border-bottom:1px solid var(--ks-card-border);background:var(--ks-input-bg)"><div class="ks-skeleton-bar" style="height:10px;width:40px"></div><div class="ks-skeleton-bar" style="height:10px;width:28px"></div><div class="ks-skeleton-bar" style="height:10px;width:28px"></div><div class="ks-skeleton-bar" style="height:10px;width:48px"></div></div><div style="display:grid;grid-template-columns:1.2fr 80px 60px 90px;gap:12px;padding:12px 14px;border-top:1px solid var(--ks-card-border)"><div class="ks-skeleton-bar" style="height:10px;width:68px"></div><div class="ks-skeleton" style="height:10px;width:24px"></div><div class="ks-skeleton" style="height:10px;width:18px"></div><div class="ks-skeleton-bar" style="height:10px;width:42px"></div></div><div style="display:grid;grid-template-columns:1.2fr 80px 60px 90px;gap:12px;padding:12px 14px;border-top:1px solid var(--ks-card-border)"><div class="ks-skeleton-bar" style="height:10px;width:84px"></div><div class="ks-skeleton" style="height:10px;width:30px"></div><div class="ks-skeleton" style="height:10px;width:18px"></div><div class="ks-skeleton-bar" style="height:10px;width:54px"></div></div></div></div>
+  <div id="out" style="display:none;margin-top:0.75rem"></div>`,
+  `
+    async function load(){
+      el('content').innerHTML = '<div class="ks-card" style="padding:0;overflow:hidden"><div style="display:grid;grid-template-columns:1.2fr 80px 60px 90px;gap:12px;padding:12px 14px;border-bottom:1px solid var(--ks-card-border);background:var(--ks-input-bg)"><div class="ks-skeleton-bar" style="height:10px;width:40px"></div><div class="ks-skeleton-bar" style="height:10px;width:28px"></div><div class="ks-skeleton-bar" style="height:10px;width:28px"></div><div class="ks-skeleton-bar" style="height:10px;width:48px"></div></div><div style="display:grid;grid-template-columns:1.2fr 80px 60px 90px;gap:12px;padding:12px 14px;border-top:1px solid var(--ks-card-border)"><div class="ks-skeleton-bar" style="height:10px;width:68px"></div><div class="ks-skeleton" style="height:10px;width:24px"></div><div class="ks-skeleton" style="height:10px;width:18px"></div><div class="ks-skeleton-bar" style="height:10px;width:42px"></div></div></div>';
+      try{
+        var r = await act('list_plugins');
+        var data = r.data || r.stdout || '';
+        var rows = [];
+        if (Array.isArray(data)) rows = data;
+        else {
+          var txt = String(data);
+          rows = txt.split('\n').filter(Boolean).map(function(l){ var p=l.trim().split(/\s+/); return {name:p[p.length-1]||l, size:0, is_dir:false, mode:''}; });
+        }
+        var jars = rows.filter(function(f){ return f.name && f.name.endsWith('.jar'); });
+        el('content').innerHTML =
+          '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.75rem;margin-bottom:0.75rem">' +
+          '<div class="ks-card" data-ks-key="stat-total"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">Plugins</div><div style="font-size:1.6rem;font-weight:600;color:var(--ks-heading)">' + rows.length + '</div><div class="ks-muted" style="font-size:11px">files in plugins/</div></div>' +
+          '<div class="ks-card" data-ks-key="stat-jars"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">Jars</div><div style="font-size:1.6rem;font-weight:600;color:var(--ks-info)">' + jars.length + '</div><div class="ks-muted" style="font-size:11px">.jar files</div></div>' +
+          '<div class="ks-card" data-ks-key="stat-dirs"><div class="ks-muted" style="font-size:11px;text-transform:uppercase">Config Dirs</div><div style="font-size:1.6rem;font-weight:600;color:var(--ks-heading)">' + rows.filter(function(f){return f.is_dir;}).length + '</div><div class="ks-muted" style="font-size:11px">folders</div></div>' +
+          '</div>' +
+          cardUnit('plugins','plugins/ (list_files)', rows.length ? '<table><thead><tr><th>Name</th><th>Size</th><th>Type</th></tr></thead><tbody>' + rows.map(function(f){ return '<tr data-ks-key="'+esc(f.name)+'"><td>' + esc(f.name) + '</td><td class="ks-mono">' + esc(String(f.size||'')) + '</td><td><span class="ks-badge">' + (f.is_dir?'dir':'file') + '</span></td></tr>'; }).join('') + '</tbody></table>' : '<p class="ks-muted">No plugins found — plugins/ is empty. Use wget to install a .jar or write a config.yml.</p>') +
+          (jars.length ? card('Jars', '<p class="ks-muted" style="font-size:12px;margin:0">' + jars.length + ' jar(s) installed — <span class="ks-mono">' + esc(jars.map(function(j){return j.name;}).join(', ')) + '</span>. Use rm to remove, or edit per-plugin <code>config.yml</code> via write_file.</p>') : '');
+      } catch(e){
+        el('content').innerHTML = '<p class="ks-bad">list plugins failed: ' + esc(e.message) + '</p>';
+      }
+    }
+    el('refresh').onclick = load;
+    el('btnRestart').onclick = async function(){ if(!(await ask('Touch restart.flag to request a server restart?'))) return; try{ var r=await act('restart_flag'); toast('restart.flag: exit '+(r.exit_code!=null?r.exit_code:'?'), r.exit_code===0?'success':'error'); } catch(e){ toast(e.message,'error'); } };
+    el('btnInstall').onclick = async function(){ var v=el('pluginUrl').value.trim(); if(!v){ toast('Enter URL','error'); return; } if(!(await ask('wget ' + v + ' → plugins/ ?'))) return; try{ var r=await act('install_plugin', [v]); var out=(r.stdout||'')+(r.stderr||''); el('out').style.display='block'; el('out').innerHTML=cardUnit('install','wget result (exit '+(r.exit_code!=null?r.exit_code:'?')+')', pre(out||'(no output)')); toast('wget finished', r.exit_code===0?'success':'error'); load(); } catch(e){ toast(e.message,'error'); } };
+    el('btnRemove').onclick = async function(){ var v=el('pluginUrl').value.trim(); if(!v){ toast('Enter plugin name without .jar','error'); return; } var name=v.replace(/\.jar$/,''); if(!(await ask('rm plugins/' + name + '.jar ? This deletes the jar.'))) return; try{ var r=await act('remove_plugin', [name]); var out=(r.stdout||'')+(r.stderr||''); el('out').style.display='block'; el('out').innerHTML=cardUnit('remove','rm result (exit '+(r.exit_code!=null?r.exit_code:'?')+')', pre(out||'(no output)')); toast('rm finished', r.exit_code===0?'success':'error'); load(); } catch(e){ toast(e.message,'error'); } };
+    el('btnWriteConfig').onclick = async function(){ var p=el('configPath').value.trim(); if(!p){ toast('Enter config path','error'); return; } if(!(await ask('Write ' + p + ' ?'))) return; try{ var r=await act('write_plugin_config'); toast('write_plugin_config: exit '+(r.exit_code!=null?r.exit_code:'?'), r.exit_code===0?'success':'error'); if(r.exit_code===0) load(); } catch(e){ toast(e.message,'error'); } };
+    await load();
+  `,
+);
+
+
+
+// ---------------------------------------------------------------------------
 // LIBRARY PAGES — the shipped instance_pages/pages/*.json definitions ported
 // verbatim into the Studio (the on-disk library directory was removed).
 // The Home page keeps its RESERVED INDEX-ROUTE SLUG "." so applying it makes
@@ -1251,6 +1437,200 @@ export const PAGE_STARTERS: PageStarter[] = [
     description: "Live shell into the instance over the panel WebSocket bridge — native xterm.js PTY with mobile keyboard, fit, theme and auto-reconnect",
     iconSvg: "<path d=\"m4 17 6-6-6-6\"/><path d=\"M12 19h8\"/>",
     html: LIB_TERMINAL_HTML,
+  },
+  {
+    id: 'mc-properties',
+    name: 'Server Properties',
+    slug: 'mc-properties',
+    category: 'minecraft',
+    description: 'Edit server.properties with stat + code preview and guarded Save (write_file + shell {{args}}) + list_files world check.',
+    iconSvg: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/>',
+    html: '',
+    blocks: MC_PROPERTIES_BLOCKS,
+    contentType: 'blocks',
+    actions: [
+      {
+        name: 'read_properties',
+        type: 'read_file',
+        path: 'server.properties',
+        description: 'Read current server.properties inside container (stat + code preview).',
+      },
+      {
+        name: 'stat_properties',
+        type: 'shell',
+        command: 'ls -l server.properties 2>&1 || stat server.properties 2>&1 || echo missing',
+        description: 'Stat current server.properties (ls -l).',
+      },
+      {
+        name: 'save_properties',
+        type: 'write_file',
+        path: 'server.properties',
+        content: 'server-port=25565\nonline-mode=true\nmotd=A Minecraft Server\nmax-players=20\ndifficulty=easy\ngamemode=survival\nwhite-list=false\nenable-command-block=false\nview-distance=10',
+        description: 'Save server.properties (write_file guarded by isDangerousPath on host).',
+      },
+      {
+        name: 'check_world',
+        type: 'list_files',
+        path: 'world',
+        description: 'Check world directory exists (list_files world).',
+      },
+      {
+        name: 'shell_save',
+        type: 'shell',
+        command: "printf '%s' {{args}} > server.properties",
+        open_args: true,
+        description: 'Save via shell with runtime arg (validated validActionArg, shellQuoteArg).',
+      },
+    ],
+  },
+  {
+    id: 'mc-players',
+    name: 'Player Manager',
+    slug: 'mc-players',
+    category: 'minecraft',
+    description: 'Read whitelist.json/ops.json/banned-players.json tables and manage players via whitelist/op/ban (rcon/screen) + list_files world/playerdata.',
+    iconSvg: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+    html: MC_PLAYERS,
+    actions: [
+      {
+        name: 'read_whitelist',
+        type: 'read_file',
+        path: 'whitelist.json',
+        description: 'Read whitelist.json table.',
+      },
+      {
+        name: 'read_ops',
+        type: 'read_file',
+        path: 'ops.json',
+        description: 'Read ops.json table.',
+      },
+      {
+        name: 'read_banned',
+        type: 'read_file',
+        path: 'banned-players.json',
+        description: 'Read banned-players.json table.',
+      },
+      {
+        name: 'list_playerdata',
+        type: 'list_files',
+        path: 'world/playerdata',
+        description: 'List world/playerdata via list_files.',
+      },
+      {
+        name: 'whitelist_add',
+        type: 'shell',
+        command: 'whitelist add {{args}}',
+        open_args: true,
+        description: 'whitelist add <player> via rcon or screen (install must expose it).',
+      },
+      {
+        name: 'op_player',
+        type: 'shell',
+        command: 'op {{args}}',
+        open_args: true,
+        description: 'op <player> via rcon or screen.',
+      },
+      {
+        name: 'ban_player',
+        type: 'shell',
+        command: 'ban {{args}}',
+        open_args: true,
+        description: 'ban <player> via rcon or screen.',
+      },
+    ],
+  },
+  {
+    id: 'mc-world',
+    name: 'World Import',
+    slug: 'mc-world',
+    category: 'minecraft',
+    description: 'Import worlds with version compat note + unzip -o {{args}} -d world/ + write_file guard (isDangerousPath) + list_files world/.',
+    iconSvg: '<circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>',
+    html: MC_WORLD,
+    actions: [
+      {
+        name: 'list_world',
+        type: 'list_files',
+        path: 'world',
+        description: 'List world/ via list_files.',
+      },
+      {
+        name: 'list_world_root',
+        type: 'list_files',
+        path: 'world/',
+        description: 'List world/ with trailing slash.',
+      },
+      {
+        name: 'unzip_world',
+        type: 'shell',
+        command: 'unzip -o {{args}} -d world/',
+        open_args: true,
+        description: 'Unzip world archive into world/ (validated validActionArg).',
+      },
+      {
+        name: 'write_world_guard',
+        type: 'write_file',
+        path: 'world/readme.txt',
+        content: 'world import guard — isDangerousPath blocks /etc etc on host writes',
+        description: 'Write guard file (write_file, isDangerousPath already in edge/backend/internal/files/handler.go).',
+      },
+      {
+        name: 'stat_world',
+        type: 'shell',
+        command: 'ls -ld world 2>&1; echo "---"; du -sh world 2>&1 | head -5',
+        description: 'Stat world directory.',
+      },
+    ],
+  },
+  {
+    id: 'mc-plugins',
+    name: 'Plugin Manager',
+    slug: 'mc-plugins',
+    category: 'minecraft',
+    description: 'Manage plugins/ via list_files table + wget {{args}} -P plugins/ / rm plugins/{{args}}.jar + write_file plugins/ExamplePlugin/config.yml + touch restart.flag.',
+    iconSvg: '<path d="M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/><path d="M12 8V6a4 4 0 0 0-4-4 4 4 0 0 0-4 4v2"/><path d="M9 21h6"/><path d="M18 9a3 3 0 0 1 3 3v4a3 3 0 0 1-3 3h-1"/>',
+    html: MC_PLUGINS,
+    actions: [
+      {
+        name: 'list_plugins',
+        type: 'list_files',
+        path: 'plugins',
+        description: 'Table plugins/ via list_files.',
+      },
+      {
+        name: 'list_plugins_root',
+        type: 'list_files',
+        path: 'plugins/',
+        description: 'List plugins/ with trailing slash.',
+      },
+      {
+        name: 'install_plugin',
+        type: 'shell',
+        command: 'wget {{args}} -P plugins/',
+        open_args: true,
+        description: 'Install plugin via wget {{args}} -P plugins/ (validated validActionArg).',
+      },
+      {
+        name: 'remove_plugin',
+        type: 'shell',
+        command: 'rm plugins/{{args}}.jar',
+        open_args: true,
+        description: 'Remove plugin jar via rm plugins/{{args}}.jar.',
+      },
+      {
+        name: 'write_plugin_config',
+        type: 'write_file',
+        path: 'plugins/ExamplePlugin/config.yml',
+        content: '# ExamplePlugin config.yml\n# Edit in Studio to customize for your plugin\nname: ExamplePlugin\nversion: 1.0.0\nenabled: true\nsettings:\n  example: true\n  max-players: 20\n',
+        description: 'Write plugins/ExamplePlugin/config.yml (write_file).',
+      },
+      {
+        name: 'restart_flag',
+        type: 'shell',
+        command: 'touch restart.flag && echo restart scheduled via restart.flag',
+        description: 'Restart action via touch restart.flag (server watches for flag or install exposes screen/rcon).',
+      },
+    ],
   },
 ];
 

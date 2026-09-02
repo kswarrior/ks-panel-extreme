@@ -149,6 +149,10 @@ func (d *multipass) Exec(ctx context.Context, name string, tty bool, cols, rows 
 	}, nil
 }
 
+func (d *multipass) UpdatePorts(ctx context.Context, name string, allocs []PortAllocation) error {
+	return nil
+}
+
 // Runner gathers live metrics/processes/ports inside a multipass VM by
 // running the portable /proc shell scripts via `multipass exec`.
 func (d *multipass) Runner(ctx context.Context, name string) (metrics, processes, ports, info string, err error) {

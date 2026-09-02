@@ -1,8 +1,10 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useInstanceNav } from '@/shared/components/layout/InstanceNavContext';
 import { createPortal } from 'react-dom';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
+import { useAuthStore } from '@/shared/stores/authStore';
+import { PermissionKey, hasPermissionAny } from '@/shared/types/permissions';
 
 const InstanceTabs: React.FC = () => {
   const { nav, instanceId, loading } = useInstanceNav();
@@ -14,8 +16,25 @@ const InstanceTabs: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showAllPagesDropdown, setShowAllPagesDropdown] = useState(false);
   const allPagesTriggerRef = useRef<HTMLButtonElement>(null);
+  const permissions = useAuthStore((s) => s.permissions);
+  const canEditPorts = hasPermissionAny(permissions, PermissionKey.INSTANCES_EDIT, PermissionKey.MANAGE_INSTANCES);
+  const effectiveNav = useMemo(() => {
+    if (!instanceId || !canEditPorts) return nav;
+    // Append synthetic Ports tab unless a custom page already uses slug 'ports'
+    if (nav.some((n) => n.to === 'ports')) return nav;
+    return [
+      ...nav,
+      {
+        to: 'ports',
+        label: 'Ports',
+        iconSvg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="7" width="20" height="8" rx="2"/><path d="M6 7v-2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2"/><path d="M6 15v2a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-2"/></svg>',
+        iconKind: 'svg' as const,
+        end: false,
+      },
+    ];
+  }, [nav, instanceId, canEditPorts]);
 
-  const filteredNav = nav.filter((item) =>
+  const filteredNav = effectiveNav.filter((item) =>
     item.label.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -24,7 +43,7 @@ const InstanceTabs: React.FC = () => {
   };
 
   const handlePageSelect = (pageSlug: string) => {
-    const item = nav.find((n) => n.to === pageSlug);
+    const item = effectiveNav.find((n) => n.to === pageSlug);
     if (item) {
       const absTo =
         item.to === '.' || item.to === ''
@@ -60,7 +79,7 @@ const InstanceTabs: React.FC = () => {
     checkOverflow();
     window.addEventListener('resize', checkOverflow);
     return () => window.removeEventListener('resize', checkOverflow);
-  }, [nav, checkOverflow]);
+  }, [effectiveNav, checkOverflow]);
 
   // Close all pages dropdown on outside click or escape
   useEffect(() => {
@@ -121,7 +140,7 @@ const InstanceTabs: React.FC = () => {
       </div>
     );
   }
-  if (nav.length === 0) {
+  if (effectiveNav.length === 0) {
     return null;
   }
 
@@ -293,7 +312,7 @@ return (
             </svg>
           </button>
           
-          {nav.map((item) => {
+          {effectiveNav.map((item) => {
             const absTo =
               item.to === '.' || item.to === ''
                 ? `/instances/${instanceId}`

@@ -413,7 +413,19 @@ func ListRolesHandler(w http.ResponseWriter, r *http.Request) {
 	defer con.Close()
 
 	roleRepo := repository.NewRoleRepository(con)
-	roles, err := roleRepo.ListRoles()
+	ownerID := int64(0)
+	if uid, err := UserIDFromContext(r); err == nil && uid != 0 {
+		if checker, cerr := func() (*permissions.Checker, error) { return permissions.NewChecker(con), nil }(); cerr == nil {
+			_ = checker
+			// Use permissions checker to decide OWN filtering.
+			chk := permissions.NewChecker(con)
+			hasOwn, hasAll, _ := chk.HasScope(uid, permissions.RolesOwnKey, permissions.RolesAllKey, permissions.ManageRolesKey)
+			if hasOwn && !hasAll {
+				ownerID = uid
+			}
+		}
+	}
+	roles, err := roleRepo.ListRoles(ownerID)
 	if err != nil {
 		log.Println("ListRoles error:", err)
 		http.Error(w, "server error", http.StatusInternalServerError)
@@ -441,7 +453,11 @@ func CreateRoleHandler(w http.ResponseWriter, r *http.Request) {
 	defer con.Close()
 
 	roleRepo := repository.NewRoleRepository(con)
-	id, err := roleRepo.CreateRole(req.Name, req.DisplayName, req.Color, req.Description, req.Icon, req.Permissions)
+	ownerID := int64(0)
+	if uid, err := UserIDFromContext(r); err == nil && uid != 0 {
+		ownerID = uid
+	}
+	id, err := roleRepo.CreateRole(req.Name, req.DisplayName, req.Color, req.Description, req.Icon, req.Permissions, ownerID)
 	if err != nil {
 		log.Println("CreateRole error:", err)
 		http.Error(w, "could not create role (name may already exist)", http.StatusConflict)

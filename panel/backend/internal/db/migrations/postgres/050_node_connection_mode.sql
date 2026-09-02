@@ -10,6 +10,7 @@
 --   local_wss       — edge runs on panel host via WSS tunnel (loopback).
 --
 -- Stored as TEXT with a 'direct' default so legacy rows (pre-050) keep the
--- established bidirectional behaviour without a data migration.
+-- established bidirectional behaviour without a data migration. The Go runner
+-- in db.go guards the ALTER individually so SQLite/MySQL re-runs stay idempotent.
 
 ALTER TABLE nodes ADD COLUMN IF NOT EXISTS connection_mode TEXT NOT NULL DEFAULT 'direct';

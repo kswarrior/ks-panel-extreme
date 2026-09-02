@@ -33,6 +33,46 @@ log_step() { echo -e "${BLUE}==>${NC} $*"; }
 die() { log_err "$*"; exit 1; }
 
 LAUNCH_PORT="${1:-8080}"
+# If the requested LAUNCH_PORT is already occupied by a non-sandbox process,
+# and it is the default 5050, auto-select a free port so retest doesn't fail
+# on busy dev boxes. Mirrors the launch.go fallback for the default port.
+# For a non-default explicit port (e.g. 8080) we keep the requested value —
+# launch will fail visibly so the operator knows the port is taken.
+find_free_port() {
+    python3 -c 'import socket; s=socket.socket(); s.bind(("",0)); print(s.getsockname()[1])' 2>/dev/null || \
+    python -c 'import socket; s=socket.socket(); s.bind(("",0)); print(s.getsockname()[1])' 2>/dev/null || echo 0
+}
+is_port_busy() {
+    local p="$1"
+    # Try ss, then netstat, then bash /dev/tcp probe, then python
+    if command -v ss >/dev/null 2>&1; then
+        ss -ltn 2>/dev/null | grep -q ":${p} " && return 0
+    fi
+    if command -v netstat >/dev/null 2>&1; then
+        netstat -ltn 2>/dev/null | grep -q ":${p} " && return 0
+    fi
+    # Fallback: try to bind with python
+    if python3 -c "import socket; s=socket.socket(); s.settimeout(1); s.connect(('127.0.0.1', $p)); s.close()" 2>/dev/null; then
+        return 0
+    fi
+    # Try bash tcp probe
+    (echo >/dev/tcp/127.0.0.1/"$p") >/dev/null 2>&1 && return 0
+    return 1
+}
+# Export so every kspanel invocation in this sandbox (seed, setup:localnode,
+# launch) sees the same panel port. Without this, setup:localnode's
+# ensurePanelUp auto-starts a panel on 5050 (its hard-coded default) and the
+# final `launch --port 8080` below leaves TWO panels sharing the same DB —
+# triggering the DDoS port-switcher duplicate warning.
+export KSPANEL_PORT="$LAUNCH_PORT"
+if [[ "$LAUNCH_PORT" == "5050" ]] && is_port_busy "$LAUNCH_PORT"; then
+    FREE_P="$(find_free_port)"
+    if [[ "$FREE_P" != "0" && -n "$FREE_P" ]]; then
+        log_warn "Port $LAUNCH_PORT is busy — auto-selected free port $FREE_P for this run"
+        LAUNCH_PORT="$FREE_P"
+        export KSPANEL_PORT="$LAUNCH_PORT"
+    fi
+fi
 
 # ============================================================================
 # Sanity checks
@@ -97,7 +137,10 @@ done
 # Export so all kspanel invocations (seed, create:user, launch) use the ephemeral /tmp DB
 export KSPANEL_DB="$DB_PATH"
 export KSPANEL_DB_DSN="$DB_PATH"
+# KSPANEL_PORT already exported above; re-export to keep it visible after DB vars
+export KSPANEL_PORT="$LAUNCH_PORT"
 log_info "Ephemeral DB: $DB_PATH (in /tmp, fresh each run)"
+log_info "Panel port: $LAUNCH_PORT (KSPANEL_PORT=$KSPANEL_PORT)"
 
 log_info "Copying binaries from release/ ..."
 cp -f "$RELEASE_DIR/kspanel" "$TEST_DIR/"
@@ -133,6 +176,42 @@ export KSPANEL_SESSION_SECRET="$(openssl rand -base64 32)"
 ./kspanel create:user --username kswarrior --email kswarriorpro@gmail.com --password 'KSabu@123@hassan' --role 3 || true
 ./kspanel import:template minecraft || true
 ./kspanel setup:localnode --port 4040 || true
+
+# setup:localnode's ensurePanelUp may have auto-started a panel on
+# $KSPANEL_PORT (now $LAUNCH_PORT). That intermediate panel would be a
+# duplicate with the final `kspanel launch --port $LAUNCH_PORT` below and
+# would trigger the DDoS port-switcher duplicate warning
+# ("stop the old instance so DDoS port switching can free ports cleanly").
+# Stop any intermediate sandbox panel before the final launch, but keep ksedge.
+if pgrep -x kspanel >/dev/null 2>&1; then
+    # Only kill if the panel is indeed the setup-launched one on KSPANEL_PORT;
+    # kill_sandbox_binaries is scoped to $TEST_DIR so it won't touch a system-wide
+    # panel outside the sandbox.
+    log_info "Stopping intermediate panel from setup:localnode before final launch..."
+    kill_sandbox_binaries kspanel
+    sleep 1
+    # If setup:localnode had to auto-bump 5050 to an ephemeral port (busy box),
+    # its edge config now points at that ephemeral port but the final panel
+    # will be on $LAUNCH_PORT — patch the edge config so heartbeats land.
+    if [[ -f "localnode/ksedge/config.json" ]] && command -v python3 >/dev/null 2>&1; then
+        python3 - "$LAUNCH_PORT" <<'PY' 2>/dev/null || true
+import json, os, sys
+port = sys.argv[1] if len(sys.argv)>1 else "8080"
+cfg_path = "localnode/ksedge/config.json"
+try:
+    with open(cfg_path) as f:
+        cfg = json.load(f)
+    want = f"http://127.0.0.1:{port}"
+    if cfg.get("panel_url") != want:
+        cfg["panel_url"] = want
+        with open(cfg_path, "w") as f:
+            json.dump(cfg, f, indent=2)
+        print(f"patched {cfg_path} panel_url -> {want}")
+except Exception as e:
+    pass
+PY
+    fi
+fi
 
 echo
 log_step "Launching kspanel on port $LAUNCH_PORT (background)..."

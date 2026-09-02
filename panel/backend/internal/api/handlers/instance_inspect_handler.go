@@ -390,24 +390,7 @@ func MetricsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(ls.Metrics))
 }
 
-// ----- Ports ----------------------------------------------------------------
-
-func ListPortsHandler(w http.ResponseWriter, r *http.Request) {
-	if !guardInstancePage(w, r, "ports") {
-		return
-	}
-	inst, ec, _, ok := loadInstNode(w, r)
-	if !ok {
-		return
-	}
-	ls := refreshLiveState(inst, ec)
-	if ls == nil {
-		writeJSON(w, []any{})
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(ls.Ports))
-}
+// ----- Ports moved to instance_port_handler.go (ListPortsHandler now merges DB allocs) -----
 
 // ----- Snapshots ------------------------------------------------------------
 

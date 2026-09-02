@@ -80,6 +80,11 @@ type CreateNodeInput struct {
 	Color string
 	// Connection mode (migration 050). Empty = 'direct' default.
 	ConnectionMode string
+	// OwnerID (migration 054) ties the node to the user that registered
+	// it. The NODES_OWN / NODES_ALL scope keys in the role form drive
+	// list filtering on this column; the handler passes 0 for admins
+	// (full list) and the caller's uid for self-service.
+	OwnerID int64
 }
 
 // CreateNode returns the new node row and the raw edge token. The token must
@@ -105,8 +110,8 @@ func (r *NodeRepository) CreateNode(in CreateNodeInput) (*models.Node, string, e
 			health_enabled, health_interval, health_timeout, health_retries,
 			skip_tls_verify, notes, install_dir, allowed_kinds,
 			alloc_mem_mib, mem_overcommit_pct, alloc_disk_mib, disk_overcommit_pct, instances_dir,
-			category, location_country, location_node, icon, color, connection_mode)
-		 VALUES (?, ?, ?, ?, ?, ?, 'down', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			category, location_country, location_node, icon, color, connection_mode, owner_id)
+		 VALUES (?, ?, ?, ?, ?, ?, 'down', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		in.Name, in.Address, boolToInt(in.UseTLS), hash, prefix, token,
 		boolToInt(in.HealthEnabled), defaultInt(in.HealthInterval, 60),
 		defaultInt(in.HealthTimeout, 4), defaultInt(in.HealthRetries, 3),
@@ -114,6 +119,7 @@ func (r *NodeRepository) CreateNode(in CreateNodeInput) (*models.Node, string, e
 		in.AllocMemMiB, in.MemOvercommitPct, in.AllocDiskMiB, in.DiskOvercommitPct,
 		in.InstancesDir,
 		in.Category, in.LocationCountry, in.LocationNode, in.Icon, in.Color, cm,
+		in.OwnerID,
 	)
 	if err != nil {
 		return nil, "", err
@@ -129,6 +135,7 @@ func (r *NodeRepository) CreateNode(in CreateNodeInput) (*models.Node, string, e
 		UseTLS:      in.UseTLS,
 		TokenPrefix: prefix,
 		Status:      "down",
+		OwnerID:     in.OwnerID,
 	}, token, nil
 }
 
@@ -272,6 +279,35 @@ func (r *NodeRepository) listNodesLegacy() ([]models.Node, error) {
 		nodes = append(nodes, nd)
 	}
 	return nodes, rows.Err()
+}
+
+// ListNodesByOwner returns the subset of nodes owned by ownerID. Migration
+// 054 wired the NODES_OWN scope key — the panel's admin Nodes handler
+// calls this when a caller holds NODES_OWN without NODES_ALL, so an
+// Own-restricted role only sees their own edges. ownerID == 0 falls
+// through to ListNodes (full fleet, the legacy behaviour).
+//
+// We post-filter the ListNodes() result in memory rather than pushing a
+// WHERE clause down to SQL because ListNodes runs three fallback
+// paths (full scan / with-drivers / legacy) and adding a parameterised
+// filter to each would triple the surface area. The node fleet is
+// bounded by the operator's hardware budget, so the filter cost is
+// trivial.
+func (r *NodeRepository) ListNodesByOwner(ownerID int64) ([]models.Node, error) {
+	all, err := r.ListNodes()
+	if err != nil {
+		return nil, err
+	}
+	if ownerID == 0 {
+		return all, nil
+	}
+	out := make([]models.Node, 0, len(all))
+	for _, n := range all {
+		if n.OwnerID == ownerID {
+			out = append(out, n)
+		}
+	}
+	return out, nil
 }
 
 // GetNode fetches a single node row by id (used by the panel dialer before it

@@ -75,6 +75,15 @@ type Role struct {
 	Description string   `json:"description"`
 	Icon        string   `json:"icon"`
 	Permissions []string `json:"permissions,omitempty"`
+	// OwnerID ties the role to the user that authored it. Migration 054
+	// wires the ROLES_OWN / ROLES_ALL scope keys: an Own role only sees
+	// rows where OwnerID = caller; All / umbrella keep the full list.
+	// Zero = pre-054 row (orphan) — every role created before this
+	// migration lands with NULL and stays visible only to admins.
+	OwnerID int64 `json:"owner_id,omitempty"`
+	// OwnerName is the denormalised username so the admin Roles list
+	// can render "alice" instead of just the integer id.
+	OwnerName string `json:"owner_name,omitempty"`
 	// AllowedAuthTypes is the admin-curated subset of the admin-enabled
 	// authority providers that users WITH THIS ROLE are allowed to turn
 	// on for their own login (see UserAuthorityConfig). nil/missing
@@ -120,7 +129,14 @@ type Application struct {
 	Permissions json.RawMessage `json:"permissions"` // []PermissionReq for preview
 	Active      bool            `json:"active"`
 	UploadedBy  *int64          `json:"uploaded_by,omitempty"`
-	OwnerName   string          `json:"owner_name,omitempty"`
+	// OwnerID ties the application to the user that uploaded it.
+	// Migration 054 wires the APPLICATIONS_OWN / APPLICATIONS_ALL scope
+	// keys: an Own role only sees rows where OwnerID = caller; All /
+	// umbrella keep the full catalog. Zero = pre-054 row (orphan).
+	OwnerID int64 `json:"owner_id,omitempty"`
+	// OwnerName is the denormalised username so the admin Applications
+	// list can render "alice" instead of just the integer id.
+	OwnerName string `json:"owner_name,omitempty"`
 	Source      string          `json:"source"`
 	SourceURL   string          `json:"source_url,omitempty"`
 	CreatedAt   time.Time       `json:"created_at"`

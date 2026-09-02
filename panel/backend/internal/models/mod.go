@@ -27,7 +27,15 @@ type Mod struct {
 	Spec        json.RawMessage `json:"spec,omitempty"`
 	Active      bool            `json:"active"`
 	UploadedBy  *int64          `json:"uploaded_by,omitempty"`
-	OwnerName   string          `json:"owner_name,omitempty"`
+	// OwnerID ties the mod to the user that uploaded it (the same value
+	// that backs the upload audit row). Migration 054 wires the
+	// MODS_OWN/MODS_ALL scope keys: an Own role only sees rows where
+	// OwnerID = caller; All / umbrella keep the full catalog. Zero =
+	// pre-054 row (orphan).
+	OwnerID int64 `json:"owner_id,omitempty"`
+	// OwnerName is the denormalised username joined from users so the
+	// admin mod list can render "alice" instead of just the integer id.
+	OwnerName string `json:"owner_name,omitempty"`
 	// EngineVersion records which Mod Engine the row targets. 1 == the static
 	// v1 manifest system (no JS runtime). 2 == the event-driven Goja engine:
 	// the manifest may carry `backendScript`, `slots`, `hooks`,

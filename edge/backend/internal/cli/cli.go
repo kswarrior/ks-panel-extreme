@@ -27,6 +27,7 @@ import (
 	"github.com/example/ksedge/internal/install"
 	"github.com/example/ksedge/internal/lifecycle"
 	"github.com/example/ksedge/internal/pageaction"
+	"github.com/example/ksedge/internal/ports"
 	"github.com/example/ksedge/internal/snapshot"
 	"github.com/example/ksedge/internal/tunnel"
 	"github.com/spf13/cobra"
@@ -253,6 +254,7 @@ func runHealthServer(cfg config.Config, ctx context.Context) error {
 	mux.Handle("/api/edge/install/stop", installHandler)
 	mux.Handle("/api/edge/page-action", pageaction.Handler(cfg.Token))
 	mux.Handle("/api/edge/snapshot", snapshot.Handler(cfg.Token))
+	mux.Handle("/api/edge/ports/update", ports.Handler(cfg.Token))
 
 	// Wrap the routing mux in two defensive middlewares so the edge stays
 	// healthy under heavy / hostile load:

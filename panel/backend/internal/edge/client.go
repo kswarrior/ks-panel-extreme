@@ -946,6 +946,93 @@ type PageActionResponse struct {
 	Data     any    `json:"data,omitempty"`
 }
 
+// PortAllocation is one host->container binding the panel persists in
+// instance_ports and the edge reconciles into docker -p flags.
+type PortAllocation struct {
+	Host      int    `json:"host"`
+	Container int    `json:"container"`
+	Protocol  string `json:"protocol"`
+	IP        string `json:"ip,omitempty"`
+}
+
+// UpdatePortsRequest is POSTed to /api/edge/ports/update. The edge validates
+// Token, then dispatches Kind+Name to the driver's UpdatePorts.
+type UpdatePortsRequest struct {
+	Token string           `json:"token"`
+	Kind  string           `json:"kind"`
+	Name  string           `json:"name"`
+	Ports []PortAllocation `json:"ports"`
+}
+
+// UpdatePortsResponse carries the edge reconcile outcome.
+type UpdatePortsResponse struct {
+	OK    bool   `json:"ok"`
+	Error string `json:"error,omitempty"`
+}
+
+// UpdatePorts dispatches the allocation editor reconcile. It honours the WSS
+// tunnel like Lifecycle/Inspect etc. The panel has already persisted the new
+// allocations to instance_ports; the edge's job is to make the live container
+// reflect them when it is running (recreate with new -p), or no-op when
+// stopped (DB-only path).
+func (c *Client) UpdatePorts(req UpdatePortsRequest) (UpdatePortsResponse, error) {
+	req.Token = c.token
+	if handled, body, status, err := c.tryTunnel("POST", "/api/edge/ports/update", req); handled {
+		if err != nil {
+			return UpdatePortsResponse{}, err
+		}
+		var out UpdatePortsResponse
+		if err := unmarshalTunnelResponse(body, status, &out); err != nil {
+			return UpdatePortsResponse{}, err
+		}
+		if status >= 300 {
+			if out.Error != "" {
+				return out, fmt.Errorf("edge rejected: %s", out.Error)
+			}
+			return out, fmt.Errorf("edge returned HTTP %d", status)
+		}
+		if !out.OK {
+			if out.Error != "" {
+				return out, fmt.Errorf("%s", out.Error)
+			}
+			return out, fmt.Errorf("edge reported failure without a message")
+		}
+		return out, nil
+	}
+	body, err := json.Marshal(req)
+	if err != nil {
+		return UpdatePortsResponse{}, fmt.Errorf("encode request: %w", err)
+	}
+	endpoint := c.baseURL + "/api/edge/ports/update"
+	httpReq, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return UpdatePortsResponse{}, fmt.Errorf("build request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	resp, err := c.http.Do(httpReq)
+	if err != nil {
+		return UpdatePortsResponse{}, fmt.Errorf("dial edge: %w", err)
+	}
+	defer resp.Body.Close()
+	var out UpdatePortsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return UpdatePortsResponse{}, fmt.Errorf("edge returned HTTP %d", resp.StatusCode)
+	}
+	if resp.StatusCode >= 300 {
+		if out.Error != "" {
+			return out, fmt.Errorf("edge rejected: %s", out.Error)
+		}
+		return out, fmt.Errorf("edge returned HTTP %d", resp.StatusCode)
+	}
+	if !out.OK {
+		if out.Error != "" {
+			return out, fmt.Errorf("%s", out.Error)
+		}
+		return out, fmt.Errorf("edge reported failure without a message")
+	}
+	return out, nil
+}
+
 // PageAction dispatches a custom-page action RPC, honouring the WSS tunnel
 // when the node is in reverse_tunnel / local_wss mode (same as Lifecycle,
 // Inspect, etc.). This replaces the previous direct-HTTP dial that bypassed

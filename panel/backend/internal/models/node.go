@@ -83,6 +83,16 @@ type Node struct {
 	// local_port = edge runs on panel host via 127.0.0.1:port (HTTP).
 	// local_wss = edge runs on panel host via WSS tunnel.
 	ConnectionMode string `json:"connection_mode"`
+	// OwnerID ties the node to the user that registered it. Migration 054
+	// wires the NODES_OWN/NODES_ALL scope keys: a role with NODES_OWN only
+	// sees rows where OwnerID = caller. Admin / NODES_ALL / MANAGE_NODES
+	// (the umbrella, which implies All) keep the full-fleet view. Zero =
+	// pre-054 row (orphan) — visible to admins, hidden from Own-scoped
+	// users just like unattributed instances are.
+	OwnerID int64 `json:"owner_id,omitempty"`
+	// OwnerName is the denormalised username joined from users so the
+	// admin node list can render "alice" instead of just the integer id.
+	OwnerName string `json:"owner_name,omitempty"`
 	// ProbeFailCount is how many consecutive active probes failed in a row
 	// since the last success. The sweep loop flips status->"down" once this
 	// crosses HealthRetries, and resets it to 0 on a green probe.

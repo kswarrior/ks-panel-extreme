@@ -643,6 +643,8 @@ func NewRouter() http.Handler {
 		r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Post("/api/instances/{id}/processes/kill", handlers.KillProcessHandler)
 		r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Get("/api/instances/{id}/metrics", handlers.MetricsHandler)
 		r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Get("/api/instances/{id}/ports", handlers.ListPortsHandler)
+		// Ports editor: PUT requires EDIT (MANAGE_INSTANCES umbrella or INSTANCES_EDIT).
+		r.With(requireUmbrellaOrAction(instancesG, permissions.ActionEdit)).Put("/api/instances/{id}/ports", handlers.UpdatePortsHandler)
 
 		// Bulk cached live-state resources (now inside r.Route("/api/instances") as
 		// GET "/cached-resources" so the static literal is resolved before

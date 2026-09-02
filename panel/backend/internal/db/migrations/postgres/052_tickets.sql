@@ -1,4 +1,22 @@
--- 052_tickets.sql: complete powerful ticket system (Postgres)
+-- 052_tickets.sql: complete powerful ticket system
+--
+-- Two tables:
+--   tickets
+--     — one row per support request. category/priority/status are plain
+--       TEXT enums validated server-side (so adding a new category never
+--       needs a migration). ticket_no is the human TKT-000001 code shown
+--       in the UI and used for search. assigned_to may be NULL when the
+--       ticket is unassigned. tags is a JSON array string.
+--   ticket_comments
+--     — threaded replies + internal staff notes. is_internal=1 notes are
+--       visible only to staff (TICKETS_EDIT / MANAGE_TICKETS). The panel
+--       bumps tickets.updated_at on every new comment so the list sort
+--       ("recently updated") reflects reply activity without a join.
+--
+-- Indexes mirror the filter bar on the Tickets page (status / priority /
+-- category / created_by / assigned_to) and the comment lookup.
+-- Permissions are seeded at the bottom so the admin role picks them up on
+-- next launch via db.go SeedCore's INSERT OR IGNORE.
 
 CREATE TABLE IF NOT EXISTS tickets (
     id              SERIAL PRIMARY KEY,
@@ -41,9 +59,9 @@ CREATE INDEX IF NOT EXISTS idx_ticket_comments_ticket ON ticket_comments(ticket_
 CREATE INDEX IF NOT EXISTS idx_ticket_comments_author ON ticket_comments(author_id);
 
 -- Seed ticket permissions
-INSERT INTO permissions (key, description) VALUES
+INSERT OR IGNORE INTO permissions (key, description) VALUES
     ('MANAGE_TICKETS', 'Manage tickets (support system umbrella – view, create, edit, delete)'),
     ('TICKETS_VIEW',   'View tickets (list + detail)'),
     ('TICKETS_CREATE', 'Create new tickets'),
     ('TICKETS_EDIT',   'Edit tickets, change status/priority, assign, reply'),
-    ('TICKETS_DELETE', 'Delete tickets and comments') ON CONFLICT DO NOTHING;
+    ('TICKETS_DELETE', 'Delete tickets and comments');

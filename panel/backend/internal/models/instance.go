@@ -19,6 +19,14 @@ type Template struct {
 	Spec      string    `json:"spec"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+	// OwnerID ties the template to the user that created it. Migration
+	// 054 wires the TEMPLATES_OWN/TEMPLATES_ALL scope keys: an Own
+	// role only sees rows where OwnerID = caller; All / umbrella keep
+	// the full library view. Zero = pre-054 row (orphan).
+	OwnerID int64 `json:"owner_id,omitempty"`
+	// OwnerName is the denormalised username joined from users so the
+	// admin template list can render "alice" instead of just the int id.
+	OwnerName string `json:"owner_name,omitempty"`
 }
 
 // InstancePage is a reusable page definition for instance templates.
@@ -58,6 +66,13 @@ type InstancePage struct {
 	IconSVG    string `json:"icon_svg"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+	// OwnerID ties the page to the user that authored it. Migration 054
+	// wires the INSTANCE_PAGES_OWN / INSTANCE_PAGES_ALL scope keys; see
+	// Template.OwnerID for the full contract.
+	OwnerID int64 `json:"owner_id,omitempty"`
+	// OwnerName is the denormalised username so the admin library list
+	// can render "alice" instead of just the integer id.
+	OwnerName string `json:"owner_name,omitempty"`
 }
 
 // Instance is one deployed workload living on an edge node.

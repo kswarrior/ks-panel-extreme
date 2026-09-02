@@ -36,8 +36,25 @@ func (r *RoleRepository) roleAuthList(ids []int64) (map[int64][]string, error) {
 }
 
 // ListRoles returns all roles, each populated with its permission key list.
-func (r *RoleRepository) ListRoles() ([]models.Role, error) {
-	rows, err := r.db.Query(`SELECT id, name, display_name, color, description, icon FROM roles ORDER BY name`)
+// Migration 054 added the `owner_id` column so the ROLES_OWN / ROLES_ALL
+// scope keys become functional; callers who pass ownerID > 0 receive only
+// roles they own (matching the existing INSTANCES_OWN pattern). Pass 0 to
+// keep the historical "every role" behaviour — the admin list handler
+// combines this with its own scope check so it doesn't need to.
+func (r *RoleRepository) ListRoles(ownerID int64) ([]models.Role, error) {
+	q := `SELECT id, name, display_name, color, description, icon,
+		COALESCE(owner_id, 0),
+		COALESCE((SELECT username FROM users WHERE id = roles.owner_id), '')
+		FROM roles ORDER BY name`
+	args := []interface{}{}
+	if ownerID > 0 {
+		q = `SELECT id, name, display_name, color, description, icon,
+			COALESCE(owner_id, 0),
+			COALESCE((SELECT username FROM users WHERE id = roles.owner_id), '')
+			FROM roles WHERE owner_id = ? ORDER BY name`
+		args = append(args, ownerID)
+	}
+	rows, err := r.db.Query(q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +63,7 @@ func (r *RoleRepository) ListRoles() ([]models.Role, error) {
 	roles := []models.Role{}
 	for rows.Next() {
 		var rl models.Role
-		if err := rows.Scan(&rl.ID, &rl.Name, &rl.DisplayName, &rl.Color, &rl.Description, &rl.Icon); err != nil {
+		if err := rows.Scan(&rl.ID, &rl.Name, &rl.DisplayName, &rl.Color, &rl.Description, &rl.Icon, &rl.OwnerID, &rl.OwnerName); err != nil {
 			return nil, err
 		}
 		roles = append(roles, rl)
@@ -84,11 +101,16 @@ func (r *RoleRepository) ListRoles() ([]models.Role, error) {
 }
 
 func (r *RoleRepository) GetRoleByName(name string) (*models.Role, error) {
-	row := r.db.QueryRow(`SELECT id, name, display_name, color, description, icon FROM roles WHERE name = ?`, name)
+	row := r.db.QueryRow(`SELECT id, name, display_name, color, description, icon,
+		COALESCE(owner_id, 0),
+		COALESCE((SELECT username FROM users WHERE id = roles.owner_id), '')
+		FROM roles WHERE name = ?`, name)
 	var rl models.Role
 	var rid sql.NullInt64
 	var rname, rdisp, rcolor, rdesc, ric sql.NullString
-	if err := row.Scan(&rid, &rname, &rdisp, &rcolor, &rdesc, &ric); err != nil || !rid.Valid {
+	var ownerID sql.NullInt64
+	var ownerName sql.NullString
+	if err := row.Scan(&rid, &rname, &rdisp, &rcolor, &rdesc, &ric, &ownerID, &ownerName); err != nil || !rid.Valid {
 		return nil, fmt.Errorf("role %s not found", name)
 	}
 	rl.ID = rid.Int64
@@ -97,6 +119,8 @@ func (r *RoleRepository) GetRoleByName(name string) (*models.Role, error) {
 	rl.Color = rcolor.String
 	rl.Description = rdesc.String
 	rl.Icon = ric.String
+	rl.OwnerID = ownerID.Int64
+	rl.OwnerName = ownerName.String
 	perms, err := r.getPermissionKeysByRoleID(rl.ID)
 	if err != nil {
 		return nil, err
@@ -114,11 +138,16 @@ func (r *RoleRepository) GetRoleByName(name string) (*models.Role, error) {
 }
 
 func (r *RoleRepository) GetRoleByID(id int64) (*models.Role, error) {
-	row := r.db.QueryRow(`SELECT id, name, display_name, color, description FROM roles WHERE id = ?`, id)
+	row := r.db.QueryRow(`SELECT id, name, display_name, color, description, icon,
+		COALESCE(owner_id, 0),
+		COALESCE((SELECT username FROM users WHERE id = roles.owner_id), '')
+		FROM roles WHERE id = ?`, id)
 	var rl models.Role
 	var rid sql.NullInt64
-	var rname, rdisp, rcolor, rdesc sql.NullString
-	if err := row.Scan(&rid, &rname, &rdisp, &rcolor, &rdesc); err != nil || !rid.Valid {
+	var rname, rdisp, rcolor, rdesc, ric sql.NullString
+	var ownerID sql.NullInt64
+	var ownerName sql.NullString
+	if err := row.Scan(&rid, &rname, &rdisp, &rcolor, &rdesc, &ric, &ownerID, &ownerName); err != nil || !rid.Valid {
 		return nil, fmt.Errorf("role %d not found", id)
 	}
 	rl.ID = rid.Int64
@@ -126,6 +155,9 @@ func (r *RoleRepository) GetRoleByID(id int64) (*models.Role, error) {
 	rl.DisplayName = rdisp.String
 	rl.Color = rcolor.String
 	rl.Description = rdesc.String
+	rl.Icon = ric.String
+	rl.OwnerID = ownerID.Int64
+	rl.OwnerName = ownerName.String
 	perms, err := r.getPermissionKeysByRoleID(rl.ID)
 	if err != nil {
 		return nil, err
@@ -146,10 +178,13 @@ func (r *RoleRepository) GetRoleByID(id int64) (*models.Role, error) {
 // Unknown permission keys (ones that don't exist in the permissions table) are
 // silently skipped rather than failing the whole operation. displayName and
 // color are stored verbatim — empty strings fall back to defaults on read.
-func (r *RoleRepository) CreateRole(name, displayName, color, description, icon string, permissionKeys []string) (int64, error) {
+// ownerID is the user that authored the role; pass 0 for the panel's own
+// built-ins / admin-authored rows. Migration 054 added the column so the
+// ROLES_OWN scope key can filter the list endpoint by it.
+func (r *RoleRepository) CreateRole(name, displayName, color, description, icon string, permissionKeys []string, ownerID int64) (int64, error) {
 	res, err := r.db.Exec(
-		`INSERT INTO roles (name, display_name, color, description, icon) VALUES (?, ?, ?, ?, ?)`,
-		name, displayName, color, description, icon)
+		`INSERT INTO roles (name, display_name, color, description, icon, owner_id) VALUES (?, ?, ?, ?, ?, ?)`,
+		name, displayName, color, description, icon, ownerID)
 	if err != nil {
 		return 0, err
 	}

@@ -22,6 +22,10 @@ import { pageNavigateTarget } from '@/shared/lib/customPageSdk';
 import CustomPageView from '@/shared/components/ui/CustomPageView';
 import Terminal, { type TerminalHandle } from '@/shared/components/ui/Terminal';
 import type { Terminal as XTerm } from '@xterm/xterm';
+import InstancePortsEditor from '@/features/instances/pages/InstancePortsEditor';
+import { useAuthStore } from '@/shared/stores/authStore';
+import { PermissionKey } from '@/shared/types/permissions';
+import { hasPermissionAny } from '@/shared/types/permissions';
 
 export const InstancePanel: React.FC = () => {
   const { id } = useParams();
@@ -200,6 +204,7 @@ export const InstanceDynamicPage: React.FC = () => {
   const { id, '*': wildcard } = useParams();
   const instanceId = Number(id);
   const { instance, loading, error } = useInstance(instanceId);
+  const permissions = useAuthStore((s) => s.permissions);
 
   if (loading) return <div className="glass-card rounded-xl flex items-center gap-4 animate-pulse"><div className="w-9 h-9 rounded-lg bg-neutral-800 shrink-0" /><div className="h-5 w-1/3 bg-neutral-800 rounded" /></div>;
   if (!instance || error) return <div className="glass-card rounded-xl text-red-400 text-sm">{error || 'Instance not found'}</div>;
@@ -215,6 +220,21 @@ export const InstanceDynamicPage: React.FC = () => {
   const spec = instance.config ? parseConfig(instance.config) : null;
   const slug = (wildcard ?? '').replace(/\/+$/, '');
   const effectiveSlug = slug === '' ? '.' : slug;
+
+  // Ports editor is a built-in page permission-gated on INSTANCES_EDIT|MANAGE_INSTANCES,
+  // not a custom spec.pages entry. Render it before the whitelist check so
+  // /instances/:id/ports works even when the spec has no "ports" row.
+  if (effectiveSlug === 'ports') {
+    const can = hasPermissionAny(permissions, PermissionKey.INSTANCES_EDIT, PermissionKey.MANAGE_INSTANCES);
+    if (!can) {
+      return (
+        <div className="ks-card ks-form-card rounded-xl text-center text-gray-400">
+          <p className="text-sm">You need INSTANCES_EDIT permission to manage ports.</p>
+        </div>
+      );
+    }
+    return <InstancePortsEditor />;
+  }
 
   if (!isPageAllowed(effectiveSlug, spec)) {
     // The index route on a page-less instance gets the guidance empty state;

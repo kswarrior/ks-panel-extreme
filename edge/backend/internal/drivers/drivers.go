@@ -39,6 +39,16 @@ type Result struct {
 	Status     string
 }
 
+// PortAllocation is one host->container binding the panel's PUT
+// /api/instances/{id}/ports editor reconciles. The edge receives the full
+// desired set and makes the live container match it when it is running.
+type PortAllocation struct {
+	Host      int    `json:"host"`
+	Container int    `json:"container"`
+	Protocol  string `json:"protocol"`
+	IP        string `json:"ip,omitempty"`
+}
+
 // Driver is the contract each backend implements.
 type Driver interface {
 	// Name returns the kind string the panel uses ("docker", "lxd", …).
@@ -60,20 +70,26 @@ type Driver interface {
 	// ignorted when tty=false). Cols/Rows are ignored if the driver can't
 	// size its stdin pipe.
 	Exec(ctx context.Context, name string, tty bool, cols, rows int, command []string) (*ExecSession, error)
-	// Runner collects read-only live state (metrics, processes, ports, info)
-	// for the per-instance Processes / Metrics / Ports / Settings pages. Each
-	// return value is a raw JSON blob; the panel stores it verbatim in the
-	// instance_live_state cache and the SPA decodes the driver-specific
-	// fields. A driver that cannot gather a given blob returns its empty
-	// form ("{}" / "[]") rather than failing the whole call, so a missing
-	// CLI surfaces as "no metrics yet" rather than a hard error.
-	//
-	// Metric blobs SHOULD use these panel-friendly field names so the
-	// frontend MetricsSnapshot renders without per-driver translations:
-	//   {"cpu_pct":float,"mem_used":int,"mem_total":int,
-	//    "disk_used":int,"disk_total":int,
-	//    "net_in":int,"net_out":int,"load1":float,"uptime":int}
-	Runner(ctx context.Context, name string) (metrics, processes, ports, info string, err error)
+// Runner collects read-only live state (metrics, processes, ports, info)
+// for the per-instance Processes / Metrics / Ports / Settings pages. Each
+// return value is a raw JSON blob; the panel stores it verbatim in the
+// instance_live_state cache and the SPA decodes the driver-specific
+// fields. A driver that cannot gather a given blob returns its empty
+// form ("{}" / "[]") rather than failing the whole call, so a missing
+// CLI surfaces as "no metrics yet" rather than a hard error.
+//
+// Metric blobs SHOULD use these panel-friendly field names so the
+// frontend MetricsSnapshot renders without per-driver translations:
+//   {"cpu_pct":float,"mem_used":int,"mem_total":int,
+//    "disk_used":int,"disk_total":int,
+//    "net_in":int,"net_out":int,"load1":float,"uptime":int}
+Runner(ctx context.Context, name string) (metrics, processes, ports, info string, err error)
+// UpdatePorts reconciles the desired host->container port allocations
+// into the live container. For docker it re-creates the container with
+// new -p flags when it is running; for stopped / missing containers it
+// is a no-op (DB-only path). Drivers that don't support ports (kvm,
+// lxd, multipass) return nil without touching the workload.
+UpdatePorts(ctx context.Context, name string, allocs []PortAllocation) error
 // Snapshot creates, restores, or deletes a snapshot of the instance.
 // Action is one of "create", "restore", "delete".
 // For "create", SnapName is the name of the snapshot to create.

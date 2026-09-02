@@ -26,7 +26,7 @@ export const PAGE_STUDIO_TABS: Array<{ id: PageStudioTabId; label: string }> = [
 
 // Suggestion lists for the Settings tab Category / Type pickers — same
 // suggest-or-add-free-text UX as the template editor's tag pickers.
-export const CATEGORY_OPTIONS = ['monitoring', 'docs', 'tools', 'dashboard', 'system', 'other'];
+export const CATEGORY_OPTIONS = ['monitoring', 'docs', 'tools', 'dashboard', 'system', 'minecraft', 'other'];
 export const TYPE_OPTIONS = ['dashboard', 'status', 'docs', 'admin-panel', 'widget', 'generic'];
 
 // ---------------------------------------------------------------------------

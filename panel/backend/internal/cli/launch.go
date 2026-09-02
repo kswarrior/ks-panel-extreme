@@ -124,6 +124,30 @@ func runLaunch(cmd *cobra.Command, args []string) error {
 	}
 	url := "http://" + host + addr
 
+	// If the default port (5050) is already occupied, auto-select a free port
+	// now so the banner and the later net.Listen both reflect the same
+	// corrected port. This keeps the UX tidy: a busy dev box with 5050 taken
+	// still boots without the operator having to guess --port. Only the
+	// default 5050 gets this treatment — an explicit non-default --port
+	// (e.g. 8080) still fails hard at bind so the requested port is not
+	// silently ignored.
+	if port == config.DefaultPort() {
+		if lnTest, errTest := net.Listen("tcp", addr); errTest != nil {
+			if strings.Contains(errTest.Error(), "already in use") || strings.Contains(errTest.Error(), "address already in use") {
+				if lnFree, errFree := net.Listen("tcp", ":0"); errFree == nil {
+					newPort := lnFree.Addr().(*net.TCPAddr).Port
+					lnFree.Close()
+					print.Step("listen", fmt.Sprintf("port %d was in use — auto-selected :%d", config.DefaultPort(), newPort))
+					port = newPort
+					addr = fmt.Sprintf(":%d", port)
+					url = "http://" + host + addr
+				}
+			}
+		} else {
+			lnTest.Close()
+		}
+	}
+
 	print.Step("database", fmt.Sprintf("%s — %s", cfg.Engine, dbPathLabel(cfg, nil)))
 	con, d, err := db.Open(cfg)
 	if err != nil {
@@ -245,8 +269,34 @@ go nodeSweepLoop(90*time.Second, time.Minute)
 	// footprint stay flat regardless of attack volume.
 	ln, lerr := net.Listen("tcp", addr)
 	if lerr != nil {
-		print.Error("listen", lerr.Error())
-		return fmt.Errorf("failed to bind port %d: %w", port, lerr)
+		// If the default port (5050) is already in use and the operator did not
+		// explicitly request this port via --port, auto-select a free ephemeral
+		// port instead of failing. This covers: bare `launch` with DefaultPort,
+		// KSPANEL_PORT=5050, or a persisted DB panel_port == 5050 that collides
+		// with another process on the host. An explicit --port 5050 still
+		// respects the same fallback so the panel stays usable on busy dev
+		// machines — only a non-default explicit port (e.g. --port 8080) fails
+		// hard so the operator notices the requested port is unavailable.
+		shouldAutoFallback := strings.Contains(lerr.Error(), "already in use") ||
+			strings.Contains(lerr.Error(), "address already in use")
+		isDefaultPort := port == config.DefaultPort()
+		if shouldAutoFallback && isDefaultPort {
+			// Try ephemeral port :0 — kernel picks a free one.
+			if ln2, err2 := net.Listen("tcp", ":0"); err2 == nil {
+				actualPort := ln2.Addr().(*net.TCPAddr).Port
+				print.Step("listen", fmt.Sprintf("port %d was in use — auto-selected :%d", port, actualPort))
+				port = actualPort
+				addr = fmt.Sprintf(":%d", port)
+				ln = ln2
+				lerr = nil
+			} else {
+				print.Error("listen", lerr.Error())
+				return fmt.Errorf("failed to bind port %d: %w", port, lerr)
+			}
+		} else {
+			print.Error("listen", lerr.Error())
+			return fmt.Errorf("failed to bind port %d: %w", port, lerr)
+		}
 	}
 	state := security.Get()
 	ln = security.NewDDoSDroppingListener(ln, state)

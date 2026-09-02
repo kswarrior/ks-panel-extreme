@@ -129,6 +129,44 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				log.Printf("Running migration %s (skipped: column already present)", name)
 				continue
 			}
+		case name == "054_scope_ownership.sql":
+			// Seven ALTERs in one file; guard each column so a partial
+			// re-run on a host where one of the columns already landed
+			// (e.g. via a manual ALTER) doesn't fail with "duplicate
+			// column". Postgres uses native ADD COLUMN IF NOT EXISTS so
+			// the guard is just a safety net there; on SQLite/MySQL it's
+			// the only thing standing between us and a fatal error.
+			cols := []struct{ table, col string }{
+				{"nodes", "owner_id"},
+				{"templates", "owner_id"},
+				{"mods", "owner_id"},
+				{"applications", "owner_id"},
+				{"instance_pages", "owner_id"},
+				{"themes", "owner_id"},
+				{"roles", "owner_id"},
+			}
+			any := false
+			for _, c := range cols {
+				if !hasColumn(d, db, c.table, c.col) {
+					any = true
+					break
+				}
+			}
+			if !any {
+				log.Printf("Running migration %s (skipped: every column already present)", name)
+				continue
+			}
+			for _, c := range cols {
+				if hasColumn(d, db, c.table, c.col) {
+					continue
+				}
+				if err := guardedAddColumns(d, db, name, c.table, []columnSpec{
+					{"owner_id", "INTEGER REFERENCES users(id) ON DELETE SET NULL"},
+				}); err != nil {
+					return err
+				}
+			}
+			continue
 		case name == "014_role_display_color.sql":
 			if err := guardedAddColumns(d, db, name, "roles", []columnSpec{
 				{"display_name", "TEXT NOT NULL DEFAULT ''"},
@@ -474,6 +512,24 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			// or creation time. Stopped rows keep NULL so they correctly show "—".
 			if _, err := db.Exec(`UPDATE instances SET started_at = COALESCE(updated_at, created_at) WHERE status = 'running' AND started_at IS NULL`); err != nil {
 				log.Printf("migration %s backfill failed: %v", name, err)
+			}
+			continue
+		case name == "055_instance_ports.sql":
+			// Per-instance port allocations (host->container). The CREATE TABLE
+			// is IF NOT EXISTS on every dialect, but the index line is
+			// `IF NOT EXISTS` only on sqlite/postgres after regen.sh strips it
+			// for mysql. Guard the index via hasIndex so the migration is
+			// idempotent on every engine (mirrors 045_application_files_runs).
+			body, rerr := readMigrationsFile(fsys, name)
+			if rerr != nil {
+				return rerr
+			}
+			stripped := stripCreateIndexLines(body, "idx_instance_ports_instance")
+			if _, err := db.Exec(string(stripped)); err != nil {
+				return fmt.Errorf("migration %s failed: %w", name, err)
+			}
+			if err := guardedCreateIndex(d, db, name, "instance_ports", "idx_instance_ports_instance", "instance_id"); err != nil {
+				return err
 			}
 			continue
 		}

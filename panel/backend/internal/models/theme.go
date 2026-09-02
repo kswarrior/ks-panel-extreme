@@ -23,6 +23,13 @@ type Theme struct {
 	Builtin     bool            `json:"builtin"`
 	Spec        json.RawMessage `json:"spec,omitempty"` // the full Theme object
 	CreatedBy   *int64          `json:"created_by,omitempty"`
+	// OwnerID ties the theme to the user that authored it. Migration 054
+	// wires the THEMES_OWN / THEMES_ALL scope keys: an Own role only sees
+	// rows where OwnerID = caller; All / umbrella see the full library.
+	// Zero = pre-054 row (orphan). Built-in themes (Builtin == true)
+	// stay visible to every role because they ship with the panel and
+	// are not really owned by anyone.
+	OwnerID int64 `json:"owner_id,omitempty"`
 	CreatedAt   time.Time       `json:"created_at"`
 	UpdatedAt   time.Time       `json:"updated_at"`
 }
