@@ -1224,15 +1224,18 @@ function ksPatch(targetId, newHtml){
   for(var oi=0;oi<oldNodes.length;oi++){ var on=oldNodes[oi]; oldMap[on.getAttribute('data-ks-key')]=on; }
   var hasKeyed = newKeys.length>0;
   if(hasKeyed){
+    function findParentInRoot(node, tmpRoot, realRoot){
+      var path=[]; var cur=node.parentElement;
+      while(cur && cur!==tmpRoot){ var p=cur.parentElement; if(!p) break; var idx=Array.prototype.indexOf.call(p.children, cur); path.unshift(idx); cur=p; }
+      var target=realRoot; for(var pi=0; pi<path.length; pi++){ if(!target || target.children.length<=path[pi]) return realRoot; target=target.children[path[pi]]; } return target;
+    }
     // 1) patch / add keyed units
     for(var i=0;i<newKeys.length;i++){
       var n=newKeys[i];
       var key=n.getAttribute('data-ks-key');
       var o=oldMap[key];
       if(o && o.outerHTML!==n.outerHTML){ o.replaceWith(n.cloneNode(true)); }
-      else if(!o){
-        // new unit: append to its parent container in root if possible; fallback to shallow later
-      }
+      else if(!o){ try{ var pr=findParentInRoot(n, tmp, root); pr.appendChild(n.cloneNode(true)); }catch(e){} }
       if(o) delete oldMap[key];
     }
     // 2) remove old units that disappeared
