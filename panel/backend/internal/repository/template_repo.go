@@ -153,12 +153,20 @@ type TemplateInput struct {
 
 // Create inserts a new template. The handler validates Spec is well-formed
 // JSON before calling here so the column never holds garbage. OwnerID 0
-// maps to NULL (orphan, pre-054 row; FK allows it) — mirrored with
-// sql.NullInt64 so modernc.org/sqlite doesn't reject naked nil.
+// is the CLI / seed / orphan path (pre-054) — we omit the owner_id column
+// entirely so the row lands with NULL (which the FK allows) instead of 0
+// (which violates the FK) or a bare nil that the modernc sqlite driver
+// rejects as "invalid driver.Value type <nil>".
 func (r *TemplateRepository) Create(in TemplateInput) (int64, error) {
-	ownerID := sql.NullInt64{Int64: in.OwnerID, Valid: in.OwnerID != 0}
-	res, err := r.db.Exec(`INSERT INTO templates (name, description, kind, image, spec, owner_id) VALUES (?, ?, ?, ?, ?, ?)`,
-		in.Name, in.Description, in.Kind, in.Image, in.Spec, ownerID)
+	var res sql.Result
+	var err error
+	if in.OwnerID != 0 {
+		res, err = r.db.Exec(`INSERT INTO templates (name, description, kind, image, spec, owner_id) VALUES (?, ?, ?, ?, ?, ?)`,
+			in.Name, in.Description, in.Kind, in.Image, in.Spec, in.OwnerID)
+	} else {
+		res, err = r.db.Exec(`INSERT INTO templates (name, description, kind, image, spec) VALUES (?, ?, ?, ?, ?)`,
+			in.Name, in.Description, in.Kind, in.Image, in.Spec)
+	}
 	if err != nil {
 		return 0, err
 	}

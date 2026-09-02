@@ -182,10 +182,17 @@ func (r *RoleRepository) GetRoleByID(id int64) (*models.Role, error) {
 // built-ins / admin-authored rows. Migration 054 added the column so the
 // ROLES_OWN scope key can filter the list endpoint by it.
 func (r *RoleRepository) CreateRole(name, displayName, color, description, icon string, permissionKeys []string, ownerID int64) (int64, error) {
-	roleOwner := sql.NullInt64{Int64: ownerID, Valid: ownerID != 0}
-	res, err := r.db.Exec(
-		`INSERT INTO roles (name, display_name, color, description, icon, owner_id) VALUES (?, ?, ?, ?, ?, ?)`,
-		name, displayName, color, description, icon, roleOwner)
+	var res sql.Result
+	var err error
+	if ownerID != 0 {
+		res, err = r.db.Exec(
+			`INSERT INTO roles (name, display_name, color, description, icon, owner_id) VALUES (?, ?, ?, ?, ?, ?)`,
+			name, displayName, color, description, icon, ownerID)
+	} else {
+		res, err = r.db.Exec(
+			`INSERT INTO roles (name, display_name, color, description, icon) VALUES (?, ?, ?, ?, ?)`,
+			name, displayName, color, description, icon)
+	}
 	if err != nil {
 		return 0, err
 	}

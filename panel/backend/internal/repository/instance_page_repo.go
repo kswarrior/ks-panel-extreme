@@ -130,12 +130,18 @@ type InstancePageInput struct {
 // Create inserts a new instance page. The handler populates OwnerID
 // from the caller so the migration-054 scope filter has a value to
 // match against (pre-054 rows stay orphan — visible only to admins).
-// owner_id maps NULL when OwnerID == 0 so pre-seed built-ins and CLI
-// imports don't violate the FK to users(id).
+// OwnerID 0 is the orphan / CLI / seed path — omit the column so the
+// row lands with NULL (which the FK allows) instead of 0 or bare nil.
 func (r *InstancePageRepository) Create(in InstancePageInput) (int64, error) {
-	ownerID := sql.NullInt64{Int64: in.OwnerID, Valid: in.OwnerID != 0}
-	res, err := r.db.Exec(`INSERT INTO instance_pages (name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages, components, owner_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		in.Name, in.Slug, in.Kind, in.Category, in.PageType, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.IconSVG, in.Actions, in.SubPages, in.Components, ownerID)
+	var res sql.Result
+	var err error
+	if in.OwnerID != 0 {
+		res, err = r.db.Exec(`INSERT INTO instance_pages (name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages, components, owner_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			in.Name, in.Slug, in.Kind, in.Category, in.PageType, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.IconSVG, in.Actions, in.SubPages, in.Components, in.OwnerID)
+	} else {
+		res, err = r.db.Exec(`INSERT INTO instance_pages (name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages, components) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			in.Name, in.Slug, in.Kind, in.Category, in.PageType, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.IconSVG, in.Actions, in.SubPages, in.Components)
+	}
 	if err != nil {
 		return 0, err
 	}
