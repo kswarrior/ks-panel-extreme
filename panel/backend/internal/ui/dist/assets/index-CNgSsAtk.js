@@ -1911,7 +1911,7 @@ document.currentScript.remove();
       html += '<div class="ks-card"><p class="ks-muted" style="font-size:12px;margin:0;padding:6px 12px">No audit entries yet.</p></div>';
     } else {
       state.rows.forEach(function (r) {
-        html += '<div class="ks-card" data-ks-key="' + esc(String((typeof key!=='undefined'&&key?key:(typeof p!=='undefined'&&p?(p.pid||p.port||p.laddr||p.proto||p.id||''): (typeof j!=='undefined'&&j?(j.id||j.name||''): (typeof s!=='undefined'&&s?(s.key||s.name||s.id||s.external_ref||''): (typeof r!=='undefined'&&r?(r.id||r.action||r.created_at||''):''))))))) + '" style="display:flex;flex-direction:column;gap:10px">'
+        html += '<div class="ks-card" data-ks-key="' + esc(String(r.id || r.action || r.created_at || '')) + '" style="display:flex;flex-direction:column;gap:10px">'
           + '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">'
           + '<span class="ks-badge" style="color:' + actionColor(r.action) + '">' + esc(r.action) + '</span>'
           + '<span class="ks-muted" style="font-size:11px;white-space:nowrap">' + timeAgo(r.created_at) + '</span></div>'
