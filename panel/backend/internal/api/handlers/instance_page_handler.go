@@ -433,6 +433,14 @@ func GetInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "instance page not found", http.StatusNotFound)
 		return
 	}
+	if uid, _ := UserIDFromContext(r); uid != 0 {
+		chk := permissions.NewChecker(con)
+		hasOwn, hasAll, _ := chk.HasScope(uid, permissions.InstancePagesOwnKey, permissions.InstancePagesAllKey, permissions.ManageInstancePagesKey)
+		if !hasAll && hasOwn && page.OwnerID != uid {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+	}
 	writeJSON(w, page)
 }
 
@@ -521,6 +529,17 @@ func UpdateInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer con.Close()
+	// Ownership scope (migration 054): instance-pages own → may only edit own pages.
+	if uid, _ := UserIDFromContext(r); uid != 0 {
+		chk := permissions.NewChecker(con)
+		hasOwn, hasAll, _ := chk.HasScope(uid, permissions.InstancePagesOwnKey, permissions.InstancePagesAllKey, permissions.ManageInstancePagesKey)
+		if !hasAll && hasOwn {
+			if ex, gerr := repository.NewInstancePageRepository(con).Get(id); gerr == nil && ex != nil && ex.OwnerID != uid {
+				http.Error(w, "forbidden: own-scope may only edit instance pages you authored", http.StatusForbidden)
+				return
+			}
+		}
+	}
 	if err := repository.NewInstancePageRepository(con).Update(id, repository.InstancePageInput{
 		Name:            req.Name,
 		Slug:            req.Slug,
@@ -569,8 +588,18 @@ func DeleteInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 	defer con.Close()
 	repo := repository.NewInstancePageRepository(con)
 	var label string
+	var ownerID int64
 	if existing, gerr := repo.Get(id); gerr == nil && existing != nil {
 		label = existing.Name
+		ownerID = existing.OwnerID
+	}
+	if uid, _ := UserIDFromContext(r); uid != 0 {
+		chk := permissions.NewChecker(con)
+		hasOwn, hasAll, _ := chk.HasScope(uid, permissions.InstancePagesOwnKey, permissions.InstancePagesAllKey, permissions.ManageInstancePagesKey)
+		if !hasAll && hasOwn && ownerID != uid {
+			http.Error(w, "forbidden: own-scope may only delete instance pages you authored", http.StatusForbidden)
+			return
+		}
 	}
 	if err := repo.Delete(id); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
