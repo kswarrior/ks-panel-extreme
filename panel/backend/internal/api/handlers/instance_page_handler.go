@@ -394,6 +394,23 @@ func ListInstancePagesHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
+	// Ownership scope (migration 054): INSTANCE_PAGES_OWN → only pages
+	// the caller authored; INSTANCE_PAGES_ALL / MANAGE_INSTANCE_PAGES
+	// umbrella → full library.
+	if uid, _ := UserIDFromContext(r); uid != 0 {
+		chk := permissions.NewChecker(con)
+		hasOwn, hasAll, _ := chk.HasScope(uid, permissions.InstancePagesOwnKey, permissions.InstancePagesAllKey, permissions.ManageInstancePagesKey)
+		if !hasAll && hasOwn {
+			filtered := make([]models.InstancePage, 0, len(pages))
+			for _, p := range pages {
+				if p.OwnerID == uid {
+					filtered = append(filtered, p)
+				}
+			}
+			writeJSON(w, filtered)
+			return
+		}
+	}
 	writeJSON(w, pages)
 }
 

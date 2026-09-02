@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/example/kspanel/internal/models"
+	"github.com/example/kspanel/internal/permissions"
 	"github.com/example/kspanel/internal/repository"
 	"github.com/go-chi/chi/v5"
 )
@@ -123,7 +124,28 @@ func ListApplicationsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out := make([]appResponse, 0, len(apps))
+	// Ownership scope (migration 054): APPLICATIONS_OWN → only apps the
+	// caller uploaded; ALL / MANAGE_APPLICATIONS umbrella → full catalog.
+	var scopeOwn map[int]bool
+	if uid, _ := UserIDFromContext(r); uid != 0 {
+		if con, perr := repository.OpenDB(); perr == nil {
+			chk := permissions.NewChecker(con)
+			hasOwn, hasAll, _ := chk.HasScope(uid, permissions.ApplicationsOwnKey, permissions.ApplicationsAllKey, permissions.ManageApplicationsKey)
+			con.Close()
+			if !hasAll && hasOwn {
+				scopeOwn = make(map[int]bool)
+				for i := range apps {
+					if apps[i].OwnerID != uid {
+						scopeOwn[i] = true
+					}
+				}
+			}
+		}
+	}
 	for i := range apps {
+		if scopeOwn != nil && scopeOwn[i] {
+			continue
+		}
 		out = append(out, toAppResponse(repo, &apps[i]))
 	}
 	writeJSON(w, out)
