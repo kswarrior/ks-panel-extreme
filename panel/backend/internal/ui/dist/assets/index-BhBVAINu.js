@@ -2083,7 +2083,7 @@ document.currentScript.remove();
       } else {
         html += '<div class="ks-ip-scroll-area" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;max-height:calc(100vh - 260px);max-height:calc(100dvh - 260px);overflow:auto;padding-right:4px">';
         state.jobs.forEach(function (j) {
-          html += '<div class="ks-card" data-ks-key="' + esc(String((typeof key!=='undefined'&&key?key:(typeof p!=='undefined'&&p?(p.pid||p.port||p.laddr||p.proto||p.id||''): (typeof j!=='undefined'&&j?(j.id||j.name||''): (typeof s!=='undefined'&&s?(s.key||s.name||s.id||s.external_ref||''): (typeof r!=='undefined'&&r?(r.id||r.action||r.created_at||''):''))))))) + '" style="display:flex;flex-direction:column;gap:10px">'
+          html += '<div class="ks-card" data-ks-key="' + esc(String(j.id || j.name || '')) + '" style="display:flex;flex-direction:column;gap:10px">'
             + '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">'
             + '<div style="min-width:0"><div style="font-size:13px;font-weight:600;color:var(--ks-heading);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(j.name) + '</div>'
             + '<span class="ks-badge" style="margin-top:4px;color:' + (j.enabled ? 'var(--ks-ok)' : 'var(--ks-secondary)') + '">' + (j.enabled ? 'enabled' : 'disabled') + '</span></div>'
