@@ -2482,7 +2482,7 @@ document.currentScript.remove();
     return new Date(iso).toLocaleString();
   }
 
-  var state = { secrets: [], loading: true, error: '', revealed: {}, modal: null, busy: false, formError: '' };
+  var state = { secrets: [], loading: true, error: '', revealed: Object.create(null), modal: null, busy: false, formError: '' };
   var base = function () { return '/api/instances/' + sdk.instance.id; };
   function ask(m){try{if(window.KSPageSDK&&typeof window.KSPageSDK.confirm==="function")return window.KSPageSDK.confirm(m);}catch(e){}return Promise.resolve(window.confirm(m));}
 
