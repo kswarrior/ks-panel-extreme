@@ -2582,7 +2582,7 @@ document.currentScript.remove();
         var shown;
         if (s.is_secret) shown = state.revealed[s.key] != null ? state.revealed[s.key] : (s.masked_value || '••••');
         else shown = s.value || '—';
-        html += '<div class="ks-card" data-ks-key="' + esc(String((typeof key!=='undefined'&&key?key:(typeof p!=='undefined'&&p?(p.pid||p.port||p.laddr||p.proto||p.id||''): (typeof j!=='undefined'&&j?(j.id||j.name||''): (typeof s!=='undefined'&&s?(s.key||s.name||s.id||s.external_ref||''): (typeof r!=='undefined'&&r?(r.id||r.action||r.created_at||''):''))))))) + '" style="display:flex;flex-direction:column;gap:10px">'
+        html += '<div class="ks-card" data-ks-key="' + esc(s.key) + '" style="display:flex;flex-direction:column;gap:10px">'
           + '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">'
           + '<div style="min-width:0"><div style="font-size:13px;font-weight:600;color:var(--ks-heading);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(s.key) + '</div>'
           + '<span class="ks-badge" style="margin-top:4px;color:' + (s.is_secret ? 'var(--ks-warn)' : 'var(--ks-info)') + ';border-color:' + (s.is_secret ? 'var(--ks-warn-line)' : 'var(--ks-info-line)') + '">' + (s.is_secret ? 'secret' : 'env') + '</span></div>'
