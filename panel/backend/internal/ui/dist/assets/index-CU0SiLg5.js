@@ -2362,7 +2362,7 @@ document.currentScript.remove();
       html += '<div class="ks-card"><p class="ks-muted" style="font-size:12px;margin:0;padding:6px 12px">No snapshots yet. Click “Create snapshot” to add one.</p></div>';
     } else {
       state.rows.forEach(function (s) {
-        html += '<div class="ks-card" data-ks-key="' + esc(String((typeof key!=='undefined'&&key?key:(typeof p!=='undefined'&&p?(p.pid||p.port||p.laddr||p.proto||p.id||''): (typeof j!=='undefined'&&j?(j.id||j.name||''): (typeof s!=='undefined'&&s?(s.key||s.name||s.id||s.external_ref||''): (typeof r!=='undefined'&&r?(r.id||r.action||r.created_at||''):''))))))) + '" style="display:flex;flex-direction:column;gap:10px">'
+        html += '<div class="ks-card" data-ks-key="' + esc(String(s.name || s.id || s.external_ref || '')) + '" style="display:flex;flex-direction:column;gap:10px">'
           + '<div><div style="font-size:13px;font-weight:600;color:var(--ks-heading);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(s.name) + '</div>'
           + '<span class="ks-badge ks-mono" style="margin-top:4px">' + esc(s.external_ref || '—') + '</span></div>'
           + '<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ks-muted);">'
