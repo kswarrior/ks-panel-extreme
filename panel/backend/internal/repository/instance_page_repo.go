@@ -131,8 +131,12 @@ type InstancePageInput struct {
 // from the caller so the migration-054 scope filter has a value to
 // match against (pre-054 rows stay orphan — visible only to admins).
 func (r *InstancePageRepository) Create(in InstancePageInput) (int64, error) {
+	var ownerID any = in.OwnerID
+	if in.OwnerID == 0 {
+		ownerID = nil
+	}
 	res, err := r.db.Exec(`INSERT INTO instance_pages (name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages, components, owner_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		in.Name, in.Slug, in.Kind, in.Category, in.PageType, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.IconSVG, in.Actions, in.SubPages, in.Components, in.OwnerID)
+		in.Name, in.Slug, in.Kind, in.Category, in.PageType, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.IconSVG, in.Actions, in.SubPages, in.Components, ownerID)
 	if err != nil {
 		return 0, err
 	}

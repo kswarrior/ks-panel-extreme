@@ -152,10 +152,16 @@ type TemplateInput struct {
 }
 
 // Create inserts a new template. The handler validates Spec is well-formed
-// JSON before calling here so the column never holds garbage.
+// JSON before calling here so the column never holds garbage. OwnerID 0
+// maps to NULL (orphan, pre-054 row; FK allows it) — see nullableInt64 in
+// instance_repo.go and db.go for the full contract.
 func (r *TemplateRepository) Create(in TemplateInput) (int64, error) {
+	var ownerID any = in.OwnerID
+	if in.OwnerID == 0 {
+		ownerID = nil
+	}
 	res, err := r.db.Exec(`INSERT INTO templates (name, description, kind, image, spec, owner_id) VALUES (?, ?, ?, ?, ?, ?)`,
-		in.Name, in.Description, in.Kind, in.Image, in.Spec, in.OwnerID)
+		in.Name, in.Description, in.Kind, in.Image, in.Spec, ownerID)
 	if err != nil {
 		return 0, err
 	}
