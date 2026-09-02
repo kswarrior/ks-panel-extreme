@@ -417,6 +417,10 @@ html[data-ks-reduced-motion='1'] .ks-skeleton,html[data-ks-reduced-motion='1'] .
 // Header (title + top-right icon actions) is now supplied inside body via
 // ks-page-header / ks-page-header-actions so every page follows the main
 // panel's Templates/Nodes header pattern (title left, icon buttons right).
+// Includes a skeleton fallback so operator pages (Docker, Services, etc.)
+// never appear stuck: if #content still contains a shimmer after 8.5s,
+// replace it with a clear error — this fixes the regression where skeletons
+// added by an AI never cleared.
 function page(title: string, body: string, js: string): string {
   return `${INSTANCE_THEME_SUPPORT_CSS}<div class="ks-page">
 ${body}
@@ -432,6 +436,7 @@ ${js}
     else throw e;
   }
 })();
+setTimeout(function(){ try{ var c=el('content'); if(c && c.innerHTML.indexOf('ks-skeleton')!==-1) c.innerHTML='<p class="ks-bad" style="padding:12px;background:var(--ks-bad-wash);border:1px solid var(--ks-bad-line);border-radius:6px">Load timed out — edge did not respond. Refresh to retry.</p>'; }catch(e){} }, 8500);
 document.currentScript.remove();
 </script>`;
 }
@@ -1253,11 +1258,38 @@ export const PAGE_STARTERS: PageStarter[] = [
 // the active panel theme's --ks-* tokens baked by CustomPageView. This post-process injects
 // the shared INSTANCE_THEME_SUPPORT_CSS preamble where a page lacks it, guaranteeing that
 // "the theme Works in all instances pages" — Home, Files, Terminal, Metrics, etc.
+//
+// Loading fix: many starter pages were showing infinite skeletons because
+// `state.loading = true; render(); sdk.fetchPanel(...).then(... loading=false ...)`
+// waits 15-120s for the edge. Inject a per-page timeout that clears the
+// skeleton after 8s so the page never appears "stuck loading" — it was the
+// regression where an AI added skeletons and they never cleared.
+function injectLoadingTimeout(html: string): string {
+  if (!html || html.indexOf('state.loading') === -1) return html;
+  // After every `state.loading = true; ... render();` that is followed by a
+  // fetch, inject a fallback that clears loading after 8s if still pending.
+  // This handles backups/automation/audit/env/files/metrics/etc. without
+  // touching each LIB_* constant manually.
+  return html.replace(
+    /state\.loading\s*=\s*true;\s*state\.error\s*=\s*'';\s*render\(\);/g,
+    "state.loading = true; state.error = ''; render(); setTimeout(function(){ if(state.loading){ state.loading=false; state.error='Load timed out — please refresh'; try{render();}catch(e){} } }, 8000);"
+  ).replace(
+    /if\s*\(\s*state\.initialLoad\s*\)\s*state\.loading\s*=\s*true;/g,
+    "if(state.initialLoad) state.loading = true; setTimeout(function(){ if(state.loading){ state.loading=false; state.initialLoad=false; state.lastError='Load timed out'; try{render();}catch(e){} } }, 8000);"
+  );
+}
+
 for (const s of PAGE_STARTERS) {
-  if (s.html) s.html = withTheme(s.html);
+  if (s.html) {
+    s.html = withTheme(s.html);
+    s.html = injectLoadingTimeout(s.html);
+  }
   if (Array.isArray((s as any).subPages)) {
     for (const sp of (s as any).subPages as any[]) {
-      if (sp && typeof sp.content_html === 'string' && sp.content_html) sp.content_html = withTheme(sp.content_html);
+      if (sp && typeof sp.content_html === 'string' && sp.content_html) {
+        sp.content_html = withTheme(sp.content_html);
+        sp.content_html = injectLoadingTimeout(sp.content_html);
+      }
     }
   }
 }
