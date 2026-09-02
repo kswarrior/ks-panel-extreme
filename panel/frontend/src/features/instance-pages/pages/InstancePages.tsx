@@ -17,7 +17,7 @@ import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import Modal from '@/shared/components/ui/Modal';
 import { useConfirm } from '@/shared/stores/confirmStore';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
-import { PAGE_STARTERS, PAGE_STARTER_PAGES } from '@/features/instance-pages/templates/pageStarters';
+import { PAGE_STARTERS } from '@/features/instance-pages/templates/pageStarters';
 
 type SortKey = 'name' | 'kind' | 'category' | 'updated' | 'newest';
 

@@ -44,6 +44,11 @@ export interface PageStarter {
   subPages?: InstancePageSubPage[];
 }
 
+// Alias for "staterpages to pages" wording — StaterPage is the same as
+// PageStarter (starter page that gets bulk-added directly to instance_pages).
+export type PageStaterPage = PageStarter;
+export type StaterPage = PageStarter;
+
 // ---------------------------------------------------------------------------
 // Shared helpers injected into every starter page.
 // ---------------------------------------------------------------------------
