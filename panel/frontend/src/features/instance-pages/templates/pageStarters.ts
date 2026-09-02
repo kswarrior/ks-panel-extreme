@@ -97,6 +97,16 @@ function ksPatch(targetId, newHtml){
     }
     // 2) remove old units that disappeared
     for(var k in oldMap){ try{ oldMap[k].remove(); }catch(e){} }
+    // 2b) append new units that were added (e.g., new file/container) — previous code left them invisible
+    if(newKeys.length !== oldNodes.length){
+      // counts differ -> new rows added or multiple removed; full replace with scroll preserve ensures new units appear
+      if(root.innerHTML!==newHtml){
+        var stA=root.scrollTop, slA=root.scrollLeft;
+        root.innerHTML=newHtml;
+        try{root.scrollTop=stA; root.scrollLeft=slA;}catch(e){}
+      }
+      return;
+    }
     // 3) shallow diff for direct children that do NOT contain keyed units (headers, banners, skeletons)
     if(root.children.length && tmp.children.length && root.children.length===tmp.children.length){
       for(var i=0;i<tmp.children.length;i++){
