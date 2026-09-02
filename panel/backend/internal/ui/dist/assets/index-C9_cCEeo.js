@@ -2128,7 +2128,7 @@ document.currentScript.remove();
         html += '<div class="ks-ip-scroll-area" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;max-height:calc(100vh - 260px);max-height:calc(100dvh - 260px);overflow:auto;padding-right:4px">';
         state.runs.forEach(function (r) {
           var failed = r.error || r.exit_code !== 0;
-          html += '<div class="ks-card" data-ks-key="' + esc(String(p.pid)) + '" style="display:flex;flex-direction:column;gap:10px">'
+          html += '<div class="ks-card" data-ks-key="' + esc(String(r.id)) + '" style="display:flex;flex-direction:column;gap:10px">'
             + '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px">'
             + '<span class="ks-badge" style="color:' + (r.trigger === 'schedule' ? 'var(--ks-info)' : 'var(--ks-purple)') + '">' + esc(r.trigger) + '</span>'
             + '<span class="ks-mono" style="font-size:12px;color:' + (failed ? 'var(--ks-bad)' : 'var(--ks-ok)') + '">' + (r.error ? 'err' : 'exit ' + esc(r.exit_code)) + '</span></div>'
@@ -2366,7 +2366,7 @@ document.currentScript.remove();
       html += '<div class="ks-card"><p class="ks-muted" style="font-size:12px;margin:0;padding:6px 12px">No snapshots yet. Click “Create snapshot” to add one.</p></div>';
     } else {
       state.rows.forEach(function (s) {
-        html += '<div class="ks-card" data-ks-key="' + esc(String(r.id || r.created_at || r.action)) + '" style="display:flex;flex-direction:column;gap:10px">'
+        html += '<div class="ks-card" data-ks-key="' + esc(String(s.id)) + '" style="display:flex;flex-direction:column;gap:10px">'
           + '<div><div style="font-size:13px;font-weight:600;color:var(--ks-heading);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(s.name) + '</div>'
           + '<span class="ks-badge ks-mono" style="margin-top:4px">' + esc(s.external_ref || '—') + '</span></div>'
           + '<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ks-muted);">'
@@ -3331,35 +3331,6 @@ button.ks-iconbtn:focus-visible{outline:2px solid var(--ks-info);outline-offset:
         });
       }
     }
-    function queueUploads(items) {
-      items = (items || []).filter(function (it) { return it && it.file; }).slice(0, 500);
-      if (!items.length) return;
-      if (state.modal && state.modal.kind === 'upload') state.modal.queue = items;
-      runUploadQueue(items);
-    }
-    async function runUploadQueue(items) {
-      state.modal.busy = true; state.uploadPct = 1; state.uploadLabel = ''; render();
-      var ok = 0, failed = 0;
-      for (var i = 0; i < items.length; i++) {
-        var it = items[i];
-        state.uploadLabel = (i + 1) + '/' + items.length + ' \\u00b7 ' + it.rel;
-        state.uploadPct = Math.round(((i) / items.length) * 100) || 1;
-        render();
-        var target = joinPath(state.path, it.rel);
-        try {
-          var idx = it.rel.lastIndexOf('/');
-          if (idx > 0) await doMkdir(joinPath(state.path, it.rel.slice(0, idx)));
-          await doUploadOne(it.file, target);
-          ok++;
-        } catch (e) {
-          failed++;
-          flash(false, it.rel + ': ' + ((e && e.message) || 'upload failed'));
-        }
-      }
-      state.uploadPct = 100; state.uploadLabel = '';
-      flash(failed === 0, 'Uploaded ' + ok + ' item' + (ok === 1 ? '' : 's') + (failed ? ', ' + failed + ' failed' : ''));
-      state.modal = null; render(); load(state.path);
-    }
     var urlInput = document.getElementById('url-value');
     if (urlInput) {
       urlInput.value = state.modal.name || '';
@@ -3458,6 +3429,36 @@ button.ks-iconbtn:focus-visible{outline:2px solid var(--ks-info);outline-offset:
     Promise.all(entries.map(function (en) { return walkEntry(en, '', out, 0); }))
       .then(function () { cb(out.length ? out : plain); });
   }
+
+    function queueUploads(items) {
+      items = (items || []).filter(function (it) { return it && it.file; }).slice(0, 500);
+      if (!items.length) return;
+      if (state.modal && state.modal.kind === 'upload') state.modal.queue = items;
+      runUploadQueue(items);
+    }
+    async function runUploadQueue(items) {
+      state.modal.busy = true; state.uploadPct = 1; state.uploadLabel = ''; render();
+      var ok = 0, failed = 0;
+      for (var i = 0; i < items.length; i++) {
+        var it = items[i];
+        state.uploadLabel = (i + 1) + '/' + items.length + ' \\u00b7 ' + it.rel;
+        state.uploadPct = Math.round(((i) / items.length) * 100) || 1;
+        render();
+        var target = joinPath(state.path, it.rel);
+        try {
+          var idx = it.rel.lastIndexOf('/');
+          if (idx > 0) await doMkdir(joinPath(state.path, it.rel.slice(0, idx)));
+          await doUploadOne(it.file, target);
+          ok++;
+        } catch (e) {
+          failed++;
+          flash(false, it.rel + ': ' + ((e && e.message) || 'upload failed'));
+        }
+      }
+      state.uploadPct = 100; state.uploadLabel = '';
+      flash(failed === 0, 'Uploaded ' + ok + ' item' + (ok === 1 ? '' : 's') + (failed ? ', ' + failed + ' failed' : ''));
+      state.modal = null; render(); load(state.path);
+    }
 
   function start(s) {
     sdk = s;
@@ -4390,7 +4391,7 @@ def deploy_instance(template, node):
     }).reduce(function (worst, hh) {
       var order = { unknown: 0, healthy: 1, warn: 2, danger: 3 };
       return order[hh] > order[worst] ? hh : worst;
-    }, 'healthy');
+    }, 'unknown');
     var oMeta = {
       healthy: { c: 'var(--ks-ok)', label: 'Overall · healthy', text: 'All resources within healthy thresholds.' },
       warn: { c: 'var(--ks-warn)', label: 'Overall · watch', text: 'One or more resources crossed the warning threshold.' },
