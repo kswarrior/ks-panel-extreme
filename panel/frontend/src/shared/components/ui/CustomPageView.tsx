@@ -539,9 +539,14 @@ function buildIframeDocument(htmlContent: string, instanceContextJson: string, s
     return new Promise(function(resolve, reject) {
       var id = 'c' + (++seq) + '-' + Date.now();
       pending[id] = { resolve: resolve, reject: reject };
+      // Shortened from 120s to 15s so starter pages that show a skeleton
+      // while awaiting sdk.fetchPanel do not appear "stuck loading" for
+      // two minutes when the edge is offline or the instance is stopped.
+      // Individual pages still get a 3.5s iframe fallback that replaces
+      // remaining skeletons with a clear error.
       var timer = setTimeout(function() {
         if (pending[id]) { delete pending[id]; reject(new Error('KSPageSDK timeout: ' + method)); }
-      }, 120000);
+      }, 15000);
       pending[id].timer = timer;
       try {
         window.parent.postMessage({ type: 'ks-sdk-call', id: id, method: method, args: args }, '*');
