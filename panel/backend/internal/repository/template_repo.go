@@ -153,13 +153,10 @@ type TemplateInput struct {
 
 // Create inserts a new template. The handler validates Spec is well-formed
 // JSON before calling here so the column never holds garbage. OwnerID 0
-// maps to NULL (orphan, pre-054 row; FK allows it) — see nullableInt64 in
-// instance_repo.go and db.go for the full contract.
+// maps to NULL (orphan, pre-054 row; FK allows it) — mirrored with
+// sql.NullInt64 so modernc.org/sqlite doesn't reject naked nil.
 func (r *TemplateRepository) Create(in TemplateInput) (int64, error) {
-	var ownerID any = in.OwnerID
-	if in.OwnerID == 0 {
-		ownerID = nil
-	}
+	ownerID := sql.NullInt64{Int64: in.OwnerID, Valid: in.OwnerID != 0}
 	res, err := r.db.Exec(`INSERT INTO templates (name, description, kind, image, spec, owner_id) VALUES (?, ?, ?, ?, ?, ?)`,
 		in.Name, in.Description, in.Kind, in.Image, in.Spec, ownerID)
 	if err != nil {

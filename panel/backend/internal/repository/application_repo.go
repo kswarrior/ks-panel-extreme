@@ -116,10 +116,8 @@ func (r *ApplicationRepository) CreateApplication(in CreateApplicationInput) (*m
 	}
 	defer tx.Rollback()
 
-	var appOwner, appUploaded any = in.UploadedBy, in.UploadedBy
-	if in.UploadedBy == 0 {
-		appOwner, appUploaded = nil, nil
-	}
+	appUploaded := sql.NullInt64{Int64: in.UploadedBy, Valid: in.UploadedBy != 0}
+	appOwner := sql.NullInt64{Int64: in.UploadedBy, Valid: in.UploadedBy != 0}
 	res, err := tx.Exec(
 		`INSERT INTO applications (name, slug, category, version, description, icon, runtime, entrypoint,
 			config_schema, files, permissions, active, uploaded_by, owner_id, source, source_url, created_at, updated_at)

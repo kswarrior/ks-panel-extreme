@@ -219,10 +219,8 @@ func (r *ModRepository) CreateMod(in CreateModInput) (*models.Mod, error) {
 	}
 	defer tx.Rollback()
 
-	var modOwner, modUploaded any = in.UploadedBy, in.UploadedBy
-	if in.UploadedBy == 0 {
-		modOwner, modUploaded = nil, nil
-	}
+	modUploaded := sql.NullInt64{Int64: in.UploadedBy, Valid: in.UploadedBy != 0}
+	modOwner := sql.NullInt64{Int64: in.UploadedBy, Valid: in.UploadedBy != 0}
 	res, err := tx.Exec(
 		`INSERT INTO mods (name, slug, version, description, manifest, spec, active, uploaded_by, owner_id, engine_version, source, source_url, package_size, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)`,
