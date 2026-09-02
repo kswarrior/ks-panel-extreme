@@ -2823,7 +2823,7 @@ button.ks-iconbtn:focus-visible{outline:2px solid var(--ks-info);outline-offset:
   var loadSeq = 0;
   function load(dir) {
     var seq = ++loadSeq;
-    state.busy = true; state.error = ''; state.selected = {}; state.menuFor = null;
+    state.busy = true; state.error = ''; /* keep selection across refresh - filtered after load */ state.menuFor = null;
     render();
     sdk.fetchPanel('/api/instances/' + sdk.instance.id + '/files?op=list&path=' + encodeURIComponent(dir))
       .then(function (data) {
@@ -2838,6 +2838,8 @@ button.ks-iconbtn:focus-visible{outline:2px solid var(--ks-info);outline-offset:
           return String(a.name).localeCompare(String(b.name), undefined, { numeric: true });
         });
         state.entries = raw;
+        // retain checkbox selection across auto-refresh like React state
+        var _keep={}; for(var _k in state.selected){ if(state.selected[_k]){ for(var _i=0;_i<raw.length;_i++) if(raw[_i].name===_k){ _keep[_k]=true; break; } } } state.selected=_keep;
         render();
       })
       .catch(function (e) {
@@ -3119,7 +3121,7 @@ button.ks-iconbtn:focus-visible{outline:2px solid var(--ks-info);outline-offset:
       (function (e) {
         var kind = fileTypeOf(e);
         var isSel = !!state.selected[e.name];
-        rows += '<tr style="border-top:1px solid var(--ks-card-border)">'
+        rows += '<tr data-ks-key="' + esc(e.name) + '" style="border-top:1px solid var(--ks-card-border)">'
           + '<td style="padding:8px 4px;width:32px"><input type="checkbox" data-check="' + esc(e.name) + '"' + (isSel ? ' checked' : '') + ' style="accent-color:var(--ks-info);width:14px;height:14px"></td>'
           + '<td style="padding:8px 6px;width:28px;color:' + iconColor(kind) + '">' + fileSvg(kind) + '</td>'
           + '<td style="padding:8px 12px"><span class="ks-files-name" style="display:inline-block;max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom">'
@@ -3459,7 +3461,7 @@ button.ks-iconbtn:focus-visible{outline:2px solid var(--ks-info);outline-offset:
     state.path = state.root;
     load(state.path);
     render();
-    setInterval(function () { if (!state.modal && !state.menuFor) load(state.path); }, 15000);
+    setInterval(function () { if (!state.modal && !state.menuFor && Object.keys(state.selected).length===0) load(state.path); }, 15000);
 
     document.addEventListener('dragover', function (ev) { ev.preventDefault(); });
     document.addEventListener('drop', function (ev) {
@@ -5671,8 +5673,64 @@ img { max-width: 100%; }
 .ks-badge { display: inline-block; padding: 0.125rem 0.5rem; border-radius: 9999px; font-size: 0.6875rem; border: 1px solid var(--ks-input-border); background: var(--ks-input-bg); }
 .ks-bar { position: relative; background: var(--ks-input-bg); border-radius: 9999px; height: 8px; overflow: hidden; min-width: 80px; }
 .ks-bar > span { position: absolute; inset: 0 auto 0 0; background: var(--ks-info); border-radius: 9999px; }
-${i||""}
+ ${i||""}
 </style>
+<script>
+
+(function(){
+  function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function cardUnit(key,title,innerHtml){return '<div class="ks-card" data-ks-key="'+esc(key)+'"><h3 style="margin:0 0 .5rem;font-size:.95rem;color:var(--ks-heading)">'+esc(title)+'</h3>'+innerHtml+'</div>';}
+  function ksPatch(targetId, newHtml){
+    var root=document.getElementById(targetId);
+    if(!root) return;
+    var tmp=document.createElement('div'); tmp.innerHTML=newHtml;
+    var newKeys=tmp.querySelectorAll('[data-ks-key]');
+    var oldNodes=root.querySelectorAll('[data-ks-key]');
+    var oldMap={}; for(var oi=0;oi<oldNodes.length;oi++){ var on=oldNodes[oi]; oldMap[on.getAttribute('data-ks-key')]=on; }
+    var hasKeyed=newKeys.length>0;
+    if(hasKeyed){
+      for(var i=0;i<newKeys.length;i++){ var n=newKeys[i]; var key=n.getAttribute('data-ks-key'); var o=oldMap[key]; if(o && o.outerHTML!==n.outerHTML){ o.replaceWith(n.cloneNode(true)); } else if(!o){ /* new unit handled below */ } if(o) delete oldMap[key]; }
+      for(var k in oldMap){ try{ oldMap[k].remove(); }catch(e){} }
+      if(root.children.length && tmp.children.length && root.children.length===tmp.children.length){
+        for(var i=0;i<tmp.children.length;i++){ var nn=tmp.children[i]; var oo=root.children[i]; var nnHasKey=!!nn.querySelector('[data-ks-key]')||nn.hasAttribute('data-ks-key'); var ooHasKey=!!oo.querySelector('[data-ks-key]')||oo.hasAttribute('data-ks-key'); if(nnHasKey||ooHasKey) continue; if(oo.outerHTML!==nn.outerHTML){ oo.replaceWith(nn.cloneNode(true)); } }
+      }
+      if(oldNodes.length===0 && newKeys.length>0){
+        if(root.innerHTML!==newHtml){ var st0=root.scrollTop, sl0=root.scrollLeft; root.innerHTML=newHtml; try{root.scrollTop=st0; root.scrollLeft=sl0;}catch(e){} }
+        return;
+      }
+      return;
+    }
+    if(root.children.length && tmp.children.length && root.children.length===tmp.children.length){
+      var ch=0; for(var i=0;i<tmp.children.length;i++){ var nn2=tmp.children[i]; var oo2=root.children[i]; var nk=nn2.getAttribute('data-ks-key')||nn2.id||''; var ok=oo2.getAttribute('data-ks-key')||oo2.id||''; if(nk!==ok){ if(oo2.outerHTML!==nn2.outerHTML){ oo2.replaceWith(nn2.cloneNode(true)); ch++; } continue; } if(oo2.outerHTML!==nn2.outerHTML){ oo2.replaceWith(nn2.cloneNode(true)); ch++; } }
+      if(ch===0 && root.innerHTML!==tmp.innerHTML){ if(root.innerHTML!==newHtml){ var st=root.scrollTop, sl=root.scrollLeft; root.innerHTML=newHtml; try{root.scrollTop=st; root.scrollLeft=sl;}catch(e){} } }
+      return;
+    }
+    if(root.innerHTML!==newHtml){ var st2=root.scrollTop, sl2=root.scrollLeft; root.innerHTML=newHtml; try{root.scrollTop=st2; root.scrollLeft=sl2;}catch(e){} }
+  }
+  function ksUnitPatch(unitId, innerHtml){ var n=document.getElementById(unitId); if(!n) return; if(n.innerHTML!==innerHtml) n.innerHTML=innerHtml; }
+  function ksRefreshUnit(unitId, fetcher, renderer){ return fetcher().then(function(data){ var html=renderer(data); ksUnitPatch(unitId, html); return data; }); }
+  try{
+    var _gid=document.getElementById.bind(document);
+    function _patchNode(n){
+      if(!n || n._ksPatched) return n;
+      try{
+        var desc=Object.getOwnPropertyDescriptor(Element.prototype,'innerHTML');
+        if(!desc || !desc.set) return n;
+        var origGet=desc.get, origSet=desc.set;
+        Object.defineProperty(n,'innerHTML',{ get:function(){ return origGet.call(this); }, set:function(v){ if(this.id){ ksPatch(this.id, String(v)); } else { origSet.call(this, String(v)); } }, configurable:true, enumerable:true });
+        n._ksPatched=true;
+      }catch(e){}
+      return n;
+    }
+    var origGetEl=document.getElementById.bind(document);
+    document.getElementById=function(id){ return _patchNode(origGetEl(id)); };
+    window.ksPatch=ksPatch; window.ksUnitPatch=ksUnitPatch; window.ksRefreshUnit=ksRefreshUnit; window.cardUnit=cardUnit;
+    window.el=function(id){ return _patchNode(_gid(id)); };
+  }catch(e){}
+})();
+
+document.currentScript.remove();
+<\/script>
 <script>
 ${n}
 document.currentScript.remove();
