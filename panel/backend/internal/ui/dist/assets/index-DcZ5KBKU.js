@@ -1220,7 +1220,7 @@ function ksPatch(targetId, newHtml){
   tmp.innerHTML=newHtml;
   var newKeys=tmp.querySelectorAll('[data-ks-key]');
   var oldNodes=root.querySelectorAll('[data-ks-key]');
-  var oldMap={};
+  var oldMap=Object.create(null);
   for(var oi=0;oi<oldNodes.length;oi++){ var on=oldNodes[oi]; oldMap[on.getAttribute('data-ks-key')]=on; }
   var hasKeyed = newKeys.length>0;
   if(hasKeyed){
@@ -2797,7 +2797,7 @@ button.ks-iconbtn:focus-visible{outline:2px solid var(--ks-info);outline-offset:
     entries: [],
     busy: false,
     error: '',
-    selected: {},   // name -> true
+    selected: Object.create(null),   // name -> true
     search: '',
     menuFor: null,  // entry name whose 3-dot menu is open
     modal: null,    // {kind:'create'|'upload'|'rename', ...}
@@ -2849,7 +2849,7 @@ button.ks-iconbtn:focus-visible{outline:2px solid var(--ks-info);outline-offset:
         });
         state.entries = raw;
         // retain checkbox selection across auto-refresh like React state
-        var _keep={}; for(var _k in state.selected){ if(state.selected[_k]){ for(var _i=0;_i<raw.length;_i++) if(raw[_i].name===_k){ _keep[_k]=true; break; } } } state.selected=_keep;
+        var _keep=Object.create(null); for(var _k in state.selected){ if(!Object.prototype.hasOwnProperty.call(state.selected,_k) || !state.selected[_k]) continue; for(var _i=0;_i<raw.length;_i++) if(raw[_i].name===_k){ _keep[_k]=true; break; } } state.selected=_keep;
         render();
       })
       .catch(function (e) {
@@ -5696,7 +5696,7 @@ img { max-width: 100%; }
     var tmp=document.createElement('div'); tmp.innerHTML=newHtml;
     var newKeys=tmp.querySelectorAll('[data-ks-key]');
     var oldNodes=root.querySelectorAll('[data-ks-key]');
-    var oldMap={}; for(var oi=0;oi<oldNodes.length;oi++){ var on=oldNodes[oi]; oldMap[on.getAttribute('data-ks-key')]=on; }
+    var oldMap=Object.create(null); for(var oi=0;oi<oldNodes.length;oi++){ var on=oldNodes[oi]; oldMap[on.getAttribute('data-ks-key')]=on; }
     var hasKeyed=newKeys.length>0;
     if(hasKeyed){
       for(var i=0;i<newKeys.length;i++){ var n=newKeys[i]; var key=n.getAttribute('data-ks-key'); var o=oldMap[key]; if(o && o.outerHTML!==n.outerHTML){ o.replaceWith(n.cloneNode(true)); } else if(!o){ /* new unit handled below */ } if(o) delete oldMap[key]; }
