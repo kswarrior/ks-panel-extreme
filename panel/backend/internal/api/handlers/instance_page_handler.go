@@ -331,6 +331,7 @@ var validConfigureDisplay = map[string]bool{
 	"number":   true,
 	"select":   true,
 	"checkbox": true,
+	"toggle":   true,
 }
 
 // validConfigureName reports whether s is a safe env-style variable name
