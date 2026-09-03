@@ -257,7 +257,7 @@
     {
       "id": "mc-properties",
       "name": "Server Properties",
-      "description": "Edit every server.properties key as its own card (text, number, dropdown, password). Loads the live file and saves in place.",
+      "description": "Edit every server.properties key as its own card with the right editor (text input, number input, true/false dropdown, option dropdown, password). Auto-detects server.properties or /mc/server.properties, tracks changes, saves in place. Restart required.",
       "category": "minecraft",
       "author": "kswarrior",
       "version": "1.0",
