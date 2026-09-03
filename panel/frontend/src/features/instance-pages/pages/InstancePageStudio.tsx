@@ -15,9 +15,7 @@ import type {
   UpdateInstancePagePayload,
 } from '@/shared/types/instancePage';
 import { parseSubPages, parsePageComponents } from '@/shared/types/instancePage';
-import { PAGE_STARTERS, type PageStarter } from '../templates/pageStarters';
 import { parseConfig } from '@/shared/hooks/useInstance';
-import { useConfirm } from '@/shared/stores/confirmStore';
 import FormPage from '@/shared/components/forms/FormPage';
 import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 import type { PageContent } from '@/shared/components/ui/CustomPageView';
@@ -40,7 +38,6 @@ import {
 } from '@/features/instance-pages/utils/pageStudioUtils';
 import {
   PageStudioTabs,
-  PageStudioTemplatesSection,
   PageStudioContentSection,
   PageStudioSubPagesSection,
   PageStudioActionsSection,
@@ -66,12 +63,11 @@ import {
 
 const InstancePageStudio: React.FC = () => {
   const navigate = useNavigate();
-  const confirm = useConfirm();
   const { id } = useParams<{ id?: string }>();
   const isEdit = Boolean(id);
   const pageId = id ? Number(id) : null;
 
-  const [activeTab, setActiveTab] = useState<PageStudioTabId>('templates');
+  const [activeTab, setActiveTab] = useState<PageStudioTabId>('editor');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -145,9 +141,6 @@ const InstancePageStudio: React.FC = () => {
   const [instances, setInstances] = useState<Instance[]>([]);
   const [previewInstanceId, setPreviewInstanceId] = useState<number | null>(null);
 
-  // Templates tab filter
-  const [starterQuery, setStarterQuery] = useState('');
-
   const isBuiltin = page.kind === 'builtin';
 
   // Load page (edit mode) + instances for preview/test.
@@ -202,40 +195,6 @@ const InstancePageStudio: React.FC = () => {
     if (page.content_type === 'html') onChange('content_html', value);
     else if (page.content_type === 'markdown') onChange('content_markdown', value);
     else onChange('content_blocks', value);
-  };
-
-  const applyStarter = async (s: PageStarter) => {
-    setError('');
-    const hasContent = Boolean((page.content_html ?? '') || (page.content_markdown ?? '') || (page.content_blocks ?? ''));
-    if (hasContent && !(await confirm({ title: 'Apply template', message: `Replace the current draft with the "${s.name}" template?`, tone: 'warning', confirmLabel: 'Replace' }))) return;
-    const type = s.contentType ?? 'html';
-    setPage((p) => ({
-      ...p,
-      name: p.name || s.name,
-      slug: p.slug || s.slug,
-      category: p.category || s.category,
-      description: s.description,
-      icon_svg: s.iconSvg,
-      content_type: type,
-      content_html: type === 'html' ? s.html : '',
-      content_markdown: type === 'markdown' ? (s.markdown ?? '') : '',
-      content_blocks: type === 'blocks' ? (s.blocks ?? '') : '',
-      actions: JSON.stringify(s.actions ?? []),
-    }));
-    // Load the template's saved actions into the Actions tab (blank row when
-    // the template ships none).
-    setActions(defsToActions(JSON.stringify(s.actions ?? [])));
-    // Replace any previously loaded sub-pages so switching templates can't
-    // leave stale routes from another template behind.
-    setSubs(s.subPages ? subRowsFromJSON(JSON.stringify(s.subPages)) : []);
-    setEditingSubId(null);
-    setPreviewTarget('main');
-    setNotice(
-      s.actions?.length
-        ? `Template "${s.name}" applied — full code loaded in Content and ${s.actions.length} saved action(s) in Actions.`
-        : `Template "${s.name}" applied — full code loaded in Content.`,
-    );
-    setActiveTab('editor');
   };
 
   const addAction = () => setActions((a) => [...a, blankAction()]);
@@ -463,17 +422,6 @@ const InstancePageStudio: React.FC = () => {
     }
   };
 
-  const filteredStarters = useMemo(() => {
-    const q = starterQuery.trim().toLowerCase();
-    if (!q) return PAGE_STARTERS;
-    return PAGE_STARTERS.filter((s) =>
-      s.name.toLowerCase().includes(q) ||
-      s.slug.toLowerCase().includes(q) ||
-      s.category.toLowerCase().includes(q) ||
-      s.description.toLowerCase().includes(q),
-    );
-  }, [starterQuery]);
-
   if (loading) {
     return (
       <FormPage
@@ -562,18 +510,6 @@ const InstancePageStudio: React.FC = () => {
                 specific template, use the <strong>Pages</strong> tab in the <strong>Template</strong> editor.
               </p>
             </div>
-          )}
-
-          {/* ============================== TEMPLATES ============================== */}
-          {activeTab === 'templates' && !isBuiltin && (
-            <PageStudioTemplatesSection
-              search={starterQuery}
-              onSearchChange={setStarterQuery}
-              starters={filteredStarters}
-              query={starterQuery}
-              onApply={applyStarter}
-              sectionCls={sectionCls}
-            />
           )}
 
           {/* ============================== CONTENT ============================== */}

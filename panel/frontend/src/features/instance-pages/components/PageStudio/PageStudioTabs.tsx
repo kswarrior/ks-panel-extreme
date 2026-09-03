@@ -15,9 +15,6 @@ interface PageStudioTabsProps {
 
 // Icons — same set as the legacy monolithic Studio's TAB_CONFIG so the
 // visual identity stays identical after the split.
-function TemplatesIcon() {
-  return <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4"><path d="M12 3l1.9 5.8L20 10l-5 3.6L16.5 20 12 16.4 7.5 20 9 13.6 4 10l6.1-1.2z"/></svg>;
-}
 function EditorIcon() {
   return <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/> </svg>;
 }
@@ -39,7 +36,6 @@ function ComponentsIcon() {
 
 export const PageStudioTabs: React.FC<PageStudioTabsProps> = ({ tab, onChange, isBuiltin }) => {
   const meta: Record<PageStudioTabId, { label: string; hint: string; icon: React.ReactNode }> = {
-    templates: { label: 'Templates', hint: 'Ready-made functional pages', icon: <TemplatesIcon /> },
     editor: { label: 'Main page', hint: 'HTML · Markdown · Blocks', icon: <EditorIcon /> },
     subpages: { label: 'Sub-pages', hint: 'Extra routes (/files/edit…)', icon: <PagesIcon /> },
     actions: { label: 'Actions', hint: 'Saved executable actions', icon: <TerminalIcon /> },
@@ -48,7 +44,7 @@ export const PageStudioTabs: React.FC<PageStudioTabsProps> = ({ tab, onChange, i
     settings: { label: 'Settings', hint: 'Meta, icon, import/export', icon: <SettingsIcon /> },
   };
 
-  const tabs: PageStudioTabId[] = ['templates', 'editor', 'subpages', 'actions', 'components', 'preview', 'settings'];
+  const tabs: PageStudioTabId[] = ['editor', 'subpages', 'actions', 'components', 'preview', 'settings'];
 
   return (
     <div className="lg:sticky lg:top-4 self-start">
