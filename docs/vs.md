@@ -42,7 +42,7 @@
 | 15 | Security posture                              | **94** | 15 | 60  | 85      | 30 |
 | 16 | Panel self-update / reinstall                 | **92** | 10 | 0   | 15      | 15 |
 | 17 | Extensibility engine                          | **100** | 0 | 10 | 90      | 20 |
-| 18 | Minecraft-specific tooling                    | **72** | **80** | 25 | 25   | 70 |
+| 18 | Minecraft-specific tooling                    | **78** | **80** | 25 | 25   | 70 |
 | 19 | SFTP access                                   | **85** | 15 | 85  | **90**  | 0  |
 | 20 | Real-time architecture                        | **85** | 55 | 85  | 85      | 65 |
 | 21 | Theming engine                                | **97** | 20 | 30 | 45     | 40 |
@@ -55,7 +55,7 @@
 
 | Rank     | Panel      | Sum          | Final /100 |
 |----------|------------|--------------|------------|
-| **1**    | **KS Panel**   | **2,051 / 2,300**| **89**     |
+| **1**    | **KS Panel**   | **2,057 / 2,300**| **89**     |
 | 2        | Pelican    | 1,880 / 2,300| 82     |
 | 3        | Pterodactyl| 1,657 / 2,300| 72     |
 | 4        | Crafty 4   | 1,075 / 2,300| 47     |
