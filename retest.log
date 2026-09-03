@@ -50,3 +50,26 @@ log:          localnode/ksedge/ksedge.log
 [0;34m[INFO][0m Stopping old kspanel (pid 2296)...
 
 [0;34m==>[0m Launching kspanel on port 8080 (background)...
+[0;32m[OK][0m kspanel running in background (PID 2369)
+[0;32m[OK][0m Logs:   /tmp/kspanel-retest/kspanel.log
+[0;32m[OK][0m Stop:   kill $(cat /tmp/kspanel-retest/kspanel.pid)
+ █████╔╝ ███████╗    ██████╔╝███████║██╔██╗ ██║█████╗  ██║
+ ██╔═██╗ ╚════██║    ██╔═══╝ ██╔══██║██║╚██╗██║██╔══╝  ██║
+ ██║  ██╗███████║    ██║      ██║  ██║██║ ╚████║███████╗███████╗
+ ╚═╝  ╚═╝╚══════╝    ╚═╝      ╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝
+→ database     sqlite — /tmp/kspanel-retest/kspanel.db
+✓ database     sqlite ready
+→ ui           embedded bundle
+✓ ui           served from api/handlers
+
+panel pid:    2369
+engine:       sqlite
+dsn:          /tmp/kspanel-retest/kspanel.db
+listen:       :8080
+open:         http://10.1.0.61:8080
+bind ifs:     10.1.0.61, 172.17.0.1
+go:           1.26.7
+goos:         linux/amd64
+cpus:         4
+
+✓ panel ready  running
