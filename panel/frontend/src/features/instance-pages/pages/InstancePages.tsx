@@ -85,7 +85,6 @@ const InstancePages: React.FC = () => {
   const [kindFilter, setKindFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [sort, setSort] = useState<SortKey>('name');
-  const [dense, setDense] = useState(false);
 
   const [filterOpen, setFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);

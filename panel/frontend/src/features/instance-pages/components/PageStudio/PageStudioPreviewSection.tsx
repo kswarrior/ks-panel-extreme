@@ -72,7 +72,7 @@ export const PageStudioPreviewSection: React.FC<PageStudioPreviewSectionProps> =
     // Fallback to legacy contentType/currentContent when previewContent is empty (e.g. initial load)
     const fallbackType = type || contentType;
     const fallbackContent = raw !== undefined && raw !== null && raw !== '' ? raw : currentContent;
-    return renderPreview(fallbackType, fallbackContent, previewContent.components as any);
+    return renderPreview(fallbackType, fallbackContent, previewContent.components as any, previewContent.configure as any, previewContent.config as any);
   })();
   const inner = (
     <div className={fullPreview ? 'flex h-full flex-col gap-3 overflow-auto p-4' : 'space-y-4'}>

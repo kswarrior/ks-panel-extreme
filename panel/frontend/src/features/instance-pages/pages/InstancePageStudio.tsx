@@ -289,6 +289,18 @@ const InstancePageStudio: React.FC = () => {
 
   const compDefs = useMemo(() => parsePageComponents(compsToJSON(components)), [components]);
 
+  // Configure defs + default values for preview: the Studio has no
+  // per-template values yet, so {{config:NAME}} resolves against defaults —
+  // the same substitution the live page gets (defaults overlaid by config).
+  const cfgDefs = useMemo(() => parsePageConfigure(configureToJSON(configure)), [configure]);
+  const cfgDefaults = useMemo(() => {
+    const out: Record<string, string> = {};
+    for (const v of cfgDefs) {
+      if (v.name) out[v.name] = v.default ?? '';
+    }
+    return out;
+  }, [cfgDefs]);
+
   const previewContent = useMemo<PageContent>(() => {
     const src = editingSub;
     if (src) {
@@ -302,6 +314,8 @@ const InstancePageStudio: React.FC = () => {
         // preview shares the parent's components and actions.
         actions: actionDefs.length ? actionDefs : undefined,
         components: compDefs.length ? compDefs : undefined,
+        configure: cfgDefs.length ? (cfgDefs as any) : undefined,
+        config: Object.keys(cfgDefaults).length ? cfgDefaults : undefined,
       };
     }
     return {
@@ -311,14 +325,16 @@ const InstancePageStudio: React.FC = () => {
       blocks: page.content_blocks,
       actions: actionDefs.length ? actionDefs : undefined,
       components: compDefs.length ? compDefs : undefined,
+      configure: cfgDefs.length ? (cfgDefs as any) : undefined,
+      config: Object.keys(cfgDefaults).length ? cfgDefaults : undefined,
     };
-  }, [editingSub, page.content_type, page.content_html, page.content_markdown, page.content_blocks, actionDefs, compDefs]);
+  }, [editingSub, page.content_type, page.content_html, page.content_markdown, page.content_blocks, actionDefs, compDefs, cfgDefs, cfgDefaults]);
 
   // Test-execute a saved action against the selected instance. The backend
   // only runs it when this page's slug is enabled in that instance's spec.
   const testExecute = async (row: ActionRow) => {
     if (!pageId) { setError('Save the page first to test its actions.'); return; }
-    if (!previewInstanceId) { setError('Pick an instance on the Preview tab to test against.'); return; }
+    if (!previewInstanceId) { setError('Pick a test instance (Actions or Preview tab) to test against.'); return; }
     const def = actionDefs.find((d) => d.name === row.name.trim());
     if (!def) { setError('The action needs a name before it can be tested.'); return; }
     setExecutingAction(row.id);
@@ -498,11 +514,12 @@ const InstancePageStudio: React.FC = () => {
 
   // Full-screen preview: only header + sidebar (the app shell around this
   // overlay) stay visible — every other studio element is not rendered.
+  // Falls back to a full-viewport overlay when <main> is not measurable.
   if (fullPreview && activeTab === 'preview') {
     return (
       <div
         className="fixed z-40 overflow-hidden"
-        style={mainRect ?? undefined}
+        style={mainRect ?? { top: 0, left: 0, right: 0, bottom: 0 }}
       >
         <PageStudioPreviewSection {...previewSectionProps} />
       </div>
@@ -592,6 +609,8 @@ const InstancePageStudio: React.FC = () => {
               onTest={testExecute}
               pageId={pageId}
               previewInstanceId={previewInstanceId}
+              onPreviewInstanceChange={setPreviewInstanceId}
+              instances={instances}
               executingAction={executingAction}
               actionResult={actionResult}
               sectionCls={sectionCls}

@@ -21,6 +21,8 @@ export interface PageStudioActionsSectionProps {
   // Execution / preview plumbing
   pageId: number | null;
   previewInstanceId: number | null;
+  onPreviewInstanceChange?: (id: number | null) => void;
+  instances?: Array<{ id: number; name: string; display_name?: string; kind: string; status: string }>;
   executingAction: string | null;
   actionResult: { id: string; stdout: string; stderr: string; exit_code: number } | null;
   sectionCls: string;
@@ -34,6 +36,8 @@ export const PageStudioActionsSection: React.FC<PageStudioActionsSectionProps> =
   onTest,
   pageId,
   previewInstanceId,
+  onPreviewInstanceChange,
+  instances,
   executingAction,
   actionResult,
   sectionCls,
@@ -54,6 +58,23 @@ export const PageStudioActionsSection: React.FC<PageStudioActionsSectionProps> =
 
       {!pageId && (
         <p className="text-xs text-amber-300">Save the page to enable test-execution; editing and saving work right away.</p>
+      )}
+      {onPreviewInstanceChange && instances && (
+        <label className="block">
+          <span className="text-xs text-gray-400">Test instance (same target as the Preview tab)</span>
+          <select
+            value={previewInstanceId ?? ''}
+            onChange={(e) => onPreviewInstanceChange(e.target.value ? Number(e.target.value) : null)}
+            className={`${glassFieldClass} min-w-[220px] mt-1`}
+          >
+            <option value="">— none (pick one to test) —</option>
+            {instances.map((i) => (
+              <option key={i.id} value={i.id}>
+                #{i.id} {i.display_name || i.name} ({i.kind}, {i.status})
+              </option>
+            ))}
+          </select>
+        </label>
       )}
 
       <div className="space-y-4">

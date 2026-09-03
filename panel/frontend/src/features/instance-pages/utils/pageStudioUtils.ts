@@ -395,6 +395,27 @@ export function renderPreview(contentType: string, content: string, components?:
     }
     safeContent = cur;
   }
+  // Page-level configure tokens ({{config:NAME}}) resolve against the var
+  // defaults (the Studio has no per-template values yet) so authors see the
+  // same substitution the live page gets. Mirrors CustomPageView's
+  // buildConfigMap/resolveConfigTokens.
+  if ((configure && configure.length > 0) || (config && Object.keys(config).length > 0)) {
+    const map: Record<string, string> = {};
+    if (configure) {
+      for (const v of configure) {
+        if (v.name) map[v.name] = v.default ?? '';
+      }
+    }
+    if (config) {
+      for (const [k, v] of Object.entries(config)) {
+        map[k] = String(v ?? '');
+      }
+    }
+    const CONFIG_TOKEN_RE = /\{\{\s*config:([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g;
+    safeContent = safeContent.replace(CONFIG_TOKEN_RE, (_m: string, name: string) =>
+      Object.prototype.hasOwnProperty.call(map, name) ? String(map[name] ?? '') : _m,
+    );
+  }
   const head = (extraStyle = '') => `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 ${STATIC_SDK_STUB}
