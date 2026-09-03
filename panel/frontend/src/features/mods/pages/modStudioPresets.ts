@@ -32,7 +32,9 @@ const uiShowcase = (): ModStudioDraft => ({
 
 // Terminal demo — declares terminal access, registers a hook that logs on
 // instance start, and an inline backendScript that subscribes to the bus.
-// Shows the Studio's backendScript + hooks editor pre-populated.
+// Shows the Studio's backendScript + hooks editor pre-populated. Event names
+// carry the host's `post:` prefix (the panel emits `post:instance.start`, not
+// bare `instance.start`), so the preset fires without edits.
 const terminalMonitor = (): ModStudioDraft => ({
   ...blankModStudioDraft(),
   name: 'Terminal Monitor',
@@ -43,18 +45,18 @@ const terminalMonitor = (): ModStudioDraft => ({
   engineVersion: 2,
   permissionsRequested: [{ capability: 'terminal', access_level: 'read_write' }],
   hooks: [
-    { event: 'instance.start', phase: 'post', handler: 'onInstanceStart' },
-    { event: 'instance.stop', phase: 'post', handler: 'onInstanceStop' },
+    { event: 'post:instance.start', phase: 'post', handler: 'onInstanceStart' },
+    { event: 'post:instance.stop', phase: 'post', handler: 'onInstanceStop' },
   ],
   backendScript: `// Terminal Monitor — registered by the Mod Studio.
 // Runs inside the panel's Goja VM; logs every instance lifecycle
 // event through ks.log and writes a counter to the mod's storage.
-ks.events.on('instance.start', function (payload) {
+ks.events.on('post:instance.start', function (payload) {
   ks.log('info', 'instance.start fired for ' + (payload && payload.id));
   ks.storage.set('starts', String((Number(ks.storage.get('starts') || 0) + 1)));
 });
 
-ks.events.on('instance.stop', function (payload) {
+ks.events.on('post:instance.stop', function (payload) {
   ks.log('info', 'instance.stop fired for ' + (payload && payload.id));
 });
 

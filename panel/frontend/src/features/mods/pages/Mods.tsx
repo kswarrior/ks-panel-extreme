@@ -158,7 +158,9 @@ const Mods: React.FC = () => {
     setUploadError('');
     // Light sanity check: the user picked a file with a zip-ish extension /
     // type. The server does the real zip-header + manifest validation.
-    const nameOk = /\.(kspm|ksmp|zip)$/i.test(file.name);
+    // .ksmod is the legacy single-file spelling the backend still accepts
+    // inside a package, so don't warn on it.
+    const nameOk = /\.(kspm|ksmp|ksmod|zip)$/i.test(file.name);
     const typeOk = file.type === '' || /zip/i.test(file.type);
     if (!nameOk && !typeOk) {
       setUploadError('That does not look like a .kspm package (zip). The panel will still try to read it.');
@@ -743,7 +745,7 @@ return (
               <span className="text-xs text-gray-400">Package file</span>
               <input
                 type="file"
-                accept=".kspm,.ksmp,.zip,application/zip,application/x-zip-compressed"
+                accept=".kspm,.ksmp,.ksmod,.zip,application/zip,application/x-zip-compressed"
                 onChange={(e) => { const f = e.target.files?.[0] || null; if (f) onPickUpload(f); }}
                 className="block w-full mt-1 text-sm text-gray-300 file:mr-3 file:px-3 file:py-1.5 file:rounded file:border-0 file:bg-white file:text-black file:text-sm hover:file:bg-gray-200"
               />

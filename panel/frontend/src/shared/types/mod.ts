@@ -325,7 +325,9 @@ export interface ModSample {
 
 // The browser-side plugin component registry shape mounted on window.KS. A mod
 // bundle calls `window.KS.registerComponent(slotName, name, Component)` to make
-// a React component discoverable by <Slot />.
+// a React component discoverable by <Slot />. One slot hosts several mods, so
+// the registry maps slot name -> list of components. Keep in sync with
+// shared/components/ui/Slot.tsx ensureKSRegistry().
 export interface KSPluginComponent {
   mod: string;
   name: string;
@@ -333,9 +335,9 @@ export interface KSPluginComponent {
 }
 
 interface KSWindow {
-  __ksComponents: Map<string, KSPluginComponent>;
+  __ksComponents: Map<string, KSPluginComponent[]>;
   registerComponent: (this: void, slotName: string, name: string, component: React.ComponentType<any>) => void;
-  getComponent: (this: void, slotName: string, name: string) => KSPluginComponent | undefined;
+  getComponentsForSlot: (this: void, slotName: string) => KSPluginComponent[];
   __ksReady: boolean;
 }
 

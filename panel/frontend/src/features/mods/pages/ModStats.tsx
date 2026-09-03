@@ -1,18 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { listMods } from '@/features/mods/api/mods';
 import type { Mod } from '@/shared/types/mod';
 import {
-  DashboardSection,
-  DashboardGrid,
   HeaderWithAction,
   StatCard,
 } from '@/shared/components/ui/StatDashboard';
 import GlassCard from '@/shared/components/ui/Card';
-import { modSourceMeta, modCapabilityMeta } from '@/shared/types/mod';
 
 const ModStats: React.FC = () => {
-  const navigate = useNavigate();
   const [mods, setMods] = useState<Mod[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -35,55 +30,10 @@ const ModStats: React.FC = () => {
 
   const stats = useMemo(() => {
     const active = mods.filter((m) => m.active).length;
-    const inactive = mods.filter((m) => !m.active).length;
     const pending = mods.filter((m) => m.pending > 0).length;
     const totalPerms = mods.reduce((sum, m) => sum + m.permissions.length, 0);
-    const totalGranted = mods.reduce((sum, m) => sum + m.permissions.filter((p) => p.granted).length, 0);
-    const bySource = mods.reduce((acc, m) => {
-      const src = m.source || 'file';
-      acc[src] = (acc[src] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-    return { total: mods.length, active, inactive, pending, totalPerms, totalGranted, bySource };
+    return { total: mods.length, active, pending, totalPerms };
   }, [mods]);
-
-  const statusSlices = useMemo(() => [
-    { label: 'Active', value: stats.active, color: '#34d399' },
-    { label: 'Inactive', value: stats.inactive, color: '#9ca3af' },
-    { label: 'Pending Grants', value: stats.pending, color: '#fbbf24' },
-  ].filter((s) => s.value > 0), [stats]);
-
-  const sourceSlices = useMemo(() =>
-    Object.entries(stats.bySource)
-      .map(([label, value], i) => ({
-        label: modSourceMeta(label)?.label || label,
-        value,
-        color: (modSourceMeta(label)?.dot || ['#38bdf8', '#a78bfa', '#34d399', '#fbbf24', '#f87171', '#fb923c', '#22d3ee', '#c084fc'][i % 8]).replace('bg-', ''),
-      })),
-  [stats.bySource]);
-
-  const permissionSlices = useMemo(() => {
-    const capCounts: Record<string, number> = {};
-    mods.forEach((m) => {
-      m.permissions.forEach((p) => {
-        capCounts[p.capability] = (capCounts[p.capability] || 0) + 1;
-      });
-    });
-    return Object.entries(capCounts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 8)
-      .map(([label, value], i) => ({
-        label: modCapabilityMeta(label)?.label || label,
-        value,
-        color: (modCapabilityMeta(label)?.dot || ['#38bdf8', '#a78bfa', '#34d399', '#fbbf24', '#f87171', '#fb923c', '#22d3ee', '#c084fc'][i % 8]).replace('bg-', ''),
-      }));
-  }, [mods]);
-
-  const topModsByPerms = useMemo(() =>
-    [...mods]
-      .sort((a, b) => b.permissions.length - a.permissions.length)
-      .slice(0, 10),
-  [mods]);
 
   if (loading) {
     return (
