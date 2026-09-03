@@ -270,8 +270,8 @@
     },
     {
       "id": "mc-world",
-      "name": "World Import",
-      "description": "Import worlds with version compat note + unzip -o {{args}} -d world/ + write_file guard (isDangerousPath) + list_files world/.",
+      "name": "Worlds",
+      "description": "Worlds + Backups + Auto tabs: Overworld/Nether/End cards (name, dir, backup, delete, seed), backup manager (restore, rename, fav, delete), scheduled auto-backups.",
       "category": "minecraft",
       "author": "kswarrior",
       "version": "1.0",
