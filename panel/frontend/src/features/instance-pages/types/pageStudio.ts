@@ -12,7 +12,7 @@ import type { InstancePageSubPage, PageActionDef } from './instancePage';
 // Tabs — same pattern as TEMPLATE_TABS in templates/types/templateForm.ts
 // ---------------------------------------------------------------------------
 
-export type PageStudioTabId = 'editor' | 'subpages' | 'actions' | 'preview' | 'settings' | 'components';
+export type PageStudioTabId = 'editor' | 'subpages' | 'actions' | 'preview' | 'settings' | 'components' | 'configure';
 
 export const PAGE_STUDIO_TABS: Array<{ id: PageStudioTabId; label: string }> = [
   { id: 'settings', label: 'General' },
@@ -20,6 +20,7 @@ export const PAGE_STUDIO_TABS: Array<{ id: PageStudioTabId; label: string }> = [
   { id: 'subpages', label: 'Sub-pages' },
   { id: 'components', label: 'Components' },
   { id: 'actions', label: 'Actions' },
+  { id: 'configure', label: 'Configure' },
   { id: 'preview', label: 'Preview' },
 ];
 
@@ -62,6 +63,23 @@ export interface SubPageRow {
   content_html: string;
   content_markdown: string;
   content_blocks: string;
+}
+
+export interface ConfigureRow {
+  id: string;
+  name: string;
+  label: string;
+  description: string;
+  default: string;
+  user_viewable: boolean;
+  user_editable: boolean;
+  required: boolean;
+  rule: string;
+  display: 'text' | 'number' | 'select' | 'checkbox';
+  options: string;
+  append: boolean;
+  prepend: string;
+  append_value: string;
 }
 
 export interface BlockRow {

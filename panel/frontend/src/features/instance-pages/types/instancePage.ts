@@ -22,6 +22,22 @@ export interface PageActionDef {
   description?: string;
 }
 
+export interface PageConfigureVar {
+  name: string;
+  label: string;
+  description: string;
+  default: string;
+  user_viewable: boolean;
+  user_editable: boolean;
+  required: boolean;
+  rule: string;
+  display: 'text' | 'number' | 'select' | 'checkbox';
+  options: string;
+  append: boolean;
+  prepend: string;
+  append_value: string;
+}
+
 export interface InstancePage {
   id: number;
   name: string;
@@ -44,6 +60,9 @@ export interface InstancePage {
   /** JSON-encoded array of PageComponentDef (reusable UI components).
    *  Empty string == none. */
   components: string;
+  /** JSON-encoded array of PageConfigureVar (page-level env-style vars).
+   *  Empty string == none. Authored in Studio Configure tab like template env. */
+  configure: string;
   /** Provenance for the library badges: "studio" (own), "market" (fresh
    *  marketplace import), "edited" (market import later modified).
    *  "" / missing from old rows == "studio". */
@@ -137,6 +156,22 @@ export function parsePageComponents(json: string | undefined | null): PageCompon
   }
 }
 
+// parsePageConfigure decodes the persisted configure JSON into typed vars.
+// Corrupt payloads degrade to an empty list so a bad row never blocks the UI.
+export function parsePageConfigure(json: string | undefined | null): PageConfigureVar[] {
+  if (!json || !json.trim()) return [];
+  try {
+    const arr = JSON.parse(json);
+    if (!Array.isArray(arr)) return [];
+    return arr.filter(
+      (c): c is PageConfigureVar =>
+        !!c && typeof c === 'object' && typeof c.name === 'string',
+    );
+  } catch {
+    return [];
+  }
+}
+
 export interface CreateInstancePagePayload {
   name: string;
   description: string;
@@ -152,6 +187,7 @@ export interface CreateInstancePagePayload {
   actions: string;
   sub_pages?: string;
   components?: string;
+  configure?: string;
 }
 
 export interface UpdateInstancePagePayload {
@@ -169,4 +205,5 @@ export interface UpdateInstancePagePayload {
   actions: string;
   sub_pages?: string;
   components?: string;
+  configure?: string;
 }

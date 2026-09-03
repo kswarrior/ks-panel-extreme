@@ -4,8 +4,8 @@
 // pure helpers with no React imports so they can be unit-tested and shared
 // across section components without circular dependencies.
 
-import type { PageActionDef, InstancePageSubPage, PageComponentDef } from '@/features/instance-pages/types/instancePage';
-import { parseSubPages, parsePageComponents } from '@/features/instance-pages/types/instancePage';
+import type { PageActionDef, InstancePageSubPage, PageComponentDef, PageConfigureVar } from '@/features/instance-pages/types/instancePage';
+import { parseSubPages, parsePageComponents, parsePageConfigure } from '@/features/instance-pages/types/instancePage';
 import { activePageThemeCss } from '@/shared/components/ui/CustomPageView';
 import type { ActionRow, SubPageRow, ComponentRow } from '@/features/instance-pages/types/pageStudio';
 
@@ -197,6 +197,89 @@ export function validateCompRows(rows: ComponentRow[]): string {
     if (seen.has(name)) return `Duplicate component name "${name}".`;
     seen.add(name);
     if (r.type && !['html', 'markdown', 'block'].includes(r.type)) return `Component "${name}" type must be one of: html, markdown, block.`;
+  }
+  return '';
+}
+
+// ---------------------------------------------------------------------------
+// Configure rows — page-level env vars (like template env vars)
+// ---------------------------------------------------------------------------
+
+let configureSeq = 0;
+export function blankConfigure(): ConfigureRow {
+  configureSeq += 1;
+  return {
+    id: `k${Date.now()}-${configureSeq}`,
+    name: '',
+    label: '',
+    description: '',
+    default: '',
+    user_viewable: true,
+    user_editable: true,
+    required: false,
+    rule: '',
+    display: 'text',
+    options: '',
+    append: false,
+    prepend: '',
+    append_value: '',
+  };
+}
+
+export function configureRowsFromJSON(json: string | undefined | null): ConfigureRow[] {
+  const defs: PageConfigureVar[] = parsePageConfigure(json);
+  if (defs.length === 0) return [];
+  return defs.map((d) => ({
+    id: `k${configureSeq++}-${Math.random().toString(36).slice(2, 8)}`,
+    name: d.name,
+    label: d.label || '',
+    description: d.description || '',
+    default: d.default || '',
+    user_viewable: d.user_viewable !== false,
+    user_editable: d.user_editable !== false,
+    required: !!d.required,
+    rule: d.rule || '',
+    display: (['text', 'number', 'select', 'checkbox'].includes(d.display) ? d.display : 'text') as ConfigureRow['display'],
+    options: d.options || '',
+    append: !!d.append,
+    prepend: d.prepend || '',
+    append_value: d.append_value || '',
+  }));
+}
+
+export function configureToJSON(rows: ConfigureRow[]): string {
+  const defs: PageConfigureVar[] = rows
+    .filter((r) => r.name.trim() !== '')
+    .map((r) => ({
+      name: r.name.trim(),
+      label: r.label.trim(),
+      description: r.description.trim(),
+      default: r.default,
+      user_viewable: !!r.user_viewable,
+      user_editable: !!r.user_editable,
+      required: !!r.required,
+      rule: r.rule.trim(),
+      display: r.display,
+      options: r.options.trim(),
+      append: !!r.append,
+      prepend: r.prepend.trim(),
+      append_value: r.append_value.trim(),
+    }));
+  if (defs.length === 0) return '';
+  return JSON.stringify(defs);
+}
+
+export function validateConfigureRows(rows: ConfigureRow[]): string {
+  const seen = new Set<string>();
+  for (const r of rows) {
+    const name = r.name.trim();
+    if (name === '') continue; // untouched row
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) return `Configure variable name "${name}" must start with a letter or underscore and contain only letters, numbers or underscores.`;
+    if (seen.has(name)) return `Duplicate configure variable name "${name}".`;
+    seen.add(name);
+    if (r.display && !['text', 'number', 'select', 'checkbox'].includes(r.display)) return `Configure variable "${name}" display must be one of: text, number, select, checkbox.`;
+    if (r.label && r.label.length > 200) return `Configure variable "${name}" label too long (max 200).`;
+    if (r.description && r.description.length > 500) return `Configure variable "${name}" description too long (max 500).`;
   }
   return '';
 }

@@ -7,9 +7,11 @@
 export type {
   InstancePageKind,
   PageActionDef,
+  PageConfigureVar,
   InstancePage,
   InstancePageSubPage,
+  PageComponentDef,
   CreateInstancePagePayload,
   UpdateInstancePagePayload,
 } from '@/features/instance-pages/types/instancePage';
-export { parseSubPages, parsePageComponents } from '@/features/instance-pages/types/instancePage';
+export { parseSubPages, parsePageComponents, parsePageConfigure } from '@/features/instance-pages/types/instancePage';
