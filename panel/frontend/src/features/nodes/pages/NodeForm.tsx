@@ -554,26 +554,13 @@ const NodeForm: React.FC = () => {
             )}
           </div>
 
-          <GlassField label="Connection mode" htmlFor="connection_mode" hint={CONNECTION_MODES.find((m) => m.value === form.connection_mode)?.hint || "How panel and edge find each other."}>
-            <select
-              id="connection_mode"
-              value={form.connection_mode}
-              onChange={(e) => setForm((f) => ({ ...f, connection_mode: e.target.value as ConnectionMode }))}
-              className="w-full bg-black/30 border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-600"
-            >
-              {CONNECTION_MODES.map((m) => (
-                <option key={m.value} value={m.value}>{m.label}</option>
-              ))}
-            </select>
-          </GlassField>
-
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <GlassField label="Name" htmlFor="name">
               <input
                 id="name"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder={isLocalMode(form.connection_mode) ? 'local-edge' : form.connection_mode === 'reverse_tunnel' ? 'tunnel-edge' : 'us-east-edge'}
+                placeholder={isLocalMode(form.connection_mode) ? 'local-edge' : isTunnelMode(form.connection_mode) ? 'tunnel-edge' : 'us-east-edge'}
                 required
               />
             </GlassField>
@@ -591,6 +578,42 @@ const NodeForm: React.FC = () => {
               />
             </GlassField>
           </div>
+
+          <div>
+            <span className="block text-sm font-medium text-gray-200 mb-1">Connection mode</span>
+            <div className="flex gap-1 p-1 rounded-md border border-white/10 bg-black/30 max-w-[320px]" role="tablist" aria-label="Connection mode">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={!isTunnelMode(form.connection_mode)}
+                onClick={() => setForm((f) => ({ ...f, connection_mode: isLocalMode(f.connection_mode) ? 'local_port' : 'direct' }))}
+                className={`ks-tab flex-1 px-3 py-1.5 rounded text-sm flex items-center justify-center gap-1.5 ${!isTunnelMode(form.connection_mode) ? 'ks-tab-active' : ''}`}
+              >
+                Direct
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={isTunnelMode(form.connection_mode)}
+                onClick={() => setForm((f) => ({ ...f, connection_mode: isLocalMode(f.connection_mode) ? 'local_wss' : 'reverse_tunnel' }))}
+                className={`ks-tab flex-1 px-3 py-1.5 rounded text-sm flex items-center justify-center gap-1.5 ${isTunnelMode(form.connection_mode) ? 'ks-tab-active' : ''}`}
+              >
+                WSS
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">{isTunnelMode(form.connection_mode) ? 'Edge dials panel via WSS tunnel.' : 'Panel dials edge directly.'}</p>
+          </div>
+
+          <ToggleRow
+            id="local_edge"
+            label="Local edge"
+            description="Edge runs on this panel host via 127.0.0.1"
+            checked={isLocalMode(form.connection_mode)}
+            onChange={(v) => setForm((f) => {
+              const wss = isTunnelMode(f.connection_mode);
+              return { ...f, connection_mode: v ? (wss ? 'local_wss' : 'local_port') : (wss ? 'reverse_tunnel' : 'direct') };
+            })}
+          />
 
           {form.connection_mode === 'direct' && (
             <>
