@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getInstancePage, deleteInstancePage } from '@/shared/api/admin';
 import type { InstancePage } from '@/shared/types/instancePage';
+import { parseSubPages, parsePageActions, parsePageComponents, parsePageConfigure, pageSourceOf } from '@/features/instance-pages/types/instancePage';
 import GlassCard from '@/shared/components/ui/Card';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import { useConfirm } from '@/shared/stores/confirmStore';

@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom';
 import {
   listInstancePages,
-  deleteInstancePage,
   importInstancePageFromFile,
   importInstancePageFromURL,
   getMarketplacePages,
@@ -79,7 +78,6 @@ const InstancePages: React.FC = () => {
   const [pages, setPages] = useState<InstancePage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const [search, setSearch] = useState('');
   const [kindFilter, setKindFilter] = useState<string>('all');
@@ -262,16 +260,6 @@ const InstancePages: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [filterOpen]);
 
-  const openEdit = (p: InstancePage) => navigate(`/instance-pages/${p.id}/studio`);
-
-  const remove = async (p: InstancePage) => {
-    if (!(await confirm({ title: 'Delete instance page', message: `Delete instance page "${p.name}"?`, tone: 'danger', confirmLabel: 'Delete' }))) return;
-    setDeletingId(p.id);
-    try { await deleteInstancePage(p.id); await load(); }
-    catch (e: any) { alert(getErrorMessage(e, 'Failed to delete instance page')); }
-    finally { setDeletingId(null); }
-  };
-
   const categories = useMemo(() => {
     const cats = new Set<string>();
     pages.forEach((p) => {
@@ -383,6 +371,34 @@ const InstancePages: React.FC = () => {
                         <option value="studio">Studio</option>
                       </select>
                     </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 uppercase tracking-wide mb-1.5">Category</label>
+                      <select
+                        className="w-full glass-field disabled:opacity-50"
+                        value={categoryFilter}
+                        onChange={(e) => setCategoryFilter(e.target.value)}
+                        disabled={categories.length === 0}
+                        aria-label="Filter pages by category"
+                      >
+                        <option value="all">All categories</option>
+                        {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 uppercase tracking-wide mb-1.5">Sort by</label>
+                      <select
+                        className="w-full glass-field"
+                        value={sort}
+                        onChange={(e) => setSort(e.target.value as SortKey)}
+                        aria-label="Sort pages"
+                      >
+                        <option value="name">Name (A→Z)</option>
+                        <option value="updated">Recently updated</option>
+                        <option value="newest">Newest first</option>
+                        <option value="kind">Source</option>
+                        <option value="category">Category</option>
+                      </select>
+                    </div>
                     <div className="pt-2 border-t border-white/5 flex items-center justify-end gap-2">
                       <button
                         type="button"
@@ -438,7 +454,7 @@ const InstancePages: React.FC = () => {
       <div className="space-y-3">
         {loading && <SkeletonGrid count={6} />}
         {!loading && filtered.length > 0 && (
-          <div className={`ks-card-grid grid gap-4 ${dense ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'}`} id="ks-instancepages-grid">
+          <div className="ks-card-grid grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3" id="ks-instancepages-grid">
             {filtered.map((e) => {
               const p = e.page;
               const srcMeta = SOURCE_META[e.source] ?? SOURCE_META.studio;
