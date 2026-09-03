@@ -270,56 +270,77 @@ const InstanceForm: React.FC = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-              <div>
-                <label className={labelCls}>Icon <span className="text-xs text-gray-500 font-normal">(optional)</span></label>
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {ICON_PRESETS.map((p) => (
-                    <button
-                      key={p.value}
-                      type="button"
-                      onClick={() => setIcon(p.svg)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors ${icon === p.svg ? 'border-sky-400/60 bg-sky-500/15' : 'border-white/10 bg-white/5 hover:border-white/20'}`}
-                      title={p.label}
-                    >
-                      {p.svg && (
-                        <span dangerouslySetInnerHTML={{ __html: p.svg.replace(/<svg /, '<svg width="16" height="16" ') }} />
-                      )}
-                      <span className="text-xs text-gray-300">{p.label}</span>
-                    </button>
-                  ))}
-                </div>
-                <input
-                  value={icon}
-                  onChange={(e) => setIcon(e.target.value)}
-                  className={glassFieldClass}
-                  placeholder="Paste custom SVG or pick a preset above"
-                />
+            <div className="flex items-start gap-3 mt-4">
+              <div className="flex flex-col items-center gap-1 shrink-0" title="Card preview">
+                <span
+                  className="w-12 h-12 rounded-lg flex items-center justify-center border bg-white/[0.05] border-white/10"
+                  style={color ? { color } : undefined}
+                  aria-hidden="true"
+                >
+                  {icon ? (
+                    <span
+                      className="w-6 h-6 block [&>svg]:w-6 [&>svg]:h-6 [&>svg]:block"
+                      dangerouslySetInnerHTML={{ __html: icon.replace(/<svg /, '<svg width="24" height="24" ') }}
+                    />
+                  ) : selectedTemplate ? (
+                    <KindIcon kind={kindKey(selectedTemplate.kind)} className="w-6 h-6" />
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" /><path d="m3.3 7 8.7 5 8.7-5" /><path d="M12 22V12" /></svg>
+                  )}
+                </span>
+                <span className="text-[11px] text-gray-500 max-w-[4.5rem] truncate">{(displayName.trim() || name.trim()) || 'Instance'}</span>
               </div>
-              <div>
-                <label className={labelCls}>Colour <span className="text-xs text-gray-500 font-normal">(optional)</span></label>
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {COLOR_SWATCHES.map((c) => (
-                    <button
-                      key={c.value}
-                      type="button"
-                      onClick={() => setColor(c.value)}
-                      className={`w-8 h-8 rounded-lg border transition-transform ${color === c.value && c.value ? 'border-white scale-105' : color === c.value && !c.value ? 'border-white/50' : 'border-white/10 hover:border-white/30'}`}
-                      style={{ backgroundColor: c.value || 'transparent' }}
-                      title={c.label}
-                    >
-                      {color === c.value && (
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" className="w-5 h-5 m-auto"><polyline points="20 6 9 17 4 12" /></svg>
-                      )}
-                    </button>
-                  ))}
+              <div className="flex-1 min-w-0 space-y-3">
+                <div>
+                  <label className={labelCls}>Icon <span className="text-xs text-gray-500 font-normal">(optional)</span></label>
+                  <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-0.5 px-0.5">
+                    {ICON_PRESETS.map((p) => (
+                      <button
+                        key={p.value}
+                        type="button"
+                        onClick={() => setIcon(p.svg)}
+                        className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors ${icon === p.svg ? 'border-sky-400/60 bg-sky-500/15' : 'border-white/10 bg-white/5 hover:border-white/20'}`}
+                        title={p.label}
+                      >
+                        {p.svg && (
+                          <span dangerouslySetInnerHTML={{ __html: p.svg.replace(/<svg /, '<svg width="16" height="16" ') }} />
+                        )}
+                        <span className="text-xs text-gray-300">{p.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <input
+                    value={icon}
+                    onChange={(e) => setIcon(e.target.value)}
+                    className={glassFieldClass + ' mt-2'}
+                    placeholder="Paste custom SVG or pick a preset above"
+                  />
                 </div>
-                <input
-                  type="color"
-                  value={color || '#a78bfa'}
-                  onChange={(e) => setColor(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-white/10 cursor-pointer"
-                />
+                <div>
+                  <label className={labelCls}>Colour <span className="text-xs text-gray-500 font-normal">(optional)</span></label>
+                  <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-0.5 px-0.5">
+                    {COLOR_SWATCHES.map((c) => (
+                      <button
+                        key={c.value}
+                        type="button"
+                        onClick={() => setColor(c.value)}
+                        className={`shrink-0 w-8 h-8 rounded-lg border transition-transform ${color === c.value && c.value ? 'border-white scale-105' : color === c.value && !c.value ? 'border-white/50' : 'border-white/10 hover:border-white/30'}`}
+                        style={{ backgroundColor: c.value || 'transparent' }}
+                        title={c.label}
+                      >
+                        {color === c.value && (
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" className="w-5 h-5 m-auto"><polyline points="20 6 9 17 4 12" /></svg>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  <input
+                    type="color"
+                    value={color || '#a78bfa'}
+                    onChange={(e) => setColor(e.target.value)}
+                    className="w-full h-10 rounded-lg border border-white/10 cursor-pointer mt-2"
+                  />
+                </div>
               </div>
             </div>
 
