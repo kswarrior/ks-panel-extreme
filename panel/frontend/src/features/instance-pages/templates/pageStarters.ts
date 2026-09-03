@@ -806,27 +806,411 @@ const SYSTEM_PROBE = page(
 // No new backend — all actions hit edge/pageaction readSession inside container.
 // ---------------------------------------------------------------------------
 
-const MC_PROPERTIES_BLOCKS = JSON.stringify([
-  { type: "heading", value: "Server Properties", level: 1, align: "center" },
-  { type: "text", value: "Manage server.properties for your Minecraft server (Paper/Spigot/Vanilla/Fabric). Controls server-port, online-mode, motd, difficulty, max-players, white-list, view-distance, enable-command-block. Changes require restart (touch restart.flag or container restart). File lives at server.properties in the instance root.", align: "left" },
-  { type: "divider" },
-  { type: "heading", value: "Current File", level: 2 },
-  { type: "text", value: "Live status via read_file + stat. Use the action buttons below to fetch, inspect, and persist the file. World directory is verified with list_files world.", align: "left" },
-  { type: "stat", label: "File", value: "server.properties", unit: "", tone: "default" },
-  { type: "code", value: "# server.properties — example\nserver-port=25565\nonline-mode=true\nmotd=A Minecraft Server\nmax-players=20\ndifficulty=easy\ngamemode=survival\nwhite-list=false\nenable-command-block=false\nview-distance=10\nmax-tick-time=60000" },
-  { type: "heading", value: "Key Settings", level: 3 },
-  { type: "table", value: "[[\"Key\",\"Value\",\"Description\"],[\"server-port\",\"25565\",\"UDP/TCP port\"],[\"online-mode\",\"true\",\"Mojang auth\"],[\"motd\",\"A Minecraft Server\",\"Message of the day\"],[\"max-players\",\"20\",\"Player cap\"],[\"difficulty\",\"easy\",\"Game difficulty\"],[\"white-list\",\"false\",\"Whitelist toggle\"]]" },
-  { type: "heading", value: "Quick Actions", level: 3 },
-  { type: "text", value: "Save overwrites server.properties inside the container (write_file, guarded by isDangerousPath on host and validActionArg for shell variants). Check World verifies world/ exists via list_files." },
-  { type: "action", label: "Read server.properties", action: "read_properties" },
-  { type: "action", label: "Stat server.properties", action: "stat_properties" },
-  { type: "action", label: "Save server.properties", action: "save_properties", confirmText: "Overwrite server.properties with the example content? This will replace the live file." },
-  { type: "action", label: "Check world/", action: "check_world" },
-  { type: "spacer" },
-  { type: "text", value: "Tip: missing world/ suggests a fresh install or a custom world path — use the World Import page to unzip a world archive.", align: "left" },
-  { type: "divider" },
-  { type: "list", value: "[\"Stat shows mtime/size via shell ls -l\",\"Code preview shows full file\",\"Save is write_file (panel → edge → container)\",\"Check World is list_files world\"]" }
-]);
+const MC_PROPERTIES = page(
+  'Server Properties',
+  `<div class="ks-page-header">
+  <h2 style="margin:0;font-size:1.3rem;color:var(--ks-heading)">Server Properties</h2>
+  <div class="ks-page-header-actions">
+    <button class="ks-btn-header ks-icon-btn" id="btn-reload" title="Reload from disk" aria-label="Reload"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>
+    <button class="ks-btn ks-btn-sm" id="btn-save" type="button">Save all</button>
+  </div>
+</div>
+<p class="ks-muted" style="font-size:12px;margin:0 0 10px">Each <span class="ks-mono">server.properties</span> key is its own card with the right editor (text, number, dropdown). Changes require a server restart.</p>
+<div class="ks-row" style="gap:8px;margin-bottom:10px;flex-wrap:wrap">
+  <input id="q" class="ks-input ks-search-input" placeholder="filter keys…" style="flex:1;min-width:160px;max-width:280px" />
+  <select id="cat" style="max-width:220px" aria-label="Category filter"></select>
+  <label class="ks-muted" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;text-transform:none;letter-spacing:normal;margin:0"><input type="checkbox" id="onlymod" style="width:auto" /> modified only</label>
+  <span id="count" class="ks-muted" style="font-size:11px;margin-left:auto"></span>
+</div>
+<div id="status" class="ks-muted" style="font-size:12px;margin-bottom:10px">Loading…</div>
+<div id="root"><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px"><div class="ks-card"><div class="ks-skeleton-bar" style="height:14px;width:48%;margin-bottom:12px"></div><div class="ks-skeleton-bar" style="height:10px;width:66%;margin-bottom:8px"></div><div class="ks-skeleton-bar" style="height:32px;width:100%;border-radius:6px"></div></div><div class="ks-card"><div class="ks-skeleton-bar" style="height:14px;width:52%;margin-bottom:12px"></div><div class="ks-skeleton-bar" style="height:10px;width:62%;margin-bottom:8px"></div><div class="ks-skeleton-bar" style="height:32px;width:100%;border-radius:6px"></div></div><div class="ks-card"><div class="ks-skeleton-bar" style="height:14px;width:44%;margin-bottom:12px"></div><div class="ks-skeleton-bar" style="height:10px;width:64%;margin-bottom:8px"></div><div class="ks-skeleton-bar" style="height:32px;width:100%;border-radius:6px"></div></div></div></div>
+<details style="margin-top:12px"><summary class="ks-muted" style="font-size:12px;cursor:pointer">Raw file preview</summary><pre id="raw" class="ks-mono" style="font-size:11px;white-space:pre-wrap;word-break:break-all;background:var(--ks-input-bg);border:1px solid var(--ks-card-border);border-radius:8px;padding:10px;max-height:300px;overflow:auto"></pre></details>`,
+  `(function () {
+  'use strict';
+  var sdk = null;
+  var PATH = 'server.properties';
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function ask(m){try{if(window.KSPageSDK&&typeof window.KSPageSDK.confirm==='function')return window.KSPageSDK.confirm(m);}catch(e){}return Promise.resolve(window.confirm(m));}
+  function say(m,t){try{if(window.KSPageSDK&&typeof window.KSPageSDK.toast==='function')window.KSPageSDK.toast(m,t||'info');}catch(e){}}
+
+  var SCHEMA = [
+    { k: 'motd', label: 'MOTD', desc: 'Message of the day shown in the server list.', t: 'text', def: 'A Minecraft Server', cat: 'Server' },
+    { k: 'server-port', label: 'Server port', desc: 'TCP/UDP port clients connect to.', t: 'int', def: '25565', min: 1, max: 65535, cat: 'Network' },
+    { k: 'server-ip', label: 'Server IP', desc: 'Interface to bind to. Empty = all interfaces.', t: 'text', def: '', cat: 'Network', ph: '(empty = all interfaces)' },
+    { k: 'max-players', label: 'Max players', desc: 'Maximum simultaneous players.', t: 'int', def: '20', min: 1, max: 100000, cat: 'Server' },
+    { k: 'online-mode', label: 'Online mode', desc: 'Verify players with Mojang auth. Disable only for offline / proxy setups.', t: 'bool', def: 'true', cat: 'Server' },
+    { k: 'white-list', label: 'Whitelist', desc: 'Only whitelisted players may join.', t: 'bool', def: 'false', cat: 'Server' },
+    { k: 'enforce-whitelist', label: 'Enforce whitelist', desc: 'Kick non-whitelisted players when the whitelist is reloaded.', t: 'bool', def: 'false', cat: 'Server' },
+    { k: 'enforce-secure-profile', label: 'Enforce secure profile', desc: 'Require signed chat from clients (1.19+).', t: 'bool', def: 'true', cat: 'Server' },
+    { k: 'hide-online-players', label: 'Hide online players', desc: 'Hide the player list from server-list queries.', t: 'bool', def: 'false', cat: 'Server' },
+    { k: 'prevent-proxy-connections', label: 'Prevent proxy connections', desc: 'Kick players using a proxy/VPN (false by default).', t: 'bool', def: 'false', cat: 'Server' },
+    { k: 'op-permission-level', label: 'OP permission level', desc: 'Default permission level for /op (1-4).', t: 'int', def: '4', min: 1, max: 4, cat: 'Server' },
+    { k: 'function-permission-level', label: 'Function permission level', desc: 'Permission level for function execution (1-4).', t: 'int', def: '2', min: 1, max: 4, cat: 'Server' },
+    { k: 'player-idle-timeout', label: 'Player idle timeout', desc: 'Minutes before idle players are kicked. 0 = disabled.', t: 'int', def: '0', min: 0, max: 100000, cat: 'Server' },
+    { k: 'broadcast-console-to-ops', label: 'Broadcast console to ops', desc: 'Send console command output to online ops.', t: 'bool', def: 'true', cat: 'Server' },
+    { k: 'difficulty', label: 'Difficulty', desc: 'Game difficulty.', t: 'enum', def: 'easy', opts: ['peaceful','easy','normal','hard'], cat: 'Gameplay' },
+    { k: 'gamemode', label: 'Gamemode', desc: 'Default gamemode for new players.', t: 'enum', def: 'survival', opts: ['survival','creative','adventure','spectator'], cat: 'Gameplay' },
+    { k: 'hardcore', label: 'Hardcore', desc: 'Hardcore mode (ban on death, hardest difficulty).', t: 'bool', def: 'false', cat: 'Gameplay' },
+    { k: 'force-gamemode', label: 'Force gamemode', desc: 'Force players into the default gamemode on join.', t: 'bool', def: 'false', cat: 'Gameplay' },
+    { k: 'pvp', label: 'PvP', desc: 'Allow player-versus-player damage.', t: 'bool', def: 'true', cat: 'Gameplay' },
+    { k: 'allow-flight', label: 'Allow flight', desc: 'Allow cheats that enable flying (e.g. fly mods).', t: 'bool', def: 'false', cat: 'Gameplay' },
+    { k: 'enable-command-block', label: 'Command blocks', desc: 'Enable command blocks on the server.', t: 'bool', def: 'false', cat: 'Gameplay' },
+    { k: 'level-name', label: 'Level name', desc: 'World folder name.', t: 'text', def: 'world', cat: 'World' },
+    { k: 'level-seed', label: 'Level seed', desc: 'World generation seed. Empty = random.', t: 'text', def: '', cat: 'World', ph: '(empty = random)' },
+    { k: 'level-type', label: 'Level type', desc: 'World preset / generator type.', t: 'enum', def: 'minecraft:normal', opts: ['minecraft:normal','minecraft:flat','minecraft:large_biomes','minecraft:amplified','minecraft:single_biome_surface','default','flat','largeBiomes','amplified'], cat: 'World' },
+    { k: 'generate-structures', label: 'Generate structures', desc: 'Generate villages, temples, etc.', t: 'bool', def: 'true', cat: 'World' },
+    { k: 'generator-settings', label: 'Generator settings', desc: 'Superflat preset JSON (flat worlds). Usually empty.', t: 'text', def: '', cat: 'World', ph: '(empty)' },
+    { k: 'allow-nether', label: 'Allow Nether', desc: 'Enable the Nether dimension.', t: 'bool', def: 'true', cat: 'World' },
+    { k: 'max-world-size', label: 'Max world size', desc: 'World border diameter in blocks (1-29999984).', t: 'int', def: '29999984', min: 1, max: 29999984, cat: 'World' },
+    { k: 'spawn-protection', label: 'Spawn protection', desc: 'Radius (blocks) around spawn that non-ops cannot edit. 0 = disabled.', t: 'int', def: '16', min: 0, max: 100000, cat: 'World' },
+    { k: 'spawn-animals', label: 'Spawn animals', desc: 'Spawn passive animals.', t: 'bool', def: 'true', cat: 'Mobs' },
+    { k: 'spawn-monsters', label: 'Spawn monsters', desc: 'Spawn hostile mobs.', t: 'bool', def: 'true', cat: 'Mobs' },
+    { k: 'spawn-npcs', label: 'Spawn villagers', desc: 'Spawn villagers / NPCs.', t: 'bool', def: 'true', cat: 'Mobs' },
+    { k: 'view-distance', label: 'View distance', desc: 'Server-side view distance in chunks (2-32).', t: 'int', def: '10', min: 2, max: 32, cat: 'Performance' },
+    { k: 'simulation-distance', label: 'Simulation distance', desc: 'Tick distance in chunks (3-32).', t: 'int', def: '10', min: 3, max: 32, cat: 'Performance' },
+    { k: 'entity-broadcast-range-percentage', label: 'Entity broadcast %', desc: 'How far entities are visible, in percent (10-1000).', t: 'int', def: '100', min: 10, max: 1000, cat: 'Performance' },
+    { k: 'max-tick-time', label: 'Max tick time (ms)', desc: 'Watchdog: kill the server if one tick exceeds this. -1 disables.', t: 'int', def: '60000', min: -1, max: 100000000, cat: 'Performance' },
+    { k: 'network-compression-threshold', label: 'Compression threshold', desc: 'Compress packets above this size (bytes). -1 disables.', t: 'int', def: '256', min: -1, max: 1000000, cat: 'Performance' },
+    { k: 'max-chained-neighbor-updates', label: 'Max chained neighbor updates', desc: 'Cap for chained redstone neighbor updates.', t: 'int', def: '1000000', min: 0, max: 1000000000, cat: 'Performance' },
+    { k: 'sync-chunk-writes', label: 'Sync chunk writes', desc: 'Synchronous chunk I/O (safer, slower when enabled).', t: 'bool', def: 'true', cat: 'Performance' },
+    { k: 'use-native-transport', label: 'Native transport', desc: 'Use OS-optimised packet transport (epoll/kqueue on Linux).', t: 'bool', def: 'true', cat: 'Performance' },
+    { k: 'enable-query', label: 'Enable query', desc: 'Respond to GameSpy4 query requests.', t: 'bool', def: 'false', cat: 'Remote' },
+    { k: 'query.port', label: 'Query port', desc: 'Port for the GameSpy4 query listener.', t: 'int', def: '25565', min: 1, max: 65535, cat: 'Remote' },
+    { k: 'enable-status', label: 'Enable status', desc: 'Show this server in server lists / status requests.', t: 'bool', def: 'true', cat: 'Remote' },
+    { k: 'enable-rcon', label: 'Enable RCON', desc: 'Allow remote-console administration.', t: 'bool', def: 'false', cat: 'Remote' },
+    { k: 'rcon.port', label: 'RCON port', desc: 'Port for the RCON listener.', t: 'int', def: '25575', min: 1, max: 65535, cat: 'Remote' },
+    { k: 'rcon.password', label: 'RCON password', desc: 'Password for RCON. Empty = unset (RCON will not work).', t: 'password', def: '', cat: 'Remote', ph: '(empty = unset)' },
+    { k: 'broadcast-rcon-to-ops', label: 'Broadcast RCON to ops', desc: 'Send RCON command output to online ops.', t: 'bool', def: 'true', cat: 'Remote' },
+    { k: 'rate-limit', label: 'Rate limit', desc: 'Max packets per second per client. 0 = disabled.', t: 'int', def: '0', min: 0, max: 1000000, cat: 'Network' },
+    { k: 'require-resource-pack', label: 'Require resource pack', desc: 'Kick players who decline the server resource pack.', t: 'bool', def: 'false', cat: 'Packs' },
+    { k: 'resource-pack', label: 'Resource pack URL', desc: 'URL players download the pack from. Empty = none.', t: 'text', def: '', cat: 'Packs', ph: 'https://… (empty = none)' },
+    { k: 'resource-pack-sha1', label: 'Resource pack SHA1', desc: 'Expected SHA-1 of the pack file. Empty = skip check.', t: 'text', def: '', cat: 'Packs', ph: '(empty = skip check)' },
+    { k: 'resource-pack-prompt', label: 'Resource pack prompt', desc: 'Custom prompt shown with the pack request.', t: 'text', def: '', cat: 'Packs', ph: '(empty)' },
+    { k: 'initial-enabled-packs', label: 'Initially enabled packs', desc: 'Comma-separated datapack IDs enabled at world creation.', t: 'text', def: 'vanilla', cat: 'Packs' },
+    { k: 'initial-disabled-packs', label: 'Initially disabled packs', desc: 'Comma-separated datapack IDs left disabled.', t: 'text', def: '', cat: 'Packs', ph: '(empty)' },
+    { k: 'text-filtering-config', label: 'Text filtering config', desc: 'External chat-filter config. Empty = disabled.', t: 'text', def: '', cat: 'Advanced', ph: '(empty)' },
+    { k: 'enable-jmx-monitoring', label: 'JMX monitoring', desc: 'Expose JVM metrics over JMX.', t: 'bool', def: 'false', cat: 'Advanced' },
+    { k: 'debug', label: 'Debug', desc: 'Vanilla debug flag. Leave false.', t: 'bool', def: 'false', cat: 'Advanced' },
+    { k: 'log-ips', label: 'Log IPs', desc: 'Include player IPs in the server log.', t: 'bool', def: 'true', cat: 'Advanced' }
+  ];
+
+  var byKey = {};
+  SCHEMA.forEach(function (f) { byKey[f.k] = f; });
+
+  var state = {
+    loading: true, saving: false, error: '', missing: false,
+    values: {}, orig: {}, rawLines: [], unknownOrder: [],
+    q: '', cat: 'All', onlymod: false
+  };
+
+  function base() { return '/api/instances/' + sdk.instance.id; }
+
+  function parseProps(text) {
+    var map = {}, lines = [], seen = {};
+    String(text == null ? '' : text).split(/\\r?\\n/).forEach(function (ln) {
+      var m = ln.match(/^\\s*([^#\\s][^=\\s]*)\\s*=\\s*(.*?)\\s*$/);
+      if (m) {
+        map[m[1]] = m[2];
+        lines.push({ t: 'kv', k: m[1], v: m[2] });
+        if (!seen[m[1]]) { seen[m[1]] = true; }
+      } else if (/^\\s*$/.test(ln)) {
+        lines.push({ t: 'blank', raw: ln });
+      } else {
+        lines.push({ t: 'comment', raw: ln });
+      }
+    });
+    return { map: map, lines: lines };
+  }
+
+  function readText(r) {
+    if (typeof r === 'string') return r;
+    if (r && typeof r.content === 'string') return r.content;
+    if (r && typeof r.data === 'string') return r.data;
+    if (r && typeof r.stdout === 'string' && r.stdout) return r.stdout;
+    if (r && typeof r.data !== 'undefined' && r.data !== null) { try { return JSON.stringify(r.data); } catch (e) { return String(r.data); } }
+    return '';
+  }
+
+  function load() {
+    state.loading = true; state.error = ''; state.missing = false; render();
+    sdk.fetchPanel(base() + '/files/read?path=' + encodeURIComponent(PATH))
+      .then(function (r) {
+        var text = readText(r);
+        if (!text && text !== '') text = '';
+        applyFile(text, false);
+      })
+      .catch(function (e) {
+        var msg = (e && e.message) || String(e);
+        if (/404|not found|no such file|missing/i.test(msg)) { applyFile('', true); }
+        else { state.loading = false; state.error = msg; render(); }
+      });
+  }
+
+  function applyFile(text, missing) {
+    var p = parseProps(text);
+    state.rawLines = p.lines; state.missing = missing;
+    state.values = {}; state.orig = {}; state.unknownOrder = [];
+    SCHEMA.forEach(function (f) {
+      var v = (p.map[f.k] !== undefined) ? p.map[f.k] : f.def;
+      state.values[f.k] = v; state.orig[f.k] = v;
+    });
+    Object.keys(p.map).forEach(function (k) {
+      if (!byKey[k]) { state.values[k] = p.map[k]; state.orig[k] = p.map[k]; state.unknownOrder.push(k); }
+    });
+    state.loading = false; state.error = ''; render();
+  }
+
+  function isMod(k) { return String(state.values[k] == null ? '' : state.values[k]) !== String(state.orig[k] == null ? '' : state.orig[k]); }
+  function modCount() { var n = 0; Object.keys(state.values).forEach(function (k) { if (isMod(k)) n++; }); return n; }
+
+  function cats() {
+    var seen = {}, out = ['All'];
+    SCHEMA.forEach(function (f) { if (!seen[f.cat]) { seen[f.cat] = true; out.push(f.cat); } });
+    if (state.unknownOrder.length) out.push('Custom');
+    return out;
+  }
+
+  function visibleFields() {
+    var q = state.q.trim().toLowerCase();
+    return SCHEMA.filter(function (f) {
+      if (state.cat !== 'All' && f.cat !== state.cat) return false;
+      if (state.onlymod && !isMod(f.k)) return false;
+      if (q && (f.k.toLowerCase().indexOf(q) < 0 && String(f.label).toLowerCase().indexOf(q) < 0 && String(f.desc).toLowerCase().indexOf(q) < 0)) return false;
+      return true;
+    });
+  }
+
+  function widget(f, v) {
+    var val = esc(v);
+    if (f.t === 'bool') {
+      return '<select data-field="' + esc(f.k) + '" aria-label="' + esc(f.label) + '">'
+        + '<option value="true"' + (String(v) === 'true' ? ' selected' : '') + '>true</option>'
+        + '<option value="false"' + (String(v) === 'false' ? ' selected' : '') + '>false</option></select>';
+    }
+    if (f.t === 'enum') {
+      var opts = f.opts.map(function (o) {
+        return '<option value="' + esc(o) + '"' + (String(v) === String(o) ? ' selected' : '') + '>' + esc(o) + '</option>';
+      }).join('');
+      if (f.opts.indexOf(String(v)) < 0) opts = '<option value="' + val + '" selected>' + val + ' (custom)</option>' + opts;
+      return '<select data-field="' + esc(f.k) + '" aria-label="' + esc(f.label) + '">' + opts + '</select>';
+    }
+    if (f.t === 'int') {
+      return '<input data-field="' + esc(f.k) + '" type="number" value="' + val + '"'
+        + (f.min !== undefined ? ' min="' + f.min + '"' : '') + (f.max !== undefined ? ' max="' + f.max + '"' : '')
+        + ' aria-label="' + esc(f.label) + '" />';
+    }
+    if (f.t === 'password') {
+      return '<input data-field="' + esc(f.k) + '" type="password" value="' + val + '" placeholder="' + esc(f.ph || '') + '" autocomplete="new-password" aria-label="' + esc(f.label) + '" />';
+    }
+    return '<input data-field="' + esc(f.k) + '" type="text" value="' + val + '" placeholder="' + esc(f.ph || '') + '" aria-label="' + esc(f.label) + '" />';
+  }
+
+  function cardFor(f) {
+    var v = state.values[f.k];
+    var mod = isMod(f.k);
+    var kind = f.t === 'bool' ? 'toggle · dropdown' : (f.t === 'enum' ? 'dropdown' : (f.t === 'int' ? 'number' : (f.t === 'password' ? 'password' : 'text')));
+    return '<div class="ks-card" data-ks-key="' + esc(f.k) + '" style="display:flex;flex-direction:column;gap:8px">'
+      + '<div style="display:flex;align-items:center;gap:8px">'
+      + '<span style="font-size:13px;font-weight:600;color:var(--ks-heading)">' + esc(f.label) + '</span>'
+      + (mod ? '<span class="ks-badge" style="color:var(--ks-warn);border-color:var(--ks-warn-line);background:var(--ks-warn-wash)">modified</span>' : '')
+      + '<span style="flex:1"></span>'
+      + '<button type="button" class="ks-btn-header ks-icon-btn" data-reset="' + esc(f.k) + '" title="Reset to ' + (String(state.orig[f.k]) === '' ? 'empty' : esc(state.orig[f.k])) + '" aria-label="Reset ' + esc(f.k) + '" style="min-height:26px;min-width:26px;padding:4px 8px;font-size:11px">Reset</button>'
+      + '</div>'
+      + '<code class="ks-mono ks-muted" style="font-size:11px">' + esc(f.k) + '</code>'
+      + '<p class="ks-muted" style="font-size:12px;margin:0">' + esc(f.desc) + '</p>'
+      + widget(f, v)
+      + '<div style="display:flex;align-items:center;gap:8px;font-size:11px"><span class="ks-muted">' + esc(kind) + '</span><span style="flex:1"></span><span class="ks-muted">default: <span class="ks-mono">' + esc(String(f.def) === '' ? '(empty)' : f.def) + '</span></span></div>'
+      + '</div>';
+  }
+
+  function unknownCard(k) {
+    var v = state.values[k];
+    var mod = isMod(k);
+    return '<div class="ks-card" data-ks-key="custom:' + esc(k) + '" style="display:flex;flex-direction:column;gap:8px">'
+      + '<div style="display:flex;align-items:center;gap:8px">'
+      + '<span style="font-size:13px;font-weight:600;color:var(--ks-heading)">Custom key</span>'
+      + (mod ? '<span class="ks-badge" style="color:var(--ks-warn);border-color:var(--ks-warn-line);background:var(--ks-warn-wash)">modified</span>' : '')
+      + '<span style="flex:1"></span>'
+      + '<button type="button" class="ks-btn-header ks-icon-btn" data-reset="' + esc(k) + '" title="Reset" aria-label="Reset ' + esc(k) + '" style="min-height:26px;min-width:26px;padding:4px 8px;font-size:11px">Reset</button>'
+      + '</div>'
+      + '<code class="ks-mono ks-muted" style="font-size:11px;word-break:break-all">' + esc(k) + '</code>'
+      + '<input data-field="' + esc(k) + '" type="text" value="' + esc(v) + '" aria-label="' + esc(k) + '" />'
+      + '<div style="font-size:11px"><span class="ks-muted">text · not in known schema, preserved on save</span></div>'
+      + '</div>';
+  }
+
+  function skeleton() {
+    var out = '';
+    for (var i = 0; i < 6; i++) {
+      out += '<div class="ks-card"><div class="ks-skeleton-bar" style="height:14px;width:48%;margin-bottom:12px"></div><div class="ks-skeleton-bar" style="height:10px;width:66%;margin-bottom:8px"></div><div class="ks-skeleton-bar" style="height:32px;width:100%;border-radius:6px"></div></div>';
+    }
+    return out;
+  }
+
+  function render() {
+    var sel = document.getElementById('cat');
+    if (sel && sel.options.length === 0) {
+      sel.innerHTML = cats().map(function (c) { return '<option value="' + esc(c) + '">' + esc(c) + '</option>'; }).join('');
+      sel.value = state.cat;
+    }
+    var st = document.getElementById('status');
+    var root = document.getElementById('root');
+    var raw = document.getElementById('raw');
+    if (!root) return;
+    if (state.loading) {
+      if (st) st.textContent = 'Loading server.properties…';
+      root.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">' + skeleton() + '</div>';
+      if (raw) raw.textContent = '';
+      return;
+    }
+    if (state.error) {
+      if (st) st.innerHTML = '<span style="color:var(--ks-bad)">Failed to load: ' + esc(state.error) + '</span>';
+      root.innerHTML = '<div class="ks-card" style="border-color:var(--ks-bad-line)"><p style="color:var(--ks-bad);font-size:13px;margin:0 0 6px;font-weight:600">Could not load server.properties</p><p class="ks-muted" style="font-size:12px;margin:0">' + esc(state.error) + ' — check the instance is running and the edge is online, then press Reload.</p></div>';
+      return;
+    }
+    var fields = visibleFields();
+    var unknowns = state.unknownOrder.filter(function (k) {
+      if (state.cat !== 'All' && state.cat !== 'Custom') return false;
+      if (state.onlymod && !isMod(k)) return false;
+      var q = state.q.trim().toLowerCase();
+      if (q && k.toLowerCase().indexOf(q) < 0 && String(state.values[k]).toLowerCase().indexOf(q) < 0) return false;
+      return true;
+    });
+    var n = modCount();
+    var total = SCHEMA.length + state.unknownOrder.length;
+    if (st) {
+      st.innerHTML = (state.missing ? '<span style="color:var(--ks-warn)">server.properties not found — showing defaults. Saving will create it.</span> · ' : '')
+        + esc(String(fields.length + unknowns.length)) + ' of ' + esc(String(total)) + ' shown'
+        + (n ? ' · <span style="color:var(--ks-warn)">' + n + ' modified</span>' : ' · no changes')
+        + (state.saving ? ' · saving…' : '');
+    }
+    var cnt = document.getElementById('count');
+    if (cnt) cnt.textContent = n ? n + ' unsaved change' + (n === 1 ? '' : 's') : 'no unsaved changes';
+    var saveBtn = document.getElementById('btn-save');
+    if (saveBtn) saveBtn.disabled = state.saving || n === 0;
+    var html = '';
+    if (!fields.length && !unknowns.length) {
+      html = '<div class="ks-card"><p class="ks-muted" style="font-size:13px;margin:0">No keys match this filter.</p></div>';
+    } else {
+      html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">'
+        + fields.map(cardFor).join('')
+        + unknowns.map(unknownCard).join('')
+        + '</div>';
+    }
+    root.innerHTML = html;
+    if (raw) raw.textContent = buildText();
+    Array.prototype.forEach.call(root.querySelectorAll('[data-reset]'), function (b) {
+      b.addEventListener('click', function () {
+        var k = b.getAttribute('data-reset');
+        state.values[k] = state.orig[k];
+        render();
+      });
+    });
+  }
+
+  function buildText() {
+    var seen = {}, out = [];
+    state.rawLines.forEach(function (ln) {
+      if (ln.t === 'kv') {
+        if (state.values[ln.k] !== undefined) { out.push(ln.k + '=' + state.values[ln.k]); seen[ln.k] = true; }
+        else { out.push(ln.k + '=' + ln.v); seen[ln.k] = true; }
+      } else if (ln.t === 'blank') { out.push(''); }
+      else { out.push(ln.raw); }
+    });
+    SCHEMA.forEach(function (f) {
+      if (!seen[f.k]) { out.push(f.k + '=' + state.values[f.k]); seen[f.k] = true; }
+    });
+    state.unknownOrder.forEach(function (k) {
+      if (!seen[k]) { out.push(k + '=' + state.values[k]); seen[k] = true; }
+    });
+    return out.join('\\n') + '\\n';
+  }
+
+  function save() {
+    var n = modCount();
+    if (!n || state.saving) return;
+    state.saving = true; render();
+    var text = buildText();
+    sdk.fetchPanel(base() + '/files?op=write&path=' + encodeURIComponent(PATH), {
+      method: 'POST', body: text, headers: { 'Content-Type': 'text/plain' }
+    }).then(function () {
+      state.saving = false;
+      Object.keys(state.values).forEach(function (k) { state.orig[k] = state.values[k]; });
+      state.missing = false;
+      var p = parseProps(text); state.rawLines = p.lines;
+      render(); say('Saved server.properties (' + n + ' change' + (n === 1 ? '' : 's') + ') — restart the server to apply.', 'success');
+    }).catch(function (e) {
+      state.saving = false; render();
+      say((e && e.message) || 'Save failed', 'error');
+    });
+  }
+
+  function wire() {
+    document.addEventListener('input', function (ev) {
+      var t = ev.target;
+      if (t && t.getAttribute && t.getAttribute('data-field')) {
+        var k = t.getAttribute('data-field');
+        if (state.values[k] !== undefined || byKey[k] || state.unknownOrder.indexOf(k) >= 0) {
+          state.values[k] = t.value;
+          var card = t.closest ? t.closest('[data-ks-key]') : null;
+          var badge = card ? card.querySelector('.ks-badge') : null;
+          var should = isMod(k);
+          if (should && !badge && card) {
+            var head = card.firstElementChild;
+            if (head) {
+              var s = document.createElement('span');
+              s.className = 'ks-badge';
+              s.style.cssText = 'color:var(--ks-warn);border-color:var(--ks-warn-line);background:var(--ks-warn-wash)';
+              s.textContent = 'modified';
+              head.insertBefore(s, head.children[1] || null);
+            }
+          } else if (!should && badge) { badge.remove(); }
+          var cnt = document.getElementById('count');
+          var nn = modCount();
+          if (cnt) cnt.textContent = nn ? nn + ' unsaved change' + (nn === 1 ? '' : 's') : 'no unsaved changes';
+          var saveBtn = document.getElementById('btn-save');
+          if (saveBtn) saveBtn.disabled = state.saving || nn === 0;
+          var st = document.getElementById('status');
+          if (st && !state.loading && !state.error) {
+            var total = SCHEMA.length + state.unknownOrder.length;
+            st.innerHTML = (state.missing ? '<span style="color:var(--ks-warn)">server.properties not found — showing defaults. Saving will create it.</span> · ' : '')
+              + esc(String(total)) + ' keys'
+              + (nn ? ' · <span style="color:var(--ks-warn)">' + nn + ' modified</span>' : ' · no changes');
+          }
+          var raw = document.getElementById('raw');
+          if (raw) raw.textContent = buildText();
+        }
+      }
+      if (t && t.id === 'q') { state.q = t.value; render(); var q2 = document.getElementById('q'); if (q2) { q2.focus(); try { var l = q2.value.length; q2.setSelectionRange(l, l); } catch (e) {} } }
+    }, true);
+    document.addEventListener('change', function (ev) {
+      var t = ev.target;
+      if (t && t.getAttribute && t.getAttribute('data-field')) {
+        var k = t.getAttribute('data-field');
+        state.values[k] = t.value;
+        render();
+      }
+      if (t && t.id === 'cat') { state.cat = t.value; render(); }
+      if (t && t.id === 'onlymod') { state.onlymod = !!t.checked; render(); }
+    }, true);
+    var rb = document.getElementById('btn-reload');
+    if (rb) rb.addEventListener('click', function () { load(); });
+    var sb = document.getElementById('btn-save');
+    if (sb) sb.addEventListener('click', function () {
+      if (modCount() === 0) return;
+      ask('Save server.properties with ' + modCount() + ' change(s)? The server must be restarted to apply them.').then(function (ok) { if (ok) save(); });
+    });
+    document.addEventListener('keydown', function (ev) {
+      if ((ev.ctrlKey || ev.metaKey) && String(ev.key).toLowerCase() === 's') { ev.preventDefault(); if (modCount() > 0 && !state.saving) save(); }
+    });
+  }
+
+  function start(s) { sdk = s; wire(); load(); }
+  if (window.KSPageSDK) start(window.KSPageSDK);
+  else window.addEventListener('ks-page-sdk-ready', function () { start(window.KSPageSDK); }, { once: true });
+})();
+`
+);
 
 const MC_PLAYERS = page(
   'Player Manager',
@@ -1443,45 +1827,10 @@ export const PAGE_STARTERS: PageStarter[] = [
     name: 'Server Properties',
     slug: 'mc-properties',
     category: 'minecraft',
-    description: 'Edit server.properties with stat + code preview and guarded Save (write_file + shell {{args}}) + list_files world check.',
+    description: 'Edit every server.properties key as its own card (text, number, dropdown, password). Loads the live file and saves in place.',
     iconSvg: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/>',
-    html: '',
-    blocks: MC_PROPERTIES_BLOCKS,
-    contentType: 'blocks',
-    actions: [
-      {
-        name: 'read_properties',
-        type: 'read_file',
-        path: 'server.properties',
-        description: 'Read current server.properties inside container (stat + code preview).',
-      },
-      {
-        name: 'stat_properties',
-        type: 'shell',
-        command: 'ls -l server.properties 2>&1 || stat server.properties 2>&1 || echo missing',
-        description: 'Stat current server.properties (ls -l).',
-      },
-      {
-        name: 'save_properties',
-        type: 'write_file',
-        path: 'server.properties',
-        content: 'server-port=25565\nonline-mode=true\nmotd=A Minecraft Server\nmax-players=20\ndifficulty=easy\ngamemode=survival\nwhite-list=false\nenable-command-block=false\nview-distance=10',
-        description: 'Save server.properties (write_file guarded by isDangerousPath on host).',
-      },
-      {
-        name: 'check_world',
-        type: 'list_files',
-        path: 'world',
-        description: 'Check world directory exists (list_files world).',
-      },
-      {
-        name: 'shell_save',
-        type: 'shell',
-        command: "printf '%s' {{args}} > server.properties",
-        open_args: true,
-        description: 'Save via shell with runtime arg (validated validActionArg, shellQuoteArg).',
-      },
-    ],
+    html: MC_PROPERTIES,
+    actions: [],
   },
   {
     id: 'mc-players',

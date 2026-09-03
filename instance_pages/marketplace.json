@@ -1,412 +1,412 @@
 {
-  "version": "1.0",
-  "updated": "2026-09-03",
-  "pages": [
-    {
-      "id": "api-reference",
-      "name": "API Reference",
-      "description": "Complete API reference documentation",
-      "category": "documentation",
-      "author": "kswarrior",
-      "version": "1.0",
-      "tags": [
-        "documentation"
-      ],
-      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/api-reference.json",
-      "icon_svg": "<path d=\"M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z\"/>",
-      "preview_image": ""
-    },
-    {
-      "id": "audit",
-      "name": "Audit",
-      "description": "Instance audit log with action history",
-      "category": "security",
-      "author": "kswarrior",
-      "version": "1.0",
-      "tags": [
-        "security"
-      ],
-      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/audit.json",
-      "icon_svg": "<path d=\"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z\"/><path d=\"M14 2v6h6\"/><path d=\"m9 15 2 2 4-4\"/>",
-      "preview_image": ""
-    },
-    {
-      "id": "automation",
-      "name": "Automation",
-      "description": "Scheduled and manual jobs with recent-run history",
-      "category": "automation",
-      "author": "kswarrior",
-      "version": "1.0",
-      "tags": [
-        "automation"
-      ],
-      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/automation.json",
-      "icon_svg": "<circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1\"/>",
-      "preview_image": ""
-    },
-    {
-      "id": "backups",
-      "name": "Backups",
-      "description": "Snapshot manager \u2014 create, restore, and delete instance snapshots",
-      "category": "storage",
-      "author": "kswarrior",
-      "version": "1.0",
-      "tags": [
-        "storage"
-      ],
-      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/backups.json",
-      "icon_svg": "<path d=\"M21 12a9 9 0 1 1-3-6.7\"/><path d=\"M21 3v5h-5\"/>",
-      "preview_image": ""
-    },
-    {
-      "id": "complete-example",
-      "name": "Complete Example Page",
-      "description": "A complete working example showing all content types",
-      "category": "documentation",
-      "author": "kswarrior",
-      "version": "1.0",
-      "tags": [
-        "documentation"
-      ],
-      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/complete-example.json",
-      "icon_svg": "<path d=\"M12 2L2 7l10 5 10-5-10-5z\"/><path d=\"M2 17l10 5 10-5\"/><path d=\"M2 12l10 5 10-5\"/>",
-      "preview_image": ""
-    },
-    {
-      "id": "cron-scheduler",
-      "name": "Cron Jobs",
-      "description": "Inspect the user crontab plus /etc/crontab, cron.d and cron.daily.",
-      "category": "automation",
-      "author": "kswarrior",
-      "version": "1.0",
-      "tags": [
-        "automation"
-      ],
-      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/cron-scheduler.json",
-      "icon_svg": "<circle cx=\"12\" cy=\"13\" r=\"8\"/><path d=\"M12 9v4l2.5 2.5\"/><path d=\"M9 2h6\"/><path d=\"m19 5 1.5 1.5\"/>",
-      "preview_image": ""
-    },
-    {
-      "id": "disk-analyzer",
-      "name": "Disk Usage",
-      "description": "df filesystem table plus the largest top-level directories by du.",
-      "category": "storage",
-      "author": "kswarrior",
-      "version": "1.0",
-      "tags": [
-        "storage"
-      ],
-      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/disk-analyzer.json",
-      "icon_svg": "<line x1=\"22\" y1=\"12\" x2=\"2\" y2=\"12\"/><path d=\"M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z\"/><line x1=\"6\" y1=\"16\" x2=\"6.01\" y2=\"16\"/><line x1=\"10\" y1=\"16\" x2=\"10.01\" y2=\"16\"/>",
-      "preview_image": ""
-    },
-    {
-      "id": "docker-manager",
-      "name": "Docker Containers",
-      "description": "docker ps with start/stop/restart and log tails for every container on the host.",
-      "category": "containers",
-      "author": "kswarrior",
-      "version": "1.0",
-      "tags": [
-        "containers"
-      ],
-      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/docker-manager.json",
-      "icon_svg": "<path d=\"M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z\"/><polyline points=\"3.27 6.96 12 12.01 20.73 6.96\"/><line x1=\"12\" y1=\"22.08\" x2=\"12\" y2=\"12\"/>",
-      "preview_image": ""
-    },
-    {
-      "id": "env",
-      "name": "Env",
-      "description": "Vaulted environment variables and secrets with reveal/audit tracking",
-      "category": "security",
-      "author": "kswarrior",
-      "version": "1.0",
-      "tags": [
-        "security"
-      ],
-      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/env.json",
-      "icon_svg": "<rect x=\"3\" y=\"11\" width=\"18\" height=\"11\" rx=\"2\"/><path d=\"M7 11V7a5 5 0 0 1 10 0v4\"/>",
-      "preview_image": ""
-    },
-    {
-      "id": "files",
-      "name": "Files",
-      "description": "File manager with upload, download, rename, delete, and a built-in editor",
-      "category": "management",
-      "author": "kswarrior",
-      "version": "1.0",
-      "tags": [
-        "management"
-      ],
-      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/files.json",
-      "icon_svg": "<path d=\"M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z\"/>",
-      "preview_image": ""
-    },
-    {
-      "id": "firewall-view",
-      "name": "Firewall Status",
-      "description": "Read-only dump of UFW / iptables / nftables rules whichever is present.",
-      "category": "security",
-      "author": "kswarrior",
-      "version": "1.0",
-      "tags": [
-        "security"
-      ],
-      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/firewall-view.json",
-      "icon_svg": "<path d=\"M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z\"/><path d=\"M12 8v4\"/><path d=\"M12 16h.01\"/>",
-      "preview_image": ""
-    },
-    {
-      "id": "getting-started",
-      "name": "Getting Started",
-      "description": "A getting started guide for new users",
-      "category": "documentation",
-      "author": "kswarrior",
-      "version": "1.0",
-      "tags": [
-        "documentation"
-      ],
-      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/getting-started.json",
-      "icon_svg": "<path d=\"M12 2L2 7l10 5 10-5-10-5z\"/>",
-      "preview_image": ""
-    },
-    {
-      "id": "home",
-      "name": "Home",
-      "description": "Instance overview rendered AT THE INSTANCE INDEX ROUTE (reserved '.' slug) with status, resource metrics, and quick actions",
-      "category": "overview",
-      "author": "kswarrior",
-      "version": "1.0",
-      "tags": [
-        "overview"
-      ],
-      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/home.json",
-      "icon_svg": "<path d=\"M3 9.5 12 3l9 6.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z\"/>",
-      "preview_image": ""
-    },
-    {
-      "id": "html-dashboard",
-      "name": "HTML Dashboard Example",
-      "description": "Full HTML dashboard built on panel-native styling that follows the active theme",
-      "category": "dashboards",
-      "author": "kswarrior",
-      "version": "1.0",
-      "tags": [
-        "dashboards"
-      ],
-      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/html-dashboard.json",
-      "icon_svg": "<rect x=\"3\" y=\"3\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"14\" y=\"3\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"3\" y=\"14\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"14\" y=\"14\" width=\"7\" height=\"7\" rx=\"1\"/>",
-      "preview_image": ""
-    },
-    {
-      "id": "markdown-docs",
-      "name": "Markdown Documentation",
-      "description": "Complete markdown documentation example",
-      "category": "documentation",
-      "author": "kswarrior",
-      "version": "1.0",
-      "tags": [
-        "documentation"
-      ],
-      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/markdown-docs.json",
-      "icon_svg": "<path d=\"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z\"/><polyline points=\"14 2 14 8 20 8\"/><line x1=\"16\" y1=\"13\" x2=\"8\" y2=\"13\"/><line x1=\"16\" y1=\"17\" x2=\"8\" y2=\"17\"/><polyline points=\"10 9 9 9 8 9\"/>",
-      "preview_image": ""
-    },
-    {
-      "id": "metrics",
-      "name": "Metrics",
-      "description": "Live CPU/memory/disk/network telemetry with charts and health bands",
-      "category": "monitoring",
-      "author": "kswarrior",
-      "version": "1.0",
-      "tags": [
-        "monitoring"
-      ],
-      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/metrics.json",
-      "icon_svg": "<path d=\"M3 3v18h18\"/><rect x=\"7\" y=\"12\" width=\"3\" height=\"6\"/><rect x=\"13\" y=\"7\" width=\"3\" height=\"11\"/>",
-      "preview_image": ""
-    },
-    {
-      "id": "mc-players",
-      "name": "Player Manager",
-      "description": "Read whitelist.json/ops.json/banned-players.json tables and manage players via whitelist/op/ban (rcon/screen) + list_files world/playerdata.",
-      "category": "minecraft",
-      "author": "kswarrior",
-      "version": "1.0",
-      "tags": [
-        "minecraft"
-      ],
-      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/minecraft-players.json",
-      "icon_svg": "<path d=\"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\"/><circle cx=\"9\" cy=\"7\" r=\"4\"/><path d=\"M22 21v-2a4 4 0 0 0-3-3.87\"/><path d=\"M16 3.13a4 4 0 0 1 0 7.75\"/>",
-      "preview_image": ""
-    },
-    {
-      "id": "mc-plugins",
-      "name": "Plugin Manager",
-      "description": "Manage plugins/ via list_files table + wget {{args}} -P plugins/ / rm plugins/{{args}}.jar + write_file plugins/ExamplePlugin/config.yml + touch restart.flag.",
-      "category": "minecraft",
-      "author": "kswarrior",
-      "version": "1.0",
-      "tags": [
-        "minecraft"
-      ],
-      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/minecraft-plugins.json",
-      "icon_svg": "<path d=\"M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z\"/><path d=\"M12 8V6a4 4 0 0 0-4-4 4 4 0 0 0-4 4v2\"/><path d=\"M9 21h6\"/><path d=\"M18 9a3 3 0 0 1 3 3v4a3 3 0 0 1-3 3h-1\"/>",
-      "preview_image": ""
-    },
-    {
-      "id": "mc-properties",
-      "name": "Server Properties",
-      "description": "Edit server.properties with stat + code preview and guarded Save (write_file + shell {{args}}) + list_files world check.",
-      "category": "minecraft",
-      "author": "kswarrior",
-      "version": "1.0",
-      "tags": [
-        "minecraft"
-      ],
-      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/minecraft-properties.json",
-      "icon_svg": "<circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z\"/>",
-      "preview_image": ""
-    },
-    {
-      "id": "mc-world",
-      "name": "Worlds",
-      "description": "Worlds + Backups + Auto tabs: Overworld/Nether/End cards (name, dir, backup, delete, seed), backup manager (restore, rename, fav, delete), scheduled auto-backups.",
-      "category": "minecraft",
-      "author": "kswarrior",
-      "version": "1.0",
-      "tags": [
-        "minecraft"
-      ],
-      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/minecraft-world.json",
-      "icon_svg": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M2 12h20\"/><path d=\"M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z\"/>",
-      "preview_image": ""
-    },
-    {
-      "id": "network",
-      "name": "Network",
-      "description": "Forwarded host-to-container port bindings with copyable reachability hints",
-      "category": "networking",
-      "author": "kswarrior",
-      "version": "1.0",
-      "tags": [
-        "networking"
-      ],
-      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/network.json",
-      "icon_svg": "<path d=\"M22 12h-4l-3 9L9 3l-3 9H2\"/>",
-      "preview_image": ""
-    },
-    {
-      "id": "ports",
-      "name": "Ports",
-      "description": "Listening sockets reported by the edge inspect endpoint",
-      "category": "networking",
-      "author": "kswarrior",
-      "version": "1.0",
-      "tags": [
-        "networking"
-      ],
-      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/ports.json",
-      "icon_svg": "<rect x=\"4\" y=\"4\" width=\"16\" height=\"16\" rx=\"2\"/><path d=\"M9 4v16M15 4v16M4 9h16M4 15h16\"/>",
-      "preview_image": ""
-    },
-    {
-      "id": "processes",
-      "name": "Processes",
-      "description": "Live process list inside the instance with CPU/MEM usage and kill support",
-      "category": "monitoring",
-      "author": "kswarrior",
-      "version": "1.0",
-      "tags": [
-        "monitoring"
-      ],
-      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/processes.json",
-      "icon_svg": "<rect x=\"3\" y=\"3\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"14\" y=\"3\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"3\" y=\"14\" width=\"7\" height=\"7\" rx=\"1\"/><path d=\"M14 17.5h7M17.5 14v7\"/>",
-      "preview_image": ""
-    },
-    {
-      "id": "service-control",
-      "name": "Services",
-      "description": "systemd unit list with start/stop/restart/status controls (VMs & systemd containers).",
-      "category": "services",
-      "author": "kswarrior",
-      "version": "1.0",
-      "tags": [
-        "services"
-      ],
-      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/service-control.json",
-      "icon_svg": "<rect x=\"2\" y=\"2\" width=\"20\" height=\"8\" rx=\"2\"/><rect x=\"2\" y=\"14\" width=\"20\" height=\"8\" rx=\"2\"/><line x1=\"6\" y1=\"6\" x2=\"6.01\" y2=\"6\"/><line x1=\"6\" y1=\"18\" x2=\"6.01\" y2=\"18\"/>",
-      "preview_image": ""
-    },
-    {
-      "id": "settings",
-      "name": "Settings",
-      "description": "Resource limits, deploy-time environment, and runtime policy",
-      "category": "configuration",
-      "author": "kswarrior",
-      "version": "1.0",
-      "tags": [
-        "configuration"
-      ],
-      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/settings.json",
-      "icon_svg": "<circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z\"/>",
-      "preview_image": ""
-    },
-    {
-      "id": "system-probe",
-      "name": "System Info",
-      "description": "CPU model/cores, memory, kernel, architecture and virtualization detail.",
-      "category": "system",
-      "author": "kswarrior",
-      "version": "1.0",
-      "tags": [
-        "system"
-      ],
-      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/system-probe.json",
-      "icon_svg": "<rect x=\"4\" y=\"4\" width=\"16\" height=\"16\" rx=\"2\"/><rect x=\"9\" y=\"9\" width=\"6\" height=\"6\"/><path d=\"M9 1v3\"/><path d=\"M15 1v3\"/><path d=\"M9 20v3\"/><path d=\"M15 20v3\"/><path d=\"M20 9h3\"/><path d=\"M20 14h3\"/><path d=\"M1 9h3\"/><path d=\"M1 14h3\"/>",
-      "preview_image": ""
-    },
-    {
-      "id": "terminal",
-      "name": "Terminal",
-      "description": "Live shell into the instance over the panel WebSocket bridge \u2014 native xterm.js PTY with mobile keyboard, fit, theme and auto-reconnect",
-      "category": "console",
-      "author": "kswarrior",
-      "version": "1.0",
-      "tags": [
-        "console"
-      ],
-      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/terminal.json",
-      "icon_svg": "<path d=\"m4 17 6-6-6-6\"/><path d=\"M12 19h8\"/>",
-      "preview_image": ""
-    },
-    {
-      "id": "update-center",
-      "name": "Package Updates",
-      "description": "Detect apt/apk/dnf/yum, list pending updates and apply upgrades after confirmation.",
-      "category": "maintenance",
-      "author": "kswarrior",
-      "version": "1.0",
-      "tags": [
-        "maintenance"
-      ],
-      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/update-center.json",
-      "icon_svg": "<path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\"/><polyline points=\"7 10 12 15 17 10\"/><line x1=\"12\" y1=\"15\" x2=\"12\" y2=\"3\"/>",
-      "preview_image": ""
-    },
-    {
-      "id": "user-registry",
-      "name": "Users & Groups",
-      "description": "Account inventory from /etc/passwd with recent logins.",
-      "category": "administration",
-      "author": "kswarrior",
-      "version": "1.0",
-      "tags": [
-        "administration"
-      ],
-      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/user-registry.json",
-      "icon_svg": "<path d=\"M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2\"/><circle cx=\"9\" cy=\"7\" r=\"4\"/><path d=\"M23 21v-2a4 4 0 0 0-3-3.87\"/><path d=\"M16 3.13a4 4 0 0 1 0 7.75\"/>",
-      "preview_image": ""
-    }
-  ]
+ "version": "1.0",
+ "updated": "2026-09-03",
+ "pages": [
+  {
+   "id": "api-reference",
+   "name": "API Reference",
+   "description": "Complete API reference documentation",
+   "category": "documentation",
+   "author": "kswarrior",
+   "version": "1.0",
+   "tags": [
+    "documentation"
+   ],
+   "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/api-reference.json",
+   "icon_svg": "<path d=\"M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z\"/>",
+   "preview_image": ""
+  },
+  {
+   "id": "audit",
+   "name": "Audit",
+   "description": "Instance audit log with action history",
+   "category": "security",
+   "author": "kswarrior",
+   "version": "1.0",
+   "tags": [
+    "security"
+   ],
+   "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/audit.json",
+   "icon_svg": "<path d=\"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z\"/><path d=\"M14 2v6h6\"/><path d=\"m9 15 2 2 4-4\"/>",
+   "preview_image": ""
+  },
+  {
+   "id": "automation",
+   "name": "Automation",
+   "description": "Scheduled and manual jobs with recent-run history",
+   "category": "automation",
+   "author": "kswarrior",
+   "version": "1.0",
+   "tags": [
+    "automation"
+   ],
+   "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/automation.json",
+   "icon_svg": "<circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1\"/>",
+   "preview_image": ""
+  },
+  {
+   "id": "backups",
+   "name": "Backups",
+   "description": "Snapshot manager — create, restore, and delete instance snapshots",
+   "category": "storage",
+   "author": "kswarrior",
+   "version": "1.0",
+   "tags": [
+    "storage"
+   ],
+   "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/backups.json",
+   "icon_svg": "<path d=\"M21 12a9 9 0 1 1-3-6.7\"/><path d=\"M21 3v5h-5\"/>",
+   "preview_image": ""
+  },
+  {
+   "id": "complete-example",
+   "name": "Complete Example Page",
+   "description": "A complete working example showing all content types",
+   "category": "documentation",
+   "author": "kswarrior",
+   "version": "1.0",
+   "tags": [
+    "documentation"
+   ],
+   "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/complete-example.json",
+   "icon_svg": "<path d=\"M12 2L2 7l10 5 10-5-10-5z\"/><path d=\"M2 17l10 5 10-5\"/><path d=\"M2 12l10 5 10-5\"/>",
+   "preview_image": ""
+  },
+  {
+   "id": "cron-scheduler",
+   "name": "Cron Jobs",
+   "description": "Inspect the user crontab plus /etc/crontab, cron.d and cron.daily.",
+   "category": "automation",
+   "author": "kswarrior",
+   "version": "1.0",
+   "tags": [
+    "automation"
+   ],
+   "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/cron-scheduler.json",
+   "icon_svg": "<circle cx=\"12\" cy=\"13\" r=\"8\"/><path d=\"M12 9v4l2.5 2.5\"/><path d=\"M9 2h6\"/><path d=\"m19 5 1.5 1.5\"/>",
+   "preview_image": ""
+  },
+  {
+   "id": "disk-analyzer",
+   "name": "Disk Usage",
+   "description": "df filesystem table plus the largest top-level directories by du.",
+   "category": "storage",
+   "author": "kswarrior",
+   "version": "1.0",
+   "tags": [
+    "storage"
+   ],
+   "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/disk-analyzer.json",
+   "icon_svg": "<line x1=\"22\" y1=\"12\" x2=\"2\" y2=\"12\"/><path d=\"M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z\"/><line x1=\"6\" y1=\"16\" x2=\"6.01\" y2=\"16\"/><line x1=\"10\" y1=\"16\" x2=\"10.01\" y2=\"16\"/>",
+   "preview_image": ""
+  },
+  {
+   "id": "docker-manager",
+   "name": "Docker Containers",
+   "description": "docker ps with start/stop/restart and log tails for every container on the host.",
+   "category": "containers",
+   "author": "kswarrior",
+   "version": "1.0",
+   "tags": [
+    "containers"
+   ],
+   "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/docker-manager.json",
+   "icon_svg": "<path d=\"M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z\"/><polyline points=\"3.27 6.96 12 12.01 20.73 6.96\"/><line x1=\"12\" y1=\"22.08\" x2=\"12\" y2=\"12\"/>",
+   "preview_image": ""
+  },
+  {
+   "id": "env",
+   "name": "Env",
+   "description": "Vaulted environment variables and secrets with reveal/audit tracking",
+   "category": "security",
+   "author": "kswarrior",
+   "version": "1.0",
+   "tags": [
+    "security"
+   ],
+   "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/env.json",
+   "icon_svg": "<rect x=\"3\" y=\"11\" width=\"18\" height=\"11\" rx=\"2\"/><path d=\"M7 11V7a5 5 0 0 1 10 0v4\"/>",
+   "preview_image": ""
+  },
+  {
+   "id": "files",
+   "name": "Files",
+   "description": "File manager with upload, download, rename, delete, and a built-in editor",
+   "category": "management",
+   "author": "kswarrior",
+   "version": "1.0",
+   "tags": [
+    "management"
+   ],
+   "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/files.json",
+   "icon_svg": "<path d=\"M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z\"/>",
+   "preview_image": ""
+  },
+  {
+   "id": "firewall-view",
+   "name": "Firewall Status",
+   "description": "Read-only dump of UFW / iptables / nftables rules whichever is present.",
+   "category": "security",
+   "author": "kswarrior",
+   "version": "1.0",
+   "tags": [
+    "security"
+   ],
+   "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/firewall-view.json",
+   "icon_svg": "<path d=\"M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z\"/><path d=\"M12 8v4\"/><path d=\"M12 16h.01\"/>",
+   "preview_image": ""
+  },
+  {
+   "id": "getting-started",
+   "name": "Getting Started",
+   "description": "A getting started guide for new users",
+   "category": "documentation",
+   "author": "kswarrior",
+   "version": "1.0",
+   "tags": [
+    "documentation"
+   ],
+   "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/getting-started.json",
+   "icon_svg": "<path d=\"M12 2L2 7l10 5 10-5-10-5z\"/>",
+   "preview_image": ""
+  },
+  {
+   "id": "home",
+   "name": "Home",
+   "description": "Instance overview rendered AT THE INSTANCE INDEX ROUTE (reserved '.' slug) with status, resource metrics, and quick actions",
+   "category": "overview",
+   "author": "kswarrior",
+   "version": "1.0",
+   "tags": [
+    "overview"
+   ],
+   "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/home.json",
+   "icon_svg": "<path d=\"M3 9.5 12 3l9 6.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z\"/>",
+   "preview_image": ""
+  },
+  {
+   "id": "html-dashboard",
+   "name": "HTML Dashboard Example",
+   "description": "Full HTML dashboard built on panel-native styling that follows the active theme",
+   "category": "dashboards",
+   "author": "kswarrior",
+   "version": "1.0",
+   "tags": [
+    "dashboards"
+   ],
+   "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/html-dashboard.json",
+   "icon_svg": "<rect x=\"3\" y=\"3\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"14\" y=\"3\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"3\" y=\"14\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"14\" y=\"14\" width=\"7\" height=\"7\" rx=\"1\"/>",
+   "preview_image": ""
+  },
+  {
+   "id": "markdown-docs",
+   "name": "Markdown Documentation",
+   "description": "Complete markdown documentation example",
+   "category": "documentation",
+   "author": "kswarrior",
+   "version": "1.0",
+   "tags": [
+    "documentation"
+   ],
+   "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/markdown-docs.json",
+   "icon_svg": "<path d=\"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z\"/><polyline points=\"14 2 14 8 20 8\"/><line x1=\"16\" y1=\"13\" x2=\"8\" y2=\"13\"/><line x1=\"16\" y1=\"17\" x2=\"8\" y2=\"17\"/><polyline points=\"10 9 9 9 8 9\"/>",
+   "preview_image": ""
+  },
+  {
+   "id": "metrics",
+   "name": "Metrics",
+   "description": "Live CPU/memory/disk/network telemetry with charts and health bands",
+   "category": "monitoring",
+   "author": "kswarrior",
+   "version": "1.0",
+   "tags": [
+    "monitoring"
+   ],
+   "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/metrics.json",
+   "icon_svg": "<path d=\"M3 3v18h18\"/><rect x=\"7\" y=\"12\" width=\"3\" height=\"6\"/><rect x=\"13\" y=\"7\" width=\"3\" height=\"11\"/>",
+   "preview_image": ""
+  },
+  {
+   "id": "mc-players",
+   "name": "Player Manager",
+   "description": "Read whitelist.json/ops.json/banned-players.json tables and manage players via whitelist/op/ban (rcon/screen) + list_files world/playerdata.",
+   "category": "minecraft",
+   "author": "kswarrior",
+   "version": "1.0",
+   "tags": [
+    "minecraft"
+   ],
+   "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/minecraft-players.json",
+   "icon_svg": "<path d=\"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\"/><circle cx=\"9\" cy=\"7\" r=\"4\"/><path d=\"M22 21v-2a4 4 0 0 0-3-3.87\"/><path d=\"M16 3.13a4 4 0 0 1 0 7.75\"/>",
+   "preview_image": ""
+  },
+  {
+   "id": "mc-plugins",
+   "name": "Plugin Manager",
+   "description": "Manage plugins/ via list_files table + wget {{args}} -P plugins/ / rm plugins/{{args}}.jar + write_file plugins/ExamplePlugin/config.yml + touch restart.flag.",
+   "category": "minecraft",
+   "author": "kswarrior",
+   "version": "1.0",
+   "tags": [
+    "minecraft"
+   ],
+   "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/minecraft-plugins.json",
+   "icon_svg": "<path d=\"M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z\"/><path d=\"M12 8V6a4 4 0 0 0-4-4 4 4 0 0 0-4 4v2\"/><path d=\"M9 21h6\"/><path d=\"M18 9a3 3 0 0 1 3 3v4a3 3 0 0 1-3 3h-1\"/>",
+   "preview_image": ""
+  },
+  {
+   "id": "mc-properties",
+   "name": "Server Properties",
+   "description": "Edit every server.properties key as its own card with the right editor (text input, number input, true/false dropdown, option dropdown, password). Loads the live file, tracks changes, saves in place. Restart required.",
+   "category": "minecraft",
+   "author": "kswarrior",
+   "version": "1.0",
+   "tags": [
+    "minecraft"
+   ],
+   "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/minecraft-properties.json",
+   "icon_svg": "<circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z\"/>",
+   "preview_image": ""
+  },
+  {
+   "id": "mc-world",
+   "name": "Worlds",
+   "description": "Worlds + Backups + Auto tabs: Overworld/Nether/End cards (name, dir, backup, delete, seed), backup manager (restore, rename, fav, delete), scheduled auto-backups.",
+   "category": "minecraft",
+   "author": "kswarrior",
+   "version": "1.0",
+   "tags": [
+    "minecraft"
+   ],
+   "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/minecraft-world.json",
+   "icon_svg": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M2 12h20\"/><path d=\"M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z\"/>",
+   "preview_image": ""
+  },
+  {
+   "id": "network",
+   "name": "Network",
+   "description": "Forwarded host-to-container port bindings with copyable reachability hints",
+   "category": "networking",
+   "author": "kswarrior",
+   "version": "1.0",
+   "tags": [
+    "networking"
+   ],
+   "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/network.json",
+   "icon_svg": "<path d=\"M22 12h-4l-3 9L9 3l-3 9H2\"/>",
+   "preview_image": ""
+  },
+  {
+   "id": "ports",
+   "name": "Ports",
+   "description": "Listening sockets reported by the edge inspect endpoint",
+   "category": "networking",
+   "author": "kswarrior",
+   "version": "1.0",
+   "tags": [
+    "networking"
+   ],
+   "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/ports.json",
+   "icon_svg": "<rect x=\"4\" y=\"4\" width=\"16\" height=\"16\" rx=\"2\"/><path d=\"M9 4v16M15 4v16M4 9h16M4 15h16\"/>",
+   "preview_image": ""
+  },
+  {
+   "id": "processes",
+   "name": "Processes",
+   "description": "Live process list inside the instance with CPU/MEM usage and kill support",
+   "category": "monitoring",
+   "author": "kswarrior",
+   "version": "1.0",
+   "tags": [
+    "monitoring"
+   ],
+   "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/processes.json",
+   "icon_svg": "<rect x=\"3\" y=\"3\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"14\" y=\"3\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"3\" y=\"14\" width=\"7\" height=\"7\" rx=\"1\"/><path d=\"M14 17.5h7M17.5 14v7\"/>",
+   "preview_image": ""
+  },
+  {
+   "id": "service-control",
+   "name": "Services",
+   "description": "systemd unit list with start/stop/restart/status controls (VMs & systemd containers).",
+   "category": "services",
+   "author": "kswarrior",
+   "version": "1.0",
+   "tags": [
+    "services"
+   ],
+   "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/service-control.json",
+   "icon_svg": "<rect x=\"2\" y=\"2\" width=\"20\" height=\"8\" rx=\"2\"/><rect x=\"2\" y=\"14\" width=\"20\" height=\"8\" rx=\"2\"/><line x1=\"6\" y1=\"6\" x2=\"6.01\" y2=\"6\"/><line x1=\"6\" y1=\"18\" x2=\"6.01\" y2=\"18\"/>",
+   "preview_image": ""
+  },
+  {
+   "id": "settings",
+   "name": "Settings",
+   "description": "Resource limits, deploy-time environment, and runtime policy",
+   "category": "configuration",
+   "author": "kswarrior",
+   "version": "1.0",
+   "tags": [
+    "configuration"
+   ],
+   "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/settings.json",
+   "icon_svg": "<circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z\"/>",
+   "preview_image": ""
+  },
+  {
+   "id": "system-probe",
+   "name": "System Info",
+   "description": "CPU model/cores, memory, kernel, architecture and virtualization detail.",
+   "category": "system",
+   "author": "kswarrior",
+   "version": "1.0",
+   "tags": [
+    "system"
+   ],
+   "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/system-probe.json",
+   "icon_svg": "<rect x=\"4\" y=\"4\" width=\"16\" height=\"16\" rx=\"2\"/><rect x=\"9\" y=\"9\" width=\"6\" height=\"6\"/><path d=\"M9 1v3\"/><path d=\"M15 1v3\"/><path d=\"M9 20v3\"/><path d=\"M15 20v3\"/><path d=\"M20 9h3\"/><path d=\"M20 14h3\"/><path d=\"M1 9h3\"/><path d=\"M1 14h3\"/>",
+   "preview_image": ""
+  },
+  {
+   "id": "terminal",
+   "name": "Terminal",
+   "description": "Live shell into the instance over the panel WebSocket bridge — native xterm.js PTY with mobile keyboard, fit, theme and auto-reconnect",
+   "category": "console",
+   "author": "kswarrior",
+   "version": "1.0",
+   "tags": [
+    "console"
+   ],
+   "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/terminal.json",
+   "icon_svg": "<path d=\"m4 17 6-6-6-6\"/><path d=\"M12 19h8\"/>",
+   "preview_image": ""
+  },
+  {
+   "id": "update-center",
+   "name": "Package Updates",
+   "description": "Detect apt/apk/dnf/yum, list pending updates and apply upgrades after confirmation.",
+   "category": "maintenance",
+   "author": "kswarrior",
+   "version": "1.0",
+   "tags": [
+    "maintenance"
+   ],
+   "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/update-center.json",
+   "icon_svg": "<path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\"/><polyline points=\"7 10 12 15 17 10\"/><line x1=\"12\" y1=\"15\" x2=\"12\" y2=\"3\"/>",
+   "preview_image": ""
+  },
+  {
+   "id": "user-registry",
+   "name": "Users & Groups",
+   "description": "Account inventory from /etc/passwd with recent logins.",
+   "category": "administration",
+   "author": "kswarrior",
+   "version": "1.0",
+   "tags": [
+    "administration"
+   ],
+   "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/user-registry.json",
+   "icon_svg": "<path d=\"M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2\"/><circle cx=\"9\" cy=\"7\" r=\"4\"/><path d=\"M23 21v-2a4 4 0 0 0-3-3.87\"/><path d=\"M16 3.13a4 4 0 0 1 0 7.75\"/>",
+   "preview_image": ""
+  }
+ ]
 }
