@@ -71,12 +71,15 @@ func (r *InstancePageRepository) List() ([]models.InstancePage, error) {
 func (r *InstancePageRepository) Get(id int64) (*models.InstancePage, error) {
 	var p models.InstancePage
 	var pid, ownerID sql.NullInt64
-	var name, slug, kind, category, pageType, desc, contentType, contentHTML, contentMarkdown, contentBlocks, iconSVG, actions, subPages, components, created, updated, ownerName sql.NullString
+	var name, slug, kind, category, pageType, desc, contentType, contentHTML, contentMarkdown, contentBlocks, iconSVG, actions, subPages, components, created, updated, ownerName, source, marketID, marketVersion sql.NullString
 	err := r.db.QueryRow(`SELECT p.id, p.name, p.slug, p.kind, p.category, p.page_type, p.description, p.content_type, p.content_html, p.content_markdown, p.content_blocks, p.icon_svg, p.actions, p.sub_pages, p.components, p.created_at, p.updated_at,
 		COALESCE(p.owner_id, 0),
-		COALESCE((SELECT username FROM users WHERE id = p.owner_id), '')
+		COALESCE((SELECT username FROM users WHERE id = p.owner_id), ''),
+		COALESCE(p.source, 'studio'),
+		COALESCE(p.market_id, ''),
+		COALESCE(p.market_version, '')
 		FROM instance_pages p WHERE p.id = ?`, id).Scan(
-		&pid, &name, &slug, &kind, &category, &pageType, &desc, &contentType, &contentHTML, &contentMarkdown, &contentBlocks, &iconSVG, &actions, &subPages, &components, &created, &updated, &ownerID, &ownerName)
+		&pid, &name, &slug, &kind, &category, &pageType, &desc, &contentType, &contentHTML, &contentMarkdown, &contentBlocks, &iconSVG, &actions, &subPages, &components, &created, &updated, &ownerID, &ownerName, &source, &marketID, &marketVersion)
 	if err != nil || !pid.Valid {
 		return nil, fmt.Errorf("instance page not found")
 	}
@@ -99,6 +102,9 @@ func (r *InstancePageRepository) Get(id int64) (*models.InstancePage, error) {
 	p.Actions = actions.String
 	p.SubPages = subPages.String
 	p.Components = components.String
+	p.Source = source.String
+	p.MarketID = marketID.String
+	p.MarketVersion = marketVersion.String
 	p.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created.String)
 	p.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updated.String)
 	return &p, nil
