@@ -9,7 +9,7 @@ import ToggleRow from '@/shared/components/ui/ToggleRow';
 import LocationField from '@/shared/components/forms/LocationField/LocationField';
 import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 import type { ConnectionMode, Form, NodeFormTabId } from '../types/nodeForm';
-import { emptyForm, KSEDGE_URL, ALL_KINDS, CONNECTION_MODES, isLocalMode, isTunnelMode } from '../types/nodeForm';
+import { emptyForm, KSEDGE_URL, ALL_KINDS, isLocalMode, isTunnelMode } from '../types/nodeForm';
 import { NodeTabs } from '../components/NodeTabs';
 import { buildEdgeConfig, buildBootstrapCmd } from '../utils/nodeFormUtils';
 import { NODE_ICONS, NODE_COLORS, NodeIcon, isCustomNodeIconSvg } from '../utils/nodeIcons';
