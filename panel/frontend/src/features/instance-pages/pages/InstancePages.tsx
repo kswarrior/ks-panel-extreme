@@ -5,7 +5,10 @@ import {
   deleteInstancePage,
   importInstancePageFromFile,
   importInstancePageFromURL,
+  getMarketplacePages,
+  importInstancePageFromMarketplace,
 } from '@/shared/api/admin';
+import type { MarketplaceCatalog, MarketplacePage } from '@/shared/api/admin';
 import type { InstancePage } from '@/shared/types/instancePage';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import GlassCard from '@/shared/components/ui/Card';
@@ -79,11 +82,16 @@ const InstancePages: React.FC = () => {
   // ---- Add-page modal state (mirrors the Templates "Install" dialog:
   //      one entry point with tabs — Upload file / From URL / Studio / Import) ----
   const [addOpen, setAddOpen] = useState(false);
-  const [addTab, setAddTab] = useState<'file' | 'url' | 'studio'>('file');
+  const [addTab, setAddTab] = useState<'file' | 'url' | 'studio' | 'market'>('file');
   const [importLoading, setImportLoading] = useState(false);
   const [importError, setImportError] = useState('');
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importUrl, setImportUrl] = useState('');
+  const [marketCatalog, setMarketCatalog] = useState<MarketplaceCatalog | null>(null);
+  const [marketLoading, setMarketLoading] = useState(false);
+  const [marketError, setMarketError] = useState('');
+  const [marketSearch, setMarketSearch] = useState('');
+  const [selectedMarketIds, setSelectedMarketIds] = useState<Set<string>>(new Set());
 
 
   const handleImport = async () => {
@@ -96,6 +104,10 @@ const InstancePages: React.FC = () => {
       } else if (addTab === 'url') {
         if (!importUrl.trim()) { setImportError('Please enter a URL'); setImportLoading(false); return; }
         await importInstancePageFromURL(importUrl.trim());
+      } else if (addTab === 'market') {
+        setImportLoading(false);
+        await handleMarketImport();
+        return;
       } else {
         setImportLoading(false);
         return;
@@ -109,6 +121,66 @@ const InstancePages: React.FC = () => {
     }
   };
 
+  const loadMarketplace = useCallback(async () => {
+    setMarketLoading(true);
+    setMarketError('');
+    try {
+      const catalog = await getMarketplacePages();
+      setMarketCatalog(catalog);
+    } catch (e: any) {
+      setMarketError(getErrorMessage(e, 'Failed to load marketplace'));
+    } finally {
+      setMarketLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (addTab === 'market' && !marketCatalog && !marketLoading && !marketError) {
+      loadMarketplace();
+    }
+  }, [addTab, marketCatalog, marketLoading, marketError, loadMarketplace]);
+
+  const toggleMarketSelect = (id: string) => {
+    setSelectedMarketIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleMarketImport = async () => {
+    if (selectedMarketIds.size === 0) { setImportError('Select at least one marketplace page to import'); return; }
+    setImportLoading(true);
+    setImportError('');
+    try {
+      let imported = 0;
+      let skipped = 0;
+      const errors: string[] = [];
+      for (const pid of selectedMarketIds) {
+        try {
+          await importInstancePageFromMarketplace(pid);
+          imported++;
+        } catch (e: any) {
+          const msg = getErrorMessage(e, 'Import failed');
+          if (msg.toLowerCase().includes('slug already exists') || msg.toLowerCase().includes('already exists')) skipped++;
+          else errors.push(`${pid}: ${msg}`);
+        }
+      }
+      if (imported > 0) {
+        closeAdd();
+        await load();
+      }
+      if (errors.length > 0) setImportError(errors.join('; '));
+      else if (skipped > 0 && imported === 0) setImportError(`All selected pages already exist (skipped ${skipped})`);
+      else if (skipped > 0) setImportError(`Imported ${imported}, skipped ${skipped} already existing`);
+    } catch (e: any) {
+      setImportError(getErrorMessage(e, 'Market import failed'));
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
   // openAdd resets the dialog exactly like the Templates page's openInstall.
   const openAdd = () => {
     setAddOpen(true);
@@ -116,6 +188,8 @@ const InstancePages: React.FC = () => {
     setImportFile(null);
     setImportUrl('');
     setImportError('');
+    setSelectedMarketIds(new Set());
+    setMarketSearch('');
   };
 
   const closeAdd = () => {
@@ -123,6 +197,8 @@ const InstancePages: React.FC = () => {
     setImportError('');
     setImportFile(null);
     setImportUrl('');
+    setSelectedMarketIds(new Set());
+    setMarketSearch('');
   };
 
   const load = useCallback(async () => {
@@ -214,7 +290,7 @@ const InstancePages: React.FC = () => {
         open={addOpen}
         onClose={closeAdd}
         title="Add Instance Page"
-        maxWidth="max-w-lg"
+        maxWidth={addTab === 'market' ? 'max-w-2xl' : 'max-w-lg'}
         footer={
           addTab === 'file' ? (
             <>
@@ -228,6 +304,13 @@ const InstancePages: React.FC = () => {
               <button onClick={closeAdd} className="ks-btn-cancel ks-btn-ghost">Cancel</button>
               <button onClick={handleImport} disabled={importLoading || !importUrl.trim()} className="ks-btn-form ks-btn-primary">
                 Import from URL
+              </button>
+            </>
+          ) : addTab === 'market' ? (
+            <>
+              <button onClick={closeAdd} className="ks-btn-cancel ks-btn-ghost">Cancel</button>
+              <button onClick={handleMarketImport} disabled={importLoading || selectedMarketIds.size === 0} className="ks-btn-form ks-btn-primary">
+                {importLoading ? 'Importing…' : selectedMarketIds.size === 0 ? 'Select pages to import' : `Import ${selectedMarketIds.size} page${selectedMarketIds.size > 1 ? 's' : ''}`}
               </button>
             </>
           ) : (
@@ -262,6 +345,13 @@ const InstancePages: React.FC = () => {
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" /> </svg>
             Studio
+          </button>
+          <button
+            onClick={() => setAddTab('market')}
+            className={`ks-tab flex-1 px-2 py-1.5 rounded text-xs sm:text-sm flex items-center justify-center gap-1 sm:gap-1.5 ${addTab === 'market' ? 'ks-tab-active' : ''}`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+            Market
           </button>
 
         </div>
@@ -333,6 +423,126 @@ const InstancePages: React.FC = () => {
               </div>
             </GlassCard>
           </>
+        )}
+
+        {addTab === 'market' && (
+          <div className="space-y-3">
+            <p className="text-xs text-gray-400">
+              Browse the marketplace catalog at <code className="text-gray-300">instance_pages/marketplace.json</code> (<a href="https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/marketplace.json" target="_blank" rel="noreferrer" className="text-sky-300 underline">raw GitHub</a>). Select pages to import into the library.
+            </p>
+            <input
+              type="text"
+              value={marketSearch}
+              onChange={(e) => setMarketSearch(e.target.value)}
+              placeholder="Search marketplace by name, slug or category…"
+              className="w-full bg-black/30 border border-white/10 rounded-md text-sm text-white px-3 py-1.5 focus:outline-none focus:border-white/40"
+              aria-label="Search marketplace"
+            />
+            {marketLoading && (
+              <div className="px-4 py-6 space-y-3 animate-pulse border border-white/10 rounded-md bg-black/30">
+                {[0,1,2].map((i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <div className="h-3 w-1/3 rounded bg-white/10" style={{ animationDelay: `${i*120}ms` }} />
+                    <div className="h-3 flex-1 rounded bg-white/[0.06]" style={{ animationDelay: `${i*120+60}ms` }} />
+                  </div>
+                ))}
+              </div>
+            )}
+            {marketError && (
+              <div className="text-xs text-red-400 border border-red-700/40 rounded px-3 py-2 bg-red-900/20 flex items-center justify-between">
+                <span>{marketError}</span>
+                <button onClick={loadMarketplace} className="text-xs underline hover:text-red-300">Retry</button>
+              </div>
+            )}
+            {!marketLoading && !marketError && marketCatalog && marketCatalog.pages.length === 0 && (
+              <div className="px-4 py-8 text-center text-gray-500 text-sm border border-white/10 rounded-md bg-black/20">
+                <p>Marketplace is empty.</p>
+                <p className="text-xs text-gray-600 mt-1">Add entries to instance_pages/marketplace.json</p>
+              </div>
+            )}
+            {!marketLoading && !marketError && marketCatalog && (() => {
+              const q = marketSearch.trim().toLowerCase();
+              const filtered = !q ? marketCatalog.pages : marketCatalog.pages.filter((p) =>
+                p.name.toLowerCase().includes(q) ||
+                p.id.toLowerCase().includes(q) ||
+                p.category.toLowerCase().includes(q) ||
+                p.description.toLowerCase().includes(q)
+              );
+              const existingSlugs = new Set(pages.map((pg) => pg.slug));
+              if (filtered.length === 0) return (
+                <div className="px-4 py-6 text-center text-gray-500 text-sm border border-white/10 rounded-md bg-black/20">
+                  No marketplace pages match your search.
+                </div>
+              );
+              return (
+                <>
+                  <div className="border border-white/10 rounded-md bg-black/30 max-h-[42vh] overflow-y-auto divide-y divide-white/5">
+                    {filtered.map((mp) => {
+                      const isSelected = selectedMarketIds.has(mp.id);
+                      const slugForCheck = mp.id === 'home' ? '.' : mp.id;
+                      const alreadyExists = existingSlugs.has(slugForCheck) || existingSlugs.has(mp.id);
+                      return (
+                        <button
+                          key={mp.id}
+                          type="button"
+                          disabled={alreadyExists}
+                          onClick={() => !alreadyExists && toggleMarketSelect(mp.id)}
+                          className={`w-full px-4 py-3 flex items-center gap-3 text-left transition-colors ${alreadyExists ? 'opacity-50 cursor-not-allowed' : isSelected ? 'bg-emerald-900/20 border-l-2 border-emerald-500' : 'hover:bg-white/5'}`}
+                        >
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${isSelected ? 'bg-emerald-900/40 border border-emerald-700/60' : 'bg-sky-900/30 border border-sky-700/40'}`}>
+                            {mp.icon_svg ? (
+                              <span className="w-5 h-5 flex items-center justify-center [&>svg]:w-5 [&>svg]:h-5 [&>svg]:block" dangerouslySetInnerHTML={{ __html: sanitizeSvgIcon(mp.icon_svg) }} />
+                            ) : (
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5 text-sky-300"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg>
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm text-white truncate">{mp.name}</span>
+                              <code className="text-[11px] text-gray-500 font-mono">/{mp.id === 'home' ? '' : mp.id}</code>
+                              <span className="text-[10px] uppercase tracking-wide bg-white/5 text-gray-400 border border-white/10 px-1 py-0 rounded">{mp.category}</span>
+                              {mp.author && <span className="text-[10px] text-gray-500">by {mp.author}</span>}
+                            </div>
+                            <p className="text-[11px] text-gray-500 truncate mt-0.5">{mp.description}</p>
+                            {alreadyExists && <p className="text-[11px] text-amber-400 mt-0.5">Already in library — slug exists</p>}
+                          </div>
+                          <div className="shrink-0">
+                            {alreadyExists ? (
+                              <span className="text-xs px-2 py-1 rounded border border-white/10 text-gray-500">Exists</span>
+                            ) : (
+                              <span className={`text-xs px-2 py-1 rounded border ${isSelected ? 'bg-emerald-600/30 border-emerald-500 text-emerald-200' : 'border-white/10 text-gray-400'}`}>
+                                {isSelected ? 'Selected' : 'Select'}
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button type="button" onClick={() => setSelectedMarketIds(new Set())} disabled={selectedMarketIds.size === 0} className="text-xs text-gray-400 hover:text-white disabled:opacity-40">Clear selection</button>
+                    <span className="text-xs text-gray-600">•</span>
+                    <button type="button" onClick={() => {
+                      const q2 = marketSearch.trim().toLowerCase();
+                      const curFiltered = !q2 ? marketCatalog.pages : marketCatalog.pages.filter((p) => p.name.toLowerCase().includes(q2) || p.id.toLowerCase().includes(q2) || p.category.toLowerCase().includes(q2))
+                      const existing = new Set(pages.map((pg) => pg.slug));
+                      const allIds = curFiltered.filter((p) => {
+                        const s = p.id === 'home' ? '.' : p.id;
+                        return !existing.has(s) && !existing.has(p.id);
+                      }).map((p) => p.id);
+                      setSelectedMarketIds(new Set(allIds));
+                    }} className="text-xs text-sky-300 hover:text-sky-200 disabled:opacity-40">Select all visible</button>
+                    <span className="text-xs text-gray-600">•</span>
+                    <span className="text-[11px] text-gray-500">{marketCatalog.pages.length} in marketplace • {marketCatalog.updated ? `updated ${new Date(marketCatalog.updated).toLocaleDateString()}` : ''}</span>
+                  </div>
+                  {selectedMarketIds.size > 0 && (
+                    <p className="text-[11px] text-emerald-300">{selectedMarketIds.size} marketplace page{selectedMarketIds.size>1?'s':''} selected — will be imported.</p>
+                  )}
+                  {importError && <p className="text-red-400 text-xs border border-red-700/40 rounded px-3 py-2 bg-red-900/20">{importError}</p>}
+                </>
+              );
+            })()}
+          </div>
         )}
 
       </Modal>
