@@ -223,6 +223,12 @@ func GetSFTPHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "instance not found", http.StatusNotFound)
 		return
 	}
+	// Own-scope on reads too: the masked view still discloses the node's
+	// dial address, which an OWN user must not learn for others' instances
+	// (mirrors ListPortsHandler).
+	if !sftpOwnScope(w, r, con, inst) {
+		return
+	}
 	cfg, err := repository.NewSFTPRepository(con).Get(id)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
