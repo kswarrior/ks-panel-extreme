@@ -29,7 +29,7 @@ func (r *InstancePageRepository) List() ([]models.InstancePage, error) {
 	if n == 0 {
 		return out, nil
 	}
-	rows, err := r.db.Query(`SELECT p.id, p.name, p.slug, p.kind, p.category, p.page_type, p.description, p.content_type, p.content_html, p.content_markdown, p.content_blocks, p.icon_svg, p.actions, p.sub_pages, p.components, p.created_at, p.updated_at,
+	rows, err := r.db.Query(`SELECT p.id, p.name, p.slug, p.kind, p.category, p.page_type, p.description, p.content_type, p.content_html, p.content_markdown, p.content_blocks, p.icon_svg, p.actions, p.sub_pages, p.components, p.configure, p.created_at, p.updated_at,
 		COALESCE(p.owner_id, 0),
 		COALESCE((SELECT username FROM users WHERE id = p.owner_id), ''),
 		COALESCE(p.source, 'studio'),
@@ -43,16 +43,17 @@ func (r *InstancePageRepository) List() ([]models.InstancePage, error) {
 	for rows.Next() {
 		var p models.InstancePage
 		var created, updated string
-		var actions, subPages, components sql.NullString
+		var actions, subPages, components, configure sql.NullString
 		var ownerID sql.NullInt64
 		var ownerName sql.NullString
 		var source, marketID, marketVersion sql.NullString
-		if err := rows.Scan(&p.ID, &p.Name, &p.Slug, &p.Kind, &p.Category, &p.PageType, &p.Description, &p.ContentType, &p.ContentHTML, &p.ContentMarkdown, &p.ContentBlocks, &p.IconSVG, &actions, &subPages, &components, &created, &updated, &ownerID, &ownerName, &source, &marketID, &marketVersion); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.Slug, &p.Kind, &p.Category, &p.PageType, &p.Description, &p.ContentType, &p.ContentHTML, &p.ContentMarkdown, &p.ContentBlocks, &p.IconSVG, &actions, &subPages, &components, &configure, &created, &updated, &ownerID, &ownerName, &source, &marketID, &marketVersion); err != nil {
 			return nil, err
 		}
 		p.Actions = actions.String
 		p.SubPages = subPages.String
 		p.Components = components.String
+		p.Configure = configure.String
 		p.Source = source.String
 		p.MarketID = marketID.String
 		p.MarketVersion = marketVersion.String
@@ -71,15 +72,15 @@ func (r *InstancePageRepository) List() ([]models.InstancePage, error) {
 func (r *InstancePageRepository) Get(id int64) (*models.InstancePage, error) {
 	var p models.InstancePage
 	var pid, ownerID sql.NullInt64
-	var name, slug, kind, category, pageType, desc, contentType, contentHTML, contentMarkdown, contentBlocks, iconSVG, actions, subPages, components, created, updated, ownerName, source, marketID, marketVersion sql.NullString
-	err := r.db.QueryRow(`SELECT p.id, p.name, p.slug, p.kind, p.category, p.page_type, p.description, p.content_type, p.content_html, p.content_markdown, p.content_blocks, p.icon_svg, p.actions, p.sub_pages, p.components, p.created_at, p.updated_at,
+	var name, slug, kind, category, pageType, desc, contentType, contentHTML, contentMarkdown, contentBlocks, iconSVG, actions, subPages, components, configure, created, updated, ownerName, source, marketID, marketVersion sql.NullString
+	err := r.db.QueryRow(`SELECT p.id, p.name, p.slug, p.kind, p.category, p.page_type, p.description, p.content_type, p.content_html, p.content_markdown, p.content_blocks, p.icon_svg, p.actions, p.sub_pages, p.components, p.configure, p.created_at, p.updated_at,
 		COALESCE(p.owner_id, 0),
 		COALESCE((SELECT username FROM users WHERE id = p.owner_id), ''),
 		COALESCE(p.source, 'studio'),
 		COALESCE(p.market_id, ''),
 		COALESCE(p.market_version, '')
 		FROM instance_pages p WHERE p.id = ?`, id).Scan(
-		&pid, &name, &slug, &kind, &category, &pageType, &desc, &contentType, &contentHTML, &contentMarkdown, &contentBlocks, &iconSVG, &actions, &subPages, &components, &created, &updated, &ownerID, &ownerName, &source, &marketID, &marketVersion)
+		&pid, &name, &slug, &kind, &category, &pageType, &desc, &contentType, &contentHTML, &contentMarkdown, &contentBlocks, &iconSVG, &actions, &subPages, &components, &configure, &created, &updated, &ownerID, &ownerName, &source, &marketID, &marketVersion)
 	if err != nil || !pid.Valid {
 		return nil, fmt.Errorf("instance page not found")
 	}
@@ -102,6 +103,7 @@ func (r *InstancePageRepository) Get(id int64) (*models.InstancePage, error) {
 	p.Actions = actions.String
 	p.SubPages = subPages.String
 	p.Components = components.String
+	p.Configure = configure.String
 	p.Source = source.String
 	p.MarketID = marketID.String
 	p.MarketVersion = marketVersion.String
@@ -134,6 +136,9 @@ type InstancePageInput struct {
 	// Components is a JSON array of reusable UI blocks ("" == none). The
 	// caller (handler) validates shape; see validateInstancePage.
 	Components string
+	// Configure is a JSON array of page-level env-style var definitions
+	// ("" == none). The caller validates shape; see validateInstancePage.
+	Configure string
 	// OwnerID ties the page to the user that authored it. Migration 054
 	// wires the INSTANCE_PAGES_OWN / _ALL scope keys; see the
 	// handler for the full contract.
@@ -156,11 +161,11 @@ func (r *InstancePageRepository) Create(in InstancePageInput) (int64, error) {
 	var res sql.Result
 	var err error
 	if in.OwnerID != 0 {
-		res, err = r.db.Exec(`INSERT INTO instance_pages (name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages, components, owner_id, source, market_id, market_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			in.Name, in.Slug, in.Kind, in.Category, in.PageType, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.IconSVG, in.Actions, in.SubPages, in.Components, in.OwnerID, in.Source, in.MarketID, in.MarketVersion)
+		res, err = r.db.Exec(`INSERT INTO instance_pages (name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages, components, configure, owner_id, source, market_id, market_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			in.Name, in.Slug, in.Kind, in.Category, in.PageType, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.IconSVG, in.Actions, in.SubPages, in.Components, in.Configure, in.OwnerID, in.Source, in.MarketID, in.MarketVersion)
 	} else {
-		res, err = r.db.Exec(`INSERT INTO instance_pages (name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages, components, source, market_id, market_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			in.Name, in.Slug, in.Kind, in.Category, in.PageType, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.IconSVG, in.Actions, in.SubPages, in.Components, in.Source, in.MarketID, in.MarketVersion)
+		res, err = r.db.Exec(`INSERT INTO instance_pages (name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages, components, configure, source, market_id, market_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			in.Name, in.Slug, in.Kind, in.Category, in.PageType, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.IconSVG, in.Actions, in.SubPages, in.Components, in.Configure, in.Source, in.MarketID, in.MarketVersion)
 	}
 	if err != nil {
 		return 0, err
@@ -170,8 +175,8 @@ func (r *InstancePageRepository) Create(in InstancePageInput) (int64, error) {
 
 // Update patches an editable instance page.
 func (r *InstancePageRepository) Update(id int64, in InstancePageInput) error {
-	res, err := r.db.Exec(`UPDATE instance_pages SET name = ?, slug = ?, kind = ?, category = ?, page_type = ?, description = ?, content_type = ?, content_html = ?, content_markdown = ?, content_blocks = ?, icon_svg = ?, actions = ?, sub_pages = ?, components = ?, source = ?, market_id = ?, market_version = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-		in.Name, in.Slug, in.Kind, in.Category, in.PageType, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.IconSVG, in.Actions, in.SubPages, in.Components, in.Source, in.MarketID, in.MarketVersion, id)
+	res, err := r.db.Exec(`UPDATE instance_pages SET name = ?, slug = ?, kind = ?, category = ?, page_type = ?, description = ?, content_type = ?, content_html = ?, content_markdown = ?, content_blocks = ?, icon_svg = ?, actions = ?, sub_pages = ?, components = ?, configure = ?, source = ?, market_id = ?, market_version = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+		in.Name, in.Slug, in.Kind, in.Category, in.PageType, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.IconSVG, in.Actions, in.SubPages, in.Components, in.Configure, in.Source, in.MarketID, in.MarketVersion, id)
 	if err != nil {
 		return err
 	}

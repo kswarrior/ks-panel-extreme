@@ -63,6 +63,13 @@ type InstancePage struct {
 	// linking a page copies them into spec.pages so the runtime can
 	// substitute the tokens when rendering. Empty string == no components.
 	Components string `json:"components"`
+	// Configure is a JSON array of page-level EnvVariable-style definitions
+	// ({name,label,description,default,user_viewable,user_editable,required,
+	// rule,display,options,append,prepend,append_value}) authored in the
+	// Studio's Configure tab (like the template editor's Env Variables).
+	// Stored with the page so linking copies definitions into spec.pages
+	// for the template editor's per-page Configure values.
+	Configure string `json:"configure"`
 	IconSVG    string `json:"icon_svg"`
 	// Source tracks page provenance for the library badges: "studio" (own
 	// pages incl. Studio/file/URL creates), "market" (fresh marketplace
