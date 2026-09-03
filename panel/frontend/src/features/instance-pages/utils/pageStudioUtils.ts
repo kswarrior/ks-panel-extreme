@@ -239,7 +239,7 @@ export function configureRowsFromJSON(json: string | undefined | null): Configur
     user_editable: d.user_editable !== false,
     required: !!d.required,
     rule: d.rule || '',
-    display: (['text', 'number', 'select', 'checkbox'].includes(d.display) ? d.display : 'text') as ConfigureRow['display'],
+    display: (['text', 'number', 'select', 'checkbox', 'toggle'].includes(d.display) ? d.display : 'text') as ConfigureRow['display'],
     options: d.options || '',
     append: !!d.append,
     prepend: d.prepend || '',
@@ -277,7 +277,7 @@ export function validateConfigureRows(rows: ConfigureRow[]): string {
     if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) return `Configure variable name "${name}" must start with a letter or underscore and contain only letters, numbers or underscores.`;
     if (seen.has(name)) return `Duplicate configure variable name "${name}".`;
     seen.add(name);
-    if (r.display && !['text', 'number', 'select', 'checkbox'].includes(r.display)) return `Configure variable "${name}" display must be one of: text, number, select, checkbox.`;
+    if (r.display && !['text', 'number', 'select', 'checkbox', 'toggle'].includes(r.display)) return `Configure variable "${name}" display must be one of: text, number, select, checkbox, toggle.`;
     if (r.label && r.label.length > 200) return `Configure variable "${name}" label too long (max 200).`;
     if (r.description && r.description.length > 500) return `Configure variable "${name}" description too long (max 500).`;
   }
