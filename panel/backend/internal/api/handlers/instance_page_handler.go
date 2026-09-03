@@ -1997,6 +1997,7 @@ func ImportInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		Actions:         req.Actions,
 		SubPages:        req.subPagesJSON(),
 		Components:      req.Components,
+		Configure:       req.configureJSON(),
 	}
 	dto, err = validateInstancePage(dto)
 	if err != nil {
@@ -2029,6 +2030,7 @@ func ImportInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		Actions:         dto.Actions,
 		SubPages:        dto.SubPages,
 		Components:      dto.Components,
+		Configure:       dto.Configure,
 		Source:          pageSourceStudio,
 	})
 	if err != nil {
@@ -2641,6 +2643,7 @@ func ImportInstancePageFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		Actions:         pageReq.Actions,
 		SubPages:        pageReq.subPagesJSON(),
 		Components:      pageReq.Components,
+		Configure:       pageReq.configureJSON(),
 	}
 	dto, err = validateInstancePage(dto)
 	if err != nil {
@@ -2673,6 +2676,7 @@ func ImportInstancePageFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		Actions:         dto.Actions,
 		SubPages:        dto.SubPages,
 		Components:      dto.Components,
+		Configure:       dto.Configure,
 		Source:          pageSourceStudio,
 	})
 	if err != nil {
@@ -2862,6 +2866,7 @@ func ImportInstancePageFromMarketplaceHandler(w http.ResponseWriter, r *http.Req
 		Actions:         pageReq.Actions,
 		SubPages:        pageReq.subPagesJSON(),
 		Components:      pageReq.Components,
+		Configure:       pageReq.configureJSON(),
 	}
 	dto, verr := validateInstancePage(dto)
 	if verr != nil {
@@ -2895,6 +2900,7 @@ func ImportInstancePageFromMarketplaceHandler(w http.ResponseWriter, r *http.Req
 		Actions:         dto.Actions,
 		SubPages:        dto.SubPages,
 		Components:      dto.Components,
+		Configure:       dto.Configure,
 		OwnerID:           ownerID,
 		Source:            pageSourceMarket,
 		MarketID:          req.PageID,
