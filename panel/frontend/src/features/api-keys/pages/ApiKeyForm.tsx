@@ -391,21 +391,17 @@ const ApiKeyForm: React.FC = () => {
                   {users.length === 0 ? (
                     <p className="text-xs text-red-400">No users available</p>
                   ) : (
-                    <select
-                      id="user_id"
+                    <SearchableSelect<number>
+                      options={ownerOptions}
                       value={form.user_id}
-                      onChange={(e) => setForm({ ...form, user_id: Number(e.target.value) })}
-                      required
-                      className={glassFieldClass}
-                    >
-                      {users.map((u) => (
-                        <option key={u.id} value={u.id}>
-                          {u.username} ({u.email})
-                       </option>
-                      ))}
-                   </select>
+                      onChange={(v) => setForm({ ...form, user_id: v })}
+                      placeholder="Search owners by name or email…"
+                      emptyMessage="No owners match"
+                      renderRow={renderOwnerRow}
+                      groupLabel="Users"
+                    />
                   )}
-               </GlassField>
+                </GlassField>
               ) : (
                 <GlassField label="Owner" htmlFor="owner_name_disabled">
                   <input id="owner_name_disabled" value={`User #${form.user_id}`} disabled />
@@ -441,7 +437,7 @@ const ApiKeyForm: React.FC = () => {
               <p className="text-xs text-gray-400 mb-2">
                 Tints the badge on the admin list. Pick a preset or use the picker for any CSS colour.
              </p>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-2 overflow-x-auto ks-hscroll pb-2 -mx-0.5 px-0.5">
                 {COLOR_SWATCHES.map((s) => {
                   const active = (form.accent_color || '') === s.value;
                   return (
@@ -451,7 +447,7 @@ const ApiKeyForm: React.FC = () => {
                       onClick={() => setForm({ ...form, accent_color: s.value })}
                       aria-pressed={active}
                       aria-label={`Colour: ${s.label}`}
-                      className={`group relative w-7 h-7 rounded-full border border-white/15 ring-1 transition-all ${
+                      className={`group relative w-7 h-7 shrink-0 rounded-full border border-white/15 ring-1 transition-all ${
                         active ? 'ring-white/40 scale-110' : 'ring-transparent hover:ring-white/20'
                       } ${s.value ? '' : 'bg-white/[0.04] border-white/25'}`}
                       style={s.value ? { backgroundColor: s.value } : undefined}
@@ -465,6 +461,8 @@ const ApiKeyForm: React.FC = () => {
                    </button>
                   );
                 })}
+              </div>
+              <div className="flex flex-wrap items-center gap-2 mt-2">
                 <label
                   htmlFor="accent_color_picker"
                   className="ks-ghost-btn inline-flex items-center gap-1.5 text-xs text-gray-300 border border-white/10 rounded-md px-2 py-1 cursor-pointer hover:bg-white/5 transition-colors"
@@ -515,15 +513,13 @@ const ApiKeyForm: React.FC = () => {
 
             {/* Expiry row */}
             <div className="space-y-2">
-              <label className="flex items-center gap-2 text-sm text-gray-200 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={noExpiry}
-                  onChange={(e) => setNoExpiry(e.target.checked)}
-                  className="accent-white"
-                />
-                No expiry (key never expires)
-             </label>
+              <ToggleRow
+                id="no_expiry"
+                label="No expiry"
+                description="Key never expires"
+                checked={noExpiry}
+                onChange={setNoExpiry}
+              />
               {!noExpiry && (
                 <div className="space-y-2">
                   <GlassField label="Expires at" htmlFor="expires_at" hint="When the key stops working. Leave blank + toggle to set no expiry.">
@@ -545,15 +541,13 @@ const ApiKeyForm: React.FC = () => {
 
             {/* Rate limit row */}
             <div className="space-y-2">
-              <label className="flex items-center gap-2 text-sm text-gray-200 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={noRateLimit}
-                  onChange={(e) => setNoRateLimit(e.target.checked)}
-                  className="accent-white"
-                />
-                No request limit (unlimited)
-             </label>
+              <ToggleRow
+                id="no_rate_limit"
+                label="No request limit"
+                description="Unlimited requests"
+                checked={noRateLimit}
+                onChange={setNoRateLimit}
+              />
               {!noRateLimit && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <GlassField label="Requests" htmlFor="rate_limit" hint="Max requests allowed per window (e.g. 25).">
@@ -605,6 +599,22 @@ const ApiKeyForm: React.FC = () => {
 
           {error && <p className="text-sm text-red-400">{error}</p>}
         </div>
+        <nav aria-label="API key form sections" className="lg:hidden sticky bottom-3 z-10">
+          <div className="ks-card rounded-md p-1.5 flex gap-1 overflow-x-auto scrollbar-hide">
+            {APIKEY_TABS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={tab === t.id}
+                onClick={() => setTab(t.id)}
+                className={`ks-tab shrink-0 flex-1 px-3 py-1.5 rounded text-sm text-center transition ${tab === t.id ? 'ks-tab-active' : ''}`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </nav>
       </FormPage>
       {/* Token disclosure modal after creation */}
       {createdToken && (
