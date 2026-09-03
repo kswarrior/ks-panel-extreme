@@ -606,20 +606,28 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
                           {/* keep current value even if not in options */}
                           {cur && !opts.includes(cur) && <option value={cur}>{cur}</option>}
                         </select>
-                      ) : v.display === 'checkbox' ? (
-                        <label className="inline-flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={cur === 'true' || cur === '1' || cur === 'on'}
-                            onChange={(e) => {
-                              const next: Record<string, string> = { ...(p.config ?? {}) };
-                              next[v.name] = e.target.checked ? 'true' : 'false';
-                              onPageUpdate(configureIdx!, { config: next });
-                            }}
-                            className="rounded"
-                          />
-                          <span className="text-sm text-gray-300">{v.label || v.name}</span>
-                        </label>
+                      ) : (v.display === 'checkbox' || v.display === 'toggle') ? (
+                        (() => {
+                          const isOn = cur === 'true' || cur === '1' || cur === 'on';
+                          return (
+                            <label className="inline-flex items-center gap-3 cursor-pointer">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const next: Record<string, string> = { ...(p.config ?? {}) };
+                                  next[v.name] = isOn ? 'false' : 'true';
+                                  onPageUpdate(configureIdx!, { config: next });
+                                }}
+                                className={`relative w-11 h-6 rounded-full transition ${isOn ? 'bg-green-600' : 'bg-neutral-700'}`}
+                                aria-pressed={isOn}
+                              >
+                                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition ${isOn ? 'translate-x-5' : ''}`} />
+                              </button>
+                              <span className={`text-sm font-medium ${isOn ? 'text-green-400' : 'text-gray-400'}`}>{isOn ? 'On' : 'Off'}</span>
+                              <span className="text-sm text-gray-500">{v.label || v.name}</span>
+                            </label>
+                          );
+                        })()
                       ) : v.display === 'number' ? (
                         <input
                           type="number"
