@@ -128,9 +128,24 @@ const Tickets: React.FC = () => {
     setPriorityFilter('all');
     setCategoryFilter('all');
     setMineOnly(false);
+    setSearchParams({});
   };
 
-  const hasActiveFilter = statusFilter !== 'all' || priorityFilter !== 'all' || categoryFilter !== 'all' || mineOnly;
+  const hasActiveFilter = statusFilter !== 'all' || priorityFilter !== 'all' || categoryFilter !== 'all' || mineOnly || debouncedSearch.trim() !== '';
+
+  // Keep the URL in sync when filters change via UI so deep-links, refresh
+  // and the TicketStats shortcuts all resolve to the same visible set.
+  useEffect(() => {
+    const next: Record<string, string> = {};
+    if (statusFilter !== 'all') next.status = statusFilter;
+    if (priorityFilter !== 'all') next.priority = priorityFilter;
+    if (categoryFilter !== 'all') next.category = categoryFilter;
+    if (mineOnly) next.mine = '1';
+    if (debouncedSearch.trim()) next.search = debouncedSearch.trim();
+    const cur = Object.fromEntries(searchParams.entries());
+    if (JSON.stringify(cur) !== JSON.stringify(next)) setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter, priorityFilter, categoryFilter, mineOnly, debouncedSearch]);
 
   return (
     <div>
@@ -296,7 +311,7 @@ const Tickets: React.FC = () => {
         </div>
       )}
 
-      {!loading && filtered.length === 0 && tickets.length > 0 && !error && (
+      {!loading && filtered.length === 0 && hasActiveFilter && !error && (
         <div className="ks-card ks-form-card rounded-xl text-center text-gray-400">
           No tickets match your filters.
           <div className="mt-2 flex justify-center">
@@ -307,7 +322,7 @@ const Tickets: React.FC = () => {
         </div>
       )}
 
-      {!loading && tickets.length === 0 && !error && (
+      {!loading && tickets.length === 0 && !hasActiveFilter && !error && (
         <div className="flex flex-col items-center justify-center min-h-[40vh] px-4 animate-fade-in">
           <div className="flex flex-col items-center gap-4">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="w-20 h-20 text-gray-500" aria-hidden="true">

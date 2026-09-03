@@ -39,6 +39,9 @@ const TicketDetail: React.FC = () => {
   const [assignValue, setAssignValue] = useState<string>('');
   const [statusValue, setStatusValue] = useState<Ticket['status']>('open');
   const [priorityValue, setPriorityValue] = useState<Ticket['priority']>('medium');
+  // Staff = can triage (status/priority/assign). Mirrors backend canSeeInternal
+  // (MANAGE_TICKETS or TICKETS_EDIT). Non-staff sees triage read-only.
+  const isStaff = permissions.includes('MANAGE_TICKETS') || permissions.includes('TICKETS_EDIT');
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -60,26 +63,35 @@ const TicketDetail: React.FC = () => {
 
   useEffect(() => { load(); }, [load]);
 
+  // Assign dropdown needs the user directory — staff-only (backend 403s
+  // non-staff), so only fetch when the viewer can actually triage.
   useEffect(() => {
+    if (!isStaff) return;
     listAssignableUsers().then(setAssignUsers).catch(() => {});
-  }, []);
+  }, [isStaff]);
 
   const handleStatusChange = async (newStatus: Ticket['status']) => {
     if (!id || !ticket) return;
+    const prev = ticket.status;
+    setStatusValue(newStatus);
     try {
       await updateTicket(Number(id), { status: newStatus });
       await load();
     } catch (e: any) {
+      setStatusValue(prev);
       alert(e?.response?.data || 'Failed to change status');
     }
   };
 
   const handlePriorityChange = async (newPriority: Ticket['priority']) => {
-    if (!id) return;
+    if (!id || !ticket) return;
+    const prev = ticket.priority;
+    setPriorityValue(newPriority);
     try {
       await updateTicket(Number(id), { priority: newPriority });
       await load();
     } catch (e: any) {
+      setPriorityValue(prev);
       alert(e?.response?.data || 'Failed to change priority');
     }
   };
@@ -296,13 +308,15 @@ const TicketDetail: React.FC = () => {
                   value={statusValue}
                   onChange={(e) => {
                     const ns = e.target.value as Ticket['status'];
-                    setStatusValue(ns);
                     handleStatusChange(ns);
                   }}
-                  className="w-full glass-field text-sm"
+                  disabled={!isStaff}
+                  title={isStaff ? 'Change status' : 'Only staff can change status'}
+                  className="w-full glass-field text-sm disabled:opacity-50"
                 >
                   {STATUS_ORDER.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
                 </select>
+                {!isStaff && <p className="text-[11px] mt-1" style={{ color: 'var(--ks-text-body)' }}>Only staff can change status.</p>}
               </div>
               <div>
                 <label className="block text-xs mb-1.5" style={{ color: 'var(--ks-text-body)' }}>Priority</label>
@@ -310,16 +324,19 @@ const TicketDetail: React.FC = () => {
                   value={priorityValue}
                   onChange={(e) => {
                     const np = e.target.value as Ticket['priority'];
-                    setPriorityValue(np);
                     handlePriorityChange(np);
                   }}
-                  className="w-full glass-field text-sm"
+                  disabled={!isStaff}
+                  title={isStaff ? 'Change priority' : 'Only staff can change priority'}
+                  className="w-full glass-field text-sm disabled:opacity-50"
                 >
                   {['low','medium','high','urgent','critical'].map((p) => <option key={p} value={p}>{p}</option>)}
                 </select>
+                {!isStaff && <p className="text-[11px] mt-1" style={{ color: 'var(--ks-text-body)' }}>Only staff can change priority.</p>}
               </div>
               <div>
                 <label className="block text-xs mb-1.5" style={{ color: 'var(--ks-text-body)' }}>Assignee</label>
+                {isStaff ? (
                 <div className="flex gap-2">
                   <select value={assignValue} onChange={(e) => setAssignValue(e.target.value)} className="flex-1 glass-field text-sm">
                     <option value="">Unassigned</option>
@@ -327,6 +344,11 @@ const TicketDetail: React.FC = () => {
                   </select>
                   <button onClick={handleAssign} className="ks-btn-ghost text-xs px-3 py-1.5 rounded-lg border" style={{ borderColor: 'var(--ks-card-border)', color: 'var(--ks-text-body)' }}>Assign</button>
                 </div>
+                ) : (
+                  <p className="text-xs" style={{ color: 'var(--ks-text-body)' }}>
+                    {ticket.assigned_to ? `Assigned to ${ticket.assignee_display_name || ticket.assignee_name || `#${ticket.assigned_to}`}` : 'Unassigned — staff will triage.'}
+                  </p>
+                )}
               </div>
               <div className="pt-2">
                 <Link to={`/tickets/${ticket.id}/edit`} className="w-full inline-flex items-center justify-center gap-1.5 text-xs px-3 py-2 rounded-lg border" style={{ borderColor: 'var(--ks-card-border)', color: 'var(--ks-text-body)' }}>Edit ticket</Link>
