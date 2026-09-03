@@ -224,19 +224,28 @@ func (r *NotificationRepository) Get(id, userID int64) (*models.Notification, er
 		FROM notifications WHERE id = ? AND user_id = ?`
 	row := r.db.QueryRow(q, id, userID)
 	var n models.Notification
+	var idOut, uidOut sql.NullInt64
 	var actorID sql.NullInt64
 	var actorName sql.NullString
 	var cat, pri, title, msg, link, alabel, meta sql.NullString
 	var isRead, isBroadcast sql.NullInt64
 	var createdStr, readStr sql.NullString
-	var uid int64
-	if err := row.Scan(&n.ID, &uid, &actorID, &actorName, &cat, &pri, &title, &msg, &link, &alabel, &meta, &isRead, &isBroadcast, &createdStr, &readStr); err != nil {
+	if err := row.Scan(&idOut, &uidOut, &actorID, &actorName, &cat, &pri, &title, &msg, &link, &alabel, &meta, &isRead, &isBroadcast, &createdStr, &readStr); err != nil {
 		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		// Some drivers surface a no-match as a NULL scan error instead of
+		// ErrNoRows — treat an invalid id the same as not-found.
+		if strings.Contains(err.Error(), "converting NULL") {
 			return nil, nil
 		}
 		return nil, err
 	}
-	n.UserID = uid
+	if !idOut.Valid || !uidOut.Valid {
+		return nil, nil
+	}
+	n.ID = idOut.Int64
+	n.UserID = uidOut.Int64
 	if actorID.Valid {
 		v := actorID.Int64
 		n.ActorID = &v

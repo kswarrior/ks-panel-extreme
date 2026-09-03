@@ -101,7 +101,7 @@ func EmitBroadcast(actorID *int64, actorName string, category models.Notificatio
 		return
 	}
 	for _, uid := range ids {
-		_, _ = repo.Create(repository.CreateNotificationInput{
+		if _, err := repo.Create(repository.CreateNotificationInput{
 			UserID:      uid,
 			ActorID:     actorID,
 			ActorName:   actorName,
@@ -112,7 +112,9 @@ func EmitBroadcast(actorID *int64, actorName string, category models.Notificatio
 			Link:        link,
 			ActionLabel: actionLabel,
 			IsBroadcast: true,
-		})
+		}); err != nil {
+			log.Println("notification broadcast: create for user", uid, err)
+		}
 	}
 }
 
@@ -148,15 +150,16 @@ func ListNotificationsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if v := r.URL.Query().Get("is_read"); v != "" {
-		b := v == "true" || v == "1"
-		f.IsRead = &b
-		if v == "false" || v == "0" {
-			bo := false
-			f.IsRead = &bo
-		}
-		if v == "true" || v == "1" {
+		switch v {
+		case "true", "1":
 			bo := true
 			f.IsRead = &bo
+		case "false", "0":
+			bo := false
+			f.IsRead = &bo
+		default:
+			http.Error(w, "invalid is_read (want true/false/1/0)", http.StatusBadRequest)
+			return
 		}
 	}
 	f.Search = r.URL.Query().Get("q")
