@@ -1,7 +1,7 @@
 // InstanceForm utilities - extracted from InstanceForm.tsx
 
 import type { EditorState, PortMapping, Mount, ResourceLimits, FeatureCaps, EnvVariable, InstallStep, TemplateAction, ActionStep, Label, Device, Healthcheck, Advanced, KvRuntime, MpRuntime, LxdRuntime, PageOverride } from '../types/instanceForm';
-import { parsePageActions, parsePageComponents } from '@/features/instance-pages/types/instancePage';
+import { parsePageActions, parsePageComponents, parsePageConfigure } from '@/features/instance-pages/types/instancePage';
 import { parseConfig } from '@/shared/hooks/useInstance';
 import { emptyEditor, emptyKvm, emptyMp, emptyLxd, kindKey, KIND_META, InstallAction, NetworkMode, RestartPolicy, LogLevel } from '../types/instanceForm';
 
@@ -344,6 +344,8 @@ export function serializeEditor(f: EditorState): Record<string, unknown> {
       }
       // Components: persist reusable UI blocks.
       if (p.components && p.components.length > 0) out.components = p.components;
+      if (p.configure && p.configure.length > 0) out.configure = p.configure;
+      if (p.config && Object.keys(p.config).length > 0) out.config = p.config;
       return out;
     }),
     healthcheck: f.healthcheck.enabled ? {

@@ -1,7 +1,7 @@
 // TemplateForm utilities - extracted from TemplateForm.tsx
 
 import type { TemplateFormState, PortMapping, Mount, ResourceLimits, FeatureCaps, EnvVariable, InstallStep, TemplateAction, ActionStep, Label, Device, Healthcheck, Advanced, KvRuntime, MpRuntime, LxdRuntime, PageOverride, RestartPolicy, NetworkMode, LogLevel, InstallAction } from '../types/templateForm';
-import { parsePageActions, parsePageComponents } from '@/features/instance-pages/types/instancePage';
+import { parsePageActions, parsePageComponents, parsePageConfigure } from '@/features/instance-pages/types/instancePage';
 // emptyForm is a runtime value (not a type) — it seeds every partial
 // `advanced` produced below so serializeSpec can keep assuming the full
 // Advanced shape (it reads e.g. f.advanced.dns.split(',') unguarded).
@@ -136,6 +136,10 @@ export function serializeSpec(f: TemplateFormState): string {
       // Components: persist reusable UI blocks so {{component:name}} tokens
       // resolve on both main page and sub-pages (React-like reusability).
       if (p.components && p.components.length > 0) out.components = p.components;
+      // Configure: persist page-level env-style var definitions (Studio Configure tab).
+      if (p.configure && p.configure.length > 0) out.configure = p.configure;
+      // Per-template values for those vars (entered via Configure button).
+      if (p.config && Object.keys(p.config).length > 0) out.config = p.config;
       // Multi-page support: nested sub-pages ride on the parent row.
       if (p.sub_pages && p.sub_pages.length > 0) {
         out.sub_pages = p.sub_pages.map((s) => ({
@@ -450,6 +454,29 @@ export function parseSpec(raw: string): Partial<TemplateFormState> {
                   })),
               }
             : {}),
+          // Configure vars (Studio Configure tab) — page-level env definitions.
+          ...(() => {
+            let cfg: ReturnType<typeof parsePageConfigure> = [];
+            if (typeof p.configure === 'string' && (p.configure as string).trim()) {
+              cfg = parsePageConfigure(p.configure as string);
+            } else if (Array.isArray(p.configure) && (p.configure as any[]).length > 0) {
+              try {
+                cfg = parsePageConfigure(JSON.stringify(p.configure));
+                if (cfg.length === 0) cfg = p.configure as any;
+              } catch { cfg = p.configure as any; }
+            }
+            return cfg.length > 0 ? { configure: cfg } : {};
+          })(),
+          // Per-template values for those vars (Configure button).
+          ...(() => {
+            const src = (p as any).config ?? (p as any).configure_values;
+            if (src && typeof src === 'object' && !Array.isArray(src)) {
+              const vals: Record<string, string> = {};
+              Object.entries(src as Record<string, unknown>).forEach(([k, v]) => { vals[k] = String(v ?? ''); });
+              return Object.keys(vals).length > 0 ? { config: vals } : {};
+            }
+            return {};
+          })(),
         });
       });
       out.pages = pages;

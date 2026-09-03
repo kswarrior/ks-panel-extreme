@@ -231,6 +231,10 @@ export interface PageOverride {
    *  of each is "<slug>/<path>" (e.g. files/edit); they never render as
    *  separate top-level tabs. */
   sub_pages?: InstancePageSubPage[];
+  /** Page-level configure vars copied from the library row. */
+  configure?: import('@/features/instance-pages/types/instancePage').PageConfigureVar[];
+  /** Per-template values for this page's configure vars, keyed by var name. */
+  config?: Record<string, string>;
 }
 
 export interface EditorState {
