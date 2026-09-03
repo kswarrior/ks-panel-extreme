@@ -48,9 +48,20 @@ export const PageStudioContentSection: React.FC<PageStudioContentSectionProps> =
 
   return (
     <div className={sectionCls}>
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
         <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400">Section B · Content</h4>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {onCopy && (
+            <button type="button" onClick={onCopy} className="text-xs text-gray-400 hover:text-white underline" title="Copy content to clipboard">
+              Copy
+            </button>
+          )}
+          <button type="button" onClick={onExport} className="text-xs text-gray-400 hover:text-white underline" title="Export page JSON">
+            Export
+          </button>
+          <button type="button" onClick={onImportClick} className="text-xs text-gray-400 hover:text-white underline" title="Import page JSON">
+            Import
+          </button>
           <label className="text-xs text-gray-400">Content Type</label>
           <select
             value={contentType}

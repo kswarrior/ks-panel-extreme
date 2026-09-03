@@ -280,6 +280,7 @@ export function validateConfigureRows(rows: ConfigureRow[]): string {
     if (r.display && !['text', 'number', 'select', 'checkbox', 'toggle'].includes(r.display)) return `Configure variable "${name}" display must be one of: text, number, select, checkbox, toggle.`;
     if (r.label && r.label.length > 200) return `Configure variable "${name}" label too long (max 200).`;
     if (r.description && r.description.length > 500) return `Configure variable "${name}" description too long (max 500).`;
+    if (r.default && r.default.length > 2000) return `Configure variable "${name}" default too long (max 2000).`;
   }
   return '';
 }
@@ -338,7 +339,7 @@ img { max-width: 100%; border-radius: 6px; }
 .ks-warn { color: var(--ks-warn, #fcd34d); }
 `;
 
-export function renderPreview(contentType: string, content: string, components?: PageComponentDef[]): string {
+export function renderPreview(contentType: string, content: string, components?: PageComponentDef[], configure?: PageConfigureVar[], config?: Record<string, string>): string {
   let safeContent = content || '';
   // React-like component substitution for static preview: resolve {{component:name}}
   // tokens so authors see the same composition they'd get on a live instance
