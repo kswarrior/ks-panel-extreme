@@ -31,7 +31,10 @@ func (r *InstancePageRepository) List() ([]models.InstancePage, error) {
 	}
 	rows, err := r.db.Query(`SELECT p.id, p.name, p.slug, p.kind, p.category, p.page_type, p.description, p.content_type, p.content_html, p.content_markdown, p.content_blocks, p.icon_svg, p.actions, p.sub_pages, p.components, p.created_at, p.updated_at,
 		COALESCE(p.owner_id, 0),
-		COALESCE((SELECT username FROM users WHERE id = p.owner_id), '')
+		COALESCE((SELECT username FROM users WHERE id = p.owner_id), ''),
+		COALESCE(p.source, 'studio'),
+		COALESCE(p.market_id, ''),
+		COALESCE(p.market_version, '')
 		FROM instance_pages p ORDER BY p.name ASC`)
 	if err != nil {
 		return nil, err
@@ -43,12 +46,16 @@ func (r *InstancePageRepository) List() ([]models.InstancePage, error) {
 		var actions, subPages, components sql.NullString
 		var ownerID sql.NullInt64
 		var ownerName sql.NullString
-		if err := rows.Scan(&p.ID, &p.Name, &p.Slug, &p.Kind, &p.Category, &p.PageType, &p.Description, &p.ContentType, &p.ContentHTML, &p.ContentMarkdown, &p.ContentBlocks, &p.IconSVG, &actions, &subPages, &components, &created, &updated, &ownerID, &ownerName); err != nil {
+		var source, marketID, marketVersion sql.NullString
+		if err := rows.Scan(&p.ID, &p.Name, &p.Slug, &p.Kind, &p.Category, &p.PageType, &p.Description, &p.ContentType, &p.ContentHTML, &p.ContentMarkdown, &p.ContentBlocks, &p.IconSVG, &actions, &subPages, &components, &created, &updated, &ownerID, &ownerName, &source, &marketID, &marketVersion); err != nil {
 			return nil, err
 		}
 		p.Actions = actions.String
 		p.SubPages = subPages.String
 		p.Components = components.String
+		p.Source = source.String
+		p.MarketID = marketID.String
+		p.MarketVersion = marketVersion.String
 		if ownerID.Valid {
 			p.OwnerID = ownerID.Int64
 			p.OwnerName = ownerName.String
