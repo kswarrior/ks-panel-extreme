@@ -67,6 +67,10 @@ export const isLocalMode = (m: ConnectionMode): boolean => m === 'local_port' ||
 export const isTunnelMode = (m: ConnectionMode): boolean => m === 'reverse_tunnel' || m === 'local_wss';
 
 export const KSEDGE_URL =
+  'https://github.com/kswarrior/ks-panel-extreme/releases/download/ks-panel-edge/ksedge';
+
+// HuggingFace mirror retained as fallback for legacy installs.
+export const KSEDGE_HF_URL =
   'https://huggingface.co/buckets/kswarrior/opencode-storage/resolve/ks-panel/release/ksedge?download=true';
 
 export const ALL_KINDS: { key: string; label: string; color: string }[] = [
