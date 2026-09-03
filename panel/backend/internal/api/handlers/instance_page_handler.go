@@ -3051,6 +3051,7 @@ func ResyncMarketplacePagesHandler(w http.ResponseWriter, r *http.Request) {
 			Actions:         pageReq.Actions,
 			SubPages:        pageReq.subPagesJSON(),
 			Components:      pageReq.Components,
+			Configure:       pageReq.configureJSON(),
 		}
 		dto, verr := validateInstancePage(dto)
 		if verr != nil {
@@ -3077,6 +3078,7 @@ func ResyncMarketplacePagesHandler(w http.ResponseWriter, r *http.Request) {
 			Actions:         dto.Actions,
 			SubPages:        dto.SubPages,
 			Components:      dto.Components,
+			Configure:       dto.Configure,
 			Source:          pageSourceMarket,
 			MarketID:        p.MarketID,
 			MarketVersion:   catalog.Version,
@@ -3173,6 +3175,7 @@ func ImportLocalInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		Actions:         pageReq.Actions,
 		SubPages:        pageReq.subPagesJSON(),
 		Components:      pageReq.Components,
+		Configure:       pageReq.configureJSON(),
 	}
 	dto, verr := validateInstancePage(dto)
 	if verr != nil {
@@ -3205,6 +3208,7 @@ func ImportLocalInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		Actions:         dto.Actions,
 		SubPages:        dto.SubPages,
 		Components:      dto.Components,
+		Configure:       dto.Configure,
 		Source:          pageSourceStudio,
 	})
 	if err != nil {
