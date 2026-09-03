@@ -1,15 +1,25 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import FormPage from '@/shared/components/forms/FormPage';
 import GlassField, { glassFieldClass } from '@/shared/components/ui/Field';
 import { CATEGORY_META, PRIORITY_META } from '../types/notification';
 import { createNotification } from '../api/notifications';
 import { useAuthStore } from '@/shared/stores/authStore';
+import { PERMISSION_AREAS, hasAreaAccess } from '@/shared/types/permissions';
 
 const NotificationBroadcast: React.FC = () => {
   const navigate = useNavigate();
   const permissions = useAuthStore((s) => s.permissions);
-  const canBroadcast = permissions.includes('MANAGE_NOTIFICATIONS') || permissions.includes('ACCESS_ADMIN_PANEL');
+  // Same rule as the inbox broadcast button + backend POST gate:
+  // umbrella MANAGE_NOTIFICATIONS OR granular NOTIFICATIONS_CREATE.
+  const notificationsArea = useMemo(
+    () => PERMISSION_AREAS.find((a) => a.label === 'Notifications')!,
+    [],
+  );
+  const canBroadcast = useMemo(
+    () => hasAreaAccess(permissions, notificationsArea, 'CREATE'),
+    [permissions, notificationsArea],
+  );
 
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
@@ -27,7 +37,7 @@ const NotificationBroadcast: React.FC = () => {
         submitLabel={undefined}
       >
         <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-300">
-          You do not have permission to broadcast. Requires <code className="text-white">MANAGE_NOTIFICATIONS</code> or <code className="text-white">ACCESS_ADMIN_PANEL</code>.
+          You do not have permission to broadcast. Requires <code className="text-white">MANAGE_NOTIFICATIONS</code> or <code className="text-white">NOTIFICATIONS_CREATE</code>.
         </div>
       </FormPage>
     );

@@ -771,9 +771,12 @@ func NewRouter() http.Handler {
 		r.With(requireUmbrellaOrAction(notificationsG, permissions.ActionView)).Get("/api/notifications/{id}", handlers.GetNotificationHandler)
 		r.With(requireUmbrellaOrAction(notificationsG, permissions.ActionEdit)).Put("/api/notifications/{id}/read", handlers.MarkReadHandler)
 		r.With(requireUmbrellaOrAction(notificationsG, permissions.ActionDelete)).Delete("/api/notifications/{id}", handlers.DeleteNotificationHandler)
-		// Broadcast / single-user creation — admin-only. Payload controls
-		// broadcast vs targeted via `broadcast` boolean.
-		r.With(requirePermission("MANAGE_NOTIFICATIONS")).Post("/api/notifications", handlers.CreateNotificationHandler)
+		// Broadcast / single-user creation — gated by the Notifications CREATE
+		// action (umbrella MANAGE_NOTIFICATIONS implies it) so a narrowed
+		// NOTIFICATIONS_CREATE role can send without holding the full
+		// umbrella. Payload controls broadcast vs targeted via `broadcast`
+		// boolean; the handler additionally enforces Own-vs-All scope.
+		r.With(requireUmbrellaOrAction(notificationsG, permissions.ActionCreate)).Post("/api/notifications", handlers.CreateNotificationHandler)
 	})
 
 	// Serve SPA from embedded UI – any route not matched above falls through to UI

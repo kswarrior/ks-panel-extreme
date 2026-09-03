@@ -9,6 +9,7 @@ import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import client from '@/shared/api/client';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { useNotificationStore } from '@/shared/stores/notificationStore';
+import { PERMISSION_AREAS, hasAreaAccess } from '@/shared/types/permissions';
 
 type CategoryFilter = string;
 type PriorityFilter = string;
@@ -16,7 +17,16 @@ type ReadFilter = 'all' | 'unread' | 'read';
 
 const NotificationsPage: React.FC = () => {
   const permissions = useAuthStore((s) => s.permissions);
-  const canBroadcast = permissions.includes('MANAGE_NOTIFICATIONS') || permissions.includes('ACCESS_ADMIN_PANEL');
+  // Broadcast gate mirrors the backend POST /api/notifications rule
+  // (umbrella MANAGE_NOTIFICATIONS OR granular NOTIFICATIONS_CREATE).
+  const notificationsArea = React.useMemo(
+    () => PERMISSION_AREAS.find((a) => a.label === 'Notifications')!,
+    [],
+  );
+  const canBroadcast = React.useMemo(
+    () => hasAreaAccess(permissions, notificationsArea, 'CREATE'),
+    [permissions, notificationsArea],
+  );
 
   const [rows, setRows] = useState<Notification[]>([]);
   const [total, setTotal] = useState(0);
