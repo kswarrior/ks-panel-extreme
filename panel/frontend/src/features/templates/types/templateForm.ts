@@ -157,6 +157,12 @@ export interface PageOverride {
    *  of each is "<slug>/<path>" (e.g. files/edit); they never render as
    *  separate top-level tabs. */
   sub_pages?: InstancePageSubPage[];
+  /** Page-level configure vars copied from the library row (Studio Configure tab).
+   *  Like template env vars but per-page. */
+  configure?: import('@/features/instance-pages/types/instancePage').PageConfigureVar[];
+  /** Per-template values for this page's configure vars, keyed by var name.
+   *  Filled via the template Pages tab Configure button. */
+  config?: Record<string, string>;
 }
 
 export type LogDriver = 'json-file' | 'syslog' | 'journald' | 'none';

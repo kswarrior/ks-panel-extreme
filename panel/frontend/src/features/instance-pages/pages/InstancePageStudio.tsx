@@ -445,6 +445,12 @@ const InstancePageStudio: React.FC = () => {
         const rows = compRowsFromJSON(JSON.stringify(data.components));
         setComponents(rows);
       }
+      if (Array.isArray((data as any).configure)) {
+        const rows = configureRowsFromJSON(JSON.stringify((data as any).configure));
+        setConfigure(rows);
+      } else if (typeof (data as any).configure === 'string' && (data as any).configure.trim()) {
+        setConfigure(configureRowsFromJSON((data as any).configure));
+      }
       setNotice('Page JSON imported into the form. Review and save.');
     } catch (e: any) {
       setError(`Import failed: ${e?.message || e}`);
@@ -601,6 +607,18 @@ const InstancePageStudio: React.FC = () => {
               onAdd={addComponent}
               onRemove={removeComponent}
               onUpdate={updateComponent}
+              sectionCls={sectionCls}
+            />
+          )}
+
+          {/* ============================== CONFIGURE ============================== */}
+          {activeTab === 'configure' && !isBuiltin && (
+            <PageStudioConfigureSection
+              configure={configure}
+              onAdd={addConfigure}
+              onRemove={removeConfigure}
+              onUpdate={updateConfigure}
+              onMove={moveConfigure}
               sectionCls={sectionCls}
             />
           )}
