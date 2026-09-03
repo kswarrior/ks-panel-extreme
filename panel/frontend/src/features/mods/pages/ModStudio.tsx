@@ -309,7 +309,9 @@ const ModStudio: React.FC = () => {
       // Refuse to send a manifest the validation pass already flagged so the
       // admin sees the issue list *before* the server rejects it. The "X
       // issue(s)" button still toggles the list — we only block the send.
-      const v = validate();
+      // Validate effectiveDraft (the just-parsed raw buffer when present),
+      // not the stale `draft` state.
+      const v = validateDraftOf(effectiveDraft);
       if (!v.ok) {
         setInstallError(`Cannot install: ${v.issues.length} validation issue(s) — fix them and try again.`);
         setShowIssues(true);
@@ -325,7 +327,7 @@ const ModStudio: React.FC = () => {
     } finally {
       setInstalling(false);
     }
-  }, [draft, navigate, commitRaw, validate]);
+  }, [draft, rawDraft, navigate]);
 
   // validate(), validation and the showIssues state moved above install() —
   // see the comment there (referencing them before their const declaration
@@ -582,7 +584,7 @@ const ModStudio: React.FC = () => {
                 onChange={(v) => touch({ backendScript: v })}
                 rows={18}
                 mono
-                placeholder={`ks.events.on('instance.start', function (payload) {\n  ks.log('info', 'started: ' + (payload && payload.id));\n});`}
+                placeholder={`ks.events.on('post:instance.start', function (payload) {\n  ks.log('info', 'started: ' + (payload && payload.id));\n});`}
               />
             </>
           )}
@@ -875,10 +877,11 @@ const HooksEditor: React.FC<{
     <div className="space-y-3">
       <p className="text-xs text-gray-400">
         Hooks let the mod's backend script react to host lifecycle events
-        (<code className="text-gray-300">instance.start</code>,{' '}
-        <code className="text-gray-300">instance.stop</code>, …).{' '}
-        <code className="text-gray-300">pre</code> hooks are cancellable and run before the action;
-        <code className="text-gray-300">post</code> hooks run async after.
+        (<code className="text-gray-300">post:instance.start</code>,{' '}
+        <code className="text-gray-300">post:instance.stop</code>,{' '}
+        <code className="text-gray-300">pre:instance.destroy</code> …).{' '}
+        <code className="text-gray-300">pre:</code> hooks are cancellable and run before the action;
+        everything else runs async after.
       </p>
       {(draft.hooks.length === 0 ? [EMPTY_HOOK] : draft.hooks).map((h, idx) => {
         const isPlaceholder = idx >= draft.hooks.length;
@@ -896,7 +899,7 @@ const HooksEditor: React.FC<{
               label="Event name"
               value={h.event}
               onChange={(v) => editHook({ event: v })}
-              placeholder="instance.start"
+              placeholder="post:instance.start"
               mono
             />
             <Select
