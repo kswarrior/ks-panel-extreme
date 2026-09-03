@@ -267,6 +267,13 @@ func EnableSFTPHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "instance is suspended — unsuspend before enabling SFTP", http.StatusForbidden)
 		return
 	}
+	sftpMutMu.Lock()
+	defer sftpMutMu.Unlock()
+	// Re-check under the lock so a concurrent enable can't mint twice.
+	if existing2, _ := sftpRepo.Get(id); existing2 != nil && existing2.Enabled == 1 {
+		http.Error(w, "sftp already enabled for this instance (use rotate to mint a new password)", http.StatusConflict)
+		return
+	}
 	password, err := sftpMintPassword()
 	if err != nil {
 		http.Error(w, "failed to mint password", http.StatusInternalServerError)
@@ -357,6 +364,8 @@ func RotateSFTPHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "instance is suspended — unsuspend before rotating SFTP", http.StatusForbidden)
 		return
 	}
+	sftpMutMu.Lock()
+	defer sftpMutMu.Unlock()
 	password, err := sftpMintPassword()
 	if err != nil {
 		http.Error(w, "failed to mint password", http.StatusInternalServerError)
@@ -437,6 +446,8 @@ func DisableSFTPHandler(w http.ResponseWriter, r *http.Request) {
 	if cfg != nil && cfg.Username != "" {
 		username = cfg.Username
 	}
+	sftpMutMu.Lock()
+	defer sftpMutMu.Unlock()
 	// Best-effort edge delete: a down edge must not block the panel-side
 	// removal (the credential dies with the edge restart anyway, and the
 	// next provision overwrites it).
