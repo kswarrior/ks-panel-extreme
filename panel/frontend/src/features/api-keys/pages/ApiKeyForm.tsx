@@ -4,7 +4,7 @@ import { createAdminApiKey, listAdminApiKeys, listPermissions, listUsers, update
 import type { ApiKey, CreateApiKeyResult } from '@/shared/types/apiKey';
 import type { Permission, User } from '@/shared/types/user';
 import FormPage from '@/shared/components/forms/FormPage';
-import GlassField, { glassFieldClass } from '@/shared/components/ui/Field';
+import GlassField from '@/shared/components/ui/Field';
 import GlassModal from '@/shared/components/ui/Modal';
 import ToggleRow from '@/shared/components/ui/ToggleRow';
 import { SearchableSelect, type SearchableOption } from '@/shared/components/ui/SearchableSelect';

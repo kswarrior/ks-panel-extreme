@@ -86,7 +86,7 @@ const RoleIdentity: React.FC<RoleIdentityProps> = ({ form, setForm }) => {
         <p className="text-xs text-gray-400 mb-2">
           Tints the role badge on cards. Pick a preset or use the picker for any CSS colour.
         </p>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2 overflow-x-auto ks-hscroll pb-2 -mx-0.5 px-0.5">
           {COLOR_SWATCHES.map((s) => {
             const active = (form.color || '') === s.value;
             return (
@@ -96,7 +96,7 @@ const RoleIdentity: React.FC<RoleIdentityProps> = ({ form, setForm }) => {
                 onClick={() => setForm({ ...form, color: s.value })}
                 aria-pressed={active}
                 aria-label={`Colour: ${s.label}`}
-                className={`group relative w-7 h-7 rounded-full border border-white/15 ring-1 transition-all ${
+                className={`group relative w-7 h-7 shrink-0 rounded-full border border-white/15 ring-1 transition-all ${
                   active ? 'ring-white/40 scale-110' : 'ring-transparent hover:ring-white/20'
                 } ${s.value ? '' : 'bg-white/[0.04] border-white/25'}`}
                 style={s.value ? { backgroundColor: s.value } : undefined}
@@ -110,6 +110,8 @@ const RoleIdentity: React.FC<RoleIdentityProps> = ({ form, setForm }) => {
               </button>
             );
           })}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 mt-2">
           <label
             htmlFor="color_picker"
             className="ks-ghost-btn inline-flex items-center gap-1.5 text-xs text-gray-300 border border-white/10 rounded-md px-2 py-1 cursor-pointer hover:bg-white/5 transition-colors"
@@ -141,7 +143,7 @@ const RoleIdentity: React.FC<RoleIdentityProps> = ({ form, setForm }) => {
           Displayed on role cards. Pick a preset, paste custom SVG, or leave empty.
         </p>
         <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2 overflow-x-auto ks-hscroll pb-2 -mx-0.5 px-0.5">
             {ICON_PRESETS.map((s) => {
               const active = (form.icon || '') === s.value;
               return (
@@ -151,7 +153,8 @@ const RoleIdentity: React.FC<RoleIdentityProps> = ({ form, setForm }) => {
                   onClick={() => setForm({ ...form, icon: s.value })}
                   aria-pressed={active}
                   aria-label={`Icon: ${s.label}`}
-                  className={`group relative w-10 h-10 rounded-lg border border-white/15 ring-1 transition-all flex items-center justify-center ${
+                  title={s.label}
+                  className={`group relative w-10 h-10 shrink-0 rounded-lg border border-white/15 ring-1 transition-all flex items-center justify-center ${
                     active ? 'ring-white/40 scale-110 bg-white/10' : 'ring-transparent hover:ring-white/20 hover:bg-white/5'
                   } ${s.value ? '' : 'bg-white/[0.04] border-white/25'}`}
                 >
