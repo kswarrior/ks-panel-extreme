@@ -57,6 +57,11 @@ export const PageStudioActionsSection: React.FC<PageStudioActionsSectionProps> =
       )}
 
       <div className="space-y-4">
+        {actions.length === 0 && (
+          <p className="text-sm text-gray-500 border border-dashed border-white/10 rounded-lg p-4 text-center">
+            No actions yet — click <span className="text-gray-300">+</span> to add one.
+          </p>
+        )}
         {actions.map((action, idx) => {
           const isEditing = editingId === action.id;
           return (
