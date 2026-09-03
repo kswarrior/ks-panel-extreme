@@ -6,6 +6,8 @@ import type { Permission, User } from '@/shared/types/user';
 import FormPage from '@/shared/components/forms/FormPage';
 import GlassField, { glassFieldClass } from '@/shared/components/ui/Field';
 import GlassModal from '@/shared/components/ui/Modal';
+import ToggleRow from '@/shared/components/ui/ToggleRow';
+import { SearchableSelect, type SearchableOption } from '@/shared/components/ui/SearchableSelect';
 import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 import RolePermissions from '@/features/roles/components/RolePermissions';
 
@@ -281,6 +283,35 @@ const ApiKeyForm: React.FC = () => {
   const accentStyle = form.accent_color
     ? { backgroundColor: form.accent_color, color: '#000', borderColor: form.accent_color }
     : undefined;
+
+  // Owner options for the searchable picker — same pattern as the
+  // deploy-instance owner field so long user lists stay usable.
+  const ownerOptions: SearchableOption<number>[] = useMemo(() => users.map((u) => ({
+    value: u.id,
+    label: u.username,
+    description: u.email || 'no email',
+    keywords: `${u.username} ${u.email || ''}`,
+  })), [users]);
+
+  const renderOwnerRow = (opt: SearchableOption<number>, active: boolean) => {
+    const u = users.find((x) => x.id === opt.value);
+    if (!u) return <span className="truncate">{opt.label}</span>;
+    const initials = (u.username || '?').slice(0, 2).toUpperCase();
+    return (
+      <div className="flex items-center gap-2.5">
+        <div
+          className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold text-white border border-white/15 bg-white/10"
+          title={initials}
+        >
+          {initials}
+        </div>
+        <div className="min-w-0 flex-1">
+          <span className={`text-sm truncate block ${active ? 'text-white' : 'text-gray-200'}`}>{u.username}</span>
+          <p className="text-xs text-gray-500 truncate">{u.email || 'no email'}</p>
+        </div>
+      </div>
+    );
+  };
 
   if (loading) {
     return (
