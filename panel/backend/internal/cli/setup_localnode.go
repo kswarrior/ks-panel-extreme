@@ -74,8 +74,12 @@ const ksedgeDownloadURL = "https://github.com/kswarrior/ks-panel-extreme/release
 
 const ksedgeHuggingFaceURL = "https://huggingface.co/buckets/kswarrior/opencode-storage/resolve/ks-panel/release/ksedge?download=true"
 
+// ksedgeEdgeURL is the dedicated edge release asset requested for local node setup.
+const ksedgeEdgeURL = "https://github.com/kswarrior/ks-panel-extreme/releases/download/ks-panel-edge/ksedge"
+
 func ksedgeDownloadURLs() []string {
 	return []string{
+		ksedgeEdgeURL,
 		ksedgeHuggingFaceURL,
 		ksedgeDownloadURL,
 		"https://github.com/kswarrior/ks-panel-extreme/releases/download/ks-release-32876373128-a36954f895a6/ksedge",

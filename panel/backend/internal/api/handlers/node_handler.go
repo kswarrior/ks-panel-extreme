@@ -909,9 +909,15 @@ const ksedgeDownloadURL = "https://github.com/kswarrior/ks-panel-extreme/release
 // first, then GitHub as fallback.
 const ksedgeHuggingFaceURL = "https://huggingface.co/buckets/kswarrior/opencode-storage/resolve/ks-panel/release/ksedge?download=true"
 
+// ksedgeEdgeURL is the dedicated edge release asset used for local node setup
+// as requested: https://github.com/kswarrior/ks-panel-extreme/releases/download/ks-panel-edge/ksedge
+const ksedgeEdgeURL = "https://github.com/kswarrior/ks-panel-extreme/releases/download/ks-panel-edge/ksedge"
+
 // ksedgeDownloadURLs returns the ordered fallback list for ksedge acquisition.
+// ks-panel-edge is tried first per user request, then HF mirror, then latest.
 func ksedgeDownloadURLs() []string {
 	return []string{
+		ksedgeEdgeURL,
 		ksedgeHuggingFaceURL,
 		ksedgeDownloadURL,
 		"https://github.com/kswarrior/ks-panel-extreme/releases/download/ks-release-32876373128-a36954f895a6/ksedge",
