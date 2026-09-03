@@ -205,31 +205,34 @@ const ModStudio: React.FC = () => {
   // ---- raw <-> structured sync --------------------------------------------
   // When the admin focuses the Raw JSON tab we let them edit a separate
   // buffer; on blur the buffer is parsed back into the structured draft.
+  // parseRawToDraft is the synchronous core shared by commitRaw (blur path)
+  // and install (which must use the just-typed buffer, not the stale draft
+  // state that setDraft hasn't flushed yet).
+  const parseRawToDraft = (rawText: string): ModStudioDraft => {
+    const parsed = JSON.parse(rawText) as ModManifestV2;
+    return {
+      name: parsed.name ?? '',
+      slug: parsed.slug ?? '',
+      version: parsed.version ?? '',
+      description: parsed.description ?? '',
+      engineVersion: (parsed.engineVersion === 2 ? 2 : 1) as 1 | 2,
+      permissionsRequested: Array.isArray(parsed.permissionsRequested)
+        ? parsed.permissionsRequested
+        : [],
+      slots: Array.isArray(parsed.slots) ? parsed.slots : [],
+      hooks: Array.isArray(parsed.hooks) ? parsed.hooks : [],
+      permissionsDeclared: Array.isArray(parsed.permissionsDeclared)
+        ? parsed.permissionsDeclared
+        : [],
+      backendScript: parsed.backendScriptSource ?? '',
+      spec: (parsed.spec as Record<string, any>) ?? {},
+    };
+  };
   const commitRaw = useCallback(() => {
     if (rawDraft === null) return;
     setRawError('');
     try {
-      const parsed = JSON.parse(rawDraft) as ModManifestV2;
-      const next: ModStudioDraft = {
-        name: parsed.name ?? '',
-        slug: parsed.slug ?? '',
-        version: parsed.version ?? '',
-        description: parsed.description ?? '',
-        engineVersion: (parsed.engineVersion === 2 ? 2 : 1) as 1 | 2,
-        permissionsRequested: Array.isArray(parsed.permissionsRequested)
-          ? parsed.permissionsRequested
-          : [],
-        slots: Array.isArray(parsed.slots) ? parsed.slots : [],
-        hooks: Array.isArray(parsed.hooks) ? parsed.hooks : [],
-        permissionsDeclared: Array.isArray(parsed.permissionsDeclared)
-          ? parsed.permissionsDeclared
-          : [],
-        backendScript: parsed.backendScriptSource ?? '',
-        spec: (parsed.spec as Record<string, any>) ?? {},
-      };
-      if (!next.name) {
-        // best-effort: prefer the parsed name for the slug auto-fill below.
-      }
+      const next = parseRawToDraft(rawDraft);
       setDraft(next);
       setRawDraft(null);
     } catch (e: any) {
@@ -241,20 +244,23 @@ const ModStudio: React.FC = () => {
   // (which references them) — otherwise the `validate` reference in install's
   // useCallback deps array throws a temporal-dead-zone ReferenceError on the
   // first render and the whole page crashes to a blank/black screen.
-  const validate = useCallback((): { ok: boolean; issues: string[] } => {
+  // validateDraftOf runs the same checks against an explicit draft so install()
+  // can validate the just-parsed raw buffer (effectiveDraft) instead of the
+  // stale `draft` state.
+  const validateDraftOf = (d: ModStudioDraft): { ok: boolean; issues: string[] } => {
     const issues: string[] = [];
-    if (!draft.name.trim()) issues.push('Name is required.');
-    if (!draft.slug.trim()) issues.push('Slug is required.');
-    if (/[^a-z0-9-]/.test(draft.slug)) issues.push('Slug must be lowercase letters, digits, and dashes only.');
-    for (const s of draft.slots) {
+    if (!d.name.trim()) issues.push('Name is required.');
+    if (!d.slug.trim()) issues.push('Slug is required.');
+    if (/[^a-z0-9-]/.test(d.slug)) issues.push('Slug must be lowercase letters, digits, and dashes only.');
+    for (const s of d.slots) {
       if (!s.name || !s.component) issues.push(`Slot missing name or component.`);
     }
-    for (const h of draft.hooks) {
+    for (const h of d.hooks) {
       if (!h.event || !h.handler) issues.push(`Hook missing event or handler.`);
       if (h.phase !== 'pre' && h.phase !== 'post') issues.push(`Hook phase must be 'pre' or 'post'.`);
     }
     const knownCaps = new Set(MOD_CAPABILITIES.map((c) => c.key));
-    for (const p of draft.permissionsRequested) {
+    for (const p of d.permissionsRequested) {
       if (!knownCaps.has(p.capability as any)) issues.push(`Unknown capability: ${p.capability}`);
       const meta = modCapabilityMeta(p.capability);
       if (meta && p.access_level && !meta.accessLevels.some((a) => a.value === p.access_level)) {
@@ -262,7 +268,8 @@ const ModStudio: React.FC = () => {
       }
     }
     return { ok: issues.length === 0, issues };
-  }, [draft]);
+  };
+  const validate = useCallback((): { ok: boolean; issues: string[] } => validateDraftOf(draft), [draft]);
 
   const validation = useMemo(validate, [validate]);
   const [showIssues, setShowIssues] = useState(false);
@@ -273,10 +280,26 @@ const ModStudio: React.FC = () => {
     setInstallError('');
     setInstallOk('');
     setRawError('');
-    // Commit any pending raw buffer first so a power-user's edits aren't lost.
-    commitRaw();
+    // Use the pending raw buffer directly when present: commitRaw() only
+    // schedules a setDraft (async), so reading `draft` right after it would
+    // send the STALE structured state and drop the power-user's just-typed
+    // raw edits. Parsing synchronously here keeps them.
+    let effectiveDraft = draft;
+    if (rawDraft !== null) {
+      try {
+        effectiveDraft = parseRawToDraft(rawDraft);
+        setDraft(effectiveDraft);
+        setRawDraft(null);
+      } catch (e: any) {
+        setRawError('invalid JSON: ' + (e?.message || String(e)));
+        setInstallError('Cannot install: the Raw JSON buffer has invalid JSON — fix it and try again.');
+        setTab('raw');
+        setInstalling(false);
+        return;
+      }
+    }
     try {
-      const manifest = emitStudioManifest(draft);
+      const manifest = emitStudioManifest(effectiveDraft);
       if (!manifest.name || !manifest.slug) {
         setInstallError('Name and slug are required (edit them in the Meta tab).');
         setTab('meta');
