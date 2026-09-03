@@ -98,6 +98,9 @@ export interface CustomPageAPI {
   // fields (args/env/timeout…). Rejects when no action with that name
   // exists on this page.
   runAction: (name: string, overrides?: Partial<PageAction>) => Promise<ActionResult>;
+  // Page-level config values (Studio Configure vars merged defaults + per-template overrides).
+  // Available as {{config:NAME}} in content and as sdk.config.NAME at runtime.
+  config: Record<string, string>;
   
   // ==================== UNIFIED ACTION EXECUTION ====================
   // Execute any action on the edge (inside the instance container)
@@ -221,6 +224,7 @@ export function createCustomPageSDK(
   instanceContext: InstanceContext,
   savedActions: PageActionDef[] = [],
   pageSlug: string = '',
+  pageConfig: Record<string, string> = {},
 ): CustomPageAPI {
   const apiBase = `/api/instances/${instanceContext.id}`;
   const eventListeners: Map<string, Set<(data: any) => void>> = new Map();
