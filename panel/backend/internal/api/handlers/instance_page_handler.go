@@ -824,7 +824,7 @@ func BulkCreateInstancePagesHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	stmt, err := tx.Prepare(`INSERT INTO instance_pages (name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages, components, source, market_id, market_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+	stmt, err := tx.Prepare(`INSERT INTO instance_pages (name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages, components, configure, source, market_id, market_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
@@ -849,7 +849,7 @@ func BulkCreateInstancePagesHandler(w http.ResponseWriter, r *http.Request) {
 			skipped++
 			continue
 		}
-		res, eerr := stmt.Exec(dto.Name, dto.Slug, dto.Kind, dto.Category, dto.Type, dto.Description, dto.ContentType, dto.ContentHTML, dto.ContentMarkdown, dto.ContentBlocks, dto.IconSVG, dto.Actions, dto.SubPages, dto.Components, pageSourceStudio, "", "")
+		res, eerr := stmt.Exec(dto.Name, dto.Slug, dto.Kind, dto.Category, dto.Type, dto.Description, dto.ContentType, dto.ContentHTML, dto.ContentMarkdown, dto.ContentBlocks, dto.IconSVG, dto.Actions, dto.SubPages, dto.Components, dto.Configure, pageSourceStudio, "", "")
 		if eerr != nil {
 			if isDuplicateSlugError(eerr.Error()) {
 				skipped++
@@ -1043,6 +1043,15 @@ func LinkInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 			var compsAny []any
 			if jerr := json.Unmarshal([]byte(page.Components), &compsAny); jerr == nil && compsAny != nil {
 				pageEntry["components"] = compsAny
+			}
+		}
+
+		// Configure: copy the page's configure definitions into the spec entry so the
+		// template editor can show the per-page Configure form (like env vars).
+		if page.Configure != "" {
+			var cfgAny []any
+			if jerr := json.Unmarshal([]byte(page.Configure), &cfgAny); jerr == nil && cfgAny != nil {
+				pageEntry["configure"] = cfgAny
 			}
 		}
 
