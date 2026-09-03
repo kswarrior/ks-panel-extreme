@@ -13,5 +13,7 @@ export { PageStudioSettingsSection } from './PageStudioSettingsSection';
 export type { PageStudioSettingsSectionProps } from './PageStudioSettingsSection';
 export { PageStudioComponentsSection } from './PageStudioComponentsSection';
 export type { PageStudioComponentsSectionProps } from './PageStudioComponentsSection';
+export { PageStudioConfigureSection } from './PageStudioConfigureSection';
+export type { PageStudioConfigureSectionProps } from './PageStudioConfigureSection';
 export { PageStudioBlocksEditor } from './PageStudioBlocksEditor';
 export type { PageStudioBlocksEditorProps } from './PageStudioBlocksEditor';

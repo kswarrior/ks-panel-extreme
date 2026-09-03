@@ -7,7 +7,7 @@
 import type { PageActionDef, InstancePageSubPage, PageComponentDef, PageConfigureVar } from '@/features/instance-pages/types/instancePage';
 import { parseSubPages, parsePageComponents, parsePageConfigure } from '@/features/instance-pages/types/instancePage';
 import { activePageThemeCss } from '@/shared/components/ui/CustomPageView';
-import type { ActionRow, SubPageRow, ComponentRow } from '@/features/instance-pages/types/pageStudio';
+import type { ActionRow, SubPageRow, ComponentRow, ConfigureRow } from '@/features/instance-pages/types/pageStudio';
 
 // ---------------------------------------------------------------------------
 // Error normalisation
