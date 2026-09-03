@@ -635,15 +635,17 @@ const NodeForm: React.FC = () => {
                 label="TLS (https)"
                 description="Panel will dial https://edge"
                 checked={form.use_tls}
-                onChange={(v) => setForm({ ...form, use_tls: v })}
+                onChange={(v) => setForm({ ...form, use_tls: v, skip_tls_verify: v ? form.skip_tls_verify : false })}
               />
-              <ToggleRow
-                id="skip_tls_verify"
-                label="Skip TLS verification"
-                description="Skip TLS certificate verification (self-signed edge)"
-                checked={form.skip_tls_verify}
-                onChange={(v) => setForm({ ...form, skip_tls_verify: v })}
-              />
+              <div className={!form.use_tls ? 'opacity-40 pointer-events-none select-none' : undefined} aria-disabled={!form.use_tls}>
+                <ToggleRow
+                  id="skip_tls_verify"
+                  label="Skip TLS verification"
+                  description="Only applies when TLS is on — self-signed edge"
+                  checked={form.skip_tls_verify}
+                  onChange={(v) => setForm({ ...form, skip_tls_verify: v })}
+                />
+              </div>
             </>
           )}
 
