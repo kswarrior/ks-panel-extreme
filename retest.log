@@ -4,9 +4,9 @@
 [0;34m[INFO][0m Copying binaries from release/ ...
 [0;32m[OK][0m Test folder ready:
 total 34M
--rwxr-xr-x 1 runner runner 9.5M Sep  3 11:56 ksedge
--rwxr-xr-x 1 runner runner  25M Sep  3 11:56 kspanel
-drwxr-xr-x 3 runner runner 4.0K Sep  3 11:56 localnode
+-rwxr-xr-x 1 runner runner 9.5M Sep  3 17:55 ksedge
+-rwxr-xr-x 1 runner runner  25M Sep  3 17:55 kspanel
+drwxr-xr-x 3 runner runner 4.0K Sep  3 17:55 localnode
 → database     sqlite — /tmp/kspanel-retest/kspanel.db
 ✓ connected    sqlite ready
 → migrations   running
@@ -36,40 +36,4 @@ drwxr-xr-x 3 runner runner 4.0K Sep  3 11:56 localnode
 → node         local-edge @ 127.0.0.1:4040 (id 1)
 → download     ksedge already present, skipping
 → config       localnode/ksedge/config.json
-→ panel        started (pid 2287) on 127.0.0.1:8080
-✓ panel        ready at http://127.0.0.1:8080
-→ launch       started ksedge (pid 2296) on 127.0.0.1:4040
-✓ edge         up and reachable (name="local-edge", log=localnode/ksedge/ksedge.log)
-
-node id:      1
-edge port:    4040
-binary:       localnode/ksedge/ksedge
-config:       localnode/ksedge/config.json
-log:          localnode/ksedge/ksedge.log
-[0;34m[INFO][0m Stopping intermediate panel from setup:localnode before final launch...
-[0;34m[INFO][0m Stopping old kspanel (pid 2287)...
-
-[0;34m==>[0m Launching kspanel on port 8080 (background)...
-[0;32m[OK][0m kspanel running in background (PID 2331)
-[0;32m[OK][0m Logs:   /tmp/kspanel-retest/kspanel.log
-[0;32m[OK][0m Stop:   kill $(cat /tmp/kspanel-retest/kspanel.pid)
- █████╔╝ ███████╗    ██████╔╝███████║██╔██╗ ██║█████╗  ██║
- ██╔═██╗ ╚════██║    ██╔═══╝ ██╔══██║██║╚██╗██║██╔══╝  ██║
- ██║  ██╗███████║    ██║      ██║  ██║██║ ╚████║███████╗███████╗
- ╚═╝  ╚═╝╚══════╝    ╚═╝      ╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝
-→ database     sqlite — /tmp/kspanel-retest/kspanel.db
-✓ database     sqlite ready
-→ ui           embedded bundle
-✓ ui           served from api/handlers
-
-panel pid:    2331
-engine:       sqlite
-dsn:          /tmp/kspanel-retest/kspanel.db
-listen:       :8080
-open:         http://10.1.1.105:8080
-bind ifs:     10.1.1.105, 172.17.0.1
-go:           1.26.7
-goos:         linux/amd64
-cpus:         4
-
-✓ panel ready  running
+→ panel        started (pid 2352) on 127.0.0.1:8080
