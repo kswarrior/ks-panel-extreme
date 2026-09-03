@@ -2634,8 +2634,9 @@ func ImportInstancePageFromMarketplaceHandler(w http.ResponseWriter, r *http.Req
 }
 
 // ListLocalInstancePagesHandler returns instance pages from the local
-// instance_pages directory (top level + pages/), falling back to the library
-// embedded in the binary via internal/pagelib when no on-disk copy exists.
+// instance_pages directory (pages/ canonical, top level legacy), falling
+// back to the library embedded in the binary via internal/pagelib when no
+// on-disk copy exists.
 // Entries that fail to parse are skipped with a log line so one broken file
 // can't blank the whole list.
 func ListLocalInstancePagesHandler(w http.ResponseWriter, r *http.Request) {

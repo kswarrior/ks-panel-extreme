@@ -6,15 +6,25 @@ import (
 	"testing"
 )
 
-// TestEmbeddedLibraryShipsNoPages guards the removal of the file-based page
-// library: page templates live in the frontend Studio (pageStarters.ts), so
-// the embedded tree must only carry the marketplace catalog. A stale pages/
-// mirror reappearing here would resurrect deleted definitions through
-// /api/instance-pages/local and the import flows.
-func TestEmbeddedLibraryShipsNoPages(t *testing.T) {
+// TestEmbeddedLibraryShipsPages guards the canonical file-based page
+// library at instance_pages/pages/*.json: rebuild.sh syncs it into the
+// embedded library/pages/ tree so /api/instance-pages/local and the import
+// flows work on installs without instance_pages/ on disk.
+func TestEmbeddedLibraryShipsPages(t *testing.T) {
 	names := ListNames()
-	if len(names) != 0 {
-		t.Fatalf("embedded library must be empty (pages moved to the Studio templates), got %v", names)
+	if len(names) == 0 {
+		t.Fatal("embedded library must ship pages from instance_pages/pages/, got none")
+	}
+	// Spot-check a canonical page that must always be present.
+	found := false
+	for _, n := range names {
+		if n == "home.json" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("embedded library must contain home.json, got %v", names)
 	}
 }
 

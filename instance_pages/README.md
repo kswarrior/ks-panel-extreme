@@ -1,10 +1,19 @@
 # Instance Pages Directory
 
 This directory contains instance page definitions that can be imported into the panel.
-The shipped page library that used to live in `pages/` was consolidated into the
-panel's Instance Page Studio templates (`features/instance-pages/templates/pageStarters.ts`).
-Files placed here (top level, or a `pages/` sub-directory) still override/add to the
-library on the panel host.
+
+Canonical layout:
+
+- `pages/*.json` — the shipped page library (one JSON file per page).
+- `marketplace.json` — the marketplace catalog whose `download_url` entries
+  point at `https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/<file>.json`.
+- `README.md` — this file.
+
+A top-level `*.json` file next to this README is still accepted as a legacy
+override, but new pages belong in `pages/`. `rebuild.sh` embeds
+`marketplace.json` + `pages/*.json` into the panel binary, and the backend
+(`internal/pagelib`) reads `instance_pages/pages/<name>` first, then the
+legacy top-level `instance_pages/<name>`, then the embedded copy.
 
 ## File Format
 
