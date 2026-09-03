@@ -177,6 +177,10 @@ export interface PageContent {
   actions?: import('@/features/instance-pages/types/instancePage').PageActionDef[];
   /** Reusable UI components for {{component:name}} substitution. */
   components?: import('@/features/instance-pages/types/instancePage').PageComponentDef[];
+  /** Page-level configure vars for {{config:NAME}} substitution. */
+  configure?: import('@/features/instance-pages/types/instancePage').PageConfigureVar[];
+  /** Per-template values for those vars, keyed by var name. */
+  config?: Record<string, string>;
 }
 
 // parseSpecActions normalises a spec page row's `actions` field — it may be
@@ -216,6 +220,34 @@ function parseSpecComponents(raw: unknown): PageContent['components'] {
     !!c && typeof c === 'object' && typeof (c as any).name === 'string' && typeof (c as any).type === 'string',
   );
   return defs.length > 0 ? defs : undefined;
+}
+
+function parseSpecConfigure(raw: unknown): PageContent['configure'] {
+  let list: unknown = raw;
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (!trimmed) return undefined;
+    try {
+      list = JSON.parse(trimmed);
+      if (typeof list === 'string') {
+        try { list = JSON.parse(list); } catch { return undefined; }
+      }
+    } catch { return undefined; }
+  }
+  if (!Array.isArray(list)) return undefined;
+  const defs = list.filter((c): c is NonNullable<PageContent['configure']>[number] =>
+    !!c && typeof c === 'object' && typeof (c as any).name === 'string',
+  );
+  return defs.length > 0 ? defs : undefined;
+}
+
+function parseSpecConfigValues(raw: unknown): PageContent['config'] {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const out: Record<string, string> = {};
+  Object.entries(raw as Record<string, unknown>).forEach(([k, v]) => {
+    if (k) out[k] = String(v ?? '');
+  });
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 // hasAnyContent reports whether a spec row carries renderable content.
@@ -263,13 +295,15 @@ function pagePayloadFromRow(p: any): PageContent {
     blocks: typeof p.content_blocks === 'string' ? p.content_blocks : undefined,
     actions: parseSpecActions(p.actions),
     components: parseSpecComponents(p.components),
+    configure: parseSpecConfigure(p.configure),
+    config: parseSpecConfigValues(p.config ?? (p as any).configure_values),
   };
 }
 
 // pagePayloadFromSub builds the PageContent payload from one nested sub-page
 // entry (no actions of its own — actions live on the parent row). Components
 // also live on the parent row and are passed in as the second argument.
-function pagePayloadFromSub(s: any, parentComponents?: PageComponentDef[]): PageContent {
+function pagePayloadFromSub(s: any, parentComponents?: PageComponentDef[], parentConfigure?: PageContent['configure'], parentConfig?: PageContent['config']): PageContent {
   const type: PageContentType = ['html', 'markdown', 'blocks'].includes(s.content_type)
     ? s.content_type
     : s.content_html ? 'html'
@@ -281,6 +315,8 @@ function pagePayloadFromSub(s: any, parentComponents?: PageComponentDef[]): Page
     markdown: typeof s.content_markdown === 'string' ? s.content_markdown : undefined,
     blocks: typeof s.content_blocks === 'string' ? s.content_blocks : undefined,
     components: parentComponents,
+    configure: parentConfigure,
+    config: parentConfig,
   };
 }
 
