@@ -5,19 +5,14 @@ import {
   deleteInstancePage,
   importInstancePageFromFile,
   importInstancePageFromURL,
-  listTemplates,
-  createInstancePage,
-  bulkCreateInstancePages,
 } from '@/shared/api/admin';
 import type { InstancePage } from '@/shared/types/instancePage';
-import type { Template } from '@/shared/types/instance';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import GlassCard from '@/shared/components/ui/Card';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import Modal from '@/shared/components/ui/Modal';
 import { useConfirm } from '@/shared/stores/confirmStore';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
-import { PAGE_STARTERS } from '@/features/instance-pages/templates/pageStarters';
 
 type SortKey = 'name' | 'kind' | 'category' | 'updated' | 'newest';
 
@@ -84,272 +79,12 @@ const InstancePages: React.FC = () => {
   // ---- Add-page modal state (mirrors the Templates "Install" dialog:
   //      one entry point with tabs — Upload file / From URL / Studio / Import) ----
   const [addOpen, setAddOpen] = useState(false);
-  const [addTab, setAddTab] = useState<'file' | 'url' | 'studio' | 'import'>('file');
+  const [addTab, setAddTab] = useState<'file' | 'url' | 'studio'>('file');
   const [importLoading, setImportLoading] = useState(false);
   const [importError, setImportError] = useState('');
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importUrl, setImportUrl] = useState('');
 
-  // ---- Import tab: pull pages that are already defined in templates
-  //      (template.spec.pages) into the library, plus the Studio starters ----
-  type TemplatePageEntry = {
-    key: string; // `${templateId}:${slug}`
-    templateId: number;
-    templateName: string;
-    slug: string;
-    label: string;
-    kind: string;
-    description?: string;
-    icon_svg?: string;
-    content_type?: string;
-    content_html?: string;
-    content_markdown?: string;
-    content_blocks?: string;
-    actions?: any[];
-    sub_pages?: any[];
-    components?: any[];
-  };
-  const [templatePages, setTemplatePages] = useState<TemplatePageEntry[]>([]);
-  const [templatePagesLoading, setTemplatePagesLoading] = useState(false);
-  const [templatePagesError, setTemplatePagesError] = useState('');
-  const [selectedImportKeys, setSelectedImportKeys] = useState<Set<string>>(new Set());
-  const [importSearch, setImportSearch] = useState('');
-  // `staterpages` is the user-facing alias for `starters` — both resolve to
-  // the same PAGE_STARTERS library that gets bulk-added directly to
-  // instance_pages (single transaction) instead of per-page browser loops.
-  const [importSource, setImportSource] = useState<'templates' | 'starters' | 'staterpages'>('templates');
-  const normalizedImportSource = importSource === 'staterpages' ? 'starters' : importSource;
-
-  const loadTemplatePages = useCallback(async () => {
-    setTemplatePagesLoading(true);
-    setTemplatePagesError('');
-    try {
-      const templates = await listTemplates();
-      const entries: TemplatePageEntry[] = [];
-      for (const t of templates) {
-        if (!t.spec) continue;
-        try {
-          const spec = JSON.parse(t.spec);
-          const pages = Array.isArray(spec.pages) ? spec.pages : [];
-          for (const p of pages) {
-            if (!p || typeof p !== 'object' || !p.slug) continue;
-            const slug = String(p.slug).trim();
-            if (!slug) continue;
-            entries.push({
-              key: `${t.id}:${slug}`,
-              templateId: t.id,
-              templateName: t.name,
-              slug,
-              label: typeof p.label === 'string' && p.label.trim() ? p.label.trim() : slug,
-              kind: typeof p.kind === 'string' ? p.kind : 'custom',
-              description: typeof p.description === 'string' ? p.description : undefined,
-              icon_svg: typeof p.icon_svg === 'string' ? p.icon_svg : '',
-              content_type: typeof p.content_type === 'string' ? p.content_type : undefined,
-              content_html: typeof p.content_html === 'string' ? p.content_html : '',
-              content_markdown: typeof p.content_markdown === 'string' ? p.content_markdown : '',
-              content_blocks: typeof p.content_blocks === 'string' ? p.content_blocks : '',
-              actions: Array.isArray(p.actions) ? p.actions : undefined,
-              sub_pages: Array.isArray(p.sub_pages) ? p.sub_pages : undefined,
-              components: Array.isArray(p.components) ? p.components : undefined,
-            });
-          }
-        } catch {
-          // ignore corrupt spec
-        }
-      }
-      setTemplatePages(entries);
-    } catch (e: any) {
-      setTemplatePagesError(getErrorMessage(e, 'Failed to load template pages'));
-    } finally {
-      setTemplatePagesLoading(false);
-    }
-  }, []);
-
-  // auto-load template pages when Import tab is opened
-  useEffect(() => {
-    if (addTab === 'import' && normalizedImportSource === 'templates' && templatePages.length === 0 && !templatePagesLoading && !templatePagesError) {
-      loadTemplatePages();
-    }
-  }, [addTab, importSource, normalizedImportSource, templatePages.length, templatePagesLoading, templatePagesError, loadTemplatePages]);
-
-  const toggleImportSelect = (key: string) => {
-    setSelectedImportKeys((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  };
-
-  const handleImportFromTemplates = async () => {
-    const source = normalizedImportSource;
-    if (source === 'templates') {
-      if (selectedImportKeys.size === 0) { setImportError('Select at least one page to import'); return; }
-      setImportLoading(true);
-      setImportError('');
-      try {
-        // Build payloads for bulk — directly add staterpages/template-pages to
-        // instance_pages in a single transaction instead of per-page browser loops.
-        const payloads: any[] = [];
-        for (const key of selectedImportKeys) {
-          const entry = templatePages.find((e) => e.key === key);
-          if (!entry) continue;
-          payloads.push({
-            name: entry.label || entry.slug,
-            description: entry.description || `Imported from template "${entry.templateName}"`,
-            slug: entry.slug,
-            kind: 'custom',
-            category: '',
-            type: '',
-            content_type: (['html', 'markdown', 'blocks'].includes(entry.content_type || '') ? entry.content_type : 'markdown') as 'html' | 'markdown' | 'blocks',
-            content_html: entry.content_html || '',
-            content_markdown: entry.content_markdown || '',
-            content_blocks: entry.content_blocks || '',
-            icon_svg: entry.icon_svg || '',
-            actions: entry.actions ? JSON.stringify(entry.actions) : '',
-            sub_pages: entry.sub_pages ? JSON.stringify(entry.sub_pages) : '',
-            components: entry.components ? JSON.stringify(entry.components) : '',
-          });
-        }
-        if (payloads.length === 0) { setImportError('No valid pages to import'); setImportLoading(false); return; }
-        try {
-          // Chunk into 100-page batches (server max) — single round-trip for typical "Select all visible".
-          let totalImported = 0;
-          let totalSkipped = 0;
-          const totalErrors: string[] = [];
-          for (let i = 0; i < payloads.length; i += 100) {
-            const chunk = payloads.slice(i, i + 100);
-            const res = await bulkCreateInstancePages(chunk);
-            totalImported += res.imported;
-            totalSkipped += res.skipped;
-            if (res.errors && res.errors.length) totalErrors.push(...res.errors);
-          }
-          if (totalImported > 0) {
-            closeAdd();
-            await load();
-          }
-          if (totalErrors.length > 0) {
-            setImportError(totalErrors.join('; '));
-          } else if (totalSkipped > 0 && totalImported === 0) {
-            setImportError(`All selected pages already exist (skipped ${totalSkipped})`);
-          } else if (totalSkipped > 0) {
-            setImportError(`Imported ${totalImported}, skipped ${totalSkipped} already existing`);
-          }
-        } catch (bulkErr: any) {
-          // Fallback: if bulk endpoint is unavailable (old backend), do parallel
-          // batch of 6 concurrent creates instead of sequential loop — still
-          // ~6x faster and avoids 20+ sequential round-trips.
-          const status = bulkErr?.response?.status;
-          if (status !== 404 && status !== 405) throw bulkErr;
-          let imported = 0;
-          let skipped = 0;
-          const errors: string[] = [];
-          const entries = payloads.map((p, i) => ({ p, key: [...selectedImportKeys][i] }));
-          const chunkSize = 6;
-          for (let i = 0; i < entries.length; i += chunkSize) {
-            const chunk = entries.slice(i, i + chunkSize);
-            const results = await Promise.allSettled(chunk.map(({ p }) => createInstancePage(p)));
-            results.forEach((r, ci) => {
-              const slug = chunk[ci].p.slug;
-              if (r.status === 'fulfilled') imported++;
-              else {
-                const msg = getErrorMessage((r as PromiseRejectedResult).reason, 'Import failed');
-                if (msg.toLowerCase().includes('slug already exists') || msg.toLowerCase().includes('already exists')) skipped++;
-                else errors.push(`${slug}: ${msg}`);
-              }
-            });
-          }
-          if (imported > 0) { closeAdd(); await load(); }
-          if (errors.length > 0) setImportError(errors.join('; '));
-          else if (skipped > 0 && imported === 0) setImportError(`All selected pages already exist (skipped ${skipped})`);
-          else if (skipped > 0) setImportError(`Imported ${imported}, skipped ${skipped} already existing`);
-        }
-      } catch (e: any) {
-        setImportError(getErrorMessage(e, 'Import failed'));
-      } finally {
-        setImportLoading(false);
-      }
-    } else {
-      // import from starters / staterpages: selectedImportKeys holds starter ids
-      // Bulk path: staterpages are starter pages bulk-added directly to pages
-      // (single transaction) — not "starter to use browser to pages" per-item.
-      if (selectedImportKeys.size === 0) { setImportError('Select at least one starter to import'); return; }
-      setImportLoading(true);
-      setImportError('');
-      try {
-        const startersSource = PAGE_STARTERS as any[];
-        const payloads: any[] = [];
-        for (const sid of selectedImportKeys) {
-          const s = startersSource.find((x) => x.id === sid);
-          if (!s) continue;
-          payloads.push({
-            name: s.name,
-            description: s.description || '',
-            slug: s.slug,
-            kind: 'custom',
-            category: s.category || '',
-            type: '',
-            content_type: (s.contentType || 'html') as 'html' | 'markdown' | 'blocks',
-            content_html: s.html || '',
-            content_markdown: s.markdown || '',
-            content_blocks: s.blocks || '',
-            icon_svg: s.iconSvg || '',
-            actions: s.actions ? JSON.stringify(s.actions) : '',
-            sub_pages: (s as any).subPages ? JSON.stringify((s as any).subPages) : '',
-            components: '',
-          });
-        }
-        if (payloads.length === 0) { setImportError('No valid starters to import'); setImportLoading(false); return; }
-        try {
-          let totalImported = 0;
-          let totalSkipped = 0;
-          const totalErrors: string[] = [];
-          for (let i = 0; i < payloads.length; i += 100) {
-            const chunk = payloads.slice(i, i + 100);
-            const res = await bulkCreateInstancePages(chunk);
-            totalImported += res.imported;
-            totalSkipped += res.skipped;
-            if (res.errors && res.errors.length) totalErrors.push(...res.errors);
-          }
-          if (totalImported > 0) {
-            closeAdd();
-            await load();
-          }
-          if (totalErrors.length > 0) setImportError(totalErrors.join('; '));
-          else if (totalSkipped > 0 && totalImported === 0) setImportError(`All selected pages already exist (skipped ${totalSkipped})`);
-          else if (totalSkipped > 0) setImportError(`Imported ${totalImported}, skipped ${totalSkipped} already existing`);
-        } catch (bulkErr: any) {
-          const status = bulkErr?.response?.status;
-          if (status !== 404 && status !== 405) throw bulkErr;
-          let imported = 0;
-          let skipped = 0;
-          const errors: string[] = [];
-          const chunkSize = 6;
-          for (let i = 0; i < payloads.length; i += chunkSize) {
-            const chunk = payloads.slice(i, i + chunkSize);
-            const results = await Promise.allSettled(chunk.map((p) => createInstancePage(p)));
-            results.forEach((r, ci) => {
-              const slug = chunk[ci].slug;
-              if (r.status === 'fulfilled') imported++;
-              else {
-                const msg = getErrorMessage((r as PromiseRejectedResult).reason, 'Import failed');
-                if (msg.toLowerCase().includes('slug already exists') || msg.toLowerCase().includes('already exists')) skipped++;
-                else errors.push(`${slug}: ${msg}`);
-              }
-            });
-          }
-          if (imported > 0) { closeAdd(); await load(); }
-          if (errors.length > 0) setImportError(errors.join('; '));
-          else if (skipped > 0 && imported === 0) setImportError(`All selected pages already exist (skipped ${skipped})`);
-          else if (skipped > 0) setImportError(`Imported ${imported}, skipped ${skipped} already existing`);
-        }
-      } catch (e: any) {
-        setImportError(getErrorMessage(e, 'Import failed'));
-      } finally {
-        setImportLoading(false);
-      }
-    }
-  };
 
   const handleImport = async () => {
     setImportLoading(true);
@@ -361,10 +96,6 @@ const InstancePages: React.FC = () => {
       } else if (addTab === 'url') {
         if (!importUrl.trim()) { setImportError('Please enter a URL'); setImportLoading(false); return; }
         await importInstancePageFromURL(importUrl.trim());
-      } else if (addTab === 'import') {
-        setImportLoading(false);
-        await handleImportFromTemplates();
-        return;
       } else {
         setImportLoading(false);
         return;
@@ -385,9 +116,6 @@ const InstancePages: React.FC = () => {
     setImportFile(null);
     setImportUrl('');
     setImportError('');
-    setSelectedImportKeys(new Set());
-    setImportSearch('');
-    setImportSource('templates');
   };
 
   const closeAdd = () => {
@@ -395,8 +123,6 @@ const InstancePages: React.FC = () => {
     setImportError('');
     setImportFile(null);
     setImportUrl('');
-    setSelectedImportKeys(new Set());
-    setImportSearch('');
   };
 
   const load = useCallback(async () => {
@@ -483,27 +209,12 @@ const InstancePages: React.FC = () => {
 
   const ImportModalContent = () => {
     if (!addOpen) return null;
-    // filtered lists for import tab search
-    const qImport = importSearch.trim().toLowerCase();
-    const filteredTemplatePages = !qImport ? templatePages : templatePages.filter((e) =>
-      e.slug.toLowerCase().includes(qImport) ||
-      e.label.toLowerCase().includes(qImport) ||
-      e.templateName.toLowerCase().includes(qImport)
-    );
-    const filteredStarters = !qImport ? PAGE_STARTERS : PAGE_STARTERS.filter((s) =>
-      s.name.toLowerCase().includes(qImport) ||
-      s.slug.toLowerCase().includes(qImport) ||
-      s.category.toLowerCase().includes(qImport) ||
-      s.description.toLowerCase().includes(qImport)
-    );
-    const existingSlugs = new Set(pages.map((p) => p.slug));
-
     return (
       <Modal
         open={addOpen}
         onClose={closeAdd}
         title="Add Instance Page"
-        maxWidth={addTab === 'import' ? 'max-w-2xl' : 'max-w-lg'}
+        maxWidth="max-w-lg"
         footer={
           addTab === 'file' ? (
             <>
@@ -517,13 +228,6 @@ const InstancePages: React.FC = () => {
               <button onClick={closeAdd} className="ks-btn-cancel ks-btn-ghost">Cancel</button>
               <button onClick={handleImport} disabled={importLoading || !importUrl.trim()} className="ks-btn-form ks-btn-primary">
                 Import from URL
-              </button>
-            </>
-          ) : addTab === 'import' ? (
-            <>
-              <button onClick={closeAdd} className="ks-btn-cancel ks-btn-ghost">Cancel</button>
-              <button onClick={handleImportFromTemplates} disabled={importLoading || selectedImportKeys.size === 0} className="ks-btn-form ks-btn-primary">
-                {importLoading ? 'Importing…' : selectedImportKeys.size === 0 ? 'Select pages to import' : `Import ${selectedImportKeys.size} page${selectedImportKeys.size > 1 ? 's' : ''}`}
               </button>
             </>
           ) : (
@@ -559,13 +263,7 @@ const InstancePages: React.FC = () => {
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" /> </svg>
             Studio
           </button>
-          <button
-            onClick={() => setAddTab('import')}
-            className={`ks-tab flex-1 px-2 py-1.5 rounded text-xs sm:text-sm flex items-center justify-center gap-1 sm:gap-1.5 ${addTab === 'import' ? 'ks-tab-active' : ''}`}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polyline points="16 16 12 12 8 16" /><line x1="12" y1="12" x2="12" y2="21" /><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" /> </svg>
-            Import
-          </button>
+
         </div>
 
         {addTab === 'file' && (
@@ -637,219 +335,6 @@ const InstancePages: React.FC = () => {
           </>
         )}
 
-        {addTab === 'import' && (
-          <div className="space-y-3">
-            <p className="text-xs text-gray-400">
-              Import pages that are already defined in your templates or available as Studio starters. Selected pages are copied into the Instance Pages library.
-            </p>
-
-            {/* Source switcher: Templates vs Stater Pages (starter pages) — both aliases route to bulk staterpages → pages */}
-            <div className="flex gap-1 bg-black/30 border border-white/10 rounded-md p-1">
-              <button
-                onClick={() => { setImportSource('templates'); setSelectedImportKeys(new Set()); setImportSearch(''); }}
-                className={`flex-1 px-3 py-1.5 rounded text-xs font-medium flex items-center justify-center gap-1.5 ${normalizedImportSource === 'templates' ? 'bg-white text-black' : 'text-gray-400 hover:text-white'}`}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><rect x="3" y="3" width="18" height="18" rx="2" /><line x1="3" y1="9" x2="21" y2="9" /><line x1="9" y1="21" x2="9" y2="9" /></svg>
-                From Templates
-              </button>
-              <button
-                onClick={() => { setImportSource('starters'); setSelectedImportKeys(new Set()); setImportSearch(''); }}
-                className={`flex-1 px-3 py-1.5 rounded text-xs font-medium flex items-center justify-center gap-1.5 ${normalizedImportSource === 'starters' ? 'bg-white text-black' : 'text-gray-400 hover:text-white'}`}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M12 2l3 7h7l-5.5 4 2 7-6-5-6 5 2-7-5.5-4z" /></svg>
-                From Starter Pages
-              </button>
-            </div>
-
-            <input
-              type="text"
-              value={importSearch}
-              onChange={(e) => setImportSearch(e.target.value)}
-              placeholder={normalizedImportSource === 'templates' ? 'Search by slug, label or template…' : 'Search by name, slug or category…'}
-              className="w-full bg-black/30 border border-white/10 rounded-md text-sm text-white px-3 py-1.5 focus:outline-none focus:border-white/40"
-              aria-label="Search pages to import"
-            />
-
-            {normalizedImportSource === 'templates' ? (
-              <>
-                {templatePagesLoading && (
-                  <div className="px-4 py-6 space-y-3 animate-pulse border border-white/10 rounded-md bg-black/30">
-                    {[0, 1, 2].map((i) => (
-                      <div key={i} className="flex items-center gap-3">
-                        <div className="h-3 w-1/3 rounded bg-white/10" style={{ animationDelay: `${i * 120}ms` }} />
-                        <div className="h-3 flex-1 rounded bg-white/[0.06]" style={{ animationDelay: `${i * 120 + 60}ms` }} />
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {templatePagesError && (
-                  <div className="text-xs text-red-400 border border-red-700/40 rounded px-3 py-2 bg-red-900/20 flex items-center justify-between">
-                    <span>{templatePagesError}</span>
-                    <button onClick={loadTemplatePages} className="text-xs underline hover:text-red-300">Retry</button>
-                  </div>
-                )}
-                {!templatePagesLoading && !templatePagesError && filteredTemplatePages.length === 0 && templatePages.length === 0 && (
-                  <div className="px-4 py-8 text-center text-gray-500 text-sm border border-white/10 rounded-md bg-black/20">
-                    <p>No template pages found.</p>
-                    <p className="text-xs text-gray-600 mt-1">Create a template and add pages in its Pages tab first.</p>
-                  </div>
-                )}
-                {!templatePagesLoading && !templatePagesError && filteredTemplatePages.length === 0 && templatePages.length > 0 && (
-                  <div className="px-4 py-6 text-center text-gray-500 text-sm border border-white/10 rounded-md bg-black/20">
-                    No pages match your search.
-                  </div>
-                )}
-                {!templatePagesLoading && filteredTemplatePages.length > 0 && (
-                  <div className="border border-white/10 rounded-md bg-black/30 max-h-[42vh] overflow-y-auto divide-y divide-white/5">
-                    {filteredTemplatePages.map((e) => {
-                      const isSelected = selectedImportKeys.has(e.key);
-                      const alreadyExists = existingSlugs.has(e.slug);
-                      return (
-                        <button
-                          key={e.key}
-                          type="button"
-                          disabled={alreadyExists}
-                          onClick={() => !alreadyExists && toggleImportSelect(e.key)}
-                          className={`w-full px-4 py-3 flex items-center gap-3 text-left transition-colors ${
-                            alreadyExists
-                              ? 'opacity-50 cursor-not-allowed'
-                              : isSelected
-                                ? 'bg-emerald-900/20 border-l-2 border-emerald-500'
-                                : 'hover:bg-white/5'
-                          }`}
-                          aria-pressed={isSelected}
-                          aria-disabled={alreadyExists}
-                        >
-                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${isSelected ? 'bg-emerald-900/40 border border-emerald-700/60' : 'bg-sky-900/30 border border-sky-700/40'}`}>
-                            {e.icon_svg ? (
-                              <span className="w-5 h-5 flex items-center justify-center [&>svg]:w-5 [&>svg]:h-5 [&>svg]:block" dangerouslySetInnerHTML={{ __html: sanitizeSvgIcon(e.icon_svg) }} />
-                            ) : (
-                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-sky-300">
-                                <rect x="3" y="3" width="18" height="18" rx="2" />
-                                <line x1="3" y1="9" x2="21" y2="9" />
-                              </svg>
-                            )}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-sm text-white truncate">{e.label}</span>
-                              <code className="text-[11px] text-gray-500 font-mono">/{e.slug === '.' ? '' : e.slug}</code>
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-900/20 text-amber-300 border border-amber-700/30 truncate max-w-[120px]">{e.templateName}</span>
-                            </div>
-                            {e.description && <p className="text-[11px] text-gray-500 truncate mt-0.5">{e.description}</p>}
-                            {alreadyExists && <p className="text-[11px] text-amber-400 mt-0.5">Already in library — slug exists</p>}
-                          </div>
-                          <div className="shrink-0">
-                            {alreadyExists ? (
-                              <span className="text-xs px-2 py-1 rounded border border-white/10 text-gray-500">Exists</span>
-                            ) : (
-                              <span className={`text-xs px-2 py-1 rounded border ${isSelected ? 'bg-emerald-600/30 border-emerald-500 text-emerald-200' : 'border-white/10 text-gray-400'}`}>
-                                {isSelected ? 'Selected' : 'Select'}
-                              </span>
-                            )}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-                {selectedImportKeys.size > 0 && (
-                  <p className="text-[11px] text-emerald-300">{selectedImportKeys.size} page{selectedImportKeys.size > 1 ? 's' : ''} selected — will be copied into the library.</p>
-                )}
-              </>
-            ) : (
-              <>
-                {filteredStarters.length === 0 ? (
-                  <div className="px-4 py-6 text-center text-gray-500 text-sm border border-white/10 rounded-md bg-black/20">
-                    No starters match your search.
-                  </div>
-                ) : (
-                  <div className="border border-white/10 rounded-md bg-black/30 max-h-[42vh] overflow-y-auto divide-y divide-white/5">
-                    {filteredStarters.map((s) => {
-                      const isSelected = selectedImportKeys.has(s.id);
-                      const alreadyExists = existingSlugs.has(s.slug);
-                      return (
-                        <button
-                          key={s.id}
-                          type="button"
-                          disabled={alreadyExists}
-                          onClick={() => !alreadyExists && toggleImportSelect(s.id)}
-                          className={`w-full px-4 py-3 flex items-center gap-3 text-left transition-colors ${
-                            alreadyExists
-                              ? 'opacity-50 cursor-not-allowed'
-                              : isSelected
-                                ? 'bg-emerald-900/20 border-l-2 border-emerald-500'
-                                : 'hover:bg-white/5'
-                          }`}
-                          aria-pressed={isSelected}
-                          aria-disabled={alreadyExists}
-                        >
-                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${isSelected ? 'bg-emerald-900/40 border border-emerald-700/60' : 'bg-sky-900/30 border border-sky-700/40'}`}>
-                            {s.iconSvg ? (
-                              <span className="w-5 h-5 flex items-center justify-center [&>svg]:w-5 [&>svg]:h-5 [&>svg]:block" dangerouslySetInnerHTML={{ __html: sanitizeSvgIcon(s.iconSvg) }} />
-                            ) : (
-                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5 text-sky-300"><rect x="3" y="3" width="18" height="18" rx="2" /><line x1="3" y1="9" x2="21" y2="9" /></svg>
-                            )}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-sm text-white truncate">{s.name}</span>
-                              <code className="text-[11px] text-gray-500 font-mono">/{s.slug === '.' ? '' : s.slug}</code>
-                              <span className="text-[10px] uppercase tracking-wide bg-white/5 text-gray-400 border border-white/10 px-1 py-0 rounded">{s.category}</span>
-                            </div>
-                            <p className="text-[11px] text-gray-500 truncate mt-0.5">{s.description}</p>
-                            {alreadyExists && <p className="text-[11px] text-amber-400 mt-0.5">Already in library — slug exists</p>}
-                          </div>
-                          <div className="shrink-0">
-                            {alreadyExists ? (
-                              <span className="text-xs px-2 py-1 rounded border border-white/10 text-gray-500">Exists</span>
-                            ) : (
-                              <span className={`text-xs px-2 py-1 rounded border ${isSelected ? 'bg-emerald-600/30 border-emerald-500 text-emerald-200' : 'border-white/10 text-gray-400'}`}>
-                                {isSelected ? 'Selected' : 'Select'}
-                              </span>
-                            )}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-                {selectedImportKeys.size > 0 && (
-                  <p className="text-[11px] text-emerald-300">{selectedImportKeys.size} starter{selectedImportKeys.size > 1 ? 's' : ''} selected — will be copied into the library.</p>
-                )}
-              </>
-            )}
-
-            {importError && <p className="text-red-400 text-xs border border-red-700/40 rounded px-3 py-2 bg-red-900/20">{importError}</p>}
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setSelectedImportKeys(new Set())}
-                disabled={selectedImportKeys.size === 0}
-                className="text-xs text-gray-400 hover:text-white disabled:opacity-40"
-              >
-                Clear selection
-              </button>
-              <span className="text-xs text-gray-600">•</span>
-              <button
-                type="button"
-                onClick={() => {
-                  if (normalizedImportSource === 'templates') {
-                    const allKeys = filteredTemplatePages.filter((e) => !existingSlugs.has(e.slug)).map((e) => e.key);
-                    setSelectedImportKeys(new Set(allKeys));
-                  } else {
-                    const allIds = filteredStarters.filter((s) => !existingSlugs.has(s.slug)).map((s) => s.id);
-                    setSelectedImportKeys(new Set(allIds));
-                  }
-                }}
-                disabled={normalizedImportSource === 'templates' ? filteredTemplatePages.filter((e) => !existingSlugs.has(e.slug)).length === 0 : filteredStarters.filter((s) => !existingSlugs.has(s.slug)).length === 0}
-                className="text-xs text-sky-300 hover:text-sky-200 disabled:opacity-40"
-              >
-                Select all visible
-              </button>
-            </div>
-          </div>
-        )}
       </Modal>
     );
   };
@@ -927,7 +412,7 @@ const InstancePages: React.FC = () => {
             onClick={openAdd}
             aria-label="Add Instance Page"
             className="ks-btn-header ks-icon-btn"
-            title="Add Instance Page — upload, URL, Studio or import from templates"
+            title="Add Instance Page — upload, URL or Studio"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
               <line x1="12" y1="5" x2="12" y2="19" />
@@ -1040,7 +525,7 @@ const InstancePages: React.FC = () => {
                 <line x1="11" y1="17" x2="15" y2="17" opacity="0.5" />
               </svg>
               <p className="text-lg font-medium text-gray-300">No instance pages yet</p>
-              <p className="text-sm text-gray-400 text-center max-w-md">Click the <strong className="text-sky-300">+</strong> button to upload a page, import from URL, open Studio or import from templates.</p>
+              <p className="text-sm text-gray-400 text-center max-w-md">Click the <strong className="text-sky-300">+</strong> button to upload a page, import from URL or open Studio.</p>
             </div>
           </div>
         )}
