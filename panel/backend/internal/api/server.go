@@ -664,6 +664,15 @@ func NewRouter() http.Handler {
 		// Per-instance audit timeline.
 		r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Get("/api/instances/{id}/audit", handlers.ListInstanceAuditHandler)
 
+		// Per-instance SFTP credentials. GET is masked (VIEW_INSTANCES, same
+		// gate as the terminal/files bridges the sftp.json page sits next
+		// to); the mutators require EDIT (MANAGE_INSTANCES umbrella or
+		// INSTANCES_EDIT) like the ports editor.
+		r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Get("/api/instances/{id}/sftp", handlers.GetSFTPHandler)
+		r.With(requireUmbrellaOrAction(instancesG, permissions.ActionEdit)).Post("/api/instances/{id}/sftp/enable", handlers.EnableSFTPHandler)
+		r.With(requireUmbrellaOrAction(instancesG, permissions.ActionEdit)).Post("/api/instances/{id}/sftp/rotate", handlers.RotateSFTPHandler)
+		r.With(requireUmbrellaOrAction(instancesG, permissions.ActionEdit)).Post("/api/instances/{id}/sftp/disable", handlers.DisableSFTPHandler)
+
 		// System snapshot (ACCESS_ADMIN_PANEL). One round-trip carries
 		// every tile the System page renders so the page can paint in a
 		// single fetch and refresh on an interval without re-querying.
