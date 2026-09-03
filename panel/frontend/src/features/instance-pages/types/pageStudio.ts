@@ -15,13 +15,13 @@ import type { InstancePageSubPage, PageActionDef } from './instancePage';
 export type PageStudioTabId = 'editor' | 'subpages' | 'actions' | 'preview' | 'settings' | 'components' | 'configure';
 
 export const PAGE_STUDIO_TABS: Array<{ id: PageStudioTabId; label: string }> = [
-  { id: 'settings', label: 'General' },
   { id: 'editor', label: 'Main page' },
   { id: 'subpages', label: 'Sub-pages' },
-  { id: 'components', label: 'Components' },
   { id: 'actions', label: 'Actions' },
+  { id: 'components', label: 'Components' },
   { id: 'configure', label: 'Configure' },
   { id: 'preview', label: 'Preview' },
+  { id: 'settings', label: 'Settings' },
 ];
 
 // Suggestion lists for the Settings tab Category / Type pickers — same

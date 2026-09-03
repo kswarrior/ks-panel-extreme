@@ -519,9 +519,7 @@ const InstancePageStudio: React.FC = () => {
       disabled={isBuiltin}
     >
       <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4">
-        <div className="border border-white/10 rounded-lg p-2 bg-black/20">
-          <PageStudioTabs tab={activeTab} onChange={setActiveTab} isBuiltin={isBuiltin} />
-        </div>
+        <PageStudioTabs tab={activeTab} onChange={setActiveTab} isBuiltin={isBuiltin} />
 
         <div className="space-y-4">
           {error && (

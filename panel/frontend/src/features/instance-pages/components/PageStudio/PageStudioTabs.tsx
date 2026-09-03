@@ -1,16 +1,20 @@
 // PageStudioTabs — tab rail for the Instance Page Studio
 //
 // Mirrors panel/frontend/src/features/templates/components/TemplateFormComponents.tsx
-// (TemplateTabs) — ks-tab + hint line, sticky on desktop.
-// No outer card — tabs and content sit directly on the page background.
+// (TemplateTabs) — GlassCard + ks-tab + hint line, sticky on desktop.
+// Kept in parity with TemplateTabs so /instance-pages/studio and /templates/new
+// share identical tab chrome, spacing and GlassCard surface.
 
 import React from 'react';
 import type { PageStudioTabId } from '@/features/instance-pages/types/pageStudio';
+import { PAGE_STUDIO_TABS } from '@/features/instance-pages/types/pageStudio';
+import GlassCard from '@/shared/components/ui/Card';
 
 interface PageStudioTabsProps {
   tab: PageStudioTabId;
   onChange: (id: PageStudioTabId) => void;
   isBuiltin?: boolean;
+  tabs?: typeof PAGE_STUDIO_TABS;
 }
 
 // Icons — same set as the legacy monolithic Studio's TAB_CONFIG so the
@@ -37,7 +41,7 @@ function ConfigureIcon() {
   return <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M12 8v8" /><path d="M8 12h8" /></svg>;
 }
 
-export const PageStudioTabs: React.FC<PageStudioTabsProps> = ({ tab, onChange, isBuiltin }) => {
+export const PageStudioTabs: React.FC<PageStudioTabsProps> = ({ tab, onChange, isBuiltin, tabs }) => {
   const meta: Record<PageStudioTabId, { label: string; hint: string; icon: React.ReactNode }> = {
     editor: { label: 'Main page', hint: 'HTML · Markdown · Blocks', icon: <EditorIcon /> },
     subpages: { label: 'Sub-pages', hint: 'Extra routes (/files/edit…)', icon: <PagesIcon /> },
@@ -48,36 +52,36 @@ export const PageStudioTabs: React.FC<PageStudioTabsProps> = ({ tab, onChange, i
     settings: { label: 'Settings', hint: 'Meta, icon, import/export', icon: <SettingsIcon /> },
   };
 
-  const tabs: PageStudioTabId[] = ['editor', 'subpages', 'actions', 'components', 'configure', 'preview', 'settings'];
+  const tabList = tabs ?? PAGE_STUDIO_TABS;
+  const items = tabList.map((t) => ({ id: t.id as PageStudioTabId, ...meta[t.id as PageStudioTabId] }));
 
   return (
-    <div className="lg:sticky lg:top-4 self-start">
+    <GlassCard className="lg:sticky lg:top-4 self-start">
       <nav className="flex lg:flex-col gap-1 overflow-x-auto">
-        {tabs.map((id) => {
-          const m = meta[id];
-          const disabled = isBuiltin && id !== 'preview';
+        {items.map((t) => {
+          const disabled = isBuiltin && t.id !== 'preview';
           return (
             <button
-              key={id}
+              key={t.id}
               type="button"
-              onClick={() => !disabled && onChange(id)}
+              onClick={() => !disabled && onChange(t.id)}
               disabled={disabled}
-              className={`ks-tab shrink-0 flex items-center gap-2 transition text-left ${tab === id ? 'ks-tab-active' : ''} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`ks-tab shrink-0 flex items-center gap-2 transition text-left ${tab === t.id ? 'ks-tab-active' : ''} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
-              <span className="inline-flex items-center">{m.icon}</span>
+              <span className="inline-flex items-center">{t.icon}</span>
               <span className="flex flex-col">
-                <span className="text-sm">{m.label}</span>
+                <span>{t.label}</span>
                 <span
-                  className={`text-[10px] hidden lg:block ${tab === id ? 'opacity-70' : 'text-gray-500'}`}
-                  style={tab === id ? { color: 'var(--ks-tab-active-text, #000000)' } : undefined}
+                  className={`text-[10px] hidden lg:block ${tab === t.id ? 'opacity-70' : 'text-gray-500'}`}
+                  style={tab === t.id ? { color: 'var(--ks-tab-active-text, #000000)' } : undefined}
                 >
-                  {m.hint}
+                  {t.hint}
                 </span>
               </span>
             </button>
           );
         })}
       </nav>
-    </div>
+    </GlassCard>
   );
 };

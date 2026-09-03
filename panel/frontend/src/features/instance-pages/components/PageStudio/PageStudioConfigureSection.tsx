@@ -35,6 +35,7 @@ export const PageStudioConfigureSection: React.FC<PageStudioConfigureSectionProp
       case 'number': return 'bg-emerald-900/30 text-emerald-300 border-emerald-700/40';
       case 'select': return 'bg-amber-900/30 text-amber-300 border-amber-700/40';
       case 'checkbox': return 'bg-violet-900/30 text-violet-300 border-violet-700/40';
+      case 'toggle': return 'bg-fuchsia-900/30 text-fuchsia-300 border-fuchsia-700/40';
       default: return 'bg-white/10 text-gray-300 border-white/10';
     }
   };
