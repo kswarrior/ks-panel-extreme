@@ -178,6 +178,25 @@ export function specToEditor(spec: string): EditorState {
               components: p.components,
             }
           : {}),
+        // Configure vars.
+        ...(typeof p.configure === 'string' && (p.configure as string).trim()
+          ? {
+              configure: parsePageConfigure(p.configure as string),
+            }
+          : Array.isArray(p.configure) && (p.configure as any[]).length > 0
+          ? {
+              configure: parsePageConfigure(JSON.stringify(p.configure)),
+            }
+          : {}),
+        ...(p.config && typeof p.config === 'object' && !Array.isArray(p.config)
+          ? {
+              config: Object.fromEntries(Object.entries(p.config as Record<string, unknown>).map(([k, v]) => [k, String(v ?? '')])),
+            }
+          : (p as any).configure_values && typeof (p as any).configure_values === 'object'
+          ? {
+              config: Object.fromEntries(Object.entries((p as any).configure_values as Record<string, unknown>).map(([k, v]) => [k, String(v ?? '')])),
+            }
+          : {}),
       });
     });
 

@@ -5,7 +5,7 @@ import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import { CustomPageStudio } from '@/features/templates/components/TemplateFormComponents';
 import type { PageOverride } from '@/features/templates/types/templateForm';
 import { listInstancePages, type InstancePage } from '@/shared/api/admin';
-import { parseSubPages, parsePageActions, parsePageComponents } from '@/features/instance-pages/types/instancePage';
+import { parseSubPages, parsePageActions, parsePageComponents, parsePageConfigure } from '@/features/instance-pages/types/instancePage';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 
 export interface PageOverrideInput extends PageOverride {}
@@ -45,6 +45,7 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
   // Icon SVG, plus the CustomPageStudio for custom pages). Clicking Save
   // collapses it again. Mirrors the editor UX from the rest of the panel.
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
+  const [configureIdx, setConfigureIdx] = useState<number | null>(null);
 
   // ---- Add pages modal ------------------------------------------------------
   // Single entry point. Lists custom pages from the Instance Pages library
@@ -146,6 +147,9 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
           : {}),
         ...(parsePageComponents(p.components).length > 0
           ? { components: parsePageComponents(p.components) }
+          : {}),
+        ...(parsePageConfigure((p as any).configure).length > 0
+          ? { configure: parsePageConfigure((p as any).configure) }
           : {}),
       });
       skip.add(p.slug);
