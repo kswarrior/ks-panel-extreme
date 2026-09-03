@@ -83,9 +83,9 @@ const FormPage: React.FC<FormPageProps> = ({
           </React.Fragment>
         ))}
       </div>
-      <div className="flex items-center justify-between gap-3 mb-2">
-        <h2 className="text-xl font-semibold text-white">{displayTitle}</h2>
-        {headerActions && <div className="flex items-center gap-2 shrink-0">{headerActions}</div>}
+      <div className="flex items-center justify-between gap-3 mb-2 min-w-0">
+        <h2 className="text-xl font-semibold text-white shrink-0">{displayTitle}</h2>
+        {headerActions && <div className="flex items-center gap-2 min-w-0 flex-1 justify-end overflow-x-auto scrollbar-hide">{headerActions}</div>}
       </div>
 
       {/* Form body — no wrapper.

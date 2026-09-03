@@ -382,6 +382,26 @@ const NodeForm: React.FC = () => {
         saving={saving}
         submitLabel={editing ? 'Save' : 'Create'}
         onSubmit={submit}
+        headerActions={
+          <div
+            role="tablist"
+            aria-label="Node form sections"
+            className="flex items-center gap-1 rounded-lg bg-neutral-900/60 border border-white/10 p-1 overflow-x-auto max-w-full scrollbar-hide"
+          >
+            {NODEFORM_TABS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={tab === t.id}
+                onClick={() => setTab(t.id)}
+                className={`ks-tab shrink-0 whitespace-nowrap transition-colors ${tab === t.id ? 'ks-tab-active' : ''}`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        }
         secondaryActions={!editing && isLocalMode(form.connection_mode) ? (
           <button
             type="button"
@@ -400,19 +420,6 @@ const NodeForm: React.FC = () => {
         ) : undefined}
       >
         <div className="space-y-4">
-          <div className="inline-flex flex-wrap gap-1 rounded-lg bg-neutral-900/60 border border-white/10 p-1">
-            {NODEFORM_TABS.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setTab(t.id)}
-                className={`ks-tab transition-colors ${tab === t.id ? 'ks-tab-active' : ''}`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-
           {tab === 'general' && (
           <>
           <GlassField label="Connection mode" htmlFor="connection_mode" hint={CONNECTION_MODES.find((m) => m.value === form.connection_mode)?.hint || "How panel and edge find each other."}>
