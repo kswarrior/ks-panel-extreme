@@ -1089,15 +1089,39 @@ sync_pagelib() {
         exit 1
     fi
     rm -rf -- "$dst"
-    mkdir -p -- "$dst"
+    mkdir -p -- "$dst/pages"
     if [[ -f "$src/marketplace.json" ]]; then
         cp -- "$src/marketplace.json" "$dst/" || die "failed to copy marketplace.json"
     else
         log_warn "marketplace.json not found in $src"
     fi
+    # Copy all page JSON files (excluding marketplace.json) into library/pages for embedding.
+    # Both top-level and legacy pages/ are supported on disk; embedded lookup is pages/<name>.
+    local copied=0
+    for f in "$src"/*.json; do
+        [[ -e "$f" ]] || continue
+        base="$(basename "$f")"
+        [[ "$base" == "marketplace.json" ]] && continue
+        cp -- "$f" "$dst/pages/" || die "failed to copy $base"
+        copied=$((copied+1))
+    done
+    if [[ -d "$src/pages" ]]; then
+        for f in "$src/pages"/*.json; do
+            [[ -e "$f" ]] || continue
+            base="$(basename "$f")"
+            [[ "$base" == "marketplace.json" ]] && continue
+            # Avoid overwriting if already copied from top-level (same basename)
+            if [[ -f "$dst/pages/$base" ]]; then
+                log_warn "Skipping duplicate pages/$base (already copied from top-level)"
+                continue
+            fi
+            cp -- "$f" "$dst/pages/" || die "failed to copy pages/$base"
+            copied=$((copied+1))
+        done
+    fi
     local count
     count="$(find "$dst" -type f 2>/dev/null | wc -l | tr -d ' ')"
-    log_ok "Embedded marketplace catalog (${count} file(s); page templates live in the frontend Studio)"
+    log_ok "Embedded instance-pages library (${count} file(s): marketplace + ${copied} page(s) from instance_pages/)"
 }
 
 # ============================================================================
