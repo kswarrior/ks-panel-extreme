@@ -292,8 +292,8 @@ const InstanceForm: React.FC = () => {
               </div>
               <div className="flex-1 min-w-0 space-y-3">
                 <div>
-                  <label className={labelCls}>Icon <span className="text-xs text-gray-500 font-normal">(optional)</span></label>
-                  <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-0.5 px-0.5">
+                  <label className={labelCls}>Icon & colour <span className="text-xs text-gray-500 font-normal">(optional)</span></label>
+                  <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-0.5 px-0.5">
                     {ICON_PRESETS.map((p) => (
                       <button
                         key={p.value}
@@ -308,17 +308,7 @@ const InstanceForm: React.FC = () => {
                         <span className="text-xs text-gray-300">{p.label}</span>
                       </button>
                     ))}
-                  </div>
-                  <input
-                    value={icon}
-                    onChange={(e) => setIcon(e.target.value)}
-                    className={glassFieldClass + ' mt-2'}
-                    placeholder="Paste custom SVG or pick a preset above"
-                  />
-                </div>
-                <div>
-                  <label className={labelCls}>Colour <span className="text-xs text-gray-500 font-normal">(optional)</span></label>
-                  <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-0.5 px-0.5">
+                    <span className="w-px self-stretch bg-white/10 shrink-0" aria-hidden="true" />
                     {COLOR_SWATCHES.map((c) => (
                       <button
                         key={c.value}
@@ -334,6 +324,12 @@ const InstanceForm: React.FC = () => {
                       </button>
                     ))}
                   </div>
+                  <input
+                    value={icon}
+                    onChange={(e) => setIcon(e.target.value)}
+                    className={glassFieldClass + ' mt-2'}
+                    placeholder="Paste custom SVG or pick a preset above"
+                  />
                   <input
                     type="color"
                     value={color || '#a78bfa'}
