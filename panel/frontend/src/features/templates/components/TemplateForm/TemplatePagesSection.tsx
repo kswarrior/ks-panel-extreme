@@ -278,6 +278,17 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
                     </code>
                   </div>
 
+                  {/* Configure button — shown when the page defines configure vars (Studio Configure tab). */}
+                  {(p.configure?.length ?? 0) > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setConfigureIdx(i)}
+                      className="px-2.5 py-1 text-xs font-medium border border-sky-700/40 bg-sky-900/20 text-sky-300 rounded hover:bg-sky-800/30 shrink-0"
+                      title="Configure page variables"
+                    >
+                      Configure
+                    </button>
+                  )}
                   {/* 3-dot menu: Edit / Remove. Edit opens an inline
                       sub-form (see below); Remove drops the page. */}
                   <CardMenu
@@ -306,6 +317,9 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
                       } else if (key === 'remove') {
                         if (editingIdx !== null && editingIdx >= i) {
                           setEditingIdx(null);
+                        }
+                        if (configureIdx !== null && configureIdx >= i) {
+                          setConfigureIdx(null);
                         }
                         onPageDelete(i);
                       }
@@ -551,6 +565,96 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
               </button>
             </div>
           </div>
+        </Modal>
+
+        {/* Configure modal — per-page values for the Studio Configure vars */}
+        <Modal
+          open={configureIdx !== null}
+          onClose={() => setConfigureIdx(null)}
+          title={configureIdx !== null ? `Configure ${pages[configureIdx]?.label || pages[configureIdx]?.slug || 'page'}` : 'Configure'}
+          maxWidth="max-w-xl"
+        >
+          {configureIdx !== null && (() => {
+            const p = pages[configureIdx];
+            const vars = p.configure ?? [];
+            if (vars.length === 0) return <p className="text-sm text-gray-500">This page has no configure variables.</p>;
+            return (
+              <div className="space-y-3">
+                <p className="text-xs text-gray-500">Values entered here are stored in <code className="font-mono">spec.pages[].config</code> and available in the page as <code className="font-mono">{"{{config:NAME}}"}</code> or via <code className="font-mono">KSPageSDK.config</code>.</p>
+                {vars.map((v) => {
+                  const cur = (p.config?.[v.name] ?? v.default ?? '');
+                  const opts = v.options ? v.options.split(',').map((s) => s.trim()).filter(Boolean) : [];
+                  return (
+                    <div key={v.name} className="space-y-1">
+                      <label className="block text-sm font-medium text-gray-300">
+                        {v.label || v.name} <code className="text-xs text-gray-500 font-mono ml-1">{v.name}</code>
+                        {v.required && <span className="text-red-400 ml-1">*</span>}
+                      </label>
+                      {v.description && <p className="text-xs text-gray-500">{v.description}</p>}
+                      {v.display === 'select' ? (
+                        <select
+                          value={cur}
+                          onChange={(e) => {
+                            const next: Record<string, string> = { ...(p.config ?? {}) };
+                            next[v.name] = e.target.value;
+                            onPageUpdate(configureIdx!, { config: next });
+                          }}
+                          className={glassFieldClass + ' w-full'}
+                        >
+                          <option value="">— {v.required ? 'required' : 'optional'} —</option>
+                          {opts.map((o) => <option key={o} value={o}>{o}</option>)}
+                          {/* keep current value even if not in options */}
+                          {cur && !opts.includes(cur) && <option value={cur}>{cur}</option>}
+                        </select>
+                      ) : v.display === 'checkbox' ? (
+                        <label className="inline-flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={cur === 'true' || cur === '1' || cur === 'on'}
+                            onChange={(e) => {
+                              const next: Record<string, string> = { ...(p.config ?? {}) };
+                              next[v.name] = e.target.checked ? 'true' : 'false';
+                              onPageUpdate(configureIdx!, { config: next });
+                            }}
+                            className="rounded"
+                          />
+                          <span className="text-sm text-gray-300">{v.label || v.name}</span>
+                        </label>
+                      ) : v.display === 'number' ? (
+                        <input
+                          type="number"
+                          value={cur}
+                          onChange={(e) => {
+                            const next: Record<string, string> = { ...(p.config ?? {}) };
+                            next[v.name] = e.target.value;
+                            onPageUpdate(configureIdx!, { config: next });
+                          }}
+                          placeholder={v.default || v.rule || ''}
+                          className={glassFieldClass + ' w-full font-mono'}
+                        />
+                      ) : (
+                        <input
+                          type="text"
+                          value={cur}
+                          onChange={(e) => {
+                            const next: Record<string, string> = { ...(p.config ?? {}) };
+                            next[v.name] = e.target.value;
+                            onPageUpdate(configureIdx!, { config: next });
+                          }}
+                          placeholder={v.default || ''}
+                          className={glassFieldClass + ' w-full font-mono'}
+                        />
+                      )}
+                      {v.rule && <p className="text-[11px] text-gray-500">Rule: <code className="font-mono">{v.rule}</code></p>}
+                    </div>
+                  );
+                })}
+                <div className="flex justify-end pt-2">
+                  <button type="button" onClick={() => setConfigureIdx(null)} className="px-4 py-2 text-sm bg-sky-600 text-white rounded hover:bg-sky-500">Done</button>
+                </div>
+              </div>
+            );
+          })()}
         </Modal>
       </div>
     </>
