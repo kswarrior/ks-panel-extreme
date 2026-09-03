@@ -815,7 +815,11 @@ const MC_PROPERTIES = page(
     <button class="ks-btn ks-btn-sm" id="btn-save" type="button">Save all</button>
   </div>
 </div>
-<p class="ks-muted" style="font-size:12px;margin:0 0 10px">Each <span class="ks-mono">server.properties</span> key is its own card with the right editor (text, number, dropdown). Changes require a server restart.</p>
+<p class="ks-muted" style="font-size:12px;margin:0 0 10px">Each <span class="ks-mono">server.properties</span> key is its own card with the right editor (text, number, dropdown). The file is auto-detected (<span class="ks-mono">server.properties</span>, <span class="ks-mono">/mc/server.properties</span>) — or set the path below. Changes require a server restart.</p>
+<div class="ks-row" style="gap:8px;margin-bottom:10px;flex-wrap:wrap">
+  <input id="ppath" class="ks-input ks-mono" placeholder="/mc/server.properties" style="flex:1;min-width:180px;max-width:320px;font-size:12px" aria-label="server.properties path" />
+  <button class="ks-btn ks-btn-sm" id="btn-applypath" type="button" title="Load from this path">Use path</button>
+</div>
 <div class="ks-row" style="gap:8px;margin-bottom:10px;flex-wrap:wrap">
   <input id="q" class="ks-input ks-search-input" placeholder="filter keys…" style="flex:1;min-width:160px;max-width:280px" />
   <select id="cat" style="max-width:220px" aria-label="Category filter"></select>
@@ -828,10 +832,31 @@ const MC_PROPERTIES = page(
   `(function () {
   'use strict';
   var sdk = null;
-  var PATH = 'server.properties';
+  var PATHS = ['server.properties', '/mc/server.properties', 'mc/server.properties'];
+  var loadSeq = 0;
+  var ATTEMPT_MS = 8000;
+  var LOAD_WATCHDOG_MS = 15000;
+  var STORE_KEY = 'mcprops:path';
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function ask(m){try{if(window.KSPageSDK&&typeof window.KSPageSDK.confirm==='function')return window.KSPageSDK.confirm(m);}catch(e){}return Promise.resolve(window.confirm(m));}
   function say(m,t){try{if(window.KSPageSDK&&typeof window.KSPageSDK.toast==='function')window.KSPageSDK.toast(m,t||'info');}catch(e){}}
+  function withTimeout(p, ms) {
+    return new Promise(function (res, rej) {
+      var done = false;
+      var t = setTimeout(function () { if (!done) { done = true; rej(new Error('timed out after ' + Math.round(ms / 1000) + 's')); } }, ms);
+      p.then(function (v) { if (!done) { done = true; clearTimeout(t); res(v); } },
+           function (e) { if (!done) { done = true; clearTimeout(t); rej(e); } });
+    });
+  }
+  function isMissingErr(m) { return /404|not found|no such file|ENOENT|does not exist|missing/i.test(String(m || '')); }
+  function isGateErr(m) { return /page not enabled/i.test(String(m || '')); }
+  function storeGet() {
+    try { if (sdk && sdk.storage && sdk.storage.get) return sdk.storage.get(STORE_KEY).catch(function () { return null; }); } catch (e) {}
+    return Promise.resolve(null);
+  }
+  function storeSet(v) {
+    try { if (sdk && sdk.storage && sdk.storage.set) sdk.storage.set(STORE_KEY, String(v)).catch(function () {}); } catch (e) {}
+  }
 
   var SCHEMA = [
     { k: 'motd', label: 'MOTD', desc: 'Message of the day shown in the server list.', t: 'text', def: 'A Minecraft Server', cat: 'Server' },
@@ -898,7 +923,8 @@ const MC_PROPERTIES = page(
   SCHEMA.forEach(function (f) { byKey[f.k] = f; });
 
   var state = {
-    loading: true, saving: false, error: '', missing: false,
+    loading: true, saving: false, error: '', gate: false, missing: false,
+    activePath: '', trying: '',
     values: {}, orig: {}, rawLines: [], unknownOrder: [],
     q: '', cat: 'All', onlymod: false
   };
@@ -931,24 +957,76 @@ const MC_PROPERTIES = page(
     return '';
   }
 
-  function load() {
-    state.loading = true; state.error = ''; state.missing = false; render();
-    sdk.fetchPanel(base() + '/files/read?path=' + encodeURIComponent(PATH))
-      .then(function (r) {
-        var text = readText(r);
-        if (!text && text !== '') text = '';
-        applyFile(text, false);
-      })
-      .catch(function (e) {
-        var msg = (e && e.message) || String(e);
-        if (/404|not found|no such file|missing/i.test(msg)) { applyFile('', true); }
-        else { state.loading = false; state.error = msg; render(); }
-      });
+  function readOne(path) {
+    return withTimeout(
+      sdk.fetchPanel(base() + '/files/read?path=' + encodeURIComponent(path)).then(readText),
+      ATTEMPT_MS
+    );
   }
 
-  function applyFile(text, missing) {
+  function orderedPaths(preferred) {
+    var out = [], seen = {};
+    [preferred].concat(PATHS).forEach(function (p) {
+      if (p && !seen[p]) { seen[p] = true; out.push(p); }
+    });
+    return out;
+  }
+
+  function load(onlyPath) {
+    var seq = ++loadSeq;
+    state.loading = true; state.error = ''; state.gate = false; state.missing = false; state.trying = ''; render();
+    setTimeout(function () {
+      if (loadSeq === seq && state.loading) {
+        state.loading = false;
+        state.error = 'Load timed out — the instance may be stopped or the edge is unreachable. Press Retry.';
+        render();
+      }
+    }, LOAD_WATCHDOG_MS);
+    storeGet().then(function (stored) {
+      if (loadSeq !== seq) return;
+      var paths = onlyPath ? [onlyPath] : orderedPaths(stored);
+      var missingCount = 0;
+      function attempt(i) {
+        if (loadSeq !== seq) return;
+        if (i >= paths.length) {
+          if (missingCount === paths.length) {
+            var target = onlyPath || stored || PATHS[1];
+            state.activePath = target; storeSet(target);
+            applyFile('', true, target);
+          } else {
+            state.loading = false;
+            state.error = state.lastError || 'Could not read server.properties from any known location.';
+            render();
+          }
+          return;
+        }
+        var p = paths[i];
+        state.trying = p; render();
+        readOne(p).then(function (text) {
+          if (loadSeq !== seq) return;
+          state.activePath = p; storeSet(p);
+          applyFile(text == null ? '' : String(text), false, p);
+        }, function (e) {
+          if (loadSeq !== seq) return;
+          var msg = (e && e.message) || String(e);
+          if (isGateErr(msg)) {
+            state.loading = false; state.gate = true;
+            state.error = msg;
+            render();
+            return;
+          }
+          if (isMissingErr(msg)) { missingCount++; }
+          else { state.lastError = msg; }
+          attempt(i + 1);
+        });
+      }
+      attempt(0);
+    });
+  }
+
+  function applyFile(text, missing, path) {
     var p = parseProps(text);
-    state.rawLines = p.lines; state.missing = missing;
+    state.rawLines = p.lines; state.missing = missing; state.activePath = path || state.activePath;
     state.values = {}; state.orig = {}; state.unknownOrder = [];
     SCHEMA.forEach(function (f) {
       var v = (p.map[f.k] !== undefined) ? p.map[f.k] : f.def;
@@ -957,7 +1035,7 @@ const MC_PROPERTIES = page(
     Object.keys(p.map).forEach(function (k) {
       if (!byKey[k]) { state.values[k] = p.map[k]; state.orig[k] = p.map[k]; state.unknownOrder.push(k); }
     });
-    state.loading = false; state.error = ''; render();
+    state.loading = false; state.error = ''; state.gate = false; render();
   }
 
   function isMod(k) { return String(state.values[k] == null ? '' : state.values[k]) !== String(state.orig[k] == null ? '' : state.orig[k]); }
@@ -1047,6 +1125,16 @@ const MC_PROPERTIES = page(
     return out;
   }
 
+  function syncPathInput() {
+    var pp = document.getElementById('ppath');
+    if (!pp) return;
+    try {
+      if (document.activeElement === pp) return;
+    } catch (e) {}
+    var v = state.activePath || state.trying || '';
+    if (pp.value !== v && v) pp.value = v;
+  }
+
   function render() {
     var sel = document.getElementById('cat');
     if (sel && sel.options.length === 0) {
@@ -1058,14 +1146,24 @@ const MC_PROPERTIES = page(
     var raw = document.getElementById('raw');
     if (!root) return;
     if (state.loading) {
-      if (st) st.textContent = 'Loading server.properties…';
+      if (st) st.textContent = 'Loading ' + (state.trying || 'server.properties') + '…';
       root.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">' + skeleton() + '</div>';
       if (raw) raw.textContent = '';
+      syncPathInput();
       return;
     }
-    if (state.error) {
+    if (state.error || state.gate) {
       if (st) st.innerHTML = '<span style="color:var(--ks-bad)">Failed to load: ' + esc(state.error) + '</span>';
-      root.innerHTML = '<div class="ks-card" style="border-color:var(--ks-bad-line)"><p style="color:var(--ks-bad);font-size:13px;margin:0 0 6px;font-weight:600">Could not load server.properties</p><p class="ks-muted" style="font-size:12px;margin:0">' + esc(state.error) + ' — check the instance is running and the edge is online, then press Reload.</p></div>';
+      var hint = state.gate
+        ? 'This page reads through the Files API, which requires the <span class="ks-mono">Files</span> page (slug <span class="ks-mono">files</span>) to be enabled on this instance template. Enable it, then press Retry.'
+        : esc(state.error) + ' — check the instance is running and the edge is online, verify the path above, then press Retry.';
+      root.innerHTML = '<div class="ks-card" data-ks-key="load-error" style="border-color:var(--ks-bad-line)"><p style="color:var(--ks-bad);font-size:13px;margin:0 0 6px;font-weight:600">Could not load ' + esc(state.trying || 'server.properties') + '</p>'
+        + '<p class="ks-muted" style="font-size:12px;margin:0 0 10px">' + hint + '</p>'
+        + '<button type="button" class="ks-btn ks-btn-sm" data-retry>Retry</button></div>';
+      syncPathInput();
+      Array.prototype.forEach.call(root.querySelectorAll('[data-retry]'), function (b) {
+        b.addEventListener('click', function () { load(); });
+      });
       return;
     }
     var fields = visibleFields();
@@ -1079,11 +1177,13 @@ const MC_PROPERTIES = page(
     var n = modCount();
     var total = SCHEMA.length + state.unknownOrder.length;
     if (st) {
-      st.innerHTML = (state.missing ? '<span style="color:var(--ks-warn)">server.properties not found — showing defaults. Saving will create it.</span> · ' : '')
-        + esc(String(fields.length + unknowns.length)) + ' of ' + esc(String(total)) + ' shown'
+      st.innerHTML = '<span class="ks-mono">' + esc(state.activePath || 'server.properties') + '</span>'
+        + (state.missing ? ' · <span style="color:var(--ks-warn)">not found — showing defaults. Saving will create it here.</span>' : '')
+        + ' · ' + esc(String(fields.length + unknowns.length)) + ' of ' + esc(String(total)) + ' shown'
         + (n ? ' · <span style="color:var(--ks-warn)">' + n + ' modified</span>' : ' · no changes')
         + (state.saving ? ' · saving…' : '');
     }
+    syncPathInput();
     var cnt = document.getElementById('count');
     if (cnt) cnt.textContent = n ? n + ' unsaved change' + (n === 1 ? '' : 's') : 'no unsaved changes';
     var saveBtn = document.getElementById('btn-save');
@@ -1129,16 +1229,17 @@ const MC_PROPERTIES = page(
   function save() {
     var n = modCount();
     if (!n || state.saving) return;
+    var target = state.activePath || PATHS[0];
     state.saving = true; render();
     var text = buildText();
-    sdk.fetchPanel(base() + '/files?op=write&path=' + encodeURIComponent(PATH), {
+    sdk.fetchPanel(base() + '/files?op=write&path=' + encodeURIComponent(target), {
       method: 'POST', body: text, headers: { 'Content-Type': 'text/plain' }
     }).then(function () {
       state.saving = false;
       Object.keys(state.values).forEach(function (k) { state.orig[k] = state.values[k]; });
-      state.missing = false;
+      state.missing = false; state.activePath = target; storeSet(target);
       var p = parseProps(text); state.rawLines = p.lines;
-      render(); say('Saved server.properties (' + n + ' change' + (n === 1 ? '' : 's') + ') — restart the server to apply.', 'success');
+      render(); say('Saved ' + target + ' (' + n + ' change' + (n === 1 ? '' : 's') + ') — restart the server to apply.', 'success');
     }).catch(function (e) {
       state.saving = false; render();
       say((e && e.message) || 'Save failed', 'error');
@@ -1171,10 +1272,11 @@ const MC_PROPERTIES = page(
           var saveBtn = document.getElementById('btn-save');
           if (saveBtn) saveBtn.disabled = state.saving || nn === 0;
           var st = document.getElementById('status');
-          if (st && !state.loading && !state.error) {
+          if (st && !state.loading && !state.error && !state.gate) {
             var total = SCHEMA.length + state.unknownOrder.length;
-            st.innerHTML = (state.missing ? '<span style="color:var(--ks-warn)">server.properties not found — showing defaults. Saving will create it.</span> · ' : '')
-              + esc(String(total)) + ' keys'
+            st.innerHTML = '<span class="ks-mono">' + esc(state.activePath || 'server.properties') + '</span>'
+              + (state.missing ? ' · <span style="color:var(--ks-warn)">not found — showing defaults.</span>' : '')
+              + ' · ' + esc(String(total)) + ' keys'
               + (nn ? ' · <span style="color:var(--ks-warn)">' + nn + ' modified</span>' : ' · no changes');
           }
           var raw = document.getElementById('raw');
@@ -1195,17 +1297,43 @@ const MC_PROPERTIES = page(
     }, true);
     var rb = document.getElementById('btn-reload');
     if (rb) rb.addEventListener('click', function () { load(); });
+    var ap = document.getElementById('btn-applypath');
+    if (ap) ap.addEventListener('click', function () {
+      var pp = document.getElementById('ppath');
+      var v = pp ? String(pp.value || '').trim() : '';
+      if (!v) { say('Enter a file path first (e.g. /mc/server.properties).', 'error'); return; }
+      storeSet(v);
+      load(v);
+    });
     var sb = document.getElementById('btn-save');
     if (sb) sb.addEventListener('click', function () {
       if (modCount() === 0) return;
-      ask('Save server.properties with ' + modCount() + ' change(s)? The server must be restarted to apply them.').then(function (ok) { if (ok) save(); });
+      var target = state.activePath || PATHS[0];
+      ask('Save ' + target + ' with ' + modCount() + ' change(s)? The server must be restarted to apply them.').then(function (ok) { if (ok) save(); });
     });
     document.addEventListener('keydown', function (ev) {
-      if ((ev.ctrlKey || ev.metaKey) && String(ev.key).toLowerCase() === 's') { ev.preventDefault(); if (modCount() > 0 && !state.saving) save(); }
+      if ((ev.ctrlKey || ev.metaKey) && String(ev.key).toLowerCase() === 's') { ev.preventDefault(); if (modCount() > 0 && !state.saving) save(); return; }
+      if (ev.key === 'Enter' && ev.target && ev.target.id === 'ppath') {
+        ev.preventDefault();
+        var b = document.getElementById('btn-applypath');
+        if (b) b.click();
+      }
     });
   }
 
   function start(s) { sdk = s; wire(); load(); }
+  function sdkWatchdog() {
+    setTimeout(function () {
+      if (sdk) return;
+      var root = document.getElementById('root');
+      var st = document.getElementById('status');
+      if (st) st.textContent = 'Waiting for the panel bridge…';
+      if (root && root.innerHTML.indexOf('ks-skeleton') !== -1) {
+        root.innerHTML = '<div class="ks-card" data-ks-key="sdk-wait" style="border-color:var(--ks-warn-line)"><p style="color:var(--ks-warn);font-size:13px;margin:0 0 6px;font-weight:600">Waiting for the panel bridge…</p><p class="ks-muted" style="font-size:12px;margin:0">The page SDK is not available yet. Refresh the instance page — if this is the Studio preview, bind a test instance to exercise load/save. Your edits are safe: nothing was changed on disk.</p></div>';
+      }
+    }, 6000);
+  }
+  sdkWatchdog();
   if (window.KSPageSDK) start(window.KSPageSDK);
   else window.addEventListener('ks-page-sdk-ready', function () { start(window.KSPageSDK); }, { once: true });
 })();
@@ -1827,7 +1955,7 @@ export const PAGE_STARTERS: PageStarter[] = [
     name: 'Server Properties',
     slug: 'mc-properties',
     category: 'minecraft',
-    description: 'Edit every server.properties key as its own card (text, number, dropdown, password). Loads the live file and saves in place.',
+    description: 'Edit every server.properties key as its own card (text, number, dropdown, password). Auto-detects server.properties or /mc/server.properties.',
     iconSvg: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/>',
     html: MC_PROPERTIES,
     actions: [],

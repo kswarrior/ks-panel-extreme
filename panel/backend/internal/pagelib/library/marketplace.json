@@ -257,7 +257,7 @@
     {
       "id": "mc-properties",
       "name": "Server Properties",
-      "description": "Edit server.properties with stat + code preview and guarded Save (write_file + shell {{args}}) + list_files world check.",
+      "description": "Edit every server.properties key as its own card with the right editor (text input, number input, true/false dropdown, option dropdown, password). Auto-detects server.properties or /mc/server.properties, tracks changes, saves in place. Restart required.",
       "category": "minecraft",
       "author": "kswarrior",
       "version": "1.0",
@@ -271,7 +271,7 @@
     {
       "id": "mc-world",
       "name": "Worlds",
-      "description": "Worlds + Backups + Auto tabs: Overworld/Nether/End cards (name, dir, backup, delete, seed), backup manager (restore, rename, fav, delete), scheduled auto-backups.",
+      "description": "Worlds + Backups + Auto tabs for mc/ layout (mc/world, mc/world_nether, mc/world_the_end): dimension cards (name, dir, backup, delete, seed), backup manager (restore, rename, fav, delete), scheduled auto-backups.",
       "category": "minecraft",
       "author": "kswarrior",
       "version": "1.0",

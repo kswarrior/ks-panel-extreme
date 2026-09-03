@@ -271,7 +271,7 @@
     {
       "id": "mc-world",
       "name": "Worlds",
-      "description": "Worlds + Backups + Auto tabs: Overworld/Nether/End cards (name, dir, backup, delete, seed), backup manager (restore, rename, fav, delete), scheduled auto-backups.",
+      "description": "Worlds + Backups + Auto tabs for mc/ layout (mc/world, mc/world_nether, mc/world_the_end): dimension cards (name, dir, backup, delete, seed), backup manager (restore, rename, fav, delete), scheduled auto-backups.",
       "category": "minecraft",
       "author": "kswarrior",
       "version": "1.0",
