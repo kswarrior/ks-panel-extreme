@@ -747,7 +747,7 @@ func BulkCreateInstancePagesHandler(w http.ResponseWriter, r *http.Request) {
 			skipped++
 			continue
 		}
-		res, eerr := stmt.Exec(dto.Name, dto.Slug, dto.Kind, dto.Category, dto.Type, dto.Description, dto.ContentType, dto.ContentHTML, dto.ContentMarkdown, dto.ContentBlocks, dto.IconSVG, dto.Actions, dto.SubPages, dto.Components)
+		res, eerr := stmt.Exec(dto.Name, dto.Slug, dto.Kind, dto.Category, dto.Type, dto.Description, dto.ContentType, dto.ContentHTML, dto.ContentMarkdown, dto.ContentBlocks, dto.IconSVG, dto.Actions, dto.SubPages, dto.Components, pageSourceStudio, "", "")
 		if eerr != nil {
 			if isDuplicateSlugError(eerr.Error()) {
 				skipped++
@@ -1789,6 +1789,7 @@ func ImportInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		Actions:         dto.Actions,
 		SubPages:        dto.SubPages,
 		Components:      dto.Components,
+		Source:          pageSourceStudio,
 	})
 	if err != nil {
 		log.Println("ImportInstancePage error:", err)
@@ -2432,6 +2433,7 @@ func ImportInstancePageFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		Actions:         dto.Actions,
 		SubPages:        dto.SubPages,
 		Components:      dto.Components,
+		Source:          pageSourceStudio,
 	})
 	if err != nil {
 		log.Println("ImportInstancePageFromURL error:", err)
@@ -2637,6 +2639,7 @@ func ImportInstancePageFromMarketplaceHandler(w http.ResponseWriter, r *http.Req
 	}
 	defer con.Close()
 
+	ownerID, _ := UserIDFromContext(r)
 	id, err := repository.NewInstancePageRepository(con).Create(repository.InstancePageInput{
 		Name:            dto.Name,
 		Slug:            dto.Slug,
@@ -2652,6 +2655,10 @@ func ImportInstancePageFromMarketplaceHandler(w http.ResponseWriter, r *http.Req
 		Actions:         dto.Actions,
 		SubPages:        dto.SubPages,
 		Components:      dto.Components,
+		OwnerID:           ownerID,
+		Source:            pageSourceMarket,
+		MarketID:          req.PageID,
+		MarketVersion:     catalog.Version,
 	})
 	if err != nil {
 		log.Println("ImportInstancePageFromMarketplace error:", err)
@@ -2775,6 +2782,7 @@ func ImportLocalInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		Actions:         dto.Actions,
 		SubPages:        dto.SubPages,
 		Components:      dto.Components,
+		Source:          pageSourceStudio,
 	})
 	if err != nil {
 		log.Println("ImportLocalInstancePage error:", err)
