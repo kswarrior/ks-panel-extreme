@@ -189,6 +189,14 @@ const InstanceForm: React.FC = () => {
     }
   };
 
+  // Horizontal strip ref + arrow scrolling so the icon/colour presets
+  // scroll with a mouse on laptops. Hook stays above the loading
+  // early-return so hook order never changes between renders.
+  const stripRef = useRef<HTMLDivElement>(null);
+  const scrollStrip = (dx: number) => {
+    stripRef.current?.scrollBy({ left: dx, behavior: 'smooth' });
+  };
+
   if (loading) {
     return (
       <FormPage
@@ -206,13 +214,6 @@ const InstanceForm: React.FC = () => {
   const selectedNode = nodes.find((n) => n.id === nodeId);
   const selectedOwner = users.find((u) => u.id === ownerId);
   const driverMissing = selectedTemplate && selectedNode && !driverEnabled(selectedNode, kindKey(selectedTemplate.kind));
-
-  // Horizontal strip ref + arrow scrolling so the icon/colour presets
-  // scroll with a mouse on laptops (hidden scrollbar can't be dragged).
-  const stripRef = useRef<HTMLDivElement>(null);
-  const scrollStrip = (dx: number) => {
-    stripRef.current?.scrollBy({ left: dx, behavior: 'smooth' });
-  };
 
   return (
     <FormPage
