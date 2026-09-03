@@ -482,36 +482,74 @@ const NodeForm: React.FC = () => {
                 </span>
                 <span className="text-[11px] text-gray-500 max-w-[4.5rem] truncate">{form.name.trim() || 'Node name'}</span>
               </div>
-              <div className="flex flex-wrap items-start gap-3 flex-1 min-w-0">
-                <div className="w-full sm:w-auto sm:flex-1 sm:min-w-[160px] sm:max-w-[220px]">
-                  <label htmlFor="node_icon" className="block text-sm font-medium text-gray-200 mb-1">Icon</label>
-                  <select
-                    id="node_icon"
-                    value={iconSelectValue}
-                    onChange={(e) => onIconSelect(e.target.value)}
-                    className={selectCls}
-                  >
-                    <option value="custom">Custom</option>
-                    <option value="">Default</option>
+              <div className="flex-1 min-w-0 space-y-3">
+                <div>
+                  <span className="block text-sm font-medium text-gray-200 mb-1">Icon</span>
+                  <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-0.5 px-0.5">
+                    <button
+                      type="button"
+                      onClick={() => onIconSelect('')}
+                      title="Default"
+                      className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors ${iconSelectValue === '' ? 'border-sky-400/60 bg-sky-500/15' : 'border-white/10 bg-white/5 hover:border-white/20'}`}
+                    >
+                      <span className="text-xs text-gray-300">Default</span>
+                    </button>
                     {NODE_ICONS.map((ic) => (
-                      <option key={ic.key} value={ic.key}>{ic.label}</option>
+                      <button
+                        key={ic.key}
+                        type="button"
+                        onClick={() => onIconSelect(ic.key)}
+                        title={ic.label}
+                        className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors ${iconSelectValue === ic.key ? 'border-sky-400/60 bg-sky-500/15' : 'border-white/10 bg-white/5 hover:border-white/20'}`}
+                      >
+                        <NodeIcon icon={ic.key} className="w-4 h-4 text-gray-200" />
+                        <span className="text-xs text-gray-300">{ic.label}</span>
+                      </button>
                     ))}
-                  </select>
+                    <button
+                      type="button"
+                      onClick={() => onIconSelect('custom')}
+                      title="Custom SVG"
+                      className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors ${iconSelectValue === 'custom' ? 'border-sky-400/60 bg-sky-500/15' : 'border-white/10 bg-white/5 hover:border-white/20'}`}
+                    >
+                      <span className="text-xs text-gray-300">Custom</span>
+                    </button>
+                  </div>
                 </div>
-                <div className="w-full sm:w-auto sm:flex-1 sm:min-w-[160px] sm:max-w-[220px]">
-                  <label htmlFor="node_color" className="block text-sm font-medium text-gray-200 mb-1">Colour</label>
-                  <select
-                    id="node_color"
-                    value={colorSelectValue}
-                    onChange={(e) => onColorSelect(e.target.value)}
-                    className={selectCls}
-                  >
-                    <option value="custom">Custom</option>
-                    <option value="">Default</option>
+                <div>
+                  <span className="block text-sm font-medium text-gray-200 mb-1">Colour</span>
+                  <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-0.5 px-0.5">
+                    <button
+                      type="button"
+                      onClick={() => onColorSelect('')}
+                      title="Default"
+                      className={`shrink-0 px-3 py-1.5 rounded-lg border text-xs transition-colors ${colorSelectValue === '' ? 'border-sky-400/60 bg-sky-500/15 text-white' : 'border-white/10 bg-white/5 text-gray-300 hover:border-white/20'}`}
+                    >
+                      Default
+                    </button>
                     {NODE_COLORS.map((c) => (
-                      <option key={c} value={c}>{NODE_COLOR_NAMES[c.toLowerCase()] ?? c} ({c.toUpperCase()})</option>
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => onColorSelect(c)}
+                        title={`${NODE_COLOR_NAMES[c.toLowerCase()] ?? c} (${c.toUpperCase()})`}
+                        className={`shrink-0 w-8 h-8 rounded-lg border transition-transform ${colorSelectValue === c ? 'border-white scale-105' : 'border-white/10 hover:border-white/30'}`}
+                        style={{ backgroundColor: c }}
+                      >
+                        {colorSelectValue === c && (
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" className="w-5 h-5 m-auto"><polyline points="20 6 9 17 4 12" /></svg>
+                        )}
+                      </button>
                     ))}
-                  </select>
+                    <button
+                      type="button"
+                      onClick={() => onColorSelect('custom')}
+                      title="Custom colour"
+                      className={`shrink-0 px-3 py-1.5 rounded-lg border text-xs transition-colors ${colorSelectValue === 'custom' ? 'border-sky-400/60 bg-sky-500/15 text-white' : 'border-white/10 bg-white/5 text-gray-300 hover:border-white/20'}`}
+                    >
+                      Custom
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

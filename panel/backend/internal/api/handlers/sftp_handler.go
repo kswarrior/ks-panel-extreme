@@ -23,6 +23,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -477,5 +478,48 @@ func removeSFTPFromEdge(con sqlDB, inst *models.Instance) {
 	}
 	if ec, _, err := sftpEdgeClient(con, inst); err == nil {
 		_, _ = ec.DeleteSFTP(edge.SFTPDeleteRequest{Username: username})
+	}
+}
+
+// autoProvisionSFTPOnDeploy mints + vaults + records + pushes SFTP for a
+// freshly-deployed instance. Best-effort: any failure is logged and the
+// deploy still succeeds (the operator retries via rotate). Skips when a row
+// already exists (re-deploy race) so it never clobbers a live password.
+func autoProvisionSFTPOnDeploy(con sqlDB, id int64) {
+	inst, err := repository.NewInstanceRepository(con).Get(id)
+	if err != nil || inst == nil {
+		return
+	}
+	sftpRepo := repository.NewSFTPRepository(con)
+	if existing, _ := sftpRepo.Get(id); existing != nil {
+		return
+	}
+	password, err := sftpMintPassword()
+	if err != nil {
+		log.Printf("sftp auto-provision for instance %d: mint failed: %v", id, err)
+		return
+	}
+	username := sftpUsername(id)
+	root := sftpRootForInstance(con, inst)
+	port, _ := sftpAllocatePort(con, inst.NodeID)
+	if _, err := repository.NewSecretRepository(con).Set(id, repository.SFTPSecretKey, password, true, "SFTP password for "+username); err != nil {
+		log.Printf("sftp auto-provision for instance %d: vault failed: %v", id, err)
+		return
+	}
+	if err := sftpRepo.Upsert(repository.SFTPConfig{
+		InstanceID: id, Enabled: 1, Username: username, Port: port, Root: root,
+	}); err != nil {
+		log.Printf("sftp auto-provision for instance %d: store failed: %v", id, err)
+		return
+	}
+	ec, workload, err := sftpEdgeClient(con, inst)
+	if err != nil {
+		log.Printf("sftp auto-provision for instance %d: edge client: %v", id, err)
+		return
+	}
+	if _, err := ec.ProvisionSFTP(edge.SFTPProvisionRequest{
+		Kind: inst.Kind, Name: workload, Username: username, Password: password, Root: root,
+	}); err != nil {
+		log.Printf("sftp auto-provision for instance %d: edge provision failed (rotate to retry): %v", id, err)
 	}
 }

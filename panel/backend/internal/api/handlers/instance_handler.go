@@ -1186,6 +1186,12 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		// Auto-provision SFTP for the new instance (best-effort): mint
+		// inst_<id> + 32B password into the vault, record the dial params
+		// in instance_sftp (058), and push to the edge's in-memory server.
+		// A down edge must not fail the deploy — rotate re-pushes later.
+		autoProvisionSFTPOnDeploy(con2, id)
+
 		// If template has install steps, kick off the install workflow.
 		if len(installSteps) > 0 {
 			installState := "running"
