@@ -283,9 +283,198 @@ const InstancePages: React.FC = () => {
 
   const resetFilters = () => { setSearch(''); setKindFilter('all'); setCategoryFilter('all'); setSort('name'); };
 
-  const ImportModalContent = () => {
-    if (!addOpen) return null;
-    return (
+
+
+  return (
+    <div>
+      {/* Header — identical single-row control group to the Templates page:
+          search · filter · stats · add, all aligned on one line. */}
+      <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
+        <h2 className="text-xl font-semibold text-white">Instance Pages</h2>
+        <div className="flex items-center gap-2">
+          <SearchDropdown
+            value={search}
+            onChange={setSearch}
+            placeholder="Search name, slug, category…"
+            ariaLabel="Search instance pages"
+          />
+          <div className="relative" ref={filterRef}>
+            <button
+              type="button"
+              onClick={() => setFilterOpen(!filterOpen)}
+              className={`ks-btn-header ks-icon-btn transition-colors ${filterOpen ? 'is-open' : ''}`}
+              aria-label="Open filters"
+              aria-expanded={filterOpen}
+              aria-haspopup="true"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+              </svg>
+              {(kindFilter !== 'all' || categoryFilter !== 'all' || sort !== 'name') && (
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
+              )}
+            </button>
+
+            {/* Filter Dropdown Menu */}
+            {filterOpen && (
+              <div className="absolute right-0 top-full mt-1 z-30 w-64">
+                <div className="ks-dropdown min-w-[240px] animate-in fade-in slide-in-from-to duration-150">
+                  <div className="p-3 space-y-3">
+                    <div>
+                      <label className="block text-xs text-gray-400 uppercase tracking-wide mb-1.5">Filter by</label>
+                      <select
+                        className="w-full glass-field"
+                        value={kindFilter}
+                        onChange={(e) => setKindFilter(e.target.value)}
+                        aria-label="Filter pages by kind"
+                      >
+                        <option value="all">All pages</option>
+                        <option value="custom">Custom</option>
+                      </select>
+                    </div>
+                    <div className="pt-2 border-t border-white/5 flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setFilterOpen(false)}
+                        className="px-3 py-1.5 text-sm text-gray-400 hover:text-white"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          <Link
+            to="/instance-pages/stats"
+            aria-label="Instance Page Statistics"
+            className="ks-btn-header ks-icon-btn"
+            title="View instance page statistics dashboard"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>
+          </Link>
+          <button
+            onClick={openAdd}
+            aria-label="Add Instance Page"
+            className="ks-btn-header ks-icon-btn"
+            title="Add Instance Page — upload, URL or Studio"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div className="space-y-3">
+        {loading && <SkeletonGrid count={6} />}
+        {!loading && filtered.length > 0 && (
+          <div className={`ks-card-grid grid gap-4 ${dense ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'}`} id="ks-instancepages-grid">
+            {filtered.map((e) => {
+              const p = e.page;
+              const meta = KIND_META[e.kind];
+              return (
+                <article key={p.id} id={`ks-instancepage-${p.id}`} className="ks-card ks-list-card group relative glass-card rounded-xl flex flex-col gap-3 hover:border-white/20 transition-colors">
+                  <header className="flex items-start gap-3 min-w-0 relative">
+                    <div className="shrink-0 w-12 h-12 rounded-lg flex items-center justify-center border bg-white/[0.05] border-white/10 text-gray-300 overflow-hidden" aria-hidden="true">
+                      {p.icon_svg ? (
+                        (() => {
+                          const sanitized = sanitizeSvgIcon(p.icon_svg);
+                          const isFullSvg = sanitized.trim().toLowerCase().startsWith('<svg');
+                          if (isFullSvg) {
+                            return <span className="w-6 h-6 block [&>svg]:w-6 [&>svg]:h-6 [&>svg]:block" dangerouslySetInnerHTML={{ __html: sanitized }} />;
+                          }
+                          return (
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
+                              <g dangerouslySetInnerHTML={{ __html: sanitized }} />
+                            </svg>
+                          );
+                        })()
+                      ) : (
+                        <KindIcon kind={e.kind} className="w-6 h-6" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-sm font-semibold text-white truncate leading-tight">{p.name}</h3>
+                      <p className="text-[11px] text-gray-500 truncate mt-0.5 font-mono">/{p.slug === '.' ? '' : p.slug}</p>
+                      {p.category && (
+                        <p className="text-[11px] text-gray-400 truncate mt-0.5">
+                          <span className="inline-flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+                            {p.category}
+                          </span>
+                        </p>
+                      )}
+                      {p.description && (
+                        <p className="text-xs text-gray-400 truncate mt-1">{p.description}</p>
+                      )}
+                    </div>
+                    <div className="shrink-0 inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wide px-2 py-1 rounded-md border bg-white/[0.05] border-white/10 text-gray-300">
+                      {meta.label}
+                    </div>
+                  </header>
+
+                  {p.content_type && (
+                    <div className="flex flex-wrap gap-1.5 text-xs">
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/[0.04] border border-white/10 text-gray-300" title="Content type">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-3 h-3"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" /> </svg>
+                        {p.content_type}
+                      </span>
+                      {p.icon_svg && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/[0.04] border border-white/10 text-gray-300" title="Custom icon">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-3 h-3"><circle cx="12" cy="12" r="10" /><path d="M12 8v8" /><path d="M8 12h8" /> </svg>
+                          Custom icon
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  <footer className="mt-auto pt-2 border-t border-white/[0.06] flex items-center justify-between gap-2">
+                    <span className="text-[11px] text-gray-500 truncate">
+                      {p.updated_at ? (
+                        <>Updated {new Date(p.updated_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</>
+                      ) : (
+                        <>id {p.id}</>
+                      )}
+                    </span>
+                    <Link to={`/instance-pages/${p.id}`} className="text-[11px] text-sky-300 hover:text-sky-200 hover:underline">View details →</Link>
+                  </footer>
+                </article>
+              );
+            })}
+          </div>
+        )}
+
+        {!loading && filtered.length === 0 && pages.length > 0 && !error && (
+          <div className="ks-card ks-form-card rounded-xl text-center text-gray-400">
+            No instance pages match your filters.
+            <div className="mt-2 flex justify-center">
+              <button onClick={resetFilters} aria-label="Clear filters" className="ks-btn-icon ks-icon-btn" title="Clear filters">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                  <polyline points="1 4 1 10 7 10" />
+                  <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!loading && pages.length === 0 && !error && (
+          <div className="flex flex-col items-center justify-center min-h-[40vh] px-4 animate-fade-in">
+            <div className="flex flex-col items-center gap-4">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-20 h-20 text-gray-400" aria-hidden="true">
+                <rect x="7" y="4" width="13" height="15" rx="2" />
+                <path d="M7 9H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-1" />
+                <line x1="11" y1="9" x2="17" y2="9" opacity="0.7" />
+                <line x1="11" y1="13" x2="17" y2="13" opacity="0.7" />
+                <line x1="11" y1="17" x2="15" y2="17" opacity="0.5" />
+              </svg>
+              <p className="text-lg font-medium text-gray-300">No instance pages yet</p>
+              <p className="text-sm text-gray-400 text-center max-w-md">Click the <strong className="text-sky-300">+</strong> button to upload a page, import from URL or open Studio.</p>
+            </div>
+          </div>
+        )}
       <Modal
         open={addOpen}
         onClose={closeAdd}
@@ -546,200 +735,6 @@ const InstancePages: React.FC = () => {
         )}
 
       </Modal>
-    );
-  };
-
-  return (
-    <div>
-      {/* Header — identical single-row control group to the Templates page:
-          search · filter · stats · add, all aligned on one line. */}
-      <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
-        <h2 className="text-xl font-semibold text-white">Instance Pages</h2>
-        <div className="flex items-center gap-2">
-          <SearchDropdown
-            value={search}
-            onChange={setSearch}
-            placeholder="Search name, slug, category…"
-            ariaLabel="Search instance pages"
-          />
-          <div className="relative" ref={filterRef}>
-            <button
-              type="button"
-              onClick={() => setFilterOpen(!filterOpen)}
-              className={`ks-btn-header ks-icon-btn transition-colors ${filterOpen ? 'is-open' : ''}`}
-              aria-label="Open filters"
-              aria-expanded={filterOpen}
-              aria-haspopup="true"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-              </svg>
-              {(kindFilter !== 'all' || categoryFilter !== 'all' || sort !== 'name') && (
-                <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
-              )}
-            </button>
-
-            {/* Filter Dropdown Menu */}
-            {filterOpen && (
-              <div className="absolute right-0 top-full mt-1 z-30 w-64">
-                <div className="ks-dropdown min-w-[240px] animate-in fade-in slide-in-from-to duration-150">
-                  <div className="p-3 space-y-3">
-                    <div>
-                      <label className="block text-xs text-gray-400 uppercase tracking-wide mb-1.5">Filter by</label>
-                      <select
-                        className="w-full glass-field"
-                        value={kindFilter}
-                        onChange={(e) => setKindFilter(e.target.value)}
-                        aria-label="Filter pages by kind"
-                      >
-                        <option value="all">All pages</option>
-                        <option value="custom">Custom</option>
-                      </select>
-                    </div>
-                    <div className="pt-2 border-t border-white/5 flex items-center justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setFilterOpen(false)}
-                        className="px-3 py-1.5 text-sm text-gray-400 hover:text-white"
-                      >
-                        Close
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-          <Link
-            to="/instance-pages/stats"
-            aria-label="Instance Page Statistics"
-            className="ks-btn-header ks-icon-btn"
-            title="View instance page statistics dashboard"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>
-          </Link>
-          <button
-            onClick={openAdd}
-            aria-label="Add Instance Page"
-            className="ks-btn-header ks-icon-btn"
-            title="Add Instance Page — upload, URL or Studio"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-          </button>
-        </div>
-      </div>
-      <div className="space-y-3">
-        {loading && <SkeletonGrid count={6} />}
-        {!loading && filtered.length > 0 && (
-          <div className={`ks-card-grid grid gap-4 ${dense ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'}`} id="ks-instancepages-grid">
-            {filtered.map((e) => {
-              const p = e.page;
-              const meta = KIND_META[e.kind];
-              return (
-                <article key={p.id} id={`ks-instancepage-${p.id}`} className="ks-card ks-list-card group relative glass-card rounded-xl flex flex-col gap-3 hover:border-white/20 transition-colors">
-                  <header className="flex items-start gap-3 min-w-0 relative">
-                    <div className="shrink-0 w-12 h-12 rounded-lg flex items-center justify-center border bg-white/[0.05] border-white/10 text-gray-300 overflow-hidden" aria-hidden="true">
-                      {p.icon_svg ? (
-                        (() => {
-                          const sanitized = sanitizeSvgIcon(p.icon_svg);
-                          const isFullSvg = sanitized.trim().toLowerCase().startsWith('<svg');
-                          if (isFullSvg) {
-                            return <span className="w-6 h-6 block [&>svg]:w-6 [&>svg]:h-6 [&>svg]:block" dangerouslySetInnerHTML={{ __html: sanitized }} />;
-                          }
-                          return (
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
-                              <g dangerouslySetInnerHTML={{ __html: sanitized }} />
-                            </svg>
-                          );
-                        })()
-                      ) : (
-                        <KindIcon kind={e.kind} className="w-6 h-6" />
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h3 className="text-sm font-semibold text-white truncate leading-tight">{p.name}</h3>
-                      <p className="text-[11px] text-gray-500 truncate mt-0.5 font-mono">/{p.slug === '.' ? '' : p.slug}</p>
-                      {p.category && (
-                        <p className="text-[11px] text-gray-400 truncate mt-0.5">
-                          <span className="inline-flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
-                            {p.category}
-                          </span>
-                        </p>
-                      )}
-                      {p.description && (
-                        <p className="text-xs text-gray-400 truncate mt-1">{p.description}</p>
-                      )}
-                    </div>
-                    <div className="shrink-0 inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wide px-2 py-1 rounded-md border bg-white/[0.05] border-white/10 text-gray-300">
-                      {meta.label}
-                    </div>
-                  </header>
-
-                  {p.content_type && (
-                    <div className="flex flex-wrap gap-1.5 text-xs">
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/[0.04] border border-white/10 text-gray-300" title="Content type">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-3 h-3"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" /> </svg>
-                        {p.content_type}
-                      </span>
-                      {p.icon_svg && (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/[0.04] border border-white/10 text-gray-300" title="Custom icon">
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-3 h-3"><circle cx="12" cy="12" r="10" /><path d="M12 8v8" /><path d="M8 12h8" /> </svg>
-                          Custom icon
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  <footer className="mt-auto pt-2 border-t border-white/[0.06] flex items-center justify-between gap-2">
-                    <span className="text-[11px] text-gray-500 truncate">
-                      {p.updated_at ? (
-                        <>Updated {new Date(p.updated_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</>
-                      ) : (
-                        <>id {p.id}</>
-                      )}
-                    </span>
-                    <Link to={`/instance-pages/${p.id}`} className="text-[11px] text-sky-300 hover:text-sky-200 hover:underline">View details →</Link>
-                  </footer>
-                </article>
-              );
-            })}
-          </div>
-        )}
-
-        {!loading && filtered.length === 0 && pages.length > 0 && !error && (
-          <div className="ks-card ks-form-card rounded-xl text-center text-gray-400">
-            No instance pages match your filters.
-            <div className="mt-2 flex justify-center">
-              <button onClick={resetFilters} aria-label="Clear filters" className="ks-btn-icon ks-icon-btn" title="Clear filters">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                  <polyline points="1 4 1 10 7 10" />
-                  <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {!loading && pages.length === 0 && !error && (
-          <div className="flex flex-col items-center justify-center min-h-[40vh] px-4 animate-fade-in">
-            <div className="flex flex-col items-center gap-4">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-20 h-20 text-gray-400" aria-hidden="true">
-                <rect x="7" y="4" width="13" height="15" rx="2" />
-                <path d="M7 9H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-1" />
-                <line x1="11" y1="9" x2="17" y2="9" opacity="0.7" />
-                <line x1="11" y1="13" x2="17" y2="13" opacity="0.7" />
-                <line x1="11" y1="17" x2="15" y2="17" opacity="0.5" />
-              </svg>
-              <p className="text-lg font-medium text-gray-300">No instance pages yet</p>
-              <p className="text-sm text-gray-400 text-center max-w-md">Click the <strong className="text-sky-300">+</strong> button to upload a page, import from URL or open Studio.</p>
-            </div>
-          </div>
-        )}
-        <ImportModalContent />
       </div>
     </div>
   );
