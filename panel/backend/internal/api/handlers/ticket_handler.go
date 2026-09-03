@@ -16,16 +16,6 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func hasTicketView(con *sql.DB, uid int64) bool {
-	perms, _ := repoPermissionsForUser(con, uid)
-	for _, p := range perms {
-		if p == "MANAGE_TICKETS" || p == "TICKETS_VIEW" || p == "TICKETS_EDIT" || p == "TICKETS_CREATE" || p == "TICKETS_DELETE" {
-			return true
-		}
-	}
-	return false
-}
-
 func canSeeInternal(con *sql.DB, uid int64) bool {
 	perms, _ := repoPermissionsForUser(con, uid)
 	for _, p := range perms {
@@ -51,20 +41,6 @@ func isTicketStaff(con *sql.DB, uid int64) bool {
 		}
 	}
 	return false
-}
-
-// ticketsScopeAll returns true when the user may act on ANY ticket (All/umbrella), false when restricted to own.
-func ticketsScopeAll(con *sql.DB, uid int64) bool {
-	checker := permissions.NewChecker(con)
-	hasOwn, hasAll, _ := checker.HasScope(uid, permissions.TicketsOwnKey, permissions.TicketsAllKey, permissions.ManageTicketsKey)
-	if hasAll {
-		return true
-	}
-	if hasOwn {
-		return false
-	}
-	// Legacy fallback: treat absence of explicit scope as All for staff, Own for others — preserved via isTicketStaff.
-	return isTicketStaff(con, uid)
 }
 
 // ListTicketsHandler returns paginated tickets.
