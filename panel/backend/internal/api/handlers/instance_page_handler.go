@@ -2670,9 +2670,10 @@ func ImportLocalInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Resolve the file through pagelib: working-dir instance_pages/ (top
-	// level + pages/) first, then the binary-embedded library. Read() only
-	// accepts a bare basename, so the path-traversal guard lives in one place.
+	// Resolve the file through pagelib: working-dir instance_pages/ (pages/
+	// canonical, top level legacy) first, then the binary-embedded library.
+	// Read() only accepts a bare basename, so the path-traversal guard lives
+	// in one place.
 	data, ok := pagelib.Read(req.Filename)
 	if !ok {
 		http.Error(w, "file not found", http.StatusNotFound)
