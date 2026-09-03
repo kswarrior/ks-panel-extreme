@@ -624,16 +624,6 @@ const NodeForm: React.FC = () => {
             </>
           )}
 
-          {form.connection_mode === 'reverse_tunnel' && (
-            <div className="ks-card ks-form-card rounded-md p-3 border border-sky-700/40 bg-sky-900/10">
-              <p className="text-sm text-sky-200 font-medium">Reverse Tunnel (WSS)</p>
-              <p className="text-xs text-sky-300/80 mt-1">
-                Only the edge needs the panel URL. Edge dials <code>{typeof window !== 'undefined' ? window.location.origin : 'https://panel.example.com'}</code> via WSS and keeps a persistent tunnel. Panel never dials edge directly — all lifecycle, exec, files, and inspect RPCs go through the tunnel. No edge address needed. Heartbeats also go over the tunnel.
-              </p>
-              <p className="text-xs text-gray-400 mt-2">Config JSON will contain <code>panel_url</code> + <code>token</code> only. Deploy the edge with <code>./ksedge launch</code> on any host that can reach the panel.</p>
-            </div>
-          )}
-
           {isLocalMode(form.connection_mode) && (
             <GlassField
               label="Edge listen port"
@@ -651,12 +641,6 @@ const NodeForm: React.FC = () => {
                 required
               />
             </GlassField>
-          )}
-
-          {form.connection_mode === 'local_wss' && (
-            <div className="ks-card ks-form-card rounded-md p-3 border border-sky-700/40 bg-sky-900/10">
-              <p className="text-xs text-sky-200">Local WSS keeps both paths: panel can dial <code>127.0.0.1:{form.port || '4040'}</code> over HTTP and the edge also maintains a WSS tunnel to panel for reverse operations.</p>
-            </div>
           )}
 
           {isLocalMode(form.connection_mode) && (
