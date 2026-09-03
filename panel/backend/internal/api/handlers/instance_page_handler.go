@@ -65,6 +65,11 @@ type instancePageDTO struct {
 	// Studio's Components tab: {"name","type","description","content"}.
 	// Page content references them with {{component:name}}. "" == none.
 	Components string `json:"components"`
+	// Configure is a JSON array of page-level env-style var definitions
+	// ({name,label,description,default,required,rule,display,options,…})
+	// authored in the Studio's Configure tab (like the template editor's
+	// Env Variables). "" == none.
+	Configure string `json:"configure"`
 }
 
 // validInstancePageKinds lists the page kinds a stored row may carry. The
@@ -308,6 +313,98 @@ func validateComponentsJSON(raw string) error {
 		}
 		if len(c.Content) > maxInstancePageContentBytes {
 			return newErrString("component content too large (max 1MB)")
+		}
+	}
+	return nil
+}
+
+// Configure (page-level env vars) limits: like template env vars, bounded
+// so the definition stays manageable and the template editor's per-page
+// value form stays sane.
+const (
+	maxInstancePageConfigureBytes = 512 * 1024
+	maxInstancePageConfigure      = 50
+)
+
+var validConfigureDisplay = map[string]bool{
+	"text":     true,
+	"number":   true,
+	"select":   true,
+	"checkbox": true,
+}
+
+// validConfigureName reports whether s is a safe env-style variable name
+// for Configure vars: starts with letter/underscore, contains only
+// alphanum/underscore, max 64.
+func validConfigureName(s string) bool {
+	if s == "" || len(s) > 64 {
+		return false
+	}
+	if !(s[0] == '_' || (s[0] >= 'A' && s[0] <= 'Z') || (s[0] >= 'a' && s[0] <= 'z')) {
+		return false
+	}
+	for _, r := range s {
+		if !(r == '_' || (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')) {
+			return false
+		}
+	}
+	return true
+}
+
+// instancePageConfigure mirrors one entry of the persisted configure JSON
+// (page-level EnvVariable-style definition).
+type instancePageConfigure struct {
+	Name         string `json:"name"`
+	Label        string `json:"label"`
+	Description  string `json:"description"`
+	Default      string `json:"default"`
+	UserViewable bool   `json:"user_viewable"`
+	UserEditable bool   `json:"user_editable"`
+	Required     bool   `json:"required"`
+	Rule         string `json:"rule"`
+	Display      string `json:"display"`
+	Options      string `json:"options"`
+	Append       bool   `json:"append"`
+	Prepend      string `json:"prepend"`
+	AppendValue  string `json:"append_value"`
+}
+
+// validateConfigureJSON checks that non-empty configure is a JSON array of
+// env-style var objects with valid names and known display types.
+func validateConfigureJSON(raw string) error {
+	if raw == "" {
+		return nil
+	}
+	if len(raw) > maxInstancePageConfigureBytes {
+		return newErrString("configure too large (max 512KB of JSON)")
+	}
+	var arr []instancePageConfigure
+	if err := json.Unmarshal([]byte(raw), &arr); err != nil {
+		return newErrString("configure must be a JSON array of variable objects")
+	}
+	if len(arr) > maxInstancePageConfigure {
+		return newErrString(fmt.Sprintf("too many configure variables (max %d)", maxInstancePageConfigure))
+	}
+	seen := make(map[string]bool, len(arr))
+	for _, c := range arr {
+		if !validConfigureName(c.Name) {
+			return newErrString("configure variable name must start with a letter or underscore and contain only letters, numbers or underscores (max 64 chars)")
+		}
+		if seen[c.Name] {
+			return newErrString("duplicate configure variable name: " + c.Name)
+		}
+		seen[c.Name] = true
+		if c.Display != "" && !validConfigureDisplay[c.Display] {
+			return newErrString("configure variable display must be one of: text, number, select, checkbox")
+		}
+		if len(c.Label) > 200 {
+			return newErrString("configure variable label too long (max 200)")
+		}
+		if len(c.Description) > 500 {
+			return newErrString("configure variable description too long (max 500)")
+		}
+		if len(c.Default) > 2000 {
+			return newErrString("configure variable default too long (max 2000)")
 		}
 	}
 	return nil
