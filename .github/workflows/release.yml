@@ -5,8 +5,7 @@ on:
     branches:
       - main
     paths:
-      - "release/kspanel"
-      - "release/ksedge"
+      - "release/**"
 
   workflow_dispatch:
 
