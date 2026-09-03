@@ -1033,6 +1033,108 @@ func (c *Client) UpdatePorts(req UpdatePortsRequest) (UpdatePortsResponse, error
 	return out, nil
 }
 
+// SFTPProvisionRequest is POSTed to /api/edge/sftp/provision. The panel
+// mints username inst_<id> + a 32-byte random password (vaulted in
+// instance_secrets); the edge bcrypt-hashes it and jails the session to
+// root.
+type SFTPProvisionRequest struct {
+	Token    string `json:"token"`
+	Kind     string `json:"kind"`
+	Name     string `json:"name"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+	Root     string `json:"root,omitempty"`
+}
+
+// SFTPDeleteRequest is POSTed to /api/edge/sftp/delete.
+type SFTPDeleteRequest struct {
+	Token    string `json:"token"`
+	Username string `json:"username"`
+	Kind     string `json:"kind,omitempty"`
+	Name     string `json:"name,omitempty"`
+}
+
+// SFTPResponse carries the edge provision/delete outcome.
+type SFTPResponse struct {
+	OK    bool   `json:"ok"`
+	Error string `json:"error,omitempty"`
+}
+
+// sftpDo is the shared tunnel-aware POST for the two SFTP RPCs.
+func (c *Client) sftpDo(path string, reqBody any) (SFTPResponse, error) {
+	switch r := reqBody.(type) {
+	case *SFTPProvisionRequest:
+		r.Token = c.token
+	case *SFTPDeleteRequest:
+		r.Token = c.token
+	}
+	if handled, body, status, err := c.tryTunnel("POST", path, reqBody); handled {
+		if err != nil {
+			return SFTPResponse{}, err
+		}
+		var out SFTPResponse
+		if err := unmarshalTunnelResponse(body, status, &out); err != nil {
+			return SFTPResponse{}, err
+		}
+		if status >= 300 {
+			if out.Error != "" {
+				return out, fmt.Errorf("edge rejected: %s", out.Error)
+			}
+			return out, fmt.Errorf("edge returned HTTP %d", status)
+		}
+		if !out.OK {
+			if out.Error != "" {
+				return out, fmt.Errorf("%s", out.Error)
+			}
+			return out, fmt.Errorf("edge reported failure without a message")
+		}
+		return out, nil
+	}
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		return SFTPResponse{}, fmt.Errorf("encode request: %w", err)
+	}
+	endpoint := c.baseURL + path
+	httpReq, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return SFTPResponse{}, fmt.Errorf("build request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	resp, err := c.http.Do(httpReq)
+	if err != nil {
+		return SFTPResponse{}, fmt.Errorf("dial edge: %w", err)
+	}
+	defer resp.Body.Close()
+	var out SFTPResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return SFTPResponse{}, fmt.Errorf("edge returned HTTP %d", resp.StatusCode)
+	}
+	if resp.StatusCode >= 300 {
+		if out.Error != "" {
+			return out, fmt.Errorf("edge rejected: %s", out.Error)
+		}
+		return out, fmt.Errorf("edge returned HTTP %d", resp.StatusCode)
+	}
+	if !out.OK {
+		if out.Error != "" {
+			return out, fmt.Errorf("%s", out.Error)
+		}
+		return out, fmt.Errorf("edge reported failure without a message")
+	}
+	return out, nil
+}
+
+// ProvisionSFTP provisions (or re-provisions) one SFTP identity on the edge.
+func (c *Client) ProvisionSFTP(req SFTPProvisionRequest) (SFTPResponse, error) {
+	return c.sftpDo("/api/edge/sftp/provision", &req)
+}
+
+// DeleteSFTP removes one SFTP identity from the edge. Idempotent: unknown
+// usernames are OK on the edge so Destroy/Suspend retries stay safe.
+func (c *Client) DeleteSFTP(req SFTPDeleteRequest) (SFTPResponse, error) {
+	return c.sftpDo("/api/edge/sftp/delete", &req)
+}
+
 // PageAction dispatches a custom-page action RPC, honouring the WSS tunnel
 // when the node is in reverse_tunnel / local_wss mode (same as Lifecycle,
 // Inspect, etc.). This replaces the previous direct-HTTP dial that bypassed
