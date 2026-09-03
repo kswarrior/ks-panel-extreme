@@ -277,40 +277,69 @@ type updateTicketRequest struct {
 }
 
 func (u *updateTicketRequest) UnmarshalJSON(data []byte) error {
-	type alias updateTicketRequest
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
-	// subject
+	// subject: string or null (null = no change). Any other type is a 400.
 	if v, ok := raw["subject"]; ok {
-		var s string
-		if err := json.Unmarshal(v, &s); err == nil {
-			u.Subject = &s
-		} else if string(v) == "null" {
+		if string(v) == "null" {
 			u.Subject = nil
+		} else {
+			var s string
+			if err := json.Unmarshal(v, &s); err != nil {
+				return fmt.Errorf("invalid subject")
+			}
+			u.Subject = &s
 		}
 	}
 	if v, ok := raw["description"]; ok {
-		var s string
-		if err := json.Unmarshal(v, &s); err == nil {
+		if string(v) == "null" {
+			s := ""
+			u.Description = &s
+		} else {
+			var s string
+			if err := json.Unmarshal(v, &s); err != nil {
+				return fmt.Errorf("invalid description")
+			}
 			u.Description = &s
 		}
 	}
 	if v, ok := raw["category"]; ok {
-		var s string
-		_ = json.Unmarshal(v, &s)
-		u.Category = &s
+		if string(v) == "null" {
+			s := ""
+			u.Category = &s
+		} else {
+			var s string
+			if err := json.Unmarshal(v, &s); err != nil {
+				return fmt.Errorf("invalid category")
+			}
+			u.Category = &s
+		}
 	}
 	if v, ok := raw["priority"]; ok {
-		var s string
-		_ = json.Unmarshal(v, &s)
-		u.Priority = &s
+		if string(v) == "null" {
+			s := ""
+			u.Priority = &s
+		} else {
+			var s string
+			if err := json.Unmarshal(v, &s); err != nil {
+				return fmt.Errorf("invalid priority")
+			}
+			u.Priority = &s
+		}
 	}
 	if v, ok := raw["status"]; ok {
-		var s string
-		_ = json.Unmarshal(v, &s)
-		u.Status = &s
+		if string(v) == "null" {
+			s := ""
+			u.Status = &s
+		} else {
+			var s string
+			if err := json.Unmarshal(v, &s); err != nil {
+				return fmt.Errorf("invalid status")
+			}
+			u.Status = &s
+		}
 	}
 	if v, ok := raw["assigned_to"]; ok {
 		u.AssignedSet = true
@@ -318,11 +347,10 @@ func (u *updateTicketRequest) UnmarshalJSON(data []byte) error {
 			u.AssignedTo = nil
 		} else {
 			var id int64
-			if err := json.Unmarshal(v, &id); err == nil {
-				u.AssignedTo = &id
-			} else {
-				u.AssignedTo = nil
+			if err := json.Unmarshal(v, &id); err != nil {
+				return fmt.Errorf("invalid assigned_to")
 			}
+			u.AssignedTo = &id
 		}
 	}
 	if v, ok := raw["due_at"]; ok {
@@ -331,18 +359,25 @@ func (u *updateTicketRequest) UnmarshalJSON(data []byte) error {
 			u.DueAt = nil
 		} else {
 			var s string
-			if err := json.Unmarshal(v, &s); err == nil {
-				if strings.TrimSpace(s) == "" {
-					u.DueAt = nil
-				} else {
-					u.DueAt = &s
-				}
+			if err := json.Unmarshal(v, &s); err != nil {
+				return fmt.Errorf("invalid due_at")
+			}
+			if strings.TrimSpace(s) == "" {
+				u.DueAt = nil
+			} else {
+				u.DueAt = &s
 			}
 		}
 	}
 	if v, ok := raw["tags"]; ok {
-		var tags []string
-		if err := json.Unmarshal(v, &tags); err == nil {
+		if string(v) == "null" {
+			empty := []string{}
+			u.Tags = &empty
+		} else {
+			var tags []string
+			if err := json.Unmarshal(v, &tags); err != nil {
+				return fmt.Errorf("invalid tags")
+			}
 			u.Tags = &tags
 		}
 	}
@@ -795,9 +830,10 @@ func AssignTicketHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, updated)
 }
 
-// ListUsersForAssign returns ticket participants for assign dropdown (staff).
+// ListUsersForAssign returns users for the assign dropdown (staff only).
+// Non-staff callers get 403 so the endpoint cannot be used to enumerate accounts.
 func ListUsersForAssignHandler(w http.ResponseWriter, r *http.Request) {
-	_, err := UserIDFromContext(r)
+	uid, err := UserIDFromContext(r)
 	if err != nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -808,6 +844,10 @@ func ListUsersForAssignHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer con.Close()
+	if !canSeeInternal(con, uid) {
+		http.Error(w, "only staff can list assignable users", http.StatusForbidden)
+		return
+	}
 	repo := repository.NewTicketRepository(con)
 	users, err := repo.ListUsersForAssign()
 	if err != nil {

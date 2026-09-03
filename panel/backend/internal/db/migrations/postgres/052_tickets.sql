@@ -16,7 +16,10 @@
 -- Indexes mirror the filter bar on the Tickets page (status / priority /
 -- category / created_by / assigned_to) and the comment lookup.
 -- Permissions are seeded at the bottom so the admin role picks them up on
--- next launch via db.go SeedCore's INSERT OR IGNORE.
+-- next launch via db.go SeedCore. Postgres uses ON CONFLICT DO NOTHING
+-- (INSERT OR IGNORE is SQLite-only and would abort a fresh install).
+-- NOTE: this file was fixed in place because the original INSERT OR IGNORE
+-- could never have succeeded on Postgres, so no live DB carries its effect.
 
 CREATE TABLE IF NOT EXISTS tickets (
     id              SERIAL PRIMARY KEY,

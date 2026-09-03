@@ -649,22 +649,28 @@ func (r *TicketRepository) UpdateComment(commentID, ticketID int64, body string)
 	return r.GetComment(commentID)
 }
 
-// Helpers for assignment validation and search resolvers
+// AssignableUser is the assign-dropdown row. JSON keys stay lowercase to
+// match every other panel API (id/username) — the frontend still accepts
+// the legacy uppercase ID/Username shape for backward compatibility.
+type AssignableUser struct {
+	ID       int64  `json:"id"`
+	Username string `json:"username"`
+}
 
-func (r *TicketRepository) ListUsersForAssign() ([]struct{ID int64; Username string}, error) {
+func (r *TicketRepository) ListUsersForAssign() ([]AssignableUser, error) {
 	rows, err := r.db.Query(`SELECT id, username FROM users ORDER BY username ASC`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	out := []struct{ID int64; Username string}{}
+	out := []AssignableUser{}
 	for rows.Next() {
 		var id int64
 		var name string
 		if err := rows.Scan(&id, &name); err != nil {
 			return nil, err
 		}
-		out = append(out, struct{ID int64; Username string}{ID: id, Username: name})
+		out = append(out, AssignableUser{ID: id, Username: name})
 	}
 	return out, rows.Err()
 }

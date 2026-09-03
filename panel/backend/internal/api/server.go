@@ -520,17 +520,19 @@ func NewRouter() http.Handler {
 			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionView)).Get("/{id}/{version}/assets/*", handlers.ServeInstancePageModuleAssetHandler)
 		})
 
-		// Tickets: support system. Every authenticated user can list their own
-		// tickets; staff (MANAGE_TICKETS / TICKETS_VIEW) sees all. Granular
+		// Tickets: support system. Every ticket holder can list their own
+		// tickets; staff (MANAGE_TICKETS / TICKETS_ALL) sees all. Granular
 		// TICKETS_* verbs narrow each mutation: CREATE for opening,
 		// EDIT for status/priority/assignment/reply, DELETE for removal.
 		// The handler itself enforces owner-vs-staff visibility for GET
 		// so a single GET /api/tickets endpoint covers both "my tickets"
 		// and "all tickets" without a second /me/tickets route.
+		// /users (assign dropdown) is staff-only (EDIT) so it cannot be
+		// used to enumerate accounts.
 		r.Route("/api/tickets", func(r chi.Router) {
 			r.With(requireUmbrellaOrAction(ticketsG, permissions.ActionView)).Get("/", handlers.ListTicketsHandler)
 			r.With(requireUmbrellaOrAction(ticketsG, permissions.ActionView)).Get("/stats", handlers.TicketStatsHandler)
-			r.With(requireUmbrellaOrAction(ticketsG, permissions.ActionView)).Get("/users", handlers.ListUsersForAssignHandler)
+			r.With(requireUmbrellaOrAction(ticketsG, permissions.ActionEdit)).Get("/users", handlers.ListUsersForAssignHandler)
 			r.With(requireUmbrellaOrAction(ticketsG, permissions.ActionCreate)).Post("/", handlers.CreateTicketHandler)
 			r.With(requireUmbrellaOrAction(ticketsG, permissions.ActionView)).Get("/{id}", handlers.GetTicketHandler)
 			// Update/Delete/Assign/Comment allow any ticket holder; handler enforces owner-vs-staff.
