@@ -345,6 +345,9 @@ func (r *ModRepository) ListMods() ([]models.Mod, error) {
 			v := uploadedBy.Int64
 			m.UploadedBy = &v
 		}
+		if ownerID.Valid {
+			m.OwnerID = ownerID.Int64
+		}
 		m.CreatedAt, _ = parseSQLiteTime(created)
 		m.UpdatedAt, _ = parseSQLiteTime(updated)
 		m.OwnerName = owner.String

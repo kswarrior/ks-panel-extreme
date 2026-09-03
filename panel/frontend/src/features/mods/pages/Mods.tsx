@@ -3,7 +3,6 @@ import { useNavigate, Link } from 'react-router-dom';
 import GlassCard from '@/shared/components/ui/Card';
 import GlassModal from '@/shared/components/ui/Modal';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
-import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import {
   listMods,
@@ -15,7 +14,6 @@ import {
   deactivateMod,
   setModGrants,
   installModFromUrl,
-  createModFromStudio,
   extractApiErrorMessage,
   getEngineStatus,
   setEngineEnabled,
@@ -322,7 +320,9 @@ const Mods: React.FC = () => {
   };
 
   // Save grants then attempt activation. activateMod resolves void on success
-  // or the 409 refusal body while still-pending; drive the modal off that.
+  // or the 409 refusal body while still-pending (or engine-disabled); drive
+  // the modal off that. An engine-disabled refusal carries error/message but
+  // no pending count, so it must surface as an error, not a silent success.
   const saveAndActivate = async () => {
     const ok = await saveGrants();
     if (!ok || !grantMod) return;
@@ -342,6 +342,9 @@ const Mods: React.FC = () => {
           setGrants(init);
         }
         setGrantError(refusal.message || 'This mod still needs all requested permissions approved before it can be activated.');
+      } else if (result && (result as ModActivateConflict).error) {
+        const refusal = result as ModActivateConflict;
+        setGrantError(refusal.message || refusal.error || 'Activation refused by the server.');
       } else {
         setGrantMod(null);
         await load();
@@ -368,6 +371,10 @@ const Mods: React.FC = () => {
         const result: ModActivateConflict | void = await activateMod(m.id);
         await load();
         if (result && (result as ModActivateConflict).pending) openGrant(m);
+        else if (result && (result as ModActivateConflict).error) {
+          const refusal = result as ModActivateConflict;
+          alert(refusal.message || refusal.error || 'Activation refused by the server.');
+        }
       } catch {
         openGrant(m);
       }

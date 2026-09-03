@@ -3,7 +3,6 @@ import type {
   Mod,
   ModUpsertPayload,
   ModActivateConflict,
-  PermissionRequest,
   SlotRegistryResponse,
   ModEngineDiagnostics,
   ModEngineToggleResponse,
