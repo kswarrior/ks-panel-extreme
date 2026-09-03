@@ -29,7 +29,19 @@ func NewSFTPRepository(db *sql.DB) *SFTPRepository {
 }
 
 // Get returns the SFTP row for an instance, or (nil, nil) when none exists.
+//
+// The COUNT(*) pre-pass mirrors SecretRepository.ListByInstance: modernc.org
+// sqlite occasionally surfaces a phantom all-NULL row for genuinely empty
+// result sets, and scanning straight into int64 then crashes with
+// "converting NULL to int64".
 func (r *SFTPRepository) Get(instanceID int64) (*SFTPConfig, error) {
+	var n int
+	if err := r.db.QueryRow(`SELECT COUNT(*) FROM instance_sftp WHERE instance_id = ?`, instanceID).Scan(&n); err != nil {
+		return nil, err
+	}
+	if n == 0 {
+		return nil, nil
+	}
 	var c SFTPConfig
 	var updated sql.NullString
 	err := r.db.QueryRow(
