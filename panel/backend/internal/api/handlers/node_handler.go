@@ -217,9 +217,10 @@ func isLocalMode(m string) bool {
 }
 
 // nodeIconKeys is the fixed set of symbolic icon keys the NodeForm's icon
-// picker can produce. The API validates against exactly this whitelist so
-// nothing arbitrary ever lands in the icon column (fail closed). Must stay
-// in sync with NODE_ICONS in
+// picker can produce. The API validates preset icons against exactly this
+// whitelist, and additionally accepts a capped custom `<svg>…</svg>` block
+// (see validCustomIconSvg), so nothing else arbitrary ever lands in the
+// icon column (fail closed). Must stay in sync with NODE_ICONS in
 // panel/frontend/src/features/nodes/utils/nodeIcons.ts.
 var nodeIconKeys = map[string]bool{
 	"server":   true,
@@ -234,6 +235,32 @@ var nodeIconKeys = map[string]bool{
 	"home":     true,
 	"network":  true,
 	"terminal": true,
+}
+
+// maxCustomIconLen caps a pasted custom `<svg>…</svg>` icon block so the
+// icon column can never grow into a blob store.
+const maxCustomIconLen = 5000
+
+// validCustomIconSvg reports whether s is an acceptable pasted custom icon:
+// a full `<svg>…</svg>` block within the length cap and free of `<script`
+// payloads (the frontend additionally strips event-handler attributes at
+// render time).
+func validCustomIconSvg(s string) bool {
+	t := strings.TrimSpace(s)
+	if len(t) == 0 || len(t) > maxCustomIconLen {
+		return false
+	}
+	lower := strings.ToLower(t)
+	if !strings.HasPrefix(lower, "<svg") {
+		return false
+	}
+	if !strings.Contains(lower, "</svg>") {
+		return false
+	}
+	if strings.Contains(lower, "<script") {
+		return false
+	}
+	return true
 }
 
 // validNodeColorHex reports whether s is a #rrggbb hex colour.
@@ -251,8 +278,9 @@ func validNodeColorHex(s string) bool {
 }
 
 // validateNodeDisplay enforces the fail-closed rules for the operator-set
-// display metadata: bounded free-text lengths and a whitelisted icon key /
-// #rrggbb colour. Returns a user-facing error string or "" when acceptable.
+// display metadata: bounded free-text lengths, a whitelisted preset icon
+// key or a capped custom `<svg>…</svg>` block, and a #rrggbb colour.
+// Returns a user-facing error string or "" when acceptable.
 func validateNodeDisplay(name, label, category, notes, icon, color string) string {
 	if len(name) > 100 {
 		return "name must be 100 characters or fewer"
@@ -266,7 +294,7 @@ func validateNodeDisplay(name, label, category, notes, icon, color string) strin
 	if len(notes) > 2000 {
 		return "notes must be 2000 characters or fewer"
 	}
-	if icon != "" && !nodeIconKeys[icon] {
+	if icon != "" && !nodeIconKeys[icon] && !validCustomIconSvg(icon) {
 		return "unknown icon"
 	}
 	if color != "" && !validNodeColorHex(color) {

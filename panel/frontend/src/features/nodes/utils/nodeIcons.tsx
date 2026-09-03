@@ -1,9 +1,10 @@
-// nodeIcons — the fixed icon + accent-colour registry the NodeForm's
-// General tab manages and the node cards render. Keys must stay in sync
-// with `nodeIconKeys` in
+// nodeIcons — the icon + accent-colour registry the NodeForm's General tab
+// manages and the node cards render. Preset keys must stay in sync with
+// `nodeIconKeys` in
 // panel/backend/internal/api/handlers/node_handler.go: the API validates
-// the incoming icon against exactly this whitelist (fail closed), so an
-// unknown key can never reach the DB.
+// incoming preset icons against exactly that whitelist (fail closed), and
+// additionally accepts a pasted full `<svg>…</svg>` block (length-capped,
+// script-stripped) for the "Custom" dropdown choice.
 import React from 'react';
 
 export interface NodeIconDef {
@@ -107,6 +108,22 @@ export function nodeIconByKey(key: string): NodeIconDef | undefined {
   return NODE_ICONS.find((i) => i.key === key);
 }
 
+/** isCustomNodeIconSvg reports whether s is a pasted full `<svg>…</svg>`
+ * markup block (the "Custom" dropdown choice) rather than a registry key. */
+export function isCustomNodeIconSvg(s: string): boolean {
+  return s.trim().toLowerCase().startsWith('<svg');
+}
+
+/** sanitizeCustomIconSvg strips the active content a pasted SVG could carry
+ * (scripts, event-handler attributes, javascript: URLs) so a custom icon
+ * can never execute code where it is rendered. */
+export function sanitizeCustomIconSvg(svg: string): string {
+  return svg
+    .replace(/<script[\s\S]*?<\/script\s*>/gi, '')
+    .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    .replace(/(href|src|xlink:href)\s*=\s*("javascript:[^"]*"|'javascript:[^']*')/gi, '$1="#"');
+}
+
 /** Curated accent palette offered as one-click swatches in the form. */
 export const NODE_COLORS: string[] = [
   '#34d399',
@@ -121,12 +138,22 @@ export const NODE_COLORS: string[] = [
   '#2dd4bf',
 ];
 
-/** NodeIcon renders a registered icon; returns null for unknown/empty keys
- * so callers can fall back to the default heartbeat glyph. */
+/** NodeIcon renders a registered icon by key, or a pasted custom `<svg>`
+ * block (sanitized); returns null for unknown/empty keys so callers can
+ * fall back to the default heartbeat glyph. */
 export const NodeIcon: React.FC<{ icon: string; className?: string }> = ({
   icon,
   className,
 }) => {
+  if (isCustomNodeIconSvg(icon)) {
+    return (
+      <span
+        className={`inline-flex items-center justify-center [&>svg]:h-full [&>svg]:w-full ${className ?? ''}`}
+        aria-hidden="true"
+        dangerouslySetInnerHTML={{ __html: sanitizeCustomIconSvg(icon) }}
+      />
+    );
+  }
   const def = nodeIconByKey(icon);
   if (!def) return null;
   return (

@@ -11,7 +11,25 @@ import type { ConnectionMode, Form, NodeFormTabId } from '../types/nodeForm';
 import { emptyForm, KSEDGE_URL, ALL_KINDS, CONNECTION_MODES, isLocalMode, isTunnelMode } from '../types/nodeForm';
 import { NodeTabs } from '../components/NodeTabs';
 import { buildEdgeConfig, buildBootstrapCmd } from '../utils/nodeFormUtils';
-import { NODE_ICONS, NODE_COLORS, NodeIcon } from '../utils/nodeIcons';
+import { NODE_ICONS, NODE_COLORS, NodeIcon, isCustomNodeIconSvg } from '../utils/nodeIcons';
+
+// Display names for the preset colour dropdown (keys match NODE_COLORS).
+const NODE_COLOR_NAMES: Record<string, string> = {
+  '#34d399': 'Emerald',
+  '#38bdf8': 'Sky',
+  '#60a5fa': 'Blue',
+  '#a78bfa': 'Violet',
+  '#f472b6': 'Pink',
+  '#f87171': 'Red',
+  '#fbbf24': 'Amber',
+  '#fb923c': 'Orange',
+  '#a3e635': 'Lime',
+  '#2dd4bf': 'Teal',
+};
+
+const HEX_RE = /^#[0-9a-fA-F]{6}$/;
+const selectCls =
+  'w-full bg-black/30 border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-600';
 
 // isValidPortStr reports whether p is a decimal port number in 1..65535.
 const isValidPortStr = (p: string): boolean => {
