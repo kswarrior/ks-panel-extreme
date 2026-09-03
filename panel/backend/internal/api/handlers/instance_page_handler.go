@@ -396,7 +396,7 @@ func validateConfigureJSON(raw string) error {
 		}
 		seen[c.Name] = true
 		if c.Display != "" && !validConfigureDisplay[c.Display] {
-			return newErrString("configure variable display must be one of: text, number, select, checkbox")
+			return newErrString("configure variable display must be one of: text, number, select, checkbox, toggle")
 		}
 		if len(c.Label) > 200 {
 			return newErrString("configure variable label too long (max 200)")
