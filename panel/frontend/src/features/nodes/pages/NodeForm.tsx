@@ -566,29 +566,31 @@ const NodeForm: React.FC = () => {
             </select>
           </GlassField>
 
-          <GlassField label="Name" htmlFor="name">
-            <input
-              id="name"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              placeholder={isLocalMode(form.connection_mode) ? 'local-edge' : form.connection_mode === 'reverse_tunnel' ? 'tunnel-edge' : 'us-east-edge'}
-              required
-            />
-          </GlassField>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <GlassField label="Name" htmlFor="name">
+              <input
+                id="name"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder={isLocalMode(form.connection_mode) ? 'local-edge' : form.connection_mode === 'reverse_tunnel' ? 'tunnel-edge' : 'us-east-edge'}
+                required
+              />
+            </GlassField>
 
-          <GlassField
-            label="Node label"
-            htmlFor="node_label"
-            hint='Optional display label ("node-1", "rack-a3", …). Two nodes may share a name, and two may share a label — but no two nodes may share both.'
-          >
-            <input
-              id="node_label"
-              value={form.location_node}
-              onChange={(e) => setForm({ ...form, location_node: e.target.value })}
-              placeholder="e.g. rack-a3"
-              autoComplete="off"
-            />
-          </GlassField>
+            <GlassField
+              label="Node label"
+              htmlFor="node_label"
+              hint='Optional display label ("node-1", "rack-a3", …). Two nodes may share a name, and two may share a label — but no two nodes may share both.'
+            >
+              <input
+                id="node_label"
+                value={form.location_node}
+                onChange={(e) => setForm({ ...form, location_node: e.target.value })}
+                placeholder="e.g. rack-a3"
+                autoComplete="off"
+              />
+            </GlassField>
+          </div>
 
           {form.connection_mode === 'direct' && (
             <>
