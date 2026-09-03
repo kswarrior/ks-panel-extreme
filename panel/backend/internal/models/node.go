@@ -69,9 +69,10 @@ type Node struct {
 	// share a name, and two may share a label, but not both.
 	LocationNode string `json:"location_node"`
 	// Icon is a symbolic display key for the node card chip ("server",
-	// "cloud", "shield", …). The panel validates it against its fixed icon
-	// set; anything else is rejected at the API boundary. Empty = default
-	// heartbeat glyph.
+	// "cloud", "shield", …) or a pasted custom `<svg>…</svg>` block. The
+	// panel validates presets against its fixed icon set and caps custom
+	// blocks; anything else is rejected at the API boundary. Empty =
+	// default heartbeat glyph.
 	Icon string `json:"icon"`
 	// Color is the accent hex colour ("#34d399") tinting the icon chip on
 	// cards. Constrained to #rrggbb by the API handler. Empty = theme

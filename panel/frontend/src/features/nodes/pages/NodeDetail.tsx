@@ -4,7 +4,7 @@ import { listNodes, nodeHeartbeats, probeNode, listInstances, rotateNodeToken, d
 import type { Node, NodeHeartbeat } from '@/features/nodes/types/node';
 import GlassCard from '@/shared/components/ui/Card';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
-import { NodeIcon } from '../utils/nodeIcons';
+import { NodeIcon, nodeIconByKey, isCustomNodeIconSvg } from '../utils/nodeIcons';
 import { HeartbeatIcon, DriverRing, ResourceBar } from '../components/NodesComponents';
 import { formatBytesPair, formatPercent } from '../utils/nodesUtils';
 import { countryByCode } from '@/shared/components/forms/LocationField/countries';
@@ -450,7 +450,7 @@ const NodeDetail: React.FC = () => {
             <div className="flex justify-between"><span className="text-gray-400">Category</span><span className="text-white">{node.category || <span className="text-gray-500">—</span>}</span></div>
             <div className="flex justify-between"><span className="text-gray-400">Country</span><span className="text-white">{country ? `${country.flag} ${country.name} (${node.location_country})` : (node.location_country || '—')}</span></div>
             <div className="flex justify-between"><span className="text-gray-400">Site label</span><span className="text-white font-mono text-xs">{node.location_node || '—'}</span></div>
-            <div className="flex justify-between"><span className="text-gray-400">Icon</span><span className="text-white flex items-center gap-1">{node.icon ? <><NodeIcon icon={node.icon} className="w-3.5 h-3.5" />{node.icon}</> : '—'} {node.color ? <span className="w-3 h-3 rounded-full border border-white/20" style={{ background: node.color }} /> : null}</span></div>
+            <div className="flex justify-between"><span className="text-gray-400">Icon</span><span className="text-white flex items-center gap-1">{node.icon ? <><NodeIcon icon={node.icon} className="w-3.5 h-3.5" />{nodeIconByKey(node.icon) ? node.icon : isCustomNodeIconSvg(node.icon) ? 'Custom SVG' : node.icon}</> : '—'} {node.color ? <span className="w-3 h-3 rounded-full border border-white/20" style={{ background: node.color }} /> : null}</span></div>
             <div className="flex justify-between"><span className="text-gray-400">Allowed kinds</span><span className="text-white font-mono text-xs">{node.allowed_kinds || 'any'}</span></div>
             <div className="flex justify-between"><span className="text-gray-400">RAM alloc</span><span className="text-white font-mono text-xs">{node.alloc_mem_mib ? `${node.alloc_mem_mib} MiB · ${node.mem_overcommit_pct}%` : 'inherit'}</span></div>
             <div className="flex justify-between"><span className="text-gray-400">Disk alloc</span><span className="text-white font-mono text-xs">{node.alloc_disk_mib ? `${node.alloc_disk_mib} MiB · ${node.disk_overcommit_pct}%` : 'inherit'}</span></div>
