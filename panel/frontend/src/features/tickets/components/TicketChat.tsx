@@ -430,7 +430,9 @@ const TicketChat: React.FC<TicketChatProps> = ({
                 </div>
                 {group.items.map((c) => {
                   const isOwn = currentUserId != null && c.author_id === currentUserId;
-                  const canDelete = currentUserId === c.author_id || !!isStaff;
+                  // Mirrors backend DeleteTicketCommentHandler: author or staff,
+                  // and on closed tickets only staff may delete.
+                  const canDelete = (currentUserId === c.author_id || !!isStaff) && (!isClosed || !!isStaff);
 
                   // Bubble styling: own vs other – own uses btn bg for contrast, others use card tint
                   const bubbleStyle: React.CSSProperties = isOwn
@@ -633,8 +635,9 @@ const TicketChat: React.FC<TicketChatProps> = ({
               />
               <span className="hidden sm:inline absolute right-2 bottom-2 text-[10px] pointer-events-none" style={{ color: 'var(--ks-text-body)', opacity: 0.7 }}>{replyBody.length}/10000</span>
             </div>
-            {/* Controls — internal note left, send button right (aligned, button below input) */}
+            {/* Controls — internal note left (staff only), send button right */}
             <div className="flex items-center justify-between gap-2">
+              {isStaff ? (
               <label className="flex items-center gap-2 text-xs cursor-pointer select-none group">
                 <input type="checkbox" checked={isInternal} onChange={(e) => setIsInternal(e.target.checked)} className="rounded border-white/20 bg-black/30 text-amber-500 focus:ring-amber-500/30 w-3.5 h-3.5" />
                 <span
@@ -648,6 +651,9 @@ const TicketChat: React.FC<TicketChatProps> = ({
                   Internal note (staff only)
                 </span>
               </label>
+              ) : (
+                <span className="text-[11px]" style={{ color: 'var(--ks-text-body)', opacity: 0.7 }}>Enter to send • Shift+Enter for new line</span>
+              )}
               <button
                 onClick={handleSend}
                 disabled={sending || !replyBody.trim()}

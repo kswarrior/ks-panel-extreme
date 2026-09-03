@@ -159,7 +159,7 @@ const TicketDetail: React.FC = () => {
             <span className="hidden sm:inline-flex items-center gap-1.5 ml-1"><TicketStatusBadge status={ticket.status} /><TicketPriorityBadge priority={ticket.priority} /></span>
             <span className="hidden lg:inline-flex items-center gap-1.5 ml-1">
               <span className={`w-2 h-2 rounded-full ${isClosed ? 'bg-gray-500' : 'bg-emerald-400 animate-pulse'}`} />
-              {commentCount || ticket.comment_count} messages
+              {commentCount} messages
             </span>
           </p>
         </div>
@@ -272,7 +272,7 @@ const TicketDetail: React.FC = () => {
               <div className="rounded-xl p-3 border" style={{ background: 'color-mix(in srgb, var(--ks-card-bg) 60%, transparent)', borderColor: 'var(--ks-card-border)' }}>
                 <div className="uppercase tracking-wide text-[10px]" style={{ color: 'var(--ks-text-body)' }}>Last update</div>
                 <div className="mt-1 font-medium" style={{ color: 'var(--ks-text-heading)' }}>{formatTicketDateTime(ticket.updated_at)}</div>
-                <div className="text-[11px]" style={{ color: 'var(--ks-text-body)' }}>{ticket.comment_count} messages</div>
+                <div className="text-[11px]" style={{ color: 'var(--ks-text-body)' }}>{commentCount} messages</div>
               </div>
               <div className="rounded-xl p-3 border" style={{ background: 'color-mix(in srgb, var(--ks-card-bg) 60%, transparent)', borderColor: 'var(--ks-card-border)' }}>
                 <div className="uppercase tracking-wide text-[10px]" style={{ color: 'var(--ks-text-body)' }}>Ticket</div>
@@ -399,7 +399,7 @@ const TicketDetail: React.FC = () => {
                     <span style={{ color: 'var(--ks-text-body)' }}>— Unassigned</span>
                   )}
                 </dd></div>
-                <div className="flex justify-between gap-2"><dt style={{ color: 'var(--ks-text-body)' }}>Messages</dt><dd style={{ color: 'var(--ks-text-heading)' }}>{commentCount} • {ticket.comment_count} total</dd></div>
+                <div className="flex justify-between gap-2"><dt style={{ color: 'var(--ks-text-body)' }}>Messages</dt><dd style={{ color: 'var(--ks-text-heading)' }}>{isStaff ? `${commentCount} messages` : `${commentCount} visible`}</dd></div>
               </div>
               {tags.length > 0 && (
                 <div className="pt-2 border-t" style={{ borderColor: 'color-mix(in srgb, var(--ks-card-border) 60%, transparent)' }}>

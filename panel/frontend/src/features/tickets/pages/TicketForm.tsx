@@ -76,6 +76,8 @@ const TicketForm: React.FC = () => {
     if (s.length > 200) { setError('Subject too long'); return; }
     const tags = tagsStr.split(',').map((t) => t.trim()).filter(Boolean);
     if (tags.length > 20) { setError('Too many tags (max 20)'); return; }
+    if (tags.some((t) => t.length > 30)) { setError('Tag too long (max 30 characters each)'); return; }
+    if (description.length > 10000) { setError('Description too long (max 10000)'); return; }
     let dueAtISO: string | null = null;
     if (dueAt) {
       const d = new Date(dueAt);
