@@ -898,7 +898,7 @@ const NodeForm: React.FC = () => {
                   <path d="M5 13l4 4L19 7" />
                  </svg>
                 <p className="text-sm text-emerald-200">
-                  Node registered. Run the bootstrap command below once — it writes into <code>{form.install_dir.trim() || './localnode/ksedge'}</code>, downloads ksedge from HuggingFace, writes the config and starts the edge.
+                  Node registered. Run the bootstrap command below once — it writes into <code>{form.install_dir.trim() || './localnode/ksedge'}</code>, downloads ksedge from GitHub (ks-panel-edge), writes the config and starts the edge.
                 </p>
               </div>
               <div className="flex items-center justify-between gap-2 mb-3">
