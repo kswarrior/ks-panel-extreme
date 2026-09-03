@@ -7,9 +7,11 @@ import {
   importInstancePageFromURL,
   getMarketplacePages,
   importInstancePageFromMarketplace,
+  resyncMarketplacePages,
 } from '@/shared/api/admin';
 import type { MarketplaceCatalog, MarketplacePage } from '@/shared/api/admin';
 import type { InstancePage } from '@/shared/types/instancePage';
+import { pageSourceOf } from '@/features/instance-pages/types/instancePage';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import GlassCard from '@/shared/components/ui/Card';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
@@ -28,6 +30,15 @@ const KIND_META: Record<string, { label: string; badge: string; dot: string; ico
 function kindKey(k: string): string {
   return k in KIND_META ? k : 'unknown';
 }
+
+// SOURCE_META drives the top-right provenance badge: market (fresh import),
+// edited (market import later modified), studio (own pages). This replaces
+// the old kind badge ("Custom") which could not tell market pages apart.
+const SOURCE_META: Record<string, { label: string; badge: string; dot: string }> = {
+  market: { label: 'Market', badge: 'bg-sky-900/60 text-sky-200 border-sky-700/60', dot: 'bg-sky-400' },
+  edited: { label: 'Edited', badge: 'bg-amber-900/60 text-amber-200 border-amber-700/60', dot: 'bg-amber-400' },
+  studio: { label: 'Studio', badge: 'bg-emerald-900/60 text-emerald-200 border-emerald-700/60', dot: 'bg-emerald-400' },
+};
 
 // getErrorMessage normalises API failures for display: some panel endpoints
 // answer with JSON bodies ({error|message}) instead of plain text, which would
@@ -92,6 +103,9 @@ const InstancePages: React.FC = () => {
   const [marketError, setMarketError] = useState('');
   const [marketSearch, setMarketSearch] = useState('');
   const [selectedMarketIds, setSelectedMarketIds] = useState<Set<string>>(new Set());
+  const [resyncBusy, setResyncBusy] = useState(false);
+  const [resyncMsg, setResyncMsg] = useState('');
+  const [resyncErr, setResyncErr] = useState('');
 
 
   const handleImport = async () => {
