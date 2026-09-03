@@ -23,6 +23,7 @@ import CustomPageView from '@/shared/components/ui/CustomPageView';
 import Terminal, { type TerminalHandle } from '@/shared/components/ui/Terminal';
 import type { Terminal as XTerm } from '@xterm/xterm';
 import InstancePortsEditor from '@/features/instances/pages/InstancePortsEditor';
+import InstanceSftpCard from '@/features/instances/components/InstanceSftpCard';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { PermissionKey } from '@/shared/types/permissions';
 import { hasPermissionAny } from '@/shared/types/permissions';
@@ -236,6 +237,16 @@ export const InstanceDynamicPage: React.FC = () => {
     return <InstancePortsEditor />;
   }
 
+  // SFTP card is a built-in page like Ports (not a custom spec.pages entry).
+  // The masked dial params are safe for any instance viewer; the card itself
+  // gates Enable/Rotate/Disable behind INSTANCES_EDIT|MANAGE_INSTANCES.
+  // Rendered before the whitelist check so /instances/:id/sftp works even
+  // when the spec has no "sftp" row (mirrors the Ports pattern; the
+  // sftp.json library page calls the same GET via fetchPanel('/sftp')).
+  if (effectiveSlug === 'sftp') {
+    return <InstanceSftpCard instanceId={instanceId} />;
+  }
+
   if (!isPageAllowed(effectiveSlug, spec)) {
     // The index route on a page-less instance gets the guidance empty state;
     // every other unknown slug gets the classic not-in-template card.
@@ -298,6 +309,18 @@ export const InstanceDynamicPage: React.FC = () => {
     icon: instance.icon ?? '',
     color: instance.color ?? '',
   };
+  // Files area: surface the SFTP card above the file manager so operators
+  // discover native SFTP next to the browser files. The card gates its own
+  // Enable/Rotate/Disable buttons on INSTANCES_EDIT|MANAGE_INSTANCES; the
+  // masked dial params stay visible to any instance viewer.
+  if (effectiveSlug === 'files') {
+    return (
+      <div className="space-y-4">
+        <InstanceSftpCard instanceId={instanceId} />
+        <CustomPageView content={content} title={label} instanceContext={instanceContext} pageSlug={effectiveSlug} />
+      </div>
+    );
+  }
   return <CustomPageView content={content} title={label} instanceContext={instanceContext} pageSlug={effectiveSlug} />;
 };
 

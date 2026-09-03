@@ -781,27 +781,17 @@ const NodeForm: React.FC = () => {
               <p className="text-sm text-gray-200 font-medium">Allowed instance kinds</p>
               <p className="text-xs text-gray-500">When chosen, the panel refuses to deploy any template kind not on this list to the edge. Leave all unchecked for no restriction.</p>
             </div>
-            <div className="flex flex-wrap gap-2 pt-1">
-              {ALL_KINDS.map((k) => {
-                const on = allowedKindsSet.has(k.key);
-                return (
-                  <button
-                    type="button"
-                    key={k.key}
-                    onClick={() => toggleKind(k.key)}
-                    className={`ks-dropdown-trigger inline-flex items-center gap-2 rounded-lg text-sm ${on ? 'is-open' : ''}`}
-                  >
-                    <span
-                      className="w-2.5 h-2.5 rounded-full"
-                      style={{ backgroundColor: on ? k.color : '#4b5563' }}
-                    />
-                    {k.label}
-                    {on && (
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M5 13l4 4L19 7" /> </svg>
-                    )}
-                  </button>
-                );
-              })}
+            <div className="space-y-3 pt-1">
+              {ALL_KINDS.map((k) => (
+                <ToggleRow
+                  key={k.key}
+                  id={`kind-${k.key}`}
+                  label={k.label}
+                  description={`Allow ${k.label} instances on this edge`}
+                  checked={allowedKindsSet.has(k.key)}
+                  onChange={() => toggleKind(k.key)}
+                />
+              ))}
             </div>
           </div>
 
