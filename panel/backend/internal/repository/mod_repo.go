@@ -66,17 +66,18 @@ func (r *ModRepository) SetModsEnabled(enabled bool) error {
 	return err
 }
 
-const modColumns = "id, name, slug, version, description, manifest, spec, active, uploaded_by, engine_version, source, source_url, package_size, created_at, updated_at"
+const modColumns = "id, name, slug, version, description, manifest, spec, active, uploaded_by, COALESCE(owner_id, 0), engine_version, source, source_url, package_size, created_at, updated_at"
 
 func scanMod(scanner interface{ Scan(...any) error }) (*models.Mod, error) {
 	var m models.Mod
 	var manifest, spec string
 	var uploadedBy sql.NullInt64
+	var ownerID sql.NullInt64
 	var active, engineVersion int
 	var created, updated string
 	var source, sourceURL string
 	var packageSize int64
-	if err := scanner.Scan(&m.ID, &m.Name, &m.Slug, &m.Version, &m.Description, &manifest, &spec, &active, &uploadedBy, &engineVersion, &source, &sourceURL, &packageSize, &created, &updated); err != nil {
+	if err := scanner.Scan(&m.ID, &m.Name, &m.Slug, &m.Version, &m.Description, &manifest, &spec, &active, &uploadedBy, &ownerID, &engineVersion, &source, &sourceURL, &packageSize, &created, &updated); err != nil {
 		return nil, err
 	}
 	m.Manifest = json.RawMessage(manifest)
@@ -97,6 +98,9 @@ func scanMod(scanner interface{ Scan(...any) error }) (*models.Mod, error) {
 	if uploadedBy.Valid {
 		v := uploadedBy.Int64
 		m.UploadedBy = &v
+	}
+	if ownerID.Valid {
+		m.OwnerID = ownerID.Int64
 	}
 	m.CreatedAt, _ = parseSQLiteTime(created)
 	m.UpdatedAt, _ = parseSQLiteTime(updated)
@@ -301,7 +305,7 @@ func (r *ModRepository) ListMods() ([]models.Mod, error) {
 		return out, nil
 	}
 	rows, err := r.db.Query(`
-		SELECT m.id, m.name, m.slug, m.version, m.description, m.manifest, m.spec, m.active, m.uploaded_by, m.engine_version, m.source, m.source_url, m.package_size, m.created_at, m.updated_at, u.username
+		SELECT m.id, m.name, m.slug, m.version, m.description, m.manifest, m.spec, m.active, m.uploaded_by, COALESCE(m.owner_id, 0), m.engine_version, m.source, m.source_url, m.package_size, m.created_at, m.updated_at, u.username
 		FROM mods m
 		LEFT JOIN users u ON u.id = m.uploaded_by
 		ORDER BY m.updated_at DESC`)
@@ -313,12 +317,13 @@ func (r *ModRepository) ListMods() ([]models.Mod, error) {
 		var m models.Mod
 		var manifest, spec string
 		var uploadedBy sql.NullInt64
+		var ownerID sql.NullInt64
 		var active, engineVersion int
 		var created, updated string
 		var source, sourceURL string
 		var packageSize int64
 		var owner sql.NullString
-		if err := rows.Scan(&m.ID, &m.Name, &m.Slug, &m.Version, &m.Description, &manifest, &spec, &active, &uploadedBy, &engineVersion, &source, &sourceURL, &packageSize, &created, &updated, &owner); err != nil {
+		if err := rows.Scan(&m.ID, &m.Name, &m.Slug, &m.Version, &m.Description, &manifest, &spec, &active, &uploadedBy, &ownerID, &engineVersion, &source, &sourceURL, &packageSize, &created, &updated, &owner); err != nil {
 			return nil, err
 		}
 		m.Manifest = json.RawMessage(manifest)

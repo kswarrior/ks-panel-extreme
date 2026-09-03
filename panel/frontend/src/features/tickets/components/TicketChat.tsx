@@ -182,15 +182,18 @@ const TicketChat: React.FC<TicketChatProps> = ({
   const handleSend = async () => {
     const body = replyBody.trim();
     if (!body || sending || isClosed) return;
+    if (body.length > 10000) { alert('Message too long (max 10000)'); return; }
     setSending(true);
     try {
-      await onSend(body, isInternal);
+      await onSend(body, isStaff ? isInternal : false);
       setReplyBody('');
       setIsInternal(false);
       // optimistic scroll
       setTimeout(() => scrollToBottom(true), 80);
       // refocus
       textareaRef.current?.focus();
+    } catch (e: any) {
+      alert(e?.response?.data || e?.message || 'Failed to send message');
     } finally {
       setSending(false);
     }
