@@ -495,6 +495,9 @@ func validateInstancePage(req instancePageDTO) (instancePageDTO, error) {
 	if err := validateComponentsJSON(req.Components); err != nil {
 		return req, err
 	}
+	if err := validateConfigureJSON(req.Configure); err != nil {
+		return req, err
+	}
 	return req, nil
 }
 
@@ -599,6 +602,7 @@ func CreateInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		Actions:         req.Actions,
 		SubPages:        req.SubPages,
 		Components:      req.Components,
+		Configure:       req.Configure,
 		OwnerID:           ownerID,
 		Source:            pageSourceStudio,
 	})
@@ -690,6 +694,7 @@ func UpdateInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		Actions:         req.Actions,
 		SubPages:        req.SubPages,
 		Components:      req.Components,
+		Configure:       req.Configure,
 		Source:          nextSource,
 		MarketID:        prevMarketID,
 		MarketVersion:   prevMarketVersion,
