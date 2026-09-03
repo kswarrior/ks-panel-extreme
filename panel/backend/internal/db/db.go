@@ -514,6 +514,21 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				log.Printf("migration %s backfill failed: %v", name, err)
 			}
 			continue
+		case name == "056_instance_page_source.sql":
+			// Instance-page provenance (market / edited / studio) plus the
+			// marketplace id + version the row was imported from, so the
+			// library can badge market vs edited vs own pages and the
+			// "resync from market links" flow knows what to refresh.
+			// Guarded so re-launches stay idempotent on all dialects —
+			// mirrors 049_instance_page_components.sql.
+			if err := guardedAddColumns(d, db, name, "instance_pages", []columnSpec{
+				{"source", "TEXT NOT NULL DEFAULT 'studio'"},
+				{"market_id", "TEXT NOT NULL DEFAULT ''"},
+				{"market_version", "TEXT NOT NULL DEFAULT ''"},
+			}); err != nil {
+				return err
+			}
+			continue
 		case name == "055_instance_ports.sql":
 			// Per-instance port allocations (host->container). The CREATE TABLE
 			// is IF NOT EXISTS on every dialect, but the index line is

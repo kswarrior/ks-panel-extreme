@@ -64,6 +64,16 @@ type InstancePage struct {
 	// substitute the tokens when rendering. Empty string == no components.
 	Components string `json:"components"`
 	IconSVG    string `json:"icon_svg"`
+	// Source tracks page provenance for the library badges: "studio" (own
+	// pages incl. Studio/file/URL creates), "market" (fresh marketplace
+	// import, unmodified), "edited" (market import later modified).
+	// "" from old rows is treated as "studio".
+	Source string `json:"source"`
+	// MarketID is the marketplace catalog id the row was imported from
+	// ("" == not a market page). MarketVersion is the catalog version at
+	// import time ("" == unknown).
+	MarketID      string `json:"market_id"`
+	MarketVersion string `json:"market_version"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 	// OwnerID ties the page to the user that authored it. Migration 054
