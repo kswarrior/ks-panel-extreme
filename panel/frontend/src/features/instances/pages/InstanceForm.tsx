@@ -447,16 +447,18 @@ const InstanceForm: React.FC = () => {
               {templates.length === 0 ? (
                 <GlassCard className="text-center text-gray-400 text-sm">No templates available.</GlassCard>
               ) : (
-                <div className="ks-card-grid grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {templates.map((t) => (
-                    <TemplateCard
-                      key={t.id}
-                      t={t}
-                      selected={t.id === templateId}
-                      onClick={() => selectTemplate(t.id)}
-                    />
-                  ))}
-                </div>
+                <SearchableSelect<number>
+                  options={templateOptions}
+                  value={templateId}
+                  onChange={selectTemplate}
+                  placeholder="Search templates by name, kind or image…"
+                  emptyMessage="No templates match"
+                  renderRow={renderTemplateRow}
+                  groupLabel="Templates"
+                />
+              )}
+              {selectedTemplate && (
+                <p className="text-xs text-gray-500 mt-1.5 font-mono truncate">{selectedTemplate.image}</p>
               )}
               {!selectedTemplate && (
                 <p className="text-xs text-amber-200/90 bg-amber-950/30 border border-amber-700/30 rounded-md px-3 py-2 mt-3">
@@ -476,17 +478,15 @@ const InstanceForm: React.FC = () => {
               {nodes.length === 0 ? (
                 <GlassCard className="text-center text-gray-400 text-sm">No nodes available.</GlassCard>
               ) : (
-                <div className="ks-card-grid grid grid-cols-1 sm:grid-cols-2">
-                  {nodes.map((n) => (
-                    <NodeCard
-                      key={n.id}
-                      n={n}
-                      selected={n.id === nodeId}
-                      incompatibleKind={selectedTemplate && !driverEnabled(n, kindKey(selectedTemplate.kind)) ? KIND_META[kindKey(selectedTemplate.kind)].label : undefined}
-                      onClick={() => setNodeId(n.id)}
-                    />
-                  ))}
-                </div>
+                <SearchableSelect<number>
+                  options={nodeOptions}
+                  value={nodeId}
+                  onChange={setNodeId}
+                  placeholder="Search nodes by name or address…"
+                  emptyMessage="No nodes match"
+                  renderRow={renderNodeRow}
+                  groupLabel="Nodes"
+                />
               )}
               {selectedNode && (
                 <p className="text-xs text-gray-500 mt-1.5 font-mono truncate">{selectedNode.address}</p>
