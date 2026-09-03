@@ -24,40 +24,69 @@ jobs:
       - name: Create or Update Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
         run: |
           set -e
 
           TAG="ks-panel-edge"
-          TITLE="KS Panel & Edge"
+          NAME="KS Panel & Edge"
 
-          if ! gh release view "$TAG" >/dev/null 2>&1; then
-            echo "Creating release: $TITLE"
+          echo "Checking release..."
 
-            gh release create "$TAG" \
-              --title "$TITLE" \
-              --notes "Latest KS Panel and KS Edge releases."
+          RELEASE_ID=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/$REPO/releases/tags/$TAG" \
+            --jq '.id' 2>/dev/null || true)
+
+          if [ -z "$RELEASE_ID" ]; then
+            echo "Release does not exist. Creating it..."
+
+            RELEASE_ID=$(gh api \
+              --method POST \
+              -H "Accept: application/vnd.github+json" \
+              "/repos/$REPO/releases" \
+              -f tag_name="$TAG" \
+              -f name="$NAME" \
+              -f body="Latest KS Panel and KS Edge builds." \
+              -F draft=false \
+              -F prerelease=false \
+              --jq '.id')
+
+            echo "Created release ID: $RELEASE_ID"
           else
-            echo "Release already exists. Updating assets."
+            echo "Release already exists: $RELEASE_ID"
+
+            gh api \
+              --method PATCH \
+              -H "Accept: application/vnd.github+json" \
+              "/repos/$REPO/releases/$RELEASE_ID" \
+              -f name="$NAME" \
+              -f body="Latest KS Panel and KS Edge builds." \
+              -F draft=false \
+              -F prerelease=false >/dev/null
           fi
+
+          echo "Uploading KS Panel..."
 
           if [ -f "release/kspanel" ]; then
-            echo "Uploading KS Panel..."
-
-            cp "release/kspanel" "kspanel"
-
             gh release upload "$TAG" \
-              "kspanel#kspanel" \
+              "release/kspanel#kspanel" \
               --clobber
+          else
+            echo "KS Panel file not found: release/kspanel"
           fi
+
+          echo "Uploading KS Edge..."
 
           if [ -f "release/ksedge" ]; then
-            echo "Uploading KS Edge..."
-
-            cp "release/ksedge" "ksedge"
-
             gh release upload "$TAG" \
-              "ksedge#ksedge" \
+              "release/ksedge#ksedge" \
               --clobber
+          else
+            echo "KS Edge file not found: release/ksedge"
           fi
 
-          echo "KS Panel & Edge release updated successfully."
+          echo "Final release information:"
+          gh release view "$TAG"
+
+          echo "KS Panel & Edge release successfully published."
