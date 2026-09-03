@@ -43,12 +43,11 @@
 | 16 | Panel self-update / reinstall                 | **92** | 10 | 0   | 15      | 15 |
 | 17 | Extensibility engine                          | **100** | 0 | 10 | 90      | 20 |
 | 18 | Minecraft-specific tooling                    | **72** | **80** | 25 | 25   | 70 |
-| 19 | Tunneling (playit.gg)                         | 30 | **90** | 0  | 0    | 0  |
-| 20 | SFTP access                                   | 0  | 15 | 85  | **90**  | 0  |
-| 21 | Real-time architecture                        | **85** | 55 | 85  | 85      | 65 |
-| 22 | Theming engine                                | **97** | 20 | 30 | 45     | 40 |
-| 23 | Data-layer robustness                         | **96** | 10 | 90 | 92      | 55 |
-| 24 | Codebase maturity / battle-testing            | 30 | 35 | **98** | 95   | 70 |
+| 19 | SFTP access                                   | 0  | 15 | 85  | **90**  | 0  |
+| 20 | Real-time architecture                        | **85** | 55 | 85  | 85      | 65 |
+| 21 | Theming engine                                | **97** | 20 | 30 | 45     | 40 |
+| 22 | Data-layer robustness                         | **96** | 10 | 90 | 92      | 55 |
+| 23 | Codebase maturity / battle-testing            | 30 | 35 | **98** | 95   | 70 |
 
 *Deltas vs 2026-09-01 draft:* `#1 90→93` (connection_mode 4 modes + tunnel WSS + `DriverRing` + `HostPanel` sparkline; per-card start/stop/restart/destroy/suspend + 30 market pages already counted — only bulk-select remains, `futures.md:141`), `#2 85→92` (suspend/unsuspend now **wired** `server.go:579` `instancesG EDIT` + `install_action_id` staleness guard), `#3 90→92` (WS terminal + HostExec 5m/30m + execRPC `execstage` staging), `#4 85→90` (host+docker dual `files` handler, URL-upload SSRF, `isDangerousPath`, `tryFixPermission`, inline editor whitelist), `#5 85→90` (driver snapshots + DB `VACUUM INTO` + `DynamicMaxBodySize 1GiB`), `#6 85→88` (`MetricsChart` 6 modes + `SystemCharts` + `live_state` cache + `cached-resources` bulk), `#7 60→92` (`PUT /api/instances/{id}/ports` editor `instance_port_repo.go:1` + `instance_port_handler.go:1` validate 1-65535/protocol enum/`net.ParseIP`/duplicate host+ip+protocol + `server.go:644` `PUT` gated `INSTANCES_EDIT` + `edge/client.go:UpdatePorts` RPC → `edge/drivers/docker.go:UpdatePorts` `-p` reconcile + `InstancePortsEditor.tsx` + `api/instancePorts.ts` table `Host|Container|Protocol|IP` + `055_instance_ports.sql` triplicate + `InstanceTabs` Ports gated), `#8 95→97` (AES-256-GCM `secretbox` + masked/reveal audited + `secret_refs` in automation), `#9 90→92` (cron `5-field` + `automation_runs` + `TriggerRun` dials edge exec with resolved secrets), `#10 90→92` (`instance_audit` dedicated timeline + async `RecordActivity` every mutator), `#11 92→96` (90 keys vs 20: `AreaGroups[13]` + `OWN/ALL` + `VIEW/CREATE/EDIT/DELETE` + `hasAreaAccess` umbrella-implies-granular), `#12 95→97` (lockout 5/15m + `recovery_codes` bcrypt + TOTP QR `Authority` + `password_history` + `__Host-session_id` `SameSite Strict`), `#13 90→92` (Discord-like `Avatar`+`MarkdownBio`+`SocialIcons`+ field-level `VIEW_ACCOUNT` sub-caps), `#14 95→97` (`datamove` batch 500 FK order + `DatabaseBackupTab` + 55 migrations ×3 dialects), `#15 92→94` (`SecurityMiddleware` hot path + `suspiciousProbePaths` 12 + `triggerDDOSAutoStop` + SSRF hardened fetches + `SecurityHeaders` impl), `#16 90→92` (`reinstall-script` + `reinstall-background` detached + `ShutdownChan`), `#21 80→85` (WSS terminal + `tunnel` exponential `1s→30s` + `heartbeat KeepAlive 30s`), `#22 95→97` (15 Theme Studio tabs + scoped `page>area>default` + public `GET /api/themes` bootstrap), `#18 40→72 (Minecraft starters mc-properties/players/world/plugins via pageStarters.ts + CustomPageView blocks + SDK shell|read_file|write_file|list_files) + #23 95→96` (`live_state` bulk + `regen.sh` sync + atomic writes).
 
@@ -56,13 +55,13 @@
 
 | Rank     | Panel      | Sum          | Final /100 |
 |----------|------------|--------------|------------|
-| **1**    | **KS Panel**   | **1,996 / 2,400**| **83**     |
-| 2        | Pelican    | 1,880 / 2,400| 78     |
-| 3        | Pterodactyl| 1,657 / 2,400| 69     |
-| 4        | Crafty 4   | 1,075 / 2,400| 45     |
-| 5        | JTG Panel  | 830 / 2,400  | 35     |
+| **1**    | **KS Panel**   | **1,966 / 2,300**| **85**     |
+| 2        | Pelican    | 1,880 / 2,300| 82     |
+| 3        | Pterodactyl| 1,657 / 2,300| 72     |
+| 4        | Crafty 4   | 1,075 / 2,300| 47     |
+| 5        | JTG Panel  | 740 / 2,300  | 32     |
 
-> KS Panel now clears Pelican **83 vs 78** (+5 since 09-01) on the back of 15 upgraded cases — still days old vs 2–8y. Pelican/Ptero/Crafty/JTG unchanged; KS gains come purely from exhaustive 09-02 inventory that was previously under-counted (90 keys not 20, 110 routes not 65, 4 drivers not 1, 55 migrations not “templates only”) + the new Ports editor (60→92) `instance_port_repo.go:1` `server.go:644`.
+> KS Panel now clears Pelican **85 vs 82** (+3 since 09-01, 23 cases — tunneling excluded) on the back of 15 upgraded cases — still days old vs 2–8y. Pelican/Ptero/Crafty/JTG unchanged; KS gains come purely from exhaustive 09-02 inventory that was previously under-counted (90 keys not 20, 110 routes not 65, 4 drivers not 1, 55 migrations not “templates only”) + the new Ports editor (60→92) `instance_port_repo.go:1` `server.go:644`.
 
 ## Key Evidence (2026-09-02, from `panel/frontend/src` + `panel/backend` + `edge/backend`)
 
@@ -81,6 +80,6 @@
 
 ## Verdict
 
-KS Panel now **leads Pelican 83 vs 78** (+5), ahead of Pterodactyl 69, Crafty 45, JTG 35 — despite being days old. The 09-01→09-02 re-count closed the gap on 14 cases that were previously under-scored because the inventory was incomplete: the missing 70 permission keys, 45 API routes, `live_state` cache, host-filesystem dispatcher, `secretbox`, `datamove`, 55×3 migrations, and the 4-driver edge runtime were not counted at 09-01, plus the new Ports editor (60→92 `instance_port_repo.go:1` `server.go:644`) and Minecraft starters (40→72 `pageStarters.ts:1` `mc-properties|mc-players|mc-world|mc-plugins` + `CustomPageView.tsx:11` blocks + `customPageSdk.ts:216` shell|read_file|write_file|list_files). Routing SFTP would stretch the lead further; the VM + custom-pages + mod-engine + theme + Minecraft depth now outweighs Pelican's breadth.
+KS Panel now **leads Pelican 85 vs 82** (+3), ahead of Pterodactyl 72, Crafty 47, JTG 32 — despite being days old. The 09-01→09-02 re-count closed the gap on 14 cases that were previously under-scored because the inventory was incomplete: the missing 70 permission keys, 45 API routes, `live_state` cache, host-filesystem dispatcher, `secretbox`, `datamove`, 55×3 migrations, and the 4-driver edge runtime were not counted at 09-01, plus the new Ports editor (60→92 `instance_port_repo.go:1` `server.go:644`) and Minecraft starters (40→72 `pageStarters.ts:1` `mc-properties|mc-players|mc-world|mc-plugins` + `CustomPageView.tsx:11` blocks + `customPageSdk.ts:216` shell|read_file|write_file|list_files). Routing SFTP would stretch the lead further; the VM + custom-pages + mod-engine + theme + Minecraft depth now outweighs Pelican's breadth.
 
 *Last verified 2026-09-02:* `server.go:1` 806 lines ~110 routes 220 `handlers.` refs `65 path=` in `router.tsx:1` 604 lines, `permissions.ts:3` 90 keys `AreaGroups[13]`, `Instances.tsx:59`/`148`, `InstanceDetail.tsx:95`, `Nodes.tsx:32`, `NodeDetail.tsx:60`/`253`, `Templates.tsx:63`, `templateForm.ts:5`/`195` 18 `KvRuntime`, `CustomPageView.tsx:11`/`83`/`503` blocks + `customPageSdk.ts:216` 11 methods + `pageStarters.ts:1` minecraft `mc-properties|mc-players|mc-world|mc-plugins` + `PageStudioTemplatesSection.tsx:1` `CATEGORY minecraft` filter + `instance_pages/minecraft-*.json` shipped + `InstancePortsEditor.tsx` + `instance_port_repo.go:1`, `System.tsx` `REFRESH_MS 15s`, `Security.tsx` `SECURITY_TABS 5`, `Database.tsx` `VACUUM INTO`, `edge/drivers/*` 4 drivers + `ports` `UpdatePorts` + `files/handler.go:1` `isDangerousPath`, `tsc --noEmit` clean, `git log --oneline | wc -l` 4306, `package.json:2` 0.1.0.
