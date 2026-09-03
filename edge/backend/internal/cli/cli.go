@@ -28,6 +28,7 @@ import (
 	"github.com/example/ksedge/internal/lifecycle"
 	"github.com/example/ksedge/internal/pageaction"
 	"github.com/example/ksedge/internal/ports"
+	"github.com/example/ksedge/internal/sftp"
 	"github.com/example/ksedge/internal/snapshot"
 	"github.com/example/ksedge/internal/tunnel"
 	"github.com/spf13/cobra"
@@ -67,6 +68,7 @@ func launchCmd() *cobra.Command {
 		interval   time.Duration
 		skipVerify bool
 		once       bool
+		sftpPort   int
 	)
 	cmd := &cobra.Command{
 		Use:   "launch",
@@ -150,7 +152,7 @@ func launchCmd() *cobra.Command {
 				log.Printf("tunnel: disabled (connection_mode=%q not a tunnel mode)", cfg.ConnectionMode)
 			}
 
-			return runHealthServer(cfg, rootCtx)
+			return runHealthServer(cfg, rootCtx, sftpPort)
 		},
 	}
 	cmd.Flags().StringVarP(&configPath, "config", "c", "config.json", "Path to the edge config file")
