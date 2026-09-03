@@ -29,8 +29,6 @@ const NODE_COLOR_NAMES: Record<string, string> = {
 };
 
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
-const selectCls =
-  'w-full bg-black/30 border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-600';
 
 // isValidPortStr reports whether p is a decimal port number in 1..65535.
 const isValidPortStr = (p: string): boolean => {

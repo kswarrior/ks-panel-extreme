@@ -1484,7 +1484,14 @@ func instanceAction(w http.ResponseWriter, r *http.Request, action string) {
 	switch action {
 	case "destroy":
 		// destroy removes the row entirely once the edge confirms the
-		// workload is gone.
+		// workload is gone. SFTP is deprovisioned first (best-effort edge
+		// delete + row + vault) so no orphan credential survives; the
+		// instance_sftp row would cascade-delete with the instance anyway,
+		// but the vault secret and the edge in-memory cred need explicit
+		// removal.
+		removeSFTPFromEdge(con, inst)
+		_ = repository.NewSFTPRepository(con).Delete(id)
+		_ = repository.NewSecretRepository(con).Delete(id, repository.SFTPSecretKey)
 		if err := instRepo.Delete(id); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -1508,6 +1515,14 @@ func instanceAction(w http.ResponseWriter, r *http.Request, action string) {
 		if err := instRepo.SetStatus(id, status, inst.ExternalID, ""); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
+		}
+		// A start heals SFTP after an edge restart (in-memory creds are
+		// wiped by the restart; the vault still holds the password, so
+		// re-push best-effort without failing the start).
+		if action == "start" {
+			if fresh, gerr := instRepo.Get(id); gerr == nil && fresh != nil {
+				_ = provisionSFTPForInstance(con, fresh)
+			}
 		}
 		emitInstancePost(action, id, inst)
 		RecordActivity(r, repository.ActivityInput{
@@ -1711,6 +1726,14 @@ func SuspendInstanceHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Suspend blocks SFTP auth: flip enabled=0 and delete the edge
+	// in-memory credential (the vault password + row survive so unsuspend
+	// restores without minting a new password). Best-effort edge delete —
+	// a down edge loses the cred on its next restart anyway.
+	_ = repository.NewSFTPRepository(con).SetEnabled(id, 0)
+	removeSFTPFromEdge(con, targetInst)
+	auditInst(r, id, "sftp.suspend", "suspended SFTP access")
+
 	RecordActivity(r, repository.ActivityInput{
 		Category:    models.ActivityCategoryInstance,
 		Action:      "suspend",
@@ -1755,6 +1778,17 @@ func UnsuspendInstanceHandler(w http.ResponseWriter, r *http.Request) {
 		log.Println("UnsuspendInstance error:", err)
 		http.Error(w, "failed to unsuspend instance", http.StatusInternalServerError)
 		return
+	}
+
+	// Unsuspend restores SFTP when a row exists: flip enabled=1 and
+	// re-provision the edge from the vaulted password (best-effort — a
+	// down edge heals on the next start/rotate instead).
+	if cfg, _ := repository.NewSFTPRepository(con).Get(id); cfg != nil {
+		_ = repository.NewSFTPRepository(con).SetEnabled(id, 1)
+		if fresh, gerr := instRepo.Get(id); gerr == nil && fresh != nil {
+			_ = provisionSFTPForInstance(con, fresh)
+		}
+		auditInst(r, id, "sftp.unsuspend", "restored SFTP access after unsuspend")
 	}
 
 	RecordActivity(r, repository.ActivityInput{
