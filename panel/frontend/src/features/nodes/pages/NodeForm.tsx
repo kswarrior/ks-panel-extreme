@@ -5,6 +5,7 @@ import type { Node, CreateNodeResult, ProbeResult, SetupLocalResult } from '@/sh
 import FormPage from '@/shared/components/forms/FormPage';
 import GlassField, { glassFieldClass } from '@/shared/components/ui/Field';
 import GlassModal from '@/shared/components/ui/Modal';
+import ToggleRow from '@/shared/components/ui/ToggleRow';
 import LocationField from '@/shared/components/forms/LocationField/LocationField';
 import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 import type { ConnectionMode, Form, NodeFormTabId } from '../types/nodeForm';
@@ -580,7 +581,6 @@ const NodeForm: React.FC = () => {
             <GlassField
               label="Node label"
               htmlFor="node_label"
-              hint='Optional display label ("node-1", "rack-a3", …). Two nodes may share a name, and two may share a label — but no two nodes may share both.'
             >
               <input
                 id="node_label"
@@ -607,24 +607,20 @@ const NodeForm: React.FC = () => {
                   required
                 />
               </GlassField>
-              <label className="flex items-center gap-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={form.use_tls}
-                  onChange={(e) => setForm({ ...form, use_tls: e.target.checked })}
-                  className="h-4 w-4 rounded border-white/10 bg-black/30 focus:ring-white"
-                />
-                <span className="text-sm text-gray-300">Use TLS (HTTPS) — panel will dial https://edge</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={form.skip_tls_verify}
-                  onChange={(e) => setForm({ ...form, skip_tls_verify: e.target.checked })}
-                  className="h-4 w-4 rounded border-white/10 bg-black/30 focus:ring-white"
-                />
-                <span className="text-sm text-gray-300">Skip TLS certificate verification (self-signed edge)</span>
-              </label>
+              <ToggleRow
+                id="use_tls"
+                label="TLS (https)"
+                description="Panel will dial https://edge"
+                checked={form.use_tls}
+                onChange={(v) => setForm({ ...form, use_tls: v })}
+              />
+              <ToggleRow
+                id="skip_tls_verify"
+                label="Skip TLS verification"
+                description="Skip TLS certificate verification (self-signed edge)"
+                checked={form.skip_tls_verify}
+                onChange={(v) => setForm({ ...form, skip_tls_verify: v })}
+              />
             </>
           )}
 
