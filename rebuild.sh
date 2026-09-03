@@ -1095,30 +1095,33 @@ sync_pagelib() {
     else
         log_warn "marketplace.json not found in $src"
     fi
-    # Copy all page JSON files (excluding marketplace.json) into library/pages for embedding.
-    # Both top-level and legacy pages/ are supported on disk; embedded lookup is pages/<name>.
+    # Copy all page JSON files into library/pages for embedding.
+    # Canonical source is instance_pages/pages/*.json; top-level *.json files
+    # are still accepted as a legacy override.
     local copied=0
-    for f in "$src"/*.json; do
-        [[ -e "$f" ]] || continue
-        base="$(basename "$f")"
-        [[ "$base" == "marketplace.json" ]] && continue
-        cp -- "$f" "$dst/pages/" || die "failed to copy $base"
-        copied=$((copied+1))
-    done
     if [[ -d "$src/pages" ]]; then
         for f in "$src/pages"/*.json; do
             [[ -e "$f" ]] || continue
             base="$(basename "$f")"
             [[ "$base" == "marketplace.json" ]] && continue
-            # Avoid overwriting if already copied from top-level (same basename)
-            if [[ -f "$dst/pages/$base" ]]; then
-                log_warn "Skipping duplicate pages/$base (already copied from top-level)"
-                continue
-            fi
             cp -- "$f" "$dst/pages/" || die "failed to copy pages/$base"
             copied=$((copied+1))
         done
+    else
+        log_warn "instance_pages/pages missing — no canonical page library to embed"
     fi
+    for f in "$src"/*.json; do
+        [[ -e "$f" ]] || continue
+        base="$(basename "$f")"
+        [[ "$base" == "marketplace.json" ]] && continue
+        # Legacy top-level override: only fills gaps, never overwrites pages/.
+        if [[ -f "$dst/pages/$base" ]]; then
+            log_warn "Skipping duplicate top-level $base (already copied from pages/)"
+            continue
+        fi
+        cp -- "$f" "$dst/pages/" || die "failed to copy $base"
+        copied=$((copied+1))
+    done
     local count
     count="$(find "$dst" -type f 2>/dev/null | wc -l | tr -d ' ')"
     log_ok "Embedded instance-pages library (${count} file(s): marketplace + ${copied} page(s) from instance_pages/)"

@@ -3,14 +3,13 @@
 // every install — including ones that were self-updated from a bare binary
 // and therefore have no instance_pages/ directory next to the executable.
 //
-// The page templates themselves live in the frontend Studio
-// (features/instance-pages/templates/pageStarters.ts); the shipped
-// instance_pages/pages/*.json library was removed. The canonical source for
-// the catalog lives at <repo>/instance_pages/marketplace.json; rebuild.sh
-// syncs it into internal/pagelib/library before compiling. On disk a
-// working-directory instance_pages/ tree (top level + legacy pages/) may
-// still provide page definitions: readers try it FIRST and fall back to the
-// embedded copies, so operator-provided libraries keep working.
+// The canonical page library lives at <repo>/instance_pages/pages/*.json
+// with the catalog at <repo>/instance_pages/marketplace.json; rebuild.sh
+// syncs both into internal/pagelib/library before compiling. On disk a
+// working-directory instance_pages/ tree (pages/ canonical, top level kept
+// as a legacy override) may still provide page definitions: readers try it
+// FIRST and fall back to the embedded copies, so operator-provided libraries
+// keep working.
 package pagelib
 
 import (
@@ -28,8 +27,9 @@ var embedded embed.FS
 var libraryFS, _ = fs.Sub(embedded, "library")
 
 // pagesDirs lists the relative sub-directories scanned for page JSON files
-// on disk: the top level plus the legacy pages/ layout of older installs.
-var pagesDirs = []string{".", "pages"}
+// on disk: pages/ is canonical, the top level is kept as a legacy override
+// for older installs.
+var pagesDirs = []string{"pages", "."}
 
 // excluded names are metadata, not importable page definitions.
 var excluded = map[string]bool{
@@ -89,8 +89,8 @@ func ListNames() []string {
 }
 
 // Read resolves a page JSON by its basename. Lookup order:
-//  1. instance_pages/<name>            (working-dir override)
-//  2. instance_pages/pages/<name>      (working-dir override)
+//  1. instance_pages/pages/<name>      (working-dir canonical)
+//  2. instance_pages/<name>            (working-dir legacy override)
 //  3. embedded library/pages/<name>    (release fallback)
 //
 // name must be a bare basename — anything carrying a path separator is
