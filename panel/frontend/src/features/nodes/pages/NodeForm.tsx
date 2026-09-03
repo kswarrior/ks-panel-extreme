@@ -91,6 +91,11 @@ const NodeForm: React.FC = () => {
     done: boolean;
   } | null>(null);
   const [tab, setTab] = useState<NodeFormTabId>('general');
+  // Dropdown overrides for the Icon / Colour pickers. Null means "auto":
+  // the select follows the loaded form value (preset key, Custom when a
+  // custom SVG / non-preset hex is stored, Default when empty).
+  const [iconChoice, setIconChoice] = useState<string | null>(null);
+  const [colorChoice, setColorChoice] = useState<string | null>(null);
   // Every registered node — powers the client-side (name, label) duplicate
   // pre-check so the operator sees the clash before the server's 409.
   const [allNodes, setAllNodes] = useState<Node[]>([]);
@@ -249,8 +254,43 @@ const NodeForm: React.FC = () => {
     } else if (isLocalMode(form.connection_mode)) {
       if (!isValidPortStr(form.port)) return 'Port must be a number between 1 and 65535';
     }
+    // Icon & colour mirror the server's display rules client-side.
+    if (form.icon && !NODE_ICONS.some((ic) => ic.key === form.icon)) {
+      const t = form.icon.trim();
+      if (!isCustomNodeIconSvg(t)) return 'Custom icon must be a full <svg>...</svg> block';
+      if (t.length > 5000) return 'Custom icon is too large (max 5000 characters)';
+      if (!t.toLowerCase().includes('</svg>')) return 'Custom icon must be a full <svg>...</svg> block';
+      if (t.toLowerCase().includes('<script')) return 'Custom icon must not contain <script>';
+    }
+    if (form.color && !HEX_RE.test(form.color.trim())) return 'Color must be a #rrggbb hex value';
     return duplicatePairError();
   };
+
+  // Icon dropdown state — 'custom' shows the paste box, '' is Default,
+  // otherwise the preset key. Auto-follows the stored value until the
+  // operator touches the dropdown.
+  const iconSelectValue =
+    iconChoice ?? (isCustomNodeIconSvg(form.icon) ? 'custom' : form.icon);
+  const showCustomIcon = iconSelectValue === 'custom';
+  const onIconSelect = (v: string) => {
+    setIconChoice(v);
+    if (v !== 'custom') setForm((f) => ({ ...f, icon: v }));
+    else setForm((f) => (isCustomNodeIconSvg(f.icon) ? f : { ...f, icon: '' }));
+  };
+
+  // Colour dropdown state — same shape: 'custom' shows picker + hex
+  // input, '' is Default, otherwise a preset hex (case-insensitive).
+  const presetColorMatch =
+    NODE_COLORS.find((c) => c.toLowerCase() === form.color.trim().toLowerCase()) ?? null;
+  const colorSelectValue =
+    colorChoice ??
+    (form.color.trim() === '' ? '' : presetColorMatch ?? 'custom');
+  const showCustomColor = colorSelectValue === 'custom';
+  const onColorSelect = (v: string) => {
+    setColorChoice(v);
+    if (v !== 'custom') setForm((f) => ({ ...f, color: v }));
+  };
+  const colorOk = form.color.trim() === '' || HEX_RE.test(form.color.trim());
 
   const submitAndSetup = async () => {
     if (!isLocalMode(form.connection_mode)) {
@@ -424,6 +464,111 @@ const NodeForm: React.FC = () => {
         <div className="space-y-4 min-w-0">
           {tab === 'general' && (
           <>
+          <div className="ks-card ks-form-card rounded-md p-3 space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm text-gray-200 font-medium">Icon &amp; colour</p>
+                <p className="text-xs text-gray-500">
+                  Shown on the node card so this edge is recognisable at a glance. Leave empty for the default look.
+                </p>
+              </div>
+              <div className="flex flex-col items-center gap-1 shrink-0" title="Card preview">
+                <span
+                  className="w-12 h-12 rounded-lg flex items-center justify-center border bg-white/[0.05] border-white/10"
+                  style={colorOk && form.color.trim() ? { color: form.color.trim() } : undefined}
+                  aria-hidden="true"
+                >
+                  {form.icon ? (
+                    <NodeIcon icon={form.icon} className="w-6 h-6" />
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6"><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg>
+                  )}
+                </span>
+                <span className="text-[11px] text-gray-500 max-w-[7rem] truncate">{form.name.trim() || 'Node name'}</span>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="node_icon" className="block text-sm font-medium text-gray-200 mb-1">Icon</label>
+                <select
+                  id="node_icon"
+                  value={iconSelectValue}
+                  onChange={(e) => onIconSelect(e.target.value)}
+                  className={selectCls}
+                >
+                  <option value="custom">Custom</option>
+                  <option value="">Default</option>
+                  {NODE_ICONS.map((ic) => (
+                    <option key={ic.key} value={ic.key}>{ic.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="node_color" className="block text-sm font-medium text-gray-200 mb-1">Colour</label>
+                <select
+                  id="node_color"
+                  value={colorSelectValue}
+                  onChange={(e) => onColorSelect(e.target.value)}
+                  className={selectCls}
+                >
+                  <option value="custom">Custom</option>
+                  <option value="">Default</option>
+                  {NODE_COLORS.map((c) => (
+                    <option key={c} value={c}>{NODE_COLOR_NAMES[c.toLowerCase()] ?? c} ({c.toUpperCase()})</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            {showCustomIcon && (
+              <div>
+                <label htmlFor="node_icon_custom" className="block text-sm font-medium text-gray-200 mb-1">Custom SVG</label>
+                <textarea
+                  id="node_icon_custom"
+                  rows={3}
+                  value={isCustomNodeIconSvg(form.icon) ? form.icon : ''}
+                  onChange={(e) => setForm((f) => ({ ...f, icon: e.target.value }))}
+                  placeholder="Paste full <svg>...</svg> markup"
+                  className="w-full bg-black/30 text-white placeholder-gray-500 border border-white/10 rounded-md px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-white/60 focus:border-white/40 transition-colors"
+                />
+              </div>
+            )}
+            {showCustomColor && (
+              <div>
+                <span className="block text-sm font-medium text-gray-200 mb-1">Custom colour</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="color"
+                    value={HEX_RE.test(form.color.trim()) ? form.color.trim() : '#34d399'}
+                    onChange={(e) => setForm((f) => ({ ...f, color: e.target.value.toUpperCase() }))}
+                    className="h-9 w-12 cursor-pointer rounded border border-white/10 bg-transparent p-0.5"
+                    aria-label="Custom colour picker"
+                  />
+                  <input
+                    type="text"
+                    value={form.color}
+                    onChange={(e) => setForm((f) => ({ ...f, color: e.target.value }))}
+                    placeholder="#rrggbb"
+                    spellCheck={false}
+                    autoComplete="off"
+                    className="flex-1 min-w-[8rem] bg-black/30 text-white placeholder-gray-500 border border-white/10 rounded-md px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-white/60 focus:border-white/40 transition-colors"
+                  />
+                </div>
+                {!colorOk && <p className="text-xs text-red-400 mt-1">Color must be a #rrggbb hex value</p>}
+              </div>
+            )}
+            {(form.icon || form.color) && (
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => { setForm((f) => ({ ...f, icon: '', color: '' })); setIconChoice(null); setColorChoice(null); }}
+                  className="text-xs text-gray-500 hover:text-gray-300 underline underline-offset-2"
+                >
+                  Reset
+                </button>
+              </div>
+            )}
+          </div>
+
           <GlassField label="Connection mode" htmlFor="connection_mode" hint={CONNECTION_MODES.find((m) => m.value === form.connection_mode)?.hint || "How panel and edge find each other."}>
             <select
               id="connection_mode"
