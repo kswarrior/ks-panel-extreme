@@ -4442,12 +4442,14 @@ button.ks-iconbtn:focus-visible{outline:2px solid var(--ks-info);outline-offset:
           + '</td></tr>';
       })(filtered[i]);
     }
-    if (state.busy) {
-      for (var si=0; si<6; si++) {
-        rows += '<tr style="border-top:1px solid var(--ks-card-border)"><td style="padding:8px 4px;width:32px"><div class="ks-skeleton" style="width:14px;height:14px;border-radius:3px"></div></td><td style="padding:8px 6px;width:28px"><div class="ks-skeleton-avatar" style="width:16px;height:16px"></div></td><td style="padding:8px 12px"><div class="ks-skeleton-bar" style="height:10px;width:' + (56+si*8) + 'px"></div></td><td class="ks-hidden-sm" style="padding:8px 12px;text-align:right"><div class="ks-skeleton-bar" style="height:10px;width:42px;margin-left:auto"></div></td><td class="ks-hidden-sm ks-hidden-md" style="padding:8px 12px;text-align:right"><div class="ks-skeleton-bar" style="height:10px;width:36px;margin-left:auto"></div></td><td class="ks-hidden-sm ks-hidden-md" style="padding:8px 12px;text-align:right"><div class="ks-skeleton-bar" style="height:10px;width:64px;margin-left:auto"></div></td><td style="padding:4px;text-align:right"><div class="ks-skeleton-bar" style="height:20px;width:20px;border-radius:9999px;margin-left:auto"></div></td></tr>';
+    if (filtered.length === 0) {
+      if (state.busy) {
+        for (var si=0; si<6; si++) {
+          rows += '<tr style="border-top:1px solid var(--ks-card-border)"><td style="padding:8px 4px;width:32px"><div class="ks-skeleton" style="width:14px;height:14px;border-radius:3px"></div></td><td style="padding:8px 6px;width:28px"><div class="ks-skeleton-avatar" style="width:16px;height:16px"></div></td><td style="padding:8px 12px"><div class="ks-skeleton-bar" style="height:10px;width:' + (56+si*8) + 'px"></div></td><td class="ks-hidden-sm" style="padding:8px 12px;text-align:right"><div class="ks-skeleton-bar" style="height:10px;width:42px;margin-left:auto"></div></td><td class="ks-hidden-sm ks-hidden-md" style="padding:8px 12px;text-align:right"><div class="ks-skeleton-bar" style="height:10px;width:36px;margin-left:auto"></div></td><td class="ks-hidden-sm ks-hidden-md" style="padding:8px 12px;text-align:right"><div class="ks-skeleton-bar" style="height:10px;width:64px;margin-left:auto"></div></td><td style="padding:4px;text-align:right"><div class="ks-skeleton-bar" style="height:20px;width:20px;border-radius:9999px;margin-left:auto"></div></td></tr>';
+        }
+      } else {
+        rows = '<tr><td colspan="7" class="ks-muted" style="text-align:center;padding:24px 12px;font-size:12px">' + (state.error ? esc(state.error) : 'This directory is empty or could not be read') + '</td></tr>';
       }
-    } else if (filtered.length === 0) {
-      rows = '<tr><td colspan="7" class="ks-muted" style="text-align:center;padding:24px 12px;font-size:12px">' + (state.error ? esc(state.error) : 'This directory is empty or could not be read') + '</td></tr>';
     }
 
     var selCount = Object.keys(state.selected).filter(function (k) { return state.selected[k]; }).length;
@@ -4464,7 +4466,7 @@ button.ks-iconbtn:focus-visible{outline:2px solid var(--ks-info);outline-offset:
       + '<button title="Create" aria-label="Create" type="button" class="ks-btn-header ks-icon-btn" data-action="show-create"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>'
       + '</div></div>';
 
-    html += '<div class="ks-card" style="overflow:auto;max-height:calc(100vh - 220px);max-height:calc(100dvh - 220px)" id="dropzone">'
+    html += '<div class="ks-card" style="padding:0;overflow-x:auto;overflow-y:visible;max-height:none" id="dropzone">'
       + '<table style="width:100%;font-size:13px;border-collapse:collapse"><tbody>' + rows + '</tbody></table>'
       + '</div>';
 
