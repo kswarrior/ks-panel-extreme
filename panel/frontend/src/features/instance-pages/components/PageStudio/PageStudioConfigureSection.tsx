@@ -102,6 +102,7 @@ export const PageStudioConfigureSection: React.FC<PageStudioConfigureSectionProp
                         <option value="number">Number input</option>
                         <option value="select">Dropdown</option>
                         <option value="checkbox">Checkbox</option>
+                        <option value="toggle">Toggle (On / Off)</option>
                       </select>
                     </div>
                     <div>
