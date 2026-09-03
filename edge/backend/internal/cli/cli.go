@@ -162,6 +162,7 @@ func launchCmd() *cobra.Command {
 	cmd.Flags().DurationVar(&interval, "interval", 0, "Override heartbeat interval (e.g. 30s)")
 	cmd.Flags().BoolVar(&skipVerify, "skip-verify", false, "Skip upstream TLS verification (self-signed panels)")
 	cmd.Flags().BoolVar(&once, "once", false, "Send a single heartbeat and exit thereafter")
+	cmd.Flags().IntVar(&sftpPort, "sftp-port", sftp.DefaultPort, "Listen port for the chrooted SFTP server (default 2222)")
 	return cmd
 }
 
@@ -204,8 +205,11 @@ func validateConfigFormat(cfg config.Config) string {
 //	POST /api/edge/install/stop  — panel→edge cancel a running install + run stop_command
 //	POST /api/edge/page-action   — panel→edge execute custom page actions (shell, file ops, driver cmds)
 //	POST /api/edge/snapshot      — panel→edge create/restore/delete a workload snapshot
+//	POST /api/edge/sftp/provision — panel→edge provision an SFTP identity (chrooted, bcrypt)
+//	POST /api/edge/sftp/delete   — panel→edge remove an SFTP identity (destroy/suspend)
+//	TCP  :2222 (--sftp-port)     — edge SSH/SFTP listener, one chroot per inst_<id>
 //
-// The lifecycle + files + inspect + install + page-action + snapshot + exec
+// The lifecycle + files + inspect + install + page-action + snapshot + sftp + exec
 // handlers are all gated by the same token the panel carries, so even if any
 // of these were accidentally exposed through a reverse proxy without ACLs,
 // an attacker would still need the panel-minted secret (kse_…) to do
@@ -227,8 +231,11 @@ func validateConfigFormat(cfg config.Config) string {
 //     handler has lived in internal/pageaction since the feature shipped,
 //     but the route mount here was missing entirely, so every page-action
 //     RPC the panel issued 404'd silently. Mount it now.
-func runHealthServer(cfg config.Config, ctx context.Context) error {
+func runHealthServer(cfg config.Config, ctx context.Context, sftpPort int) error {
 	port := cfg.ListenPortOr(4040)
+	if sftpPort <= 0 || sftpPort > 65535 {
+		sftpPort = sftp.DefaultPort
+	}
 
 	mux := http.NewServeMux()
 	// /health is unauthenticated by design — it's the endpoint the panel's
@@ -257,6 +264,12 @@ func runHealthServer(cfg config.Config, ctx context.Context) error {
 	mux.Handle("/api/edge/page-action", pageaction.Handler(cfg.Token))
 	mux.Handle("/api/edge/snapshot", snapshot.Handler(cfg.Token))
 	mux.Handle("/api/edge/ports/update", ports.Handler(cfg.Token))
+	// SFTP provision/delete share one handler (own ServeMux with both
+	// literal paths) so /delete is reachable without a trailing-slash
+	// redirect — the same mount-both-paths fix the install handler needs.
+	sftpHandler := sftp.Handler(cfg.Token)
+	mux.Handle("/api/edge/sftp/provision", sftpHandler)
+	mux.Handle("/api/edge/sftp/delete", sftpHandler)
 
 	// Wrap the routing mux in two defensive middlewares so the edge stays
 	// healthy under heavy / hostile load:
@@ -302,6 +315,16 @@ func runHealthServer(cfg config.Config, ctx context.Context) error {
 		log.Printf("ksedge listening on http://localhost:%d/health", port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			errCh <- err
+		}
+	}()
+
+	// SFTP runs on its own listener (default :2222) next to HTTP. It holds
+	// no state worth shutting down gracefully — in-memory credentials are
+	// intentionally ephemeral (the panel re-provisions after a restart) —
+	// so a failure here is logged, not fatal to the HTTP control plane.
+	go func() {
+		if err := sftp.Start(sftpPort); err != nil {
+			log.Printf("sftp server stopped: %v", err)
 		}
 	}()
 
