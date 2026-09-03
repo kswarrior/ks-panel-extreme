@@ -33,6 +33,9 @@ function SettingsIcon() {
 function ComponentsIcon() {
   return <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>;
 }
+function ConfigureIcon() {
+  return <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M12 8v8" /><path d="M8 12h8" /></svg>;
+}
 
 export const PageStudioTabs: React.FC<PageStudioTabsProps> = ({ tab, onChange, isBuiltin }) => {
   const meta: Record<PageStudioTabId, { label: string; hint: string; icon: React.ReactNode }> = {
@@ -40,11 +43,12 @@ export const PageStudioTabs: React.FC<PageStudioTabsProps> = ({ tab, onChange, i
     subpages: { label: 'Sub-pages', hint: 'Extra routes (/files/edit…)', icon: <PagesIcon /> },
     actions: { label: 'Actions', hint: 'Saved executable actions', icon: <TerminalIcon /> },
     components: { label: 'Components', hint: 'Reusable page components', icon: <ComponentsIcon /> },
+    configure: { label: 'Configure', hint: 'Page variables (like env)', icon: <ConfigureIcon /> },
     preview: { label: 'Preview', hint: 'Live render on an instance', icon: <PreviewIcon /> },
     settings: { label: 'Settings', hint: 'Meta, icon, import/export', icon: <SettingsIcon /> },
   };
 
-  const tabs: PageStudioTabId[] = ['editor', 'subpages', 'actions', 'components', 'preview', 'settings'];
+  const tabs: PageStudioTabId[] = ['editor', 'subpages', 'actions', 'components', 'configure', 'preview', 'settings'];
 
   return (
     <div className="lg:sticky lg:top-4 self-start">

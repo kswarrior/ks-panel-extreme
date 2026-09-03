@@ -14,14 +14,14 @@ import type {
   CreateInstancePagePayload,
   UpdateInstancePagePayload,
 } from '@/shared/types/instancePage';
-import { parseSubPages, parsePageComponents } from '@/shared/types/instancePage';
+import { parseSubPages, parsePageComponents, parsePageConfigure } from '@/shared/types/instancePage';
 import { parseConfig } from '@/shared/hooks/useInstance';
 import FormPage from '@/shared/components/forms/FormPage';
 import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 import type { PageContent } from '@/shared/components/ui/CustomPageView';
 import type { PageStudioTabId } from '@/features/instance-pages/types/pageStudio';
 import { sectionCls } from '@/features/instance-pages/types/pageStudio';
-import type { ActionRow, SubPageRow, ComponentRow } from '@/features/instance-pages/types/pageStudio';
+import type { ActionRow, SubPageRow, ComponentRow, ConfigureRow } from '@/features/instance-pages/types/pageStudio';
 import {
   getErrorMessage,
   blankAction,
@@ -35,6 +35,10 @@ import {
   compRowsFromJSON,
   compsToJSON,
   validateCompRows,
+  blankConfigure,
+  configureRowsFromJSON,
+  configureToJSON,
+  validateConfigureRows,
 } from '@/features/instance-pages/utils/pageStudioUtils';
 import {
   PageStudioTabs,
@@ -42,6 +46,7 @@ import {
   PageStudioSubPagesSection,
   PageStudioActionsSection,
   PageStudioComponentsSection,
+  PageStudioConfigureSection,
   PageStudioPreviewSection,
   PageStudioSettingsSection,
 } from '@/features/instance-pages/components/PageStudio';
@@ -98,6 +103,9 @@ const InstancePageStudio: React.FC = () => {
 
   // Component rows (edited on the Components tab)
   const [components, setComponents] = useState<ComponentRow[]>([]);
+
+  // Configure rows (edited on the Configure tab) — page-level env vars (like template env)
+  const [configure, setConfigure] = useState<ConfigureRow[]>([]);
 
   // Sub-page rows (edited on the Sub-pages tab) — extra routes that ship
   // with this page (multi-page support, e.g. files/edit).
@@ -158,6 +166,7 @@ const InstancePageStudio: React.FC = () => {
         setActions(defsToActions(found.actions));
         setSubs(subRowsFromJSON(found.sub_pages));
         setComponents(compRowsFromJSON(found.components));
+        setConfigure(configureRowsFromJSON((found as any).configure));
       })
       .catch((e: any) => {
         if (!cancelled) setError(getErrorMessage(e, 'Failed to load page'));
@@ -209,6 +218,22 @@ const InstancePageStudio: React.FC = () => {
   const addComponent = () => setComponents((c) => [...c, blankComponent()]);
   const removeComponent = (id: string) => setComponents((c) => c.filter((x) => x.id !== id));
   const updateComponent = (id: string, patch: Partial<ComponentRow>) => setComponents((c) => c.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+
+  // ---- Configure row handlers ---------------------------------------------
+  const addConfigure = () => setConfigure((c) => [...c, blankConfigure()]);
+  const removeConfigure = (id: string) => setConfigure((c) => c.filter((x) => x.id !== id));
+  const updateConfigure = (id: string, patch: Partial<ConfigureRow>) => setConfigure((c) => c.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+  const moveConfigure = (id: string, dir: -1 | 1) => {
+    setConfigure((prev) => {
+      const idx = prev.findIndex((x) => x.id === id);
+      if (idx < 0) return prev;
+      const j = idx + dir;
+      if (j < 0 || j >= prev.length) return prev;
+      const next = [...prev];
+      [next[idx], next[j]] = [next[j], next[idx]];
+      return next;
+    });
+  };
 
   // ---- Sub-page row handlers ----------------------------------------------
   const addSub = () => {
@@ -321,6 +346,8 @@ const InstancePageStudio: React.FC = () => {
     if (subErr) { setError(subErr); return; }
     const compErr = validateCompRows(components);
     if (compErr) { setError(compErr); return; }
+    const cfgErr = validateConfigureRows(configure);
+    if (cfgErr) { setError(cfgErr); return; }
     setSaving(true);
     setError('');
     try {
@@ -339,6 +366,7 @@ const InstancePageStudio: React.FC = () => {
         actions: JSON.stringify(actionDefs),
         sub_pages: subsToJSON(subs),
         components: compsToJSON(components),
+        configure: configureToJSON(configure),
       } as unknown as UpdateInstancePagePayload;
       if (isEdit && pageId != null) {
         await updateInstancePage(pageId, payload as UpdateInstancePagePayload);
@@ -373,6 +401,8 @@ const InstancePageStudio: React.FC = () => {
     if (subDefs.length > 0) data.pages = subDefs;
     const compDefs = parsePageComponents(compsToJSON(components));
     if (compDefs.length > 0) data.components = compDefs;
+    const cfgDefs = parsePageConfigure(configureToJSON(configure));
+    if (cfgDefs.length > 0) data.configure = cfgDefs;
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
