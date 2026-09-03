@@ -8,8 +8,6 @@ import { SearchableSelect, type SearchableOption } from '@/shared/components/ui/
 import { glassFieldClass } from '@/shared/components/ui/Field';
 import {
   KindIcon,
-  TemplateCard,
-  NodeCard,
 } from '../components/InstanceFormComponents';
 import ThemedBackground from '@/shared/components/layout/ThemedBackground';
 import { useDeployForm } from '../stores/deployFormStore';
@@ -81,8 +79,7 @@ const InstanceForm: React.FC = () => {
     };
   }), [users, roles]);
 
-  const renderOwnerRow = (opt: SearchableOption<number>, active: boolean) => {
-    const u = users.find((x) => x.id === opt.value);
+  const renderOwnerRow = (opt: SearchableOption<number>, active: boolean) => {    const u = users.find((x) => x.id === opt.value);
     if (!u) return <span className="truncate">{opt.label}</span>;
     const role = roleForId(u.role_id);
     const roleColor = role?.color || '#888';
@@ -109,6 +106,76 @@ const InstanceForm: React.FC = () => {
             )}
           </div>
           <p className="text-xs text-gray-500 truncate">{u.email || 'no email'}</p>
+        </div>
+      </div>
+    );
+  };
+
+  const templateOptions: SearchableOption<number>[] = useMemo(() => templates.map((t) => {
+    const k = kindKey(t.kind);
+    return {
+      value: t.id,
+      label: t.name,
+      description: t.image || t.description || '',
+      keywords: `${t.name} ${k} ${t.image || ''} ${t.description || ''}`,
+      badge: KIND_META[k]?.label ?? k,
+    };
+  }), [templates]);
+
+  const renderTemplateRow = (opt: SearchableOption<number>, active: boolean) => {
+    const t = templates.find((x) => x.id === opt.value);
+    if (!t) return <span className="truncate">{opt.label}</span>;
+    const k = kindKey(t.kind);
+    const meta = KIND_META[k];
+    return (
+      <div className="flex items-center gap-2.5">
+        <div className={`shrink-0 w-7 h-7 rounded-md flex items-center justify-center border ${meta.badge}`}>
+          <KindIcon kind={k} className="w-4 h-4" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <span className={`text-sm truncate ${active ? 'text-white' : 'text-gray-200'}`}>{t.name}</span>
+            <span className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded border ${meta.badge}`}>{meta.label}</span>
+          </div>
+          <p className="text-xs text-gray-500 truncate font-mono" title={t.image}>{t.image}</p>
+        </div>
+      </div>
+    );
+  };
+
+  const nodeState = (n: { state?: string; status?: string }) =>
+    n.state || (n.status === 'up' ? 'up' : 'down');
+
+  const nodeOptions: SearchableOption<number>[] = useMemo(() => nodes.map((n) => {
+    const state = nodeState(n);
+    return {
+      value: n.id,
+      label: n.name,
+      description: n.address || '',
+      keywords: `${n.name} ${n.address || ''} ${state}`,
+      badge: state,
+    };
+  }), [nodes]);
+
+  const renderNodeRow = (opt: SearchableOption<number>, active: boolean) => {
+    const n = nodes.find((x) => x.id === opt.value);
+    if (!n) return <span className="truncate">{opt.label}</span>;
+    const state = nodeState(n);
+    const dot = state === 'up' ? 'bg-emerald-400' : state === 'partial' ? 'bg-amber-400' : state === 'pending' ? 'bg-gray-400' : 'bg-red-400';
+    const incompatible = selectedTemplate && !driverEnabled(n, kindKey(selectedTemplate.kind));
+    return (
+      <div className="flex items-center gap-2.5">
+        <span className={`shrink-0 w-2 h-2 rounded-full ${dot}`} />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <span className={`text-sm truncate ${active ? 'text-white' : 'text-gray-200'}`}>{n.name}</span>
+            {incompatible && (
+              <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded border border-amber-700/60 bg-amber-950/40 text-amber-200">
+                missing {KIND_META[kindKey(selectedTemplate!.kind)].label} driver
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-gray-500 truncate font-mono">{n.address}</p>
         </div>
       </div>
     );
