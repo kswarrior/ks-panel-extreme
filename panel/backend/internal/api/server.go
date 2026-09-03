@@ -489,6 +489,7 @@ func NewRouter() http.Handler {
 			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionCreate)).Post("/import/url", handlers.ImportInstancePageFromURLHandler)
 			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionView)).Get("/marketplace", handlers.GetMarketplacePagesHandler)
 			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionCreate)).Post("/import/marketplace", handlers.ImportInstancePageFromMarketplaceHandler)
+			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionEdit)).Post("/import/marketplace/resync", handlers.ResyncMarketplacePagesHandler)
 			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionView)).Get("/local", handlers.ListLocalInstancePagesHandler)
 			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionCreate)).Post("/import/local", handlers.ImportLocalInstancePageHandler)
 			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionView)).Get("/{id}", handlers.GetInstancePageHandler)

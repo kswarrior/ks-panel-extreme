@@ -2681,6 +2681,183 @@ func ImportInstancePageFromMarketplaceHandler(w http.ResponseWriter, r *http.Req
 	writeJSON(w, map[string]any{"id": id, "message": "Page imported successfully from marketplace"})
 }
 
+// fetchMarketplacePageBytes resolves a catalog entry to its raw page JSON.
+// Relative entries ("instance_pages/pages/home.json") come from the
+// local/embedded library; absolute http(s) URLs are fetched server-side with
+// the same SSRF guard as the single-import path.
+func fetchMarketplacePageBytes(ctx context.Context, mp MarketplacePage) ([]byte, error) {
+	if !strings.Contains(mp.DownloadURL, "://") {
+		b, ok := pagelib.Read(filepath.Base(mp.DownloadURL))
+		if !ok {
+			return nil, fmt.Errorf("marketplace page not found in the local library: %s", mp.DownloadURL)
+		}
+		return b, nil
+	}
+	mu, err := url.Parse(strings.TrimSpace(mp.DownloadURL))
+	if err != nil || (mu.Scheme != "http" && mu.Scheme != "https") || mu.Host == "" {
+		return nil, fmt.Errorf("marketplace DownloadURL must be an http(s) URL")
+	}
+	mhost := mu.Hostname()
+	resolver := net.Resolver{PreferGo: true}
+	dnsCtx, cancelDNS := context.WithTimeout(ctx, 10*time.Second)
+	defer cancelDNS()
+	ips, err := resolver.LookupIPAddr(dnsCtx, mhost)
+	if err != nil || len(ips) == 0 {
+		return nil, fmt.Errorf("could not resolve marketplace host: %s", mhost)
+	}
+	for _, ipa := range ips {
+		if ip := ipa.IP; ip == nil || !isPublicIP(ip) {
+			which := ""
+			if ip != nil {
+				which = " (" + ip.String() + ")"
+			}
+			return nil, fmt.Errorf("refusing to fetch %s: host resolves to a non-public address%s", mhost, which)
+		}
+	}
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(mp.DownloadURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch page from marketplace: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("marketplace download URL returned status %d", resp.StatusCode)
+	}
+	b, rerr := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
+	if rerr != nil {
+		return nil, fmt.Errorf("failed to read marketplace page: %w", rerr)
+	}
+	return b, nil
+}
+
+// ResyncMarketplacePagesHandler re-saves every market-tracked library page
+// from its marketplace download link. Rows with source market/edited and a
+// non-empty market_id are refreshed in place (content + icon + actions +
+// sub-pages + components overwritten from the link) and flipped back to
+// source market. Studio (own) pages are left untouched.
+//
+// Response: { updated, skipped, errors }
+func ResyncMarketplacePagesHandler(w http.ResponseWriter, r *http.Request) {
+	data, ok := pagelib.ReadCatalog()
+	if !ok {
+		http.Error(w, "marketplace catalog not found", http.StatusNotFound)
+		return
+	}
+	var catalog MarketplaceCatalog
+	if err := json.Unmarshal(data, &catalog); err != nil {
+		http.Error(w, "invalid marketplace catalog", http.StatusInternalServerError)
+		return
+	}
+	byID := make(map[string]MarketplacePage, len(catalog.Pages))
+	for _, mp := range catalog.Pages {
+		byID[mp.ID] = mp
+	}
+
+	con, err := repository.OpenDB()
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	defer con.Close()
+	repo := repository.NewInstancePageRepository(con)
+	pages, err := repo.List()
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+
+	updated := 0
+	skipped := 0
+	var errs []string
+	var ids []int64
+	for _, p := range pages {
+		src := normalizePageSource(p.Source)
+		if (src != pageSourceMarket && src != pageSourceEdited) || p.MarketID == "" {
+			continue
+		}
+		mp, found := byID[p.MarketID]
+		if !found {
+			skipped++
+			continue
+		}
+		pageBytes, ferr := fetchMarketplacePageBytes(r.Context(), mp)
+		if ferr != nil {
+			errs = append(errs, fmt.Sprintf("%s: %s", p.Slug, ferr.Error()))
+			continue
+		}
+		var pageReq ImportInstancePageRequest
+		if err := json.Unmarshal(pageBytes, &pageReq); err != nil {
+			errs = append(errs, fmt.Sprintf("%s: invalid JSON from marketplace: %s", p.Slug, err.Error()))
+			continue
+		}
+		dto := instancePageDTO{
+			Name:            pageReq.Name,
+			Slug:            pageReq.Slug,
+			Kind:            pageReq.Kind,
+			Category:        pageReq.Category,
+			Type:            pageReq.Type,
+			Description:     pageReq.Description,
+			ContentType:     pageReq.ContentType,
+			ContentHTML:     pageReq.ContentHTML,
+			ContentMarkdown: pageReq.ContentMarkdown,
+			ContentBlocks:   pageReq.ContentBlocks,
+			IconSVG:         pageReq.IconSVG,
+			Actions:         pageReq.Actions,
+			SubPages:        pageReq.subPagesJSON(),
+			Components:      pageReq.Components,
+		}
+		dto, verr := validateInstancePage(dto)
+		if verr != nil {
+			errs = append(errs, fmt.Sprintf("%s: %s", p.Slug, verr.Error()))
+			continue
+		}
+		if dto.ContentType == "" {
+			dto.ContentType = "markdown"
+		}
+		// Keep the row's identity (slug may have been renamed locally, so
+		// preserve the stored slug); refresh everything else from the link.
+		if err := repo.Update(p.ID, repository.InstancePageInput{
+			Name:            dto.Name,
+			Slug:            p.Slug,
+			Kind:            dto.Kind,
+			Category:        dto.Category,
+			PageType:        dto.Type,
+			Description:     dto.Description,
+			ContentType:     dto.ContentType,
+			ContentHTML:     dto.ContentHTML,
+			ContentMarkdown: dto.ContentMarkdown,
+			ContentBlocks:   dto.ContentBlocks,
+			IconSVG:         dto.IconSVG,
+			Actions:         dto.Actions,
+			SubPages:        dto.SubPages,
+			Components:      dto.Components,
+			Source:          pageSourceMarket,
+			MarketID:        p.MarketID,
+			MarketVersion:   catalog.Version,
+		}); err != nil {
+			errs = append(errs, fmt.Sprintf("%s: %s", p.Slug, err.Error()))
+			continue
+		}
+		updated++
+		ids = append(ids, p.ID)
+	}
+
+	if updated > 0 {
+		RecordActivity(r, repository.ActivityInput{
+			Category:    models.ActivityCategoryTemplate,
+			Action:      "resync",
+			TargetLabel: fmt.Sprintf("%d pages", updated),
+			Message:     fmt.Sprintf("resynced %d marketplace page(s) from links", updated),
+		})
+	}
+	writeJSON(w, map[string]any{
+		"updated": updated,
+		"skipped": skipped,
+		"errors":  errs,
+		"ids":     ids,
+	})
+}
+
 // ListLocalInstancePagesHandler returns instance pages from the local
 // instance_pages directory (pages/ canonical, top level legacy), falling
 // back to the library embedded in the binary via internal/pagelib when no
