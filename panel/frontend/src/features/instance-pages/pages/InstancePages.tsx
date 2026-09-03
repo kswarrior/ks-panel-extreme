@@ -371,15 +371,17 @@ const InstancePages: React.FC = () => {
                 <div className="ks-dropdown min-w-[240px] animate-in fade-in slide-in-from-to duration-150">
                   <div className="p-3 space-y-3">
                     <div>
-                      <label className="block text-xs text-gray-400 uppercase tracking-wide mb-1.5">Filter by</label>
+                      <label className="block text-xs text-gray-400 uppercase tracking-wide mb-1.5">Filter by source</label>
                       <select
                         className="w-full glass-field"
                         value={kindFilter}
                         onChange={(e) => setKindFilter(e.target.value)}
-                        aria-label="Filter pages by kind"
+                        aria-label="Filter pages by source"
                       >
                         <option value="all">All pages</option>
-                        <option value="custom">Custom</option>
+                        <option value="market">Market</option>
+                        <option value="edited">Edited</option>
+                        <option value="studio">Studio</option>
                       </select>
                     </div>
                     <div className="pt-2 border-t border-white/5 flex items-center justify-end gap-2">
@@ -405,10 +407,21 @@ const InstancePages: React.FC = () => {
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>
           </Link>
           <button
+            onClick={doResync}
+            disabled={resyncBusy}
+            aria-label="Update all market pages from links"
+            className="ks-btn-header ks-icon-btn disabled:opacity-50"
+            title="Update all market pages — re-save every market page from its marketplace link"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`w-4 h-4 ${resyncBusy ? 'animate-spin' : ''}`}>
+              <polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+            </svg>
+          </button>
+          <button
             onClick={openAdd}
             aria-label="Add Instance Page"
             className="ks-btn-header ks-icon-btn"
-            title="Add Instance Page — upload, URL or Studio"
+            title="Add Instance Page — upload, URL, Studio or Market"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
               <line x1="12" y1="5" x2="12" y2="19" />
@@ -417,13 +430,19 @@ const InstancePages: React.FC = () => {
           </button>
         </div>
       </div>
+      {(resyncMsg || resyncErr) && (
+        <div className={`text-xs rounded px-3 py-2 border ${resyncErr ? 'text-red-300 border-red-700/40 bg-red-900/20' : 'text-emerald-300 border-emerald-700/40 bg-emerald-900/20'}`}>
+          {resyncBusy ? 'Updating market pages…' : resyncMsg}
+          {resyncErr && <span className="block mt-1 break-all">{resyncErr}</span>}
+        </div>
+      )}
       <div className="space-y-3">
         {loading && <SkeletonGrid count={6} />}
         {!loading && filtered.length > 0 && (
           <div className={`ks-card-grid grid gap-4 ${dense ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'}`} id="ks-instancepages-grid">
             {filtered.map((e) => {
               const p = e.page;
-              const meta = KIND_META[e.kind];
+              const srcMeta = SOURCE_META[e.source] ?? SOURCE_META.studio;
               return (
                 <article key={p.id} id={`ks-instancepage-${p.id}`} className="ks-card ks-list-card group relative glass-card rounded-xl flex flex-col gap-3 hover:border-white/20 transition-colors">
                   <header className="flex items-start gap-3 min-w-0 relative">
@@ -460,8 +479,9 @@ const InstancePages: React.FC = () => {
                         <p className="text-xs text-gray-400 truncate mt-1">{p.description}</p>
                       )}
                     </div>
-                    <div className="shrink-0 inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wide px-2 py-1 rounded-md border bg-white/[0.05] border-white/10 text-gray-300">
-                      {meta.label}
+                    <div className={`shrink-0 inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wide px-2 py-1 rounded-md border ${srcMeta.badge}`} title={e.source === 'market' ? 'Imported from marketplace, unmodified' : e.source === 'edited' ? 'Imported from marketplace, then edited' : 'Own page (Studio / upload / URL)'}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${srcMeta.dot}`} />
+                      {srcMeta.label}
                     </div>
                   </header>
 
