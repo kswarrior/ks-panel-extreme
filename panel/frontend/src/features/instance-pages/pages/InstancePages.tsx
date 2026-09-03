@@ -195,6 +195,27 @@ const InstancePages: React.FC = () => {
     }
   };
 
+  const doResync = async () => {
+    if (!(await confirm({ title: 'Update market pages', message: 'Re-save all market pages from their marketplace links? Local edits to market pages will be overwritten.', tone: 'warning', confirmLabel: 'Update all' }))) return;
+    setResyncBusy(true);
+    setResyncMsg('');
+    setResyncErr('');
+    try {
+      const res = await resyncMarketplacePages();
+      await load();
+      const parts: string[] = [];
+      parts.push(`Updated ${res.updated}`);
+      if (res.skipped) parts.push(`skipped ${res.skipped}`);
+      if (res.errors?.length) parts.push(`${res.errors.length} error(s)`);
+      setResyncMsg(parts.join(' • '));
+      if (res.errors?.length) setResyncErr(res.errors.join('; '));
+    } catch (e: any) {
+      setResyncErr(getErrorMessage(e, 'Resync failed'));
+    } finally {
+      setResyncBusy(false);
+    }
+  };
+
   // openAdd resets the dialog exactly like the Templates page's openInstall.
   const openAdd = () => {
     setAddOpen(true);
@@ -263,6 +284,7 @@ const InstancePages: React.FC = () => {
   const enriched = useMemo(() => pages.map((p) => ({
     page: p,
     kind: kindKey(p.kind),
+    source: pageSourceOf(p),
     category: p.category || '',
     updated: p.updated_at ? new Date(p.updated_at).getTime() : 0,
     created: p.created_at ? new Date(p.created_at).getTime() : 0,
@@ -279,13 +301,13 @@ const InstancePages: React.FC = () => {
         e.page.slug.toLowerCase().includes(q)
       );
     }
-    if (kindFilter !== 'all') out = out.filter((e) => e.kind === kindFilter);
+    if (kindFilter !== 'all') out = out.filter((e) => e.source === kindFilter);
     if (categoryFilter !== 'all') out = out.filter((e) => e.category === categoryFilter);
     const sorted = [...out];
     sorted.sort((a, b) => {
       switch (sort) {
         case 'name': return a.page.name.localeCompare(b.page.name);
-        case 'kind': return a.kind.localeCompare(b.kind) || b.updated - a.updated;
+        case 'kind': return a.source.localeCompare(b.source) || b.updated - a.updated;
         case 'category': return a.category.localeCompare(b.category) || b.updated - a.updated;
         case 'newest': return b.created - a.created;
         case 'updated':
