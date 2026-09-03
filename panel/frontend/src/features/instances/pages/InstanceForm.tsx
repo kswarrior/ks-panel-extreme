@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { listNodes, listTemplates, listUsers, listRoles, deployInstance } from '@/shared/api/admin';
 import type { DeployRequest } from '@/shared/types/instance';
@@ -206,6 +206,13 @@ const InstanceForm: React.FC = () => {
   const selectedNode = nodes.find((n) => n.id === nodeId);
   const selectedOwner = users.find((u) => u.id === ownerId);
   const driverMissing = selectedTemplate && selectedNode && !driverEnabled(selectedNode, kindKey(selectedTemplate.kind));
+
+  // Horizontal strip ref + arrow scrolling so the icon/colour presets
+  // scroll with a mouse on laptops (hidden scrollbar can't be dragged).
+  const stripRef = useRef<HTMLDivElement>(null);
+  const scrollStrip = (dx: number) => {
+    stripRef.current?.scrollBy({ left: dx, behavior: 'smooth' });
+  };
 
   return (
     <FormPage
