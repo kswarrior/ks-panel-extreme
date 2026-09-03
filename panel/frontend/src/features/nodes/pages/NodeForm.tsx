@@ -465,13 +465,8 @@ const NodeForm: React.FC = () => {
           {tab === 'general' && (
           <>
           <div className="ks-card ks-form-card rounded-md p-3 space-y-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-sm text-gray-200 font-medium">Icon &amp; colour</p>
-                <p className="text-xs text-gray-500">
-                  Shown on the node card so this edge is recognisable at a glance. Leave empty for the default look.
-                </p>
-              </div>
+            <p className="text-sm text-gray-200 font-medium">Icon &amp; colour</p>
+            <div className="flex items-start gap-3">
               <div className="flex flex-col items-center gap-1 shrink-0" title="Card preview">
                 <span
                   className="w-12 h-12 rounded-lg flex items-center justify-center border bg-white/[0.05] border-white/10"
@@ -484,54 +479,54 @@ const NodeForm: React.FC = () => {
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6"><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg>
                   )}
                 </span>
-                <span className="text-[11px] text-gray-500 max-w-[7rem] truncate">{form.name.trim() || 'Node name'}</span>
+                <span className="text-[11px] text-gray-500 max-w-[4.5rem] truncate">{form.name.trim() || 'Node name'}</span>
+              </div>
+              <div className="flex-1 min-w-0 space-y-3">
+                <div>
+                  <label htmlFor="node_icon" className="block text-sm font-medium text-gray-200 mb-1">Icon</label>
+                  <select
+                    id="node_icon"
+                    value={iconSelectValue}
+                    onChange={(e) => onIconSelect(e.target.value)}
+                    className={selectCls}
+                  >
+                    <option value="custom">Custom</option>
+                    <option value="">Default</option>
+                    {NODE_ICONS.map((ic) => (
+                      <option key={ic.key} value={ic.key}>{ic.label}</option>
+                    ))}
+                  </select>
+                </div>
+                {showCustomIcon && (
+                  <div>
+                    <label htmlFor="node_icon_custom" className="block text-sm font-medium text-gray-200 mb-1">Custom SVG</label>
+                    <textarea
+                      id="node_icon_custom"
+                      rows={3}
+                      value={isCustomNodeIconSvg(form.icon) ? form.icon : ''}
+                      onChange={(e) => setForm((f) => ({ ...f, icon: e.target.value }))}
+                      placeholder="Paste full <svg>...</svg> markup"
+                      className="w-full bg-black/30 text-white placeholder-gray-500 border border-white/10 rounded-md px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-white/60 focus:border-white/40 transition-colors"
+                    />
+                  </div>
+                )}
               </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label htmlFor="node_icon" className="block text-sm font-medium text-gray-200 mb-1">Icon</label>
-                <select
-                  id="node_icon"
-                  value={iconSelectValue}
-                  onChange={(e) => onIconSelect(e.target.value)}
-                  className={selectCls}
-                >
-                  <option value="custom">Custom</option>
-                  <option value="">Default</option>
-                  {NODE_ICONS.map((ic) => (
-                    <option key={ic.key} value={ic.key}>{ic.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label htmlFor="node_color" className="block text-sm font-medium text-gray-200 mb-1">Colour</label>
-                <select
-                  id="node_color"
-                  value={colorSelectValue}
-                  onChange={(e) => onColorSelect(e.target.value)}
-                  className={selectCls}
-                >
-                  <option value="custom">Custom</option>
-                  <option value="">Default</option>
-                  {NODE_COLORS.map((c) => (
-                    <option key={c} value={c}>{NODE_COLOR_NAMES[c.toLowerCase()] ?? c} ({c.toUpperCase()})</option>
-                  ))}
-                </select>
-              </div>
+            <div>
+              <label htmlFor="node_color" className="block text-sm font-medium text-gray-200 mb-1">Colour</label>
+              <select
+                id="node_color"
+                value={colorSelectValue}
+                onChange={(e) => onColorSelect(e.target.value)}
+                className={selectCls}
+              >
+                <option value="custom">Custom</option>
+                <option value="">Default</option>
+                {NODE_COLORS.map((c) => (
+                  <option key={c} value={c}>{NODE_COLOR_NAMES[c.toLowerCase()] ?? c} ({c.toUpperCase()})</option>
+                ))}
+              </select>
             </div>
-            {showCustomIcon && (
-              <div>
-                <label htmlFor="node_icon_custom" className="block text-sm font-medium text-gray-200 mb-1">Custom SVG</label>
-                <textarea
-                  id="node_icon_custom"
-                  rows={3}
-                  value={isCustomNodeIconSvg(form.icon) ? form.icon : ''}
-                  onChange={(e) => setForm((f) => ({ ...f, icon: e.target.value }))}
-                  placeholder="Paste full <svg>...</svg> markup"
-                  className="w-full bg-black/30 text-white placeholder-gray-500 border border-white/10 rounded-md px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-white/60 focus:border-white/40 transition-colors"
-                />
-              </div>
-            )}
             {showCustomColor && (
               <div>
                 <span className="block text-sm font-medium text-gray-200 mb-1">Custom colour</span>
@@ -554,17 +549,6 @@ const NodeForm: React.FC = () => {
                   />
                 </div>
                 {!colorOk && <p className="text-xs text-red-400 mt-1">Color must be a #rrggbb hex value</p>}
-              </div>
-            )}
-            {(form.icon || form.color) && (
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => { setForm((f) => ({ ...f, icon: '', color: '' })); setIconChoice(null); setColorChoice(null); }}
-                  className="text-xs text-gray-500 hover:text-gray-300 underline underline-offset-2"
-                >
-                  Reset
-                </button>
               </div>
             )}
           </div>
