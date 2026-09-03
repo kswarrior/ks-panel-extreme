@@ -79,7 +79,7 @@ export function defsToActions(json: string | undefined): ActionRow[] {
       if (Array.isArray(parsed)) defs = parsed.filter((d) => d && typeof d === 'object');
     } catch { /* legacy/corrupt rows start fresh */ }
   }
-  if (defs.length === 0) return [blankAction()];
+  if (defs.length === 0) return [];
   return defs.map((d) => ({
     id: `d${actionSeq++}-${Math.random().toString(36).slice(2, 8)}`,
     name: typeof d.name === 'string' ? d.name : '',

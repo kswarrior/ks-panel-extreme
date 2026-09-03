@@ -94,7 +94,7 @@ const InstancePageStudio: React.FC = () => {
   });
 
   // Saved-action rows (edited on the Actions tab, persisted with the page).
-  const [actions, setActions] = useState<ActionRow[]>([blankAction()]);
+  const [actions, setActions] = useState<ActionRow[]>([]);
 
   // Component rows (edited on the Components tab)
   const [components, setComponents] = useState<ComponentRow[]>([]);
@@ -199,7 +199,6 @@ const InstancePageStudio: React.FC = () => {
 
   const addAction = () => setActions((a) => [...a, blankAction()]);
   const removeAction = (actionId: string) => {
-    if (actions.length <= 1) return;
     setActions((a) => a.filter((x) => x.id !== actionId));
   };
   const updateAction = (actionId: string, patch: Partial<ActionRow>) => {

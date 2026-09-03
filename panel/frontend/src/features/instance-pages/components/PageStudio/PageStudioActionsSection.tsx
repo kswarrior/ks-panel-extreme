@@ -92,8 +92,7 @@ export const PageStudioActionsSection: React.FC<PageStudioActionsSectionProps> =
                   <button
                     type="button"
                     onClick={() => onRemove(action.id)}
-                    disabled={actions.length <= 1}
-                    className="ks-btn-header ks-icon-btn disabled:opacity-40"
+                    className="ks-btn-header ks-icon-btn"
                     aria-label="Remove action"
                     title="Remove action"
                   >
