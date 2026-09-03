@@ -219,7 +219,21 @@ type jailHandler struct {
 
 // resolve maps a virtual SFTP path to a host path inside the root.
 // It returns an error when the mapping escapes the jail.
+//
+// follow controls symlink handling for the FINAL path component:
+//   - follow=true (reads, writes, stat, truncates — operations the OS
+//     resolves through symlinks): the fully-resolved target must stay
+//     inside the root, so a symlink planted inside the jail can never be
+//     used to read/write /etc/passwd.
+//   - follow=false (unlink, rename, mkdir, lstat, readlink — operations
+//     that act on the link itself): only the deepest existing ANCESTOR is
+//     resolved, so a user can still delete/rename their own dangling or
+//     outward-pointing symlink instead of leaving undeletable litter.
 func (h *jailHandler) resolve(virtual string) (string, error) {
+	return h.resolveFollow(virtual, true)
+}
+
+func (h *jailHandler) resolveFollow(virtual string, follow bool) (string, error) {
 	v := filepath.ToSlash(filepath.Clean("/" + strings.TrimPrefix(filepath.ToSlash(virtual), "/")))
 	rel := strings.TrimPrefix(v, "/")
 	host := filepath.Join(h.root, filepath.FromSlash(rel))
@@ -232,7 +246,16 @@ func (h *jailHandler) resolve(virtual string) (string, error) {
 	// existing ancestor) resolves outside the root, refuse. EvalSymlinks
 	// fails for not-yet-existing create targets, so walk up to the deepest
 	// existing ancestor instead of failing the whole operation.
+	// With follow=false the final component itself is skipped (the caller
+	// acts on the link, not its target) and only the parent chain is
+	// contained.
 	target := cleanHost
+	if !follow {
+		target = filepath.Dir(cleanHost)
+		if target != cleanRoot && !strings.HasPrefix(target, cleanRoot+string(os.PathSeparator)) {
+			return "", fmt.Errorf("path escapes SFTP root")
+		}
+	}
 	for {
 		resolved, err := filepath.EvalSymlinks(target)
 		if err == nil {
@@ -302,19 +325,24 @@ func (h *jailHandler) Filewrite(r *sftp.Request) (io.WriterAt, error) {
 func (h *jailHandler) Filecmd(r *sftp.Request) error {
 	switch r.Method {
 	case "Mkdir":
-		host, err := h.resolve(r.Filepath)
+		host, err := h.resolveFollow(r.Filepath, false)
 		if err != nil {
 			return err
 		}
 		return os.MkdirAll(host, 0o750)
 	case "Rmdir":
-		host, err := h.resolve(r.Filepath)
+		host, err := h.resolveFollow(r.Filepath, false)
 		if err != nil {
 			return err
 		}
+		// Refuse to remove the root itself (os.Remove would succeed on an
+		// empty root and delete the chroot directory).
+		if filepath.Clean(host) == filepath.Clean(h.root) {
+			return fmt.Errorf("refusing to remove SFTP root")
+		}
 		return os.Remove(host)
 	case "Remove":
-		host, err := h.resolve(r.Filepath)
+		host, err := h.resolveFollow(r.Filepath, false)
 		if err != nil {
 			return err
 		}
@@ -324,11 +352,11 @@ func (h *jailHandler) Filecmd(r *sftp.Request) error {
 		}
 		return os.Remove(host)
 	case "Rename", "PosixRename":
-		oldHost, err := h.resolve(r.Filepath)
+		oldHost, err := h.resolveFollow(r.Filepath, false)
 		if err != nil {
 			return err
 		}
-		newHost, err := h.resolve(r.Target)
+		newHost, err := h.resolveFollow(r.Target, false)
 		if err != nil {
 			return err
 		}
@@ -341,7 +369,7 @@ func (h *jailHandler) Filecmd(r *sftp.Request) error {
 		// requestFromPacket's POSIX note). Jail the linkpath; the target
 		// is stored verbatim but every later resolve re-jails it, so a
 		// symlink pointing at /etc/passwd can never be followed outside.
-		linkHost, err := h.resolve(r.Target)
+		linkHost, err := h.resolveFollow(r.Target, false)
 		if err != nil {
 			return err
 		}
@@ -354,7 +382,7 @@ func (h *jailHandler) Filecmd(r *sftp.Request) error {
 		if err != nil {
 			return err
 		}
-		dstHost, err := h.resolve(r.Target)
+		dstHost, err := h.resolveFollow(r.Target, false)
 		if err != nil {
 			return err
 		}
@@ -403,6 +431,8 @@ func (l listerat) ListAt(buf []os.FileInfo, off int64) (int, error) {
 func (h *jailHandler) Filelist(r *sftp.Request) (sftp.ListerAt, error) {
 	switch r.Method {
 	case "List":
+		// follow=true: ReadDir would follow a symlinked dir, so a link
+		// pointing outside must be refused here.
 		host, err := h.resolve(r.Filepath)
 		if err != nil {
 			return nil, err
@@ -421,7 +451,13 @@ func (h *jailHandler) Filelist(r *sftp.Request) (sftp.ListerAt, error) {
 		}
 		return listerat(infos), nil
 	case "Stat", "Lstat":
-		host, err := h.resolve(r.Filepath)
+		var host string
+		var err error
+		if r.Method == "Lstat" {
+			host, err = h.resolveFollow(r.Filepath, false)
+		} else {
+			host, err = h.resolve(r.Filepath)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -443,7 +479,7 @@ func (h *jailHandler) Filelist(r *sftp.Request) (sftp.ListerAt, error) {
 
 // Lstat keeps symlinks un-followed for lstat requests.
 func (h *jailHandler) Lstat(r *sftp.Request) (sftp.ListerAt, error) {
-	host, err := h.resolve(r.Filepath)
+	host, err := h.resolveFollow(r.Filepath, false)
 	if err != nil {
 		return nil, err
 	}
@@ -464,7 +500,7 @@ func (h *jailHandler) RealPath(p string) (string, error) {
 // Readlink refuses to leak host-absolute targets: a link whose target
 // escapes the jail reads back as its jailed virtual path.
 func (h *jailHandler) Readlink(p string) (string, error) {
-	host, err := h.resolve(p)
+	host, err := h.resolveFollow(p, false)
 	if err != nil {
 		return "", err
 	}
