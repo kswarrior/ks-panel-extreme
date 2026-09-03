@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getInstancePage, deleteInstancePage } from '@/shared/api/admin';
 import type { InstancePage } from '@/shared/types/instancePage';
@@ -113,6 +113,13 @@ const InstancePageDetail: React.FC = () => {
     );
   }
 
+  const subPages = parseSubPages((page as any).sub_pages);
+  const actions = parsePageActions((page as any).actions);
+  const components = parsePageComponents((page as any).components);
+  const configure = parsePageConfigure((page as any).configure);
+  const source = pageSourceOf(page as any);
+  const contentLen = ((page as any).content_html?.length || 0) + ((page as any).content_markdown?.length || 0) + ((page as any).content_blocks?.length || 0);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
@@ -162,8 +169,36 @@ const InstancePageDetail: React.FC = () => {
             <p className="text-xs text-white mt-1 truncate">{page.category || '—'}</p>
           </div>
           <div className="rounded-lg border border-white/5 bg-white/[0.02] p-2.5">
+            <h4 className="text-[10px] uppercase tracking-wide text-gray-500">Type</h4>
+            <p className="text-xs text-white mt-1 truncate">{(page as any).type || '—'}</p>
+          </div>
+          <div className="rounded-lg border border-white/5 bg-white/[0.02] p-2.5">
             <h4 className="text-[10px] uppercase tracking-wide text-gray-500">Content type</h4>
             <p className="text-xs text-white mt-1 capitalize">{page.content_type || '—'}</p>
+          </div>
+          <div className="rounded-lg border border-white/5 bg-white/[0.02] p-2.5">
+            <h4 className="text-[10px] uppercase tracking-wide text-gray-500">Source</h4>
+            <p className="text-xs text-white mt-1 capitalize">{source}</p>
+          </div>
+          <div className="rounded-lg border border-white/5 bg-white/[0.02] p-2.5">
+            <h4 className="text-[10px] uppercase tracking-wide text-gray-500">Content size</h4>
+            <p className="text-xs text-white mt-1">{contentLen > 0 ? `${(contentLen / 1024).toFixed(1)} KB` : '—'}</p>
+          </div>
+          <div className="rounded-lg border border-white/5 bg-white/[0.02] p-2.5">
+            <h4 className="text-[10px] uppercase tracking-wide text-gray-500">Sub-pages</h4>
+            <p className="text-xs text-white mt-1">{subPages.length}</p>
+          </div>
+          <div className="rounded-lg border border-white/5 bg-white/[0.02] p-2.5">
+            <h4 className="text-[10px] uppercase tracking-wide text-gray-500">Actions</h4>
+            <p className="text-xs text-white mt-1">{actions.length}</p>
+          </div>
+          <div className="rounded-lg border border-white/5 bg-white/[0.02] p-2.5">
+            <h4 className="text-[10px] uppercase tracking-wide text-gray-500">Components</h4>
+            <p className="text-xs text-white mt-1">{components.length}</p>
+          </div>
+          <div className="rounded-lg border border-white/5 bg-white/[0.02] p-2.5">
+            <h4 className="text-[10px] uppercase tracking-wide text-gray-500">Configure vars</h4>
+            <p className="text-xs text-white mt-1">{configure.length}</p>
           </div>
           <div className="rounded-lg border border-white/5 bg-white/[0.02] p-2.5">
             <h4 className="text-[10px] uppercase tracking-wide text-gray-500">Created</h4>
@@ -177,6 +212,67 @@ const InstancePageDetail: React.FC = () => {
 
         {page.description && (
           <p className="text-sm text-gray-300 mt-4">{page.description}</p>
+        )}
+
+        {subPages.length > 0 && (
+          <div className="mt-4">
+            <h4 className="text-[10px] uppercase tracking-wide text-gray-500 mb-2">Sub-pages ({subPages.length})</h4>
+            <div className="space-y-1.5">
+              {subPages.map((s) => (
+                <div key={s.path} className="flex items-center gap-2 text-xs rounded border border-white/5 bg-white/[0.02] px-2.5 py-1.5">
+                  <code className="font-mono text-sky-300">/{page.slug}/{s.path}</code>
+                  <span className="text-gray-300 truncate">{s.name}</span>
+                  <span className="ml-auto text-[10px] uppercase text-gray-500">{s.content_type}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {actions.length > 0 && (
+          <div className="mt-4">
+            <h4 className="text-[10px] uppercase tracking-wide text-gray-500 mb-2">Actions ({actions.length})</h4>
+            <div className="space-y-1.5">
+              {actions.map((a) => (
+                <div key={a.name} className="flex items-center gap-2 text-xs rounded border border-white/5 bg-white/[0.02] px-2.5 py-1.5">
+                  <code className="font-mono text-emerald-300">{a.name}</code>
+                  <span className="text-[10px] uppercase text-gray-500">{a.type}</span>
+                  {a.description && <span className="text-gray-500 truncate">{a.description}</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {components.length > 0 && (
+          <div className="mt-4">
+            <h4 className="text-[10px] uppercase tracking-wide text-gray-500 mb-2">Components ({components.length})</h4>
+            <div className="space-y-1.5">
+              {components.map((c) => (
+                <div key={c.name} className="flex items-center gap-2 text-xs rounded border border-white/5 bg-white/[0.02] px-2.5 py-1.5">
+                  <code className="font-mono text-violet-300">{'{{component:'}{c.name}{'}}'}</code>
+                  <span className="text-[10px] uppercase text-gray-500">{c.type}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {configure.length > 0 && (
+          <div className="mt-4">
+            <h4 className="text-[10px] uppercase tracking-wide text-gray-500 mb-2">Configure variables ({configure.length})</h4>
+            <div className="space-y-1.5">
+              {configure.map((v) => (
+                <div key={v.name} className="flex items-center gap-2 text-xs rounded border border-white/5 bg-white/[0.02] px-2.5 py-1.5">
+                  <code className="font-mono text-amber-300">{v.name}</code>
+                  <span className="text-gray-300 truncate">{v.label || v.default || ''}</span>
+                  <span className="ml-auto text-[10px] uppercase text-gray-500">{v.display || 'text'}</span>
+                  {v.required && <span className="text-[10px] text-red-400">required</span>}
+                </div>
+              ))}
+            </div>
+            <p className="text-[11px] text-gray-500 mt-2">Values are set per template via the template editor&apos;s Configure button and render as <code className="font-mono">{'{{config:NAME}}'}</code>.</p>
+          </div>
         )}
       </GlassCard>
     </div>
