@@ -31,7 +31,7 @@ export interface PageConfigureVar {
   user_editable: boolean;
   required: boolean;
   rule: string;
-  display: 'text' | 'number' | 'select' | 'checkbox';
+  display: 'text' | 'number' | 'select' | 'checkbox' | 'toggle';
   options: string;
   append: boolean;
   prepend: string;
