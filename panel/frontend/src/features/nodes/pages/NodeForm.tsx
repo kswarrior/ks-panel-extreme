@@ -8,7 +8,8 @@ import GlassModal from '@/shared/components/ui/Modal';
 import LocationField from '@/shared/components/forms/LocationField/LocationField';
 import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 import type { ConnectionMode, Form, NodeFormTabId } from '../types/nodeForm';
-import { emptyForm, KSEDGE_URL, ALL_KINDS, NODEFORM_TABS, CONNECTION_MODES, isLocalMode, isTunnelMode } from '../types/nodeForm';
+import { emptyForm, KSEDGE_URL, ALL_KINDS, CONNECTION_MODES, isLocalMode, isTunnelMode } from '../types/nodeForm';
+import { NodeTabs } from '../components/NodeTabs';
 import { buildEdgeConfig, buildBootstrapCmd } from '../utils/nodeFormUtils';
 import { NODE_ICONS, NODE_COLORS, NodeIcon } from '../utils/nodeIcons';
 
@@ -382,26 +383,7 @@ const NodeForm: React.FC = () => {
         saving={saving}
         submitLabel={editing ? 'Save' : 'Create'}
         onSubmit={submit}
-        headerActions={
-          <div
-            role="tablist"
-            aria-label="Node form sections"
-            className="flex items-center gap-1 rounded-lg bg-neutral-900/60 border border-white/10 p-1 overflow-x-auto max-w-full scrollbar-hide"
-          >
-            {NODEFORM_TABS.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                role="tab"
-                aria-selected={tab === t.id}
-                onClick={() => setTab(t.id)}
-                className={`ks-tab shrink-0 whitespace-nowrap transition-colors ${tab === t.id ? 'ks-tab-active' : ''}`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-        }
+        maxWidth="max-w-4xl"
         secondaryActions={!editing && isLocalMode(form.connection_mode) ? (
           <button
             type="button"
@@ -419,7 +401,9 @@ const NodeForm: React.FC = () => {
           </button>
         ) : undefined}
       >
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4">
+        <NodeTabs tab={tab} onChange={setTab} />
+        <div className="space-y-4 min-w-0">
           {tab === 'general' && (
           <>
           <GlassField label="Connection mode" htmlFor="connection_mode" hint={CONNECTION_MODES.find((m) => m.value === form.connection_mode)?.hint || "How panel and edge find each other."}>
@@ -832,6 +816,7 @@ const NodeForm: React.FC = () => {
           )}
 
           {error && <p className="text-sm text-red-400">{error}</p>}
+        </div>
         </div>
       </FormPage>
 
