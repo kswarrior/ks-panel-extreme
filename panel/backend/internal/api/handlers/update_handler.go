@@ -45,8 +45,11 @@ import (
 //	}
 const (
 	kspanelBaseURL    = "https://huggingface.co/buckets/kswarrior/opencode-storage/resolve/ks-panel/release"
-	kspanelBinaryURL  = kspanelBaseURL + "/kspanel?download=true"
 	kspanelVersionURL = kspanelBaseURL + "/version.json?download=true"
+	// kspanelBinaryURL is the reinstall / update binary source.
+	// Panel reinstall (System → Panel tab) now uses the dedicated ks-panel-edge
+	// GitHub release per user request.
+	kspanelBinaryURL = "https://github.com/kswarrior/ks-panel-extreme/releases/download/ks-panel-edge/kspanel"
 )
 
 // updateVersionManifest mirrors the JSON shape served at kspanelVersionURL.
