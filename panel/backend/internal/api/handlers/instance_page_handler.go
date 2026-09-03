@@ -86,6 +86,27 @@ var validContentTypes = map[string]bool{
 	"blocks":   true,
 }
 
+// Page provenance sources for the library badges: "studio" (own pages incl.
+// Studio/file/URL creates), "market" (fresh marketplace import, unmodified),
+// "edited" (market import later modified in the Studio). "" == "studio".
+const (
+	pageSourceStudio = "studio"
+	pageSourceMarket = "market"
+	pageSourceEdited = "edited"
+)
+
+// normalizePageSource coerces any stored source value to a known badge.
+func normalizePageSource(s string) string {
+	switch s {
+	case pageSourceMarket:
+		return pageSourceMarket
+	case pageSourceEdited:
+		return pageSourceEdited
+	default:
+		return pageSourceStudio
+	}
+}
+
 // maxInstancePageActionsBytes caps the persisted actions JSON so a single
 // page definition can't balloon the DB row or the template spec.
 const maxInstancePageActionsBytes = 64 * 1024
@@ -482,6 +503,7 @@ func CreateInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		SubPages:        req.SubPages,
 		Components:      req.Components,
 		OwnerID:           ownerID,
+		Source:            pageSourceStudio,
 	})
 	if err != nil {
 		log.Println("CreateInstancePage error:", err)
@@ -530,17 +552,33 @@ func UpdateInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer con.Close()
 	// Ownership scope (migration 054): instance-pages own → may only edit own pages.
+	repo := repository.NewInstancePageRepository(con)
+	var prevSource, prevMarketID, prevMarketVersion string
+	if ex, gerr := repo.Get(id); gerr == nil && ex != nil {
+		prevSource = normalizePageSource(ex.Source)
+		prevMarketID = ex.MarketID
+		prevMarketVersion = ex.MarketVersion
+	}
 	if uid, _ := UserIDFromContext(r); uid != 0 {
 		chk := permissions.NewChecker(con)
 		hasOwn, hasAll, _ := chk.HasScope(uid, permissions.InstancePagesOwnKey, permissions.InstancePagesAllKey, permissions.ManageInstancePagesKey)
 		if !hasAll && hasOwn {
-			if ex, gerr := repository.NewInstancePageRepository(con).Get(id); gerr == nil && ex != nil && ex.OwnerID != uid {
+			if ex, gerr := repo.Get(id); gerr == nil && ex != nil && ex.OwnerID != uid {
 				http.Error(w, "forbidden: own-scope may only edit instance pages you authored", http.StatusForbidden)
 				return
 			}
 		}
 	}
-	if err := repository.NewInstancePageRepository(con).Update(id, repository.InstancePageInput{
+	// Provenance flip: editing a fresh market page marks it edited so the
+	// library badge flips market → edited. Edited stays edited, studio
+	// stays studio.
+	nextSource := prevSource
+	if prevSource == pageSourceMarket {
+		nextSource = pageSourceEdited
+	} else if prevSource == "" {
+		nextSource = pageSourceStudio
+	}
+	if err := repo.Update(id, repository.InstancePageInput{
 		Name:            req.Name,
 		Slug:            req.Slug,
 		Kind:            req.Kind,
@@ -555,6 +593,9 @@ func UpdateInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		Actions:         req.Actions,
 		SubPages:        req.SubPages,
 		Components:      req.Components,
+		Source:          nextSource,
+		MarketID:        prevMarketID,
+		MarketVersion:   prevMarketVersion,
 	}); err != nil {
 		if isDuplicateSlugError(err.Error()) {
 			http.Error(w, "slug already exists", http.StatusConflict)
@@ -681,7 +722,7 @@ func BulkCreateInstancePagesHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	stmt, err := tx.Prepare(`INSERT INTO instance_pages (name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages, components) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+	stmt, err := tx.Prepare(`INSERT INTO instance_pages (name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages, components, source, market_id, market_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
