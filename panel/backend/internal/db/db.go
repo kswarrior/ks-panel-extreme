@@ -529,6 +529,20 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				return err
 			}
 			continue
+		case name == "057_instance_page_configure.sql":
+			// Instance-page configure vars (a JSON array of page-level
+			// EnvVariable-style definitions) persisted on each instance_pages
+			// row so the Studio can save/reload them and so linking a page
+			// to a template ships its configure definitions into spec.pages
+			// for the runtime and for the template editor to collect
+			// per-page values (Configure button). Guarded so re-launches
+			// stay idempotent on all dialects — mirrors 049.
+			if err := guardedAddColumns(d, db, name, "instance_pages", []columnSpec{
+				{"configure", "TEXT NOT NULL DEFAULT ''"},
+			}); err != nil {
+				return err
+			}
+			continue
 		case name == "055_instance_ports.sql":
 			// Per-instance port allocations (host->container). The CREATE TABLE
 			// is IF NOT EXISTS on every dialect, but the index line is
