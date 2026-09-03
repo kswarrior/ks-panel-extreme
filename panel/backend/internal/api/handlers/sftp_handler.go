@@ -13,10 +13,9 @@
 //	POST /api/instances/{id}/sftp/disable  — edge delete + row + vault removal (INSTANCES_EDIT)
 //
 // The custom sftp.json instance page calls fetchPanel('/sftp') against the
-// GET route; the SPA InstanceSftpCard drives the POST routes. Reveal of the
-// cleartext password goes through the existing audited secrets endpoint
-// (GET /api/instances/{id}/secrets/sftp_password) so this surface never
-// returns secrets on a read path.
+// GET route; the SPA InstanceSftpCard drives the POST routes plus
+// GET ?reveal=1. Reveal is EDIT-gated + audited inline so SFTP never depends
+// on the unrelated "env" page guard the generic secrets endpoint enforces.
 package handlers
 
 import (
@@ -200,6 +199,13 @@ func sftpPublicView(inst *models.Instance, cfg *repository.SFTPConfig, nodeAddr 
 // 404 when never provisioned (the sftp.json page renders its "not
 // provisioned" state from this). Suspended-but-provisioned rows return
 // enabled=false so the page can explain the block.
+//
+// ?reveal=1 returns the cleartext password inline (audited as sftp.reveal).
+// Reveal requires INSTANCES_EDIT (umbrella or granular, own-scope aware) so
+// read-only operators and other owners can't pull passwords through the
+// masked read path; it does NOT require the "env" instance page, because
+// SFTP credentials are useless when reveal is gated behind an unrelated
+// template page the instance never imported.
 func GetSFTPHandler(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil || id <= 0 {
@@ -231,7 +237,36 @@ func GetSFTPHandler(w http.ResponseWriter, r *http.Request) {
 		nodeAddr = node.Address
 	}
 	_, rerr := repository.NewSecretRepository(con).Reveal(id, repository.SFTPSecretKey)
-	writeJSON(w, sftpPublicView(inst, cfg, nodeAddr, rerr == nil))
+	view := sftpPublicView(inst, cfg, nodeAddr, rerr == nil)
+	if r.URL.Query().Get("reveal") != "1" {
+		writeJSON(w, view)
+		return
+	}
+	// Reveal path: EDIT-gated (umbrella MANAGE_INSTANCES or granular
+	// INSTANCES_EDIT), own-scope aware, audited. Fail closed on any
+	// checker error.
+	uid, uerr := UserIDFromContext(r)
+	if uerr != nil || uid == 0 {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	checker := permissions.NewChecker(con)
+	canEdit, cerr := checker.HasAnyPermission(uid, permissions.ManageInstancesKey, permissions.InstancesEditKey)
+	if cerr != nil || !canEdit {
+		http.Error(w, "forbidden: INSTANCES_EDIT is required to reveal the SFTP password", http.StatusForbidden)
+		return
+	}
+	if !sftpOwnScope(w, r, con, inst) {
+		return
+	}
+	password, perr := repository.NewSecretRepository(con).Reveal(id, repository.SFTPSecretKey)
+	if perr != nil || password == "" {
+		http.Error(w, "sftp password not found in vault", http.StatusNotFound)
+		return
+	}
+	auditInst(r, id, "sftp.reveal", fmt.Sprintf("revealed SFTP password for %q", cfg.Username))
+	view["password"] = password
+	writeJSON(w, view)
 }
 
 // EnableSFTPHandler mints username inst_<id> + a 32B random password, vaults

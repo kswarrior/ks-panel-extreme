@@ -1,5 +1,4 @@
 import client from '@/shared/api/client';
-import { revealSecret } from '@/features/instances/api/instanceAdvanced';
 
 export interface SFTPInfo {
   enabled: boolean;
@@ -40,6 +39,12 @@ export async function disableSFTP(instanceId: number): Promise<{ ok: boolean }> 
 }
 
 export async function revealSFTPPassword(instanceId: number): Promise<string> {
-  const res = await revealSecret(instanceId, 'sftp_password');
-  return res.value;
+  // Audited SFTP reveal (INSTANCES_EDIT, no "env" page dependency — the
+  // generic secrets reveal is page-guarded behind "env", which SFTP
+  // instances need not import).
+  const res = await client.get<SFTPInfo>(`${base(instanceId)}?reveal=1`);
+  if (res.data && typeof res.data.password === 'string' && res.data.password !== '') {
+    return res.data.password;
+  }
+  throw new Error('Password not returned (missing INSTANCES_EDIT?)');
 }
