@@ -138,6 +138,13 @@ type InstancePageInput struct {
 	// wires the INSTANCE_PAGES_OWN / _ALL scope keys; see the
 	// handler for the full contract.
 	OwnerID int64
+	// Source tracks provenance: "studio" (own), "market" (fresh market
+	// import), "edited" (market import later modified). "" == "studio".
+	Source string
+	// MarketID is the marketplace catalog id ("" == not a market page).
+	MarketID string
+	// MarketVersion is the catalog version at import time.
+	MarketVersion string
 }
 
 // Create inserts a new instance page. The handler populates OwnerID
@@ -149,11 +156,11 @@ func (r *InstancePageRepository) Create(in InstancePageInput) (int64, error) {
 	var res sql.Result
 	var err error
 	if in.OwnerID != 0 {
-		res, err = r.db.Exec(`INSERT INTO instance_pages (name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages, components, owner_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			in.Name, in.Slug, in.Kind, in.Category, in.PageType, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.IconSVG, in.Actions, in.SubPages, in.Components, in.OwnerID)
+		res, err = r.db.Exec(`INSERT INTO instance_pages (name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages, components, owner_id, source, market_id, market_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			in.Name, in.Slug, in.Kind, in.Category, in.PageType, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.IconSVG, in.Actions, in.SubPages, in.Components, in.OwnerID, in.Source, in.MarketID, in.MarketVersion)
 	} else {
-		res, err = r.db.Exec(`INSERT INTO instance_pages (name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages, components) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			in.Name, in.Slug, in.Kind, in.Category, in.PageType, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.IconSVG, in.Actions, in.SubPages, in.Components)
+		res, err = r.db.Exec(`INSERT INTO instance_pages (name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages, components, source, market_id, market_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			in.Name, in.Slug, in.Kind, in.Category, in.PageType, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.IconSVG, in.Actions, in.SubPages, in.Components, in.Source, in.MarketID, in.MarketVersion)
 	}
 	if err != nil {
 		return 0, err
@@ -163,8 +170,8 @@ func (r *InstancePageRepository) Create(in InstancePageInput) (int64, error) {
 
 // Update patches an editable instance page.
 func (r *InstancePageRepository) Update(id int64, in InstancePageInput) error {
-	res, err := r.db.Exec(`UPDATE instance_pages SET name = ?, slug = ?, kind = ?, category = ?, page_type = ?, description = ?, content_type = ?, content_html = ?, content_markdown = ?, content_blocks = ?, icon_svg = ?, actions = ?, sub_pages = ?, components = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-		in.Name, in.Slug, in.Kind, in.Category, in.PageType, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.IconSVG, in.Actions, in.SubPages, in.Components, id)
+	res, err := r.db.Exec(`UPDATE instance_pages SET name = ?, slug = ?, kind = ?, category = ?, page_type = ?, description = ?, content_type = ?, content_html = ?, content_markdown = ?, content_blocks = ?, icon_svg = ?, actions = ?, sub_pages = ?, components = ?, source = ?, market_id = ?, market_version = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+		in.Name, in.Slug, in.Kind, in.Category, in.PageType, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.IconSVG, in.Actions, in.SubPages, in.Components, in.Source, in.MarketID, in.MarketVersion, id)
 	if err != nil {
 		return err
 	}
