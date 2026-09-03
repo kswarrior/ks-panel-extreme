@@ -436,61 +436,63 @@ const InstanceForm: React.FC = () => {
                 )}
               </div>
             </GlassCard>
-            <div className="border-t border-white/10 pt-4 mt-4">
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <div className="min-w-0">
-                  <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400">Template</h4>
-                  <p className="text-xs text-gray-500">Pick the blueprint that defines this instance.</p>
+            <div className="border-t border-white/10 pt-4 mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="min-w-0">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className="min-w-0">
+                    <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400">Template</h4>
+                    <p className="text-xs text-gray-500">Pick the blueprint that defines this instance.</p>
+                  </div>
+                  <span className="text-xs text-gray-500 shrink-0">{templates.length} available</span>
                 </div>
-                <span className="text-xs text-gray-500 shrink-0">{templates.length} available</span>
+                {templates.length === 0 ? (
+                  <GlassCard className="text-center text-gray-400 text-sm">No templates available.</GlassCard>
+                ) : (
+                  <SearchableSelect<number>
+                    options={templateOptions}
+                    value={templateId}
+                    onChange={selectTemplate}
+                    placeholder="Search templates by name, kind or image…"
+                    emptyMessage="No templates match"
+                    renderRow={renderTemplateRow}
+                    groupLabel="Templates"
+                  />
+                )}
+                {selectedTemplate && (
+                  <p className="text-xs text-gray-500 mt-1.5 font-mono truncate">{selectedTemplate.image}</p>
+                )}
+                {!selectedTemplate && (
+                  <p className="text-xs text-amber-200/90 bg-amber-950/30 border border-amber-700/30 rounded-md px-3 py-2 mt-3">
+                    Choose a template first — its configuration appears on the other tabs.
+                  </p>
+                )}
               </div>
-              {templates.length === 0 ? (
-                <GlassCard className="text-center text-gray-400 text-sm">No templates available.</GlassCard>
-              ) : (
-                <SearchableSelect<number>
-                  options={templateOptions}
-                  value={templateId}
-                  onChange={selectTemplate}
-                  placeholder="Search templates by name, kind or image…"
-                  emptyMessage="No templates match"
-                  renderRow={renderTemplateRow}
-                  groupLabel="Templates"
-                />
-              )}
-              {selectedTemplate && (
-                <p className="text-xs text-gray-500 mt-1.5 font-mono truncate">{selectedTemplate.image}</p>
-              )}
-              {!selectedTemplate && (
-                <p className="text-xs text-amber-200/90 bg-amber-950/30 border border-amber-700/30 rounded-md px-3 py-2 mt-3">
-                  Choose a template first — its configuration appears on the other tabs.
-                </p>
-              )}
-            </div>
 
-            <div className="border-t border-white/10 pt-4 mt-4">
-              <div className="flex items-center justify-between gap-3 mb-2">
-                <div className="min-w-0">
-                  <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400">Node</h4>
-                  <p className="text-xs text-gray-500 truncate">Where the instance runs — the node must advertise this template's driver.</p>
+              <div className="min-w-0">
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <div className="min-w-0">
+                    <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400">Node</h4>
+                    <p className="text-xs text-gray-500 truncate">Where the instance runs — the node must advertise this template's driver.</p>
+                  </div>
+                  <span className="text-xs text-gray-500 shrink-0">{nodes.length} available</span>
                 </div>
-                <span className="text-xs text-gray-500 shrink-0">{nodes.length} available</span>
+                {nodes.length === 0 ? (
+                  <GlassCard className="text-center text-gray-400 text-sm">No nodes available.</GlassCard>
+                ) : (
+                  <SearchableSelect<number>
+                    options={nodeOptions}
+                    value={nodeId}
+                    onChange={setNodeId}
+                    placeholder="Search nodes by name or address…"
+                    emptyMessage="No nodes match"
+                    renderRow={renderNodeRow}
+                    groupLabel="Nodes"
+                  />
+                )}
+                {selectedNode && (
+                  <p className="text-xs text-gray-500 mt-1.5 font-mono truncate">{selectedNode.address}</p>
+                )}
               </div>
-              {nodes.length === 0 ? (
-                <GlassCard className="text-center text-gray-400 text-sm">No nodes available.</GlassCard>
-              ) : (
-                <SearchableSelect<number>
-                  options={nodeOptions}
-                  value={nodeId}
-                  onChange={setNodeId}
-                  placeholder="Search nodes by name or address…"
-                  emptyMessage="No nodes match"
-                  renderRow={renderNodeRow}
-                  groupLabel="Nodes"
-                />
-              )}
-              {selectedNode && (
-                <p className="text-xs text-gray-500 mt-1.5 font-mono truncate">{selectedNode.address}</p>
-              )}
             </div>
 
             {selectedTemplate && editor.env.length > 0 && (
