@@ -516,35 +516,18 @@ const NodeForm: React.FC = () => {
               </div>
             </div>
             {showCustomIcon && (
-                  <div>
-                    <label htmlFor="node_icon_custom" className="block text-sm font-medium text-gray-200 mb-1">Custom SVG</label>
-                    <textarea
-                      id="node_icon_custom"
-                      rows={3}
-                      value={isCustomNodeIconSvg(form.icon) ? form.icon : ''}
-                      onChange={(e) => setForm((f) => ({ ...f, icon: e.target.value }))}
-                      placeholder="Paste full <svg>...</svg> markup"
-                      className="w-full bg-black/30 text-white placeholder-gray-500 border border-white/10 rounded-md px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-white/60 focus:border-white/40 transition-colors"
-                    />
-                  </div>
-                )}
+              <div>
+                <label htmlFor="node_icon_custom" className="block text-sm font-medium text-gray-200 mb-1">Custom SVG</label>
+                <textarea
+                  id="node_icon_custom"
+                  rows={3}
+                  value={isCustomNodeIconSvg(form.icon) ? form.icon : ''}
+                  onChange={(e) => setForm((f) => ({ ...f, icon: e.target.value }))}
+                  placeholder="Paste full <svg>...</svg> markup"
+                  className="w-full bg-black/30 text-white placeholder-gray-500 border border-white/10 rounded-md px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-white/60 focus:border-white/40 transition-colors"
+                />
               </div>
-            </div>
-            <div>
-              <label htmlFor="node_color" className="block text-sm font-medium text-gray-200 mb-1">Colour</label>
-              <select
-                id="node_color"
-                value={colorSelectValue}
-                onChange={(e) => onColorSelect(e.target.value)}
-                className={selectCls}
-              >
-                <option value="custom">Custom</option>
-                <option value="">Default</option>
-                {NODE_COLORS.map((c) => (
-                  <option key={c} value={c}>{NODE_COLOR_NAMES[c.toLowerCase()] ?? c} ({c.toUpperCase()})</option>
-                ))}
-              </select>
-            </div>
+            )}
             {showCustomColor && (
               <div>
                 <span className="block text-sm font-medium text-gray-200 mb-1">Custom colour</span>
