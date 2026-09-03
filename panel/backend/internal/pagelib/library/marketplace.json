@@ -353,6 +353,20 @@
       "preview_image": ""
     },
     {
+      "id": "sftp",
+      "name": "SFTP",
+      "description": "SFTP credentials for FileZilla / WinSCP / CLI with container-access diagnostics",
+      "category": "management",
+      "author": "kswarrior",
+      "version": "1.0",
+      "tags": [
+        "management"
+      ],
+      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/sftp.json",
+      "icon_svg": "<rect x=\"3\" y=\"11\" width=\"18\" height=\"11\" rx=\"2\"/><path d=\"M7 11V7a5 5 0 0 1 10 0v4\"/>",
+      "preview_image": ""
+    },
+    {
       "id": "system-probe",
       "name": "System Info",
       "description": "CPU model/cores, memory, kernel, architecture and virtualization detail.",
