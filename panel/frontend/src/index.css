@@ -623,8 +623,7 @@ html[data-ks-shortcuts='1'] [data-shortcut-hint] {
 /* Instance tabs nav custom scrollbar */
 nav.overflow-x-auto::-webkit-scrollbar {
   height: 6px;
-}
-nav.overflow-x-auto::-webkit-scrollbar-track {
+}nav.overflow-x-auto::-webkit-scrollbar-track {
   background: transparent;
 }
 nav.overflow-x-auto::-webkit-scrollbar-thumb {
@@ -641,6 +640,27 @@ nav.overflow-x-auto::-webkit-scrollbar-thumb:hover {
     scrollbar-color: #3b82f6 transparent;
     scrollbar-width: thin;
   }
+}
+
+/* Visible thin scrollbar bar for horizontal preset strips — same look as tabs */
+.ks-hscroll {
+  scrollbar-color: #3b82f6 transparent;
+  scrollbar-width: thin;
+}
+.ks-hscroll::-webkit-scrollbar {
+  height: 6px;
+}
+.ks-hscroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.ks-hscroll::-webkit-scrollbar-thumb {
+  background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+  border-radius: 3px;
+  border: 1px solid transparent;
+  background-clip: content-box;
+}
+.ks-hscroll::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(90deg, #60a5fa, #a78bfa);
 }
 
 /* Grid layout for All Pages submenu */

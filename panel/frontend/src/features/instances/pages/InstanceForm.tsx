@@ -308,7 +308,7 @@ const InstanceForm: React.FC = () => {
                 >
                   ‹
                 </button>
-                <div ref={stripRef} className="flex flex-1 min-w-0 items-center gap-2 overflow-x-auto scrollbar-hide py-0.5 -mx-0.5 px-0.5">
+                <div ref={stripRef} className="flex flex-1 min-w-0 items-center gap-2 overflow-x-auto ks-hscroll pb-2 -mx-0.5 px-0.5">
                   {ICON_PRESETS.map((p) => (
                     <button
                       key={p.value}
