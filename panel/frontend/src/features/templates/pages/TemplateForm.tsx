@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom';
 import { listTemplates, createTemplate, updateTemplate, listInstancePages, type InstancePage } from '@/shared/api/admin';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
-import { parseSubPages, parsePageActions, parsePageComponents } from '@/features/instance-pages/types/instancePage';
+import { parseSubPages, parsePageActions, parsePageComponents, parsePageConfigure } from '@/features/instance-pages/types/instancePage';
 import type { Template } from '@/shared/types/instance';
 import FormPage from '@/shared/components/forms/FormPage';
 import GlassField, { glassFieldClass } from '@/shared/components/ui/Field';
@@ -146,6 +146,9 @@ const TemplatePagesImportModal: React.FC<TemplatePagesImportModalProps> = ({
           : {}),
         ...(parsePageComponents(p.components).length > 0
           ? { components: parsePageComponents(p.components) }
+          : {}),
+        ...(parsePageConfigure((p as any).configure).length > 0
+          ? { configure: parsePageConfigure((p as any).configure) }
           : {}),
       });
       skip.add(p.slug);
@@ -507,6 +510,7 @@ const TemplateForm: React.FC = () => {
   // toggle UX. The sub-form shows Path / Name / Icon SVG, plus the
   // CustomPageStudio for custom pages.
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
+  const [configureIdx, setConfigureIdx] = useState<number | null>(null);
 
   if (loading) {
     return (
@@ -747,6 +751,16 @@ const TemplateForm: React.FC = () => {
                             /{p.slug === '.' ? '' : p.slug}
                           </code>
                         </div>
+                        {(p.configure?.length ?? 0) > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setConfigureIdx(i)}
+                            className="px-2.5 py-1 text-xs font-medium border border-sky-700/40 bg-sky-900/20 text-sky-300 rounded hover:bg-sky-800/30 shrink-0"
+                            title="Configure page variables"
+                          >
+                            Configure
+                          </button>
+                        )}
                         <CardMenu
                           ariaLabel={`Actions for page ${p.label || defLabel}`}
                           items={[
@@ -758,6 +772,7 @@ const TemplateForm: React.FC = () => {
                               setEditingIdx(isEditing ? null : i);
                             } else if (key === 'remove') {
                               if (editingIdx !== null && editingIdx >= i) setEditingIdx(null);
+                              if (configureIdx !== null && configureIdx >= i) setConfigureIdx(null);
                               setForm((f) => ({ ...f, pages: f.pages.filter((_, j) => j !== i) }));
                             }
                           }}
