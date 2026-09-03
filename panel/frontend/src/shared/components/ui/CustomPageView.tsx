@@ -573,7 +573,7 @@ function safeInlineJson(v: unknown): string {
     .replace(/\u2029/g, '\\u2029');
 }
 
-function buildIframeDocument(htmlContent: string, instanceContextJson: string, savedActionsJson: string, pageQuery: string, themeCss?: string): string {
+function buildIframeDocument(htmlContent: string, instanceContextJson: string, savedActionsJson: string, pageQuery: string, themeCss?: string, pageConfigJson?: string): string {
   const bootstrapSrc = `
 (function() {
   'use strict';
@@ -619,7 +619,8 @@ function buildIframeDocument(htmlContent: string, instanceContextJson: string, s
     }
   });
 
-  var sdk = { instance: ${instanceContextJson}, actions: ${savedActionsJson} };
+  var sdk = { instance: ${instanceContextJson}, actions: ${savedActionsJson}, config: ${pageConfigJson || '{}'} };
+  try { window.KS_PAGE_CONFIG = sdk.config; } catch(e) {}
   ${JSON.stringify(BRIDGE_METHODS)}.forEach(function(m) {
     var parts = m.split('.');
     var target = sdk;
@@ -1335,8 +1336,8 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
       created_at: '',
       updated_at: '',
     } as InstanceContext);
-    // Resolve {{component:name}} tokens in HTML content.
-    const resolvedHtml = resolveComponentTokens(content.html ?? '', content.components ?? []);
+    // Resolve {{component:name}} + {{config:NAME}} tokens in HTML content.
+    const resolvedHtml = resolveAllTokens(content.html ?? '', content.components ?? [], content.configure, content.config);
     // Bake the active theme + any admin Custom CSS scoped to instance pages so every
     // instance page (Home, Files, Terminal, custom slug, sub-pages) follows the theme
     // system like host UI — completing "theme Works in all instances pages".
@@ -1347,8 +1348,9 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
       safeInlineJson(Array.isArray(content.actions) ? content.actions : []),
       location.search,
       themeCss,
+      safeInlineJson(pageConfigMap),
     );
-  }, [content.type, content.html, content.components, content.actions, instanceContext, location.search, activeTheme, pageSlug]);
+  }, [content.type, content.html, content.components, content.configure, content.config, content.actions, instanceContext, location.search, activeTheme, pageSlug, pageConfigMap]);
 
   // Bridge: parent-side handler for everything the iframe sends up.
   useEffect(() => {
@@ -1506,8 +1508,8 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
   // For markdown and blocks, render as React components (SDK available on window.KSPageSDK)
   return (
     <div className="animate-fade-in">
-      {content.type === 'markdown' && renderMarkdown(content.markdown ?? '', content.components)}
-      {content.type === 'blocks' && renderBlocks(content.blocks ?? '', content.components)}
+      {content.type === 'markdown' && renderMarkdown(content.markdown ?? '', content.components, content.configure, content.config)}
+      {content.type === 'blocks' && renderBlocks(content.blocks ?? '', content.components, content.configure, content.config)}
     </div>
   );
 };
