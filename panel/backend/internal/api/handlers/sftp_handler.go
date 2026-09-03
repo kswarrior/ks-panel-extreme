@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/example/kspanel/internal/edge"
@@ -40,6 +41,13 @@ import (
 // exists yet. It matches the edge --sftp-port default (2222) and the
 // instance_sftp.port column default (migration 058).
 const DefaultSFTPPort = 2222
+
+// sftpMutMu serialises the enable/rotate/disable critical sections
+// (vault write → DB upsert → edge provision). Without it two concurrent
+// rotates could interleave vault and edge writes so the vaulted password no
+// longer matches the edge's bcrypt hash. SFTP mutators are rare admin
+// actions; a process-wide lock is cheaper than per-instance striping.
+var sftpMutMu sync.Mutex
 
 // sftpUsername mints the panel-side SFTP login for an instance.
 func sftpUsername(id int64) string {
