@@ -403,6 +403,7 @@ export function createCustomPageSDK(
     // Persisted page actions
     actions: savedActions,
     runAction,
+    config: pageConfig,
     
     // Core action
     executeAction,
@@ -459,8 +460,8 @@ export function createCustomPageSDK(
 }
 
 // Helper to inject SDK into a page's iframe or directly into window
-export function injectSDK(instanceContext: InstanceContext, savedActions: PageActionDef[] = [], pageSlug: string = ''): CustomPageAPI {
-  const sdk = createCustomPageSDK(instanceContext, savedActions, pageSlug);
+export function injectSDK(instanceContext: InstanceContext, savedActions: PageActionDef[] = [], pageSlug: string = '', pageConfig: Record<string, string> = {}): CustomPageAPI {
+  const sdk = createCustomPageSDK(instanceContext, savedActions, pageSlug, pageConfig);
   window.KSPageSDK = sdk;
   return sdk;
 }

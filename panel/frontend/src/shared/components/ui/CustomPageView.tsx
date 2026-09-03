@@ -247,7 +247,7 @@ function blocksToHtml(json: string): string {
 // user sees. Every surface is fully theme-aware via CSS variables so block
 // pages follow the active theme (heading/body/link/accent/card tokens)
 // exactly like HTML iframe pages do.
-function renderBlocks(json: string, components?: PageComponentDef[]): React.ReactNode {
+function renderBlocks(json: string, components?: PageComponentDef[], configure?: PageConfigureVar[], config?: Record<string, string>): React.ReactNode {
   let rows: BlockRow[] = [];
   try {
     const arr = JSON.parse(json);
@@ -255,8 +255,8 @@ function renderBlocks(json: string, components?: PageComponentDef[]): React.Reac
   } catch { /* ignore */ }
   if (rows.length === 0) return <p className="text-sm" style={{ color: 'var(--ks-text-body, var(--ks-muted, #9ca3af))' }}>This page has no content yet.</p>;
 
-  // Helper to resolve component tokens in a string.
-  const resolveInString = (s: string) => resolveComponentTokens(s, components ?? []);
+  // Helper to resolve component + config tokens in a string.
+  const resolveInString = (s: string) => resolveAllTokens(s, components ?? [], configure, config);
 
   const alignClass = (a?: string) => a === 'center' ? 'text-center' : a === 'right' ? 'text-right' : '';
   const runSavedAction = async (name?: string, confirmText?: string) => {
@@ -456,9 +456,9 @@ ${activePageThemeCss()}
 // instance-page surface. We avoid pulling a heavy dependency by supporting
 // just the common subset (headings, **bold**, *italic*, `code`, links, lists,
 // paragraphs).
-function renderMarkdown(md: string, components?: PageComponentDef[]): React.ReactNode {
-  // Resolve {{component:name}} tokens before rendering markdown.
-  const resolvedMd = resolveComponentTokens(md, components ?? []);
+function renderMarkdown(md: string, components?: PageComponentDef[], configure?: PageConfigureVar[], config?: Record<string, string>): React.ReactNode {
+  // Resolve {{component:name}} + {{config:NAME}} tokens before rendering markdown.
+  const resolvedMd = resolveAllTokens(md, components ?? [], configure, config);
   const lines = resolvedMd.split('\n');
   const out: React.ReactNode[] = [];
   let list: React.ReactNode[] = [];
@@ -1289,18 +1289,30 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
 
   // The real SDK lives in the host origin; bridged calls execute against it.
   const sdkRef = useRef<ReturnType<typeof createCustomPageSDK> | null>(null);
+  const pageConfigMap = useMemo(() => {
+    const vals: Record<string, string> = {};
+    if (content.configure) {
+      for (const v of content.configure) {
+        if (v.name) vals[v.name] = (v as any).default ?? '';
+      }
+    }
+    if (content.config) {
+      Object.entries(content.config).forEach(([k, val]) => { vals[k] = String(val ?? ''); });
+    }
+    return vals;
+  }, [content.configure, content.config]);
   useEffect(() => {
     // pageSlug MUST ride along: the backend (ExecuteCustomPageActionHandler)
     // rejects execute-action calls without it, so every bridged shell/file
     // action fails closed without it.
     sdkRef.current = instanceContext
-      ? createCustomPageSDK(instanceContext, Array.isArray(content.actions) ? content.actions : [], pageSlug ?? '')
+      ? createCustomPageSDK(instanceContext, Array.isArray(content.actions) ? content.actions : [], pageSlug ?? '', pageConfigMap)
       : null;
     if (instanceContext) {
       // Also publish on window for markdown/blocks pages rendered in-host.
       (window as any).KSPageSDK = sdkRef.current;
     }
-  }, [instanceContext, content.actions, pageSlug]);
+  }, [instanceContext, content.actions, pageSlug, pageConfigMap]);
 
   const srcDoc = useMemo(() => {
     if (content.type !== 'html') return undefined;
