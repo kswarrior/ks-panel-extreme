@@ -1,0 +1,56 @@
+name: Update KS Panel & Edge Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "release/kspanel"
+      - "release/ksedge"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Update Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+
+          TAG="ks-panel-edge"
+          TITLE="KS Panel & Edge"
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Existing release found"
+          else
+            echo "Creating release"
+            gh release create "$TAG" \
+              --title "$TITLE" \
+              --notes "Latest KS Panel and KS Edge builds." \
+              --prerelease
+          fi
+
+          if [ -f "release/kspanel" ]; then
+            echo "Uploading KS Panel"
+            gh release upload "$TAG" \
+              "release/kspanel#KS Panel" \
+              --clobber
+          fi
+
+          if [ -f "release/ksedge" ]; then
+            echo "Uploading KS Edge"
+            gh release upload "$TAG" \
+              "release/ksedge#KS Edge" \
+              --clobber
+          fi
+
+          echo "Release updated successfully"
