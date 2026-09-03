@@ -44,8 +44,26 @@ export interface InstancePage {
   /** JSON-encoded array of PageComponentDef (reusable UI components).
    *  Empty string == none. */
   components: string;
+  /** Provenance for the library badges: "studio" (own), "market" (fresh
+   *  marketplace import), "edited" (market import later modified).
+   *  "" / missing from old rows == "studio". */
+  source?: string;
+  /** Marketplace catalog id the row was imported from ("" == not a market page). */
+  market_id?: string;
+  /** Catalog version at import time ("" == unknown). */
+  market_version?: string;
   created_at: string;
   updated_at: string;
+}
+
+// pageSource normalises any stored source value to a known badge.
+export type InstancePageSource = 'studio' | 'market' | 'edited';
+
+export function pageSourceOf(p: Pick<InstancePage, 'source'> | undefined | null): InstancePageSource {
+  const s = (p?.source || '').trim().toLowerCase();
+  if (s === 'market') return 'market';
+  if (s === 'edited') return 'edited';
+  return 'studio';
 }
 
 // PageComponentDef is a reusable UI component defined in the Instance Page

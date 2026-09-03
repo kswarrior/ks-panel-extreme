@@ -983,6 +983,22 @@ export async function importInstancePageFromMarketplace(pageId: string): Promise
   return res.data;
 }
 
+export interface ResyncMarketplaceResult {
+  updated: number;
+  skipped: number;
+  errors: string[];
+  ids: number[];
+}
+
+// Resync all market-tracked pages from their marketplace download links.
+export async function resyncMarketplacePages(): Promise<ResyncMarketplaceResult> {
+  const res = await client.post<ResyncMarketplaceResult>(
+    '/api/instance-pages/import/marketplace/resync',
+    {}
+  );
+  return res.data;
+}
+
 // List local instance pages from instance_pages directory
 export interface LocalInstancePage {
   name: string;
