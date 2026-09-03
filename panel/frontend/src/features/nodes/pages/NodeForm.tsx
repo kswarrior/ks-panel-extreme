@@ -482,8 +482,8 @@ const NodeForm: React.FC = () => {
                 </span>
                 <span className="text-[11px] text-gray-500 max-w-[4.5rem] truncate">{form.name.trim() || 'Node name'}</span>
               </div>
-              <div className="flex-1 min-w-0 space-y-3">
-                <div>
+              <div className="flex flex-wrap items-start gap-3 flex-1 min-w-0">
+                <div className="w-full sm:w-auto sm:flex-1 sm:min-w-[160px] sm:max-w-[220px]">
                   <label htmlFor="node_icon" className="block text-sm font-medium text-gray-200 mb-1">Icon</label>
                   <select
                     id="node_icon"
@@ -498,7 +498,24 @@ const NodeForm: React.FC = () => {
                     ))}
                   </select>
                 </div>
-                {showCustomIcon && (
+                <div className="w-full sm:w-auto sm:flex-1 sm:min-w-[160px] sm:max-w-[220px]">
+                  <label htmlFor="node_color" className="block text-sm font-medium text-gray-200 mb-1">Colour</label>
+                  <select
+                    id="node_color"
+                    value={colorSelectValue}
+                    onChange={(e) => onColorSelect(e.target.value)}
+                    className={selectCls}
+                  >
+                    <option value="custom">Custom</option>
+                    <option value="">Default</option>
+                    {NODE_COLORS.map((c) => (
+                      <option key={c} value={c}>{NODE_COLOR_NAMES[c.toLowerCase()] ?? c} ({c.toUpperCase()})</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+            {showCustomIcon && (
                   <div>
                     <label htmlFor="node_icon_custom" className="block text-sm font-medium text-gray-200 mb-1">Custom SVG</label>
                     <textarea
