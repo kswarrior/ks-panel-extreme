@@ -140,7 +140,7 @@ func sftpEdgeClient(con sqlDB, inst *models.Instance) (*edge.Client, string, err
 	return edge.NewWithTimeout(*node, token, 30*time.Second), name, nil
 }
 
-// sftpOwnScope enforces INSTANCES_OWN for edits: Own may only mutate own
+// sftpOwnScope enforces INSTANCES_OWN: Own may only read/mutate own
 // instances. Returns false (and writes) on denial.
 func sftpOwnScope(w http.ResponseWriter, r *http.Request, con sqlDB, inst *models.Instance) bool {
 	uid, uerr := UserIDFromContext(r)
@@ -158,7 +158,7 @@ func sftpOwnScope(w http.ResponseWriter, r *http.Request, con sqlDB, inst *model
 
 // sftpPublicView is the masked GET body shared by the SPA card and the
 // sftp.json custom page (fetchPanel('/sftp')). It never carries the
-// password — reveal goes through the audited secrets endpoint.
+// password — callers add it explicitly on the enable/rotate/reveal paths.
 func sftpPublicView(inst *models.Instance, cfg *repository.SFTPConfig, nodeAddr string, hasPassword bool) map[string]any {
 	port := DefaultSFTPPort
 	username := sftpUsername(inst.ID)
