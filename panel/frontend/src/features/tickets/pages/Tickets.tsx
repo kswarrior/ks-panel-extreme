@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { listTickets, deleteTicket, ticketStats } from '../api/tickets';
 import type { Ticket, TicketStats } from '../types/ticket';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
@@ -16,6 +16,7 @@ const CATEGORY_OPTIONS = ['all', 'general', 'billing', 'technical', 'feature', '
 const Tickets: React.FC = () => {
   const navigate = useNavigate();
   const confirm = useConfirm();
+  const [searchParams, setSearchParams] = useSearchParams();
   const glassModifier = useThemeStore((s) => {
     const g = s.active().card.glass_style;
     if (!g || g === 'frosted') return '';
@@ -28,14 +29,45 @@ const Tickets: React.FC = () => {
   const [error, setError] = useState('');
   const [stats, setStats] = useState<TicketStats | null>(null);
 
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [priorityFilter, setPriorityFilter] = useState<string>('all');
-  const [categoryFilter, setCategoryFilter] = useState<string>('all');
-  const [mineOnly, setMineOnly] = useState(false);
+  const [search, setSearch] = useState(() => searchParams.get('search') || '');
+  const [statusFilter, setStatusFilter] = useState<string>(() => {
+    const v = searchParams.get('status') || 'all';
+    return (STATUS_OPTIONS as readonly string[]).includes(v) ? v : 'all';
+  });
+  const [priorityFilter, setPriorityFilter] = useState<string>(() => {
+    const v = searchParams.get('priority') || 'all';
+    return (PRIORITY_OPTIONS as readonly string[]).includes(v) ? v : 'all';
+  });
+  const [categoryFilter, setCategoryFilter] = useState<string>(() => {
+    const v = searchParams.get('category') || 'all';
+    return (CATEGORY_OPTIONS as readonly string[]).includes(v) ? v : 'all';
+  });
+  const [mineOnly, setMineOnly] = useState(() => searchParams.get('mine') === '1');
   const [filterOpen, setFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  // Debounced search so typing does not spam the API on every keystroke.
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // Honor deep-links such as /tickets?status=open (TicketStats shortcuts).
+  // When the URL changes externally, adopt it into the filter state.
+  useEffect(() => {
+    const s = searchParams.get('status');
+    if (s && (STATUS_OPTIONS as readonly string[]).includes(s) && s !== statusFilter) setStatusFilter(s);
+    const p = searchParams.get('priority');
+    if (p && (PRIORITY_OPTIONS as readonly string[]).includes(p) && p !== priorityFilter) setPriorityFilter(p);
+    const c = searchParams.get('category');
+    if (c && (CATEGORY_OPTIONS as readonly string[]).includes(c) && c !== categoryFilter) setCategoryFilter(c);
+    const m = searchParams.get('mine') === '1';
+    if (m !== mineOnly) setMineOnly(m);
+    const q = searchParams.get('search') || '';
+    if (q !== search) setSearch(q);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -53,7 +85,7 @@ const Tickets: React.FC = () => {
         status: statusFilter !== 'all' ? statusFilter : undefined,
         priority: priorityFilter !== 'all' ? priorityFilter : undefined,
         category: categoryFilter !== 'all' ? categoryFilter : undefined,
-        search: search.trim() || undefined,
+        search: debouncedSearch.trim() || undefined,
         mine: mineOnly || undefined,
         limit: 100,
       });
@@ -69,11 +101,13 @@ const Tickets: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, priorityFilter, categoryFilter, search, mineOnly]);
+  }, [statusFilter, priorityFilter, categoryFilter, debouncedSearch, mineOnly]);
 
   useEffect(() => { load(); }, [load]);
 
-  const filtered = useMemo(() => tickets, [tickets]);
+  // Server already filters; `tickets` is the visible set. Keep the alias for
+  // readability but fix the empty-state branching below (filtered === tickets).
+  const filtered = tickets;
 
   const remove = async (t: Ticket) => {
     if (!(await confirm({ title: 'Delete ticket', message: `Delete ticket "${t.ticket_no} – ${t.subject}"? This cannot be undone.`, tone: 'danger', confirmLabel: 'Delete' }))) return;

@@ -62,9 +62,10 @@ CREATE INDEX IF NOT EXISTS idx_ticket_comments_ticket ON ticket_comments(ticket_
 CREATE INDEX IF NOT EXISTS idx_ticket_comments_author ON ticket_comments(author_id);
 
 -- Seed ticket permissions
-INSERT OR IGNORE INTO permissions (key, description) VALUES
+INSERT INTO permissions (key, description) VALUES
     ('MANAGE_TICKETS', 'Manage tickets (support system umbrella – view, create, edit, delete)'),
     ('TICKETS_VIEW',   'View tickets (list + detail)'),
     ('TICKETS_CREATE', 'Create new tickets'),
     ('TICKETS_EDIT',   'Edit tickets, change status/priority, assign, reply'),
-    ('TICKETS_DELETE', 'Delete tickets and comments');
+    ('TICKETS_DELETE', 'Delete tickets and comments')
+ON CONFLICT (key) DO NOTHING;
