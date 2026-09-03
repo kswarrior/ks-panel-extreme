@@ -1807,12 +1807,141 @@ type ImportInstancePageRequest struct {
 	Actions         string `json:"actions"`
 	// Components is a JSON array of reusable UI blocks.
 	Components string `json:"components"`
+	// Configure is a JSON array of page-level env-style var definitions.
+	Configure string `json:"configure"`
 	// SubPages is the persisted JSON-array form (API shape). Library JSON
 	// files usually carry the typed `pages` array instead.
 	SubPages string `json:"sub_pages"`
 	// Pages carries the human-facing multi-page definitions (library JSON
 	// files use this shape). Encoded into SubPages on import.
 	Pages []instancePageSubPage `json:"pages"`
+}
+
+// configureJSON returns the persisted configure payload for this request.
+func (r ImportInstancePageRequest) configureJSON() string {
+	if r.Configure != "" {
+		return r.Configure
+	}
+	return ""
+}
+
+// UnmarshalJSON handles both string-encoded and native array forms for
+// configure/actions/components/sub_pages so studio exports (arrays) and
+// shipped library files (stringified JSON) both import correctly.
+func (r *ImportInstancePageRequest) UnmarshalJSON(data []byte) error {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	// Extract fields that may be either string or array.
+	var cfgRaw, actRaw, compRaw, subRaw json.RawMessage
+	if v, ok := raw["configure"]; ok {
+		cfgRaw = v
+		delete(raw, "configure")
+	}
+	if v, ok := raw["actions"]; ok {
+		actRaw = v
+		// keep in raw for alias? Remove to avoid string type mismatch when it's an array.
+		// Check if it's an array: first non-space char is '['
+		trim := string(json.RawMessage(v))
+		trim = strings.TrimSpace(trim)
+		if len(trim) > 0 && trim[0] == '[' {
+			delete(raw, "actions")
+		}
+	}
+	if v, ok := raw["components"]; ok {
+		compRaw = v
+		trim := string(json.RawMessage(v))
+		trim = strings.TrimSpace(trim)
+		if len(trim) > 0 && trim[0] == '[' {
+			delete(raw, "components")
+		}
+	}
+	if v, ok := raw["sub_pages"]; ok {
+		subRaw = v
+		trim := string(json.RawMessage(v))
+		trim = strings.TrimSpace(trim)
+		if len(trim) > 0 && trim[0] == '[' {
+			delete(raw, "sub_pages")
+		}
+	}
+	remaining, _ := json.Marshal(raw)
+	type Alias ImportInstancePageRequest
+	var tmp Alias
+	if err := json.Unmarshal(remaining, &tmp); err != nil {
+		return err
+	}
+	*r = ImportInstancePageRequest(tmp)
+	// configure: string or array
+	if len(cfgRaw) > 0 {
+		var asString string
+		if err := json.Unmarshal(cfgRaw, &asString); err == nil {
+			r.Configure = asString
+		} else {
+			var arr []instancePageConfigure
+			if err := json.Unmarshal(cfgRaw, &arr); err == nil {
+				if len(arr) > 0 {
+					b, _ := json.Marshal(arr)
+					r.Configure = string(b)
+				}
+			} else {
+				// fallback: keep raw if it's an array
+				trim := strings.TrimSpace(string(cfgRaw))
+				if len(trim) > 0 && trim[0] == '[' {
+					r.Configure = string(cfgRaw)
+				}
+			}
+		}
+	}
+	if len(actRaw) > 0 {
+		trim := strings.TrimSpace(string(actRaw))
+		if len(trim) > 0 && trim[0] == '[' {
+			// actions as native array → need to stringify
+			var arr []instancePageActionDef
+			if err := json.Unmarshal(actRaw, &arr); err == nil && len(arr) > 0 {
+				b, _ := json.Marshal(arr)
+				r.Actions = string(b)
+			} else {
+				r.Actions = string(actRaw)
+			}
+		}
+		// else Actions already handled as string via alias
+	}
+	if len(compRaw) > 0 {
+		trim := strings.TrimSpace(string(compRaw))
+		if len(trim) > 0 && trim[0] == '[' {
+			var arr []instancePageComponent
+			if err := json.Unmarshal(compRaw, &arr); err == nil && len(arr) > 0 {
+				b, _ := json.Marshal(arr)
+				r.Components = string(b)
+			} else {
+				r.Components = string(compRaw)
+			}
+		}
+	}
+	if len(subRaw) > 0 {
+		trim := strings.TrimSpace(string(subRaw))
+		if len(trim) > 0 && trim[0] == '[' {
+			var arr []instancePageSubPage
+			if err := json.Unmarshal(subRaw, &arr); err == nil && len(arr) > 0 {
+				b, _ := json.Marshal(arr)
+				r.SubPages = string(b)
+			} else {
+				r.SubPages = string(subRaw)
+			}
+		}
+	}
+	return nil
+}
+
+// instancePageActionDef mirrors PageActionDef for import array handling.
+type instancePageActionDef struct {
+	Name    string `json:"name"`
+	Type    string `json:"type"`
+	Command string `json:"command"`
+	Path    string `json:"path"`
+	Content string `json:"content"`
+	Args    []string `json:"args"`
 }
 
 // subPagesJSON returns the persisted sub_pages payload for this request: an
