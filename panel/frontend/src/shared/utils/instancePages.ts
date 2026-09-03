@@ -331,9 +331,11 @@ export function getPageContent(slug: string, spec: Record<string, any> | null | 
   if (p) return pagePayloadFromRow(p);
   const hit = findSubPageEntry(slug, spec);
   if (!hit) return null;
-  // Pass parent's components to sub-page payload (handles string or array).
+  // Pass parent's components/configure to sub-page payload (handles string or array).
   const parentComps = parseSpecComponents(hit.parent?.components);
-  return pagePayloadFromSub(hit.sub, parentComps);
+  const parentConfigure = parseSpecConfigure(hit.parent?.configure);
+  const parentConfig = parseSpecConfigValues(hit.parent?.config ?? (hit.parent as any)?.configure_values);
+  return pagePayloadFromSub(hit.sub, parentComps, parentConfigure, parentConfig);
 }
 
 // getPageLabel returns the display label for a resolved slug: the row's

@@ -31,6 +31,13 @@ export interface PageComponentDef {
   content: string;
 }
 
+export interface PageConfigureVar {
+  name: string;
+  label?: string;
+  description?: string;
+  default?: string;
+}
+
 export interface PageContent {
   type: 'html' | 'markdown' | 'blocks';
   html?: string;
@@ -38,6 +45,8 @@ export interface PageContent {
   blocks?: string;
   actions?: any[];
   components?: PageComponentDef[];
+  configure?: PageConfigureVar[];
+  config?: Record<string, string>;
 }
 
 // Theme-aware inline styles for stat tones — every stat card follows the
@@ -73,6 +82,8 @@ function safeImgSrc(raw?: string): string {
 
 // Component token pattern: {{component:name}} where name is alphanumeric/underscore/dash
 const COMPONENT_TOKEN_RE = /\{\{\s*component:([A-Za-z0-9_][A-Za-z0-9_-]*)\s*\}\}/g;
+// Config token pattern: {{config:NAME}} where NAME is env-style var name
+const CONFIG_TOKEN_RE = /\{\{\s*config:([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g;
 
 // resolveComponentTokens replaces {{component:name}} tokens in text with the
 // corresponding component's rendered content. Supports React-like nested
@@ -98,6 +109,40 @@ function resolveComponentTokens(text: string, components: PageComponentDef[]): s
     COMPONENT_TOKEN_RE.lastIndex = 0;
   }
   COMPONENT_TOKEN_RE.lastIndex = 0;
+  return cur;
+}
+
+function buildConfigMap(configure?: PageConfigureVar[], config?: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (configure) {
+    for (const v of configure) {
+      if (v.name) out[v.name] = v.default ?? '';
+    }
+  }
+  if (config) {
+    for (const [k, v] of Object.entries(config)) {
+      out[k] = String(v ?? '');
+    }
+  }
+  return out;
+}
+
+function resolveConfigTokens(text: string, configure?: PageConfigureVar[], config?: Record<string, string>): string {
+  if (!text) return text;
+  const map = buildConfigMap(configure, config);
+  if (Object.keys(map).length === 0) return text;
+  return text.replace(CONFIG_TOKEN_RE, (_m, name: string) => {
+    if (Object.prototype.hasOwnProperty.call(map, name)) return String(map[name] ?? '');
+    return _m;
+  });
+}
+
+function resolveAllTokens(text: string, components?: PageComponentDef[], configure?: PageConfigureVar[], config?: Record<string, string>): string {
+  let cur = text;
+  if (components && components.length > 0) cur = resolveComponentTokens(cur, components);
+  if (configure || config) cur = resolveConfigTokens(cur, configure, config);
+  // Components may contain config tokens too — second pass handles nested.
+  if (configure || config) cur = resolveConfigTokens(cur, configure, config);
   return cur;
 }
 
