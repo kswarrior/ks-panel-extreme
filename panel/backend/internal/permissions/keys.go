@@ -102,11 +102,25 @@ ManageApplicationsKey = "MANAGE_APPLICATIONS"
 	ManageNotificationsKey = "MANAGE_NOTIFICATIONS"
 
 	// AIChatUseKey gates the panel-wide AI assistant (POST /api/ai/chat).
-	// It is a standalone capability (not area-grouped): any authenticated
-	// user holding it may chat with the assistant. Read tools run with the
-	// caller's own permissions; write tools additionally need their
-	// area permission AND produce a confirmation ticket first.
+	// It is the umbrella for the "AI Chat" group: holding it implies every
+	// AI sub-capability below. Read tools run with the caller's own
+	// permissions; write tools additionally need their area permission AND
+	// produce a confirmation ticket first.
 	AIChatUseKey = "AI_CHAT_USE"
+	// Granular AI Chat sub-capabilities (rendered under the "AI Chat" group
+	// in the Roles form). The umbrella AI_CHAT_USE implies all of them so
+	// seeded roles keep working untouched.
+	//   AI_CHAT_QA      – basic Q&A chat (plain LLM + docs, no fleet tools).
+	//   AI_CHAT_TOOLS   – read tools (list/get instances, nodes, templates,
+	//     system status). QA-only roles get get_docs only.
+	//   AI_CHAT_WRITES  – propose + approve write tickets (still needs the
+	//     global allow_writes kill-switch AND the target area permission).
+	//   AI_CHAT_THREADS – manage own chat threads (list/create/rename/delete
+	//     + thread-bound history). QA implies threads for continuity.
+	AIChatQAKey      = "AI_CHAT_QA"
+	AIChatToolsKey   = "AI_CHAT_TOOLS"
+	AIChatWritesKey  = "AI_CHAT_WRITES"
+	AIChatThreadsKey = "AI_CHAT_THREADS"
 
 	// ----------------------------------------------------------------------
 	// Granular per-area CRUD capability keys.
@@ -370,6 +384,16 @@ var AreaGroups = []Group{
 		AccountUseAvatarSymbolKey,
 		AccountUploadAvatarKey,
 	}, OwnKey: AccountOwnKey, AllKey: AccountAllKey},
+	// AI Chat cluster: AI_CHAT_USE is the umbrella (full assistant access).
+	// The four sub-caps narrow it so a role can be limited to e.g. just Q&A
+	// without fleet tools, or Q&A + read tools without write proposals.
+	// No Own/All scope — threads are always per-user isolated in the repo.
+	{Label: "AI Chat", Umbrella: AIChatUseKey, ExtraKeys: []string{
+		AIChatQAKey,
+		AIChatToolsKey,
+		AIChatWritesKey,
+		AIChatThreadsKey,
+	}},
 }
 
 // AllGroups is the ordered slice of every regulatable area. It is the union of
