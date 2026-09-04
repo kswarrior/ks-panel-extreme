@@ -1,0 +1,138 @@
+import React, { useEffect, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
+import { useAuthStore } from '@/shared/stores/authStore';
+import { useSettingsStore } from '@/shared/stores/settingsStore';
+import { useThemeStore } from '@/shared/stores/themeStore';
+import { PermissionKey } from '@/shared/types/permissions';
+import { useAIChatStore } from '../store/aiChatStore';
+import ConfirmCard from './ConfirmCard';
+
+// Floating chat panel: header shows "{panel_name} Assistant", theme-aware
+// glass surface, mobile full-width. Mounted once in App beside the FAB.
+const ChatPanel: React.FC = () => {
+  const location = useLocation();
+  const permissions = useAuthStore((s) => s.permissions);
+  const panelName = useSettingsStore((s) => s.panelName);
+  const glassStyle = useThemeStore((s) => s.active().card.glass_style);
+  const open = useAIChatStore((s) => s.open);
+  const setOpen = useAIChatStore((s) => s.setOpen);
+  const messages = useAIChatStore((s) => s.messages);
+  const ticket = useAIChatStore((s) => s.ticket);
+  const loading = useAIChatStore((s) => s.loading);
+  const actionBusy = useAIChatStore((s) => s.actionBusy);
+  const error = useAIChatStore((s) => s.error);
+  const send = useAIChatStore((s) => s.send);
+  const approveTicket = useAIChatStore((s) => s.approveTicket);
+  const denyTicket = useAIChatStore((s) => s.denyTicket);
+  const clearError = useAIChatStore((s) => s.clearError);
+  const [draft, setDraft] = useState('');
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [messages, loading, open, ticket]);
+
+  if (!open) return null;
+  if (location.pathname.startsWith('/auth')) return null;
+  if (!permissions.includes(PermissionKey.AI_CHAT_USE)) return null;
+
+  const modifier =
+    !glassStyle || glassStyle === 'frosted'
+      ? ''
+      : glassStyle === 'solid'
+        ? 'ks-card-glass-solid'
+        : 'ks-card-glass-strong';
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!draft.trim() || loading || ticket) return;
+    send(draft);
+    setDraft('');
+  };
+
+  return (
+    <div
+      role="dialog"
+      aria-label={`${panelName} Assistant`}
+      className={`fixed z-50 bottom-24 right-5 w-[380px] max-w-[calc(100vw-2.5rem)] h-[520px] max-h-[calc(100dvh-8rem)] flex flex-col rounded-xl glass-strong ${modifier} border border-white/10 shadow-2xl overflow-hidden`}
+    >
+      <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-white/10">
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold text-white truncate">{panelName} Assistant</h3>
+          <p className="text-[11px] text-gray-400 truncate">Ask about your fleet — writes need approval</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          aria-label="Close AI assistant"
+          className="shrink-0 rounded-md p-1.5 text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+        >
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      </div>
+
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
+        {messages.length === 0 && (
+          <p className="text-xs text-gray-400 leading-relaxed">
+            Hi! I can look up instances, nodes and templates, explain how the panel works, and —
+            with your approval — start/stop instances, create themes, templates, pages and users,
+            or deploy new instances.
+          </p>
+        )}
+        {messages.map((m) => (
+          <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div
+              className={`max-w-[85%] rounded-lg px-3 py-2 text-sm leading-relaxed break-words whitespace-pre-wrap ${
+                m.role === 'user' ? 'bg-white text-black' : 'bg-white/[0.06] text-gray-100 border border-white/10'
+              }`}
+            >
+              {m.content}
+            </div>
+          </div>
+        ))}
+        {loading && (
+          <div className="flex justify-start">
+            <div className="rounded-lg px-3 py-2 text-sm text-gray-400 bg-white/[0.06] border border-white/10 animate-pulse">
+              Thinking…
+            </div>
+          </div>
+        )}
+        {ticket && (
+          <ConfirmCard ticket={ticket} busy={actionBusy} onApprove={approveTicket} onDeny={denyTicket} />
+        )}
+        {error && (
+          <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200 flex items-start justify-between gap-2">
+            <span>{error}</span>
+            <button type="button" onClick={clearError} className="shrink-0 text-red-300 hover:text-white" aria-label="Dismiss error">
+              ✕
+            </button>
+          </div>
+        )}
+      </div>
+
+      <form onSubmit={submit} className="border-t border-white/10 p-3 flex items-end gap-2">
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder={ticket ? 'Approve or deny above first…' : 'Ask something…'}
+          disabled={loading || !!ticket}
+          aria-label="Message the assistant"
+          className="flex-1 bg-black/30 text-white border border-white/10 placeholder-gray-500 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-white/60 focus:border-white/40 transition-colors disabled:opacity-60"
+        />
+        <button
+          type="submit"
+          disabled={!draft.trim() || loading || !!ticket}
+          className="shrink-0 inline-flex items-center gap-1 bg-white text-black px-3 py-2 rounded-md hover:bg-gray-200 text-sm font-medium disabled:opacity-60"
+        >
+          Send
+        </button>
+      </form>
+    </div>
+  );
+};
+
+export default ChatPanel;

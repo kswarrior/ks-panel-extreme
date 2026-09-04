@@ -8,6 +8,7 @@ import {
 import { useSettingsStore } from '@/shared/stores/settingsStore';
 import SkeletonCard from '@/shared/components/ui/SkeletonCard';
 import { useConfirm } from '@/shared/stores/confirmStore';
+import AIConfigCard from '@/features/ai-chat/components/AIConfigCard';
 
 const MAX_LOGO_BYTES = 5 * 1024 * 1024; // mirrors server-side limit
 const ALLOWED_LOGO_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp', 'image/svg+xml'];
@@ -279,6 +280,9 @@ const Settings: React.FC = () => {
           </button>
         </div>
       </form>
+
+      {/* AI assistant provider config (SETTINGS_EDIT only — the card hides itself otherwise). */}
+      <AIConfigCard />
     </div>
   );
 };

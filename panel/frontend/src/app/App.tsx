@@ -9,6 +9,8 @@ import client from '@/shared/api/client';
 import type { User } from '@/shared/types/user';
 import { InstanceNavProvider } from '@/shared/components/layout/InstanceNavContext';
 import ConfirmDialog from '@/shared/components/ui/ConfirmDialog';
+import ChatFab from '@/features/ai-chat/components/ChatFab';
+import ChatPanel from '@/features/ai-chat/components/ChatPanel';
 
 const App: React.FC = () => {
   const setAuth = useAuthStore((s) => s.setAuth);
@@ -90,6 +92,10 @@ const App: React.FC = () => {
         {/* Panel-owned confirm() dialog — replaces every native
             window.confirm across the app. */}
         <ConfirmDialog />
+        {/* Panel-wide AI assistant (hidden on /auth + without AI_CHAT_USE
+            by the components themselves). */}
+        <ChatFab />
+        <ChatPanel />
       </InstanceNavProvider>
     </BrowserRouter>
   );

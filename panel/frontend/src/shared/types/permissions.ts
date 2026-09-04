@@ -32,6 +32,10 @@ export const PermissionKey = {
   // gets it by default; other roles can be denied the self-update verb
   // without losing the rest of the system telemetry (ACCESS_ADMIN_PANEL).
   MANAGE_PANEL_UPDATE: 'MANAGE_PANEL_UPDATE',
+  // Gates the panel-wide AI assistant (POST /api/ai/chat). Standalone
+  // capability, not area-grouped — keep in sync with
+  // internal/permissions/keys.go AIChatUseKey.
+  AI_CHAT_USE: 'AI_CHAT_USE',
 
   // ----------------------------------------------------------------------
   // Granular per-area CRUD keys (AREAS_ACTION: USERS_VIEW, NODES_CREATE, ...).
