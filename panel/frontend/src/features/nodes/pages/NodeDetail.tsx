@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { listNodes, nodeHeartbeats, probeNode, listInstances, rotateNodeToken, deleteNode, purgeLocalNode, getNodeUpdateInfo } from '@/shared/api/admin';
 import type { Node, NodeHeartbeat } from '@/features/nodes/types/node';
@@ -74,6 +74,37 @@ const NodeDetail: React.FC = () => {
   const [purging, setPurging] = useState(false);
   const [rotating, setRotating] = useState(false);
   const [edgeVersion, setEdgeVersion] = useState('');
+
+  // Fixed top-right actions pill — same auto-hide slide as the Nodes page
+  // ("Detail" title lives in the app header).
+  const [actionsVisible, setActionsVisible] = useState(true);
+  const pillRef = useRef<HTMLDivElement>(null);
+  const showTimer = useRef<number | null>(null);
+
+  useEffect(() => {
+    const scheduleShow = (delay: number) => {
+      if (showTimer.current) window.clearTimeout(showTimer.current);
+      showTimer.current = window.setTimeout(() => setActionsVisible(true), delay);
+    };
+    const onScroll = () => {
+      setActionsVisible(false);
+      scheduleShow(2500);
+    };
+    const onPointerDown = (e: PointerEvent) => {
+      const path = typeof e.composedPath === 'function' ? e.composedPath() : [];
+      if (pillRef.current && !path.includes(pillRef.current)) {
+        setActionsVisible(false);
+        scheduleShow(2500);
+      }
+    };
+    document.addEventListener('scroll', onScroll, true);
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => {
+      document.removeEventListener('scroll', onScroll, true);
+      document.removeEventListener('pointerdown', onPointerDown);
+      if (showTimer.current) window.clearTimeout(showTimer.current);
+    };
+  }, []);
 
   const numericId = id ? Number(id) : NaN;
   const validId = Number.isFinite(numericId) && numericId > 0;
@@ -291,41 +322,44 @@ const NodeDetail: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <button onClick={back} className="ks-btn-header ks-icon-btn" aria-label="Back to Nodes list">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><polyline points="15 18 9 12 15 6" /></svg>
-        </button>
-        <div className="flex-1 min-w-0">
-          <h2 className="text-xl font-semibold text-white truncate">Node Detail</h2>
-          <p className="text-xs text-gray-500 truncate">ID {node.id} · {hostUrl} · {relativeTime(node.created_at)}</p>
+      {/* Fixed top-right actions pill — back + title live in the app header
+          ("Nodes / Detail"). The menu portals its dropdown, so it is safe
+          inside the fixed container. */}
+      <div className="fixed top-[max(4.5rem,env(safe-area-inset-top))] right-4 sm:right-6 z-40">
+        <div
+          ref={pillRef}
+          className={`ks-card ks-pill-anim rounded-md flex items-center gap-1 shadow-lg shadow-black/40 ${actionsVisible ? 'translate-x-0 opacity-100' : 'pointer-events-none translate-x-8 opacity-0'}`}
+          style={{ '--ks-card-padding': '6px' } as React.CSSProperties}
+        >
+          <CardMenu
+            ariaLabel={`Actions for node ${node.name}`}
+            items={[
+              { key: 'edit', label: 'Edit node', tone: 'default' },
+              { key: 'probe', label: probing ? 'Probing…' : 'Recheck now', tone: 'default' },
+              { key: 'copyAddr', label: copied === 'addr' ? 'Copied!' : 'Copy address', tone: 'default' },
+              { key: 'copyHost', label: copied === 'host' ? 'Copied!' : 'Copy host URL', tone: 'default' },
+              { key: 'rotate', label: rotating ? 'Rotating…' : 'Rotate token', tone: 'default' },
+              ...(isLocal ? [{
+                key: 'purge',
+                label: purging ? 'Purging…' : 'Delete edge completely',
+                tone: 'danger' as const,
+                disabled: purging,
+              }] : []),
+              { key: 'delete', label: deleting ? 'Deleting…' : 'Delete', tone: 'danger', disabled: deleting },
+            ]}
+            onSelect={(k) => {
+              if (k === 'edit') navigate(`/nodes/${node.id}/edit`);
+              if (k === 'probe') handleProbe();
+              if (k === 'copyAddr') copy(node.address, 'addr');
+              if (k === 'copyHost') copy(hostUrl, 'host');
+              if (k === 'rotate') handleRotateToken();
+              if (k === 'purge') handlePurge();
+              if (k === 'delete') handleDelete();
+            }}
+          />
         </div>
-        <CardMenu
-          ariaLabel={`Actions for node ${node.name}`}
-          items={[
-            { key: 'edit', label: 'Edit node', tone: 'default' },
-            { key: 'probe', label: probing ? 'Probing…' : 'Recheck now', tone: 'default' },
-            { key: 'copyAddr', label: copied === 'addr' ? 'Copied!' : 'Copy address', tone: 'default' },
-            { key: 'copyHost', label: copied === 'host' ? 'Copied!' : 'Copy host URL', tone: 'default' },
-            { key: 'rotate', label: rotating ? 'Rotating…' : 'Rotate token', tone: 'default' },
-            ...(isLocal ? [{
-              key: 'purge',
-              label: purging ? 'Purging…' : 'Delete edge completely',
-              tone: 'danger' as const,
-              disabled: purging,
-            }] : []),
-            { key: 'delete', label: deleting ? 'Deleting…' : 'Delete', tone: 'danger', disabled: deleting },
-          ]}
-          onSelect={(k) => {
-            if (k === 'edit') navigate(`/nodes/${node.id}/edit`);
-            if (k === 'probe') handleProbe();
-            if (k === 'copyAddr') copy(node.address, 'addr');
-            if (k === 'copyHost') copy(hostUrl, 'host');
-            if (k === 'rotate') handleRotateToken();
-            if (k === 'purge') handlePurge();
-            if (k === 'delete') handleDelete();
-          }}
-        />
       </div>
+      <p className="text-xs text-gray-500 truncate">ID {node.id} · {hostUrl} · {relativeTime(node.created_at)}</p>
 
       <GlassCard className="ks-stat-card p-4">
         <header className="flex items-start gap-3">
