@@ -25,7 +25,6 @@ import { useThemeStore } from '@/shared/stores/themeStore';
 import { countryByCode } from '@/shared/components/forms/LocationField/countries';
 import { HeartbeatIcon, DriverRing, ResourceBar } from '../components/NodesComponents';
 import RollingUpdateModal from '../components/RollingUpdateModal';
-import UpdateWindowsCard from '@/features/system/components/UpdateWindowsCard';
 import { NodeIcon } from '../utils/nodeIcons';
 import { resolveState, isLocalAddress, formatBytes, formatBytesPair, formatPercent, withAlpha, buildMonitor, buildEdgeConfig } from '../utils/nodesUtils';
 import type { StateStyle } from '../types/nodes';
@@ -355,10 +354,19 @@ const AdminNodes: React.FC = () => {
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>
           </button>
+          <Link
+            to="/nodes/schedules"
+            aria-label="Fleet update schedules"
+            className="ks-tab inline-flex items-center justify-center"
+            style={tabBtnStyle}
+            title="Fleet update schedules"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+          </Link>
           <button
             onClick={() => navigate('/nodes/new')}
             aria-label="Add Node"
-            className="ks-tab ks-tab-active inline-flex items-center justify-center gap-1.5"
+            className="ks-tab inline-flex items-center justify-center"
             style={tabBtnStyle}
             title="Add Node"
           >
@@ -366,7 +374,6 @@ const AdminNodes: React.FC = () => {
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
-            <span>New</span>
           </button>
         </div>
       </div>
@@ -643,15 +650,6 @@ const AdminNodes: React.FC = () => {
         nodes={nodes}
       />
 
-      {!loading && (
-        <div className="mt-6">
-          <UpdateWindowsCard
-            target="fleet"
-            title="Fleet Update Schedules"
-            description="Cron schedules that run the fleet rolling update inside a daily maintenance window (UTC). Outside the window the run is skipped and logged — never executed."
-          />
-        </div>
-      )}
     </div>
   );
 };
