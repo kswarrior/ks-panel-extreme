@@ -567,9 +567,14 @@ func NewRouter() http.Handler {
 		// /users (assign dropdown) is staff-only (EDIT) so it cannot be
 		// used to enumerate accounts.
 		r.Route("/api/tickets", func(r chi.Router) {
+			// Literal sub-paths BEFORE the param {id} route so chi resolves
+			// "/stats", "/users" and "/sla-config" as fixed segments rather
+			// than capturing them as id="stats" etc.
 			r.With(requireUmbrellaOrAction(ticketsG, permissions.ActionView)).Get("/", handlers.ListTicketsHandler)
 			r.With(requireUmbrellaOrAction(ticketsG, permissions.ActionView)).Get("/stats", handlers.TicketStatsHandler)
 			r.With(requireUmbrellaOrAction(ticketsG, permissions.ActionEdit)).Get("/users", handlers.ListUsersForAssignHandler)
+			r.With(requireUmbrellaOrAction(ticketsG, permissions.ActionView)).Get("/sla-config", handlers.GetTicketSLAConfigHandler)
+			r.With(requireUmbrellaOrAction(ticketsG, permissions.ActionEdit)).Put("/sla-config", handlers.UpdateTicketSLAConfigHandler)
 			r.With(requireUmbrellaOrAction(ticketsG, permissions.ActionCreate)).Post("/", handlers.CreateTicketHandler)
 			r.With(requireUmbrellaOrAction(ticketsG, permissions.ActionView)).Get("/{id}", handlers.GetTicketHandler)
 			// Update/Delete/Assign/Comment allow any ticket holder; handler enforces owner-vs-staff.
@@ -579,6 +584,15 @@ func NewRouter() http.Handler {
 			r.With(requireUmbrellaOrAction(ticketsG, permissions.ActionView)).Get("/{id}/comments", handlers.ListTicketCommentsHandler)
 			r.With(requireAnyPermission(permissions.ManageTicketsKey, permissions.TicketsViewKey, permissions.TicketsCreateKey, permissions.TicketsEditKey)).Post("/{id}/comments", handlers.AddTicketCommentHandler)
 			r.With(requireAnyPermission(permissions.ManageTicketsKey, permissions.TicketsViewKey, permissions.TicketsDeleteKey, permissions.TicketsEditKey)).Delete("/{id}/comments/{commentId}", handlers.DeleteTicketCommentHandler)
+			// Attachments (065): multipart upload 25 MiB, MIME allowlist,
+			// SHA256 dedupe; download streams inline (owner-vs-staff gate +
+			// IDOR ticket guard inside the handler). Same gates as comments
+			// so any ticket holder can attach/read; delete is
+			// uploader-or-staff inside the handler.
+			r.With(requireUmbrellaOrAction(ticketsG, permissions.ActionView)).Get("/{id}/attachments", handlers.ListTicketAttachmentsHandler)
+			r.With(requireAnyPermission(permissions.ManageTicketsKey, permissions.TicketsViewKey, permissions.TicketsCreateKey, permissions.TicketsEditKey)).Post("/{id}/attachments", handlers.UploadTicketAttachmentHandler)
+			r.With(requireUmbrellaOrAction(ticketsG, permissions.ActionView)).Get("/{id}/attachments/{attId}", handlers.DownloadTicketAttachmentHandler)
+			r.With(requireAnyPermission(permissions.ManageTicketsKey, permissions.TicketsViewKey, permissions.TicketsDeleteKey, permissions.TicketsEditKey)).Delete("/{id}/attachments/{attId}", handlers.DeleteTicketAttachmentHandler)
 		})
 
 		// Mod Engine v2 slot registry. Read-only, panel-wide: every active
@@ -849,6 +863,14 @@ func NewRouter() http.Handler {
 		r.With(requireUmbrellaOrAction(notificationsG, permissions.ActionView)).Get("/api/notifications", handlers.ListNotificationsHandler)
 		r.With(requireUmbrellaOrAction(notificationsG, permissions.ActionView)).Get("/api/notifications/unread-count", handlers.UnreadCountHandler)
 		r.With(requireUmbrellaOrAction(notificationsG, permissions.ActionView)).Get("/api/notifications/stats", handlers.NotificationStatsHandler)
+		// Realtime bell (065): WebSocket push replaces the 20s poll. Same
+		// session-cookie auth as the terminal bridge (browsers can't set
+		// Authorization on WS handshakes); the bell falls back to polling
+		// when the socket drops. Unread-count stays as the fallback source.
+		r.With(requireUmbrellaOrAction(notificationsG, permissions.ActionView)).Get("/api/notifications/stream", handlers.NotificationStreamHandler)
+		// Delivery prefs (065): mode realtime|digest|off + email opt-out.
+		r.With(requireUmbrellaOrAction(notificationsG, permissions.ActionView)).Get("/api/notifications/prefs", handlers.GetNotificationPrefsHandler)
+		r.With(requireUmbrellaOrAction(notificationsG, permissions.ActionView)).Put("/api/notifications/prefs", handlers.SetNotificationPrefsHandler)
 		r.With(requireUmbrellaOrAction(notificationsG, permissions.ActionEdit)).Put("/api/notifications/read-all", handlers.MarkAllReadHandler)
 		r.With(requireUmbrellaOrAction(notificationsG, permissions.ActionDelete)).Delete("/api/notifications", handlers.ClearNotificationsHandler)
 		r.With(requireUmbrellaOrAction(notificationsG, permissions.ActionView)).Get("/api/notifications/{id}", handlers.GetNotificationHandler)

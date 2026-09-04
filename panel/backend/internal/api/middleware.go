@@ -309,6 +309,16 @@ func DynamicMaxBodySize() func(http.Handler) http.Handler {
 					limit = chunkLimit
 				}
 			}
+			// Ticket attachments accept up to 25 MiB per file (plus multipart
+			// framing). The default 10 MiB cap would silently truncate the
+			// body before the handler's MaxBytesReader can report the
+			// friendly 413, so lift these routes to 32 MiB.
+			if strings.HasPrefix(r.URL.Path, "/api/tickets/") && strings.Contains(r.URL.Path, "/attachments") {
+				const attachLimit = 32 << 20 // 32 MiB
+				if limit < attachLimit {
+					limit = attachLimit
+				}
+			}
 			r.Body = io.NopCloser(io.LimitReader(r.Body, limit))
 			next.ServeHTTP(w, r)
 		})
