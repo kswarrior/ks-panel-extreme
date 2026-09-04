@@ -328,7 +328,7 @@ const NodeStats: React.FC = () => {
               type="button"
               onClick={() => setFilterOpen(!filterOpen)}
               className={`ks-tab inline-flex items-center justify-center gap-1 transition-colors ${filterOpen ? 'is-open' : ''}`}
-              style={tabBtnStyle}
+              style={PILL_TAB_STYLE}
               aria-label="Open filters"
               aria-expanded={filterOpen}
               aria-haspopup="true"
@@ -372,8 +372,7 @@ const NodeStats: React.FC = () => {
                 </div>
               )}
             </div>
-          </div>
-        </div>
+      </PageActionsPill>
       {/* Key Metrics Strip */}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 mb-6">
         <StatCard
