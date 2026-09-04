@@ -1,7 +1,7 @@
 import client from '@/shared/api/client';
 import type { User, Role, Permission } from '@/shared/types/user';
 import type { ApiKey, ApiKeyMutationPayload } from '@/features/api-keys/types/apiKey';
-import type { Node, NodeHeartbeat, CreateNodeResult, ProbeResult, SetupLocalResult, NodeUpdateInfoResponse, NodeUpdateCheckResponse, NodeUpdateApplyResponse, NodeReinstallBackgroundResponse } from '@/features/nodes/types/node';
+import type { Node, NodeHeartbeat, CreateNodeResult, ProbeResult, SetupLocalResult, NodeUpdateInfoResponse, NodeUpdateCheckResponse, NodeUpdateApplyResponse, NodeReinstallBackgroundResponse, RollingFleetUpdatePayload, RollingFleetUpdateResponse, UpdateWindow, UpdateWindowUpsert } from '@/features/nodes/types/node';
 import type { Template, Instance, DeployRequest } from '@/features/instances/types/instance';
 import type { InstancePage, CreateInstancePagePayload, UpdateInstancePagePayload } from '@/features/instance-pages/types/instancePage';
 export type { InstancePage, CreateInstancePagePayload, UpdateInstancePagePayload };
@@ -1326,4 +1326,60 @@ export async function reinstallNodeBackground(id: number): Promise<NodeReinstall
     { timeout: 300000 },
   );
   return res.data;
+}
+
+// ---- Fleet rolling update (POST /api/nodes/update-all) -------------------
+// Orchestrated rollout: order nodes (canary subset first), per node
+// check→apply→poll edge /health + heartbeat until healthy/timeout, stop
+// on first failure. MANAGE_NODES edit-gated + audit-logged server-side.
+// A full fleet can take minutes per node, so the client timeout is lifted
+// for this call (timeout: 0 = no client-side abort).
+export async function rollingFleetUpdate(payload: RollingFleetUpdatePayload): Promise<RollingFleetUpdateResponse> {
+  const res = await client.post<RollingFleetUpdateResponse>(
+    '/api/nodes/update-all',
+    payload,
+    { timeout: 0 },
+  );
+  return res.data;
+}
+
+// ---- Scheduled update windows (migration 068) ----------------------------
+// Panel surface (MANAGE_PANEL_UPDATE): cron schedules that self-update the
+// panel binary inside a daily maintenance window (skip + log outside).
+export async function listPanelUpdateWindows(): Promise<UpdateWindow[]> {
+  const res = await client.get<UpdateWindow[]>('/api/system/update-windows');
+  return Array.isArray(res.data) ? res.data : [];
+}
+
+export async function createPanelUpdateWindow(payload: UpdateWindowUpsert): Promise<{ id: number }> {
+  const res = await client.post<{ id: number }>('/api/system/update-windows', payload);
+  return res.data;
+}
+
+export async function updatePanelUpdateWindow(id: number, payload: UpdateWindowUpsert): Promise<void> {
+  await client.put(`/api/system/update-windows/${id}`, payload);
+}
+
+export async function deletePanelUpdateWindow(id: number): Promise<void> {
+  await client.delete(`/api/system/update-windows/${id}`);
+}
+
+// Fleet surface (MANAGE_NODES view/edit): cron schedules that run the
+// rolling update over every node inside a maintenance window.
+export async function listFleetUpdateWindows(): Promise<UpdateWindow[]> {
+  const res = await client.get<UpdateWindow[]>('/api/nodes/update-windows');
+  return Array.isArray(res.data) ? res.data : [];
+}
+
+export async function createFleetUpdateWindow(payload: UpdateWindowUpsert): Promise<{ id: number }> {
+  const res = await client.post<{ id: number }>('/api/nodes/update-windows', payload);
+  return res.data;
+}
+
+export async function updateFleetUpdateWindow(id: number, payload: UpdateWindowUpsert): Promise<void> {
+  await client.put(`/api/nodes/update-windows/${id}`, payload);
+}
+
+export async function deleteFleetUpdateWindow(id: number): Promise<void> {
+  await client.delete(`/api/nodes/update-windows/${id}`);
 }

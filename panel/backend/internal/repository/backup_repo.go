@@ -144,12 +144,31 @@ func (r *BackupScheduleRepository) Due(now time.Time) ([]BackupSchedule, error) 
 }
 
 func (r *BackupScheduleRepository) Create(in BackupScheduleInput) (int64, error) {
-	var nextRun any
-	if in.NextRunAt != nil {
-		nextRun = in.NextRunAt.UTC().Format("2006-01-02 15:04:05")
+	// modernc.org/sqlite rejects typed-nil driver values, so nil
+	// InstanceID / NextRunAt become literal NULL in the statement (same
+	// pattern as ActivityRepository.Create) instead of bound nils.
+	var instPart string
+	var instArgs []any
+	if in.InstanceID == nil {
+		instPart = "NULL"
+	} else {
+		instPart = "?"
+		instArgs = append(instArgs, *in.InstanceID)
 	}
-	res, err := r.db.Exec(`INSERT INTO backup_schedules (kind, instance_id, name, cron, enabled, keep_last_n, max_age_days, compression, s3_push, next_run_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		in.Kind, in.InstanceID, in.Name, in.Cron, backupBoolToInt(in.Enabled), in.KeepLastN, in.MaxAgeDays, in.Compression, backupBoolToInt(in.S3Push), nextRun)
+	var nextPart string
+	var nextArgs []any
+	if in.NextRunAt != nil {
+		nextPart = "?"
+		nextArgs = append(nextArgs, in.NextRunAt.UTC().Format("2006-01-02 15:04:05"))
+	} else {
+		nextPart = "NULL"
+	}
+	q := `INSERT INTO backup_schedules (kind, instance_id, name, cron, enabled, keep_last_n, max_age_days, compression, s3_push, next_run_at) VALUES (?, ` + instPart + `, ?, ?, ?, ?, ?, ?, ?, ` + nextPart + `)`
+	args := []any{in.Kind}
+	args = append(args, instArgs...)
+	args = append(args, in.Name, in.Cron, backupBoolToInt(in.Enabled), in.KeepLastN, in.MaxAgeDays, in.Compression, backupBoolToInt(in.S3Push))
+	args = append(args, nextArgs...)
+	res, err := r.db.Exec(q, args...)
 	if err != nil {
 		return 0, err
 	}
@@ -157,12 +176,29 @@ func (r *BackupScheduleRepository) Create(in BackupScheduleInput) (int64, error)
 }
 
 func (r *BackupScheduleRepository) Update(id int64, in BackupScheduleInput) error {
-	var nextRun any
-	if in.NextRunAt != nil {
-		nextRun = in.NextRunAt.UTC().Format("2006-01-02 15:04:05")
+	var instPart string
+	var instArgs []any
+	if in.InstanceID == nil {
+		instPart = "NULL"
+	} else {
+		instPart = "?"
+		instArgs = append(instArgs, *in.InstanceID)
 	}
-	res, err := r.db.Exec(`UPDATE backup_schedules SET instance_id = ?, name = ?, cron = ?, enabled = ?, keep_last_n = ?, max_age_days = ?, compression = ?, s3_push = ?, next_run_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND kind = ?`,
-		in.InstanceID, in.Name, in.Cron, backupBoolToInt(in.Enabled), in.KeepLastN, in.MaxAgeDays, in.Compression, backupBoolToInt(in.S3Push), nextRun, id, in.Kind)
+	var nextPart string
+	var nextArgs []any
+	if in.NextRunAt != nil {
+		nextPart = "?"
+		nextArgs = append(nextArgs, in.NextRunAt.UTC().Format("2006-01-02 15:04:05"))
+	} else {
+		nextPart = "NULL"
+	}
+	q := `UPDATE backup_schedules SET instance_id = ` + instPart + `, name = ?, cron = ?, enabled = ?, keep_last_n = ?, max_age_days = ?, compression = ?, s3_push = ?, next_run_at = ` + nextPart + `, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND kind = ?`
+	args := []any{}
+	args = append(args, instArgs...)
+	args = append(args, in.Name, in.Cron, backupBoolToInt(in.Enabled), in.KeepLastN, in.MaxAgeDays, in.Compression, backupBoolToInt(in.S3Push))
+	args = append(args, nextArgs...)
+	args = append(args, id, in.Kind)
+	res, err := r.db.Exec(q, args...)
 	if err != nil {
 		return err
 	}
@@ -185,11 +221,11 @@ func (r *BackupScheduleRepository) Delete(id int64) error {
 
 // MarkRan re-arms next_run_at after a fire.
 func (r *BackupScheduleRepository) MarkRan(id int64, next time.Time) error {
-	var v any
-	if !next.IsZero() {
-		v = next.UTC().Format("2006-01-02 15:04:05")
+	if next.IsZero() {
+		_, err := r.db.Exec(`UPDATE backup_schedules SET last_run_at = CURRENT_TIMESTAMP, next_run_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, id)
+		return err
 	}
-	_, err := r.db.Exec(`UPDATE backup_schedules SET last_run_at = CURRENT_TIMESTAMP, next_run_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, v, id)
+	_, err := r.db.Exec(`UPDATE backup_schedules SET last_run_at = CURRENT_TIMESTAMP, next_run_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, next.UTC().Format("2006-01-02 15:04:05"), id)
 	return err
 }
 

@@ -167,6 +167,10 @@ export interface NodeEdgeRemoteManifest {
   build_date?: string;
   notes?: string;
   size_bytes?: number;
+  /** Hex SHA-256 of the ksedge binary — verified pre-swap when present. */
+  sha256?: string;
+  /** Optional cosign signature output, informational. */
+  signature?: string;
 }
 
 export interface NodeUpdateInfoResponse {
@@ -197,4 +201,64 @@ export interface NodeReinstallBackgroundResponse {
   ok: boolean;
   message: string;
   script_path: string;
+}
+
+// ---- Fleet rolling update (POST /api/nodes/update-all) ------------------
+
+export interface RollingFleetUpdatePayload {
+  /** "sequential" (ID order) | "canary" (first canary_count first). */
+  mode?: 'sequential' | 'canary';
+  canary_count?: number;
+  /** Per-node healthy window, 10..600s. Default 120. */
+  health_timeout_s?: number;
+  /** Stop on first failure (default true), leaving the rest untouched. */
+  pause_on_failure?: boolean;
+}
+
+export type RollingNodeStatus = 'updated' | 'up_to_date' | 'failed' | 'skipped';
+
+export interface RollingNodeResult {
+  node_id: number;
+  name: string;
+  status: RollingNodeStatus;
+  detail?: string;
+  version_before?: string;
+  version_after?: string;
+}
+
+export interface RollingFleetUpdateResponse {
+  ok: boolean;
+  mode: string;
+  results: RollingNodeResult[];
+  stopped_early: boolean;
+  summary: string;
+}
+
+// ---- Scheduled update windows (migration 068) ----------------------------
+
+export type UpdateWindowTarget = 'panel' | 'fleet';
+
+export interface UpdateWindow {
+  id: number;
+  target: UpdateWindowTarget;
+  name: string;
+  /** 5-field cron expression. */
+  cron: string;
+  enabled: boolean;
+  /** Daily maintenance-window bounds as "HH:MM" UTC; empty = unbounded. */
+  window_start: string;
+  window_end: string;
+  next_run_at?: string | null;
+  last_run_at?: string | null;
+  last_status?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface UpdateWindowUpsert {
+  name: string;
+  cron: string;
+  enabled: boolean;
+  window_start: string;
+  window_end: string;
 }

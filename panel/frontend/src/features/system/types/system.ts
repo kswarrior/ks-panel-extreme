@@ -169,6 +169,11 @@ export interface RemoteVersionManifest {
   build_date?: string;
   notes?: string;
   size_bytes?: number;
+  /** Hex SHA-256 of the release binary. When present the apply/reinstall
+   * paths hash the download before chmod/swap and abort on mismatch. */
+  sha256?: string;
+  /** Optional cosign signature output (SIGN_KEY builds), informational. */
+  signature?: string;
 }
 
 // UpdateCheckResponse is the result of one update-check round-trip. When
