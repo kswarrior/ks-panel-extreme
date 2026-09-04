@@ -11,10 +11,11 @@ import {
   PieChart,
   DashboardSection,
   DashboardGrid,
-  HeaderWithAction,
   StatCard,
 } from '@/shared/components/ui/StatDashboard';
 import GlassCard from '@/shared/components/ui/Card';
+import SearchDropdown from '@/shared/components/ui/SearchDropdown';
+import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 
 const ApiKeyStats: React.FC = () => {
   const navigate = useNavigate();
@@ -22,6 +23,9 @@ const ApiKeyStats: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [timeRange, setTimeRange] = useState<'1h' | '6h' | '24h' | '7d'>('24h');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'expired'>('all');
   const [filterOpen, setFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
 
@@ -57,13 +61,31 @@ const ApiKeyStats: React.FC = () => {
 
   const userName = (id: number) => users.find((u) => u.id === id)?.username || `#${id}`;
 
+  const filteredKeys = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    let out = keys;
+    if (q) {
+      out = out.filter((k) =>
+        (k.name || '').toLowerCase().includes(q) ||
+        (k.prefix || '').toLowerCase().includes(q) ||
+        (k.display_name || '').toLowerCase().includes(q) ||
+        (k.description || '').toLowerCase().includes(q) ||
+        userName(k.user_id).toLowerCase().includes(q)
+      );
+    }
+    if (statusFilter === 'active') out = out.filter((k) => k.active && !(k.expires_at && new Date(k.expires_at) < new Date()));
+    if (statusFilter === 'inactive') out = out.filter((k) => !k.active);
+    if (statusFilter === 'expired') out = out.filter((k) => k.expires_at && new Date(k.expires_at) < new Date());
+    return out;
+  }, [keys, search, statusFilter, users]);
+
   const stats = useMemo(() => {
-    const active = keys.filter((k) => k.active).length;
-    const expired = keys.filter((k) => k.expires_at && new Date(k.expires_at) < new Date()).length;
-    const withRateLimit = keys.filter((k) => k.rate_limit && k.rate_limit > 0).length;
-    const withExpiry = keys.filter((k) => k.expires_at).length;
-    return { total: keys.length, active, inactive: keys.length - active, expired, withRateLimit, withExpiry };
-  }, [keys]);
+    const active = filteredKeys.filter((k) => k.active).length;
+    const expired = filteredKeys.filter((k) => k.expires_at && new Date(k.expires_at) < new Date()).length;
+    const withRateLimit = filteredKeys.filter((k) => k.rate_limit && k.rate_limit > 0).length;
+    const withExpiry = filteredKeys.filter((k) => k.expires_at).length;
+    return { total: filteredKeys.length, active, inactive: filteredKeys.length - active, expired, withRateLimit, withExpiry };
+  }, [filteredKeys]);
 
   const keySlices = useMemo(() => [
     { label: 'Active', value: stats.active, color: '#34d399' },
@@ -82,7 +104,7 @@ const ApiKeyStats: React.FC = () => {
   ].filter((s) => s.value > 0), [stats]);
 
   const topKeysByUsage = useMemo(() =>
-    [...keys]
+    [...filteredKeys]
       .filter((k) => k.last_used_at)
       .sort((a, b) => new Date(b.last_used_at!).getTime() - new Date(a.last_used_at!).getTime())
       .slice(0, 10),
