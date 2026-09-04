@@ -18,21 +18,38 @@ const InstanceTabs: React.FC = () => {
   const allPagesTriggerRef = useRef<HTMLButtonElement>(null);
   const permissions = useAuthStore((s) => s.permissions);
   const canEditPorts = hasPermissionAny(permissions, PermissionKey.INSTANCES_EDIT, PermissionKey.MANAGE_INSTANCES);
+  const canViewSnapshots = hasPermissionAny(permissions, PermissionKey.INSTANCES_EDIT, PermissionKey.MANAGE_INSTANCES, PermissionKey.VIEW_INSTANCES);
   const effectiveNav = useMemo(() => {
-    if (!instanceId || !canEditPorts) return nav;
-    // Append synthetic Ports tab unless a custom page already uses slug 'ports'
-    if (nav.some((n) => n.to === 'ports')) return nav;
-    return [
-      ...nav,
-      {
-        to: 'ports',
-        label: 'Ports',
-        iconSvg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="7" width="20" height="8" rx="2"/><path d="M6 7v-2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2"/><path d="M6 15v2a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-2"/></svg>',
-        iconKind: 'svg' as const,
-        end: false,
-      },
-    ];
-  }, [nav, instanceId, canEditPorts]);
+    let out = nav;
+    if (instanceId && canEditPorts && !out.some((n) => n.to === 'ports')) {
+      // Append synthetic Ports tab unless a custom page already uses slug 'ports'
+      out = [
+        ...out,
+        {
+          to: 'ports',
+          label: 'Ports',
+          iconSvg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="7" width="20" height="8" rx="2"/><path d="M6 7v-2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2"/><path d="M6 15v2a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-2"/></svg>',
+          iconKind: 'svg' as const,
+          end: false,
+        },
+      ];
+    }
+    if (instanceId && canViewSnapshots && !out.some((n) => n.to === 'snapshots')) {
+      // Native Snapshots tab (built-in, like Ports/SFTP). The legacy
+      // backups.json custom page keeps working under slug 'backups'.
+      out = [
+        ...out,
+        {
+          to: 'snapshots',
+          label: 'Snapshots',
+          iconSvg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v5h-5"/></svg>',
+          iconKind: 'svg' as const,
+          end: false,
+        },
+      ];
+    }
+    return out;
+  }, [nav, instanceId, canEditPorts, canViewSnapshots]);
 
   const filteredNav = effectiveNav.filter((item) =>
     item.label.toLowerCase().includes(searchQuery.toLowerCase())
