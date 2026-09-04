@@ -817,6 +817,16 @@ func NewRouter() http.Handler {
 		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Get("/api/database", handlers.DatabaseInfoHandler)
 		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Get("/api/database/engines", handlers.DatabaseEnginesHandler)
 		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Post("/api/database/engine", handlers.SetDatabaseEngineHandler)
+		// Scheduled integrity verification (daily cron, configurable):
+		// GET /verify runs the check now (PRAGMA quick_check on SQLite +
+		// connection probe + table-count sanity on all engines) and persists
+		// it as the new last-verify status; failures write activity_logs +
+		// notify admins. /verify/config reads/updates the cron without
+		// running. All ACCESS_ADMIN_PANEL-gated like the rest of Database.
+		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Get("/api/database/verify/config", handlers.DatabaseVerifyConfigHandler)
+		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Put("/api/database/verify/config", handlers.UpdateDatabaseVerifyConfigHandler)
+		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Get("/api/database/verify", handlers.DatabaseVerifyHandler)
+		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Post("/api/database/verify", handlers.DatabaseVerifyHandler)
 
 		// Database → Backup tab (ACCESS_ADMIN_PANEL). Named backups that live
 		// under <DataDir>/backups. Create is VACUUM INTO (SQLite) or a

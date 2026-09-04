@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -174,100 +175,23 @@ func UpdateCheckHandler(w http.ResponseWriter, r *http.Request) {
 func UpdateApplyHandler(w http.ResponseWriter, r *http.Request) {
 	local := version.Snapshot()
 
-	exe, err := os.Executable()
-	if err != nil {
-		http.Error(w, "cannot locate running binary: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if resolved, rerr := filepath.EvalSymlinks(exe); rerr == nil {
-		exe = resolved
-	}
-	exeDir := filepath.Dir(exe)
-	exeBase := filepath.Base(exe)
-	oldPath := filepath.Join(exeDir, exeBase+".old")
-	tmpPath := filepath.Join(exeDir, exeBase+".update")
-
-	// 1) Stream the new binary into a temp file (NOT into the live path)
-	// so a partial download can't leave a truncated executable that the OS
-	// would happily launch on next start.
-	logLines := []string{}
-	logLines = append(logLines, "downloading "+kspanelBinaryURL+" …")
-	if err := downloadUpdateFile(kspanelBinaryURL, tmpPath); err != nil {
-		http.Error(w, "download failed: "+err.Error(), http.StatusBadGateway)
-		return
-	}
-	fi, statErr := os.Stat(tmpPath)
-	if statErr != nil || fi.Size() == 0 {
-		os.Remove(tmpPath)
-		http.Error(w, "downloaded file is empty or missing", http.StatusBadGateway)
-		return
-	}
-	// Verified download: hash the temp file BEFORE chmod/swap. On
-	// mismatch the temp file is deleted, the live binary is untouched
-	// and the failure is audit-logged (422, not 5xx — the artifact, not
-	// the panel, is at fault). The manifest fetch itself is best-effort:
-	// when no checksum is published (or reachable) anywhere the apply
-	// proceeds unverified and logs that fact, so old manifests don't
-	// brick updates while new ones are enforced.
-	if m, merr := fetchUpdateManifest(); merr != nil {
-		logLines = append(logLines, "could not fetch manifest for checksum ("+merr.Error()+") — installing unverified binary")
-	} else if expected, verr := resolveExpectedSHA256(m); verr != nil {
-		os.Remove(tmpPath)
-		recordUpdateVerifyFailure(r, "self_update_verify_failed", "panel self-update checksum error: "+verr.Error())
-		http.Error(w, "checksum error: "+verr.Error(), http.StatusUnprocessableEntity)
-		return
-	} else if expected != "" {
-		if verr := verifyFileSHA256(tmpPath, expected); verr != nil {
-			os.Remove(tmpPath)
-			recordUpdateVerifyFailure(r, "self_update_verify_failed", "panel self-update aborted: "+verr.Error())
-			http.Error(w, "checksum mismatch — download deleted, live binary untouched: "+verr.Error(), http.StatusUnprocessableEntity)
+	// Download + verify + swap via the shared stager so the HTTP path,
+	// the reinstall path and the scheduled-window runner enforce
+	// identical verification. .old rollback + /health-gate relaunch below
+	// are untouched.
+	exe, logLines, serr := stagePanelBinary("update")
+	if serr != nil {
+		var sf *stageFailure
+		if errors.As(serr, &sf) {
+			if sf.IsVerify {
+				recordUpdateVerifyFailure(r, "self_update_verify_failed", "panel self-update "+sf.Msg)
+			}
+			http.Error(w, sf.Msg, sf.Code)
 			return
 		}
-		logLines = append(logLines, "checksum verified (sha256 "+expected[:12]+"…)")
-	} else {
-		logLines = append(logLines, "no checksum published — installing unverified binary")
-	}
-	if err := os.Chmod(tmpPath, 0o755); err != nil {
-		os.Remove(tmpPath)
-		http.Error(w, "chmod failed: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, serr.Error(), http.StatusInternalServerError)
 		return
 	}
-	logLines = append(logLines, fmt.Sprintf("downloaded %d bytes", fi.Size()))
-
-	// 2) Move the running binary aside. We rename, not copy — Linux (and
-	// every other Unix) lets you rename an open file, so the running
-	// process keeps executing from the inode even though the directory
-	// entry has moved.
-	if _, statErr := os.Stat(oldPath); statErr == nil {
-		// Drop any prior .old first so the rename below is unambiguous;
-		// otherwise on a second update the old→new rename would refuse.
-		if err := os.Remove(oldPath); err != nil {
-			os.Remove(tmpPath)
-			http.Error(w, "could not remove prior backup: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-		logLines = append(logLines, "removed prior "+exeBase+".old")
-	}
-	if err := os.Rename(exe, oldPath); err != nil {
-		os.Remove(tmpPath)
-		http.Error(w, "could not move running binary aside: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-	logLines = append(logLines, "moved current binary to "+oldPath)
-
-	// 3) Place the freshly downloaded binary on the live path. If this
-	// step fails we've lost nothing (the .old still has the running code)
-	// — we just abort with an error and the operator can re-run the apply
-	// or manually mv .old back.
-	if err := os.Rename(tmpPath, exe); err != nil {
-		// Best-effort rollback: put the running binary back so the next
-		// launch isn't broken. The .new is left on disk so the operator
-		// can inspect / move it manually.
-		_ = os.Rename(oldPath, exe)
-		http.Error(w, "could not place new binary: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-	logLines = append(logLines, "placed new binary at "+exe)
 
 	// 4) Best-effort: persist an activity-log entry so the audit feed
 	// shows the upgrade happened. We spawn this in a goroutine and write
@@ -515,93 +439,19 @@ func parseSemver(v string) ([3]string, bool) {
 func ReinstallHandler(w http.ResponseWriter, r *http.Request) {
 	local := version.Snapshot()
 
-	exe, err := os.Executable()
-	if err != nil {
-		http.Error(w, "cannot locate running binary: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if resolved, rerr := filepath.EvalSymlinks(exe); rerr == nil {
-		exe = resolved
-	}
-	exeDir := filepath.Dir(exe)
-	exeBase := filepath.Base(exe)
-	oldPath := filepath.Join(exeDir, exeBase+".old")
-	tmpPath := filepath.Join(exeDir, exeBase+".update")
-
-	// 1) Stream the new binary into a temp file (NOT into the live path)
-	// so a partial download can't leave a truncated executable that the OS
-	// would happily launch on next start.
-	logLines := []string{}
-	logLines = append(logLines, "reinstalling from "+kspanelBinaryURL+" …")
-	if err := downloadUpdateFile(kspanelBinaryURL, tmpPath); err != nil {
-		http.Error(w, "download failed: "+err.Error(), http.StatusBadGateway)
-		return
-	}
-	fi, statErr := os.Stat(tmpPath)
-	if statErr != nil || fi.Size() == 0 {
-		os.Remove(tmpPath)
-		http.Error(w, "downloaded file is empty or missing", http.StatusBadGateway)
-		return
-	}
-	// Verified download — same pre-chmod hash gate as UpdateApplyHandler:
-	// mismatch deletes the temp file, leaves the live binary untouched
-	// and audit-logs the failure (422).
-	if m, merr := fetchUpdateManifest(); merr != nil {
-		logLines = append(logLines, "could not fetch manifest for checksum ("+merr.Error()+") — installing unverified binary")
-	} else if expected, verr := resolveExpectedSHA256(m); verr != nil {
-		os.Remove(tmpPath)
-		recordUpdateVerifyFailure(r, "self_reinstall_verify_failed", "panel reinstall checksum error: "+verr.Error())
-		http.Error(w, "checksum error: "+verr.Error(), http.StatusUnprocessableEntity)
-		return
-	} else if expected != "" {
-		if verr := verifyFileSHA256(tmpPath, expected); verr != nil {
-			os.Remove(tmpPath)
-			recordUpdateVerifyFailure(r, "self_reinstall_verify_failed", "panel reinstall aborted: "+verr.Error())
-			http.Error(w, "checksum mismatch — download deleted, live binary untouched: "+verr.Error(), http.StatusUnprocessableEntity)
+	// Same shared stager as UpdateApplyHandler (kind=reinstall only
+	// changes the log wording) — identical verification gate.
+	exe, logLines, serr := stagePanelBinary("reinstall")
+	if serr != nil {
+		var sf *stageFailure
+		if errors.As(serr, &sf) {
+			if sf.IsVerify {
+				recordUpdateVerifyFailure(r, "self_reinstall_verify_failed", "panel reinstall "+sf.Msg)
+			}
+			http.Error(w, sf.Msg, sf.Code)
 			return
 		}
-		logLines = append(logLines, "checksum verified (sha256 "+expected[:12]+"…)")
-	} else {
-		logLines = append(logLines, "no checksum published — installing unverified binary")
-	}
-	if err := os.Chmod(tmpPath, 0o755); err != nil {
-		os.Remove(tmpPath)
-		http.Error(w, "chmod failed: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-	logLines = append(logLines, fmt.Sprintf("downloaded %d bytes", fi.Size()))
-
-	// 2) Move the running binary aside. We rename, not copy — Linux (and
-	// every other Unix) lets you rename an open file, so the running
-	// process keeps executing from the inode even though the directory
-	// entry has moved.
-	if _, statErr := os.Stat(oldPath); statErr == nil {
-		// Drop any prior .old first so the rename below is unambiguous;
-		// otherwise on a second update the old→new rename would refuse.
-		if err := os.Remove(oldPath); err != nil {
-			os.Remove(tmpPath)
-			http.Error(w, "could not remove prior backup: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-		logLines = append(logLines, "removed prior "+exeBase+".old")
-	}
-	if err := os.Rename(exe, oldPath); err != nil {
-		os.Remove(tmpPath)
-		http.Error(w, "could not move running binary aside: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-	logLines = append(logLines, "moved current binary to "+oldPath)
-
-	// 3) Place the freshly downloaded binary on the live path. If this
-	// step fails we've lost nothing (the .old still has the running code)
-	// — we just abort with an error and the operator can re-run the apply
-	// or manually mv .old back.
-	if err := os.Rename(tmpPath, exe); err != nil {
-		// Best-effort rollback: put the running binary back so the next
-		// launch isn't broken. The .new is left on disk so the operator
-		// can inspect / move it manually.
-		_ = os.Rename(oldPath, exe)
-		http.Error(w, "could not place new binary: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, serr.Error(), http.StatusInternalServerError)
 		return
 	}
 	logLines = append(logLines, "placed new binary at "+exe)
