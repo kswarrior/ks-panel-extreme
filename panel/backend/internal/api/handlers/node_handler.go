@@ -130,6 +130,8 @@ func wssChannelsToInput(payload []wssChannelPayload) ([]repository.WssChannelInp
 	}
 	return out, nil
 }
+
+// isValidPortStr reports whether p is a decimal port 1..65535.
 func isValidPortStr(p string) bool {
 	p = strings.TrimSpace(p)
 	if len(p) == 0 || len(p) > 5 {
@@ -223,13 +225,18 @@ func validateNodeAddress(addr string) error {
 // validConnectionModes is the whitelist for the dropdown.
 // direct          — panel has edge URL + edge has panel URL (bidirectional)
 // reverse_tunnel — only edge stores panel URL, WSS tunnel
+// both           — panel keeps BOTH a direct address AND a WSS tunnel;
+//                  per-task WSS channels pick port vs WSS per task
 // local_port     — edge on panel host via 127.0.0.1:port (HTTP)
 // local_wss      — edge on panel host via WSS tunnel
+// local_both     — local edge keeping BOTH 127.0.0.1:port AND a WSS tunnel
 var validConnectionModes = map[string]bool{
 	"direct":         true,
 	"reverse_tunnel": true,
+	"both":           true,
 	"local_port":     true,
 	"local_wss":      true,
+	"local_both":     true,
 }
 
 func normalizeConnectionMode(m string) string {
@@ -249,12 +256,19 @@ func isValidConnectionMode(m string) bool {
 
 func isTunnelMode(m string) bool {
 	m = strings.ToLower(strings.TrimSpace(m))
-	return m == "reverse_tunnel" || m == "local_wss"
+	return m == "reverse_tunnel" || m == "local_wss" || m == "both" || m == "local_both"
 }
 
 func isLocalMode(m string) bool {
 	m = strings.ToLower(strings.TrimSpace(m))
-	return m == "local_port" || m == "local_wss"
+	return m == "local_port" || m == "local_wss" || m == "local_both"
+}
+
+// isDualMode reports whether the mode keeps BOTH transports alive with
+// per-task routing (both / local_both).
+func isDualMode(m string) bool {
+	m = strings.ToLower(strings.TrimSpace(m))
+	return m == "both" || m == "local_both"
 }
 
 // nodeIconKeys is the fixed set of symbolic icon keys the NodeForm's icon
@@ -410,6 +424,7 @@ func CreateNodeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	// Address validation depends on mode:
 	// - reverse_tunnel: address optional (panel never dials edge) – allow "tunnel" placeholder or empty.
+	// - both: BOTH transports alive — a real dialable address is required AND the edge opens a tunnel.
 	// - local_* : address is synthesized from port earlier; but req.Address is the effectiveAddress already.
 	// - direct: must be a valid address.
 	if req.ConnectionMode == "reverse_tunnel" {
@@ -425,6 +440,22 @@ func CreateNodeHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		if err := validateNodeAddress(req.Address); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+	// WSS channels: validate early so a bad row fails before the node lands.
+	var wssInput []repository.WssChannelInput
+	if req.WssChannels != nil {
+		var err error
+		wssInput, err = wssChannelsToInput(req.WssChannels)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		// Channels only make sense on tunnel-capable modes; fail closed so a
+		// direct/local_port node never ships a misleading channel list.
+		if len(wssInput) > 0 && !isTunnelMode(req.ConnectionMode) {
+			http.Error(w, "wss_channels require a WSS or both connection mode", http.StatusBadRequest)
 			return
 		}
 	}
@@ -488,6 +519,14 @@ func CreateNodeHandler(w http.ResponseWriter, r *http.Request) {
 		log.Println("CreateNode error:", err)
 		http.Error(w, "could not create node", http.StatusInternalServerError)
 		return
+	}
+	// Persist the WSS box rows atomically with the new node.
+	if req.WssChannels != nil {
+		if err := repository.NewWssChannelRepository(con).ReplaceChannels(node.ID, wssInput); err != nil {
+			log.Println("CreateNode wss_channels error:", err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 	}
 	nid := node.ID
 	RecordActivity(r, repository.ActivityInput{
@@ -565,6 +604,20 @@ func UpdateNodeHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		if err := validateNodeAddress(req.Address); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+	// WSS channels: validate early so a bad row fails before the node lands.
+	var wssInput []repository.WssChannelInput
+	if req.WssChannels != nil {
+		var err error
+		wssInput, err = wssChannelsToInput(req.WssChannels)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if len(wssInput) > 0 && !isTunnelMode(req.ConnectionMode) {
+			http.Error(w, "wss_channels require a WSS or both connection mode", http.StatusBadRequest)
 			return
 		}
 	}
