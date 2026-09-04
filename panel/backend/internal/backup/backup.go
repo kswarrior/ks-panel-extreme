@@ -680,6 +680,550 @@ func restoreSweepWAL(livePath string) {
 	}
 }
 
+// ---- Compression -------------------------------------------------------
+
+// compressFile encodes src (.db / .sql plain) into dst with the requested
+// codec. gzip uses the stdlib; zstd shells to the `zstd` binary when
+// present (operators without it get a clear error, not silent gzip).
+func compressFile(src, dst, compression string) error {
+	switch compression {
+	case "gzip":
+		in, err := os.Open(src)
+		if err != nil {
+			return err
+		}
+		defer in.Close()
+		out, err := os.Create(dst)
+		if err != nil {
+			return err
+		}
+		gz := gzip.NewWriter(out)
+		_, cerr := io.Copy(gz, in)
+		gerr := gz.Close()
+		ferr := out.Close()
+		if cerr != nil {
+			_ = os.Remove(dst)
+			return cerr
+		}
+		if gerr != nil {
+			_ = os.Remove(dst)
+			return gerr
+		}
+		return ferr
+	case "zstd":
+		if _, err := exec.LookPath("zstd"); err != nil {
+			return fmt.Errorf("zstd compression requested but the 'zstd' binary is not installed; use gzip")
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, "zstd", "-c", "-19", src)
+		out, err := os.Create(dst)
+		if err != nil {
+			return err
+		}
+		cmd.Stdout = out
+		if err := cmd.Run(); err != nil {
+			out.Close()
+			_ = os.Remove(dst)
+			return fmt.Errorf("zstd compress: %w", err)
+		}
+		return out.Close()
+	default:
+		return fmt.Errorf("unknown compression %q", compression)
+	}
+}
+
+// decompressToTemp decodes a compressed backup into a temp plain file and
+// returns its path. Caller removes it.
+func decompressToTemp(src, compression string) (string, error) {
+	tmp, err := os.CreateTemp("", "kspanel-restore-*.db")
+	if err != nil {
+		return "", err
+	}
+	tmpPath := tmp.Name()
+	switch compression {
+	case "gzip":
+		in, err := os.Open(src)
+		if err != nil {
+			tmp.Close()
+			os.Remove(tmpPath)
+			return "", err
+		}
+		defer in.Close()
+		gz, err := gzip.NewReader(in)
+		if err != nil {
+			tmp.Close()
+			os.Remove(tmpPath)
+			return "", err
+		}
+		defer gz.Close()
+		if _, err := io.Copy(tmp, gz); err != nil {
+			tmp.Close()
+			os.Remove(tmpPath)
+			return "", err
+		}
+		tmp.Close()
+		return tmpPath, nil
+	case "zstd":
+		tmp.Close()
+		os.Remove(tmpPath)
+		if _, err := exec.LookPath("zstd"); err != nil {
+			return "", fmt.Errorf("zstd backup requires the 'zstd' binary to restore")
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		defer cancel()
+		out, err := os.Create(tmpPath)
+		if err != nil {
+			return "", err
+		}
+		cmd := exec.CommandContext(ctx, "zstd", "-d", "-c", src)
+		cmd.Stdout = out
+		if err := cmd.Run(); err != nil {
+			out.Close()
+			os.Remove(tmpPath)
+			return "", fmt.Errorf("zstd decompress: %w", err)
+		}
+		out.Close()
+		return tmpPath, nil
+	default:
+		tmp.Close()
+		os.Remove(tmpPath)
+		return "", fmt.Errorf("unknown compression %q", compression)
+	}
+}
+
+// ---- Native dumps (pg_dump / mysqldump) --------------------------------
+
+// ErrNativeToolMissing signals that the live engine is Postgres/MySQL but
+// its CLI dump tool is not installed, so the caller should fall back to
+// the datamove SQLite snapshot path (database_handler.createPreSwitchBackup).
+type ErrNativeToolMissing struct {
+	Engine string
+	Tool   string
+}
+
+func (e *ErrNativeToolMissing) Error() string {
+	return fmt.Sprintf("%s tool %q is not installed; install it or use the SQLite-snapshot fallback", e.Engine, e.Tool)
+}
+
+// NativeToolAvailable reports whether pg_dump / mysqldump exists for engine.
+func NativeToolAvailable(engine string) bool {
+	switch strings.ToLower(strings.TrimSpace(engine)) {
+	case "postgres":
+		_, err := exec.LookPath("pg_dump")
+		return err == nil
+	case "mysql":
+		_, err := exec.LookPath("mysqldump")
+		return err == nil
+	default:
+		return false
+	}
+}
+
+// createNativeWithOptions dumps a live Postgres/MySQL database with its
+// native tool into `<ts>-<label>.sql[.gz|.zst]`. Secrets from the DSN are
+// passed via env (PGPASSWORD / MYSQL_PWD) and never logged.
+func createNativeWithOptions(engine, dsn, label, compression string) (Backup, error) {
+	engine = strings.ToLower(strings.TrimSpace(engine))
+	ts := time.Now().UTC().Format("20060102-150405")
+	if label == "" {
+		label = "snapshot"
+	}
+	label = sanitizeLabel(label)
+	suffix := storageSuffix(".sql", compression)
+	toolLabel := engine
+	if engine == "postgres" {
+		toolLabel = "pg_dump"
+	} else {
+		toolLabel = "mysqldump"
+	}
+	name := fileNamePattern + ts + "-" + label + "-" + toolLabel + suffix
+	dst := filepath.Join(ListDir(), name)
+	stage := dst + ".stage.sql"
+	_ = os.Remove(stage)
+	if err := NativeDump(engine, dsn, stage); err != nil {
+		_ = os.Remove(stage)
+		return Backup{}, err
+	}
+	defer os.Remove(stage)
+	if compression == "none" {
+		if err := os.Rename(stage, dst); err != nil {
+			_ = os.Remove(stage)
+			return Backup{}, err
+		}
+	} else if err := compressFile(stage, dst, compression); err != nil {
+		_ = os.Remove(stage)
+		_ = os.Remove(dst)
+		return Backup{}, err
+	}
+	digest, size, err := hashFile(dst)
+	if err != nil {
+		return Backup{}, err
+	}
+	sfx, _ := splitBackupSuffix(name)
+	id := strings.TrimSuffix(strings.TrimPrefix(name, fileNamePattern), sfx)
+	return Backup{
+		ID:          id,
+		Filename:    name,
+		Path:        dst,
+		Size:        size,
+		CreatedAt:   time.Now().UTC(),
+		SHA256:      digest,
+		Source:      "native-" + toolLabel,
+		IsLiveSafe:  true,
+		Compressed:  compression != "none",
+		Compression: compression,
+		S3Pushed:    false,
+	}, nil
+}
+
+// NativeDump runs pg_dump / mysqldump for engine into dstPath (plain .sql).
+// Returns *ErrNativeToolMissing when the binary is absent so callers can
+// fall back to the datamove SQLite snapshot.
+func NativeDump(engine, dsn, dstPath string) error {
+	switch strings.ToLower(strings.TrimSpace(engine)) {
+	case "postgres":
+		if _, err := exec.LookPath("pg_dump"); err != nil {
+			return &ErrNativeToolMissing{Engine: "postgres", Tool: "pg_dump"}
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, "pg_dump", dsn, "--no-password", "--file="+dstPath)
+		// PGPASSWORD from DSN when parseable; never logged.
+		if pw := postgresPassword(dsn); pw != "" {
+			cmd.Env = append(os.Environ(), "PGPASSWORD="+pw)
+		}
+		var stderr bytes.Buffer
+		cmd.Stderr = &stderr
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("pg_dump failed: %v", truncateErr(stderr.String(), 500))
+		}
+		return nil
+	case "mysql":
+		if _, err := exec.LookPath("mysqldump"); err != nil {
+			return &ErrNativeToolMissing{Engine: "mysql", Tool: "mysqldump"}
+		}
+		host, port, user, pw, dbname := parseMySQLDSN(dsn)
+		args := []string{"--single-transaction", "--quick", "--lock-tables=false"}
+		if host != "" {
+			args = append(args, "-h", host)
+		}
+		if port != "" {
+			args = append(args, "-P", port)
+		}
+		if user != "" {
+			args = append(args, "-u", user)
+		}
+		if dbname != "" {
+			args = append(args, dbname)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, "mysqldump", args...)
+		if pw != "" {
+			cmd.Env = append(os.Environ(), "MYSQL_PWD="+pw)
+		}
+		out, err := os.Create(dstPath)
+		if err != nil {
+			return err
+		}
+		defer out.Close()
+		var stderr bytes.Buffer
+		cmd.Stdout = out
+		cmd.Stderr = &stderr
+		if err := cmd.Run(); err != nil {
+			_ = os.Remove(dstPath)
+			return fmt.Errorf("mysqldump failed: %v", truncateErr(stderr.String(), 500))
+		}
+		return nil
+	default:
+		return fmt.Errorf("native dump unsupported for engine %q", engine)
+	}
+}
+
+func truncateErr(s string, n int) string {
+	s = strings.TrimSpace(s)
+	if len(s) <= n {
+		if s == "" {
+			return "unknown error"
+		}
+		return s
+	}
+	return s[:n] + "…"
+}
+
+// postgresPassword extracts the password from a postgres DSN without
+// logging it. Supports URL form (postgres://user:pass@host/db) and
+// keyword form (password=... / PGPASSWORD is preferred by libpq).
+func postgresPassword(dsn string) string {
+	if strings.Contains(dsn, "://") {
+		if u, err := url.Parse(dsn); err == nil && u.User != nil {
+			if pw, ok := u.User.Password(); ok {
+				return pw
+			}
+		}
+		return ""
+	}
+	if i := strings.Index(dsn, "password="); i >= 0 {
+		j := i + len("password=")
+		end := strings.IndexAny(dsn[j:], " ")
+		if end < 0 {
+			return strings.Trim(dsn[j:], "'\"")
+		}
+		return strings.Trim(dsn[j:j+end], "'\"")
+	}
+	return ""
+}
+
+// parseMySQLDSN extracts host/port/user/password/dbname from common
+// go-sql-driver forms: user:pass@tcp(host:port)/dbname?... and URL form.
+func parseMySQLDSN(dsn string) (host, port, user, pw, dbname string) {
+	if strings.Contains(dsn, "://") {
+		if u, err := url.Parse(dsn); err == nil {
+			host = u.Hostname()
+			port = u.Port()
+			if u.User != nil {
+				user = u.User.Username()
+				pw, _ = u.User.Password()
+			}
+			dbname = strings.TrimPrefix(u.Path, "/")
+			return host, port, user, pw, dbname
+		}
+		return "", "", "", "", ""
+	}
+	// user:pass@tcp(host:port)/dbname
+	rest := dsn
+	if at := strings.LastIndex(rest, "@"); at >= 0 {
+		creds := rest[:at]
+		rest = rest[at+1:]
+		if colon := strings.Index(creds, ":"); colon >= 0 {
+			user = creds[:colon]
+			pw = creds[colon+1:]
+		} else {
+			user = creds
+		}
+	}
+	// rest is now [proto](addr)/dbname?...
+	if strings.HasPrefix(rest, "tcp(") {
+		end := strings.Index(rest, ")")
+		if end > 0 {
+			addr := rest[4:end]
+			if h, p, err := splitHostPort(addr); err == nil {
+				host, port = h, p
+			} else {
+				host = addr
+			}
+			rest = rest[end+1:]
+		}
+	}
+	rest = strings.TrimPrefix(rest, "/")
+	if q := strings.Index(rest, "?"); q >= 0 {
+		dbname = rest[:q]
+	} else if s := strings.Index(rest, " "); s >= 0 {
+		dbname = rest[:s]
+	} else {
+		dbname = rest
+	}
+	return host, port, user, pw, dbname
+}
+
+func splitHostPort(addr string) (string, string, error) {
+	if i := strings.LastIndex(addr, ":"); i >= 0 {
+		return addr[:i], addr[i+1:], nil
+	}
+	return addr, "", fmt.Errorf("no port")
+}
+
+// ---- S3 / remote push ----------------------------------------------------
+
+// S3Config is the rclone-style remote: endpoint + bucket + prefix +
+// credentials. The secret is never logged (callers must redact; this
+// package never prints the struct).
+type S3Config struct {
+	Endpoint  string `json:"endpoint"`
+	Bucket    string `json:"bucket"`
+	Region    string `json:"region"`
+	Prefix    string `json:"prefix"`
+	AccessKey string `json:"access_key"`
+	SecretKey string `json:"secret_key"`
+}
+
+// ValidateS3Config rejects non-http(s) endpoints, empty buckets, and
+// path-traversal prefixes before any network dial.
+func ValidateS3Config(c S3Config) error {
+	c.Endpoint = strings.TrimSpace(c.Endpoint)
+	if c.Endpoint == "" {
+		return fmt.Errorf("s3 endpoint is required")
+	}
+	u, err := url.Parse(c.Endpoint)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return fmt.Errorf("s3 endpoint must be http(s) with a host")
+	}
+	if strings.TrimSpace(c.Bucket) == "" {
+		return fmt.Errorf("s3 bucket is required")
+	}
+	if strings.Contains(c.Bucket, "/") || strings.Contains(c.Bucket, "..") {
+		return fmt.Errorf("invalid s3 bucket")
+	}
+	if strings.Contains(c.Prefix, "..") {
+		return fmt.Errorf("invalid s3 prefix")
+	}
+	if strings.TrimSpace(c.AccessKey) == "" || c.SecretKey == "" {
+		return fmt.Errorf("s3 access_key and secret_key are required")
+	}
+	return nil
+}
+
+func s3ObjectKey(prefix, filename string) string {
+	prefix = strings.Trim(strings.TrimSpace(prefix), "/")
+	if prefix == "" {
+		return filename
+	}
+	return prefix + "/" + filename
+}
+
+// S3Push uploads one backup file to endpoint/bucket/prefix/filename with
+// AWS SigV4 (path-style). On success it writes the .s3pushed marker.
+func S3Push(cfg S3Config, backupPath string) error {
+	if err := ValidateS3Config(cfg); err != nil {
+		return err
+	}
+	f, err := os.Open(backupPath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	fi, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	filename := filepath.Base(backupPath)
+	key := s3ObjectKey(cfg.Prefix, filename)
+	endpoint := strings.TrimRight(strings.TrimSpace(cfg.Endpoint), "/")
+	target := endpoint + "/" + cfg.Bucket + "/" + key
+	body, err := io.ReadAll(io.LimitReader(f, 1<<30+1))
+	if err != nil {
+		return err
+	}
+	_ = fi
+	region := strings.TrimSpace(cfg.Region)
+	if region == "" {
+		region = "us-east-1"
+	}
+	req, err := http.NewRequest(http.MethodPut, target, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/octet-stream")
+	signS3Request(req, cfg.AccessKey, cfg.SecretKey, region, "s3", sha256Hex(body))
+	client := &http.Client{Timeout: 10 * time.Minute}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("s3 push dial failed: %w", err)
+	}
+	defer resp.Body.Close()
+	io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("s3 push failed with HTTP %d", resp.StatusCode)
+	}
+	MarkS3Pushed(backupPath)
+	return nil
+}
+
+// S3Pull downloads endpoint/bucket/prefix/filename into dstPath.
+func S3Pull(cfg S3Config, filename, dstPath string) error {
+	if err := ValidateS3Config(cfg); err != nil {
+		return err
+	}
+	if strings.ContainsAny(filename, "/\\") || strings.Contains(filename, "..") {
+		return fmt.Errorf("invalid filename")
+	}
+	key := s3ObjectKey(cfg.Prefix, filename)
+	endpoint := strings.TrimRight(strings.TrimSpace(cfg.Endpoint), "/")
+	target := endpoint + "/" + cfg.Bucket + "/" + key
+	region := strings.TrimSpace(cfg.Region)
+	if region == "" {
+		region = "us-east-1"
+	}
+	req, err := http.NewRequest(http.MethodGet, target, nil)
+	if err != nil {
+		return err
+	}
+	signS3Request(req, cfg.AccessKey, cfg.SecretKey, region, "s3", "UNSIGNED-PAYLOAD")
+	client := &http.Client{Timeout: 10 * time.Minute}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("s3 pull dial failed: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("s3 pull failed with HTTP %d", resp.StatusCode)
+	}
+	tmp := dstPath + ".tmp"
+	out, err := os.Create(tmp)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, io.LimitReader(resp.Body, 1<<30+1)); err != nil {
+		out.Close()
+		os.Remove(tmp)
+		return err
+	}
+	if err := out.Close(); err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	return os.Rename(tmp, dstPath)
+}
+
+func sha256Hex(b []byte) string {
+	h := sha256.Sum256(b)
+	return hex.EncodeToString(h[:])
+}
+
+// signS3Request applies AWS Signature Version 4 to req (path-style S3).
+func signS3Request(req *http.Request, accessKey, secretKey, region, service, payloadHash string) {
+	t := time.Now().UTC()
+	amzDate := t.Format("20060102T150405Z")
+	dateStamp := t.Format("20060102")
+	req.Header.Set("x-amz-date", amzDate)
+	if payloadHash != "UNSIGNED-PAYLOAD" {
+		req.Header.Set("x-amz-content-sha256", payloadHash)
+	}
+	host := req.URL.Host
+	req.Header.Set("Host", host)
+	signedHeaders := "host;x-amz-date"
+	if payloadHash != "UNSIGNED-PAYLOAD" {
+		signedHeaders = "host;x-amz-content-sha256;x-amz-date"
+	}
+	canonicalURI := req.URL.EscapedPath()
+	if canonicalURI == "" {
+		canonicalURI = "/"
+	}
+	canonicalQS := req.URL.RawQuery
+	var canonicalHeaders string
+	if payloadHash != "UNSIGNED-PAYLOAD" {
+		canonicalHeaders = "host:" + host + "\n" + "x-amz-content-sha256:" + payloadHash + "\n" + "x-amz-date:" + amzDate + "\n"
+	} else {
+		canonicalHeaders = "host:" + host + "\n" + "x-amz-date:" + amzDate + "\n"
+	}
+	canonicalRequest := req.Method + "\n" + canonicalURI + "\n" + canonicalQS + "\n" + canonicalHeaders + "\n" + signedHeaders + "\n" + payloadHash
+	credentialScope := dateStamp + "/" + region + "/" + service + "/" + "aws4_request"
+	stringToSign := "AWS4-HMAC-SHA256\n" + amzDate + "\n" + credentialScope + "\n" + sha256Hex([]byte(canonicalRequest))
+	kDate := hmacSHA256([]byte("AWS4"+secretKey), dateStamp)
+	kRegion := hmacSHA256(kDate, region)
+	kService := hmacSHA256(kRegion, service)
+	kSigning := hmacSHA256(kService, "aws4_request")
+	signature := hex.EncodeToString(hmacSHA256(kSigning, stringToSign))
+	req.Header.Set("Authorization", "AWS4-HMAC-SHA256 Credential="+accessKey+"/"+credentialScope+", SignedHeaders="+signedHeaders+", Signature="+signature)
+}
+
+func hmacSHA256(key []byte, data string) []byte {
+	h := hmac.New(sha256.New, key)
+	h.Write([]byte(data))
+	return h.Sum(nil)
+}
+
 // Local mutex so Create / Restore can't race against each other when an
 // operator hits Create + Restore in quick succession.
 var opMu sync.Mutex
