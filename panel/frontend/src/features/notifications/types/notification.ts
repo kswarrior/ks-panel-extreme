@@ -12,7 +12,8 @@ export type NotificationCategory =
   | 'security'
   | 'theme'
   | 'update'
-  | 'general';
+  | 'general'
+  | 'ticket';
 
 export type NotificationPriority = 'low' | 'normal' | 'high' | 'urgent' | 'critical';
 
@@ -70,7 +71,17 @@ export const CATEGORY_META: Record<NotificationCategory, { label: string; icon: 
   theme:       { label: 'Theme',       icon: 'themes',      color: '#e879f9' },
   update:      { label: 'Update',      icon: 'update',      color: '#22d3ee' },
   general:     { label: 'General',     icon: 'general',     color: '#9ca3af' },
+  ticket:      { label: 'Ticket',      icon: 'tickets',     color: '#f472b6' },
 };
+
+export type NotificationMode = 'realtime' | 'digest' | 'off';
+
+export interface NotificationPrefs {
+  user_id: number;
+  mode: NotificationMode;
+  email_opt_out: boolean;
+  last_digest_at?: string | null;
+}
 
 export const PRIORITY_META: Record<NotificationPriority, { label: string; color: string; bg: string; dot: string }> = {
   low:      { label: 'Low',      color: 'text-gray-400',  bg: 'bg-gray-700/30 border-gray-600/30',  dot: 'bg-gray-500' },

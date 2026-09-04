@@ -31,6 +31,10 @@ export interface Ticket {
   comment_count: number;
   last_reply_at?: string | null;
   last_reply_by?: number | null;
+  first_response_at?: string | null;
+  sla_breached?: boolean;
+  escalated?: boolean;
+  escalated_at?: string | null;
 }
 
 export interface TicketComment {
@@ -48,9 +52,31 @@ export interface TicketComment {
   updated_at: string;
 }
 
+export interface TicketAttachment {
+  id: number;
+  ticket_id: number;
+  comment_id?: number | null;
+  file_name: string;
+  mime: string;
+  size_bytes: number;
+  sha256: string;
+  uploaded_by: number;
+  created_at: string;
+}
+
+export interface TicketSLA {
+  ticket_id: number;
+  first_response_at?: string | null;
+  sla_breached: boolean;
+  escalated: boolean;
+  escalated_at?: string | null;
+}
+
 export interface TicketDetail {
   ticket: Ticket;
   comments: TicketComment[];
+  attachments?: TicketAttachment[];
+  sla?: TicketSLA | null;
 }
 
 export interface TicketStats {
@@ -62,7 +88,11 @@ export interface TicketStats {
   closed: number;
   unassigned: number;
   mine: number;
+  breached: number;
+  sla_pct: number;
 }
+
+export type TicketSLAConfig = Record<string, { first_response_mins: number; resolve_hours: number }>;
 
 export interface TicketListResponse {
   tickets: Ticket[];

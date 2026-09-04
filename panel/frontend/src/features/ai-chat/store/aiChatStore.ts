@@ -141,7 +141,7 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
 
   selectThread: async (id) => {
     if (get().loading || get().ticket) return;
-    if (id === get().activeThreadId) return;
+    if (id === get().activeThreadId && get().messages.length > 0) return;
     if (id == null) {
       rememberThreadId(null);
       set({ activeThreadId: null, messages: [], ticket: null, error: '' });

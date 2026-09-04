@@ -1,5 +1,5 @@
 import client from '@/shared/api/client';
-import type { Ticket, TicketComment, TicketDetail, TicketStats, CreateTicketPayload, UpdateTicketPayload } from '../types/ticket';
+import type { Ticket, TicketComment, TicketDetail, TicketStats, CreateTicketPayload, UpdateTicketPayload, TicketAttachment, TicketSLAConfig } from '../types/ticket';
 
 export async function listTickets(params?: {
   category?: string;
@@ -74,4 +74,37 @@ export async function listAssignableUsers(): Promise<{ ID: number; Username: str
     ID: u.ID ?? u.id,
     Username: u.Username ?? u.username ?? u.name ?? `user#${u.ID ?? u.id}`,
   }));
+}
+
+export async function listTicketAttachments(ticketId: number): Promise<TicketAttachment[]> {
+  const res = await client.get<TicketAttachment[]>(`/api/tickets/${ticketId}/attachments`);
+  return res.data;
+}
+
+export async function uploadTicketAttachment(ticketId: number, file: File, commentId?: number): Promise<TicketAttachment> {
+  const form = new FormData();
+  form.append('file', file);
+  if (commentId) form.append('comment_id', String(commentId));
+  const res = await client.post<TicketAttachment>(`/api/tickets/${ticketId}/attachments`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return res.data;
+}
+
+export function ticketAttachmentUrl(ticketId: number, attachmentId: number): string {
+  return `/api/tickets/${ticketId}/attachments/${attachmentId}`;
+}
+
+export async function deleteTicketAttachment(ticketId: number, attachmentId: number): Promise<void> {
+  await client.delete(`/api/tickets/${ticketId}/attachments/${attachmentId}`);
+}
+
+export async function getTicketSLAConfig(): Promise<TicketSLAConfig> {
+  const res = await client.get<TicketSLAConfig>(`/api/tickets/sla-config`);
+  return res.data;
+}
+
+export async function updateTicketSLAConfig(cfg: TicketSLAConfig): Promise<TicketSLAConfig> {
+  const res = await client.put<TicketSLAConfig>(`/api/tickets/sla-config`, cfg);
+  return res.data;
 }

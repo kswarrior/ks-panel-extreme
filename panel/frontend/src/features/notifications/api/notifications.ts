@@ -1,5 +1,5 @@
 import client from '@/shared/api/client';
-import type { Notification, NotificationStats, CreateNotificationPayload } from '../types/notification';
+import type { Notification, NotificationStats, CreateNotificationPayload, NotificationPrefs, NotificationMode } from '../types/notification';
 
 export async function listNotifications(params?: {
   category?: string;
@@ -60,4 +60,20 @@ export async function clearNotifications(onlyRead = false): Promise<{ deleted: n
 export async function createNotification(payload: CreateNotificationPayload): Promise<{ id?: number; ids?: number[]; count?: number }> {
   const res = await client.post(`/api/notifications`, payload);
   return res.data;
+}
+
+export async function getNotificationPrefs(): Promise<NotificationPrefs> {
+  const res = await client.get<NotificationPrefs>(`/api/notifications/prefs`);
+  return res.data;
+}
+
+export async function setNotificationPrefs(mode: NotificationMode, emailOptOut: boolean): Promise<NotificationPrefs> {
+  const res = await client.put<NotificationPrefs>(`/api/notifications/prefs`, { mode, email_opt_out: emailOptOut });
+  return res.data;
+}
+
+export function notificationStreamUrl(): string {
+  // Same-origin WS: reuse the axios baseURL origin, swap http→ws.
+  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${proto}//${window.location.host}/api/notifications/stream`;
 }
