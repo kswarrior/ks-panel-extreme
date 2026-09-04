@@ -127,6 +127,119 @@ export interface AIUsage {
 // the shared client's 15s default — override per request.
 const CHAT_TIMEOUT = 65000;
 
+// ---------------------------------------------------------------------------
+// Retry preferences (client-side, per browser). The chat store reads these
+// when a request fails with 429 so the panel can back off and re-try
+// instead of dead-ending. Tuned in the chat panel's gear > Reliability.
+// ---------------------------------------------------------------------------
+
+export interface AIRetryPrefs {
+  autoRetry: boolean;
+  maxRetries: number;
+  baseDelaySec: number;
+}
+
+const RETRY_KEY = 'ai-chat-retry-prefs';
+
+export const DEFAULT_RETRY_PREFS: AIRetryPrefs = { autoRetry: true, maxRetries: 2, baseDelaySec: 2 };
+
+export function loadRetryPrefs(): AIRetryPrefs {
+  try {
+    const raw = window.localStorage.getItem(RETRY_KEY);
+    if (!raw) return { ...DEFAULT_RETRY_PREFS };
+    const p = JSON.parse(raw) as Partial<AIRetryPrefs>;
+    return {
+      autoRetry: p.autoRetry !== false,
+      maxRetries: Math.max(1, Math.min(5, Math.round(Number(p.maxRetries) || DEFAULT_RETRY_PREFS.maxRetries))),
+      baseDelaySec: Math.max(1, Math.min(30, Math.round(Number(p.baseDelaySec) || DEFAULT_RETRY_PREFS.baseDelaySec))),
+    };
+  } catch {
+    return { ...DEFAULT_RETRY_PREFS };
+  }
+}
+
+export function saveRetryPrefs(p: AIRetryPrefs): void {
+  try {
+    window.localStorage.setItem(RETRY_KEY, JSON.stringify(p));
+  } catch {
+    // Storage full/blocked — retry still works with in-memory defaults.
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Enriched chat errors: carry the HTTP status + the server's rate-limit
+// signal (code === 'rate_limited', retryAfter seconds) so the store can
+// decide between "Retry" and plain failure. errText-style consumers keep
+// working — the message is always human-readable.
+// ---------------------------------------------------------------------------
+
+export class AIChatError extends Error {
+  status?: number;
+  code?: string;
+  retryAfter?: number;
+  constructor(message: string, props?: { status?: number; code?: string; retryAfter?: number }) {
+    super(message);
+    this.name = 'AIChatError';
+    if (props?.status) this.status = props.status;
+    if (props?.code) this.code = props.code;
+    if (props?.retryAfter) this.retryAfter = props.retryAfter;
+  }
+}
+
+function retryAfterFromHeader(v: string | null): number {
+  if (!v) return 0;
+  const n = Number(String(v).trim());
+  if (!Number.isFinite(n) || n <= 0 || n > 3600) return 0;
+  return Math.round(n);
+}
+
+/** True when the failure is a rate limit (panel limiter or provider 429). */
+export function rateLimitInfo(e: unknown): { limited: boolean; retryAfter: number } {
+  const err = e as { status?: unknown; code?: unknown; retryAfter?: unknown; message?: unknown; response?: { status?: unknown; data?: unknown } };
+  const status = typeof err?.status === 'number' ? err.status : typeof err?.response?.status === 'number' ? (err.response.status as number) : 0;
+  const data = err?.response?.data as { code?: unknown; retry_after?: unknown; error?: unknown } | undefined;
+  const code = typeof err?.code === 'string' ? err.code : typeof data?.code === 'string' ? data.code : '';
+  let retryAfter = typeof err?.retryAfter === 'number' ? err.retryAfter : typeof data?.retry_after === 'number' ? (data.retry_after as number) : 0;
+  if (!retryAfter) {
+    const msg = [
+      typeof err?.message === 'string' ? (err.message as string) : '',
+      typeof err?.response?.data === 'string' ? (err.response.data as string) : '',
+      typeof data?.error === 'string' ? (data.error as string) : '',
+    ].join(' ');
+    const m = msg.match(/retry after (\d+)\s*s/i);
+    if (m) retryAfter = Math.max(0, Math.min(3600, Number(m[1])));
+  }
+  const text = [
+    typeof err?.message === 'string' ? (err.message as string) : '',
+    typeof err?.response?.data === 'string' ? (err.response.data as string) : '',
+    typeof data?.error === 'string' ? (data.error as string) : '',
+  ].join(' ').toLowerCase();
+  const limited =
+    status === 429 || code === 'rate_limited' || text.includes('rate limit') || text.includes('too many requests') || /\b429\b/.test(text);
+  if (limited && !retryAfter) retryAfter = 60;
+  return { limited, retryAfter: limited ? retryAfter : 0 };
+}
+
+function enrichAxiosError(e: unknown, fallback: string): AIChatError {
+  const r = (e as { response?: { data?: unknown; status?: number; headers?: Record<string, unknown> } })?.response;
+  let message = fallback;
+  if (typeof r?.data === 'string' && r.data) message = r.data;
+  else if (r?.data && typeof r.data === 'object') {
+    const d = r.data as { error?: unknown };
+    if (typeof d.error === 'string' && d.error) message = d.error;
+  } else if (e instanceof Error && e.message) message = e.message;
+  const data = r?.data as { code?: unknown; retry_after?: unknown } | undefined;
+  let retryAfter = typeof data?.retry_after === 'number' ? (data.retry_after as number) : 0;
+  const rawHeader = r?.headers?.['retry-after'];
+  if (!retryAfter && rawHeader != null) retryAfter = retryAfterFromHeader(String(rawHeader));
+  if (e instanceof AIChatError) return e;
+  return new AIChatError(message, {
+    status: r?.status,
+    code: typeof data?.code === 'string' ? (data.code as string) : undefined,
+    retryAfter: retryAfter || undefined,
+  });
+}
+
 export async function getAIConfig(): Promise<AIConfigView> {
   const res = await client.get<AIConfigView>('/api/ai/config');
   return res.data;
@@ -150,25 +263,33 @@ export interface AISendOptions {
 }
 
 export async function sendAIChat(messages: AIChatMessage[], opts?: AISendOptions): Promise<AIChatResponse> {
-  const res = await client.post<AIChatResponse>(
-    '/api/ai/chat',
-    {
-      messages,
-      thread_id: opts?.threadId ?? undefined,
-      model: opts?.model || undefined,
-    },
-    { timeout: CHAT_TIMEOUT },
-  );
-  return res.data;
+  try {
+    const res = await client.post<AIChatResponse>(
+      '/api/ai/chat',
+      {
+        messages,
+        thread_id: opts?.threadId ?? undefined,
+        model: opts?.model || undefined,
+      },
+      { timeout: CHAT_TIMEOUT },
+    );
+    return res.data;
+  } catch (e) {
+    throw enrichAxiosError(e, 'Failed to reach the assistant');
+  }
 }
 
 export async function approveAITicket(ticketId: string, threadId?: number | null): Promise<AIChatResponse> {
-  const res = await client.post<AIChatResponse>(
-    '/api/ai/chat',
-    { approve_ticket_id: ticketId, thread_id: threadId ?? undefined },
-    { timeout: CHAT_TIMEOUT },
-  );
-  return res.data;
+  try {
+    const res = await client.post<AIChatResponse>(
+      '/api/ai/chat',
+      { approve_ticket_id: ticketId, thread_id: threadId ?? undefined },
+      { timeout: CHAT_TIMEOUT },
+    );
+    return res.data;
+  } catch (e) {
+    throw enrichAxiosError(e, 'Failed to execute the approved action');
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -209,7 +330,11 @@ export async function streamAIChat(
   });
   if (!res.ok || !res.body) {
     const text = await res.text().catch(() => '');
-    throw new Error(text || `stream failed (HTTP ${res.status})`);
+    throw new AIChatError(text || `stream failed (HTTP ${res.status})`, {
+      status: res.status,
+      code: res.status === 429 ? 'rate_limited' : undefined,
+      retryAfter: retryAfterFromHeader(res.headers.get('Retry-After')) || (res.status === 429 ? 60 : undefined),
+    });
   }
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -231,6 +356,8 @@ export async function streamAIChat(
       confirmation_ticket?: AIConfirmationTicket;
       thread_id?: number;
       error?: string;
+      code?: string;
+      retry_after?: number;
     };
     try {
       ev = JSON.parse(payload);
@@ -251,7 +378,14 @@ export async function streamAIChat(
       if (!ticket) reply = ev.reply;
       else if (!reply) reply = ev.reply;
     }
-    if (ev.error) throw new Error(ev.error);
+    if (ev.error) {
+      const retryAfter =
+        typeof ev.retry_after === 'number' && ev.retry_after > 0 ? Math.min(3600, Math.round(ev.retry_after)) : undefined;
+      throw new AIChatError(ev.error, {
+        code: typeof ev.code === 'string' ? ev.code : undefined,
+        retryAfter,
+      });
+    }
   };
 
   for (;;) {
