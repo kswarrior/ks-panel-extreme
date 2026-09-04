@@ -75,14 +75,20 @@ func (res *Result) step(format string, args ...any) {
 	res.Steps = append(res.Steps, fmt.Sprintf(format, args...))
 }
 
-// quoteIdent quotes a table/column name for the given engine. SQLite and
-// PostgreSQL use double quotes, MySQL uses backticks; embedded quotes are
-// doubled so hostile identifiers can't break out of the quoting.
+// quoteIdent quotes a table/column name for the given engine. SQLite,
+// PostgreSQL and MSSQL use double quotes (MSSQL also accepts [brackets];
+// double quotes are used here for uniformity under QUOTED_IDENTIFIER ON),
+// MySQL uses backticks; embedded quotes are doubled so hostile identifiers
+// can't break out of the quoting.
 func quoteIdent(engine, name string) string {
-	if engine == "mysql" {
+	switch strings.ToLower(strings.TrimSpace(engine)) {
+	case "mysql", "mariadb":
 		return "`" + strings.ReplaceAll(name, "`", "``") + "`"
+	case "mssql", "sqlserver":
+		return `"` + strings.ReplaceAll(name, `"`, `""`) + `"`
+	default:
+		return `"` + strings.ReplaceAll(name, `"`, `""`) + `"`
 	}
-	return `"` + strings.ReplaceAll(name, `"`, `""`) + `"`
 }
 
 // identRe guards the few places an identifier must be spliced into SQL text
@@ -637,8 +643,9 @@ func resyncSequences(conn *sql.Conn, tables []string, res *Result) {
 
 // Verify rechecks the freshly synced target against the source:
 // per-table row parity plus engine-level integrity where the engine exposes
-// it (SQLite integrity_check + foreign_key_check; Postgres/MySQL have no
-// portable equivalent reachable from Go, which the warnings state honestly).
+// it (SQLite quick_check + foreign_key_check; Postgres/MySQL get a real
+// FK-orphan scan via information_schema — table_constraints +
+// key_column_usage on PG, KEY_COLUMN_USAGE on MySQL — plus COUNT parity).
 // baselines maps table → source COUNT(*) captured before the copy; a target
 // holding FEWER than its baseline means real lost rows (issue). A larger
 // count means the panel wrote new rows to the live source mid-sync
@@ -701,8 +708,42 @@ func Verify(srcD db.Dialect, src *sql.DB, dstD db.Dialect, dst *sql.DB, tables [
 			}
 		}
 	} else {
-		warnings = append(warnings,
-			dstD.Name()+" exposes no portable integrity pragma — verification covered row-count parity only")
+		// Real FK-orphan scan on the target via information_schema.
+		// Orphans are data loss/corruption-class issues; introspection
+		// failures degrade to warnings so an unreadable catalog can't
+		// fail an otherwise healthy sync.
+		orphanIssues, orphanWarnings, checked, oerr := ScanFKOrphans(dstD, dst)
+		if oerr != nil {
+			warnings = append(warnings,
+				fmt.Sprintf("%s orphan scan unavailable (%v) — verification covered row-count parity only", dstD.Name(), oerr))
+		} else {
+			issues = append(issues, orphanIssues...)
+			warnings = append(warnings, orphanWarnings...)
+			if len(orphanIssues) == 0 && len(orphanWarnings) == 0 {
+				warnings = append(warnings,
+					fmt.Sprintf("%s orphan scan clean (%d FK constraint(s) checked) + row-count parity", dstD.Name(), checked))
+			}
+		}
+	}
+	// SQLite also gets the generic orphan scan as a second opinion behind
+	// foreign_key_check (same NOT EXISTS shape the PG/MySQL path uses, so
+	// the three engines share one definition of "orphan"). Duplicates are
+	// harmless — both surfaces report the same rows.
+	if dstD.IsSQLite() {
+		if orphanIssues, orphanWarnings, _, oerr := ScanFKOrphans(dstD, dst); oerr == nil {
+			// Dedupe against foreign_key_check output: only add orphan
+			// lines that don't already mention the same child table.
+			have := map[string]bool{}
+			for _, is := range issues {
+				have[is] = true
+			}
+			for _, oi := range orphanIssues {
+				if !have[oi] {
+					issues = append(issues, oi)
+				}
+			}
+			warnings = append(warnings, orphanWarnings...)
+		}
 	}
 	return issues, warnings, nil
 }

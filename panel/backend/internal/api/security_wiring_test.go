@@ -1,11 +1,16 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 )
+
+func jsonUnmarshal(b []byte, v interface{}) error {
+	return json.Unmarshal(b, v)
+}
 
 // TestSecurityHeadersPresent proves SecurityHeadersMiddleware is mounted
 // globally: every response (even public GET /health) carries CSP, nosniff,
@@ -107,30 +112,15 @@ func TestCSRFTokenMintAndReuse(t *testing.T) {
 	if !strings.Contains(body, "csrf_token") {
 		t.Fatalf("csrf-token response should contain csrf_token, got %q", body)
 	}
-	// Extract token naively: {"csrf_token":"..."}.
-	start := strings.Index(body, `"csrf_token"`)
-	if start < 0 {
-		t.Fatalf("no csrf_token key in %q", body)
+	// Extract token via encoding/json (robust, no manual index math).
+	var tokBody struct {
+		CSRFToken string `json:"csrf_token"`
 	}
-	rest := body[start:]
-	q1 := strings.Index(rest, `"`, len(`"csrf_token"`)+1)
-	if q1 < 0 {
-		t.Fatalf("malformed token json %q", body)
+	// body is small JSON; decode directly.
+	if err := jsonUnmarshal([]byte(body), &tokBody); err != nil || tokBody.CSRFToken == "" {
+		t.Fatalf("csrf-token response should contain csrf_token, got %q (err=%v)", body, err)
 	}
-	// Find opening quote of value.
-	valStart := strings.Index(rest[q1+1:], `"`)
-	if valStart < 0 {
-		t.Fatalf("malformed token json %q", body)
-	}
-	valStart += q1 + 2
-	valEnd := strings.Index(rest[valStart:], `"`)
-	if valEnd < 0 {
-		t.Fatalf("malformed token json %q", body)
-	}
-	token := rest[valStart : valStart+valEnd]
-	if token == "" {
-		t.Fatalf("empty csrf token in %q", body)
-	}
+	token := tokBody.CSRFToken
 
 	// Reuse the same token twice: tokens are reusable until expiry (1h),
 	// so both POSTs must pass CSRF (401 auth, not 403 CSRF).
