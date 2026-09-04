@@ -149,3 +149,52 @@ export interface SetupLocalResult {
   log?: string;
   probe?: ProbeResult;
 }
+
+// Edge self-update types — per-node mirror of the System → Panel tab
+// shapes (features/system/types/system.ts). Backed by the panel's
+// /api/nodes/{id}/update-* proxy, which triggers the edge's own
+// reinstall.sh (the edge downloads + swaps + restarts itself).
+
+export interface NodeEdgeVersionInfo {
+  version: string;
+  commit: string;
+  build_date: string;
+}
+
+export interface NodeEdgeRemoteManifest {
+  version: string;
+  commit?: string;
+  build_date?: string;
+  notes?: string;
+  size_bytes?: number;
+}
+
+export interface NodeUpdateInfoResponse {
+  local: NodeEdgeVersionInfo;
+  update_url: string;
+  version_url: string;
+  binary_path: string;
+}
+
+export interface NodeUpdateCheckResponse {
+  available: boolean;
+  local: NodeEdgeVersionInfo;
+  remote: NodeEdgeRemoteManifest;
+  checked_at: string;
+  update_url: string;
+  error?: string;
+}
+
+export interface NodeUpdateApplyResponse {
+  ok: boolean;
+  message: string;
+  local_version_before: string;
+  target_binary: string;
+  log?: string;
+}
+
+export interface NodeReinstallBackgroundResponse {
+  ok: boolean;
+  message: string;
+  script_path: string;
+}

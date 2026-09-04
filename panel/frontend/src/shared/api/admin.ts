@@ -1,7 +1,7 @@
 import client from '@/shared/api/client';
 import type { User, Role, Permission } from '@/shared/types/user';
 import type { ApiKey, ApiKeyMutationPayload } from '@/features/api-keys/types/apiKey';
-import type { Node, NodeHeartbeat, CreateNodeResult, ProbeResult, SetupLocalResult } from '@/features/nodes/types/node';
+import type { Node, NodeHeartbeat, CreateNodeResult, ProbeResult, SetupLocalResult, NodeUpdateInfoResponse, NodeUpdateCheckResponse, NodeUpdateApplyResponse, NodeReinstallBackgroundResponse } from '@/features/nodes/types/node';
 import type { Template, Instance, DeployRequest } from '@/features/instances/types/instance';
 import type { InstancePage, CreateInstancePagePayload, UpdateInstancePagePayload } from '@/features/instance-pages/types/instancePage';
 export type { InstancePage, CreateInstancePagePayload, UpdateInstancePagePayload };
@@ -1232,5 +1232,50 @@ export async function getReinstallScript(): Promise<string> {
 // and rolls back on failure. Returns immediately while the script runs detached.
 export async function reinstallBackground(): Promise<ReinstallBackgroundResponse> {
   const res = await client.post<ReinstallBackgroundResponse>('/api/system/reinstall-background');
+  return res.data;
+}
+
+// ---- Per-node edge self-update (NodeDetail → Update & Reinstall) --------
+// The panel proxies a trigger RPC to the edge, and the edge downloads +
+// swaps + restarts via its own reinstall.sh (mirrors the System → Panel
+// tab, but the script lives on the edge host). Info/check are view-level;
+// the three mutating verbs are edit-level (like setup-local).
+// Apply/reinstall can take minutes (binary download + relaunch), so the
+// 15s client default is lifted for THOSE calls only (timeout: 300000).
+
+export async function getNodeUpdateInfo(id: number): Promise<NodeUpdateInfoResponse> {
+  const res = await client.get<NodeUpdateInfoResponse>(`/api/nodes/${id}/update-info`);
+  return res.data;
+}
+
+export async function checkNodeUpdate(id: number): Promise<NodeUpdateCheckResponse> {
+  const res = await client.get<NodeUpdateCheckResponse>(`/api/nodes/${id}/update-check`);
+  return res.data;
+}
+
+export async function applyNodeUpdate(id: number): Promise<NodeUpdateApplyResponse> {
+  const res = await client.post<NodeUpdateApplyResponse>(
+    `/api/nodes/${id}/update-apply`,
+    null,
+    { timeout: 300000 },
+  );
+  return res.data;
+}
+
+export async function reinstallNode(id: number): Promise<NodeUpdateApplyResponse> {
+  const res = await client.post<NodeUpdateApplyResponse>(
+    `/api/nodes/${id}/reinstall`,
+    null,
+    { timeout: 300000 },
+  );
+  return res.data;
+}
+
+export async function reinstallNodeBackground(id: number): Promise<NodeReinstallBackgroundResponse> {
+  const res = await client.post<NodeReinstallBackgroundResponse>(
+    `/api/nodes/${id}/reinstall-background`,
+    null,
+    { timeout: 300000 },
+  );
   return res.data;
 }
