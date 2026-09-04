@@ -45,7 +45,25 @@ func listFKConstraints(d db.Dialect, con *sql.DB) ([]fkConstraint, error) {
 }
 
 func listSQLiteFKs(con *sql.DB) ([]fkConstraint, error) {
-	tables, err := listUserTables(sqliteDialectShim{}, con)
+	rows0, err := con.Query(`
+		SELECT name FROM sqlite_master
+		WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
+		ORDER BY name`)
+	if err != nil {
+		return nil, err
+	}
+	var tables []string
+	for rows0.Next() {
+		var n string
+		if err := rows0.Scan(&n); err == nil {
+			tables = append(tables, n)
+		}
+	}
+	rows0.Close()
+	if err := rows0.Err(); err != nil {
+		return nil, err
+	}
+	tables, err := listUserTables(d, con)
 	if err != nil {
 		return nil, err
 	}
@@ -212,22 +230,7 @@ func listMySQLFKs(con *sql.DB) ([]fkConstraint, error) {
 	return out, nil
 }
 
-// sqliteDialectShim satisfies db.Dialect just enough for listUserTables'
-// sqlite branch without importing a test-only dialect. Only Name() is
-// consulted by listUserTables.
-type sqliteDialectShim struct{}
 
-func (sqliteDialectShim) Name() string       { return "sqlite" }
-func (sqliteDialectShim) DriverName() string { return "sqlite" }
-func (sqliteDialectShim) Open(string) (*sql.DB, error) {
-	return nil, fmt.Errorf("shim: open not supported")
-}
-func (sqliteDialectShim) ConfigurePool(*sql.DB) {}
-func (sqliteDialectShim) MigrationsFS() interface {
-	ReadDir(string) ([]interface{}, error)
-} {
-	return nil
-}
 
 // countOrphans returns the number of child rows whose FK columns are all
 // NOT NULL yet have no matching parent row. NULL child columns are never

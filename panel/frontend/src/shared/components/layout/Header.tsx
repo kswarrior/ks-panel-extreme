@@ -537,8 +537,7 @@ const Header: React.FC<HeaderProps> = ({
       {/* Right cluster: notification bell + profile. Always visible so the
        * header stays a normal single row on every page (instance power
        * controls now live in the details page's PageActionsPill). */}
-      {
-        <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2">
           <NotificationBell />
           <RichMenu
             items={items}
@@ -590,7 +589,6 @@ const Header: React.FC<HeaderProps> = ({
             )}
           />
         </div>
-      )}
       </div>
       {/* Power dock — below the header row, left, only inside an instance
           panel (same pattern as InstanceTabs above). The header itself is
