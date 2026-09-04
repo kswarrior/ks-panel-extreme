@@ -349,7 +349,7 @@ const Header: React.FC<HeaderProps> = ({
   );
 
   return (
-    <header className="glass-chrome ks-header-bg w-full sticky top-0 z-20 relative flex flex-col justify-center px-[3px]">
+    <header className="glass-chrome ks-header-bg w-full sticky top-0 z-20 relative flex flex-col justify-center px-[5px]">
       <div className="w-full flex items-center justify-between">
       <div className="flex items-center gap-2 min-w-0">
         {/* Sidebar toggle — mobile only. Modern three-line icon with
