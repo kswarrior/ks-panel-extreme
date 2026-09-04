@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -936,11 +937,23 @@ func SetDatabaseEngineHandler(w http.ResponseWriter, r *http.Request) {
 
 // createPreSwitchBackup snapshots the CURRENT database into the standard
 // backup directory. SQLite sources use VACUUM INTO (fast, consistent);
-// Postgres / MySQL sources are dumped through datamove into an equivalent
-// SQLite snapshot file so a restorable artifact always exists.
+// Postgres / MySQL sources first attempt a native pg_dump / mysqldump
+// artifact (restorable with psql / mysql); when the native tool is missing
+// they fall back to dumping through datamove into an equivalent SQLite
+// snapshot file so a restorable artifact always exists.
 func createPreSwitchBackup(srcD db.Dialect, src *sql.DB, batchSize int) (backup.Backup, error) {
 	if srcD.IsSQLite() {
 		return backup.Create("pre-switch")
+	}
+	if backup.NativeToolAvailable(srcD.Name()) {
+		if b, err := backup.CreateWithOptions("pre-switch", "none"); err == nil {
+			return b, nil
+		} else {
+			var missing *backup.ErrNativeToolMissing
+			if !errors.As(err, &missing) {
+				return backup.Backup{}, err
+			}
+		}
 	}
 	return backup.CreateWithWriter("pre-switch", func(p string) error {
 		dump, sd, err := db.Open(config.DBConfig{Engine: "sqlite", DSN: p})
