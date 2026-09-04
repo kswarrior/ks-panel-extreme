@@ -2,7 +2,8 @@
 //
 // Mirrors panel/frontend/src/features/templates/components/TemplateFormComponents.tsx
 // (TemplateTabs) — GlassCard shell, ks-tab pills with icon + label + hint,
-// vertical sticky rail on desktop, horizontal scroll row on mobile.
+// vertical sticky rail on desktop (hidden on mobile — the bottom floating
+// nav in NodeForm.tsx is the single mobile tab bar).
 
 import React from 'react';
 import GlassCard from '@/shared/components/ui/Card';
