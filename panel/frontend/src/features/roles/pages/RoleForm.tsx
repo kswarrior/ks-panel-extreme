@@ -5,6 +5,7 @@ import type { Role, Permission } from '@/shared/types/user';
 import type { AuthProviderInfo } from '@/features/authority/types/authority';
 import FormPage from '@/shared/components/forms/FormPage';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import GlassCard from '@/shared/components/ui/Card';
 import RoleIdentity from '@/features/roles/components/RoleIdentity';
 import RolePermissions from '@/features/roles/components/RolePermissions';
 import RoleAuthorities from '@/features/roles/components/RoleAuthorities';
@@ -26,6 +27,22 @@ const ROLE_TABS: { id: 'identity' | 'permissions' | 'authorities'; label: string
   { id: 'permissions', label: 'Permissions' },
   { id: 'authorities', label: 'Authorities' },
 ];
+
+// Node-pattern tab meta: desktop hint + icon.
+const ROLE_TAB_META: Record<string, { hint: string; icon: React.ReactNode }> = {
+  identity: {
+    hint: 'Name, display & colour',
+    icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></svg>,
+  },
+  permissions: {
+    hint: 'Granted permissions',
+    icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>,
+  },
+  authorities: {
+    hint: 'Allowed auth types',
+    icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>,
+  },
+};
 
 const ALLOWED_AUTH_TYPES_UNRESTRICTED: string[] = [];
 
@@ -152,23 +169,39 @@ const RoleForm: React.FC = () => {
     <FormPage
       crumbs={[{ label: 'Roles', to: '/roles' }, { label: editing ? 'Edit Role' : 'New Role' }]}
       onSubmit={submit}
+      maxWidth="max-w-4xl"
       hideHeader
     >
-      <div className="space-y-4">
-        <div className="hidden lg:inline-flex flex-wrap gap-1 rounded-lg bg-neutral-900/60 border border-white/10 p-1">
-          {ROLE_TABS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setTab(t.id)}
-              className={`ks-tab transition-colors ${
-                tab === t.id ? 'ks-tab-active' : ''
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+      <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4">
+        {/* Desktop tabs — vertical on the left (node pattern). */}
+        <GlassCard className="hidden lg:block lg:sticky lg:top-4 self-start">
+          <nav aria-label="Role form sections" className="flex lg:flex-col gap-1">
+            {ROLE_TABS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={tab === t.id}
+                onClick={() => setTab(t.id)}
+                className={`ks-tab w-full flex items-center gap-2 transition text-left ${
+                  tab === t.id ? 'ks-tab-active' : ''
+                }`}
+              >
+                <span className="inline-flex items-center shrink-0">{ROLE_TAB_META[t.id].icon}</span>
+                <span className="flex flex-col min-w-0">
+                  <span>{t.label}</span>
+                  <span
+                    className={`text-[10px] hidden lg:block ${tab === t.id ? 'opacity-70' : 'text-gray-500'}`}
+                    style={tab === t.id ? { color: 'var(--ks-tab-active-text, #000000)' } : undefined}
+                  >
+                    {ROLE_TAB_META[t.id].hint}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </nav>
+        </GlassCard>
+        <div className="space-y-4 min-w-0">
 
         {tab === 'identity' && (
           <RoleIdentity

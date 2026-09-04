@@ -14,6 +14,7 @@ import { pageSourceOf } from '@/features/instance-pages/types/instancePage';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import GlassCard from '@/shared/components/ui/Card';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
+import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import Modal from '@/shared/components/ui/Modal';
 import { useConfirm } from '@/shared/stores/confirmStore';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
