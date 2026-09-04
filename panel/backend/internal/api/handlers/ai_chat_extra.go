@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -118,7 +119,24 @@ func aiStreamPost(ctx context.Context, url, apiKey string, body any, parse func(
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
-		return "", nil, aiUsage{}, fmt.Errorf("provider HTTP %d", resp.StatusCode)
+		// Keep the provider's error snippet (matching aiPostJSON) plus any
+		// Retry-After hint, so the UI can show "Too Many Requests" and
+		// back off instead of surfacing a bare "provider HTTP 429".
+		data, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		msg := fmt.Sprintf("provider HTTP %d", resp.StatusCode)
+		if s := strings.TrimSpace(string(data)); s != "" {
+			msg += ": " + aiCap(s, 300)
+		}
+		if ra := strings.TrimSpace(resp.Header.Get("Retry-After")); ra != "" {
+			if n, err := strconv.Atoi(ra); err == nil && n > 0 && n <= 3600 {
+				msg += fmt.Sprintf(" (retry after %ds)", n)
+			} else {
+				msg += " (retry after 60s)"
+			}
+		} else if resp.StatusCode == http.StatusTooManyRequests {
+			msg += " (retry after 60s)"
+		}
+		return "", nil, aiUsage{}, fmt.Errorf("%s", msg)
 	}
 	sc := bufio.NewScanner(resp.Body)
 	sc.Buffer(make([]byte, 64*1024), 1<<21)
@@ -354,7 +372,7 @@ func AIChatStreamHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !aiChatLimiter.allow(uid) {
-		http.Error(w, "rate limit exceeded (20 chats/min) — slow down and retry", http.StatusTooManyRequests)
+		aiWriteRateLimit(w)
 		return
 	}
 
@@ -459,6 +477,15 @@ func AIChatStreamHandler(w http.ResponseWriter, r *http.Request) {
 			if lastText != "" {
 				reply := lastText + "\n\n(provider error on follow-up: " + aiCap(serr.Error(), 300) + ")"
 				emitDone(reply, nil)
+				return
+			}
+			// Structured rate-limit frame so the UI can offer retry/backoff
+			// instead of a dead-end error.
+			if aiIsRateLimitErr(serr) {
+				aiSSEWrite(w, map[string]any{
+					"error": "AI provider error: " + aiCap(serr.Error(), 500),
+					"code":  "rate_limited", "retry_after": aiRetryAfterSecs(serr),
+				})
 				return
 			}
 			aiSSEWrite(w, map[string]any{"error": "AI provider error: " + aiCap(serr.Error(), 500)})

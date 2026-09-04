@@ -45,6 +45,57 @@ var aiChatLimiter = &aiUserLimiter{hits: make(map[int64][]time.Time)}
 
 const aiChatMaxPerMinute = 20
 
+// aiRateLimitReply is the 429 body shared by the JSON + SSE chat endpoints.
+const aiRateLimitReply = "rate limit exceeded (20 chats/min) — slow down and retry"
+
+// aiWriteRateLimit answers 429 with a Retry-After hint so clients can back
+// off instead of hammering the endpoint.
+func aiWriteRateLimit(w http.ResponseWriter) {
+	w.Header().Set("Retry-After", "60")
+	http.Error(w, aiRateLimitReply, http.StatusTooManyRequests)
+}
+
+// aiIsRateLimitErr reports provider rate-limit failures (HTTP 429 /
+// "too many requests" / "rate limit" from either provider, or our own
+// limiter reply echoed back through the fallback chain).
+func aiIsRateLimitErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := strings.ToLower(err.Error())
+	return strings.Contains(s, "429") ||
+		strings.Contains(s, "too many requests") ||
+		strings.Contains(s, "rate limit")
+}
+
+// aiRetryAfterSecs extracts the "(retry after Ns)" hint aiStreamPost appends
+// to provider errors. Falls back to 60s for rate-limit errors without a
+// hint, 0 when the error is not rate-limit related.
+func aiRetryAfterSecs(err error) int {
+	if err == nil {
+		return 0
+	}
+	s := strings.ToLower(err.Error())
+	idx := strings.Index(s, "retry after ")
+	if idx >= 0 {
+		rest := s[idx+len("retry after "):]
+		n := 0
+		for _, ch := range rest {
+			if ch < '0' || ch > '9' {
+				break
+			}
+			n = n*10 + int(ch-'0')
+		}
+		if n > 0 && n <= 3600 {
+			return n
+		}
+	}
+	if aiIsRateLimitErr(err) {
+		return 60
+	}
+	return 0
+}
+
 func (l *aiUserLimiter) allow(uid int64) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -317,7 +368,7 @@ func AIChatHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !aiChatLimiter.allow(uid) {
-		http.Error(w, "rate limit exceeded (20 chats/min) — slow down and retry", http.StatusTooManyRequests)
+		aiWriteRateLimit(w)
 		return
 	}
 
@@ -454,6 +505,20 @@ func AIChatHandler(w http.ResponseWriter, r *http.Request) {
 	var acc aiUsageAcc
 	reply, ticket, err := aiRunChatLoop(ctx, actx, cfg, model, msgs, &acc)
 	if err != nil {
+		// Surface provider rate limits as 429 (with Retry-After) so the
+		// chat UI can offer auto-retry instead of a dead-end 502.
+		if aiIsRateLimitErr(err) {
+			ra := aiRetryAfterSecs(err)
+			if ra <= 0 {
+				ra = 60
+			}
+			w.Header().Set("Retry-After", strconv.Itoa(ra))
+			writeJSONStatus(w, http.StatusTooManyRequests, map[string]any{
+				"error": "AI provider error: " + aiCap(err.Error(), 500),
+				"code":  "rate_limited", "retry_after": ra,
+			})
+			return
+		}
 		writeJSONStatus(w, http.StatusBadGateway, map[string]any{"error": "AI provider error: " + aiCap(err.Error(), 500)})
 		return
 	}
