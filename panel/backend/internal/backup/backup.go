@@ -385,16 +385,20 @@ func CreateWithWriter(label string, fn func(dstPath string) error) (Backup, erro
 	if err != nil {
 		return Backup{}, err
 	}
-	id := strings.TrimSuffix(strings.TrimPrefix(name, fileNamePattern), ".db")
+	sfx, _ := splitBackupSuffix(name)
+	id := strings.TrimSuffix(strings.TrimPrefix(name, fileNamePattern), sfx)
 	return Backup{
-		ID:         id,
-		Filename:   name,
-		Path:       dst,
-		Size:       size,
-		CreatedAt:  time.Now().UTC(),
-		SHA256:     digest,
-		Source:     parseSourceFromName(sanitizeLabel(label)),
-		IsLiveSafe: true,
+		ID:          id,
+		Filename:    name,
+		Path:        dst,
+		Size:        size,
+		CreatedAt:   time.Now().UTC(),
+		SHA256:      digest,
+		Source:      parseSourceFromName(sanitizeLabel(label)),
+		IsLiveSafe:  true,
+		Compressed:  false,
+		Compression: "none",
+		S3Pushed:    false,
 	}, nil
 }
 
@@ -465,17 +469,21 @@ func UploadFromReader(src io.Reader, size int64, suggestedName string) (Backup, 
 	if err != nil {
 		return Backup{}, err
 	}
-	id := strings.TrimSuffix(strings.TrimPrefix(name, fileNamePattern), ".db")
+	sfx, comp := splitBackupSuffix(name)
+	id := strings.TrimSuffix(strings.TrimPrefix(name, fileNamePattern), sfx)
 	_ = size
 	return Backup{
-		ID:         id,
-		Filename:   name,
-		Path:       dst,
-		Size:       fsize,
-		CreatedAt:  time.Now().UTC(),
-		SHA256:     digest,
-		Source:     "uploaded",
-		IsLiveSafe: false, // uploaded provenance is unknown
+		ID:          id,
+		Filename:    name,
+		Path:        dst,
+		Size:        fsize,
+		CreatedAt:   time.Now().UTC(),
+		SHA256:      digest,
+		Source:      "uploaded",
+		IsLiveSafe:  false, // uploaded provenance is unknown
+		Compressed:  comp != "" && comp != "none",
+		Compression: comp,
+		S3Pushed:    false,
 	}, nil
 }
 
@@ -537,6 +545,10 @@ func Delete(id string) error {
 // operator is expected to confirm the timestamp on the page before
 // clicking Restore — accidental restores of yesterday's snapshot are
 // far easier than the alternative.
+//
+// Compressed backups (.db.gz / .db.zst) are decompressed to a temp file
+// first; native .sql dumps are refused with a clear error (restore those
+// with psql / mysql, not by file swap).
 func Restore(id string) error {
 	opMu.Lock()
 	defer opMu.Unlock()
@@ -547,10 +559,23 @@ func Restore(id string) error {
 	if err != nil {
 		return err
 	}
+	if strings.HasSuffix(b.Filename, ".sql") || strings.HasSuffix(b.Filename, ".sql.gz") || strings.HasSuffix(b.Filename, ".sql.zst") {
+		return errors.New("native SQL dump cannot be restored by file swap — replay it with psql / mysql")
+	}
 	cfg := config.DatabaseConfig()
 	live := cfg.DSN
 	if _, err := os.Stat(live); err != nil {
 		return fmt.Errorf("live db missing at %s: %w", live, err)
+	}
+	srcPath := b.Path
+	tmpDecompressed := ""
+	if b.Compressed {
+		tmpDecompressed, err = decompressToTemp(b.Path, b.Compression)
+		if err != nil {
+			return fmt.Errorf("decompress backup: %w", err)
+		}
+		defer os.Remove(tmpDecompressed)
+		srcPath = tmpDecompressed
 	}
 	// The "-bak" suffix is what we rename the live db to. We deliberately
 	// don't name it `<live>-<ts>.bak` — the rename is supposed to be
@@ -560,7 +585,7 @@ func Restore(id string) error {
 	if err := os.Rename(live, bak); err != nil {
 		return fmt.Errorf("stow live db: %w", err)
 	}
-	if err := copyFile(b.Path, live); err != nil {
+	if err := copyFile(srcPath, live); err != nil {
 		// Restore the rename so the live data stays available.
 		_ = os.Rename(bak, live)
 		return fmt.Errorf("copy backup into place: %w", err)
