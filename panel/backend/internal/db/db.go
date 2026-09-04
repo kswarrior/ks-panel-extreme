@@ -593,6 +593,24 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				return err
 			}
 			continue
+		case name == "062_node_wss_channels.sql":
+			// Named WSS channels per node (task routing). The CREATE TABLE
+			// is IF NOT EXISTS on every dialect, but the index line is
+			// `IF NOT EXISTS` only on sqlite/postgres (mysql strips it).
+			// Guard the index via hasIndex so the migration is idempotent
+			// on every engine — mirrors 055_instance_ports.sql.
+			body, rerr := readMigrationsFile(fsys, name)
+			if rerr != nil {
+				return rerr
+			}
+			stripped := stripCreateIndexLines(body, "idx_node_wss_channels_node")
+			if _, err := db.Exec(string(stripped)); err != nil {
+				return fmt.Errorf("migration %s failed: %w", name, err)
+			}
+			if err := guardedCreateIndex(d, db, name, "node_wss_channels", "idx_node_wss_channels_node", "node_id"); err != nil {
+				return err
+			}
+			continue
 		}
 
 		// Generic path: read + exec the file verbatim. The Postgres files

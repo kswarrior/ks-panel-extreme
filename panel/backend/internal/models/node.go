@@ -81,8 +81,12 @@ type Node struct {
 	// ConnectionMode controls how panel and edge talk.
 	// direct = panel has edge URL + edge has panel URL (bidirectional HTTP).
 	// reverse_tunnel = only edge stores panel URL, tunnels via WSS.
+	// both = panel keeps BOTH a direct HTTP address AND a WSS tunnel alive;
+	//   per-task routing (node_wss_channels) picks port vs WSS per task.
 	// local_port = edge runs on panel host via 127.0.0.1:port (HTTP).
 	// local_wss = edge runs on panel host via WSS tunnel.
+	// local_both = local edge keeping BOTH 127.0.0.1:port AND a WSS tunnel;
+	//   per-task routing picks port vs WSS like both.
 	ConnectionMode string `json:"connection_mode"`
 	// OwnerID ties the node to the user that registered it. Migration 054
 	// wires the NODES_OWN/NODES_ALL scope keys: a role with NODES_OWN only
@@ -155,4 +159,29 @@ type NodeHeartbeat struct {
 	NodeID   int64     `json:"node_id"`
 	BucketAt time.Time `json:"bucket_at"`
 	Status   string    `json:"status"`
+}
+
+// WssChannel is one named WSS binding for a node (migration 062). The
+// NodeForm's WSS box (top-right Add button) edits these rows: each carries
+// a name, a task (all/files/node/instance) and, for both/local_both modes,
+// a preferred transport (wss/port/auto) plus an emergency-fallback flag
+// (fall back to the other transport on overload or disconnect).
+//
+//   - task all      handles every WSS payload (catch-all).
+//   - task files    file-manager transfers go via this channel.
+//   - task node     node telemetry (resources, uptime, probe/health).
+//   - task instance instance lifecycle (deploy/delete/edit/start/stop,
+//                   install, exec).
+//
+// Multiple rows may share the same task; the panel divides that task's data
+// across them round-robin (logical division over the node's single tunnel
+// socket). An exact-task row wins over an all-task row for routing.
+type WssChannel struct {
+	ID        int64  `json:"id"`
+	NodeID    int64  `json:"node_id"`
+	Name      string `json:"name"`
+	Task      string `json:"task"`
+	Transport string `json:"transport"`
+	Fallback  bool   `json:"fallback"`
+	Position  int    `json:"position"`
 }
