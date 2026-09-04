@@ -407,13 +407,12 @@ const InstancePowerBar: React.FC<{ variant?: 'dock' | 'pill' }> = ({ variant = '
                   }`}
                 >
                   <span className="text-[13px] font-medium leading-tight inline-flex items-center gap-1.5">
-                    {(isBusy || isThisRunning || stopping) && (
+                    {(isBusy || isThisRunning || stopping) ? (
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3 animate-spin shrink-0" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3 shrink-0" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3" /></svg>
                     )}
-                    {isThisRunning ? `Stop ${a.name || a.id}` : (a.name || a.id)}
-                  </span>
-                  <span className="text-[10px] uppercase tracking-wide text-gray-500 leading-tight">
-                    {isThisRunning ? (stopping ? 'stopping…' : 'running — click to stop') : (a.description || a.id)}
+                    {a.name || a.id}
                   </span>
                 </button>
               );
