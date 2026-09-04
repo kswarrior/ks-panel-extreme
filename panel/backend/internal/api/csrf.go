@@ -231,8 +231,9 @@ func CSRFTokenHandler(ctm *CSRFTokenManager) http.HandlerFunc {
 }
 
 // isCSRFExemptPath checks if a path should be exempt from CSRF protection.
-// Exact matches cover the original stock exempt list; prefix matches cover
-// the public families that must never require a token:
+// Exact matches cover the original stock exempt list (minus /api/themes —
+// see below); prefix matches cover the public families that must never
+// require a token:
 //
 //   - POST /api/auth/* (login, switch-login, register, verify, OAuth
 //     start/callback — the browser has no session yet, so there is
@@ -243,12 +244,12 @@ func CSRFTokenHandler(ctm *CSRFTokenManager) http.HandlerFunc {
 //   - GET /api/csrf-token (the token mint itself).
 //
 // NOTE: GET /api/themes and GET /api/settings/panel-name|logo already pass
-// via the safe-method skip; they stay in the exact list so the intent is
-// explicit, but POST /api/themes (admin authoring) is NOT exempt — it
-// requires a token. The exact "/api/themes" entry therefore only matters
-// for non-GET methods and is kept for backward compatibility with the
-// original list; admin POSTs to /api/themes/* (market/install) correctly
-// require a token because they do not exactly equal "/api/themes".
+// via the safe-method skip. /api/settings/panel-name|logo stay exempt for
+// explicitness (they have no mutating verbs on the same path). /api/themes
+// is DELIBERATELY NOT exempt: POST /api/themes is admin authoring
+// (MANAGE_THEMES) and MUST require a token; GET /api/themes passes via the
+// safe-method skip without needing an exemption. Keeping "/api/themes" in
+// the exempt list would wrongly exempt the admin POST.
 func isCSRFExemptPath(path string) bool {
 	exemptPaths := []string{
 		"/api/auth/login",
@@ -261,7 +262,6 @@ func isCSRFExemptPath(path string) bool {
 		"/api/auth/switch-login",
 		"/api/settings/panel-name",
 		"/api/settings/panel-logo",
-		"/api/themes",
 		"/api/nodes/heartbeat",
 		"/health",
 		"/api/csrf-token",
