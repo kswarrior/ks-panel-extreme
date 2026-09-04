@@ -45,8 +45,8 @@ const NotificationBroadcast: React.FC = () => {
     );
   }
 
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const onSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!title.trim()) {
       setError('Title is required');
       return;
@@ -75,14 +75,38 @@ const NotificationBroadcast: React.FC = () => {
   const msgLen = message.length;
 
   return (
-    <FormPage
-      crumbs={[{ label: 'Notifications', to: '/notifications' }, { label: 'Broadcast' }]}
-      saving={saving}
-      submitLabel="Broadcast to all"
-      submittingLabel="Sending…"
-      onSubmit={onSubmit}
-      maxWidth="max-w-3xl"
-    >
+    <>
+      {/* Top-right actions — "Broadcast" title lives in the app header
+          ("Notifications / Broadcast"). Footer Cancel/Broadcast removed;
+          everything lives here. */}
+      <PageActionsPill>
+          <button
+            type="button"
+            onClick={() => navigate('/notifications')}
+            title="Cancel and back to Notifications"
+            aria-label="Cancel and back to Notifications"
+            className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition"
+            style={PILL_TAB_STYLE}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => onSubmit()}
+            disabled={saving}
+            title="Broadcast to all users"
+            className="ks-tab ks-tab-active shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-60"
+            style={PILL_TAB_STYLE}
+          >
+            {saving ? 'Sending…' : 'Broadcast to all'}
+          </button>
+      </PageActionsPill>
+      <FormPage
+        crumbs={[{ label: 'Notifications', to: '/notifications' }, { label: 'Broadcast' }]}
+        onSubmit={onSubmit}
+        maxWidth="max-w-3xl"
+        hideHeader
+      >
       <div className="space-y-5">
         {/* Intro */}
         <div className="rounded-xl border border-fuchsia-400/15 bg-fuchsia-500/10 p-4 flex gap-3">
@@ -247,7 +271,8 @@ const NotificationBroadcast: React.FC = () => {
           <div className="rounded-lg border border-red-500/30 bg-red-500/10 text-red-300 px-3 py-2 text-sm">{error}</div>
         )}
       </div>
-    </FormPage>
+      </FormPage>
+    </>
   );
 };
 

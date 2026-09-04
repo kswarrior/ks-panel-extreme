@@ -395,8 +395,8 @@ const Account: React.FC = () => {
   };
 
   return (
-    <div>
-      <h2 className="text-xl font-semibold text-white mb-4">Account</h2>
+    // Title lives in the app header ("Account").
+    <div className="space-y-4">
 
       {/* ── Profile preview + editor ─────────────────────────────────────── */}
       <div className="ks-card ks-form-card rounded-xl overflow-hidden">

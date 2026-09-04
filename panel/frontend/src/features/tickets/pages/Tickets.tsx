@@ -4,6 +4,7 @@ import { listTickets, deleteTicket, ticketStats } from '../api/tickets';
 import type { Ticket, TicketStats } from '../types/ticket';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
+import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
 import { useThemeStore } from '@/shared/stores/themeStore';
 import { useConfirm } from '@/shared/stores/confirmStore';
@@ -149,25 +150,22 @@ const Tickets: React.FC = () => {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-5 gap-4 flex-wrap">
-        <div className="flex items-baseline gap-3">
-          <h2 className="text-xl font-semibold text-white tracking-tight">Tickets</h2>
-          {stats && (
-            <span className="hidden sm:inline-flex items-center gap-2 text-xs text-gray-500">
-              <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-sky-400" />{stats.open} open</span>
-              <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400" />{stats.pending} pending</span>
-              <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-violet-400" />{stats.in_progress} in progress</span>
-              <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-400" />{stats.resolved} resolved</span>
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <SearchDropdown value={search} onChange={setSearch} placeholder="Search ticket no, subject, description…" ariaLabel="Search tickets" />
+      {/* Fixed top-right pill — "Tickets" title lives in the app header. */}
+      <PageActionsPill>
+          <SearchDropdown
+            value={search}
+            onChange={setSearch}
+            placeholder="Search ticket no, subject, description…"
+            ariaLabel="Search tickets"
+            buttonClassName="ks-tab inline-flex items-center justify-center"
+            buttonStyle={PILL_TAB_STYLE}
+          />
           <div className="relative" ref={filterRef}>
             <button
               type="button"
               onClick={() => setFilterOpen(!filterOpen)}
-              className={`ks-btn-header ks-icon-btn transition-colors ${filterOpen ? 'is-open' : ''}`}
+              className={`ks-tab inline-flex items-center justify-center gap-1 transition-colors ${filterOpen ? 'is-open' : ''}`}
+              style={PILL_TAB_STYLE}
               aria-label="Open filters"
               aria-expanded={filterOpen}
               aria-haspopup="true"
@@ -210,14 +208,25 @@ const Tickets: React.FC = () => {
               </div>
             )}
           </div>
-          <Link to="/tickets/stats" aria-label="Ticket Statistics" className="ks-btn-header ks-icon-btn" title="View ticket statistics">
+          <Link
+            to="/tickets/stats"
+            aria-label="Ticket Statistics"
+            className="ks-tab inline-flex items-center justify-center"
+            style={PILL_TAB_STYLE}
+            title="View ticket statistics"
+          >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>
           </Link>
-          <button onClick={() => navigate('/tickets/new')} aria-label="New Ticket" className="ks-btn-header ks-icon-btn" title="New Ticket">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+          <button
+            onClick={() => navigate('/tickets/new')}
+            aria-label="New Ticket"
+            className="ks-tab ks-tab-active inline-flex items-center justify-center"
+            style={PILL_TAB_STYLE}
+            title="New Ticket"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
           </button>
-        </div>
-      </div>
+      </PageActionsPill>
 
       <div className="flex items-center justify-between mb-2">
         <p className="text-xs text-gray-500">{filtered.length} of {total} shown</p>

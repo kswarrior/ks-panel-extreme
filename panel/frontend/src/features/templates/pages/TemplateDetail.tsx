@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { listTemplates, downloadTemplate, listInstances, deleteTemplate } from '@/shared/api/admin';
 import type { Template } from '@/shared/types/instance';
 import GlassCard from '@/shared/components/ui/Card';
+import { PageActionsPill } from '@/shared/components/ui/PageActionsPill';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import { useConfirm } from '@/shared/stores/confirmStore';
 
@@ -220,14 +221,10 @@ const TemplateDetail: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <button onClick={back} className="ks-btn-header ks-icon-btn" aria-label="Back to Templates list">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><polyline points="15 18 9 12 15 6" /></svg>
-        </button>
-        <div className="flex-1 min-w-0">
-          <h2 className="text-xl font-semibold text-white truncate">Template Detail</h2>
-          <p className="text-xs text-gray-500 truncate">ID {template.id} · {template.kind} · {relativeTime(template.created_at)}</p>
-        </div>
+      {/* Fixed top-right actions pill — back + title live in the app header
+          ("Templates / Detail"). The menu portals its dropdown, so it is safe
+          inside the fixed container. */}
+      <PageActionsPill>
         <CardMenu
           ariaLabel={`Actions for template ${template.name}`}
           items={[
@@ -245,7 +242,8 @@ const TemplateDetail: React.FC = () => {
             if (k === 'delete') handleDelete();
           }}
         />
-      </div>
+      </PageActionsPill>
+      <p className="text-xs text-gray-500 truncate">ID {template.id} · {template.kind} · {relativeTime(template.created_at)}</p>
 
       <GlassCard className="ks-stat-card p-4">
         <div className="flex items-start gap-3">

@@ -5,6 +5,7 @@ import type { User, Role } from '@/shared/types/user';
 import GlassCard from '@/shared/components/ui/Card';
 import GlassField, { glassFieldClass } from '@/shared/components/ui/Field';
 import FormPage from '@/shared/components/forms/FormPage';
+import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 
 type Form = {
@@ -54,8 +55,8 @@ const UserForm: React.FC = () => {
     return () => { cancelled = true; };
   }, [id, editing]);
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!form.username.trim() || !form.email.trim() || !form.role_id) {
       setError('Username, email and role are required');
       return;
@@ -89,8 +90,7 @@ const UserForm: React.FC = () => {
     return (
       <FormPage
         crumbs={[{ label: 'Users', to: '/users' }, { label: editing ? 'Edit User' : 'New User' }]}
-        saving={false}
-        submitLabel="Save"
+        hideHeader
       >
         <FormSkeleton fields={4} />
       </FormPage>
@@ -98,11 +98,34 @@ const UserForm: React.FC = () => {
   }
 
   return (
+    <>
+      {/* Top-right actions — Cancel + Save live here; the footer bar is removed. */}
+      <PageActionsPill>
+          <button
+            type="button"
+            onClick={() => navigate('/users')}
+            title="Cancel and back to Users"
+            aria-label="Cancel and back to Users"
+            className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition"
+            style={PILL_TAB_STYLE}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => submit()}
+            disabled={saving}
+            title="Save user"
+            className="ks-tab ks-tab-active shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-60"
+            style={PILL_TAB_STYLE}
+          >
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+      </PageActionsPill>
     <FormPage
-      crumbs={[{ label: 'Users', to: '/users' }, { label: editing && editingUser ? editingUser.username : 'New User' }]}
-      saving={saving}
-      submitLabel="Save"
+      crumbs={[{ label: 'Users', to: '/users' }, { label: editing ? 'Edit User' : 'New User' }]}
       onSubmit={submit}
+      hideHeader
     >
       <div className="space-y-4">
         <GlassField label="Username" htmlFor="username">
@@ -150,6 +173,7 @@ const UserForm: React.FC = () => {
         {error && <p className="text-sm text-red-400">{error}</p>}
       </div>
     </FormPage>
+    </>
   );
 };
 

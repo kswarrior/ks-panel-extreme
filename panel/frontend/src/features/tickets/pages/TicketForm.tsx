@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { createTicket, getTicket, updateTicket } from '../api/tickets';
 import type { Ticket, TicketCategory, TicketPriority } from '../types/ticket';
 import GlassCard from '@/shared/components/ui/Card';
+import FormPage from '@/shared/components/forms/FormPage';
+import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 
 const CATEGORIES: { value: TicketCategory; label: string }[] = [

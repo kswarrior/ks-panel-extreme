@@ -47,14 +47,8 @@ const TicketStatsPage: React.FC = () => {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-2">
-        <Link to="/tickets" className="ks-btn-ghost inline-flex items-center gap-1 text-sm text-gray-400 hover:text-white px-2 py-1 rounded">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4"><path d="M19 12H5" /><path d="M12 19l-7-7 7-7" /></svg>
-          Back to tickets
-        </Link>
-        <h2 className="text-xl font-semibold text-white">Ticket Statistics</h2>
-      </div>
-
+      {/* "Statistics" title lives in the app header ("Tickets / Statistics",
+          parent crumb covers back-nav) — no in-page title row. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatTile label="Total" value={stats.total} sub="all tickets" color="#e5e7eb" />
         <StatTile label="Open" value={stats.open} sub={pct(stats.open)} color="#38bdf8" />

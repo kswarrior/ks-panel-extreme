@@ -6,6 +6,7 @@ import type { Profile, Role, User } from '@/shared/types/user';
 import GlassCard from '@/shared/components/ui/Card';
 import Avatar from '@/shared/components/ui/Avatar';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
+import { PageActionsPill } from '@/shared/components/ui/PageActionsPill';
 import { MarkdownBio } from '@/shared/components/ui/MarkdownBio';
 import { SocialIcon, socialLabel } from '@/shared/components/ui/SocialIcons';
 
@@ -165,14 +166,10 @@ const UserDetail: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <button onClick={back} className="ks-btn-header ks-icon-btn" aria-label="Back to Users list">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><polyline points="15 18 9 12 15 6" /></svg>
-        </button>
-        <div className="flex-1 min-w-0">
-          <h2 className="text-xl font-semibold text-white truncate">User Detail</h2>
-          <p className="text-xs text-gray-500 truncate">ID {profile.id} · @{profile.username} · {relativeTime(profile.created_at)}</p>
-        </div>
+      {/* Fixed top-right actions pill — back + title live in the app header
+          ("Users / Detail"). The menu portals its dropdown, so it is safe
+          inside the fixed container. */}
+      <PageActionsPill>
         <CardMenu
           ariaLabel={`Actions for ${profile.username}`}
           items={[
@@ -186,7 +183,8 @@ const UserDetail: React.FC = () => {
             if (k === 'copyLink') copy(`${window.location.origin}/user/${profile.id}`, 'link');
           }}
         />
-      </div>
+      </PageActionsPill>
+      <p className="text-xs text-gray-500 truncate">ID {profile.id} · @{profile.username} · {relativeTime(profile.created_at)}</p>
 
       <GlassCard className="relative overflow-hidden rounded-xl p-0">
         {bannerUrl ? (

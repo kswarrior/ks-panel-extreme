@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { listActivity } from '@/shared/api/admin';
 import type { ActivityLog, ActivityCategory } from '@/features/activity/types/activity';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
+import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import ActivityCards from '../components/ActivityCards';
 
 // CategoryStyle entry for the filter row — keeps the icon + label + count
@@ -26,6 +27,20 @@ const ActivityPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState<ActivityCategory | ''>('');
+  const [filterOpen, setFilterOpen] = useState(false);
+  const filterRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (filterRef.current && !filterRef.current.contains(event.target as HTMLElement)) {
+        setFilterOpen(false);
+      }
+    }
+    if (filterOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [filterOpen]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -58,23 +73,59 @@ const ActivityPage: React.FC = () => {
 
   return (
     <div>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-        <h2 className="text-xl font-semibold text-white">Activity</h2>
-        <div className="flex items-center gap-2">
-          <label className="text-xs text-gray-400">Filter</label>
-          <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value as ActivityCategory | '')}
-            className="ks-select text-xs bg-black/30 border border-white/10 rounded-md px-2 py-1 text-gray-200"
+      {/* Title lives in the app header ("Activity"); category filter lives in the top-right pill. */}
+      <PageActionsPill>
+        <div className="relative" ref={filterRef}>
+          <button
+            type="button"
+            onClick={() => setFilterOpen(!filterOpen)}
+            className={`ks-tab inline-flex items-center justify-center gap-1 transition-colors ${filterOpen ? 'is-open' : ''}`}
+            style={PILL_TAB_STYLE}
+            aria-label="Filter activity"
+            aria-expanded={filterOpen}
+            aria-haspopup="true"
+            title="Filter by category"
           >
-            <option value="">All</option>
-            {CATEGORY_META.map((c) => (
-              <option key={c.key} value={c.key}>{c.label}</option>
-            ))}
-          </select>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+            </svg>
+            {filter && (
+              <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
+            )}
+          </button>
+
+          {filterOpen && (
+            <div className="absolute right-0 top-full mt-1 z-30 w-56">
+              <div className="ks-dropdown min-w-[200px] animate-in fade-in slide-in-from-to duration-150">
+                <div className="p-3 space-y-3">
+                  <div>
+                    <label className="block text-xs text-gray-400 uppercase tracking-wide mb-1.5">Category</label>
+                    <select
+                      value={filter}
+                      onChange={(e) => setFilter(e.target.value as ActivityCategory | '')}
+                      className="w-full glass-field"
+                    >
+                      <option value="">All</option>
+                      {CATEGORY_META.map((c) => (
+                        <option key={c.key} value={c.key}>{c.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="pt-2 border-t border-white/5 flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setFilterOpen(false)}
+                      className="px-3 py-1.5 text-sm text-gray-400 hover:text-white"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
-      </div>
+      </PageActionsPill>
 
       {/* Count + last refresh line */}
       {rows.length > 0 && (

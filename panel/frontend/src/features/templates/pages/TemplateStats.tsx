@@ -235,9 +235,7 @@ const TemplateStats: React.FC = () => {
                 </div>
               )}
             </div>
-          </div>
-        }
-      />
+      </PageActionsPill>
 
       {/* Stat Cards only - removed Key Metrics and Templates by Runtime per requirements */}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 mb-6">

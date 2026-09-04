@@ -9,6 +9,7 @@ import {
 import type { DatabaseEngineInfo, DatabaseEngineSwitchResponse } from '@/shared/api/admin';
 import type { DatabaseInfo, DatabaseTable } from '@/features/system/types/system';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
+import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import { MetaRow, StatTile, DeltaPill, Meter, Sparkline, PragmaTile, ChangeDatabaseCard, VerifyStatusCard } from '../components/DatabaseComponents';
 import DatabaseBackupTab from '../components/DatabaseBackupTab';
 import type { DatabaseTabId } from '../types/database';
@@ -100,43 +101,45 @@ const DatabasePage: React.FC = () => {
 
       {info && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
-            <h2 className="text-xl font-semibold text-white shrink-0">Database</h2>
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 shrink-0">
-              {DATABASE_TABS.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => setTab(t.id)}
-                  className={`ks-tab shrink-0 transition-colors ${tab === t.id ? 'ks-tab-active' : ''}`}
-                >
-                  {t.label}
-                </button>
-              ))}
-              {tab === 'backup' && (
-                <>
-                  <div className="w-px h-6 bg-white/10 mx-1 shrink-0" />
-                  <button
-                    type="button"
-                    onClick={() => window.dispatchEvent(new CustomEvent('backup:create'))}
-                    className="ks-btn-header ks-icon-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] text-white shrink-0"
-                    title="Create a new backup"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                    Create
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => window.dispatchEvent(new CustomEvent('backup:upload'))}
-                    className="ks-btn-header ks-icon-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] text-white shrink-0"
-                    title="Upload a backup"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
-                    Upload
-                  </button>
-                </>
-              )}
-            </div>
+          {/* Title lives in the app header ("Database"). Internal tabs stay
+              in-page; backup Create/Upload live in the top-right pill. */}
+          {tab === 'backup' && (
+            <PageActionsPill>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent('backup:create'))}
+                className="ks-tab ks-tab-active inline-flex items-center justify-center gap-1.5"
+                style={PILL_TAB_STYLE}
+                title="Create a new backup"
+                aria-label="Create a new backup"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                Create
+              </button>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent('backup:upload'))}
+                className="ks-tab inline-flex items-center justify-center gap-1.5"
+                style={PILL_TAB_STYLE}
+                title="Upload a backup"
+                aria-label="Upload a backup"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
+                Upload
+              </button>
+            </PageActionsPill>
+          )}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 mb-4">
+            {DATABASE_TABS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTab(t.id)}
+                className={`ks-tab shrink-0 transition-colors ${tab === t.id ? 'ks-tab-active' : ''}`}
+              >
+                {t.label}
+              </button>
+            ))}
           </div>
 
           {tab === 'overview' && !info.engine_not_supported && (
