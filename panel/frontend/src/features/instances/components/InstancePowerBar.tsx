@@ -337,6 +337,28 @@ const InstancePowerBar: React.FC<{ variant?: 'dock' | 'pill' }> = ({ variant = '
               <span>Restart</span>
             </button>
             )}
+            {templateActions.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setActionsOpen((v) => !v)}
+              disabled={collapsed}
+              tabIndex={collapsed ? -1 : undefined}
+              title={actionsOpen ? 'Hide template actions' : `Show template actions (${templateActions.length})`}
+              aria-label="Template actions"
+              aria-expanded={actionsOpen}
+              aria-haspopup="menu"
+              style={btnStyle}
+              className={`${btnBase} text-violet-300 hover:bg-violet-900/30`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3" aria-hidden="true"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" /></svg>
+              <span>Actions</span>
+              {actionsOpen ? (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-2.5 h-2.5" aria-hidden="true"><polyline points="18 15 12 9 6 15" /></svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-2.5 h-2.5" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
+              )}
+            </button>
+            )}
           </div>
 
           {/* Collapse toggle — [<] when open, [>] when collapsed */}
@@ -356,6 +378,53 @@ const InstancePowerBar: React.FC<{ variant?: 'dock' | 'pill' }> = ({ variant = '
             )}
           </button>
         </div>
+        {/* Template actions dropdown — same run/stop-toggle semantics as the
+            home-page Actions card: click an idle action to invoke it, click
+            it again while it's the running action to stop it. */}
+        {actionsOpen && !collapsed && templateActions.length > 0 && (
+          <div
+            role="menu"
+            aria-label="Template actions"
+            className="absolute left-0 top-full mt-1 z-50 ks-card rounded-md shadow-lg shadow-black/50 w-60 max-w-[80vw] max-h-64 overflow-auto p-1"
+          >
+            {templateActions.map((a: any) => {
+              const isThisRunning = workflowInFlight && runningActionId === a.id;
+              const isBusy = busyAction === a.id;
+              const stopping = isThisRunning && stopPending === a.id;
+              const disabled = (workflowInFlight && !isThisRunning) || isBusy || stopping;
+              return (
+                <button
+                  key={a.id}
+                  type="button"
+                  role="menuitem"
+                  onClick={() => runTemplateAction(a.id)}
+                  disabled={disabled}
+                  title={isThisRunning
+                    ? (a.stop_command ? `Stop: runs "${a.stop_command}" inside the container` : 'Stop the running action')
+                    : (a.description || a.name || a.id)}
+                  className={`w-full flex flex-col items-start gap-0.5 rounded px-2.5 py-2 text-left transition disabled:opacity-40 disabled:cursor-not-allowed ${
+                    isThisRunning ? 'text-red-300 hover:bg-red-900/30' : 'text-emerald-300 hover:bg-emerald-900/30'
+                  }`}
+                >
+                  <span className="text-[13px] font-medium leading-tight inline-flex items-center gap-1.5">
+                    {(isBusy || isThisRunning || stopping) && (
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3 animate-spin shrink-0" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+                    )}
+                    {isThisRunning ? `Stop ${a.name || a.id}` : (a.name || a.id)}
+                  </span>
+                  <span className="text-[10px] uppercase tracking-wide text-gray-500 leading-tight">
+                    {isThisRunning ? (stopping ? 'stopping…' : 'running — click to stop') : (a.description || a.id)}
+                  </span>
+                </button>
+              );
+            })}
+            {workflowInFlight && !runningActionId && (
+              <p className="px-2.5 py-1.5 text-[11px] text-yellow-200/80">
+                A workflow is in progress — actions unlock when it resolves.
+              </p>
+            )}
+          </div>
+        )}
         {error && (
           <p className="m-0 p-0 text-[11px] leading-tight text-red-300 bg-red-900/20 border border-red-900/30 rounded-none max-w-[220px] truncate" title={error}>
             {error}
