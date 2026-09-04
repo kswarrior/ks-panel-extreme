@@ -108,7 +108,7 @@ const ApiKeyStats: React.FC = () => {
       .filter((k) => k.last_used_at)
       .sort((a, b) => new Date(b.last_used_at!).getTime() - new Date(a.last_used_at!).getTime())
       .slice(0, 10),
-  [keys]);
+  [filteredKeys]);
 
   if (loading) {
     return (
@@ -126,17 +126,34 @@ const ApiKeyStats: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <HeaderWithAction
-        title="API Key Statistics"
-        backHref="/api-keys"
-        backLabel="API Keys"
-        action={
-          <div className="flex items-center gap-2">
+      {/* Fixed top-right pill — "Statistics" title lives in the app header. */}
+      <PageActionsPill>
+        <SearchDropdown
+          value={search}
+          onChange={setSearch}
+          placeholder="Search API keys..."
+          ariaLabel="Search API keys"
+          buttonClassName="ks-tab inline-flex items-center justify-center"
+          buttonStyle={PILL_TAB_STYLE}
+        />
+        <select
+          value={timeRange}
+          onChange={(e) => setTimeRange(e.target.value as any)}
+          className="ks-tab"
+          style={PILL_TAB_STYLE}
+          aria-label="Time range"
+        >
+          <option value="1h">Last hour</option>
+          <option value="6h">Last 6 hours</option>
+          <option value="24h">Last 24 hours</option>
+          <option value="7d">Last 7 days</option>
+        </select>
             <div className="relative" ref={filterRef}>
               <button
                 type="button"
                 onClick={() => setFilterOpen(!filterOpen)}
-                className={`ks-btn-header ks-icon-btn transition-colors ${filterOpen ? 'is-open' : ''}`}
+                className={`ks-tab inline-flex items-center justify-center gap-1 transition-colors ${filterOpen ? 'is-open' : ''}`}
+                style={PILL_TAB_STYLE}
                 aria-label="Open filters"
                 aria-expanded={filterOpen}
                 aria-haspopup="true"
@@ -144,16 +161,22 @@ const ApiKeyStats: React.FC = () => {
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
                   <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
                 </svg>
-                <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
+                {(statusFilter !== 'all' || search.trim() !== '') && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
+                )}
               </button>
               {filterOpen && (
-                <div className="absolute left-0 top-full mt-1 z-30 w-56">
+                <div className="absolute right-0 top-full mt-1 z-30 w-56">
                   <div className="ks-dropdown min-w-[200px] animate-in fade-in slide-in-from-to duration-150">
                     <div className="p-3 space-y-3">
                       <div>
                         <label className="block text-xs text-gray-400 uppercase tracking-wide mb-1.5">Status</label>
-                        <select className="w-full glass-field">
-                          <option value="all">All keys</option>
+                        <select
+                          value={statusFilter}
+                          onChange={(e) => setStatusFilter(e.target.value as any)}
+                          className="w-full glass-field"
+                        >
+                          <option value="all">All keys · {keys.length}</option>
                           <option value="active">Active · {stats.active}</option>
                           <option value="inactive">Inactive · {stats.inactive}</option>
                           <option value="expired">Expired · {stats.expired}</option>
@@ -173,9 +196,7 @@ const ApiKeyStats: React.FC = () => {
                 </div>
               )}
             </div>
-          </div>
-        }
-      />
+      </PageActionsPill>
 
       {/* Key Metrics Strip - removed Key Distribution and Key Metrics per requirements */}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 mb-6">

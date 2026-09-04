@@ -7,10 +7,11 @@ import {
   PieChart,
   DashboardSection,
   DashboardGrid,
-  HeaderWithAction,
   StatCard,
 } from '@/shared/components/ui/StatDashboard';
 import GlassCard from '@/shared/components/ui/Card';
+import SearchDropdown from '@/shared/components/ui/SearchDropdown';
+import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import { appCategoryMeta, appRuntimeMeta, appCapabilityMeta } from '@/features/applications/types/application';
 
 const ApplicationStats: React.FC = () => {
@@ -18,6 +19,10 @@ const ApplicationStats: React.FC = () => {
   const [apps, setApps] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [timeRange, setTimeRange] = useState<'1h' | '6h' | '24h' | '7d'>('24h');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'pending'>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [filterOpen, setFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
 
@@ -47,21 +52,40 @@ const ApplicationStats: React.FC = () => {
 
   useEffect(() => { load(); }, [load]);
 
+  const filteredApps = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    let out = apps;
+    if (q) {
+      out = out.filter((a) =>
+        (a.name || '').toLowerCase().includes(q) ||
+        (a.slug || '').toLowerCase().includes(q) ||
+        (a.description || '').toLowerCase().includes(q) ||
+        (a.category || '').toLowerCase().includes(q) ||
+        (a.runtime || '').toLowerCase().includes(q)
+      );
+    }
+    if (statusFilter === 'active') out = out.filter((a) => a.active);
+    if (statusFilter === 'inactive') out = out.filter((a) => !a.active);
+    if (statusFilter === 'pending') out = out.filter((a) => a.pending > 0);
+    if (categoryFilter !== 'all') out = out.filter((a) => a.category === categoryFilter);
+    return out;
+  }, [apps, search, statusFilter, categoryFilter]);
+
   const stats = useMemo(() => {
-    const active = apps.filter((a) => a.active).length;
-    const pending = apps.filter((a) => a.pending > 0).length;
-    const totalPerms = apps.reduce((sum, a) => sum + a.permission_rows.length, 0);
-    const totalGranted = apps.reduce((sum, a) => sum + a.permission_rows.filter((p) => p.granted).length, 0);
-    const byCategory = apps.reduce((acc, a) => {
+    const active = filteredApps.filter((a) => a.active).length;
+    const pending = filteredApps.filter((a) => a.pending > 0).length;
+    const totalPerms = filteredApps.reduce((sum, a) => sum + a.permission_rows.length, 0);
+    const totalGranted = filteredApps.reduce((sum, a) => sum + a.permission_rows.filter((p) => p.granted).length, 0);
+    const byCategory = filteredApps.reduce((acc, a) => {
       acc[a.category] = (acc[a.category] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
-    const byRuntime = apps.reduce((acc, a) => {
+    const byRuntime = filteredApps.reduce((acc, a) => {
       acc[a.runtime] = (acc[a.runtime] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
-    return { total: apps.length, active, inactive: apps.length - active, pending, totalPerms, totalGranted, byCategory, byRuntime };
-  }, [apps]);
+    return { total: filteredApps.length, active, inactive: filteredApps.length - active, pending, totalPerms, totalGranted, byCategory, byRuntime };
+  }, [filteredApps]);
 
   const statusSlices = useMemo(() => [
     { label: 'Active', value: stats.active, color: '#34d399' },
@@ -91,7 +115,7 @@ const ApplicationStats: React.FC = () => {
 
   const permissionSlices = useMemo(() => {
     const capCounts: Record<string, number> = {};
-    apps.forEach((a) => {
+    filteredApps.forEach((a) => {
       a.permission_rows.forEach((p) => {
         capCounts[p.capability] = (capCounts[p.capability] || 0) + 1;
       });
