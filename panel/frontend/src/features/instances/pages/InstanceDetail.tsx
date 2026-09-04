@@ -78,7 +78,9 @@ export const InstancePanel: React.FC = () => {
         </div>
       )}
 
-      <Outlet />
+      <ErrorBoundary resetKey={instanceId} label="instance-panel">
+        <Outlet />
+      </ErrorBoundary>
     </div>
   );
 };
@@ -275,7 +277,11 @@ export const InstanceDynamicPage: React.FC = () => {
   // other page (empty-by-default); the previous unconditional bypass showed a
   // terminal UI that immediately failed with 403 from the backend guard.
   if (effectiveSlug === 'terminal') {
-    return <TerminalRealPage instance={instance} />;
+    return (
+      <ErrorBoundary resetKey={`terminal-${instanceId}`} label="instance-terminal">
+        <TerminalRealPage instance={instance} />
+      </ErrorBoundary>
+    );
   }
 
   // Label: the row's label, a nested sub-page's name ("Editor" for
@@ -325,13 +331,19 @@ export const InstanceDynamicPage: React.FC = () => {
   // masked dial params stay visible to any instance viewer.
   if (effectiveSlug === 'files') {
     return (
-      <div className="space-y-4">
-        <InstanceSftpCard instanceId={instanceId} />
-        <CustomPageView content={content} title={label} instanceContext={instanceContext} pageSlug={effectiveSlug} />
-      </div>
+      <ErrorBoundary resetKey={`files-${instanceId}`} label="instance-page">
+        <div className="space-y-4">
+          <InstanceSftpCard instanceId={instanceId} />
+          <CustomPageView content={content} title={label} instanceContext={instanceContext} pageSlug={effectiveSlug} />
+        </div>
+      </ErrorBoundary>
     );
   }
-  return <CustomPageView content={content} title={label} instanceContext={instanceContext} pageSlug={effectiveSlug} />;
+  return (
+    <ErrorBoundary resetKey={`${effectiveSlug}-${instanceId}`} label="instance-page">
+      <CustomPageView content={content} title={label} instanceContext={instanceContext} pageSlug={effectiveSlug} />
+    </ErrorBoundary>
+  );
 };
 
 export default InstancePanel;
