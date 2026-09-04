@@ -574,8 +574,9 @@ func escapeSQLLit(s string) string { return strings.ReplaceAll(s, `'`, `''`) }
 // connection health for Postgres, in the same JSON shape as SQLite.
 // information_schema gives tables/columns; pg_relation_size /
 // pg_indexes_size give bytes; pg_stat_activity gives live connections.
-// There is no PRAGMA quick_check / foreign_key_check equivalent, so those
-// stay empty with a per-engine note.
+// FK orphans are auto-scanned via information_schema (table_constraints +
+// key_column_usage); corruption-level integrity has no PRAGMA equivalent so
+// IntegrityIssues stays empty with a note explaining the coverage.
 func databaseInfoPostgres(con *sql.DB, cfg config.DBConfig) (DatabaseInfo, error) {
 	now := time.Now().UTC()
 	info := DatabaseInfo{
@@ -587,8 +588,8 @@ func databaseInfoPostgres(con *sql.DB, cfg config.DBConfig) (DatabaseInfo, error
 		ForeignKeyIssues: []string{},
 		IntegrityOk:      true,
 		ForeignKeyOk:     true,
-		IntegrityNote:    "Postgres has no PRAGMA quick_check; health is connection probe + row-count sanity (see scheduled verify).",
-		ForeignKeyNote:   "Postgres FK violations are not auto-scanned; query information_schema manually for orphans.",
+		IntegrityNote:    "Postgres has no PRAGMA quick_check; health is connection probe + row-count parity + FK-orphan scan (see scheduled verify).",
+		ForeignKeyNote:   "Postgres FK orphans auto-scanned via information_schema (table_constraints + key_column_usage).",
 		HealthNote:       "Postgres diagnostics via information_schema + pg_relation_size + pg_stat_activity.",
 	}
 	if v := scalar(con, `SELECT version()`); v != "" {
@@ -667,12 +668,31 @@ func databaseInfoPostgres(con *sql.DB, cfg config.DBConfig) (DatabaseInfo, error
 		out = append(out, dt)
 	}
 	info.Tables = out
+	// Real FK-orphan scan: orphans become issues (ForeignKeyOk=false),
+	// scan failures degrade to a note so the page never 500s on catalog
+	// permission errors.
+	if pd, derr := db.NewDialect("postgres"); derr == nil {
+		if oi, ow, checked, oerr := datamove.ScanFKOrphans(pd, con); oerr == nil {
+			if len(oi) > 0 {
+				info.ForeignKeyIssues = oi
+				info.ForeignKeyOk = false
+			}
+			if len(ow) > 0 {
+				info.ForeignKeyNote = "Postgres FK orphans auto-scanned (" + itoa(int64(checked)) + " constraints); scan warnings: " + strings.Join(ow, "; ")
+			} else if len(oi) == 0 {
+				info.ForeignKeyNote = "Postgres FK orphans auto-scanned clean (" + itoa(int64(checked)) + " FK constraint(s) checked)."
+			}
+		} else {
+			info.ForeignKeyNote = "Postgres orphan scan unavailable (" + oerr.Error() + "); health is row-count parity only."
+		}
+	}
 	return info, nil
 }
 
 // databaseInfoMySQL returns real diagnostics for MySQL/MariaDB in the same
 // JSON shape. information_schema.TABLES gives data_length/index_length;
 // information_schema.columns/statistics give column/index counts.
+// FK orphans are auto-scanned via information_schema.KEY_COLUMN_USAGE.
 func databaseInfoMySQL(con *sql.DB, cfg config.DBConfig) (DatabaseInfo, error) {
 	now := time.Now().UTC()
 	info := DatabaseInfo{

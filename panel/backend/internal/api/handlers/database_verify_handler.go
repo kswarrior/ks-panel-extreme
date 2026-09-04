@@ -12,6 +12,7 @@ import (
 
 	"github.com/example/kspanel/internal/config"
 	"github.com/example/kspanel/internal/cron"
+	"github.com/example/kspanel/internal/datamove"
 	"github.com/example/kspanel/internal/db"
 	"github.com/example/kspanel/internal/models"
 	"github.com/example/kspanel/internal/repository"
@@ -39,10 +40,13 @@ type DatabaseVerifyResult struct {
 // check implementation:
 //
 //   - SQLite: PRAGMA quick_check + foreign_key_check (phantom-row safe,
-//     same as DatabaseInfoHandler) + table-count sanity.
+//     same as DatabaseInfoHandler) + generic FK-orphan scan (PRAGMA
+//     foreign_key_list + NOT EXISTS) + table-count sanity.
 //   - Postgres/MySQL: connection probe (Ping + SELECT 1) + per-table
-//     COUNT(*) sanity via information_schema. No portable integrity pragma
-//     exists there, so a warning says so honestly.
+//     COUNT(*) sanity via information_schema + real FK-orphan scan via
+//     information_schema (PG: table_constraints+key_column_usage, MySQL:
+//     KEY_COLUMN_USAGE). Orphans are issues; scan failures degrade to
+//     warnings.
 func RunDatabaseCheck() DatabaseVerifyResult {
 	started := time.Now()
 	cfg := config.DatabaseConfig()
@@ -70,12 +74,43 @@ func RunDatabaseCheck() DatabaseVerifyResult {
 	switch {
 	case d.IsSQLite():
 		issues, warnings, tableCount = checkSQLite(con)
+		// Generic orphan scan as second opinion behind foreign_key_check.
+		if oi, ow, _, oerr := datamove.ScanFKOrphans(d, con); oerr == nil {
+			have := map[string]bool{}
+			for _, is := range issues {
+				have[is] = true
+			}
+			for _, s := range oi {
+				if !have[s] {
+					issues = append(issues, s)
+				}
+			}
+			warnings = append(warnings, ow...)
+		} else {
+			warnings = append(warnings, "orphan scan unavailable: "+oerr.Error())
+		}
 	case d.Name() == "postgres":
 		issues, warnings, tableCount = checkPostgresCounts(con)
-		warnings = append(warnings, "postgres exposes no portable integrity pragma — verification covered connection probe + row-count sanity only")
+		if oi, ow, checked, oerr := datamove.ScanFKOrphans(d, con); oerr == nil {
+			issues = append(issues, oi...)
+			warnings = append(warnings, ow...)
+			if len(oi) == 0 && len(ow) == 0 {
+				warnings = append(warnings, fmt.Sprintf("postgres orphan scan clean (%d FK constraint(s) checked) + row-count parity", checked))
+			}
+		} else {
+			warnings = append(warnings, "postgres orphan scan unavailable ("+oerr.Error()+") — verification covered connection probe + row-count parity only")
+		}
 	case d.Name() == "mysql":
 		issues, warnings, tableCount = checkMySQLCounts(con)
-		warnings = append(warnings, "mysql exposes no portable integrity pragma — verification covered connection probe + row-count sanity only")
+		if oi, ow, checked, oerr := datamove.ScanFKOrphans(d, con); oerr == nil {
+			issues = append(issues, oi...)
+			warnings = append(warnings, ow...)
+			if len(oi) == 0 && len(ow) == 0 {
+				warnings = append(warnings, fmt.Sprintf("mysql orphan scan clean (%d FK constraint(s) checked) + row-count parity", checked))
+			}
+		} else {
+			warnings = append(warnings, "mysql orphan scan unavailable ("+oerr.Error()+") — verification covered connection probe + row-count parity only")
+		}
 	default:
 		issues = append(issues, "unsupported engine "+d.Name())
 	}
