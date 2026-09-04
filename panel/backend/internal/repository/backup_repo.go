@@ -93,7 +93,7 @@ func parseBackupTimeOrNow(ns sql.NullString) time.Time {
 	return time.Now().UTC()
 }
 
-func boolToInt(b bool) int {
+func backupBoolToInt(b bool) int {
 	if b {
 		return 1
 	}
@@ -149,7 +149,7 @@ func (r *BackupScheduleRepository) Create(in BackupScheduleInput) (int64, error)
 		nextRun = in.NextRunAt.UTC().Format("2006-01-02 15:04:05")
 	}
 	res, err := r.db.Exec(`INSERT INTO backup_schedules (kind, instance_id, name, cron, enabled, keep_last_n, max_age_days, compression, s3_push, next_run_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		in.Kind, in.InstanceID, in.Name, in.Cron, boolToInt(in.Enabled), in.KeepLastN, in.MaxAgeDays, in.Compression, boolToInt(in.S3Push), nextRun)
+		in.Kind, in.InstanceID, in.Name, in.Cron, backupBoolToInt(in.Enabled), in.KeepLastN, in.MaxAgeDays, in.Compression, backupBoolToInt(in.S3Push), nextRun)
 	if err != nil {
 		return 0, err
 	}
@@ -162,7 +162,7 @@ func (r *BackupScheduleRepository) Update(id int64, in BackupScheduleInput) erro
 		nextRun = in.NextRunAt.UTC().Format("2006-01-02 15:04:05")
 	}
 	res, err := r.db.Exec(`UPDATE backup_schedules SET instance_id = ?, name = ?, cron = ?, enabled = ?, keep_last_n = ?, max_age_days = ?, compression = ?, s3_push = ?, next_run_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND kind = ?`,
-		in.InstanceID, in.Name, in.Cron, boolToInt(in.Enabled), in.KeepLastN, in.MaxAgeDays, in.Compression, boolToInt(in.S3Push), nextRun, id, in.Kind)
+		in.InstanceID, in.Name, in.Cron, backupBoolToInt(in.Enabled), in.KeepLastN, in.MaxAgeDays, in.Compression, backupBoolToInt(in.S3Push), nextRun, id, in.Kind)
 	if err != nil {
 		return err
 	}
@@ -262,14 +262,23 @@ func (r *S3ConfigRepository) GetClear() (endpoint, bucket, region, prefix, acces
 }
 
 // Put seals the secret with secretbox and upserts the singleton row.
+// Implemented as UPDATE-then-INSERT so it works across SQLite / Postgres /
+// MySQL (ON CONFLICT / ON DUPLICATE KEY UPDATE differ per engine).
 func (r *S3ConfigRepository) Put(endpoint, bucket, region, prefix, access, secret string) error {
 	sealed, err := secretbox.Seal([]byte(secret))
 	if err != nil {
 		return err
 	}
 	enc := base64.StdEncoding.EncodeToString(sealed)
-	_, err = r.db.Exec(`INSERT INTO backup_s3_config (id, endpoint, bucket, region, prefix, access_key, secret_enc, updated_at) VALUES (1, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-		ON CONFLICT(id) DO UPDATE SET endpoint = excluded.endpoint, bucket = excluded.bucket, region = excluded.region, prefix = excluded.prefix, access_key = excluded.access_key, secret_enc = excluded.secret_enc, updated_at = CURRENT_TIMESTAMP`,
+	res, err := r.db.Exec(`UPDATE backup_s3_config SET endpoint = ?, bucket = ?, region = ?, prefix = ?, access_key = ?, secret_enc = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1`,
+		strings.TrimSpace(endpoint), strings.TrimSpace(bucket), strings.TrimSpace(region), strings.TrimSpace(prefix), strings.TrimSpace(access), enc)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		return nil
+	}
+	_, err = r.db.Exec(`INSERT INTO backup_s3_config (id, endpoint, bucket, region, prefix, access_key, secret_enc) VALUES (1, ?, ?, ?, ?, ?, ?)`,
 		strings.TrimSpace(endpoint), strings.TrimSpace(bucket), strings.TrimSpace(region), strings.TrimSpace(prefix), strings.TrimSpace(access), enc)
 	return err
 }
@@ -320,7 +329,7 @@ func (r *InstanceFileBackupRepository) List(instanceID int64) ([]InstanceFileBac
 
 func (r *InstanceFileBackupRepository) Create(b InstanceFileBackup) (int64, error) {
 	res, err := r.db.Exec(`INSERT INTO instance_file_backups (instance_id, filename, size_bytes, sha256, compressed, compression, s3_pushed) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		b.InstanceID, b.Filename, b.SizeBytes, b.SHA256, boolToInt(b.Compressed), b.Compression, boolToInt(b.S3Pushed))
+		b.InstanceID, b.Filename, b.SizeBytes, b.SHA256, backupBoolToInt(b.Compressed), b.Compression, backupBoolToInt(b.S3Pushed))
 	if err != nil {
 		return 0, err
 	}
