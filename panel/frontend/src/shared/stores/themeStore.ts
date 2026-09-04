@@ -372,17 +372,27 @@ function safeCssValue(v: unknown, fallback = ''): string {
 }
 
 // cssUrl validates a media URL before it reaches a CSS url('…') context.
-// Only http(s), https-style absolute URLs, inline image data: URLs, blob:
-// URLs (the studio uploader) and root-relative paths are allowed — this
+// Only http(s), https-style absolute URLs, inline image/video data: URLs,
+// blob: URLs (the studio uploader) and root-relative paths are allowed — this
 // rejects javascript:, vbscript:, data:text/html and other schemes that
 // have no business in a background layer. Returns '' when rejected; the
 // caller emits 'none' / skips the layer. Quotes are escaped so the value
 // cannot terminate the url('…') wrapper early.
-const CSS_URL_RE = /^(https?:\/\/|data:image\/[a-z0-9.+-]+(;base64)?,|blob:|\/)/i;
+//
+// Length caps are scheme-aware: remote/relative/blob URLs stay short (4096),
+// while self-contained data: URLs (the studio inlines uploads via
+// FileReader.readAsDataURL) legitimately run to hundreds of KB — capping
+// those at 4096 silently dropped every uploaded wallpaper, rendering as a
+// missing background on every page using the theme.
+const CSS_URL_RE = /^(https?:\/\/|data:(image|video)\/[a-z0-9.+-]+(;base64)?,|blob:|\/)/i;
+const MAX_REMOTE_URL_LEN = 4096;
+const MAX_DATA_URL_LEN = 10 * 1024 * 1024;
 
 function cssUrl(v: unknown): string {
   const s = String(v ?? '').trim();
-  if (!s || s.length > 4096 || !CSS_URL_RE.test(s)) return '';
+  if (!s || !CSS_URL_RE.test(s)) return '';
+  const cap = s.toLowerCase().startsWith('data:') ? MAX_DATA_URL_LEN : MAX_REMOTE_URL_LEN;
+  if (s.length > cap) return '';
   return s.replace(/['\\]/g, '');
 }
 
@@ -641,11 +651,26 @@ function buildCustomCSSBlock(customCSS: ThemeCustomCSS | undefined, opts?: Apply
 // reads for tabs/dropdowns — emits hardened values without touching each
 // template line.
 function sanitizeThemeTokens(theme: Theme): Theme {
+  // Media URL fields are validated at their point of use by cssUrl()
+  // (scheme allowlist + quote stripping), so they must NOT go through
+  // safeCssValue: it strips ';' — corrupting data:image/png;base64,… into
+  // the undecodable data:image/pngbase64,… — and truncates to 512 chars,
+  // slicing base64 payloads in half. Both failure modes render as a missing
+  // background image on every page using the theme. Gradient fields DO go
+  // through safeCssValue (they need the {};\<> stripping and are short).
+  const URL_KEYS = new Set(['image_url', 'video_url', 'bg_image', 'bg_video']);
   const cleanSection = (sec: unknown): Record<string, unknown> => {
     if (!sec || typeof sec !== 'object') return {};
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(sec as Record<string, unknown>)) {
-      if (typeof v === 'string') out[k] = safeCssValue(v);
+      if (typeof v === 'string') {
+        if (URL_KEYS.has(k)) {
+          const t = v.trim();
+          out[k] = t.length > MAX_DATA_URL_LEN ? '' : t;
+        } else {
+          out[k] = safeCssValue(v);
+        }
+      }
       else if (typeof v === 'number') out[k] = Number.isFinite(v) ? v : 0;
       else if (typeof v === 'boolean') out[k] = v;
       else out[k] = v;
