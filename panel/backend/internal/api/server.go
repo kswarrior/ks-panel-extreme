@@ -801,6 +801,13 @@ func NewRouter() http.Handler {
 		r.With(requirePermission("MANAGE_PANEL_UPDATE")).Get("/api/system/reinstall-script", handlers.ReinstallScriptHandler)
 		r.With(requirePermission("MANAGE_PANEL_UPDATE")).Post("/api/system/reinstall-background", handlers.ReinstallBackgroundHandler)
 		r.With(requirePermission("MANAGE_PANEL_UPDATE")).Post("/api/system/stop", handlers.SystemStopHandler)
+		// Scheduled panel update windows (cron + maintenance-window guard,
+		// scheduler-driven). Same MANAGE_PANEL_UPDATE gate as the manual
+		// apply verbs above; every mutation is audit-logged.
+		r.With(requirePermission("MANAGE_PANEL_UPDATE")).Get("/api/system/update-windows", handlers.ListPanelUpdateWindowsHandler)
+		r.With(requirePermission("MANAGE_PANEL_UPDATE")).Post("/api/system/update-windows", handlers.CreatePanelUpdateWindowHandler)
+		r.With(requirePermission("MANAGE_PANEL_UPDATE")).Put("/api/system/update-windows/{wid}", handlers.UpdatePanelUpdateWindowHandler)
+		r.With(requirePermission("MANAGE_PANEL_UPDATE")).Delete("/api/system/update-windows/{wid}", handlers.DeletePanelUpdateWindowHandler)
 
 		// Activity feed — now strictly permission-gated (permission is King).
 		// No longer open to any authenticated user; requires ACCESS_ADMIN_PANEL.

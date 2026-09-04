@@ -589,6 +589,54 @@ export async function switchDatabaseEngine(
   return res.data;
 }
 
+// ---- Database integrity verification ------------------------------------
+// Scheduled sweep (default daily, configurable) running PRAGMA quick_check
+// (SQLite) + connection probe + table-count sanity (all engines). Failures
+// write activity_logs + notify admins; the last-run status rides on
+// DatabaseInfo.verify_* so the Database page can badge it.
+export interface DatabaseVerifyResult {
+  ok: boolean;
+  engine: string;
+  checked_at: string;
+  table_count: number;
+  duration_ms: number;
+  issues: string[];
+  warnings: string[];
+  cron: string;
+  next_run_at?: string;
+}
+
+export interface DatabaseVerifyConfig {
+  cron: string;
+  next_run_at?: string | null;
+  last_at?: string | null;
+  last_ok?: boolean | null;
+  last_issues: string[];
+  last_warnings: string[];
+  last_engine: string;
+  last_table_count: number;
+  last_duration_ms: number;
+}
+
+// Runs verification now and returns the result (also persisted as the new
+// last-verify status; failures audit-log + notify admins).
+export async function runDatabaseVerify(): Promise<DatabaseVerifyResult> {
+  const res = await client.get<DatabaseVerifyResult>('/api/database/verify', { timeout: 0 });
+  return res.data;
+}
+
+// Reads the verify schedule + last status without running a check.
+export async function getDatabaseVerifyConfig(): Promise<DatabaseVerifyConfig> {
+  const res = await client.get<DatabaseVerifyConfig>('/api/database/verify/config');
+  return res.data;
+}
+
+// Updates the verify cron (5-field). Recomputes next_run server-side.
+export async function updateDatabaseVerifyConfig(cron: string): Promise<{ ok: boolean; cron: string; next_run_at: string }> {
+  const res = await client.put<{ ok: boolean; cron: string; next_run_at: string }>('/api/database/verify/config', { cron });
+  return res.data;
+}
+
 // ---- Database → Backup tab ------------------------------------------------
 // Named on-disk snapshots under <DataDir>/backups. Create is VACUUM INTO
 // (SQLite) or a native pg_dump / mysqldump artifact (Postgres/MySQL) with

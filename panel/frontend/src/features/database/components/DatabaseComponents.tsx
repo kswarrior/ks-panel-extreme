@@ -3,8 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import type { DatabaseEngineInfo, DatabaseEngineSwitchResponse } from '../types/database';
 import type { DatabaseTableSyncResult } from '@/shared/api/admin';
+import type { DatabaseInfo } from '@/features/system/types/system';
 import { formatBytes, formatSigned, tableTypeLabel, tableTypeBadge } from '../utils/databaseUtils';
-import { listDatabaseEngines, switchDatabaseEngine } from '@/shared/api/admin';
+import { listDatabaseEngines, switchDatabaseEngine, runDatabaseVerify, updateDatabaseVerifyConfig } from '@/shared/api/admin';
 import { glassFieldClass } from '@/shared/components/ui/Field';
 
 // MetaRow renders one labelled key+value line

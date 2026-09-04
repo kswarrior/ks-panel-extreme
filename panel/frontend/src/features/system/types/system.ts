@@ -264,11 +264,26 @@ export interface DatabaseInfo {
   // "rows written since last tick" figure for the live banner.
   row_delta_since_last: number;
   tables: DatabaseTable[];
-  // True for non-SQLite engines (postgres/mysql) — the backend returns a
-  // stub instead of computing PRAGMA-driven metrics the engine doesn't
-  // expose. The page surfaces a "use psql / mysql cli" hint plus the
-  // Change Database card so the operator can switch back.
+  // True only for a future unknown engine with no inspector. All three
+  // shipped engines (sqlite/postgres/mysql) return real diagnostics, so
+  // this is false for them. Retained for wire compatibility.
   engine_not_supported?: boolean;
+  // Per-engine notes for checks with no equivalent (postgres/mysql have
+  // no PRAGMA quick_check / foreign_key_check — those arrays stay empty
+  // and these notes explain the probe + row-count coverage instead).
+  integrity_note?: string;
+  foreign_key_note?: string;
+  health_note?: string;
+  // Scheduled integrity verification — last run status. Undefined when
+  // never verified (fresh install before the first daily sweep).
+  verify_last_at?: string;
+  verify_last_ok?: boolean;
+  verify_last_issues?: string[];
+  verify_last_warnings?: string[];
+  verify_table_count?: number;
+  verify_duration_ms?: number;
+  verify_cron?: string;
+  verify_next_run?: string;
 }
 
 export interface DatabaseTable {
