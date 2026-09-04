@@ -440,7 +440,7 @@ const Header: React.FC<HeaderProps> = ({
                 </button>
                 <span className="text-gray-600 shrink-0">/</span>
                 <span className="text-gray-200 truncate">
-                  {location.pathname === '/nodes/new' ? 'New Node' : location.pathname === '/nodes/schedules' ? 'Schedules' : 'Edit Node'}
+                  {location.pathname === '/nodes/new' ? 'New Node' : location.pathname === '/nodes/schedules' ? 'Schedules' : location.pathname === '/nodes/stats' ? 'Statistics' : 'Edit Node'}
                 </span>
               </>
             )}

@@ -12,7 +12,6 @@ import {
   TimeSeriesChart,
   DashboardSection,
   DashboardGrid,
-  HeaderWithAction,
   GaugeWidget,
   StatCard,
   MetricSample,
@@ -113,6 +112,38 @@ const NodeStats: React.FC = () => {
   const [filterOpen, setFilterOpen] = useState(false);
   const [graphTab, setGraphTab] = useState<'location' | 'category'>('location');
   const filterRef = useRef<HTMLDivElement>(null);
+
+  // Compact ks-tab sizing + auto-hide slide — same fixed top-right pill
+  // behaviour as the Nodes page ("Statistics" title lives in the header).
+  const tabBtnStyle = { '--ks-tab-px': '10px', '--ks-tab-py': '5px', '--ks-tab-font': '13px' } as React.CSSProperties;
+  const [actionsVisible, setActionsVisible] = useState(true);
+  const pillRef = useRef<HTMLDivElement>(null);
+  const showTimer = useRef<number | null>(null);
+
+  useEffect(() => {
+    const scheduleShow = (delay: number) => {
+      if (showTimer.current) window.clearTimeout(showTimer.current);
+      showTimer.current = window.setTimeout(() => setActionsVisible(true), delay);
+    };
+    const onScroll = () => {
+      setActionsVisible(false);
+      scheduleShow(2500);
+    };
+    const onPointerDown = (e: PointerEvent) => {
+      const path = typeof e.composedPath === 'function' ? e.composedPath() : [];
+      if (pillRef.current && !path.includes(pillRef.current)) {
+        setActionsVisible(false);
+        scheduleShow(2500);
+      }
+    };
+    document.addEventListener('scroll', onScroll, true);
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => {
+      document.removeEventListener('scroll', onScroll, true);
+      document.removeEventListener('pointerdown', onPointerDown);
+      if (showTimer.current) window.clearTimeout(showTimer.current);
+    };
+  }, []);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -299,71 +330,76 @@ const NodeStats: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <HeaderWithAction
-        title="Node Statistics"
-        backHref="/nodes"
-        backLabel="Nodes"
-        action={
-          <div className="flex items-center gap-2">
-            <SearchDropdown
-              value={search}
-              onChange={setSearch}
-              placeholder="Search nodes..."
-              ariaLabel="Search nodes"
-              className="w-64"
-            />
-            <select
-              value={timeRange}
-              onChange={(e) => setTimeRange(e.target.value as any)}
-              className="glass-field text-sm px-3 py-1.5 bg-white/[0.03] border-white/10"
-              aria-label="Time range"
+      {/* Fixed top-right pill — "Statistics" title lives in the app header.
+          Same auto-hide right-to-left slide as the Nodes page pill. */}
+      <div className="fixed top-[max(4.5rem,env(safe-area-inset-top))] right-4 sm:right-6 z-40">
+        <div
+          ref={pillRef}
+          className={`ks-card ks-pill-anim rounded-md flex items-center gap-1 shadow-lg shadow-black/40 ${actionsVisible ? 'translate-x-0 opacity-100' : 'pointer-events-none translate-x-8 opacity-0'}`}
+          style={{ '--ks-card-padding': '6px' } as React.CSSProperties}
+        >
+          <SearchDropdown
+            value={search}
+            onChange={setSearch}
+            placeholder="Search nodes..."
+            ariaLabel="Search nodes"
+            buttonClassName="ks-tab inline-flex items-center justify-center"
+            buttonStyle={tabBtnStyle}
+          />
+          <select
+            value={timeRange}
+            onChange={(e) => setTimeRange(e.target.value as any)}
+            className="ks-tab"
+            style={tabBtnStyle}
+            aria-label="Time range"
+          >
+            <option value="1h">Last hour</option>
+            <option value="6h">Last 6 hours</option>
+            <option value="24h">Last 24 hours</option>
+            <option value="7d">Last 7 days</option>
+          </select>
+          <div className="relative" ref={filterRef}>
+            <button
+              type="button"
+              onClick={() => setFilterOpen(!filterOpen)}
+              className={`ks-tab inline-flex items-center justify-center gap-1 transition-colors ${filterOpen ? 'is-open' : ''}`}
+              style={tabBtnStyle}
+              aria-label="Open filters"
+              aria-expanded={filterOpen}
+              aria-haspopup="true"
             >
-              <option value="1h">Last hour</option>
-              <option value="6h">Last 6 hours</option>
-              <option value="24h">Last 24 hours</option>
-              <option value="7d">Last 7 days</option>
-            </select>
-            <div className="relative" ref={filterRef}>
-              <button
-                type="button"
-                onClick={() => setFilterOpen(!filterOpen)}
-                className={`ks-btn-header ks-icon-btn transition-colors ${filterOpen ? 'is-open' : ''}`}
-                aria-label="Open filters"
-                aria-expanded={filterOpen}
-                aria-haspopup="true"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-                  <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-                </svg>
-                {(stateFilter !== 'all') && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
-                )}
-              </button>
-              {filterOpen && (
-                <div className="absolute left-0 top-full mt-1 z-30 w-64">
-                  <div className="ks-dropdown min-w-[220px] animate-in fade-in slide-in-from-to duration-150">
-                    <div className="p-3 space-y-3">
-                      <div>
-                        <label className="block text-xs text-gray-400 uppercase tracking-wide mb-1.5">State</label>
-                        <select
-                          value={stateFilter}
-                          onChange={(e) => setStateFilter(e.target.value as any)}
-                          className="w-full glass-field"
-                        >
-                          <option value="all">All states</option>
-                          <option value="up">Up</option>
-                          <option value="down">Down</option>
-                          <option value="pending">Pending</option>
-                          <option value="partial">Partial</option>
-                        </select>
-                      </div>
-                      <div className="pt-2 border-t border-white/5 flex items-center justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setFilterOpen(false)}
-                          className="px-3 py-1.5 text-sm text-gray-400 hover:text-white"
-                        >
-                          Close
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+              </svg>
+              {(stateFilter !== 'all') && (
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
+              )}
+            </button>
+            {filterOpen && (
+              <div className="absolute right-0 top-full mt-1 z-30 w-64">
+                <div className="ks-dropdown min-w-[220px] animate-in fade-in slide-in-from-to duration-150">
+                  <div className="p-3 space-y-3">
+                    <div>
+                      <label className="block text-xs text-gray-400 uppercase tracking-wide mb-1.5">State</label>
+                      <select
+                        value={stateFilter}
+                        onChange={(e) => setStateFilter(e.target.value as any)}
+                        className="w-full glass-field"
+                      >
+                        <option value="all">All states</option>
+                        <option value="up">Up</option>
+                        <option value="down">Down</option>
+                        <option value="pending">Pending</option>
+                        <option value="partial">Partial</option>
+                      </select>
+                    </div>
+                    <div className="pt-2 border-t border-white/5 flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setFilterOpen(false)}
+                        className="px-3 py-1.5 text-sm text-gray-400 hover:text-white"
+                      >
+                        Close
                         </button>
                       </div>
                     </div>
@@ -372,8 +408,8 @@ const NodeStats: React.FC = () => {
               )}
             </div>
           </div>
-        }
-      />
+        </div>
+      </div>
       {/* Key Metrics Strip */}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 mb-6">
         <StatCard
