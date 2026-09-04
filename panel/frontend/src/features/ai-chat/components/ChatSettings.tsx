@@ -2,22 +2,19 @@ import React, { useEffect, useState } from 'react';
 import {
   DEFAULT_RETRY_PREFS,
   getAIConfig,
-  getAIUsage,
   loadRetryPrefs,
   saveRetryPrefs,
   testAIConfig,
   updateAIConfig,
   type AIConfigView,
   type AIRetryPrefs,
-  type AIUsage,
 } from '../api/aiChat';
 
-// Full AI Assistant config inside the floating chat panel (admin only).
+// Chat settings: only Providers (primary/fallback) + Retry.
+// Ollama mode has no toggle — it follows the provider preset / base URL.
 // Same backend as the old Settings > AI Assistant card
 // (GET/PUT /api/ai/config): keys are sealed server-side, blank input
-// means "keep the stored secret". Provider presets just fill base URL +
-// Ollama mode — everything stays editable so any OpenAI-compatible
-// endpoint can be added by base URL + API key + model ID.
+// means "keep the stored secret".
 type Tab = 'primary' | 'fallback';
 
 type Preset = 'openai' | 'ollama' | 'custom';
@@ -33,6 +30,12 @@ function detectPreset(baseUrl: string, ollama: boolean): Preset {
   if (ollama && (b === '' || b === 'http://localhost:11434' || b.endsWith(':11434'))) return 'ollama';
   if (!ollama && b === 'https://api.openai.com/v1') return 'openai';
   return 'custom';
+}
+
+function inferOllamaMode(baseUrl: string): boolean {
+  const b = baseUrl.trim().replace(/\/+$/, '');
+  if (!b) return false;
+  return b === 'http://localhost:11434' || b.endsWith(':11434');
 }
 
 const inputCls =
