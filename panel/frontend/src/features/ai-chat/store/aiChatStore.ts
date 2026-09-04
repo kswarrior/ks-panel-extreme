@@ -5,6 +5,8 @@ import {
   deleteAIThread,
   getAIThread,
   listAIThreads,
+  loadRetryPrefs,
+  rateLimitInfo,
   renameAIThread,
   sendAIChat,
   streamAIChat,
@@ -41,6 +43,14 @@ interface AIChatState {
   // Admin-only per-request model override (the server ignores it for
   // everyone else).
   modelOverride: string;
+  // Failed-turn retry: the last user prompt is kept so a 429 / network
+  // blip can be re-sent via the error card's Retry button (or automatically
+  // when the Reliability prefs allow it).
+  canRetry: boolean;
+  lastPrompt: string;
+  retrying: boolean;
+  retryAttempt: number;
+  retryMax: number;
   setOpen: (v: boolean) => void;
   toggle: () => void;
   setModelOverride: (v: string) => void;
@@ -50,6 +60,7 @@ interface AIChatState {
   renameThread: (id: number, title: string) => Promise<void>;
   removeThread: (id: number) => Promise<void>;
   send: (text: string) => Promise<void>;
+  retry: () => Promise<void>;
   approveTicket: () => Promise<void>;
   denyTicket: () => void;
   clearError: () => void;
@@ -101,6 +112,11 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
   threadsLoading: false,
   activeThreadId: storedThreadId(),
   modelOverride: '',
+  canRetry: false,
+  lastPrompt: '',
+  retrying: false,
+  retryAttempt: 0,
+  retryMax: 0,
 
   setOpen: (v) => set({ open: v }),
   toggle: () => set((s) => ({ open: !s.open })),
@@ -133,6 +149,11 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
         messages: [],
         ticket: null,
         error: '',
+        canRetry: false,
+        lastPrompt: '',
+        retrying: false,
+        retryAttempt: 0,
+        retryMax: 0,
       }));
     } catch (e) {
       set({ error: errText(e, 'Failed to create a chat thread') });
@@ -144,7 +165,7 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
     if (id === get().activeThreadId && get().messages.length > 0) return;
     if (id == null) {
       rememberThreadId(null);
-      set({ activeThreadId: null, messages: [], ticket: null, error: '' });
+      set({ activeThreadId: null, messages: [], ticket: null, error: '', canRetry: false, lastPrompt: '', retrying: false, retryAttempt: 0, retryMax: 0 });
       return;
     }
     set({ threadsLoading: true, error: '' });
@@ -164,6 +185,11 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
         nextId: next,
         threadsLoading: false,
         threads: s.threads.some((t) => t.id === id) ? s.threads : [...s.threads],
+        canRetry: false,
+        lastPrompt: '',
+        retrying: false,
+        retryAttempt: 0,
+        retryMax: 0,
       }));
     } catch (e) {
       set({ threadsLoading: false, error: errText(e, 'Failed to load chat thread') });
@@ -189,7 +215,7 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
         const threads = s.threads.filter((t) => t.id !== id);
         if (s.activeThreadId !== id) return { threads };
         rememberThreadId(null);
-        return { threads, activeThreadId: null, messages: [], ticket: null };
+        return { threads, activeThreadId: null, messages: [], ticket: null, canRetry: false, lastPrompt: '', retrying: false, retryAttempt: 0, retryMax: 0 };
       });
     } catch (e) {
       set({ error: errText(e, 'Failed to delete chat thread') });
