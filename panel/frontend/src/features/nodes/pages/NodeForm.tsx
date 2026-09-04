@@ -77,6 +77,7 @@ const NodeForm: React.FC = () => {
     bootstrapCmd?: string;
     isLocalhost?: boolean;
     isTunnel?: boolean;
+    isDual?: boolean;
     port?: string;
     nodeProbe?: ProbeResult | null;
   } | null>(null);
@@ -495,10 +496,13 @@ const NodeForm: React.FC = () => {
         }
         const isLocal = isLocalMode(form.connection_mode);
         const isTunnel = isTunnelMode(form.connection_mode);
+        const isDual = isDualMode(form.connection_mode);
         setTokenInfo({
           token: res.token,
           title: isLocal
             ? 'Local node provisioned — bootstrap command below'
+            : isDual
+            ? 'Dual-transport node provisioned — edge dials via WSS and panel dials the address'
             : isTunnel
             ? 'Reverse tunnel node provisioned — edge will dial via WSS'
             : 'Node token (copy now)',
@@ -514,6 +518,7 @@ const NodeForm: React.FC = () => {
             : undefined,
           isLocalhost: isLocal,
           isTunnel: isTunnel,
+          isDual: isDual,
           port: form.port,
           nodeProbe: probeRes,
         });
@@ -854,6 +859,108 @@ const NodeForm: React.FC = () => {
               />
             </GlassField>
           )}
+
+          {isTunnelMode(form.connection_mode) && (
+            <div className="ks-card ks-form-card rounded-md p-3 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm text-gray-200 font-medium">WSS channels</p>
+                  <p className="text-xs text-gray-500">
+                    {isDualMode(form.connection_mode)
+                      ? 'Each row handles one task over its preferred transport (port vs WSS). Rows sharing a task divide its data. Task "all" handles everything unless a specific task overrides it.'
+                      : 'Each row handles one task over the WSS tunnel. Task "all" handles everything. Rows sharing a task divide its data.'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={addWssChannel}
+                  title="Add a WSS channel"
+                  className="shrink-0 inline-flex items-center gap-1.5 bg-white text-black text-xs px-2.5 py-1.5 rounded hover:bg-gray-200"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-3.5 h-3.5"><path d="M12 5v14M5 12h14" /></svg>
+                  Add
+                </button>
+              </div>
+              {wssChannels.length === 0 && (
+                <p className="text-xs text-gray-500">No channels yet — click Add to create one (task "all" handles everything).</p>
+              )}
+              <div className="space-y-2">
+                {wssChannels.map((c) => (
+                  <div key={c.key} className="rounded-md border border-white/10 bg-black/30 p-2.5 space-y-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-300 mb-1">Name</label>
+                        <input
+                          value={c.name}
+                          onChange={(e) => updateWssChannel(c.key, { name: e.target.value })}
+                          placeholder="wss-1"
+                          autoComplete="off"
+                          className="w-full bg-black/30 text-white placeholder-gray-500 border border-white/10 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-white/60 focus:border-white/40 transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-300 mb-1">Task</label>
+                        <select
+                          value={c.task}
+                          onChange={(e) => updateWssChannel(c.key, { task: e.target.value as WssTask })}
+                          className="w-full bg-black/30 text-white border border-white/10 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-white/60 focus:border-white/40 transition-colors"
+                        >
+                          {WSS_TASKS.map((t) => (
+                            <option key={t.value} value={t.value} title={t.hint}>{t.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    {isDualMode(form.connection_mode) && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-300 mb-1">Use</label>
+                          <select
+                            value={c.transport}
+                            onChange={(e) => updateWssChannel(c.key, { transport: e.target.value as WssTransport })}
+                            className="w-full bg-black/30 text-white border border-white/10 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-white/60 focus:border-white/40 transition-colors"
+                          >
+                            {WSS_TRANSPORTS.map((t) => (
+                              <option key={t.value} value={t.value} title={t.hint}>{t.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="flex items-end justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium text-gray-300">Emergency fallback</p>
+                            <p className="text-[11px] text-gray-500">Other transport on overload/disconnect</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => updateWssChannel(c.key, { fallback: !c.fallback })}
+                            className={`relative w-11 h-6 rounded-full transition shrink-0 ${c.fallback ? 'bg-emerald-600' : 'bg-neutral-700'}`}
+                            aria-pressed={c.fallback}
+                            aria-label={`Emergency fallback for ${c.name || 'channel'}`}
+                          >
+                            <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition ${c.fallback ? 'translate-x-5' : ''}`} />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => removeWssChannel(c.key)}
+                        title={`Remove ${c.name || 'channel'}`}
+                        className="inline-flex items-center gap-1.5 border border-red-900/50 text-red-300 text-xs px-2.5 py-1.5 rounded hover:bg-red-900/20"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-3.5 h-3.5"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /></svg>
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[11px] text-gray-500">
+                Files channels carry file-manager transfers; Node channels carry resources/uptime; Instance channels carry deploy / delete / edit / start / stop.
+              </p>
+            </div>
+          )}
           </>
           )}
 
@@ -1123,11 +1230,13 @@ const NodeForm: React.FC = () => {
                   <path d="M8 12h8M12 8v8" />
                 </svg>
                 <p className="text-sm text-sky-200">
-                  Reverse tunnel node registered. Edge only needs <code>panel_url</code> + <code>token</code>. It will dial <code>wss://panel/api/edge/tunnel</code> and tunnel all RPCs. No address to store on panel.
+                  {tokenInfo.isDual
+                    ? <>Dual-transport node registered. Edge needs <code>panel_url</code> + <code>token</code> (opens the WSS tunnel) AND the panel dials the address directly. Per-task WSS channels decide port vs WSS, with emergency fallback.</>
+                    : <>Reverse tunnel node registered. Edge only needs <code>panel_url</code> + <code>token</code>. It will dial <code>wss://panel/api/edge/tunnel</code> and tunnel all RPCs. No address to store on panel.</>}
                 </p>
               </div>
               <div className="mt-3">
-                <p className="text-sm text-gray-300 mb-1">Config JSON for ksedge (WSS tunnel):</p>
+                <p className="text-sm text-gray-300 mb-1">{tokenInfo.isDual ? 'Config JSON for ksedge (port + WSS tunnel):' : 'Config JSON for ksedge (WSS tunnel):'}</p>
                 <pre className="bg-black border border-white/10 rounded-md px-3 py-2 text-xs text-gray-200 overflow-x-auto max-h-60">
                   {tokenInfo.configJson}
                 </pre>
