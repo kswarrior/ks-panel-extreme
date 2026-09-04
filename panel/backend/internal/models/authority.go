@@ -73,6 +73,7 @@ type AuthorityConfig struct {
 	SMTPUser     string `json:"smtp_user"`
 	SMTPPassword string `json:"smtp_password,omitempty"`
 	SMTPFrom     string `json:"smtp_from"`
+	SMTPTLS      string `json:"smtp_tls"`
 
 	RegisterAllow      string `json:"register_allow"`
 	RegisterRole       string `json:"register_role"`

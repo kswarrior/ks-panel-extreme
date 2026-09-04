@@ -128,20 +128,49 @@ func aiParseBool(v string) bool {
 	return false
 }
 
-// Get reads the full config including the unsealed API key. Callers must
-// never log the key or send it to the browser — use View for that.
+// unsealKey reverses the secretbox+base64 seal stored in the KV. Empty
+// input yields an empty key (unconfigured), never an error.
+func unsealKey(enc, what string) (string, error) {
+	enc = strings.TrimSpace(enc)
+	if enc == "" {
+		return "", nil
+	}
+	raw, derr := base64.StdEncoding.DecodeString(enc)
+	if derr != nil {
+		return "", fmt.Errorf("ai %s decode failed", what)
+	}
+	clear, oerr := secretbox.Open(raw)
+	if oerr != nil {
+		return "", fmt.Errorf("ai %s open failed", what)
+	}
+	return string(clear), nil
+}
+
+func sealKey(cleartext string) (string, error) {
+	sealed, err := secretbox.Seal([]byte(cleartext))
+	if err != nil {
+		return "", err
+	}
+	return base64.StdEncoding.EncodeToString(sealed), nil
+}
+
+// Get reads the full config including the unsealed API keys. Callers must
+// never log the keys or send them to the browser — use View for that.
 func (r *AIConfigRepository) Get() (*AIConfig, error) {
 	cfg := &AIConfig{
-		Enabled:      aiParseBool(r.get(AIEnabledKey, "0")),
-		BaseURL:      strings.TrimSpace(r.get(AIBaseURLKey, "")),
-		ModelID:      strings.TrimSpace(r.get(AIModelIDKey, "")),
-		OllamaMode:   aiParseBool(r.get(AIOllamaModeKey, "0")),
-		Temperature:  0.7,
-		MaxTokens:    1024,
-		AllowWrites:  aiParseBool(r.get(AIAllowWritesKey, "0")),
-		SystemExtra:  r.get(AISystemExtraKey, ""),
-		HostingName:  r.get(HostingNameKey, ""),
-		HostingAbout: r.get(HostingAboutKey, ""),
+		Enabled:            aiParseBool(r.get(AIEnabledKey, "0")),
+		BaseURL:            strings.TrimSpace(r.get(AIBaseURLKey, "")),
+		ModelID:            strings.TrimSpace(r.get(AIModelIDKey, "")),
+		OllamaMode:         aiParseBool(r.get(AIOllamaModeKey, "0")),
+		Temperature:        0.7,
+		MaxTokens:          1024,
+		AllowWrites:        aiParseBool(r.get(AIAllowWritesKey, "0")),
+		SystemExtra:        r.get(AISystemExtraKey, ""),
+		HostingName:        r.get(HostingNameKey, ""),
+		HostingAbout:       r.get(HostingAboutKey, ""),
+		FallbackBaseURL:    strings.TrimSpace(r.get(AIFallbackBaseURLKey, "")),
+		FallbackModelID:    strings.TrimSpace(r.get(AIFallbackModelIDKey, "")),
+		FallbackOllamaMode: aiParseBool(r.get(AIFallbackOllamaModeKey, "0")),
 	}
 	if t, err := strconv.ParseFloat(strings.TrimSpace(r.get(AITemperatureKey, "0.7")), 64); err == nil {
 		if t < 0 {
@@ -161,19 +190,32 @@ func (r *AIConfigRepository) Get() (*AIConfig, error) {
 		}
 		cfg.MaxTokens = n
 	}
-	enc := strings.TrimSpace(r.get(AIAPIKeyEncKey, ""))
-	if enc != "" {
-		raw, derr := base64.StdEncoding.DecodeString(enc)
-		if derr != nil {
-			return nil, fmt.Errorf("ai api key decode failed")
-		}
-		clear, oerr := secretbox.Open(raw)
-		if oerr != nil {
-			return nil, fmt.Errorf("ai api key open failed")
-		}
-		cfg.APIKey = string(clear)
+	cfg.CostPer1KIn = aiParsePrice(r.get(AICostPer1KInKey, "0"))
+	cfg.CostPer1KOut = aiParsePrice(r.get(AICostPer1KOutKey, "0"))
+	key, err := unsealKey(r.get(AIAPIKeyEncKey, ""), "api key")
+	if err != nil {
+		return nil, err
 	}
+	cfg.APIKey = key
+	fbKey, err := unsealKey(r.get(AIFallbackAPIKeyEncKey, ""), "fallback api key")
+	if err != nil {
+		return nil, err
+	}
+	cfg.FallbackAPIKey = fbKey
 	return cfg, nil
+}
+
+// aiParsePrice reads a non-negative USD-per-1k-tokens price, clamped to a
+// sane ceiling so a typo can't produce absurd cost figures.
+func aiParsePrice(v string) float64 {
+	n, err := strconv.ParseFloat(strings.TrimSpace(v), 64)
+	if err != nil || n < 0 {
+		return 0
+	}
+	if n > 1000 {
+		return 1000
+	}
+	return n
 }
 
 // View reads the browser-safe shape (secret replaced by a flag).
@@ -194,6 +236,13 @@ func (r *AIConfigRepository) View() (*AIConfigView, error) {
 		SystemExtra:      cfg.SystemExtra,
 		HostingName:      cfg.HostingName,
 		HostingAbout:     cfg.HostingAbout,
+
+		FallbackBaseURL:          cfg.FallbackBaseURL,
+		FallbackAPIKeyConfigured: cfg.FallbackAPIKey != "",
+		FallbackModelID:          cfg.FallbackModelID,
+		FallbackOllamaMode:       cfg.FallbackOllamaMode,
+		CostPer1KIn:              cfg.CostPer1KIn,
+		CostPer1KOut:             cfg.CostPer1KOut,
 	}, nil
 }
 
@@ -212,6 +261,13 @@ type AIConfigUpdate struct {
 	SystemExtra *string
 	HostingName *string
 	HostingAbout *string
+
+	FallbackBaseURL    *string
+	FallbackAPIKey     *string
+	FallbackModelID    *string
+	FallbackOllamaMode *bool
+	CostPer1KIn        *float64
+	CostPer1KOut       *float64
 }
 
 func aiBoolStr(b bool) string {
@@ -250,11 +306,11 @@ func (r *AIConfigRepository) Update(u *AIConfigUpdate) error {
 		if len(*u.APIKey) > 4096 {
 			return fmt.Errorf("api key is too long (max 4096 chars)")
 		}
-		sealed, err := secretbox.Seal([]byte(*u.APIKey))
+		enc, err := sealKey(*u.APIKey)
 		if err != nil {
 			return err
 		}
-		if err := r.set(AIAPIKeyEncKey, base64.StdEncoding.EncodeToString(sealed)); err != nil {
+		if err := r.set(AIAPIKeyEncKey, enc); err != nil {
 			return err
 		}
 	}
@@ -316,6 +372,61 @@ func (r *AIConfigRepository) Update(u *AIConfigUpdate) error {
 			return fmt.Errorf("hosting about is too long (max 4000 chars)")
 		}
 		if err := r.set(HostingAboutKey, *u.HostingAbout); err != nil {
+			return err
+		}
+	}
+	if u.FallbackBaseURL != nil {
+		v := strings.TrimSpace(*u.FallbackBaseURL)
+		if v != "" && !strings.HasPrefix(v, "http://") && !strings.HasPrefix(v, "https://") {
+			return fmt.Errorf("fallback base_url must start with http:// or https://")
+		}
+		v = strings.TrimRight(v, "/")
+		if len(v) > 512 {
+			return fmt.Errorf("fallback base_url is too long (max 512 chars)")
+		}
+		if err := r.set(AIFallbackBaseURLKey, v); err != nil {
+			return err
+		}
+	}
+	if u.FallbackAPIKey != nil && *u.FallbackAPIKey != "" && *u.FallbackAPIKey != "*" {
+		if len(*u.FallbackAPIKey) > 4096 {
+			return fmt.Errorf("fallback api key is too long (max 4096 chars)")
+		}
+		enc, err := sealKey(*u.FallbackAPIKey)
+		if err != nil {
+			return err
+		}
+		if err := r.set(AIFallbackAPIKeyEncKey, enc); err != nil {
+			return err
+		}
+	}
+	if u.FallbackModelID != nil {
+		v := strings.TrimSpace(*u.FallbackModelID)
+		if len(v) > 256 {
+			return fmt.Errorf("fallback model id is too long (max 256 chars)")
+		}
+		if err := r.set(AIFallbackModelIDKey, v); err != nil {
+			return err
+		}
+	}
+	if u.FallbackOllamaMode != nil {
+		if err := r.set(AIFallbackOllamaModeKey, aiBoolStr(*u.FallbackOllamaMode)); err != nil {
+			return err
+		}
+	}
+	if u.CostPer1KIn != nil {
+		if *u.CostPer1KIn < 0 || *u.CostPer1KIn > 1000 {
+			return fmt.Errorf("cost per 1k input tokens must be between 0 and 1000")
+		}
+		if err := r.set(AICostPer1KInKey, strconv.FormatFloat(*u.CostPer1KIn, 'f', -1, 64)); err != nil {
+			return err
+		}
+	}
+	if u.CostPer1KOut != nil {
+		if *u.CostPer1KOut < 0 || *u.CostPer1KOut > 1000 {
+			return fmt.Errorf("cost per 1k output tokens must be between 0 and 1000")
+		}
+		if err := r.set(AICostPer1KOutKey, strconv.FormatFloat(*u.CostPer1KOut, 'f', -1, 64)); err != nil {
 			return err
 		}
 	}

@@ -230,6 +230,8 @@ type SettingsSnapshot struct {
 	SMTPUser     string `json:"smtp_user"`
 	SMTPPassword string `json:"smtp_password"`
 	SMTPFrom     string `json:"smtp_from"`
+	// SMTPTLS is auto|implicit|starttls|off (065 seed "auto").
+	SMTPTLS string `json:"smtp_tls"`
 }
 
 // Logo is the public, JSON-friendly view of the configured panel logo. The
@@ -292,6 +294,7 @@ func (r *SettingsRepository) Get() (*SettingsSnapshot, error) {
 	snap.SMTPUser = r.getString(SMTPUserKey, "")
 	snap.SMTPPassword = r.getString(SMTPPasswordKey, "")
 	snap.SMTPFrom = r.getString(SMTPFromKey, "")
+	snap.SMTPTLS = r.getString(SMTPTLSKey, "auto")
 	return snap, nil
 }
 
@@ -389,6 +392,16 @@ func (r *SettingsRepository) Update(s *SettingsSnapshot) error {
 	if s.SMTPFrom != "" {
 		if err := r.setString(SMTPFromKey, s.SMTPFrom); err != nil {
 			return err
+		}
+	}
+	if s.SMTPTLS != "" {
+		switch strings.ToLower(strings.TrimSpace(s.SMTPTLS)) {
+		case "auto", "implicit", "starttls", "off":
+			if err := r.setString(SMTPTLSKey, strings.ToLower(strings.TrimSpace(s.SMTPTLS))); err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("invalid smtp_tls (want auto|implicit|starttls|off)")
 		}
 	}
 	return nil

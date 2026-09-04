@@ -142,6 +142,7 @@ func SettingsHandler(w http.ResponseWriter, r *http.Request) {
 			SMTPUser           *string `json:"smtp_user"`
 			SMTPPassword       *string `json:"smtp_password"`
 			SMTPFrom           *string `json:"smtp_from"`
+			SMTPTLS            *string `json:"smtp_tls"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			http.Error(w, "invalid payload", http.StatusBadRequest)
@@ -202,6 +203,9 @@ func SettingsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		if body.SMTPFrom != nil {
 			snap.SMTPFrom = *body.SMTPFrom
+		}
+		if body.SMTPTLS != nil {
+			snap.SMTPTLS = *body.SMTPTLS
 		}
 		if err := repo.Update(&snap); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)

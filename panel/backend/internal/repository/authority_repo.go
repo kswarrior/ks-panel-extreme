@@ -49,13 +49,16 @@ func (r *AuthorityRepository) Get() (*models.AuthorityConfig, error) {
 	}
 	if !ok || strings.TrimSpace(raw) == "" {
 		cfg = backfillDefaults(cfg)
+		backfillSMTPTLS(r, cfg)
 		return maskSecrets(cfg), nil
 	}
 	if err := json.Unmarshal([]byte(raw), cfg); err != nil {
 		cfg = backfillDefaults(models.DefaultAuthorityConfig())
+		backfillSMTPTLS(r, cfg)
 		return maskSecrets(cfg), nil
 	}
 	cfg = backfillDefaults(cfg)
+	backfillSMTPTLS(r, cfg)
 	return maskSecrets(cfg), nil
 }
 
@@ -66,12 +69,37 @@ func (r *AuthorityRepository) GetRaw() (*models.AuthorityConfig, error) {
 		return nil, err
 	}
 	if !ok || strings.TrimSpace(raw) == "" {
-		return backfillDefaults(cfg), nil
+		cfg = backfillDefaults(cfg)
+		backfillSMTPTLS(r, cfg)
+		return cfg, nil
 	}
 	if err := json.Unmarshal([]byte(raw), cfg); err != nil {
-		return backfillDefaults(models.DefaultAuthorityConfig()), nil
+		cfg = backfillDefaults(models.DefaultAuthorityConfig())
+		backfillSMTPTLS(r, cfg)
+		return cfg, nil
 	}
-	return backfillDefaults(cfg), nil
+	cfg = backfillDefaults(cfg)
+	backfillSMTPTLS(r, cfg)
+	return cfg, nil
+}
+
+// backfillSMTPTLS fills the TLS mode from the settings-KV mirror when the
+// authority blob predates the field (or was saved via the Settings API).
+func backfillSMTPTLS(r *AuthorityRepository, cfg *models.AuthorityConfig) {
+	if cfg == nil || strings.TrimSpace(cfg.SMTPTLS) != "" {
+		return
+	}
+	var v string
+	if err := r.db.QueryRow(`SELECT value FROM settings WHERE key = ?`, SMTPTLSKey).Scan(&v); err != nil {
+		cfg.SMTPTLS = "auto"
+		return
+	}
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "implicit", "starttls", "off", "auto":
+		cfg.SMTPTLS = strings.ToLower(strings.TrimSpace(v))
+	default:
+		cfg.SMTPTLS = "auto"
+	}
 }
 
 func (r *AuthorityRepository) Update(cfg *models.AuthorityConfig) error {
@@ -148,6 +176,12 @@ func (r *AuthorityRepository) Update(cfg *models.AuthorityConfig) error {
 	}
 	if cfg.SMTPFrom != "" {
 		_ = r.setString(SMTPFromKey, cfg.SMTPFrom)
+	}
+	if cfg.SMTPTLS != "" {
+		switch strings.ToLower(strings.TrimSpace(cfg.SMTPTLS)) {
+		case "auto", "implicit", "starttls", "off":
+			_ = r.setString(SMTPTLSKey, strings.ToLower(strings.TrimSpace(cfg.SMTPTLS)))
+		}
 	}
 	return nil
 }
