@@ -28,6 +28,7 @@ import (
 	"sync/atomic"
 
 	"github.com/example/kspanel/internal/models"
+	"github.com/example/kspanel/internal/repository"
 )
 
 // Task constants for WSS channel routing.
@@ -194,6 +195,24 @@ type RouteDecision struct {
 	ChannelName string
 	// Transport is the resolved preference (wss/port/auto).
 	Transport string
+}
+
+// LoadChannels returns the node's WSS channel rows for routing. It never
+// fails hard: any DB error (including a pre-062 database without the table)
+// yields nil so the caller falls back to the mode default (auto with
+// emergency fallback for dual modes). The caller owns no handle to close.
+func LoadChannels(nodeID int64) []models.WssChannel {
+	con, err := repository.OpenDB()
+	if err != nil {
+		return nil
+	}
+	defer con.Close()
+	repo := repository.NewWssChannelRepository(con)
+	channels, err := repo.ListChannels(nodeID)
+	if err != nil {
+		return nil
+	}
+	return channels
 }
 
 // DecideRoute computes the transport order for one RPC in the given mode.
