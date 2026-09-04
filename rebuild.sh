@@ -551,11 +551,25 @@ build_go_binary() {
         mv -f -- "$output_bin" "$old_bin"
     fi
 
-    # Decide builder: garble vs go (garble only for production + enabled)
+    # Decide builder: garble vs go. Production requests obfuscation by
+    # default (ENABLE_OBFUSCATION=1 via auto/1); dev forces 0. When garble
+    # is requested but not installed we fall back to plain go build with
+    # an explicit warning so the release is still produced (never a hard
+    # failure on an optional tool).
     local use_garble=false
-    if [[ "$ENABLE_OBFUSCATION" == "1" ]] && has_cmd garble; then
-        use_garble=true
-        log_info "Using garble for $name (obfuscation enabled)"
+    if [[ "$ENABLE_OBFUSCATION" == "1" ]]; then
+        if has_cmd garble; then
+            use_garble=true
+            log_info "Using garble for $name (obfuscation enabled)"
+        else
+            log_warn "garble requested for $name but not installed — falling back to plain go build (install: go install mvdan.cc/garble@latest)"
+        fi
+    else
+        if [[ "$BUILD_MODE" == "development" ]]; then
+            log_info "Skipping obfuscation for $name (development mode stays unobfuscated)"
+        else
+            log_info "Obfuscation disabled for $name (GARBLE_ENABLE=0) — plain go build"
+        fi
     fi
 
     local rc=0
@@ -1325,10 +1339,12 @@ main() {
         fi
         if [[ "$ENABLE_OBFUSCATION" == "1" ]]; then
             if has_cmd garble; then
-                echo "  Obfuscation: garble applied (literals + tiny + debug)"
+                echo "  Obfuscation: garble applied by default (literals + tiny)"
             else
-                echo "  Obfuscation: requested but garble not installed"
+                echo "  Obfuscation: garble not installed — plain go build with warning (install garble for default obfuscation)"
             fi
+        else
+            echo "  Obfuscation: disabled via GARBLE_ENABLE=0"
         fi
     else
         echo "Development build complete. Binaries contain debug symbols."

@@ -1087,10 +1087,13 @@ var engineSwitchMu sync.Mutex
 
 // SetDatabaseEngineHandler validates a database engine switch coming from the
 // admin Database page and, on success, persists it via config.SaveDBConfig so
-// the next `launch` / `seed` picks it up. It NEVER swaps the live connection
-// the running panel uses — a mid-flight pool swap on a busy panel would
-// silently fracture in-flight transactions; safer to make the change durable
-// and ask the operator to restart.
+// the next `launch` / `seed` picks it up. Config-only switches (sync_data=false)
+// keep the historical restart-required behaviour. Synced switches
+// (sync_data=true) hot-switch the live pool in-process via
+// tryActivateLiveEngine after persisting — repository.OpenDB opens a fresh
+// connection per call (no global pool to fracture), so the next request
+// already serves the new engine; a failed reopen falls back to the same
+// restart message.
 //
 // With sync_data enabled the handler runs the full migration pipeline BEFORE
 // persisting anything:
@@ -1313,12 +1316,26 @@ func SetDatabaseEngineHandler(w http.ResponseWriter, r *http.Request) {
 		resp.Steps = append(resp.Steps, "recheck passed: row parity + integrity OK")
 	}
 
-	// Step 5 — everything succeeded; make the new coordinates durable.
+	// Step 5 — everything succeeded; make the new coordinates durable,
+	// then hot-switch the live pool when a full sync just landed. The
+	// persisted kspanel.env keeps the new engine either way (restart is the
+	// fallback); a successful live reopen flips RequiresRestart to false so
+	// the SPA stops asking for a restart.
 	persistEngineConfig(&resp, engine, dsn,
 		fmt.Sprintf("database switched and %d tables / %d rows synced — restart kspanel launch to apply",
 			len(res.Tables), res.RowsCopied),
 		started)
-	resp.Synced = true
+	if resp.OK {
+		resp.Synced = true
+		if tryActivateLiveEngine(engine, dsn, srcCfg) {
+			resp.RequiresRestart = false
+			resp.Message = fmt.Sprintf("database switched and %d tables / %d rows synced — live, no restart required",
+				len(res.Tables), res.RowsCopied)
+			resp.Steps = append(resp.Steps, "live pool reopened on "+d.Name()+" — no restart required")
+		} else {
+			resp.Steps = append(resp.Steps, "live reopen unavailable — restart kspanel launch to apply")
+		}
+	}
 	writeJSON(w, resp)
 }
 
@@ -1362,7 +1379,9 @@ func createPreSwitchBackup(srcD db.Dialect, src *sql.DB, batchSize int) (backup.
 // persistEngineConfig writes the chosen coordinates to kspanel.env and fills
 // the response for the success path. Called only AFTER backup/sync/verify
 // have all succeeded (or when no sync was requested), so a failure anywhere
-// earlier never flips the panel's stored engine.
+// earlier never flips the panel's stored engine. It always reports
+// RequiresRestart=true; the synced-switch path attempts a live reopen right
+// after and flips it to false on success (see Step 5).
 func persistEngineConfig(resp *EngineSwitchResponse, engine, dsn, msg string, started time.Time) {
 	if err := config.SaveDBConfig(engine, dsn); err != nil {
 		resp.OK = false
@@ -1391,11 +1410,16 @@ func cleanupCopiedTables(target *sql.DB, d db.Dialect, order []string) error {
 
 // quoteTableName quotes an identifier for the engine's grammar. Kept local
 // because the handlers package has no other cross-engine SQL builder.
+// MySQL/MariaDB use backticks; SQLite/Postgres/MSSQL use double quotes
+// (MSSQL also accepts [brackets] — double quotes keep one code path under
+// QUOTED_IDENTIFIER ON, matching datamove.quoteIdent).
 func quoteTableName(d db.Dialect, name string) string {
-	if d.Name() == "mysql" {
+	switch d.Name() {
+	case "mysql", "mariadb":
 		return "`" + strings.ReplaceAll(name, "`", "``") + "`"
+	default:
+		return `"` + strings.ReplaceAll(name, `"`, `""`) + `"`
 	}
-	return `"` + strings.ReplaceAll(name, `"`, `""`) + `"`
 }
 
 // clampBatchSize bounds the operator-provided batch to sane values.

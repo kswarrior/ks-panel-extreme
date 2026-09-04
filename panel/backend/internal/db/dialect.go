@@ -79,6 +79,11 @@ type Dialect interface {
 // NewDialect returns the dialect for the named engine. Unknown engines fail
 // loudly so a typo in --type doesn't silently fall back to SQLite — an
 // operator who picks a name expects exactly that engine.
+//
+// MSSQL is intentionally NOT implemented (see mssqlNote below): the name
+// "mssql"/"sqlserver" fails here with a deferred-hint rather than the
+// generic unknown-engine error so operators learn why instead of guessing
+// a DSN grammar that has no backend behind it.
 func NewDialect(engine string) (Dialect, error) {
 	switch strings.ToLower(strings.TrimSpace(engine)) {
 	case "", "sqlite", "sqlite3":
@@ -87,10 +92,43 @@ func NewDialect(engine string) (Dialect, error) {
 		return &postgresDialect{}, nil
 	case "mysql", "mariadb":
 		return &mysqlDialect{}, nil
+	case "mssql", "sqlserver":
+		return nil, fmt.Errorf("mssql is deferred (see mssqlNote in dialect.go): run Postgres/MySQL or SQLite; MSSQL needs T-SQL migration triplication + driver + CI that has not landed")
 	default:
 		return nil, fmt.Errorf("unknown database engine %q (want sqlite | postgres | mysql)", engine)
 	}
 }
+
+// mssqlNote documents why there is no mssqlDialect yet and what the
+// MSSQL-ready shape already covers, so a future port is mechanical:
+//
+//   - Driver: github.com/microsoft/go-mssqldb (pure-Go TDS) would own the
+//     side-effect import in a new dialect_mssql.go, mirroring how
+//     postgresDialect owns pgx and mysqlDialect owns go-sql-driver.
+//     Not vendored today to keep the binary lean until migrations land.
+//   - MigrationsFS: migrations/mssql/ triplicated per dialect via regen.sh
+//     (68 IDs today ×3). T-SQL needs TOP vs LIMIT rewrites, IDENTITY(1,1)
+//     vs AUTOINCREMENT, DATETIME2 vs DATETIME/TIMESTAMP, NVARCHAR vs TEXT
+//     defaults, and [bracket] identifiers — a full third migration set,
+//     not a flag flip.
+//   - Placeholder: "@p1", "@p2", … (sqlserver numbered-at style), vs "?"
+//     (sqlite/mysql) and "$N" (postgres). Call sites already branch on
+//     Dialect.Placeholder, so no query builder changes are needed.
+//   - quoteIdent: double quotes (QUOTED_IDENTIFIER ON) — already handled
+//     in datamove.quoteIdent + handlers.quoteTableName default branch,
+//     which treat mssql/sqlserver like postgres. Bracket form ([name])
+//     is equivalent and needs no extra code.
+//   - datamove FK graph + orphan scan: information_schema.TABLE_CONSTRAINTS
+//     + KEY_COLUMN_USAGE exist in MSSQL with the same shape as the MySQL
+//     path, so listMySQLFKs generalises by swapping TABLE_SCHEMA()=DATABASE()
+//     for TABLE_CATALOG scoping.
+//
+// Deferred because the migration triplication + live-server CI (MSSQL
+// container per PR) + backup/restore client (sqlcmd/bcp vs psql/mysql)
+// have not been built or exercised. Postgres/MySQL already cover the
+// managed-RDBMS surface; MSSQL stays an explicit non-goal until an
+// operator funds that matrix.
+const mssqlNote = "mssql deferred: needs T-SQL migrations + go-mssqldb driver + CI; shape ready (Placeholder @pN, double-quote idents, information_schema FK scan)" 
 
 // sqliteDialect is the original SQLite backend, kept as the default so a
 // fresh kspanel install works without any extra config. The migration fs is
@@ -239,3 +277,7 @@ func (*mysqlDialect) ConfigurePool(db *sql.DB) {
 
 func (*mysqlDialect) datetimeType() string        { return "DATETIME" }
 func (*mysqlDialect) insertIgnoreKeyword() string { return "INSERT IGNORE" }
+
+// _mssqlNoteRef keeps mssqlNote referenced so linters do not flag it
+// as unused documentation; the string itself is the design record.
+var _mssqlNoteRef = mssqlNote
