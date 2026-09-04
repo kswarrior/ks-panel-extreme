@@ -9,7 +9,6 @@ import client from '@/shared/api/client';
 import Avatar from '@/shared/components/ui/Avatar';
 import RichMenu, { type RichMenuItem } from '@/shared/components/ui/RichMenu';
 import InstanceTabs from '@/features/instances/components/InstanceTabs';
-import InstancePowerBar from '@/features/instances/components/InstancePowerBar';
 import NotificationBell from '@/features/notifications/components/NotificationBell';
 
 interface HeaderProps {
@@ -591,14 +590,6 @@ const Header: React.FC<HeaderProps> = ({
           />
         </div>
       </div>
-      {/* Power dock — below the header row, left, only inside an instance
-          panel (same pattern as InstanceTabs above). The header itself is
-          sticky so the dock stays visible on scroll. */}
-      {inInstancePanel && (
-        <div className="w-full flex justify-start p-0 m-0">
-          <InstancePowerBar />
-        </div>
-      )}
       {/* Page-load bar — Google-style sweep shown ONLY while a page opens
           (Header mounts once in Layout, so the route-key effect above
           re-fires on every navigation). Hidden when idle, when the theme

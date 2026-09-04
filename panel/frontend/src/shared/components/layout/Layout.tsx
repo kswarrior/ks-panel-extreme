@@ -4,6 +4,7 @@ import Header from './Header';
 import Sidebar from './Sidebar';
 import ThemedBackground from './ThemedBackground';
 import ErrorBoundary from '@/shared/components/ui/ErrorBoundary';
+import InstancePowerBar from '@/features/instances/components/InstancePowerBar';
 
 const Layout: React.FC = () => {
   const location = useLocation();
@@ -44,6 +45,16 @@ const Layout: React.FC = () => {
           onToggleSidebar={toggleSidebar}
           inInstancePanel={inInstancePanel}
         />
+        {/* Instance power controls — OUTSIDE the <header> element, directly
+            below it, so the header keeps its fixed height and the dock lives
+            as its own row (scrolls with layout, not part of sticky chrome). */}
+        {inInstancePanel && (
+          <div className="shrink-0 w-full flex justify-start p-0 m-0">
+            <ErrorBoundary resetKey={location.pathname} label="instance-power">
+              <InstancePowerBar />
+            </ErrorBoundary>
+          </div>
+        )}
         <main className="flex-1 overflow-auto p-4 sm:p-6">
           <ErrorBoundary resetKey={location.pathname} label="page">
             <Outlet />
