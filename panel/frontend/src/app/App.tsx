@@ -4,6 +4,7 @@ import Router from '@/app/router';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
 import { getPanelName } from '@/features/settings/api/settings';
+import { fetchAuthorityBranding, isSafeAuthorityLogoUrl } from '@/shared/api/authorityBranding';
 import { useThemeStore } from '@/shared/stores/themeStore';
 import client from '@/shared/api/client';
 import type { User } from '@/shared/types/user';
@@ -34,9 +35,18 @@ const App: React.FC = () => {
     // sub-route via direct URL link and React Router renders before the
     // bootstrap script runs (it doesn't, but this keeps us safe even if
     // the bundler changes).
-    getPanelName()
-      .then((snap) => {
-        if (cancelled) return;
+    //
+    // Authority branding is resolved in the SAME block with the SAME
+    // "authority wins, else global fallback" precedence the login page
+    // applies, so the two writers always converge: whichever resolves last
+    // (this boot fetch or the login page's own fetch) leaves the identical
+    // final brand instead of the boot fetch clobbering the login page's
+    // authority logo with the global fallback.
+    Promise.allSettled([getPanelName(), fetchAuthorityBranding()]).then(([nameRes, brandRes]) => {
+      if (cancelled) return;
+      const store = useSettingsStore.getState();
+      if (nameRes.status === 'fulfilled') {
+        const snap = nameRes.value;
         bootstrapFromServer({
           panel_name: snap.panel_name,
           panel_logo: snap.panel_logo,
@@ -45,8 +55,28 @@ const App: React.FC = () => {
         if (typeof document !== 'undefined' && snap.panel_name) {
           document.title = snap.panel_name;
         }
-      })
-      .catch(() => {/* fall back to bootstrap – silently */});
+      }
+      if (brandRes.status === 'fulfilled') {
+        const b = brandRes.value;
+        store.setBranding({
+          panel_name: b.panel_name,
+          logo_url: b.logo_url,
+          logo_source: b.logo_source,
+          background_url: b.background_url,
+          background_type: b.background_type,
+          background_source: b.background_source,
+        });
+        if (b.panel_name) {
+          store.setPanelName(b.panel_name);
+          if (typeof document !== 'undefined') document.title = b.panel_name;
+        }
+        if (b.logo_url && isSafeAuthorityLogoUrl(b.logo_url)) {
+          store.setPanelLogo({ url: b.logo_url, mime: '' });
+        }
+      } else {
+        store.setBranding(null);
+      }
+    }).catch(() => {/* fall back to bootstrap – silently */});
 
     client.get('/api/me').then((res: { data: { user: unknown; permissions: string[] } }) => {
       if (cancelled) return;
