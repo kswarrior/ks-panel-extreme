@@ -54,7 +54,6 @@ const ChatSettings: React.FC = () => {
   const [tab, setTab] = useState<Tab>('primary');
   const [apiKey, setApiKey] = useState('');
   const [fallbackApiKey, setFallbackApiKey] = useState('');
-  const [usage, setUsage] = useState<AIUsage | null>(null);
   const [retryPrefs, setRetryPrefs] = useState<AIRetryPrefs>(() => {
     try {
       return loadRetryPrefs();
