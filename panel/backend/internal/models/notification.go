@@ -80,3 +80,27 @@ type Notification struct {
 	CreatedAt  time.Time            `json:"created_at"`
 	ReadAt     *time.Time           `json:"read_at,omitempty"`
 }
+
+// NotificationMode controls how a user receives notifications:
+// realtime = WS push + immediate email, digest = WS push + daily email
+// summary, off = inbox only (no push, no email).
+type NotificationMode string
+
+const (
+	NotificationModeRealtime NotificationMode = "realtime"
+	NotificationModeDigest   NotificationMode = "digest"
+	NotificationModeOff      NotificationMode = "off"
+)
+
+// ValidNotificationModes is the whitelist for prefs validation.
+var ValidNotificationModes = map[string]bool{
+	"realtime": true, "digest": true, "off": true,
+}
+
+// NotificationPrefs is one user's 065 delivery preferences.
+type NotificationPrefs struct {
+	UserID       int64            `json:"user_id"`
+	Mode         NotificationMode `json:"mode"`
+	EmailOptOut  bool             `json:"email_opt_out"`
+	LastDigestAt *time.Time       `json:"last_digest_at,omitempty"`
+}

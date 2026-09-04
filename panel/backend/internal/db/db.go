@@ -612,6 +612,29 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				return err
 			}
 			continue
+		case name == "065_tickets_attachments_sla_notify.sql":
+			// Ticket attachments + SLA sidecar + notification prefs. The
+			// CREATE TABLEs are IF NOT EXISTS on every dialect, but the
+			// index lines are `IF NOT EXISTS` only on sqlite/postgres
+			// (mysql strips it). Guard each index via hasIndex so the
+			// migration is idempotent on every engine — mirrors
+			// 062_node_wss_channels.sql.
+			body, rerr := readMigrationsFile(fsys, name)
+			if rerr != nil {
+				return rerr
+			}
+			stripped := stripCreateIndexLines(body, "idx_ticket_attachments_ticket")
+			stripped = stripCreateIndexLines(stripped, "idx_ticket_attachments_sha")
+			if _, err := db.Exec(string(stripped)); err != nil {
+				return fmt.Errorf("migration %s failed: %w", name, err)
+			}
+			if err := guardedCreateIndex(d, db, name, "ticket_attachments", "idx_ticket_attachments_ticket", "ticket_id"); err != nil {
+				return err
+			}
+			if err := guardedCreateIndex(d, db, name, "ticket_attachments", "idx_ticket_attachments_sha", "sha256"); err != nil {
+				return err
+			}
+			continue
 		}
 
 		// Generic path: read + exec the file verbatim. The Postgres files
