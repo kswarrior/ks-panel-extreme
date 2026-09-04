@@ -1375,6 +1375,7 @@ type EdgeUpdateInfoResponse struct {
 	UpdateURL  string          `json:"update_url"`
 	VersionURL string          `json:"version_url"`
 	BinaryPath string          `json:"binary_path"`
+	Error      string          `json:"error,omitempty"`
 }
 
 type EdgeUpdateCheckResponse struct {
@@ -1450,8 +1451,6 @@ func (c *Client) edgeUpdateGet(path string, out any) error {
 	resp, err := c.http.Do(httpReq)
 	if err != nil {
 		emPath := fmt.Sprintf("%s?token=%s", path, urlQueryEscape(token))
-		var emRaw json.RawMessage
-		_ = emRaw
 		if ok, err2 := c.tryEmergencyTunnel("GET", emPath, nil, out); ok {
 			if err2 != nil {
 				return fmt.Errorf("dial edge: %s", redactTokenErr(err2))

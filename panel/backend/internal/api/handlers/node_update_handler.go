@@ -28,14 +28,6 @@ import (
 // Info/check are view-level (like probe/heartbeats); the three mutating verbs
 // are edit-level (like setup-local/rotate-token) since they restart the edge.
 
-func nodeUpdateRepo() (*repository.NodeRepository, func(), error) {
-	con, err := repository.OpenDB()
-	if err != nil {
-		return nil, nil, err
-	}
-	return repository.NewNodeRepository(con), func() { con.Close() }, nil
-}
-
 func loadNodeForUpdate(id int64) (*models.Node, string, error) {
 	con, err := repository.OpenDB()
 	if err != nil {
