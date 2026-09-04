@@ -126,6 +126,36 @@ const NodeForm: React.FC = () => {
     { key: 'temp-0', name: 'wss-1', task: 'all', transport: 'auto', fallback: true },
   ]);
   const [wssSeq, setWssSeq] = useState(1);
+  // Top-right Cancel/Create pill — auto-hides while scrolling or when the
+  // page is clicked elsewhere, slides back from the right after 2.5s idle.
+  const [actionsVisible, setActionsVisible] = useState(true);
+  const pillRef = useRef<HTMLDivElement>(null);
+  const showTimer = useRef<number | null>(null);
+
+  useEffect(() => {
+    const scheduleShow = (delay: number) => {
+      if (showTimer.current) window.clearTimeout(showTimer.current);
+      showTimer.current = window.setTimeout(() => setActionsVisible(true), delay);
+    };
+    const onScroll = () => {
+      setActionsVisible(false);
+      scheduleShow(2500);
+    };
+    const onPointerDown = (e: PointerEvent) => {
+      const path = typeof e.composedPath === 'function' ? e.composedPath() : [];
+      if (pillRef.current && !path.includes(pillRef.current)) {
+        setActionsVisible(false);
+        scheduleShow(2500);
+      }
+    };
+    document.addEventListener('scroll', onScroll, true);
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => {
+      document.removeEventListener('scroll', onScroll, true);
+      document.removeEventListener('pointerdown', onPointerDown);
+      if (showTimer.current) window.clearTimeout(showTimer.current);
+    };
+  }, []);
 
   // addWssChannel appends a blank row (top-right Add button in the WSS box).
   const addWssChannel = () => {
@@ -584,7 +614,8 @@ const NodeForm: React.FC = () => {
           overriding the var value scoped to this pill does. */}
       <div className="fixed top-[max(4.5rem,env(safe-area-inset-top))] right-4 sm:right-6 z-40">
         <div
-          className="ks-card rounded-md p-1.5 flex gap-1 shadow-lg shadow-black/40"
+          ref={pillRef}
+          className={`ks-card ks-pill-anim rounded-md p-1.5 flex gap-1 shadow-lg shadow-black/40 ${actionsVisible ? 'translate-x-0 opacity-100' : 'pointer-events-none translate-x-8 opacity-0'}`}
           style={{ '--ks-card-padding': '6px' } as React.CSSProperties}
         >
           <button
