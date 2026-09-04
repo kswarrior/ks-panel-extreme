@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/example/kspanel/internal/backup"
+	"github.com/example/kspanel/internal/config"
 	"github.com/example/kspanel/internal/models"
 	"github.com/example/kspanel/internal/repository"
 	"github.com/go-chi/chi/v5"
@@ -204,14 +205,104 @@ func UploadDatabaseBackupURLHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSONStatus(w, http.StatusCreated, b)
 }
 
-// RestoreDatabaseBackupHandler swaps the live database file with the chosen
-// backup. The current live file is stowed as <path>.bak first so a failed
-// restore never destroys data. On success the panel should be restarted
-// (the SQLite file changed underneath the pool).
+// RestoreDatabaseBackupHandler restores the live database from the chosen
+// backup with one click for every engine:
+//
+//   - SQLite snapshots (.db/.db.gz/.db.zst, detected by header) swap the
+//     live file into place: the current live file is stowed as <path>.bak
+//     first so a failed restore never destroys data. On success the panel
+//     must be restarted (the SQLite file changed underneath the pool).
+//   - Native SQL dumps (.sql/.sql.gz/.sql.zst, detected by header) stream
+//     through the live engine's native client: psql/pg_restore for
+//     Postgres, mysql for MySQL/MariaDB. The pool is reopened (fresh
+//     OpenDB + Ping) so no full restart is required; when the reopen
+//     probe fails the response falls back to the same restart message.
+//
+// Routing is by header via backup.DetectBackupKind, not by filename
+// suffix, so a misnamed upload still lands on the right path.
 func RestoreDatabaseBackupHandler(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if strings.TrimSpace(id) == "" {
 		http.Error(w, "backup id is required", http.StatusBadRequest)
+		return
+	}
+	meta, gerr := backup.Get(id)
+	if gerr != nil {
+		if strings.Contains(gerr.Error(), "not found") || strings.Contains(gerr.Error(), "invalid backup id") {
+			http.Error(w, gerr.Error(), http.StatusNotFound)
+			return
+		}
+		http.Error(w, "restore failed: "+gerr.Error(), http.StatusInternalServerError)
+		return
+	}
+	kind, derr := backup.DetectBackupKind(meta.Path, meta.Compression)
+	if derr != nil {
+		// Fall back to suffix routing when the header is unreadable, so a
+		// legacy file with an odd preamble still restores by its listed
+		// type instead of hard-failing here.
+		lower := strings.ToLower(meta.Filename)
+		if strings.Contains(lower, ".sql") {
+			kind = "sql"
+		} else {
+			kind = "sqlite"
+		}
+	}
+	if kind == "sql" {
+		cfg := config.DatabaseConfig()
+		eng := strings.ToLower(strings.TrimSpace(cfg.Engine))
+		var rerr error
+		switch eng {
+		case "postgres", "postgresql", "pg":
+			rerr = backup.RestorePG(id)
+		case "mysql", "mariadb":
+			rerr = backup.RestoreMySQL(id)
+		default:
+			http.Error(w, "SQL dump restore requires a Postgres/MySQL live engine (current: "+cfg.Engine+")", http.StatusBadRequest)
+			return
+		}
+		if rerr != nil {
+			log.Println("RestoreDatabaseBackup (native) error:", rerr)
+			var missing *backup.ErrNativeToolMissing
+			if errors.As(rerr, &missing) {
+				http.Error(w, "restore failed: "+rerr.Error(), http.StatusBadRequest)
+				return
+			}
+			if strings.Contains(rerr.Error(), "not found") || strings.Contains(rerr.Error(), "invalid backup id") {
+				http.Error(w, rerr.Error(), http.StatusNotFound)
+				return
+			}
+			http.Error(w, "restore failed: "+rerr.Error(), http.StatusInternalServerError)
+			return
+		}
+		// Pool-reopen probe: a fresh OpenDB proves the panel is already
+		// serving the restored data without a restart.
+		restartNeeded := false
+		if con, oerr := repository.OpenDB(); oerr != nil {
+			restartNeeded = true
+		} else {
+			if perr := con.Ping(); perr != nil {
+				restartNeeded = true
+			}
+			con.Close()
+		}
+		uid, _ := UserIDFromContext(r)
+		msg := fmt.Sprintf("restored database from backup %q by user %d — pool reopened, no restart required", id, uid)
+		respMsg := "database restored from backup " + id + " — pool reopened, no restart required"
+		if restartNeeded {
+			msg = fmt.Sprintf("restored database from backup %q by user %d — restart required (pool reopen failed)", id, uid)
+			respMsg = "database restored from backup " + id + " — restart kspanel to apply"
+		}
+		RecordActivity(r, repository.ActivityInput{
+			Category:    models.ActivityCategorySystem,
+			Action:      "backup_restore",
+			TargetLabel: id,
+			Message:     msg,
+		})
+		writeJSON(w, map[string]any{
+			"ok":               true,
+			"message":          respMsg,
+			"restart_required": restartNeeded,
+		})
 		return
 	}
 	if err := backup.Restore(id); err != nil {
@@ -232,8 +323,9 @@ func RestoreDatabaseBackupHandler(w http.ResponseWriter, r *http.Request) {
 		Message:     fmt.Sprintf("restored database from backup %q by user %d — restart required", id, uid),
 	})
 	writeJSON(w, map[string]any{
-		"ok":      true,
-		"message": "database restored from backup " + id + " — restart kspanel to apply",
+		"ok":               true,
+		"message":          "database restored from backup " + id + " — restart kspanel to apply",
+		"restart_required": true,
 	})
 }
 
