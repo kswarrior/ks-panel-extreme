@@ -323,26 +323,7 @@ func NodeRollingUpdateHandler(w http.ResponseWriter, r *http.Request) {
 		plans = append(plans, rollingNodePlan{Node: nd, Token: tok})
 	}
 
-	deps := rollingDeps{
-		check: func(nd models.Node, token string) (bool, string, string, error) {
-			out, err := edge.New(nd, token).EdgeUpdateCheck()
-			if err != nil {
-				return false, "", "", err
-			}
-			if out.Error != "" {
-				return false, out.Local.Version, "", fmt.Errorf("%s", out.Error)
-			}
-			return out.Available, out.Local.Version, out.Remote.Version, nil
-		},
-		apply: func(nd models.Node, token string) error {
-			// The edge downloads (~10MB) before answering, so allow minutes.
-			_, err := edge.NewWithTimeout(nd, token, 6*time.Minute).EdgeUpdateApply()
-			return err
-		},
-		pollHealthy: func(nd models.Node, token, before string, timeout time.Duration) error {
-			return rollingPollHealthy(nd, token, before, timeout, time.Now())
-		},
-	}
+	deps := productionRollingDeps()
 	results, stoppedEarly := runRollingUpdate(plans, healthTimeout, pauseOnFailure, deps)
 
 	// Audit: one row per node + one summary row (permission-gated route,

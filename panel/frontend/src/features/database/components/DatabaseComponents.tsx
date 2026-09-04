@@ -531,3 +531,118 @@ export const ChangeDatabaseCard: React.FC<{ currentEngine?: string; currentPath?
     </div>
   );
 };
+
+// VerifyStatusCard surfaces the scheduled integrity verification: last-run
+// outcome (PRAGMA quick_check on SQLite + probe + table-count sanity on all
+// engines; failures audit-log + notify admins) with a Run-now button and an
+// editable daily cron (default "0 3 * * *"). The parent reloads DatabaseInfo
+// after each mutation via onRefresh so the overview badges stay in sync.
+export const VerifyStatusCard: React.FC<{ info: DatabaseInfo; onRefresh: () => void }> = ({ info, onRefresh }) => {
+  const [running, setRunning] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [cron, setCron] = useState(info.verify_cron || '0 3 * * *');
+  const [msg, setMsg] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
+
+  useEffect(() => {
+    if (info.verify_cron) setCron(info.verify_cron);
+  }, [info.verify_cron]);
+
+  const lastOk = info.verify_last_ok;
+  const dot = lastOk === undefined ? 'bg-gray-500' : lastOk ? 'bg-emerald-400' : 'bg-red-400';
+  const label = lastOk === undefined ? 'never verified' : lastOk ? 'healthy' : 'failed';
+
+  const runNow = async () => {
+    setRunning(true);
+    setMsg(null);
+    try {
+      const r = await runDatabaseVerify();
+      setMsg({
+        tone: r.ok ? 'ok' : 'err',
+        text: r.ok
+          ? `Verified ${r.table_count} tables in ${r.duration_ms}ms — healthy.`
+          : `Verification failed: ${(r.issues || []).join('; ') || 'unknown error'}`,
+      });
+      onRefresh();
+    } catch (e: any) {
+      setMsg({ tone: 'err', text: e?.response?.data || e?.message || 'Verify failed' });
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const saveCron = async () => {
+    const c = cron.trim();
+    if (!c) { setMsg({ tone: 'err', text: 'Cron is required (5-field, e.g. "0 3 * * *").' }); return; }
+    setSaving(true);
+    setMsg(null);
+    try {
+      const r = await updateDatabaseVerifyConfig(c);
+      setMsg({ tone: 'ok', text: `Schedule saved (${r.cron}, next ${r.next_run_at}).` });
+      onRefresh();
+    } catch (e: any) {
+      setMsg({ tone: 'err', text: e?.response?.data || e?.message || 'Save failed' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const issues = info.verify_last_issues || [];
+  const warnings = info.verify_last_warnings || [];
+
+  return (
+    <div className="glass-card rounded-xl p-4 space-y-3">
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className={`w-2 h-2 rounded-full ${dot}`} />
+        <h3 className="text-sm font-semibold text-white">Integrity verification</h3>
+        <span className="text-xs text-gray-400">{label}</span>
+        <span className="text-xs text-gray-500 ml-auto font-mono">
+          {info.verify_cron ? `cron ${info.verify_cron}` : 'cron 0 3 * * *'}
+          {info.verify_next_run ? ` · next ${new Date(info.verify_next_run).toLocaleString()}` : ''}
+        </span>
+        <button
+          onClick={runNow}
+          disabled={running}
+          className="ks-primary-btn px-3 py-1.5 rounded-md text-xs disabled:opacity-40"
+          title="Run verification now (GET /api/database/verify)"
+        >
+          {running ? 'Verifying…' : 'Run now'}
+        </button>
+      </div>
+      <p className="text-xs text-gray-400">
+        Daily sweep runs <code className="font-mono text-gray-300">PRAGMA quick_check</code> (SQLite) + connection probe + table-count sanity (all engines).
+        Failures write <code className="font-mono text-gray-300">activity_logs</code> + notify admins.
+        {info.verify_last_at && (
+          <span className="text-gray-500"> Last run {new Date(info.verify_last_at).toLocaleString()} · {info.verify_table_count ?? 0} tables · {info.verify_duration_ms ?? 0}ms.</span>
+        )}
+      </p>
+      {msg && (
+        <div className={`rounded-md p-2 text-xs border ${msg.tone === 'ok' ? 'bg-emerald-900/20 border-emerald-700/40 text-emerald-200' : 'bg-red-900/20 border-red-700/40 text-red-200'}`}>
+          {msg.text}
+        </div>
+      )}
+      {!!issues.length && (
+        <div className="rounded-md bg-red-900/20 border border-red-700/40 p-2 text-[11px] text-red-200 space-y-0.5">
+          {issues.map((w, i) => <div key={i}>✕ {w}</div>)}
+        </div>
+      )}
+      {!!warnings.length && (
+        <div className="rounded-md bg-amber-900/20 border border-amber-700/40 p-2 text-[11px] text-amber-200 space-y-0.5">
+          {warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}
+        </div>
+      )}
+      <div className="flex items-center gap-2 pt-1 border-t border-white/10">
+        <span className="text-xs text-gray-400">Schedule (5-field cron):</span>
+        <input
+          value={cron}
+          onChange={(e) => setCron(e.target.value)}
+          placeholder="0 3 * * *"
+          disabled={saving}
+          className={glassFieldClass + ' font-mono text-sm flex-1 min-w-[10rem] disabled:opacity-50'}
+        />
+        <button onClick={saveCron} disabled={saving} className="px-3 py-1.5 rounded-md text-xs border border-white/10 hover:bg-white/5 disabled:opacity-40">
+          Save
+        </button>
+      </div>
+    </div>
+  );
+};
