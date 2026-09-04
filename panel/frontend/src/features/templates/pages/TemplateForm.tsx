@@ -1002,6 +1002,9 @@ const TemplateForm: React.FC = () => {
       </div>
     </div>
     </FormPage>
+      {/* Spacer — reserves scroll room so the fixed bottom tab bar never
+          covers trailing form content (node pattern). */}
+      <div aria-hidden="true" className="h-24 lg:hidden" />
     </>
   );
 };

@@ -56,32 +56,59 @@ export const PageStudioTabs: React.FC<PageStudioTabsProps> = ({ tab, onChange, i
   const items = tabList.map((t) => ({ id: t.id as PageStudioTabId, ...meta[t.id as PageStudioTabId] }));
 
   return (
-    <GlassCard className="lg:sticky lg:top-4 self-start">
-      <nav className="flex lg:flex-col gap-1 overflow-x-auto">
-        {items.map((t) => {
-          const disabled = isBuiltin && t.id !== 'preview';
-          return (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => !disabled && onChange(t.id)}
-              disabled={disabled}
-              className={`ks-tab shrink-0 flex items-center gap-2 transition text-left ${tab === t.id ? 'ks-tab-active' : ''} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-              <span className="inline-flex items-center">{t.icon}</span>
-              <span className="flex flex-col">
-                <span>{t.label}</span>
-                <span
-                  className={`text-[10px] hidden lg:block ${tab === t.id ? 'opacity-70' : 'text-gray-500'}`}
-                  style={tab === t.id ? { color: 'var(--ks-tab-active-text, #000000)' } : undefined}
-                >
-                  {t.hint}
+    <>
+      {/* Desktop tabs — vertical on the left, sticky (node pattern). */}
+      <GlassCard className="hidden lg:block lg:sticky lg:top-4 self-start">
+        <nav aria-label="Page studio sections" className="flex lg:flex-col gap-1">
+          {items.map((t) => {
+            const disabled = isBuiltin && t.id !== 'preview';
+            return (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={tab === t.id}
+                onClick={() => !disabled && onChange(t.id)}
+                disabled={disabled}
+                className={`ks-tab w-full flex items-center gap-2 transition text-left ${tab === t.id ? 'ks-tab-active' : ''} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <span className="inline-flex items-center shrink-0">{t.icon}</span>
+                <span className="flex flex-col min-w-0">
+                  <span>{t.label}</span>
+                  <span
+                    className={`text-[10px] hidden lg:block ${tab === t.id ? 'opacity-70' : 'text-gray-500'}`}
+                    style={tab === t.id ? { color: 'var(--ks-tab-active-text, #000000)' } : undefined}
+                  >
+                    {t.hint}
+                  </span>
                 </span>
-              </span>
-            </button>
-          );
-        })}
+              </button>
+            );
+          })}
+        </nav>
+      </GlassCard>
+      {/* Phone tabs — fixed to viewport bottom (node pattern). */}
+      <nav aria-label="Page studio sections" className="lg:hidden fixed inset-x-4 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-30">
+        <div className="ks-card rounded-md p-1.5 flex gap-1 overflow-x-auto scrollbar-hide">
+          {items.map((t) => {
+            const disabled = isBuiltin && t.id !== 'preview';
+            return (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={tab === t.id}
+                onClick={() => !disabled && onChange(t.id)}
+                disabled={disabled}
+                className={`ks-tab shrink-0 flex-1 px-3 py-1.5 rounded text-sm text-center transition flex items-center justify-center gap-1.5 ${tab === t.id ? 'ks-tab-active' : ''} ${disabled ? 'opacity-50' : ''}`}
+              >
+                <span className="inline-flex items-center shrink-0">{t.icon}</span>
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
       </nav>
-    </GlassCard>
+    </>
   );
 };

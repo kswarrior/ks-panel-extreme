@@ -83,6 +83,7 @@ export const Toggle: React.FC<ToggleProps> = ({ checked, onChange, label }) => (
 
 export const TemplateTabs: React.FC<{ tab: TemplateTabId; onChange: (id: TemplateTabId) => void; tabs?: typeof TEMPLATE_TABS }> = ({ tab, onChange, tabs }) => {
   const meta: Record<TemplateTabId, { label: string; hint: string; icon: React.ReactNode }> = {
+    general: { label: 'General', hint: 'Name, image, kind, category', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/> </svg> },
     environment: { label: 'Environment', hint: 'Ports, mounts, limits, caps', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/> </svg> },
     env: { label: 'Env Variables', hint: 'Variables exposed to users', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/> </svg> },
     actions: { label: 'Actions', hint: 'Custom run actions', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z"/> </svg> },
@@ -96,29 +97,52 @@ export const TemplateTabs: React.FC<{ tab: TemplateTabId; onChange: (id: Templat
   const tabList = tabs ?? TEMPLATE_TABS;
   const items = tabList.map(t => ({ id: t.id as TemplateTabId, ...meta[t.id as TemplateTabId] }));
   return (
-    <GlassCard className="lg:sticky lg:top-4 self-start">
-      <nav className="flex lg:flex-col gap-1 overflow-x-auto">
-        {items.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => onChange(t.id)}
-            className={`ks-tab shrink-0 flex items-center gap-2 transition text-left ${tab === t.id ? 'ks-tab-active' : ''}`}
-          >
-            <span className="inline-flex items-center">{t.icon}</span>
-            <span className="flex flex-col">
-              <span>{t.label}</span>
-              <span
-                className={`text-[10px] hidden lg:block ${tab === t.id ? 'opacity-70' : 'text-gray-500'}`}
-                style={tab === t.id ? { color: 'var(--ks-tab-active-text, #000000)' } : undefined}
-              >
-                {t.hint}
+    <>
+      {/* Desktop tabs — vertical on the left, sticky while scrolling (node pattern). */}
+      <GlassCard className="hidden lg:block lg:sticky lg:top-4 self-start">
+        <nav aria-label="Template form sections" className="flex lg:flex-col gap-1">
+          {items.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={tab === t.id}
+              onClick={() => onChange(t.id)}
+              className={`ks-tab w-full flex items-center gap-2 transition text-left ${tab === t.id ? 'ks-tab-active' : ''}`}
+            >
+              <span className="inline-flex items-center shrink-0">{t.icon}</span>
+              <span className="flex flex-col min-w-0">
+                <span>{t.label}</span>
+                <span
+                  className={`text-[10px] hidden lg:block ${tab === t.id ? 'opacity-70' : 'text-gray-500'}`}
+                  style={tab === t.id ? { color: 'var(--ks-tab-active-text, #000000)' } : undefined}
+                >
+                  {t.hint}
+                </span>
               </span>
-            </span>
-          </button>
-        ))}
+            </button>
+          ))}
+        </nav>
+      </GlassCard>
+      {/* Phone tabs — fixed to viewport bottom (node pattern). */}
+      <nav aria-label="Template form sections" className="lg:hidden fixed inset-x-4 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-30">
+        <div className="ks-card rounded-md p-1.5 flex gap-1 overflow-x-auto scrollbar-hide">
+          {items.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={tab === t.id}
+              onClick={() => onChange(t.id)}
+              className={`ks-tab shrink-0 flex-1 px-3 py-1.5 rounded text-sm text-center transition flex items-center justify-center gap-1.5 ${tab === t.id ? 'ks-tab-active' : ''}`}
+            >
+              <span className="inline-flex items-center shrink-0">{t.icon}</span>
+              {t.label}
+            </button>
+          ))}
+        </div>
       </nav>
-    </GlassCard>
+    </>
   );
 };
 
