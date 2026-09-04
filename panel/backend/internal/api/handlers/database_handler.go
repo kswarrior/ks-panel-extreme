@@ -954,11 +954,53 @@ var snapshotStore snapshotCache
 
 // SnapshotStoreResetForTest clears the process-local snapshot cache. It
 // exists only so tests that exercise the delta path can start from a clean
-// baseline; production code never calls it.
+// baseline; production code prefers resetSnapshotStore (same effect, honest
+// name).
 func SnapshotStoreResetForTest() {
+	resetSnapshotStore()
+}
+
+// resetSnapshotStore clears the between-tick delta cache. Called after a
+// live engine switch so the next /api/database tick does not diff a fresh
+// Postgres/MySQL snapshot against a stale SQLite one (which would surface
+// as a bogus negative growth spike).
+func resetSnapshotStore() {
 	snapshotStore.mu.Lock()
 	snapshotStore.now = nil
 	snapshotStore.mu.Unlock()
+}
+
+// tryActivateLiveEngine points the running process at the newly persisted
+// engine without a restart: it shadows the CLI/env config via
+// config.SetDatabaseType (+ env for children), then proves the new engine
+// serves with a fresh OpenDB + Ping. On success the snapshot delta cache
+// is reset and true is returned (caller reports requires_restart=false).
+// On failure the previous coordinates are restored in-process (the
+// on-disk kspanel.env keeps the NEW engine so a restart still picks it
+// up) and false is returned (caller keeps requires_restart=true).
+func tryActivateLiveEngine(engine, dsn string, prev config.DBConfig) bool {
+	config.SetDatabaseType(engine, dsn)
+	_ = os.Setenv("KSPANEL_DB_TYPE", engine)
+	if dsn != "" {
+		_ = os.Setenv("KSPANEL_DB_DSN", dsn)
+	}
+	con, err := repository.OpenDB()
+	if err != nil {
+		config.SetDatabaseType(prev.Engine, prev.DSN)
+		_ = os.Setenv("KSPANEL_DB_TYPE", prev.Engine)
+		_ = os.Setenv("KSPANEL_DB_DSN", prev.DSN)
+		return false
+	}
+	pingErr := con.Ping()
+	con.Close()
+	if pingErr != nil {
+		config.SetDatabaseType(prev.Engine, prev.DSN)
+		_ = os.Setenv("KSPANEL_DB_TYPE", prev.Engine)
+		_ = os.Setenv("KSPANEL_DB_DSN", prev.DSN)
+		return false
+	}
+	resetSnapshotStore()
+	return true
 }
 
 // EngineSwitchRequest is the admin "Change Database" form payload. The
@@ -1008,9 +1050,13 @@ type EngineSwitchResponse struct {
 	Engine  string `json:"engine"`
 	DSN     string `json:"dsn"` // redacted
 	Message string `json:"message"`
-	// RequiresRestart is always true on success: the panel keeps its current
-	// pool open until the operator restarts `launch`, exactly like the CLI
-	// flags / env vars. Surfaced so the UI can tell the user the next step.
+	// RequiresRestart tells the SPA whether a `launch` restart is still
+	// needed. Config-only switches (sync_data=false) always require one.
+	// Synced switches (sync_data=true) reopen the live pool in-process via
+	// tryActivateLiveEngine so the panel serves the new engine immediately;
+	// RequiresRestart is then false. A failed live reopen keeps the
+	// persisted coordinates (restart picks them up) and reports true as a
+	// safe fallback.
 	RequiresRestart bool `json:"requires_restart"`
 
 	// ── Sync results (populated when sync_data was requested) ──────────

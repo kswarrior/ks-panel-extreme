@@ -17,7 +17,9 @@
 #   BUILD_DATE         ISO8601 UTC (auto-generated if not set)
 #   GOARCH             Target architecture (amd64, arm64)
 #   GOOS               Target OS (linux)
-#   GARBLE_ENABLE      Set to "1" to enable Go obfuscation via garble
+#   GARBLE_ENABLE      Go obfuscation: "auto" (default, prod uses garble when
+#                      installed, else go build with warning), "1" to require
+#                      garble, "0" to force plain go build
 #   SIGN_KEY           Path to signing private key (for code signing)
 #   SIGN_CMD           Custom signing command (default: cosign sign-blob)
 #
@@ -71,8 +73,11 @@ else
     TARGET_GOARCH="$(uname -m 2>/dev/null | sed -e 's/x86_64/amd64/' -e 's/aarch64/arm64/' -e 's/armv.*l/arm/' || echo amd64)"
 fi
 
-# Obfuscation
-GARBLE_ENABLE="${GARBLE_ENABLE:-0}"
+# Obfuscation: production defaults to garble-when-available ("auto");
+# dev always stays unobfuscated (see configure_build_mode). Explicit
+# GARBLE_ENABLE=0 forces plain go build; =1 requires garble (warn + fallback
+# when missing so CI never hard-fails on a missing optional tool).
+GARBLE_ENABLE="${GARBLE_ENABLE:-auto}"
 
 # Signing
 SIGN_KEY="${SIGN_KEY:-}"
@@ -159,15 +164,16 @@ Environment Variables:
   BUILD_DATE         ISO8601 UTC build date (auto-generated if not set)
   GOOS               Target OS (default: linux)
   GOARCH             Target architecture (default: host arch)
-  GARBLE_ENABLE      Set to "1" to enable Go obfuscation via garble
+  GARBLE_ENABLE      auto (default, prod garbles when installed) | 1 (require) | 0 (force plain)
   SIGN_KEY           Path to signing private key
   SIGN_CMD           Custom signing command (default: cosign sign-blob)
 
 Examples:
-  ./rebuild.sh                          # Production build
-  ./rebuild.sh dev                      # Development build
+  ./rebuild.sh                          # Production build (garble when installed)
+  ./rebuild.sh dev                      # Development build (never obfuscated)
   VERSION=1.2.3 ./rebuild.sh            # Production build with version
-  GARBLE_ENABLE=1 ./rebuild.sh          # Production build with obfuscation
+  GARBLE_ENABLE=0 ./rebuild.sh          # Production build without obfuscation
+  GARBLE_ENABLE=1 ./rebuild.sh          # Production build, require obfuscation
   SIGN_KEY=/path/key ./rebuild.sh       # Production build with signing
 
 Output (production):
@@ -198,9 +204,14 @@ check_dependencies() {
     if ! has_cmd sha256sum && ! has_cmd shasum; then
         die "sha256sum or shasum is required"
     fi
-    # Optional but warn early
+    # Optional but warn early. Production defaults to garble-when-available
+    # ("auto"), so a missing garble is an informational fallback, not an
+    # error; an explicit GARBLE_ENABLE=1 that cannot be honoured warns
+    # louder because the operator asked for it.
     if [[ "$GARBLE_ENABLE" == "1" ]] && ! has_cmd garble; then
-        log_warn "GARBLE_ENABLE=1 but garble not found — will skip obfuscation (install: go install mvdan.cc/garble@latest)"
+        log_warn "GARBLE_ENABLE=1 but garble not found — will fall back to plain go build with warning (install: go install mvdan.cc/garble@latest)"
+    elif [[ "$GARBLE_ENABLE" == "auto" ]] && ! has_cmd garble; then
+        log_info "garble not installed — production will use plain go build (install garble for obfuscation: go install mvdan.cc/garble@latest)"
     fi
     if [[ -n "$SIGN_KEY" ]] && ! has_cmd cosign; then
         # cosign may be invoked via SIGN_CMD which could be a wrapper; check first word
@@ -280,7 +291,15 @@ configure_build_mode() {
             STRIP_BINARY=true
             VITE_MODE="production"
             NPM_CMD="ci"
-            ENABLE_OBFUSCATION="${GARBLE_ENABLE}"
+            # Production defaults to garble-when-available: "auto" or "1"
+            # both request obfuscation (auto falls back silently with a
+            # warning when garble is missing; "1" warns louder). "0"
+            # forces plain go build. Dev (below) is always "0".
+            case "${GARBLE_ENABLE}" in
+                0|false|no|off) ENABLE_OBFUSCATION="0" ;;
+                1|true|yes|on|auto|"") ENABLE_OBFUSCATION="1" ;;
+                *) log_warn "unknown GARBLE_ENABLE=${GARBLE_ENABLE} — treating as auto"; ENABLE_OBFUSCATION="1" ;;
+            esac
             if [[ -n "$SIGN_KEY" ]]; then
                 ENABLE_SIGNING="1"
             else
