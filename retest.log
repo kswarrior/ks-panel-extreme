@@ -3,10 +3,10 @@
 [0;34m[INFO][0m Panel port: 8080 (KSPANEL_PORT=8080)
 [0;34m[INFO][0m Copying binaries from release/ ...
 [0;32m[OK][0m Test folder ready:
-total 35M
--rwxr-xr-x 1 runner runner  11M Sep  4 02:04 ksedge
--rwxr-xr-x 1 runner runner  25M Sep  4 02:04 kspanel
-drwxr-xr-x 3 runner runner 4.0K Sep  4 02:04 localnode
+total 36M
+-rwxr-xr-x 1 runner runner  11M Sep  4 03:45 ksedge
+-rwxr-xr-x 1 runner runner  25M Sep  4 03:45 kspanel
+drwxr-xr-x 3 runner runner 4.0K Sep  4 03:45 localnode
 → database     sqlite — /tmp/kspanel-retest/kspanel.db
 ✓ connected    sqlite ready
 → migrations   running
@@ -36,9 +36,9 @@ drwxr-xr-x 3 runner runner 4.0K Sep  4 02:04 localnode
 → node         local-edge @ 127.0.0.1:4040 (id 1)
 → download     ksedge already present, skipping
 → config       localnode/ksedge/config.json
-→ panel        started (pid 2520) on 127.0.0.1:8080
+→ panel        started (pid 2516) on 127.0.0.1:8080
 ✓ panel        ready at http://127.0.0.1:8080
-→ launch       started ksedge (pid 2530) on 127.0.0.1:4040
+→ launch       started ksedge (pid 2525) on 127.0.0.1:4040
 ✓ edge         up and reachable (name="local-edge", log=localnode/ksedge/ksedge.log)
 
 node id:      1
@@ -47,13 +47,12 @@ binary:       localnode/ksedge/ksedge
 config:       localnode/ksedge/config.json
 log:          localnode/ksedge/ksedge.log
 [0;34m[INFO][0m Stopping intermediate panel from setup:localnode before final launch...
-[0;34m[INFO][0m Stopping old kspanel (pid 2520)...
+[0;34m[INFO][0m Stopping old kspanel (pid 2516)...
 
 [0;34m==>[0m Launching kspanel on port 8080 (background)...
-[0;32m[OK][0m kspanel running in background (PID 2565)
+[0;32m[OK][0m kspanel running in background (PID 2543)
 [0;32m[OK][0m Logs:   /tmp/kspanel-retest/kspanel.log
 [0;32m[OK][0m Stop:   kill $(cat /tmp/kspanel-retest/kspanel.pid)
- █████╔╝ ███████╗    ██████╔╝███████║██╔██╗ ██║█████╗  ██║
  ██╔═██╗ ╚════██║    ██╔═══╝ ██╔══██║██║╚██╗██║██╔══╝  ██║
  ██║  ██╗███████║    ██║      ██║  ██║██║ ╚████║███████╗███████╗
  ╚═╝  ╚═╝╚══════╝    ╚═╝      ╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝
@@ -62,14 +61,15 @@ log:          localnode/ksedge/ksedge.log
 → ui           embedded bundle
 ✓ ui           served from api/handlers
 
-panel pid:    2565
+panel pid:    2543
 engine:       sqlite
 dsn:          /tmp/kspanel-retest/kspanel.db
 listen:       :8080
-open:         http://10.1.0.193:8080
-bind ifs:     10.1.0.193, 172.17.0.1
+open:         http://10.1.0.211:8080
+bind ifs:     10.1.0.211, 172.17.0.1
 go:           1.26.7
 goos:         linux/amd64
 cpus:         4
 
 ✓ panel ready  running
+2026/09/04 03:45:07 backup scheduler: query due: sql: Scan error on column index 0, name "id": converting NULL to int64 is unsupported
