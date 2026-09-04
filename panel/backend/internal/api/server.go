@@ -86,6 +86,15 @@ func NewRouter() http.Handler {
 	})
 	r.Use(c.Handler)
 
+	// Global security headers (CSP/HSTS/nosniff/DENY + friends). Mounted
+	// immediately after cors and BEFORE SecurityMiddleware so even
+	// telemetry-blocked (429/403/503) responses carry the headers. Never
+	// wraps the ResponseWriter, so WebSocket hijacks (terminal,
+	// notifications/stream, edge tunnel) keep working. CSP allows
+	// 'unsafe-inline' for script/style only because the SPA's branded
+	// index.html inlines window.__KSPANEL_BOOTSTRAP__ + Vite styles.
+	r.Use(SecurityHeadersMiddleware)
+
 	// Security telemetry middleware — records one security_requests row per
 	// inbound request so the Security admin page (admin/security) can render
 	// RPS / top IPs / blocked / errors / bandwidth / login attempts / etc.
@@ -93,15 +102,42 @@ func NewRouter() http.Handler {
 	// failure never blocks or breaks the response it observed.
 	r.Use(SecurityMiddleware)
 
+	// Input hygiene: strip NUL/controls from query params (safe for all
+	// routes, including WS handshakes and static assets — it never blocks,
+	// only sanitizes).
+	r.Use(SanitizeMiddleware)
+	// Request validation: reject suspicious paths (../, <script, …) with
+	// 400 and unknown Content-Types with 415. Bypasses WS upgrades +
+	// static assets internally; allowlist includes octet-stream for the
+	// chunked backup PUTs.
+	r.Use(RequestValidationMiddleware)
+	// XSS headers (nosniff + X-XSS-Protection). Redundant with
+	// SecurityHeadersMiddleware by design — kept so each layer owns its
+	// contract even if the outer header middleware is ever disabled.
+	r.Use(XSSProtectionMiddleware)
+
 	// Request body size limit to prevent DoS attacks. Reads the
 	// operator-configured cap (Firewall tab → Request Size Limit) from
 	// the live security state instead of a hardcoded constant.
 	r.Use(DynamicMaxBodySize())
 
+	// CSRF token enforcement (innermost global, after body limiting so
+	// FormValue("csrf_token") never reads an unbounded body). Skips safe
+	// methods, Upgrade: websocket, static assets, Bearer auth, and the
+	// public exempt families (POST /api/auth/*, POST /api/nodes/heartbeat,
+	// /api/edge/tunnel, GET /api/csrf-token, …). Cookie-only browser POSTs
+	// without X-CSRF-Token get 403; the SPA fetches the token from
+	// GET /api/csrf-token (see frontend shared/api/client.ts).
+	r.Use(CSRFMiddleware(CSRFTokenInstance))
+
 	// API routes – set JSON content type for these only
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.SetHeader("Content-Type", "application/json"))
 		r.Get("/health", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(`{"status":"ok"}`)) })
+		// CSRF token mint for the SPA: public GET (safe method, also in the
+		// CSRF exempt list) so cookie-only browsers can fetch the token
+		// they must send as X-CSRF-Token on mutating requests.
+		r.Get("/api/csrf-token", CSRFTokenHandler(CSRFTokenInstance))
 		r.Post("/api/auth/login", handlers.LoginHandler)
 		// Switch-login: same as login but does NOT set the session cookie so
 		// the SPA's multi-account switcher can add a second account without
