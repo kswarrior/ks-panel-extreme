@@ -552,6 +552,18 @@ const NodeForm: React.FC = () => {
 
   return (
     <>
+      {/* Floating Cancel — fixed top-right like the phone tab bar, so it
+          stays visible no matter how far the form is scrolled. */}
+      <button
+        type="button"
+        onClick={() => navigate('/nodes')}
+        title="Cancel and back to Nodes"
+        aria-label="Cancel and back to Nodes"
+        className="fixed top-[max(4.5rem,env(safe-area-inset-top))] right-4 sm:right-6 z-40 inline-flex items-center gap-1.5 px-3.5 py-2 text-sm rounded-lg border border-white/10 bg-neutral-900/90 backdrop-blur-md text-gray-200 shadow-lg shadow-black/40 hover:bg-white/10 hover:text-white transition-colors"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-4 h-4"><path d="M18 6 6 18M6 6l12 12" /></svg>
+        Cancel
+      </button>
       <FormPage
         crumbs={[{ label: 'Nodes', to: '/nodes' }, { label: editing ? 'Edit Node' : 'New Node' }]}
         saving={saving}
