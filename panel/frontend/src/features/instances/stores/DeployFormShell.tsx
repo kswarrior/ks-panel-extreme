@@ -32,8 +32,7 @@ const DeployFormShell: React.FC = () => {
     return (
       <FormPage
         crumbs={[{ label: 'Instances', to: '/instances' }, { label: 'Deploy Instance' }]}
-        saving={false}
-        submitLabel="Deploy"
+        hideHeader
         maxWidth="max-w-3xl"
       >
         <FormSkeleton fields={4} />
