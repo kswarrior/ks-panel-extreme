@@ -1,27 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import client from '@/shared/api/client';
-import { fetchAuthorityBranding } from '@/shared/api/authorityBranding';
+import { fetchAuthorityBranding, isSafeAuthorityLogoUrl } from '@/shared/api/authorityBranding';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
 import ThemedBackground from '@/shared/components/layout/ThemedBackground';
-
-// isSafeLogoUrl keeps the authority logo honest at the <img> sink: only
-// http(s) / data:image / blob: / root-relative URLs ever reach src, so a
-// hostile value can never become a javascript: navigation.
-function isSafeLogoUrl(u: string): boolean {
-  const t = (u || '').trim();
-  if (!t || t.length > 4096) return false;
-  if (/["'\\\n\r]/.test(t)) return false;
-  const lower = t.toLowerCase();
-  return (
-    lower.startsWith('https://') ||
-    lower.startsWith('http://') ||
-    lower.startsWith('data:image/') ||
-    lower.startsWith('blob:') ||
-    t.startsWith('/')
-  );
-}
 
 interface LoginResponse {
   user: any;
@@ -111,7 +94,7 @@ const Login: React.FC = () => {
           setPanelName(b.panel_name);
           document.title = b.panel_name;
         }
-        if (b.logo_url && isSafeLogoUrl(b.logo_url)) {
+        if (b.logo_url && isSafeAuthorityLogoUrl(b.logo_url)) {
           store.setPanelLogo({ url: b.logo_url, mime: '' });
         }
       } else {

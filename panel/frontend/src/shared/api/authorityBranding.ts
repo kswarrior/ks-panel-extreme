@@ -18,3 +18,21 @@ export async function fetchAuthorityBranding(): Promise<AuthorityBranding> {
   const res = await client.get<AuthorityBranding>('/api/authority/branding');
   return res.data;
 }
+
+// isSafeAuthorityLogoUrl keeps the authority logo honest at the <img> sink:
+// only http(s) / data:image / blob: / root-relative URLs ever reach src, so
+// a hostile value can never become a javascript: navigation. Shared by the
+// app boot (App.tsx) and the login page so both apply the same precedence.
+export function isSafeAuthorityLogoUrl(u: string): boolean {
+  const t = (u || '').trim();
+  if (!t || t.length > 4096) return false;
+  if (/["'\\\n\r]/.test(t)) return false;
+  const lower = t.toLowerCase();
+  return (
+    lower.startsWith('https://') ||
+    lower.startsWith('http://') ||
+    lower.startsWith('data:image/') ||
+    lower.startsWith('blob:') ||
+    t.startsWith('/')
+  );
+}
