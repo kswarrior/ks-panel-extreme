@@ -1,9 +1,12 @@
 package handlers
 
 import (
+	"crypto/ed25519"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"net/http"
@@ -158,6 +161,108 @@ func verifyFileSHA256(path, expectedHex string) error {
 		return fmt.Errorf("checksum mismatch: expected %s, got %s", expectedHex, got)
 	}
 	return nil
+}
+
+// verifyPanelSignature verifies the cosign signature for the downloaded
+// panel binary BEFORE the pre-chmod hash gate. The signature bytes come
+// from manifest.signature (stamped by tools/stamp-version-manifest.sh from
+// release/kspanel.sig, itself produced by `cosign sign-blob` when SIGN_KEY
+// is set at build time).
+//
+// Semantics:
+//   - Empty signature → nil (no signature published; the caller logs
+//     "no signature published" and relies on the SHA-256 gate alone, so
+//     old manifests don't brick updates while new ones are enforced).
+//   - Non-empty signature → base64 must decode and be ≥64 bytes (ed25519
+//     is 64, ECDSA DER is ~70-72); otherwise 422.
+//   - When a public key is configured (KSPANEL_COSIGN_PUBLIC_KEY env with
+//     base64 raw 32-byte ed25519 key or PEM PKIX, or
+//     KSPANEL_COSIGN_PUBKEY_FILE pointing at a PEM file), the file bytes
+//     are verified with ed25519 and a crypto failure is 422. Without a
+//     configured key the format check + SHA-256 gate provide
+//     defense-in-depth (HTTPS + checksum + signature presence).
+//
+// Pure check — never mutates; the caller deletes the temp file on error.
+func verifyPanelSignature(path, signature string) error {
+	sig := strings.TrimSpace(signature)
+	if sig == "" {
+		return nil
+	}
+	// Cosign outputs a single base64 line; stamp strips newlines, but be
+	// liberal and drop any whitespace the transport added.
+	sigCompact := strings.Join(strings.Fields(sig), "")
+	raw, err := base64.StdEncoding.DecodeString(sigCompact)
+	if err != nil {
+		if raw2, err2 := base64.URLEncoding.DecodeString(sigCompact); err2 == nil {
+			raw = raw2
+			err = nil
+		} else if raw3, err3 := base64.RawStdEncoding.DecodeString(sigCompact); err3 == nil {
+			raw = raw3
+			err = nil
+		}
+	}
+	if err != nil {
+		return fmt.Errorf("signature is not valid base64: %w", err)
+	}
+	if len(raw) < 64 {
+		return fmt.Errorf("signature too short: got %d bytes, want >= 64", len(raw))
+	}
+	pub, hasKey := panelCosignPublicKey()
+	if !hasKey {
+		return nil
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("open for signature verify: %w", err)
+	}
+	if len(pub) != ed25519.PublicKeySize {
+		return fmt.Errorf("cosign public key must be %d bytes, got %d", ed25519.PublicKeySize, len(pub))
+	}
+	if !ed25519.Verify(ed25519.PublicKey(pub), data, raw) {
+		return fmt.Errorf("signature verification failed: binary does not match cosign signature")
+	}
+	return nil
+}
+
+// panelCosignPublicKey loads the optional ed25519 public key for real
+// crypto verification. Accepts:
+//   - KSPANEL_COSIGN_PUBLIC_KEY: base64 raw 32 bytes, or PEM PKIX block,
+//   - KSPANEL_COSIGN_PUBKEY_FILE: path to a PEM file with the same.
+// Returns (nil,false) when neither is set — the caller then enforces
+// format + checksum only.
+func panelCosignPublicKey() ([]byte, bool) {
+	if p := strings.TrimSpace(os.Getenv("KSPANEL_COSIGN_PUBLIC_KEY")); p != "" {
+		// PEM?
+		if strings.Contains(p, "BEGIN") {
+			if blk, _ := pem.Decode([]byte(p)); blk != nil {
+				// Try PKIX parse via ed25519: PEM from `cosign generate-key-pair`
+				// is PKIX; the raw key is the last 32 bytes.
+				if len(blk.Bytes) >= ed25519.PublicKeySize {
+					return blk.Bytes[len(blk.Bytes)-ed25519.PublicKeySize:], true
+				}
+			}
+		} else {
+			compact := strings.Join(strings.Fields(p), "")
+			if raw, err := base64.StdEncoding.DecodeString(compact); err == nil && len(raw) == ed25519.PublicKeySize {
+				return raw, true
+			}
+			if raw, err := base64.URLEncoding.DecodeString(compact); err == nil && len(raw) == ed25519.PublicKeySize {
+				return raw, true
+			}
+		}
+	}
+	if f := strings.TrimSpace(os.Getenv("KSPANEL_COSIGN_PUBKEY_FILE")); f != "" {
+		if data, err := os.ReadFile(f); err == nil {
+			if blk, _ := pem.Decode(data); blk != nil && len(blk.Bytes) >= ed25519.PublicKeySize {
+				return blk.Bytes[len(blk.Bytes)-ed25519.PublicKeySize:], true
+			}
+			compact := strings.Join(strings.Fields(string(data)), "")
+			if raw, err := base64.StdEncoding.DecodeString(compact); err == nil && len(raw) == ed25519.PublicKeySize {
+				return raw, true
+			}
+		}
+	}
+	return nil, false
 }
 
 // recordUpdateVerifyFailure audit-logs a checksum failure so the audit
