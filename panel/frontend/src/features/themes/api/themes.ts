@@ -99,3 +99,67 @@ export async function uploadThemeFile(manifestFile: File): Promise<StoredTheme> 
   });
   return res.data;
 }
+
+// ---- Theme marketplace (themelib-backed, mirrors the instance-pages market) ----
+
+// A single theme-marketplace catalog entry. Same schema rules as the
+// instance-pages marketplace.json so operator tooling treats both alike.
+export interface ThemeMarketEntry {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  author: string;
+  version: string;
+  tags: string[];
+  download_url: string;
+  icon_svg: string;
+  preview_image: string;
+}
+
+export interface ThemeMarketCatalog {
+  version: string;
+  updated: string;
+  pages: ThemeMarketEntry[];
+}
+
+// fetchThemeMarket lists the marketplace catalog (working-dir
+// themes_market/ first, binary-embedded copy as fallback).
+export async function fetchThemeMarket(): Promise<ThemeMarketCatalog> {
+  const res = await client.get<ThemeMarketCatalog>('/api/themes/market');
+  return res.data;
+}
+
+// installThemeFromMarket installs one catalog entry into the GLOBAL library
+// server-side. Pass a catalog id, or a direct manifest URL (fetched with
+// the same SSRF hardening as installThemeFromUrl). 409 when the id exists.
+export async function installThemeFromMarket(id: string, url?: string): Promise<StoredTheme> {
+  const res = await client.post<StoredTheme>('/api/themes/market/install', { id, url });
+  return res.data;
+}
+
+// ---- Theme version history (migration 067) ----
+
+// One snapshotted revision of a theme, newest-first. The spec is included
+// so the studio History section can preview it without a second fetch.
+export interface ThemeRevision {
+  theme_id: string;
+  rev: number;
+  name: string;
+  description: string;
+  spec: Theme;
+  created_at: string;
+}
+
+// fetchThemeRevisions lists every snapshotted revision of a theme.
+export async function fetchThemeRevisions(id: string): Promise<ThemeRevision[]> {
+  const res = await client.get<ThemeRevision[]>(`/api/themes/${encodeURIComponent(id)}/revisions`);
+  return res.data;
+}
+
+// rollbackTheme restores a theme from one of its revisions. The server
+// snapshots the pre-rollback row first, so the rollback stays reversible.
+export async function rollbackTheme(id: string, rev: number): Promise<StoredTheme> {
+  const res = await client.post<StoredTheme>(`/api/themes/${encodeURIComponent(id)}/rollback/${rev}`);
+  return res.data;
+}

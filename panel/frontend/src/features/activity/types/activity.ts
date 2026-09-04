@@ -13,7 +13,8 @@ export type ActivityCategory =
   | 'settings'
   | 'auth'
   | 'system'
-  | 'ai';
+  | 'ai'
+  | 'theme';
 
 export interface ActivityLog {
   id: number;

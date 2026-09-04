@@ -41,7 +41,10 @@ import (
 //	  "commit":     "abc1234",                // short git sha, optional
 //	  "build_date": "2026-08-15T12:00:00Z",   // ISO-8601 UTC, optional
 //	  "notes":      "Highlights for the release",  // markdown-ish, optional
-//	  "size_bytes": 12345678                  // binary size, informational
+//	  "size_bytes": 12345678,                 // binary size, informational
+//	  "sha256":     "<64 hex of kspanel>",    // verified pre-swap, optional
+//	  "signature":  "<cosign sig output>",    // informational, optional
+//	  "sha256_url": "https://…/kspanel.sha256" // explicit sidecar, optional
 //	}
 const (
 	kspanelBaseURL    = "https://huggingface.co/buckets/kswarrior/opencode-storage/resolve/ks-panel/release"
@@ -61,6 +64,14 @@ type updateVersionManifest struct {
 	BuildDate string `json:"build_date"`
 	Notes     string `json:"notes"`
 	SizeBytes int64  `json:"size_bytes"`
+	// SHA256 is the hex digest of the release binary. When present (or
+	// resolvable via SHA256URL / the conventional sidecar) the apply +
+	// reinstall paths hash the temp file BEFORE chmod/swap and abort on
+	// mismatch — see update_verify.go. Signature carries the optional
+	// cosign output (SIGN_KEY builds) for out-of-band verification.
+	SHA256    string `json:"sha256"`
+	Signature string `json:"signature"`
+	SHA256URL string `json:"sha256_url"`
 }
 
 // updateInfoResponse is the GET /api/system/update-info payload. It
@@ -132,28 +143,9 @@ func UpdateCheckHandler(w http.ResponseWriter, r *http.Request) {
 		UpdateURL: kspanelBinaryURL,
 	}
 
-	client := &http.Client{Timeout: 15 * time.Second}
-	httpResp, err := client.Get(kspanelVersionURL)
+	manifest, err := fetchUpdateManifest()
 	if err != nil {
-		resp.Error = "could not reach update server: " + err.Error()
-		writeJSON(w, resp)
-		return
-	}
-	defer httpResp.Body.Close()
-	if httpResp.StatusCode != http.StatusOK {
-		resp.Error = fmt.Sprintf("update server returned HTTP %d", httpResp.StatusCode)
-		writeJSON(w, resp)
-		return
-	}
-	body, err := io.ReadAll(io.LimitReader(httpResp.Body, 1<<20))
-	if err != nil {
-		resp.Error = "read manifest: " + err.Error()
-		writeJSON(w, resp)
-		return
-	}
-	var manifest updateVersionManifest
-	if err := json.Unmarshal(body, &manifest); err != nil {
-		resp.Error = "malformed manifest: " + err.Error()
+		resp.Error = err.Error()
 		writeJSON(w, resp)
 		return
 	}

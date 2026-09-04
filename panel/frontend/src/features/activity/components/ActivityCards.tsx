@@ -113,6 +113,17 @@ const CATEGORY_STYLES: Record<ActivityCategory, CategoryStyle> = {
       </svg>
     ),
   },
+  theme: {
+    chip: 'bg-fuchsia-900/50 border-fuchsia-700/40 text-fuchsia-300',
+    verb: 'bg-fuchsia-800/50 text-fuchsia-200',
+    label: 'Theme',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+        <circle cx="12" cy="12" r="8" />
+        <path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" />
+      </svg>
+    ),
+  },
 };
 
 function friendlyVerb(action: string): { label: string; tone: string } {
