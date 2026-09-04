@@ -10,6 +10,7 @@ import Avatar from '@/shared/components/ui/Avatar';
 import RichMenu, { type RichMenuItem } from '@/shared/components/ui/RichMenu';
 import InstanceTabs from '@/features/instances/components/InstanceTabs';
 import NotificationBell from '@/features/notifications/components/NotificationBell';
+import { Icons as SidebarIcons } from './Sidebar';
 
 interface HeaderProps {
   onToggleSidebar: () => void;
@@ -20,6 +21,9 @@ export interface HeaderCrumb {
   parent: string;
   parentTo: string;
   current?: string;
+  // Sidebar icon key rendered as [SVG] in front of the title.
+  // Mirrors Sidebar `adminSubItems` icon names (e.g. Instances, Nodes).
+  icon?: string;
 }
 
 // resolveHeaderCrumb maps panel routes to the header breadcrumb. List pages
@@ -30,65 +34,65 @@ export interface HeaderCrumb {
 export function resolveHeaderCrumb(rawPath: string): HeaderCrumb | null {
   const p = rawPath !== '/' && rawPath.endsWith('/') ? rawPath.slice(0, -1) : rawPath;
   const rules: Array<[RegExp, HeaderCrumb]> = [
-    [/^\/instances$/, { parent: 'Instances', parentTo: '/instances' }],
-    [/^\/instances\/stats$/, { parent: 'Instances', parentTo: '/instances', current: 'Statistics' }],
-    [/^\/instances\/new$/, { parent: 'Instances', parentTo: '/instances', current: 'New Instance' }],
-    [/^\/instance\/\d+\/edit$/, { parent: 'Instances', parentTo: '/instances', current: 'Edit Instance' }],
-    [/^\/account$/, { parent: 'Account', parentTo: '/account' }],
-    [/^\/system$/, { parent: 'System', parentTo: '/system' }],
-    [/^\/security$/, { parent: 'Security', parentTo: '/security' }],
-    [/^\/database$/, { parent: 'Database', parentTo: '/database' }],
-    [/^\/activity$/, { parent: 'Activity', parentTo: '/activity' }],
-    [/^\/settings$/, { parent: 'Settings', parentTo: '/settings' }],
-    [/^\/notifications$/, { parent: 'Notifications', parentTo: '/notifications' }],
-    [/^\/notifications\/stats$/, { parent: 'Notifications', parentTo: '/notifications', current: 'Statistics' }],
-    [/^\/notifications\/broadcast$/, { parent: 'Notifications', parentTo: '/notifications', current: 'Broadcast' }],
-    [/^\/themes$/, { parent: 'Themes', parentTo: '/themes' }],
-    [/^\/themes\/studio$/, { parent: 'Themes', parentTo: '/themes', current: 'Studio' }],
-    [/^\/themes\/stats$/, { parent: 'Themes', parentTo: '/themes', current: 'Statistics' }],
-    [/^\/tickets$/, { parent: 'Tickets', parentTo: '/tickets' }],
-    [/^\/tickets\/stats$/, { parent: 'Tickets', parentTo: '/tickets', current: 'Statistics' }],
-    [/^\/tickets\/new$/, { parent: 'Tickets', parentTo: '/tickets', current: 'New Ticket' }],
-    [/^\/tickets\/[^/]+\/edit$/, { parent: 'Tickets', parentTo: '/tickets', current: 'Edit Ticket' }],
-    [/^\/tickets\/[^/]+\/chat$/, { parent: 'Tickets', parentTo: '/tickets', current: 'Chat' }],
-    [/^\/tickets\/[^/]+$/, { parent: 'Tickets', parentTo: '/tickets', current: 'Detail' }],
-    [/^\/users$/, { parent: 'Users', parentTo: '/users' }],
-    [/^\/users\/stats$/, { parent: 'Users', parentTo: '/users', current: 'Statistics' }],
-    [/^\/users\/new$/, { parent: 'Users', parentTo: '/users', current: 'New User' }],
-    [/^\/users\/[^/]+\/edit$/, { parent: 'Users', parentTo: '/users', current: 'Edit User' }],
-    [/^\/user\/[^/]+$/, { parent: 'Users', parentTo: '/users', current: 'Detail' }],
-    [/^\/roles$/, { parent: 'Roles', parentTo: '/roles' }],
-    [/^\/roles\/stats$/, { parent: 'Roles', parentTo: '/roles', current: 'Statistics' }],
-    [/^\/roles\/new$/, { parent: 'Roles', parentTo: '/roles', current: 'New Role' }],
-    [/^\/roles\/[^/]+\/edit$/, { parent: 'Roles', parentTo: '/roles', current: 'Edit Role' }],
-    [/^\/api-keys$/, { parent: 'API Keys', parentTo: '/api-keys' }],
-    [/^\/api-keys\/stats$/, { parent: 'API Keys', parentTo: '/api-keys', current: 'Statistics' }],
-    [/^\/api-keys\/new$/, { parent: 'API Keys', parentTo: '/api-keys', current: 'New Key' }],
-    [/^\/api-keys\/[^/]+\/edit$/, { parent: 'API Keys', parentTo: '/api-keys', current: 'Edit Key' }],
-    [/^\/api-key\/[^/]+$/, { parent: 'API Keys', parentTo: '/api-keys', current: 'Detail' }],
-    [/^\/nodes$/, { parent: 'Nodes', parentTo: '/nodes' }],
-    [/^\/nodes\/stats$/, { parent: 'Nodes', parentTo: '/nodes', current: 'Statistics' }],
-    [/^\/nodes\/schedules$/, { parent: 'Nodes', parentTo: '/nodes', current: 'Schedules' }],
-    [/^\/nodes\/new$/, { parent: 'Nodes', parentTo: '/nodes', current: 'New Node' }],
-    [/^\/node\/[^/]+$/, { parent: 'Nodes', parentTo: '/nodes', current: 'Detail' }],
-    [/^\/nodes\/[^/]+\/edit$/, { parent: 'Nodes', parentTo: '/nodes', current: 'Edit Node' }],
-    [/^\/templates$/, { parent: 'Templates', parentTo: '/templates' }],
-    [/^\/templates\/stats$/, { parent: 'Templates', parentTo: '/templates', current: 'Statistics' }],
-    [/^\/templates\/new$/, { parent: 'Templates', parentTo: '/templates', current: 'New Template' }],
-    [/^\/template\/[^/]+$/, { parent: 'Templates', parentTo: '/templates', current: 'Detail' }],
-    [/^\/templates\/[^/]+\/edit$/, { parent: 'Templates', parentTo: '/templates', current: 'Edit Template' }],
-    [/^\/mods$/, { parent: 'Mods', parentTo: '/mods' }],
-    [/^\/mods\/studio$/, { parent: 'Mods', parentTo: '/mods', current: 'Studio' }],
-    [/^\/mods\/stats$/, { parent: 'Mods', parentTo: '/mods', current: 'Statistics' }],
-    [/^\/applications$/, { parent: 'Applications', parentTo: '/applications' }],
-    [/^\/applications\/stats$/, { parent: 'Applications', parentTo: '/applications', current: 'Statistics' }],
-    [/^\/applications\/[^/]+\/edit$/, { parent: 'Applications', parentTo: '/applications', current: 'Edit Application' }],
-    [/^\/applications\/[^/]+\/configure$/, { parent: 'Applications', parentTo: '/applications', current: 'Configure' }],
-    [/^\/instance-pages$/, { parent: 'Pages', parentTo: '/instance-pages' }],
-    [/^\/instance-pages\/stats$/, { parent: 'Pages', parentTo: '/instance-pages', current: 'Statistics' }],
-    [/^\/instance-pages\/studio$/, { parent: 'Pages', parentTo: '/instance-pages', current: 'Studio' }],
-    [/^\/instance-pages\/[^/]+\/studio$/, { parent: 'Pages', parentTo: '/instance-pages', current: 'Studio' }],
-    [/^\/instance-pages\/[^/]+$/, { parent: 'Pages', parentTo: '/instance-pages', current: 'Detail' }],
+    [/^\/instances$/, { parent: 'Instances', parentTo: '/instances', icon: 'Instances' }],
+    [/^\/instances\/stats$/, { parent: 'Instances', parentTo: '/instances', current: 'Statistics', icon: 'Instances' }],
+    [/^\/instances\/new$/, { parent: 'Instances', parentTo: '/instances', current: 'New Instance', icon: 'Instances' }],
+    [/^\/instance\/\d+\/edit$/, { parent: 'Instances', parentTo: '/instances', current: 'Edit Instance', icon: 'Instances' }],
+    [/^\/account$/, { parent: 'Account', parentTo: '/account', icon: 'Account' }],
+    [/^\/system$/, { parent: 'System', parentTo: '/system', icon: 'Dashboard' }],
+    [/^\/security$/, { parent: 'Security', parentTo: '/security', icon: 'Security' }],
+    [/^\/database$/, { parent: 'Database', parentTo: '/database', icon: 'Database' }],
+    [/^\/activity$/, { parent: 'Activity', parentTo: '/activity', icon: 'Activity' }],
+    [/^\/settings$/, { parent: 'Settings', parentTo: '/settings', icon: 'Settings' }],
+    [/^\/notifications$/, { parent: 'Notifications', parentTo: '/notifications', icon: 'Notifications' }],
+    [/^\/notifications\/stats$/, { parent: 'Notifications', parentTo: '/notifications', current: 'Statistics', icon: 'Notifications' }],
+    [/^\/notifications\/broadcast$/, { parent: 'Notifications', parentTo: '/notifications', current: 'Broadcast', icon: 'Notifications' }],
+    [/^\/themes$/, { parent: 'Themes', parentTo: '/themes', icon: 'Themes' }],
+    [/^\/themes\/studio$/, { parent: 'Themes', parentTo: '/themes', current: 'Studio', icon: 'Themes' }],
+    [/^\/themes\/stats$/, { parent: 'Themes', parentTo: '/themes', current: 'Statistics', icon: 'Themes' }],
+    [/^\/tickets$/, { parent: 'Tickets', parentTo: '/tickets', icon: 'Tickets' }],
+    [/^\/tickets\/stats$/, { parent: 'Tickets', parentTo: '/tickets', current: 'Statistics', icon: 'Tickets' }],
+    [/^\/tickets\/new$/, { parent: 'Tickets', parentTo: '/tickets', current: 'New Ticket', icon: 'Tickets' }],
+    [/^\/tickets\/[^/]+\/edit$/, { parent: 'Tickets', parentTo: '/tickets', current: 'Edit Ticket', icon: 'Tickets' }],
+    [/^\/tickets\/[^/]+\/chat$/, { parent: 'Tickets', parentTo: '/tickets', current: 'Chat', icon: 'Tickets' }],
+    [/^\/tickets\/[^/]+$/, { parent: 'Tickets', parentTo: '/tickets', current: 'Detail', icon: 'Tickets' }],
+    [/^\/users$/, { parent: 'Users', parentTo: '/users', icon: 'Users' }],
+    [/^\/users\/stats$/, { parent: 'Users', parentTo: '/users', current: 'Statistics', icon: 'Users' }],
+    [/^\/users\/new$/, { parent: 'Users', parentTo: '/users', current: 'New User', icon: 'Users' }],
+    [/^\/users\/[^/]+\/edit$/, { parent: 'Users', parentTo: '/users', current: 'Edit User', icon: 'Users' }],
+    [/^\/user\/[^/]+$/, { parent: 'Users', parentTo: '/users', current: 'Detail', icon: 'Users' }],
+    [/^\/roles$/, { parent: 'Roles', parentTo: '/roles', icon: 'Roles' }],
+    [/^\/roles\/stats$/, { parent: 'Roles', parentTo: '/roles', current: 'Statistics', icon: 'Roles' }],
+    [/^\/roles\/new$/, { parent: 'Roles', parentTo: '/roles', current: 'New Role', icon: 'Roles' }],
+    [/^\/roles\/[^/]+\/edit$/, { parent: 'Roles', parentTo: '/roles', current: 'Edit Role', icon: 'Roles' }],
+    [/^\/api-keys$/, { parent: 'API Keys', parentTo: '/api-keys', icon: 'ApiKeys' }],
+    [/^\/api-keys\/stats$/, { parent: 'API Keys', parentTo: '/api-keys', current: 'Statistics', icon: 'ApiKeys' }],
+    [/^\/api-keys\/new$/, { parent: 'API Keys', parentTo: '/api-keys', current: 'New Key', icon: 'ApiKeys' }],
+    [/^\/api-keys\/[^/]+\/edit$/, { parent: 'API Keys', parentTo: '/api-keys', current: 'Edit Key', icon: 'ApiKeys' }],
+    [/^\/api-key\/[^/]+$/, { parent: 'API Keys', parentTo: '/api-keys', current: 'Detail', icon: 'ApiKeys' }],
+    [/^\/nodes$/, { parent: 'Nodes', parentTo: '/nodes', icon: 'Nodes' }],
+    [/^\/nodes\/stats$/, { parent: 'Nodes', parentTo: '/nodes', current: 'Statistics', icon: 'Nodes' }],
+    [/^\/nodes\/schedules$/, { parent: 'Nodes', parentTo: '/nodes', current: 'Schedules', icon: 'Nodes' }],
+    [/^\/nodes\/new$/, { parent: 'Nodes', parentTo: '/nodes', current: 'New Node', icon: 'Nodes' }],
+    [/^\/node\/[^/]+$/, { parent: 'Nodes', parentTo: '/nodes', current: 'Detail', icon: 'Nodes' }],
+    [/^\/nodes\/[^/]+\/edit$/, { parent: 'Nodes', parentTo: '/nodes', current: 'Edit Node', icon: 'Nodes' }],
+    [/^\/templates$/, { parent: 'Templates', parentTo: '/templates', icon: 'Templates' }],
+    [/^\/templates\/stats$/, { parent: 'Templates', parentTo: '/templates', current: 'Statistics', icon: 'Templates' }],
+    [/^\/templates\/new$/, { parent: 'Templates', parentTo: '/templates', current: 'New Template', icon: 'Templates' }],
+    [/^\/template\/[^/]+$/, { parent: 'Templates', parentTo: '/templates', current: 'Detail', icon: 'Templates' }],
+    [/^\/templates\/[^/]+\/edit$/, { parent: 'Templates', parentTo: '/templates', current: 'Edit Template', icon: 'Templates' }],
+    [/^\/mods$/, { parent: 'Mods', parentTo: '/mods', icon: 'Mods' }],
+    [/^\/mods\/studio$/, { parent: 'Mods', parentTo: '/mods', current: 'Studio', icon: 'Mods' }],
+    [/^\/mods\/stats$/, { parent: 'Mods', parentTo: '/mods', current: 'Statistics', icon: 'Mods' }],
+    [/^\/applications$/, { parent: 'Applications', parentTo: '/applications', icon: 'Applications' }],
+    [/^\/applications\/stats$/, { parent: 'Applications', parentTo: '/applications', current: 'Statistics', icon: 'Applications' }],
+    [/^\/applications\/[^/]+\/edit$/, { parent: 'Applications', parentTo: '/applications', current: 'Edit Application', icon: 'Applications' }],
+    [/^\/applications\/[^/]+\/configure$/, { parent: 'Applications', parentTo: '/applications', current: 'Configure', icon: 'Applications' }],
+    [/^\/instance-pages$/, { parent: 'Pages', parentTo: '/instance-pages', icon: 'Templates' }],
+    [/^\/instance-pages\/stats$/, { parent: 'Pages', parentTo: '/instance-pages', current: 'Statistics', icon: 'Templates' }],
+    [/^\/instance-pages\/studio$/, { parent: 'Pages', parentTo: '/instance-pages', current: 'Studio', icon: 'Templates' }],
+    [/^\/instance-pages\/[^/]+\/studio$/, { parent: 'Pages', parentTo: '/instance-pages', current: 'Studio', icon: 'Templates' }],
+    [/^\/instance-pages\/[^/]+$/, { parent: 'Pages', parentTo: '/instance-pages', current: 'Detail', icon: 'Templates' }],
   ];
   for (const [re, crumb] of rules) {
     if (re.test(p)) return crumb;
@@ -504,26 +508,39 @@ const Header: React.FC<HeaderProps> = ({
         {/* Page crumb — every list/form/stats/detail page shows its title
             here, right of the sidebar toggle, so page bodies stay clean.
             Labels come from resolveHeaderCrumb below (kept in sync with
-            each page's own title by the area owners). */}
+            each page's own title by the area owners). Icon is the same
+            glyph the sidebar uses: [SVG] [Parent] [/ Current]. */}
         {!inInstancePanel && (() => {
           const crumb = resolveHeaderCrumb(location.pathname);
           if (!crumb) return null;
+          const crumbIcon = (crumb.icon && SidebarIcons[crumb.icon]) || null;
+          const iconNode = crumbIcon ? (
+            <span aria-hidden="true" className="shrink-0 inline-flex items-center text-gray-400 [&_svg]:w-3.5 [&_svg]:h-3.5">
+              {crumbIcon}
+            </span>
+          ) : null;
           return (
             <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-xs text-gray-400 min-w-0">
               {crumb.current ? (
                 <>
-                  <button
-                    type="button"
-                    onClick={() => navigate(crumb.parentTo)}
-                    className="hover:text-white transition-colors shrink-0"
-                  >
-                    {crumb.parent}
-                  </button>
+                  <span className="flex items-center gap-1.5 min-w-0">
+                    {iconNode}
+                    <button
+                      type="button"
+                      onClick={() => navigate(crumb.parentTo)}
+                      className="hover:text-white transition-colors shrink-0"
+                    >
+                      {crumb.parent}
+                    </button>
+                  </span>
                   <span className="text-gray-600 shrink-0">/</span>
                   <span className="text-gray-200 truncate">{crumb.current}</span>
                 </>
               ) : (
-                <span className="text-gray-200">{crumb.parent}</span>
+                <span className="flex items-center gap-1.5 text-gray-200 min-w-0">
+                  {iconNode}
+                  <span className="truncate">{crumb.parent}</span>
+                </span>
               )}
             </nav>
           );

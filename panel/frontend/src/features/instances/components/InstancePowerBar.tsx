@@ -121,6 +121,37 @@ const InstancePowerBar: React.FC<{ variant?: 'dock' | 'pill' }> = ({ variant = '
     }
   };
 
+  // Template-action run/stop toggle — same semantics as the home-page
+  // Actions card: click an idle action to invoke it, click it again while
+  // it's the running action to stop it (POST …/actions/:id/stop, which runs
+  // the action's stop_command when defined). Double clicks debounce via
+  // busyAction/stopPending, exactly like the card's __ksBusyAction guard.
+  const runTemplateAction = async (actionId: string) => {
+    if (!instance || busyAction || stopPending) return;
+    setError('');
+    if (actionId === runningActionId) {
+      setStopPending(actionId);
+      try {
+        await stopInstanceAction(instanceId, actionId);
+        await reload(true);
+      } catch (e: any) {
+        setError(e?.response?.data || e?.message || `Failed to stop ${actionId}`);
+      } finally {
+        setStopPending(null);
+      }
+    } else {
+      setBusyAction(actionId);
+      try {
+        await invokeInstanceAction(instanceId, actionId);
+        await reload(true);
+      } catch (e: any) {
+        setError(e?.response?.data || e?.message || `Failed to run ${actionId}`);
+      } finally {
+        setBusyAction(null);
+      }
+    }
+  };
+
   const status = instance?.status ?? '';
   const isRunning = status === 'running';
   // Transitional states (deploy/install in flight) — no power action is valid,
@@ -223,9 +254,9 @@ const InstancePowerBar: React.FC<{ variant?: 'dock' | 'pill' }> = ({ variant = '
 
   return (
     // Plain left-aligned dock — placement/stickiness comes from the parent
-    // (Header renders it in a row below the header bar, left). Zero
-    // padding/margin — flush.
-    <div className="flex justify-start p-0 m-0" aria-label="Instance power controls">
+    // (Layout renders it in a row below the header bar, left). Zero
+    // padding/margin — flush. Relative so the Actions dropdown anchors here.
+    <div ref={dockRef} className="relative flex justify-start p-0 m-0" aria-label="Instance power controls">
       <div className="pointer-events-auto flex flex-col items-start p-0 m-0">
         {/* Rectangular box — ks-card kept for the themed glass surface only;
             zero box metrics enforced inline so theme radius/padding can't win. */}
@@ -248,7 +279,7 @@ const InstancePowerBar: React.FC<{ variant?: 'dock' | 'pill' }> = ({ variant = '
             style={
               collapsed
                 ? { maxWidth: 0, opacity: 0, transform: 'translateX(-8px)', pointerEvents: 'none', padding: 0, margin: 0, gap: 0 }
-                : { maxWidth: 220, opacity: 1, transform: 'translateX(0)', padding: 0, margin: 0, gap: 0 }
+                : { maxWidth: 320, opacity: 1, transform: 'translateX(0)', padding: 0, margin: 0, gap: 0 }
             }
             aria-hidden={collapsed}
           >

@@ -12,8 +12,9 @@ interface SidebarProps {
   setCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-// Small inline icon set (SVG-only).
-const Icons: Record<string, React.ReactNode> = {
+// Small inline icon set (SVG-only). Exported so the header breadcrumb can
+// reuse the exact same glyphs in front of page titles: [SVG] [Title].
+export const Icons: Record<string, React.ReactNode> = {
   Instances: (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" aria-hidden="true">
       <rect x="3" y="6" width="11" height="9" rx="1.2" />
@@ -211,6 +212,14 @@ const Icons: Record<string, React.ReactNode> = {
       <path d="M12 17.65v1.45" strokeWidth="1.35" />
       <circle cx="12" cy="20.15" r="1.55" fill="currentColor" stroke="none" />
       <circle cx="11.45" cy="19.65" r="0.42" fill="white" opacity="0.62" />
+    </svg>
+  ),
+  // Account has no sidebar entry but the header shows an "Account" title —
+  // reuse a user glyph so the header can still render [SVG] [Account].
+  Account: (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
+      <path d="M20 21a8 8 0 1 0-16 0" />
+      <circle cx="12" cy="7" r="4" />
     </svg>
   ),
   // KS Warrior logo for footer
