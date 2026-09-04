@@ -384,6 +384,13 @@ func NewRouter() http.Handler {
 			// "re-check" a card's verdict without waiting for the heartbeat.
 			r.With(requireUmbrellaOrAction(nodesG, permissions.ActionView)).Post("/{id}/probe", handlers.ProbeNodeHandler)
 			r.With(requireUmbrellaOrAction(nodesG, permissions.ActionView)).Post("/probe", handlers.ProbeAllNodesHandler)
+			// Named WSS channels per node (migration 062): the NodeForm WSS
+			// box rows (name/task/transport/fallback). Reads are view-level;
+			// writes are edit-level like the node itself.
+			r.With(requireUmbrellaOrAction(nodesG, permissions.ActionView)).Get("/{id}/wss-channels", handlers.ListNodeWssChannelsHandler)
+			r.With(requireUmbrellaOrAction(nodesG, permissions.ActionEdit)).Post("/{id}/wss-channels", handlers.CreateNodeWssChannelHandler)
+			r.With(requireUmbrellaOrAction(nodesG, permissions.ActionEdit)).Put("/{id}/wss-channels/{cid}", handlers.UpdateNodeWssChannelHandler)
+			r.With(requireUmbrellaOrAction(nodesG, permissions.ActionEdit)).Delete("/{id}/wss-channels/{cid}", handlers.DeleteNodeWssChannelHandler)
 		})
 
 		// Admin: template management. MANAGE_TEMPLATES (umbrella) implies

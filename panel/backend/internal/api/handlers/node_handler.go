@@ -682,6 +682,13 @@ func UpdateNodeHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	// Persist the WSS box rows (replace-all) when the payload carried them.
+	if req.WssChannels != nil {
+		if err := repository.NewWssChannelRepository(con).ReplaceChannels(id, wssInput); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
 	RecordActivity(r, repository.ActivityInput{
 		Category:    models.ActivityCategoryNode,
 		Action:      "update",
@@ -1084,7 +1091,7 @@ func SetupLocalNodeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !isLocalNode(node) {
-		http.Error(w, "setup is only supported for local edge nodes (local_port / local_wss)", http.StatusBadRequest)
+		http.Error(w, "setup is only supported for local edge nodes (local_port / local_wss / local_both)", http.StatusBadRequest)
 		return
 	}
 	token, err := repo.PlainToken(id)
@@ -1309,7 +1316,7 @@ func isLocalAddress(addr string) bool {
 
 // isLocalNode reports whether a node row is a localhost edge that the panel
 // can manage locally (setup/purge). It checks the explicit connection_mode first
-// (local_port / local_wss) and falls back to address sniffing for legacy rows
+// (local_port / local_wss / local_both) and falls back to address sniffing for legacy rows
 // and for direct-mode rows that still carry a loopback address (pre-050 rows
 // defaulted to 'direct' even when they were created as localhost edges).
 func isLocalNode(n *models.Node) bool {
@@ -1317,7 +1324,7 @@ func isLocalNode(n *models.Node) bool {
 		return false
 	}
 	m := strings.ToLower(strings.TrimSpace(n.ConnectionMode))
-	if m == "local_port" || m == "local_wss" {
+	if m == "local_port" || m == "local_wss" || m == "local_both" {
 		return true
 	}
 	if m == "reverse_tunnel" {
@@ -1488,7 +1495,7 @@ func PurgeLocalNodeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !isLocalNode(node) {
-		http.Error(w, "purge is only supported for local edge nodes (local_port / local_wss)", http.StatusBadRequest)
+		http.Error(w, "purge is only supported for local edge nodes (local_port / local_wss / local_both)", http.StatusBadRequest)
 		return
 	}
 	label := node.Name
