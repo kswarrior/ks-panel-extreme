@@ -534,13 +534,10 @@ const Header: React.FC<HeaderProps> = ({
         {inInstancePanel && <InstanceTabs />}
       </div>
 
-      {/* Right cluster: notification bell + profile. The bell is the
-       * powerful real-time surface — badge polls unread-count every 20s and
-       * the dropdown surfaces the 10 most recent rows with inline mark-read.
-       * Kept outside the profile RichMenu so the unread count stays glanceable
-       * without opening any menu. Hidden inside instance panel to keep that
-       * chrome minimal (instance tabs own the header there). */}
-      {!inInstancePanel && (
+      {/* Right cluster: notification bell + profile. Always visible so the
+       * header stays a normal single row on every page (instance power
+       * controls now live in the details page's PageActionsPill). */}
+      {
         <div className="flex items-center gap-2">
           <NotificationBell />
           <RichMenu
