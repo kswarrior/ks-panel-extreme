@@ -179,3 +179,29 @@ func TestAddMessageRejectsBadRole(t *testing.T) {
 		t.Fatalf("valid message rejected: %v", err)
 	}
 }
+
+// Empty tables must read as empty, not error: the pinned sqlite driver
+// yields one all-NULL phantom row for empty result sets, and List /
+// LastMessages skip NULL-id rows so a fresh user gets [] instead of a 500.
+func TestEmptyTablesReadAsEmpty(t *testing.T) {
+	db := newTestAIDB(t)
+	repo := NewAIThreadRepository(db)
+	list, err := repo.List(1)
+	if err != nil {
+		t.Fatalf("List on empty: %v", err)
+	}
+	if len(list) != 0 {
+		t.Fatalf("List on empty must be [], got %+v", list)
+	}
+	id, err := repo.Create(1, "t")
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	msgs, err := repo.LastMessages(1, id, 50)
+	if err != nil {
+		t.Fatalf("LastMessages on empty: %v", err)
+	}
+	if len(msgs) != 0 {
+		t.Fatalf("LastMessages on empty must be [], got %+v", msgs)
+	}
+}
