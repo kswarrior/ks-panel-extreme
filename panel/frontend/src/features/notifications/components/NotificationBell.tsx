@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { useNotificationStore } from '@/shared/stores/notificationStore';
-import { markRead, markAllRead, deleteNotification } from '@/features/notifications/api/notifications';
+import { markRead, markAllRead, deleteNotification, notificationStreamUrl } from '@/features/notifications/api/notifications';
 import { CATEGORY_META, PRIORITY_META } from '../types/notification';
 import type { Notification } from '../types/notification';
 import { PERMISSION_AREAS, hasPermissionAny } from '@/shared/types/permissions';
@@ -54,6 +54,7 @@ const NotificationBell: React.FC = () => {
   const recent = useNotificationStore((s) => s.recent);
   const fetchUnread = useNotificationStore((s) => s.fetchUnread);
   const fetchRecent = useNotificationStore((s) => s.fetchRecent);
+  const applyPush = useNotificationStore((s) => s.applyPush);
   const markLocalRead = useNotificationStore((s) => s.markLocalRead);
   const markAllLocalRead = useNotificationStore((s) => s.markAllLocalRead);
   const removeLocal = useNotificationStore((s) => s.removeLocal);
@@ -125,14 +126,81 @@ const NotificationBell: React.FC = () => {
     return () => document.removeEventListener('keydown', onKey);
   }, [open]);
 
-  // Poll unread count every 20s + fetch recent on open — only when permitted (permission is King)
+  // Realtime bell: hold a WebSocket against /api/notifications/stream
+  // (same session-cookie auth as the terminal bridge) and apply pushes
+  // instantly. When the socket drops, fall back to the 20s unread poll so
+  // the badge still converges — the unread-count endpoint stays the
+  // fallback source of truth.
+  const [live, setLive] = useState(false);
   useEffect(() => {
     if (!canViewNotifications) return;
     fetchUnread();
     fetchRecent();
-    const iv = setInterval(fetchUnread, 20000);
-    return () => clearInterval(iv);
-  }, [fetchUnread, fetchRecent, canViewNotifications]);
+    let ws: WebSocket | null = null;
+    let closed = false;
+    let pollIv: ReturnType<typeof setInterval> | null = null;
+    let retryT: ReturnType<typeof setTimeout> | null = null;
+
+    const startPollFallback = () => {
+      if (pollIv) return;
+      pollIv = setInterval(fetchUnread, 20000);
+    };
+    const stopPollFallback = () => {
+      if (pollIv) { clearInterval(pollIv); pollIv = null; }
+    };
+
+    const connect = () => {
+      if (closed) return;
+      try {
+        ws = new WebSocket(notificationStreamUrl());
+      } catch {
+        setLive(false);
+        startPollFallback();
+        retryT = setTimeout(connect, 10000);
+        return;
+      }
+      ws.onopen = () => {
+        if (closed) { try { ws?.close(); } catch {} return; }
+        setLive(true);
+        stopPollFallback();
+        fetchUnread();
+      };
+      ws.onmessage = (ev) => {
+        try {
+          const msg = JSON.parse(ev.data);
+          if (msg && msg.type === 'notification' && msg.notification) {
+            const fallback = useNotificationStore.getState().unread + 1;
+            applyPush(msg.notification as Notification, typeof msg.unread === 'number' ? msg.unread : fallback);
+          } else if (msg && typeof msg.unread === 'number') {
+            useNotificationStore.getState().setUnread(msg.unread);
+          }
+        } catch {
+          fetchUnread();
+        }
+      };
+      ws.onerror = () => {
+        try { ws?.close(); } catch {}
+      };
+      ws.onclose = () => {
+        setLive(false);
+        ws = null;
+        if (closed) return;
+        // Fall back to polling while disconnected, then retry the socket.
+        fetchUnread();
+        startPollFallback();
+        retryT = setTimeout(connect, 10000);
+      };
+    };
+    connect();
+    return () => {
+      closed = true;
+      setLive(false);
+      try { ws?.close(); } catch {}
+      if (pollIv) clearInterval(pollIv);
+      if (retryT) clearTimeout(retryT);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canViewNotifications]);
 
   useEffect(() => {
     if (!canViewNotifications) return;
