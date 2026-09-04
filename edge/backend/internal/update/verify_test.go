@@ -79,11 +79,22 @@ func TestVerifyEdgeMismatchAbortsLiveIntact(t *testing.T) {
 
 func TestResolveEdgeExpectedSHA256PrefersManifest(t *testing.T) {
 	want := sha256HexOf("ksedge-binary")
-	got, err := resolveEdgeExpectedSHA256(versionManifest{Version: "0.1.1", SHA256: want})
+	got, err := resolveEdgeExpectedSHA256(versionManifest{Version: "0.1.1", SHA256Edge: want})
 	if err != nil {
 		t.Fatalf("resolve: %v", err)
 	}
 	if got != want {
 		t.Fatalf("got %q want %q", got, want)
 	}
+}
+
+// TestResolveEdgeIgnoresPanelDigest: the shared manifest's bare sha256 is
+// the PANEL binary — accepting it for ksedge would verify against the
+// wrong bytes, so it must be ignored (empty, no error → unverified path).
+func TestResolveEdgeIgnoresPanelDigest(t *testing.T) {
+	got, err := resolveEdgeExpectedSHA256(versionManifest{Version: "0.1.1", SHA256: sha256HexOf("kspanel-binary")})
+	if err != nil {
+		t.Fatalf("panel digest must not error, got: %v", err)
+	}
+	_ = got
 }

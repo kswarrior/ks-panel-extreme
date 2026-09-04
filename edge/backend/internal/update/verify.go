@@ -93,16 +93,19 @@ func fetchEdgeChecksumSidecar(url string) (string, error) {
 	return parseEdgeChecksumBody(body)
 }
 
-// resolveEdgeExpectedSHA256 returns the hex digest the downloaded binary
-// must match. Empty string + nil error means "no checksum published" —
-// the caller proceeds unverified and logs that fact.
+// resolveEdgeExpectedSHA256 returns the hex digest the downloaded ksedge
+// binary must match: manifest.sha256_edge wins, then manifest.sha256_url,
+// then the conventional ksedge sidecar. The bare manifest.sha256 is the
+// PANEL binary's digest and is NEVER accepted here (different bytes).
+// Empty string + nil error means "no checksum published" — the caller
+// proceeds unverified and logs that fact.
 func resolveEdgeExpectedSHA256(m versionManifest) (string, error) {
-	if v := strings.ToLower(strings.TrimSpace(m.SHA256)); v != "" {
+	if v := strings.ToLower(strings.TrimSpace(m.SHA256Edge)); v != "" {
 		if len(v) != 64 {
-			return "", fmt.Errorf("manifest sha256 must be 64 hex chars, got %d", len(v))
+			return "", fmt.Errorf("manifest sha256_edge must be 64 hex chars, got %d", len(v))
 		}
 		if _, err := hex.DecodeString(v); err != nil {
-			return "", fmt.Errorf("manifest sha256 is not valid hex: %w", err)
+			return "", fmt.Errorf("manifest sha256_edge is not valid hex: %w", err)
 		}
 		return v, nil
 	}

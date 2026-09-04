@@ -153,6 +153,9 @@ func (r *BackupScheduleRepository) Due(now time.Time) ([]BackupSchedule, error) 
 	for rows.Next() {
 		s, err := scanBackupSchedule(rows)
 		if err != nil {
+			if err == errPhantomRow {
+				continue
+			}
 			return nil, err
 		}
 		out = append(out, s)
