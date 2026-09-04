@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { createNode, updateNode, listNodes, probeNode, setupLocalNode } from '@/shared/api/admin';
+import { createNode, updateNode, listNodes, probeNode, setupLocalNode, listNodeWssChannels } from '@/shared/api/admin';
 import type { Node, CreateNodeResult, ProbeResult, SetupLocalResult } from '@/shared/types/node';
 import FormPage from '@/shared/components/forms/FormPage';
 import GlassField, { glassFieldClass } from '@/shared/components/ui/Field';
@@ -8,8 +8,8 @@ import GlassModal from '@/shared/components/ui/Modal';
 import ToggleRow from '@/shared/components/ui/ToggleRow';
 import LocationField from '@/shared/components/forms/LocationField/LocationField';
 import FormSkeleton from '@/shared/components/ui/FormSkeleton';
-import type { ConnectionMode, Form, NodeFormTabId } from '../types/nodeForm';
-import { emptyForm, KSEDGE_URL, ALL_KINDS, NODEFORM_TABS, isLocalMode, isTunnelMode } from '../types/nodeForm';
+import type { ConnectionMode, Form, NodeFormTabId, WssChannel, WssTask, WssTransport } from '../types/nodeForm';
+import { emptyForm, KSEDGE_URL, ALL_KINDS, NODEFORM_TABS, isLocalMode, isTunnelMode, isDualMode, WSS_TASKS, WSS_TRANSPORTS } from '../types/nodeForm';
 import { NodeTabs } from '../components/NodeTabs';
 import { buildEdgeConfig, buildBootstrapCmd } from '../utils/nodeFormUtils';
 import { NODE_ICONS, NODE_COLORS, NodeIcon, isCustomNodeIconSvg } from '../utils/nodeIcons';
@@ -98,6 +98,49 @@ const NodeForm: React.FC = () => {
   // Every registered node — powers the client-side (name, label) duplicate
   // pre-check so the operator sees the clash before the server's 409.
   const [allNodes, setAllNodes] = useState<Node[]>([]);
+  // Named WSS channels (the WSS box rows). One catch-all row is pre-added
+  // so a fresh WSS/both form already has a working channel.
+  const [wssChannels, setWssChannels] = useState<WssChannel[]>([
+    { key: 'temp-0', name: 'wss-1', task: 'all', transport: 'auto', fallback: true },
+  ]);
+  const [wssSeq, setWssSeq] = useState(1);
+
+  // addWssChannel appends a blank row (top-right Add button in the WSS box).
+  const addWssChannel = () => {
+    const n = wssSeq;
+    setWssSeq(n + 1);
+    setWssChannels((prev) => [
+      ...prev,
+      { key: `temp-${n}`, name: `wss-${prev.length + 1}`, task: 'all', transport: 'auto', fallback: true },
+    ]);
+  };
+
+  // updateWssChannel patches one row by key.
+  const updateWssChannel = (key: string, patch: Partial<WssChannel>) => {
+    setWssChannels((prev) => prev.map((c) => (c.key === key ? { ...c, ...patch } : c)));
+  };
+
+  // removeWssChannel drops one row (per-row remove button).
+  const removeWssChannel = (key: string) => {
+    setWssChannels((prev) => prev.filter((c) => c.key !== key));
+  };
+
+  // modeTab derives the 3-tab selection from the stored connection mode.
+  const modeTab: 'direct' | 'wss' | 'both' = isDualMode(form.connection_mode)
+    ? 'both'
+    : isTunnelMode(form.connection_mode)
+    ? 'wss'
+    : 'direct';
+
+  // setModeTab switches transport family while preserving the Local toggle.
+  const setModeTab = (t: 'direct' | 'wss' | 'both') => {
+    setForm((f) => {
+      const local = isLocalMode(f.connection_mode);
+      if (t === 'direct') return { ...f, connection_mode: local ? 'local_port' : 'direct' };
+      if (t === 'wss') return { ...f, connection_mode: local ? 'local_wss' : 'reverse_tunnel' };
+      return { ...f, connection_mode: local ? 'local_both' : 'both' };
+    });
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -131,6 +174,10 @@ const NodeForm: React.FC = () => {
             } else if (connectionMode === 'reverse_tunnel') {
               address = '';
               port = '4040';
+            } else if (connectionMode === 'both') {
+              // Remote dual keeps a real address (never the tunnel sentinel).
+              if (address === 'tunnel') address = '';
+              port = '4040';
             }
             setForm({
               name: n.name,
@@ -157,6 +204,33 @@ const NodeForm: React.FC = () => {
               icon: n.icon || '',
               color: n.color || '',
             });
+            // Load the WSS box rows for tunnel-capable modes.
+            try {
+              const rows = await listNodeWssChannels(Number(id));
+              if (!cancelled) {
+                if (rows.length > 0) {
+                  setWssChannels(rows.map((r) => ({
+                    key: `saved-${r.id}`,
+                    id: r.id,
+                    name: r.name,
+                    task: (r.task as WssTask) || 'all',
+                    transport: (r.transport as WssTransport) || 'auto',
+                    fallback: r.fallback !== false,
+                  })));
+                  setWssSeq(rows.length);
+                } else if (isTunnelMode(connectionMode)) {
+                  // Tunnel mode with no saved rows: keep the pre-added
+                  // catch-all so the box is never empty.
+                  setWssChannels([{ key: 'temp-0', name: 'wss-1', task: 'all', transport: 'auto', fallback: true }]);
+                  setWssSeq(1);
+                } else {
+                  setWssChannels([]);
+                }
+              }
+            } catch {
+              // Channels table may predate migration 062 on first rollout —
+              // keep the local default instead of failing the whole form.
+            }
           } else {
             setError('Node not found');
           }
@@ -180,6 +254,13 @@ const NodeForm: React.FC = () => {
     const m = form.connection_mode;
     if (m === 'reverse_tunnel') return 'WSS tunnel — edge dials panel (no direct dial)';
     if (m === 'local_wss') return `WSS tunnel preferred, fallback to http://127.0.0.1:${form.port || '4040'}`;
+    if (m === 'local_both') return `Port + WSS per task — http://127.0.0.1:${form.port || '4040'} + tunnel (see WSS channels)`;
+    if (m === 'both') {
+      const addr = form.address.trim();
+      const scheme = form.use_tls ? 'https' : 'http';
+      if (!addr) return 'Port + WSS per task — <edge-host>:<port> + tunnel (see WSS channels)';
+      return `${scheme}://${addr} + WSS tunnel (per-task routing)`;
+    }
     if (isLocalMode(m)) return `${form.use_tls ? 'https' : 'http'}://127.0.0.1:${form.port || '4040'}`;
     const scheme = form.use_tls ? 'https' : 'http';
     const addr = form.address.trim();
