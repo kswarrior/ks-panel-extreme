@@ -42,6 +42,7 @@ export const TemplateActionsSection: React.FC<ActionsSectionProps> = ({
   // Known instance states for the allowed-states chips. Toggling a chip
   // edits the same CSV string the text input holds — empty means "every
   // state" at runtime.
+  const ACTION_STATES = ['running', 'stopped', 'creating', 'installing', 'errored', 'install_failed', 'destroyed'];
   const toggleActionState = (idx: number, st: string) => {
     const cur = (actions[idx]?.allowed_states || '')
       .split(',')
@@ -124,10 +125,81 @@ export const TemplateActionsSection: React.FC<ActionsSectionProps> = ({
                       <label className="block text-[11px] text-gray-500 mb-0.5">Description</label>
                       <input value={a.description} onChange={(e) => onActionUpdate(i, { description: e.target.value })} placeholder="Boot the Java process and patch the world seed" className={glassFieldClass} />
                     </div>
+                    <div className="pt-1">
+                      <label className="block text-[11px] text-gray-500 mb-0.5">Icon & colour (shown on action tiles and menus)</label>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span
+                          className="w-9 h-9 shrink-0 rounded-md flex items-center justify-center border bg-white/[0.05] border-white/10 [&>svg]:w-5 [&>svg]:h-5 [&>svg]:block"
+                          style={a.icon_color ? { color: a.icon_color } : undefined}
+                          aria-hidden="true"
+                        >
+                          {actionIcon(a.icon_svg, a.icon_color, 'flex items-center justify-center [&>svg]:w-5 [&>svg]:h-5 [&>svg]:block', 'w-5 h-5') || (
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-gray-500"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" /></svg>
+                          )}
+                        </span>
+                        <div className="flex gap-1.5 overflow-x-auto ks-hscroll pb-1 flex-1 min-w-0">
+                          {ICON_PRESETS.map((p) => (
+                            <button
+                              key={p.value || 'none'}
+                              type="button"
+                              onClick={() => onActionUpdate(i, { icon_svg: p.svg })}
+                              className={`shrink-0 flex items-center gap-1 px-2 py-1.5 rounded-lg border transition-colors ${a.icon_svg === p.svg ? 'border-sky-400/60 bg-sky-500/15' : 'border-white/10 bg-white/5 hover:border-white/20'}`}
+                              title={p.label || 'No icon'}
+                            >
+                              {p.svg ? (
+                                <span className="[&>svg]:w-4 [&>svg]:h-4 [&>svg]:block" dangerouslySetInnerHTML={{ __html: p.svg }} />
+                              ) : (
+                                <span className="text-[11px] text-gray-400 px-0.5">∅</span>
+                              )}
+                              <span className="text-[11px] text-gray-300">{p.label || 'None'}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                        <input value={a.icon_svg || ''} onChange={(e) => onActionUpdate(i, { icon_svg: e.target.value })} placeholder="…or paste custom SVG markup" className={monoCls} />
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {COLOR_SWATCHES.map((c) => (
+                            <button
+                              key={c.value || 'none'}
+                              type="button"
+                              onClick={() => onActionUpdate(i, { icon_color: c.value })}
+                              className={`shrink-0 w-6 h-6 rounded-md border transition-transform ${a.icon_color === c.value ? 'border-white scale-105' : 'border-white/10 hover:border-white/30'}`}
+                              style={{ backgroundColor: c.value || 'transparent' }}
+                              title={c.label || 'No colour'}
+                            />
+                          ))}
+                          <input
+                            type="color"
+                            value={/^#[0-9a-fA-F]{6}$/.test(a.icon_color || '') ? (a.icon_color as string) : '#a78bfa'}
+                            onChange={(e) => onActionUpdate(i, { icon_color: e.target.value })}
+                            className="w-6 h-6 rounded-md border border-white/10 cursor-pointer bg-transparent p-0"
+                            title="Custom colour"
+                          />
+                        </div>
+                      </div>
+                    </div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      <div>
-                        <label className="block text-[11px] text-gray-500 mb-0.5">Allowed states (csv)</label>
+                      <div className="sm:col-span-1">
+                        <label className="block text-[11px] text-gray-500 mb-0.5">Allowed states (csv — empty = every state)</label>
                         <input value={a.allowed_states} onChange={(e) => onActionUpdate(i, { allowed_states: e.target.value })} placeholder="running, stopped" className={monoCls} />
+                        <div className="flex gap-1 flex-wrap mt-1.5">
+                          {ACTION_STATES.map((st) => {
+                            const on = (a.allowed_states || '').split(',').map((x) => x.trim().toLowerCase()).includes(st);
+                            return (
+                              <button
+                                key={st}
+                                type="button"
+                                onClick={() => toggleActionState(i, st)}
+                                aria-pressed={on}
+                                title={on ? `Remove ${st}` : `Only in ${st}`}
+                                className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${on ? 'border-emerald-500/60 bg-emerald-500/15 text-emerald-200' : 'border-white/10 bg-white/5 text-gray-500 hover:border-white/25 hover:text-gray-300'}`}
+                              >
+                                {st}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
                       <div>
                         <label className="block text-[11px] text-gray-500 mb-0.5">Cooldown (s)</label>

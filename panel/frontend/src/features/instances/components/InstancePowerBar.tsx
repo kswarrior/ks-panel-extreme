@@ -3,11 +3,31 @@ import { useParams } from 'react-router-dom';
 import { startInstance, stopInstance, restartInstance } from '@/shared/api/admin';
 import { invokeInstanceAction, stopInstanceAction } from '@/features/instances/api/instanceAdvanced';
 import { useInstance, parseConfig } from '@/shared/hooks/useInstance';
+import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { PermissionKey, hasPermissionAny } from '@/shared/types/permissions';
 import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 
 const COLLAPSED_KEY = 'ks-instance-power-collapsed';
+
+// actionAllowedStates normalises an action's allowed_states (saved as a
+// string[] by the template form, possibly a CSV string in older specs)
+// into lowercase tokens. Empty = allowed in every instance state.
+function actionAllowedStates(a: any): string[] {
+  const raw = a?.allowed_states;
+  const list: string[] = Array.isArray(raw)
+    ? raw
+    : (typeof raw === 'string' && raw.trim() !== '' ? raw.split(',') : []);
+  return list.map((x) => String(x ?? '').trim().toLowerCase()).filter(Boolean);
+}
+
+// actionStateOk reports whether an action may run while the instance is in
+// `status`. An empty allow-list means every state.
+function actionStateOk(a: any, status: string): boolean {
+  const toks = actionAllowedStates(a);
+  if (toks.length === 0) return true;
+  return toks.includes(String(status ?? '').trim().toLowerCase());
+}
 
 // InstancePowerBar — self-contained power controls for an instance.
 //
