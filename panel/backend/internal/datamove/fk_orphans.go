@@ -217,7 +217,17 @@ func listMySQLFKs(con *sql.DB) ([]fkConstraint, error) {
 // consulted by listUserTables.
 type sqliteDialectShim struct{}
 
-func (sqliteDialectShim) Name() string { return "sqlite" }
+func (sqliteDialectShim) Name() string       { return "sqlite" }
+func (sqliteDialectShim) DriverName() string { return "sqlite" }
+func (sqliteDialectShim) Open(string) (*sql.DB, error) {
+	return nil, fmt.Errorf("shim: open not supported")
+}
+func (sqliteDialectShim) ConfigurePool(*sql.DB) {}
+func (sqliteDialectShim) MigrationsFS() interface {
+	ReadDir(string) ([]interface{}, error)
+} {
+	return nil
+}
 
 // countOrphans returns the number of child rows whose FK columns are all
 // NOT NULL yet have no matching parent row. NULL child columns are never

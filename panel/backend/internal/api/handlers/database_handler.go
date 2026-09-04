@@ -704,8 +704,8 @@ func databaseInfoMySQL(con *sql.DB, cfg config.DBConfig) (DatabaseInfo, error) {
 		ForeignKeyIssues: []string{},
 		IntegrityOk:      true,
 		ForeignKeyOk:     true,
-		IntegrityNote:    "MySQL has no PRAGMA quick_check; health is connection probe + row-count sanity (see scheduled verify).",
-		ForeignKeyNote:   "MySQL FK violations are not auto-scanned; use CHECK TABLE or information_schema for orphans.",
+		IntegrityNote:    "MySQL has no PRAGMA quick_check; health is connection probe + row-count parity + FK-orphan scan (see scheduled verify).",
+		ForeignKeyNote:   "MySQL FK orphans auto-scanned via information_schema.KEY_COLUMN_USAGE.",
 		HealthNote:       "MySQL diagnostics via information_schema + Data_length/Index_length.",
 	}
 	if v := scalar(con, `SELECT VERSION()`); v != "" {
@@ -775,6 +775,21 @@ func databaseInfoMySQL(con *sql.DB, cfg config.DBConfig) (DatabaseInfo, error) {
 		out = append(out, dt)
 	}
 	info.Tables = out
+	if md, derr := db.NewDialect("mysql"); derr == nil {
+		if oi, ow, checked, oerr := datamove.ScanFKOrphans(md, con); oerr == nil {
+			if len(oi) > 0 {
+				info.ForeignKeyIssues = oi
+				info.ForeignKeyOk = false
+			}
+			if len(ow) > 0 {
+				info.ForeignKeyNote = "MySQL FK orphans auto-scanned (" + itoa(int64(checked)) + " constraints); scan warnings: " + strings.Join(ow, "; ")
+			} else if len(oi) == 0 {
+				info.ForeignKeyNote = "MySQL FK orphans auto-scanned clean (" + itoa(int64(checked)) + " FK constraint(s) checked)."
+			}
+		} else {
+			info.ForeignKeyNote = "MySQL orphan scan unavailable (" + oerr.Error() + "); health is row-count parity only."
+		}
+	}
 	return info, nil
 }
 
