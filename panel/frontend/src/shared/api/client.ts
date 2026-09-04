@@ -13,6 +13,44 @@ const client = axios.create({
   timeout: 15000,
 });
 
+// CSRF token handling: the backend enforces X-CSRF-Token on cookie-only
+// mutating requests (POST/PUT/PATCH/DELETE without Bearer). Tokens are
+// minted by public GET /api/csrf-token (reusable for 1h) and sent back as
+// X-CSRF-Token. Bearer requests are exempt server-side but we still send
+// the header when we have a token (defense-in-depth, harmless).
+let csrfToken: string | null = null;
+let csrfInflight: Promise<string | null> | null = null;
+
+function isCsrfExemptUrl(url: string): boolean {
+  return (
+    url.includes('/api/csrf-token') ||
+    url.includes('/api/auth/') ||
+    url.includes('/api/nodes/heartbeat') ||
+    url.includes('/api/edge/tunnel')
+  );
+}
+
+async function fetchCsrfToken(): Promise<string | null> {
+  if (csrfToken) return csrfToken;
+  if (!csrfInflight) {
+    csrfInflight = axios
+      .get<{ csrf_token: string }>('/api/csrf-token', { withCredentials: true, timeout: 10000 })
+      .then((r) => {
+        csrfToken = r.data?.csrf_token || null;
+        return csrfToken;
+      })
+      .catch(() => null)
+      .finally(() => {
+        csrfInflight = null;
+      });
+  }
+  return csrfInflight;
+}
+
+export function clearCsrfToken(): void {
+  csrfToken = null;
+}
+
 // Request interceptor: attach the active account's session token as an
 // `Authorization: Bearer <token>` header so multi-account requests hit the
 // right user even when the single HttpOnly cookie belongs to a different
@@ -24,11 +62,25 @@ const client = axios.create({
 // of truth for the primary account), we leave the header off and let the
 // cookie authenticate — that keeps the first-load /api/me path exactly as
 // it was before multi-account landed.
-client.interceptors.request.use((config) => {
+client.interceptors.request.use(async (config) => {
   const token = useAuthStore.getState().activeAccountToken();
   if (token) {
     config.headers = config.headers || {};
-    config.headers.Authorization = `Bearer ${token}`;
+    (config.headers as Record<string, string>).Authorization = `Bearer ${token}`;
+  }
+  // Attach CSRF token on mutating, non-exempt requests. The mint endpoint
+  // itself + public auth/heartbeat families never need it.
+  const method = (config.method || 'get').toLowerCase();
+  const url: string = config.url || '';
+  if ((method === 'post' || method === 'put' || method === 'patch' || method === 'delete') && !isCsrfExemptUrl(url)) {
+    const existing = (config.headers as Record<string, string> | undefined)?.['X-CSRF-Token'];
+    if (!existing) {
+      const t = await fetchCsrfToken();
+      if (t) {
+        config.headers = config.headers || {};
+        (config.headers as Record<string, string>)['X-CSRF-Token'] = t;
+      }
+    }
   }
   return config;
 });

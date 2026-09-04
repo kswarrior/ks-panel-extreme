@@ -16,10 +16,13 @@ import (
 //
 // Honesty contract: this endpoint reports what is ACTUALLY wired into the
 // router chain, not aspirations. The token-based CSRF middleware and the
-// global security-header middleware exist in this package but are NOT
-// mounted (a strict CSP would break the SPA's inline bootstrap/theme CSS,
-// and no client token plumbing exists), so they are reported as such —
-// with the mitigations that ARE live spelled out.
+// global security-header middleware ARE mounted in NewRouter (after cors,
+// around SecurityMiddleware) with SPA-safe CSP and WS/static/Bearer
+// bypasses; the SPA mints tokens via GET /api/csrf-token.
+//
+// NOTE: the live route is handlers.SecurityStatusHandler (mounted at
+// /api/security/status in server.go); this copy is kept in sync so both
+// report enforced:true when wired.
 func SecurityStatusHandler(w http.ResponseWriter, r *http.Request) {
 	dev := isDevelopment()
 
@@ -46,22 +49,33 @@ func SecurityStatusHandler(w http.ResponseWriter, r *http.Request) {
 			"allowed_origins":   origins,
 		},
 		"csrf": map[string]interface{}{
-			// Token middleware exists but is intentionally not mounted.
-			"token_middleware_enforced": false,
+			// Token middleware IS mounted globally (CSRFMiddleware).
+			"token_middleware_enforced": true,
 			// Live CSRF mitigations:
 			"session_cookie_same_site": "Strict",
 			"origin_validation":        !dev,
-			"note": "Session cookie uses SameSite=Strict and cross-origin browser " +
-				"requests are gated by origin validation; the X-CSRF-Token middleware " +
-				"is present but not part of the active chain.",
+			"note": "X-CSRF-Token middleware enforced globally; exempt: safe " +
+				"methods, Upgrade: websocket, static assets, Bearer auth, " +
+				"POST /api/auth/*, POST /api/nodes/heartbeat, /api/edge/tunnel. " +
+				"SPA mints tokens via GET /api/csrf-token.",
 		},
 		"security_headers": map[string]interface{}{
-			"enforced":         false,
-			"middleware_wired": false,
-			"applied_headers":  []string{},
-			"note": "The global security-headers middleware is implemented but not " +
-				"mounted on the router chain; responses currently carry CORS headers " +
-				"from the cors router only.",
+			"enforced":         true,
+			"middleware_wired": true,
+			"applied_headers": []string{
+				"Content-Security-Policy",
+				"X-Content-Type-Options",
+				"X-Frame-Options",
+				"X-XSS-Protection",
+				"Referrer-Policy",
+				"Permissions-Policy",
+				"Cross-Origin-Opener-Policy",
+				"Cross-Origin-Resource-Policy",
+				"Cross-Origin-Embedder-Policy",
+				"Strict-Transport-Security",
+			},
+			"note": "SecurityHeadersMiddleware + XSS/Sanitize/Validation mounted " +
+				"globally in NewRouter (after cors, around SecurityMiddleware).",
 		},
 		"request_limits": map[string]interface{}{
 			// Mirrors the live DynamicMaxBodySize middleware source.
