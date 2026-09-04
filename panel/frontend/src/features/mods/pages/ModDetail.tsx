@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { activateMod, deactivateMod, deleteMod, getMod, getModLogs } from '@/features/mods/api/mods';
-import type { Mod, ModLogEntry } from '@/shared/types/mod';
-import { modCapabilityMeta, modSourceMeta } from '@/shared/types/mod';
+import { modCapabilityMeta, modSourceMeta, type Mod, type ModLogEntry } from '@/shared/types/mod';
 import GlassCard from '@/shared/components/ui/Card';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import { PageActionsPill } from '@/shared/components/ui/PageActionsPill';
@@ -20,37 +19,21 @@ function getErrorMessage(e: any, fallback: string): string {
   return fallback;
 }
 
-function formatDate(iso: string | null | undefined): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return '—';
-  return d.toLocaleString();
-}
-
 function relativeTime(iso: string | null | undefined): string {
   if (!iso) return '';
   const d = new Date(iso as string);
   if (isNaN(d.getTime())) return '';
-  const diff = Date.now() - d.getTime();
-  const s = Math.floor(diff / 1000);
+  const s = Math.floor((Date.now() - d.getTime()) / 1000);
   if (s < 60) return `${s}s ago`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const days = Math.floor(h / 24);
-  if (days < 30) return `${days}d ago`;
-  const months = Math.floor(days / 30);
-  if (months < 12) return `${months}mo ago`;
-  return `${Math.floor(days / 365)}y ago`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  const days = Math.floor(s / 86400);
+  return days < 30 ? `${days}d ago` : days < 365 ? `${Math.floor(days / 30)}mo ago` : `${Math.floor(days / 365)}y ago`;
 }
 
 function levelColor(level: string): string {
   const l = (level || '').toLowerCase();
-  if (l === 'error') return 'text-red-300';
-  if (l === 'warn') return 'text-amber-300';
-  if (l === 'debug') return 'text-gray-500';
-  return 'text-gray-300';
+  return l === 'error' ? 'text-red-300' : l === 'warn' ? 'text-amber-300' : l === 'debug' ? 'text-gray-500' : 'text-gray-300';
 }
 
 const ModDetail: React.FC = () => {
@@ -59,7 +42,6 @@ const ModDetail: React.FC = () => {
   const confirm = useConfirm();
   const [mod, setMod] = useState<Mod | null>(null);
   const [logs, setLogs] = useState<ModLogEntry[]>([]);
-  const [runState, setRunState] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [toggling, setToggling] = useState(false);
@@ -84,10 +66,8 @@ const ModDetail: React.FC = () => {
         if (cancelled) return;
         setMod(m);
         getModLogs(numericId).then((r) => {
-          if (!cancelled) {
-            setLogs(r.logs || []);
-            setRunState(r.state || '');
-          }
+          if (cancelled) return;
+          setLogs(r.logs || []);
         }).catch(() => {});
       } catch (e: any) {
         if (!cancelled) setError(getErrorMessage(e, 'Failed to load mod'));
@@ -109,11 +89,8 @@ const ModDetail: React.FC = () => {
         await deactivateMod(mod.id);
         setMod((p) => (p ? { ...p, active: false } : p));
       } else {
-        const res = await activateMod(mod.id);
-        if (res && typeof res === 'object' && 'pending' in res) {
-          alert((res as any).message || `${(res as any).pending} grants still pending`);
-          return;
-        }
+        const res = await activateMod(mod.id) as any;
+        if (res?.pending) { alert(res.message || `${res.pending} grants still pending`); return; }
         setMod((p) => (p ? { ...p, active: true } : p));
       }
     } catch (e: any) {
@@ -215,7 +192,7 @@ const ModDetail: React.FC = () => {
             {src ? <span className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded-md border ${src.badge}`}>{src.label}</span> : mod.source ? <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded-md border bg-white/5 border-white/10 text-gray-300">{mod.source}</span> : null}
             {pending > 0 ? <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded-md border bg-amber-900/30 border-amber-700/30 text-amber-200">{pending} pending</span> : null}
           </h2>
-          <p className="text-xs text-gray-500 truncate mt-1">ID {mod.id} · {mod.slug}{runState ? ` · engine ${runState}` : ''} · {relativeTime(mod.created_at)}</p>
+          <p className="text-xs text-gray-500 truncate mt-1">ID {mod.id} · {mod.slug} · {relativeTime(mod.created_at)}</p>
           {mod.description && <p className="text-sm text-gray-300 mt-1">{mod.description}</p>}
         </div>
       </GlassCard>
@@ -225,29 +202,25 @@ const ModDetail: React.FC = () => {
           <h4 className="text-xs uppercase tracking-wide text-gray-500">Details</h4>
           <div className="mt-2 space-y-1.5 text-sm">
             <div className="flex justify-between gap-2"><span className="text-gray-400">Slug</span><span className="text-white font-mono text-xs">{mod.slug}</span></div>
-            <div className="flex justify-between gap-2"><span className="text-gray-400">Engine</span><span className="text-white font-mono text-xs">v{mod.engine_version ?? 1}</span></div>
-            {mod.owner_name && <div className="flex justify-between gap-2"><span className="text-gray-400">Owner</span><span className="text-white text-xs">{mod.owner_name}</span></div>}
-            {mod.source_url && <div className="flex justify-between gap-2"><span className="text-gray-400">URL</span><span className="text-white font-mono text-xs truncate max-w-[160px]" title={mod.source_url}>{mod.source_url}</span></div>}
           </div>
         </GlassCard>
         <GlassCard className="p-3">
           <h4 className="text-xs uppercase tracking-wide text-gray-500">Capabilities · {caps.length}</h4>
           <div className="mt-2 space-y-1.5 text-sm">
             {caps.length === 0 && <p className="text-gray-500 text-xs">No capabilities requested.</p>}
-            {caps.slice(0, 5).map((c) => (
+            {caps.map((c) => (
               <div key={c.id} className="flex justify-between gap-2">
-                <span className="text-gray-300 text-xs truncate">{modCapabilityMeta(c.capability)?.label || c.capability}</span>
+                <span className="text-gray-300 text-xs truncate">{modCapabilityMeta(c.capability)?.label || c.capability} · {c.access_level}</span>
                 <span className={c.granted ? 'text-emerald-300 text-xs' : 'text-amber-300 text-xs'}>{c.granted ? 'granted' : 'pending'}</span>
               </div>
             ))}
-            {caps.length > 5 && <p className="text-[11px] text-gray-500">+{caps.length - 5} more</p>}
           </div>
         </GlassCard>
         <GlassCard className="p-3">
           <h4 className="text-xs uppercase tracking-wide text-gray-500">Timeline</h4>
           <div className="mt-2 space-y-1.5 text-sm">
-            <div className="flex justify-between gap-2"><span className="text-gray-400">Created</span><span className="text-white text-xs" title={formatDate(mod.created_at)}>{relativeTime(mod.created_at)}</span></div>
-            <div className="flex justify-between gap-2"><span className="text-gray-400">Updated</span><span className="text-white text-xs" title={formatDate(mod.updated_at)}>{relativeTime(mod.updated_at)}</span></div>
+            <div className="flex justify-between gap-2"><span className="text-gray-400">Created</span><span className="text-white text-xs" title={mod.created_at}>{relativeTime(mod.created_at)}</span></div>
+            <div className="flex justify-between gap-2"><span className="text-gray-400">Updated</span><span className="text-white text-xs" title={mod.updated_at}>{relativeTime(mod.updated_at)}</span></div>
             <div className="pt-1 flex gap-2">
               <button onClick={handleToggle} disabled={toggling} className="flex-1 px-3 py-1.5 text-xs rounded-md bg-white text-black hover:bg-gray-200 disabled:opacity-50">{mod.active ? 'Deactivate' : 'Activate'}</button>
               <button onClick={() => navigate('/mods/studio')} className="px-3 py-1.5 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white">Studio</button>

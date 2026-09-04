@@ -30,18 +30,12 @@ function relativeTime(iso: string | null | undefined): string {
   if (!iso) return '';
   const d = new Date(iso as string);
   if (isNaN(d.getTime())) return '';
-  const diff = Date.now() - d.getTime();
-  const s = Math.floor(diff / 1000);
+  const s = Math.floor((Date.now() - d.getTime()) / 1000);
   if (s < 60) return `${s}s ago`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const days = Math.floor(h / 24);
-  if (days < 30) return `${days}d ago`;
-  const months = Math.floor(days / 30);
-  if (months < 12) return `${months}mo ago`;
-  return `${Math.floor(days / 365)}y ago`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  const days = Math.floor(s / 86400);
+  return days < 30 ? `${days}d ago` : days < 365 ? `${Math.floor(days / 30)}mo ago` : `${Math.floor(days / 365)}y ago`;
 }
 
 const RoleDetail: React.FC = () => {
@@ -53,7 +47,6 @@ const RoleDetail: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [deleting, setDeleting] = useState(false);
-  const [copied, setCopied] = useState('');
 
   const numericId = id ? Number(id) : NaN;
   const validId = Number.isFinite(numericId) && numericId > 0;
@@ -93,14 +86,6 @@ const RoleDetail: React.FC = () => {
   );
 
   const back = () => navigate('/roles');
-
-  const copy = async (text: string, k: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(k);
-      setTimeout(() => setCopied(''), 1500);
-    } catch {}
-  };
 
   const handleDelete = async () => {
     if (!role) return;
@@ -172,12 +157,10 @@ const RoleDetail: React.FC = () => {
           ariaLabel={`Actions for role ${label}`}
           items={[
             { key: 'edit', label: 'Edit role', tone: 'default' },
-            { key: 'copyId', label: copied === 'id' ? 'Copied!' : 'Copy ID', tone: 'default' },
             { key: 'delete', label: deleting ? 'Deleting…' : 'Delete', tone: 'danger' },
           ]}
           onSelect={(k) => {
             if (k === 'edit') navigate(`/roles/${role.id}/edit`);
-            if (k === 'copyId') copy(String(role.id), 'id');
             if (k === 'delete') handleDelete();
           }}
         />
@@ -207,7 +190,6 @@ const RoleDetail: React.FC = () => {
             <div className="flex justify-between gap-2"><span className="text-gray-400">Name</span><span className="text-white font-mono text-xs">{role.name}</span></div>
             {role.display_name && <div className="flex justify-between gap-2"><span className="text-gray-400">Display</span><span className="text-white">{role.display_name}</span></div>}
             <div className="flex justify-between gap-2"><span className="text-gray-400">Color</span><span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full border border-white/20" style={{ background: role.color || '#9ca3af' }} /><span className="font-mono text-xs text-white">{role.color || '—'}</span></span></div>
-            {role.icon && <div className="flex justify-between gap-2"><span className="text-gray-400">Icon</span><span className="text-white">{role.icon}</span></div>}
           </div>
         </GlassCard>
         <GlassCard className="p-3">

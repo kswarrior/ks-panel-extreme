@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { deleteApplication, getApplication, listApplicationRuns } from '@/features/applications/api/applications';
-import type { Application, ApplicationRun } from '@/features/applications/types/application';
-import { appCapabilityMeta } from '@/features/applications/types/application';
+import { appCapabilityMeta, type Application, type ApplicationRun } from '@/features/applications/types/application';
 import GlassCard from '@/shared/components/ui/Card';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import { PageActionsPill } from '@/shared/components/ui/PageActionsPill';
@@ -45,10 +44,8 @@ function relativeTime(iso: string | null | undefined): string {
   return `${Math.floor(days / 365)}y ago`;
 }
 
-function runTone(status: ApplicationRun['status']): string {
-  if (status === 'succeeded') return 'bg-emerald-900/30 border-emerald-700/30 text-emerald-200';
-  if (status === 'running') return 'bg-amber-900/30 border-amber-700/30 text-amber-200';
-  return 'bg-red-900/30 border-red-700/30 text-red-200';
+function runTone(s: ApplicationRun['status']): string {
+  return s === 'succeeded' ? 'bg-emerald-900/30 border-emerald-700/30 text-emerald-200' : s === 'running' ? 'bg-amber-900/30 border-amber-700/30 text-amber-200' : 'bg-red-900/30 border-red-700/30 text-red-200';
 }
 
 const ApplicationDetail: React.FC = () => {

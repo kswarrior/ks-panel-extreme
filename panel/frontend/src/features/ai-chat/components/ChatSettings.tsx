@@ -293,6 +293,8 @@ const ChatSettings: React.FC = () => {
       </section>
 
       {/* ── Retry ───────────────────────────────────────────── */}
+      <section className="space-y-3">
+        <h4 className={sectionCls}>Retry</h4>
         <label className="flex items-start justify-between gap-3 cursor-pointer select-none">
           <span className="flex-1 min-w-0">
             <span className="block text-xs font-medium text-gray-200">Auto-retry on rate limit</span>
