@@ -1,9 +1,27 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import client from '@/shared/api/client';
+import { fetchAuthorityBranding } from '@/shared/api/authorityBranding';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
 import ThemedBackground from '@/shared/components/layout/ThemedBackground';
+
+// isSafeLogoUrl keeps the authority logo honest at the <img> sink: only
+// http(s) / data:image / blob: / root-relative URLs ever reach src, so a
+// hostile value can never become a javascript: navigation.
+function isSafeLogoUrl(u: string): boolean {
+  const t = (u || '').trim();
+  if (!t || t.length > 4096) return false;
+  if (/["'\\\n\r]/.test(t)) return false;
+  const lower = t.toLowerCase();
+  return (
+    lower.startsWith('https://') ||
+    lower.startsWith('http://') ||
+    lower.startsWith('data:image/') ||
+    lower.startsWith('blob:') ||
+    t.startsWith('/')
+  );
+}
 
 interface LoginResponse {
   user: any;
@@ -44,8 +62,10 @@ const Login: React.FC = () => {
       window.history.replaceState({}, '', window.location.pathname + (params.toString() ? `?${params}` : ''));
     }
     (async () => {
-      // Fetch brand and auth flags independently so one failing doesn't block the other.
+      // Fetch brand, authority branding and auth flags independently so one
+      // failing doesn't block the others.
       const panelReq = client.get<{ panel_name: string; panel_logo: { url: string; mime: string } | null }>('/api/settings/panel-name');
+      const brandingReq = fetchAuthorityBranding();
       const flagsReq = client.get<{
         register_allow: boolean;
         verify_required: boolean;
@@ -55,7 +75,7 @@ const Login: React.FC = () => {
         session_max_per_user?: number;
       }>('/api/auth/flags');
 
-      const [panelRes, flagsRes] = await Promise.allSettled([panelReq, flagsReq]);
+      const [panelRes, brandingRes, flagsRes] = await Promise.allSettled([panelReq, brandingReq, flagsReq]);
 
       if (cancelled) return;
 
@@ -71,6 +91,31 @@ const Login: React.FC = () => {
         } else {
           store.setPanelLogo(null);
         }
+      }
+
+      // Authority branding wins over the global panel brand when present
+      // (logo + backdrop); otherwise the panel-name/logo fallback above
+      // stays in effect untouched.
+      if (brandingRes.status === 'fulfilled') {
+        const b = brandingRes.value;
+        const store = useSettingsStore.getState();
+        store.setBranding({
+          panel_name: b.panel_name,
+          logo_url: b.logo_url,
+          logo_source: b.logo_source,
+          background_url: b.background_url,
+          background_type: b.background_type,
+          background_source: b.background_source,
+        });
+        if (b.panel_name) {
+          setPanelName(b.panel_name);
+          document.title = b.panel_name;
+        }
+        if (b.logo_url && isSafeLogoUrl(b.logo_url)) {
+          store.setPanelLogo({ url: b.logo_url, mime: '' });
+        }
+      } else {
+        useSettingsStore.getState().setBranding(null);
       }
 
       if (flagsRes.status === 'fulfilled') {

@@ -203,6 +203,31 @@ func UpdateApplyHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "downloaded file is empty or missing", http.StatusBadGateway)
 		return
 	}
+	// Verified download: hash the temp file BEFORE chmod/swap. On
+	// mismatch the temp file is deleted, the live binary is untouched
+	// and the failure is audit-logged (422, not 5xx — the artifact, not
+	// the panel, is at fault). The manifest fetch itself is best-effort:
+	// when no checksum is published (or reachable) anywhere the apply
+	// proceeds unverified and logs that fact, so old manifests don't
+	// brick updates while new ones are enforced.
+	if m, merr := fetchUpdateManifest(); merr != nil {
+		logLines = append(logLines, "could not fetch manifest for checksum ("+merr.Error()+") — installing unverified binary")
+	} else if expected, verr := resolveExpectedSHA256(m); verr != nil {
+		os.Remove(tmpPath)
+		recordUpdateVerifyFailure(r, "self_update_verify_failed", "panel self-update checksum error: "+verr.Error())
+		http.Error(w, "checksum error: "+verr.Error(), http.StatusUnprocessableEntity)
+		return
+	} else if expected != "" {
+		if verr := verifyFileSHA256(tmpPath, expected); verr != nil {
+			os.Remove(tmpPath)
+			recordUpdateVerifyFailure(r, "self_update_verify_failed", "panel self-update aborted: "+verr.Error())
+			http.Error(w, "checksum mismatch — download deleted, live binary untouched: "+verr.Error(), http.StatusUnprocessableEntity)
+			return
+		}
+		logLines = append(logLines, "checksum verified (sha256 "+expected[:12]+"…)")
+	} else {
+		logLines = append(logLines, "no checksum published — installing unverified binary")
+	}
 	if err := os.Chmod(tmpPath, 0o755); err != nil {
 		os.Remove(tmpPath)
 		http.Error(w, "chmod failed: "+err.Error(), http.StatusInternalServerError)
@@ -519,6 +544,27 @@ func ReinstallHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "downloaded file is empty or missing", http.StatusBadGateway)
 		return
 	}
+	// Verified download — same pre-chmod hash gate as UpdateApplyHandler:
+	// mismatch deletes the temp file, leaves the live binary untouched
+	// and audit-logs the failure (422).
+	if m, merr := fetchUpdateManifest(); merr != nil {
+		logLines = append(logLines, "could not fetch manifest for checksum ("+merr.Error()+") — installing unverified binary")
+	} else if expected, verr := resolveExpectedSHA256(m); verr != nil {
+		os.Remove(tmpPath)
+		recordUpdateVerifyFailure(r, "self_reinstall_verify_failed", "panel reinstall checksum error: "+verr.Error())
+		http.Error(w, "checksum error: "+verr.Error(), http.StatusUnprocessableEntity)
+		return
+	} else if expected != "" {
+		if verr := verifyFileSHA256(tmpPath, expected); verr != nil {
+			os.Remove(tmpPath)
+			recordUpdateVerifyFailure(r, "self_reinstall_verify_failed", "panel reinstall aborted: "+verr.Error())
+			http.Error(w, "checksum mismatch — download deleted, live binary untouched: "+verr.Error(), http.StatusUnprocessableEntity)
+			return
+		}
+		logLines = append(logLines, "checksum verified (sha256 "+expected[:12]+"…)")
+	} else {
+		logLines = append(logLines, "no checksum published — installing unverified binary")
+	}
 	if err := os.Chmod(tmpPath, 0o755); err != nil {
 		os.Remove(tmpPath)
 		http.Error(w, "chmod failed: "+err.Error(), http.StatusInternalServerError)
@@ -821,6 +867,30 @@ if curl -fL --connect-timeout 30 --max-time 300 -o "$TMP_PATH" "$UPDATE_URL"; th
 else
     log_err "Download failed"
     exit 1
+fi
+
+# 3b. Checksum verification. SHA256_EXPECTED is embedded by the panel at
+# script-generation time from the version manifest (update_verify.go); when
+# empty (old manifest without sha256) the install proceeds unverified. A
+# mismatch exits here — DOWNLOADED is already true so the EXIT trap rolls
+# back to .old and the corrupt bytes never reach the live path.
+SHA256_EXPECTED="{{.SHA256}}"
+if [[ -n "$SHA256_EXPECTED" ]]; then
+    if command -v sha256sum >/dev/null 2>&1; then
+        GOT_SHA=$(sha256sum "$TMP_PATH" | awk '{print $1}')
+    elif command -v shasum >/dev/null 2>&1; then
+        GOT_SHA=$(shasum -a 256 "$TMP_PATH" | awk '{print $1}')
+    else
+        log_warn "no sha256 tool found — skipping checksum verification"
+        GOT_SHA="$SHA256_EXPECTED"
+    fi
+    if [[ "$GOT_SHA" != "$SHA256_EXPECTED" ]]; then
+        log_err "checksum mismatch: expected $SHA256_EXPECTED, got $GOT_SHA"
+        exit 1
+    fi
+    log_ok "Checksum verified (sha256)"
+else
+    log_warn "no checksum embedded — installing unverified binary"
 fi
 
 # 4. Move new binary into place

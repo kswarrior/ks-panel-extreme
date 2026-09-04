@@ -77,10 +77,31 @@ type DatabaseInfo struct {
 
 	Tables []DatabaseTable `json:"tables"`
 
-	// EngineNotSupported is true for non-SQLite engines; the page renders
-	// an explanatory card ("use psql / mysql cli for introspection") and
-	// does not query PRAGMA-driven fields.
+	// EngineNotSupported is retained for wire compatibility. All three
+	// shipped engines (sqlite/postgres/mysql) now return real diagnostics
+	// below, so this is false for them and true only for a future unknown
+	// engine that has no inspector yet.
 	EngineNotSupported bool `json:"engine_not_supported"`
+
+	// Per-engine notes for checks with no equivalent. Postgres/MySQL have
+	// no PRAGMA quick_check / foreign_key_check, so IntegrityIssues and
+	// ForeignKeyIssues stay empty and these notes explain what health
+	// coverage *is* provided (connection probe + row-count sanity) instead.
+	IntegrityNote  string `json:"integrity_note,omitempty"`
+	ForeignKeyNote string `json:"foreign_key_note,omitempty"`
+	HealthNote     string `json:"health_note,omitempty"`
+
+	// Scheduled integrity verification — last run status surfaced on the
+	// Database page. Populated from the verify-state KV (see
+	// database_verify_handler.go); nil/empty means "never verified".
+	VerifyLastAt       *time.Time `json:"verify_last_at,omitempty"`
+	VerifyLastOk       *bool      `json:"verify_last_ok,omitempty"`
+	VerifyLastIssues   []string   `json:"verify_last_issues"`
+	VerifyLastWarnings []string   `json:"verify_last_warnings"`
+	VerifyTableCount   int64      `json:"verify_table_count"`
+	VerifyDurationMs   int64      `json:"verify_duration_ms"`
+	VerifyCron         string     `json:"verify_cron"`
+	VerifyNextRun      *time.Time `json:"verify_next_run,omitempty"`
 
 	// Live-monitor global counters. These turn the page from a static
 	// snapshot into a real monitor: the between-tick deltas let an operator
