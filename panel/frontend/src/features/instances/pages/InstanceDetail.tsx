@@ -20,6 +20,7 @@ import { useInstanceNavSync } from '@/shared/components/layout/InstanceNavContex
 import { getPageContent, getPageLabel, isPageAllowed } from '@/shared/utils/instancePages';
 import { pageNavigateTarget } from '@/shared/lib/customPageSdk';
 import CustomPageView from '@/shared/components/ui/CustomPageView';
+import ErrorBoundary from '@/shared/components/ui/ErrorBoundary';
 import Terminal, { type TerminalHandle } from '@/shared/components/ui/Terminal';
 import type { Terminal as XTerm } from '@xterm/xterm';
 import InstancePortsEditor from '@/features/instances/pages/InstancePortsEditor';

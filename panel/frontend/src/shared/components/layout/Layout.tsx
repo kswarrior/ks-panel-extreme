@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import Header from './Header';
 import Sidebar from './Sidebar';
 import ThemedBackground from './ThemedBackground';
+import ErrorBoundary from '@/shared/components/ui/ErrorBoundary';
 
 const Layout: React.FC = () => {
   const location = useLocation();
@@ -19,7 +20,11 @@ const Layout: React.FC = () => {
   }, [location.pathname]);
 
   if (hideLayout) {
-    return <Outlet />;
+    return (
+      <ErrorBoundary resetKey={location.pathname} label="auth">
+        <Outlet />
+      </ErrorBoundary>
+    );
   }
 
   const toggleSidebar = () => setSidebarOpen((v) => !v);
@@ -40,7 +45,9 @@ const Layout: React.FC = () => {
           inInstancePanel={inInstancePanel}
         />
         <main className="flex-1 overflow-auto p-4 sm:p-6">
-          <Outlet />
+          <ErrorBoundary resetKey={location.pathname} label="page">
+            <Outlet />
+          </ErrorBoundary>
         </main>
       </div>
     </div>

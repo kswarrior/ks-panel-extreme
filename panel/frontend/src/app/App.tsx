@@ -10,6 +10,7 @@ import client from '@/shared/api/client';
 import type { User } from '@/shared/types/user';
 import { InstanceNavProvider } from '@/shared/components/layout/InstanceNavContext';
 import ConfirmDialog from '@/shared/components/ui/ConfirmDialog';
+import ErrorBoundary from '@/shared/components/ui/ErrorBoundary';
 import ChatFab from '@/features/ai-chat/components/ChatFab';
 import ChatPanel from '@/features/ai-chat/components/ChatPanel';
 
@@ -118,7 +119,9 @@ const App: React.FC = () => {
   return (
     <BrowserRouter>
       <InstanceNavProvider>
-        <Router />
+        <ErrorBoundary label="app">
+          <Router />
+        </ErrorBoundary>
         {/* Panel-owned confirm() dialog — replaces every native
             window.confirm across the app. */}
         <ConfirmDialog />
