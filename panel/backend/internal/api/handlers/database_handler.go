@@ -567,6 +567,268 @@ func scalarInt(con *sql.DB, q string) int64 {
 	return n
 }
 
+// escapeSQLLit escapes a value for embedding in a single-quoted SQL literal.
+func escapeSQLLit(s string) string { return strings.ReplaceAll(s, `'`, `''`) }
+
+// databaseInfoPostgres returns real table listing + row counts + size +
+// connection health for Postgres, in the same JSON shape as SQLite.
+// information_schema gives tables/columns; pg_relation_size /
+// pg_indexes_size give bytes; pg_stat_activity gives live connections.
+// There is no PRAGMA quick_check / foreign_key_check equivalent, so those
+// stay empty with a per-engine note.
+func databaseInfoPostgres(con *sql.DB, cfg config.DBConfig) (DatabaseInfo, error) {
+	now := time.Now().UTC()
+	info := DatabaseInfo{
+		Engine:           "postgres",
+		Path:             redactedDSN(cfg.DSN),
+		GeneratedAt:      now,
+		Tables:           []DatabaseTable{},
+		IntegrityIssues:  []string{},
+		ForeignKeyIssues: []string{},
+		IntegrityOk:      true,
+		ForeignKeyOk:     true,
+		IntegrityNote:    "Postgres has no PRAGMA quick_check; health is connection probe + row-count sanity (see scheduled verify).",
+		ForeignKeyNote:   "Postgres FK violations are not auto-scanned; query information_schema manually for orphans.",
+		HealthNote:       "Postgres diagnostics via information_schema + pg_relation_size + pg_stat_activity.",
+	}
+	if v := scalar(con, `SELECT version()`); v != "" {
+		info.Version = v
+	} else {
+		info.Version = "unknown"
+	}
+	if v := scalar(con, `SHOW wal_level`); v != "" {
+		info.JournalMode = v
+	} else {
+		info.JournalMode = "wal"
+	}
+	info.Encoding = scalar(con, `SELECT pg_encoding_to_char(encoding) FROM pg_database WHERE datname = current_database()`)
+	info.TotalConnections = scalarInt(con, `SELECT count(*) FROM pg_stat_activity`)
+	if v := scalar(con, `SHOW autovacuum`); strings.EqualFold(strings.TrimSpace(v), "on") {
+		info.AutoVacuumMode = 1
+	}
+	if v := scalar(con, `SHOW block_size`); v != "" {
+		if p, perr := strconv.ParseInt(strings.TrimSpace(v), 10, 64); perr == nil {
+			info.PageSize = p
+		}
+	}
+	if info.PageSize == 0 {
+		info.PageSize = 8192
+	}
+	dbBytes := scalarInt(con, `SELECT pg_database_size(current_database())`)
+	info.LogicalBytes = dbBytes
+	info.OnDiskBytes = dbBytes
+	if info.PageSize > 0 {
+		info.PageCount = dbBytes / info.PageSize
+	}
+	info.LastCheckpoint = now.Format(time.RFC3339)
+	info.LastModifiedAgoSec = 0
+	// Table listing.
+	rows, err := con.Query(`SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name`)
+	if err != nil {
+		return info, err
+	}
+	names := []string{}
+	for rows.Next() {
+		var n string
+		if err := rows.Scan(&n); err == nil {
+			names = append(names, n)
+		}
+	}
+	rows.Close()
+	if rerr := rows.Err(); rerr != nil {
+		return info, rerr
+	}
+	out := make([]DatabaseTable, 0, len(names))
+	for _, n := range names {
+		var dt DatabaseTable
+		dt.Name = n
+		dt.Type = "table"
+		nIdent := strings.ReplaceAll(n, `"`, `""`)
+		nLit := escapeSQLLit(n)
+		nReg := `"` + escapeSQLLit(strings.ReplaceAll(n, `"`, `""`)) + `"`
+		// pg uses double-quoted identifiers for COUNT; information_schema
+		// lookups use single-quoted literals.
+		dt.RowCount = scalarInt(con, `SELECT COUNT(*) FROM "`+nIdent+`"`)
+		dt.ColumnCount = scalarInt(con, `SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '`+nLit+`'`)
+		dt.IndexCount = scalarInt(con, `SELECT COUNT(*) FROM pg_indexes WHERE schemaname = 'public' AND tablename = '`+nLit+`'`)
+		dt.SizeBytes = scalarInt(con, `SELECT pg_relation_size('`+nReg+`')`)
+		dt.IndexBytes = scalarInt(con, `SELECT pg_indexes_size('`+nReg+`')`)
+		dt.PageCount = 0
+		if info.PageSize > 0 && dt.SizeBytes > 0 {
+			dt.PageCount = dt.SizeBytes / info.PageSize
+			if dt.PageCount == 0 {
+				dt.PageCount = 1
+			}
+		}
+		dt.LeafPages = dt.PageCount
+		if dt.RowCount > 0 && dt.SizeBytes > 0 {
+			dt.AvgRowBytes = dt.SizeBytes / dt.RowCount
+		}
+		out = append(out, dt)
+	}
+	info.Tables = out
+	return info, nil
+}
+
+// databaseInfoMySQL returns real diagnostics for MySQL/MariaDB in the same
+// JSON shape. information_schema.TABLES gives data_length/index_length;
+// information_schema.columns/statistics give column/index counts.
+func databaseInfoMySQL(con *sql.DB, cfg config.DBConfig) (DatabaseInfo, error) {
+	now := time.Now().UTC()
+	info := DatabaseInfo{
+		Engine:           "mysql",
+		Path:             redactedDSN(cfg.DSN),
+		GeneratedAt:      now,
+		Tables:           []DatabaseTable{},
+		IntegrityIssues:  []string{},
+		ForeignKeyIssues: []string{},
+		IntegrityOk:      true,
+		ForeignKeyOk:     true,
+		IntegrityNote:    "MySQL has no PRAGMA quick_check; health is connection probe + row-count sanity (see scheduled verify).",
+		ForeignKeyNote:   "MySQL FK violations are not auto-scanned; use CHECK TABLE or information_schema for orphans.",
+		HealthNote:       "MySQL diagnostics via information_schema + Data_length/Index_length.",
+	}
+	if v := scalar(con, `SELECT VERSION()`); v != "" {
+		info.Version = v
+	} else {
+		info.Version = "unknown"
+	}
+	if v := scalar(con, `SELECT @@default_storage_engine`); v != "" {
+		info.JournalMode = v
+	} else {
+		info.JournalMode = "InnoDB"
+	}
+	if v := scalar(con, `SELECT @@character_set_database`); v != "" {
+		info.Encoding = v
+	}
+	info.TotalConnections = scalarInt(con, `SELECT COUNT(*) FROM information_schema.PROCESSLIST`)
+	info.PageSize = scalarInt(con, `SELECT @@innodb_page_size`)
+	if info.PageSize == 0 {
+		info.PageSize = 16384
+	}
+	dbBytes := scalarInt(con, `SELECT COALESCE(SUM(data_length+index_length),0) FROM information_schema.tables WHERE table_schema = DATABASE()`)
+	info.LogicalBytes = dbBytes
+	info.OnDiskBytes = dbBytes
+	if info.PageSize > 0 && dbBytes > 0 {
+		info.PageCount = dbBytes / info.PageSize
+	}
+	info.LastCheckpoint = now.Format(time.RFC3339)
+	info.LastModifiedAgoSec = 0
+	rows, err := con.Query(`SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE' ORDER BY table_name`)
+	if err != nil {
+		return info, err
+	}
+	names := []string{}
+	for rows.Next() {
+		var n string
+		if err := rows.Scan(&n); err == nil {
+			names = append(names, n)
+		}
+	}
+	rows.Close()
+	if rerr := rows.Err(); rerr != nil {
+		return info, rerr
+	}
+	out := make([]DatabaseTable, 0, len(names))
+	for _, n := range names {
+		var dt DatabaseTable
+		dt.Name = n
+		dt.Type = "table"
+		nIdent := strings.ReplaceAll(n, "`", "``")
+		nLit := escapeSQLLit(n)
+		dt.RowCount = scalarInt(con, "SELECT COUNT(*) FROM `"+nIdent+"`")
+		dt.ColumnCount = scalarInt(con, `SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = '`+nLit+`'`)
+		dt.IndexCount = scalarInt(con, `SELECT COUNT(DISTINCT index_name) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = '`+nLit+`'`)
+		dt.SizeBytes = scalarInt(con, `SELECT COALESCE(data_length,0) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = '`+nLit+`'`)
+		dt.IndexBytes = scalarInt(con, `SELECT COALESCE(index_length,0) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = '`+nLit+`'`)
+		dt.AutoIncrVal = scalarInt(con, `SELECT COALESCE(auto_increment,0) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = '`+nLit+`'`)
+		if info.PageSize > 0 && dt.SizeBytes > 0 {
+			dt.PageCount = dt.SizeBytes / info.PageSize
+			if dt.PageCount == 0 {
+				dt.PageCount = 1
+			}
+		}
+		dt.LeafPages = dt.PageCount
+		if dt.RowCount > 0 && dt.SizeBytes > 0 {
+			dt.AvgRowBytes = dt.SizeBytes / dt.RowCount
+		}
+		out = append(out, dt)
+	}
+	info.Tables = out
+	return info, nil
+}
+
+// attachVerifyStatus populates the verify_* fields from the persisted
+// verify-state KV. Never fails the page — a missing/corrupt state renders
+// as "never verified".
+func attachVerifyStatus(info *DatabaseInfo) {
+	if info == nil {
+		return
+	}
+	con, err := repository.OpenDB()
+	if err != nil {
+		info.VerifyLastIssues = []string{}
+		info.VerifyLastWarnings = []string{}
+		return
+	}
+	defer con.Close()
+	cfg := config.DatabaseConfig()
+	d, derr := db.NewDialect(cfg.Engine)
+	if derr != nil {
+		info.VerifyLastIssues = []string{}
+		info.VerifyLastWarnings = []string{}
+		return
+	}
+	st := repository.GetDatabaseVerifyState(con, d)
+	info.VerifyLastAt = st.CheckedAt
+	info.VerifyLastOk = st.Ok
+	info.VerifyLastIssues = st.Issues
+	if info.VerifyLastIssues == nil {
+		info.VerifyLastIssues = []string{}
+	}
+	info.VerifyLastWarnings = st.Warnings
+	if info.VerifyLastWarnings == nil {
+		info.VerifyLastWarnings = []string{}
+	}
+	info.VerifyTableCount = st.TableCount
+	info.VerifyDurationMs = st.DurationMs
+	info.VerifyCron = st.Cron
+	info.VerifyNextRun = st.NextRun
+	if info.VerifyCron == "" {
+		info.VerifyCron = repository.DefaultDBVerifyCron
+	}
+}
+
+// applySnapshotDeltas diffs info against the previous snapshot in
+// snapshotStore and records the result for the next tick. Shared by the
+// Postgres/MySQL branches (the SQLite branch keeps its inline version so
+// its diff comment stays attached to the measurement code).
+func applySnapshotDeltas(info *DatabaseInfo) {
+	if info == nil {
+		return
+	}
+	prev := snapshotStore.get()
+	if prev != nil {
+		prevByTable := make(map[string]DatabaseTable, len(prev.Tables))
+		for _, t := range prev.Tables {
+			prevByTable[t.Name] = t
+		}
+		sumRow := int64(0)
+		for i := range info.Tables {
+			t := &info.Tables[i]
+			p := prevByTable[t.Name]
+			t.RowDelta = t.RowCount - p.RowCount
+			t.SizeDelta = t.SizeBytes - p.SizeBytes
+			t.IndexDelta = t.IndexBytes - p.IndexBytes
+			sumRow += t.RowDelta
+		}
+		info.RowDeltaSinceLast = sumRow
+		info.SizeDelta = info.OnDiskBytes - prev.OnDiskBytes
+		info.WalDelta = info.WalBytes - prev.WalBytes
+	}
+	snapshotStore.store(*info)
+}
+
 // redactedDSN masks passwords out of a database DSN so the JSON snapshot we
 // ship to the SPA never accidentally leaks the secret. We accept the
 // libpq keyword form (password=...), the URL form (user:pass@host), and
