@@ -82,10 +82,12 @@ func SecurityHeadersExtendedMiddleware(next http.Handler) http.Handler {
 		// Permissions policy
 		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()")
 
-		// Cross-origin policies
+		// Cross-origin policies (credentialless so cross-origin no-cors
+		// subresources such as theme wallpapers keep loading — require-corp
+		// would block them when the host sends no CORP headers).
 		w.Header().Set("Cross-Origin-Opener-Policy", "same-origin")
 		w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
-		w.Header().Set("Cross-Origin-Embedder-Policy", "require-corp")
+		w.Header().Set("Cross-Origin-Embedder-Policy", "credentialless")
 
 		// HSTS for HTTPS
 		if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {

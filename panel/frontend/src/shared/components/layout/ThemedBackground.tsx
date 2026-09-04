@@ -8,7 +8,11 @@ import { useSettingsStore } from '@/shared/stores/settingsStore';
 // a CSS gradient function, never a url()).
 function isSafeBrandingUrl(u: string): boolean {
   const t = (u || '').trim();
-  if (!t || t.length > 4096) return false;
+  // Self-contained data: URLs (inlined uploads) legitimately run to hundreds
+  // of KB — capping those at 4096 would silently drop them and render as a
+  // missing background. Remote/relative/blob URLs stay capped short.
+  const cap = t.toLowerCase().startsWith('data:') ? 10 * 1024 * 1024 : 4096;
+  if (!t || t.length > cap) return false;
   if (/["'\\\n\r]/.test(t)) return false;
   const lower = t.toLowerCase();
   return (

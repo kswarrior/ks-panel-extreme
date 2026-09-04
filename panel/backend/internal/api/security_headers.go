@@ -34,16 +34,17 @@ func SecurityHeadersMiddleware(next http.Handler) http.Handler {
 		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
 		w.Header().Set("Cross-Origin-Opener-Policy", "same-origin")
 		w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
-		// COEP require-corp would block the SPA's cross-origin-safe
-		// bootstrap when the panel sits behind a tunnel/proxy that does
-		// not forward CORP headers, and it adds nothing for same-origin
-		// API JSON. Keep the header but use the permissive value so
-		// browsers still see the header without breaking loads.
-		// WebSocket upgrades skip COEP/CORP entirely (they are not fetches).
-		isWS := isWebSocketUpgrade(r)
-		if !isWS {
-			w.Header().Set("Cross-Origin-Embedder-Policy", "require-corp")
-		}
+	// COEP credentialless lets the SPA load cross-origin no-cors subresources
+	// (theme wallpaper images, etc.) whose hosts don't send CORP headers,
+	// while still isolating credentials. require-corp would block every such
+	// image with ERR_BLOCKED_BY_RESPONSE, rendering as a missing background
+	// on every themed page — and it breaks the SPA bootstrap behind
+	// tunnel/proxy setups that don't forward CORP headers.
+	// WebSocket upgrades skip COEP/CORP entirely (they are not fetches).
+	isWS := isWebSocketUpgrade(r)
+	if !isWS {
+		w.Header().Set("Cross-Origin-Embedder-Policy", "credentialless")
+	}
 
 		// Content Security Policy. The SPA ships an inline bootstrap
 		// <script>window.__KSPANEL_BOOTSTRAP__=…</script> (bootstrap.go
@@ -55,7 +56,8 @@ func SecurityHeadersMiddleware(next http.Handler) http.Handler {
 		csp := "default-src 'self'; " +
 			"script-src 'self' 'unsafe-inline'; " +
 			"style-src 'self' 'unsafe-inline'; " +
-			"img-src 'self' data: https:; " +
+			"img-src 'self' data: blob: https:; " +
+			"media-src 'self' data: blob: https:; " +
 			"font-src 'self' data:; " +
 			"connect-src 'self' ws: wss:; " +
 			"object-src 'none'; " +
