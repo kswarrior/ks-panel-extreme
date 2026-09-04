@@ -79,20 +79,19 @@ const InstancePowerBar: React.FC = () => {
 
   return (
     // Overlay row: sticky so it stays on scroll, negative margins pull it
-    // into the main's top-left-most corner (cancelling main p-4/sm:p-6),
-    // pt/pl leave a tiny 8px breathing gap, negative bottom margin lets page
-    // content slide UNDER the dock instead of being pushed down.
+    // into the main's top-left-most corner (cancelling main p-4/sm:p-6).
+    // Zero padding/margin — flush to the very corner. Negative bottom margin
+    // lets page content slide UNDER the dock instead of being pushed down.
     <div
-      className="sticky top-0 z-40 flex justify-start pointer-events-none -mt-4 -ml-4 sm:-mt-6 sm:-ml-6 pt-2 pl-2 mb-[-30px]"
+      className="sticky top-0 left-0 z-40 flex justify-start pointer-events-none -mt-4 -ml-4 sm:-mt-6 sm:-ml-6 p-0 m-0 pt-0 pl-0 mt-0 ml-0 mb-[-24px]"
       aria-label="Instance power controls"
     >
-      <div className="pointer-events-auto flex flex-col items-start">
-        {/* Rectangular box — same surface as the NodeForm phone tab bar,
-            but compact: p-1 + gap-0.5 */}
-        <div className="ks-card rounded p-1 flex items-center gap-0.5 w-fit max-w-full">
+      <div className="pointer-events-auto flex flex-col items-start p-0 m-0">
+        {/* Rectangular box — zero padding/gap, flush. */}
+        <div className="ks-card rounded-none p-0 m-0 flex items-center gap-0 w-fit max-w-full">
           {/* Collapsible buttons — slide left + fade when collapsed */}
           <div
-            className="flex items-center gap-0.5 overflow-hidden transition-all duration-300 ease-in-out"
+            className="flex items-center gap-0 p-0 m-0 overflow-hidden transition-all duration-300 ease-in-out"
             style={
               collapsed
                 ? { maxWidth: 0, opacity: 0, transform: 'translateX(-8px)', pointerEvents: 'none' }
