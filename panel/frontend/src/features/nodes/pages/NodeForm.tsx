@@ -630,8 +630,7 @@ const NodeForm: React.FC = () => {
         <div className="space-y-4 min-w-0">
           {tab === 'general' && (
           <>
-          <div className="ks-card ks-form-card rounded-md p-3 space-y-3">
-            <p className="text-sm text-gray-200 font-medium">Icon &amp; colour</p>
+          <div className="space-y-3">
             <div className="flex items-start gap-3">
               <div className="flex flex-col items-center gap-1 shrink-0" title="Card preview">
                 <span
