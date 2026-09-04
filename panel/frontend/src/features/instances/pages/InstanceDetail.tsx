@@ -23,7 +23,6 @@ import CustomPageView from '@/shared/components/ui/CustomPageView';
 import Terminal, { type TerminalHandle } from '@/shared/components/ui/Terminal';
 import type { Terminal as XTerm } from '@xterm/xterm';
 import InstancePortsEditor from '@/features/instances/pages/InstancePortsEditor';
-import InstancePowerBar from '@/features/instances/components/InstancePowerBar';
 import InstanceSftpCard from '@/features/instances/components/InstanceSftpCard';
 import InstanceSnapshotsTab from '@/features/instances/components/InstanceSnapshotsTab';
 import { useAuthStore } from '@/shared/stores/authStore';
@@ -71,8 +70,6 @@ export const InstancePanel: React.FC = () => {
 
   return (
     <div className="space-y-3">
-      {/* Self-contained collapsible power dock (own tsx, like InstanceTabs). */}
-      <InstancePowerBar />
       {loading && (
         <div className="ks-card ks-form-card rounded-xl flex items-center gap-4 animate-pulse">
           <div className="w-9 h-9 rounded-lg bg-neutral-800 shrink-0" />

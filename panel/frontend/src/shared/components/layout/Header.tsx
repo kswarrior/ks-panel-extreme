@@ -9,6 +9,7 @@ import client from '@/shared/api/client';
 import Avatar from '@/shared/components/ui/Avatar';
 import RichMenu, { type RichMenuItem } from '@/shared/components/ui/RichMenu';
 import InstanceTabs from '@/features/instances/components/InstanceTabs';
+import InstancePowerBar from '@/features/instances/components/InstancePowerBar';
 import NotificationBell from '@/features/notifications/components/NotificationBell';
 
 interface HeaderProps {
@@ -348,7 +349,8 @@ const Header: React.FC<HeaderProps> = ({
   );
 
   return (
-    <header className="glass-chrome ks-header-bg w-full flex items-center justify-between sticky top-0 z-20 relative">
+    <header className="glass-chrome ks-header-bg w-full sticky top-0 z-20 relative">
+      <div className="w-full flex items-center justify-between">
       <div className="flex items-center gap-2 min-w-0">
         {/* Sidebar toggle — mobile only. Modern three-line icon with
             smooth pill-style bars that compress on hover and reveal a
@@ -483,6 +485,15 @@ const Header: React.FC<HeaderProps> = ({
               </button>
             )}
           />
+        </div>
+      )}
+      </div>
+      {/* Power dock — below the header row, left, only inside an instance
+          panel (same pattern as InstanceTabs above). The header itself is
+          sticky so the dock stays visible on scroll. */}
+      {inInstancePanel && (
+        <div className="w-full flex justify-start p-0 m-0">
+          <InstancePowerBar />
         </div>
       )}
       {/* Page-load bar — Google-style sweep shown ONLY while a page opens

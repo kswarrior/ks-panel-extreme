@@ -78,14 +78,10 @@ const InstancePowerBar: React.FC = () => {
     'ks-tab shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded text-xs leading-none whitespace-nowrap transition disabled:opacity-40 disabled:cursor-not-allowed';
 
   return (
-    // Overlay row: sticky so it stays on scroll, negative margins pull it
-    // into the main's top-left-most corner (cancelling main p-4/sm:p-6).
-    // Zero padding/margin — flush to the very corner. Negative bottom margin
-    // lets page content slide UNDER the dock instead of being pushed down.
-    <div
-      className="sticky top-0 left-0 z-40 flex justify-start pointer-events-none -mt-5 -ml-4 sm:-mt-7 sm:-ml-6 p-0 mb-[-24px]"
-      aria-label="Instance power controls"
-    >
+    // Plain left-aligned dock — placement/stickiness comes from the parent
+    // (Header renders it in a row below the header bar, left). Zero
+    // padding/margin — flush.
+    <div className="flex justify-start p-0 m-0" aria-label="Instance power controls">
       <div className="pointer-events-auto flex flex-col items-start p-0 m-0">
         {/* Rectangular box — zero padding/gap, flush. */}
         <div className="ks-card rounded-none p-0 m-0 flex items-center gap-0 w-fit max-w-full">
