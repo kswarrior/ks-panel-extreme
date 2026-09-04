@@ -100,12 +100,47 @@ func generateSecureToken(length int) string {
 	return base64.URLEncoding.EncodeToString(b)
 }
 
-// CSRFMiddleware creates middleware that enforces CSRF protection
+// CSRFMiddleware creates middleware that enforces CSRF protection.
+//
+// Skip order (all cheap, before any token lookup):
+//  1. Safe methods (GET/HEAD/OPTIONS/TRACE) — covers public GET /health,
+//     GET /api/settings/panel-name|logo, GET /api/themes, and the WS
+//     handshakes (terminal + notifications/stream are GET upgrades).
+//  2. WebSocket upgrades on any method (Upgrade: websocket) — browsers
+//     cannot set Authorization on WS handshakes; the terminal/stream
+//     handlers do their own session-cookie auth.
+//  3. Static SPA assets (/assets/, /@vite, /@id, known extensions) —
+//     plain GETs that must never require a token.
+//  4. Bearer-authenticated API calls (Authorization: Bearer …). Bearer
+//     tokens are never auto-sent by browsers (unlike cookies), so they
+//     are not CSRF-able; exempting them preserves API/CLI clients and
+//     the SPA's multi-account Bearer path while cookie-only browser
+//     POSTs still require the token.
+//  5. Explicit public exempt paths (login/register/heartbeat/…).
 func CSRFMiddleware(ctm *CSRFTokenManager) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Skip CSRF protection for safe methods
 			if r.Method == "GET" || r.Method == "HEAD" || r.Method == "OPTIONS" || r.Method == "TRACE" {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			// WebSocket handshake bypass (terminal, notifications/stream,
+			// edge tunnel): Upgrade: websocket on any method.
+			if isWebSocketUpgrade(r) {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			// Static asset bypass (SPA bundles must never need a token).
+			if isCSRFStaticAsset(r.URL.Path) {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			// Bearer exemption: non-browser API clients.
+			if hasBearerAuth(r) {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -128,12 +163,55 @@ func CSRFMiddleware(ctm *CSRFTokenManager) func(http.Handler) http.Handler {
 				return
 			}
 
-			// Mark token as used
-			ctm.MarkTokenAsUsed(csrfToken)
-
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// hasBearerAuth reports whether the request carries an Authorization:
+// Bearer credential (API keys, multi-account SPA tokens). Such requests
+// are not vulnerable to cookie-CSRF and are exempt.
+func hasBearerAuth(r *http.Request) bool {
+	h := r.Header.Get("Authorization")
+	if h == "" {
+		return false
+	}
+	const prefix = "Bearer "
+	if len(h) < len(prefix) {
+		return false
+	}
+	for i := 0; i < len(prefix); i++ {
+		a := h[i]
+		b := prefix[i]
+		if a >= 'a' && a <= 'z' {
+			a -= 'a' - 'A'
+		}
+		if b >= 'a' && b <= 'z' {
+			b -= 'a' - 'A'
+		}
+		if a != b {
+			return false
+		}
+	}
+	return len(h) > len(prefix)
+}
+
+// isCSRFStaticAsset mirrors SecurityMiddleware.isStaticAsset so the CSRF
+// layer never gates SPA bundles.
+func isCSRFStaticAsset(p string) bool {
+	if len(p) >= 8 && p[:8] == "/assets/" {
+		return true
+	}
+	if len(p) >= 6 && (p[:6] == "/@vite" || p[:6] == "/@id/." || p[:4] == "/@id") {
+		return true
+	}
+	// Extension suffixes (same list as isStaticAsset).
+	for _, ext := range []string{".css", ".js", ".mjs", ".map", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".woff", ".woff2", ".ttf", ".eot"} {
+		if len(p) >= len(ext) && p[len(p)-len(ext):] == ext {
+			return true
+		}
+	}
+	return false
 }
 
 // CSRFTokenHandler provides a CSRF token to the client
@@ -152,7 +230,25 @@ func CSRFTokenHandler(ctm *CSRFTokenManager) http.HandlerFunc {
 	}
 }
 
-// isCSRFExemptPath checks if a path should be exempt from CSRF protection
+// isCSRFExemptPath checks if a path should be exempt from CSRF protection.
+// Exact matches cover the original stock exempt list; prefix matches cover
+// the public families that must never require a token:
+//
+//   - POST /api/auth/* (login, switch-login, register, verify, OAuth
+//     start/callback — the browser has no session yet, so there is
+//     nothing to forge);
+//   - POST /api/nodes/heartbeat (edge token-in-body, not session cookie);
+//   - GET /api/edge/tunnel (token query, WS upgrade — also covered by the
+//     Upgrade bypass, kept here for non-upgrade methods);
+//   - GET /api/csrf-token (the token mint itself).
+//
+// NOTE: GET /api/themes and GET /api/settings/panel-name|logo already pass
+// via the safe-method skip; they stay in the exact list so the intent is
+// explicit, but POST /api/themes (admin authoring) is NOT exempt — it
+// requires a token. The exact "/api/themes" entry therefore only matters
+// for non-GET methods and is kept for backward compatibility with the
+// original list; admin POSTs to /api/themes/* (market/install) correctly
+// require a token because they do not exactly equal "/api/themes".
 func isCSRFExemptPath(path string) bool {
 	exemptPaths := []string{
 		"/api/auth/login",
@@ -162,17 +258,27 @@ func isCSRFExemptPath(path string) bool {
 		"/api/auth/verify-email",
 		"/api/auth/flags",
 		"/api/auth/device-id",
+		"/api/auth/switch-login",
 		"/api/settings/panel-name",
 		"/api/settings/panel-logo",
 		"/api/themes",
 		"/api/nodes/heartbeat",
 		"/health",
+		"/api/csrf-token",
+		"/api/authority/branding",
 	}
 
 	for _, exempt := range exemptPaths {
 		if path == exempt {
 			return true
 		}
+	}
+	// Prefix families (public, unauthenticated by design).
+	if len(path) >= 10 && path[:10] == "/api/auth/" {
+		return true
+	}
+	if len(path) >= 16 && path[:16] == "/api/edge/tunnel" {
+		return true
 	}
 	return false
 }

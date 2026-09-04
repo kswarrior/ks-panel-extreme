@@ -128,6 +128,16 @@ const Router: React.FC = () => (
           </RequireAuth>
         }
       />
+      <Route
+        path="/instances/schedules"
+        element={
+          <RequireAuth>
+            <RequirePermission permission={PermissionKey.MANAGE_INSTANCES}>
+              <InstanceSchedules />
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
       {/* Instance panel (top-level) — visible to any user with instance view permission.
           When you're inside an instance, the global sidebar opens its
           "Instances" group and reveals this entry. */}
