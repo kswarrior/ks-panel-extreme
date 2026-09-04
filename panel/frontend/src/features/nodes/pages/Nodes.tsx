@@ -481,28 +481,26 @@ const AdminNodes: React.FC = () => {
 
                 <footer className="mt-auto pt-2 border-t border-white/[0.06] flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                    {versionMap[n.id] && (
+                      <span
+                        className="text-[10px] px-1.5 py-0.5 rounded border border-white/10 bg-white/5 text-gray-300 font-mono shrink-0"
+                        title={`Edge version: ${versionMap[n.id]}`}
+                      >
+                        V {versionMap[n.id]}
+                      </span>
+                    )}
                     {n.notes && (
                       <span className="text-[11px] text-gray-500 truncate flex-1 min-w-0" title={n.notes}>
                         {n.notes}
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {versionMap[n.id] && (
-                      <span
-                        className="text-[10px] px-1.5 py-0.5 rounded border border-white/10 bg-white/5 text-gray-300 font-mono"
-                        title={`Edge version: ${versionMap[n.id]}`}
-                      >
-                        V {versionMap[n.id]}
-                      </span>
-                    )}
-                    <button
-                      onClick={() => navigate(`/node/${n.id}`)}
-                      className="text-[11px] text-gray-400 hover:text-white transition-colors"
-                    >
-                      View details →
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => navigate(`/node/${n.id}`)}
+                    className="text-[11px] text-gray-400 hover:text-white transition-colors shrink-0"
+                  >
+                    View details →
+                  </button>
                 </footer>
               </div>
             </article>

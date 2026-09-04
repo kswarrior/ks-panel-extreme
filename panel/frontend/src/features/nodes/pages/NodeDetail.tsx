@@ -340,9 +340,6 @@ const NodeDetail: React.FC = () => {
           </div>
           <div className="flex-1 min-w-0">
             <h3 className="text-sm font-semibold text-white truncate flex items-center gap-2" title={node.name}>{node.name}
-              <span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md border ${st.badge}`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} />{st.label}
-              </span>
               {edgeVersion && (
                 <span
                   className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-md border border-white/10 bg-white/5 text-gray-300 font-mono"
@@ -351,6 +348,9 @@ const NodeDetail: React.FC = () => {
                   V {edgeVersion}
                 </span>
               )}
+              <span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md border ${st.badge}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} />{st.label}
+              </span>
             </h3>
             <p className="text-[11px] text-gray-500 truncate font-mono flex items-center gap-1">
               {hostUrl}
