@@ -215,6 +215,57 @@ func (c *Client) emergencyViaTunnel(method, path string, reqBody any) (body []by
 	return body, status, err, true
 }
 
+// tryEmergencyTunnel runs the post-HTTP emergency retry over WSS and decodes
+// the tunnel response into out (pointer to the method's response struct).
+// It returns handled==false when the emergency path does not apply (the
+// caller returns its HTTP dial error as usual). When handled==true the caller
+// must return (out-typed zero or decoded value, err) — err is nil on success.
+// The envelope check (status>=300, ok==false) mirrors each method's tunnel
+// block so emergency results carry the same error shapes as normal results.
+func (c *Client) tryEmergencyTunnel(method, path string, reqBody any, out any) (bool, error) {
+	body, status, err, attempted := c.emergencyViaTunnel(method, path, reqBody)
+	if !attempted {
+		return false, nil
+	}
+	if err != nil {
+		return true, err
+	}
+	if err := unmarshalTunnelResponse(body, status, out); err != nil {
+		return true, err
+	}
+	if status >= 300 {
+		var env struct {
+			Error string `json:"error"`
+		}
+		_ = json.Unmarshal(body, &env)
+		if env.Error != "" {
+			return true, fmt.Errorf("edge rejected: %s", env.Error)
+		}
+		return true, fmt.Errorf("edge returned HTTP %d", status)
+	}
+	// ok==false check via envelope so every response shape is covered.
+	var okEnv struct {
+		OK    bool   `json:"ok"`
+		Error string `json:"error"`
+	}
+	_ = json.Unmarshal(body, &okEnv)
+	// Only enforce the ok gate for shapes that carry it (all edge RPCs do,
+	// but a missing ok field decodes false — so only fail when the body
+	// actually mentioned ok or error).
+	var raw map[string]any
+	hasOK := false
+	if err := json.Unmarshal(body, &raw); err == nil {
+		_, hasOK = raw["ok"]
+	}
+	if hasOK && !okEnv.OK {
+		if okEnv.Error != "" {
+			return true, fmt.Errorf("%s", okEnv.Error)
+		}
+		return true, fmt.Errorf("edge reported failure without a message")
+	}
+	return true, nil
+}
+
 func unmarshalTunnelResponse(body []byte, status int, out any) error {
 	if body == nil {
 		return nil
@@ -408,6 +459,10 @@ func (c *Client) InstallStart(req InstallStartRequest) (InstallStartResponse, er
 
 	resp, err := c.http.Do(httpReq)
 	if err != nil {
+		var emOut InstallStartResponse
+		if ok, err2 := c.tryEmergencyTunnel("POST", "/api/edge/install", req, &emOut); ok {
+			return emOut, err2
+		}
 		return InstallStartResponse{}, fmt.Errorf("dial edge: %w", err)
 	}
 	defer resp.Body.Close()
@@ -476,6 +531,15 @@ func (c *Client) InstallStatus(req InstallStatusRequest) (InstallStatusResponse,
 	if err != nil {
 		// The URL carries the token as a query param — mask it before the
 		// error reaches any log.
+		var emOut InstallStatusResponse
+		emPath := fmt.Sprintf("/api/edge/install?kind=%s&name=%s&token=%s",
+			urlQueryEscape(req.Kind), urlQueryEscape(req.Name), urlQueryEscape(req.Token))
+		if ok, err2 := c.tryEmergencyTunnel("GET", emPath, nil, &emOut); ok {
+			if err2 != nil {
+				return InstallStatusResponse{}, fmt.Errorf("dial edge: %s", redactTokenErr(err2))
+			}
+			return emOut, nil
+		}
 		return InstallStatusResponse{}, fmt.Errorf("dial edge: %s", redactTokenErr(err))
 	}
 	defer resp.Body.Close()
@@ -540,6 +604,10 @@ func (c *Client) InstallStop(req InstallStopRequest) (InstallStopResponse, error
 
 	resp, err := c.http.Do(httpReq)
 	if err != nil {
+		var emOut InstallStopResponse
+		if ok, err2 := c.tryEmergencyTunnel("POST", "/api/edge/install/stop", req, &emOut); ok {
+			return emOut, err2
+		}
 		return InstallStopResponse{}, fmt.Errorf("dial edge: %w", err)
 	}
 	defer resp.Body.Close()
@@ -607,6 +675,10 @@ func (c *Client) LifecycleCtx(ctx context.Context, req LifecycleRequest) (Lifecy
 
 	resp, err := c.http.Do(httpReq)
 	if err != nil {
+		var emOut LifecycleResponse
+		if ok, err2 := c.tryEmergencyTunnel("POST", "/api/edge/lifecycle", req, &emOut); ok {
+			return emOut, err2
+		}
 		return LifecycleResponse{}, fmt.Errorf("dial edge: %w", err)
 	}
 	defer resp.Body.Close()
@@ -714,6 +786,10 @@ func (c *Client) ExecCtx(ctx context.Context, req ExecRequest) (ExecResponse, er
 	httpReq.Header.Set("Content-Type", "application/json")
 	resp, err := c.http.Do(httpReq)
 	if err != nil {
+		var emOut ExecResponse
+		if ok, err2 := c.tryEmergencyTunnel("POST", "/api/edge/exec-rpc", req, &emOut); ok {
+			return emOut, err2
+		}
 		return ExecResponse{}, fmt.Errorf("dial edge: %w", err)
 	}
 	defer resp.Body.Close()
@@ -802,6 +878,10 @@ func (c *Client) HostExecCtx(ctx context.Context, req HostExecRequest) (HostExec
 	httpReq.Header.Set("Content-Type", "application/json")
 	resp, err := c.http.Do(httpReq)
 	if err != nil {
+		var emOut HostExecResponse
+		if ok, err2 := c.tryEmergencyTunnel("POST", "/api/edge/host-exec", req, &emOut); ok {
+			return emOut, err2
+		}
 		return HostExecResponse{}, fmt.Errorf("dial edge: %w", err)
 	}
 	defer resp.Body.Close()
