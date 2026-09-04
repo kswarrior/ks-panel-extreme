@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { getTicket, updateTicket, assignTicket, deleteTicket, listAssignableUsers } from '../api/tickets';
-import type { Ticket } from '../types/ticket';
+import type { Ticket, TicketAttachment } from '../types/ticket';
+import TicketAttachments from '../components/TicketAttachments';
 import GlassCard from '@/shared/components/ui/Card';
 import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
@@ -33,6 +34,7 @@ const TicketDetail: React.FC = () => {
 
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [commentCount, setCommentCount] = useState(0);
+  const [attachments, setAttachments] = useState<TicketAttachment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [assignUsers, setAssignUsers] = useState<{ ID: number; Username: string }[]>([]);

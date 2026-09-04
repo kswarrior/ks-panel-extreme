@@ -247,7 +247,8 @@ const NotificationBell: React.FC = () => {
       <button
         ref={triggerRef}
         type="button"
-        aria-label={`Notifications${unread ? `, ${unread} unread` : ''}`}
+        aria-label={`Notifications${unread ? `, ${unread} unread` : ''}${live ? ', live' : ''}`}
+        title={live ? 'Realtime updates connected' : 'Realtime reconnecting — polling fallback'}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
@@ -297,6 +298,12 @@ const NotificationBell: React.FC = () => {
             </span>
           </>
         )}
+        {/* Realtime dot: emerald when the WS is live, zinc while on poll fallback */}
+        <span
+          title={live ? 'Live' : 'Polling fallback'}
+          className={`absolute bottom-0.5 right-0.5 w-2 h-2 rounded-full ring-2 ring-black/40 ${live ? 'bg-emerald-400' : 'bg-zinc-500'}`}
+          aria-hidden="true"
+        />
       </button>
 
       {open &&
