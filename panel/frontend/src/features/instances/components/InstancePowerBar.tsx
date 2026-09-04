@@ -95,6 +95,7 @@ const InstancePowerBar: React.FC<{ variant?: 'dock' | 'pill' }> = ({ variant = '
   if (!canControl || !Number.isFinite(instanceId)) return null;
 
   const toggle = () => {
+    setActionsOpen(false);
     setCollapsed((v) => {
       const next = !v;
       try {
