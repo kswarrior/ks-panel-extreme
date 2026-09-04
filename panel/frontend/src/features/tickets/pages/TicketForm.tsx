@@ -214,4 +214,20 @@ const TicketForm: React.FC = () => {
         </div>
       </GlassCard>
 
+      <div className="mt-4 glass-card rounded-xl p-4 border border-white/5 bg-white/[0.02]">
+        <h4 className="text-xs font-semibold text-gray-300 uppercase tracking-wide mb-2 flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} className="w-4 h-4"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>
+          Tips for a great ticket
+        </h4>
+        <ul className="text-xs text-gray-400 space-y-1 list-disc list-inside">
+          <li>Use a clear, searchable subject — e.g. <span className="text-gray-300">“Invoice #1234 charged twice”</span> beats <span className="text-gray-300">“Billing issue”</span>.</li>
+          <li>Pick the right category so the ticket routes to the right crew.</li>
+          <li>Attach steps, logs or screenshots in the description — copy-paste friendly.</li>
+        </ul>
+      </div>
+      </FormPage>
+    </>
+  );
+};
+
 export default TicketForm;

@@ -1002,6 +1002,7 @@ const TemplateForm: React.FC = () => {
       </div>
     </div>
     </FormPage>
+    </>
   );
 };
 

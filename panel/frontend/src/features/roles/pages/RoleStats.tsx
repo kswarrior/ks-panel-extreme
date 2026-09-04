@@ -8,10 +8,10 @@ import {
   PieChart,
   DashboardSection,
   DashboardGrid,
-  HeaderWithAction,
   StatCard,
 } from '@/shared/components/ui/StatDashboard';
 import GlassCard from '@/shared/components/ui/Card';
+import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 
 // Seeded roles the backend creates at first boot (no builtin column exists;
 // see internal/api/handlers/admin_handler.go).
@@ -116,17 +116,14 @@ const RoleStats: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <HeaderWithAction
-        title="Role Statistics"
-        backHref="/roles"
-        backLabel="Roles"
-        action={
-          <div className="flex items-center gap-2">
+      {/* Fixed top-right pill — "Statistics" title lives in the app header. */}
+      <PageActionsPill>
             <div className="relative" ref={filterRef}>
               <button
                 type="button"
                 onClick={() => setFilterOpen(!filterOpen)}
-                className={`ks-btn-header ks-icon-btn transition-colors ${filterOpen ? 'is-open' : ''}`}
+                className={`ks-tab inline-flex items-center justify-center transition-colors ${filterOpen ? 'is-open' : ''}`}
+                style={PILL_TAB_STYLE}
                 aria-label="Open filters"
                 aria-expanded={filterOpen}
                 aria-haspopup="true"
@@ -137,7 +134,7 @@ const RoleStats: React.FC = () => {
                 <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
               </button>
               {filterOpen && (
-                <div className="absolute left-0 top-full mt-1 z-30 w-56">
+                <div className="absolute right-0 top-full mt-1 z-30 w-56">
                   <div className="ks-dropdown min-w-[200px] animate-in fade-in slide-in-from-to duration-150">
                     <div className="p-3 space-y-3">
                       <div>

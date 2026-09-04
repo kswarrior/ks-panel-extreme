@@ -9,7 +9,6 @@ import client from '@/shared/api/client';
 import Avatar from '@/shared/components/ui/Avatar';
 import RichMenu, { type RichMenuItem } from '@/shared/components/ui/RichMenu';
 import InstanceTabs from '@/features/instances/components/InstanceTabs';
-import InstancePowerBar from '@/features/instances/components/InstancePowerBar';
 import NotificationBell from '@/features/notifications/components/NotificationBell';
 
 interface HeaderProps {

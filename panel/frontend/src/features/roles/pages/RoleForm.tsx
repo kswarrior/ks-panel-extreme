@@ -4,6 +4,7 @@ import { createRole, listAuthProviders, listPermissions, listRoles, updateRole }
 import type { Role, Permission } from '@/shared/types/user';
 import type { AuthProviderInfo } from '@/features/authority/types/authority';
 import FormPage from '@/shared/components/forms/FormPage';
+import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import RoleIdentity from '@/features/roles/components/RoleIdentity';
 import RolePermissions from '@/features/roles/components/RolePermissions';
 import RoleAuthorities from '@/features/roles/components/RoleAuthorities';
@@ -81,8 +82,8 @@ const RoleForm: React.FC = () => {
     return () => { cancelled = true; };
   }, [id, editing]);
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!form.name.trim()) {
       setError('Name is required');
       return;
@@ -116,8 +117,7 @@ const RoleForm: React.FC = () => {
     return (
       <FormPage
         crumbs={[{ label: 'Roles', to: '/roles' }, { label: editing ? 'Edit Role' : 'New Role' }]}
-        saving={false}
-        submitLabel="Save"
+        hideHeader
       >
         <FormSkeleton fields={4} />
       </FormPage>
@@ -125,11 +125,34 @@ const RoleForm: React.FC = () => {
   }
 
   return (
+    <>
+      {/* Top-right actions — Cancel + Save live here; the footer bar is removed. */}
+      <PageActionsPill>
+          <button
+            type="button"
+            onClick={() => navigate('/roles')}
+            title="Cancel and back to Roles"
+            aria-label="Cancel and back to Roles"
+            className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition"
+            style={PILL_TAB_STYLE}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => submit()}
+            disabled={saving}
+            title="Save role"
+            className="ks-tab ks-tab-active shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-60"
+            style={PILL_TAB_STYLE}
+          >
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+      </PageActionsPill>
     <FormPage
-      crumbs={[{ label: 'Roles', to: '/roles' }, { label: editing && role ? role.name : 'New Role' }]}
-      saving={saving}
-      submitLabel="Save"
+      crumbs={[{ label: 'Roles', to: '/roles' }, { label: editing ? 'Edit Role' : 'New Role' }]}
       onSubmit={submit}
+      hideHeader
     >
       <div className="space-y-4">
         <div className="hidden lg:inline-flex flex-wrap gap-1 rounded-lg bg-neutral-900/60 border border-white/10 p-1">
@@ -194,6 +217,7 @@ const RoleForm: React.FC = () => {
         </div>
       </nav>
     </FormPage>
+    </>
   );
 };
 

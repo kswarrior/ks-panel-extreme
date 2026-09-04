@@ -105,6 +105,69 @@ const InstancePowerBar: React.FC<{ variant?: 'dock' | 'pill' }> = ({ variant = '
     gap: 0,
   };
 
+  // Pill mode — bare ks-tab buttons for inside a PageActionsPill (nodes-style
+  // fixed top-right bar). No outer card/collapse: the pill itself provides
+  // the glass surface + slide animation + auto-hide on scroll/outside-click.
+  if (variant === 'pill') {
+    const pillBtn = (tone: string) =>
+      `ks-tab inline-flex items-center justify-center gap-1.5 transition disabled:opacity-40 disabled:cursor-not-allowed ${tone}`;
+    const spin = (
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 animate-spin" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+    );
+    return (
+      <>
+        {showStart && (
+          <button
+            type="button"
+            onClick={() => run('start')}
+            disabled={busyAny}
+            title={error || 'Start instance'}
+            style={PILL_TAB_STYLE}
+            className={pillBtn('text-emerald-300')}
+            aria-label="Start instance"
+          >
+            {busy === 'start' ? spin : (
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+            )}
+            <span className="text-[13px] font-medium">Start</span>
+          </button>
+        )}
+        {isRunning && (
+          <button
+            type="button"
+            onClick={() => run('stop')}
+            disabled={busyAny}
+            title={error || 'Stop instance'}
+            style={PILL_TAB_STYLE}
+            className={pillBtn('text-yellow-300')}
+            aria-label="Stop instance"
+          >
+            {busy === 'stop' ? spin : (
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
+            )}
+            <span className="text-[13px] font-medium">Stop</span>
+          </button>
+        )}
+        {isRunning && (
+          <button
+            type="button"
+            onClick={() => run('restart')}
+            disabled={busyAny}
+            title={error || 'Restart instance'}
+            style={PILL_TAB_STYLE}
+            className={pillBtn('text-sky-300')}
+            aria-label="Restart instance"
+          >
+            {busy === 'restart' ? spin : (
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><path d="M23 4v6h-6" /><path d="M1 20v-6h6" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>
+            )}
+            <span className="text-[13px] font-medium">Restart</span>
+          </button>
+        )}
+      </>
+    );
+  }
+
   return (
     // Plain left-aligned dock — placement/stickiness comes from the parent
     // (Header renders it in a row below the header bar, left). Zero

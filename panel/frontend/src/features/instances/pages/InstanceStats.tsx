@@ -1,18 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
 import { listMyInstances } from '@/features/auth/api/me';
 import type { Instance } from '@/shared/types/instance';
 import type { Template } from '@/shared/types/instance';
 import { listTemplates } from '@/shared/api/admin';
 import {
-  DonutStat,
-  PieChart,
   DashboardSection,
   DashboardGrid,
-  HeaderWithAction,
   StatCard,
 } from '@/shared/components/ui/StatDashboard';
 import GlassCard from '@/shared/components/ui/Card';
+import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import { useAuthStore } from '@/shared/stores/authStore';
 
 type StatsFilterKey = 'all' | 'running' | 'stopped' | 'creating' | 'installing' | 'errored' | 'install_failed' | 'destroyed' | 'suspended';
@@ -26,7 +23,6 @@ function greetingFor(d: Date): string {
 }
 
 const InstanceStats: React.FC = () => {
-  const navigate = useNavigate();
   const [instances, setInstances] = useState<Instance[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -162,65 +158,62 @@ const InstanceStats: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <HeaderWithAction
-        title="Instance Statistics"
-        backHref="/instances"
-        backLabel="Instances"
-        action={
-          <div className="flex items-center gap-2">
-            <div className="relative" ref={filterRef}>
-              <button
-                type="button"
-                onClick={() => setFilterOpen(!filterOpen)}
-                className={`ks-btn-header ks-icon-btn transition-colors ${filterOpen ? 'is-open' : ''}`}
-                aria-label="Open filters"
-                aria-expanded={filterOpen}
-                aria-haspopup="true"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-                  <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-                </svg>
-                <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
-              </button>
-              {filterOpen && (
-                <div className="absolute left-0 top-full mt-1 z-30 w-56">
-                  <div className="ks-dropdown min-w-[200px] animate-in fade-in slide-in-from-to duration-150">
-                    <div className="p-3 space-y-3">
-                      <div>
-                        <label className="block text-xs text-gray-400 uppercase tracking-wide mb-1.5">Status</label>
-                        <select
-                          value={statsFilter}
-                          onChange={(e) => setStatsFilter(e.target.value as StatsFilterKey)}
-                          className="w-full glass-field"
-                        >
-                          <option value="all">All · {stats.total}</option>
-                          <option value="running">Running · {stats.running}</option>
-                          <option value="creating">Creating · {stats.creating}</option>
-                          <option value="installing">Installing · {stats.installing}</option>
-                          <option value="stopped">Stopped · {stats.stopped}</option>
-                          <option value="errored">Errored · {stats.errored}</option>
-                          <option value="install_failed">Install Failed · {stats.installFailed}</option>
-                          <option value="destroyed">Destroyed · {stats.destroyed}</option>
-                          <option value="suspended">Suspended · {stats.suspended}</option>
-                        </select>
-                      </div>
-                      <div className="pt-2 border-t border-white/5 flex items-center justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setFilterOpen(false)}
-                          className="px-3 py-1.5 text-sm text-gray-400 hover:text-white"
-                        >
-                          Close
-                        </button>
-                      </div>
-                    </div>
+      {/* Fixed top-right pill — "Statistics" title lives in the app header. */}
+      <PageActionsPill>
+        <div className="relative" ref={filterRef}>
+          <button
+            type="button"
+            onClick={() => setFilterOpen(!filterOpen)}
+            className={`ks-tab inline-flex items-center justify-center gap-1 transition-colors ${filterOpen ? 'is-open' : ''}`}
+            style={PILL_TAB_STYLE}
+            aria-label="Open filters"
+            aria-expanded={filterOpen}
+            aria-haspopup="true"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+            </svg>
+            {statsFilter !== 'all' && (
+              <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
+            )}
+          </button>
+          {filterOpen && (
+            <div className="absolute right-0 top-full mt-1 z-30 w-56">
+              <div className="ks-dropdown min-w-[200px] animate-in fade-in slide-in-from-to duration-150">
+                <div className="p-3 space-y-3">
+                  <div>
+                    <label className="block text-xs text-gray-400 uppercase tracking-wide mb-1.5">Status</label>
+                    <select
+                      value={statsFilter}
+                      onChange={(e) => setStatsFilter(e.target.value as StatsFilterKey)}
+                      className="w-full glass-field"
+                    >
+                      <option value="all">All · {stats.total}</option>
+                      <option value="running">Running · {stats.running}</option>
+                      <option value="creating">Creating · {stats.creating}</option>
+                      <option value="installing">Installing · {stats.installing}</option>
+                      <option value="stopped">Stopped · {stats.stopped}</option>
+                      <option value="errored">Errored · {stats.errored}</option>
+                      <option value="install_failed">Install Failed · {stats.installFailed}</option>
+                      <option value="destroyed">Destroyed · {stats.destroyed}</option>
+                      <option value="suspended">Suspended · {stats.suspended}</option>
+                    </select>
+                  </div>
+                  <div className="pt-2 border-t border-white/5 flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setFilterOpen(false)}
+                      className="px-3 py-1.5 text-sm text-gray-400 hover:text-white"
+                    >
+                      Close
+                    </button>
                   </div>
                 </div>
-              )}
+              </div>
             </div>
-          </div>
-        }
-      />
+          )}
+        </div>
+      </PageActionsPill>
 
       {/* Key Metrics Strip */}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 mb-6">
