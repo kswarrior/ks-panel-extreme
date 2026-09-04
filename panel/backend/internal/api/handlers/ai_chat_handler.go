@@ -595,7 +595,8 @@ func aiProviderChat(ctx context.Context, cfg *repository.AIConfig, msgs []aiMsg,
 		if out.Error != "" {
 			return "", nil, fmt.Errorf("%s", out.Error)
 		}
-		return out.Message.Content, aiParseCalls(out.Message.ToolCalls), nil
+		tcRaw, _ := json.Marshal(out.Message.ToolCalls)
+		return out.Message.Content, aiParseCalls(tcRaw), nil
 	}
 	body := map[string]any{
 		"model":       cfg.ModelID,
@@ -632,12 +633,13 @@ func aiProviderChat(ctx context.Context, cfg *repository.AIConfig, msgs []aiMsg,
 	if len(out.Choices) == 0 {
 		return "", nil, fmt.Errorf("provider returned no choices")
 	}
-	return out.Choices[0].Message.Content, aiParseCalls(out.Choices[0].Message.ToolCalls), nil
+	tcRaw, _ := json.Marshal(out.Choices[0].Message.ToolCalls)
+	return out.Choices[0].Message.Content, aiParseCalls(tcRaw), nil
 }
 
-func aiParseCalls[T any](in []T) []aiToolCall {
-	// Normalise both providers' tool-call shapes via a JSON round-trip.
-	raw, _ := json.Marshal(in)
+func aiParseCalls(raw json.RawMessage) []aiToolCall {
+	// Normalise both providers' tool-call shapes. Arguments may arrive as
+	// a JSON string (OpenAI) or an already-decoded object (Ollama).
 	var norm []struct {
 		ID       string `json:"id"`
 		Function struct {
@@ -653,15 +655,21 @@ func aiParseCalls[T any](in []T) []aiToolCall {
 		if strings.TrimSpace(c.Function.Name) == "" {
 			continue
 		}
+		argRaw := c.Function.Arguments
 		args := map[string]any{}
-		if len(c.Arguments) > 0 {
-			_ = json.Unmarshal(c.Arguments, &args)
+		if len(argRaw) > 0 {
+			// OpenAI sends arguments as a JSON-encoded string.
+			var asStr string
+			if err := json.Unmarshal(argRaw, &asStr); err == nil {
+				argRaw = json.RawMessage(asStr)
+			}
+			_ = json.Unmarshal(argRaw, &args)
 		}
 		id := c.ID
 		if id == "" {
 			id = "call_" + strconv.Itoa(i)
 		}
-		out = append(out, aiToolCall{ID: id, Name: strings.TrimSpace(c.Function.Name), Args: args, RawArgs: c.Arguments})
+		out = append(out, aiToolCall{ID: id, Name: strings.TrimSpace(c.Function.Name), Args: args, RawArgs: argRaw})
 	}
 	return out
 }
@@ -825,7 +833,7 @@ func aiRunTool(a *aiCallCtx, name string, args map[string]any) (string, *aiTicke
 	case "list_templates":
 		return aiToolListTemplates(a, aiLimit(args))
 	case "get_docs":
-		return aiToolGetDocs(aiStr(args, "topic")), nil
+		return aiToolGetDocs(aiStr(args, "topic")), nil, nil
 	case "get_system_status":
 		return aiToolSystemStatus(a)
 	default:

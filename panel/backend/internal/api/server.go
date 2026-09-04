@@ -321,6 +321,18 @@ func NewRouter() http.Handler {
 			r.With(requireUmbrellaOrAction(settingsG, permissions.ActionEdit)).Post("/app/regenerate-secret", handlers.AuthorityRegenerateAppSecretHandler)
 		})
 
+		// AI assistant (plan/ai.md). Proxy-only: the provider key never
+		// reaches the browser. Config read is masked and open to any
+		// authenticated user (the FAB needs it); writes + test are
+		// SETTINGS_EDIT; chat needs AI_CHAT_USE and is per-user
+		// rate-limited inside the handler.
+		r.Route("/api/ai", func(r chi.Router) {
+			r.Get("/config", handlers.AIConfigHandler)
+			r.With(requireUmbrellaOrAction(settingsG, permissions.ActionEdit)).Put("/config", handlers.AIConfigHandler)
+			r.With(requireUmbrellaOrAction(settingsG, permissions.ActionEdit)).Post("/test", handlers.AITestHandler)
+			r.With(requirePermission(permissions.AIChatUseKey)).Post("/chat", handlers.AIChatHandler)
+		})
+
 		// Admin: GLOBAL themes. MANAGE_THEMES is the umbrella that grants
 		// the whole theme surface for a role; the granular sub-caps
 		// (CREATE_GLOBAL_THEMES / EDIT_THEMES / ASSIGN_THEMES) narrow each
