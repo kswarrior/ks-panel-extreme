@@ -213,6 +213,12 @@ go nodeSweepLoop(90*time.Second, time.Minute)
 	defer schedCancel()
 	scheduler.Start(schedCtx)
 
+	// Start the ticket/notification mail worker (065): in-process queue with
+	// retries (3 attempts, 2s/10s backoff). Handlers EnqueueMail and return
+	// immediately so a down SMTP relay never blocks the ticket/notifications
+	// HTTP path. Idempotent — safe to call once per launch.
+	repository.StartMailWorker(schedCtx)
+
 	// Start the security_requests retention sweep. Every 10 minutes we drop
 	// any rows older than 24h so the table stays bounded on a busy panel
 	// under sustained attack. The middleware's INSERT path is unaffected

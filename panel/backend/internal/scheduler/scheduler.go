@@ -146,6 +146,12 @@ func sweep(ctx context.Context) {
 	// pattern (resolve owner, fire, record, re-arm). Errors are logged, never
 	// fatal to the automation sweep above.
 	sweepBackupSchedules(ctx)
+
+	// Tickets + notifications (065): SLA overdue escalation (breach mark +
+	// priority step-up + least-loaded reassignment + owner/assignee
+	// notification) and the daily digest-mail sweep for digest-mode users.
+	// Same best-effort contract as the backup sweep above.
+	sweepTickets(ctx)
 }
 
 // sweepBackupSchedules fires due backup_schedules rows: kind='db' runs a

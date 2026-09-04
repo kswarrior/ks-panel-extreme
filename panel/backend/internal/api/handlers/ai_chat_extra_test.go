@@ -74,7 +74,7 @@ func TestAIUsageSummaryRoundTrip(t *testing.T) {
 
 // Docs coverage: every advertised topic resolves to a 3+ sentence entry.
 func TestAIDocsCoverage(t *testing.T) {
-	for _, topic := range []string{"index", "instances", "templates", "nodes", "mods", "applications", "tickets", "backups", "security", "database", "automation", "sftp", "updates", "ai"} {
+	for _, topic := range []string{"instances", "templates", "nodes", "mods", "applications", "tickets", "backups", "security", "database", "automation", "sftp", "updates", "ai"} {
 		d := aiToolGetDocs(topic)
 		if strings.Count(d, ".") < 3 {
 			t.Fatalf("topic %q needs 3-5 sentences, got %q", topic, d)

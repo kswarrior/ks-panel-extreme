@@ -232,6 +232,27 @@ func ShouldEmailUser(db *sql.DB, userID int64) (string, bool) {
 	return strings.TrimSpace(email.String), true
 }
 
+// ShouldEmailUserDigest reports whether userID may receive the daily digest
+// mail: needs an email address, no opt-out, and mode == digest. Realtime
+// users already got immediate mail; off users get nothing.
+func ShouldEmailUserDigest(db *sql.DB, userID int64) (string, bool) {
+	var email sql.NullString
+	if err := db.QueryRow(`SELECT email FROM users WHERE id = ?`, userID).Scan(&email); err != nil {
+		return "", false
+	}
+	if !email.Valid || strings.TrimSpace(email.String) == "" {
+		return "", false
+	}
+	prefs, err := NewNotificationPrefsRepository(db).Get(userID)
+	if err != nil {
+		return "", false
+	}
+	if prefs.EmailOptOut || prefs.Mode != models.NotificationModeDigest {
+		return "", false
+	}
+	return strings.TrimSpace(email.String), true
+}
+
 // TicketCreatedMail builds the "ticket opened" email.
 func TicketCreatedMail(panelName, ticketNo, subject, category, priority, owner string) (string, string) {
 	subj := fmt.Sprintf("[%s] New ticket %s: %s", panelName, ticketNo, subject)

@@ -2,7 +2,9 @@ package scheduler
 
 import (
 	"context"
+	"database/sql"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/example/kspanel/internal/api/handlers"
@@ -198,4 +200,34 @@ func notifPriorityFor(ticketPriority string) models.NotificationPriority {
 	default:
 		return models.NotificationPriorityNormal
 	}
+}
+
+// containsNoSuchTable reports whether err is a missing-table error from a
+// pre-065 database (notably in unit tests that build a minimal schema).
+func containsNoSuchTable(msg string) bool {
+	m := strings.ToLower(msg)
+	return strings.Contains(m, "no such table")
+}
+
+// staffIDsForSweep lists MANAGE_TICKETS holders for breach fan-out when no
+// assignee could be chosen. Mirrors the handler helper without importing it.
+func staffIDsForSweep(con *sql.DB) []int64 {
+	rows, err := con.Query(
+		`SELECT DISTINCT u.id FROM users u
+		 JOIN role_permissions rp ON rp.role_id = u.role_id
+		 JOIN permissions p ON p.id = rp.permission_id
+		 WHERE p.key = 'MANAGE_TICKETS'`,
+	)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	var out []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err == nil {
+			out = append(out, id)
+		}
+	}
+	return out
 }
