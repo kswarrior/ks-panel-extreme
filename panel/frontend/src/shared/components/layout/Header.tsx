@@ -17,6 +17,86 @@ interface HeaderProps {
   inInstancePanel: boolean;
 }
 
+export interface HeaderCrumb {
+  parent: string;
+  parentTo: string;
+  current?: string;
+}
+
+// resolveHeaderCrumb maps panel routes to the header breadcrumb. List pages
+// show just the parent; forms/stats/detail pages show "Parent / Current".
+// Returns null for routes that own their header chrome (instance panel,
+// auth) or have no mapping yet. Labels mirror each page's own title —
+// update both together when renaming.
+export function resolveHeaderCrumb(rawPath: string): HeaderCrumb | null {
+  const p = rawPath !== '/' && rawPath.endsWith('/') ? rawPath.slice(0, -1) : rawPath;
+  const rules: Array<[RegExp, HeaderCrumb]> = [
+    [/^\/instances$/, { parent: 'Instances', parentTo: '/instances' }],
+    [/^\/instances\/stats$/, { parent: 'Instances', parentTo: '/instances', current: 'Statistics' }],
+    [/^\/instances\/new$/, { parent: 'Instances', parentTo: '/instances', current: 'New Instance' }],
+    [/^\/instance\/\d+\/edit$/, { parent: 'Instances', parentTo: '/instances', current: 'Edit Instance' }],
+    [/^\/account$/, { parent: 'Account', parentTo: '/account' }],
+    [/^\/system$/, { parent: 'System', parentTo: '/system' }],
+    [/^\/security$/, { parent: 'Security', parentTo: '/security' }],
+    [/^\/database$/, { parent: 'Database', parentTo: '/database' }],
+    [/^\/activity$/, { parent: 'Activity', parentTo: '/activity' }],
+    [/^\/settings$/, { parent: 'Settings', parentTo: '/settings' }],
+    [/^\/notifications$/, { parent: 'Notifications', parentTo: '/notifications' }],
+    [/^\/notifications\/stats$/, { parent: 'Notifications', parentTo: '/notifications', current: 'Statistics' }],
+    [/^\/notifications\/broadcast$/, { parent: 'Notifications', parentTo: '/notifications', current: 'Broadcast' }],
+    [/^\/themes$/, { parent: 'Themes', parentTo: '/themes' }],
+    [/^\/themes\/studio$/, { parent: 'Themes', parentTo: '/themes', current: 'Studio' }],
+    [/^\/themes\/stats$/, { parent: 'Themes', parentTo: '/themes', current: 'Statistics' }],
+    [/^\/tickets$/, { parent: 'Tickets', parentTo: '/tickets' }],
+    [/^\/tickets\/stats$/, { parent: 'Tickets', parentTo: '/tickets', current: 'Statistics' }],
+    [/^\/tickets\/new$/, { parent: 'Tickets', parentTo: '/tickets', current: 'New Ticket' }],
+    [/^\/tickets\/[^/]+\/edit$/, { parent: 'Tickets', parentTo: '/tickets', current: 'Edit Ticket' }],
+    [/^\/tickets\/[^/]+\/chat$/, { parent: 'Tickets', parentTo: '/tickets', current: 'Chat' }],
+    [/^\/tickets\/[^/]+$/, { parent: 'Tickets', parentTo: '/tickets', current: 'Detail' }],
+    [/^\/users$/, { parent: 'Users', parentTo: '/users' }],
+    [/^\/users\/stats$/, { parent: 'Users', parentTo: '/users', current: 'Statistics' }],
+    [/^\/users\/new$/, { parent: 'Users', parentTo: '/users', current: 'New User' }],
+    [/^\/users\/[^/]+\/edit$/, { parent: 'Users', parentTo: '/users', current: 'Edit User' }],
+    [/^\/user\/[^/]+$/, { parent: 'Users', parentTo: '/users', current: 'Detail' }],
+    [/^\/roles$/, { parent: 'Roles', parentTo: '/roles' }],
+    [/^\/roles\/stats$/, { parent: 'Roles', parentTo: '/roles', current: 'Statistics' }],
+    [/^\/roles\/new$/, { parent: 'Roles', parentTo: '/roles', current: 'New Role' }],
+    [/^\/roles\/[^/]+\/edit$/, { parent: 'Roles', parentTo: '/roles', current: 'Edit Role' }],
+    [/^\/api-keys$/, { parent: 'API Keys', parentTo: '/api-keys' }],
+    [/^\/api-keys\/stats$/, { parent: 'API Keys', parentTo: '/api-keys', current: 'Statistics' }],
+    [/^\/api-keys\/new$/, { parent: 'API Keys', parentTo: '/api-keys', current: 'New Key' }],
+    [/^\/api-keys\/[^/]+\/edit$/, { parent: 'API Keys', parentTo: '/api-keys', current: 'Edit Key' }],
+    [/^\/api-key\/[^/]+$/, { parent: 'API Keys', parentTo: '/api-keys', current: 'Detail' }],
+    [/^\/nodes$/, { parent: 'Nodes', parentTo: '/nodes' }],
+    [/^\/nodes\/stats$/, { parent: 'Nodes', parentTo: '/nodes', current: 'Statistics' }],
+    [/^\/nodes\/schedules$/, { parent: 'Nodes', parentTo: '/nodes', current: 'Schedules' }],
+    [/^\/nodes\/new$/, { parent: 'Nodes', parentTo: '/nodes', current: 'New Node' }],
+    [/^\/node\/[^/]+$/, { parent: 'Nodes', parentTo: '/nodes', current: 'Detail' }],
+    [/^\/nodes\/[^/]+\/edit$/, { parent: 'Nodes', parentTo: '/nodes', current: 'Edit Node' }],
+    [/^\/templates$/, { parent: 'Templates', parentTo: '/templates' }],
+    [/^\/templates\/stats$/, { parent: 'Templates', parentTo: '/templates', current: 'Statistics' }],
+    [/^\/templates\/new$/, { parent: 'Templates', parentTo: '/templates', current: 'New Template' }],
+    [/^\/template\/[^/]+$/, { parent: 'Templates', parentTo: '/templates', current: 'Detail' }],
+    [/^\/templates\/[^/]+\/edit$/, { parent: 'Templates', parentTo: '/templates', current: 'Edit Template' }],
+    [/^\/mods$/, { parent: 'Mods', parentTo: '/mods' }],
+    [/^\/mods\/studio$/, { parent: 'Mods', parentTo: '/mods', current: 'Studio' }],
+    [/^\/mods\/stats$/, { parent: 'Mods', parentTo: '/mods', current: 'Statistics' }],
+    [/^\/applications$/, { parent: 'Applications', parentTo: '/applications' }],
+    [/^\/applications\/stats$/, { parent: 'Applications', parentTo: '/applications', current: 'Statistics' }],
+    [/^\/applications\/[^/]+\/edit$/, { parent: 'Applications', parentTo: '/applications', current: 'Edit Application' }],
+    [/^\/applications\/[^/]+\/configure$/, { parent: 'Applications', parentTo: '/applications', current: 'Configure' }],
+    [/^\/instance-pages$/, { parent: 'Pages', parentTo: '/instance-pages' }],
+    [/^\/instance-pages\/stats$/, { parent: 'Pages', parentTo: '/instance-pages', current: 'Statistics' }],
+    [/^\/instance-pages\/studio$/, { parent: 'Pages', parentTo: '/instance-pages', current: 'Studio' }],
+    [/^\/instance-pages\/[^/]+\/studio$/, { parent: 'Pages', parentTo: '/instance-pages', current: 'Studio' }],
+    [/^\/instance-pages\/[^/]+$/, { parent: 'Pages', parentTo: '/instance-pages', current: 'Detail' }],
+  ];
+  for (const [re, crumb] of rules) {
+    if (re.test(p)) return crumb;
+  }
+  return null;
+}
+
 // Header renders the brand chrome up top + the profile dropdown. The
 // profile dropdown is now a RichMenu driving live per-user prefs
 // (compact / dense / reduced motion / show shortcuts) plus a Theme
@@ -422,30 +502,33 @@ const Header: React.FC<HeaderProps> = ({
           </svg>
         </button>
 
-        {/* Nodes crumb — the list page shows "Nodes", the form shows
-            "Nodes / New Node" (or Edit Node) here, right of the sidebar
-            toggle, so the page bodies stay clean. */}
-        {!inInstancePanel && (location.pathname === '/nodes' || location.pathname === '/nodes/' || location.pathname === '/nodes/new' || location.pathname === '/nodes/schedules' || location.pathname === '/nodes/stats' || /^\/node\/\d+\/?$/.test(location.pathname) || /^\/nodes\/\d+\/edit\/?$/.test(location.pathname)) && (
-          <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-xs text-gray-400 min-w-0">
-            {location.pathname === '/nodes' || location.pathname === '/nodes/' ? (
-              <span className="text-gray-200">Nodes</span>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={() => navigate('/nodes')}
-                  className="hover:text-white transition-colors shrink-0"
-                >
-                  Nodes
-                </button>
-                <span className="text-gray-600 shrink-0">/</span>
-                <span className="text-gray-200 truncate">
-                  {location.pathname === '/nodes/new' ? 'New Node' : location.pathname === '/nodes/schedules' ? 'Schedules' : location.pathname === '/nodes/stats' ? 'Statistics' : /^\/node\/\d+\/?$/.test(location.pathname) ? 'Detail' : 'Edit Node'}
-                </span>
-              </>
-            )}
-          </nav>
-        )}
+        {/* Page crumb — every list/form/stats/detail page shows its title
+            here, right of the sidebar toggle, so page bodies stay clean.
+            Labels come from resolveHeaderCrumb below (kept in sync with
+            each page's own title by the area owners). */}
+        {!inInstancePanel && (() => {
+          const crumb = resolveHeaderCrumb(location.pathname);
+          if (!crumb) return null;
+          return (
+            <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-xs text-gray-400 min-w-0">
+              {crumb.current ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => navigate(crumb.parentTo)}
+                    className="hover:text-white transition-colors shrink-0"
+                  >
+                    {crumb.parent}
+                  </button>
+                  <span className="text-gray-600 shrink-0">/</span>
+                  <span className="text-gray-200 truncate">{crumb.current}</span>
+                </>
+              ) : (
+                <span className="text-gray-200">{crumb.parent}</span>
+              )}
+            </nav>
+          );
+        })()}
 
         {/* Instance tabs — visible when inside an instance panel.
             Horizontal scroll with gradient fade indicator. */}

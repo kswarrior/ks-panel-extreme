@@ -1258,15 +1258,17 @@ body { color: var(--ks-text-body); }
   color: var(--ks-sidebar-active-text) !important;
 }
 
-/* Header surface — fill / blur / border only; height stays as the Tailwind
-   h-14 utility owned by <header> so the sticky bar keeps its layout. */
+/* Header surface — fill / blur / border + min-height from theme. Height is
+   auto (not fixed) so normal single-row pages stay at --ks-header-height
+   (vertically centered by <header>'s flex) while the instance panel's
+   stacked rows (tabs + power dock) can grow instead of squeezing up. */
 .ks-header-bg {
   background: var(--ks-header-bg) !important;
   backdrop-filter: blur(var(--ks-header-blur)) !important;
   -webkit-backdrop-filter: blur(var(--ks-header-blur)) !important;
   border-color: var(--ks-header-border) !important;
   color: var(--ks-header-text);
-  height: var(--ks-header-height, 56px) !important;
+  height: auto !important;
   min-height: var(--ks-header-height, 56px) !important;
 }
 
