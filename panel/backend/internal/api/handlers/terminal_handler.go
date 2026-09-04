@@ -143,6 +143,9 @@ func TerminalHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "terminal over WSS tunnel not yet implemented for reverse_tunnel; use direct or local_port mode for shell access", http.StatusNotImplemented)
 		return
 	}
+	// Dual-transport both/local_both always keep a dialable address, so the
+	// terminal falls through to the direct dial below (port path) regardless
+	// of tunnel state — the emergency path for shell access.
 	// local_wss with active tunnel could also dial via tunnel, but the
 	// loopback HTTP dial still works (edge listens on 127.0.0.1), so we
 	// keep the direct path for now and only guard the disconnected case

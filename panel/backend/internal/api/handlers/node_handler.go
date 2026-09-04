@@ -32,6 +32,11 @@ type createNodeRequest struct {
 	Address        string `json:"address"`
 	UseTLS         bool   `json:"use_tls"`
 	ConnectionMode string `json:"connection_mode,omitempty"`
+	// WssChannels is the NodeForm WSS box state (migration 062). When
+	// present the handler replaces the node's full channel set
+	// transactionally after the row lands; omitted/nil leaves channels
+	// untouched (legacy callers unaffected).
+	WssChannels []wssChannelPayload `json:"wss_channels,omitempty"`
 	// Advanced per-edge configuration (migration 019). Missing / zero
 	// values fall back to the column DEFAULT so a caller using the legacy
 	// payload shape is unaffected.
@@ -68,6 +73,10 @@ type updateNodeRequest struct {
 	Address        string `json:"address"`
 	UseTLS         bool   `json:"use_tls"`
 	ConnectionMode string `json:"connection_mode,omitempty"`
+	// WssChannels mirrors createNodeRequest: when present (non-nil) the
+	// handler replaces the node's full channel set; nil leaves channels
+	// untouched so legacy callers keep working.
+	WssChannels []wssChannelPayload `json:"wss_channels,omitempty"`
 	HealthEnabled  *bool  `json:"health_enabled,omitempty"`
 	HealthInterval int    `json:"health_interval,omitempty"`
 	HealthTimeout  int    `json:"health_timeout,omitempty"`
@@ -88,7 +97,39 @@ type updateNodeRequest struct {
 	Color             string `json:"color,omitempty"`
 }
 
-// isValidPortStr reports whether p is a decimal port 1..65535.
+// wssChannelPayload is one WSS box row (migration 062): a name, a task
+// (all/files/node/instance) and, for both/local_both modes, a preferred
+// transport (wss/port/auto) plus the emergency-fallback flag.
+type wssChannelPayload struct {
+	Name      string `json:"name"`
+	Task      string `json:"task,omitempty"`
+	Transport string `json:"transport,omitempty"`
+	Fallback  *bool  `json:"fallback,omitempty"`
+}
+
+// wssChannelsToInput normalizes + validates a channel payload list (fail
+// closed). Fallback defaults to true (emergency fallback on) when omitted.
+func wssChannelsToInput(payload []wssChannelPayload) ([]repository.WssChannelInput, error) {
+	out := make([]repository.WssChannelInput, 0, len(payload))
+	for _, p := range payload {
+		fb := true
+		if p.Fallback != nil {
+			fb = *p.Fallback
+		}
+		task := repository.NormalizeWssTask(p.Task)
+		transport := repository.NormalizeWssTransport(p.Transport)
+		if msg := repository.ValidateWssChannel(p.Name, task, transport); msg != "" {
+			return nil, fmt.Errorf("%s", msg)
+		}
+		out = append(out, repository.WssChannelInput{
+			Name:      p.Name,
+			Task:      task,
+			Transport: transport,
+			Fallback:  fb,
+		})
+	}
+	return out, nil
+}
 func isValidPortStr(p string) bool {
 	p = strings.TrimSpace(p)
 	if len(p) == 0 || len(p) > 5 {

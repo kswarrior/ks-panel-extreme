@@ -966,11 +966,13 @@ func proxyToEdgeWithBody(w http.ResponseWriter, r *http.Request, id int64, op, t
 
 	// Tunnel guard for the URL-upload proxy (shares the same constraints as proxyToEdge).
 	// local_wss falls through to direct loopback HTTP (same-host dial works);
-	// only reverse_tunnel is truly undialable and gets the 501.
+	// only reverse_tunnel is truly undialable and gets the 501. Dual modes
+	// (both/local_both) always have a dialable address, so binary URL
+	// uploads go over HTTP (port) there.
 	mode := strings.ToLower(strings.TrimSpace(node.ConnectionMode))
-	isTunnelMode := mode == "reverse_tunnel" || mode == "local_wss"
+	isTunnelMode := mode == "reverse_tunnel" || mode == "local_wss" || mode == "both" || mode == "local_both"
 	connected := tunnel.Global().IsConnected(node.ID)
-	if isTunnelMode && connected && mode != "local_wss" {
+	if isTunnelMode && connected && mode != "local_wss" && mode != "both" && mode != "local_both" {
 		// Binary upload via tunnel would hit the 8 MiB JSON message limit and the edge's
 		// octet-stream handling – not yet tunneled. Report clearly instead of dialing 127.0.0.1.
 		writeJSONStatus(w, http.StatusNotImplemented, map[string]any{
