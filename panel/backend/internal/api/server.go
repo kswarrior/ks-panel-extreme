@@ -324,13 +324,21 @@ func NewRouter() http.Handler {
 		// AI assistant (plan/ai.md). Proxy-only: the provider key never
 		// reaches the browser. Config read is masked and open to any
 		// authenticated user (the FAB needs it); writes + test are
-		// SETTINGS_EDIT; chat needs AI_CHAT_USE and is per-user
-		// rate-limited inside the handler.
+		// SETTINGS_EDIT; chat, stream, threads and usage need AI_CHAT_USE
+		// (usage additionally needs SETTINGS_EDIT) and chat/stream are
+		// per-user rate-limited inside the handler.
 		r.Route("/api/ai", func(r chi.Router) {
 			r.Get("/config", handlers.AIConfigHandler)
 			r.With(requireUmbrellaOrAction(settingsG, permissions.ActionEdit)).Put("/config", handlers.AIConfigHandler)
 			r.With(requireUmbrellaOrAction(settingsG, permissions.ActionEdit)).Post("/test", handlers.AITestHandler)
 			r.With(requirePermission(permissions.AIChatUseKey)).Post("/chat", handlers.AIChatHandler)
+			r.With(requirePermission(permissions.AIChatUseKey)).Post("/chat/stream", handlers.AIChatStreamHandler)
+			r.With(requirePermission(permissions.AIChatUseKey)).Get("/threads", handlers.AIThreadsHandler)
+			r.With(requirePermission(permissions.AIChatUseKey)).Post("/threads", handlers.AIThreadsHandler)
+			r.With(requirePermission(permissions.AIChatUseKey)).Get("/threads/{id}/messages", handlers.AIThreadHandler)
+			r.With(requirePermission(permissions.AIChatUseKey)).Put("/threads/{id}", handlers.AIThreadHandler)
+			r.With(requirePermission(permissions.AIChatUseKey)).Delete("/threads/{id}", handlers.AIThreadHandler)
+			r.With(requireUmbrellaOrAction(settingsG, permissions.ActionView)).Get("/usage", handlers.AIUsageHandler)
 		})
 
 		// Admin: GLOBAL themes. MANAGE_THEMES is the umbrella that grants

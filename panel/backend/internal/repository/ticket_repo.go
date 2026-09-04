@@ -153,6 +153,43 @@ func (r *TicketRepository) enrichTickets(tickets []models.Ticket) ([]models.Tick
 				tickets[i].LastReplyBy = &v
 			}
 		}
+		// SLA sidecar (065): missing table (pre-065 test DBs) or missing row
+		// both read back as zero state — never fail the list for this.
+		if len(ids) > 0 {
+			placeholders := strings.Repeat("?,", len(ids))
+			placeholders = placeholders[:len(placeholders)-1]
+			args := make([]any, len(ids))
+			for i, id := range ids {
+				args[i] = id
+			}
+			if rows, err := r.db.Query(
+				`SELECT ticket_id, first_response_at, sla_breached, escalated, escalated_at FROM ticket_sla WHERE ticket_id IN (`+placeholders+`)`,
+				args...); err == nil {
+				defer rows.Close()
+				for rows.Next() {
+					var tid int64
+					var firstResp, escAt sql.NullString
+					var breached, escalated sql.NullInt64
+					if err := rows.Scan(&tid, &firstResp, &breached, &escalated, &escAt); err != nil {
+						continue
+					}
+					if idx, ok := idIdx[tid]; ok {
+						if firstResp.Valid && firstResp.String != "" {
+							if t := parseTicketTime(firstResp.String); !t.IsZero() {
+								tickets[idx].FirstResponseAt = &t
+							}
+						}
+						tickets[idx].SLABreached = breached.Valid && breached.Int64 != 0
+						tickets[idx].Escalated = escalated.Valid && escalated.Int64 != 0
+						if escAt.Valid && escAt.String != "" {
+							if t := parseTicketTime(escAt.String); !t.IsZero() {
+								tickets[idx].EscalatedAt = &t
+							}
+						}
+					}
+				}
+			}
+		}
 	}
 	return tickets, nil
 }
@@ -516,6 +553,15 @@ func (r *TicketRepository) Stats(uid int64, isStaff bool) (*models.TicketStats, 
 	_ = r.db.QueryRow(qUn, args...).Scan(&s.Unassigned)
 	// mine: tickets created by or assigned to me (even for staff, show personal count)
 	_ = r.db.QueryRow(`SELECT COUNT(*) FROM tickets WHERE (created_by = ? OR assigned_to = ?)`, uid, uid).Scan(&s.Mine)
+	// SLA (065): breached among the visible set + compliant share. The
+	// sidecar table may not exist on pre-065 test DBs — any error reads
+	// back as zero state, never a stats failure.
+	_ = r.db.QueryRow(`SELECT COUNT(*) FROM ticket_sla WHERE sla_breached = 1 AND ticket_id IN (SELECT id FROM tickets WHERE `+where+`)`, args...).Scan(&s.Breached)
+	if s.Total > 0 {
+		s.SLAPct = float64(s.Total-s.Breached) * 100 / float64(s.Total)
+	} else {
+		s.SLAPct = 100
+	}
 	return s, nil
 }
 
