@@ -728,7 +728,44 @@ else
     exit 1
 fi
 
-# 3b. Checksum verification. SHA256_EXPECTED is embedded by the panel at
+# 3b. Cosign signature verification. SIGNATURE_EXPECTED is embedded by the
+# panel at script-generation time from the version manifest
+# (manifest.signature via tools/stamp-version-manifest.sh from
+# release/kspanel.sig). Verified BEFORE the hash gate: a mismatch exits
+# here — DOWNLOADED is already true so the EXIT trap rolls back to .old
+# and the corrupt bytes never reach the live path.
+SIGNATURE_EXPECTED="{{.Signature}}"
+if [[ -n "$SIGNATURE_EXPECTED" ]]; then
+    # Format gate: cosign sign-blob is base64, ≥86 chars (≈64 bytes).
+    if ! [[ "$SIGNATURE_EXPECTED" =~ ^[A-Za-z0-9+/=_-]+$ ]] || [[ ${#SIGNATURE_EXPECTED} -lt 86 ]]; then
+        log_err "signature format invalid (not base64 or too short)"
+        exit 1
+    fi
+    if command -v cosign >/dev/null 2>&1 && [[ -n "${COSIGN_PUBLIC_KEY:-}${KSPANEL_COSIGN_PUBLIC_KEY:-}" || -n "${KSPANEL_COSIGN_PUBKEY_FILE:-}" || -f "./cosign.pub" ]]; then
+        PUBKEY="${KSPANEL_COSIGN_PUBKEY_FILE:-./cosign.pub}"
+        if [[ -n "${COSIGN_PUBLIC_KEY:-}${KSPANEL_COSIGN_PUBLIC_KEY:-}" ]]; then
+            echo "${COSIGN_PUBLIC_KEY:-${KSPANEL_COSIGN_PUBLIC_KEY}}" > /tmp/ks-cosign.pub
+            PUBKEY=/tmp/ks-cosign.pub
+        fi
+        echo "$SIGNATURE_EXPECTED" | base64 -d > /tmp/ks-sig.bin 2>/dev/null || echo "$SIGNATURE_EXPECTED" > /tmp/ks-sig.b64
+        SIGFILE=/tmp/ks-sig.bin
+        [[ -f /tmp/ks-sig.b64 ]] && SIGFILE=/tmp/ks-sig.b64
+        if cosign verify-blob --key "$PUBKEY" --signature "$SIGFILE" "$TMP_PATH" >/dev/null 2>&1; then
+            log_ok "Signature verified (cosign)"
+        else
+            log_err "signature verification failed — download deleted, live binary untouched"
+            exit 1
+        fi
+        rm -f /tmp/ks-sig.bin /tmp/ks-sig.b64 /tmp/ks-cosign.pub
+    else
+        log_warn "cosign not available or no public key — signature format checked, checksum still enforced"
+    fi
+    log_ok "Signature format verified (cosign)"
+else
+    log_warn "no signature embedded — installing with checksum only"
+fi
+
+# 3c. Checksum verification. SHA256_EXPECTED is embedded by the panel at
 # script-generation time from the version manifest (update_verify.go); when
 # empty (old manifest without sha256) the install proceeds unverified. A
 # mismatch exits here — DOWNLOADED is already true so the EXIT trap rolls

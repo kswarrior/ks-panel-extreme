@@ -22,31 +22,34 @@ import (
 // Verified downloads for the panel self-update / reinstall surface.
 //
 // The build publishes release/kspanel.sha256 (`<hex>  kspanel`, see
-// rebuild.sh generate_checksums) and an optional cosign sidecar
-// (release/kspanel.sig via SIGN_KEY). The version manifest may carry the
-// same values inline so an update-apply can verify the downloaded bytes
-// BEFORE chmod/swap:
+// rebuild.sh generate_checksums) and a cosign sidecar (release/kspanel.sig
+// via SIGN_KEY). The version manifest carries the same values inline
+// (tools/stamp-version-manifest.sh) so an update-apply can verify the
+// downloaded bytes BEFORE chmod/swap:
 //
 //	{
 //	  "version": "0.1.1",
 //	  "sha256": "<64 hex chars of the kspanel binary>",
-//	  "signature": "<optional cosign sig output, informational>",
+//	  "signature": "<cosign sign-blob output, base64>",
 ///	  "sha256_url": "<optional explicit sidecar URL>"
 //	}
 //
 // Verification chain in UpdateApplyHandler / ReinstallHandler (and the
-// reinstall.sh template, which embeds the resolved hex at generation
-// time):
+// reinstall.sh template, which embeds both values at generation time):
 //  1. re-fetch version.json fresh (15s client, 1MiB cap — the same
 //     SSRF/timeout discipline as UpdateCheckHandler),
-//  2. prefer manifest.sha256, else fetch manifest.sha256_url, else fetch
+//  2. verify manifest.signature with verifyPanelSignature (base64 format
+//     + ≥64 bytes, plus ed25519 crypto when KSPANEL_COSIGN_PUBLIC_KEY or
+//     KSPANEL_COSIGN_PUBKEY_FILE is configured); on mismatch delete temp,
+//     leave live untouched, audit + 422,
+//  3. prefer manifest.sha256, else fetch manifest.sha256_url, else fetch
 //     the conventional sidecar kspanelBaseURL/kspanel.sha256,
-//  3. stream-hash the temp file and compare; on mismatch delete the temp
+//  4. stream-hash the temp file and compare; on mismatch delete the temp
 //     file, leave the live binary untouched, audit-log the failure and
 //     answer 422.
-// When no checksum is published anywhere the apply proceeds unverified
-// but records that fact in the response log + audit row, so old manifests
-// don't brick updates while new ones are enforced.
+// When neither signature nor checksum is published anywhere the apply
+// proceeds unverified but records that fact in the response log + audit
+// row, so old manifests don't brick updates while new ones are enforced.
 
 // fetchUpdateManifest re-fetches version.json with the same 15s client +
 // 1MiB cap discipline as UpdateCheckHandler. Shared so check + apply +
@@ -291,6 +294,17 @@ func embeddedReinstallSHA256() string {
 	return sum
 }
 
+// embeddedReinstallSignature best-effort resolves the cosign signature to
+// embed into a generated reinstall.sh (manifest.signature). Empty on any
+// failure — the script then installs with checksum only (plus a warning).
+func embeddedReinstallSignature() string {
+	m, err := fetchUpdateManifest()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(m.Signature)
+}
+
 // stageFailure is the typed error from stagePanelBinary. Code is the HTTP
 // status the handler should answer with; IsVerify marks checksum failures
 // so the caller audit-logs them (the artifact, not the panel, is at
@@ -346,24 +360,39 @@ func stagePanelBinary(kind string) (exe string, logLines []string, err error) {
 		os.Remove(tmpPath)
 		return fail(http.StatusBadGateway, "downloaded file is empty or missing", false)
 	}
-	// Verified download: hash the temp file BEFORE chmod/swap. The
-	// manifest fetch itself is best-effort: when no checksum is published
-	// (or reachable) anywhere the stage proceeds unverified and logs that
-	// fact, so old manifests don't brick updates while new ones are
-	// enforced.
+	// Verified download: cosign signature FIRST, then SHA-256 hash, both
+	// BEFORE chmod/swap. On ANY verification failure the temp file is
+	// deleted, the live binary is untouched, and the caller answers 422 +
+	// audit-logs. The manifest fetch itself is best-effort: when neither
+	// signature nor checksum is published (or reachable) the stage proceeds
+	// unverified and logs that fact, so old manifests don't brick updates
+	// while new ones are enforced.
 	if m, merr := fetchUpdateManifest(); merr != nil {
-		logLines = append(logLines, "could not fetch manifest for checksum ("+merr.Error()+") — installing unverified binary")
-	} else if expected, verr := resolveExpectedSHA256(m); verr != nil {
-		os.Remove(tmpPath)
-		return fail(http.StatusUnprocessableEntity, "checksum error: "+verr.Error(), true)
-	} else if expected != "" {
-		if verr := verifyFileSHA256(tmpPath, expected); verr != nil {
-			os.Remove(tmpPath)
-			return fail(http.StatusUnprocessableEntity, "checksum mismatch — download deleted, live binary untouched: "+verr.Error(), true)
-		}
-		logLines = append(logLines, "checksum verified (sha256 "+expected[:12]+"…)")
+		logLines = append(logLines, "could not fetch manifest for verification ("+merr.Error()+") — installing unverified binary")
 	} else {
-		logLines = append(logLines, "no checksum published — installing unverified binary")
+		// 1) Cosign signature gate (before the hash gate).
+		if sig := strings.TrimSpace(m.Signature); sig != "" {
+			if serr := verifyPanelSignature(tmpPath, sig); serr != nil {
+				os.Remove(tmpPath)
+				return fail(http.StatusUnprocessableEntity, "signature mismatch — download deleted, live binary untouched: "+serr.Error(), true)
+			}
+			logLines = append(logLines, "signature verified (cosign)")
+		} else {
+			logLines = append(logLines, "no signature published — checksum only")
+		}
+		// 2) SHA-256 hash gate.
+		if expected, verr := resolveExpectedSHA256(m); verr != nil {
+			os.Remove(tmpPath)
+			return fail(http.StatusUnprocessableEntity, "checksum error: "+verr.Error(), true)
+		} else if expected != "" {
+			if verr := verifyFileSHA256(tmpPath, expected); verr != nil {
+				os.Remove(tmpPath)
+				return fail(http.StatusUnprocessableEntity, "checksum mismatch — download deleted, live binary untouched: "+verr.Error(), true)
+			}
+			logLines = append(logLines, "checksum verified (sha256 "+expected[:12]+"…)")
+		} else {
+			logLines = append(logLines, "no checksum published — installing unverified binary")
+		}
 	}
 	if err := os.Chmod(tmpPath, 0o755); err != nil {
 		os.Remove(tmpPath)
