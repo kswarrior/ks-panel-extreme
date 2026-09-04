@@ -184,8 +184,8 @@ const ApiKeyForm: React.FC = () => {
     setExpiresAtLocal(expiryValueToInput(next.toISOString()));
   };
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!form.name.trim()) {
       setError('Name is required');
       return;
@@ -655,7 +655,9 @@ const ApiKeyForm: React.FC = () => {
 
           {error && <p className="text-sm text-red-400">{error}</p>}
         </div>
-        <nav aria-label="API key form sections" className="lg:hidden sticky bottom-3 z-10">
+      </div>
+        {/* Phone tabs — fixed to viewport bottom (node pattern). */}
+        <nav aria-label="API key form sections" className="lg:hidden fixed inset-x-4 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-30">
           <div className="ks-card rounded-md p-1.5 flex gap-1 overflow-x-auto scrollbar-hide">
             {APIKEY_TABS.map((t) => (
               <button
@@ -664,14 +666,18 @@ const ApiKeyForm: React.FC = () => {
                 role="tab"
                 aria-selected={tab === t.id}
                 onClick={() => setTab(t.id)}
-                className={`ks-tab shrink-0 flex-1 px-3 py-1.5 rounded text-sm text-center transition ${tab === t.id ? 'ks-tab-active' : ''}`}
+                className={`ks-tab shrink-0 flex-1 px-3 py-1.5 rounded text-sm text-center transition flex items-center justify-center gap-1.5 ${tab === t.id ? 'ks-tab-active' : ''}`}
               >
+                <span className="inline-flex items-center shrink-0">{APIKEY_TAB_META[t.id].icon}</span>
                 {t.label}
               </button>
             ))}
           </div>
         </nav>
       </FormPage>
+      {/* Spacer — reserves scroll room so the fixed bottom tab bar never
+          covers trailing form content (node pattern). */}
+      <div aria-hidden="true" className="h-24 lg:hidden" />
       {/* Token disclosure modal after creation */}
       {createdToken && (
         <GlassModal
