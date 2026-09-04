@@ -23,6 +23,13 @@ export function useAutoHidePill(delay: number = PILL_SHOW_DELAY) {
   const ref = useRef<HTMLDivElement>(null);
   const timer = useRef<number | null>(null);
 
+  // show restores full visibility immediately (used for hover-restore on
+  // dim-instead-of-hide bars that stay interactive while "off").
+  const show = useCallback(() => {
+    if (timer.current) window.clearTimeout(timer.current);
+    setVisible(true);
+  }, []);
+
   useEffect(() => {
     const scheduleShow = (d: number) => {
       if (timer.current) window.clearTimeout(timer.current);
@@ -48,7 +55,7 @@ export function useAutoHidePill(delay: number = PILL_SHOW_DELAY) {
     };
   }, [delay]);
 
-  return { visible, ref };
+  return { visible, ref, show };
 }
 
 interface PageActionsPillProps {

@@ -20,7 +20,8 @@ const Layout: React.FC = () => {
 
   // Power dock auto-hide — same behavior as the Cancel/Deploy pill
   // (hide on scroll / outside click, slide back after idle), 1.5s delay.
-  // Opacity/translate only: the row keeps its space so content never jumps.
+  // Dim-only: the row never goes invisible, it just drops to low opacity
+  // ("off") and hover restores it. Space is always kept so content jumps.
   const powerHide = useAutoHidePill(1500);
 
   useEffect(() => {
@@ -58,8 +59,9 @@ const Layout: React.FC = () => {
         {inInstancePanel && (
           <div
             ref={powerHide.ref}
-            className={`shrink-0 w-full flex justify-start p-0 m-0 transition-all duration-300 ${
-              powerHide.visible ? 'translate-x-0 opacity-100' : 'pointer-events-none -translate-x-3 opacity-0'
+            onMouseEnter={powerHide.show}
+            className={`shrink-0 w-full flex justify-start p-0 m-0 transition-opacity duration-300 ${
+              powerHide.visible ? 'opacity-100' : 'opacity-40'
             }`}
           >
             <ErrorBoundary resetKey={location.pathname} label="instance-power">

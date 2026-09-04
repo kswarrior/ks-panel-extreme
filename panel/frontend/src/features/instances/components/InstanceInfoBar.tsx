@@ -51,13 +51,15 @@ function useUptime(sinceISO: string | undefined | null, status: string): string 
 //   • Uptime  — live-ticking since started_at while running, '—' otherwise
 //   • Type    — driver badge (docker / kvm / multipass / lxd) with its glyph
 //
-// Fixed to the right edge (PageActionsPill pattern) and auto-hides after
-// 1.5s idle — same behavior as the Cancel/Deploy pill, faster delay.
+// Fixed to the top-right edge (below the PageActionsPill slot) and
+// auto-dims after 1.5s idle — same behavior as the Cancel/Deploy pill,
+// faster delay. Dim-only: never goes invisible, just "off" (low opacity);
+// hover restores full brightness.
 const InstanceInfoBar: React.FC = () => {
   const { id } = useParams();
   const instanceId = Number(id);
   const { instance, loading } = useInstance(instanceId);
-  const { visible, ref } = useAutoHidePill(1500);
+  const { visible, ref, show } = useAutoHidePill(1500);
 
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     try {
@@ -91,11 +93,15 @@ const InstanceInfoBar: React.FC = () => {
   const typeBadge = (instance && KIND_META[k]?.badge) || '';
 
   return (
-    <div className="fixed right-4 sm:right-6 top-1/2 -translate-y-1/2 z-40" aria-label="Instance info">
+    <div
+      className="fixed right-4 sm:right-6 top-[max(8rem,calc(env(safe-area-inset-top)+3.5rem))] z-40"
+      aria-label="Instance info"
+      onMouseEnter={show}
+    >
       <div
         ref={ref}
-        className={`ks-card ks-pill-anim rounded-md shadow-lg shadow-black/40 overflow-hidden transition-all duration-300 ${
-          visible ? 'translate-x-0 opacity-100' : 'pointer-events-none translate-x-8 opacity-0'
+        className={`ks-card ks-pill-anim rounded-md shadow-lg shadow-black/40 overflow-hidden transition-opacity duration-300 ${
+          visible ? 'opacity-100' : 'opacity-40'
         }`}
         style={{ '--ks-card-padding': '8px' } as React.CSSProperties}
       >
