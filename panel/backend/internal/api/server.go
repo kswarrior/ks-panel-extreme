@@ -441,6 +441,17 @@ func NewRouter() http.Handler {
 			r.With(requireUmbrellaOrAction(nodesG, permissions.ActionEdit)).Post("/{id}/update-apply", handlers.NodeUpdateApplyHandler)
 			r.With(requireUmbrellaOrAction(nodesG, permissions.ActionEdit)).Post("/{id}/reinstall", handlers.NodeReinstallHandler)
 			r.With(requireUmbrellaOrAction(nodesG, permissions.ActionEdit)).Post("/{id}/reinstall-background", handlers.NodeReinstallBackgroundHandler)
+			// Fleet rolling update (NodeDetail primitives, orchestrated):
+			// order nodes (canary subset first), per node check→apply→poll
+			// edge /health + heartbeat until healthy/timeout, stop on first
+			// failure. Edit-level like the single-node mutating verbs.
+			r.With(requireUmbrellaOrAction(nodesG, permissions.ActionEdit)).Post("/update-all", handlers.NodeRollingUpdateHandler)
+			// Fleet update windows (cron schedules + maintenance-window
+			// guard, scheduler-driven). Same edit-level gate.
+			r.With(requireUmbrellaOrAction(nodesG, permissions.ActionView)).Get("/update-windows", handlers.ListFleetUpdateWindowsHandler)
+			r.With(requireUmbrellaOrAction(nodesG, permissions.ActionEdit)).Post("/update-windows", handlers.CreateFleetUpdateWindowHandler)
+			r.With(requireUmbrellaOrAction(nodesG, permissions.ActionEdit)).Put("/update-windows/{wid}", handlers.UpdateFleetUpdateWindowHandler)
+			r.With(requireUmbrellaOrAction(nodesG, permissions.ActionEdit)).Delete("/update-windows/{wid}", handlers.DeleteFleetUpdateWindowHandler)
 		})
 
 		// Admin: template management. MANAGE_TEMPLATES (umbrella) implies

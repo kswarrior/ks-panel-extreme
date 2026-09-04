@@ -152,6 +152,12 @@ func sweep(ctx context.Context) {
 	// notification) and the daily digest-mail sweep for digest-mode users.
 	// Same best-effort contract as the backup sweep above.
 	sweepTickets(ctx)
+
+	// Database integrity verification (daily cron, configurable via
+	// settings KV db_verify_cron): PRAGMA quick_check (SQLite) + connection
+	// probe + table-count sanity (all engines). Failures write
+	// activity_logs + notify admins. Same best-effort contract.
+	sweepDatabaseVerify(ctx)
 }
 
 // sweepBackupSchedules fires due backup_schedules rows: kind='db' runs a
