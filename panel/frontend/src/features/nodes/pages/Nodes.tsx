@@ -20,6 +20,7 @@ import GlassCard from '@/shared/components/ui/Card';
 import GlassModal from '@/shared/components/ui/Modal';
 import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
+import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import { useThemeStore } from '@/shared/stores/themeStore';
 import { countryByCode } from '@/shared/components/forms/LocationField/countries';
@@ -236,45 +237,7 @@ const AdminNodes: React.FC = () => {
 
   const resetFilters = () => { setSearch(''); setStateFilter('all'); setTlsFilter('all'); };
 
-  // Compact ks-tab sizing shared by every top-right action — mirrors the
-  // node form's Cancel/Create pill (theme paints padding with !important,
-  // so Tailwind px/py alone can never win; the var override does).
-  const tabBtnStyle = { '--ks-tab-px': '10px', '--ks-tab-py': '5px', '--ks-tab-font': '13px' } as React.CSSProperties;
 
-  // The fixed pill hides while the page is scrolled or clicked elsewhere
-  // so it never covers content, then fades back when idle.
-  const [actionsVisible, setActionsVisible] = useState(true);
-  const pillRef = useRef<HTMLDivElement>(null);
-  const showTimer = useRef<number | null>(null);
-
-  useEffect(() => {
-    const scheduleShow = (delay: number) => {
-      if (showTimer.current) window.clearTimeout(showTimer.current);
-      showTimer.current = window.setTimeout(() => setActionsVisible(true), delay);
-    };
-    // Scroll fires on Layout's <main>, not window — capture on document.
-    // Bar slides back in from the right 2.5s after scrolling settles.
-    const onScroll = () => {
-      setActionsVisible(false);
-      scheduleShow(2500);
-    };
-    // Clicks inside the pill (search/filter/popovers) keep it visible.
-    // composedPath avoids the DOM Node name (shadowed by the data model).
-    const onPointerDown = (e: PointerEvent) => {
-      const path = typeof e.composedPath === 'function' ? e.composedPath() : [];
-      if (pillRef.current && !path.includes(pillRef.current)) {
-        setActionsVisible(false);
-        scheduleShow(2500);
-      }
-    };
-    document.addEventListener('scroll', onScroll, true);
-    document.addEventListener('pointerdown', onPointerDown);
-    return () => {
-      document.removeEventListener('scroll', onScroll, true);
-      document.removeEventListener('pointerdown', onPointerDown);
-      if (showTimer.current) window.clearTimeout(showTimer.current);
-    };
-  }, []);
 
   const nodeStats = useMemo(() => {
     const byState: Record<string, number> = {};
@@ -293,28 +256,22 @@ const AdminNodes: React.FC = () => {
 
   return (
     <div>
-      {/* Fixed top-right pill (same spot as the form's Cancel/Create) —
-          fades out while scrolling or when the page is clicked elsewhere. */}
-      <div className="fixed top-[max(4.5rem,env(safe-area-inset-top))] right-4 sm:right-6 z-40">
-        <div
-          ref={pillRef}
-          className={`ks-card ks-pill-anim rounded-md flex items-center gap-1 shadow-lg shadow-black/40 ${actionsVisible ? 'translate-x-0 opacity-100' : 'pointer-events-none translate-x-8 opacity-0'}`}
-          style={{ '--ks-card-padding': '6px' } as React.CSSProperties}
-        >
+      {/* Fixed top-right pill — auto-hides with a right-to-left slide. */}
+      <PageActionsPill>
           <SearchDropdown
             value={search}
             onChange={setSearch}
             placeholder="Search name, address, category, country…"
             ariaLabel="Search nodes"
             buttonClassName="ks-tab inline-flex items-center justify-center"
-            buttonStyle={tabBtnStyle}
+            buttonStyle={PILL_TAB_STYLE}
           />
           <div className="relative" ref={filterRef}>
             <button
               type="button"
               onClick={() => setFilterOpen(!filterOpen)}
               className={`ks-tab inline-flex items-center justify-center gap-1 transition-colors ${filterOpen ? 'is-open' : ''}`}
-              style={tabBtnStyle}
+              style={PILL_TAB_STYLE}
               aria-label="Open filters"
               aria-expanded={filterOpen}
               aria-haspopup="true"
@@ -375,7 +332,7 @@ const AdminNodes: React.FC = () => {
             to="/nodes/stats"
             aria-label="Node Statistics"
             className="ks-tab inline-flex items-center justify-center"
-            style={tabBtnStyle}
+            style={PILL_TAB_STYLE}
             title="View node statistics dashboard"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>
@@ -384,7 +341,7 @@ const AdminNodes: React.FC = () => {
             onClick={() => setRollingOpen(true)}
             aria-label="Fleet rolling update"
             className="ks-tab inline-flex items-center justify-center"
-            style={tabBtnStyle}
+            style={PILL_TAB_STYLE}
             title="Fleet rolling update (check → apply → health-poll per node)"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>
@@ -393,7 +350,7 @@ const AdminNodes: React.FC = () => {
             to="/nodes/schedules"
             aria-label="Fleet update schedules"
             className="ks-tab inline-flex items-center justify-center"
-            style={tabBtnStyle}
+            style={PILL_TAB_STYLE}
             title="Fleet update schedules"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
@@ -402,7 +359,7 @@ const AdminNodes: React.FC = () => {
             onClick={() => navigate('/nodes/new')}
             aria-label="Add Node"
             className="ks-tab inline-flex items-center justify-center"
-            style={tabBtnStyle}
+            style={PILL_TAB_STYLE}
             title="Add Node"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
@@ -410,8 +367,7 @@ const AdminNodes: React.FC = () => {
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
           </button>
-        </div>
-      </div>
+      </PageActionsPill>
 
       {error && <p className="text-red-400 mb-3">{error}</p>}
 
