@@ -184,6 +184,25 @@ func UpdatePortsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Cross-instance collision check: another instance on the same node must
+	// not already own any wanted host binding, otherwise the edge's docker
+	// recreate would die with exit 125 `port is already allocated`.
+	if len(inputs) > 0 && inst.Kind == "docker" {
+		want := make([]requestedPort, 0, len(inputs))
+		for _, p := range inputs {
+			want = append(want, requestedPort{host: p.Host, proto: p.Protocol, ip: p.IP})
+		}
+		if bad, owner, found := findPortCollision(con, inst.NodeID, id, want); found {
+			writeJSONStatus(w, http.StatusConflict, map[string]any{
+				"error":  fmt.Sprintf("host port %d is already allocated to instance %q on this node — pick a different host port", bad.host, owner),
+				"detail": fmt.Sprintf("docker would fail with exit 125: Bind for 0.0.0.0:%d failed: port is already allocated", bad.host),
+				"port":   bad.host,
+				"owner":  owner,
+			})
+			return
+		}
+	}
+
 	portRepo := repository.NewInstancePortRepository(con)
 	saved, err := portRepo.Replace(id, inputs)
 	if err != nil {

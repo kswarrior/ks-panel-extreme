@@ -150,6 +150,15 @@ func (d *docker) Deploy(ctx context.Context, name string, cfg map[string]any) (R
 	}
 	out, err := asExec(ctx, "", "docker", args...)
 	if err != nil {
+		// A failed `docker run` (notably exit 125 `port is already
+		// allocated`) still leaves a `Created` container behind under the
+		// requested --name, so every retry piles up another orphan that
+		// must be `docker rm`'d by hand. Remove it best-effort: the name is
+		// unique per instance, so this can only delete the failed attempt.
+		_, _ = asExec(ctx, "", "docker", "rm", "-f", name)
+		if strings.Contains(err.Error(), "port is already allocated") {
+			return Result{}, fmt.Errorf("docker run failed: host port already allocated — another container already publishes it (pick a different host port or stop the holder): %w", err)
+		}
 		return Result{}, err
 	}
 	// `docker run -d` prints the container ID. Strip whitespace. Because the
