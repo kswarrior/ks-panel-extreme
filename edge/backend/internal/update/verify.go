@@ -143,6 +143,89 @@ func verifyEdgeFileSHA256(path, expectedHex string) error {
 	return nil
 }
 
+// verifyEdgeSignature verifies the cosign signature for the downloaded
+// ksedge binary BEFORE the pre-chmod hash gate. Signature bytes come from
+// manifest.signature_edge (stamped from release/ksedge.sig).
+//
+// Empty signature → nil (no signature published; caller logs and relies on
+// the SHA-256 gate). Non-empty → base64 must decode and be ≥64 bytes;
+// when KSEDGE_COSIGN_PUBLIC_KEY / KSEDGE_COSIGN_PUBKEY_FILE (or the shared
+// COSIGN_PUBLIC_KEY) is configured, ed25519 crypto is enforced. Pure check.
+func verifyEdgeSignature(path, signature string) error {
+	sig := strings.TrimSpace(signature)
+	if sig == "" {
+		return nil
+	}
+	compact := strings.Join(strings.Fields(sig), "")
+	raw, err := base64.StdEncoding.DecodeString(compact)
+	if err != nil {
+		if raw2, err2 := base64.URLEncoding.DecodeString(compact); err2 == nil {
+			raw = raw2
+			err = nil
+		} else if raw3, err3 := base64.RawStdEncoding.DecodeString(compact); err3 == nil {
+			raw = raw3
+			err = nil
+		}
+	}
+	if err != nil {
+		return fmt.Errorf("signature is not valid base64: %w", err)
+	}
+	if len(raw) < 64 {
+		return fmt.Errorf("signature too short: got %d bytes, want >= 64", len(raw))
+	}
+	pub, hasKey := edgeCosignPublicKey()
+	if !hasKey {
+		return nil
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("open for signature verify: %w", err)
+	}
+	if len(pub) != ed25519.PublicKeySize {
+		return fmt.Errorf("cosign public key must be %d bytes, got %d", ed25519.PublicKeySize, len(pub))
+	}
+	if !ed25519.Verify(ed25519.PublicKey(pub), data, raw) {
+		return fmt.Errorf("signature verification failed: binary does not match cosign signature")
+	}
+	return nil
+}
+
+// edgeCosignPublicKey loads the optional ed25519 public key (KSEDGE_* with
+// COSIGN_PUBLIC_KEY fallback). Returns (nil,false) when unset.
+func edgeCosignPublicKey() ([]byte, bool) {
+	for _, key := range []string{"KSEDGE_COSIGN_PUBLIC_KEY", "COSIGN_PUBLIC_KEY", "KSPANEL_COSIGN_PUBLIC_KEY"} {
+		if p := strings.TrimSpace(os.Getenv(key)); p != "" {
+			if strings.Contains(p, "BEGIN") {
+				if blk, _ := pem.Decode([]byte(p)); blk != nil && len(blk.Bytes) >= ed25519.PublicKeySize {
+					return blk.Bytes[len(blk.Bytes)-ed25519.PublicKeySize:], true
+				}
+			} else {
+				compact := strings.Join(strings.Fields(p), "")
+				if raw, err := base64.StdEncoding.DecodeString(compact); err == nil && len(raw) == ed25519.PublicKeySize {
+					return raw, true
+				}
+				if raw, err := base64.URLEncoding.DecodeString(compact); err == nil && len(raw) == ed25519.PublicKeySize {
+					return raw, true
+				}
+			}
+		}
+	}
+	for _, key := range []string{"KSEDGE_COSIGN_PUBKEY_FILE", "KSPANEL_COSIGN_PUBKEY_FILE"} {
+		if f := strings.TrimSpace(os.Getenv(key)); f != "" {
+			if data, err := os.ReadFile(f); err == nil {
+				if blk, _ := pem.Decode(data); blk != nil && len(blk.Bytes) >= ed25519.PublicKeySize {
+					return blk.Bytes[len(blk.Bytes)-ed25519.PublicKeySize:], true
+				}
+				compact := strings.Join(strings.Fields(string(data)), "")
+				if raw, err := base64.StdEncoding.DecodeString(compact); err == nil && len(raw) == ed25519.PublicKeySize {
+					return raw, true
+				}
+			}
+		}
+	}
+	return nil, false
+}
+
 // embeddedEdgeReinstallSHA256 best-effort resolves the checksum to embed
 // into a generated edge reinstall.sh. Empty on any failure — the script
 // then installs unverified (with a warning) instead of refusing.
@@ -156,4 +239,14 @@ func embeddedEdgeReinstallSHA256() string {
 		return ""
 	}
 	return sum
+}
+
+// embeddedEdgeReinstallSignature best-effort resolves manifest.signature_edge
+// to embed into reinstall.sh. Empty on failure (checksum-only install).
+func embeddedEdgeReinstallSignature() string {
+	m, err := fetchEdgeManifest()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(m.SignatureEdge)
 }

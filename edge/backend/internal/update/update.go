@@ -353,26 +353,39 @@ func handleApply(w http.ResponseWriter, force bool) {
 		writeErr(w, http.StatusBadGateway, "downloaded file is empty or missing")
 		return
 	}
-	// Verified download: hash the temp file BEFORE chmod/swap. Mismatch
-	// deletes the temp file, leaves the live binary untouched and answers
-	// 422. The manifest fetch is best-effort — no published checksum
-	// means proceed unverified with a log line, so old manifests don't
-	// brick edge updates while new ones are enforced.
+	// Verified download: cosign signature FIRST, then SHA-256 hash, both
+	// BEFORE chmod/swap. Either mismatch deletes the temp file, leaves the
+	// live binary untouched and answers 422. Best-effort manifest fetch —
+	// no published signature+checksum means proceed unverified with a log
+	// line, so old manifests don't brick edge updates while new ones are
+	// enforced.
 	if m, merr := fetchEdgeManifest(); merr != nil {
-		logLines = append(logLines, "could not fetch manifest for checksum ("+merr.Error()+") — installing unverified binary")
-	} else if expected, verr := resolveEdgeExpectedSHA256(m); verr != nil {
-		os.Remove(tmpPath)
-		writeErr(w, http.StatusUnprocessableEntity, "checksum error: "+verr.Error())
-		return
-	} else if expected != "" {
-		if verr := verifyEdgeFileSHA256(tmpPath, expected); verr != nil {
-			os.Remove(tmpPath)
-			writeErr(w, http.StatusUnprocessableEntity, "checksum mismatch — download deleted, live binary untouched: "+verr.Error())
-			return
-		}
-		logLines = append(logLines, "checksum verified (sha256 "+expected[:12]+"…)")
+		logLines = append(logLines, "could not fetch manifest for verification ("+merr.Error()+") — installing unverified binary")
 	} else {
-		logLines = append(logLines, "no checksum published — installing unverified binary")
+		if sig := strings.TrimSpace(m.SignatureEdge); sig != "" {
+			if serr := verifyEdgeSignature(tmpPath, sig); serr != nil {
+				os.Remove(tmpPath)
+				writeErr(w, http.StatusUnprocessableEntity, "signature mismatch — download deleted, live binary untouched: "+serr.Error())
+				return
+			}
+			logLines = append(logLines, "signature verified (cosign)")
+		} else {
+			logLines = append(logLines, "no signature published — checksum only")
+		}
+		if expected, verr := resolveEdgeExpectedSHA256(m); verr != nil {
+			os.Remove(tmpPath)
+			writeErr(w, http.StatusUnprocessableEntity, "checksum error: "+verr.Error())
+			return
+		} else if expected != "" {
+			if verr := verifyEdgeFileSHA256(tmpPath, expected); verr != nil {
+				os.Remove(tmpPath)
+				writeErr(w, http.StatusUnprocessableEntity, "checksum mismatch — download deleted, live binary untouched: "+verr.Error())
+				return
+			}
+			logLines = append(logLines, "checksum verified (sha256 "+expected[:12]+"…)")
+		} else {
+			logLines = append(logLines, "no checksum published — installing unverified binary")
+		}
 	}
 	if err := os.Chmod(tmpPath, 0o755); err != nil {
 		os.Remove(tmpPath)
