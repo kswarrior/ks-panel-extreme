@@ -298,7 +298,7 @@ const AdminNodes: React.FC = () => {
       <div className="fixed top-[max(4.5rem,env(safe-area-inset-top))] right-4 sm:right-6 z-40">
         <div
           ref={pillRef}
-          className={`ks-card rounded-md flex items-center gap-1 shadow-lg shadow-black/40 transition-all duration-300 ${actionsVisible ? 'translate-x-0 opacity-100' : 'pointer-events-none translate-x-full opacity-0'}`}
+          className={`ks-card ks-pill-anim rounded-md flex items-center gap-1 shadow-lg shadow-black/40 ${actionsVisible ? 'translate-x-0 opacity-100' : 'pointer-events-none translate-x-8 opacity-0'}`}
           style={{ '--ks-card-padding': '6px' } as React.CSSProperties}
         >
           <SearchDropdown

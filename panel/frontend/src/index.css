@@ -715,6 +715,21 @@ nav.overflow-x-auto::-webkit-scrollbar-thumb:hover {
 }
 
 /* ------------------------------------------------------------------ *
+ *  Floating pill slide (Nodes top-right actions)
+ * ------------------------------------------------------------------ *
+ *  The theme paints `.ks-card` with
+ *  `transition: border-color 0.2s ease !important`, so Tailwind's
+ *  `transition-all` can never animate transform/opacity on the pill —
+ *  the bar would snap instead of sliding. This (0,2,0) selector beats
+ *  the theme's (0,1,0) even though its <style> is injected after this
+ *  file, restoring a right-to-left slide + fade. */
+.ks-card.ks-pill-anim {
+  transition-property: transform, opacity !important;
+  transition-duration: 300ms !important;
+  transition-timing-function: ease-out !important;
+}
+
+/* ------------------------------------------------------------------ *
  *  Sidebar collapsed (icon-only) — desktop fix
  * ------------------------------------------------------------------ *
  *  The footer toggle switches the sidebar to `ks-sidebar-collapsed w-16`.
