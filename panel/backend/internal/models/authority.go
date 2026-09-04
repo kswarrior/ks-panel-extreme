@@ -251,6 +251,8 @@ type AuthorityBranding struct {
 	BackgroundType string `json:"background_type,omitempty"`
 }
 
+type UserAuthorityMode string
+
 const (
 	UserAuthorityAny UserAuthorityMode = "any"
 	UserAuthorityN   UserAuthorityMode = "n"

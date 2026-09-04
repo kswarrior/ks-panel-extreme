@@ -155,6 +155,14 @@ func NewRouter() http.Handler {
 		// /auth/login page can render before the user has a session.
 		r.Get("/api/settings/panel-logo", handlers.PanelLogoHandler)
 
+		// Public authority branding snapshot for the login page: the
+		// authority-specific logo/background when the admin configured one,
+		// else the GLOBAL panel brand (panel_name + panel-logo) as
+		// fallback. Same public model as panel-name/panel-logo/themes —
+		// brand URLs only, no secrets — so /auth/login can paint before
+		// the user has a session.
+		r.Get("/api/authority/branding", handlers.AuthorityBrandingHandler)
+
 		// Public user profile + image streams. Anyone can read a user's
 		// profile (email is redacted server-side) and render their avatar /
 		// banner — the page paints before login (e.g. future public profile
@@ -362,9 +370,21 @@ func NewRouter() http.Handler {
 		// stays the resolver's read path.
 		r.With(requireAnyPermission(themesG.Umbrella, permissions.CreateGlobalThemesKey)).Post("/api/themes", handlers.CreateThemeHandler)
 		r.With(requireAnyPermission(themesG.Umbrella, permissions.CreateGlobalThemesKey)).Post("/api/themes/url", handlers.InstallThemeFromURLHandler)
+		// Theme marketplace (themelib, mirrors the instance-pages market):
+		// GET lists the catalog (any theme capability may browse, same as
+		// the pages market's view gate); POST installs one catalog entry
+		// into the GLOBAL library (CREATE_GLOBAL or EDIT, like publishing).
+		// Static literals, so they never collide with the {id} routes below.
+		r.With(requireAnyPermission(themesG.Umbrella, permissions.CreateGlobalThemesKey, permissions.EditThemesKey, permissions.UseGlobalThemesKey, permissions.AssignThemesKey)).Get("/api/themes/market", handlers.GetThemeMarketHandler)
+		r.With(requireAnyPermission(themesG.Umbrella, permissions.CreateGlobalThemesKey, permissions.EditThemesKey)).Post("/api/themes/market/install", handlers.InstallThemeFromMarketHandler)
 		r.With(requireAnyPermission(themesG.Umbrella, permissions.EditThemesKey)).Put("/api/themes/{id}", handlers.UpdateThemeHandler)
 		r.With(requireAnyPermission(themesG.Umbrella, permissions.EditThemesKey)).Delete("/api/themes/{id}", handlers.DeleteThemeHandler)
 		r.With(requireAnyPermission(themesG.Umbrella, permissions.EditThemesKey)).Get("/api/themes/{id}/download", handlers.DownloadThemeHandler)
+		// Theme version history (migration 067): list revisions newest-first
+		// + roll back to one. EDIT-gated like the overwrite that produces
+		// revisions; rollback is audit-logged inside the handler.
+		r.With(requireAnyPermission(themesG.Umbrella, permissions.EditThemesKey)).Get("/api/themes/{id}/revisions", handlers.ListThemeRevisionsHandler)
+		r.With(requireAnyPermission(themesG.Umbrella, permissions.EditThemesKey)).Post("/api/themes/{id}/rollback/{rev}", handlers.RollbackThemeHandler)
 		// One scope -> theme binding (empty theme_id = unassign).
 		r.With(requireAnyPermission(themesG.Umbrella, permissions.AssignThemesKey)).Put("/api/themes/assignments", handlers.AssignThemeHandler)
 		// GET /api/themes/owners: the admin list of global themes WITH the
