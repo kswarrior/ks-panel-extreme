@@ -1468,7 +1468,6 @@ func findPortCollision(con sqlDB, nodeID, excludeID int64, want []requestedPort)
 	// Source 1: instance_ports allocations.
 	rows, err := con.Query(`SELECT p.host_port, p.protocol, p.ip, i.name FROM instance_ports p JOIN instances i ON i.id = p.instance_id WHERE i.node_id = ? AND p.instance_id != ?`, nodeID, excludeID)
 	if err == nil {
-		defer rows.Close()
 		for rows.Next() {
 			var hp int
 			var proto, ip, owner string
@@ -1478,12 +1477,11 @@ func findPortCollision(con sqlDB, nodeID, excludeID int64, want []requestedPort)
 			used[portBindingKey(ip, hp, proto)] = owner
 		}
 		_ = rows.Err()
-		rows.Close()
+		_ = rows.Close()
 	}
 	// Source 2: instances.config JSON ports (deploy-time spec).
 	rows2, err := con.Query(`SELECT name, config FROM instances WHERE node_id = ? AND id != ?`, nodeID, excludeID)
 	if err == nil {
-		defer rows2.Close()
 		for rows2.Next() {
 			var owner, cfgJSON string
 			if serr := rows2.Scan(&owner, &cfgJSON); serr != nil || cfgJSON == "" {
@@ -1501,7 +1499,7 @@ func findPortCollision(con sqlDB, nodeID, excludeID int64, want []requestedPort)
 			}
 		}
 		_ = rows2.Err()
-		rows2.Close()
+		_ = rows2.Close()
 	}
 	for _, w := range want {
 		if owner, ok := used[portBindingKey(w.ip, w.host, w.proto)]; ok {
