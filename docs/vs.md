@@ -35,7 +35,7 @@
 | 8 | Secrets / environment variables                | **97** | 0  | 70  | 75      | 30 |
 | 9 | Automation / scheduled tasks                   | **92** | 0  | 92  | **95**  | 75 |
 | 10 | Audit / activity logging                      | **92** | 0  | 90  | **92**  | 75 |
-| 11 | Permission granularity                        | **96** | 20 | 92  | **96**  | 55 |
+| 11 | Permission granularity                        | **96** | 20 | 60  | 65      | 55 |
 | 12 | Auth hardening                                | **97** | 25 | 65  | **100** | 60 |
 | 13 | Account lifecycle                             | **92** | 35 | 30 | 40     | 25 |
 | 14 | Database support & management                 | **97** | 5  | 80  | 82      | 0  |
@@ -56,12 +56,12 @@
 | Rank     | Panel      | Sum          | Final /100 |
 |----------|------------|--------------|------------|
 | **1**    | **KS Panel**   | **2,119 / 2,300**| **92**     |
-| 2        | Pelican    | 1,785 / 2,300| 78     |
-| 3        | Pterodactyl| 1,559 / 2,300| 68     |
+| 2        | Pelican    | 1,754 / 2,300| 76     |
+| 3        | Pterodactyl| 1,527 / 2,300| 66     |
 | 4        | Crafty 4   | 1,005 / 2,300| 44     |
 | 5        | JTG Panel  | 705 / 2,300  | 31     |
 
-> KS Panel now clears Pelican **92 vs 78** (+14 since 09-01, 23 cases — tunneling excluded) on the back of 17 scored cases. Pelican/Ptero/Crafty/JTG unchanged; KS gains come purely from exhaustive 09-02 inventory that was previously under-counted (90 keys not 20, 110 routes not 65, 4 drivers not 1, 55 migrations not “templates only”) + the new Ports editor (60→92) `instance_port_repo.go:1` `server.go:644` + SFTP access (0→85) `058_sftp` `sftp_handler.go:1` `edge/backend/internal/sftp/server.go:1` `InstanceSftpCard.tsx`.
+> KS Panel now clears Pelican **92 vs 76** (+16 since 09-01, 23 cases — tunneling excluded) on the back of 17 scored cases. Pelican/Ptero/Crafty/JTG unchanged; KS gains come purely from exhaustive 09-02 inventory that was previously under-counted (90 keys not 20, 110 routes not 65, 4 drivers not 1, 55 migrations not “templates only”) + the new Ports editor (60→92) `instance_port_repo.go:1` `server.go:644` + SFTP access (0→85) `058_sftp` `sftp_handler.go:1` `edge/backend/internal/sftp/server.go:1` `InstanceSftpCard.tsx`.
 
 ## Key Evidence (2026-09-02, from `panel/frontend/src` + `panel/backend` + `edge/backend`)
 
@@ -71,8 +71,8 @@
 - **KS strengths — RBAC + shell:** 90 keys (`permissions/keys.go:6` = `shared/types/permissions.ts:3`) 13 `AreaGroups` umbrellas (`VIEW_INSTANCES, VIEW_ACCOUNT, ACCESS_ADMIN_PANEL, MANAGE_USERS/NODES/TEMPLATES/INSTANCES/API_KEYS/MODS/APPLICATIONS/INSTANCE_PAGES/TICKETS/NOTIFICATIONS, VIEW_SETTINGS, MANAGE_THEMES/ROLES, MANAGE_PANEL_UPDATE`) + granular `*_VIEW/CREATE/EDIT/DELETE` 48 + theme sub-caps 6 + account sub-caps 5 + `OWN/ALL` 26 → `hasAreaAccess umbrella-implies-granular` + `hasPermissionAny` + frontend `RequireAuth+RequirePermission` + `Sidebar hasSidebarAccess` + collapsed `w-16|w-64` + `Header` 444 lines `NotificationBell` poll 20s + `RichMenu` switch-account `Avatar` + `Theme for <area>` submenu + `ThemedBackground aurora+video/gradient` + `RouteThemeSync page>area>default`. 27 shared UI primitives (`Avatar, Card GlassCard, CardMediaLayer, RichMenu, Loading cycle|dots|spiral|skeleton, LimitSelect PRESETS [25,50,75,100,125], MetricsChart line|area|bar|sparkline|donut|gauge, Terminal, Slot, SocialIcons, RequireAuth…`), 15 Theme Studio tabs, 9 Page Studio sections, `MetricsChart VIEW_W 100` used everywhere.
 - **KS strengths — tickets & notifications:** tickets `tickets(id,title,description,category,status,priority,owner_id,assignee_id)` + `ticket_comments|ticket_attachments` (`052`) — 12 handlers `List|Get|Create|Update|Delete|Stats|AddComment|ListComments|DeleteComment|Assign|ListUsersForAssign` (`server.go:529` `ticketsG` view/create/edit/delete, owner-vs-staff GET visibility) + frontend `Tickets.tsx` filters + `TicketDetail|Chat|Stats|Form` + `TicketChat.tsx` composer; notifications `notifications(id,user_id NULL=broadcast,...)` (`053`) — 9 handlers `list|unread-count|stats|read-all|clear|CRUD|broadcast` (`MANAGE_NOTIFICATIONS`, `server.go:753`) + `NotificationBell` poll 20s dropdown + `NotificationCard|Broadcast|Stats`. No rival ships an in-panel equivalent.
 - **KS gaps (remaining):** SFTP now **IMPLEMENTED** (`058_instance_sftp` + `GET|POST /api/instances/{id}/sftp` `sftp_handler.go:1` + edge chrooted SSH `:2222` `internal/sftp/server.go:1` bcrypt 5/15m + `InstanceSftpCard.tsx` + `sftp.json` market); single-instance ops complete (see above) — remaining fleet gap is bulk-select only (`futures.md:141`); allocations editor now IMPLEMENTED (`instance_ports` `PUT` + DB `055` + docker `-p` reconcile `instance_port_repo.go:1` `server.go:644` `InstancePortsEditor.tsx`) — was gap now 92; Minecraft GUI tooling now **IMPLEMENTED** via starters `mc-properties|mc-players|mc-world|mc-plugins` (`pageStarters.ts:1` minecraft, `CustomPageView.tsx:11` blocks + `customPageSdk.ts:216` shell|read_file|write_file|list_files open_args≤4 + `PageStudioTemplatesSection.tsx:1` category filter + `instance_pages/minecraft-*.json` shipped) — was `docs/futures.md:135` NOT planned.
-- **Pelican:** chunked uploads, S3 backups, passkeys + 11 OAuth schemas, plugin engine, perms now tied with KS 96 (was 96, KS caught up); still king on backups 100 + SFTP 90 + allocations 95.
-- **Pterodactyl:** multi-node + allocations 95 (still king); aging Blade+React, no marketplace/self-update/OAuth, no AES vault.
+- **Pelican:** chunked uploads, S3 backups, passkeys + 11 OAuth schemas, plugin engine, panel RBAC 65 core-only (no addon); still king on backups 100 + SFTP 90 + allocations 95.
+- **Pterodactyl:** multi-node + allocations 95 (still king), server-subuser perms core (~30 keys) but panel admin binary 60 core-only (no paid addon); aging Blade+React, no marketplace/self-update/OAuth, no AES vault.
 - **JTG:** good console + MC tooling 80; flat JSON, unenforced sub-users, dev backdoor, default JWT secret, open SSRF (`docs/THREAT_MODEL.md` attacker vectors).
 - **Crafty 4:** best single-host MC wizards + passkeys; single-machine only (node 10), weakest data-layer.
 

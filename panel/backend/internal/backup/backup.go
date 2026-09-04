@@ -22,13 +22,20 @@
 package backup
 
 import (
+	"bytes"
+	"compress/gzip"
+	"context"
+	"crypto/hmac"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
+	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -43,15 +50,23 @@ import (
 // page renders as a row. Size is in bytes; SHA256 is the file's hex
 // digest so an operator can compare what they downloaded against the
 // panel's view.
+//
+// Size is the on-disk (possibly compressed) byte count; Compressed +
+// Compression describe the on-disk encoding ("none" | "gzip" | "zstd").
+// S3Pushed reports whether a "<file>.s3pushed" marker sidecar exists,
+// meaning the last S3 push for this exact file succeeded.
 type Backup struct {
-	ID         string    `json:"id"`           // filename without .db suffix
-	Filename   string    `json:"filename"`     // full filename on disk
-	Path       string    `json:"path"`         // absolute path (DB admin only)
-	Size       int64     `json:"size_bytes"`   // on-disk bytes
-	CreatedAt  time.Time `json:"created_at"`   // mtime of the file
-	SHA256     string    `json:"sha256"`       // hex digest of the file
-	Source     string    `json:"source"`       // "vacuum-into" | "uploaded" | "uploaded-from-restore"
-	IsLiveSafe bool      `json:"is_live_safe"` // false for uploads of unknown provenance
+	ID          string    `json:"id"`           // filename without suffix
+	Filename    string    `json:"filename"`     // full filename on disk
+	Path        string    `json:"path"`         // absolute path (DB admin only)
+	Size        int64     `json:"size_bytes"`   // on-disk bytes
+	CreatedAt   time.Time `json:"created_at"`   // mtime of the file
+	SHA256      string    `json:"sha256"`       // hex digest of the file
+	Source      string    `json:"source"`       // "vacuum-into" | "uploaded" | "uploaded-from-restore" | "native-pg_dump" | "native-mysqldump" | "scheduled"
+	IsLiveSafe  bool      `json:"is_live_safe"` // false for uploads of unknown provenance
+	Compressed  bool      `json:"compressed"`
+	Compression string    `json:"compression"` // "none" | "gzip" | "zstd"
+	S3Pushed    bool      `json:"s3_pushed"`
 }
 
 // FileNamePattern is the naming convention every Backup follows:
@@ -76,6 +91,10 @@ func ensureDir() error {
 // button. Files whose name doesn't match the Backup pattern (e.g. an
 // operator's stray *.db.tmp) are silently skipped — the page only shows
 // valid backups.
+//
+// Recognised suffixes (all timestamped `<prefix><ts>-<label><suffix>`):
+// .db, .db.gz, .db.zst (SQLite snapshots, plain or compressed) and
+// .sql, .sql.gz, .sql.zst (native pg_dump / mysqldump artifacts).
 func List() ([]Backup, error) {
 	if err := ensureDir(); err != nil {
 		return nil, err
@@ -91,7 +110,11 @@ func List() ([]Backup, error) {
 			continue
 		}
 		name := e.Name()
-		if !strings.HasPrefix(name, fileNamePattern) || !strings.HasSuffix(name, ".db") {
+		if !strings.HasPrefix(name, fileNamePattern) {
+			continue
+		}
+		suffix, compression := splitBackupSuffix(name)
+		if suffix == "" {
 			continue
 		}
 		path := filepath.Join(dir, name)
@@ -99,28 +122,73 @@ func List() ([]Backup, error) {
 		if err != nil {
 			continue
 		}
+		// Skip sidecar markers + temp files.
+		if strings.HasSuffix(name, ".tmp") || strings.HasSuffix(name, ".s3pushed") {
+			continue
+		}
 		digest, size, err := hashFile(path)
 		if err != nil {
 			continue
 		}
-		// ID = filename minus prefix + ".db" suffix, used as the stable
+		// ID = filename minus prefix + storage suffix, used as the stable
 		// handle in URLs (/backup/{id} etc.).
-		id := strings.TrimSuffix(strings.TrimPrefix(name, fileNamePattern), ".db")
+		id := strings.TrimSuffix(strings.TrimPrefix(name, fileNamePattern), suffix)
+		if compression == "" {
+			compression = "none"
+		}
 		out = append(out, Backup{
-			ID:         id,
-			Filename:   name,
-			Path:       path,
-			Size:       size,
-			CreatedAt:  fi.ModTime().UTC(),
-			SHA256:     digest,
-			Source:     parseSourceFromName(id),
-			IsLiveSafe: true,
+			ID:          id,
+			Filename:    name,
+			Path:        path,
+			Size:        size,
+			CreatedAt:   fi.ModTime().UTC(),
+			SHA256:      digest,
+			Source:      parseSourceFromName(id),
+			IsLiveSafe:  true,
+			Compressed:  compression != "none",
+			Compression: compression,
+			S3Pushed:    s3MarkerPresent(path),
 		})
 	}
 	// Newest first — the page renders the most recent at the top.
 	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
 	return out, nil
 }
+
+// splitBackupSuffix maps a backup filename to its storage suffix and
+// compression label. Returns ("", "") when the name is not a backup.
+func splitBackupSuffix(name string) (suffix, compression string) {
+	switch {
+	case strings.HasSuffix(name, ".db.gz"):
+		return ".db.gz", "gzip"
+	case strings.HasSuffix(name, ".db.zst"):
+		return ".db.zst", "zstd"
+	case strings.HasSuffix(name, ".db"):
+		return ".db", "none"
+	case strings.HasSuffix(name, ".sql.gz"):
+		return ".sql.gz", "gzip"
+	case strings.HasSuffix(name, ".sql.zst"):
+		return ".sql.zst", "zstd"
+	case strings.HasSuffix(name, ".sql"):
+		return ".sql", "none"
+	default:
+		return "", ""
+	}
+}
+
+// s3MarkerPresent reports whether the "<file>.s3pushed" sidecar exists.
+func s3MarkerPresent(path string) bool {
+	_, err := os.Stat(path + ".s3pushed")
+	return err == nil
+}
+
+// MarkS3Pushed writes the sidecar marker after a successful push.
+func MarkS3Pushed(path string) {
+	_ = os.WriteFile(path+".s3pushed", []byte(time.Now().UTC().Format(time.RFC3339)), 0o644)
+}
+
+// ClearS3Marker removes the sidecar (e.g. after a new local write).
+func ClearS3Marker(path string) { _ = os.Remove(path + ".s3pushed") }
 
 // parseSourceFromName inspects the trailing label embedded in the file
 // name (`<prefix>-<timestamp>-<label>.db`) and returns "uploaded" when
@@ -139,7 +207,30 @@ func parseSourceFromName(label string) string {
 	if strings.HasSuffix(label, "pre-switch") {
 		return "pre-engine-switch"
 	}
+	if strings.Contains(label, "pg_dump") || strings.Contains(label, "postgres") {
+		return "native-pg_dump"
+	}
+	if strings.Contains(label, "mysqldump") || strings.Contains(label, "mysql") {
+		return "native-mysqldump"
+	}
+	if strings.Contains(label, "scheduled") {
+		return "scheduled"
+	}
 	return "vacuum-into"
+}
+
+// ValidateCompression accepts "none" | "gzip" | "zstd" ("" maps to "none").
+func ValidateCompression(c string) (string, error) {
+	c = strings.ToLower(strings.TrimSpace(c))
+	if c == "" {
+		return "none", nil
+	}
+	switch c {
+	case "none", "gzip", "zstd":
+		return c, nil
+	default:
+		return "", fmt.Errorf("invalid compression %q (must be none, gzip, or zstd)", c)
+	}
 }
 
 // Create issues `VACUUM INTO '<path>'` against the live database. The
@@ -151,22 +242,50 @@ func parseSourceFromName(label string) string {
 // function takes a temporary connection instead. The temp conn is closed
 // before return so it doesn't fight for the panel's lock.
 func Create(label string) (Backup, error) {
+	return CreateWithOptions(label, "none")
+}
+
+// CreateWithOptions is Create plus an on-disk compression option
+// ("none" | "gzip" | "zstd"). The VACUUM output is written to a temp
+// .db file first, then encoded to the final `<ts>-<label>.db[.gz|.zst]`
+// name so a failed compression never leaves a half-written backup in
+// List(). For non-SQLite live engines it attempts a native pg_dump /
+// mysqldump into a .sql artifact instead (see NativeDump); when the
+// native tool is missing it returns an *ErrNativeToolMissing the caller
+// can use to fall back to a datamove SQLite snapshot.
+func CreateWithOptions(label, compression string) (Backup, error) {
+	compression, err := ValidateCompression(compression)
+	if err != nil {
+		return Backup{}, err
+	}
 	opMu.Lock()
 	defer opMu.Unlock()
 	if err := ensureDir(); err != nil {
 		return Backup{}, err
+	}
+	cfg := config.DatabaseConfig()
+	if !isSQLiteEngine(cfg.Engine) {
+		b, nerr := createNativeWithOptions(cfg.Engine, cfg.DSN, label, compression)
+		if nerr == nil {
+			return b, nil
+		}
+		var missing *ErrNativeToolMissing
+		if errors.As(nerr, &missing) {
+			return Backup{}, nerr
+		}
+		return Backup{}, nerr
 	}
 	ts := time.Now().UTC().Format("20060102-150405")
 	if label == "" {
 		label = "snapshot"
 	}
 	label = sanitizeLabel(label)
-	name := fileNamePattern + ts + "-" + label + ".db"
+	suffix := storageSuffix(".db", compression)
+	name := fileNamePattern + ts + "-" + label + suffix
 	dst := filepath.Join(ListDir(), name)
 
 	// Open a fresh dedicated connection so VACUUM INTO doesn't fight
 	// with the panel's pooled connection for the same SQLite lock.
-	cfg := config.DatabaseConfig()
 	dsn := cfg.DSN
 	tmp, err := sql.Open("sqlite", dsn)
 	if err != nil {
@@ -177,27 +296,62 @@ func Create(label string) (Backup, error) {
 	if _, err := tmp.Exec("PRAGMA foreign_keys = ON"); err != nil {
 		return Backup{}, fmt.Errorf("foreign keys pragma: %w", err)
 	}
-	if _, err := tmp.Exec(fmt.Sprintf("VACUUM INTO %q", dst)); err != nil {
+	// Vacuum into a staging .db sibling, then compress into place so the
+	// final name only ever appears once it is complete.
+	stage := dst + ".stage.db"
+	_ = os.Remove(stage)
+	if _, err := tmp.Exec(fmt.Sprintf("VACUUM INTO %q", stage)); err != nil {
 		// Best-effort cleanup so a failed vacuum doesn't leave an empty
 		// file at the destination path.
-		_ = os.Remove(dst)
+		_ = os.Remove(stage)
 		return Backup{}, fmt.Errorf("vacuum into: %w", err)
+	}
+	defer os.Remove(stage)
+	if compression == "none" {
+		if err := os.Rename(stage, dst); err != nil {
+			_ = os.Remove(stage)
+			return Backup{}, err
+		}
+	} else if err := compressFile(stage, dst, compression); err != nil {
+		_ = os.Remove(stage)
+		_ = os.Remove(dst)
+		return Backup{}, err
 	}
 	digest, size, err := hashFile(dst)
 	if err != nil {
 		return Backup{}, err
 	}
-	id := strings.TrimSuffix(strings.TrimPrefix(name, fileNamePattern), ".db")
+	sfx, _ := splitBackupSuffix(name)
+	id := strings.TrimSuffix(strings.TrimPrefix(name, fileNamePattern), sfx)
 	return Backup{
-		ID:         id,
-		Filename:   name,
-		Path:       dst,
-		Size:       size,
-		CreatedAt:  time.Now().UTC(),
-		SHA256:     digest,
-		Source:     "vacuum-into",
-		IsLiveSafe: true,
+		ID:          id,
+		Filename:    name,
+		Path:        dst,
+		Size:        size,
+		CreatedAt:   time.Now().UTC(),
+		SHA256:      digest,
+		Source:      "vacuum-into",
+		IsLiveSafe:  true,
+		Compressed:  compression != "none",
+		Compression: compression,
+		S3Pushed:    false,
 	}, nil
+}
+
+func isSQLiteEngine(engine string) bool {
+	e := strings.ToLower(strings.TrimSpace(engine))
+	return e == "" || e == "sqlite"
+}
+
+func storageSuffix(base, compression string) string {
+	switch compression {
+	case "gzip":
+		return base + ".gz"
+	case "zstd":
+		return base + ".zst"
+	default:
+		return base
+	}
 }
 
 // CreateWithWriter builds a Backup entry whose content is materialised by
