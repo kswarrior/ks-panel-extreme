@@ -139,7 +139,12 @@ func (r *AIThreadRepository) Create(uid int64, title string) (int64, error) {
 	return res.LastInsertId()
 }
 
-// List returns uid's threads newest-first with message counts.
+// List returns uid's threads newest-first with message counts. Rows with a
+// NULL id are skipped: the pinned sqlite driver (modernc v1.6.0) yields one
+// all-NULL phantom row for empty result sets instead of zero rows, so a
+// plain Scan into int64 would fail the list exactly when the user has no
+// threads yet. Skipping NULL ids is a no-op on drivers with correct
+// empty-set semantics.
 func (r *AIThreadRepository) List(uid int64) ([]AIThread, error) {
 	rows, err := r.db.Query(`SELECT t.id, t.title, t.created_at,
 		(SELECT COUNT(*) FROM ai_chat_messages m WHERE m.thread_id = t.id)
@@ -151,10 +156,15 @@ func (r *AIThreadRepository) List(uid int64) ([]AIThread, error) {
 	out := []AIThread{}
 	for rows.Next() {
 		var th AIThread
-		var created sql.NullString
-		if err := rows.Scan(&th.ID, &th.Title, &created, &th.MsgCount); err != nil {
+		var id, msgCount sql.NullInt64
+		var title, created sql.NullString
+		if err := rows.Scan(&id, &title, &created, &msgCount); err != nil {
 			return nil, err
 		}
+		if !id.Valid {
+			continue
+		}
+		th.ID, th.Title, th.MsgCount = id.Int64, title.String, int(msgCount.Int64)
 		th.CreatedAt = aiParseTime(created.String)
 		out = append(out, th)
 	}
@@ -227,6 +237,8 @@ func (r *AIThreadRepository) AddMessage(uid, threadID int64, role, content strin
 
 // LastMessages returns up to n of uid's thread turns, oldest-first (model
 // context order). n is clamped to 1..50 — the server's context window.
+// NULL-id rows are skipped for the same phantom-row reason as List, so a
+// thread with no messages yet reads as empty instead of erroring.
 func (r *AIThreadRepository) LastMessages(uid, threadID int64, n int) ([]AIMessage, error) {
 	if n <= 0 {
 		n = 50
@@ -245,9 +257,15 @@ func (r *AIThreadRepository) LastMessages(uid, threadID int64, n int) ([]AIMessa
 	var out []AIMessage
 	for rows.Next() {
 		var m AIMessage
-		if err := rows.Scan(&m.ID, &m.Role, &m.Content); err != nil {
+		var id sql.NullInt64
+		var role, content sql.NullString
+		if err := rows.Scan(&id, &role, &content); err != nil {
 			return nil, err
 		}
+		if !id.Valid {
+			continue
+		}
+		m.ID, m.Role, m.Content = id.Int64, role.String, content.String
 		out = append(out, m)
 	}
 	if err := rows.Err(); err != nil {

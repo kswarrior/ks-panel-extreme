@@ -3,29 +3,29 @@ package repository
 import (
 	"database/sql"
 	"fmt"
+	"os"
 	"testing"
 
 	_ "modernc.org/sqlite"
 )
 
 func TestZZDbgShape(t *testing.T) {
-	db, _ := sql.Open("sqlite", ":memory:")
+	path := "/tmp/zzdbg.db"
+	os.Remove(path)
+	db, _ := sql.Open("sqlite", path)
 	defer db.Close()
-	fmt.Println("stats:", db.Stats())
+	db.Exec("PRAGMA foreign_keys = ON")
+	db.Exec("PRAGMA journal_mode = WAL")
+	db.Exec("PRAGMA busy_timeout = 5000")
 	db.Exec(`CREATE TABLE plain (id INTEGER PRIMARY KEY, name TEXT)`)
-	rows, _ := db.Query(`SELECT name FROM sqlite_master WHERE type='table'`)
-	for rows.Next() {
-		var n string
-		rows.Scan(&n)
-		fmt.Println("table:", n)
-	}
-	rows.Close()
-	db.SetMaxOpenConns(1)
-	rows2, _ := db.Query(`SELECT id FROM plain`)
+	rows, _ := db.Query(`SELECT id FROM plain`)
 	n := 0
-	for rows2.Next() {
+	for rows.Next() {
 		n++
 	}
-	rows2.Close()
-	fmt.Println("with MaxOpenConns(1) empty rows:", n)
+	rows.Close()
+	fmt.Println("filedb empty rows:", n, "err:", rows.Err())
+	var id int64
+	err := db.QueryRow(`SELECT id FROM plain WHERE id = 1`).Scan(&id)
+	fmt.Println("filedb queryrow err:", err)
 }
