@@ -587,11 +587,23 @@ func aiCap(s string, n int) string {
 	return s[:n] + "…"
 }
 
+// aiUsage carries per-round token counts for the usage/cost audit log.
+// OpenAI reports usage.{prompt,completion,total}_tokens; Ollama reports
+// prompt_eval_count / eval_count on the final chunk.
+type aiUsage struct {
+	Model    string
+	Provider string // "primary" | "fallback" — set by the caller
+	In       int
+	Out      int
+	Total    int
+}
+
 // aiProviderChat sends one non-streaming chat round and returns the reply
-// text plus any tool calls the model requested.
-func aiProviderChat(ctx context.Context, cfg *repository.AIConfig, msgs []aiMsg, tools []aiToolDef) (string, []aiToolCall, error) {
+// text, any tool calls the model requested, and the round's token usage.
+func aiProviderChat(ctx context.Context, cfg *repository.AIConfig, msgs []aiMsg, tools []aiToolDef) (string, []aiToolCall, aiUsage, error) {
 	base := strings.TrimRight(strings.TrimSpace(cfg.BaseURL), "/")
 	client := &http.Client{Timeout: 50 * time.Second}
+	usage := aiUsage{Model: cfg.ModelID}
 	if cfg.OllamaMode {
 		body := map[string]any{
 			"model":   cfg.ModelID,
@@ -613,16 +625,20 @@ func aiProviderChat(ctx context.Context, cfg *repository.AIConfig, msgs []aiMsg,
 					} `json:"function"`
 				} `json:"tool_calls"`
 			} `json:"message"`
-			Error string `json:"error"`
+			PromptEvalCount int    `json:"prompt_eval_count"`
+			EvalCount       int    `json:"eval_count"`
+			Error           string `json:"error"`
 		}
 		if err := aiPostJSON(ctx, client, base+"/api/chat", cfg.APIKey, body, &out); err != nil {
-			return "", nil, err
+			return "", nil, usage, err
 		}
 		if out.Error != "" {
-			return "", nil, fmt.Errorf("%s", out.Error)
+			return "", nil, usage, fmt.Errorf("%s", out.Error)
 		}
+		usage.In, usage.Out = out.PromptEvalCount, out.EvalCount
+		usage.Total = usage.In + usage.Out
 		tcRaw, _ := json.Marshal(out.Message.ToolCalls)
-		return out.Message.Content, aiParseCalls(tcRaw), nil
+		return out.Message.Content, aiParseCalls(tcRaw), usage, nil
 	}
 	body := map[string]any{
 		"model":       cfg.ModelID,
@@ -647,20 +663,90 @@ func aiProviderChat(ctx context.Context, cfg *repository.AIConfig, msgs []aiMsg,
 				} `json:"tool_calls"`
 			} `json:"message"`
 		} `json:"choices"`
+		Usage struct {
+			PromptTokens     int `json:"prompt_tokens"`
+			CompletionTokens int `json:"completion_tokens"`
+			TotalTokens      int `json:"total_tokens"`
+		} `json:"usage"`
 		Error any `json:"error"`
 	}
 	if err := aiPostJSON(ctx, client, base+"/chat/completions", cfg.APIKey, body, &out); err != nil {
-		return "", nil, err
+		return "", nil, usage, err
 	}
 	if out.Error != nil {
 		raw, _ := json.Marshal(out.Error)
-		return "", nil, fmt.Errorf("%s", aiCap(string(raw), 300))
+		return "", nil, usage, fmt.Errorf("%s", aiCap(string(raw), 300))
 	}
 	if len(out.Choices) == 0 {
-		return "", nil, fmt.Errorf("provider returned no choices")
+		return "", nil, usage, fmt.Errorf("provider returned no choices")
 	}
+	usage.In, usage.Out, usage.Total =
+		out.Usage.PromptTokens, out.Usage.CompletionTokens, out.Usage.TotalTokens
 	tcRaw, _ := json.Marshal(out.Choices[0].Message.ToolCalls)
-	return out.Choices[0].Message.Content, aiParseCalls(tcRaw), nil
+	return out.Choices[0].Message.Content, aiParseCalls(tcRaw), usage, nil
+}
+
+// aiProviderChatWithFallback runs one round against the primary provider
+// and fails over to the configured fallback triple on ANY primary error.
+// The answering provider is reported in the usage for the audit log.
+func aiProviderChatWithFallback(ctx context.Context, cfg *repository.AIConfig, model string, msgs []aiMsg, tools []aiToolDef) (string, []aiToolCall, aiUsage, error) {
+	eff := *cfg
+	if strings.TrimSpace(model) != "" {
+		eff.ModelID = strings.TrimSpace(model)
+	}
+	text, calls, usage, err := aiProviderChat(ctx, &eff, msgs, tools)
+	usage.Provider = "primary"
+	if err == nil {
+		return text, calls, usage, nil
+	}
+	if !cfg.FallbackConfigured() {
+		return "", nil, usage, err
+	}
+	fb := *cfg
+	fb.BaseURL, fb.APIKey, fb.ModelID, fb.OllamaMode =
+		cfg.FallbackBaseURL, cfg.FallbackAPIKey, cfg.FallbackModelID, cfg.FallbackOllamaMode
+	text2, calls2, usage2, err2 := aiProviderChat(ctx, &fb, msgs, tools)
+	usage2.Provider = "fallback"
+	if err2 != nil {
+		return "", nil, usage2, fmt.Errorf("primary failed (%s); fallback failed (%s)",
+			aiCap(err.Error(), 200), aiCap(err2.Error(), 200))
+	}
+	return text2, calls2, usage2, nil
+}
+
+// aiUsageAcc sums token usage across the rounds of one chat request.
+type aiUsageAcc struct {
+	model    string
+	provider string // "primary" unless any round answered via fallback
+	in       int
+	out      int
+}
+
+func (a *aiUsageAcc) add(u aiUsage) {
+	if a.model == "" {
+		a.model = u.Model
+	}
+	if u.Provider == "fallback" {
+		a.provider = "primary+fallback"
+	} else if a.provider == "" {
+		a.provider = "primary"
+	}
+	a.in += u.In
+	a.out += u.Out
+}
+
+// aiLogUsage writes one audit row per chat/stream request (category "ai",
+// action "chat"). The message is machine-shaped (model/provider/in/out/
+// cost) so the admin usage dashboard can aggregate it without parsing
+// prose. Never includes prompts, replies or keys.
+func aiLogUsage(r *http.Request, cfg *repository.AIConfig, acc aiUsageAcc) {
+	cost := float64(acc.in)/1000*cfg.CostPer1KIn + float64(acc.out)/1000*cfg.CostPer1KOut
+	msg := fmt.Sprintf("model=%s provider=%s in=%d out=%d cost=%.4f",
+		acc.model, acc.provider, acc.in, acc.out, cost)
+	RecordActivity(r, repository.ActivityInput{
+		Category: models.ActivityCategoryAI, Action: "chat",
+		TargetLabel: aiCap(acc.model, 120), Message: aiCap(msg, 255),
+	})
 }
 
 func aiParseCalls(raw json.RawMessage) []aiToolCall {

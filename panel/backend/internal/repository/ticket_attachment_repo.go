@@ -54,6 +54,12 @@ func sanitizeAttachmentName(name string) string {
 	return out
 }
 
+// SHA256Hex returns the lowercase hex SHA256 of data (dedupe key).
+func SHA256Hex(data []byte) string {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
+}
+
 // ValidateAttachment checks size + MIME allowlist + sniff-vs-extension
 // family match. It returns the normalised MIME to store.
 func ValidateAttachment(fileName string, size int64, data []byte) (string, error) {
@@ -119,8 +125,8 @@ func (r *TicketRepository) CreateAttachment(ticketID int64, commentID *int64, fi
 	if err != nil {
 		return nil, err
 	}
-	sum := sha256.Sum256(data)
-	hexSum := hex.EncodeToString(sum[:])
+	sum := SHA256Hex(data)
+	hexSum := sum
 
 	// Dedupe: same bytes on the same ticket → return the existing row.
 	if existing, err := r.GetAttachmentBySHA(ticketID, hexSum); err == nil && existing != nil {
