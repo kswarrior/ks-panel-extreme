@@ -89,6 +89,15 @@ type AuthorityConfig struct {
 	OTP        AuthorityOTPOptions    `json:"otp"`
 	AppConnect AuthorityAppConnection `json:"app_connect"`
 
+	// Branding carries the authority-specific logo/background painted on
+	// the login page (GET /api/authority/branding, public). Empty =
+	// fall back to the GLOBAL panel brand (settings KV panel_name +
+	// /api/settings/panel-logo). Plain URL strings, no secrets, so the
+	// public branding endpoint can serve them verbatim. Persisted inside
+	// the same authority settings blob — no migration needed — and edited
+	// through the existing PUT /api/authority (SETTINGS_EDIT-gated).
+	Branding AuthorityBranding `json:"branding"`
+
 	PasswordPolicy *AuthorityPasswordPolicy `json:"password_policy,omitempty"`
 
 	// PasswordHistory controls reuse rejection for changed passwords.
@@ -226,7 +235,21 @@ func (p *AuthorityPasswordPolicy) ToAuthPasswordPolicy() *auth.PasswordPolicy {
 	}
 }
 
-type UserAuthorityMode string
+// AuthorityBranding is the per-authority login-page brand. Every field is
+// optional; unset fields fall back to the global panel brand at read time
+// (see AuthorityBrandingHandler).
+type AuthorityBranding struct {
+	// LogoURL is the authority logo painted on the login page instead of
+	// the global panel logo. http(s), data:, blob: or root-relative.
+	LogoURL string `json:"logo_url,omitempty"`
+	// BackgroundURL is the authority backdrop painted behind the login
+	// page instead of the themeStore background. Same URL shapes as
+	// LogoURL; when BackgroundType is "gradient" this carries the raw
+	// CSS gradient instead.
+	BackgroundURL string `json:"background_url,omitempty"`
+	// BackgroundType is image (default) or gradient.
+	BackgroundType string `json:"background_type,omitempty"`
+}
 
 const (
 	UserAuthorityAny UserAuthorityMode = "any"
