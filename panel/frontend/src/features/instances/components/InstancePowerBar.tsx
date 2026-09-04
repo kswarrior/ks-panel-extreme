@@ -83,7 +83,7 @@ const InstancePowerBar: React.FC = () => {
     // Zero padding/margin — flush to the very corner. Negative bottom margin
     // lets page content slide UNDER the dock instead of being pushed down.
     <div
-      className="sticky top-0 left-0 z-40 flex justify-start pointer-events-none -mt-4 -ml-4 sm:-mt-6 sm:-ml-6 p-0 m-0 pt-0 pl-0 mt-0 ml-0 mb-[-24px]"
+      className="sticky top-0 left-0 z-40 flex justify-start pointer-events-none -mt-4 -ml-4 sm:-mt-6 sm:-ml-6 p-0 mb-[-24px]"
       aria-label="Instance power controls"
     >
       <div className="pointer-events-auto flex flex-col items-start p-0 m-0">
@@ -163,7 +163,7 @@ const InstancePowerBar: React.FC = () => {
           </button>
         </div>
         {error && (
-          <p className="mt-1 text-[11px] leading-tight text-red-300 bg-red-900/20 border border-red-900/30 rounded px-1.5 py-0.5 max-w-[220px] truncate" title={error}>
+          <p className="m-0 p-0 text-[11px] leading-tight text-red-300 bg-red-900/20 border border-red-900/30 rounded-none max-w-[220px] truncate" title={error}>
             {error}
           </p>
         )}
