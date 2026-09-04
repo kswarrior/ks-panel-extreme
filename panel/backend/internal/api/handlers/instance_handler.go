@@ -1003,6 +1003,25 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	// {{KEY}} in command, image, mounts, volumes, labels, devices,
 	// advanced settings, etc. — not just in install steps.
 	substituteEnvVars(cfg, finalEnv)
+	// Reject a deploy whose host ports are already taken on this node by
+	// another instance. Without this every second minecraft deploy (default
+	// host 25565) sailed through to `docker run -p 25565:…` and died with
+	// the opaque `docker: Error … Bind for 0.0.0.0:25565 failed: port is
+	// already allocated` (exit 125) plus a leftover Created container.
+	// Answer 409 now with the owner so the operator picks a free host port.
+	if tmpl.Kind == "docker" {
+		if want := extractRequestedPorts(cfg); len(want) > 0 {
+			if bad, owner, found := findPortCollision(con, req.NodeID, 0, want); found {
+				writeJSONStatus(w, http.StatusConflict, map[string]any{
+					"error":  fmt.Sprintf("host port %d is already allocated to instance %q on this node — pick a different host port", bad.host, owner),
+					"detail": fmt.Sprintf("docker would fail with exit 125: Bind for 0.0.0.0:%d failed: port is already allocated", bad.host),
+					"port":   bad.host,
+					"owner":  owner,
+				})
+				return
+			}
+		}
+	}
 	// Keep the full config (with plaintext secrets) for the edge deploy
 	// RPC, but persist a redacted copy where IsSecret env keys are
 	// stripped so the `instances.config` JSON column never stores
@@ -1366,6 +1385,130 @@ func validInstanceName(name string) bool {
 
 func isAlnum(b byte) bool {
 	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || (b >= '0' && b <= '9')
+}
+
+// requestedPort is one desired host binding extracted from a deploy cfg or a
+// ports-update payload. proto is lower-cased ("tcp"/"udp"), ip is trimmed
+// ("" = all interfaces).
+type requestedPort struct {
+	host  int
+	proto string
+	ip    string
+}
+
+// portBindingKey normalises a host binding so DB rows and deploy payloads
+// compare identically: empty ip = wildcard, proto lower-cased.
+func portBindingKey(ip string, host int, proto string) string {
+	ip = strings.TrimSpace(ip)
+	proto = strings.ToLower(strings.TrimSpace(proto))
+	if proto == "" {
+		proto = "tcp"
+	}
+	return fmt.Sprintf("%s:%d/%s", ip, host, proto)
+}
+
+// extractRequestedPorts pulls the desired host bindings out of a deploy cfg's
+// opaque `ports` key. It tolerates the shapes the edge driver accepts
+// (host/host_port, container/container_port, protocol, ip) and skips entries
+// without a valid host port so a malformed template surfaces downstream at
+// the edge instead of here.
+func extractRequestedPorts(cfg map[string]any) []requestedPort {
+	raw, ok := cfg["ports"].([]any)
+	if !ok || len(raw) == 0 {
+		return nil
+	}
+	out := make([]requestedPort, 0, len(raw))
+	for _, it := range raw {
+		m, ok := it.(map[string]any)
+		if !ok {
+			continue
+		}
+		host := 0
+		switch v := m["host"].(type) {
+		case float64:
+			host = int(v)
+		case int:
+			host = v
+		case int64:
+			host = int(v)
+		}
+		if host == 0 {
+			switch v := m["host_port"].(type) {
+			case float64:
+				host = int(v)
+			case int:
+				host = v
+			case int64:
+				host = int(v)
+			}
+		}
+		if host < 1 || host > 65535 {
+			continue
+		}
+		proto, _ := m["protocol"].(string)
+		ip, _ := m["ip"].(string)
+		out = append(out, requestedPort{host: host, proto: proto, ip: ip})
+	}
+	return out
+}
+
+// findPortCollision reports whether any wanted host binding is already taken
+// on the node by another instance (excludeID skips the caller itself; pass 0
+// on deploy). It consults both sources of truth: the instance_ports table
+// (055, PUT /ports editor) and the instances.config JSON blobs (template
+// spec ports used at deploy time). Returns the colliding wanted binding + the
+// owning instance name. A DB error degrades to "no collision" so a transient
+// failure never blocks deploys — the edge's docker run remains the final
+// arbiter and now cleans up + returns a friendly hint on 125.
+func findPortCollision(con sqlDB, nodeID, excludeID int64, want []requestedPort) (requestedPort, string, bool) {
+	if len(want) == 0 {
+		return requestedPort{}, "", false
+	}
+	used := map[string]string{}
+	// Source 1: instance_ports allocations.
+	rows, err := con.Query(`SELECT p.host_port, p.protocol, p.ip, i.name FROM instance_ports p JOIN instances i ON i.id = p.instance_id WHERE i.node_id = ? AND p.instance_id != ?`, nodeID, excludeID)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var hp int
+			var proto, ip, owner string
+			if serr := rows.Scan(&hp, &proto, &ip, &owner); serr != nil {
+				continue
+			}
+			used[portBindingKey(ip, hp, proto)] = owner
+		}
+		_ = rows.Err()
+		rows.Close()
+	}
+	// Source 2: instances.config JSON ports (deploy-time spec).
+	rows2, err := con.Query(`SELECT name, config FROM instances WHERE node_id = ? AND id != ?`, nodeID, excludeID)
+	if err == nil {
+		defer rows2.Close()
+		for rows2.Next() {
+			var owner, cfgJSON string
+			if serr := rows2.Scan(&owner, &cfgJSON); serr != nil || cfgJSON == "" {
+				continue
+			}
+			var cfg map[string]any
+			if jerr := json.Unmarshal([]byte(cfgJSON), &cfg); jerr != nil {
+				continue
+			}
+			for _, p := range extractRequestedPorts(cfg) {
+				k := portBindingKey(p.ip, p.host, p.proto)
+				if _, ok := used[k]; !ok {
+					used[k] = owner
+				}
+			}
+		}
+		_ = rows2.Err()
+		rows2.Close()
+	}
+	for _, w := range want {
+		if owner, ok := used[portBindingKey(w.ip, w.host, w.proto)]; ok {
+			return w, owner, true
+		}
+	}
+	return requestedPort{}, "", false
 }
 
 // instanceAction is the helper used by start/stop/destroy — they all share
