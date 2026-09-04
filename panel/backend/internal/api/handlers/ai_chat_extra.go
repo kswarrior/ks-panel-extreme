@@ -608,6 +608,7 @@ func AIThreadHandler(w http.ResponseWriter, r *http.Request) {
 		if msgs == nil {
 			msgs = []repository.AIMessage{}
 		}
+		th.MsgCount = len(msgs)
 		writeJSON(w, map[string]any{"thread": th, "messages": msgs})
 	case http.MethodPut:
 		var body struct {
