@@ -9,7 +9,7 @@ import ToggleRow from '@/shared/components/ui/ToggleRow';
 import LocationField from '@/shared/components/forms/LocationField/LocationField';
 import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 import type { ConnectionMode, Form, NodeFormTabId, WssChannel, WssTask, WssTransport } from '../types/nodeForm';
-import { emptyForm, KSEDGE_URL, ALL_KINDS, NODEFORM_TABS, isLocalMode, isTunnelMode, isDualMode, WSS_TASKS, WSS_TRANSPORTS } from '../types/nodeForm';
+import { emptyForm, KSEDGE_URL, ALL_KINDS, isLocalMode, isTunnelMode, isDualMode, WSS_TASKS, WSS_TRANSPORTS } from '../types/nodeForm';
 import { NodeTabs } from '../components/NodeTabs';
 import { buildEdgeConfig, buildBootstrapCmd } from '../utils/nodeFormUtils';
 import { NODE_ICONS, NODE_COLORS, NodeIcon, isCustomNodeIconSvg } from '../utils/nodeIcons';
@@ -1161,22 +1161,6 @@ const NodeForm: React.FC = () => {
           {error && <p className="text-sm text-red-400">{error}</p>}
         </div>
         </div>
-        <nav aria-label="Node form sections" className="lg:hidden sticky bottom-3 z-10">
-          <div className="ks-card rounded-md p-1.5 flex gap-1 overflow-x-auto scrollbar-hide">
-            {NODEFORM_TABS.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                role="tab"
-                aria-selected={tab === t.id}
-                onClick={() => setTab(t.id)}
-                className={`ks-tab shrink-0 flex-1 px-3 py-1.5 rounded text-sm text-center transition ${tab === t.id ? 'ks-tab-active' : ''}`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </nav>
       </FormPage>
 
       {tokenInfo && (

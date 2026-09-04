@@ -2,8 +2,7 @@
 //
 // Mirrors panel/frontend/src/features/templates/components/TemplateFormComponents.tsx
 // (TemplateTabs) — GlassCard shell, ks-tab pills with icon + label + hint,
-// vertical sticky rail on desktop (hidden on mobile — the bottom floating
-// nav in NodeForm.tsx is the single mobile tab bar).
+// vertical sticky rail on desktop, horizontal scroll row on mobile.
 
 import React from 'react';
 import GlassCard from '@/shared/components/ui/Card';
@@ -31,7 +30,7 @@ const meta: Record<NodeFormTabId, { hint: string; icon: React.ReactNode }> = {
 
 export const NodeTabs: React.FC<{ tab: NodeFormTabId; onChange: (id: NodeFormTabId) => void }> = ({ tab, onChange }) => {
   return (
-    <GlassCard className="hidden lg:block lg:sticky lg:top-4 self-start">
+    <GlassCard className="lg:sticky lg:top-4 self-start">
       <nav className="flex lg:flex-col gap-1 overflow-x-auto" role="tablist" aria-label="Node form sections">
         {NODEFORM_TABS.map((t) => {
           const m = meta[t.id];
