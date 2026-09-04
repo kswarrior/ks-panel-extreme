@@ -84,7 +84,7 @@ const InstancePageStats: React.FC = () => {
   })).filter((e) => {
     const q = search.trim().toLowerCase();
     if (q) {
-      const hay = `${e.page.slug || ''} ${e.page.title || ''} ${e.category}`.toLowerCase();
+      const hay = `${e.page.slug || ''} ${e.page.name || ''} ${e.category}`.toLowerCase();
       if (!hay.includes(q)) return false;
     }
     if (kindFilter !== 'all' && e.kind !== kindFilter) return false;

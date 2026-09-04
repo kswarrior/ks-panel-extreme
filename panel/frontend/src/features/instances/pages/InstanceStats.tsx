@@ -95,6 +95,39 @@ const InstanceStats: React.FC = () => {
     return out;
   }, [instances, search, statsFilter]);
 
+  const stats = useMemo(() => {
+    let running = 0;
+    let stopped = 0;
+    let creating = 0;
+    let installing = 0;
+    let errored = 0;
+    let installFailed = 0;
+    let destroyed = 0;
+    let suspended = 0;
+    const byNode: Record<string, number> = {};
+    const byKind: Record<string, number> = {};
+
+    for (const i of filteredInstances) {
+      switch (i.status) {
+        case 'running': running += 1; break;
+        case 'stopped': stopped += 1; break;
+        case 'creating': creating += 1; break;
+        case 'installing': installing += 1; break;
+        case 'errored': errored += 1; break;
+        case 'install_failed': installFailed += 1; break;
+        case 'destroyed': destroyed += 1; break;
+      }
+      if (i.suspended === 1) suspended += 1;
+
+      const nodeName = i.node_name || 'Unknown';
+      byNode[nodeName] = (byNode[nodeName] || 0) + 1;
+
+      const kind = i.kind || 'unknown';
+      byKind[kind] = (byKind[kind] || 0) + 1;
+    }
+    return { running, stopped, creating, installing, errored, installFailed, destroyed, suspended, total: filteredInstances.length, byNode, byKind };
+  }, [filteredInstances]);
+
   const statusSlices = useMemo(() => [
     { label: 'Running', value: stats.running, color: '#34d399' },
     { label: 'Stopped', value: stats.stopped, color: '#9ca3af' },
