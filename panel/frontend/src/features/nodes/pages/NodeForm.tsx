@@ -542,8 +542,6 @@ const NodeForm: React.FC = () => {
     return (
       <FormPage
         crumbs={[{ label: 'Nodes', to: '/nodes' }, { label: editing ? 'Edit Node' : 'New Node' }]}
-        saving={false}
-        submitLabel="Save"
       >
         <FormSkeleton fields={5} />
       </FormPage>
@@ -1211,8 +1209,8 @@ const NodeForm: React.FC = () => {
         </div>
       </nav>
       </FormPage>
-      {/* Spacer after the Cancel/Save row — reserves scroll room so the
-          fixed bottom tab bar never covers the action buttons. */}
+      {/* Spacer — reserves scroll room so the fixed bottom tab bar never
+          covers trailing form content. */}
       <div aria-hidden="true" className="h-24 lg:hidden" />
 
       {tokenInfo && (
