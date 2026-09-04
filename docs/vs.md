@@ -43,17 +43,17 @@
 | 11 | Permission granularity                        | **96** | 15 | 60  | 65      | 55 | 55 | 70 | 65 | 15 | 60 |
 | 12 | Auth hardening                                | **97** | 20 | 40  | **100** | 60 | 60 | 75 | 50 | 20 | 40 |
 | 13 | Account lifecycle                             | **92** | 25 | 45 | 40     | 25 | 60 | 65 | 60 | 20 | 45 |
-| 14 | Database support & management                 | **97** | 5  | 80  | 82      | 0  |
-| 15 | Security posture                              | **94** | 10 | 60  | 85      | 30 |
-| 16 | Panel & Edge self-update / reinstall          | **96** | 10 | 0   | 15      | 15 |
-| 17 | Extensibility engine                          | **100** | 0 | 10 | 90      | 20 |
-| 18 | Minecraft-specific tooling                    | **78** | 70 | 25 | 25   | 70 |
-| 19 | SFTP access                                   | **85** | 15 | 85  | **90**  | 0  |
-| 20 | Real-time architecture                        | **85** | 55 | 85  | 85      | 65 |
-| 21 | Theming engine                                | **97** | 20 | 15 | 45     | 25 |
-| 22 | Data-layer robustness                         | **96** | 10 | 90 | 92      | 35 |
-| 23 | Tickets & notifications                       | **92** | 0 | 0 | 0 | 0 |
-| 24 | AI assistant                                    | **92** | 0 | 0 | 0 | 0 |
+| 14 | Database support & management                 | **97** | 5  | 80  | 82      | 0  | 70 | 60 | 70 | 0 | 80 |
+| 15 | Security posture                              | **94** | 10 | 60  | 85      | 30 | 60 | 80 | 55 | 25 | 65 |
+| 16 | Panel & Edge self-update / reinstall          | **96** | 10 | 0   | 15      | 15 | 30 | 80 | 20 | 10 | 0 |
+| 17 | Extensibility engine                          | **100** | 0 | 10 | 90      | 20 | 50 | 75 | 60 | 15 | 10 |
+| 18 | Minecraft-specific tooling                    | **78** | 70 | 25 | 25   | 70 | 75 | 95 | 90 | 85 | 25 |
+| 19 | SFTP access                                   | **85** | 15 | 85  | **90**  | 0  | 85 | 75 | 70 | 0 | 85 |
+| 20 | Real-time architecture                        | **85** | 55 | 85  | 85      | 65 | 70 | 80 | 60 | 70 | 85 |
+| 21 | Theming engine                                | **97** | 20 | 15 | 45     | 25 | 35 | 30 | 20 | 10 | 35 |
+| 22 | Data-layer robustness                         | **96** | 10 | 90 | 92      | 35 | 65 | 70 | 60 | 20 | 90 |
+| 23 | Tickets & notifications                       | **92** | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| 24 | AI assistant                                    | **92** | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 
 *Deltas vs 2026-09-01 draft:* `#1 90→93` (connection_mode 4 modes + tunnel WSS + `DriverRing` + `HostPanel` sparkline; per-card start/stop/restart/destroy/suspend + 30 market pages already counted — only bulk-select remains, `futures.md:141`), `#2 85→92` (suspend/unsuspend now **wired** `server.go:579` `instancesG EDIT` + `install_action_id` staleness guard), `#3 90→92` (WS terminal + HostExec 5m/30m + execRPC `execstage` staging), `#4 85→90` (host+docker dual `files` handler, URL-upload SSRF, `isDangerousPath`, `tryFixPermission`, inline editor whitelist), `#5 90→96` (cron schedules DB VACUUM/native + snapshots via backup_schedules 063 + scheduler sweep + retention keep_last_n/max_age_days Prune + gzip/zstd + SHA256/size + S3 SigV4 push/pull secretbox-sealed + docker restore stop→load-tar→recreate -p/volumes reconcile + file tars chunked Content-Range/Range + pg_dump/mysqldump with datamove fallback + InstanceSnapshotsTab native, backups.json kept), `#6 85→88` (`MetricsChart` 6 modes + `SystemCharts` + `live_state` cache + `cached-resources` bulk), `#7 60→92` (`PUT /api/instances/{id}/ports` editor `instance_port_repo.go:1` + `instance_port_handler.go:1` validate 1-65535/protocol enum/`net.ParseIP`/duplicate host+ip+protocol + `server.go:644` `PUT` gated `INSTANCES_EDIT` + `edge/client.go:UpdatePorts` RPC → `edge/drivers/docker.go:UpdatePorts` `-p` reconcile + `InstancePortsEditor.tsx` + `api/instancePorts.ts` table `Host|Container|Protocol|IP` + `055_instance_ports.sql` triplicate + `InstanceTabs` Ports gated), `#8 95→97` (AES-256-GCM `secretbox` + masked/reveal audited + `secret_refs` in automation), `#9 90→92` (cron `5-field` + `automation_runs` + `TriggerRun` dials edge exec with resolved secrets), `#10 90→92` (`instance_audit` dedicated timeline + async `RecordActivity` every mutator), `#11 92→96` (90 keys vs core-only rivals Ptero 60 / Pelican 65 — paid admin-RBAC addons excluded: `AreaGroups[13]` + `OWN/ALL` + `VIEW/CREATE/EDIT/DELETE` + `hasAreaAccess` umbrella-implies-granular), `#12 95→97` (lockout 5/15m + `recovery_codes` bcrypt + TOTP QR `Authority` + `password_history` + `__Host-session_id` `SameSite Strict`), `#13 90→92` (Discord-like `Avatar`+`MarkdownBio`+`SocialIcons`+ field-level `VIEW_ACCOUNT` sub-caps), `#14 95→97` (`datamove` batch 500 FK order + `DatabaseBackupTab` + 55 migrations ×3 dialects), `#15 92→94` (`SecurityMiddleware` hot path + `suspiciousProbePaths` 12 + `triggerDDOSAutoStop` + SSRF hardened fetches + `SecurityHeaders` impl), `#16 90→96` (`reinstall-script` + `reinstall-background` detached + `ShutdownChan` + per-node `NodeUpdateTab` check/apply/reinstall `getNodeUpdateInfo|checkNodeUpdate|applyNodeUpdate|reinstallNodeBackground` + edge `update.go` `/api/edge/reinstall|reinstall-background` + `.old` rollback + restart watcher), `#20 80→85` (WSS terminal + `tunnel` exponential `1s→30s` + `heartbeat KeepAlive 30s`), `#21 95→97` (15 Theme Studio tabs + scoped `page>area>default` + public `GET /api/themes` bootstrap), `#18 40→78 (Minecraft starters mc-properties/players/world/plugins via pageStarters.ts + CustomPageView blocks + SDK shell|read_file|write_file|list_files open_args≤4 — 4 shipped pages ~228KB HTML, 37 allow-listed actions incl. world tar/zip backup+restore+rename, seed/level-name, player whitelist/ops/bans, plugin wget/rm) + #22 95→96` (`live_state` bulk + `regen.sh` sync + atomic writes). `#19 0→85` (SFTP `058_sftp` + `GET|POST /api/instances/{id}/sftp` `sftp_handler.go:1` VIEW|EDIT + `edge/client.go:ProvisionSFTP` → `edge/backend/internal/sftp/server.go:1` chroot SSH `:2222` bcrypt 5/15m `isDangerousPath` + `InstanceSftpCard.tsx` + `shared/api/instanceSftp.ts` Files-area + `sftp.json` market). `#23 NEW` (tickets `052` 12 handlers `List|Get|Create|Update|Delete|Stats|comments|assign` + owner-vs-staff visibility + `TicketChat` composer + notifications `053` 9 handlers `unread-count|stats|broadcast|mark-read|clear` + `NotificationBell` poll 20s + `NotificationBroadcast`; rivals have no in-panel equivalent → 0)
 
@@ -62,10 +62,15 @@
 | Rank     | Panel      | Sum          | Final /100 |
 |----------|------------|--------------|------------|
 | **1**    | **KS Panel**   | **2,215 / 2,400**| **92**     |
-| 2        | Pelican    | 1,680 / 2,400| 70     |
-| 3        | Pterodactyl| 1,385 / 2,400| 58     |
-| 4        | Crafty 4   | 920 / 2,400| 38     |
-| 5        | JTG Panel  | 605 / 2,400  | 25     |
+| 2        | AMP        | 1,720 / 2,400| 72     |
+| 3        | Pelican    | 1,680 / 2,400| 70     |
+| 4        | Pyrodactyl | 1,410 / 2,400| 59     |
+| 5        | Pterodactyl| 1,385 / 2,400| 58     |
+| 6        | PufferPanel| 1,375 / 2,400| 57     |
+| 7        | Multicraft | 1,360 / 2,400| 57     |
+| 8        | Crafty 4   | 920 / 2,400| 38     |
+| 9        | MineOS     | 740 / 2,400| 31     |
+| 10       | JTG Panel  | 605 / 2,400  | 25     |
 
 > KS Panel now clears Pelican **92 vs 70** (+22 since 09-01, 24 cases — tunneling excluded, stock panel-only) on the back of 18 scored cases. Pelican/Ptero/Crafty/JTG rescored core-only (paid admin-RBAC, monitoring, scheduler, theme addons excluded); KS gains come purely from exhaustive 09-02 inventory that was previously under-counted (90 keys not 20, 110 routes not 65, 4 drivers not 1, 55 migrations not “templates only”) + the new Ports editor (60→92) `instance_port_repo.go:1` `server.go:644` + SFTP access (0→85) `058_sftp` `sftp_handler.go:1` `edge/backend/internal/sftp/server.go:1` `InstanceSftpCard.tsx`.
 
