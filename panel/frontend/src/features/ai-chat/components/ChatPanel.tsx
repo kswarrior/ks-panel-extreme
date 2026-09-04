@@ -69,7 +69,7 @@ const ChatPanel: React.FC = () => {
 
   if (!open) return null;
   if (location.pathname.startsWith('/auth')) return null;
-  if (!permissions.includes(PermissionKey.AI_CHAT_USE)) return null;
+  if (!canOpenAIChat(permissions)) return null;
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();

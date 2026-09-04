@@ -180,11 +180,58 @@ const ChatSettings: React.FC = () => {
     }
   };
 
+  const configured = cfg.base_url.trim() !== '' && cfg.model_id.trim() !== '';
+  const statusLine = !cfg.enabled
+    ? 'Disabled — turn on the assistant so roles with AI Chat access can talk to it.'
+    : !configured
+      ? 'Enabled but not configured — set Base URL + Model ID below, then Test connection.'
+      : 'Enabled and configured — roles with AI Chat access can talk to it.';
+
   return (
     <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
       <p className="text-[11px] text-gray-500 leading-relaxed">
         Panel-wide assistant. Keys are sealed server-side and never reach the browser — leave a key blank to keep the stored one.
       </p>
+
+      {/* ── Assistant (master switches — fixes "disabled by administrator") ── */}
+      <section className="space-y-3">
+        <h4 className={sectionCls}>Assistant</h4>
+        <p className={`text-[11px] leading-relaxed ${!cfg.enabled || !configured ? 'text-amber-300' : 'text-gray-500'}`}>
+          {statusLine}
+        </p>
+        <label className="flex items-start justify-between gap-3 cursor-pointer select-none">
+          <span className="flex-1 min-w-0">
+            <span className="block text-xs font-medium text-gray-200">Enable assistant</span>
+            <span className="block text-[11px] text-gray-500">Master kill-switch. Off = everyone gets “disabled by the administrator”.</span>
+          </span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={cfg.enabled}
+            aria-label="Enable assistant"
+            onClick={() => set({ enabled: !cfg.enabled })}
+            className={`ks-toggle shrink-0 ${cfg.enabled ? 'is-on' : ''}`}
+          >
+            <span className="ks-toggle__thumb" />
+          </button>
+        </label>
+        <label className="flex items-start justify-between gap-3 cursor-pointer select-none">
+          <span className="flex-1 min-w-0">
+            <span className="block text-xs font-medium text-gray-200">Allow writes</span>
+            <span className="block text-[11px] text-gray-500">Lets the assistant propose writes (start/stop, themes, templates…) as approval tickets. Each write still needs the caller’s area permission.</span>
+          </span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={cfg.allow_writes}
+            aria-label="Allow AI writes"
+            onClick={() => set({ allow_writes: !cfg.allow_writes })}
+            className={`ks-toggle shrink-0 ${cfg.allow_writes ? 'is-on' : ''}`}
+          >
+            <span className="ks-toggle__thumb" />
+          </button>
+        </label>
+      </section>
 
       {/* ── Providers ─────────────────────────────────────────── */}
       <section className="space-y-3">
