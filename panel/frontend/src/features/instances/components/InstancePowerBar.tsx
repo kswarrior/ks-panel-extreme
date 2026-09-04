@@ -70,7 +70,12 @@ const InstancePowerBar: React.FC = () => {
 
   const status = instance?.status ?? '';
   const isRunning = status === 'running';
-  const isStopped = status === 'stopped' || status === 'destroyed';
+  // Transitional states (deploy/install in flight) — no power action is valid,
+  // so render no buttons rather than clickable-then-failing ones.
+  const isTransitional = status === 'creating' || status === 'installing';
+  // State-aware buttons: stopped/errored/etc → Start only;
+  // running → Stop + Restart (Start hidden); transitional → none.
+  const showStart = !isRunning && !isTransitional;
   const busyAny = busy !== null || loading;
 
   // NOTE: buttons deliberately do NOT use the `ks-tab` class. The theme
@@ -83,11 +88,11 @@ const InstancePowerBar: React.FC = () => {
   // Inline style beats every non-`!important` stylesheet rule, and no theme
   // rule targets these plain buttons — padding really is 1px/5px now.
   const btnStyle: React.CSSProperties = {
-    padding: '1px 5px',
+    padding: '0 4px',
     margin: 0,
-    gap: 3,
-    fontSize: 11,
-    lineHeight: '14px',
+    gap: 2,
+    fontSize: 10,
+    lineHeight: '12px',
     border: 'none',
     borderRadius: 0,
     background: 'transparent',
@@ -108,58 +113,64 @@ const InstancePowerBar: React.FC = () => {
             style={
               collapsed
                 ? { maxWidth: 0, opacity: 0, transform: 'translateX(-8px)', pointerEvents: 'none', padding: 0, margin: 0, gap: 0 }
-                : { maxWidth: 320, opacity: 1, transform: 'translateX(0)', padding: 0, margin: 0, gap: 0 }
+                : { maxWidth: 220, opacity: 1, transform: 'translateX(0)', padding: 0, margin: 0, gap: 0 }
             }
             aria-hidden={collapsed}
           >
+            {showStart && (
             <button
               type="button"
               onClick={() => run('start')}
-              disabled={collapsed || busyAny || isRunning}
+              disabled={collapsed || busyAny}
               tabIndex={collapsed ? -1 : undefined}
               title="Start instance"
               style={btnStyle}
               className={`${btnBase} text-emerald-300 hover:bg-emerald-900/30`}
             >
               {busy === 'start' ? (
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 animate-spin" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3 animate-spin" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
               ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3" /></svg>
               )}
               <span>Start</span>
             </button>
+            )}
+            {isRunning && (
             <button
               type="button"
               onClick={() => run('stop')}
-              disabled={collapsed || busyAny || isStopped}
+              disabled={collapsed || busyAny}
               tabIndex={collapsed ? -1 : undefined}
               title="Stop instance"
               style={btnStyle}
               className={`${btnBase} text-yellow-300 hover:bg-yellow-900/30`}
             >
               {busy === 'stop' ? (
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 animate-spin" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3 animate-spin" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
               ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
               )}
               <span>Stop</span>
             </button>
+            )}
+            {isRunning && (
             <button
               type="button"
               onClick={() => run('restart')}
-              disabled={collapsed || busyAny || !isRunning}
+              disabled={collapsed || busyAny}
               tabIndex={collapsed ? -1 : undefined}
               title="Restart instance"
               style={btnStyle}
               className={`${btnBase} text-sky-300 hover:bg-sky-900/30`}
             >
               {busy === 'restart' ? (
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 animate-spin" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3 animate-spin" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
               ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5" aria-hidden="true"><path d="M23 4v6h-6" /><path d="M1 20v-6h6" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3" aria-hidden="true"><path d="M23 4v6h-6" /><path d="M1 20v-6h6" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>
               )}
               <span>Restart</span>
             </button>
+            )}
           </div>
 
           {/* Collapse toggle — [<] when open, [>] when collapsed */}
@@ -173,9 +184,9 @@ const InstancePowerBar: React.FC = () => {
             className={`${btnBase} text-gray-200 hover:bg-white/10`}
           >
             {collapsed ? (
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5" aria-hidden="true"><polyline points="9 18 15 12 9 6" /></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3" aria-hidden="true"><polyline points="9 18 15 12 9 6" /></svg>
             ) : (
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5" aria-hidden="true"><polyline points="15 18 9 12 15 6" /></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3" aria-hidden="true"><polyline points="15 18 9 12 15 6" /></svg>
             )}
           </button>
         </div>
