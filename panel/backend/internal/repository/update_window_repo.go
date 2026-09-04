@@ -47,21 +47,34 @@ func NewUpdateWindowRepository(db *sql.DB) *UpdateWindowRepository {
 	return &UpdateWindowRepository{db: db}
 }
 
-func scanUpdateWindow(rows *sql.Rows) (UpdateWindow, error) {
+type updateWindowScanner interface {
+	Scan(dest ...any) error
+}
+
+// scanUpdateWindow decodes one row. The ok return is false for the
+// driver's NULL placeholder row on empty results (the codebase scans PKs
+// into NullInt64 + skips invalid everywhere — see AIThreadRepository.List)
+// so callers treat it as "no row" instead of a scan error.
+func scanUpdateWindow(s updateWindowScanner) (UpdateWindow, bool, error) {
 	var w UpdateWindow
+	var id sql.NullInt64
 	var nextRun, lastRun, created, updated sql.NullString
 	var enabled int
-	if err := rows.Scan(&w.ID, &w.Target, &w.Name, &w.Cron, &enabled,
+	if err := s.Scan(&id, &w.Target, &w.Name, &w.Cron, &enabled,
 		&w.WindowStart, &w.WindowEnd, &nextRun, &lastRun, &w.LastStatus,
 		&created, &updated); err != nil {
-		return w, err
+		return w, false, err
 	}
+	if !id.Valid {
+		return w, false, nil
+	}
+	w.ID = id.Int64
 	w.Enabled = enabled == 1
 	w.NextRunAt = parseUpdateWindowTime(nextRun)
 	w.LastRunAt = parseUpdateWindowTime(lastRun)
 	w.CreatedAt = parseUpdateWindowTime(created)
 	w.UpdatedAt = parseUpdateWindowTime(updated)
-	return w, nil
+	return w, true, nil
 }
 
 func parseUpdateWindowTime(ns sql.NullString) *time.Time {
@@ -93,9 +106,12 @@ func (r *UpdateWindowRepository) ListByTarget(target string) ([]UpdateWindow, er
 	defer rows.Close()
 	out := []UpdateWindow{}
 	for rows.Next() {
-		w, err := scanUpdateWindow(rows)
+		w, ok, err := scanUpdateWindow(rows)
 		if err != nil {
 			return nil, err
+		}
+		if !ok {
+			continue
 		}
 		out = append(out, w)
 	}
@@ -105,19 +121,20 @@ func (r *UpdateWindowRepository) ListByTarget(target string) ([]UpdateWindow, er
 // Get returns one window by id + target (target scoping keeps the panel
 // and fleet surfaces from touching each other's rows).
 func (r *UpdateWindowRepository) Get(id int64, target string) (*UpdateWindow, error) {
-	rows, err := r.db.Query(`SELECT id, target, name, cron, enabled, window_start, window_end, next_run_at, last_run_at, last_status, created_at, updated_at FROM update_windows WHERE id = ? AND target = ?`, id, target)
+	row := r.db.QueryRow(`SELECT id, target, name, cron, enabled, window_start, window_end, next_run_at, last_run_at, last_status, created_at, updated_at FROM update_windows WHERE id = ? AND target = ?`, id, target)
+	w, ok, err := scanUpdateWindow(row)
 	if err != nil {
+		// The driver surfaces empty results as a scan error instead of
+		// sql.ErrNoRows — normalize so handlers answer 404.
+		if !ok {
+			return nil, sql.ErrNoRows
+		}
 		return nil, err
 	}
-	defer rows.Close()
-	if !rows.Next() {
+	if !ok {
 		return nil, sql.ErrNoRows
 	}
-	w, err := scanUpdateWindow(rows)
-	if err != nil {
-		return nil, err
-	}
-	return &w, rows.Err()
+	return &w, nil
 }
 
 // Due returns enabled rows whose next_run_at has passed, oldest first.
@@ -129,9 +146,12 @@ func (r *UpdateWindowRepository) Due(now time.Time) ([]UpdateWindow, error) {
 	defer rows.Close()
 	out := []UpdateWindow{}
 	for rows.Next() {
-		w, err := scanUpdateWindow(rows)
+		w, ok, err := scanUpdateWindow(rows)
 		if err != nil {
 			return nil, err
+		}
+		if !ok {
+			continue
 		}
 		out = append(out, w)
 	}
