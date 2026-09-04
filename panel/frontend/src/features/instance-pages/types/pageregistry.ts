@@ -47,7 +47,19 @@ export const AREAS: AreaEntry[] = [
         id: 'auth.login',
         label: 'Login',
         path: '/auth/login',
-        match: (_p, _s) => true, // the only auth page; catches /auth/*
+        match: starts('/auth/login'),
+      },
+      {
+        id: 'auth.register',
+        label: 'Register',
+        path: '/auth/register',
+        match: starts('/auth/register'),
+      },
+      {
+        id: 'auth.verify-email',
+        label: 'Verify Email',
+        path: '/auth/verify-email',
+        match: starts('/auth/verify-email'),
       },
     ],
   },
@@ -110,7 +122,7 @@ export const AREAS: AreaEntry[] = [
     id: 'admin',
     label: 'Admin Panel',
     description: 'System overview, security telemetry, activity, database, users, roles, API keys, nodes, templates, themes, instances.',
-    prefix: '/instances',
+    prefix: '/',
     pages: [
       adminPage('admin.system', 'System', 'system'),
       adminPage('admin.security', 'Security', 'security'),
