@@ -238,92 +238,41 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
         return;
       }
     }
-    const model = get().modelOverride.trim() || undefined;
     const userMsg: ChatBubble = { id: get().nextId, role: 'user', content: trimmed };
-    set((s) => ({ messages: [...s.messages, userMsg], nextId: s.nextId + 1, loading: true, streaming: false, error: '' }));
-    // Server holds the thread window: send only the new turn when bound.
-    const history: AIChatMessage[] = [{ role: 'user', content: trimmed }];
+    set((s) => ({
+      messages: [...s.messages, userMsg],
+      nextId: s.nextId + 1,
+      loading: true,
+      streaming: false,
+      error: '',
+      canRetry: false,
+      lastPrompt: trimmed,
+      retrying: false,
+      retryAttempt: 0,
+      retryMax: 0,
+    }));
+    await runPrompt(get, set, trimmed, threadId);
+  },
 
-    // Streaming fast path: render tokens incrementally, then fall back to
-    // the plain JSON endpoint on any SSE failure.
-    const streamId = get().nextId;
-    let streamed = false;
-    try {
-      set((s) => ({
-        messages: [...s.messages, { id: streamId, role: 'assistant', content: '' }],
-        nextId: s.nextId + 1,
-        streaming: true,
-      }));
-      const res = await streamAIChat(history, {
-        threadId,
-        model,
-        onToken: (tok) =>
-          set((s) => ({
-            messages: s.messages.map((m) => (m.id === streamId ? { ...m, content: m.content + tok } : m)),
-          })),
-      });
-      streamed = true;
-      const reply = res.reply || 'The assistant returned an empty reply.';
-      set((s) => ({
-        messages: s.messages.map((m) =>
-          m.id === streamId ? { ...m, content: reply, ticket: res.ticket } : m,
-        ),
-        ticket: res.ticket,
-        loading: false,
-        streaming: false,
-      }));
-      if (res.threadId) {
-        rememberThreadId(res.threadId);
-        set({ activeThreadId: res.threadId });
-      }
-      void get().refreshThreads();
-    } catch (streamErr) {
-      if (!streamed) {
-        // Remove the empty streaming bubble before the JSON fallback.
-        set((s) => ({ messages: s.messages.filter((m) => m.id !== streamId) }));
-      }
+  retry: async () => {
+    const st = get();
+    if (st.loading || st.ticket || !st.canRetry || !st.lastPrompt.trim()) return;
+    // Bind to a thread like send() does (the thread may have been created
+    // after the failed turn was first attempted).
+    let threadId = st.activeThreadId;
+    if (!threadId) {
       try {
-        const res = await sendAIChat(history, { threadId, model });
-        const reply = res.reply || 'The assistant returned an empty reply.';
-        if (streamed) {
-          set((s) => ({
-            messages: s.messages.map((m) =>
-              m.id === streamId ? { ...m, content: reply, ticket: res.confirmation_ticket || null } : m,
-            ),
-            ticket: res.confirmation_ticket || null,
-            loading: false,
-            streaming: false,
-          }));
-        } else {
-          const assistant: ChatBubble = {
-            id: get().nextId,
-            role: 'assistant',
-            content: reply,
-            ticket: res.confirmation_ticket || null,
-            executed: res.executed || null,
-          };
-          set((s) => ({
-            messages: [...s.messages, assistant],
-            nextId: s.nextId + 1,
-            ticket: res.confirmation_ticket || null,
-            loading: false,
-            streaming: false,
-          }));
-        }
-        if (res.thread_id) {
-          rememberThreadId(res.thread_id);
-          set({ activeThreadId: res.thread_id });
-        }
-        void get().refreshThreads();
+        const th = await createAIThread();
+        threadId = th.id;
+        rememberThreadId(threadId);
+        set((s) => ({ threads: [th, ...s.threads], activeThreadId: threadId }));
       } catch (e) {
-        set((s) => ({
-          loading: false,
-          streaming: false,
-          messages: streamed ? s.messages : s.messages.filter((m) => m.id !== streamId),
-          error: errText(e, errText(streamErr, 'Failed to reach the assistant')),
-        }));
+        set({ error: errText(e, 'Failed to create a chat thread') });
+        return;
       }
     }
+    set({ loading: true, streaming: false, error: '', canRetry: false, retrying: false, retryAttempt: 0, retryMax: 0 });
+    await runPrompt(get, set, st.lastPrompt, threadId);
   },
 
   approveTicket: async () => {
@@ -361,5 +310,135 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
     set((s) => ({ messages: [...s.messages, note], nextId: s.nextId + 1, ticket: null, error: '' }));
   },
 
-  clearError: () => set({ error: '' }),
+  clearError: () => set({ error: '', canRetry: false, lastPrompt: '', retrying: false, retryAttempt: 0, retryMax: 0 }),
 }));
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+// runPrompt performs one assistant turn for an already-recorded user prompt:
+// streaming fast path (token-by-token SSE) with JSON fallback. Rate-limit
+// (429) failures auto-retry with backoff when the Reliability prefs allow
+// it; the final failure keeps lastPrompt so the error card's Retry button
+// can re-send. The assistant bubble is created once and reused across
+// attempts so retries never stack duplicate bubbles.
+async function runPrompt(
+  get: () => AIChatState,
+  set: (p: Partial<AIChatState> | ((s: AIChatState) => Partial<AIChatState>)) => void,
+  prompt: string,
+  threadId: number,
+): Promise<void> {
+  const prefs = loadRetryPrefs();
+  // Server holds the thread window: send only the new turn when bound.
+  const history: AIChatMessage[] = [{ role: 'user', content: prompt }];
+  const model = get().modelOverride.trim() || undefined;
+
+  const streamId = get().nextId;
+  set((s) => ({
+    messages: [...s.messages, { id: streamId, role: 'assistant', content: '' }],
+    nextId: s.nextId + 1,
+    streaming: true,
+  }));
+
+  let attempt = 0;
+  for (;;) {
+    try {
+      const res = await streamAIChat(history, {
+        threadId,
+        model,
+        onToken: (tok) =>
+          set((s) => ({
+            messages: s.messages.map((m) => (m.id === streamId ? { ...m, content: m.content + tok } : m)),
+          })),
+      });
+      const reply = res.reply || 'The assistant returned an empty reply.';
+      set((s) => ({
+        messages: s.messages.map((m) =>
+          m.id === streamId ? { ...m, content: reply, ticket: res.ticket } : m,
+        ),
+        ticket: res.ticket,
+        loading: false,
+        streaming: false,
+        error: '',
+        canRetry: false,
+        lastPrompt: '',
+        retrying: false,
+        retryAttempt: 0,
+        retryMax: 0,
+      }));
+      if (res.threadId) {
+        rememberThreadId(res.threadId);
+        set({ activeThreadId: res.threadId });
+      }
+      void get().refreshThreads();
+      return;
+    } catch (streamErr) {
+      // JSON fallback for non-rate-limit SSE failures (and as the second
+      // chance inside every attempt).
+      try {
+        const res = await sendAIChat(history, { threadId, model });
+        const reply = res.reply || 'The assistant returned an empty reply.';
+        set((s) => ({
+          messages: s.messages.map((m) =>
+            m.id === streamId ? { ...m, content: reply, ticket: res.confirmation_ticket || null, executed: res.executed || null } : m,
+          ),
+          ticket: res.confirmation_ticket || null,
+          loading: false,
+          streaming: false,
+          error: '',
+          canRetry: false,
+          lastPrompt: '',
+          retrying: false,
+          retryAttempt: 0,
+          retryMax: 0,
+        }));
+        if (res.thread_id) {
+          rememberThreadId(res.thread_id);
+          set({ activeThreadId: res.thread_id });
+        }
+        void get().refreshThreads();
+        return;
+      } catch (e) {
+        const info = rateLimitInfo(e);
+        if (!info.limited) {
+          const streamInfo = rateLimitInfo(streamErr);
+          if (streamInfo.limited) {
+            // Stream hit the limit but JSON did not — treat as retryable.
+            (info as { limited: boolean; retryAfter: number }).limited = true;
+            (info as { limited: boolean; retryAfter: number }).retryAfter = info.retryAfter || streamInfo.retryAfter;
+          }
+        }
+        if (info.limited && prefs.autoRetry && attempt < prefs.maxRetries) {
+          attempt++;
+          const backoff = Math.max(1, Math.min(info.retryAfter || prefs.baseDelaySec * 2 ** (attempt - 1), 120));
+          set({
+            streaming: false,
+            retrying: true,
+            retryAttempt: attempt,
+            retryMax: prefs.maxRetries,
+            error: `Rate limited — retrying in ${backoff}s… (attempt ${attempt}/${prefs.maxRetries})`,
+          });
+          // Reset the bubble so the retry streams fresh.
+          set((s) => ({
+            messages: s.messages.map((m) => (m.id === streamId ? { ...m, content: '' } : m)),
+          }));
+          await sleep(backoff * 1000);
+          set({ streaming: true, error: '' });
+          continue;
+        }
+        set((s) => ({
+          loading: false,
+          streaming: false,
+          retrying: false,
+          retryAttempt: 0,
+          retryMax: 0,
+          error: errText(e, errText(streamErr, 'Failed to reach the assistant')),
+          canRetry: true,
+          lastPrompt: prompt,
+        }));
+        return;
+      }
+    }
+  }
+}

@@ -25,6 +25,9 @@ const ChatPanel: React.FC = () => {
   const actionBusy = useAIChatStore((s) => s.actionBusy);
   const error = useAIChatStore((s) => s.error);
   const send = useAIChatStore((s) => s.send);
+  const retry = useAIChatStore((s) => s.retry);
+  const canRetry = useAIChatStore((s) => s.canRetry);
+  const retrying = useAIChatStore((s) => s.retrying);
   const approveTicket = useAIChatStore((s) => s.approveTicket);
   const denyTicket = useAIChatStore((s) => s.denyTicket);
   const clearError = useAIChatStore((s) => s.clearError);
@@ -279,10 +282,22 @@ const ChatPanel: React.FC = () => {
         )}
         {error && (
           <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200 flex items-start justify-between gap-2">
-            <span>{error}</span>
-            <button type="button" onClick={clearError} className="shrink-0 text-red-300 hover:text-white" aria-label="Dismiss error">
-              ✕
-            </button>
+            <span className="flex-1 min-w-0">{error}</span>
+            <span className="flex items-center gap-1 shrink-0">
+              {canRetry && !loading && !retrying && (
+                <button
+                  type="button"
+                  onClick={() => void retry()}
+                  className="rounded-md px-2 py-0.5 border border-red-400/40 text-red-200 hover:bg-red-500/20 hover:text-white transition-colors"
+                  aria-label="Retry last message"
+                >
+                  Retry
+                </button>
+              )}
+              <button type="button" onClick={clearError} className="shrink-0 text-red-300 hover:text-white px-1" aria-label="Dismiss error">
+                ✕
+              </button>
+            </span>
           </div>
         )}
       </div>

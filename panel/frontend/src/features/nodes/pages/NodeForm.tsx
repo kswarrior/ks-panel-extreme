@@ -1171,7 +1171,10 @@ const NodeForm: React.FC = () => {
 
           {error && <p className="text-sm text-red-400">{error}</p>}
       </div>
-      <nav aria-label="Node form sections" className="lg:hidden sticky bottom-3 z-10">
+      {/* Fixed to the viewport bottom on phones so the bar never rides
+          up when a tab's content is short. inset-x-4 lines it up with the
+          page padding; safe-area keeps it above the home indicator. */}
+      <nav aria-label="Node form sections" className="lg:hidden fixed inset-x-4 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-30">
         <div className="ks-card rounded-md p-1.5 flex gap-1 overflow-x-auto scrollbar-hide">
           {NODEFORM_TABS.map((t) => (
             <button
@@ -1187,6 +1190,9 @@ const NodeForm: React.FC = () => {
           ))}
         </div>
       </nav>
+      {/* Spacer — reserves scroll room so the fixed bar never covers the
+          Cancel/Save row or trailing content on short tabs. */}
+      <div aria-hidden="true" className="h-16 lg:hidden" />
       </FormPage>
 
       {tokenInfo && (
