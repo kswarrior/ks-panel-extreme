@@ -27,6 +27,10 @@ interface FormPageProps {
   headerActions?: React.ReactNode;
   onSubmit?: (e: React.FormEvent) => void;
   disabled?: boolean;
+  // Hides the breadcrumb + title row in the page body. Used when the
+  // crumb already lives in the app header (e.g. Node form shows
+  // "Nodes / New Node" right of the sidebar toggle).
+  hideHeader?: boolean;
   // Max width style override – the default `max-w-xl` works for the
   // User/Node/Role forms; Templates need `max-w-3xl`.
   maxWidth?: string;
@@ -53,6 +57,7 @@ const FormPage: React.FC<FormPageProps> = ({
   headerActions,
   onSubmit,
   disabled,
+  hideHeader,
   maxWidth = 'max-w-xl',
   children,
 }) => {
@@ -63,30 +68,34 @@ const FormPage: React.FC<FormPageProps> = ({
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
-      {/* Breadcrumb + title row. Sticky at the top of the page so it
-          stays visible when the form scrolls. */}
-      <div className="flex items-center gap-2 text-xs text-gray-400">
-        {crumbs.map((c, i) => (
-          <React.Fragment key={i}>
-            {i > 0 && <span className="text-gray-600">/</span>}
-            {c.to ? (
-              <button
-                type="button"
-                onClick={() => navigate(c.to as string)}
-                className="hover:text-white transition-colors"
-              >
-                {c.label}
-              </button>
-            ) : (
-              <span className="text-gray-200">{c.label}</span>
-            )}
-          </React.Fragment>
-        ))}
-      </div>
-      <div className="flex items-center justify-between gap-3 mb-2 min-w-0">
-        <h2 className="text-xl font-semibold text-white shrink-0">{displayTitle}</h2>
-        {headerActions && <div className="flex items-center gap-2 min-w-0 flex-1 justify-end overflow-x-auto scrollbar-hide">{headerActions}</div>}
-      </div>
+      {/* Breadcrumb + title row. Skipped when hideHeader is set — the
+          crumb already lives in the app header. */}
+      {!hideHeader && (
+        <>
+          <div className="flex items-center gap-2 text-xs text-gray-400">
+            {crumbs.map((c, i) => (
+              <React.Fragment key={i}>
+                {i > 0 && <span className="text-gray-600">/</span>}
+                {c.to ? (
+                  <button
+                    type="button"
+                    onClick={() => navigate(c.to as string)}
+                    className="hover:text-white transition-colors"
+                  >
+                    {c.label}
+                  </button>
+                ) : (
+                  <span className="text-gray-200">{c.label}</span>
+                )}
+              </React.Fragment>
+            ))}
+          </div>
+          <div className="flex items-center justify-between gap-3 mb-2 min-w-0">
+            <h2 className="text-xl font-semibold text-white shrink-0">{displayTitle}</h2>
+            {headerActions && <div className="flex items-center gap-2 min-w-0 flex-1 justify-end overflow-x-auto scrollbar-hide">{headerActions}</div>}
+          </div>
+        </>
+      )}
 
       {/* Form body — no wrapper.
           Callers compose inputs inside; no nested GlassCards needed. */}

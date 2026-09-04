@@ -542,6 +542,7 @@ const NodeForm: React.FC = () => {
     return (
       <FormPage
         crumbs={[{ label: 'Nodes', to: '/nodes' }, { label: editing ? 'Edit Node' : 'New Node' }]}
+        hideHeader
       >
         <FormSkeleton fields={5} />
       </FormPage>
@@ -592,6 +593,7 @@ const NodeForm: React.FC = () => {
         crumbs={[{ label: 'Nodes', to: '/nodes' }, { label: editing ? 'Edit Node' : 'New Node' }]}
         onSubmit={submit}
         maxWidth="max-w-4xl"
+        hideHeader
       >
       <div className="space-y-4">
         <div className="hidden lg:inline-flex flex-wrap gap-1 rounded-lg bg-neutral-900/60 border border-white/10 p-1">

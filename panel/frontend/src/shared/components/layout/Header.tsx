@@ -422,6 +422,24 @@ const Header: React.FC<HeaderProps> = ({
           </svg>
         </button>
 
+        {/* Node form crumb — "Nodes / New Node" (or Edit Node) lives here,
+            right of the sidebar toggle, so the form page body stays clean. */}
+        {!inInstancePanel && (location.pathname === '/nodes/new' || /^\/nodes\/\d+\/edit\/?$/.test(location.pathname)) && (
+          <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-xs text-gray-400 min-w-0">
+            <button
+              type="button"
+              onClick={() => navigate('/nodes')}
+              className="hover:text-white transition-colors shrink-0"
+            >
+              Nodes
+            </button>
+            <span className="text-gray-600 shrink-0">/</span>
+            <span className="text-gray-200 truncate">
+              {location.pathname === '/nodes/new' ? 'New Node' : 'Edit Node'}
+            </span>
+          </nav>
+        )}
+
         {/* Instance tabs — visible when inside an instance panel.
             Horizontal scroll with gradient fade indicator. */}
         {inInstancePanel && <InstanceTabs />}
