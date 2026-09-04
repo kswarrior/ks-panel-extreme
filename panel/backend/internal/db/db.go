@@ -337,9 +337,10 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			}
 			continue
 		case name == "050_node_connection_mode.sql":
-			// Connection mode (direct / reverse_tunnel / local_port / local_wss)
-			// controlling how panel and edge find each other. Single column
-			// with 'direct' default so legacy rows keep bidirectional behaviour.
+			// Connection mode (direct / reverse_tunnel / both / local_port /
+			// local_wss / local_both) controlling how panel and edge find
+			// each other. Single column with 'direct' default so legacy rows
+			// keep bidirectional behaviour.
 			// MySQL's TEXT cannot carry a DEFAULT in older versions, so use
 			// VARCHAR(32) there to match the dialect migration file.
 			colDef := "TEXT NOT NULL DEFAULT 'direct'"

@@ -1,5 +1,5 @@
 // Package tunnel maintains persistent WSS connections from edges that use
-// reverse-tunnel modes (reverse_tunnel / local_wss). An edge dials
+// tunnel modes (reverse_tunnel / local_wss / both / local_both). An edge dials
 // wss://panel/api/edge/tunnel?token=... and keeps the socket alive. The panel
 // then multiplexes all panel→edge RPCs (lifecycle, exec, inspect, files,
 // install, heartbeats probe) over that single socket instead of dialing the
