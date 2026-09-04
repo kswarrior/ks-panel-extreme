@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { createNode, updateNode, listNodes, probeNode, setupLocalNode, listNodeWssChannels } from '@/shared/api/admin';
 import type { Node, CreateNodeResult, ProbeResult, SetupLocalResult } from '@/shared/types/node';
 import FormPage from '@/shared/components/forms/FormPage';
+import GlassCard from '@/shared/components/ui/Card';
 import GlassField, { glassFieldClass } from '@/shared/components/ui/Field';
 import GlassModal from '@/shared/components/ui/Modal';
 import ToggleRow from '@/shared/components/ui/ToggleRow';
@@ -605,21 +606,28 @@ const NodeForm: React.FC = () => {
         maxWidth="max-w-4xl"
         hideHeader
       >
-      <div className="space-y-4">
-        <div className="hidden lg:inline-flex flex-wrap gap-1 rounded-lg bg-neutral-900/60 border border-white/10 p-1">
-          {NODEFORM_TABS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setTab(t.id)}
-              className={`ks-tab transition-colors ${
-                tab === t.id ? 'ks-tab-active' : ''
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+      <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4">
+        {/* Desktop tabs — vertical on the left like the template form.
+            Sticky so they stay visible while the form scrolls. */}
+        <GlassCard className="hidden lg:block lg:sticky lg:top-4 self-start">
+          <nav aria-label="Node form sections" className="flex lg:flex-col gap-1">
+            {NODEFORM_TABS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={tab === t.id}
+                onClick={() => setTab(t.id)}
+                className={`ks-tab w-full flex items-center transition text-left ${
+                  tab === t.id ? 'ks-tab-active' : ''
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </nav>
+        </GlassCard>
+        <div className="space-y-4 min-w-0">
           {tab === 'general' && (
           <>
           <div className="ks-card ks-form-card rounded-md p-3 space-y-3">
@@ -1199,7 +1207,8 @@ const NodeForm: React.FC = () => {
           </>
           )}
 
-          {error && <p className="text-sm text-red-400">{error}</p>}
+            {error && <p className="text-sm text-red-400">{error}</p>}
+        </div>
       </div>
       {/* Fixed to the viewport bottom on phones so the bar never rides
           up when a tab's content is short. inset-x-4 lines it up with the
