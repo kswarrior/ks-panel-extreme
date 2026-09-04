@@ -149,6 +149,13 @@ func AIConfigHandler(w http.ResponseWriter, r *http.Request) {
 			SystemExtra *string  `json:"system_extra"`
 			HostingName *string  `json:"hosting_name"`
 			HostingAbout *string `json:"hosting_about"`
+
+			FallbackBaseURL    *string  `json:"fallback_base_url"`
+			FallbackAPIKey     *string  `json:"fallback_api_key"`
+			FallbackModelID    *string  `json:"fallback_model_id"`
+			FallbackOllamaMode *bool    `json:"fallback_ollama_mode"`
+			CostPer1KIn        *float64 `json:"cost_per_1k_in"`
+			CostPer1KOut       *float64 `json:"cost_per_1k_out"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			http.Error(w, "invalid payload", http.StatusBadRequest)
@@ -160,6 +167,10 @@ func AIConfigHandler(w http.ResponseWriter, r *http.Request) {
 			Temperature: body.Temperature, MaxTokens: body.MaxTokens,
 			AllowWrites: body.AllowWrites, SystemExtra: body.SystemExtra,
 			HostingName: body.HostingName, HostingAbout: body.HostingAbout,
+
+			FallbackBaseURL: body.FallbackBaseURL, FallbackAPIKey: body.FallbackAPIKey,
+			FallbackModelID: body.FallbackModelID, FallbackOllamaMode: body.FallbackOllamaMode,
+			CostPer1KIn: body.CostPer1KIn, CostPer1KOut: body.CostPer1KOut,
 		}
 		if err := repo.Update(u); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -179,12 +190,17 @@ func AIConfigHandler(w http.ResponseWriter, r *http.Request) {
 
 // AITestHandler sends one tiny probe message through the configured
 // provider so the admin can verify base URL / key / model before saving
-// it for the whole panel. Never logs or returns the key.
+// it for the whole panel. POST {"target":"fallback"} probes the fallback
+// triple instead. Never logs or returns any key.
 func AITestHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	var tReq struct {
+		Target string `json:"target"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&tReq)
 	con, err := repository.OpenDB()
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
@@ -195,6 +211,16 @@ func AITestHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
+	}
+	if strings.TrimSpace(tReq.Target) == "fallback" {
+		if !cfg.FallbackConfigured() {
+			writeJSONStatus(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "fallback provider is not configured"})
+			return
+		}
+		fb := *cfg
+		fb.BaseURL, fb.APIKey, fb.ModelID, fb.OllamaMode =
+			cfg.FallbackBaseURL, cfg.FallbackAPIKey, cfg.FallbackModelID, cfg.FallbackOllamaMode
+		cfg = &fb
 	}
 	if strings.TrimSpace(cfg.BaseURL) == "" || strings.TrimSpace(cfg.ModelID) == "" {
 		writeJSONStatus(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "base URL and model ID are required"})
@@ -207,7 +233,7 @@ func AITestHandler(w http.ResponseWriter, r *http.Request) {
 	if probe.MaxTokens > cfg.MaxTokens {
 		probe.MaxTokens = cfg.MaxTokens
 	}
-	content, _, err := aiProviderChat(ctx, probe, []aiMsg{
+	content, _, _, err := aiProviderChat(ctx, probe, []aiMsg{
 		{Role: "system", Content: "You are a connectivity probe. Reply with exactly: ok"},
 		{Role: "user", Content: "ping"},
 	}, nil)

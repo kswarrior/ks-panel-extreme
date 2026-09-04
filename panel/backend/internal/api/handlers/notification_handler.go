@@ -420,6 +420,12 @@ func CreateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		w.WriteHeader(http.StatusCreated)
 		writeJSON(w, map[string]interface{}{"ids": fanned, "broadcast": true, "count": len(fanned)})
+		// Realtime fan-out per recipient (WS push + email per prefs).
+		for i, uid := range ids {
+			if i < len(fanned) {
+				pushAndMailNotification(con, repo, uid, fanned[i])
+			}
+		}
 		return
 	}
 
@@ -467,6 +473,7 @@ func CreateNotificationHandler(w http.ResponseWriter, r *http.Request) {
 		TargetLabel: req.Title,
 		Message:     "created notification: " + req.Title,
 	})
+	pushAndMailNotification(con, repo, *req.UserID, id)
 	w.WriteHeader(http.StatusCreated)
 	writeJSON(w, map[string]interface{}{"id": id})
 }
