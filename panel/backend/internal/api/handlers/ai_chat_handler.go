@@ -614,7 +614,8 @@ func aiThreadPersist(uid int64, threadID *int64, userTurns []string, assistantRe
 // It returns the final reply text, or a write-ticket proposal (with tool +
 // raw args attached) when the model requested a write.
 func aiRunChatLoop(ctx context.Context, actx *aiCallCtx, cfg *repository.AIConfig, model string, msgs []aiMsg, acc *aiUsageAcc) (string, *aiTicket, error) {
-	defs := aiToolDefs()
+	_, canRead, canWrite := aiCaps(actx.checker, actx.uid)
+	defs := aiToolDefsForCaps(canRead, canWrite)
 	var lastText string
 	for loop := 0; loop < 5; loop++ {
 		if ctx.Err() != nil {
@@ -1118,6 +1119,77 @@ var aiWriteTools = map[string]bool{
 	"deploy_instance": true,
 }
 
+// aiReadTools are the fleet-inspection tools gated by AI_CHAT_TOOLS (writes
+// holders may also read so they can look up IDs before proposing).
+var aiReadTools = map[string]bool{
+	"list_instances": true, "get_instance": true, "list_nodes": true,
+	"list_templates": true, "get_system_status": true,
+}
+
+// aiCaps resolves the caller's AI sub-capabilities. The umbrella
+// AI_CHAT_USE implies everything, so legacy roles keep full access.
+func aiCaps(checker *permissions.Checker, uid int64) (canQA, canRead, canWrite bool) {
+	if checker == nil {
+		return true, true, true
+	}
+	canQA, _ = checker.HasAICapability(uid, permissions.AIChatQAKey)
+	canRead, _ = checker.HasAICapability(uid, permissions.AIChatToolsKey)
+	canWrite, _ = checker.HasAICapability(uid, permissions.AIChatWritesKey)
+	// Writes imply reads (you must look up IDs before proposing).
+	if canWrite {
+		canRead = true
+	}
+	// Anyone who reached the chat gate can at least do Q&A.
+	if !canQA && !canRead && !canWrite {
+		canQA = true
+	}
+	return canQA, canRead, canWrite
+}
+
+// aiToolDefsForCaps filters the advertised tool set to what the caller may
+// actually use: QA-only roles see get_docs alone, readers see all read
+// tools, writers additionally see the approval-gated write tools.
+func aiToolDefsForCaps(canRead, canWrite bool) []aiToolDef {
+	all := aiToolDefs()
+	if canRead && canWrite {
+		return all
+	}
+	out := make([]aiToolDef, 0, len(all))
+	for _, d := range all {
+		name := d.Function.Name
+		if aiWriteTools[name] {
+			if canWrite {
+				out = append(out, d)
+			}
+			continue
+		}
+		if aiReadTools[name] {
+			if canRead {
+				out = append(out, d)
+			}
+			continue
+		}
+		// get_docs and any future QA-level tool are always advertised.
+		out = append(out, d)
+	}
+	return out
+}
+
+// aiCapabilityNote renders the capability line injected into the system
+// prompt so the model never promises tools the caller's role lacks.
+func aiCapabilityNote(canQA, canRead, canWrite bool, allowWrites bool) string {
+	switch {
+	case canRead && canWrite && allowWrites:
+		return "This user has full assistant tools: Q&A, fleet read tools and write proposals (each write still needs their confirmation in the UI)."
+	case canRead && canWrite && !allowWrites:
+		return "This user has Q&A + read tools, but the administrator disabled AI writes globally — do not call write tools, explain writes are off."
+	case canRead:
+		return "This user has Q&A + read tools only — do not call write tools, explain they need the AI Chat Writes permission plus an admin enabling writes."
+	default:
+		return "This user is limited to Q&A only (get_docs) — do not call fleet or write tools, explain they need the AI Chat Tools / Writes permissions."
+	}
+}
+
 func aiStr(args map[string]any, key string) string {
 	v, _ := args[key].(string)
 	return strings.TrimSpace(v)
@@ -1156,6 +1228,9 @@ func aiRunTool(a *aiCallCtx, name string, args map[string]any) (string, *aiTicke
 		args = map[string]any{}
 	}
 	if aiWriteTools[name] {
+		if ok, _ := a.checker.HasAICapability(a.uid, permissions.AIChatWritesKey); !ok {
+			return "", nil, fmt.Errorf("denied: your role lacks AI Chat Writes (AI_CHAT_WRITES) — explain that an admin must grant it first")
+		}
 		if a.cfg == nil || !a.cfg.AllowWrites {
 			return "", nil, fmt.Errorf("writes are disabled by the administrator (allow_writes is off) — explain that the request needs an admin to enable AI writes first")
 		}
@@ -1164,6 +1239,14 @@ func aiRunTool(a *aiCallCtx, name string, args map[string]any) (string, *aiTicke
 			return "", nil, err
 		}
 		return "", &aiTicketProposal{ID: aiNewTicketID(), Summary: summary, Diff: diff}, nil
+	}
+	if aiReadTools[name] {
+		if ok, _ := a.checker.HasAICapability(a.uid, permissions.AIChatToolsKey); !ok {
+			// Writes imply reads, so check that too before denying.
+			if okW, _ := a.checker.HasAICapability(a.uid, permissions.AIChatWritesKey); !okW {
+				return "", nil, fmt.Errorf("denied: your role is limited to Q&A (needs AI Chat Tools AI_CHAT_TOOLS for fleet lookups) — answer from general knowledge or docs instead")
+			}
+		}
 	}
 	switch name {
 	case "list_instances":
