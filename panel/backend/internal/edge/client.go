@@ -121,35 +121,98 @@ func NewWithTimeout(node models.Node, token string, timeout time.Duration) *Clie
 	return newClientForNode(node, token, timeout)
 }
 
-// isTunnel reports whether this client should prefer the WSS tunnel.
+// isTunnel reports whether this client may use the WSS tunnel at all
+// (pure tunnel modes + the dual-transport both/local_both modes).
 func (c *Client) isTunnel() bool {
-	m := strings.ToLower(strings.TrimSpace(c.connectionMode))
-	return m == "reverse_tunnel" || m == "local_wss"
+	return UsesTunnel(c.connectionMode)
 }
 
 // tryTunnel attempts to send an RPC over the WSS tunnel. It returns (handled, resp, err).
 // handled==true means the tunnel was used (caller should use resp).
 // handled==false means tunnel not available / not applicable — caller should fall back to HTTP.
 // For reverse_tunnel with no tunnel connected, it returns error directly (handled==true, err).
+//
+// Task-aware routing (migration 062): the task is inferred from path
+// (TaskForPath) and the node's WSS channels decide the preferred transport
+// for both/local_both modes. Pure modes keep their existing behaviour:
+// reverse_tunnel is strict, local_wss prefers the tunnel with HTTP fallback,
+// direct/local_port never use the tunnel.
 func (c *Client) tryTunnel(method, path string, reqBody any) (bool, []byte, int, error) {
 	if !c.isTunnel() {
 		return false, nil, 0, nil
 	}
 	connected := tunnel.Global().IsConnected(c.nodeID)
-	if !connected {
-		if strings.ToLower(strings.TrimSpace(c.connectionMode)) == "reverse_tunnel" {
-			return true, nil, 0, fmt.Errorf("edge not connected via WSS tunnel (reverse_tunnel mode requires edge to be online)")
+	mode := NormalizeMode(c.connectionMode)
+	if !IsDualMode(mode) {
+		if !connected {
+			if IsStrictTunnel(mode) {
+				return true, nil, 0, fmt.Errorf("edge not connected via WSS tunnel (reverse_tunnel mode requires edge to be online)")
+			}
+			// local_wss fallback to direct HTTP when tunnel not yet connected
+			return false, nil, 0, nil
 		}
-		// local_wss fallback to direct HTTP when tunnel not yet connected
+		// Tunnel is connected – dispatch via it.
+		timeout := c.http.Timeout
+		if timeout <= 0 {
+			timeout = 30 * time.Second
+		}
+		status, body, err := tunnel.Global().Send(c.nodeID, method, path, reqBody, timeout)
+		return true, body, status, err
+	}
+	// Dual-transport mode: consult the WSS channels for this task.
+	task := TaskForPath(path)
+	route := DecideRoute(mode, task, LoadChannels(c.nodeID), connected)
+	if !route.PreferTunnel {
+		// Port preferred (or tunnel down with auto): dial HTTP first. The
+		// emergency tunnel retry after an HTTP dial failure happens in
+		// emergencyViaTunnel, called by each method's HTTP error branch.
+		// Strict port (fallback disabled) is HTTP-only from here.
 		return false, nil, 0, nil
 	}
-	// Tunnel is connected – dispatch via it.
+	if !connected {
+		if route.Fallback {
+			// Emergency fallback to direct HTTP on disconnect.
+			return false, nil, 0, nil
+		}
+		return true, nil, 0, fmt.Errorf("edge not connected via WSS tunnel (both mode task %q prefers WSS for channel %q)", task, route.ChannelName)
+	}
 	timeout := c.http.Timeout
 	if timeout <= 0 {
 		timeout = 30 * time.Second
 	}
 	status, body, err := tunnel.Global().Send(c.nodeID, method, path, reqBody, timeout)
+	if err != nil && route.Fallback {
+		// Tunnel overloaded/failed mid-flight: emergency fallback to HTTP.
+		return false, nil, 0, nil
+	}
 	return true, body, status, err
+}
+
+// emergencyViaTunnel retries an RPC over the WSS tunnel after the direct HTTP
+// dial failed. It only fires for dual-transport modes (both/local_both) when
+// the resolved route prefers HTTP (port) with fallback enabled and the tunnel
+// is currently connected — the emergency path for overload or disconnect on
+// the port side. Returns attempted==false when the emergency path does not
+// apply (caller returns its HTTP error as usual).
+func (c *Client) emergencyViaTunnel(method, path string, reqBody any) (body []byte, status int, err error, attempted bool) {
+	mode := NormalizeMode(c.connectionMode)
+	if !IsDualMode(mode) {
+		return nil, 0, nil, false
+	}
+	if !tunnel.Global().IsConnected(c.nodeID) {
+		return nil, 0, nil, false
+	}
+	task := TaskForPath(path)
+	route := DecideRoute(mode, task, LoadChannels(c.nodeID), true)
+	if route.PreferTunnel || !route.Fallback {
+		return nil, 0, nil, false
+	}
+	timeout := c.http.Timeout
+	if timeout <= 0 {
+		timeout = 30 * time.Second
+	}
+	status, body, err = tunnel.Global().Send(c.nodeID, method, path, reqBody, timeout)
+	return body, status, err, true
 }
 
 func unmarshalTunnelResponse(body []byte, status int, out any) error {
