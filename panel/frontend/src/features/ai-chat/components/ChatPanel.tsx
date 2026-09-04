@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
-import { useThemeStore } from '@/shared/stores/themeStore';
 import { PermissionKey, hasPermissionAny } from '@/shared/types/permissions';
 import { useAIChatStore } from '../store/aiChatStore';
 import ConfirmCard from './ConfirmCard';
@@ -15,7 +14,6 @@ const ChatPanel: React.FC = () => {
   const location = useLocation();
   const permissions = useAuthStore((s) => s.permissions);
   const panelName = useSettingsStore((s) => s.panelName);
-  const glassStyle = useThemeStore((s) => s.active().card.glass_style);
   const open = useAIChatStore((s) => s.open);
   const setOpen = useAIChatStore((s) => s.setOpen);
   const messages = useAIChatStore((s) => s.messages);
@@ -65,13 +63,6 @@ const ChatPanel: React.FC = () => {
   if (location.pathname.startsWith('/auth')) return null;
   if (!permissions.includes(PermissionKey.AI_CHAT_USE)) return null;
 
-  const modifier =
-    !glassStyle || glassStyle === 'frosted'
-      ? ''
-      : glassStyle === 'solid'
-        ? 'ks-card-glass-solid'
-        : 'ks-card-glass-strong';
-
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!draft.trim() || loading || ticket) return;
@@ -95,7 +86,8 @@ const ChatPanel: React.FC = () => {
     <div
       role="dialog"
       aria-label={`${panelName} Assistant`}
-      className={`fixed z-50 bottom-24 right-5 w-[380px] max-w-[calc(100vw-2.5rem)] h-[520px] max-h-[calc(100dvh-8rem)] flex flex-col rounded-xl glass-strong ${modifier} border border-white/10 shadow-2xl overflow-hidden`}
+      style={{ position: 'fixed' }}
+      className={`fixed z-50 bottom-24 right-5 w-[380px] max-w-[calc(100vw-2.5rem)] h-[520px] max-h-[calc(100dvh-8rem)] flex flex-col rounded-xl glass-dropdown overflow-hidden`}
     >
       <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-white/10">
         <div className="min-w-0">
