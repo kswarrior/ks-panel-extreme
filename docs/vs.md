@@ -34,22 +34,22 @@
 | 2 | Server lifecycle                               | 92 | 90 | **100** | **100** | 80 | 85 | 95 | 85 | 70 | **100** |
 | 3 | Console / terminal                             | 92 | 85 | 95  | **98**  | 75 | 80 | 95 | 75 | 70 | 95 |
 | 4 | File manager + editor                          | 90 | 65 | 75  | **95**  | 60 | 80 | 90 | 70 | 55 | 75 |
-| 5 | Backups / snapshots                            | **96** | 35 | **95** | 85  | 70 | 50 | 90 | 75 | 80 | **95** |
+| 5 | Backups / snapshots                            | **96** | 35 | 95 | 85  | 70 | 50 | 90 | 75 | 80 | 95 |
 | 6 | Metrics / monitoring                           | **88** | 30 | 70  | 85      | 70 | 55 | 85 | 60 | 60 | 70 |
-| 7 | Ports / allocations                            | **92** | 15 | 95  | **95**  | 15 | 70 | 85 | 70 | 10 | 95 |
+| 7 | Ports / allocations                            | 92 | 15 | **95**  | **95**  | 15 | 70 | 85 | 70 | 10 | **95** |
 | 8 | Secrets / environment variables                | **97** | 0  | 25  | 55      | 15 | 50 | 70 | 20 | 10 | 25 |
-| 9 | Automation / scheduled tasks                   | **92** | 0  | 68  | **95**  | 75 | 70 | 90 | 80 | 65 | 68 |
+| 9 | Automation / scheduled tasks                   | 92 | 0  | 68  | **95**  | 75 | 70 | 90 | 80 | 65 | 68 |
 | 10 | Audit / activity logging                      | **92** | 0  | 72  | 60      | 60 | 40 | 75 | 55 | 30 | 72 |
 | 11 | Permission granularity                        | **96** | 15 | 60  | 65      | 55 | 55 | 70 | 65 | 15 | 60 |
-| 12 | Auth hardening                                | **97** | 20 | 40  | **100** | 60 | 60 | 75 | 50 | 20 | 40 |
+| 12 | Auth hardening                                | 97 | 20 | 40  | **100** | 60 | 60 | 75 | 50 | 20 | 40 |
 | 13 | Account lifecycle                             | **92** | 25 | 45 | 40     | 25 | 60 | 65 | 60 | 20 | 45 |
 | 14 | Database support & management                 | **97** | 5  | 80  | 82      | 0  | 70 | 60 | 70 | 0 | 80 |
 | 15 | Security posture                              | **94** | 10 | 60  | 85      | 30 | 60 | 80 | 55 | 25 | 65 |
 | 16 | Panel & Edge self-update / reinstall          | **96** | 10 | 0   | 15      | 15 | 30 | 80 | 20 | 10 | 0 |
 | 17 | Extensibility engine                          | **100** | 0 | 10 | 90      | 20 | 50 | 75 | 60 | 15 | 10 |
-| 18 | Minecraft-specific tooling                    | **78** | 70 | 25 | 25   | 70 | 75 | 95 | 90 | 85 | 25 |
-| 19 | SFTP access                                   | **85** | 15 | 85  | **90**  | 0  | 85 | 75 | 70 | 0 | 85 |
-| 20 | Real-time architecture                        | **85** | 55 | 85  | 85      | 65 | 70 | 80 | 60 | 70 | 85 |
+| 18 | Minecraft-specific tooling                    | 78 | 70 | 25 | 25   | 70 | 75 | **95** | 90 | 85 | 25 |
+| 19 | SFTP access                                   | 85 | 15 | 85  | **90**  | 0  | 85 | 75 | 70 | 0 | 85 |
+| 20 | Real-time architecture                        | **85** | 55 | **85**  | **85**      | 65 | 70 | 80 | 60 | 70 | **85** |
 | 21 | Theming engine                                | **97** | 20 | 15 | 45     | 25 | 35 | 30 | 20 | 10 | 35 |
 | 22 | Data-layer robustness                         | **96** | 10 | 90 | 92      | 35 | 65 | 70 | 60 | 20 | 90 |
 | 23 | Tickets & notifications                       | **100** | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
