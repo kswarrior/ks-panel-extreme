@@ -45,28 +45,11 @@ func listFKConstraints(d db.Dialect, con *sql.DB) ([]fkConstraint, error) {
 }
 
 func listSQLiteFKs(con *sql.DB) ([]fkConstraint, error) {
-	rows0, err := con.Query(`
-		SELECT name FROM sqlite_master
-		WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
-		ORDER BY name`)
-	if err != nil {
-		return nil, err
-	}
-	var tables []string
-	for rows0.Next() {
-		var n string
-		if err := rows0.Scan(&n); err == nil {
-			tables = append(tables, n)
-		}
-	}
-	rows0.Close()
-	if err := rows0.Err(); err != nil {
-		return nil, err
+	d, derr := db.NewDialect("sqlite")
+	if derr != nil {
+		return nil, derr
 	}
 	tables, err := listUserTables(d, con)
-	if err != nil {
-		return nil, err
-	}
 	var out []fkConstraint
 	for _, t := range tables {
 		rows, err := con.Query(`PRAGMA foreign_key_list(` + quoteIdent("sqlite", t) + `)`)
