@@ -339,6 +339,116 @@ const ChatSettings: React.FC = () => {
         </div>
       </section>
 
+      {/* ── Behaviour ───────────────────────────────────────── */}
+      <section className="space-y-3">
+        <h4 className={sectionCls}>Behaviour</h4>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className={labelCls} htmlFor="ai-chat-temperature">
+              Temperature (0–2)
+            </label>
+            <input
+              id="ai-chat-temperature"
+              type="number"
+              min={0}
+              max={2}
+              step={0.1}
+              value={cfg.temperature}
+              onChange={(e) => set({ temperature: Number(e.target.value) })}
+              className={inputCls}
+            />
+          </div>
+          <div>
+            <label className={labelCls} htmlFor="ai-chat-max-tokens">
+              Max tokens (1–8192)
+            </label>
+            <input
+              id="ai-chat-max-tokens"
+              type="number"
+              min={1}
+              max={8192}
+              step={1}
+              value={cfg.max_tokens}
+              onChange={(e) => set({ max_tokens: Math.round(Number(e.target.value)) || cfg.max_tokens })}
+              className={inputCls}
+            />
+          </div>
+        </div>
+        <div>
+          <label className={labelCls} htmlFor="ai-chat-system-extra">
+            Custom instructions
+          </label>
+          <textarea
+            id="ai-chat-system-extra"
+            value={cfg.system_extra}
+            onChange={(e) => set({ system_extra: e.target.value })}
+            placeholder="Extra system instructions for the assistant…"
+            rows={3}
+            maxLength={8000}
+            className={`${inputCls} resize-y min-h-[64px]`}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className={labelCls} htmlFor="ai-chat-hosting-name">
+              Hosting name
+            </label>
+            <input
+              id="ai-chat-hosting-name"
+              value={cfg.hosting_name}
+              onChange={(e) => set({ hosting_name: e.target.value })}
+              placeholder="My Hosting"
+              maxLength={256}
+              className={inputCls}
+            />
+          </div>
+          <div>
+            <label className={labelCls} htmlFor="ai-chat-cost-in">
+              Cost / 1k in ($)
+            </label>
+            <input
+              id="ai-chat-cost-in"
+              type="number"
+              min={0}
+              max={1000}
+              step={0.0001}
+              value={cfg.cost_per_1k_in}
+              onChange={(e) => set({ cost_per_1k_in: Number(e.target.value) })}
+              className={inputCls}
+            />
+          </div>
+        </div>
+        <div>
+          <label className={labelCls} htmlFor="ai-chat-hosting-about">
+            Hosting about
+          </label>
+          <textarea
+            id="ai-chat-hosting-about"
+            value={cfg.hosting_about}
+            onChange={(e) => set({ hosting_about: e.target.value })}
+            placeholder="Short about-us blurb used in the assistant identity…"
+            rows={2}
+            maxLength={4000}
+            className={`${inputCls} resize-y min-h-[48px]`}
+          />
+        </div>
+        <div>
+          <label className={labelCls} htmlFor="ai-chat-cost-out">
+            Cost / 1k out ($)
+          </label>
+          <input
+            id="ai-chat-cost-out"
+            type="number"
+            min={0}
+            max={1000}
+            step={0.0001}
+            value={cfg.cost_per_1k_out}
+            onChange={(e) => set({ cost_per_1k_out: Number(e.target.value) })}
+            className={inputCls}
+          />
+        </div>
+      </section>
+
       {/* ── Retry ───────────────────────────────────────────── */}
       <section className="space-y-3">
         <h4 className={sectionCls}>Retry</h4>

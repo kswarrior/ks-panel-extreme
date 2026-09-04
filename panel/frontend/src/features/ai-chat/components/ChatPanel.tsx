@@ -50,6 +50,15 @@ const ChatPanel: React.FC = () => {
 
   const isAdmin = hasPermissionAny(permissions, PermissionKey.VIEW_SETTINGS, PermissionKey.SETTINGS_EDIT) &&
     permissions.includes(PermissionKey.SETTINGS_EDIT);
+  // Granular AI caps for the subtitle + disabled-state hint. Umbrella
+  // implies everything; QA-only roles see a narrower subtitle.
+  const canUseTools = hasPermissionAny(
+    permissions,
+    PermissionKey.AI_CHAT_USE,
+    PermissionKey.AI_CHAT_TOOLS,
+    PermissionKey.AI_CHAT_WRITES,
+  );
+  const disabledErr = /disabled by the administrator|not configured yet/i.test(error || '');
 
   // Hydrate threads + active history on open so a reload restores the chat.
   useEffect(() => {
@@ -103,7 +112,11 @@ const ChatPanel: React.FC = () => {
             {view === 'settings' ? 'Provider settings' : `${panelName} Assistant`}
           </h3>
           <p className="text-[11px] text-gray-400 truncate">
-            {view === 'settings' ? 'Base URL · API key · model ID · Ollama' : 'Ask about your fleet — writes need approval'}
+            {view === 'settings'
+              ? 'Enable · providers · behaviour · retry'
+              : canUseTools
+                ? 'Ask about your fleet — writes need approval'
+                : 'Q&A mode — ask an admin for AI Chat Tools for fleet lookups'}
           </p>
         </div>
         <div className="flex items-center gap-1 shrink-0">
@@ -283,9 +296,32 @@ const ChatPanel: React.FC = () => {
         )}
         {error && (
           <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200 flex items-start justify-between gap-2">
-            <span className="flex-1 min-w-0">{error}</span>
+            <span className="flex-1 min-w-0">
+              {error}
+              {disabledErr && (
+                <span className="block mt-1 text-red-200/80">
+                  {isAdmin ? (
+                    <>
+                      Open the gear menu → Assistant to enable it and set Base URL + Model, then Save all.
+                    </>
+                  ) : (
+                    <>Ask an administrator to enable the assistant (gear → Assistant) and configure a provider.</>
+                  )}
+                </span>
+              )}
+            </span>
             <span className="flex items-center gap-1 shrink-0">
-              {canRetry && !loading && !retrying && (
+              {disabledErr && isAdmin && !loading && (
+                <button
+                  type="button"
+                  onClick={() => setView('settings')}
+                  className="rounded-md px-2 py-0.5 border border-red-400/40 text-red-200 hover:bg-red-500/20 hover:text-white transition-colors"
+                  aria-label="Open AI settings"
+                >
+                  Enable
+                </button>
+              )}
+              {canRetry && !loading && !retrying && !disabledErr && (
                 <button
                   type="button"
                   onClick={() => void retry()}
