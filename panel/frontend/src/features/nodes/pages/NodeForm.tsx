@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { createNode, updateNode, listNodes, probeNode, setupLocalNode, listNodeWssChannels } from '@/shared/api/admin';
 import type { Node, CreateNodeResult, ProbeResult, SetupLocalResult } from '@/shared/types/node';
 import FormPage from '@/shared/components/forms/FormPage';
+import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import GlassCard from '@/shared/components/ui/Card';
 import GlassField, { glassFieldClass } from '@/shared/components/ui/Field';
 import GlassModal from '@/shared/components/ui/Modal';
@@ -126,36 +127,6 @@ const NodeForm: React.FC = () => {
     { key: 'temp-0', name: 'wss-1', task: 'all', transport: 'auto', fallback: true },
   ]);
   const [wssSeq, setWssSeq] = useState(1);
-  // Top-right Cancel/Create pill — auto-hides while scrolling or when the
-  // page is clicked elsewhere, slides back from the right after 2.5s idle.
-  const [actionsVisible, setActionsVisible] = useState(true);
-  const pillRef = useRef<HTMLDivElement>(null);
-  const showTimer = useRef<number | null>(null);
-
-  useEffect(() => {
-    const scheduleShow = (delay: number) => {
-      if (showTimer.current) window.clearTimeout(showTimer.current);
-      showTimer.current = window.setTimeout(() => setActionsVisible(true), delay);
-    };
-    const onScroll = () => {
-      setActionsVisible(false);
-      scheduleShow(2500);
-    };
-    const onPointerDown = (e: PointerEvent) => {
-      const path = typeof e.composedPath === 'function' ? e.composedPath() : [];
-      if (pillRef.current && !path.includes(pillRef.current)) {
-        setActionsVisible(false);
-        scheduleShow(2500);
-      }
-    };
-    document.addEventListener('scroll', onScroll, true);
-    document.addEventListener('pointerdown', onPointerDown);
-    return () => {
-      document.removeEventListener('scroll', onScroll, true);
-      document.removeEventListener('pointerdown', onPointerDown);
-      if (showTimer.current) window.clearTimeout(showTimer.current);
-    };
-  }, []);
 
   // addWssChannel appends a blank row (top-right Add button in the WSS box).
   const addWssChannel = () => {
@@ -612,19 +583,14 @@ const NodeForm: React.FC = () => {
           --ks-tab-px/py/font): the theme paints .ks-card/.ks-tab padding
           with !important, so Tailwind px/py classes alone can never win —
           overriding the var value scoped to this pill does. */}
-      <div className="fixed top-[max(4.5rem,env(safe-area-inset-top))] right-4 sm:right-6 z-40">
-        <div
-          ref={pillRef}
-          className={`ks-card ks-pill-anim rounded-md p-1.5 flex gap-1 shadow-lg shadow-black/40 ${actionsVisible ? 'translate-x-0 opacity-100' : 'pointer-events-none translate-x-8 opacity-0'}`}
-          style={{ '--ks-card-padding': '6px' } as React.CSSProperties}
-        >
+      <PageActionsPill>
           <button
             type="button"
             onClick={() => navigate('/nodes')}
             title="Cancel and back to Nodes"
             aria-label="Cancel and back to Nodes"
             className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition"
-            style={{ '--ks-tab-px': '10px', '--ks-tab-py': '5px', '--ks-tab-font': '13px' } as React.CSSProperties}
+            style={PILL_TAB_STYLE}
           >
             Cancel
           </button>
@@ -635,7 +601,7 @@ const NodeForm: React.FC = () => {
               disabled={saving || settingUp}
               title="Register this localhost node and automatically install + launch ksedge on this host"
               className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-60"
-              style={{ '--ks-tab-px': '10px', '--ks-tab-py': '5px', '--ks-tab-font': '13px' } as React.CSSProperties}
+              style={PILL_TAB_STYLE}
             >
               {settingUp ? 'Setting up…' : 'Create & setup'}
             </button>
@@ -646,12 +612,11 @@ const NodeForm: React.FC = () => {
             disabled={saving}
             title={editing ? 'Save node' : 'Create node'}
             className="ks-tab ks-tab-active shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-60"
-            style={{ '--ks-tab-px': '10px', '--ks-tab-py': '5px', '--ks-tab-font': '13px' } as React.CSSProperties}
+            style={PILL_TAB_STYLE}
           >
             {saving ? 'Saving…' : editing ? 'Save' : 'Create'}
           </button>
-        </div>
-      </div>
+      </PageActionsPill>
       <FormPage
         crumbs={[{ label: 'Nodes', to: '/nodes' }, { label: editing ? 'Edit Node' : 'New Node' }]}
         onSubmit={submit}

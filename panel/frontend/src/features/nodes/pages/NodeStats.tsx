@@ -18,6 +18,7 @@ import {
 } from '@/shared/components/ui/StatDashboard';
 import GlassCard from '@/shared/components/ui/Card';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
+import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 
 const MONITOR_BARS = 40;
 
@@ -113,37 +114,7 @@ const NodeStats: React.FC = () => {
   const [graphTab, setGraphTab] = useState<'location' | 'category'>('location');
   const filterRef = useRef<HTMLDivElement>(null);
 
-  // Compact ks-tab sizing + auto-hide slide — same fixed top-right pill
-  // behaviour as the Nodes page ("Statistics" title lives in the header).
-  const tabBtnStyle = { '--ks-tab-px': '10px', '--ks-tab-py': '5px', '--ks-tab-font': '13px' } as React.CSSProperties;
-  const [actionsVisible, setActionsVisible] = useState(true);
-  const pillRef = useRef<HTMLDivElement>(null);
-  const showTimer = useRef<number | null>(null);
 
-  useEffect(() => {
-    const scheduleShow = (delay: number) => {
-      if (showTimer.current) window.clearTimeout(showTimer.current);
-      showTimer.current = window.setTimeout(() => setActionsVisible(true), delay);
-    };
-    const onScroll = () => {
-      setActionsVisible(false);
-      scheduleShow(2500);
-    };
-    const onPointerDown = (e: PointerEvent) => {
-      const path = typeof e.composedPath === 'function' ? e.composedPath() : [];
-      if (pillRef.current && !path.includes(pillRef.current)) {
-        setActionsVisible(false);
-        scheduleShow(2500);
-      }
-    };
-    document.addEventListener('scroll', onScroll, true);
-    document.addEventListener('pointerdown', onPointerDown);
-    return () => {
-      document.removeEventListener('scroll', onScroll, true);
-      document.removeEventListener('pointerdown', onPointerDown);
-      if (showTimer.current) window.clearTimeout(showTimer.current);
-    };
-  }, []);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -330,27 +301,21 @@ const NodeStats: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Fixed top-right pill — "Statistics" title lives in the app header.
-          Same auto-hide right-to-left slide as the Nodes page pill. */}
-      <div className="fixed top-[max(4.5rem,env(safe-area-inset-top))] right-4 sm:right-6 z-40">
-        <div
-          ref={pillRef}
-          className={`ks-card ks-pill-anim rounded-md flex items-center gap-1 shadow-lg shadow-black/40 ${actionsVisible ? 'translate-x-0 opacity-100' : 'pointer-events-none translate-x-8 opacity-0'}`}
-          style={{ '--ks-card-padding': '6px' } as React.CSSProperties}
-        >
+      {/* Fixed top-right pill — "Statistics" title lives in the app header. */}
+      <PageActionsPill>
           <SearchDropdown
             value={search}
             onChange={setSearch}
             placeholder="Search nodes..."
             ariaLabel="Search nodes"
             buttonClassName="ks-tab inline-flex items-center justify-center"
-            buttonStyle={tabBtnStyle}
+            buttonStyle={PILL_TAB_STYLE}
           />
           <select
             value={timeRange}
             onChange={(e) => setTimeRange(e.target.value as any)}
             className="ks-tab"
-            style={tabBtnStyle}
+            style={PILL_TAB_STYLE}
             aria-label="Time range"
           >
             <option value="1h">Last hour</option>
