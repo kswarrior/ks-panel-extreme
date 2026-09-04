@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { getTicket, addTicketComment, deleteTicketComment } from '../api/tickets';
-import type { Ticket, TicketComment } from '../types/ticket';
+import type { Ticket, TicketComment, TicketAttachment } from '../types/ticket';
 import TicketChat from '../components/TicketChat';
 import TicketChatSkeleton from '../components/TicketChatSkeleton';
+import TicketAttachments from '../components/TicketAttachments';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { useConfirm } from '@/shared/stores/confirmStore';
 
@@ -19,6 +20,7 @@ const TicketChatPage: React.FC = () => {
 
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [comments, setComments] = useState<TicketComment[]>([]);
+  const [attachments, setAttachments] = useState<TicketAttachment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [live, setLive] = useState(true);
@@ -32,6 +34,7 @@ const TicketChatPage: React.FC = () => {
         const detail = await getTicket(Number(id));
         setTicket(detail.ticket);
         setComments(detail.comments);
+        setAttachments(detail.attachments ?? []);
       } catch (e: any) {
         if (showLoader) setError(e?.response?.data || 'Failed to load chat');
       } finally {
@@ -163,7 +166,10 @@ const TicketChatPage: React.FC = () => {
       </div>
 
       {/* Individual chat TSX — fills remaining viewport, input pinned to footer */}
-      <div className="flex-1 min-h-0 flex flex-col w-full">
+      <div className="flex-1 min-h-0 flex flex-col w-full gap-3">
+        {ticket && (
+          <TicketAttachments ticketId={ticket.id} attachments={attachments} isClosed={isClosed} onChanged={() => load(false)} />
+        )}
         <TicketChat
           ticket={ticket}
           comments={comments}

@@ -53,6 +53,7 @@ const TicketDetail: React.FC = () => {
       const detail = await getTicket(Number(id));
       setTicket(detail.ticket);
       setCommentCount(detail.comments.length);
+      setAttachments(detail.attachments ?? []);
       setStatusValue(detail.ticket.status);
       setPriorityValue(detail.ticket.priority);
       setAssignValue(detail.ticket.assigned_to ? String(detail.ticket.assigned_to) : '');
@@ -61,6 +62,15 @@ const TicketDetail: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  }, [id]);
+
+  const reloadAttachments = useCallback(async () => {
+    if (!id) return;
+    try {
+      const detail = await getTicket(Number(id));
+      setAttachments(detail.attachments ?? []);
+      if (detail.ticket) setTicket(detail.ticket);
+    } catch {}
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
@@ -292,6 +302,16 @@ const TicketDetail: React.FC = () => {
               </Link>
             </div>
           </GlassCard>
+          {/* Attachments: thumbnails/inline (images + pdf preview) + upload/delete */}
+          <TicketAttachments ticketId={ticket.id} attachments={attachments} isClosed={isClosed} onChanged={reloadAttachments} />
+          {/* SLA badges: breach + escalation + first response */}
+          {(ticket.sla_breached || ticket.escalated || ticket.first_response_at) && (
+            <div className="glass-card rounded-xl p-4 flex flex-wrap gap-2 text-xs" style={{ borderColor: 'var(--ks-card-border)' }}>
+              {ticket.sla_breached && <span className="px-2 py-1 rounded-full border font-medium" style={{ borderColor: 'color-mix(in srgb, var(--ks-accent-danger) 35%, transparent)', color: 'var(--ks-accent-danger)', background: 'color-mix(in srgb, var(--ks-accent-danger) 12%, transparent)' }}>SLA breached</span>}
+              {ticket.escalated && <span className="px-2 py-1 rounded-full border" style={{ borderColor: 'var(--ks-card-border)', color: 'var(--ks-text-heading)' }}>Auto-escalated{ticket.escalated_at ? ` • ${formatTicketDateTime(ticket.escalated_at)}` : ''}</span>}
+              {ticket.first_response_at && <span className="px-2 py-1 rounded-full border" style={{ borderColor: 'var(--ks-card-border)', color: 'var(--ks-text-body)' }}>First response {formatTicketDateTime(ticket.first_response_at)}</span>}
+            </div>
+          )}
         </div>
 
         {/* Right: Triage + Details + Quick actions – fully themed */}

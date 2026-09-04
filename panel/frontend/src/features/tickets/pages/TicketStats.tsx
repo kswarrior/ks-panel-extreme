@@ -64,6 +64,8 @@ const TicketStatsPage: React.FC = () => {
         <StatTile label="Closed" value={stats.closed} sub={pct(stats.closed)} color="#9ca3af" />
         <StatTile label="Unassigned" value={stats.unassigned} sub="needs triage" color="#f97316" />
         <StatTile label="Mine" value={stats.mine} sub="created / assigned" color="#f472b6" />
+        <StatTile label="SLA compliance" value={Math.round(stats.sla_pct ?? 100)} sub={`${stats.breached ?? 0} breached`} color="#34d399" />
+        <StatTile label="Breached" value={stats.breached ?? 0} sub="past due • open" color="#ef4444" />
       </div>
 
       <GlassCard className={`p-5 ${glassModifier} relative overflow-hidden`}>
