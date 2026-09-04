@@ -1348,3 +1348,236 @@ func (c *Client) PageAction(req PageActionRequest) (PageActionResponse, error) {
 	}
 	return out, nil
 }
+
+// ---- Edge self-update (per-node Update & Reinstall UI) -------------------
+// The panel never upgrades a remote edge binary itself — it proxies a
+// trigger RPC to the edge, and the edge downloads + swaps + restarts via
+// its own reinstall.sh (mirrors the panel's System → Panel tab, but the
+// script lives on the edge host). All five RPCs honour the WSS tunnel like
+// every other edge call so reverse_tunnel / both / local_* nodes work.
+
+type EdgeVersionInfo struct {
+	Version   string `json:"version"`
+	Commit    string `json:"commit"`
+	BuildDate string `json:"build_date"`
+}
+
+type EdgeRemoteManifest struct {
+	Version   string `json:"version"`
+	Commit    string `json:"commit,omitempty"`
+	BuildDate string `json:"build_date,omitempty"`
+	Notes     string `json:"notes,omitempty"`
+	SizeBytes int64  `json:"size_bytes,omitempty"`
+}
+
+type EdgeUpdateInfoResponse struct {
+	Local      EdgeVersionInfo `json:"local"`
+	UpdateURL  string          `json:"update_url"`
+	VersionURL string          `json:"version_url"`
+	BinaryPath string          `json:"binary_path"`
+}
+
+type EdgeUpdateCheckResponse struct {
+	Available bool               `json:"available"`
+	Local     EdgeVersionInfo    `json:"local"`
+	Remote    EdgeRemoteManifest `json:"remote"`
+	CheckedAt string             `json:"checked_at"`
+	UpdateURL string             `json:"update_url"`
+	Error     string             `json:"error,omitempty"`
+}
+
+type EdgeUpdateApplyResponse struct {
+	OK           bool   `json:"ok"`
+	Message      string `json:"message"`
+	LocalBefore  string `json:"local_version_before"`
+	TargetBinary string `json:"target_binary"`
+	Log          string `json:"log,omitempty"`
+	Error        string `json:"error,omitempty"`
+}
+
+type EdgeReinstallBackgroundResponse struct {
+	OK      bool   `json:"ok"`
+	Message string `json:"message"`
+	Script  string `json:"script_path"`
+	Error   string `json:"error,omitempty"`
+}
+
+type edgeTokenBody struct {
+	Token string `json:"token"`
+}
+
+// edgeUpdateGet is the shared tunnel-aware GET for update-info /
+// update-check. Token travels as ?token= query (mirrors InstallStatus)
+// and is redacted from dial errors so the shared edge secret never lands
+// in panel logs.
+func (c *Client) edgeUpdateGet(path string, out any) error {
+	token := c.token
+	if c.isTunnel() {
+		connected := tunnel.Global().IsConnected(c.nodeID)
+		if connected {
+			qpath := fmt.Sprintf("%s?token=%s", path, urlQueryEscape(token))
+			if handled, body, status, err := c.tryTunnel("GET", qpath, nil); handled {
+				if err != nil {
+					return fmt.Errorf("dial edge: %s", redactTokenErr(err))
+				}
+				if err := unmarshalTunnelResponse(body, status, out); err != nil {
+					return err
+				}
+				if status >= 300 {
+					var env struct {
+						Error string `json:"error"`
+					}
+					_ = json.Unmarshal(body, &env)
+					if env.Error != "" {
+						return fmt.Errorf("edge rejected: %s", env.Error)
+					}
+					return fmt.Errorf("edge returned HTTP %d", status)
+				}
+				return nil
+			}
+		} else if IsStrictTunnel(c.connectionMode) {
+			return fmt.Errorf("edge not connected via WSS tunnel (reverse_tunnel mode requires edge to be online)")
+		}
+	}
+	endpoint := c.baseURL + path
+	httpReq, err := http.NewRequest(http.MethodGet, endpoint, nil)
+	if err != nil {
+		return fmt.Errorf("build request: %w", err)
+	}
+	q := httpReq.URL.Query()
+	q.Set("token", token)
+	httpReq.URL.RawQuery = q.Encode()
+	resp, err := c.http.Do(httpReq)
+	if err != nil {
+		emPath := fmt.Sprintf("%s?token=%s", path, urlQueryEscape(token))
+		var emRaw json.RawMessage
+		_ = emRaw
+		if ok, err2 := c.tryEmergencyTunnel("GET", emPath, nil, out); ok {
+			if err2 != nil {
+				return fmt.Errorf("dial edge: %s", redactTokenErr(err2))
+			}
+			return nil
+		}
+		return fmt.Errorf("dial edge: %s", redactTokenErr(err))
+	}
+	defer resp.Body.Close()
+	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+		return fmt.Errorf("edge returned HTTP %d", resp.StatusCode)
+	}
+	if resp.StatusCode >= 300 {
+		var env struct {
+			Error string `json:"error"`
+		}
+		raw, _ := json.Marshal(out)
+		_ = json.Unmarshal(raw, &env)
+		if env.Error != "" {
+			return fmt.Errorf("edge rejected: %s", env.Error)
+		}
+		return fmt.Errorf("edge returned HTTP %d", resp.StatusCode)
+	}
+	return nil
+}
+
+// edgeUpdatePost is the shared tunnel-aware POST for update-apply /
+// reinstall / reinstall-background. Token travels in the JSON body
+// (mirrors Lifecycle/Inspect) so it never lands in URLs or logs.
+func (c *Client) edgeUpdatePost(path string, out any) error {
+	req := edgeTokenBody{Token: c.token}
+	if handled, body, status, err := c.tryTunnel("POST", path, req); handled {
+		if err != nil {
+			return err
+		}
+		if err := unmarshalTunnelResponse(body, status, out); err != nil {
+			return err
+		}
+		if status >= 300 {
+			var env struct {
+				Error string `json:"error"`
+			}
+			_ = json.Unmarshal(body, &env)
+			if env.Error != "" {
+				return fmt.Errorf("edge rejected: %s", env.Error)
+			}
+			return fmt.Errorf("edge returned HTTP %d", status)
+		}
+		return nil
+	}
+	body, err := json.Marshal(req)
+	if err != nil {
+		return fmt.Errorf("encode request: %w", err)
+	}
+	endpoint := c.baseURL + path
+	httpReq, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("build request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	resp, err := c.http.Do(httpReq)
+	if err != nil {
+		if ok, err2 := c.tryEmergencyTunnel("POST", path, req, out); ok {
+			return err2
+		}
+		return fmt.Errorf("dial edge: %w", err)
+	}
+	defer resp.Body.Close()
+	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+		return fmt.Errorf("edge returned HTTP %d", resp.StatusCode)
+	}
+	if resp.StatusCode >= 300 {
+		var env struct {
+			Error string `json:"error"`
+		}
+		raw, _ := json.Marshal(out)
+		_ = json.Unmarshal(raw, &env)
+		if env.Error != "" {
+			return fmt.Errorf("edge rejected: %s", env.Error)
+		}
+		return fmt.Errorf("edge returned HTTP %d", resp.StatusCode)
+	}
+	return nil
+}
+
+// EdgeUpdateInfo fetches the edge's local build identity + artefact URLs.
+func (c *Client) EdgeUpdateInfo() (EdgeUpdateInfoResponse, error) {
+	var out EdgeUpdateInfoResponse
+	if err := c.edgeUpdateGet("/api/edge/update-info", &out); err != nil {
+		return EdgeUpdateInfoResponse{}, err
+	}
+	return out, nil
+}
+
+// EdgeUpdateCheck asks the edge to fetch the remote manifest and compare.
+func (c *Client) EdgeUpdateCheck() (EdgeUpdateCheckResponse, error) {
+	var out EdgeUpdateCheckResponse
+	if err := c.edgeUpdateGet("/api/edge/update-check", &out); err != nil {
+		return EdgeUpdateCheckResponse{}, err
+	}
+	return out, nil
+}
+
+// EdgeUpdateApply triggers an in-process download + swap + relaunch.
+func (c *Client) EdgeUpdateApply() (EdgeUpdateApplyResponse, error) {
+	var out EdgeUpdateApplyResponse
+	if err := c.edgeUpdatePost("/api/edge/update-apply", &out); err != nil {
+		return EdgeUpdateApplyResponse{}, err
+	}
+	return out, nil
+}
+
+// EdgeReinstall forces a reinstall of the current channel binary.
+func (c *Client) EdgeReinstall() (EdgeUpdateApplyResponse, error) {
+	var out EdgeUpdateApplyResponse
+	if err := c.edgeUpdatePost("/api/edge/reinstall", &out); err != nil {
+		return EdgeUpdateApplyResponse{}, err
+	}
+	return out, nil
+}
+
+// EdgeReinstallBackground asks the edge to write + run reinstall.sh detached.
+func (c *Client) EdgeReinstallBackground() (EdgeReinstallBackgroundResponse, error) {
+	var out EdgeReinstallBackgroundResponse
+	if err := c.edgeUpdatePost("/api/edge/reinstall-background", &out); err != nil {
+		return EdgeReinstallBackgroundResponse{}, err
+	}
+	return out, nil
+}
