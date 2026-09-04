@@ -6,6 +6,7 @@ import TicketAttachments from '../components/TicketAttachments';
 import GlassCard from '@/shared/components/ui/Card';
 import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
+import { PageActionsPill } from '@/shared/components/ui/PageActionsPill';
 import Avatar from '@/shared/components/ui/Avatar';
 import { useThemeStore } from '@/shared/stores/themeStore';
 import { useConfirm } from '@/shared/stores/confirmStore';
@@ -156,25 +157,10 @@ const TicketDetail: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      {/* Header – matches nodes/templates detail header, fully theme-aware via CSS vars + CardMenu */}
-      <div className="flex items-center gap-3">
-        <button onClick={() => navigate('/tickets')} className="ks-btn-header ks-icon-btn shrink-0" aria-label="Back to Tickets">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5"><polyline points="15 18 9 12 15 6" /></svg>
-        </button>
-        <div className="flex-1 min-w-0">
-          <h2 className="text-xl font-semibold truncate" style={{ color: 'var(--ks-text-heading)' }} title={ticket.subject}>{ticket.subject}</h2>
-          <p className="text-xs truncate flex items-center gap-1.5 flex-wrap" style={{ color: 'var(--ks-text-body)' }}>
-            <span className="font-mono font-semibold px-1.5 py-0.5 rounded border" style={{ color: 'var(--ks-accent-info, #38bdf8)', background: 'color-mix(in srgb, var(--ks-accent-info, #38bdf8) 12%, transparent)', borderColor: 'color-mix(in srgb, var(--ks-accent-info, #38bdf8) 22%, transparent)' }}>{ticket.ticket_no}</span>
-            <span className="capitalize inline-flex items-center gap-1"><CategoryIcon category={ticket.category} className="w-3 h-3" />{ticket.category}</span>
-            <span style={{ opacity: 0.4 }}>•</span>
-            <span className="hidden sm:inline">{formatTicketDateTime(ticket.created_at)}</span>
-            <span className="hidden sm:inline-flex items-center gap-1.5 ml-1"><TicketStatusBadge status={ticket.status} /><TicketPriorityBadge priority={ticket.priority} /></span>
-            <span className="hidden lg:inline-flex items-center gap-1.5 ml-1">
-              <span className={`w-2 h-2 rounded-full ${isClosed ? 'bg-gray-500' : 'bg-emerald-400 animate-pulse'}`} />
-              {commentCount} messages
-            </span>
-          </p>
-        </div>
+      {/* Fixed top-right actions pill — back + title live in the app header
+          ("Tickets / Detail"). The menu portals its dropdown, so it is safe
+          inside the fixed container. */}
+      <PageActionsPill>
         <CardMenu
           ariaLabel={`Actions for ticket ${ticket.ticket_no}`}
           items={[
@@ -190,7 +176,18 @@ const TicketDetail: React.FC = () => {
             if (k === 'delete') handleDeleteTicket();
           }}
         />
-      </div>
+      </PageActionsPill>
+      <p className="text-xs truncate flex items-center gap-1.5 flex-wrap" style={{ color: 'var(--ks-text-body)' }}>
+        <span className="font-mono font-semibold px-1.5 py-0.5 rounded border" style={{ color: 'var(--ks-accent-info, #38bdf8)', background: 'color-mix(in srgb, var(--ks-accent-info, #38bdf8) 12%, transparent)', borderColor: 'color-mix(in srgb, var(--ks-accent-info, #38bdf8) 22%, transparent)' }}>{ticket.ticket_no}</span>
+        <span className="capitalize inline-flex items-center gap-1"><CategoryIcon category={ticket.category} className="w-3 h-3" />{ticket.category}</span>
+        <span style={{ opacity: 0.4 }}>•</span>
+        <span className="hidden sm:inline">{formatTicketDateTime(ticket.created_at)}</span>
+        <span className="hidden sm:inline-flex items-center gap-1.5 ml-1"><TicketStatusBadge status={ticket.status} /><TicketPriorityBadge priority={ticket.priority} /></span>
+        <span className="hidden lg:inline-flex items-center gap-1.5 ml-1">
+          <span className={`w-2 h-2 rounded-full ${isClosed ? 'bg-gray-500' : 'bg-emerald-400 animate-pulse'}`} />
+          {commentCount} messages
+        </span>
+      </p>
 
       <div className="grid grid-cols-1 xl:grid-cols-[1.45fr_0.85fr] gap-4">
         {/* Left: Ticket overview + Open Chat button (chat is now individual page) */}

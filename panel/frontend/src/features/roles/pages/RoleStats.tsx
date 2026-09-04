@@ -159,9 +159,7 @@ const RoleStats: React.FC = () => {
                 </div>
               )}
             </div>
-          </div>
-        }
-      />
+      </PageActionsPill>
 
       {/* Key Metrics Strip - removed Role Distribution and Key Metrics per requirements */}
       <DashboardGrid columns={4} className="mb-6">

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { listNodes, listTemplates, listUsers, listRoles, deployInstance } from '@/shared/api/admin';
 import type { DeployRequest } from '@/shared/types/instance';
 import FormPage from '@/shared/components/forms/FormPage';
+import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import GlassCard from '@/shared/components/ui/Card';
 import { SearchableSelect, type SearchableOption } from '@/shared/components/ui/SearchableSelect';
 import { glassFieldClass } from '@/shared/components/ui/Field';
