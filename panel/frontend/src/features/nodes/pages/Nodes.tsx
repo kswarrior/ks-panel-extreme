@@ -259,22 +259,28 @@ const AdminNodes: React.FC = () => {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-5">
-        <div className="flex items-baseline gap-2.5">
-          <h2 className="text-xl font-semibold text-white tracking-tight">Nodes</h2>
-        </div>
-        <div className="flex items-center gap-2">
+      {/* "Nodes" title lives in the app header now — this row only holds
+          the actions, grouped in the same compact ks-tab pill as the node
+          form's Cancel/Create buttons. */}
+      <div className="flex items-center justify-end mb-5">
+        <div
+          className="ks-card rounded-md flex items-center gap-1 shadow-lg shadow-black/40"
+          style={{ '--ks-card-padding': '6px' } as React.CSSProperties}
+        >
           <SearchDropdown
             value={search}
             onChange={setSearch}
             placeholder="Search name, address, category, country…"
             ariaLabel="Search nodes"
+            buttonClassName="ks-tab inline-flex items-center justify-center"
+            buttonStyle={tabBtnStyle}
           />
           <div className="relative" ref={filterRef}>
             <button
               type="button"
               onClick={() => setFilterOpen(!filterOpen)}
-              className={`ks-btn-header ks-icon-btn transition-colors ${filterOpen ? 'is-open' : ''}`}
+              className={`ks-tab inline-flex items-center justify-center gap-1 transition-colors ${filterOpen ? 'is-open' : ''}`}
+              style={tabBtnStyle}
               aria-label="Open filters"
               aria-expanded={filterOpen}
               aria-haspopup="true"
@@ -334,7 +340,8 @@ const AdminNodes: React.FC = () => {
           <Link
             to="/nodes/stats"
             aria-label="Node Statistics"
-            className="ks-btn-header ks-icon-btn"
+            className="ks-tab inline-flex items-center justify-center"
+            style={tabBtnStyle}
             title="View node statistics dashboard"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>
@@ -342,7 +349,8 @@ const AdminNodes: React.FC = () => {
           <button
             onClick={() => setRollingOpen(true)}
             aria-label="Fleet rolling update"
-            className="ks-btn-header ks-icon-btn"
+            className="ks-tab inline-flex items-center justify-center"
+            style={tabBtnStyle}
             title="Fleet rolling update (check → apply → health-poll per node)"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>
@@ -350,13 +358,15 @@ const AdminNodes: React.FC = () => {
           <button
             onClick={() => navigate('/nodes/new')}
             aria-label="Add Node"
-            className="ks-btn-header ks-icon-btn"
+            className="ks-tab ks-tab-active inline-flex items-center justify-center gap-1.5"
+            style={tabBtnStyle}
             title="Add Node"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
+            <span>New</span>
           </button>
         </div>
       </div>
