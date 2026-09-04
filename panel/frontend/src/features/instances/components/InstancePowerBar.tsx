@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { startInstance, stopInstance, restartInstance } from '@/shared/api/admin';
-import { useInstance } from '@/shared/hooks/useInstance';
+import { invokeInstanceAction, stopInstanceAction } from '@/features/instances/api/instanceAdvanced';
+import { useInstance, parseConfig } from '@/shared/hooks/useInstance';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { PermissionKey, hasPermissionAny } from '@/shared/types/permissions';
 import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
@@ -31,7 +32,58 @@ const InstancePowerBar: React.FC<{ variant?: 'dock' | 'pill' }> = ({ variant = '
   });
   const [busy, setBusy] = useState<'start' | 'stop' | 'restart' | null>(null);
   const [error, setError] = useState('');
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [stopPending, setStopPending] = useState<string | null>(null);
+  const dockRef = useRef<HTMLDivElement>(null);
   const permissions = useAuthStore((s) => s.permissions);
+
+  // Template actions ride on the instance config (same source the home-page
+  // Actions card reads: inst.config.actions), filtered the same way —
+  // non-empty id + user_invokable !== false.
+  const templateActions = useMemo((): any[] => {
+    try {
+      const cfg = instance?.config ? parseConfig(instance.config) : null;
+      const list = Array.isArray((cfg as any)?.actions) ? (cfg as any).actions : [];
+      return list.filter(
+        (a: any) => a && typeof a.id === 'string' && a.id.trim() !== '' && a.user_invokable !== false,
+      );
+    } catch {
+      return [];
+    }
+  }, [instance?.config]);
+
+  // Running-action tracking — mirrors the Actions card: install_state
+  // 'running' + install_kind 'action' morphs the matching row to Stop.
+  const workflowInFlight = !!instance && instance.install_state === 'running';
+  const runningActionId =
+    workflowInFlight && instance.install_kind === 'action' ? instance.install_action_id || '' : '';
+
+  // Keep running state fresh while the dropdown is open (silent reloads so
+  // a finished action morphs back to Run without a skeleton flash).
+  useEffect(() => {
+    if (!actionsOpen) return;
+    const t = window.setInterval(() => { void reload(true); }, 3000);
+    return () => window.clearInterval(t);
+  }, [actionsOpen, reload]);
+
+  // Close the dropdown on outside click / Escape.
+  useEffect(() => {
+    if (!actionsOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setActionsOpen(false);
+    };
+    const onClick = (e: PointerEvent) => {
+      const el = dockRef.current;
+      if (el && e.target instanceof Node && !el.contains(e.target)) setActionsOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', onClick);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('pointerdown', onClick);
+    };
+  }, [actionsOpen]);
 
   const canControl = hasPermissionAny(
     permissions,
