@@ -1,12 +1,24 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/shared/stores/authStore';
-import { PermissionKey } from '@/shared/types/permissions';
+import { PermissionKey, hasPermissionAny } from '@/shared/types/permissions';
 import { useAIChatStore } from '../store/aiChatStore';
 
 // Bottom-right FAB that opens the panel-wide AI assistant. Mounted once in
-// App beside ConfirmDialog; hidden on /auth and for roles without
-// AI_CHAT_USE (the backend re-checks on every call).
+// App beside ConfirmDialog; hidden on /auth and for roles without any
+// chat-capable AI key (umbrella or Q&A/Tools/Writes — threads-only holders
+// manage history via API but get no composer, mirroring the backend gate).
+export const AI_CHAT_KEYS = [
+  PermissionKey.AI_CHAT_USE,
+  PermissionKey.AI_CHAT_QA,
+  PermissionKey.AI_CHAT_TOOLS,
+  PermissionKey.AI_CHAT_WRITES,
+] as const;
+
+export function canOpenAIChat(permissions: string[]): boolean {
+  return hasPermissionAny(permissions, ...AI_CHAT_KEYS);
+}
+
 const ChatFab: React.FC = () => {
   const location = useLocation();
   const permissions = useAuthStore((s) => s.permissions);
@@ -14,7 +26,7 @@ const ChatFab: React.FC = () => {
   const toggle = useAIChatStore((s) => s.toggle);
 
   if (location.pathname.startsWith('/auth')) return null;
-  if (!permissions.includes(PermissionKey.AI_CHAT_USE)) return null;
+  if (!canOpenAIChat(permissions)) return null;
 
   return (
     <button

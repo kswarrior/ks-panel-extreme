@@ -32,10 +32,15 @@ export const PermissionKey = {
   // gets it by default; other roles can be denied the self-update verb
   // without losing the rest of the system telemetry (ACCESS_ADMIN_PANEL).
   MANAGE_PANEL_UPDATE: 'MANAGE_PANEL_UPDATE',
-  // Gates the panel-wide AI assistant (POST /api/ai/chat). Standalone
-  // capability, not area-grouped — keep in sync with
-  // internal/permissions/keys.go AIChatUseKey.
+  // AI Chat group: AI_CHAT_USE is the umbrella (full assistant access).
+  // The four sub-caps narrow it so a role can be limited to just Q&A
+  // without fleet tools, or Q&A + read tools without write proposals.
+  // Keep in sync with internal/permissions/keys.go.
   AI_CHAT_USE: 'AI_CHAT_USE',
+  AI_CHAT_QA: 'AI_CHAT_QA',
+  AI_CHAT_TOOLS: 'AI_CHAT_TOOLS',
+  AI_CHAT_WRITES: 'AI_CHAT_WRITES',
+  AI_CHAT_THREADS: 'AI_CHAT_THREADS',
 
   // ----------------------------------------------------------------------
   // Granular per-area CRUD keys (AREAS_ACTION: USERS_VIEW, NODES_CREATE, ...).
@@ -381,6 +386,22 @@ export const PERMISSION_AREAS: PermissionArea[] = [
     ],
     ownKey: PermissionKey.ACCOUNT_OWN,
     allKey: PermissionKey.ACCOUNT_ALL,
+  },
+  // AI Chat cluster. AI_CHAT_USE is the umbrella (ticking it enables the
+  // whole assistant for a role). The four sub-caps narrow it so a role can
+  // be limited to e.g. just Q&A without fleet tools, or Q&A + read tools
+  // without write proposals. No Own/All scope — threads are always
+  // per-user isolated server-side.
+  {
+    label: 'AI Chat',
+    umbrella: PermissionKey.AI_CHAT_USE,
+    keys: {},
+    extraKeys: [
+      PermissionKey.AI_CHAT_QA,
+      PermissionKey.AI_CHAT_TOOLS,
+      PermissionKey.AI_CHAT_WRITES,
+      PermissionKey.AI_CHAT_THREADS,
+    ],
   },
 ];
 

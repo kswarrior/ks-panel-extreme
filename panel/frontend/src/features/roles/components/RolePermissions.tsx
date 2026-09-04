@@ -90,6 +90,10 @@ const GroupIcon: React.FC<{ label: string; size?: number; className?: string }> 
       return (
         <svg {...common}><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
       );
+    case 'AI Chat':
+      return (
+        <svg {...common}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /><path d="M12 7v2" /><path d="M9 11h6" /></svg>
+      );
     default:
       return (
         <svg {...common}><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></svg>

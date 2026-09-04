@@ -6,6 +6,7 @@ import { PermissionKey, hasPermissionAny } from '@/shared/types/permissions';
 import { useAIChatStore } from '../store/aiChatStore';
 import ConfirmCard from './ConfirmCard';
 import ChatSettings from './ChatSettings';
+import { canOpenAIChat } from './ChatFab';
 
 // Floating chat panel: header shows "{panel_name} Assistant", uses the
 // profile-dropdown surface (glass-dropdown) so Theme Studio Dropdowns tab
