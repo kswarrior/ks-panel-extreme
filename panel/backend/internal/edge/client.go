@@ -422,7 +422,7 @@ type InstallStopResponse struct {
 // immediately so the panel can start polling.
 func (c *Client) InstallStart(req InstallStartRequest) (InstallStartResponse, error) {
 	req.Token = c.token
-	// Try WSS tunnel first for reverse_tunnel / local_wss.
+	// Try WSS tunnel first for reverse_tunnel / local_wss / both / local_both.
 	if handled, body, status, err := c.tryTunnel("POST", "/api/edge/install", req); handled {
 		if err != nil {
 			return InstallStartResponse{}, err
@@ -490,7 +490,7 @@ func (c *Client) InstallStart(req InstallStartRequest) (InstallStartResponse, er
 // query param (browsers can't set headers on fetch/EventSource behind proxies).
 func (c *Client) InstallStatus(req InstallStatusRequest) (InstallStatusResponse, error) {
 	req.Token = c.token
-	// Try WSS tunnel first for reverse_tunnel / local_wss.
+	// Try WSS tunnel first for reverse_tunnel / local_wss / both / local_both.
 	if c.isTunnel() {
 		connected := tunnel.Global().IsConnected(c.nodeID)
 		if connected {
@@ -512,7 +512,7 @@ func (c *Client) InstallStatus(req InstallStatusRequest) (InstallStatusResponse,
 				}
 				return out, nil
 			}
-		} else if strings.ToLower(strings.TrimSpace(c.connectionMode)) == "reverse_tunnel" {
+		} else if IsStrictTunnel(c.connectionMode) {
 			return InstallStatusResponse{}, fmt.Errorf("edge not connected via WSS tunnel (reverse_tunnel mode requires edge to be online)")
 		}
 	}
@@ -574,7 +574,7 @@ func urlQueryEscape(s string) string {
 // run the stop_command for the container-side cleanup.
 func (c *Client) InstallStop(req InstallStopRequest) (InstallStopResponse, error) {
 	req.Token = c.token
-	// Try WSS tunnel first for reverse_tunnel / local_wss.
+	// Try WSS tunnel first for reverse_tunnel / local_wss / both / local_both.
 	if handled, body, status, err := c.tryTunnel("POST", "/api/edge/install/stop", req); handled {
 		if err != nil {
 			return InstallStopResponse{}, err
@@ -638,7 +638,7 @@ func (c *Client) Lifecycle(req LifecycleRequest) (LifecycleResponse, error) {
 // this client's structured error.
 func (c *Client) LifecycleCtx(ctx context.Context, req LifecycleRequest) (LifecycleResponse, error) {
 	req.Token = c.token
-	// Try WSS tunnel first for reverse_tunnel / local_wss.
+	// Try WSS tunnel first for reverse_tunnel / local_wss / both / local_both.
 	if handled, body, status, err := c.tryTunnel("POST", "/api/edge/lifecycle", req); handled {
 		if err != nil {
 			return LifecycleResponse{}, err
@@ -751,7 +751,7 @@ func (c *Client) Exec(req ExecRequest) (ExecResponse, error) {
 func (c *Client) ExecCtx(ctx context.Context, req ExecRequest) (ExecResponse, error) {
 	req.Token = c.token
 	req.Action = "exec"
-	// Try WSS tunnel first for reverse_tunnel / local_wss.
+	// Try WSS tunnel first for reverse_tunnel / local_wss / both / local_both.
 	if handled, body, status, err := c.tryTunnel("POST", "/api/edge/exec-rpc", req); handled {
 		if err != nil {
 			return ExecResponse{}, err
@@ -843,7 +843,7 @@ func (c *Client) HostExec(req HostExecRequest) (HostExecResponse, error) {
 // HostExecCtx is HostExec with a caller-supplied context.
 func (c *Client) HostExecCtx(ctx context.Context, req HostExecRequest) (HostExecResponse, error) {
 	req.Token = c.token
-	// Try WSS tunnel first for reverse_tunnel / local_wss.
+	// Try WSS tunnel first for reverse_tunnel / local_wss / both / local_both.
 	if handled, body, status, err := c.tryTunnel("POST", "/api/edge/host-exec", req); handled {
 		if err != nil {
 			return HostExecResponse{}, err
@@ -962,6 +962,10 @@ func (c *Client) Inspect(req InspectRequest) (InspectResponse, error) {
 	httpReq.Header.Set("Content-Type", "application/json")
 	resp, err := c.http.Do(httpReq)
 	if err != nil {
+		var emOut InspectResponse
+		if ok, err2 := c.tryEmergencyTunnel("POST", "/api/edge/inspect", req, &emOut); ok {
+			return emOut, err2
+		}
 		return InspectResponse{}, fmt.Errorf("dial edge: %w", err)
 	}
 	defer resp.Body.Close()
@@ -1041,6 +1045,10 @@ func (c *Client) Snapshot(req SnapshotRequest) (SnapshotResponse, error) {
 	httpReq.Header.Set("Content-Type", "application/json")
 	resp, err := c.http.Do(httpReq)
 	if err != nil {
+		var emOut SnapshotResponse
+		if ok, err2 := c.tryEmergencyTunnel("POST", "/api/edge/snapshot", req, &emOut); ok {
+			return emOut, err2
+		}
 		return SnapshotResponse{}, fmt.Errorf("dial edge: %w", err)
 	}
 	defer resp.Body.Close()
@@ -1154,6 +1162,10 @@ func (c *Client) UpdatePorts(req UpdatePortsRequest) (UpdatePortsResponse, error
 	httpReq.Header.Set("Content-Type", "application/json")
 	resp, err := c.http.Do(httpReq)
 	if err != nil {
+		var emOut UpdatePortsResponse
+		if ok, err2 := c.tryEmergencyTunnel("POST", "/api/edge/ports/update", req, &emOut); ok {
+			return emOut, err2
+		}
 		return UpdatePortsResponse{}, fmt.Errorf("dial edge: %w", err)
 	}
 	defer resp.Body.Close()
@@ -1245,6 +1257,10 @@ func (c *Client) sftpDo(path string, reqBody any) (SFTPResponse, error) {
 	httpReq.Header.Set("Content-Type", "application/json")
 	resp, err := c.http.Do(httpReq)
 	if err != nil {
+		var emOut SFTPResponse
+		if ok, err2 := c.tryEmergencyTunnel("POST", path, reqBody, &emOut); ok {
+			return emOut, err2
+		}
 		return SFTPResponse{}, fmt.Errorf("dial edge: %w", err)
 	}
 	defer resp.Body.Close()
@@ -1312,6 +1328,10 @@ func (c *Client) PageAction(req PageActionRequest) (PageActionResponse, error) {
 	httpReq.Header.Set("Content-Type", "application/json")
 	resp, err := c.http.Do(httpReq)
 	if err != nil {
+		var emOut PageActionResponse
+		if ok, err2 := c.tryEmergencyTunnel("POST", "/api/edge/page-action", req, &emOut); ok {
+			return emOut, err2
+		}
 		return PageActionResponse{}, fmt.Errorf("dial edge: %w", err)
 	}
 	defer resp.Body.Close()
