@@ -58,10 +58,11 @@ type updateWindowScanner interface {
 func scanUpdateWindow(s updateWindowScanner) (UpdateWindow, bool, error) {
 	var w UpdateWindow
 	var id sql.NullInt64
+	var target, name, cron, windowStart, windowEnd, lastStatus sql.NullString
 	var nextRun, lastRun, created, updated sql.NullString
-	var enabled int
-	if err := s.Scan(&id, &w.Target, &w.Name, &w.Cron, &enabled,
-		&w.WindowStart, &w.WindowEnd, &nextRun, &lastRun, &w.LastStatus,
+	var enabled sql.NullInt64
+	if err := s.Scan(&id, &target, &name, &cron, &enabled,
+		&windowStart, &windowEnd, &nextRun, &lastRun, &lastStatus,
 		&created, &updated); err != nil {
 		return w, false, err
 	}
@@ -69,7 +70,10 @@ func scanUpdateWindow(s updateWindowScanner) (UpdateWindow, bool, error) {
 		return w, false, nil
 	}
 	w.ID = id.Int64
-	w.Enabled = enabled == 1
+	w.Target, w.Name, w.Cron = target.String, name.String, cron.String
+	w.WindowStart, w.WindowEnd = windowStart.String, windowEnd.String
+	w.LastStatus = lastStatus.String
+	w.Enabled = enabled.Valid && enabled.Int64 == 1
 	w.NextRunAt = parseUpdateWindowTime(nextRun)
 	w.LastRunAt = parseUpdateWindowTime(lastRun)
 	w.CreatedAt = parseUpdateWindowTime(created)
