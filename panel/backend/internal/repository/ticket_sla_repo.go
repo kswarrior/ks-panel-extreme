@@ -166,6 +166,22 @@ func (r *TicketRepository) MarkBreachedAndEscalate(ticketID int64, at time.Time)
 // work list.
 func (r *TicketRepository) OverdueTickets(now time.Time) ([]models.Ticket, error) {
 	ts := now.UTC().Format("2006-01-02 15:04:05")
+	// COUNT first: modernc sqlite surfaces a phantom all-NULL row on empty
+	// results (see List's early return) which scanTicket would reject as a
+	// NULL→int64 conversion. Early return keeps the sweep log quiet on a
+	// fresh panel with no tickets yet.
+	var total int
+	if err := r.db.QueryRow(
+		`SELECT COUNT(*) FROM tickets t
+		 WHERE t.due_at IS NOT NULL AND t.due_at != '' AND t.due_at < ?
+		   AND t.status NOT IN ('closed', 'resolved')
+		   AND NOT EXISTS (SELECT 1 FROM ticket_sla s WHERE s.ticket_id = t.id AND s.sla_breached = 1)`, ts,
+	).Scan(&total); err != nil {
+		return nil, err
+	}
+	if total == 0 {
+		return []models.Ticket{}, nil
+	}
 	rows, err := r.db.Query(
 		`SELECT `+ticketColumns+` FROM tickets t
 		 WHERE t.due_at IS NOT NULL AND t.due_at != '' AND t.due_at < ?
@@ -181,6 +197,11 @@ func (r *TicketRepository) OverdueTickets(now time.Time) ([]models.Ticket, error
 	for rows.Next() {
 		tk, err := scanTicket(rows)
 		if err != nil {
+			// Tolerate the phantom NULL row defensively even after the
+			// COUNT guard (a ticket deleted mid-sweep races the same way).
+			if strings.Contains(err.Error(), "converting NULL") {
+				continue
+			}
 			return nil, err
 		}
 		out = append(out, *tk)
