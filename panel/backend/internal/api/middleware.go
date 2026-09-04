@@ -300,6 +300,15 @@ func DynamicMaxBodySize() func(http.Handler) http.Handler {
 					limit = backupLimit
 				}
 			}
+			// Per-instance file-level tar backups use chunked PUT with
+			// Content-Range resume; each chunk can be large, so the same
+			// 1 GiB lift applies to avoid truncating a valid tar mid-chunk.
+			if strings.Contains(r.URL.Path, "/backups") && strings.HasPrefix(r.URL.Path, "/api/instances/") {
+				const chunkLimit = 1 << 30 // 1 GiB
+				if limit < chunkLimit {
+					limit = chunkLimit
+				}
+			}
 			r.Body = io.NopCloser(io.LimitReader(r.Body, limit))
 			next.ServeHTTP(w, r)
 		})

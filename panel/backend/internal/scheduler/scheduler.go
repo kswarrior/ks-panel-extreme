@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/example/kspanel/internal/backup"
 	"github.com/example/kspanel/internal/cron"
 	"github.com/example/kspanel/internal/edge"
 	"github.com/example/kspanel/internal/models"
@@ -139,6 +140,162 @@ func sweep(ctx context.Context) {
 	}
 
 	wg.Wait()
+
+	// Backup schedules run in the same minute tick, reusing the TriggerRun
+	// pattern (resolve owner, fire, record, re-arm). Errors are logged, never
+	// fatal to the automation sweep above.
+	sweepBackupSchedules(ctx)
+}
+
+// sweepBackupSchedules fires due backup_schedules rows: kind='db' runs a
+// VACUUM INTO (or native dump) + retention prune + optional S3 push;
+// kind='snapshot' dials the owning edge's snapshot-create + records the
+// row + prunes old snapshots per the schedule's retention.
+func sweepBackupSchedules(ctx context.Context) {
+	con, err := repository.OpenDB()
+	if err != nil {
+		log.Println("backup scheduler: open db:", err)
+		return
+	}
+	defer con.Close()
+	schedRepo := repository.NewBackupScheduleRepository(con)
+	due, err := schedRepo.Due(time.Now())
+	if err != nil {
+		log.Println("backup scheduler: query due:", err)
+		return
+	}
+	for _, s := range due {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+		switch s.Kind {
+		case "db":
+			runDBBackupSchedule(con, schedRepo, s)
+		case "snapshot":
+			runSnapshotSchedule(ctx, con, schedRepo, s)
+		default:
+			_ = schedRepo.MarkRan(s.ID, time.Time{})
+		}
+	}
+}
+
+func runDBBackupSchedule(con interface {
+}, schedRepo *repository.BackupScheduleRepository, s repository.BackupSchedule) {
+	// Separate OpenDB for the backup itself so the schedule row's conn
+	// lifetime doesn't pin the VACUUM lock.
+	b, err := backup.CreateWithOptions("scheduled-"+sanitizeScheduleName(s.Name), s.Compression)
+	if err != nil {
+		log.Printf("backup scheduler: db schedule #%d create failed: %v", s.ID, err)
+		_ = schedRepo.MarkRan(s.ID, nextBackupRun(s.Cron))
+		return
+	}
+	_ = b
+	if removed, perr := backup.Prune(s.KeepLastN, s.MaxAgeDays); perr != nil {
+		log.Printf("backup scheduler: db schedule #%d prune failed: %v", s.ID, perr)
+	} else if len(removed) > 0 {
+		log.Printf("backup scheduler: db schedule #%d pruned %d backups", s.ID, len(removed))
+	}
+	if s.S3Push {
+		if cfg, serr := loadS3ForScheduler(); serr == nil {
+			// Push the newest backup (the one we just created).
+			if latest, lerr := backup.List(); lerr == nil && len(latest) > 0 {
+				_ = backup.S3Push(cfg, latest[0].Path)
+			}
+		} else {
+			log.Printf("backup scheduler: db schedule #%d s3 push skipped (remote not configured)", s.ID)
+		}
+	}
+	_ = schedRepo.MarkRan(s.ID, nextBackupRun(s.Cron))
+}
+
+func runSnapshotSchedule(ctx context.Context, con interface {
+}, schedRepo *repository.BackupScheduleRepository, s repository.BackupSchedule) {
+	if s.InstanceID == nil || *s.InstanceID <= 0 {
+		_ = schedRepo.MarkRan(s.ID, nextBackupRun(s.Cron))
+		return
+	}
+	// Fresh handles (don't reuse the sweep conn across edge dials).
+	dbCon, err := repository.OpenDB()
+	if err != nil {
+		_ = schedRepo.MarkRan(s.ID, nextBackupRun(s.Cron))
+		return
+	}
+	defer dbCon.Close()
+	instRepo := repository.NewInstanceRepository(dbCon)
+	nodeRepo := repository.NewNodeRepository(dbCon)
+	inst, err := instRepo.Get(*s.InstanceID)
+	if err != nil {
+		_ = schedRepo.MarkRan(s.ID, nextBackupRun(s.Cron))
+		return
+	}
+	node, err := nodeRepo.GetNode(inst.NodeID)
+	if err != nil {
+		_ = schedRepo.MarkRan(s.ID, nextBackupRun(s.Cron))
+		return
+	}
+	token, err := nodeRepo.PlainToken(inst.NodeID)
+	if err != nil || token == "" {
+		_ = schedRepo.MarkRan(s.ID, nextBackupRun(s.Cron))
+		return
+	}
+	name := inst.ExternalID
+	if name == "" {
+		name = inst.Name
+	}
+	snapName := fmt.Sprintf("%s-%s", sanitizeScheduleName(s.Name), time.Now().UTC().Format("20060102-150405"))
+	ec := edge.NewWithTimeout(*node, token, 90*time.Second)
+	resp, execErr := ec.Snapshot(edge.SnapshotRequest{
+		Kind: inst.Kind, Name: name, Action: "create", SnapName: snapName,
+	})
+	if execErr != nil {
+		log.Printf("backup scheduler: snapshot schedule #%d edge failed: %v", s.ID, execErr)
+		_ = schedRepo.MarkRan(s.ID, nextBackupRun(s.Cron))
+		return
+	}
+	_, _ = repository.NewSnapshotRepository(dbCon).Create(models.InstanceSnapshot{
+		InstanceID: inst.ID, Name: snapName, ExternalRef: resp.ExternalRef, SizeBytes: resp.SizeBytes,
+		Note: "scheduled",
+	})
+	_, _ = repository.NewInstanceAuditRepository(dbCon).Append(repository.AuditInput{
+		InstanceID: inst.ID, Actor: "system", Action: "snapshot.create",
+		Detail: fmt.Sprintf("scheduled snapshot %q (ref=%s)", snapName, resp.ExternalRef),
+	})
+	pruneSnapshots(dbCon, ec, inst, s.KeepLastN, s.MaxAgeDays)
+	_ = schedRepo.MarkRan(s.ID, nextBackupRun(s.Cron))
+}
+
+// pruneSnapshots keeps the newest keepLastN rows + drops rows older than
+// maxAgeDays, deleting edge-side snapshots best-effort.
+func pruneSnapshots(dbCon interface {
+}, ec *edge.Client, inst *models.Instance, keepLastN, maxAgeDays int) {
+	if keepLastN <= 0 && maxAgeDays <= 0 {
+		return
+	}
+	// Open a fresh query handle via the passed conn when possible.
+	type querier interface {
+		Query(string, ...any) (interface{}, error)
+	}
+	// Use the snapshot repo list (newest-first) then delete the tail.
+	snaps, err := repository.NewSnapshotRepository(asSQLDB(dbCon)).List(inst.ID)
+	if err != nil {
+		return
+	}
+	now := time.Now().UTC()
+	for i, sn := range snaps {
+		overCount := keepLastN > 0 && i >= keepLastN
+		overAge := maxAgeDays > 0 && now.Sub(sn.CreatedAt.UTC()) > time.Duration(maxAgeDays)*24*time.Hour
+		if !overCount && !overAge {
+			continue
+		}
+		workload := inst.ExternalID
+		if workload == "" {
+			workload = inst.Name
+		}
+		_, _ = ec.Snapshot(edge.SnapshotRequest{Kind: inst.Kind, Name: workload, Action: "delete", SnapName: sn.Name})
+		_ = repository.NewSnapshotRepository(asSQLDB(dbCon)).Delete(inst.ID, sn.Name)
+	}
 }
 
 // runJob executes a single automation job. It resolves the instance + node

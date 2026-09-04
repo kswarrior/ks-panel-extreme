@@ -668,6 +668,28 @@ func NewRouter() http.Handler {
 			r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Delete("/{snap_name}", handlers.DeleteSnapshotHandler)
 		})
 
+		// Snapshot schedules (per-instance cron driving edge snapshots +
+		// retention). Same VIEW gate as snapshots; mutators audit.
+		r.Route("/api/instances/{id}/snapshots/schedules", func(r chi.Router) {
+			r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Get("/", handlers.ListSnapshotSchedulesHandler)
+			r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Post("/", handlers.CreateSnapshotScheduleHandler)
+			r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Put("/{schedule_id}", handlers.UpdateSnapshotScheduleHandler)
+			r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Delete("/{schedule_id}", handlers.DeleteSnapshotScheduleHandler)
+		})
+
+		// Per-instance file-level tar backups (panel-stored, chunked
+		// upload with Content-Range resume + Range download). Same VIEW
+		// gate as snapshots; chunked routes get the 1 GiB lift in
+		// DynamicMaxBodySize.
+		r.Route("/api/instances/{id}/backups", func(r chi.Router) {
+			r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Get("/", handlers.ListInstanceBackupsHandler)
+			r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Post("/", handlers.InitInstanceBackupHandler)
+			r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Put("/{bid}/chunk", handlers.UploadInstanceBackupChunkHandler)
+			r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Get("/{bid}/download", handlers.DownloadInstanceBackupHandler)
+			r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Post("/{bid}/restore", handlers.RestoreInstanceBackupHandler)
+			r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Delete("/{bid}", handlers.DeleteInstanceBackupHandler)
+		})
+
 		// Per-instance audit timeline.
 		r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Get("/api/instances/{id}/audit", handlers.ListInstanceAuditHandler)
 
