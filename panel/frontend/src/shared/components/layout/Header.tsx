@@ -513,10 +513,16 @@ const Header: React.FC<HeaderProps> = ({
         {!inInstancePanel && (() => {
           const crumb = resolveHeaderCrumb(location.pathname);
           if (!crumb) return null;
-          const crumbIcon = (crumb.icon && SidebarIcons[crumb.icon]) || null;
-          const iconNode = crumbIcon ? (
-            <span aria-hidden="true" className="shrink-0 inline-flex items-center text-gray-400 [&_svg]:w-3.5 [&_svg]:h-3.5">
-              {crumbIcon}
+          const rawIcon = (crumb.icon && SidebarIcons[crumb.icon]) || null;
+          // Same glyph as the sidebar, upsized for the header title.
+          const sizedIcon = React.isValidElement(rawIcon)
+            ? React.cloneElement(rawIcon as React.ReactElement<{ className?: string }>, {
+                className: 'w-5 h-5',
+              })
+            : rawIcon;
+          const iconNode = sizedIcon ? (
+            <span aria-hidden="true" className="shrink-0 inline-flex items-center text-gray-300">
+              {sizedIcon}
             </span>
           ) : null;
           return (
