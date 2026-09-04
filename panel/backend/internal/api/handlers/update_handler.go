@@ -43,9 +43,15 @@ import (
 //	  "notes":      "Highlights for the release",  // markdown-ish, optional
 //	  "size_bytes": 12345678,                 // binary size, informational
 //	  "sha256":     "<64 hex of kspanel>",    // verified pre-swap, optional
+//	  "sha256_edge":"<64 hex of ksedge>",     // edge verifies this one
 //	  "signature":  "<cosign sig output>",    // informational, optional
+//	  "signature_edge": "<cosign sig>",       // informational, optional
 //	  "sha256_url": "https://…/kspanel.sha256" // explicit sidecar, optional
 //	}
+//
+// The same manifest serves the edge (ksedgeVersionURL): the edge resolves
+// sha256_edge (never the bare sha256 — different bytes). Stamp it from
+// the build artifacts with tools/stamp-version-manifest.sh.
 const (
 	kspanelBaseURL    = "https://huggingface.co/buckets/kswarrior/opencode-storage/resolve/ks-panel/release"
 	kspanelVersionURL = kspanelBaseURL + "/version.json?download=true"
@@ -69,9 +75,13 @@ type updateVersionManifest struct {
 	// reinstall paths hash the temp file BEFORE chmod/swap and abort on
 	// mismatch — see update_verify.go. Signature carries the optional
 	// cosign output (SIGN_KEY builds) for out-of-band verification.
-	SHA256    string `json:"sha256"`
-	Signature string `json:"signature"`
-	SHA256URL string `json:"sha256_url"`
+	// SHA256Edge/SignatureEdge are the ksedge counterparts sharing this
+	// manifest (surfaced by update-check; the edge verifies sha256_edge).
+	SHA256        string `json:"sha256"`
+	SHA256Edge    string `json:"sha256_edge"`
+	Signature     string `json:"signature"`
+	SignatureEdge string `json:"signature_edge"`
+	SHA256URL     string `json:"sha256_url"`
 }
 
 // updateInfoResponse is the GET /api/system/update-info payload. It

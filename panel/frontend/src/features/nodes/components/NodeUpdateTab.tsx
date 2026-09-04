@@ -299,9 +299,9 @@ const NodeUpdateTab: React.FC<NodeUpdateTabProps> = ({ nodeId, nodeName }) => {
               </div>
             )}
             <div className="mt-3 text-[11px] font-mono">
-              {check.remote.sha256 ? (
+              {(check.remote.sha256_edge || check.remote.sha256) ? (
                 <span className="text-emerald-300">
-                  SHA-256 published ({check.remote.sha256.slice(0, 12)}…) — download verified before install
+                  SHA-256 published ({(check.remote.sha256_edge || check.remote.sha256 || '').slice(0, 12)}…) — download verified before install
                 </span>
               ) : (
                 <span className="text-amber-300">

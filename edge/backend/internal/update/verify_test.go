@@ -90,11 +90,15 @@ func TestResolveEdgeExpectedSHA256PrefersManifest(t *testing.T) {
 
 // TestResolveEdgeIgnoresPanelDigest: the shared manifest's bare sha256 is
 // the PANEL binary — accepting it for ksedge would verify against the
-// wrong bytes, so it must be ignored (empty, no error → unverified path).
+// wrong bytes, so it must never be returned (whatever the sidecar fetch
+// does, the panel digest is not a valid answer).
 func TestResolveEdgeIgnoresPanelDigest(t *testing.T) {
-	got, err := resolveEdgeExpectedSHA256(versionManifest{Version: "0.1.1", SHA256: sha256HexOf("kspanel-binary")})
+	panelDigest := sha256HexOf("kspanel-binary")
+	got, err := resolveEdgeExpectedSHA256(versionManifest{Version: "0.1.1", SHA256: panelDigest})
 	if err != nil {
 		t.Fatalf("panel digest must not error, got: %v", err)
 	}
-	_ = got
+	if got == panelDigest {
+		t.Fatal("edge resolver must never accept the panel sha256")
+	}
 }

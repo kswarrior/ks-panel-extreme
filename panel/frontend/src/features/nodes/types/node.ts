@@ -169,8 +169,11 @@ export interface NodeEdgeRemoteManifest {
   size_bytes?: number;
   /** Hex SHA-256 of the ksedge binary — verified pre-swap when present. */
   sha256?: string;
+  /** Hex SHA-256 of the ksedge binary (shared-manifest field the edge verifies). */
+  sha256_edge?: string;
   /** Optional cosign signature output, informational. */
   signature?: string;
+  signature_edge?: string;
 }
 
 export interface NodeUpdateInfoResponse {

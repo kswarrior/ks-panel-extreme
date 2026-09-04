@@ -1363,11 +1363,15 @@ type EdgeVersionInfo struct {
 }
 
 type EdgeRemoteManifest struct {
-	Version   string `json:"version"`
-	Commit    string `json:"commit,omitempty"`
-	BuildDate string `json:"build_date,omitempty"`
-	Notes     string `json:"notes,omitempty"`
-	SizeBytes int64  `json:"size_bytes,omitempty"`
+	Version       string `json:"version"`
+	Commit        string `json:"commit,omitempty"`
+	BuildDate     string `json:"build_date,omitempty"`
+	Notes         string `json:"notes,omitempty"`
+	SizeBytes     int64  `json:"size_bytes,omitempty"`
+	SHA256        string `json:"sha256,omitempty"`
+	SHA256Edge    string `json:"sha256_edge,omitempty"`
+	Signature     string `json:"signature,omitempty"`
+	SignatureEdge string `json:"signature_edge,omitempty"`
 }
 
 type EdgeUpdateInfoResponse struct {
