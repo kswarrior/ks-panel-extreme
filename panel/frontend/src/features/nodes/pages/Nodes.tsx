@@ -253,9 +253,10 @@ const AdminNodes: React.FC = () => {
       showTimer.current = window.setTimeout(() => setActionsVisible(true), delay);
     };
     // Scroll fires on Layout's <main>, not window — capture on document.
+    // Bar slides back in from the right 2.5s after scrolling settles.
     const onScroll = () => {
       setActionsVisible(false);
-      scheduleShow(1200);
+      scheduleShow(2500);
     };
     // Clicks inside the pill (search/filter/popovers) keep it visible.
     // composedPath avoids the DOM Node name (shadowed by the data model).
@@ -263,7 +264,7 @@ const AdminNodes: React.FC = () => {
       const path = typeof e.composedPath === 'function' ? e.composedPath() : [];
       if (pillRef.current && !path.includes(pillRef.current)) {
         setActionsVisible(false);
-        scheduleShow(4000);
+        scheduleShow(2500);
       }
     };
     document.addEventListener('scroll', onScroll, true);
