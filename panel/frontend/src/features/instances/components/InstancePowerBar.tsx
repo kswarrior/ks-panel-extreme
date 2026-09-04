@@ -125,6 +125,16 @@ const InstancePowerBar: React.FC<{ variant?: 'dock' | 'pill' }> = ({ variant = '
     });
   };
 
+  const status = instance?.status ?? '';
+  const isRunning = status === 'running';
+  // Transitional states (deploy/install in flight) — no power action is valid,
+  // so render no buttons rather than clickable-then-failing ones.
+  const isTransitional = status === 'creating' || status === 'installing';
+  // State-aware buttons: stopped/errored/etc → Start only;
+  // running → Stop + Restart (Start hidden); transitional → none.
+  const showStart = !isRunning && !isTransitional;
+  const busyAny = busy !== null || loading;
+
   const run = async (action: 'start' | 'stop' | 'restart') => {
     if (!instance || busy) return;
     setBusy(action);
@@ -148,6 +158,11 @@ const InstancePowerBar: React.FC<{ variant?: 'dock' | 'pill' }> = ({ variant = '
   // busyAction/stopPending, exactly like the card's __ksBusyAction guard.
   const runTemplateAction = async (actionId: string) => {
     if (!instance || busyAction || stopPending) return;
+    const def = templateActions.find((t: any) => t.id === actionId);
+    // State gate (defense in depth — the row is disabled too): a stopped
+    // action may only start in an allowed state, but the RUNNING action
+    // must always stay stoppable.
+    if (actionId !== runningActionId && !actionStateOk(def, status)) return;
     setError('');
     if (actionId === runningActionId) {
       setStopPending(actionId);
@@ -171,16 +186,6 @@ const InstancePowerBar: React.FC<{ variant?: 'dock' | 'pill' }> = ({ variant = '
       }
     }
   };
-
-  const status = instance?.status ?? '';
-  const isRunning = status === 'running';
-  // Transitional states (deploy/install in flight) — no power action is valid,
-  // so render no buttons rather than clickable-then-failing ones.
-  const isTransitional = status === 'creating' || status === 'installing';
-  // State-aware buttons: stopped/errored/etc → Start only;
-  // running → Stop + Restart (Start hidden); transitional → none.
-  const showStart = !isRunning && !isTransitional;
-  const busyAny = busy !== null || loading;
 
   // NOTE: buttons deliberately do NOT use the `ks-tab` class. The theme
   // system forces ks-tab padding/font/border via `!important`
@@ -411,7 +416,14 @@ const InstancePowerBar: React.FC<{ variant?: 'dock' | 'pill' }> = ({ variant = '
               const isThisRunning = workflowInFlight && runningActionId === a.id;
               const isBusy = busyAction === a.id;
               const stopping = isThisRunning && stopPending === a.id;
-              const disabled = (workflowInFlight && !isThisRunning) || isBusy || stopping;
+              // State gate: a stopped action only starts in an allowed
+              // state — but the RUNNING action must always stay stoppable.
+              const stateOk = actionStateOk(a, status);
+              const disabled = (workflowInFlight && !isThisRunning) || isBusy || stopping || (!isThisRunning && !stateOk);
+              const stateHint = !stateOk && !isThisRunning ? `Available in: ${actionAllowedStates(a).join(', ')}` : '';
+              const custom = a.icon_svg ? sanitizeSvgIcon(a.icon_svg) : '';
+              const customFull = custom.trim().toLowerCase().startsWith('<svg');
+              const iconColor = typeof a.icon_color === 'string' ? a.icon_color.trim() : '';
               return (
                 <button
                   key={a.id}
@@ -421,7 +433,7 @@ const InstancePowerBar: React.FC<{ variant?: 'dock' | 'pill' }> = ({ variant = '
                   disabled={disabled}
                   title={isThisRunning
                     ? (a.stop_command ? `Stop: runs "${a.stop_command}" inside the container` : 'Stop the running action')
-                    : (a.description || a.name || a.id)}
+                    : (stateHint || a.description || a.name || a.id)}
                   className={`w-full flex flex-col items-start gap-0.5 rounded px-2.5 py-2 text-left transition disabled:opacity-40 disabled:cursor-not-allowed ${
                     isThisRunning ? 'text-red-300 hover:bg-red-900/30' : 'text-emerald-300 hover:bg-emerald-900/30'
                   }`}
@@ -429,11 +441,20 @@ const InstancePowerBar: React.FC<{ variant?: 'dock' | 'pill' }> = ({ variant = '
                   <span className="text-[13px] font-medium leading-tight inline-flex items-center gap-1.5">
                     {(isBusy || isThisRunning || stopping) ? (
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3 animate-spin shrink-0" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+                    ) : custom ? (
+                      customFull ? (
+                        <span className="shrink-0 flex items-center [&>svg]:w-3 [&>svg]:h-3 [&>svg]:block" style={iconColor ? { color: iconColor } : undefined} aria-hidden="true" dangerouslySetInnerHTML={{ __html: custom }} />
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3 shrink-0" style={iconColor ? { color: iconColor } : undefined} aria-hidden="true" dangerouslySetInnerHTML={{ __html: custom }} />
+                      )
                     ) : (
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3 shrink-0" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3" /></svg>
                     )}
                     {a.name || a.id}
                   </span>
+                  {!stateOk && !isThisRunning && (
+                    <span className="text-[10px] uppercase tracking-wide text-gray-500 leading-tight">{stateHint}</span>
+                  )}
                 </button>
               );
             })}
