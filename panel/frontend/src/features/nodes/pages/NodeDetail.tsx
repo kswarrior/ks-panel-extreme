@@ -12,6 +12,7 @@ import { STATE_STYLES, MONITOR_BARS, DRIVER_ARCS } from '../types/nodes';
 import { Gauge } from '@/features/system/components/SystemCharts';
 import { fmtGB } from '@/features/system/components/SystemCharts';
 import { useConfirm } from '@/shared/stores/confirmStore';
+import NodeUpdateTab from '../components/NodeUpdateTab';
 
 function getErrorMessage(e: any, fallback: string): string {
   const data = e?.response?.data;
