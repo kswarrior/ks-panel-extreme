@@ -34,6 +34,7 @@ const TemplateStats: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [timeRange, setTimeRange] = useState<'1h' | '6h' | '24h' | '7d'>('24h');
   const [kindFilter, setKindFilter] = useState<KindKey | 'all'>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [filterOpen, setFilterOpen] = useState(false);
@@ -174,6 +175,18 @@ const TemplateStats: React.FC = () => {
               buttonClassName="ks-tab inline-flex items-center justify-center"
               buttonStyle={PILL_TAB_STYLE}
             />
+            <select
+              value={timeRange}
+              onChange={(e) => setTimeRange(e.target.value as any)}
+              className="ks-tab"
+              style={PILL_TAB_STYLE}
+              aria-label="Time range"
+            >
+              <option value="1h">Last hour</option>
+              <option value="6h">Last 6 hours</option>
+              <option value="24h">Last 24 hours</option>
+              <option value="7d">Last 7 days</option>
+            </select>
             <div className="relative" ref={filterRef}>
               <button
                 type="button"

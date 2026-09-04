@@ -9,6 +9,7 @@ import {
   StatCard,
 } from '@/shared/components/ui/StatDashboard';
 import GlassCard from '@/shared/components/ui/Card';
+import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import { useAuthStore } from '@/shared/stores/authStore';
 
@@ -27,7 +28,10 @@ const InstanceStats: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [now, setNow] = useState<Date>(() => new Date());
+  const [search, setSearch] = useState('');
+  const [timeRange, setTimeRange] = useState<'1h' | '6h' | '24h' | '7d'>('24h');
   const [filterOpen, setFilterOpen] = useState(false);
+  const [statsFilter, setStatsFilter] = useState<StatsFilterKey>('all');
   const filterRef = useRef<HTMLDivElement>(null);
   const user = useAuthStore((s) => s.user);
   const [allTemplates, setAllTemplates] = useState<Template[]>([]);
@@ -107,9 +111,24 @@ const InstanceStats: React.FC = () => {
   const [statsFilter, setStatsFilter] = useState<StatsFilterKey>('all');
 
   const filteredInstances = useMemo(() => {
-    if (statsFilter === 'all') return instances;
-    return instances.filter((i) => i.status === statsFilter);
-  }, [instances, statsFilter]);
+    const q = search.trim().toLowerCase();
+    let out = instances;
+    if (q) {
+      out = out.filter((i) =>
+        (i.name || '').toLowerCase().includes(q) ||
+        (i.display_name || '').toLowerCase().includes(q) ||
+        (i.node_name || '').toLowerCase().includes(q) ||
+        (i.template_name || '').toLowerCase().includes(q) ||
+        (i.owner_name || '').toLowerCase().includes(q) ||
+        (i.kind || '').toLowerCase().includes(q)
+      );
+    }
+    if (statsFilter !== 'all') {
+      if (statsFilter === 'suspended') out = out.filter((i) => i.suspended === 1);
+      else out = out.filter((i) => i.status === statsFilter);
+    }
+    return out;
+  }, [instances, search, statsFilter]);
 
   const statusSlices = useMemo(() => [
     { label: 'Running', value: stats.running, color: '#34d399' },
