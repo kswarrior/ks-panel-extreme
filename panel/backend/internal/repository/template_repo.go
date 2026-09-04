@@ -31,7 +31,10 @@ func (r *TemplateRepository) List() ([]models.Template, error) {
 	if n == 0 {
 		return out, nil
 	}
-	rows, err := r.db.Query(`SELECT t.id, t.name, t.description, t.kind, t.image, t.spec, t.created_at, t.updated_at,
+	rows, err := r.db.Query(`SELECT t.id, t.name, t.description, t.kind, t.image, t.spec,
+		COALESCE(t.icon, ''),
+		COALESCE(t.color, ''),
+		t.created_at, t.updated_at,
 		COALESCE(t.owner_id, 0),
 		COALESCE((SELECT username FROM users WHERE id = t.owner_id), '')
 		FROM templates t ORDER BY t.name ASC`)
@@ -44,7 +47,7 @@ func (r *TemplateRepository) List() ([]models.Template, error) {
 		var created, updated string
 		var ownerID sql.NullInt64
 		var ownerName sql.NullString
-		if err := rows.Scan(&t.ID, &t.Name, &t.Description, &t.Kind, &t.Image, &t.Spec, &created, &updated, &ownerID, &ownerName); err != nil {
+		if err := rows.Scan(&t.ID, &t.Name, &t.Description, &t.Kind, &t.Image, &t.Spec, &t.Icon, &t.Color, &created, &updated, &ownerID, &ownerName); err != nil {
 			return nil, err
 		}
 		if ownerID.Valid {
@@ -83,13 +86,16 @@ func (r *TemplateRepository) ListByOwner(ownerID int64) ([]models.Template, erro
 func (r *TemplateRepository) Get(id int64) (*models.Template, error) {
 	var t models.Template
 	var tid, ownerID sql.NullInt64
-	var name, desc, kind, image, spec, created, updated sql.NullString
+	var name, desc, kind, image, spec, icon, color, created, updated sql.NullString
 	var ownerName sql.NullString
-	err := r.db.QueryRow(`SELECT t.id, t.name, t.description, t.kind, t.image, t.spec, t.created_at, t.updated_at,
+	err := r.db.QueryRow(`SELECT t.id, t.name, t.description, t.kind, t.image, t.spec,
+		COALESCE(t.icon, ''),
+		COALESCE(t.color, ''),
+		t.created_at, t.updated_at,
 		COALESCE(t.owner_id, 0),
 		COALESCE((SELECT username FROM users WHERE id = t.owner_id), '')
 		FROM templates t WHERE t.id = ?`, id).Scan(
-		&tid, &name, &desc, &kind, &image, &spec, &created, &updated, &ownerID, &ownerName)
+		&tid, &name, &desc, &kind, &image, &spec, &icon, &color, &created, &updated, &ownerID, &ownerName)
 	if err != nil || !tid.Valid {
 		return nil, fmt.Errorf("template not found")
 	}
@@ -99,6 +105,8 @@ func (r *TemplateRepository) Get(id int64) (*models.Template, error) {
 	t.Kind = kind.String
 	t.Image = image.String
 	t.Spec = spec.String
+	t.Icon = icon.String
+	t.Color = color.String
 	if ownerID.Valid {
 		t.OwnerID = ownerID.Int64
 		t.OwnerName = ownerName.String
@@ -114,13 +122,16 @@ func (r *TemplateRepository) Get(id int64) (*models.Template, error) {
 func (r *TemplateRepository) GetByName(name string) (*models.Template, error) {
 	var t models.Template
 	var tid, ownerID sql.NullInt64
-	var nm, desc, kind, image, spec, created, updated sql.NullString
+	var nm, desc, kind, image, spec, icon, color, created, updated sql.NullString
 	var ownerName sql.NullString
-	err := r.db.QueryRow(`SELECT t.id, t.name, t.description, t.kind, t.image, t.spec, t.created_at, t.updated_at,
+	err := r.db.QueryRow(`SELECT t.id, t.name, t.description, t.kind, t.image, t.spec,
+		COALESCE(t.icon, ''),
+		COALESCE(t.color, ''),
+		t.created_at, t.updated_at,
 		COALESCE(t.owner_id, 0),
 		COALESCE((SELECT username FROM users WHERE id = t.owner_id), '')
 		FROM templates t WHERE t.name = ?`, name).Scan(
-		&tid, &nm, &desc, &kind, &image, &spec, &created, &updated, &ownerID, &ownerName)
+		&tid, &nm, &desc, &kind, &image, &spec, &icon, &color, &created, &updated, &ownerID, &ownerName)
 	if err != nil || !tid.Valid {
 		return nil, fmt.Errorf("template not found")
 	}
@@ -130,6 +141,8 @@ func (r *TemplateRepository) GetByName(name string) (*models.Template, error) {
 	t.Kind = kind.String
 	t.Image = image.String
 	t.Spec = spec.String
+	t.Icon = icon.String
+	t.Color = color.String
 	if ownerID.Valid {
 		t.OwnerID = ownerID.Int64
 		t.OwnerName = ownerName.String
@@ -148,6 +161,8 @@ type TemplateInput struct {
 	Kind        string
 	Image       string
 	Spec        string
+	Icon        string
+	Color       string
 	OwnerID     int64
 }
 
@@ -161,11 +176,11 @@ func (r *TemplateRepository) Create(in TemplateInput) (int64, error) {
 	var res sql.Result
 	var err error
 	if in.OwnerID != 0 {
-		res, err = r.db.Exec(`INSERT INTO templates (name, description, kind, image, spec, owner_id) VALUES (?, ?, ?, ?, ?, ?)`,
-			in.Name, in.Description, in.Kind, in.Image, in.Spec, in.OwnerID)
+		res, err = r.db.Exec(`INSERT INTO templates (name, description, kind, image, spec, icon, color, owner_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			in.Name, in.Description, in.Kind, in.Image, in.Spec, in.Icon, in.Color, in.OwnerID)
 	} else {
-		res, err = r.db.Exec(`INSERT INTO templates (name, description, kind, image, spec) VALUES (?, ?, ?, ?, ?)`,
-			in.Name, in.Description, in.Kind, in.Image, in.Spec)
+		res, err = r.db.Exec(`INSERT INTO templates (name, description, kind, image, spec, icon, color) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			in.Name, in.Description, in.Kind, in.Image, in.Spec, in.Icon, in.Color)
 	}
 	if err != nil {
 		return 0, err
@@ -177,8 +192,8 @@ func (r *TemplateRepository) Create(in TemplateInput) (int64, error) {
 // stale SQLite driver (older modernc builds) doesn't skip the ON UPDATE
 // column.
 func (r *TemplateRepository) Update(id int64, in TemplateInput) error {
-	res, err := r.db.Exec(`UPDATE templates SET name = ?, description = ?, kind = ?, image = ?, spec = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-		in.Name, in.Description, in.Kind, in.Image, in.Spec, id)
+	res, err := r.db.Exec(`UPDATE templates SET name = ?, description = ?, kind = ?, image = ?, spec = ?, icon = ?, color = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+		in.Name, in.Description, in.Kind, in.Image, in.Spec, in.Icon, in.Color, id)
 	if err != nil {
 		return err
 	}

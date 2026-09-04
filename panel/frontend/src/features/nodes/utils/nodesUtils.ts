@@ -89,17 +89,42 @@ export function buildEdgeConfig(
   address: string,
   useTls: boolean,
   token: string,
+  opts?: {
+    connectionMode?: string;
+    port?: string | number;
+    skipVerify?: boolean;
+    instancesDir?: string;
+  },
 ): string {
   const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5050';
-  const cfg = {
+  // Derive the edge listen port from the explicit opt first, then from the
+  // node address (host:port), falling back to 4040 for bare hosts / tunnel.
+  let listenPort = 4040;
+  if (opts?.port !== undefined && opts.port !== '') {
+    const n = Number(opts.port);
+    if (Number.isFinite(n) && n > 0) listenPort = n;
+  } else {
+    const m = String(address || '').match(/:(\d+)\s*$/);
+    if (m) {
+      const n = Number(m[1]);
+      if (Number.isFinite(n) && n > 0 && n <= 65535) listenPort = n;
+    }
+  }
+  const upstreamTls = origin.trim().toLowerCase().startsWith('https');
+  void useTls;
+  const cfg: Record<string, any> = {
     uuid: 'auto-generated-by-panel',
     name,
     panel_url: origin,
     token,
-    listen_port: 4040,
+    listen_port: listenPort,
     heartbeat_interval: 60,
-    use_tls_upstream: useTls,
-    skip_verify: false,
+    use_tls_upstream: upstreamTls,
+    skip_verify: Boolean(opts?.skipVerify),
+    connection_mode: (opts?.connectionMode || 'direct') as string,
   };
+  if (opts?.instancesDir && String(opts.instancesDir).trim()) {
+    cfg.instances_dir = String(opts.instancesDir).trim();
+  }
   return JSON.stringify(cfg, null, 2);
 }

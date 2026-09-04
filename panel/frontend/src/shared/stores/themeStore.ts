@@ -540,42 +540,52 @@ export interface ApplyOpts {
 function matchingScopeCss(scopes: Record<string, string> | undefined, pathname: string): string {
   if (!scopes) return '';
   const out: string[] = [];
-  let matchedPage = false;
+  const seen = new Set<string>();
+  const push = (scope: string, suffix = '') => {
+    if (seen.has(scope)) return;
+    const css = scopes[scope];
+    if (css) {
+      out.push(`/* Custom CSS — ${scope}${suffix} */\n${css}`);
+      seen.add(scope);
+    }
+  };
   // Page-level override: the first catalog page whose matcher accepts
   // the pathname wins (mirrors resolveThemeIdByRoute's first-match
   // semantics exactly).
   for (const p of CATALOGUE) {
     if (p.match(pathname, '')) {
-      const css = scopes[scopeForPage(p.id)];
-      if (css) out.push(`/* Custom CSS — page:${p.id} */\n${css}`);
-      matchedPage = true;
+      push(scopeForPage(p.id));
       break;
     }
   }
-  // Instance sub-page fallback: ensure Custom CSS assigned to page:instance.panel.files
-  // also emits on /instances/123/files/edit (which doesn't match the exact tab matcher).
-  // This guarantees complete theme support for every instance sub-page.
-  if (!matchedPage) {
-    const instSub = pathname.match(/^\/instances\/\d+\/([^/]+)(\/.*)?$/);
-    if (instSub) {
-      const tab = instSub[1];
-      const tabPageMap: Record<string, string> = {
-        files: 'instance.panel.files',
-        network: 'instance.panel.network',
-        terminal: 'instance.panel.terminal',
-        settings: 'instance.panel.settings',
-      };
-      const mapped = tabPageMap[tab];
-      if (mapped) {
-        const css = scopes[scopeForPage(mapped)];
-        if (css) out.push(`/* Custom CSS — page:${mapped} (sub-page) */\n${css}`);
-        matchedPage = true;
-      }
-      // Custom pages (any other slug) fall through to the catch-all
-      if (!matchedPage) {
-        const css = scopes[scopeForPage('instance.panel.custom')];
-        if (css) out.push(`/* Custom CSS — page:instance.panel.custom (sub-page) */\n${css}`);
-      }
+  // Instance sub-page fallback: mirror resolveThemeIdByRoute exactly so a
+  // Custom CSS block assigned to page:instance.panel.files also emits on
+  // /instances/123/files/edit (the exact tab matcher is exact-only, while
+  // the catch-all instance.panel.custom matches the sub-path first). This
+  // runs for EVERY instance sub-page — not only when the exact loop
+  // missed — because the exact loop matches the catch-all custom page for
+  // sub-paths and would otherwise shadow the tab-specific block.
+  // Map mirrors resolveThemeIdByRoute's tabPageMap one-to-one.
+  const instSub = pathname.match(/^\/instances\/\d+\/([^/]+)(\/.*)?$/);
+  if (instSub) {
+    const tab = instSub[1];
+    const tabPageMap: Record<string, string> = {
+      files: 'instance.panel.files',
+      network: 'instance.panel.network',
+      terminal: 'instance.panel.terminal',
+      settings: 'instance.panel.settings',
+      metrics: 'instance.panel.custom',
+      audit: 'instance.panel.custom',
+      automation: 'instance.panel.custom',
+      backups: 'instance.panel.custom',
+      env: 'instance.panel.custom',
+      ports: 'instance.panel.custom',
+      processes: 'instance.panel.custom',
+    };
+    const mapped = tabPageMap[tab] || 'instance.panel.custom';
+    push(scopeForPage(mapped), ' (sub-page)');
+    if (mapped !== 'instance.panel.custom') {
+      push(scopeForPage('instance.panel.custom'), ' (sub-page)');
     }
   }
   // Area-level default.
@@ -800,6 +810,13 @@ function buildVars(theme: Theme, opts?: ApplyOpts): string {
   --ks-header-border: ${h.border_color};
   --ks-header-text: ${h.text_color};
   --ks-header-height: ${h.height}px;
+  /* Header page-switch loading bar (Header.tsx). The bar fill + track +
+     thickness are theme-driven so the studio's Header tab restyles the
+     sweep without touching Header.tsx; position/enabled are read by
+     Header.tsx from the resolved theme (they change layout, not paint). */
+  --ks-header-loading-bar-color: ${safeCssValue((h as any).loading_bar_color ?? '#ffffff', '#ffffff')};
+  --ks-header-loading-bar-background: ${safeCssValue((h as any).loading_bar_background ?? 'transparent', 'transparent')};
+  --ks-header-loading-bar-height: ${clampNum((h as any).loading_bar_height, DEFAULT_THEME.header.loading_bar_height, 1, 8)}px;
 
   --ks-btn-bg: ${b.background};
   --ks-btn-text: ${b.text_color};
@@ -1251,6 +1268,21 @@ body { color: var(--ks-text-body); }
   color: var(--ks-header-text);
   height: var(--ks-header-height, 56px) !important;
   min-height: var(--ks-header-height, 56px) !important;
+}
+
+/* Header page-switch loading bar — Google-style hairline pinned to the
+   header edge while a page opens. The track paints the theme's
+   loading_bar_background; the fill paints loading_bar_color. Thickness
+   comes from loading_bar_height so the studio slider restyles it live.
+   A dedicated element (not border-b) is used so the themed
+   --ks-header-border (!important) can never recolor it. */
+.ks-header-loading-track {
+  background-color: var(--ks-header-loading-bar-background, transparent) !important;
+  height: var(--ks-header-loading-bar-height, 2px) !important;
+}
+.ks-header-loading-fill {
+  background-color: var(--ks-header-loading-bar-color, #ffffff) !important;
+  height: 100% !important;
 }
 
 /* Loading animation speed. The Loading component renders the spin/bounce/
@@ -2233,7 +2265,7 @@ interface ThemeState {
   beginDraft: (seed?: Theme) => void;
   editDraft: (seed: Theme) => void;
   patchDraft: (section: ThemeKey, patch: Record<string, any>) => void;
-  patchDraftMeta: (patch: Partial<Pick<Theme, 'name' | 'description'>>) => void;
+  patchDraftMeta: (patch: Partial<Pick<Theme, 'name' | 'description' | 'icon' | 'color'>>) => void;
   saveDraft: (asNew: boolean) => Theme;
   discardDraft: () => void;
   reapply: () => void;
@@ -2574,28 +2606,20 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   },
 
   beginDraft: (seed) => {
-    const base = seed ? structuredCloneSafe(seed) : structuredCloneSafe(get().active());
+    const raw = seed ? structuredCloneSafe(seed) : structuredCloneSafe(get().active());
     // beginDraft creates a NEW theme: blank id so save(false) allocates a
     // fresh one in saveDraft. The seed's *values* are kept as the starting
     // point so "New theme" picks up from the look the admin sees today.
-    // Backfill any missing new fields from DEFAULT so older saved themes
-    // (that pre-date card.glass_style) still populate them on draft.
+    // Full-shape backfill via migrateThemeSections so a seed that pre-dates
+    // ANY section (header loading-bar, forms, dropdowns, …) still yields a
+    // fully-shaped draft — the studio never reads undefined.
+    const base = migrateThemeSections(raw);
     set({
       draft: {
         ...base,
         id: '',
         name: base.name === 'Default' ? 'My Theme' : base.name,
         builtin: false,
-        card: { ...DEFAULT_THEME.card, ...base.card, glass_style: base.card.glass_style || DEFAULT_THEME.card.glass_style },
-        // Backfill every section so a seed that pre-dates a section still
-        // yields a fully-shaped draft (the studio never reads undefined).
-        // The seed's *values* are intentionally KEPT — beginDraft's contract
-        // is "new theme starts from the look the admin sees today".
-        forms: { ...DEFAULT_THEME.forms, ...(base.forms || {}) },
-        components: { ...DEFAULT_THEME.components, ...(base.components || {}) },
-        utilities: { ...DEFAULT_THEME.utilities, ...(base.utilities || {}) },
-        cards: { ...DEFAULT_THEME.cards, ...(base.cards || {}) },
-        customCSS: migrateCustomCSS((base as any).customCSS),
       },
     });
   },
@@ -2603,14 +2627,11 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   editDraft: (seed) => {
     // editDraft preserves the seed's id so save(false) updates the existing
     // theme in place. Without preservation every Edit flow would clone.
-    // customCSS is backfilled defensively so an older seed (no customCSS
-    // field yet) still shows a well-shaped section in the studio.
-    const clone = structuredCloneSafe(seed);
+    // Full-shape backfill so an older seed (missing any newer section)
+    // still shows well-shaped controls in the studio.
+    const clone = migrateThemeSections(structuredCloneSafe(seed));
     set({
-      draft: {
-        ...clone,
-        customCSS: migrateCustomCSS((clone as any).customCSS),
-      },
+      draft: clone,
     });
   },
 
@@ -2651,10 +2672,11 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     // user expects "I just saved a card with a gradient, show it on the
     // panel right now". We re-apply the just-saved theme's spec DIRECTLY
     // (not via the resolver) so the new card bg / image / video / gradient
-    // paint immediately. Navigation away re-resolves against the route so
-    // the next page picks whichever assignment is in effect.
+    // paint immediately. Navigation away re-resolves against the route
+    // (via RouteThemeSync) so the next page picks whichever assignment is
+    // in effect. No second applyForRoute here — it would immediately undo
+    // this paint when the saved theme isn't assigned to this route.
     applyTheme(saved, { pathname: typeof window !== 'undefined' ? window.location.pathname : '/' });
-    if (typeof window !== 'undefined') get().applyForRoute(window.location.pathname);
     return saved;
   },
 

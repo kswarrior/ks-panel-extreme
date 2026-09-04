@@ -59,7 +59,22 @@ const ThemePreview: React.FC<{ theme: Theme; className?: string }> = ({ theme, c
         background: theme.header.background,
         borderColor: theme.header.border_color,
         borderBottomWidth: 1, borderStyle: 'solid',
-      }} />
+      }}>
+        {/* mini loading bar — mirrors Header.tsx (fill sweeps at 70%) so the
+            Header tab's bar color / track / thickness / edge show in the tile. */}
+        {(theme.header as any)?.loading_bar_enabled !== false && (
+          <div
+            style={{
+              position: 'absolute', left: 0, right: 0,
+              ...((theme.header as any)?.loading_bar_position === 'top' ? { top: 0 } : { bottom: 0 }),
+              height: Math.max(1, Math.min(4, (theme.header as any)?.loading_bar_height ?? 2)),
+              backgroundColor: (theme.header as any)?.loading_bar_background ?? 'transparent',
+            }}
+          >
+            <div style={{ width: '70%', height: '100%', backgroundColor: (theme.header as any)?.loading_bar_color ?? '#ffffff' }} />
+          </div>
+        )}
+      </div>
 
       {/* mini cards */}
       <div style={{ position: 'absolute', top: 22, left: sidebarW + 6, right: 6, display: 'flex', gap: 4 }}>

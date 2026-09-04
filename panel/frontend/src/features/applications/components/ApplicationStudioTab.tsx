@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import GlassCard from '@/shared/components/ui/Card';
+import IconColorPicker from '@/shared/components/ui/IconColorPicker';
 import { appCapabilityMeta } from '@/features/applications/types/application';
 import type { ApplicationConfigField } from '@/features/applications/types/application';
 
@@ -19,6 +20,8 @@ interface ApplicationStudioTabProps {
       runtime: string;
       mainFile: string;
       command: string;
+      icon: string;
+      color: string;
     };
     permission: { capability: string; access_level: string; granted: boolean }[];
     configure: Record<string, string>;
@@ -32,6 +35,8 @@ interface ApplicationStudioTabProps {
       runtime: string;
       mainFile: string;
       command: string;
+      icon: string;
+      color: string;
     };
     permission: { capability: string; access_level: string; granted: boolean }[];
     configure: Record<string, string>;
@@ -86,6 +91,14 @@ export default function ApplicationStudioTab({
       </div>
 
       {studioTab === 'general' && (
+        <div className="space-y-3">
+          <IconColorPicker
+            icon={studioForm.general.icon || ''}
+            color={studioForm.general.color || ''}
+            onIconChange={(v) => setStudioForm((prev) => ({ ...prev, general: { ...prev.general, icon: v } }))}
+            onColorChange={(v) => setStudioForm((prev) => ({ ...prev, general: { ...prev.general, color: v } }))}
+            previewName={studioForm.general.name || 'Application'}
+          />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <label className="block">
             <span className="text-xs text-gray-400">Name</span>
@@ -145,6 +158,7 @@ export default function ApplicationStudioTab({
               onChange={(e) => setStudioForm((prev) => ({ ...prev, general: { ...prev.general, command: e.target.value } }))}
             />
           </label>
+        </div>
         </div>
       )}
 

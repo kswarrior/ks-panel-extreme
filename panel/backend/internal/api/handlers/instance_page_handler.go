@@ -54,6 +54,8 @@ type instancePageDTO struct {
 	ContentMarkdown string `json:"content_markdown"`
 	ContentBlocks   string `json:"content_blocks"`
 	IconSVG         string `json:"icon_svg"`
+	// IconColor is an optional #rrggbb accent tinting the tile (060).
+	IconColor string `json:"icon_color"`
 	// Actions is a JSON array of executable page actions ("" == none).
 	Actions string `json:"actions"`
 	// SubPages is a JSON array of extra page definitions that ship with this
@@ -472,6 +474,10 @@ func validateInstancePage(req instancePageDTO) (instancePageDTO, error) {
 	}
 	// Icons render inline in the panel origin — store only sanitized markup.
 	req.IconSVG = sanitizeIconSVG(strings.TrimSpace(req.IconSVG))
+	if req.IconColor != "" && !validNodeColorHex(strings.TrimSpace(req.IconColor)) {
+		return req, newErrString("icon_color must be a #rrggbb hex value")
+	}
+	req.IconColor = strings.ToUpper(strings.TrimSpace(req.IconColor))
 	if req.Kind == "" {
 		req.Kind = defaultInstancePageKind
 	}
@@ -600,6 +606,7 @@ func CreateInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		ContentMarkdown: req.ContentMarkdown,
 		ContentBlocks:   req.ContentBlocks,
 		IconSVG:         req.IconSVG,
+		IconColor:       req.IconColor,
 		Actions:         req.Actions,
 		SubPages:        req.SubPages,
 		Components:      req.Components,
@@ -692,6 +699,7 @@ func UpdateInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		ContentMarkdown: req.ContentMarkdown,
 		ContentBlocks:   req.ContentBlocks,
 		IconSVG:         req.IconSVG,
+		IconColor:       req.IconColor,
 		Actions:         req.Actions,
 		SubPages:        req.SubPages,
 		Components:      req.Components,
@@ -825,7 +833,7 @@ func BulkCreateInstancePagesHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	stmt, err := tx.Prepare(`INSERT INTO instance_pages (name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, actions, sub_pages, components, configure, source, market_id, market_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+	stmt, err := tx.Prepare(`INSERT INTO instance_pages (name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, icon_color, actions, sub_pages, components, configure, source, market_id, market_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
@@ -850,7 +858,7 @@ func BulkCreateInstancePagesHandler(w http.ResponseWriter, r *http.Request) {
 			skipped++
 			continue
 		}
-		res, eerr := stmt.Exec(dto.Name, dto.Slug, dto.Kind, dto.Category, dto.Type, dto.Description, dto.ContentType, dto.ContentHTML, dto.ContentMarkdown, dto.ContentBlocks, dto.IconSVG, dto.Actions, dto.SubPages, dto.Components, dto.Configure, pageSourceStudio, "", "")
+		res, eerr := stmt.Exec(dto.Name, dto.Slug, dto.Kind, dto.Category, dto.Type, dto.Description, dto.ContentType, dto.ContentHTML, dto.ContentMarkdown, dto.ContentBlocks, dto.IconSVG, dto.IconColor, dto.Actions, dto.SubPages, dto.Components, dto.Configure, pageSourceStudio, "", "")
 		if eerr != nil {
 			if isDuplicateSlugError(eerr.Error()) {
 				skipped++
@@ -919,6 +927,7 @@ type linkInstancePageReq struct {
 	TemplateIDs []int64 `json:"template_ids"`
 	Label       string  `json:"label"`
 	IconSVG     string  `json:"icon_svg"`
+	IconColor   string  `json:"icon_color"`
 	Enabled     *bool   `json:"enabled"`
 }
 
@@ -1017,6 +1026,15 @@ func LinkInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			if icon != "" {
 				pageEntry["icon_svg"] = icon
+			}
+		}
+		if req.IconColor != "" || page.IconColor != "" {
+			c := strings.ToUpper(strings.TrimSpace(req.IconColor))
+			if c == "" || !validNodeColorHex(c) {
+				c = strings.ToUpper(strings.TrimSpace(page.IconColor))
+			}
+			if c != "" && validNodeColorHex(c) {
+				pageEntry["icon_color"] = c
 			}
 		}
 
@@ -1805,6 +1823,7 @@ type ImportInstancePageRequest struct {
 	ContentMarkdown string `json:"content_markdown"`
 	ContentBlocks   string `json:"content_blocks"`
 	IconSVG         string `json:"icon_svg"`
+	IconColor       string `json:"icon_color"`
 	Actions         string `json:"actions"`
 	// Components is a JSON array of reusable UI blocks.
 	Components string `json:"components"`
@@ -1995,6 +2014,7 @@ func ImportInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		ContentMarkdown: req.ContentMarkdown,
 		ContentBlocks:   req.ContentBlocks,
 		IconSVG:         req.IconSVG,
+		IconColor:       req.IconColor,
 		Actions:         req.Actions,
 		SubPages:        req.subPagesJSON(),
 		Components:      req.Components,
@@ -2028,6 +2048,7 @@ func ImportInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		ContentMarkdown: dto.ContentMarkdown,
 		ContentBlocks:   dto.ContentBlocks,
 		IconSVG:         dto.IconSVG,
+		IconColor:       dto.IconColor,
 		Actions:         dto.Actions,
 		SubPages:        dto.SubPages,
 		Components:      dto.Components,
@@ -2117,7 +2138,7 @@ func ListInstancePageModulesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var modules []instancePageModuleManifest
+	var modules = make([]instancePageModuleManifest, 0)
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
@@ -2641,6 +2662,7 @@ func ImportInstancePageFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		ContentMarkdown: pageReq.ContentMarkdown,
 		ContentBlocks:   pageReq.ContentBlocks,
 		IconSVG:         pageReq.IconSVG,
+		IconColor:       pageReq.IconColor,
 		Actions:         pageReq.Actions,
 		SubPages:        pageReq.subPagesJSON(),
 		Components:      pageReq.Components,
@@ -2674,6 +2696,7 @@ func ImportInstancePageFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		ContentMarkdown: dto.ContentMarkdown,
 		ContentBlocks:   dto.ContentBlocks,
 		IconSVG:         dto.IconSVG,
+		IconColor:       dto.IconColor,
 		Actions:         dto.Actions,
 		SubPages:        dto.SubPages,
 		Components:      dto.Components,
@@ -2712,6 +2735,7 @@ type MarketplacePage struct {
 	Tags         []string `json:"tags"`
 	DownloadURL  string   `json:"download_url"`
 	IconSVG      string   `json:"icon_svg"`
+	IconColor    string   `json:"icon_color"`
 	PreviewImage string   `json:"preview_image"`
 }
 
@@ -2864,6 +2888,7 @@ func ImportInstancePageFromMarketplaceHandler(w http.ResponseWriter, r *http.Req
 		ContentMarkdown: pageReq.ContentMarkdown,
 		ContentBlocks:   pageReq.ContentBlocks,
 		IconSVG:         pageReq.IconSVG,
+		IconColor:       pageReq.IconColor,
 		Actions:         pageReq.Actions,
 		SubPages:        pageReq.subPagesJSON(),
 		Components:      pageReq.Components,
@@ -2898,6 +2923,7 @@ func ImportInstancePageFromMarketplaceHandler(w http.ResponseWriter, r *http.Req
 		ContentMarkdown: dto.ContentMarkdown,
 		ContentBlocks:   dto.ContentBlocks,
 		IconSVG:         dto.IconSVG,
+		IconColor:       dto.IconColor,
 		Actions:         dto.Actions,
 		SubPages:        dto.SubPages,
 		Components:      dto.Components,
@@ -3049,6 +3075,7 @@ func ResyncMarketplacePagesHandler(w http.ResponseWriter, r *http.Request) {
 			ContentMarkdown: pageReq.ContentMarkdown,
 			ContentBlocks:   pageReq.ContentBlocks,
 			IconSVG:         pageReq.IconSVG,
+		IconColor:       pageReq.IconColor,
 			Actions:         pageReq.Actions,
 			SubPages:        pageReq.subPagesJSON(),
 			Components:      pageReq.Components,
@@ -3076,6 +3103,7 @@ func ResyncMarketplacePagesHandler(w http.ResponseWriter, r *http.Request) {
 			ContentMarkdown: dto.ContentMarkdown,
 			ContentBlocks:   dto.ContentBlocks,
 			IconSVG:         dto.IconSVG,
+		IconColor:       dto.IconColor,
 			Actions:         dto.Actions,
 			SubPages:        dto.SubPages,
 			Components:      dto.Components,
@@ -3173,6 +3201,7 @@ func ImportLocalInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		ContentMarkdown: pageReq.ContentMarkdown,
 		ContentBlocks:   pageReq.ContentBlocks,
 		IconSVG:         pageReq.IconSVG,
+		IconColor:       pageReq.IconColor,
 		Actions:         pageReq.Actions,
 		SubPages:        pageReq.subPagesJSON(),
 		Components:      pageReq.Components,
@@ -3206,6 +3235,7 @@ func ImportLocalInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		ContentMarkdown: dto.ContentMarkdown,
 		ContentBlocks:   dto.ContentBlocks,
 		IconSVG:         dto.IconSVG,
+		IconColor:       dto.IconColor,
 		Actions:         dto.Actions,
 		SubPages:        dto.SubPages,
 		Components:      dto.Components,

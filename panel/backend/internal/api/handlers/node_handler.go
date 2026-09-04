@@ -1106,7 +1106,11 @@ func SetupLocalNodeHandler(w http.ResponseWriter, r *http.Request) {
 
 	// 2) Write the panel-generated config.json. The token is the raw edge
 	//    token stored on the node row, identical to what the manual snippet
-	//    embeds.
+	//    embeds. use_tls_upstream describes edge→panel TLS (panel_url
+	//    scheme), not the panel→edge node.UseTLS flag — deriving it from the
+	//    observed panel scheme keeps https panels consistent. The edge
+	//    currently derives TLS from panel_url itself (flag retained for
+	//    backwards compat with older configs).
 	cfg := map[string]any{
 		"uuid":               fmt.Sprintf("panel-local-%d", id),
 		"name":               node.Name,
@@ -1114,7 +1118,7 @@ func SetupLocalNodeHandler(w http.ResponseWriter, r *http.Request) {
 		"token":              token,
 		"listen_port":        parseIntDefault(port, 4040),
 		"heartbeat_interval": 60,
-		"use_tls_upstream":   node.UseTLS,
+		"use_tls_upstream":   scheme == "https",
 		"skip_verify":        node.SkipTLSVerify,
 		"connection_mode":    node.ConnectionMode,
 	}
@@ -1194,9 +1198,19 @@ func SetupLocalNodeHandler(w http.ResponseWriter, r *http.Request) {
 
 // isLocalAddress reports whether a node address points at the panel host
 // itself (127.0.0.1 or localhost), which is the only case where the panel
-// can reasonably launch the edge binary in-process.
+// can reasonably launch the edge binary in-process. Accepts the full
+// loopback family (127/8, localhost, ::1, [::1]) to stay symmetric with the
+// frontend's isLocalAddress — otherwise an IPv6 loopback edge passes the
+// form as local but Setup/Purge rejects it with 400.
 func isLocalAddress(addr string) bool {
-	return strings.HasPrefix(addr, "127.0.0.1:") || strings.HasPrefix(addr, "localhost:")
+	addr = strings.TrimSpace(addr)
+	if strings.HasPrefix(addr, "127.") || strings.HasPrefix(addr, "localhost:") || addr == "localhost" {
+		return true
+	}
+	if addr == "::1" || strings.HasPrefix(addr, "::1:") || strings.HasPrefix(addr, "[::1]") {
+		return true
+	}
+	return false
 }
 
 // isLocalNode reports whether a node row is a localhost edge that the panel

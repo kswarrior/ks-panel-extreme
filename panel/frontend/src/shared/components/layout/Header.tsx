@@ -32,6 +32,42 @@ const Header: React.FC<HeaderProps> = ({
   const location = useLocation();
   const [loggingOut, setLoggingOut] = React.useState<boolean>(false);
 
+  // Page-switch loader — white hairline that sweeps left → right ONLY while
+  // a new page is opening (null = hidden/idle, number = visible width %).
+  // Trigger is the route key so it fires when any page opens, including the
+  // first mount, and stays hidden otherwise (fixes always-visible line).
+  const [loadProgress, setLoadProgress] = React.useState<number | null>(null);
+  const loadTimers = React.useRef<number[]>([]);
+  const reducedMotion = usePrefsStore((s) => s.reducedMotion);
+
+  React.useEffect(() => {
+    if (reducedMotion) {
+      loadTimers.current.forEach((t) => window.clearTimeout(t));
+      loadTimers.current = [];
+      setLoadProgress(null);
+      return;
+    }
+    loadTimers.current.forEach((t) => window.clearTimeout(t));
+    loadTimers.current = [];
+    setLoadProgress(0);
+    const t1 = window.setTimeout(() => setLoadProgress(70), 30);
+    const t2 = window.setTimeout(() => setLoadProgress(90), 350);
+    const t3 = window.setTimeout(() => setLoadProgress(100), 650);
+    const t4 = window.setTimeout(() => setLoadProgress(null), 950);
+    loadTimers.current = [t1, t2, t3, t4];
+    return () => {
+      loadTimers.current.forEach((t) => window.clearTimeout(t));
+      loadTimers.current = [];
+    };
+  }, [location.pathname, location.search, reducedMotion]);
+
+  React.useEffect(() => {
+    return () => {
+      loadTimers.current.forEach((t) => window.clearTimeout(t));
+      loadTimers.current = [];
+    };
+  }, []);
+
   // Pick up the brand and bootstrap document.title. The hook dedupes the
   // network fetch, so multiple components calling it is fine.
   const panelName = useSettingsStore((s) => s.panelName);
@@ -48,12 +84,24 @@ const Header: React.FC<HeaderProps> = ({
   const globalThemes = useThemeStore((s) => s.globalThemes);
   const assignments = useThemeStore((s) => s.assignments);
   const assignTheme = useThemeStore((s) => s.assignTheme);
+  const resolveThemeForRoute = useThemeStore((s) => s.resolveThemeForRoute);
+
+  // Header loading-bar theme — resolved for the CURRENT route so the bar
+  // repaints on navigation (same resolver RouteThemeSync uses to paint the
+  // CSS vars). Falls back to the Default look when an older theme lacks the
+  // fields. Paint itself comes from the --ks-header-loading-bar-* vars the
+  // store emits; position/enabled change layout so they are read here.
+  const headerTheme = React.useMemo(
+    () => resolveThemeForRoute(location.pathname)?.header as any,
+    [resolveThemeForRoute, location.pathname],
+  );
+  const lbEnabled = headerTheme?.loading_bar_enabled ?? true;
+  const lbPosition = headerTheme?.loading_bar_position === 'top' ? 'top' : 'bottom';
 
   // The active area for the Theme submenu is the area the user is
   // currently looking at (default: admin). Switching a theme here
   // assigns it to that whole area's scope.
-  const currentArea: AreaId | null =
-    typeof window === 'undefined' ? null : areaFor(window.location.pathname);
+  const currentArea: AreaId | null = areaFor(location.pathname);
 
   // Merged, deduped list of themes (built-in + local + global). Used
   // both as menu rows and for the "currently active" checkmark.
@@ -300,7 +348,7 @@ const Header: React.FC<HeaderProps> = ({
   );
 
   return (
-    <header className="glass-chrome ks-header-bg w-full flex items-center justify-between sticky top-0 z-20">
+    <header className="glass-chrome ks-header-bg w-full flex items-center justify-between sticky top-0 z-20 relative">
       <div className="flex items-center gap-2 min-w-0">
         {/* Sidebar toggle — mobile only. Modern three-line icon with
             smooth pill-style bars that compress on hover and reveal a
@@ -434,6 +482,26 @@ const Header: React.FC<HeaderProps> = ({
                 />
               </button>
             )}
+          />
+        </div>
+      )}
+      {/* Page-load bar — Google-style sweep shown ONLY while a page opens
+          (Header mounts once in Layout, so the route-key effect above
+          re-fires on every navigation). Hidden when idle, when the theme
+          disables it (header.loading_bar_enabled), or under reduced motion.
+          Fill / track / thickness come from the theme vars
+          (--ks-header-loading-bar-*) so the Header tab restyles it live;
+          edge (top/bottom) comes from header.loading_bar_position. A
+          dedicated element is used instead of border-b so the themed
+          --ks-header-border (!important) can never recolor it. */}
+      {lbEnabled && loadProgress !== null && (
+        <div
+          aria-hidden="true"
+          className={`ks-header-loading-track pointer-events-none absolute left-0 right-0 bg-transparent ${lbPosition === 'top' ? 'top-0' : 'bottom-0'}`}
+        >
+          <div
+            className="ks-header-loading-fill transition-all duration-300 ease-out"
+            style={{ width: `${loadProgress}%` }}
           />
         </div>
       )}

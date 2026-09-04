@@ -16,7 +16,14 @@ type Template struct {
 	// Spec is the JSON blob of driver-specific config (env, ports, limits,
 	// mounts, command…). Treated as opaque by the panel beyond validation of
 	// being well-formed JSON.
-	Spec      string    `json:"spec"`
+	Spec string `json:"spec"`
+	// Icon is raw SVG markup for the template tile (same convention as
+	// instances: full <svg>…</svg> block or inner markup, empty = driver
+	// kind glyph). Migration 059.
+	Icon string `json:"icon,omitempty"`
+	// Color is an optional #rrggbb accent tinting the tile on cards.
+	// Empty = theme default. Migration 059.
+	Color     string    `json:"color,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 	// OwnerID ties the template to the user that created it. Migration
@@ -71,6 +78,9 @@ type InstancePage struct {
 	// for the template editor's per-page Configure values.
 	Configure string `json:"configure"`
 	IconSVG    string `json:"icon_svg"`
+	// IconColor is an optional #rrggbb accent tinting the icon_svg tile on
+	// library cards. Empty = theme default. Migration 060.
+	IconColor string `json:"icon_color,omitempty"`
 	// Source tracks page provenance for the library badges: "studio" (own
 	// pages incl. Studio/file/URL creates), "market" (fresh marketplace
 	// import, unmodified), "edited" (market import later modified).

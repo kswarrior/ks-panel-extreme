@@ -93,23 +93,39 @@ func (c *Client) Run(ctx context.Context) {
 			return
 		default:
 		}
+		start := time.Now()
 		if err := c.connectAndServe(ctx); err != nil {
 			// Don't spam logs on every reconnect.
 			if ctx.Err() == nil {
 				log.Printf("tunnel: disconnected: %v (retry in %s)", err, backoff)
 			}
 		}
-		// Exponential backoff capped at 30s.
+		// Reset backoff after a stable connection so a single historic flap
+		// doesn't pin retries at 30s forever. Only short-lived sessions
+		// (immediate dial failures, auth rejects) keep growing the delay.
+		if time.Since(start) > 10*time.Second {
+			backoff = time.Second
+		} else {
+			// Exponential backoff capped at 30s.
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(backoff):
+			}
+			if backoff < 30*time.Second {
+				backoff *= 2
+				if backoff > 30*time.Second {
+					backoff = 30 * time.Second
+				}
+			}
+			continue
+		}
+		// Stable session ended — still honour a short delay before redial
+		// so a clean panel restart doesn't tight-loop, then continue.
 		select {
 		case <-ctx.Done():
 			return
 		case <-time.After(backoff):
-		}
-		if backoff < 30*time.Second {
-			backoff *= 2
-			if backoff > 30*time.Second {
-				backoff = 30 * time.Second
-			}
 		}
 	}
 }
@@ -141,7 +157,9 @@ func (c *Client) connectAndServe(ctx context.Context) error {
 	}
 	defer conn.Close()
 	log.Printf("tunnel: connected to panel via WSS")
-	// Reset backoff on successful connect
+	// Note: backoff reset lives in Run (based on session length), not here,
+	// so immediate dial-then-drop loops still back off while stable
+	// long-lived sessions reset to 1s on the next retry.
 	// Handle incoming requests.
 	for {
 		select {

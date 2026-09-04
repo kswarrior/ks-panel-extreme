@@ -57,7 +57,7 @@ export async function uploadApplicationFile(
 
 export async function updateApplication(
   id: number,
-  payload: Pick<ApplicationUpsertPayload, 'name' | 'category' | 'version' | 'description' | 'icon' | 'runtime' | 'entrypoint' | 'config_schema'> &
+  payload: Pick<ApplicationUpsertPayload, 'name' | 'category' | 'version' | 'description' | 'icon' | 'color' | 'runtime' | 'entrypoint' | 'config_schema'> &
     Partial<Pick<ApplicationUpsertPayload, 'files'>>,
 ): Promise<Application> {
   const res = await client.put<Application>(`/api/applications/${id}`, payload);

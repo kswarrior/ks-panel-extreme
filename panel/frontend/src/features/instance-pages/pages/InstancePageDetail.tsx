@@ -5,7 +5,17 @@ import type { InstancePage } from '@/shared/types/instancePage';
 import { parseSubPages, parsePageActions, parsePageComponents, parsePageConfigure, pageSourceOf } from '@/features/instance-pages/types/instancePage';
 import GlassCard from '@/shared/components/ui/Card';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
+import { CardIconTile } from '@/shared/components/ui/IconColorPicker';
 import { useConfirm } from '@/shared/stores/confirmStore';
+
+// SOURCE_META mirrors InstancePages.tsx so the detail header badge reads
+// identically to the library cards: market (fresh import), edited (market
+// import later modified), studio (own pages).
+const SOURCE_META: Record<string, { label: string; badge: string; dot: string }> = {
+  market: { label: 'Market', badge: 'bg-sky-900/60 text-sky-200 border-sky-700/60', dot: 'bg-sky-400' },
+  edited: { label: 'Edited', badge: 'bg-amber-900/60 text-amber-200 border-amber-700/60', dot: 'bg-amber-400' },
+  studio: { label: 'Studio', badge: 'bg-emerald-900/60 text-emerald-200 border-emerald-700/60', dot: 'bg-emerald-400' },
+};
 
 function getErrorMessage(e: any, fallback: string): string {
   const data = e?.response?.data;
@@ -149,18 +159,29 @@ const InstancePageDetail: React.FC = () => {
 
       <GlassCard className="ks-stat-card p-4">
         <div className="flex items-start gap-3">
-          <div className="shrink-0 w-10 h-10 rounded-lg flex items-center justify-center bg-white/[0.05] border border-white/10 text-gray-300">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-              <rect x="3" y="3" width="18" height="18" rx="2" />
-            </svg>
-          </div>
+          <CardIconTile
+            icon={(page as any).icon_svg || ''}
+            color={(page as any).icon_color || ''}
+            size="md"
+            fallback={
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+              </svg>
+            }
+          />
           <div className="flex-1 min-w-0">
             <h3 className="text-sm font-semibold text-white truncate">{page.name}</h3>
             <p className="text-[11px] text-gray-400 font-mono">/{page.slug} · {page.kind}</p>
           </div>
-          <span className={`inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wide px-2 py-1 rounded-md border ${page.kind === 'builtin' ? 'bg-sky-900/60 text-sky-200 border-sky-700/60' : 'bg-emerald-900/60 text-emerald-200 border-emerald-700/60'}`}>
-            {page.kind}
-          </span>
+          {(() => {
+            const meta = SOURCE_META[source] ?? SOURCE_META.studio;
+            return (
+              <span className={`inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wide px-2 py-1 rounded-md border ${meta.badge}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${meta.dot}`} />
+                {meta.label}
+              </span>
+            );
+          })()}
         </div>
 
         <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">

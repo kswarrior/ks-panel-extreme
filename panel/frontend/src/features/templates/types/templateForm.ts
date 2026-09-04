@@ -138,6 +138,7 @@ export interface PageOverride {
   enabled: boolean;
   label: string;
   icon_svg: string;
+  icon_color?: string;
   original_slug?: string;
   kind?: 'custom' | 'builtin';
   content_type?: 'html' | 'markdown' | 'blocks';
@@ -259,6 +260,10 @@ export interface TemplateFormState {
   description: string;
   kind: DriverKind;
   image: string;
+  /** Raw SVG markup for the template tile (migration 059). */
+  icon: string;
+  /** Optional #rrggbb accent tinting the tile on cards. */
+  color: string;
   ports: PortMapping[];
   mounts: Mount[];
   limits: ResourceLimits;
@@ -342,6 +347,8 @@ export const emptyForm: TemplateFormState = {
   description: '',
   kind: 'docker',
   image: '',
+  icon: '',
+  color: '',
   ports: [{ host: '', guest: '', protocol: 'tcp' }],
   mounts: [{ source: '', target: '', mode: 'rw' }],
   limits: { ram_mb: '', cpu_pct: '', disk_mb: '', swap_mb: '' },

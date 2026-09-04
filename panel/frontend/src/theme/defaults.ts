@@ -96,6 +96,11 @@ export const DEFAULT_THEME: Theme = {
     border_color: 'rgba(255,255,255,0.10)',
     height: 55,
     text_color: '#ffffff',
+    loading_bar_enabled: true,
+    loading_bar_color: '#ffffff',
+    loading_bar_height: 2,
+    loading_bar_position: 'bottom',
+    loading_bar_background: 'transparent',
   },
 
   typography: {

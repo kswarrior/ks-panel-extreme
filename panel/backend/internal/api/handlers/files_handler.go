@@ -270,7 +270,12 @@ func proxyToEdge(w http.ResponseWriter, r *http.Request, id int64, op, path, con
 	mode := strings.ToLower(strings.TrimSpace(node.ConnectionMode))
 	isTunnelMode := mode == "reverse_tunnel" || mode == "local_wss"
 	connected := tunnel.Global().IsConnected(node.ID)
-	if isTunnelMode && connected {
+	// local_wss binary ops skip the tunnel and fall through to direct HTTP
+	// below: the edge listens on 127.0.0.1:<port> on the same host, so a
+	// loopback dial succeeds even while the tunnel is up. reverse_tunnel
+	// has no dialable address and correctly stays on the 501 path.
+	isLocalWSSBinary := mode == "local_wss" && (op == "read" || op == "write" || op == "upload")
+	if isTunnelMode && connected && !isLocalWSSBinary {
 		tunnelPath := "/api/edge/files?" + q.Encode()
 		// Binary payloads (read/write/upload) are not yet fully tunneled
 		// due to the tunnel's 8 MiB JSON message limit and the edge's
@@ -278,6 +283,7 @@ func proxyToEdge(w http.ResponseWriter, r *http.Request, id int64, op, path, con
 		// rename/delete/chmod) the tunnel works transparently; for binary
 		// ops we return a structured hint so the SPA can surface a useful
 		// banner instead of a generic dial failure to 127.0.0.1:4040.
+		// (local_wss bypasses this block above via isLocalWSSBinary.)
 		if op == "read" {
 			writeJSONStatus(w, http.StatusNotImplemented, map[string]any{
 				"error": "file download via WSS tunnel not yet supported for binary files",
@@ -900,10 +906,12 @@ func proxyToEdgeWithBody(w http.ResponseWriter, r *http.Request, id int64, op, t
 	}
 
 	// Tunnel guard for the URL-upload proxy (shares the same constraints as proxyToEdge).
+	// local_wss falls through to direct loopback HTTP (same-host dial works);
+	// only reverse_tunnel is truly undialable and gets the 501.
 	mode := strings.ToLower(strings.TrimSpace(node.ConnectionMode))
 	isTunnelMode := mode == "reverse_tunnel" || mode == "local_wss"
 	connected := tunnel.Global().IsConnected(node.ID)
-	if isTunnelMode && connected {
+	if isTunnelMode && connected && mode != "local_wss" {
 		// Binary upload via tunnel would hit the 8 MiB JSON message limit and the edge's
 		// octet-stream handling – not yet tunneled. Report clearly instead of dialing 127.0.0.1.
 		writeJSONStatus(w, http.StatusNotImplemented, map[string]any{

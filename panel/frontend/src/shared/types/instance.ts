@@ -14,6 +14,14 @@ export interface Template {
   image: string;
   /** JSON blob of driver-specic config (env, ports, limits…). Opaque to UI. */
   spec: string;
+  /** Raw SVG markup for the template tile (migration 059). Empty = driver glyph. */
+  icon?: string;
+  /** Optional #rrggbb accent tinting the tile on cards. */
+  color?: string;
+  /** Owning user ID — 0/undefined = pre-054 orphan row. */
+  owner_id?: number;
+  /** Joined owner username for display. */
+  owner_name?: string;
   created_at: string;
   updated_at: string;
 }

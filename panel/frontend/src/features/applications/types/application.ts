@@ -42,6 +42,8 @@ export interface Application {
   version: string;
   description: string;
   icon: string;
+  /** Optional #rrggbb accent tinting the tile on cards (migration 061). */
+  color?: string;
   runtime: string;
   entrypoint: string;
   config_schema: ApplicationConfigField[];
@@ -74,6 +76,7 @@ export interface ApplicationUpsertPayload {
   version: string;
   description: string;
   icon: string;
+  color?: string;
   runtime: string;
   entrypoint: string;
   config_schema: ApplicationConfigField[];

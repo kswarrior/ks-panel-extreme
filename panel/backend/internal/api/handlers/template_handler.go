@@ -33,6 +33,11 @@ type templateDTO struct {
 	Kind        string `json:"kind"`
 	Image       string `json:"image"`
 	Spec        string `json:"spec"`
+	// Display identity (migration 059): raw SVG markup for the tile
+	// (same convention as instances) + #rrggbb accent colour. Both
+	// optional — empty == driver default / theme default.
+	Icon  string `json:"icon"`
+	Color string `json:"color"`
 }
 
 // validKinds is the set of ksedge drivers a template may target. Kept here
@@ -75,11 +80,6 @@ func validateTemplateSpec(spec map[string]any) error {
 
 	// Validate install[] if present
 	if rawInstall, ok := spec["install"].([]any); ok {
-		validInstallActions := map[string]bool{
-			"shell": true, "download": true, "extract": true, "move": true,
-			"write": true, "chmod": true, "mkdir": true, "git_clone": true,
-			"pip_install": true, "npm_install": true, "http_check": true,
-		}
 		for i, s := range rawInstall {
 			m, ok := s.(map[string]any)
 			if !ok {
@@ -194,6 +194,12 @@ func validateTemplate(req templateDTO) (string, error) {
 	if !validKinds[req.Kind] {
 		return "", errString("kind must be one of: docker, lxd, kvm, multipass")
 	}
+	if req.Icon != "" && len(req.Icon) > 16*1024 {
+		return "", errString("icon too large (max 16KB)")
+	}
+	if req.Color != "" && !validNodeColorHex(strings.TrimSpace(req.Color)) {
+		return "", errString("color must be a #rrggbb hex value")
+	}
 	spec := req.Spec
 	if spec == "" {
 		spec = "{}"
@@ -270,6 +276,7 @@ func CreateTemplateHandler(w http.ResponseWriter, r *http.Request) {
 	uid, _ := UserIDFromContext(r)
 	id, err := repository.NewTemplateRepository(con).Create(repository.TemplateInput{
 		Name: req.Name, Description: req.Description, Kind: req.Kind, Image: req.Image, Spec: spec,
+		Icon: strings.TrimSpace(req.Icon), Color: strings.ToUpper(strings.TrimSpace(req.Color)),
 		OwnerID: uid,
 	})
 	if err != nil {
@@ -318,8 +325,20 @@ func handleTemplateFileUpload(w http.ResponseWriter, r *http.Request) {
 	description := getString(manifest, "description")
 	kind := getString(manifest, "kind")
 	image := getString(manifest, "image")
-	specBytes, _ := json.Marshal(manifest["spec"])
-	spec := string(specBytes)
+	icon := strings.TrimSpace(getString(manifest, "icon"))
+	color := strings.ToUpper(strings.TrimSpace(getString(manifest, "color")))
+	// Spec arrives in two shapes: the download endpoint exports it as a
+	// JSON-encoded STRING, while hand-written manifests carry it as an
+	// OBJECT. Accept both so download → upload round-trips.
+	var spec string
+	if rawSpec, ok := manifest["spec"]; ok && rawSpec != nil {
+		if s, ok := rawSpec.(string); ok {
+			spec = s
+		} else {
+			specBytes, _ := json.Marshal(rawSpec)
+			spec = string(specBytes)
+		}
+	}
 
 	if name == "" {
 		http.Error(w, "template name is required", http.StatusBadRequest)
@@ -327,6 +346,14 @@ func handleTemplateFileUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	if !validKinds[kind] {
 		http.Error(w, "kind must be one of: docker, lxd, kvm, multipass", http.StatusBadRequest)
+		return
+	}
+	if icon != "" && len(icon) > 16*1024 {
+		http.Error(w, "icon too large (max 16KB)", http.StatusBadRequest)
+		return
+	}
+	if color != "" && !validNodeColorHex(color) {
+		http.Error(w, "color must be a #rrggbb hex value", http.StatusBadRequest)
 		return
 	}
 	if spec == "" {
@@ -348,8 +375,11 @@ func handleTemplateFileUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer con.Close()
+	ownerID, _ := UserIDFromContext(r)
 	id, err := repository.NewTemplateRepository(con).Create(repository.TemplateInput{
 		Name: name, Description: description, Kind: kind, Image: image, Spec: spec,
+		Icon: icon, Color: color,
+		OwnerID: ownerID,
 	})
 	if err != nil {
 		log.Println("CreateTemplate from file error:", err)
@@ -392,7 +422,7 @@ func InstallTemplateFromURLHandler(w http.ResponseWriter, r *http.Request) {
 
 	rawManifest, ferr := fetchTemplateManifestFromURL(r.Context(), dto.URL)
 	if ferr != nil {
-		var ue *allowedURLError
+		var ue *templateAllowedURLError
 		if errors.As(ferr, &ue) {
 			http.Error(w, ue.reason, ue.status)
 			return
@@ -413,8 +443,20 @@ func InstallTemplateFromURLHandler(w http.ResponseWriter, r *http.Request) {
 	description := getString(manifest, "description")
 	kind := getString(manifest, "kind")
 	image := getString(manifest, "image")
-	specBytes, _ := json.Marshal(manifest["spec"])
-	spec := string(specBytes)
+	icon := strings.TrimSpace(getString(manifest, "icon"))
+	color := strings.ToUpper(strings.TrimSpace(getString(manifest, "color")))
+	// Same dual-shape spec handling as the file-upload path: the download
+	// endpoint exports spec as a JSON-encoded STRING, hand-written
+	// manifests carry it as an OBJECT.
+	var spec string
+	if rawSpec, ok := manifest["spec"]; ok && rawSpec != nil {
+		if s, ok := rawSpec.(string); ok {
+			spec = s
+		} else {
+			specBytes, _ := json.Marshal(rawSpec)
+			spec = string(specBytes)
+		}
+	}
 
 	if name == "" {
 		http.Error(w, "template name is required", http.StatusBadRequest)
@@ -422,6 +464,14 @@ func InstallTemplateFromURLHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if !validKinds[kind] {
 		http.Error(w, "kind must be one of: docker, lxd, kvm, multipass", http.StatusBadRequest)
+		return
+	}
+	if icon != "" && len(icon) > 16*1024 {
+		http.Error(w, "icon too large (max 16KB)", http.StatusBadRequest)
+		return
+	}
+	if color != "" && !validNodeColorHex(color) {
+		http.Error(w, "color must be a #rrggbb hex value", http.StatusBadRequest)
 		return
 	}
 	if spec == "" {
@@ -446,6 +496,7 @@ func InstallTemplateFromURLHandler(w http.ResponseWriter, r *http.Request) {
 	ownerID, _ := UserIDFromContext(r)
 	id, err := repository.NewTemplateRepository(con).Create(repository.TemplateInput{
 		Name: name, Description: description, Kind: kind, Image: image, Spec: spec,
+		Icon: icon, Color: color,
 		OwnerID: ownerID,
 	})
 	if err != nil {
@@ -640,6 +691,7 @@ func UpdateTemplateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := repository.NewTemplateRepository(con).Update(id, repository.TemplateInput{
 		Name: req.Name, Description: req.Description, Kind: req.Kind, Image: req.Image, Spec: spec,
+		Icon: strings.TrimSpace(req.Icon), Color: strings.ToUpper(strings.TrimSpace(req.Color)),
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -734,6 +786,8 @@ func DownloadTemplateHandler(w http.ResponseWriter, r *http.Request) {
 		"kind":        tmpl.Kind,
 		"image":       tmpl.Image,
 		"spec":        tmpl.Spec,
+		"icon":        tmpl.Icon,
+		"color":       tmpl.Color,
 	}
 
 	jsonData, err := json.MarshalIndent(exportData, "", "  ")
@@ -743,8 +797,33 @@ func DownloadTemplateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.json\"", tmpl.Name))
+	safeName := sanitizeDownloadFilename(tmpl.Name)
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.json\"", safeName))
 	w.Write(jsonData)
+}
+
+// sanitizeDownloadFilename strips header-breaking characters from the
+// template name used in Content-Disposition. Only alphanumerics, dash,
+// underscore and dot survive; everything else becomes '_'. Empty results
+// fall back to "template" so the header never carries raw user input
+// (quote / newline injection).
+func sanitizeDownloadFilename(name string) string {
+	var b strings.Builder
+	for _, r := range strings.TrimSpace(name) {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' {
+			b.WriteRune(r)
+		} else {
+			b.WriteRune('_')
+		}
+	}
+	out := strings.Trim(b.String(), "._")
+	if out == "" {
+		return "template"
+	}
+	if len(out) > 64 {
+		out = out[:64]
+	}
+	return out
 }
 
 // silence unused import guard for sql (kept for symmetry with other handlers)

@@ -19,6 +19,7 @@ import {
   TemplateSpecPreviewSection,
 } from '@/features/templates/components/TemplateForm';
 import { TagPicker, Toggle, TemplateTabs, CustomPageStudio } from '../components/TemplateFormComponents';
+import IconColorPicker, { CardIconTile } from '@/shared/components/ui/IconColorPicker';
 import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 import type {
   TemplateFormState,
@@ -118,6 +119,7 @@ const TemplatePagesImportModal: React.FC<TemplatePagesImportModalProps> = ({
         enabled: true,
         label: p.name,
         icon_svg: p.icon_svg || '',
+        icon_color: (p as any).icon_color || '',
         kind: 'custom',
         content_type: (['html', 'markdown', 'blocks'].includes(p.content_type) ? p.content_type : 'markdown') as PageOverride['content_type'],
         content_html: p.content_html || '',
@@ -229,6 +231,7 @@ const TemplatePagesImportModal: React.FC<TemplatePagesImportModalProps> = ({
                         ? 'bg-emerald-900/40 border border-emerald-700/60'
                         : 'bg-sky-900/30 border border-sky-700/40'
                     }`}
+                    style={(p as any).icon_color ? { color: (p as any).icon_color } : undefined}
                   >
                     {p.icon_svg ? (
                       <svg
@@ -239,7 +242,8 @@ const TemplatePagesImportModal: React.FC<TemplatePagesImportModalProps> = ({
                         strokeWidth="1.8"
                         strokeLinecap="round"
                         strokeLinejoin="round"
-                        className="w-5 h-5 text-emerald-300"
+                        className="w-5 h-5"
+                        style={(p as any).icon_color ? undefined : { color: undefined }}
                         dangerouslySetInnerHTML={{ __html: sanitizeSvgIcon(p.icon_svg) }}
                       />
                     ) : (
@@ -358,16 +362,18 @@ const TemplateForm: React.FC = () => {
           const templates = await listTemplates();
           const t = templates.find((x) => x.id === Number(id));
           if (t) {
+            const parsed = parseSpec(t.spec);
             setForm({
               ...emptyForm,
+              ...parsed,
               id: String(t.id),
               name: t.name,
-              category: '',
-              type: '',
               description: t.description || '',
               kind: t.kind as DriverKind,
               image: t.image,
-              ...parseSpec(t.spec),
+              // Top-level icon/color columns (migration 059) — never in spec.
+              icon: (t as any).icon || '',
+              color: (t as any).color || '',
             });
           } else {
             setError('Template not found');
@@ -399,14 +405,17 @@ const TemplateForm: React.FC = () => {
     e.preventDefault();
     if (!form.name.trim()) { setError('Name is required'); return; }
     if (!form.image.trim()) { setError('Image is required'); return; }
+    if (form.color && !/^#[0-9a-fA-F]{6}$/.test(form.color.trim())) { setError('Colour must be a #rrggbb hex value (or empty for default)'); return; }
     setSaving(true);
     setError('');
     try {
       const spec = serializeSpec(form);
+      const icon = (form as any).icon?.trim?.() || '';
+      const color = (form as any).color?.trim?.().toUpperCase() || '';
       if (editing) {
-        await updateTemplate(Number(id), { name: form.name, spec, image: form.image, kind: form.kind, description: form.description });
+        await updateTemplate(Number(id), { name: form.name, spec, image: form.image, kind: form.kind, description: form.description, icon, color });
       } else {
-        await createTemplate({ name: form.name, spec, image: form.image, kind: form.kind, description: form.description });
+        await createTemplate({ name: form.name, spec, image: form.image, kind: form.kind, description: form.description, icon, color });
       }
       navigate('/templates');
     } catch (e: any) {
@@ -545,6 +554,16 @@ const TemplateForm: React.FC = () => {
             <GlassField label="Description" htmlFor="description">
               <textarea id="description" rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Brief description of this template" />
             </GlassField>
+            <div>
+              <span className="block text-sm font-medium text-gray-300 mb-1 ks-label">Icon & colour</span>
+              <IconColorPicker
+                icon={(form as any).icon || ''}
+                color={(form as any).color || ''}
+                onIconChange={(v) => setForm({ ...form, icon: v } as any)}
+                onColorChange={(v) => setForm({ ...form, color: v } as any)}
+                previewName={form.name || 'Template'}
+              />
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <GlassField label="Kind" htmlFor="kind">
                 <select id="kind" value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value as DriverKind })} className="glass-field">
@@ -735,9 +754,9 @@ const TemplateForm: React.FC = () => {
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M6 9l6 6 6-6" /></svg>
                           </button>
                         </div>
-                        <div className="w-10 h-10 shrink-0 flex items-center justify-center rounded-md bg-white/5 border border-white/10">
+                        <div className="w-10 h-10 shrink-0 flex items-center justify-center rounded-md bg-white/5 border border-white/10" style={(p as any).icon_color ? { color: (p as any).icon_color } : undefined}>
                           {iconSvg ? (
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-emerald-300" dangerouslySetInnerHTML={{ __html: sanitizeSvgIcon(iconSvg) }} />
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" dangerouslySetInnerHTML={{ __html: sanitizeSvgIcon(iconSvg) }} />
                           ) : (
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5 text-gray-500"><circle cx="12" cy="12" r="10" /><path d="M12 8v8" /><path d="M8 12h8" /></svg>
                           )}
@@ -780,7 +799,14 @@ const TemplateForm: React.FC = () => {
                       </div>
                       {isEditing && (
                         <div className="px-3 pb-3 pt-1 border-t border-white/5 space-y-3 bg-black/20">
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          <IconColorPicker
+                            icon={p.icon_svg || ''}
+                            color={(p as any).icon_color || ''}
+                            onIconChange={(v) => setForm((f) => { const p2 = [...f.pages]; p2[i] = { ...p2[i], icon_svg: v }; return { ...f, pages: p2 }; })}
+                            onColorChange={(v) => setForm((f) => { const p2 = [...f.pages]; p2[i] = { ...p2[i], icon_color: v } as any; return { ...f, pages: p2 }; })}
+                            previewName={p.label || p.slug}
+                          />
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             <div>
                               <label className={labelCls}>Path (/path)</label>
                               <div className="flex items-center gap-1">
@@ -800,16 +826,6 @@ const TemplateForm: React.FC = () => {
                                 onChange={(e) => setForm((f) => { const p2 = [...f.pages]; p2[i] = { ...p2[i], label: e.target.value }; return { ...f, pages: p2 }; })}
                                 placeholder={defLabel}
                                 className="glass-field"
-                              />
-                            </div>
-                            <div>
-                              <label className={labelCls}>Custom icon SVG (inner markup)</label>
-                              <textarea
-                                value={p.icon_svg}
-                                onChange={(e) => setForm((f) => { const p2 = [...f.pages]; p2[i] = { ...p2[i], icon_svg: e.target.value }; return { ...f, pages: p2 }; })}
-                                placeholder='<path d="M3 12h18" />'
-                                rows={2}
-                                className={monoCls + ' text-xs'}
                               />
                             </div>
                           </div>

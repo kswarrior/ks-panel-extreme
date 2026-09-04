@@ -2,6 +2,7 @@ import React, { useCallback, useState, useMemo } from 'react';
 import { glassFieldClass } from '@/shared/components/ui/Field';
 import Modal from '@/shared/components/ui/Modal';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
+import IconColorPicker from '@/shared/components/ui/IconColorPicker';
 import { CustomPageStudio } from '@/features/templates/components/TemplateFormComponents';
 import type { PageOverride } from '@/features/templates/types/templateForm';
 import { listInstancePages, type InstancePage } from '@/shared/api/admin';
@@ -119,6 +120,7 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
         enabled: true,
         label: p.name,
         icon_svg: p.icon_svg || '',
+        icon_color: (p as any).icon_color || '',
         kind: 'custom',
         content_type: (['html', 'markdown', 'blocks'].includes(p.content_type) ? p.content_type : 'markdown') as PageOverride['content_type'],
         content_html: p.content_html || '',
@@ -237,7 +239,7 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
 
                   {/* Icon. The page's custom icon (from the library import),
                       a generic placeholder when not set. */}
-                  <div className="w-10 h-10 shrink-0 flex items-center justify-center rounded-md bg-white/5 border border-white/10">
+                  <div className="w-10 h-10 shrink-0 flex items-center justify-center rounded-md bg-white/5 border border-white/10" style={(p as any).icon_color ? { color: (p as any).icon_color } : undefined}>
                     {iconSvg ? (
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -247,7 +249,7 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
                         strokeWidth="1.8"
                         strokeLinecap="round"
                         strokeLinejoin="round"
-                        className="w-5 h-5 text-emerald-300"
+                        className="w-5 h-5"
                         dangerouslySetInnerHTML={{ __html: sanitizeSvgIcon(iconSvg) }}
                       />
                     ) : (
@@ -329,7 +331,14 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
 
                 {isEditing && (
                   <div className="px-3 pb-3 pt-1 border-t border-white/5 space-y-3 bg-black/20">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <IconColorPicker
+                      icon={p.icon_svg || ''}
+                      color={(p as any).icon_color || ''}
+                      onIconChange={(v) => onPageUpdate(i, { icon_svg: v })}
+                      onColorChange={(v) => onPageUpdate(i, { icon_color: v } as any)}
+                      previewName={p.label || p.slug}
+                    />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div>
                         <label className={labelCls}>Path (/path)</label>
                         <div className="flex items-center gap-1">
@@ -352,16 +361,6 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
                           onChange={(e) => onPageUpdate(i, { label: e.target.value })}
                           placeholder={defLabel}
                           className={glassFieldClass}
-                        />
-                      </div>
-                      <div>
-                        <label className={labelCls}>Custom icon SVG (inner markup)</label>
-                        <textarea
-                          value={p.icon_svg}
-                          onChange={(e) => onPageUpdate(i, { icon_svg: e.target.value })}
-                          placeholder='<path d="M3 12h18" />'
-                          rows={2}
-                          className={monoCls + ' text-xs'}
                         />
                       </div>
                     </div>
@@ -469,6 +468,7 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
                               ? 'bg-emerald-900/40 border border-emerald-700/60'
                               : 'bg-emerald-900/30 border border-emerald-700/40'
                           }`}
+                          style={(p as any).icon_color ? { color: (p as any).icon_color } : undefined}
                         >
                           {p.icon_svg ? (
                             <svg
@@ -479,7 +479,7 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
                               strokeWidth="1.8"
                               strokeLinecap="round"
                               strokeLinejoin="round"
-                              className="w-5 h-5 text-emerald-300"
+                              className="w-5 h-5"
                               dangerouslySetInnerHTML={{ __html: sanitizeSvgIcon(p.icon_svg) }}
                             />
                           ) : (

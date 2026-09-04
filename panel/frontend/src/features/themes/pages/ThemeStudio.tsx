@@ -23,6 +23,7 @@ import {
   CustomCSSTab,
 } from '@/features/themes/components/ThemeStudio';
 import GlassCard from '@/shared/components/ui/Card';
+import IconColorPicker from '@/shared/components/ui/IconColorPicker';
 
 // renderLoadingPreview renders a preview of the loading animation based on
 // the theme's loading configuration. This is used in the live preview area
@@ -393,21 +394,33 @@ const ThemeStudio: React.FC = () => {
               </nav>
             </GlassCard>
             <div className="space-y-4">
-              <GlassCard className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <input
-                  type="text"
-                  className="w-full bg-black/30 border border-white/10 rounded-md px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/60"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="My Theme"
-                />
-                <input
-                  type="text"
-                  className="w-full bg-black/30 border border-white/10 rounded-md px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/60"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="A short note about this theme."
-                />
+              <GlassCard className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <input
+                    type="text"
+                    className="w-full bg-black/30 border border-white/10 rounded-md px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/60"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="My Theme"
+                  />
+                  <input
+                    type="text"
+                    className="w-full bg-black/30 border border-white/10 rounded-md px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/60"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="A short note about this theme."
+                  />
+                </div>
+                <div>
+                  <span className="block text-xs text-gray-400 mb-1.5">Card icon & colour — shown on the Themes grid (same tile as nodes / instances)</span>
+                  <IconColorPicker
+                    icon={draft.icon || ''}
+                    color={draft.color || ''}
+                    onIconChange={(v) => patchDraftMeta({ icon: v })}
+                    onColorChange={(v) => patchDraftMeta({ color: v })}
+                    previewName={name || 'Theme'}
+                  />
+                </div>
               </GlassCard>
 
               <GlassCard className="space-y-4">

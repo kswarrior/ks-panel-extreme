@@ -1,16 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
 import {
   listTemplates,
-  listInstances,
 } from '@/shared/api/admin';
 import type { Template } from '@/shared/types/instance';
-import type { Instance } from '@/shared/types/instance';
 import {
-  DonutStat,
-  PieChart,
-  DashboardSection,
-  DashboardGrid,
   HeaderWithAction,
   StatCard,
 } from '@/shared/components/ui/StatDashboard';
@@ -37,12 +30,9 @@ function parseSpec(raw: string): Record<string, any> {
 }
 
 const TemplateStats: React.FC = () => {
-  const navigate = useNavigate();
   const [templates, setTemplates] = useState<Template[]>([]);
-  const [instances, setInstances] = useState<Instance[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [timeRange, setTimeRange] = useState<'1h' | '6h' | '24h' | '7d'>('24h');
   const [search, setSearch] = useState('');
   const [kindFilter, setKindFilter] = useState<KindKey | 'all'>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
@@ -65,9 +55,8 @@ const TemplateStats: React.FC = () => {
     setLoading(true);
     setError('');
     try {
-      const [ts, is] = await Promise.all([listTemplates(), listInstances()]);
+      const ts = await listTemplates();
       setTemplates(ts);
-      setInstances(is);
     } catch (e: any) {
       setError(e?.response?.data || 'Failed to load');
     } finally {
@@ -159,56 +148,6 @@ const TemplateStats: React.FC = () => {
     };
   }, [filtered]);
 
-  // Instance stats for templates
-  const instanceStats = useMemo(() => {
-    const byTemplate: Record<number, number> = {};
-    const byStatus: Record<string, number> = {};
-
-    instances.forEach((i) => {
-      if (i.template_id) {
-        byTemplate[i.template_id] = (byTemplate[i.template_id] || 0) + 1;
-      }
-      byStatus[i.status] = (byStatus[i.status] || 0) + 1;
-    });
-
-    return { byTemplate, byStatus };
-  }, [instances]);
-
-  const kindSlices = useMemo(() =>
-    Object.entries(templateStats.byKind)
-      .map(([label, value]) => ({
-        label: KIND_META[label as KindKey]?.label || label,
-        value,
-        color: KIND_META[label as KindKey]?.color || '#9ca3af',
-      })),
-  [templateStats.byKind]);
-
-  const categorySlices = useMemo(() =>
-    Object.entries(templateStats.byCategory)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 8)
-      .map(([label, value], i) => ({
-        label,
-        value,
-        color: ['#38bdf8', '#a78bfa', '#34d399', '#fbbf24', '#f87171', '#fb923c', '#22d3ee', '#c084fc'][i % 8],
-      })),
-  [templateStats.byCategory]);
-
-  const statusSlices = useMemo(() =>
-    Object.entries(instanceStats.byStatus)
-      .map(([label, value]) => {
-        const colors: Record<string, string> = {
-          running: '#34d399',
-          stopped: '#9ca3af',
-          errored: '#f87171',
-          install_failed: '#f87171',
-          creating: '#38bdf8',
-          installing: '#a78bfa',
-        };
-        return { label, value, color: colors[label] || '#9ca3af' };
-      }),
-  [instanceStats.byStatus]);
-
   if (loading) {
     return (
       <div className="space-y-6">
@@ -231,6 +170,12 @@ const TemplateStats: React.FC = () => {
         backLabel="Templates"
         action={
           <div className="flex items-center gap-2">
+            <SearchDropdown
+              value={search}
+              onChange={setSearch}
+              placeholder="Search name, image, category, type…"
+              ariaLabel="Search templates"
+            />
             <div className="relative" ref={filterRef}>
               <button
                 type="button"
@@ -243,7 +188,7 @@ const TemplateStats: React.FC = () => {
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
                   <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
                 </svg>
-                {(kindFilter !== 'all' || categoryFilter !== 'all') && (
+                {(kindFilter !== 'all' || categoryFilter !== 'all' || search.trim() !== '') && (
                   <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
                 )}
               </button>

@@ -31,6 +31,8 @@ import {
 import { useConfirm } from '@/shared/stores/confirmStore';
 import ApplicationStudioTab from '@/features/applications/components/ApplicationStudioTab';
 import ApplicationRunModal from '@/features/applications/components/ApplicationRunModal';
+import { CardIconTile } from '@/shared/components/ui/IconColorPicker';
+import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 
 // Resolve the human-facing label for a capability code on a card chip / the
 // approval checklist. Falls back to the raw code when unknown.
@@ -120,6 +122,8 @@ const Applications: React.FC = () => {
       runtime: 'nodejs',
       mainFile: '',
       command: '',
+      icon: '',
+      color: '',
     },
     permission: [] as {capability: string; access_level: string; granted: boolean}[],
     configure: {} as Record<string, string>,
@@ -133,6 +137,7 @@ const Applications: React.FC = () => {
     // Report through uploadError (rendered inside the modal) — the page-level
     // error banner is hidden behind the open modal and would never be seen.
     if (!general.name.trim()) { setUploadError('Name is required.'); return; }
+    if (general.color && !/^#[0-9a-fA-F]{6}$/.test(general.color.trim())) { setUploadError('Colour must be a #rrggbb hex value (or empty).'); return; }
     const mainFile = general.mainFile.trim() ||
       (general.runtime !== 'custom' && script.files.length > 0 ? script.files[0].path : '');
     const entrypoint = general.runtime === 'custom' ? general.command.trim() : mainFile;
@@ -143,7 +148,8 @@ const Applications: React.FC = () => {
         category: 'custom',
         version: general.version,
         description: general.note,
-        icon: '',
+        icon: general.icon.trim(),
+        color: general.color.trim().toUpperCase(),
         runtime: general.runtime,
         entrypoint,
         config_schema: [],
@@ -160,7 +166,7 @@ const Applications: React.FC = () => {
       setStudioTab('general');
       // Reset form
       setStudioForm({
-        general: { name: '', note: '', version: '1.0.0', runtime: 'nodejs', mainFile: '', command: '' },
+        general: { name: '', note: '', version: '1.0.0', runtime: 'nodejs', mainFile: '', command: '', icon: '', color: '' },
         permission: [],
         configure: {},
         script: { files: [] },
@@ -495,9 +501,17 @@ return (
               <article key={a.id} id={`ks-application-${a.id}`} className="ks-card ks-list-card group relative glass-card rounded-xl flex flex-col gap-3 hover:border-white/20 transition-colors">
                 <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
                 <header className="flex items-start gap-3 min-w-0">
-                  <div className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center border bg-black/30 ${a.active ? 'border-emerald-700/60 text-emerald-300' : 'border-white/10 text-gray-300'}`} aria-hidden="true">
-                    <span className="text-xl">{appCategoryMeta(a.category)?.defaultIcon || '⚙️'}</span>
-                  </div>
+                  {a.icon ? (
+                    <CardIconTile
+                      icon={a.icon}
+                      color={(a as any).color || ''}
+                      fallback={<span className="text-xl">{appCategoryMeta(a.category)?.defaultIcon || '⚙️'}</span>}
+                    />
+                  ) : (
+                    <div className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center border bg-black/30 ${a.active ? 'border-emerald-700/60' : 'border-white/10'}`} style={(a as any).color ? { color: (a as any).color } : undefined} aria-hidden="true">
+                      <span className="text-xl">{appCategoryMeta(a.category)?.defaultIcon || '⚙️'}</span>
+                    </div>
+                  )}
                   <div className="min-w-0 flex-1">
                     <h3 className="text-sm font-semibold text-white truncate leading-tight">{a.name}</h3>
                     <p className="text-[11px] text-gray-500 truncate mt-0.5 font-mono">{a.slug}{a.version ? ` · v${a.version}` : ''}</p>

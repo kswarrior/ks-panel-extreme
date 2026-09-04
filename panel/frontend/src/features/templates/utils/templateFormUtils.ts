@@ -126,6 +126,7 @@ export function serializeSpec(f: TemplateFormState): string {
       if (!p.enabled) out.enabled = false;
       if (p.label.trim() !== '') out.label = p.label.trim();
       if (p.icon_svg.trim() !== '') out.icon_svg = p.icon_svg.trim();
+      if ((p.icon_color || '').trim() !== '') out.icon_color = (p.icon_color || '').trim().toUpperCase();
       if (p.content_type) out.content_type = p.content_type;
       if (p.content_html) out.content_html = p.content_html;
       if (p.content_markdown) out.content_markdown = p.content_markdown;
@@ -314,7 +315,7 @@ export function parseSpec(raw: string): Partial<TemplateFormState> {
         user_editable: !!e.user_editable,
         required: !!e.required,
         rule: String(e.rule ?? ''),
-        display: (['text', 'select', 'checkbox'].includes(e.display) ? e.display : 'text') as 'text' | 'select' | 'checkbox',
+        display: (['text', 'number', 'select', 'checkbox'].includes(e.display) ? e.display : 'text') as 'text' | 'number' | 'select' | 'checkbox',
         options: String(e.options ?? ''),
         append: !!e.append,
         prepend: String(e.prepend ?? ''),
@@ -402,6 +403,7 @@ export function parseSpec(raw: string): Partial<TemplateFormState> {
           enabled: p.enabled !== false,
           label: String(p.label ?? p.slug ?? ''),
           icon_svg: String(p.icon_svg ?? ''),
+          icon_color: String((p as any).icon_color ?? ''),
           kind: 'custom',
           content_type: (['html', 'markdown', 'blocks'].includes(p.content_type) ? p.content_type : 'markdown') as PageOverride['content_type'],
           content_html: typeof p.content_html === 'string' ? p.content_html : '',

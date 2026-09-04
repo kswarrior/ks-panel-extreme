@@ -253,9 +253,22 @@ func (r *AutomationRepository) RecordRun(in AutomationRunInput) (int64, error) {
 }
 
 // ListRunsByJob returns the most recent runs for a job.
+//
+// modernc.org/sqlite emits a phantom all-NULL iteration via rows.Next() on
+// empty result sets; scanning straight into the typed fields then crashes
+// with "converting NULL to int64". We COUNT(*) first and short-circuit on
+// zero (same defence as ListRunsByInstance below); scanRuns already drops
+// any phantom row whose primary key is NULL.
 func (r *AutomationRepository) ListRunsByJob(jobID int64, limit int) ([]models.AutomationRun, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 50
+	}
+	var n int
+	if err := r.db.QueryRow(`SELECT COUNT(*) FROM automation_runs WHERE job_id = ?`, jobID).Scan(&n); err != nil {
+		return nil, err
+	}
+	if n == 0 {
+		return []models.AutomationRun{}, nil
 	}
 	rows, err := r.db.Query(`SELECT id, job_id, instance_id, trigger, command, stdout, stderr, exit_code,
 		duration_ms, error, started_at, finished_at FROM automation_runs

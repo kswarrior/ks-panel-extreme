@@ -24,6 +24,7 @@ export interface ResolvedNavEntry {
   iconKind: 'svg';
   iconName?: string;
   iconSvg?: string;
+  iconColor?: string;
 }
 
 // Fallback icon used when a spec row carries no icon_svg — matches the
@@ -116,12 +117,14 @@ export function resolveInstanceNav(spec: Record<string, any> | null | undefined)
     if (slug.includes('/')) continue;
 
     const customIcon = typeof p.icon_svg === 'string' ? p.icon_svg.trim() : '';
+    const customColor = typeof (p as any).icon_color === 'string' ? (p as any).icon_color.trim() : '';
     entries.push({
       to: slug,
       label: labelFor(slug, p),
       end: slug === '.',
       iconKind: 'svg',
       iconSvg: customIcon !== '' ? customIcon : FALLBACK_ICON,
+      iconColor: customColor !== '' ? customColor : undefined,
     });
     usedSlugs.add(slug);
   }

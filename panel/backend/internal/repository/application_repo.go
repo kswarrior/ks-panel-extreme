@@ -21,7 +21,7 @@ func NewApplicationRepository(db *sql.DB) *ApplicationRepository {
 	return &ApplicationRepository{db: db}
 }
 
-const applicationColumns = `id, name, slug, category, version, description, icon, runtime, entrypoint,
+const applicationColumns = `id, name, slug, category, version, description, icon, color, runtime, entrypoint,
 	config_schema, files, env, permissions, active, uploaded_by, source, source_url, created_at, updated_at`
 
 func scanApplication(scanner interface{ Scan(...any) error }) (*models.Application, error) {
@@ -31,7 +31,7 @@ func scanApplication(scanner interface{ Scan(...any) error }) (*models.Applicati
 	var active int
 	var created, updated string
 	if err := scanner.Scan(&a.ID, &a.Name, &a.Slug, &a.Category, &a.Version, &a.Description,
-		&a.Icon, &a.Runtime, &a.Entrypoint, &cfgSchema, &files, &env, &perms, &active,
+		&a.Icon, &a.Color, &a.Runtime, &a.Entrypoint, &cfgSchema, &files, &env, &perms, &active,
 		&uploadedBy, &source, &sourceURL, &created, &updated); err != nil {
 		return nil, err
 	}
@@ -66,6 +66,7 @@ type CreateApplicationInput struct {
 	Version        string
 	Description    string
 	Icon           string
+	Color          string
 	Runtime        string
 	Entrypoint     string
 	ConfigSchema   json.RawMessage
@@ -119,19 +120,19 @@ func (r *ApplicationRepository) CreateApplication(in CreateApplicationInput) (*m
 	var res sql.Result
 	if in.UploadedBy != 0 {
 		res, err = tx.Exec(
-			`INSERT INTO applications (name, slug, category, version, description, icon, runtime, entrypoint,
+			`INSERT INTO applications (name, slug, category, version, description, icon, color, runtime, entrypoint,
 				config_schema, files, permissions, active, uploaded_by, owner_id, source, source_url, created_at, updated_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`,
-			in.Name, in.Slug, in.Category, in.Version, in.Description, in.Icon,
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`,
+			in.Name, in.Slug, in.Category, in.Version, in.Description, in.Icon, in.Color,
 			in.Runtime, in.Entrypoint, cfgSchema, files, string(perms),
 			in.UploadedBy, in.UploadedBy, source, in.SourceURL, now, now,
 		)
 	} else {
 		res, err = tx.Exec(
-			`INSERT INTO applications (name, slug, category, version, description, icon, runtime, entrypoint,
+			`INSERT INTO applications (name, slug, category, version, description, icon, color, runtime, entrypoint,
 				config_schema, files, permissions, active, source, source_url, created_at, updated_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
-			in.Name, in.Slug, in.Category, in.Version, in.Description, in.Icon,
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
+			in.Name, in.Slug, in.Category, in.Version, in.Description, in.Icon, in.Color,
 			in.Runtime, in.Entrypoint, cfgSchema, files, string(perms),
 			source, in.SourceURL, now, now,
 		)
@@ -165,6 +166,7 @@ type UpdateApplicationInput struct {
 	Version      string
 	Description  string
 	Icon         string
+	Color        string
 	Runtime      string
 	Entrypoint   string
 	ConfigSchema json.RawMessage
@@ -192,16 +194,16 @@ func (r *ApplicationRepository) UpdateApplication(id int64, in UpdateApplication
 		}
 		res, err = r.db.Exec(
 			`UPDATE applications SET name = ?, category = ?, version = ?, description = ?,
-			 icon = ?, runtime = ?, entrypoint = ?, config_schema = ?, files = ?, updated_at = ? WHERE id = ?`,
+			 icon = ?, color = ?, runtime = ?, entrypoint = ?, config_schema = ?, files = ?, updated_at = ? WHERE id = ?`,
 			in.Name, in.Category, in.Version, in.Description,
-			in.Icon, in.Runtime, in.Entrypoint, cfgSchema, files, now, id,
+			in.Icon, in.Color, in.Runtime, in.Entrypoint, cfgSchema, files, now, id,
 		)
 	} else {
 		res, err = r.db.Exec(
 			`UPDATE applications SET name = ?, category = ?, version = ?, description = ?,
-			 icon = ?, runtime = ?, entrypoint = ?, config_schema = ?, updated_at = ? WHERE id = ?`,
+			 icon = ?, color = ?, runtime = ?, entrypoint = ?, config_schema = ?, updated_at = ? WHERE id = ?`,
 			in.Name, in.Category, in.Version, in.Description,
-			in.Icon, in.Runtime, in.Entrypoint, cfgSchema, now, id,
+			in.Icon, in.Color, in.Runtime, in.Entrypoint, cfgSchema, now, id,
 		)
 	}
 	if err != nil {
@@ -223,7 +225,7 @@ func (r *ApplicationRepository) ListApplications() ([]models.Application, error)
 		return out, nil
 	}
 	rows, err := r.db.Query(`
-		SELECT a.id, a.name, a.slug, a.category, a.version, a.description, a.icon,
+		SELECT a.id, a.name, a.slug, a.category, a.version, a.description, a.icon, COALESCE(a.color, ''),
 		       a.runtime, a.entrypoint, a.config_schema, a.files, a.env, a.permissions, a.active,
 		       a.uploaded_by, a.source, a.source_url, a.created_at, a.updated_at, u.username
 		FROM applications a
@@ -241,7 +243,7 @@ func (r *ApplicationRepository) ListApplications() ([]models.Application, error)
 		var created, updated string
 		var owner sql.NullString
 		if err := rows.Scan(&a.ID, &a.Name, &a.Slug, &a.Category, &a.Version, &a.Description,
-			&a.Icon, &a.Runtime, &a.Entrypoint, &cfgSchema, &files, &env, &perms, &active,
+			&a.Icon, &a.Color, &a.Runtime, &a.Entrypoint, &cfgSchema, &files, &env, &perms, &active,
 			&uploadedBy, &source, &sourceURL, &created, &updated, &owner); err != nil {
 			return nil, err
 		}
@@ -450,9 +452,24 @@ func (r *ApplicationRepository) CompleteApplicationRun(id int64, status string, 
 
 // ListApplicationRuns returns the most recent runs for an application,
 // newest first.
+//
+// modernc.org/sqlite emits a phantom all-NULL iteration via rows.Next() on
+// empty result sets; scanning straight into the typed fields then crashes
+// with "converting NULL to int64". We COUNT(*) first and short-circuit on
+// zero, AND scan into sql.Null* + skip rows whose primary key is NULL, so
+// the phantom iteration (when present) is silently dropped instead of
+// failing the whole list call (same defence as automation ListRunsByInstance).
 func (r *ApplicationRepository) ListApplicationRuns(appID int64, limit int) ([]models.ApplicationRun, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 25
+	}
+	var n int
+	if err := r.db.QueryRow(`SELECT COUNT(*) FROM application_runs WHERE application_id = ?`, appID).Scan(&n); err != nil {
+		return nil, err
+	}
+	out := make([]models.ApplicationRun, 0, limit)
+	if n == 0 {
+		return out, nil
 	}
 	rows, err := r.db.Query(
 		`SELECT `+applicationRunColumns+` FROM application_runs WHERE application_id = ? ORDER BY id DESC LIMIT `+strconv.Itoa(limit),
@@ -462,11 +479,13 @@ func (r *ApplicationRepository) ListApplicationRuns(appID int64, limit int) ([]m
 		return nil, err
 	}
 	defer rows.Close()
-	out := make([]models.ApplicationRun, 0, limit)
 	for rows.Next() {
 		run, scanErr := scanApplicationRun(rows)
 		if scanErr != nil {
 			return nil, scanErr
+		}
+		if run == nil {
+			continue
 		}
 		out = append(out, *run)
 	}
@@ -478,26 +497,37 @@ const applicationRunColumns = `id, application_id, triggered_by, target, node_id
 
 func scanApplicationRun(scanner interface{ Scan(...any) error }) (*models.ApplicationRun, error) {
 	var run models.ApplicationRun
+	var id, appID, nodeID, exitCode, timeoutSec sql.NullInt64
 	var triggeredBy sql.NullInt64
-	var nodeName, execMode, workload, status, output, errorOutput, runErr string
-	var created, ended string
-	if err := scanner.Scan(&run.ID, &run.ApplicationID, &triggeredBy, &run.Target, &run.NodeID,
-		&nodeName, &execMode, &workload, &status, &run.ExitCode, &output, &errorOutput,
-		&runErr, &run.TimeoutSec, &created, &ended); err != nil {
+	var target, nodeName, execMode, workload, status, output, errorOutput, runErr sql.NullString
+	var created, ended sql.NullString
+	if err := scanner.Scan(&id, &appID, &triggeredBy, &target, &nodeID,
+		&nodeName, &execMode, &workload, &status, &exitCode, &output, &errorOutput,
+		&runErr, &timeoutSec, &created, &ended); err != nil {
 		return nil, err
 	}
+	// Drop the modernc phantom-NULL iteration (its `id` is NULL).
+	if !id.Valid {
+		return nil, nil
+	}
+	run.ID = id.Int64
+	run.ApplicationID = appID.Int64
+	run.Target = target.String
+	run.NodeID = nodeID.Int64
 	if triggeredBy.Valid {
 		v := triggeredBy.Int64
 		run.TriggeredBy = &v
 	}
-	run.NodeName = nodeName
-	run.ExecMode = execMode
-	run.Workload = workload
-	run.Status = status
-	run.Output = output
-	run.ErrorOutput = errorOutput
-	run.Error = runErr
-	run.CreatedAt, _ = parseSQLiteTime(created)
-	run.EndedAt, _ = parseSQLiteTime(ended)
+	run.NodeName = nodeName.String
+	run.ExecMode = execMode.String
+	run.Workload = workload.String
+	run.Status = status.String
+	run.Output = output.String
+	run.ErrorOutput = errorOutput.String
+	run.Error = runErr.String
+	run.ExitCode = int(exitCode.Int64)
+	run.TimeoutSec = int(timeoutSec.Int64)
+	run.CreatedAt, _ = parseSQLiteTime(created.String)
+	run.EndedAt, _ = parseSQLiteTime(ended.String)
 	return &run, nil
 }

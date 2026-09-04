@@ -6,6 +6,7 @@
 // Do NOT add divergent fields here; extend the canonical module instead.
 export type {
   InstancePageKind,
+  InstancePageSource,
   PageActionDef,
   PageConfigureVar,
   InstancePage,
@@ -14,4 +15,10 @@ export type {
   CreateInstancePagePayload,
   UpdateInstancePagePayload,
 } from '@/features/instance-pages/types/instancePage';
-export { parseSubPages, parsePageComponents, parsePageConfigure } from '@/features/instance-pages/types/instancePage';
+export {
+  parseSubPages,
+  parsePageActions,
+  parsePageComponents,
+  parsePageConfigure,
+  pageSourceOf,
+} from '@/features/instance-pages/types/instancePage';

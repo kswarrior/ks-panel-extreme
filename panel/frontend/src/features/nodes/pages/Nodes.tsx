@@ -150,7 +150,11 @@ const AdminNodes: React.FC = () => {
       setTokenInfo({
         token: res.token,
         title: 'Rotated node token (copy now)',
-        configJson: buildEdgeConfig(n.name, n.address, n.use_tls, res.token),
+        configJson: buildEdgeConfig(n.name, n.address, n.use_tls, res.token, {
+          connectionMode: n.connection_mode || 'direct',
+          skipVerify: Boolean(n.skip_tls_verify),
+          instancesDir: n.instances_dir || undefined,
+        }),
       });
     } catch (e: any) {
       alert(e?.response?.data || 'Failed to rotate token');

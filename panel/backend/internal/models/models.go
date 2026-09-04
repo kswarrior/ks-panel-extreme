@@ -119,6 +119,7 @@ type Application struct {
 	Version      string          `json:"version"`
 	Description  string          `json:"description"`
 	Icon         string          `json:"icon"`
+	Color        string          `json:"color,omitempty"`
 	Runtime      string          `json:"runtime"`
 	Entrypoint   string          `json:"entrypoint"`
 	ConfigSchema json.RawMessage `json:"config_schema"`

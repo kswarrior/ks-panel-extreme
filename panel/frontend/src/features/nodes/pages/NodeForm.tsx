@@ -179,7 +179,7 @@ const NodeForm: React.FC = () => {
   const dialPreview = useMemo(() => {
     const m = form.connection_mode;
     if (m === 'reverse_tunnel') return 'WSS tunnel — edge dials panel (no direct dial)';
-    if (m === 'local_wss') return `wss://127.0.0.1:${form.port || '4040'} (WSS tunnel)`;
+    if (m === 'local_wss') return `WSS tunnel preferred, fallback to http://127.0.0.1:${form.port || '4040'}`;
     if (isLocalMode(m)) return `${form.use_tls ? 'https' : 'http'}://127.0.0.1:${form.port || '4040'}`;
     const scheme = form.use_tls ? 'https' : 'http';
     const addr = form.address.trim();

@@ -16,6 +16,7 @@ import {
 import FormPage from '@/shared/components/forms/FormPage';
 import GlassField from '@/shared/components/ui/Field';
 import FormSkeleton from '@/shared/components/ui/FormSkeleton';
+import IconColorPicker from '@/shared/components/ui/IconColorPicker';
 
 type Form = {
   name: string;
@@ -24,6 +25,7 @@ type Form = {
   version: string;
   description: string;
   icon: string;
+  color: string;
   runtime: string;
   entrypoint: string;
   config_schema: ApplicationConfigField[];
@@ -41,6 +43,7 @@ const ApplicationEdit: React.FC = () => {
     version: '1.0.0',
     description: '',
     icon: '',
+    color: '',
     runtime: 'nodejs',
     entrypoint: '',
     config_schema: [],
@@ -71,6 +74,7 @@ const ApplicationEdit: React.FC = () => {
               version: a.version,
               description: a.description,
               icon: a.icon,
+              color: (a as any).color || '',
               runtime: a.runtime,
               entrypoint: a.entrypoint,
               config_schema: schema,
@@ -100,6 +104,10 @@ const ApplicationEdit: React.FC = () => {
       setError('Slug is required');
       return;
     }
+    if (form.color && !/^#[0-9a-fA-F]{6}$/.test(form.color.trim())) {
+      setError('Colour must be a #rrggbb hex value (or empty for default).');
+      return;
+    }
     let config_schema: ApplicationConfigField[];
     try {
       const parsed = JSON.parse(schemaDraft);
@@ -119,6 +127,7 @@ const ApplicationEdit: React.FC = () => {
         version: form.version,
         description: form.description,
         icon: form.icon,
+        color: form.color.trim().toUpperCase(),
         runtime: form.runtime,
         entrypoint: form.entrypoint,
         config_schema,
@@ -221,6 +230,18 @@ const ApplicationEdit: React.FC = () => {
           className="w-full bg-black/30 border border-white/10 rounded-md text-sm text-white px-3 py-1.5 focus:outline-none focus:border-white/40"
         />
       </GlassField>
+
+      <div>
+        <span className="ks-label">Icon & colour</span>
+        <p className="ks-hint">Shown on the catalog card — same preview tile as nodes / instances / templates.</p>
+        <IconColorPicker
+          icon={form.icon}
+          color={form.color}
+          onIconChange={(v) => setForm({ ...form, icon: v })}
+          onColorChange={(v) => setForm({ ...form, color: v })}
+          previewName={form.name || 'Application'}
+        />
+      </div>
 
       <GlassField label="Icon (emoji)">
         <input

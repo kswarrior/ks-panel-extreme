@@ -233,6 +233,7 @@ const InstanceTabs: React.FC = () => {
               {filteredNav.map((item) => {
                 const dSanitized = item.iconKind === 'svg' && item.iconSvg ? sanitizeSvgIcon(item.iconSvg) : '';
                 const dIsFull = dSanitized.trim().toLowerCase().startsWith('<svg');
+                const dColor = (item as any).iconColor || '';
                 return (
                 <button
                   key={`page-${item.to}`}
@@ -246,7 +247,7 @@ const InstanceTabs: React.FC = () => {
                 >
                   {dSanitized ? (
                     dIsFull ? (
-                      <span className="w-4 h-4 flex-shrink-0 block text-gray-300 [&>svg]:w-4 [&>svg]:h-4 [&>svg]:block" aria-hidden="true" dangerouslySetInnerHTML={{ __html: dSanitized }} />
+                      <span className="w-4 h-4 flex-shrink-0 block text-gray-300 [&>svg]:w-4 [&>svg]:h-4 [&>svg]:block" style={dColor ? { color: dColor } : undefined} aria-hidden="true" dangerouslySetInnerHTML={{ __html: dSanitized }} />
                     ) : (
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -257,6 +258,7 @@ const InstanceTabs: React.FC = () => {
                         strokeLinecap="round"
                         strokeLinejoin="round"
                         className="w-4 h-4 flex-shrink-0 text-gray-300"
+                        style={dColor ? { color: dColor } : undefined}
                         aria-hidden="true"
                         dangerouslySetInnerHTML={{ __html: dSanitized }}
                       />
@@ -319,12 +321,14 @@ return (
                 : `/instances/${instanceId}/${item.to}`;
             const sanitized = item.iconKind === 'svg' && item.iconSvg ? sanitizeSvgIcon(item.iconSvg) : '';
             const isFullSvg = sanitized.trim().toLowerCase().startsWith('<svg');
+            const tabColor = (item as any).iconColor || '';
             const iconEl =
               item.iconKind === 'svg' && sanitized
                 ? isFullSvg
                   ? (
                       <span
                         className="w-4 h-4 flex-shrink-0 block [&>svg]:w-4 [&>svg]:h-4 [&>svg]:block"
+                        style={tabColor ? { color: tabColor } : undefined}
                         aria-hidden="true"
                         dangerouslySetInnerHTML={{ __html: sanitized }}
                       />
@@ -339,6 +343,7 @@ return (
                         strokeLinecap="round"
                         strokeLinejoin="round"
                         className="w-4 h-4 flex-shrink-0"
+                        style={tabColor ? { color: tabColor } : undefined}
                         aria-hidden="true"
                         dangerouslySetInnerHTML={{ __html: sanitized }}
                       />

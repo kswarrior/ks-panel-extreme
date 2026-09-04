@@ -561,6 +561,38 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				return err
 			}
 			continue
+		case name == "059_template_icon_color.sql":
+			// Per-template display identity (icon SVG + accent colour,
+			// migration 059). Multi-ALTER and the sqlite/mysql bodies are
+			// not idempotent, so each column is added via the runtime guard
+			// — mirrors 044_node_icon_color.sql.
+			if err := guardedAddColumns(d, db, name, "templates", []columnSpec{
+				{"icon", "TEXT NOT NULL DEFAULT ''"},
+				{"color", "TEXT NOT NULL DEFAULT ''"},
+			}); err != nil {
+				return err
+			}
+			continue
+		case name == "060_instance_page_icon_color.sql":
+			// Per-page accent colour tinting the icon tile on library cards
+			// (migration 060). icon_svg already exists (032); only the colour
+			// column is new. Guarded so re-launches stay idempotent.
+			if err := guardedAddColumns(d, db, name, "instance_pages", []columnSpec{
+				{"icon_color", "TEXT NOT NULL DEFAULT ''"},
+			}); err != nil {
+				return err
+			}
+			continue
+		case name == "061_application_icon_color.sql":
+			// Per-application accent colour (migration 061). icon already
+			// exists (029); only the colour column is new. Guarded so
+			// re-launches stay idempotent.
+			if err := guardedAddColumns(d, db, name, "applications", []columnSpec{
+				{"color", "TEXT NOT NULL DEFAULT ''"},
+			}); err != nil {
+				return err
+			}
+			continue
 		}
 
 		// Generic path: read + exec the file verbatim. The Postgres files

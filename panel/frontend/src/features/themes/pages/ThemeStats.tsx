@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useThemeStore } from '@/shared/stores/themeStore';
 import type { Theme } from '@/features/themes/types/theme';
 import {
@@ -11,7 +11,6 @@ import {
   DashboardGrid,
   HeaderWithAction,
   StatCard,
-  MetricSample,
 } from '@/shared/components/ui/StatDashboard';
 import GlassCard from '@/shared/components/ui/Card';
 
@@ -31,10 +30,12 @@ const ThemeStats: React.FC = () => {
   const globalAssignments = useThemeStore((s) => s.globalAssignments);
   const loadGlobal = useThemeStore((s) => s.loadGlobal);
   const loadStore = useThemeStore((s) => s.load);
-  const discardDraft = useThemeStore((s) => s.discardDraft);
+  const editDraft = useThemeStore((s) => s.editDraft);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
+  const [originFilter, setOriginFilter] = useState<'all' | OriginKey>('all');
+  const [assignedFilter, setAssignedFilter] = useState<'all' | 'assigned' | 'unassigned'>('all');
   const filterRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -103,12 +104,15 @@ const ThemeStats: React.FC = () => {
     { label: 'Unassigned', value: stats.unassigned, color: '#9ca3af' },
   ].filter((s) => s.value > 0), [stats]);
 
-  const topThemesByScopes = useMemo(() =>
-    [...allThemes]
-      .map(({ theme: t, origin }) => ({ theme: t, origin, scopeCount: scopesFor(t.id).length }))
-      .sort((a, b) => b.scopeCount - a.scopeCount)
-      .slice(0, 10),
-  [allThemes, scopesFor]);
+  const topThemesByScopes = useMemo(() => {
+    let rows = [...allThemes]
+      .map(({ theme: t, origin }) => ({ theme: t, origin, scopeCount: scopesFor(t.id).length }));
+    if (originFilter !== 'all') rows = rows.filter((r) => r.origin === originFilter);
+    if (assignedFilter !== 'all') {
+      rows = rows.filter((r) => assignedFilter === 'assigned' ? r.scopeCount > 0 : r.scopeCount === 0);
+    }
+    return rows.sort((a, b) => b.scopeCount - a.scopeCount).slice(0, 10);
+  }, [allThemes, scopesFor, originFilter, assignedFilter]);
 
   // Real creation history from theme creation times
   const creationHistory = useMemo(() => {
@@ -190,7 +194,9 @@ const ThemeStats: React.FC = () => {
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
                   <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
                 </svg>
-                <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
+                {(originFilter !== 'all' || assignedFilter !== 'all') && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
+                )}
               </button>
               {filterOpen && (
                 <div className="absolute left-0 top-full mt-1 z-30 w-56">
@@ -198,7 +204,11 @@ const ThemeStats: React.FC = () => {
                     <div className="p-3 space-y-3">
                       <div>
                         <label className="block text-xs text-gray-400 uppercase tracking-wide mb-1.5">Origin</label>
-                        <select className="w-full glass-field">
+                        <select
+                          value={originFilter}
+                          onChange={(e) => setOriginFilter(e.target.value as any)}
+                          className="w-full glass-field"
+                        >
                           <option value="all">All · {stats.total}</option>
                           <option value="builtin">Built-in · {stats.builtin}</option>
                           <option value="global">Global · {stats.global}</option>
@@ -207,13 +217,24 @@ const ThemeStats: React.FC = () => {
                       </div>
                       <div>
                         <label className="block text-xs text-gray-400 uppercase tracking-wide mb-1.5">Assignment</label>
-                        <select className="w-full glass-field">
+                        <select
+                          value={assignedFilter}
+                          onChange={(e) => setAssignedFilter(e.target.value as any)}
+                          className="w-full glass-field"
+                        >
                           <option value="all">All</option>
                           <option value="assigned">Assigned · {stats.assigned}</option>
                           <option value="unassigned">Unassigned · {stats.unassigned}</option>
                         </select>
                       </div>
                       <div className="pt-2 border-t border-white/5 flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => { setOriginFilter('all'); setAssignedFilter('all'); }}
+                          className="px-3 py-1.5 text-sm text-gray-400 hover:text-white"
+                        >
+                          Reset
+                        </button>
                         <button
                           type="button"
                           onClick={() => setFilterOpen(false)}
@@ -389,7 +410,17 @@ const ThemeStats: React.FC = () => {
                             {scopes.length > 3 && <span className="text-gray-500"> · +{scopes.length - 3} more</span>}
                           </td>
                           <td className="p-3 text-right">
-                            <Link to={`/themes/studio`} className="text-sky-400 hover:text-sky-200 text-sm">Edit</Link>
+                            {t.builtin ? (
+                              <span className="text-xs text-gray-500" title="Built-in theme is read-only">Read-only</span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => { editDraft(t); navigate('/themes/studio'); }}
+                                className="text-sky-400 hover:text-sky-200 text-sm"
+                              >
+                                Edit
+                              </button>
+                            )}
                           </td>
                         </tr>
                       );

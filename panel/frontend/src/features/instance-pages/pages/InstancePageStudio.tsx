@@ -95,6 +95,7 @@ const InstancePageStudio: React.FC = () => {
     content_markdown: '',
     content_blocks: '',
     icon_svg: '',
+    icon_color: '',
     actions: '',
   });
 
@@ -358,6 +359,8 @@ const InstancePageStudio: React.FC = () => {
     if (page.slug.trim() !== '.' && !/^[a-z0-9][a-z0-9-._]*$/i.test(page.slug.trim())) { setError('Slug may contain letters, numbers, dots, dashes and underscores only ("." is the reserved Home slug).'); return; }
     if (page.slug?.trim().includes('..')) { setError('Slug must not contain ".." (path traversal).'); return; }
     if (page.slug && page.slug.trim().length > 64) { setError('Slug too long (max 64 characters).'); return; }
+    const iconColor = ((page as any).icon_color || '').trim();
+    if (iconColor && !/^#[0-9a-fA-F]{6}$/.test(iconColor)) { setError('Icon colour must be a #rrggbb hex value (or empty for default).'); return; }
     const subErr = validateSubRows(subs);
     if (subErr) { setError(subErr); return; }
     const compErr = validateCompRows(components);
@@ -379,6 +382,7 @@ const InstancePageStudio: React.FC = () => {
         content_markdown: page.content_markdown ?? '',
         content_blocks: page.content_blocks ?? '',
         icon_svg: page.icon_svg ?? '',
+        icon_color: iconColor.toUpperCase(),
         actions: JSON.stringify(actionDefs),
         sub_pages: subsToJSON(subs),
         components: compsToJSON(components),
@@ -411,6 +415,7 @@ const InstancePageStudio: React.FC = () => {
       content_markdown: page.content_markdown ?? '',
       content_blocks: page.content_blocks ?? '',
       icon_svg: page.icon_svg ?? '',
+      icon_color: (page as any).icon_color ?? '',
       actions: actionDefs,
     };
     const subDefs = parseSubPages(subsToJSON(subs));
@@ -449,6 +454,7 @@ const InstancePageStudio: React.FC = () => {
         content_markdown: typeof data.content_markdown === 'string' ? data.content_markdown : p.content_markdown,
         content_blocks: typeof data.content_blocks === 'string' ? data.content_blocks : p.content_blocks,
         icon_svg: typeof data.icon_svg === 'string' ? data.icon_svg : p.icon_svg,
+        icon_color: typeof (data as any).icon_color === 'string' ? (data as any).icon_color : (p as any).icon_color,
         actions: Array.isArray(data.actions) ? JSON.stringify(data.actions) : p.actions,
       }));
       if (Array.isArray(data.actions)) setActions(defsToActions(JSON.stringify(data.actions)));

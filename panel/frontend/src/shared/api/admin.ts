@@ -270,6 +270,8 @@ export async function createTemplate(payload: {
   kind: string;
   image: string;
   spec: string;
+  icon?: string;
+  color?: string;
 }): Promise<{ id: number }> {
   const res = await client.post<{ id: number }>('/api/templates/', payload);
   return res.data;
@@ -277,7 +279,7 @@ export async function createTemplate(payload: {
 
 export async function updateTemplate(
   id: number,
-  payload: { name: string; description: string; kind: string; image: string; spec: string },
+  payload: { name: string; description: string; kind: string; image: string; spec: string; icon?: string; color?: string },
 ): Promise<void> {
   await client.put(`/api/templates/${id}`, payload);
 }
@@ -290,6 +292,14 @@ export async function downloadTemplate(id: number): Promise<Blob> {
   const res = await client.get(`/api/templates/${id}/download`, {
     responseType: 'blob',
   });
+  return res.data;
+}
+
+// Install-from-URL: server-side fetch of a public manifest URL (SSRF-guarded).
+// Mirrors the file-upload path — the panel parses + validates the fetched
+// body through the same handler chain.
+export async function installTemplateFromURL(url: string): Promise<{ id: number }> {
+  const res = await client.post<{ id: number }>('/api/templates/url', { url });
   return res.data;
 }
 
@@ -774,7 +784,7 @@ export async function deleteInstancePage(id: number): Promise<void> {
 // re-seeds the spec from the latest instance page content (idempotent on slug).
 export async function linkInstancePage(
   id: number,
-  payload: { template_ids: number[]; label?: string; icon_svg?: string; enabled?: boolean },
+  payload: { template_ids: number[]; label?: string; icon_svg?: string; icon_color?: string; enabled?: boolean },
 ): Promise<{ linked: number[]; skipped: number[] }> {
   const res = await client.post<{ linked: number[]; skipped: number[] }>(
     `/api/instance-pages/${id}/link`,
@@ -959,6 +969,7 @@ export interface MarketplacePage {
   tags: string[];
   download_url: string;
   icon_svg: string;
+  icon_color?: string;
   preview_image: string;
 }
 
@@ -1013,6 +1024,7 @@ export interface LocalInstancePage {
   content_markdown: string;
   content_blocks: string;
   icon_svg: string;
+  icon_color?: string;
   /** Multi-page support: extra pages shipped with this definition. */
   pages?: import('@/features/instance-pages/types/instancePage').InstancePageSubPage[];
 }

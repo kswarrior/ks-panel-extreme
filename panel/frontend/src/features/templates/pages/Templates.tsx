@@ -5,6 +5,7 @@ import {
   listTemplates,
   deleteTemplate,
   downloadTemplate,
+  installTemplateFromURL,
 } from '@/shared/api/admin';
 import type { Template } from '@/shared/types/instance';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
@@ -12,6 +13,8 @@ import GlassCard from '@/shared/components/ui/Card';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import GlassModal from '@/shared/components/ui/Modal';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
+import { CardIconTile } from '@/shared/components/ui/IconColorPicker';
+import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 import { useConfirm } from '@/shared/stores/confirmStore';
 
 type KindKey = 'docker' | 'lxd' | 'kvm' | 'multipass' | 'unknown';
@@ -151,7 +154,7 @@ const Templates: React.FC = () => {
     setUrlBusy(true);
     setUrlError('');
     try {
-      await client.post('/api/templates/url', { url: urlInput.trim() });
+      await installTemplateFromURL(urlInput.trim());
       setInstallOpen(false);
       setUrlInput('');
       await load();
@@ -171,9 +174,6 @@ const Templates: React.FC = () => {
     setUrlInput('');
     setUrlError('');
   };
-
-  const openCreate = () => navigate('/templates/new');
-  const openEdit = (t: Template) => navigate(`/templates/${t.id}/edit`);
 
   const remove = async (t: Template) => {
     if (!(await confirm({ title: 'Delete template', message: `Delete template "${t.name}"? Existing instances keep running.`, tone: 'danger', confirmLabel: 'Delete' }))) return;
@@ -218,19 +218,6 @@ const Templates: React.FC = () => {
       created: t.created_at ? new Date(t.created_at).getTime() : 0,
     };
   }), [templates]);
-
-  // Stats summary for the header strip
-  const stats = useMemo(() => {
-    const byKind: Record<string, number> = {};
-    enriched.forEach((e) => { byKind[e.kind] = (byKind[e.kind] || 0) + 1; });
-    return {
-      total: enriched.length,
-      docker: byKind.docker || 0,
-      lxd: byKind.lxd || 0,
-      kvm: byKind.kvm || 0,
-      multipass: byKind.multipass || 0,
-    };
-  }, [enriched]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -410,9 +397,11 @@ const Templates: React.FC = () => {
               <article id={`ks-template-${t.id}`} key={t.id} className="ks-card ks-list-card group relative glass-card rounded-xl flex flex-col gap-3 hover:border-white/20 transition-colors">
                 <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
                 <header className="flex items-start gap-3 min-w-0">
-                  <div className="shrink-0 w-10 h-10 rounded-lg flex items-center justify-center border bg-white/[0.05] border-white/10 text-gray-300" aria-hidden="true">
-                    <KindIcon kind={e.kind} className="w-5 h-5" />
-                  </div>
+                  <CardIconTile
+                    icon={(t as any).icon || ''}
+                    color={(t as any).color || ''}
+                    fallback={<KindIcon kind={e.kind} className="w-5 h-5" />}
+                  />
                   <div className="min-w-0 flex-1">
                     <h3 className="text-sm font-semibold text-white truncate leading-tight">{t.name}</h3>
                     {(e.category || e.type) && (

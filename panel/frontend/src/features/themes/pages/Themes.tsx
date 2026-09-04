@@ -1,19 +1,18 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import client from '@/shared/api/client';
 import GlassCard from '@/shared/components/ui/Card';
 import ThemePreview from '@/features/themes/components/ThemePreview';
 import GlassModal from '@/shared/components/ui/Modal';
 import RichMenu, { type RichMenuItem } from '@/shared/components/ui/RichMenu';
 import { useThemeAssignItems } from '@/features/themes/components/ThemeAssignMenu';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
-import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import { useThemeStore } from '@/shared/stores/themeStore';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { AREAS, STANDALONE_PAGES } from '@/features/instance-pages/types/pageregistry';
 import type { Theme } from '@/features/themes/types/theme';
 import { downloadTheme, installThemeFromUrl, uploadThemeFile } from '@/features/themes/api/themes';
 import { useConfirm } from '@/shared/stores/confirmStore';
+import { CardIconTile } from '@/shared/components/ui/IconColorPicker';
 
 // ApplyToRichMenu is the "Apply to…" dropdown for a single theme card.
 // It wires RichMenu (which owns portal + placement + scrim + submenu
@@ -152,6 +151,18 @@ const Themes: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [filterOpen]);
 
+  // Pull the scopes bound to a theme from BOTH maps so a card shows the full
+  // "Used on:" caption regardless of whether the binding is local or global.
+  // Declared BEFORE filteredThemes: the assigned/unassigned filter calls it
+  // inside its useMemo, and a later declaration would read as TDZ and crash
+  // the page the moment that filter activates.
+  const scopesFor = (themeId: string): string[] => {
+    const out: string[] = [];
+    for (const [scope, tid] of Object.entries(assignments)) if (tid === themeId) out.push(scope);
+    for (const [scope, tid] of Object.entries(globalAssignments)) if (tid === themeId) out.push(scope);
+    return Array.from(new Set(out));
+  };
+
   // Filter themes
   const filteredThemes = useMemo(() => {
     let out = allThemes;
@@ -170,7 +181,8 @@ const Themes: React.FC = () => {
       });
     }
     return out;
-  }, [allThemes, search, originFilter, assignedFilter]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allThemes, search, originFilter, assignedFilter, assignments, globalAssignments]);
 
   const openStudio = () => {
     beginDraft(useThemeStore.getState().active());
@@ -321,17 +333,6 @@ const Themes: React.FC = () => {
     setUrlError('');
   };
 
-  // Pull the scopes bound to a theme from BOTH maps so a card shows the full
-  // "Used on:" caption regardless of whether the binding is local or global.
-  const scopesFor = (themeId: string): string[] => {
-    const out: string[] = [];
-    for (const [scope, tid] of Object.entries(assignments)) if (tid === themeId) out.push(scope);
-    for (const [scope, tid] of Object.entries(globalAssignments)) if (tid === themeId) out.push(scope);
-    return Array.from(new Set(out));
-  };
-
-  const usedCountTotal = Object.keys(assignments).length;
-
   return (
     <div>
       <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
@@ -426,25 +427,41 @@ const Themes: React.FC = () => {
 <div className="ks-card-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" id="ks-themes-grid">
         {filteredThemes.map(({ theme: t, origin }) => {
           const scopes = scopesFor(t.id);
-          const isDefault = t.id === 'default';
-          const canMutate = !t.builtin && (origin === 'local' || canManageGlobal);
           const canAssign = origin !== 'global' || canManageGlobal;
 
           return (
             <article key={t.id} id={`ks-theme-${t.id}`} className="ks-card ks-list-card group relative glass-card rounded-xl flex flex-col gap-3 hover:border-white/20 transition-colors">
               <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
               <header className="flex items-start gap-3 min-w-0">
-                <div className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center border bg-black/30 ${isDefault ? 'border-sky-700/60 text-sky-300' : t.builtin ? 'border-sky-700/60 text-sky-300' : origin === 'global' ? 'border-indigo-700/60 text-indigo-300' : 'border-emerald-700/60 text-emerald-300'}`} aria-hidden="true">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-                    <circle cx="12" cy="12" r="10" />
-                    <path d="M12 6v6l4 2" />
-                  </svg>
-                </div>
+                <CardIconTile
+                  icon={(t as any).icon || ''}
+                  color={(t as any).color || ''}
+                  fallback={(
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+                      <circle cx="12" cy="12" r="10" />
+                      <path d="M12 6v6l4 2" />
+                    </svg>
+                  )}
+                />
                 <div className="min-w-0 flex-1">
                   <h3 className="text-sm font-semibold text-white truncate leading-tight">{t.name}</h3>
                   <p className="text-[11px] text-gray-500 truncate mt-0.5 font-mono">{t.id}{t.builtin ? ' · built-in' : origin === 'global' ? ' · global' : ' · local'}</p>
                 </div>
               </header>
+
+              <ThemePreview theme={t} />
+
+              {t.description && (
+                <p className="text-xs text-gray-400 leading-relaxed line-clamp-2">{t.description}</p>
+              )}
+
+              <p className="text-[11px] text-gray-500 leading-relaxed">
+                {scopes.length > 0 ? (
+                  <>Used on: {scopes.map(scopeLabel).join(' · ')}</>
+                ) : (
+                  <>Not assigned — use Apply to… to paint a page or area.</>
+                )}
+              </p>
 
               <footer className="mt-auto pt-2 border-t border-white/[0.06] flex items-center justify-between gap-2">
                 <span className="text-[11px] text-gray-500 truncate">
@@ -491,6 +508,15 @@ const Themes: React.FC = () => {
                       </button>
                     );
                   })()}
+                  <button
+                    type="button"
+                    onClick={() => handleDownload(t, origin)}
+                    aria-label={`Download theme ${t.name}`}
+                    title="Download manifest JSON"
+                    className="ks-icon-btn rounded-lg"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                  </button>
                   {canAssign && (
                     <ApplyToRichMenu theme={t} />
                   )}

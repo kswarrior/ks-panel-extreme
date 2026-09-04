@@ -12,6 +12,11 @@ export function buildEdgeConfig(
 ): string {
   const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5050';
   const m: ConnectionMode = (form.connection_mode as ConnectionMode) || 'direct';
+  // use_tls_upstream describes edge→panel TLS (panel_url scheme), not the
+  // panel→edge UseTLS flag. Derive it from the origin so an https panel
+  // yields true even when the edge itself is plain http.
+  const upstreamTls = origin.trim().toLowerCase().startsWith('https');
+  void useTls;
   const cfg: Record<string, any> = {
     uuid: 'auto-generated-by-panel',
     name,
@@ -19,8 +24,8 @@ export function buildEdgeConfig(
     token,
     listen_port: Number(port) || 4040,
     heartbeat_interval: 60,
-    use_tls_upstream: useTls,
-    skip_verify: false,
+    use_tls_upstream: upstreamTls,
+    skip_verify: Boolean(form.skip_tls_verify),
     connection_mode: m,
   };
   const instancesDir = form.instances_dir.trim();

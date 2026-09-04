@@ -1167,24 +1167,62 @@ func anyMetricPartial(n models.Node) bool {
 // Migration-tolerant: a DB that hasn't run 019 yet returns an empty slice so
 // the loop silently keeps using the heartbeat-derived status only.
 func (r *NodeRepository) NodesDueForHealthCheck() ([]models.Node, error) {
+	// Include connection_mode so probe.Probe can pick the WSS-tunnel path
+	// for reverse_tunnel / local_wss. Without it the sweep probed every
+	// tunnel node via direct HTTP to address "tunnel" and always marked it
+	// down even while the WSS tunnel was healthy.
 	rows, err := r.db.Query(`SELECT id, name, address, use_tls,
-		health_timeout, skip_tls_verify, health_retries
+		health_timeout, skip_tls_verify, health_retries, connection_mode
 		FROM nodes WHERE health_enabled = 1
 		AND (next_probe_at IS NULL OR next_probe_at <= datetime('now'))`)
 	if err != nil {
-		return nil, nil
+		// Pre-050 DBs lack connection_mode (all rows are implicitly
+		// direct). Fall back to the legacy shape so probing keeps working
+		// instead of silently disabling the sweep. Pre-019 DBs lack the
+		// health columns entirely and still return empty (heartbeat-only).
+		if !strings.Contains(strings.ToLower(err.Error()), "connection_mode") {
+			return nil, nil
+		}
+		legacy, lerr := r.db.Query(`SELECT id, name, address, use_tls,
+			health_timeout, skip_tls_verify, health_retries
+			FROM nodes WHERE health_enabled = 1
+			AND (next_probe_at IS NULL OR next_probe_at <= datetime('now'))`)
+		if lerr != nil {
+			return nil, nil
+		}
+		defer legacy.Close()
+		var out []models.Node
+		for legacy.Next() {
+			var nd models.Node
+			var useTLS, skipTLS int
+			if err := legacy.Scan(&nd.ID, &nd.Name, &nd.Address, &useTLS,
+				&nd.HealthTimeout, &skipTLS, &nd.HealthRetries); err != nil {
+				continue
+			}
+			nd.UseTLS = useTLS == 1
+			nd.SkipTLSVerify = skipTLS == 1
+			nd.ConnectionMode = "direct"
+			out = append(out, nd)
+		}
+		return out, legacy.Err()
 	}
 	defer rows.Close()
 	var out []models.Node
 	for rows.Next() {
 		var nd models.Node
 		var useTLS, skipTLS int
+		var cm sql.NullString
 		if err := rows.Scan(&nd.ID, &nd.Name, &nd.Address, &useTLS,
-			&nd.HealthTimeout, &skipTLS, &nd.HealthRetries); err != nil {
+			&nd.HealthTimeout, &skipTLS, &nd.HealthRetries, &cm); err != nil {
 			continue
 		}
 		nd.UseTLS = useTLS == 1
 		nd.SkipTLSVerify = skipTLS == 1
+		if cm.Valid && strings.TrimSpace(cm.String) != "" {
+			nd.ConnectionMode = cm.String
+		} else {
+			nd.ConnectionMode = "direct"
+		}
 		out = append(out, nd)
 	}
 	return out, rows.Err()

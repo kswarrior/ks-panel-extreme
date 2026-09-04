@@ -52,6 +52,8 @@ export interface InstancePage {
   content_markdown: string;
   content_blocks: string;
   icon_svg: string;
+  /** Optional #rrggbb accent tinting the icon tile on cards (migration 060). */
+  icon_color?: string;
   /** JSON-encoded array of PageActionDef. Empty string == none. */
   actions: string;
   /** JSON-encoded array of InstancePageSubPage (multi-page support).
@@ -184,6 +186,7 @@ export interface CreateInstancePagePayload {
   content_markdown: string;
   content_blocks: string;
   icon_svg: string;
+  icon_color?: string;
   actions: string;
   sub_pages?: string;
   components?: string;
@@ -202,6 +205,7 @@ export interface UpdateInstancePagePayload {
   content_markdown: string;
   content_blocks: string;
   icon_svg: string;
+  icon_color?: string;
   actions: string;
   sub_pages?: string;
   components?: string;

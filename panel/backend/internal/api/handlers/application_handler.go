@@ -31,6 +31,7 @@ type appResponse struct {
 	Version       string                      `json:"version"`
 	Description   string                      `json:"description"`
 	Icon          string                      `json:"icon"`
+	Color         string                      `json:"color,omitempty"`
 	Runtime       string                      `json:"runtime"`
 	Entrypoint    string                      `json:"entrypoint"`
 	ConfigSchema  json.RawMessage             `json:"config_schema"`
@@ -92,6 +93,7 @@ func toAppResponse(repo *repository.ApplicationRepository, app *models.Applicati
 		Version:       app.Version,
 		Description:   app.Description,
 		Icon:          app.Icon,
+		Color:         app.Color,
 		Runtime:       app.Runtime,
 		Entrypoint:    app.Entrypoint,
 		ConfigSchema:  app.ConfigSchema,
@@ -178,6 +180,7 @@ type appUpsertDTO struct {
 	Version        string                     `json:"version"`
 	Description    string                     `json:"description"`
 	Icon           string                     `json:"icon"`
+	Color          string                     `json:"color"`
 	Runtime        string                     `json:"runtime"`
 	Entrypoint     string                     `json:"entrypoint"`
 	ConfigSchema   json.RawMessage            `json:"config_schema"`
@@ -261,6 +264,7 @@ func CreateApplicationHandler(w http.ResponseWriter, r *http.Request) {
 		Version:        in.Version,
 		Description:    in.Description,
 		Icon:           in.Icon,
+		Color:          strings.ToUpper(strings.TrimSpace(in.Color)),
 		Runtime:        in.Runtime,
 		Entrypoint:     in.Entrypoint,
 		ConfigSchema:   in.ConfigSchema,
@@ -342,6 +346,7 @@ func InstallApplicationFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		Version:        in.Version,
 		Description:    in.Description,
 		Icon:           in.Icon,
+		Color:          strings.ToUpper(strings.TrimSpace(in.Color)),
 		Runtime:        in.Runtime,
 		Entrypoint:     in.Entrypoint,
 		ConfigSchema:   in.ConfigSchema,
@@ -397,6 +402,7 @@ func UpdateApplicationHandler(w http.ResponseWriter, r *http.Request) {
 		Version:      dto.Version,
 		Description:  dto.Description,
 		Icon:         dto.Icon,
+		Color:        strings.ToUpper(strings.TrimSpace(dto.Color)),
 		Runtime:      dto.Runtime,
 		Entrypoint:   dto.Entrypoint,
 		ConfigSchema: dto.ConfigSchema,

@@ -173,6 +173,14 @@ export interface ThemeHeader {
   border_color: string;
   height: number;            // px
   text_color: string;
+  // Page-switch loading bar pinned to the header edge (Header.tsx sweeps
+  // left → right while a new page opens). All fields are optional at rest
+  // so older persisted themes backfill from DEFAULT via sectionBackfill.
+  loading_bar_enabled: boolean;              // false = hide the bar entirely
+  loading_bar_color: string;                 // bar fill (default white)
+  loading_bar_height: number;                // px thickness (1..8)
+  loading_bar_position: 'top' | 'bottom';    // which header edge to pin to
+  loading_bar_background: string;            // track behind the bar (transparent = none)
 }
 
 export interface ThemeTypography {
@@ -442,6 +450,10 @@ export interface Theme {
   builtin: boolean;          // true for the 'default' glassmorphism theme
   created_at: string;        // ISO timestamp
   updated_at: string;
+  /** Raw SVG markup for the theme tile (optional). Empty = palette glyph. */
+  icon?: string;
+  /** Optional #rrggbb accent tinting the tile on theme cards. */
+  color?: string;
 
   background: ThemeBackground;
   card: ThemeCard;
