@@ -124,9 +124,9 @@ const ChatSettings: React.FC = () => {
     }
   };
 
-  const setBaseUrl = (v: string) => (isFallback ? set({ fallback_base_url: v }) : set({ base_url: v }));
+  const setBaseUrl = (v: string) =>
+    isFallback ? set({ fallback_base_url: v, fallback_ollama_mode: inferOllamaMode(v) }) : set({ base_url: v, ollama_mode: inferOllamaMode(v) });
   const setModelId = (v: string) => (isFallback ? set({ fallback_model_id: v }) : set({ model_id: v }));
-  const setOllama = (v: boolean) => (isFallback ? set({ fallback_ollama_mode: v }) : set({ ollama_mode: v }));
 
   const onTest = async () => {
     setTesting(true);
@@ -185,23 +185,6 @@ const ChatSettings: React.FC = () => {
       <p className="text-[11px] text-gray-500 leading-relaxed">
         Panel-wide assistant. Keys are sealed server-side and never reach the browser — leave a key blank to keep the stored one.
       </p>
-
-      <label className="flex items-start justify-between gap-3 cursor-pointer select-none">
-        <span className="flex-1 min-w-0">
-          <span className="block text-xs font-medium text-gray-200">Enabled</span>
-          <span className="block text-[11px] text-gray-500">Master kill-switch for the assistant.</span>
-        </span>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={cfg.enabled}
-          aria-label="AI assistant enabled"
-          onClick={() => set({ enabled: !cfg.enabled })}
-          className={`ks-toggle shrink-0 ${cfg.enabled ? 'is-on' : ''}`}
-        >
-          <span className="ks-toggle__thumb" />
-        </button>
-      </label>
 
       {/* ── Providers ─────────────────────────────────────────── */}
       <section className="space-y-3">
@@ -291,23 +274,6 @@ const ChatSettings: React.FC = () => {
             className={inputCls}
           />
         </div>
-
-        <label className="flex items-start justify-between gap-3 cursor-pointer select-none">
-          <span className="flex-1 min-w-0">
-            <span className="block text-xs font-medium text-gray-200">Ollama mode</span>
-            <span className="block text-[11px] text-gray-500">Talk Ollama /api/chat instead of OpenAI /chat/completions.</span>
-          </span>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={ollamaMode}
-            aria-label="Ollama mode"
-            onClick={() => setOllama(!ollamaMode)}
-            className={`ks-toggle shrink-0 ${ollamaMode ? 'is-on' : ''}`}
-          >
-            <span className="ks-toggle__thumb" />
-          </button>
-        </label>
 
         <div className="flex items-center gap-2">
           <button
