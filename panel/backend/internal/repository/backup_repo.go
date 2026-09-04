@@ -52,30 +52,42 @@ func NewBackupScheduleRepository(db *sql.DB) *BackupScheduleRepository {
 
 func scanBackupSchedule(rows *sql.Rows) (BackupSchedule, error) {
 	var s BackupSchedule
-	var id sql.NullInt64
-	var instID sql.NullInt64
+	var id, instID, enabledN, keepN, ageN, s3N sql.NullInt64
+	var kindN, nameN, cronN, compN sql.NullString
 	var nextRun, lastRun, created, updated sql.NullString
-	var enabled, s3push int
-	if err := rows.Scan(&id, &s.Kind, &instID, &s.Name, &s.Cron, &enabled,
-		&s.KeepLastN, &s.MaxAgeDays, &s.Compression, &s3push,
+	if err := rows.Scan(&id, &kindN, &instID, &nameN, &cronN, &enabledN,
+		&keepN, &ageN, &compN, &s3N,
 		&nextRun, &lastRun, &created, &updated); err != nil {
 		return s, err
 	}
 	// modernc.org/sqlite v1.6.0 emits one all-NULL phantom row when
 	// streaming an EMPTY table (same driver quirk datamove and the Database
 	// page document for other empty-set scans). A real schedule row always
-	// has a non-NULL id, so drop the phantom instead of failing the list
-	// with "converting NULL to int64".
+	// has a non-NULL id, so drop the phantom instead of failing the list.
 	if !id.Valid {
 		return s, errPhantomRow
 	}
 	s.ID = id.Int64
+	s.Kind = kindN.String
+	s.Name = nameN.String
+	s.Cron = cronN.String
+	s.Compression = compN.String
 	if instID.Valid {
 		v := instID.Int64
 		s.InstanceID = &v
 	}
-	s.Enabled = enabled != 0
-	s.S3Push = s3push != 0
+	if enabledN.Valid {
+		s.Enabled = enabledN.Int64 != 0
+	}
+	if keepN.Valid {
+		s.KeepLastN = int(keepN.Int64)
+	}
+	if ageN.Valid {
+		s.MaxAgeDays = int(ageN.Int64)
+	}
+	if s3N.Valid {
+		s.S3Push = s3N.Int64 != 0
+	}
 	s.NextRunAt = parseBackupTime(nextRun)
 	s.LastRunAt = parseBackupTime(lastRun)
 	s.CreatedAt = parseBackupTimeOrNow(created)
