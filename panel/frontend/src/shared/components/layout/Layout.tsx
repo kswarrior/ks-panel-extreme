@@ -4,7 +4,9 @@ import Header from './Header';
 import Sidebar from './Sidebar';
 import ThemedBackground from './ThemedBackground';
 import ErrorBoundary from '@/shared/components/ui/ErrorBoundary';
+import { useAutoHidePill } from '@/shared/components/ui/PageActionsPill';
 import InstancePowerBar from '@/features/instances/components/InstancePowerBar';
+import InstanceInfoBar from '@/features/instances/components/InstanceInfoBar';
 
 const Layout: React.FC = () => {
   const location = useLocation();
@@ -15,6 +17,11 @@ const Layout: React.FC = () => {
   const inInstancePanel = useMemo(() => {
     return /^\/instances\/\d+/.test(location.pathname);
   }, [location.pathname]);
+
+  // Power dock auto-hide — same behavior as the Cancel/Deploy pill
+  // (hide on scroll / outside click, slide back after idle), 1.5s delay.
+  // Opacity/translate only: the row keeps its space so content never jumps.
+  const powerHide = useAutoHidePill(1500);
 
   useEffect(() => {
     setSidebarOpen(false);
@@ -49,11 +56,23 @@ const Layout: React.FC = () => {
             below it, so the header keeps its fixed height and the dock lives
             as its own row (scrolls with layout, not part of sticky chrome). */}
         {inInstancePanel && (
-          <div className="shrink-0 w-full flex justify-start p-0 m-0">
+          <div
+            ref={powerHide.ref}
+            className={`shrink-0 w-full flex justify-start p-0 m-0 transition-all duration-300 ${
+              powerHide.visible ? 'translate-x-0 opacity-100' : 'pointer-events-none -translate-x-3 opacity-0'
+            }`}
+          >
             <ErrorBoundary resetKey={location.pathname} label="instance-power">
               <InstancePowerBar />
             </ErrorBoundary>
           </div>
+        )}
+        {/* Instance info dock — fixed right edge (Status / Uptime / Type),
+            own auto-hide at 1.5s inside the component. */}
+        {inInstancePanel && (
+          <ErrorBoundary resetKey={location.pathname} label="instance-info">
+            <InstanceInfoBar />
+          </ErrorBoundary>
         )}
         <main className="flex-1 overflow-auto p-4 sm:p-6">
           <ErrorBoundary resetKey={location.pathname} label="page">
