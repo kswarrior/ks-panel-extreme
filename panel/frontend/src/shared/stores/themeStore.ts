@@ -232,7 +232,7 @@ function buildBgLayer(theme: Theme): string {
   const op = clampNum(bg.opacity, 0, 0, 1);
 
   if (bg.type === 'image' && bg.image_url) {
-    // cssUrl validates the scheme (http(s)/data:image/blob/root-relative),
+    // cssUrl validates the scheme (http(s)/data:image|video/blob/root-relative),
     // strips quote/backslash break-out characters and rejects absurd
     // lengths — a rejected URL renders no layer instead of injecting CSS.
     const url = cssUrl(bg.image_url);

@@ -990,8 +990,14 @@ function customPageThemeCss(theme: Theme, pageSlugOrPath?: string): string {
   };
   const clampNum = (v: unknown, d: number, min: number, max: number): number => Math.max(min, Math.min(max, num(v, d)));
   const cssUrl = (v: unknown): string => {
+    // Mirrors the theme store's cssUrl: scheme allowlist (http(s) /
+    // data:image|video / blob: / root-relative) with scheme-aware length
+    // caps — self-contained data: uploads legitimately run to hundreds of
+    // KB, so capping those at 4096 silently dropped every uploaded card
+    // backdrop on custom pages.
     const s = String(v ?? '').trim();
-    if (!s || s.length > 4096 || !/^(https?:\/\/|data:image\/[a-z0-9.+-]+(;base64)?,|blob:|\/)/i.test(s)) return '';
+    if (!s || !/^(https?:\/\/|data:(image|video)\/[a-z0-9.+-]+(;base64)?,|blob:|\/)/i.test(s)) return '';
+    if (s.length > (s.toLowerCase().startsWith('data:') ? 10 * 1024 * 1024 : 4096)) return '';
     return s.replace(/['\\]/g, '');
   };
   let cardLayer = 'none';
