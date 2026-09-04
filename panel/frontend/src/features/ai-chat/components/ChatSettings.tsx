@@ -84,11 +84,6 @@ const ChatSettings: React.FC = () => {
       } finally {
         setLoading(false);
       }
-      try {
-        setUsage(await getAIUsage());
-      } catch {
-        // Usage is best-effort — the form works without it.
-      }
     })();
   }, []);
 
