@@ -8,6 +8,11 @@
 > - **Pterodactyl** — github.com/pterodactyl/panel (Laravel 12 + Wings, mature 8y, MySQL)
 > - **Pelican** — github.com/pelican-dev/panel (Laravel 13 + Filament 5, modern rewrite 2y, MySQL/PG)
 > - **Crafty 4** — crafty-controller/crafty-4 (Python Tornado + Jinja2, single-host)
+> - **PufferPanel** — github.com/pufferpanel/pufferpanel v3 (Go + Vue.js, ~12y, SQLite/MySQL/PG/MSSQL, Docker-optional) — scored from official docs 2026-09-04 (docs-only, no full code walk)
+> - **AMP (CubeCoders)** — cubecoders.com/AMP 2.x → 3 beta (C#/.NET 8 + Kestrel, commercial, ADS+targets, Docker/Podman) — scored from official docs 2026-09-04 (docs-only; multi-node/OIDC/WHMCS are edition-gated, scored as Pro stock, billing excluded)
+> - **Multicraft** — multicraft.org 2.x (PHP Yii panel + native daemon, commercial, SQLite/MySQL, FTP) — scored from official docs 2026-09-04 (docs-only)
+> - **MineOS** — github.com/hexparrot/mineos-node (Node.js + AngularJS websockets, single-host, no DB) — scored from official docs 2026-09-04 (docs-only)
+> - **Pyrodactyl** — github.com/pyrohost/pyrodactyl (Pterodactyl fork, Laravel 12 + Wings, Vite/React frontend) — scored from official docs 2026-09-04 (docs-only, backend = Ptero)
 
 ## Identity
 

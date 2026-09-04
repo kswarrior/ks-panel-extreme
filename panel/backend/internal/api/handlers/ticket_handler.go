@@ -43,6 +43,149 @@ func isTicketStaff(con *sql.DB, uid int64) bool {
 	return false
 }
 
+// ticketActorName resolves the display name for notification actor fields.
+// Prefers the request context cache, falls back to a DB lookup; empty when
+// unresolvable (Emit* tolerates an empty actor name).
+func ticketActorName(r *http.Request, uid int64) string {
+	if u, _, ok := currentUserFromContext(r.Context()); ok && u != nil && u.Username != "" {
+		return u.Username
+	}
+	if con, err := repository.OpenDB(); err == nil {
+		defer con.Close()
+		var name string
+		_ = con.QueryRow(`SELECT username FROM users WHERE id = ?`, uid).Scan(&name)
+		return name
+	}
+	return ""
+}
+
+// ticketNotifPriority maps a ticket priority onto the notification priority
+// enum so SLA/assignment pushes carry the right urgency in the bell.
+func ticketNotifPriority(ticketPriority string) models.NotificationPriority {
+	switch strings.ToLower(strings.TrimSpace(ticketPriority)) {
+	case "low":
+		return models.NotificationPriorityLow
+	case "high":
+		return models.NotificationPriorityHigh
+	case "urgent":
+		return models.NotificationPriorityUrgent
+	case "critical":
+		return models.NotificationPriorityCritical
+	default:
+		return models.NotificationPriorityNormal
+	}
+}
+
+// ticketStaffIDs returns every user whose role grants MANAGE_TICKETS — the
+// triage audience for unassigned-ticket and breach fan-out. Empty (not an
+// error) when no staff role exists yet.
+func ticketStaffIDs(con *sql.DB) []int64 {
+	rows, err := con.Query(
+		`SELECT DISTINCT u.id FROM users u
+		 JOIN role_permissions rp ON rp.role_id = u.role_id
+		 JOIN permissions p ON p.id = rp.permission_id
+		 WHERE p.key = 'MANAGE_TICKETS'`,
+	)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	var out []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err == nil {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+func ticketPanelName(con *sql.DB) string {
+	if repo := repository.NewSettingsRepository(con); repo != nil {
+		if snap, err := repo.Get(); err == nil && snap != nil && strings.TrimSpace(snap.PanelName) != "" {
+			return strings.TrimSpace(snap.PanelName)
+		}
+	}
+	return "KS Panel"
+}
+
+// notifyTicketCreated fans out the "ticket opened" notification: the assignee
+// when set, otherwise every staff member except the reporter. Delivery
+// (WS push + email) honours each recipient's notification_prefs via
+// EmitNotification → pushAndMailNotification, so digest/off users are
+// correctly skipped here without extra checks.
+func notifyTicketCreated(r *http.Request, con *sql.DB, tk *models.Ticket, reporterID int64) {
+	actorName := ticketActorName(r, reporterID)
+	var actorPtr *int64
+	if reporterID != 0 {
+		actorPtr = &reporterID
+	}
+	panelName := ticketPanelName(con)
+	link := fmt.Sprintf("/tickets/%d", tk.ID)
+	if tk.AssignedTo != nil && *tk.AssignedTo != reporterID {
+		subj, body := repository.TicketCreatedMail(panelName, tk.TicketNo, tk.Subject, tk.Category, tk.Priority, actorName)
+		EmitNotification(*tk.AssignedTo, actorPtr, actorName, models.NotificationCategoryTicket, ticketNotifPriority(tk.Priority), subj, body, link, "Open ticket", "")
+		return
+	}
+	if tk.AssignedTo == nil {
+		for _, sid := range ticketStaffIDs(con) {
+			if sid == reporterID {
+				continue
+			}
+			subj, body := repository.TicketCreatedMail(panelName, tk.TicketNo, tk.Subject, tk.Category, tk.Priority, actorName)
+			EmitNotification(sid, actorPtr, actorName, models.NotificationCategoryTicket, ticketNotifPriority(tk.Priority), subj, body, link, "Open ticket", "")
+		}
+	}
+}
+
+// notifyTicketAssigned notifies the new assignee (unless they performed the
+// assignment themselves).
+func notifyTicketAssigned(r *http.Request, con *sql.DB, tk *models.Ticket, actorID int64) {
+	if tk.AssignedTo == nil || *tk.AssignedTo == actorID {
+		return
+	}
+	actorName := ticketActorName(r, actorID)
+	var actorPtr *int64
+	if actorID != 0 {
+		actorPtr = &actorID
+	}
+	panelName := ticketPanelName(con)
+	subj, body := repository.TicketAssignedMail(panelName, tk.TicketNo, tk.Subject, actorName)
+	EmitNotification(*tk.AssignedTo, actorPtr, actorName, models.NotificationCategoryTicket, ticketNotifPriority(tk.Priority), subj, body, fmt.Sprintf("/tickets/%d", tk.ID), "Open ticket", "")
+}
+
+// notifyTicketReplied notifies the ticket owner + assignee (excluding the
+// author). Internal staff notes never notify the reporter (they can't see
+// them); they still notify the assignee when someone else wrote them.
+func notifyTicketReplied(r *http.Request, con *sql.DB, tk *models.Ticket, authorID int64, body string, isInternal bool) {
+	actorName := ticketActorName(r, authorID)
+	var actorPtr *int64
+	if authorID != 0 {
+		actorPtr = &authorID
+	}
+	panelName := ticketPanelName(con)
+	link := fmt.Sprintf("/tickets/%d/chat", tk.ID)
+	seen := map[int64]bool{authorID: true}
+	notify := func(uid int64) {
+		if seen[uid] {
+			return
+		}
+		seen[uid] = true
+		subj, msg := repository.TicketRepliedMail(panelName, tk.TicketNo, actorName, body)
+		EmitNotification(uid, actorPtr, actorName, models.NotificationCategoryTicket, ticketNotifPriority(tk.Priority), subj, msg, link, "Open chat", "")
+	}
+	if isInternal {
+		if tk.AssignedTo != nil {
+			notify(*tk.AssignedTo)
+		}
+		return
+	}
+	notify(tk.CreatedBy)
+	if tk.AssignedTo != nil {
+		notify(*tk.AssignedTo)
+	}
+}
+
 // ListTicketsHandler returns paginated tickets.
 // Query params: category, priority, status, search, mine, limit, offset, include_internal (staff)
 // Non-staff automatically sees only own tickets unless they hold MANAGE_TICKETS/TICKETS_VIEW.
@@ -135,9 +278,19 @@ func GetTicketHandler(w http.ResponseWriter, r *http.Request) {
 	if comments == nil {
 		comments = []models.TicketComment{}
 	}
+	// Attachments + SLA sidecar ride along so TicketDetail/Chat render
+	// thumbnails/inline + breach badges without a second round-trip.
+	// Missing tables/rows (pre-065 DBs) read back as empty, never a 500.
+	attachments, _ := repo.ListAttachments(id)
+	if attachments == nil {
+		attachments = []models.TicketAttachment{}
+	}
+	sla, _ := repo.GetSLA(id)
 	writeJSON(w, map[string]any{
-		"ticket":   tk,
-		"comments": comments,
+		"ticket":      tk,
+		"comments":    comments,
+		"attachments": attachments,
+		"sla":         sla,
 	})
 }
 
@@ -237,6 +390,13 @@ func CreateTicketHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+	}
+	// SLA (065): tickets created without an explicit due date inherit
+	// now + resolve_hours for their category so the overdue sweep has a
+	// deadline to enforce from the moment the ticket opens.
+	if dueAt == nil {
+		auto := repo.ComputeDueAt(req.Category, time.Now().UTC())
+		dueAt = &auto
 	}
 	tk, err := repo.Create(repository.CreateTicketInput{
 		Subject:     req.Subject,
