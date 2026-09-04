@@ -68,9 +68,23 @@ const ThemedBackground: React.FC = () => {
       ? { backgroundImage: bgUrl, backgroundSize: 'cover', backgroundPosition: 'center' }
       : { backgroundImage: `url("${bgUrl}")`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' };
 
+  // clearStaleThemeNode drops any theme-store-stamped backdrop node this
+  // div may have inherited through React's in-place child reconciliation:
+  // the store writes its media node into #ks-theme-layer via innerHTML
+  // (outside React's knowledge), so when this branding div REUSES that
+  // mount's DOM node on toggle, the stale image node would survive as an
+  // invisible-to-React child and paint OVER the authority backdrop. The
+  // store never targets this div (it has no id), so clearing is safe; it
+  // runs on every render via the inline ref so both fresh-mount and
+  // node-reuse transitions are covered.
+  const clearStaleThemeNode = (el: HTMLDivElement | null) => {
+    if (el && el.firstChild) el.innerHTML = '';
+  };
+
   return (
     <>
       <div
+        ref={clearStaleThemeNode}
         className="absolute inset-0 z-0 pointer-events-none overflow-hidden"
         style={style}
         aria-hidden="true"

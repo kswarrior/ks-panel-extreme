@@ -621,6 +621,22 @@ const AdminNodes: React.FC = () => {
           </div>
         )}
       </GlassModal>
+
+      <RollingUpdateModal
+        open={rollingOpen}
+        onClose={() => { setRollingOpen(false); load(); }}
+        nodes={nodes}
+      />
+
+      {!loading && (
+        <div className="mt-6">
+          <UpdateWindowsCard
+            target="fleet"
+            title="Fleet Update Schedules"
+            description="Cron schedules that run the fleet rolling update inside a daily maintenance window (UTC). Outside the window the run is skipped and logged — never executed."
+          />
+        </div>
+      )}
     </div>
   );
 };
