@@ -78,7 +78,6 @@ func EmitNotification(userID int64, actorID *int64, actorName string, category m
 	// Realtime fan-out (WS push + email per the recipient's prefs).
 	pushAndMailNotification(con, repo, userID, id)
 }
-}
 
 // EmitBroadcast fans out a notification to every user. Intended for admin
 // announcements, system updates, security alerts etc.

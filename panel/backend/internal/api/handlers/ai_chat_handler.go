@@ -478,6 +478,38 @@ func AIChatHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"reply": reply, "thread_id": threadID})
 }
 
+// aiBuildHistory merges persisted thread context with the client's new
+// turns. maxClient bounds abuse (bound threads: 10 new turns; unbound
+// legacy history: 20). Every turn is capped at 4000 chars. It also
+// returns the new user turns for thread persistence.
+func aiBuildHistory(stored []repository.AIMessage, clientMsgs []aiChatMessage, maxClient int) (history []aiMsg, newUserTurns []string, err error) {
+	if len(clientMsgs) == 0 || len(clientMsgs) > maxClient {
+		return nil, nil, fmt.Errorf("1 to %d messages are required", maxClient)
+	}
+	history = make([]aiMsg, 0, len(stored)+len(clientMsgs))
+	for _, m := range stored {
+		history = append(history, aiMsg{Role: m.Role, Content: m.Content})
+	}
+	for _, m := range clientMsgs {
+		role := strings.ToLower(strings.TrimSpace(m.Role))
+		if role != "user" && role != "assistant" {
+			return nil, nil, fmt.Errorf("message role must be user or assistant")
+		}
+		content := aiCap(strings.TrimSpace(m.Content), 4000)
+		if content == "" {
+			continue
+		}
+		history = append(history, aiMsg{Role: role, Content: content})
+		if role == "user" {
+			newUserTurns = append(newUserTurns, content)
+		}
+	}
+	if len(history) == 0 {
+		return nil, nil, fmt.Errorf("messages are required")
+	}
+	return history, newUserTurns, nil
+}
+
 // aiThreadPersist appends the new user turns + the assistant reply to a
 // bound thread (no-op when threadID is nil/zero). Failures are logged, not
 // fatal: history loss must never break a chat reply.
@@ -853,15 +885,27 @@ func (a *aiUsageAcc) add(u aiUsage) {
 // aiLogUsage writes one audit row per chat/stream request (category "ai",
 // action "chat"). The message is machine-shaped (model/provider/in/out/
 // cost) so the admin usage dashboard can aggregate it without parsing
-// prose. Never includes prompts, replies or keys.
+// prose. The model is %q-quoted because ids may contain spaces. Never
+// includes prompts, replies or keys.
 func aiLogUsage(r *http.Request, cfg *repository.AIConfig, acc aiUsageAcc) {
 	cost := float64(acc.in)/1000*cfg.CostPer1KIn + float64(acc.out)/1000*cfg.CostPer1KOut
-	msg := fmt.Sprintf("model=%s provider=%s in=%d out=%d cost=%.4f",
+	msg := fmt.Sprintf("model=%q provider=%s in=%d out=%d cost=%.4f",
 		acc.model, acc.provider, acc.in, acc.out, cost)
 	RecordActivity(r, repository.ActivityInput{
 		Category: models.ActivityCategoryAI, Action: "chat",
 		TargetLabel: aiCap(acc.model, 120), Message: aiCap(msg, 255),
 	})
+}
+
+// aiUsageSummary parses an aiLogUsage message back into parts for the
+// admin dashboard. Returns ok=false for rows it doesn't recognise.
+func aiUsageSummary(msg string) (model, provider string, in, out int, cost float64, ok bool) {
+	n, err := fmt.Sscanf(msg, "model=%q provider=%s in=%d out=%d cost=%f",
+		&model, &provider, &in, &out, &cost)
+	if err != nil || n != 5 {
+		return "", "", 0, 0, 0, false
+	}
+	return model, provider, in, out, cost, true
 }
 
 func aiParseCalls(raw json.RawMessage) []aiToolCall {
