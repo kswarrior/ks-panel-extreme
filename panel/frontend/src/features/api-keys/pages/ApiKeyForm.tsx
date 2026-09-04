@@ -4,6 +4,8 @@ import { createAdminApiKey, listAdminApiKeys, listPermissions, listUsers, update
 import type { ApiKey, CreateApiKeyResult } from '@/shared/types/apiKey';
 import type { Permission, User } from '@/shared/types/user';
 import FormPage from '@/shared/components/forms/FormPage';
+import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import GlassCard from '@/shared/components/ui/Card';
 import GlassField from '@/shared/components/ui/Field';
 import GlassModal from '@/shared/components/ui/Modal';
 import ToggleRow from '@/shared/components/ui/ToggleRow';
@@ -45,6 +47,22 @@ const COLOR_SWATCHES: Array<{ value: string; label: string }> = [
 ];
 
 type ApiKeyFormTabId = 'identity' | 'limits' | 'permissions';
+
+// Node-pattern tab meta: desktop hint + icon (mobile shows icon + label).
+const APIKEY_TAB_META: Record<ApiKeyFormTabId, { hint: string; icon: React.ReactNode }> = {
+  identity: {
+    hint: 'Name, owner & display',
+    icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></svg>,
+  },
+  limits: {
+    hint: 'Expiry & rate limits',
+    icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></svg>,
+  },
+  permissions: {
+    hint: 'Granted permissions',
+    icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>,
+  },
+};
 
 // Same pill bar as the other admin forms — the three key sections become
 // stacked tabs with the card chrome removed so content sits in the body.
@@ -317,8 +335,7 @@ const ApiKeyForm: React.FC = () => {
     return (
       <FormPage
         crumbs={[{ label: 'API Keys', to: '/api-keys' }, { label: editing ? 'Edit API Key' : 'New API Key' }]}
-        saving={false}
-        submitLabel="Save"
+        hideHeader
       >
         <FormSkeleton fields={5} />
      </FormPage>
@@ -327,27 +344,66 @@ const ApiKeyForm: React.FC = () => {
 
   return (
     <>
+      {/* Top-right actions — fixed like the phone tab bar, auto-hide on
+          scroll (node pattern). Footer Cancel/Save removed. */}
+      <PageActionsPill>
+          <button
+            type="button"
+            onClick={() => navigate('/api-keys')}
+            title="Cancel and back to API Keys"
+            aria-label="Cancel and back to API Keys"
+            className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition"
+            style={PILL_TAB_STYLE}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => submit()}
+            disabled={saving}
+            title={editing ? 'Save API key' : 'Create API key'}
+            className="ks-tab ks-tab-active shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-60"
+            style={PILL_TAB_STYLE}
+          >
+            {saving ? 'Saving…' : editing ? 'Save' : 'Create'}
+          </button>
+      </PageActionsPill>
       <FormPage
         crumbs={[{ label: 'API Keys', to: '/api-keys' }, { label: editing ? 'Edit API Key' : 'New API Key' }]}
-        saving={saving}
-        submitLabel={editing ? 'Save' : 'Create'}
         onSubmit={submit}
+        maxWidth="max-w-4xl"
+        hideHeader
       >
-        <div className="space-y-4">
-          <div className="hidden lg:inline-flex flex-wrap gap-1 rounded-lg bg-neutral-900/60 border border-white/10 p-1">
+      <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4">
+        {/* Desktop tabs — vertical on the left (node pattern). */}
+        <GlassCard className="hidden lg:block lg:sticky lg:top-4 self-start">
+          <nav aria-label="API key form sections" className="flex lg:flex-col gap-1">
             {APIKEY_TABS.map((t) => (
               <button
                 key={t.id}
                 type="button"
+                role="tab"
+                aria-selected={tab === t.id}
                 onClick={() => setTab(t.id)}
-                className={`ks-tab transition-colors ${
+                className={`ks-tab w-full flex items-center gap-2 transition text-left ${
                   tab === t.id ? 'ks-tab-active' : ''
                 }`}
               >
-                {t.label}
+                <span className="inline-flex items-center shrink-0">{APIKEY_TAB_META[t.id].icon}</span>
+                <span className="flex flex-col min-w-0">
+                  <span>{t.label}</span>
+                  <span
+                    className={`text-[10px] hidden lg:block ${tab === t.id ? 'opacity-70' : 'text-gray-500'}`}
+                    style={tab === t.id ? { color: 'var(--ks-tab-active-text, #000000)' } : undefined}
+                  >
+                    {APIKEY_TAB_META[t.id].hint}
+                  </span>
+                </span>
               </button>
             ))}
-          </div>
+          </nav>
+        </GlassCard>
+        <div className="space-y-4 min-w-0">
 
           {tab === 'identity' && (
           <>
