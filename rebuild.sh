@@ -1133,6 +1133,58 @@ sync_pagelib() {
     log_ok "Embedded instance-pages library (${count} file(s): marketplace + ${copied} page(s) from instance_pages/)"
 }
 
+sync_themelib() {
+    local src="$ROOT_DIR/themes_market"
+    local dst="$PANEL_BACKEND_DIR/internal/themelib/library"
+    # Safety: ensure dst is inside backend tree
+    case "$dst" in
+        "$PANEL_BACKEND_DIR"/*) ;;
+        *) die "refusing to sync themelib to unexpected path: $dst" ;;
+    esac
+    log_step "Syncing theme-market library into backend embed tree..."
+    if [[ ! -d "$src" ]]; then
+        log_err "themes_market missing at $src — cannot embed library"
+        exit 1
+    fi
+    rm -rf -- "$dst"
+    mkdir -p -- "$dst/market"
+    if [[ -f "$src/marketplace.json" ]]; then
+        cp -- "$src/marketplace.json" "$dst/" || die "failed to copy marketplace.json"
+    else
+        log_warn "marketplace.json not found in $src"
+    fi
+    # Copy all theme JSON files into library/market for embedding.
+    # Canonical source is themes_market/market/*.json; top-level *.json files
+    # are still accepted as a legacy override.
+    local copied=0
+    if [[ -d "$src/market" ]]; then
+        for f in "$src/market"/*.json; do
+            [[ -e "$f" ]] || continue
+            base="$(basename "$f")"
+            [[ "$base" == "marketplace.json" ]] && continue
+            cp -- "$f" "$dst/market/" || die "failed to copy market/$base"
+            copied=$((copied+1))
+        done
+    else
+        log_warn "themes_market/market missing — no canonical theme library to embed"
+    fi
+    for f in "$src"/*.json; do
+        [[ -e "$f" ]] || continue
+        base="$(basename "$f")"
+        [[ "$base" == "marketplace.json" ]] && continue
+        # Legacy top-level override: only fills gaps, never overwrites market/.
+        if [[ -f "$dst/market/$base" ]]; then
+            log_warn "Skipping duplicate top-level $base (already copied from market/)"
+            continue
+        fi
+        cp -- "$f" "$dst/market/" || die "failed to copy $base"
+        copied=$((copied+1))
+    done
+    local count
+    count="$(find "$dst" -type f 2>/dev/null | wc -l | tr -d ' ')"
+    log_ok "Embedded theme-market library (${count} file(s): marketplace + ${copied} theme(s) from themes_market/)"
+}
+
 # ============================================================================
 # Cleanup Temporary Files
 # ============================================================================
@@ -1184,6 +1236,13 @@ main() {
     # library / marketplace import flows work on installs that ship a bare
     # binary with no instance_pages/ directory next to it.
     sync_pagelib
+
+    # Sync the theme-market library into the backend embed tree. Same
+    # rationale as above: the panel binary carries these via
+    # internal/themelib (go:embed) so the theme marketplace list/install
+    # flows work on installs that ship a bare binary with no
+    # themes_market/ directory next to it.
+    sync_themelib
 
     # Build kspanel
     # Same external-deletion race as above: re-verify the embedded UI is
