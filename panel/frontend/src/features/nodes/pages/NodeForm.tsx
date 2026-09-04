@@ -30,6 +30,27 @@ const NODE_COLOR_NAMES: Record<string, string> = {
 
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 
+// Per-tab icon + desktop hint, mirroring the template form's tab style.
+// Hints render only on desktop (hidden lg:block at the call site).
+const NODE_TAB_META: Record<NodeFormTabId, { hint: string; icon: React.ReactNode }> = {
+  general: {
+    hint: 'Name, address, icon & connection',
+    icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></svg>,
+  },
+  health: {
+    hint: 'Probe interval, timeout & retries',
+    icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg>,
+  },
+  limits: {
+    hint: 'Instance kinds & resource caps',
+    icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3" /><path d="M1 14h6M9 8h6M17 16h6" /></svg>,
+  },
+  location: {
+    hint: 'Category & site label',
+    icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>,
+  },
+};
+
 // isValidPortStr reports whether p is a decimal port number in 1..65535.
 const isValidPortStr = (p: string): boolean => {
   const t = p.trim();
@@ -618,11 +639,20 @@ const NodeForm: React.FC = () => {
                 role="tab"
                 aria-selected={tab === t.id}
                 onClick={() => setTab(t.id)}
-                className={`ks-tab w-full flex items-center transition text-left ${
+                className={`ks-tab w-full flex items-center gap-2 transition text-left ${
                   tab === t.id ? 'ks-tab-active' : ''
                 }`}
               >
-                {t.label}
+                <span className="inline-flex items-center shrink-0">{NODE_TAB_META[t.id].icon}</span>
+                <span className="flex flex-col min-w-0">
+                  <span>{t.label}</span>
+                  <span
+                    className={`text-[10px] hidden lg:block ${tab === t.id ? 'opacity-70' : 'text-gray-500'}`}
+                    style={tab === t.id ? { color: 'var(--ks-tab-active-text, #000000)' } : undefined}
+                  >
+                    {NODE_TAB_META[t.id].hint}
+                  </span>
+                </span>
               </button>
             ))}
           </nav>
@@ -1221,8 +1251,9 @@ const NodeForm: React.FC = () => {
               role="tab"
               aria-selected={tab === t.id}
               onClick={() => setTab(t.id)}
-              className={`ks-tab shrink-0 flex-1 px-3 py-1.5 rounded text-sm text-center transition ${tab === t.id ? 'ks-tab-active' : ''}`}
+              className={`ks-tab shrink-0 flex-1 px-3 py-1.5 rounded text-sm text-center transition flex items-center justify-center gap-1.5 ${tab === t.id ? 'ks-tab-active' : ''}`}
             >
+              <span className="inline-flex items-center shrink-0">{NODE_TAB_META[t.id].icon}</span>
               {t.label}
             </button>
           ))}
