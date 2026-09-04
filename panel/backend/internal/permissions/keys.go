@@ -101,6 +101,13 @@ ManageApplicationsKey = "MANAGE_APPLICATIONS"
 	// guards the cross-user ops (broadcast, send-to-user, admin list-all).
 	ManageNotificationsKey = "MANAGE_NOTIFICATIONS"
 
+	// AIChatUseKey gates the panel-wide AI assistant (POST /api/ai/chat).
+	// It is a standalone capability (not area-grouped): any authenticated
+	// user holding it may chat with the assistant. Read tools run with the
+	// caller's own permissions; write tools additionally need their
+	// area permission AND produce a confirmation ticket first.
+	AIChatUseKey = "AI_CHAT_USE"
+
 	// ----------------------------------------------------------------------
 	// Granular per-area CRUD capability keys.
 	//

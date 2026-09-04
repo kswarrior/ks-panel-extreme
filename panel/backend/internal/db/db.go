@@ -962,7 +962,8 @@ func SeedCore(d Dialect, db *sql.DB) error {
 		('NOTIFICATIONS_VIEW',   'View notifications (list + detail)'),
 		('NOTIFICATIONS_CREATE', 'Create notifications / broadcast announcements'),
 		('NOTIFICATIONS_EDIT',   'Mark notifications read / update'),
-		('NOTIFICATIONS_DELETE', 'Delete notifications')`, "permissions")); err != nil {
+		('NOTIFICATIONS_DELETE', 'Delete notifications'),
+		('AI_CHAT_USE', 'Chat with the panel-wide AI assistant')`, "permissions")); err != nil {
 		return err
 	}
 	// Ownership-scope keys — Own vs All per area. Each regulatable group gains
@@ -1034,6 +1035,7 @@ func SeedCore(d Dialect, db *sql.DB) error {
 		'APPLICATIONS_VIEW', 'APPLICATIONS_CREATE', 'APPLICATIONS_EDIT',
 		'MANAGE_TICKETS', 'TICKETS_VIEW', 'TICKETS_CREATE', 'TICKETS_EDIT',
 		'NOTIFICATIONS_VIEW', 'NOTIFICATIONS_EDIT', 'NOTIFICATIONS_DELETE',
+		'AI_CHAT_USE',
 		'USE_LOCAL_THEMES', 'USE_GLOBAL_THEMES', 'ASSIGN_THEMES',
 		'ACCOUNT_EDIT_BANNER', 'ACCOUNT_EDIT_ABOUT', 'ACCOUNT_EDIT_ACCENT',
 		'ACCOUNT_USE_AVATAR_SYMBOL', 'ACCOUNT_UPLOAD_AVATAR')`, "role_permissions")); err != nil {
@@ -1044,6 +1046,7 @@ func SeedCore(d Dialect, db *sql.DB) error {
 		WHERE r.name='user' AND p.key IN ('VIEW_INSTANCES', 'VIEW_ACCOUNT', 'USE_APPLICATIONS',
 		'TICKETS_VIEW', 'TICKETS_CREATE',
 		'NOTIFICATIONS_VIEW', 'NOTIFICATIONS_EDIT', 'NOTIFICATIONS_DELETE',
+		'AI_CHAT_USE',
 		'ACCOUNT_EDIT_BANNER', 'ACCOUNT_EDIT_ABOUT', 'ACCOUNT_EDIT_ACCENT',
 		'ACCOUNT_USE_AVATAR_SYMBOL', 'ACCOUNT_UPLOAD_AVATAR')`, "role_permissions")); err != nil {
 		return err
