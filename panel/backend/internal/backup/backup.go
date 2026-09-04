@@ -532,7 +532,43 @@ func Delete(id string) error {
 	if err := os.Remove(b.Path); err != nil {
 		return err
 	}
+	_ = os.Remove(b.Path + ".s3pushed")
 	return nil
+}
+
+// Prune enforces retention: keep at most keepLastN newest backups and
+// drop anything older than maxAgeDays (0 disables that bound).
+// Returns the filenames removed. Newest-first ordering from List()
+// makes the "keep newest N" rule a simple slice.
+func Prune(keepLastN, maxAgeDays int) ([]string, error) {
+	all, err := List()
+	if err != nil {
+		return nil, err
+	}
+	if keepLastN < 0 {
+		keepLastN = 0
+	}
+	if maxAgeDays < 0 {
+		maxAgeDays = 0
+	}
+	// Nothing to enforce.
+	if keepLastN == 0 && maxAgeDays == 0 {
+		return nil, nil
+	}
+	now := time.Now().UTC()
+	removed := []string{}
+	for i, b := range all {
+		overCount := keepLastN > 0 && i >= keepLastN
+		overAge := maxAgeDays > 0 && now.Sub(b.CreatedAt) > time.Duration(maxAgeDays)*24*time.Hour
+		if overCount || overAge {
+			if err := os.Remove(b.Path); err != nil && !os.IsNotExist(err) {
+				continue
+			}
+			_ = os.Remove(b.Path + ".s3pushed")
+			removed = append(removed, b.Filename)
+		}
+	}
+	return removed, nil
 }
 
 // Restore swaps the live db with the chosen backup. The current live db

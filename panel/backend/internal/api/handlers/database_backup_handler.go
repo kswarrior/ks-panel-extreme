@@ -38,11 +38,13 @@ func ListDatabaseBackupsHandler(w http.ResponseWriter, r *http.Request) {
 
 // createBackupDTO is the body for POST /api/database/backups.
 type createBackupDTO struct {
-	Name string `json:"name"`
+	Name        string `json:"name"`
+	Compression string `json:"compression"`
 }
 
-// CreateDatabaseBackupHandler creates a new named backup via VACUUM INTO.
-// On non-SQLite engines it returns 400 with an explanatory message.
+// CreateDatabaseBackupHandler creates a new named backup via VACUUM INTO
+// (SQLite) or a native pg_dump / mysqldump artifact (Postgres/MySQL),
+// with optional gzip/zstd compression.
 func CreateDatabaseBackupHandler(w http.ResponseWriter, r *http.Request) {
 	var dto createBackupDTO
 	body, _ := io.ReadAll(io.LimitReader(r.Body, 64<<10))
@@ -62,11 +64,21 @@ func CreateDatabaseBackupHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "backup name too long (max 64 chars)", http.StatusBadRequest)
 		return
 	}
-	b, err := backup.Create(name)
+	comp, err := backup.ValidateCompression(dto.Compression)
 	if err != nil {
-		// VACUUM INTO fails loudly on a non-SQLite live DB or on disk
-		// pressure — surface the driver error verbatim (it never contains
-		// secrets; the DSN is not part of this path).
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	b, err := backup.CreateWithOptions(name, comp)
+	if err != nil {
+		var missing *backup.ErrNativeToolMissing
+		if errors.As(err, &missing) {
+			http.Error(w, "create backup failed: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		// VACUUM INTO fails loudly on disk pressure — surface the driver
+		// error verbatim (it never contains secrets; the DSN is not part
+		// of this path).
 		log.Println("CreateDatabaseBackup error:", err)
 		http.Error(w, "create backup failed: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -76,7 +88,7 @@ func CreateDatabaseBackupHandler(w http.ResponseWriter, r *http.Request) {
 		Category:    models.ActivityCategorySystem,
 		Action:      "backup_create",
 		TargetLabel: b.Filename,
-		Message:     fmt.Sprintf("created database backup %q (%d bytes) by user %d", b.Filename, b.Size, uid),
+		Message:     fmt.Sprintf("created database backup %q (%d bytes, %s) by user %d", b.Filename, b.Size, b.Compression, uid),
 	})
 	writeJSONStatus(w, http.StatusCreated, b)
 }
