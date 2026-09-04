@@ -284,6 +284,18 @@ const NodeForm: React.FC = () => {
 
   const advancedPayload = () => ({
     connection_mode: form.connection_mode,
+    // WSS box rows ride the same payload (replace-all). Omitted for pure
+    // port modes so legacy callers and direct nodes stay untouched.
+    ...(isTunnelMode(form.connection_mode)
+      ? {
+          wss_channels: wssChannels.map((c) => ({
+            name: c.name.trim(),
+            task: c.task,
+            transport: c.transport,
+            fallback: c.fallback,
+          })),
+        }
+      : {}),
     health_enabled: form.health_enabled,
     health_interval: Math.max(1, parseInt(form.health_interval, 10) || 60),
     health_timeout: Math.max(1, parseInt(form.health_timeout, 10) || 4),
@@ -320,13 +332,31 @@ const NodeForm: React.FC = () => {
     return `Node "${clash.name}" (label: ${clash.location_node ? `"${clash.location_node}"` : 'none'}) already uses this exact name+label pair — change the name or pick another node label.`;
   };
 
+  // validateWssChannels mirrors the server's channel rules client-side:
+  // every row needs a name (≤100), task/transport from the fixed lists, and
+  // a per-node unique name (trimmed, case-insensitive).
+  const validateWssChannels = (): string => {
+    if (!isTunnelMode(form.connection_mode)) return '';
+    const seen = new Set<string>();
+    for (const c of wssChannels) {
+      if (!c.name.trim()) return 'Every WSS channel needs a name';
+      if (c.name.trim().length > 100) return `WSS channel "${c.name.trim()}" must be 100 characters or fewer`;
+      if (!WSS_TASKS.some((t) => t.value === c.task)) return `WSS channel "${c.name.trim()}" has an invalid task`;
+      if (!WSS_TRANSPORTS.some((t) => t.value === c.transport)) return `WSS channel "${c.name.trim()}" has an invalid transport`;
+      const key = c.name.trim().toLowerCase();
+      if (seen.has(key)) return `Duplicate WSS channel name "${c.name.trim()}" — names must be unique per node`;
+      seen.add(key);
+    }
+    return '';
+  };
+
   // validateForm runs every connection-safety rule before either submit
   // path talks to the API. Returns an error message or '' when acceptable.
   const validateForm = (): string => {
     if (!form.name.trim()) return 'Name is required';
     if (form.name.length > 100) return 'Name must be 100 characters or fewer';
     if (form.location_node.trim().length > 100) return 'Node label must be 100 characters or fewer';
-    if (form.connection_mode === 'direct') {
+    if (form.connection_mode === 'direct' || form.connection_mode === 'both') {
       const addrErr = validateRemoteAddress(form.address);
       if (addrErr) return addrErr;
     } else if (form.connection_mode === 'reverse_tunnel') {
@@ -334,6 +364,8 @@ const NodeForm: React.FC = () => {
     } else if (isLocalMode(form.connection_mode)) {
       if (!isValidPortStr(form.port)) return 'Port must be a number between 1 and 65535';
     }
+    const wssErr = validateWssChannels();
+    if (wssErr) return wssErr;
     // Icon & colour mirror the server's display rules client-side.
     if (form.icon && !NODE_ICONS.some((ic) => ic.key === form.icon)) {
       const t = form.icon.trim();
@@ -698,27 +730,42 @@ const NodeForm: React.FC = () => {
 
           <div>
             <span className="block text-sm font-medium text-gray-200 mb-1">Connection mode</span>
-            <div className="flex gap-1 p-1 rounded-md border border-white/10 bg-black/30 max-w-[320px]" role="tablist" aria-label="Connection mode">
+            <div className="flex gap-1 p-1 rounded-md border border-white/10 bg-black/30 max-w-[480px]" role="tablist" aria-label="Connection mode">
               <button
                 type="button"
                 role="tab"
-                aria-selected={!isTunnelMode(form.connection_mode)}
-                onClick={() => setForm((f) => ({ ...f, connection_mode: isLocalMode(f.connection_mode) ? 'local_port' : 'direct' }))}
-                className={`ks-tab flex-1 px-3 py-1.5 rounded text-sm flex items-center justify-center gap-1.5 ${!isTunnelMode(form.connection_mode) ? 'ks-tab-active' : ''}`}
+                aria-selected={modeTab === 'direct'}
+                onClick={() => setModeTab('direct')}
+                className={`ks-tab flex-1 px-3 py-1.5 rounded text-sm flex items-center justify-center gap-1.5 ${modeTab === 'direct' ? 'ks-tab-active' : ''}`}
               >
                 Direct
               </button>
               <button
                 type="button"
                 role="tab"
-                aria-selected={isTunnelMode(form.connection_mode)}
-                onClick={() => setForm((f) => ({ ...f, connection_mode: isLocalMode(f.connection_mode) ? 'local_wss' : 'reverse_tunnel' }))}
-                className={`ks-tab flex-1 px-3 py-1.5 rounded text-sm flex items-center justify-center gap-1.5 ${isTunnelMode(form.connection_mode) ? 'ks-tab-active' : ''}`}
+                aria-selected={modeTab === 'wss'}
+                onClick={() => setModeTab('wss')}
+                className={`ks-tab flex-1 px-3 py-1.5 rounded text-sm flex items-center justify-center gap-1.5 ${modeTab === 'wss' ? 'ks-tab-active' : ''}`}
               >
                 WSS
               </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={modeTab === 'both'}
+                onClick={() => setModeTab('both')}
+                className={`ks-tab flex-1 px-3 py-1.5 rounded text-sm flex items-center justify-center gap-1.5 ${modeTab === 'both' ? 'ks-tab-active' : ''}`}
+              >
+                Both
+              </button>
             </div>
-            <p className="text-xs text-gray-500 mt-1">{isTunnelMode(form.connection_mode) ? 'Edge dials panel via WSS tunnel.' : 'Panel dials edge directly.'}</p>
+            <p className="text-xs text-gray-500 mt-1">
+              {modeTab === 'both'
+                ? 'Both transports alive — per-task WSS channels below pick port vs WSS, with emergency fallback on overload/disconnect.'
+                : isTunnelMode(form.connection_mode)
+                ? 'Edge dials panel via WSS tunnel.'
+                : 'Panel dials edge directly.'}
+            </p>
           </div>
 
           <ToggleRow
@@ -727,17 +774,21 @@ const NodeForm: React.FC = () => {
             description="Edge runs on this panel host via 127.0.0.1"
             checked={isLocalMode(form.connection_mode)}
             onChange={(v) => setForm((f) => {
-              const wss = isTunnelMode(f.connection_mode);
-              return { ...f, connection_mode: v ? (wss ? 'local_wss' : 'local_port') : (wss ? 'reverse_tunnel' : 'direct') };
+              const t: 'direct' | 'wss' | 'both' = isDualMode(f.connection_mode) ? 'both' : isTunnelMode(f.connection_mode) ? 'wss' : 'direct';
+              if (t === 'direct') return { ...f, connection_mode: v ? 'local_port' : 'direct' };
+              if (t === 'wss') return { ...f, connection_mode: v ? 'local_wss' : 'reverse_tunnel' };
+              return { ...f, connection_mode: v ? 'local_both' : 'both' };
             })}
           />
 
-          {form.connection_mode === 'direct' && (
+          {(form.connection_mode === 'direct' || form.connection_mode === 'both') && (
             <>
               <GlassField
                 label="Edge address"
                 htmlFor="address"
-                hint="Panel dials this. host:port (edge.example.com:4040 / 57.6.8.1:3853) OR bare hostname (ftdeycef.com — Cloudflare tunnel). No http(s):// prefix. Panel stores edge URL, edge stores panel URL (bidirectional)."
+                hint={form.connection_mode === 'both'
+                  ? 'Panel dials this AND the edge opens a WSS tunnel. host:port (edge.example.com:4040). No http(s):// prefix. Per-task channels below choose port vs WSS.'
+                  : 'Panel dials this. host:port (edge.example.com:4040 / 57.6.8.1:3853) OR bare hostname (ftdeycef.com — Cloudflare tunnel). No http(s):// prefix. Panel stores edge URL, edge stores panel URL (bidirectional).'}
               >
                 <input
                   id="address"
@@ -770,7 +821,11 @@ const NodeForm: React.FC = () => {
             <GlassField
               label="Edge listen port"
               htmlFor="port"
-              hint={form.connection_mode === 'local_wss' ? 'ksedge will listen on 127.0.0.1:<port> and also connect back via WSS tunnel. Panel can dial via tunnel or http.' : 'ksedge will listen on 127.0.0.1:<port>. The panel dials this address.'}
+              hint={form.connection_mode === 'local_wss'
+                ? 'ksedge will listen on 127.0.0.1:<port> and also connect back via WSS tunnel. Panel can dial via tunnel or http.'
+                : form.connection_mode === 'local_both'
+                ? 'ksedge will listen on 127.0.0.1:<port> AND connect back via WSS tunnel. Per-task channels below pick port vs WSS.'
+                : 'ksedge will listen on 127.0.0.1:<port>. The panel dials this address.'}
             >
               <input
                 id="port"
