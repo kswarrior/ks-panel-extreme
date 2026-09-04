@@ -129,7 +129,7 @@ const AIConfigCard: React.FC = () => {
             label="Base URL"
             value={cfg.base_url}
             onChange={(v) => set({ base_url: v })}
-            placeholder=https://api.openai.com/v1  (or http://localhost:11434 for Ollama)"
+            placeholder="https://api.openai.com/v1  (or http://localhost:11434 for Ollama)"
           />
           <div>
             <TextInput
