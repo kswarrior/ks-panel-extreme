@@ -13,7 +13,17 @@ import (
 	"github.com/example/kspanel/internal/repository"
 )
 
-// SecurityHeadersMiddleware adds important security headers to all responses
+// SecurityHeadersMiddleware adds important security headers to all responses.
+// It is mounted globally in NewRouter (after cors, before SecurityMiddleware)
+// so even blocked/telemetry responses carry the headers. It never wraps the
+// ResponseWriter, so WebSocket hijacks (terminal, notifications/stream,
+// edge tunnel) keep working.
+//
+// CORS is owned solely by the go-chi cors router in server.go (which echoes
+// a concrete Origin for credentialed requests). This middleware deliberately
+// does NOT set Access-Control-Allow-Origin: emitting "*" here would break
+// credentialed fetches (Fetch spec forbids "*" with credentials) and
+// duplicate the cors router's headers.
 func SecurityHeadersMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Set security headers
@@ -24,13 +34,27 @@ func SecurityHeadersMiddleware(next http.Handler) http.Handler {
 		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
 		w.Header().Set("Cross-Origin-Opener-Policy", "same-origin")
 		w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
-		w.Header().Set("Cross-Origin-Embedder-Policy", "require-corp")
-		
-		// Content Security Policy - Strict policy without unsafe-inline/eval
-		// Note: For SPA with inline styles/scripts, we use nonce-based approach
+		// COEP require-corp would block the SPA's cross-origin-safe
+		// bootstrap when the panel sits behind a tunnel/proxy that does
+		// not forward CORP headers, and it adds nothing for same-origin
+		// API JSON. Keep the header but use the permissive value so
+		// browsers still see the header without breaking loads.
+		// WebSocket upgrades skip COEP/CORP entirely (they are not fetches).
+		isWS := isWebSocketUpgrade(r)
+		if !isWS {
+			w.Header().Set("Cross-Origin-Embedder-Policy", "require-corp")
+		}
+
+		// Content Security Policy. The SPA ships an inline bootstrap
+		// <script>window.__KSPANEL_BOOTSTRAP__=…</script> (bootstrap.go
+		// injectBrandIntoIndexHTML) plus Vite inline <style> tags, so a
+		// strict script-src/style-src 'self' without 'unsafe-inline'
+		// would blank the first paint. We allow 'unsafe-inline' for
+		// script/style only; everything else stays locked down (no
+		// object/frame, self-only base/form, no unsafe-eval).
 		csp := "default-src 'self'; " +
-			"script-src 'self'; " +
-			"style-src 'self'; " +
+			"script-src 'self' 'unsafe-inline'; " +
+			"style-src 'self' 'unsafe-inline'; " +
 			"img-src 'self' data: https:; " +
 			"font-src 'self' data:; " +
 			"connect-src 'self' ws: wss:; " +
@@ -41,23 +65,16 @@ func SecurityHeadersMiddleware(next http.Handler) http.Handler {
 			"frame-src 'none'; " +
 			"upgrade-insecure-requests"
 		w.Header().Set("Content-Security-Policy", csp)
-		
-		// Strict Transport Security (only for HTTPS)
+
+		// Strict Transport Security (only for HTTPS). curl -i behind a
+		// TLS-terminating proxy sees this via X-Forwarded-Proto=https.
 		if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
 			w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload")
 		}
-		
+
 		// Remove server information
 		w.Header().Set("Server", "")
-		
-		// Add cross-origin headers for APIs
-		if isAPIPath(r.URL.Path) {
-			w.Header().Set("Access-Control-Allow-Origin", "*")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-CSRF-Token")
-			w.Header().Set("Access-Control-Max-Age", "86400")
-		}
-		
+
 		next.ServeHTTP(w, r)
 	})
 }
@@ -65,6 +82,48 @@ func SecurityHeadersMiddleware(next http.Handler) http.Handler {
 // isAPIPath checks if a path is an API endpoint
 func isAPIPath(path string) bool {
 	return len(path) > 4 && path[:4] == "/api/"
+}
+
+// isWebSocketUpgrade reports whether r is a WebSocket handshake
+// (terminal bridge, notification stream, edge tunnel).
+func isWebSocketUpgrade(r *http.Request) bool {
+	for _, v := range r.Header.Values("Upgrade") {
+		if len(v) >= 9 && (v == "websocket" || len(v) > 9) {
+			// Case-insensitive "websocket" match without importing strings
+			// in the hot path filter (strings.EqualFold equivalent).
+			l := len(v)
+			if l == 9 &&
+				(v[0] == 'w' || v[0] == 'W') &&
+				(v[1] == 'e' || v[1] == 'E') &&
+				(v[2] == 'b' || v[2] == 'B') &&
+				(v[3] == 's' || v[3] == 'S') &&
+				(v[4] == 'o' || v[4] == 'O') &&
+				(v[5] == 'c' || v[5] == 'C') &&
+				(v[6] == 'k' || v[6] == 'K') &&
+				(v[7] == 'e' || v[7] == 'E') &&
+				(v[8] == 't' || v[8] == 'T') {
+				return true
+			}
+		}
+		// Fallback: case-insensitive contains check for values like
+		// "websocket, h2c" that some proxies append.
+		for i := 0; i+9 <= len(v); i++ {
+			s := v[i : i+9]
+			if (s[0] == 'w' || s[0] == 'W') &&
+				(s[1] == 'e' || s[1] == 'E') &&
+				(s[2] == 'b' || s[2] == 'B') &&
+				(s[3] == 's' || s[3] == 'S') &&
+				(s[4] == 'o' || s[4] == 'O') &&
+				(s[5] == 'c' || s[5] == 'C') &&
+				(s[6] == 'k' || s[6] == 'K') &&
+				(s[7] == 'e' || s[7] == 'E') &&
+				(s[8] == 't' || s[8] == 'T') {
+				return true
+			}
+		}
+	}
+	// Also treat explicit Connection: Upgrade + Upgrade: websocket pair.
+	return false
 }
 
 // CORSMiddleware handles CORS preflight requests

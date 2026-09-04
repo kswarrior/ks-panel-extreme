@@ -46,7 +46,12 @@ func (ctm *CSRFTokenManager) GenerateToken() string {
 	return token
 }
 
-// ValidateToken validates a CSRF token
+// ValidateToken validates a CSRF token. Tokens are reusable until expiry
+// (1h): the SPA fetches one token via GET /api/csrf-token and sends it as
+// X-CSRF-Token on every mutating request. Single-use semantics would force
+// a token fetch per mutation and break normal SPA flows, so Used is kept
+// only for observability — it never rejects. MarkTokenAsUsed remains for
+// API compatibility but has no enforcement effect.
 func (ctm *CSRFTokenManager) ValidateToken(token string) bool {
 	ctm.mu.Lock()
 	defer ctm.mu.Unlock()
@@ -59,11 +64,6 @@ func (ctm *CSRFTokenManager) ValidateToken(token string) bool {
 	// Check if token is expired
 	if time.Now().After(csrfToken.ExpiresAt) {
 		delete(ctm.tokens, token)
-		return false
-	}
-
-	// Check if token has been used
-	if csrfToken.Used {
 		return false
 	}
 
