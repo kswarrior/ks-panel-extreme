@@ -8,6 +8,7 @@ import {
 } from '@/shared/components/ui/StatDashboard';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import GlassCard from '@/shared/components/ui/Card';
+import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import client from '@/shared/api/client';
 import type { Notification } from '../types/notification';
 
@@ -16,6 +17,8 @@ const NotificationStats: React.FC = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [timeRange, setTimeRange] = useState<'1h' | '6h' | '24h' | '7d'>('24h');
   const [filterOpen, setFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
 
@@ -69,23 +72,35 @@ const NotificationStats: React.FC = () => {
 
   const categorySlices = useMemo(() => {
     if (!stats) return [];
+    const q = search.trim().toLowerCase();
     const entries = Object.entries(stats.by_category || {});
     if (entries.length === 0) return [];
     const palette = ['#38bdf8', '#a78bfa', '#34d399', '#fbbf24', '#f87171', '#fb923c', '#22d3ee', '#c084fc', '#f472b6', '#94a3b8'];
     return entries
+      .filter(([label]) => {
+        if (!q) return true;
+        const pretty = CATEGORY_META[label as keyof typeof CATEGORY_META]?.label || label;
+        return pretty.toLowerCase().includes(q) || label.toLowerCase().includes(q);
+      })
       .sort((a, b) => b[1] - a[1])
       .map(([label, value], i) => ({
         label: CATEGORY_META[label as keyof typeof CATEGORY_META]?.label || label,
         value,
         color: CATEGORY_META[label as keyof typeof CATEGORY_META]?.color || palette[i % palette.length],
       }));
-  }, [stats]);
+  }, [stats, search]);
 
   const prioritySlices = useMemo(() => {
     if (!stats) return [];
+    const q = search.trim().toLowerCase();
     const entries = Object.entries(stats.by_priority || {});
     if (entries.length === 0) return [];
     return entries
+      .filter(([label]) => {
+        if (!q) return true;
+        const pretty = PRIORITY_META[label as keyof typeof PRIORITY_META]?.label || label;
+        return pretty.toLowerCase().includes(q) || label.toLowerCase().includes(q);
+      })
       .sort((a, b) => b[1] - a[1])
       .map(([label, value]) => ({
         label: PRIORITY_META[label as keyof typeof PRIORITY_META]?.label || label,
@@ -97,7 +112,7 @@ const NotificationStats: React.FC = () => {
           : PRIORITY_META[label as keyof typeof PRIORITY_META]?.color === 'text-red-300' ? '#f87171'
           : '#9ca3af',
       }));
-  }, [stats]);
+  }, [stats, search]);
 
   const readSlices = useMemo(() => {
     if (!derived) return [];

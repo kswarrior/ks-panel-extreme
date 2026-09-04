@@ -115,11 +115,11 @@ const UserForm: React.FC = () => {
             type="button"
             onClick={() => submit()}
             disabled={saving}
-            title="Save user"
+            title={editing ? 'Save user' : 'Create user'}
             className="ks-tab ks-tab-active shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-60"
             style={PILL_TAB_STYLE}
           >
-            {saving ? 'Saving…' : 'Save'}
+            {saving ? 'Saving…' : editing ? 'Save' : 'Create'}
           </button>
       </PageActionsPill>
     <FormPage
