@@ -73,9 +73,25 @@ const InstancePowerBar: React.FC = () => {
   const isStopped = status === 'stopped' || status === 'destroyed';
   const busyAny = busy !== null || loading;
 
-  // Compact sizing: tiny padding + xs text + small icons => low height/width.
+  // NOTE: buttons deliberately do NOT use the `ks-tab` class. The theme
+  // system forces ks-tab padding/font/border via `!important`
+  // (padding-left/right/top/bottom, font-size), so any Tailwind px/py on a
+  // ks-tab never shrinks. Plain buttons + inline-style padding below are
+  // immune to the theme and stay truly compact.
   const btnBase =
-    'ks-tab shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded text-xs leading-none whitespace-nowrap transition disabled:opacity-40 disabled:cursor-not-allowed';
+    'shrink-0 inline-flex items-center whitespace-nowrap transition disabled:opacity-40 disabled:cursor-not-allowed';
+  // Inline style beats every non-`!important` stylesheet rule, and no theme
+  // rule targets these plain buttons — padding really is 1px/5px now.
+  const btnStyle: React.CSSProperties = {
+    padding: '1px 5px',
+    margin: 0,
+    gap: 3,
+    fontSize: 11,
+    lineHeight: '14px',
+    border: 'none',
+    borderRadius: 0,
+    background: 'transparent',
+  };
 
   return (
     // Plain left-aligned dock — placement/stickiness comes from the parent
@@ -83,15 +99,16 @@ const InstancePowerBar: React.FC = () => {
     // padding/margin — flush.
     <div className="flex justify-start p-0 m-0" aria-label="Instance power controls">
       <div className="pointer-events-auto flex flex-col items-start p-0 m-0">
-        {/* Rectangular box — zero padding/gap, flush. */}
-        <div className="ks-card rounded-none p-0 m-0 flex items-center gap-0 w-fit max-w-full">
+        {/* Rectangular box — ks-card kept for the themed glass surface only;
+            zero box metrics enforced inline so theme radius/padding can't win. */}
+        <div className="ks-card flex items-center w-fit max-w-full" style={{ padding: 0, margin: 0, gap: 0, borderRadius: 0 }}>
           {/* Collapsible buttons — slide left + fade when collapsed */}
           <div
-            className="flex items-center gap-0 p-0 m-0 overflow-hidden transition-all duration-300 ease-in-out"
+            className="flex items-center overflow-hidden transition-all duration-300 ease-in-out"
             style={
               collapsed
-                ? { maxWidth: 0, opacity: 0, transform: 'translateX(-8px)', pointerEvents: 'none' }
-                : { maxWidth: 320, opacity: 1, transform: 'translateX(0)' }
+                ? { maxWidth: 0, opacity: 0, transform: 'translateX(-8px)', pointerEvents: 'none', padding: 0, margin: 0, gap: 0 }
+                : { maxWidth: 320, opacity: 1, transform: 'translateX(0)', padding: 0, margin: 0, gap: 0 }
             }
             aria-hidden={collapsed}
           >
@@ -101,7 +118,8 @@ const InstancePowerBar: React.FC = () => {
               disabled={collapsed || busyAny || isRunning}
               tabIndex={collapsed ? -1 : undefined}
               title="Start instance"
-              className={`${btnBase} text-emerald-300 hover:!bg-emerald-900/30`}
+              style={btnStyle}
+              className={`${btnBase} text-emerald-300 hover:bg-emerald-900/30`}
             >
               {busy === 'start' ? (
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 animate-spin" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
@@ -116,7 +134,8 @@ const InstancePowerBar: React.FC = () => {
               disabled={collapsed || busyAny || isStopped}
               tabIndex={collapsed ? -1 : undefined}
               title="Stop instance"
-              className={`${btnBase} text-yellow-300 hover:!bg-yellow-900/30`}
+              style={btnStyle}
+              className={`${btnBase} text-yellow-300 hover:bg-yellow-900/30`}
             >
               {busy === 'stop' ? (
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 animate-spin" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
@@ -131,7 +150,8 @@ const InstancePowerBar: React.FC = () => {
               disabled={collapsed || busyAny || !isRunning}
               tabIndex={collapsed ? -1 : undefined}
               title="Restart instance"
-              className={`${btnBase} text-sky-300 hover:!bg-sky-900/30`}
+              style={btnStyle}
+              className={`${btnBase} text-sky-300 hover:bg-sky-900/30`}
             >
               {busy === 'restart' ? (
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 animate-spin" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
@@ -149,7 +169,8 @@ const InstancePowerBar: React.FC = () => {
             aria-label={collapsed ? 'Expand power controls' : 'Collapse power controls'}
             aria-expanded={!collapsed}
             title={collapsed ? 'Show power buttons' : 'Hide power buttons'}
-            className={`${btnBase} !px-1.5 text-gray-200`}
+            style={btnStyle}
+            className={`${btnBase} text-gray-200 hover:bg-white/10`}
           >
             {collapsed ? (
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5" aria-hidden="true"><polyline points="9 18 15 12 9 6" /></svg>
