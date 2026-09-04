@@ -555,15 +555,23 @@ const NodeForm: React.FC = () => {
     <>
       {/* Top-right actions — fixed like the phone tab bar (same ks-tab
           style), always visible no matter how far the form is scrolled.
-          Footer Cancel/Create removed; everything lives here. */}
+          Footer Cancel/Create removed; everything lives here.
+          Padding is shrunk via the theme's own vars (--ks-card-padding /
+          --ks-tab-px/py/font): the theme paints .ks-card/.ks-tab padding
+          with !important, so Tailwind px/py classes alone can never win —
+          overriding the var value scoped to this pill does. */}
       <div className="fixed top-[max(4.5rem,env(safe-area-inset-top))] right-4 sm:right-6 z-40">
-        <div className="ks-card rounded-md p-1.5 flex gap-1 shadow-lg shadow-black/40">
+        <div
+          className="ks-card rounded-md p-1.5 flex gap-1 shadow-lg shadow-black/40"
+          style={{ '--ks-card-padding': '3px' } as React.CSSProperties}
+        >
           <button
             type="button"
             onClick={() => navigate('/nodes')}
             title="Cancel and back to Nodes"
             aria-label="Cancel and back to Nodes"
             className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition"
+            style={{ '--ks-tab-px': '8px', '--ks-tab-py': '3px', '--ks-tab-font': '12px' } as React.CSSProperties}
           >
             Cancel
           </button>
@@ -574,6 +582,7 @@ const NodeForm: React.FC = () => {
               disabled={saving || settingUp}
               title="Register this localhost node and automatically install + launch ksedge on this host"
               className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-60"
+              style={{ '--ks-tab-px': '8px', '--ks-tab-py': '3px', '--ks-tab-font': '12px' } as React.CSSProperties}
             >
               {settingUp ? 'Setting up…' : 'Create & setup'}
             </button>
@@ -584,6 +593,7 @@ const NodeForm: React.FC = () => {
             disabled={saving}
             title={editing ? 'Save node' : 'Create node'}
             className="ks-tab ks-tab-active shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-60"
+            style={{ '--ks-tab-px': '8px', '--ks-tab-py': '3px', '--ks-tab-font': '12px' } as React.CSSProperties}
           >
             {saving ? 'Saving…' : editing ? 'Save' : 'Create'}
           </button>
