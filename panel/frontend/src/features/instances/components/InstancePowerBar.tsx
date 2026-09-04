@@ -113,7 +113,19 @@ const InstancePowerBar: React.FC = () => {
       <div className="pointer-events-auto flex flex-col items-start p-0 m-0">
         {/* Rectangular box — ks-card kept for the themed glass surface only;
             zero box metrics enforced inline so theme radius/padding can't win. */}
-        <div className="ks-card flex items-center w-fit max-w-full" style={{ padding: 0, margin: 0, gap: 0, borderRadius: 0 }}>
+        <div
+          className="ks-card flex items-center w-fit max-w-full"
+          style={{
+            padding: 0,
+            margin: 0,
+            gap: 0,
+            borderRadius: 0,
+            // Shut state: hard-cap the whole box at ~25px wide, centered.
+            ...(collapsed
+              ? { maxWidth: 25, overflow: 'hidden', justifyContent: 'center' as const }
+              : {}),
+          }}
+        >
           {/* Collapsible buttons — slide left + fade when collapsed */}
           <div
             className="flex items-center overflow-hidden transition-all duration-300 ease-in-out"
