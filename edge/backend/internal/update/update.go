@@ -99,11 +99,11 @@ type checkResponse struct {
 }
 
 type applyResponse struct {
-	OK          bool   `json:"ok"`
-	Message     string `json:"message"`
-	LocalBefore string `json:"local_version_before"`
+	OK           bool   `json:"ok"`
+	Message      string `json:"message"`
+	LocalBefore  string `json:"local_version_before"`
 	TargetBinary string `json:"target_binary"`
-	Log         string `json:"log,omitempty"`
+	Log          string `json:"log,omitempty"`
 }
 
 type reinstallBackgroundResponse struct {

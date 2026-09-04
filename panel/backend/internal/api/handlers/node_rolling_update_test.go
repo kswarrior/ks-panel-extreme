@@ -11,7 +11,7 @@ import (
 func rollingTestNodes(n int) []models.Node {
 	out := make([]models.Node, 0, n)
 	for i := 1; i <= n; i++ {
-		out = append(out, models.Node{ID: int64(i * 10), Name: string(rune('a'+i-1))})
+		out = append(out, models.Node{ID: int64(i * 10), Name: string(rune('a' + i - 1))})
 	}
 	return out
 }
