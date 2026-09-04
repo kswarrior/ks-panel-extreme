@@ -8,7 +8,6 @@ import {
 import { useSettingsStore } from '@/shared/stores/settingsStore';
 import SkeletonCard from '@/shared/components/ui/SkeletonCard';
 import { useConfirm } from '@/shared/stores/confirmStore';
-import AIConfigCard from '@/features/ai-chat/components/AIConfigCard';
 
 const MAX_LOGO_BYTES = 5 * 1024 * 1024; // mirrors server-side limit
 const ALLOWED_LOGO_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp', 'image/svg+xml'];
@@ -17,7 +16,8 @@ const ALLOWED_LOGO_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif',
 // live here. Everything auth-related (SMTP, registration gates, OAuth
 // providers, OTP/SMS channels, the TOTP authenticator-app connection,
 // and the configurable registration requirement policy) moved to
-// Security > Authority. The SettingsHandler
+// Security > Authority. The AI Assistant config lives in the chat panel's
+// gear menu (bottom-right bubble). The SettingsHandler
 // backend still accepts the auth fields, but Settings no longer sends
 // them — leaving their persisted values intact for the Authority page
 // to read + write.
@@ -280,9 +280,6 @@ const Settings: React.FC = () => {
           </button>
         </div>
       </form>
-
-      {/* AI assistant provider config (SETTINGS_EDIT only — the card hides itself otherwise). */}
-      <AIConfigCard />
     </div>
   );
 };
