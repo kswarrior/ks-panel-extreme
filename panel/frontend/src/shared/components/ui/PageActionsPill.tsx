@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 // Compact ks-tab sizing shared by every top-right pill. The theme paints
 // .ks-tab padding with !important, so Tailwind px/py alone can never win;
