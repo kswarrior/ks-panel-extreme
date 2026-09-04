@@ -33,7 +33,7 @@ import { hasPermissionAny } from '@/shared/types/permissions';
 export const InstancePanel: React.FC = () => {
   const { id } = useParams();
   const instanceId = Number(id);
-  const { instance, loading, reload } = useInstance(instanceId);
+  const { instance, loading } = useInstance(instanceId);
   const navigate = useNavigate();
   // Host-origin pages (markdown/blocks render inside the SPA, not an iframe)
   // request navigation through the sdk.navigate() → 'ks-navigate' window
@@ -71,8 +71,8 @@ export const InstancePanel: React.FC = () => {
 
   return (
     <div className="space-y-3">
-      {/* Collapsible power dock — sticky top-left, stays visible on scroll. */}
-      <InstancePowerBar instance={instance} loading={loading} onChanged={() => { void reload(true); }} />
+      {/* Self-contained collapsible power dock (own tsx, like InstanceTabs). */}
+      <InstancePowerBar />
       {loading && (
         <div className="ks-card ks-form-card rounded-xl flex items-center gap-4 animate-pulse">
           <div className="w-9 h-9 rounded-lg bg-neutral-800 shrink-0" />

@@ -1,28 +1,27 @@
 import React, { useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { startInstance, stopInstance, restartInstance } from '@/shared/api/admin';
+import { useInstance } from '@/shared/hooks/useInstance';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { PermissionKey, hasPermissionAny } from '@/shared/types/permissions';
-import type { Instance } from '@/shared/types/instance';
-
-interface InstancePowerBarProps {
-  instance: Instance | null;
-  loading?: boolean;
-  onChanged?: () => void;
-}
 
 const COLLAPSED_KEY = 'ks-instance-power-collapsed';
 
-// InstancePowerBar — small rectangular power dock pinned to the top-left of
-// the instance details shell.
+// InstancePowerBar — self-contained collapsible power dock for the instance
+// details shell (same pattern as InstanceTabs: no props, resolves everything
+// itself from the route + stores).
 //
 //   [ Start | Stop | Restart ] [ < ]
 //
-// Clicking [ < ] slides the three power buttons out to the left so only the
-// toggle stays visible (and it flips to [ > ]). Clicking again slides them
-// back in. The box reuses the NodeForm phone tab-bar surface
-// (ks-card rounded-md p-1.5 flex gap-1) and the wrapper is sticky so the dock
-// stays in the top-left while the page scrolls underneath.
-const InstancePowerBar: React.FC<InstancePowerBarProps> = ({ instance, loading, onChanged }) => {
+// Clicking [ < ] slides the three buttons left so only [ > ] stays visible.
+// Compact + floating: minimal padding/margin, `sticky` + negative margins so
+// the box sits in the top-left-most corner of the scrolling content and
+// floats OVER page content (high z) instead of pushing it down.
+const InstancePowerBar: React.FC = () => {
+  const { id } = useParams();
+  const instanceId = Number(id);
+  const { instance, loading, reload } = useInstance(instanceId);
+
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     try {
       return localStorage.getItem(COLLAPSED_KEY) === '1';
@@ -40,6 +39,8 @@ const InstancePowerBar: React.FC<InstancePowerBarProps> = ({ instance, loading, 
     PermissionKey.INSTANCES_ALL,
     PermissionKey.INSTANCES_EDIT,
   );
+
+  if (!canControl || !Number.isFinite(instanceId)) return null;
 
   const toggle = () => {
     setCollapsed((v) => {
@@ -59,7 +60,7 @@ const InstancePowerBar: React.FC<InstancePowerBarProps> = ({ instance, loading, 
       if (action === 'start') await startInstance(instance.id);
       else if (action === 'stop') await stopInstance(instance.id);
       else await restartInstance(instance.id);
-      onChanged?.();
+      await reload(true);
     } catch (e: any) {
       setError(e?.response?.data || e?.message || `Failed to ${action}`);
     } finally {
@@ -67,29 +68,35 @@ const InstancePowerBar: React.FC<InstancePowerBarProps> = ({ instance, loading, 
     }
   };
 
-  if (!canControl) return null;
-
   const status = instance?.status ?? '';
   const isRunning = status === 'running';
   const isStopped = status === 'stopped' || status === 'destroyed';
   const busyAny = busy !== null || loading;
 
+  // Compact sizing: tiny padding + xs text + small icons => low height/width.
   const btnBase =
-    'ks-tab shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-sm whitespace-nowrap transition disabled:opacity-40 disabled:cursor-not-allowed';
+    'ks-tab shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded text-xs leading-none whitespace-nowrap transition disabled:opacity-40 disabled:cursor-not-allowed';
 
   return (
-    <div className="sticky top-0 z-30 flex justify-start" aria-label="Instance power controls">
-      <div className="flex flex-col items-start gap-1">
-        {/* Rectangular box — same surface as the NodeForm phone tab bar:
-            ks-card rounded-md p-1.5 flex gap-1 */}
-        <div className="ks-card rounded-md p-1.5 flex items-center gap-1 max-w-full">
-          {/* Collapsible power buttons — slide left + fade when collapsed */}
+    // Overlay row: sticky so it stays on scroll, negative margins pull it
+    // into the main's top-left-most corner (cancelling main p-4/sm:p-6),
+    // pt/pl leave a tiny 8px breathing gap, negative bottom margin lets page
+    // content slide UNDER the dock instead of being pushed down.
+    <div
+      className="sticky top-0 z-40 flex justify-start pointer-events-none -mt-4 -ml-4 sm:-mt-6 sm:-ml-6 pt-2 pl-2 mb-[-30px]"
+      aria-label="Instance power controls"
+    >
+      <div className="pointer-events-auto flex flex-col items-start">
+        {/* Rectangular box — same surface as the NodeForm phone tab bar,
+            but compact: p-1 + gap-0.5 */}
+        <div className="ks-card rounded p-1 flex items-center gap-0.5 w-fit max-w-full">
+          {/* Collapsible buttons — slide left + fade when collapsed */}
           <div
-            className="flex items-center gap-1 overflow-hidden transition-all duration-300 ease-in-out"
+            className="flex items-center gap-0.5 overflow-hidden transition-all duration-300 ease-in-out"
             style={
               collapsed
-                ? { maxWidth: 0, opacity: 0, transform: 'translateX(-12px)', pointerEvents: 'none' }
-                : { maxWidth: 480, opacity: 1, transform: 'translateX(0)' }
+                ? { maxWidth: 0, opacity: 0, transform: 'translateX(-8px)', pointerEvents: 'none' }
+                : { maxWidth: 320, opacity: 1, transform: 'translateX(0)' }
             }
             aria-hidden={collapsed}
           >
@@ -102,9 +109,9 @@ const InstancePowerBar: React.FC<InstancePowerBarProps> = ({ instance, loading, 
               className={`${btnBase} text-emerald-300 hover:!bg-emerald-900/30`}
             >
               {busy === 'start' ? (
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 animate-spin" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 animate-spin" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
               ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3" /></svg>
               )}
               <span>Start</span>
             </button>
@@ -117,9 +124,9 @@ const InstancePowerBar: React.FC<InstancePowerBarProps> = ({ instance, loading, 
               className={`${btnBase} text-yellow-300 hover:!bg-yellow-900/30`}
             >
               {busy === 'stop' ? (
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 animate-spin" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 animate-spin" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
               ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
               )}
               <span>Stop</span>
             </button>
@@ -132,9 +139,9 @@ const InstancePowerBar: React.FC<InstancePowerBarProps> = ({ instance, loading, 
               className={`${btnBase} text-sky-300 hover:!bg-sky-900/30`}
             >
               {busy === 'restart' ? (
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 animate-spin" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 animate-spin" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
               ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><path d="M23 4v6h-6" /><path d="M1 20v-6h6" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5" aria-hidden="true"><path d="M23 4v6h-6" /><path d="M1 20v-6h6" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>
               )}
               <span>Restart</span>
             </button>
@@ -147,17 +154,17 @@ const InstancePowerBar: React.FC<InstancePowerBarProps> = ({ instance, loading, 
             aria-label={collapsed ? 'Expand power controls' : 'Collapse power controls'}
             aria-expanded={!collapsed}
             title={collapsed ? 'Show power buttons' : 'Hide power buttons'}
-            className={`${btnBase} !px-2 text-gray-200`}
+            className={`${btnBase} !px-1.5 text-gray-200`}
           >
             {collapsed ? (
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><polyline points="9 18 15 12 9 6" /></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5" aria-hidden="true"><polyline points="9 18 15 12 9 6" /></svg>
             ) : (
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><polyline points="15 18 9 12 15 6" /></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5" aria-hidden="true"><polyline points="15 18 9 12 15 6" /></svg>
             )}
           </button>
         </div>
         {error && (
-          <p className="text-[11px] text-red-300 bg-red-900/20 border border-red-900/30 rounded px-2 py-1 max-w-[280px] truncate" title={error}>
+          <p className="mt-1 text-[11px] leading-tight text-red-300 bg-red-900/20 border border-red-900/30 rounded px-1.5 py-0.5 max-w-[220px] truncate" title={error}>
             {error}
           </p>
         )}
