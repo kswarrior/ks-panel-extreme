@@ -290,6 +290,12 @@ func AIChatHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "server error", http.StatusInternalServerError)
 			return
 		}
+		// Fail closed: an approval must not execute when the admin has
+		// since disabled the assistant or its writes kill-switch.
+		if !cfg.Enabled || !cfg.AllowWrites {
+			http.Error(w, "AI writes are currently disabled by the administrator", http.StatusForbidden)
+			return
+		}
 		actx.cfg = cfg
 		var args map[string]any
 		if err := json.Unmarshal(t.Args, &args); err != nil {
@@ -1046,6 +1052,11 @@ func aiProposeWrite(a *aiCallCtx, name string, args map[string]any) (string, str
 }
 
 func aiExecuteWrite(a *aiCallCtx, name string, args map[string]any) (string, error) {
+	// Belt-and-braces alongside the handler-level kill-switch check: never
+	// execute a write when the assistant or its writes switch is off.
+	if a.cfg == nil || !a.cfg.Enabled || !a.cfg.AllowWrites {
+		return "", fmt.Errorf("AI writes are currently disabled by the administrator")
+	}
 	// Re-validate first so an approval can't execute something the propose
 	// step would now reject (permissions revoked, resource deleted, …).
 	if _, _, err := aiProposeWrite(a, name, args); err != nil {

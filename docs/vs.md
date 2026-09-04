@@ -40,7 +40,7 @@
 | 13 | Account lifecycle                             | **92** | 25 | 45 | 40     | 25 |
 | 14 | Database support & management                 | **97** | 5  | 80  | 82      | 0  |
 | 15 | Security posture                              | **94** | 10 | 60  | 85      | 30 |
-| 16 | Panel self-update / reinstall                 | **96** | 10 | 0   | 15      | 15 |
+| 16 | Panel & Edge self-update / reinstall          | **96** | 10 | 0   | 15      | 15 |
 | 17 | Extensibility engine                          | **100** | 0 | 10 | 90      | 20 |
 | 18 | Minecraft-specific tooling                    | **78** | 70 | 25 | 25   | 70 |
 | 19 | SFTP access                                   | **85** | 15 | 85  | **90**  | 0  |
