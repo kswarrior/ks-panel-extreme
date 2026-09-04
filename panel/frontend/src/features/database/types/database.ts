@@ -9,23 +9,8 @@
 export type {
   DatabaseEngineInfo,
   DatabaseEngineSwitchResponse,
+  DatabaseBackup,
+  BackupSchedule,
+  BackupScheduleUpsert,
+  S3ConfigView,
 } from '@/shared/api/admin';
-
-export type DatabaseTabId = 'overview' | 'change' | 'backup';
-
-export const DATABASE_TABS: Array<{ id: DatabaseTabId; label: string }> = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'change', label: 'Switch' },
-  { id: 'backup', label: 'Backup' },
-];
-
-export interface DatabaseBackup {
-  id: string;
-  filename: string;
-  path: string;
-  size_bytes: number;
-  created_at: string;
-  sha256: string;
-  source: string;
-  is_live_safe: boolean;
-}

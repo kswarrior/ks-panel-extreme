@@ -25,16 +25,16 @@
 
 | # | Case                                          | KS | JTG | Ptero | Pelican | Crafty |
 |---|-----------------------------------------------|----|----|-------|---------|--------|
-| 1 | Multi-node & node ops                          | **93** | 55 | 95  | **98**  | 10 |
+| 1 | Multi-node & node ops                          | **93** | 30 | 95  | **98**  | 0 |
 | 2 | Server lifecycle                               | **92** | 90 | **100** | **100** | 80 |
 | 3 | Console / terminal                             | **92** | 85 | 95  | **98**  | 75 |
-| 4 | File manager + editor                          | **90** | 65 | 85  | **95**  | 60 |
-| 5 | Backups / snapshots                            | **90** | 50 | 95  | **100** | 70 |
-| 6 | Metrics / monitoring                           | **88** | 45 | 90  | **92**  | 80 |
-| 7 | Ports / allocations                            | **92** | 25 | 95  | **95**  | 15 |
-| 8 | Secrets / environment variables                | **97** | 0  | 70  | 75      | 30 |
-| 9 | Automation / scheduled tasks                   | **92** | 0  | 92  | **95**  | 75 |
-| 10 | Audit / activity logging                      | **92** | 0  | 90  | **92**  | 75 |
+| 4 | File manager + editor                          | **90** | 65 | 75  | **95**  | 60 |
+| 5 | Backups / snapshots                            | **90** | 35 | **95** | 85  | 70 |
+| 6 | Metrics / monitoring                           | **88** | 30 | 70  | 85      | 70 |
+| 7 | Ports / allocations                            | **92** | 15 | 95  | **95**  | 15 |
+| 8 | Secrets / environment variables                | **97** | 0  | 25  | 55      | 15 |
+| 9 | Automation / scheduled tasks                   | **92** | 0  | 68  | **95**  | 75 |
+| 10 | Audit / activity logging                      | **92** | 0  | 72  | 60      | 60 |
 | 11 | Permission granularity                        | **96** | 20 | 60  | 65      | 55 |
 | 12 | Auth hardening                                | **97** | 25 | 65  | **100** | 60 |
 | 13 | Account lifecycle                             | **92** | 35 | 30 | 40     | 25 |

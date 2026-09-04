@@ -591,9 +591,11 @@ export async function switchDatabaseEngine(
 
 // ---- Database → Backup tab ------------------------------------------------
 // Named on-disk snapshots under <DataDir>/backups. Create is VACUUM INTO
-// (SQLite snapshots); download streams the raw .db; upload accepts a
-// multipart file or a remote URL. All gated by ACCESS_ADMIN_PANEL on the
-// backend so only database admins can read/restore backups.
+// (SQLite) or a native pg_dump / mysqldump artifact (Postgres/MySQL) with
+// gzip/zstd compression; download streams the stored bytes; upload accepts
+// a multipart file or a remote URL. Schedules drive cron VACUUM INTO +
+// retention prune; the S3 remote pushes/pulls via SigV4. All gated by
+// ACCESS_ADMIN_PANEL on the backend so only database admins can use them.
 export interface DatabaseBackup {
   id: string;
   filename: string;
@@ -603,6 +605,9 @@ export interface DatabaseBackup {
   sha256: string;
   source: string;
   is_live_safe: boolean;
+  compressed: boolean;
+  compression: string;
+  s3_pushed: boolean;
 }
 
 export async function listDatabaseBackups(): Promise<DatabaseBackup[]> {
@@ -610,8 +615,8 @@ export async function listDatabaseBackups(): Promise<DatabaseBackup[]> {
   return Array.isArray(res.data) ? res.data : [];
 }
 
-export async function createDatabaseBackup(name: string): Promise<DatabaseBackup> {
-  const res = await client.post<DatabaseBackup>('/api/database/backups', { name });
+export async function createDatabaseBackup(name: string, compression?: string): Promise<DatabaseBackup> {
+  const res = await client.post<DatabaseBackup>('/api/database/backups', { name, compression: compression || 'none' });
   return res.data;
 }
 
@@ -650,6 +655,83 @@ export async function restoreDatabaseBackup(id: string): Promise<{ ok: boolean; 
 
 export async function deleteDatabaseBackup(id: string): Promise<void> {
   await client.delete(`/api/database/backups/${encodeURIComponent(id)}`);
+}
+
+export interface BackupSchedule {
+  id: number;
+  kind: string;
+  instance_id?: number | null;
+  name: string;
+  cron: string;
+  enabled: boolean;
+  keep_last_n: number;
+  max_age_days: number;
+  compression: string;
+  s3_push: boolean;
+  next_run_at?: string | null;
+  last_run_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BackupScheduleUpsert {
+  name: string;
+  cron: string;
+  enabled: boolean;
+  keep_last_n: number;
+  max_age_days: number;
+  compression: string;
+  s3_push: boolean;
+}
+
+export async function listDBBackupSchedules(): Promise<BackupSchedule[]> {
+  const res = await client.get<BackupSchedule[]>('/api/database/backups/schedules');
+  return Array.isArray(res.data) ? res.data : [];
+}
+
+export async function createDBBackupSchedule(payload: BackupScheduleUpsert): Promise<{ id: number }> {
+  const res = await client.post<{ id: number }>('/api/database/backups/schedules', payload);
+  return res.data;
+}
+
+export async function updateDBBackupSchedule(id: number, payload: BackupScheduleUpsert): Promise<void> {
+  await client.put(`/api/database/backups/schedules/${id}`, payload);
+}
+
+export async function deleteDBBackupSchedule(id: number): Promise<void> {
+  await client.delete(`/api/database/backups/schedules/${id}`);
+}
+
+export async function pruneDBBackups(keep_last_n: number, max_age_days: number): Promise<{ removed: string[]; count: number }> {
+  const res = await client.post<{ removed: string[]; count: number }>('/api/database/backups/prune', { keep_last_n, max_age_days });
+  return res.data;
+}
+
+export interface S3ConfigView {
+  endpoint: string;
+  bucket: string;
+  region: string;
+  prefix: string;
+  access_key: string;
+  configured: boolean;
+  updated_at?: string;
+}
+
+export async function getBackupS3Config(): Promise<S3ConfigView> {
+  const res = await client.get<S3ConfigView>('/api/database/backups/s3');
+  return res.data;
+}
+
+export async function putBackupS3Config(payload: { endpoint: string; bucket: string; region: string; prefix: string; access_key: string; secret_key: string }): Promise<void> {
+  await client.put('/api/database/backups/s3', payload);
+}
+
+export async function pushDBBackupToS3(id: string): Promise<void> {
+  await client.post(`/api/database/backups/${encodeURIComponent(id)}/s3/push`);
+}
+
+export async function pullDBBackupFromS3(filename: string): Promise<void> {
+  await client.post('/api/database/backups/s3/pull', { filename }, { timeout: 0 });
 }
 
 // ---- Security (per-request telemetry aggregated) --------------------------

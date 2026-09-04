@@ -775,25 +775,23 @@ func (d *docker) Snapshot(ctx context.Context, name string, action string, snapN
 		return imageID, 0, nil
 
 	case "restore":
-		// Restore from a snapshot by creating a container from the image
+		// In-place restore: stop → import tar (when the snapshot is a
+		// tar file) → recreate from the snapshot image, reconciling the
+		// previous container's -p/volumes/env so the restored workload
+		// keeps its configuration. Ports/volumes reconcile reuses the
+		// same inspect → rm → run shape as UpdatePorts.
 		imageName := snapName
 		if imageName == "" {
 			return "", 0, fmt.Errorf("snapshot name is required for restore action")
 		}
-
-		// Check if the image exists
-		if !dockerImagePresent(ctx, imageName) {
-			return "", 0, fmt.Errorf("image %s not found", imageName)
+		image, err := resolveRestoreImage(ctx, imageName, location)
+		if err != nil {
+			return "", 0, err
 		}
-
-		// Restoring in place would mean stopping + removing the current
-		// container and re-running it from the committed image — but this
-		// RPC carries no deploy spec (ports/env/mounts/command), so a
-		// recreated container would silently lose its configuration.
-		// Failing loudly beats faking success: the operator should use the
-		// panel's destroy + re-deploy flow pointed at the snapshot image.
-		return "", 0, fmt.Errorf(
-			"in-place restore is not supported for docker snapshots (image %q is available; destroy and redeploy from it)", imageName)
+		if err := dockerRestoreFromImage(ctx, name, image); err != nil {
+			return "", 0, err
+		}
+		return image, 0, nil
 
 	case "delete":
 		// Delete the snapshot by removing the image
@@ -813,6 +811,167 @@ func (d *docker) Snapshot(ctx context.Context, name string, action string, snapN
 	default:
 		return "", 0, fmt.Errorf("invalid snapshot action: %s", action)
 	}
+}
+
+// resolveRestoreImage maps the panel's snapName to a local docker image,
+// loading a tar file first when the snapshot was saved with type=tar.
+// Candidates in order: snapName as image, snapName as tar path,
+// location+snapName.tar, location+imageName.tar.
+func resolveRestoreImage(ctx context.Context, snapName, location string) (string, error) {
+	if dockerImagePresent(ctx, snapName) {
+		return snapName, nil
+	}
+	candidates := []string{}
+	if strings.HasSuffix(snapName, ".tar") {
+		candidates = append(candidates, snapName)
+	}
+	if location != "" {
+		loc := strings.TrimRight(location, "/") + "/"
+		candidates = append(candidates, loc+snapName+".tar", loc+snapName)
+	}
+	for _, tar := range candidates {
+		if !strings.HasSuffix(tar, ".tar") {
+			continue
+		}
+		if fi, err := os.Stat(tar); err != nil || fi.IsDir() {
+			continue
+		}
+		out, err := asExec(ctx, "", "docker", "load", "-i", tar)
+		if err != nil {
+			return "", fmt.Errorf("docker load %s: %w", tar, err)
+		}
+		// `docker load` prints "Loaded image: <name>"; parse it so the
+		// subsequent run targets the image the tar actually contains.
+		for _, ln := range strings.Split(out, "\n") {
+			if i := strings.Index(ln, "Loaded image:"); i >= 0 {
+				if img := strings.TrimSpace(ln[i+len("Loaded image:"):]); img != "" {
+					return img, nil
+				}
+			}
+		}
+		// Tar loaded but daemon didn't name the image — fall back to the
+		// snapshot name itself if it now exists.
+		if dockerImagePresent(ctx, snapName) {
+			return snapName, nil
+		}
+		return "", fmt.Errorf("docker load %s succeeded but no image name was reported", tar)
+	}
+	return "", fmt.Errorf("image %s not found", snapName)
+}
+
+// dockerRestoreFromImage stops + removes the current container (if any)
+// and recreates it from image, preserving the previous container's
+// ports/volumes/env/labels/workdir/user/restart/network/cmd. The shape
+// mirrors UpdatePorts' inspect → rm → run reconcile so -p/volumes survive
+// the restore instead of being silently dropped.
+func dockerRestoreFromImage(ctx context.Context, name, image string) error {
+	// Capture the previous container's config when it exists. Missing
+	// container (first restore after a destroy) restores with defaults.
+	var prevCfg, prevHostCfg map[string]any
+	var containerName = name
+	var prevCmd []string
+	if out, err := asExec(ctx, "", "docker", "inspect", name); err == nil {
+		var data []map[string]any
+		if jerr := json.Unmarshal([]byte(out), &data); jerr == nil && len(data) > 0 {
+			raw := data[0]
+			prevCfg, _ = raw["Config"].(map[string]any)
+			prevHostCfg, _ = raw["HostConfig"].(map[string]any)
+			if n, ok := raw["Name"].(string); ok && strings.TrimSpace(n) != "" {
+				if trimmed := strings.TrimPrefix(strings.TrimSpace(n), "/"); trimmed != "" {
+					containerName = trimmed
+				}
+			}
+			if prevCfg != nil {
+				if cmd, ok := prevCfg["Cmd"].([]any); ok {
+					for _, c := range cmd {
+						if s, ok := c.(string); ok {
+							prevCmd = append(prevCmd, s)
+						}
+					}
+				}
+			}
+		}
+	}
+	// Stop (idempotent) then remove. `rm -f` also stops, but an explicit
+	// stop first gives the workload a clean SIGTERM window.
+	_, _ = asExec(ctx, "", "docker", "stop", name)
+	if _, err := asExec(ctx, "", "docker", "rm", "-f", name); err != nil {
+		if !isAlreadyGoneErr(err) && dockerStatus(ctx, name) != "" {
+			return fmt.Errorf("docker rm -f: %w", err)
+		}
+	}
+	args := []string{"run", "--name", containerName}
+	// Preserve port bindings from the previous HostConfig when present.
+	if prevHostCfg != nil {
+		if bindings, ok := prevHostCfg["PortBindings"].(map[string]any); ok {
+			for containerPort, arr := range bindings {
+				list, _ := arr.([]any)
+				for _, item := range list {
+					m, _ := item.(map[string]any)
+					hostIP := anyToString(m["HostIp"])
+					hostPort := anyToString(m["HostPort"])
+					if hostPort == "" {
+						continue
+					}
+					// containerPort is "80/tcp" — split protocol.
+					cp, proto := containerPort, "tcp"
+					if i := strings.Index(containerPort, "/"); i >= 0 {
+						cp = containerPort[:i]
+						proto = containerPort[i+1:]
+					}
+					spec := fmt.Sprintf("%s:%s/%s", hostPort, cp, proto)
+					if strings.TrimSpace(hostIP) != "" && hostIP != "0.0.0.0" {
+						spec = fmt.Sprintf("%s:%s:%s/%s", hostIP, hostPort, cp, proto)
+					}
+					args = append(args, "-p", spec)
+				}
+			}
+		}
+		if binds, ok := prevHostCfg["Binds"].([]any); ok {
+			for _, b := range binds {
+				if s, ok := b.(string); ok && strings.TrimSpace(s) != "" {
+					args = append(args, "-v", s)
+				}
+			}
+		}
+		if rp, ok := prevHostCfg["RestartPolicy"].(map[string]any); ok {
+			if rn, ok := rp["Name"].(string); ok && rn != "" && rn != "no" {
+				args = append(args, "--restart", rn)
+			}
+		}
+		if mode, ok := prevHostCfg["NetworkMode"].(string); ok && mode != "" && mode != "default" && mode != "bridge" {
+			args = append(args, "--network", mode)
+		}
+	}
+	if prevCfg != nil {
+		if envs, ok := prevCfg["Env"].([]any); ok {
+			for _, e := range envs {
+				if s, ok := e.(string); ok && strings.TrimSpace(s) != "" {
+					args = append(args, "-e", s)
+				}
+			}
+		}
+		if labels, ok := prevCfg["Labels"].(map[string]any); ok {
+			for k, v := range labels {
+				if k == "" {
+					continue
+				}
+				args = append(args, "-l", fmt.Sprintf("%s=%v", k, v))
+			}
+		}
+		if wd, ok := prevCfg["WorkingDir"].(string); ok && strings.TrimSpace(wd) != "" {
+			args = append(args, "-w", wd)
+		}
+		if user, ok := prevCfg["User"].(string); ok && strings.TrimSpace(user) != "" {
+			args = append(args, "-u", user)
+		}
+	}
+	args = append(args, "-d", image)
+	args = append(args, prevCmd...)
+	if _, err := asExec(ctx, "", "docker", args...); err != nil {
+		return fmt.Errorf("docker run (restore from %s): %w", image, err)
+	}
+	return nil
 }
 
 // appendLabels flattens the spec's `labels` value into a series of
