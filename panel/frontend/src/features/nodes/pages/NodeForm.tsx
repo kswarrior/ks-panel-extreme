@@ -458,8 +458,8 @@ const NodeForm: React.FC = () => {
     }
   };
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     const vErr = validateForm();
     if (vErr) {
       setError(vErr);
@@ -550,42 +550,50 @@ const NodeForm: React.FC = () => {
     );
   }
 
+  const showSetupAction = !editing && isLocalMode(form.connection_mode);
+
   return (
     <>
-      {/* Floating Cancel — fixed top-right like the phone tab bar, so it
-          stays visible no matter how far the form is scrolled. */}
-      <button
-        type="button"
-        onClick={() => navigate('/nodes')}
-        title="Cancel and back to Nodes"
-        aria-label="Cancel and back to Nodes"
-        className="fixed top-[max(4.5rem,env(safe-area-inset-top))] right-4 sm:right-6 z-40 inline-flex items-center gap-1.5 px-3.5 py-2 text-sm rounded-lg border border-white/10 bg-neutral-900/90 backdrop-blur-md text-gray-200 shadow-lg shadow-black/40 hover:bg-white/10 hover:text-white transition-colors"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-4 h-4"><path d="M18 6 6 18M6 6l12 12" /></svg>
-        Cancel
-      </button>
-      <FormPage
-        crumbs={[{ label: 'Nodes', to: '/nodes' }, { label: editing ? 'Edit Node' : 'New Node' }]}
-        saving={saving}
-        submitLabel={editing ? 'Save' : 'Create'}
-        onSubmit={submit}
-        maxWidth="max-w-4xl"
-        secondaryActions={!editing && isLocalMode(form.connection_mode) ? (
+      {/* Top-right actions — fixed like the phone tab bar (same ks-tab
+          style), always visible no matter how far the form is scrolled.
+          Footer Cancel/Create removed; everything lives here. */}
+      <div className="fixed top-[max(4.5rem,env(safe-area-inset-top))] right-4 sm:right-6 z-40">
+        <div className="ks-card rounded-md p-1.5 flex gap-1 shadow-lg shadow-black/40">
           <button
             type="button"
-            onClick={submitAndSetup}
-            disabled={saving}
-            title="Register this localhost node and automatically install + launch ksedge on this host"
-            className="inline-flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 text-sm rounded hover:bg-emerald-500 disabled:opacity-60 transition-colors"
+            onClick={() => navigate('/nodes')}
+            title="Cancel and back to Nodes"
+            aria-label="Cancel and back to Nodes"
+            className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition"
           >
-            {settingUp ? (
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56" /> </svg>
-            ) : (
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M5 3v4M3 5h4M6 17v4M4 19h4M13 3l2.5 5.5L21 11l-5.5 2.5L13 19l-2.5-5.5L5 11l5.5-2.5L13 3z" /> </svg>
-            )}
-            Create & setup
+            Cancel
           </button>
-        ) : undefined}
+          {showSetupAction && (
+            <button
+              type="button"
+              onClick={submitAndSetup}
+              disabled={saving || settingUp}
+              title="Register this localhost node and automatically install + launch ksedge on this host"
+              className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-60"
+            >
+              {settingUp ? 'Setting up…' : 'Create & setup'}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => submit()}
+            disabled={saving}
+            title={editing ? 'Save node' : 'Create node'}
+            className="ks-tab ks-tab-active shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-60"
+          >
+            {saving ? 'Saving…' : editing ? 'Save' : 'Create'}
+          </button>
+        </div>
+      </div>
+      <FormPage
+        crumbs={[{ label: 'Nodes', to: '/nodes' }, { label: editing ? 'Edit Node' : 'New Node' }]}
+        onSubmit={submit}
+        maxWidth="max-w-4xl"
       >
       <div className="space-y-4">
         <div className="hidden lg:inline-flex flex-wrap gap-1 rounded-lg bg-neutral-900/60 border border-white/10 p-1">
