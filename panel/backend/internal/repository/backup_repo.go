@@ -52,14 +52,24 @@ func NewBackupScheduleRepository(db *sql.DB) *BackupScheduleRepository {
 
 func scanBackupSchedule(rows *sql.Rows) (BackupSchedule, error) {
 	var s BackupSchedule
+	var id sql.NullInt64
 	var instID sql.NullInt64
 	var nextRun, lastRun, created, updated sql.NullString
 	var enabled, s3push int
-	if err := rows.Scan(&s.ID, &s.Kind, &instID, &s.Name, &s.Cron, &enabled,
+	if err := rows.Scan(&id, &s.Kind, &instID, &s.Name, &s.Cron, &enabled,
 		&s.KeepLastN, &s.MaxAgeDays, &s.Compression, &s3push,
 		&nextRun, &lastRun, &created, &updated); err != nil {
 		return s, err
 	}
+	// modernc.org/sqlite v1.6.0 emits one all-NULL phantom row when
+	// streaming an EMPTY table (same driver quirk datamove and the Database
+	// page document for other empty-set scans). A real schedule row always
+	// has a non-NULL id, so drop the phantom instead of failing the list
+	// with "converting NULL to int64".
+	if !id.Valid {
+		return s, errPhantomRow
+	}
+	s.ID = id.Int64
 	if instID.Valid {
 		v := instID.Int64
 		s.InstanceID = &v
@@ -100,6 +110,10 @@ func backupBoolToInt(b bool) int {
 	return 0
 }
 
+// errPhantomRow marks the modernc empty-table phantom row (all NULLs) so
+// list loops can skip it without failing the whole query.
+var errPhantomRow = fmt.Errorf("phantom row")
+
 // ListByKind returns schedules for kind ('db' ignores instance filter;
 // 'snapshot' may be filtered by instance).
 func (r *BackupScheduleRepository) ListByKind(kind string, instanceID *int64) ([]BackupSchedule, error) {
@@ -118,6 +132,9 @@ func (r *BackupScheduleRepository) ListByKind(kind string, instanceID *int64) ([
 	for rows.Next() {
 		s, err := scanBackupSchedule(rows)
 		if err != nil {
+			if err == errPhantomRow {
+				continue
+			}
 			return nil, err
 		}
 		out = append(out, s)
