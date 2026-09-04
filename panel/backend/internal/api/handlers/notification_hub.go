@@ -22,9 +22,9 @@ import (
 // GlobalNotifyHub after the DB row lands, so the bell updates instantly.
 //
 // Delivery preference (notification_prefs.mode, 065) gates the push:
-// realtime → push now, digest/off → no push (digest users get the daily
-// summary mail; off users see the inbox row on next open). Email follows
-// the same gate via repository.ShouldEmailUser.
+// realtime + digest → push now (digest users get the daily summary mail
+// on top), off → no push. Email follows the same gate via
+// repository.ShouldEmailUser (realtime immediate; digest via sweep).
 
 // hubConn is one subscribed browser tab.
 type hubConn struct {
@@ -124,8 +124,10 @@ type notificationPush struct {
 }
 
 // pushAndMailNotification pushes one freshly-created notification row to
-// the recipient's tabs (when their mode is realtime) and queues the email
-// (when ShouldEmailUser passes: address present, opted in, realtime).
+// the recipient's tabs (realtime + digest; off gets inbox only) and queues
+// the immediate email when ShouldEmailUser passes (address present, opted
+// in, realtime). Digest users get the WS push now and the daily summary
+// mail from the scheduler sweep; off users see the inbox row on next open.
 // Failures never propagate — notifications must not break the action that
 // caused them.
 func pushAndMailNotification(con *sql.DB, repo *repository.NotificationRepository, userID, notifID int64) {
@@ -142,11 +144,13 @@ func pushAndMailNotification(con *sql.DB, repo *repository.NotificationRepositor
 	if prefs != nil {
 		mode = prefs.Mode
 	}
-	if mode == models.NotificationModeRealtime {
+	if mode == models.NotificationModeRealtime || mode == models.NotificationModeDigest {
 		msg, merr := json.Marshal(notificationPush{Type: "notification", Notification: n, Unread: unread})
 		if merr == nil {
 			GlobalNotifyHub.Push(userID, msg)
 		}
+	}
+	if mode == models.NotificationModeRealtime {
 		if to, ok := repository.ShouldEmailUser(con, userID); ok {
 			repository.EnqueueMail(repository.MailJob{
 				UserID:  userID,
@@ -156,8 +160,8 @@ func pushAndMailNotification(con *sql.DB, repo *repository.NotificationRepositor
 			})
 		}
 	}
-	// digest/off: inbox row only (digest users get the daily summary mail
-	// from the scheduler sweep; off users see it on next open).
+	// off: inbox row only. digest: pushed above + daily summary mail from
+	// the scheduler sweep.
 }
 
 // NotificationStreamHandler upgrades the caller's bell to a WebSocket.
