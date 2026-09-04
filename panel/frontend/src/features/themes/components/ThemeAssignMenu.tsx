@@ -132,7 +132,10 @@ export function useThemeAssignItems(theme: Theme): AssignItemsResult {
     const allAreaOn = AREAS.every((a) => bindings[scopeForArea(a.id)] === theme.id);
     bulkAssignments['bulk-all'] = allAreaOn;
     const noneOn =
-      AREAS.every((a) => bindings[scopeForArea(a.id)] !== theme.id) &&
+      AREAS.every((a) => {
+        if (bindings[scopeForArea(a.id)] === theme.id) return false;
+        return a.pages.every((p) => bindings[scopeForPage(p.id)] !== theme.id);
+      }) &&
       STANDALONE_PAGES.every((p) => bindings[scopeForPage(p.id)] !== theme.id);
     bulkAssignments['bulk-none'] = noneOn;
 
@@ -180,6 +183,10 @@ export function useThemeAssignItems(theme: Theme): AssignItemsResult {
         for (const a of AREAS) {
           const s = scopeForArea(a.id);
           if (bindings[s] === theme.id) unassignTheme(s);
+          for (const p of a.pages) {
+            const ps = scopeForPage(p.id);
+            if (bindings[ps] === theme.id) unassignTheme(ps);
+          }
         }
         for (const p of STANDALONE_PAGES) {
           const s = scopeForPage(p.id);
