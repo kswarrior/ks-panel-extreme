@@ -425,7 +425,7 @@ const Header: React.FC<HeaderProps> = ({
         {/* Nodes crumb — the list page shows "Nodes", the form shows
             "Nodes / New Node" (or Edit Node) here, right of the sidebar
             toggle, so the page bodies stay clean. */}
-        {!inInstancePanel && (location.pathname === '/nodes' || location.pathname === '/nodes/' || location.pathname === '/nodes/new' || location.pathname === '/nodes/schedules' || /^\/nodes\/\d+\/edit\/?$/.test(location.pathname)) && (
+        {!inInstancePanel && (location.pathname === '/nodes' || location.pathname === '/nodes/' || location.pathname === '/nodes/new' || location.pathname === '/nodes/schedules' || location.pathname === '/nodes/stats' || /^\/nodes\/\d+\/edit\/?$/.test(location.pathname)) && (
           <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-xs text-gray-400 min-w-0">
             {location.pathname === '/nodes' || location.pathname === '/nodes/' ? (
               <span className="text-gray-200">Nodes</span>
