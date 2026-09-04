@@ -144,11 +144,31 @@ const NotificationStats: React.FC = () => {
       {/* Fixed top-right pill — "Statistics" title lives in the app header
           ("Notifications / Statistics", parent crumb covers back-nav). */}
       <PageActionsPill>
+          <SearchDropdown
+            value={search}
+            onChange={setSearch}
+            placeholder="Search categories..."
+            ariaLabel="Search notification stats"
+            buttonClassName="ks-tab inline-flex items-center justify-center"
+            buttonStyle={PILL_TAB_STYLE}
+          />
+          <select
+            value={timeRange}
+            onChange={(e) => setTimeRange(e.target.value as any)}
+            className="ks-tab"
+            style={PILL_TAB_STYLE}
+            aria-label="Time range"
+          >
+            <option value="1h">Last hour</option>
+            <option value="6h">Last 6 hours</option>
+            <option value="24h">Last 24 hours</option>
+            <option value="7d">Last 7 days</option>
+          </select>
           <div className="relative" ref={filterRef}>
             <button
               type="button"
               onClick={() => setFilterOpen(!filterOpen)}
-              className={`ks-tab inline-flex items-center justify-center transition-colors ${filterOpen ? 'is-open' : ''}`}
+              className={`ks-tab inline-flex items-center justify-center gap-1 transition-colors ${filterOpen ? 'is-open' : ''}`}
               style={PILL_TAB_STYLE}
               aria-label="Open filters"
               aria-expanded={filterOpen}
@@ -157,7 +177,9 @@ const NotificationStats: React.FC = () => {
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
                 <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
               </svg>
-              <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
+              {search.trim() !== '' && (
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
+              )}
             </button>
             {filterOpen && (
               <div className="absolute right-0 top-full mt-1 z-30 w-64">
