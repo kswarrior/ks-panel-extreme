@@ -136,12 +136,13 @@ func launchCmd() *cobra.Command {
 			rootCtx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer stopSignals()
 			go sender.Run(rootCtx)
-			// WSS reverse tunnel: keep a persistent websocket to the panel so the
-			// panel can push RPCs without dialing the edge directly. Only for
-			// tunnel modes (reverse_tunnel / local_wss); direct and local_port
-			// use plain HTTP and don't need the extra websocket.
-			mode := strings.ToLower(strings.TrimSpace(cfg.ConnectionMode))
-			if mode == "reverse_tunnel" || mode == "local_wss" {
+		// WSS reverse tunnel: keep a persistent websocket to the panel so the
+		// panel can push RPCs without dialing the edge directly. Only for
+		// tunnel modes (reverse_tunnel / local_wss / both / local_both);
+		// direct and local_port use plain HTTP and don't need the extra
+		// websocket.
+		mode := strings.ToLower(strings.TrimSpace(cfg.ConnectionMode))
+		if mode == "reverse_tunnel" || mode == "local_wss" || mode == "both" || mode == "local_both" {
 				portForTunnel := cfg.ListenPortOr(4040)
 				if port != 0 {
 					portForTunnel = port

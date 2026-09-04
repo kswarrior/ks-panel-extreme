@@ -5,9 +5,12 @@
 // own local HTTP server (http://127.0.0.1:<port>/...), and sends the response
 // back over the same websocket.
 //
-// This gives two of the four NodeForm modes their WSS transport:
+// This gives four of the six NodeForm modes their WSS transport:
 //   - reverse_tunnel  — edge behind NAT, no inbound port needed
 //   - local_wss       — local edge that also keeps a tunnel for consistency
+//   - both            — remote edge keeping BOTH a direct address AND a tunnel;
+//                       the panel routes per task (WSS channels)
+//   - local_both      — local edge keeping BOTH 127.0.0.1:port AND a tunnel
 // The direct / local_port modes keep using plain HTTP and don't need the tunnel,
 // but running the tunnel in parallel is harmless – the panel will prefer the
 // tunnel when present for tunnel modes and fall back to HTTP for direct modes.

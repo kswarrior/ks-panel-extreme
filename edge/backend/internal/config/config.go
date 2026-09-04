@@ -58,9 +58,12 @@ type Config struct {
 	// relative to the edge binary directory (./ = edge location).
 	InstancesDir string `json:"instances_dir,omitempty"`
 	// ConnectionMode mirrors the panel's dropdown: direct / reverse_tunnel /
-	// local_port / local_wss. Stored so the edge can decide whether to keep
-	// the reverse tunnel alive or rely on inbound HTTP. Empty defaults to
-	// direct for legacy configs that predate the field.
+	// both / local_port / local_wss / local_both. Stored so the edge can
+	// decide whether to keep the reverse tunnel alive or rely on inbound
+	// HTTP. Empty defaults to direct for legacy configs that predate the
+	// field. The dual modes (both / local_both) keep BOTH transports alive;
+	// the panel routes per task (WSS channels) and falls back on overload
+	// or disconnect.
 	ConnectionMode string `json:"connection_mode,omitempty"`
 }
 
