@@ -263,19 +263,41 @@ func proxyToEdge(w http.ResponseWriter, r *http.Request, id int64, op, path, con
 		body = r.Body
 	}
 
-	// Tunnel-aware dispatch: for reverse_tunnel / local_wss with an active
-	// WSS tunnel, multiplex the files RPC over the tunnel instead of dialing
-	// the edge's address directly. This lets a NAT-ed edge behind
-	// reverse_tunnel still serve the file manager without a public IP.
+	// Tunnel-aware dispatch: for tunnel modes with an active WSS tunnel,
+	// multiplex the files RPC over the tunnel instead of dialing the edge's
+	// address directly. This lets a NAT-ed edge behind reverse_tunnel still
+	// serve the file manager without a public IP.
+	//
+	// Dual-transport modes (both/local_both) consult the files-task WSS
+	// channel: a port-preferred files task goes over HTTP (and binary
+	// read/write/upload always prefer HTTP on dual modes, since the tunnel
+	// cannot carry binary payloads); otherwise the tunnel is tried first
+	// with emergency HTTP fallback on transport failure.
 	mode := strings.ToLower(strings.TrimSpace(node.ConnectionMode))
-	isTunnelMode := mode == "reverse_tunnel" || mode == "local_wss"
+	isTunnelMode := mode == "reverse_tunnel" || mode == "local_wss" || mode == "both" || mode == "local_both"
 	connected := tunnel.Global().IsConnected(node.ID)
+	// filesRoute applies to dual modes only; pure modes ignore channels.
+	filesRoute := edge.DecideRoute(mode, edge.TaskFiles, edge.LoadChannels(node.ID), connected)
+	useTunnelFirst := false
+	switch mode {
+	case "reverse_tunnel":
+		useTunnelFirst = true
+	case "local_wss":
+		useTunnelFirst = connected
+	case "both", "local_both":
+		useTunnelFirst = filesRoute.PreferTunnel && connected
+		// Binary payloads cannot ride the tunnel — dual modes always have
+		// a dialable address, so send them over HTTP (port).
+		if op == "read" || op == "write" || op == "upload" {
+			useTunnelFirst = false
+		}
+	}
 	// local_wss binary ops skip the tunnel and fall through to direct HTTP
 	// below: the edge listens on 127.0.0.1:<port> on the same host, so a
 	// loopback dial succeeds even while the tunnel is up. reverse_tunnel
 	// has no dialable address and correctly stays on the 501 path.
 	isLocalWSSBinary := mode == "local_wss" && (op == "read" || op == "write" || op == "upload")
-	if isTunnelMode && connected && !isLocalWSSBinary {
+	if isTunnelMode && connected && useTunnelFirst && !isLocalWSSBinary {
 		tunnelPath := "/api/edge/files?" + q.Encode()
 		// Binary payloads (read/write/upload) are not yet fully tunneled
 		// due to the tunnel's 8 MiB JSON message limit and the edge's
@@ -323,6 +345,12 @@ func proxyToEdge(w http.ResponseWriter, r *http.Request, id int64, op, path, con
 		}
 		status, respBody, err := tunnel.Global().Send(node.ID, method, tunnelPath, tunnelBody, 5*time.Minute)
 		if err != nil {
+			// Dual modes with fallback: emergency retry over HTTP below
+			// instead of failing here (tunnel overloaded/disconnected
+			// mid-flight). Pure tunnel modes surface the 502 as before.
+			if (mode == "both" || mode == "local_both") && filesRoute.Fallback {
+				goto httpFallback
+			}
 			safeErr := strings.ReplaceAll(err.Error(), token, "[redacted]")
 			writeJSONStatus(w, http.StatusBadGateway, map[string]any{
 				"error": "tunnel send failed: " + safeErr,
@@ -365,10 +393,21 @@ func proxyToEdge(w http.ResponseWriter, r *http.Request, id int64, op, path, con
 		_, _ = w.Write(respBody)
 		return
 	}
+httpFallback:
 	if mode == "reverse_tunnel" && !connected {
 		writeJSONStatus(w, http.StatusBadGateway, map[string]any{
 			"error": "edge not connected via WSS tunnel (reverse_tunnel mode requires edge to be online)",
 			"hint":  "ensure ksedge is running with panel_url and token, and that it can reach the panel via WSS",
+			"edge":  node.Address,
+		})
+		return
+	}
+	// Dual modes with a strict WSS files task and no tunnel cannot fall
+	// back to HTTP (operator disabled emergency fallback).
+	if (mode == "both" || mode == "local_both") && !connected && filesRoute.Strict && filesRoute.Transport == edge.TransportWSS {
+		writeJSONStatus(w, http.StatusBadGateway, map[string]any{
+			"error": "edge not connected via WSS tunnel (files task prefers WSS with fallback disabled)",
+			"hint":  "start ksedge so the tunnel connects, or enable emergency fallback on the files channel",
 			"edge":  node.Address,
 		})
 		return
@@ -392,6 +431,26 @@ func proxyToEdge(w http.ResponseWriter, r *http.Request, id int64, op, path, con
 	client := httpClientForNode(node)
 	resp, err := client.Do(req)
 	if err != nil {
+		// Dual-mode emergency: a port-preferred files task whose HTTP dial
+		// failed retries idempotent (nil-body) JSON ops over the tunnel
+		// when fallback is on and the tunnel is up. Body-bearing and
+		// binary transfers skip the retry (no safe replay).
+		if (mode == "both" || mode == "local_both") && filesRoute.Fallback && body == nil &&
+			tunnel.Global().IsConnected(node.ID) && op != "read" && op != "write" && op != "upload" {
+			tunnelPath := "/api/edge/files?" + q.Encode()
+			if status, respBody, terr := tunnel.Global().Send(node.ID, method, tunnelPath, nil, 5*time.Minute); terr == nil {
+				if status < 400 {
+					if contentType != "" {
+						w.Header().Set("Content-Type", contentType)
+					} else {
+						w.Header().Set("Content-Type", "application/json")
+					}
+					w.WriteHeader(status)
+					_, _ = w.Write(respBody)
+					return
+				}
+			}
+		}
 		safeErr := strings.ReplaceAll(err.Error(), token, "[redacted]")
 		log.Printf("proxyToEdge: dial edge failed: %v", safeErr)
 		writeJSON(w, map[string]any{
