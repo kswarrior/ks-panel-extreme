@@ -363,7 +363,9 @@ func AIChatHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	checker := permissions.NewChecker(con)
-	if err := checker.Ensure(uid, permissions.AIChatUseKey); err != nil {
+	// Chat entry: umbrella or Q&A / Tools / Writes (threads-only holders
+	// manage history via /threads but cannot send new turns).
+	if err := checker.EnsureAny(uid, permissions.AIChatUseKey, permissions.AIChatQAKey, permissions.AIChatToolsKey, permissions.AIChatWritesKey); err != nil {
 		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 		return
 	}
@@ -384,6 +386,10 @@ func AIChatHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Mode 1: approve a pending write ticket.
 	if strings.TrimSpace(req.ApproveTicketID) != "" {
+		if err := checker.EnsureAICapability(uid, permissions.AIChatWritesKey); err != nil {
+			http.Error(w, "your role cannot approve AI write actions (needs AI Chat Writes)", http.StatusForbidden)
+			return
+		}
 		t, ok := aiTakeTicket(con, strings.TrimSpace(req.ApproveTicketID), uid)
 		if !ok {
 			http.Error(w, "confirmation ticket is unknown, expired or belongs to someone else", http.StatusGone)
