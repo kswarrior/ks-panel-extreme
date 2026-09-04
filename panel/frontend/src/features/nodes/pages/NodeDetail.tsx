@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { listNodes, nodeHeartbeats, probeNode, listInstances, rotateNodeToken, deleteNode, purgeLocalNode, getNodeUpdateInfo } from '@/shared/api/admin';
 import type { Node, NodeHeartbeat } from '@/features/nodes/types/node';
 import GlassCard from '@/shared/components/ui/Card';
+import { PageActionsPill } from '@/shared/components/ui/PageActionsPill';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import { NodeIcon, nodeIconByKey, isCustomNodeIconSvg } from '../utils/nodeIcons';
 import { HeartbeatIcon, DriverRing, ResourceBar } from '../components/NodesComponents';
@@ -75,36 +76,7 @@ const NodeDetail: React.FC = () => {
   const [rotating, setRotating] = useState(false);
   const [edgeVersion, setEdgeVersion] = useState('');
 
-  // Fixed top-right actions pill — same auto-hide slide as the Nodes page
-  // ("Detail" title lives in the app header).
-  const [actionsVisible, setActionsVisible] = useState(true);
-  const pillRef = useRef<HTMLDivElement>(null);
-  const showTimer = useRef<number | null>(null);
 
-  useEffect(() => {
-    const scheduleShow = (delay: number) => {
-      if (showTimer.current) window.clearTimeout(showTimer.current);
-      showTimer.current = window.setTimeout(() => setActionsVisible(true), delay);
-    };
-    const onScroll = () => {
-      setActionsVisible(false);
-      scheduleShow(2500);
-    };
-    const onPointerDown = (e: PointerEvent) => {
-      const path = typeof e.composedPath === 'function' ? e.composedPath() : [];
-      if (pillRef.current && !path.includes(pillRef.current)) {
-        setActionsVisible(false);
-        scheduleShow(2500);
-      }
-    };
-    document.addEventListener('scroll', onScroll, true);
-    document.addEventListener('pointerdown', onPointerDown);
-    return () => {
-      document.removeEventListener('scroll', onScroll, true);
-      document.removeEventListener('pointerdown', onPointerDown);
-      if (showTimer.current) window.clearTimeout(showTimer.current);
-    };
-  }, []);
 
   const numericId = id ? Number(id) : NaN;
   const validId = Number.isFinite(numericId) && numericId > 0;
@@ -325,12 +297,7 @@ const NodeDetail: React.FC = () => {
       {/* Fixed top-right actions pill — back + title live in the app header
           ("Nodes / Detail"). The menu portals its dropdown, so it is safe
           inside the fixed container. */}
-      <div className="fixed top-[max(4.5rem,env(safe-area-inset-top))] right-4 sm:right-6 z-40">
-        <div
-          ref={pillRef}
-          className={`ks-card ks-pill-anim rounded-md flex items-center gap-1 shadow-lg shadow-black/40 ${actionsVisible ? 'translate-x-0 opacity-100' : 'pointer-events-none translate-x-8 opacity-0'}`}
-          style={{ '--ks-card-padding': '6px' } as React.CSSProperties}
-        >
+      <PageActionsPill>
           <CardMenu
             ariaLabel={`Actions for node ${node.name}`}
             items={[
@@ -357,8 +324,7 @@ const NodeDetail: React.FC = () => {
               if (k === 'delete') handleDelete();
             }}
           />
-        </div>
-      </div>
+      </PageActionsPill>
       <p className="text-xs text-gray-500 truncate">ID {node.id} · {hostUrl} · {relativeTime(node.created_at)}</p>
 
       <GlassCard className="ks-stat-card p-4">
