@@ -14,6 +14,7 @@ import {
 } from '@/features/templates/components/TemplateForm';
 import { glassFieldClass } from '@/shared/components/ui/Field';
 import FormPage from '@/shared/components/forms/FormPage';
+import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import ThemedBackground from '@/shared/components/layout/ThemedBackground';
 import { useDeployForm } from '../stores/deployFormStore';
 import type {
@@ -439,29 +440,38 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
   return (
     <div className="relative min-h-screen">
       <ThemedBackground />
-      <FormPage
-        crumbs={crumbs}
-        saving={saving}
-        title={title}
-        cancelTo={cancelTo}
-        submitLabel={submitLabel}
-        submittingLabel={submittingLabel}
-        onSubmit={onSubmit}
-        maxWidth="max-w-4xl"
-        headerActions={
+      {/* Top-right actions — fixed, auto-hide on scroll (node pattern).
+          Back lives here (was headerActions); Save only when submitLabel set
+          (edit flow). Deploy flow has no save — just Back. */}
+      <PageActionsPill>
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex items-center gap-1.5 text-sm text-gray-300 hover:text-white border border-white/10 bg-white/5 hover:bg-white/10 rounded px-3 py-1.5 transition-colors"
-            aria-label="Back to deploy form"
+            title="Back"
+            aria-label="Back"
+            className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition"
+            style={PILL_TAB_STYLE}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-              <path d="M19 12H5" />
-              <path d="M12 19l-7-7 7-7" />
-            </svg>
-            <span>Back</span>
+            Back
           </button>
-        }
+          {submitLabel && (
+            <button
+              type="button"
+              onClick={() => onSubmit?.({ preventDefault: () => {} } as React.FormEvent)}
+              disabled={saving}
+              title={submitLabel}
+              className="ks-tab ks-tab-active shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-60"
+              style={PILL_TAB_STYLE}
+            >
+              {saving ? (submittingLabel || 'Saving…') : submitLabel}
+            </button>
+          )}
+      </PageActionsPill>
+      <FormPage
+        crumbs={crumbs}
+        onSubmit={onSubmit}
+        maxWidth="max-w-4xl"
+        hideHeader
       >
         <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4">
           <TemplateTabs tab={tab} onChange={setTab} tabs={ADVANCED_TABS} />
@@ -661,6 +671,9 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
         </div>
       </div>
       </FormPage>
+      {/* Spacer — reserves scroll room so the fixed bottom tab bar never
+          covers trailing form content (node pattern). */}
+      <div aria-hidden="true" className="h-24 lg:hidden" />
     </div>
   );
 };

@@ -1,11 +1,12 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { listInstancePages } from '@/shared/api/admin';
 import type { InstancePage } from '@/shared/types/instancePage';
 import {
-  HeaderWithAction,
   StatCard,
 } from '@/shared/components/ui/StatDashboard';
 import GlassCard from '@/shared/components/ui/Card';
+import SearchDropdown from '@/shared/components/ui/SearchDropdown';
+import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 
 type KindKey = 'builtin' | 'custom' | 'unknown';
 
@@ -38,6 +39,23 @@ const InstancePageStats: React.FC = () => {
   const [pages, setPages] = useState<InstancePage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [timeRange, setTimeRange] = useState<'1h' | '6h' | '24h' | '7d'>('24h');
+  const [kindFilter, setKindFilter] = useState<KindKey | 'all'>('all');
+  const [filterOpen, setFilterOpen] = useState(false);
+  const filterRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
+        setFilterOpen(false);
+      }
+    }
+    if (filterOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [filterOpen]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -63,7 +81,15 @@ const InstancePageStats: React.FC = () => {
     created: p.created_at ? new Date(p.created_at).getTime() : 0,
     hasContent: !!(p.content_html || p.content_markdown || p.content_blocks),
     hasIcon: !!p.icon_svg,
-  })), [pages]);
+  })).filter((e) => {
+    const q = search.trim().toLowerCase();
+    if (q) {
+      const hay = `${e.page.slug || ''} ${e.page.title || ''} ${e.category}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    if (kindFilter !== 'all' && e.kind !== kindFilter) return false;
+    return true;
+  }), [pages, search, kindFilter]);
 
   const stats = useMemo(() => {
     const byKind: Record<string, number> = {};
