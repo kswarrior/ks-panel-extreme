@@ -17,6 +17,7 @@ const CATEGORY_META: Array<{ key: ActivityCategory; label: string }> = [
   { key: 'settings', label: 'Settings' },
   { key: 'auth', label: 'Auth' },
   { key: 'system', label: 'System' },
+  { key: 'ai', label: 'AI' },
 ];
 
 const ActivityPage: React.FC = () => {

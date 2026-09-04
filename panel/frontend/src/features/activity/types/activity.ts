@@ -12,7 +12,8 @@ export type ActivityCategory =
   | 'api_key'
   | 'settings'
   | 'auth'
-  | 'system';
+  | 'system'
+  | 'ai';
 
 export interface ActivityLog {
   id: number;

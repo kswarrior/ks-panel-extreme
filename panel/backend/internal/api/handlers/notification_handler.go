@@ -59,7 +59,7 @@ func EmitNotification(userID int64, actorID *int64, actorName string, category m
 	}
 	defer con.Close()
 	repo := repository.NewNotificationRepository(con)
-	_, err = repo.Create(repository.CreateNotificationInput{
+	id, err := repo.Create(repository.CreateNotificationInput{
 		UserID:      userID,
 		ActorID:     actorID,
 		ActorName:   actorName,
@@ -73,7 +73,11 @@ func EmitNotification(userID int64, actorID *int64, actorName string, category m
 	})
 	if err != nil {
 		log.Println("notification emit: create:", err)
+		return
 	}
+	// Realtime fan-out (WS push + email per the recipient's prefs).
+	pushAndMailNotification(con, repo, userID, id)
+}
 }
 
 // EmitBroadcast fans out a notification to every user. Intended for admin
@@ -101,7 +105,7 @@ func EmitBroadcast(actorID *int64, actorName string, category models.Notificatio
 		return
 	}
 	for _, uid := range ids {
-		if _, err := repo.Create(repository.CreateNotificationInput{
+		id, cerr := repo.Create(repository.CreateNotificationInput{
 			UserID:      uid,
 			ActorID:     actorID,
 			ActorName:   actorName,
@@ -112,9 +116,12 @@ func EmitBroadcast(actorID *int64, actorName string, category models.Notificatio
 			Link:        link,
 			ActionLabel: actionLabel,
 			IsBroadcast: true,
-		}); err != nil {
-			log.Println("notification broadcast: create for user", uid, err)
+		})
+		if cerr != nil {
+			log.Println("notification broadcast: create for user", uid, cerr)
+			continue
 		}
+		pushAndMailNotification(con, repo, uid, id)
 	}
 }
 

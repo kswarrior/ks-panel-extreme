@@ -21,6 +21,8 @@ const (
 	ActivityCategorySnapshot           ActivityCategory = "snapshot"
 	ActivityCategorySecurity           ActivityCategory = "security"
 	ActivityCategoryTicket             ActivityCategory = "ticket"
+	// ActivityCategoryAI buckets AI assistant usage/cost audit rows.
+	ActivityCategoryAI ActivityCategory = "ai"
 )
 
 // ActivityLog is one row of the admin audit timeline.
