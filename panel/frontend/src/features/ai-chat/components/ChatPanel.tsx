@@ -5,6 +5,7 @@ import { useSettingsStore } from '@/shared/stores/settingsStore';
 import { PermissionKey, hasPermissionAny } from '@/shared/types/permissions';
 import { useAIChatStore } from '../store/aiChatStore';
 import ConfirmCard from './ConfirmCard';
+import ChatSettings from './ChatSettings';
 
 // Floating chat panel: header shows "{panel_name} Assistant", uses the
 // profile-dropdown surface (glass-dropdown) so Theme Studio Dropdowns tab
@@ -40,6 +41,7 @@ const ChatPanel: React.FC = () => {
   const [draft, setDraft] = useState('');
   const [renaming, setRenaming] = useState(false);
   const [renameDraft, setRenameDraft] = useState('');
+  const [view, setView] = useState<'chat' | 'settings'>('chat');
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const isAdmin = hasPermissionAny(permissions, PermissionKey.VIEW_SETTINGS, PermissionKey.SETTINGS_EDIT) &&
@@ -48,6 +50,7 @@ const ChatPanel: React.FC = () => {
   // Hydrate threads + active history on open so a reload restores the chat.
   useEffect(() => {
     if (!open) return;
+    setView('chat');
     void refreshThreads().then(() => {
       const id = useAIChatStore.getState().activeThreadId;
       if (id) void useAIChatStore.getState().selectThread(id);
@@ -92,22 +95,53 @@ const ChatPanel: React.FC = () => {
     >
       <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-white/10">
         <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-white truncate">{panelName} Assistant</h3>
-          <p className="text-[11px] text-gray-400 truncate">Ask about your fleet — writes need approval</p>
+          <h3 className="text-sm font-semibold text-white truncate">
+            {view === 'settings' ? 'Provider settings' : `${panelName} Assistant`}
+          </h3>
+          <p className="text-[11px] text-gray-400 truncate">
+            {view === 'settings' ? 'Base URL · API key · model ID · Ollama' : 'Ask about your fleet — writes need approval'}
+          </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setOpen(false)}
-          aria-label="Close AI assistant"
-          className="shrink-0 rounded-md p-1.5 text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
-        >
-          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18" />
-            <line x1="6" y1="6" x2="18" y2="18" />
-          </svg>
-        </button>
+        <div className="flex items-center gap-1 shrink-0">
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => setView((v) => (v === 'settings' ? 'chat' : 'settings'))}
+              aria-label={view === 'settings' ? 'Back to chat' : 'Provider settings'}
+              title={view === 'settings' ? 'Back to chat' : 'Provider settings'}
+              className="rounded-md p-1.5 text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+            >
+              {view === 'settings' ? (
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="19" y1="12" x2="5" y2="12" />
+                  <polyline points="12 19 5 12 12 5" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                </svg>
+              )}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            aria-label="Close AI assistant"
+            className="rounded-md p-1.5 text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
       </div>
 
+      {view === 'settings' ? (
+        <ChatSettings />
+      ) : (
+      <>
       <div className="flex items-center gap-1.5 px-3 py-2 border-b border-white/10">
         <select
           value={activeThreadId ?? ''}
@@ -270,6 +304,8 @@ const ChatPanel: React.FC = () => {
           Send
         </button>
       </form>
+      </>
+      )}
     </div>
   );
 };
