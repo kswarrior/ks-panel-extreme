@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -69,6 +70,29 @@ func TestAIUsageSummaryRoundTrip(t *testing.T) {
 	}
 	if _, _, _, _, _, ok := aiUsageSummary("not a usage line"); ok {
 		t.Fatal("garbage must not parse")
+	}
+}
+
+// Rate-limit helpers: 429s are retryable with a Retry-After hint,
+// other provider errors are not.
+func TestAIRateLimitHelpers(t *testing.T) {
+	if !aiIsRateLimitErr(errors.New("provider HTTP 429: too many requests (retry after 20s)")) {
+		t.Fatal("429 must be rate-limited")
+	}
+	if !aiIsRateLimitErr(errors.New("Rate Limit Exceeded")) {
+		t.Fatal("rate limit text must be rate-limited")
+	}
+	if aiIsRateLimitErr(errors.New("provider HTTP 500: boom")) {
+		t.Fatal("500 must not be rate-limited")
+	}
+	if got := aiRetryAfterSecs(errors.New("provider HTTP 429 (retry after 20s)")); got != 20 {
+		t.Fatalf("retry-after = %d, want 20", got)
+	}
+	if got := aiRetryAfterSecs(errors.New("429 boom")); got != 60 {
+		t.Fatalf("bare 429 defaults to 60, got %d", got)
+	}
+	if got := aiRetryAfterSecs(errors.New("provider HTTP 500")); got != 0 {
+		t.Fatalf("non-rate-limit retry-after = %d, want 0", got)
 	}
 }
 
