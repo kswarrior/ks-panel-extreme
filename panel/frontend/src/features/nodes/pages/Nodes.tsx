@@ -241,6 +241,38 @@ const AdminNodes: React.FC = () => {
   // so Tailwind px/py alone can never win; the var override does).
   const tabBtnStyle = { '--ks-tab-px': '10px', '--ks-tab-py': '5px', '--ks-tab-font': '13px' } as React.CSSProperties;
 
+  // The fixed pill hides while the page is scrolled or clicked elsewhere
+  // so it never covers content, then fades back when idle.
+  const [actionsVisible, setActionsVisible] = useState(true);
+  const pillRef = useRef<HTMLDivElement>(null);
+  const showTimer = useRef<number | null>(null);
+
+  useEffect(() => {
+    const scheduleShow = (delay: number) => {
+      if (showTimer.current) window.clearTimeout(showTimer.current);
+      showTimer.current = window.setTimeout(() => setActionsVisible(true), delay);
+    };
+    // Scroll fires on Layout's <main>, not window — capture on document.
+    const onScroll = () => {
+      setActionsVisible(false);
+      scheduleShow(1200);
+    };
+    // Clicks inside the pill (search/filter/popovers) keep it visible.
+    const onPointerDown = (e: PointerEvent) => {
+      if (pillRef.current && !pillRef.current.contains(e.target as Node)) {
+        setActionsVisible(false);
+        scheduleShow(4000);
+      }
+    };
+    document.addEventListener('scroll', onScroll, true);
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => {
+      document.removeEventListener('scroll', onScroll, true);
+      document.removeEventListener('pointerdown', onPointerDown);
+      if (showTimer.current) window.clearTimeout(showTimer.current);
+    };
+  }, []);
+
   const nodeStats = useMemo(() => {
     const byState: Record<string, number> = {};
     nodes.forEach((n) => {
@@ -258,12 +290,12 @@ const AdminNodes: React.FC = () => {
 
   return (
     <div>
-      {/* "Nodes" title lives in the app header now — this row only holds
-          the actions, grouped in the same compact ks-tab pill as the node
-          form's Cancel/Create buttons. */}
-      <div className="flex items-center justify-end mb-5">
+      {/* Fixed top-right pill (same spot as the form's Cancel/Create) —
+          fades out while scrolling or when the page is clicked elsewhere. */}
+      <div className="fixed top-[max(4.5rem,env(safe-area-inset-top))] right-4 sm:right-6 z-40">
         <div
-          className="ks-card rounded-md flex items-center gap-1 shadow-lg shadow-black/40"
+          ref={pillRef}
+          className={`ks-card rounded-md flex items-center gap-1 shadow-lg shadow-black/40 transition-all duration-300 ${actionsVisible ? 'opacity-100 translate-y-0' : 'pointer-events-none -translate-y-2 opacity-0'}`}
           style={{ '--ks-card-padding': '6px' } as React.CSSProperties}
         >
           <SearchDropdown
