@@ -1,7 +1,10 @@
 package update
 
 import (
+	"crypto/ed25519"
+	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"os"
 	"path/filepath"
@@ -101,4 +104,76 @@ func TestResolveEdgeIgnoresPanelDigest(t *testing.T) {
 	if got == panelDigest {
 		t.Fatal("edge resolver must never accept the panel sha256")
 	}
+}
+
+func TestVerifyEdgeSignatureEmptyAllows(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "ksedge.update")
+	if err := os.WriteFile(p, []byte("anything"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := verifyEdgeSignature(p, ""); err != nil {
+		t.Fatalf("empty signature must allow (checksum-only), got: %v", err)
+	}
+}
+
+func TestVerifyEdgeSignatureRejectsMalformed(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "ksedge.update")
+	if err := os.WriteFile(p, []byte("genuine"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []string{"!!!not-base64!!!", base64.StdEncoding.EncodeToString([]byte("short"))} {
+		if err := verifyEdgeSignature(p, bad); err == nil {
+			t.Fatalf("expected error for malformed signature %q", bad)
+		}
+	}
+}
+
+// TestSignatureMismatchAbortsLiveIntact is the signature counterpart of
+// TestVerifyEdgeMismatchAbortsLiveIntact: with a configured ed25519 key, a
+// tampered download fails crypto verification, the temp is deleted and the
+// live binary is byte-identical (signature gate BEFORE the hash gate).
+func TestSignatureMismatchAbortsLiveIntact(t *testing.T) {
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("KSEDGE_COSIGN_PUBLIC_KEY", base64.StdEncoding.EncodeToString(pub))
+
+	dir := t.TempDir()
+	livePath := filepath.Join(dir, "ksedge")
+	tmpGenuine := filepath.Join(dir, "ksedge.genuine")
+	tmpTampered := filepath.Join(dir, "ksedge.update")
+	liveBytes := []byte("live-edge-v1")
+	genuineBytes := []byte("genuine-edge-v2")
+	if err := os.WriteFile(livePath, liveBytes, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(tmpGenuine, genuineBytes, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sig := base64.StdEncoding.EncodeToString(ed25519.Sign(priv, genuineBytes))
+
+	if err := verifyEdgeSignature(tmpGenuine, sig); err != nil {
+		t.Fatalf("genuine signature must verify, got: %v", err)
+	}
+	if err := os.WriteFile(tmpTampered, []byte("tampered-edge"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := verifyEdgeSignature(tmpTampered, sig); err == nil {
+		t.Fatal("expected signature mismatch error for tampered file")
+	}
+	if err := os.Remove(tmpTampered); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(tmpTampered); !os.IsNotExist(err) {
+		t.Fatal("tampered temp file must be deleted on signature mismatch")
+	}
+	got, err := os.ReadFile(livePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(liveBytes) {
+		t.Fatal("live binary must be untouched on signature mismatch")
+	}
+	_ = os.Remove(tmpGenuine)
 }

@@ -408,11 +408,22 @@ func CreateWithWriter(label string, fn func(dstPath string) error) (Backup, erro
 	}, nil
 }
 
-// UploadFromReader accepts an uploaded SQLite file (multipart body),
-// verifies it really is a SQLite file by opening it, copies it into the
-// backup directory with the `uploaded` label suffix, and returns the
-// resulting Backup metadata. A corrupt upload fails before it touches
-// the backup dir.
+// UploadFromReader accepts an uploaded database file (multipart body),
+// verifies it by header magic (SQLite header or SQL-dump markers, not just
+// the filename), copies it into the backup directory with the `uploaded`
+// label suffix, and returns the resulting Backup metadata. A corrupt upload
+// fails before it touches the backup dir.
+//
+// Accepted content:
+//   - SQLite files (magic "SQLite format 3\0") → stored as .db, verified
+//     by opening with the SQLite driver.
+//   - Plain-text SQL dumps (magic -- / PG dump / CREATE TABLE / INSERT /
+//     COPY) → stored as .sql, verified by dump markers.
+//   - Gzip-compressed variants of either → stored as .db.gz / .sql.gz,
+//     verified by peeking the decompressed header + full gzip CRC.
+//   - Zstd-compressed variants → stored as .db.zst / .sql.zst (inner type
+//     peeked via the zstd binary when present, else guessed from the
+//     suggested filename).
 func UploadFromReader(src io.Reader, size int64, suggestedName string) (Backup, error) {
 	if err := ensureDir(); err != nil {
 		return Backup{}, err
@@ -429,46 +440,112 @@ func UploadFromReader(src io.Reader, size int64, suggestedName string) (Backup, 
 			label = base + "-uploaded"
 		}
 	}
-	name := fileNamePattern + ts + "-" + label + ".db"
-	dst := filepath.Join(ListDir(), name)
-
-	// Stream the upload to a temp file first; only rename into place
-	// after SQLite confirms it can open it. A half-written upload never
-	// becomes a visible backup.
-	tmp := dst + ".tmp"
-	f, err := os.Create(tmp)
+	// Stage to a content-independent temp path; the final .db/.sql name is
+	// chosen AFTER header classification below.
+	stage := filepath.Join(ListDir(), fileNamePattern+ts+"-"+label+".stage.tmp")
+	_ = os.Remove(stage)
+	f, err := os.Create(stage)
 	if err != nil {
 		return Backup{}, err
 	}
 	if _, err := io.Copy(f, src); err != nil {
 		f.Close()
-		os.Remove(tmp)
+		os.Remove(stage)
 		return Backup{}, err
 	}
 	if err := f.Close(); err != nil {
-		os.Remove(tmp)
+		os.Remove(stage)
 		return Backup{}, err
 	}
-
-	// Verify the uploaded file is a valid SQLite database. modernc.org/sqlite
-	// will fail to open on a corrupt or non-sqlite file; a successful Open +
-	// PRAGMA + SELECT 1 confirms the file is at least minimally well-formed.
-	probe, err := sql.Open("sqlite", "file:"+tmp+"?mode=rw")
-	if err != nil {
-		os.Remove(tmp)
-		return Backup{}, fmt.Errorf("uploaded file is not a valid SQLite database: %w", err)
+	head, herr := readHead(stage, 8192)
+	if herr != nil {
+		os.Remove(stage)
+		return Backup{}, herr
 	}
-	probe.SetMaxOpenConns(1)
-	var v string
-	if err := probe.QueryRow("SELECT name FROM sqlite_master WHERE type='table' LIMIT 1").Scan(&v); err != nil && err != sql.ErrNoRows {
+	kind := ""
+	suffix := ""
+	compressed := "none"
+	if hasGzipMagic(head) {
+		inner, gerr := peekGzipHead(stage, 8192)
+		if gerr != nil {
+			os.Remove(stage)
+			return Backup{}, fmt.Errorf("uploaded file is not a valid gzip backup: %w", gerr)
+		}
+		kind = classifyBackupBytes(inner)
+		if kind == "" {
+			os.Remove(stage)
+			return Backup{}, fmt.Errorf("uploaded file is not a valid SQLite or SQL dump (gzip inner header unrecognised)")
+		}
+		compressed = "gzip"
+		if kind == "sqlite" {
+			suffix = ".db.gz"
+		} else {
+			suffix = ".sql.gz"
+		}
+		// Full gzip CRC check before accepting.
+		if _, derr := decompressToTemp(stage, "gzip"); derr != nil {
+			os.Remove(stage)
+			return Backup{}, fmt.Errorf("uploaded gzip backup is corrupt: %w", derr)
+		}
+	} else if hasZstdMagic(head) {
+		innerKind := ""
+		if _, lerr := exec.LookPath("zstd"); lerr == nil {
+			if tmp, derr := decompressToTemp(stage, "zstd"); derr == nil {
+				if ih, herr2 := readHead(tmp, 8192); herr2 == nil {
+					innerKind = classifyBackupBytes(ih)
+				}
+				os.Remove(tmp)
+			}
+		}
+		if innerKind == "" {
+			lowerSuggested := strings.ToLower(strings.TrimSpace(suggestedName))
+			if strings.Contains(lowerSuggested, ".sql") {
+				innerKind = "sql"
+			} else {
+				innerKind = "sqlite"
+			}
+		}
+		kind = innerKind
+		compressed = "zstd"
+		if kind == "sqlite" {
+			suffix = ".db.zst"
+		} else {
+			suffix = ".sql.zst"
+		}
+	} else {
+		kind = classifyBackupBytes(head)
+		if kind == "" {
+			os.Remove(stage)
+			return Backup{}, fmt.Errorf("uploaded file is not a valid SQLite or SQL dump (header unrecognised)")
+		}
+		if kind == "sqlite" {
+			suffix = ".db"
+		} else {
+			suffix = ".sql"
+		}
+	}
+	name := fileNamePattern + ts + "-" + label + suffix
+	dst := filepath.Join(ListDir(), name)
+	if kind == "sqlite" && compressed == "none" {
+		// Verify the uploaded file is a valid SQLite database. modernc.org/sqlite
+		// will fail to open on a corrupt or non-sqlite file; a successful Open +
+		// PRAGMA + SELECT 1 confirms the file is at least minimally well-formed.
+		probe, err := sql.Open("sqlite", "file:"+stage+"?mode=rw")
+		if err != nil {
+			os.Remove(stage)
+			return Backup{}, fmt.Errorf("uploaded file is not a valid SQLite database: %w", err)
+		}
+		probe.SetMaxOpenConns(1)
+		var v string
+		if err := probe.QueryRow("SELECT name FROM sqlite_master WHERE type='table' LIMIT 1").Scan(&v); err != nil && err != sql.ErrNoRows {
+			probe.Close()
+			os.Remove(stage)
+			return Backup{}, fmt.Errorf("uploaded file is not a valid SQLite database: %w", err)
+		}
 		probe.Close()
-		os.Remove(tmp)
-		return Backup{}, fmt.Errorf("uploaded file is not a valid SQLite database: %w", err)
 	}
-	probe.Close()
-
-	if err := os.Rename(tmp, dst); err != nil {
-		os.Remove(tmp)
+	if err := os.Rename(stage, dst); err != nil {
+		os.Remove(stage)
 		return Backup{}, err
 	}
 	digest, fsize, err := hashFile(dst)
@@ -478,6 +555,10 @@ func UploadFromReader(src io.Reader, size int64, suggestedName string) (Backup, 
 	sfx, comp := splitBackupSuffix(name)
 	id := strings.TrimSuffix(strings.TrimPrefix(name, fileNamePattern), sfx)
 	_ = size
+	source := "uploaded"
+	if kind == "sql" {
+		source = "uploaded-sql"
+	}
 	return Backup{
 		ID:          id,
 		Filename:    name,
@@ -485,7 +566,7 @@ func UploadFromReader(src io.Reader, size int64, suggestedName string) (Backup, 
 		Size:        fsize,
 		CreatedAt:   time.Now().UTC(),
 		SHA256:      digest,
-		Source:      "uploaded",
+		Source:      source,
 		IsLiveSafe:  false, // uploaded provenance is unknown
 		Compressed:  comp != "" && comp != "none",
 		Compression: comp,
@@ -589,8 +670,10 @@ func Prune(keepLastN, maxAgeDays int) ([]string, error) {
 // far easier than the alternative.
 //
 // Compressed backups (.db.gz / .db.zst) are decompressed to a temp file
-// first; native .sql dumps are refused with a clear error (restore those
-// with psql / mysql, not by file swap).
+// first; native .sql dumps are refused here on purpose — replay those via
+// RestorePG / RestoreMySQL (psql/pg_restore / mysql over stdin), not by
+// file swap. The HTTP restore handler routes by header via DetectBackupKind
+// so operators get one-click restore for both kinds.
 func Restore(id string) error {
 	opMu.Lock()
 	defer opMu.Unlock()
