@@ -128,14 +128,109 @@ export const DatabaseBackupTab: React.FC = () => {
     setCreating(true);
     setMsg(null);
     try {
-      const b = await createDatabaseBackup(n);
-      setMsg({ tone: 'ok', text: `Backup created: ${b.filename} (${formatBytes(b.size_bytes)})` });
+      const b = await createDatabaseBackup(n, compression);
+      setMsg({ tone: 'ok', text: `Backup created: ${b.filename} (${formatBytes(b.size_bytes)}, ${b.compression})` });
       setName('');
       setCreateOpen(false);
       await load();
     } catch (e: any) {
       setMsg({ tone: 'err', text: e?.response?.data || e?.message || 'Create failed' });
     } finally { setCreating(false); }
+  };
+
+  const handleCreateSchedule = async () => {
+    if (!schedCron.trim()) { setMsg({ tone: 'err', text: 'Cron is required (5-field, e.g. "0 2 * * *").' }); return; }
+    setSchedBusy(true);
+    setMsg(null);
+    try {
+      await createDBBackupSchedule({
+        name: schedName.trim() || 'nightly', cron: schedCron.trim(), enabled: true,
+        keep_last_n: Number(schedKeep) || 7, max_age_days: Number(schedAge) || 30,
+        compression: schedComp, s3_push: schedS3,
+      });
+      setMsg({ tone: 'ok', text: 'Schedule created.' });
+      setSchedName('');
+      await load();
+    } catch (e: any) {
+      setMsg({ tone: 'err', text: e?.response?.data || e?.message || 'Schedule create failed' });
+    } finally { setSchedBusy(false); }
+  };
+
+  const handleDeleteSchedule = async (id: number) => {
+    if (!window.confirm('Delete this schedule?')) return;
+    try {
+      await deleteDBBackupSchedule(id);
+      setMsg({ tone: 'ok', text: 'Schedule deleted.' });
+      await load();
+    } catch (e: any) {
+      setMsg({ tone: 'err', text: e?.response?.data || e?.message || 'Delete failed' });
+    }
+  };
+
+  const handleToggleSchedule = async (s: BackupSchedule) => {
+    try {
+      await updateDBBackupSchedule(s.id, {
+        name: s.name, cron: s.cron, enabled: !s.enabled,
+        keep_last_n: s.keep_last_n, max_age_days: s.max_age_days,
+        compression: s.compression, s3_push: s.s3_push,
+      });
+      await load();
+    } catch (e: any) {
+      setMsg({ tone: 'err', text: e?.response?.data || e?.message || 'Toggle failed' });
+    }
+  };
+
+  const handlePrune = async () => {
+    try {
+      const r = await pruneDBBackups(Number(pruneKeep) || 7, Number(pruneAge) || 30);
+      setMsg({ tone: 'ok', text: `Pruned ${r.count} backup(s).` });
+      await load();
+    } catch (e: any) {
+      setMsg({ tone: 'err', text: e?.response?.data || e?.message || 'Prune failed' });
+    }
+  };
+
+  const handleSaveS3 = async () => {
+    if (!s3Endpoint.trim() || !s3Bucket.trim() || !s3Access.trim() || !s3Secret) {
+      setMsg({ tone: 'err', text: 'Endpoint, bucket, access key and secret are required.' });
+      return;
+    }
+    setS3Busy(true);
+    setMsg(null);
+    try {
+      await putBackupS3Config({
+        endpoint: s3Endpoint.trim(), bucket: s3Bucket.trim(), region: s3Region.trim(),
+        prefix: s3Prefix.trim(), access_key: s3Access.trim(), secret_key: s3Secret,
+      });
+      setS3Secret('');
+      setMsg({ tone: 'ok', text: 'S3 remote saved (secret sealed, never shown).' });
+      await load();
+    } catch (e: any) {
+      setMsg({ tone: 'err', text: e?.response?.data || e?.message || 'S3 save failed' });
+    } finally { setS3Busy(false); }
+  };
+
+  const handlePushS3 = async (b: DatabaseBackup) => {
+    setBusyId(b.id);
+    try {
+      await pushDBBackupToS3(b.id);
+      setMsg({ tone: 'ok', text: `Pushed ${b.filename} to S3.` });
+      await load();
+    } catch (e: any) {
+      setMsg({ tone: 'err', text: e?.response?.data || e?.message || 'S3 push failed' });
+    } finally { setBusyId(null); }
+  };
+
+  const handlePullS3 = async () => {
+    if (!pullName.trim()) { setMsg({ tone: 'err', text: 'Enter the remote filename to pull.' }); return; }
+    try {
+      await pullDBBackupFromS3(pullName.trim());
+      setMsg({ tone: 'ok', text: `Pulled ${pullName.trim()} from S3.` });
+      setPullName('');
+      await load();
+    } catch (e: any) {
+      setMsg({ tone: 'err', text: e?.response?.data || e?.message || 'S3 pull failed' });
+    }
   };
 
   const handleDownload = async (b: DatabaseBackup) => {
@@ -258,7 +353,7 @@ export const DatabaseBackupTab: React.FC = () => {
           </>
         }
       >
-        <p className="text-xs text-gray-400">Give the snapshot a short name. It becomes part of the on-disk filename <code className="font-mono text-gray-300">kspanel-&lt;timestamp&gt;-&lt;name&gt;.db</code> (letters, numbers, “-”, “_”).</p>
+        <p className="text-xs text-gray-400">Give the snapshot a short name. It becomes part of the on-disk filename <code className="font-mono text-gray-300">kspanel-&lt;timestamp&gt;-&lt;name&gt;.db</code> (letters, numbers, “-”, “_”). Postgres/MySQL live engines use a native <code className="font-mono text-gray-300">pg_dump / mysqldump</code> artifact instead, falling back to a SQLite snapshot when the tool is missing.</p>
         <input
           type="text"
           value={name}
@@ -270,6 +365,14 @@ export const DatabaseBackupTab: React.FC = () => {
           autoFocus
           className={glassFieldClass + ' font-mono text-sm disabled:opacity-50'}
         />
+        <label className="block text-xs text-gray-400">
+          Compression
+          <select value={compression} onChange={(e) => setCompression(e.target.value)} disabled={creating} className={glassFieldClass + ' mt-1 text-sm'}>
+            <option value="none">none</option>
+            <option value="gzip">gzip</option>
+            <option value="zstd">zstd (needs zstd binary)</option>
+          </select>
+        </label>
       </GlassModal>
 
       {/* Upload sub-page modal with tabs: file / URL */}
@@ -373,6 +476,7 @@ export const DatabaseBackupTab: React.FC = () => {
                   <th className="text-left py-2 px-2 font-medium">Created</th>
                   <th className="text-right py-2 px-2 font-medium">Size</th>
                   <th className="text-left py-2 px-2 font-medium">Source</th>
+                  <th className="text-left py-2 px-2 font-medium">Codec/S3</th>
                   <th className="text-right py-2 pl-2 font-medium">Actions</th>
                 </tr>
               </thead>
@@ -390,6 +494,10 @@ export const DatabaseBackupTab: React.FC = () => {
                         {b.source}
                       </span>
                     </td>
+                    <td className="py-2 px-2 align-top text-xs">
+                      <span className="text-gray-300 font-mono">{b.compression || 'none'}</span>
+                      {b.s3_pushed && <span className="ml-1 text-emerald-300">·S3</span>}
+                    </td>
                     <td className="py-2 pl-2 align-top">
                       <div className="flex items-center justify-end gap-1 flex-wrap">
                         <button
@@ -404,6 +512,12 @@ export const DatabaseBackupTab: React.FC = () => {
                           className="px-2 py-1 rounded bg-sky-900/30 hover:bg-sky-900/50 border border-sky-700/40 text-sky-200 text-xs disabled:opacity-40"
                         >Download</button>
                         <button
+                          onClick={() => handlePushS3(b)}
+                          disabled={busyId === b.id}
+                          title="Push to S3 remote"
+                          className="px-2 py-1 rounded bg-emerald-900/20 hover:bg-emerald-900/40 border border-emerald-700/40 text-emerald-200 text-xs disabled:opacity-40"
+                        >S3↑</button>
+                        <button
                           onClick={() => handleDelete(b)}
                           disabled={busyId === b.id}
                           className="px-2 py-1 rounded bg-red-900/20 hover:bg-red-900/40 border border-red-700/40 text-red-200 text-xs disabled:opacity-40"
@@ -416,6 +530,70 @@ export const DatabaseBackupTab: React.FC = () => {
             </table>
           </div>
         )}
+      </div>
+
+      {/* Schedules */}
+      <div className="glass-card rounded-xl p-4 space-y-3">
+        <h4 className="text-sm font-semibold text-white">Scheduled backups (cron 5-field)</h4>
+        <p className="text-xs text-gray-400">Cron drives <code className="font-mono text-gray-300">VACUUM INTO</code> / native dumps on the scheduler tick, then prunes to <code className="font-mono text-gray-300">keep_last_n + max_age_days</code> and optionally pushes to S3.</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <input value={schedName} onChange={(e) => setSchedName(e.target.value)} placeholder="nightly" maxLength={64} className={glassFieldClass + ' font-mono text-sm'} />
+          <input value={schedCron} onChange={(e) => setSchedCron(e.target.value)} placeholder="0 2 * * *" className={glassFieldClass + ' font-mono text-sm'} title="5-field cron: minute hour dom month dow" />
+          <label className="text-xs text-gray-400">keep_n <input type="number" value={schedKeep} onChange={(e) => setSchedKeep(Number(e.target.value))} min={1} max={1000} className={glassFieldClass + ' mt-1 text-sm'} /></label>
+          <label className="text-xs text-gray-400">max_age_days <input type="number" value={schedAge} onChange={(e) => setSchedAge(Number(e.target.value))} min={1} max={3650} className={glassFieldClass + ' mt-1 text-sm'} /></label>
+          <label className="text-xs text-gray-400">codec
+            <select value={schedComp} onChange={(e) => setSchedComp(e.target.value)} className={glassFieldClass + ' mt-1 text-sm'}>
+              <option value="none">none</option>
+              <option value="gzip">gzip</option>
+              <option value="zstd">zstd</option>
+            </select>
+          </label>
+          <label className="text-xs text-gray-400 flex items-center gap-2"><input type="checkbox" checked={schedS3} onChange={(e) => setSchedS3(e.target.checked)} /> S3 push</label>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={handleCreateSchedule} disabled={schedBusy} className="ks-primary-btn px-4 py-1.5 rounded-md text-sm disabled:opacity-40">Add schedule</button>
+        </div>
+        {schedules.length > 0 && (
+          <div className="space-y-1">
+            {schedules.map((s) => (
+              <div key={s.id} className="flex items-center gap-2 text-xs text-gray-300 border border-white/10 rounded-md px-2 py-1.5">
+                <span className="font-mono">{s.name || `#${s.id}`}</span>
+                <span className="font-mono text-gray-500">{s.cron}</span>
+                <span className="text-gray-500">keep {s.keep_last_n}/{s.max_age_days}d {s.compression}{s.s3_push ? ' +S3' : ''}</span>
+                <span className={s.enabled ? 'text-emerald-300' : 'text-gray-500'}>{s.enabled ? 'on' : 'off'}</span>
+                <span className="ml-auto flex gap-1">
+                  <button onClick={() => handleToggleSchedule(s)} className="px-2 py-0.5 rounded border border-white/10 hover:bg-white/5">{s.enabled ? 'Disable' : 'Enable'}</button>
+                  <button onClick={() => handleDeleteSchedule(s.id)} className="px-2 py-0.5 rounded border border-red-700/40 text-red-200 hover:bg-red-900/30">Delete</button>
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="flex items-center gap-2 pt-1 border-t border-white/10">
+          <span className="text-xs text-gray-400">Retention prune now:</span>
+          <input type="number" value={pruneKeep} onChange={(e) => setPruneKeep(Number(e.target.value))} min={1} max={1000} className={glassFieldClass + ' w-20 text-sm'} />
+          <input type="number" value={pruneAge} onChange={(e) => setPruneAge(Number(e.target.value))} min={1} max={3650} className={glassFieldClass + ' w-20 text-sm'} />
+          <button onClick={handlePrune} className="px-3 py-1.5 rounded-md text-sm border border-white/10 hover:bg-white/5">Prune</button>
+        </div>
+      </div>
+
+      {/* S3 remote */}
+      <div className="glass-card rounded-xl p-4 space-y-3">
+        <h4 className="text-sm font-semibold text-white">S3 / remote push (rclone-style)</h4>
+        <p className="text-xs text-gray-400">Path-style <code className="font-mono text-gray-300">endpoint/bucket/prefix/filename</code> via SigV4. The secret is sealed with the panel vault and never displayed or logged{s3?.configured ? ` — configured for bucket “${s3.bucket}”.` : ' — not configured.'}</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <input value={s3Endpoint} onChange={(e) => setS3Endpoint(e.target.value)} placeholder="https://s3.example.com" className={glassFieldClass + ' font-mono text-sm'} />
+          <input value={s3Bucket} onChange={(e) => setS3Bucket(e.target.value)} placeholder="bucket" className={glassFieldClass + ' font-mono text-sm'} />
+          <input value={s3Region} onChange={(e) => setS3Region(e.target.value)} placeholder="us-east-1" className={glassFieldClass + ' font-mono text-sm'} />
+          <input value={s3Prefix} onChange={(e) => setS3Prefix(e.target.value)} placeholder="kspanel" className={glassFieldClass + ' font-mono text-sm'} />
+          <input value={s3Access} onChange={(e) => setS3Access(e.target.value)} placeholder="access key" autoComplete="off" className={glassFieldClass + ' font-mono text-sm'} />
+          <input value={s3Secret} onChange={(e) => setS3Secret(e.target.value)} placeholder="secret key (never shown)" type="password" autoComplete="new-password" className={glassFieldClass + ' font-mono text-sm'} />
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          <button onClick={handleSaveS3} disabled={s3Busy} className="ks-primary-btn px-4 py-1.5 rounded-md text-sm disabled:opacity-40">Save remote</button>
+          <input value={pullName} onChange={(e) => setPullName(e.target.value)} placeholder="kspanel-...-.db to pull" className={glassFieldClass + ' font-mono text-sm flex-1 min-w-[12rem]'} />
+          <button onClick={handlePullS3} className="px-3 py-1.5 rounded-md text-sm border border-white/10 hover:bg-white/5">S3↓ pull</button>
+        </div>
       </div>
     </div>
   );
