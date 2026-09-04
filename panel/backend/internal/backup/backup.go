@@ -1,24 +1,30 @@
-// Package backup is the SQLite database backup subsystem that the
+// Package backup is the database backup subsystem that the
 // /api/database/* endpoints drive. It does four things:
 //
-//   1. List every .db backup on disk (under <DataDir>/backups) so the
+//   1. List every .db/.sql backup on disk (under <DataDir>/backups) so the
 //      Database admin page can render a table of available snapshots.
 //   2. Create a fresh backup by issuing SQLite's `VACUUM INTO '<path>'`
 //      against the live DB — this is a snapshot-safe, transactionally
 //      consistent copy that the panel can hand back to the operator via
-//      `wget` or the Download button on the page.
-//   3. Restore from a chosen backup. The current db file is renamed to
-//      `<path>.bak` first so a failed restore never destroys the live
+//      `wget` or the Download button on the page. For Postgres/MySQL the
+//      live engine is dumped with its native tool (pg_dump / mysqldump)
+//      into a .sql artifact (see NativeDump).
+//   3. Restore from a chosen backup. SQLite restores rename the live db
+//      to `<path>.bak` first so a failed restore never destroys the live
 //      data; on success the rename atomically replaces the live db with
-//      the backup.
+//      the backup. Postgres/MySQL restores stream the decompressed .sql
+//      (.sql/.gz/.zst) via stdin into psql/pg_restore or mysql
+//      (see RestorePG/RestoreMySQL) — symmetric to NativeDump.
 //   4. Upload a backup the operator brought back from elsewhere (or from
-//      a different machine). The uploaded file is verified by opening
-//      it with the SQLite driver — a corrupt file fails the upload before
-//      it lands on disk.
+//      a different machine). SQLite uploads are verified by opening
+//      them with the SQLite driver; .sql dumps are verified by SQL-dump
+//      magic (--/PG dump/CREATE TABLE) — a corrupt file fails the upload
+//      before it lands on disk.
 //
-// The whole subsystem is SQLite-only. Postgres / MySQL backups are not
-// implemented here — operators are expected to use the engine's native
-// tool (pg_dump / mysqldump) or a managed snapshot for those.
+// PITR note: these artifacts are FULL backups. Point-in-time recovery
+// needs the engine's WAL/binlog chain on top: SQLite WAL sidecar,
+// Postgres WAL archiving (archive_mode + base backup), MySQL binlog
+// (see docs/BUILD_SECURITY.md "Backup chain & PITR").
 package backup
 
 import (

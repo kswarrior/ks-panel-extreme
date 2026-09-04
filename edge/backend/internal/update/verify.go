@@ -1,9 +1,12 @@
 package update
 
 import (
+	"crypto/ed25519"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,24 +18,26 @@ import (
 // Verified downloads for the edge self-update / reinstall surface.
 //
 // Mirrors the panel's update_verify.go: the build publishes
-// release/ksedge.sha256 (`<hex>  ksedge`, see rebuild.sh) and an optional
-// cosign sidecar (release/ksedge.sig). The version manifest may carry the
-// same values inline:
+// release/ksedge.sha256 (`<hex>  ksedge`, see rebuild.sh) and a cosign
+// sidecar (release/ksedge.sig via SIGN_KEY). The version manifest carries
+// the same values inline (tools/stamp-version-manifest.sh):
 //
 //	{
 //	  "version": "0.1.1",
-//	  "sha256": "<64 hex of ksedge>",
-//	  "signature": "<cosign sig output, informational>",
+//	  "sha256_edge": "<64 hex of ksedge>",
+//	  "signature_edge": "<cosign sign-blob output, base64>",
 ///	  "sha256_url": "<optional explicit sidecar URL>"
 //	}
 //
 // handleApply (both update + reinstall modes) re-fetches the manifest
-// fresh, resolves the expected digest (manifest.sha256, else
-// manifest.sha256_url, else the conventional sidecar), hashes the temp
+// fresh, verifies manifest.signature_edge with verifyEdgeSignature BEFORE
+// the hash gate, then resolves the expected digest (manifest.sha256_edge,
+// else manifest.sha256_url, else the conventional sidecar), hashes the temp
 // file BEFORE chmod/swap and aborts with 422 + deleted temp + untouched
-// live binary on mismatch. When no checksum is published anywhere the
-// apply proceeds unverified and logs that fact, so old manifests don't
-// brick edge updates while new ones are enforced.
+// live binary on either mismatch. When neither signature nor checksum is
+// published anywhere the apply proceeds unverified and logs that fact, so
+// old manifests don't brick edge updates while new ones are enforced.
+// The bare manifest.sha256 is the PANEL digest and is NEVER accepted here.
 
 // fetchEdgeManifest re-fetches version.json with the same 15s client +
 // 1MiB cap discipline as handleCheck.

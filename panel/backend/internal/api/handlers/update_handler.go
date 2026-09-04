@@ -853,6 +853,7 @@ func ReinstallScriptHandler(w http.ResponseWriter, r *http.Request) {
 		CurrentVersion string
 		Port           string
 		SHA256         string
+		Signature      string
 	}{
 		GeneratedAt:    time.Now().UTC().Format(time.RFC3339),
 		BinaryPath:     exe,
@@ -860,6 +861,7 @@ func ReinstallScriptHandler(w http.ResponseWriter, r *http.Request) {
 		CurrentVersion: local.Version,
 		Port:           port,
 		SHA256:         embeddedReinstallSHA256(),
+		Signature:      embeddedReinstallSignature(),
 	}
 
 	tmpl, err := template.New("reinstall").Parse(reinstallScriptTemplate)
@@ -911,6 +913,7 @@ func ReinstallBackgroundHandler(w http.ResponseWriter, r *http.Request) {
 		CurrentVersion string
 		Port           string
 		SHA256         string
+		Signature      string
 	}{
 		GeneratedAt:    time.Now().UTC().Format(time.RFC3339),
 		BinaryPath:     exe,
@@ -918,6 +921,7 @@ func ReinstallBackgroundHandler(w http.ResponseWriter, r *http.Request) {
 		CurrentVersion: local.Version,
 		Port:           port,
 		SHA256:         embeddedReinstallSHA256(),
+		Signature:      embeddedReinstallSignature(),
 	}
 
 	tmpl, err := template.New("reinstall").Parse(reinstallScriptTemplate)
