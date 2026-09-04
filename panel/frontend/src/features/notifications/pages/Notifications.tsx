@@ -45,6 +45,33 @@ const NotificationsPage: React.FC = () => {
 
   const [busyId, setBusyId] = useState<number | null>(null);
 
+  const [prefMode, setPrefMode] = useState<NotificationMode>('realtime');
+  const [prefOptOut, setPrefOptOut] = useState(false);
+  const [prefSaving, setPrefSaving] = useState(false);
+  const [prefMsg, setPrefMsg] = useState('');
+
+  useEffect(() => {
+    getNotificationPrefs().then((p) => {
+      setPrefMode(p.mode);
+      setPrefOptOut(p.email_opt_out);
+    }).catch(() => {});
+  }, []);
+
+  const savePrefs = async () => {
+    setPrefSaving(true);
+    setPrefMsg('');
+    try {
+      const p = await setNotificationPrefs(prefMode, prefOptOut);
+      setPrefMode(p.mode);
+      setPrefOptOut(p.email_opt_out);
+      setPrefMsg('Saved.');
+    } catch (e: any) {
+      setPrefMsg(e?.response?.data || 'Failed to save');
+    } finally {
+      setPrefSaving(false);
+    }
+  };
+
   const setUnread = useNotificationStore((s) => s.setUnread);
 
   const load = useCallback(async () => {
@@ -220,6 +247,24 @@ const NotificationsPage: React.FC = () => {
           <button onClick={load} className="ks-btn-ghost px-2.5 py-1 rounded-md text-xs border border-white/10">Refresh</button>
           <button onClick={onClearAll} className="text-xs font-medium text-red-300 hover:text-red-200 px-2 py-1 rounded-md border border-red-500/20 hover:bg-red-500/10">Clear all</button>
         </div>
+      </div>
+
+      {/* Delivery prefs: realtime = WS push + immediate email, digest = WS push + daily email, off = inbox only */}
+      <div className="mb-4 glass-card rounded-xl p-3 flex flex-wrap items-center gap-3">
+        <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">Delivery</span>
+        <select value={prefMode} onChange={(e) => setPrefMode(e.target.value as NotificationMode)} className="glass-field text-xs" aria-label="Delivery mode">
+          <option value="realtime">Realtime (push + email)</option>
+          <option value="digest">Digest (push + daily email)</option>
+          <option value="off">Off (inbox only)</option>
+        </select>
+        <label className="inline-flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
+          <input type="checkbox" checked={prefOptOut} onChange={(e) => setPrefOptOut(e.target.checked)} className="rounded border-white/20 bg-black/30 w-3.5 h-3.5" />
+          Opt out of ticket/notification email
+        </label>
+        <button onClick={savePrefs} disabled={prefSaving} className="ks-btn-ghost px-3 py-1.5 rounded-md text-xs border border-white/10 disabled:opacity-50">
+          {prefSaving ? 'Saving…' : 'Save prefs'}
+        </button>
+        {prefMsg && <span className="text-xs text-gray-400">{prefMsg}</span>}
       </div>
 
       {error && <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 text-red-300 px-3 py-2 text-sm">{error}</div>}

@@ -17,6 +17,8 @@
 -- The ai_fallback_* / ai_cost_* settings extend the assistant config KV
 -- (same shape as 064): a secondary provider the chat loop fails over to,
 -- plus optional per-1k-token prices used for usage/cost audit rows.
+-- NOTE: keep each INSERT on ONE line — regen.sh only converts single-line
+-- INSERT OR IGNORE statements for postgres.
 
 CREATE TABLE IF NOT EXISTS ai_confirmation_tickets (
     id         VARCHAR(64) PRIMARY KEY,
@@ -38,7 +40,7 @@ CREATE TABLE IF NOT EXISTS ai_chat_threads (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_ai_threads_user ON ai_chat_threads(user_id, id);
+CREATE INDEX idx_ai_threads_user ON ai_chat_threads(user_id, id DESC);
 
 CREATE TABLE IF NOT EXISTS ai_chat_messages (
     id         BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
