@@ -186,20 +186,25 @@ const Router: React.FC = () => (
           requires MANAGE_NOTIFICATIONS (umbrella) or any granular NOTIFICATIONS_* key.
           No inbox is public. */}
       <Route path="/notifications/stats" element={<RequireAuth><RequirePermission permission={PermissionKey.MANAGE_NOTIFICATIONS}><NotificationStats /></RequirePermission></RequireAuth>} />
+      <Route path="/notifications/schedules" element={<RequireAuth><RequirePermission permission={PermissionKey.MANAGE_NOTIFICATIONS}><NotificationSchedules /></RequirePermission></RequireAuth>} />
       <Route path="/notifications/broadcast" element={<RequireAuth><RequirePermission permission={PermissionKey.MANAGE_NOTIFICATIONS}><NotificationBroadcast /></RequirePermission></RequireAuth>} />
       <Route path="/notifications" element={<RequireAuth><RequirePermission permission={PermissionKey.MANAGE_NOTIFICATIONS}><Notifications /></RequirePermission></RequireAuth>} />
+      <Route path="/notification/:id" element={<RequireAuth><RequirePermission permission={PermissionKey.MANAGE_NOTIFICATIONS}><NotificationDetail /></RequirePermission></RequireAuth>} />
       <Route path="/activity" element={<RequireAuth><RequirePermission permission={PermissionKey.ACCESS_ADMIN_PANEL}><Activity /></RequirePermission></RequireAuth>} />
 
       {/* Themes — public read is open, but the management surface (list + studio)
           is gated by MANAGE_THEMES (any theme sub-cap also admits via RequirePermission). */}
       <Route path="/themes" element={<RequireAuth><RequirePermission permission={PermissionKey.MANAGE_THEMES}><AdminThemes /></RequirePermission></RequireAuth>} />
       <Route path="/themes/studio" element={<RequireAuth><RequirePermission permission={PermissionKey.MANAGE_THEMES}><ThemeStudio /></RequirePermission></RequireAuth>} />
+      <Route path="/themes/schedules" element={<RequireAuth><RequirePermission permission={PermissionKey.MANAGE_THEMES}><ThemeSchedules /></RequirePermission></RequireAuth>} />
+      <Route path="/theme/:id" element={<RequireAuth><RequirePermission permission={PermissionKey.MANAGE_THEMES}><ThemeDetail /></RequirePermission></RequireAuth>} />
 
       {/* Tickets — gated by MANAGE_TICKETS (area-aware: TICKETS_VIEW etc also admits).
           The handler narrows to own tickets for non-staff, but the route gate prevents
           Forbidden for users without any ticket perm. */}
       <Route path="/tickets" element={<RequireAuth><RequirePermission permission={PermissionKey.MANAGE_TICKETS}><Tickets /></RequirePermission></RequireAuth>} />
       <Route path="/tickets/stats" element={<RequireAuth><RequirePermission permission={PermissionKey.MANAGE_TICKETS}><TicketStats /></RequirePermission></RequireAuth>} />
+      <Route path="/tickets/schedules" element={<RequireAuth><RequirePermission permission={PermissionKey.MANAGE_TICKETS}><TicketSchedules /></RequirePermission></RequireAuth>} />
       <Route path="/tickets/new" element={<RequireAuth><RequirePermission permission={PermissionKey.MANAGE_TICKETS}><TicketForm /></RequirePermission></RequireAuth>} />
       <Route path="/tickets/:id/edit" element={<RequireAuth><RequirePermission permission={PermissionKey.MANAGE_TICKETS}><TicketForm /></RequirePermission></RequireAuth>} />
       <Route path="/tickets/:id/chat" element={<RequireAuth><RequirePermission permission={PermissionKey.MANAGE_TICKETS}><TicketChatPage /></RequirePermission></RequireAuth>} />
@@ -379,11 +384,31 @@ const Router: React.FC = () => (
         }
       />
       <Route
+        path="/api-keys/schedules"
+        element={
+          <RequireAuth>
+            <RequirePermission permission={PermissionKey.MANAGE_API_KEYS}>
+              <ApiKeySchedules />
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
+      <Route
         path="/users/stats"
         element={
           <RequireAuth>
             <RequirePermission permission={PermissionKey.MANAGE_USERS}>
               <UserStats />
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/users/schedules"
+        element={
+          <RequireAuth>
+            <RequirePermission permission={PermissionKey.MANAGE_USERS}>
+              <UserSchedules />
             </RequirePermission>
           </RequireAuth>
         }
@@ -399,6 +424,26 @@ const Router: React.FC = () => (
         }
       />
       <Route
+        path="/roles/schedules"
+        element={
+          <RequireAuth>
+            <RequirePermission permission={PermissionKey.MANAGE_ROLES}>
+              <RoleSchedules />
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/role/:id"
+        element={
+          <RequireAuth>
+            <RequirePermission permission={PermissionKey.MANAGE_ROLES}>
+              <RoleDetail />
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
+      <Route
         path="/mods/stats"
         element={
           <RequireAuth>
@@ -409,11 +454,41 @@ const Router: React.FC = () => (
         }
       />
       <Route
+        path="/mods/schedules"
+        element={
+          <RequireAuth>
+            <RequirePermission permission={PermissionKey.MANAGE_MODS}>
+              <ModSchedules />
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/mod/:id"
+        element={
+          <RequireAuth>
+            <RequirePermission permission={PermissionKey.MANAGE_MODS}>
+              <ModDetail />
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
+      <Route
         path="/instance-pages/stats"
         element={
           <RequireAuth>
             <RequirePermission permission={PermissionKey.MANAGE_INSTANCE_PAGES}>
               <InstancePageStats />
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/instance-pages/schedules"
+        element={
+          <RequireAuth>
+            <RequirePermission permission={PermissionKey.MANAGE_INSTANCE_PAGES}>
+              <InstancePageSchedules />
             </RequirePermission>
           </RequireAuth>
         }
@@ -464,6 +539,16 @@ const Router: React.FC = () => (
           <RequireAuth>
             <RequirePermission permission={PermissionKey.MANAGE_TEMPLATES}>
               <TemplateStats />
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/templates/schedules"
+        element={
+          <RequireAuth>
+            <RequirePermission permission={PermissionKey.MANAGE_TEMPLATES}>
+              <TemplateSchedules />
             </RequirePermission>
           </RequireAuth>
         }
