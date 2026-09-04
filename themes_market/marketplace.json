@@ -1,0 +1,54 @@
+{
+  "version": "1.0",
+  "updated": "2026-09-04",
+  "pages": [
+    {
+      "id": "midnight-ocean",
+      "name": "Midnight Ocean",
+      "description": "Deep-navy glass theme with ocean-blue accents for long night shifts.",
+      "category": "dark",
+      "author": "kspanel",
+      "version": "1.0",
+      "tags": [
+        "dark",
+        "blue",
+        "glass"
+      ],
+      "download_url": "market/midnight-ocean.json",
+      "icon_svg": "<path d=\"M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z\"/>",
+      "preview_image": ""
+    },
+    {
+      "id": "emerald-night",
+      "name": "Emerald Night",
+      "description": "Dark forest-green glass theme with emerald accents, easy on the eyes.",
+      "category": "dark",
+      "author": "kspanel",
+      "version": "1.0",
+      "tags": [
+        "dark",
+        "green",
+        "glass"
+      ],
+      "download_url": "market/emerald-night.json",
+      "icon_svg": "<path d=\"M17 8C8 10 5.9 16.17 3.82 21.34l1.89.66.95-2.3c.48.17.98.3 1.34.3C19 20 22 3 22 3c-1 2-8 2.25-5 5z\"/>",
+      "preview_image": ""
+    },
+    {
+      "id": "crimson-dusk",
+      "name": "Crimson Dusk",
+      "description": "Warm charcoal-red glass theme with ember accents for high-contrast ops.",
+      "category": "dark",
+      "author": "kspanel",
+      "version": "1.0",
+      "tags": [
+        "dark",
+        "red",
+        "glass"
+      ],
+      "download_url": "market/crimson-dusk.json",
+      "icon_svg": "<path d=\"M12 2s5 4.5 5 9.5c0 1.5-.5 3-1.5 4.5C14 17.5 12 19 12 19s-2-1.5-3.5-3C7.5 14.5 7 13 7 11.5 7 6.5 12 2 12 2z\"/>",
+      "preview_image": ""
+    }
+  ]
+}
