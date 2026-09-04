@@ -217,6 +217,114 @@ func (r *ThemeRepository) DeleteTheme(id string) error {
 	return nil
 }
 
+// ---- Revisions (migration 067) ----
+
+// CreateRevision snapshots the CURRENT row of a theme as the next revision
+// number (max+1, starting at 1). Callers must have already read the live
+// row; the handler does that so the snapshot and the overwrite stay
+// adjacent. createdBy is the admin whose edit produced the revision (0 =
+// NULL, e.g. a rollback by a deleted user — never blocks the write).
+func (r *ThemeRepository) CreateRevision(themeID string, rev int, name, description string, spec json.RawMessage, createdBy int64) (*models.ThemeRevision, error) {
+	if themeID == "" {
+		return nil, fmt.Errorf("theme id is required")
+	}
+	if rev < 1 {
+		return nil, fmt.Errorf("rev must be >= 1")
+	}
+	s := string(spec)
+	if s == "" {
+		s = "{}"
+	}
+	now := time.Now().UTC().Format("2006-01-02 15:04:05")
+	if createdBy != 0 {
+		if _, err := r.db.Exec(
+			`INSERT INTO theme_revisions (theme_id, rev, name, description, spec, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			themeID, rev, name, description, s, createdBy, now,
+		); err != nil {
+			return nil, err
+		}
+	} else {
+		if _, err := r.db.Exec(
+			`INSERT INTO theme_revisions (theme_id, rev, name, description, spec, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+			themeID, rev, name, description, s, now,
+		); err != nil {
+			return nil, err
+		}
+	}
+	return r.GetRevision(themeID, rev)
+}
+
+// NextRevision returns max(rev)+1 for a theme (1 when no history yet).
+func (r *ThemeRepository) NextRevision(themeID string) (int, error) {
+	var max sql.NullInt64
+	if err := r.db.QueryRow(`SELECT MAX(rev) FROM theme_revisions WHERE theme_id = ?`, themeID).Scan(&max); err != nil {
+		return 0, err
+	}
+	if !max.Valid {
+		return 1, nil
+	}
+	return int(max.Int64) + 1, nil
+}
+
+// scanRevision scans one theme_revisions row. Times parse like scanTheme so
+// rows written by CURRENT_TIMESTAMP defaults and explicit UTC stamps both
+// read back.
+func scanRevision(scanner interface{ Scan(...any) error }) (*models.ThemeRevision, error) {
+	var rv models.ThemeRevision
+	var spec string
+	var createdBy sql.NullInt64
+	var created string
+	if err := scanner.Scan(&rv.ThemeID, &rv.Rev, &rv.Name, &rv.Description, &spec, &createdBy, &created); err != nil {
+		return nil, err
+	}
+	rv.Spec = json.RawMessage(spec)
+	if createdBy.Valid {
+		c := createdBy.Int64
+		rv.CreatedBy = &c
+	}
+	rv.CreatedAt, _ = parseSQLiteTime(created)
+	return &rv, nil
+}
+
+// ListRevisions returns every revision of a theme, newest-first.
+func (r *ThemeRepository) ListRevisions(themeID string) ([]models.ThemeRevision, error) {
+	var n int
+	if err := r.db.QueryRow(`SELECT COUNT(*) FROM theme_revisions WHERE theme_id = ?`, themeID).Scan(&n); err != nil {
+		return nil, err
+	}
+	out := make([]models.ThemeRevision, 0, n)
+	if n == 0 {
+		return out, nil
+	}
+	rows, err := r.db.Query(`SELECT theme_id, rev, name, description, spec, created_by, created_at FROM theme_revisions WHERE theme_id = ? ORDER BY rev DESC`, themeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		rv, err := scanRevision(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *rv)
+	}
+	return out, rows.Err()
+}
+
+// GetRevision returns a single revision, or fmt.Errorf("theme revision not
+// found") when absent.
+func (r *ThemeRepository) GetRevision(themeID string, rev int) (*models.ThemeRevision, error) {
+	row := r.db.QueryRow(`SELECT theme_id, rev, name, description, spec, created_by, created_at FROM theme_revisions WHERE theme_id = ? AND rev = ?`, themeID, rev)
+	rv, err := scanRevision(row)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("theme revision not found")
+		}
+		return nil, err
+	}
+	return rv, nil
+}
+
 // ---- Assignments ----
 
 // ListAssignments returns every global scope -> theme binding. The frontend

@@ -21,6 +21,10 @@ const (
 	ActivityCategorySnapshot           ActivityCategory = "snapshot"
 	ActivityCategorySecurity           ActivityCategory = "security"
 	ActivityCategoryTicket             ActivityCategory = "ticket"
+	// ActivityCategoryTheme buckets theme authoring audit rows (market
+	// installs, rollbacks). Personal/local theme edits never leave the
+	// browser, so every row here is a GLOBAL library mutation.
+	ActivityCategoryTheme ActivityCategory = "theme"
 	// ActivityCategoryAI buckets AI assistant usage/cost audit rows.
 	ActivityCategoryAI ActivityCategory = "ai"
 )

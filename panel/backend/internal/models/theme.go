@@ -47,3 +47,18 @@ type ThemeWithOwner struct {
 	Theme
 	OwnerName string `json:"owner_name,omitempty"`
 }
+
+// ThemeRevision is one snapshotted version of a theme row (migration 067).
+// UpdateThemeHandler writes a revision BEFORE overwriting the live row, so
+// the studio History section can list prior specs and roll back to any of
+// them. Rollback itself writes a revision too (of the pre-rollback row),
+// so no restore is ever destructive to the history chain.
+type ThemeRevision struct {
+	ThemeID     string          `json:"theme_id"`
+	Rev         int             `json:"rev"`
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	Spec        json.RawMessage `json:"spec,omitempty"`
+	CreatedBy   *int64          `json:"created_by,omitempty"`
+	CreatedAt   time.Time       `json:"created_at"`
+}
