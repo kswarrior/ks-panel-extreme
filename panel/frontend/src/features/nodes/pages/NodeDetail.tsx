@@ -480,6 +480,11 @@ const NodeDetail: React.FC = () => {
         </GlassCard>
       </div>
 
+      <GlassCard className="p-4">
+        <h4 className="text-xs uppercase tracking-wide text-gray-500 mb-3">Edge Update & Reinstall</h4>
+        <NodeUpdateTab nodeId={node.id} nodeName={node.name} />
+      </GlassCard>
+
       <GlassCard className="p-3">
         <h4 className="text-xs uppercase tracking-wide text-gray-500 mb-2">Timeline</h4>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
