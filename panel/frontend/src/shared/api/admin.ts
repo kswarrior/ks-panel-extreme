@@ -150,8 +150,26 @@ export async function listNodes(): Promise<Node[]> {
 // Advanced per-edge configuration forwarded verbatim to the panel. Missing /
 // zero values fall back to the panel's column defaults so legacy callers that
 // only send name/address/use_tls stay compatible.
+export interface WssChannelPayload {
+  name: string;
+  task?: string;
+  transport?: string;
+  fallback?: boolean;
+}
+
+export interface WssChannelRow {
+  id: number;
+  node_id: number;
+  name: string;
+  task: string;
+  transport: string;
+  fallback: boolean;
+  position: number;
+}
+
 export interface NodeAdvancedFields {
   connection_mode?: string;
+  wss_channels?: WssChannelPayload[];
   health_enabled?: boolean;
   health_interval?: number;
   health_timeout?: number;
@@ -227,6 +245,36 @@ export async function purgeLocalNode(id: number): Promise<{ ok: boolean; message
     `/api/nodes/${id}/purge-local`,
   );
   return res.data;
+}
+
+// Named WSS channels per node (migration 062) — the NodeForm WSS box rows.
+// Reads are view-level; writes are edit-level like the node itself.
+export async function listNodeWssChannels(id: number): Promise<WssChannelRow[]> {
+  const res = await client.get<WssChannelRow[]>(`/api/nodes/${id}/wss-channels`);
+  return res.data;
+}
+
+export async function createNodeWssChannel(
+  id: number,
+  payload: WssChannelPayload,
+): Promise<{ id: number }> {
+  const res = await client.post<{ id: number }>(
+    `/api/nodes/${id}/wss-channels`,
+    payload,
+  );
+  return res.data;
+}
+
+export async function updateNodeWssChannel(
+  id: number,
+  cid: number,
+  payload: WssChannelPayload,
+): Promise<void> {
+  await client.put(`/api/nodes/${id}/wss-channels/${cid}`, payload);
+}
+
+export async function deleteNodeWssChannel(id: number, cid: number): Promise<void> {
+  await client.delete(`/api/nodes/${id}/wss-channels/${cid}`);
 }
 
 export async function nodeHeartbeats(
