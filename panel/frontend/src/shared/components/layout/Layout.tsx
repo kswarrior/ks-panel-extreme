@@ -20,8 +20,8 @@ const Layout: React.FC = () => {
 
   // Power dock auto-hide — same behavior as the Cancel/Deploy pill
   // (hide on scroll / outside click, slide back after idle), 1.5s delay.
-  // Dim-only: the row never goes invisible, it just drops to low opacity
-  // ("off") and hover restores it. Space is always kept so content jumps.
+  // Dim-only: the dock never goes invisible, it just drops to low opacity
+  // ("off") and hover restores it.
   const powerHide = useAutoHidePill(1500);
 
   useEffect(() => {
@@ -53,22 +53,6 @@ const Layout: React.FC = () => {
           onToggleSidebar={toggleSidebar}
           inInstancePanel={inInstancePanel}
         />
-        {/* Instance power controls — OUTSIDE the <header> element, directly
-            below it, so the header keeps its fixed height and the dock lives
-            as its own row (scrolls with layout, not part of sticky chrome). */}
-        {inInstancePanel && (
-          <div
-            ref={powerHide.ref}
-            onMouseEnter={powerHide.show}
-            className={`shrink-0 w-full flex justify-start p-0 m-0 transition-opacity duration-300 ${
-              powerHide.visible ? 'opacity-100' : 'opacity-40'
-            }`}
-          >
-            <ErrorBoundary resetKey={location.pathname} label="instance-power">
-              <InstancePowerBar />
-            </ErrorBoundary>
-          </div>
-        )}
         {/* Instance info dock — fixed right edge (Status / Uptime / Type),
             own auto-hide at 1.5s inside the component. */}
         {inInstancePanel && (
@@ -76,11 +60,34 @@ const Layout: React.FC = () => {
             <InstanceInfoBar />
           </ErrorBoundary>
         )}
-        <main className="flex-1 overflow-auto p-4 sm:p-6">
-          <ErrorBoundary resetKey={location.pathname} label="page">
-            <Outlet />
-          </ErrorBoundary>
-        </main>
+        {/* Page scroll area. The power dock floats OVER the content
+            (absolute overlay, clicks pass through except on the dock itself)
+            so no layout row — and no gap — is reserved for it. */}
+        <div className="relative flex-1 min-h-0 flex">
+          <main className="flex-1 min-w-0 overflow-auto p-4 sm:p-6">
+            <ErrorBoundary resetKey={location.pathname} label="page">
+              <Outlet />
+            </ErrorBoundary>
+          </main>
+          {/* Instance power controls — OUTSIDE the <header> element, floating
+              over the page content top-left, so the header keeps its fixed
+              height and pages start with zero gap. */}
+          {inInstancePanel && (
+            <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex justify-start px-4 sm:px-6 pt-2">
+              <div
+                ref={powerHide.ref}
+                onMouseEnter={powerHide.show}
+                className={`pointer-events-auto transition-opacity duration-300 ${
+                  powerHide.visible ? 'opacity-100' : 'opacity-40'
+                }`}
+              >
+                <ErrorBoundary resetKey={location.pathname} label="instance-power">
+                  <InstancePowerBar />
+                </ErrorBoundary>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
