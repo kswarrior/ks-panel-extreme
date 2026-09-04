@@ -3,6 +3,7 @@ package repository
 import (
 	"database/sql"
 	"encoding/json"
+	"strconv"
 	"strings"
 	"time"
 
@@ -125,48 +126,12 @@ func GetDatabaseVerifyState(con *sql.DB, d db.Dialect) DatabaseVerifyState {
 		st.Engine = strings.TrimSpace(v)
 	}
 	if v, err := settingsGet(con, d, DBVerifyLastTablesKey); err == nil && strings.TrimSpace(v) != "" {
-		var n int64
-		if _, serr := strings.NewReader(v), error(nil); serr == nil {
-			// Parse manually to avoid strconv import cycle concerns.
-			neg := false
-			s := strings.TrimSpace(v)
-			if strings.HasPrefix(s, "-") {
-				neg = true
-				s = s[1:]
-			}
-			for _, c := range s {
-				if c < '0' || c > '9' {
-					n = 0
-					break
-				}
-				n = n*10 + int64(c-'0')
-			}
-			if neg {
-				n = -n
-			}
+		if n, perr := strconv.ParseInt(strings.TrimSpace(v), 10, 64); perr == nil {
 			st.TableCount = n
 		}
 	}
 	if v, err := settingsGet(con, d, DBVerifyLastDurKey); err == nil && strings.TrimSpace(v) != "" {
-		var n int64
-		s := strings.TrimSpace(v)
-		neg := false
-		if strings.HasPrefix(s, "-") {
-			neg = true
-			s = s[1:]
-		}
-		ok := true
-		for _, c := range s {
-			if c < '0' || c > '9' {
-				ok = false
-				break
-			}
-			n = n*10 + int64(c-'0')
-		}
-		if ok {
-			if neg {
-				n = -n
-			}
+		if n, perr := strconv.ParseInt(strings.TrimSpace(v), 10, 64); perr == nil {
 			st.DurationMs = n
 		}
 	}
@@ -267,6 +232,3 @@ func itoaRepo(n int64) string {
 	}
 	return string(b[pos:])
 }
-
-// O ru is a compile-time guard placeholder (replaced below).
-func O_ru(_ bool) bool { return false }
