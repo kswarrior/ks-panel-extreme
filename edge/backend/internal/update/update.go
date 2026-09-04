@@ -65,12 +65,18 @@ func ksedgeDownloadURLs() []string {
 
 // versionManifest mirrors the JSON shape served at ksedgeVersionURL.
 // Loose types on purpose — a missing field falls back to zero value.
+// SHA256/Signature/SHA256URL drive verified downloads (see verify.go):
+// when a digest is published the apply path hashes the temp file BEFORE
+// chmod/swap and aborts on mismatch.
 type versionManifest struct {
 	Version   string `json:"version"`
 	Commit    string `json:"commit"`
 	BuildDate string `json:"build_date"`
 	Notes     string `json:"notes"`
 	SizeBytes int64  `json:"size_bytes"`
+	SHA256    string `json:"sha256"`
+	Signature string `json:"signature"`
+	SHA256URL string `json:"sha256_url"`
 }
 
 type infoResponse struct {

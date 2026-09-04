@@ -956,12 +956,14 @@ func ReinstallScriptHandler(w http.ResponseWriter, r *http.Request) {
 		UpdateURL      string
 		CurrentVersion string
 		Port           string
+		SHA256         string
 	}{
 		GeneratedAt:    time.Now().UTC().Format(time.RFC3339),
 		BinaryPath:     exe,
 		UpdateURL:      kspanelBinaryURL,
 		CurrentVersion: local.Version,
 		Port:           port,
+		SHA256:         embeddedReinstallSHA256(),
 	}
 
 	tmpl, err := template.New("reinstall").Parse(reinstallScriptTemplate)
@@ -1012,12 +1014,14 @@ func ReinstallBackgroundHandler(w http.ResponseWriter, r *http.Request) {
 		UpdateURL      string
 		CurrentVersion string
 		Port           string
+		SHA256         string
 	}{
 		GeneratedAt:    time.Now().UTC().Format(time.RFC3339),
 		BinaryPath:     exe,
 		UpdateURL:      kspanelBinaryURL,
 		CurrentVersion: local.Version,
 		Port:           port,
+		SHA256:         embeddedReinstallSHA256(),
 	}
 
 	tmpl, err := template.New("reinstall").Parse(reinstallScriptTemplate)

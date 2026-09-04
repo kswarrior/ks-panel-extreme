@@ -175,7 +175,7 @@ func aiStreamOpenAI(ctx context.Context, cfg *repository.AIConfig, msgs []aiMsg,
 					Delta struct {
 						Content   string `json:"content"`
 						ToolCalls []struct {
-							Index    int `json:"index"`
+							Index    int    `json:"index"`
 							ID       string `json:"id"`
 							Function struct {
 								Name      string `json:"name"`
@@ -681,13 +681,13 @@ func AIUsageHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 	type recent struct {
-		User    string `json:"user"`
-		Model   string `json:"model"`
-		Provider string `json:"provider"`
-		In      int    `json:"in_tokens"`
-		Out     int    `json:"out_tokens"`
-		Cost    float64 `json:"cost_usd"`
-		At      string `json:"at"`
+		User     string  `json:"user"`
+		Model    string  `json:"model"`
+		Provider string  `json:"provider"`
+		In       int     `json:"in_tokens"`
+		Out      int     `json:"out_tokens"`
+		Cost     float64 `json:"cost_usd"`
+		At       string  `json:"at"`
 	}
 	byKey := map[string]*aiUsageRow{}
 	recentOut := []recent{}

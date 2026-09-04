@@ -173,9 +173,10 @@ type DatabaseTable struct {
 // the Database admin page. The page is read-only — there is no mutation
 // endpoint here, just a live snapshot for the operator.
 //
-// The rich PRAGMA-driven diagnostic is SQLite-only. For Postgres / MySQL we
-// return a friendly stub with `engine_not_supported = true` so the page
-// renders an explanatory card instead of crashing on `PRAGMA table_info`.
+// SQLite gets the rich PRAGMA/dbstat diagnostic below. Postgres/MySQL get
+// real diagnostics too (information_schema + pg_total_relation_size /
+// Data_length) in the same JSON shape — empty IntegrityIssues/
+// ForeignKeyIssues with a per-engine note where a check has no equivalent.
 func DatabaseInfoHandler(w http.ResponseWriter, r *http.Request) {
 	cfg := config.DatabaseConfig()
 	d, err := db.NewDialect(cfg.Engine)
@@ -184,18 +185,39 @@ func DatabaseInfoHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !d.IsSQLite() {
-		// Stub response for non-SQLite engines — the page surfaces a
-		// "Use psql / mysql cli for introspection" hint instead of trying
-		// to render PRAGMA-driven fields it cannot compute.
-		writeJSON(w, DatabaseInfo{
-			Engine:             d.Name(),
-			Path:               redactedDSN(cfg.DSN),
-			GeneratedAt:        time.Now().UTC(),
-			Tables:             []DatabaseTable{},
-			IntegrityIssues:    []string{},
-			ForeignKeyIssues:   []string{},
-			EngineNotSupported: true,
-		})
+		con, oerr := repository.OpenDB()
+		if oerr != nil {
+			http.Error(w, "server error", http.StatusInternalServerError)
+			return
+		}
+		defer con.Close()
+		var info DatabaseInfo
+		var derr error
+		switch d.Name() {
+		case "postgres":
+			info, derr = databaseInfoPostgres(con, cfg)
+		case "mysql":
+			info, derr = databaseInfoMySQL(con, cfg)
+		default:
+			writeJSON(w, DatabaseInfo{
+				Engine:             d.Name(),
+				Path:               redactedDSN(cfg.DSN),
+				GeneratedAt:        time.Now().UTC(),
+				Tables:             []DatabaseTable{},
+				IntegrityIssues:    []string{},
+				ForeignKeyIssues:   []string{},
+				EngineNotSupported: true,
+			})
+			return
+		}
+		if derr != nil {
+			log.Println("DatabaseInfo remote error:", derr)
+			http.Error(w, "server error", http.StatusInternalServerError)
+			return
+		}
+		attachVerifyStatus(&info)
+		applySnapshotDeltas(&info)
+		writeJSON(w, info)
 		return
 	}
 
@@ -432,6 +454,7 @@ func DatabaseInfoHandler(w http.ResponseWriter, r *http.Request) {
 	// Record this snapshot for the NEXT tick's delta computation. Done
 	// AFTER the diff so the previous snapshot we just consumed isn't
 	// overwritten prematurely.
+	attachVerifyStatus(&info)
 	snapshotStore.store(info)
 
 	writeJSON(w, info)

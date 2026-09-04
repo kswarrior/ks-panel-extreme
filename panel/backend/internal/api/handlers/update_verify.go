@@ -169,3 +169,18 @@ func recordUpdateVerifyFailure(r *http.Request, action, detail string) {
 		Message:     detail,
 	})
 }
+
+// embeddedReinstallSHA256 best-effort resolves the checksum to embed into
+// a generated reinstall.sh. Empty string on any failure — the script then
+// installs unverified (with a warning) instead of refusing to generate.
+func embeddedReinstallSHA256() string {
+	m, err := fetchUpdateManifest()
+	if err != nil {
+		return ""
+	}
+	sum, err := resolveExpectedSHA256(m)
+	if err != nil {
+		return ""
+	}
+	return sum
+}
