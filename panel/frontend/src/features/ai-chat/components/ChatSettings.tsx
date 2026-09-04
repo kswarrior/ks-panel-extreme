@@ -1,10 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import {
+  DEFAULT_RETRY_PREFS,
   getAIConfig,
   getAIUsage,
+  loadRetryPrefs,
+  saveRetryPrefs,
   testAIConfig,
   updateAIConfig,
   type AIConfigView,
+  type AIRetryPrefs,
   type AIUsage,
 } from '../api/aiChat';
 
@@ -48,6 +52,25 @@ const ChatSettings: React.FC = () => {
   const [apiKey, setApiKey] = useState('');
   const [fallbackApiKey, setFallbackApiKey] = useState('');
   const [usage, setUsage] = useState<AIUsage | null>(null);
+  const [retryPrefs, setRetryPrefs] = useState<AIRetryPrefs>(() => {
+    try {
+      return loadRetryPrefs();
+    } catch {
+      return { ...DEFAULT_RETRY_PREFS };
+    }
+  });
+
+  const setRetry = (patch: Partial<AIRetryPrefs>) => {
+    setRetryPrefs((p) => {
+      const next: AIRetryPrefs = {
+        autoRetry: patch.autoRetry ?? p.autoRetry,
+        maxRetries: Math.max(1, Math.min(5, Math.round(patch.maxRetries ?? p.maxRetries) || 1)),
+        baseDelaySec: Math.max(1, Math.min(30, Math.round(patch.baseDelaySec ?? p.baseDelaySec) || 1)),
+      };
+      saveRetryPrefs(next);
+      return next;
+    });
+  };
 
   useEffect(() => {
     (async () => {
@@ -437,6 +460,65 @@ const ChatSettings: React.FC = () => {
             />
           </div>
         </div>
+      </section>
+
+      {/* ── Reliability ───────────────────────────────────────── */}
+      <section className="space-y-3">
+        <h4 className={sectionCls}>Reliability</h4>
+        <label className="flex items-start justify-between gap-3 cursor-pointer select-none">
+          <span className="flex-1 min-w-0">
+            <span className="block text-xs font-medium text-gray-200">Auto-retry on rate limit</span>
+            <span className="block text-[11px] text-gray-500">When the provider answers 429, wait and re-send automatically.</span>
+          </span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={retryPrefs.autoRetry}
+            aria-label="Auto-retry on rate limit"
+            onClick={() => setRetry({ autoRetry: !retryPrefs.autoRetry })}
+            className={`ks-toggle shrink-0 ${retryPrefs.autoRetry ? 'is-on' : ''}`}
+          >
+            <span className="ks-toggle__thumb" />
+          </button>
+        </label>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className={labelCls} htmlFor="ai-chat-max-retries">
+              Max retries (1–5)
+            </label>
+            <input
+              id="ai-chat-max-retries"
+              type="number"
+              min={1}
+              max={5}
+              step={1}
+              value={retryPrefs.maxRetries}
+              disabled={!retryPrefs.autoRetry}
+              onChange={(e) => setRetry({ maxRetries: Number(e.target.value) })}
+              className={inputCls}
+            />
+          </div>
+          <div>
+            <label className={labelCls} htmlFor="ai-chat-retry-delay">
+              Base delay, sec (1–30)
+            </label>
+            <input
+              id="ai-chat-retry-delay"
+              type="number"
+              min={1}
+              max={30}
+              step={1}
+              value={retryPrefs.baseDelaySec}
+              disabled={!retryPrefs.autoRetry}
+              onChange={(e) => setRetry({ baseDelaySec: Number(e.target.value) })}
+              className={inputCls}
+            />
+          </div>
+        </div>
+        <p className="text-[11px] text-gray-500 leading-relaxed">
+          Honors the server's Retry-After hint when present, otherwise backs off exponentially from the base delay. A
+          Retry button is always offered on the failed message.
+        </p>
       </section>
 
       {/* ── Usage ─────────────────────────────────────────────── */}
