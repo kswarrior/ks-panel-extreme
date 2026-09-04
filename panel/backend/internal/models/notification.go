@@ -31,6 +31,7 @@ const (
 	NotificationCategoryTheme       NotificationCategory = "theme"
 	NotificationCategoryUpdate      NotificationCategory = "update"
 	NotificationCategoryGeneral     NotificationCategory = "general"
+	NotificationCategoryTicket      NotificationCategory = "ticket"
 )
 
 // AllNotificationCategories is the whitelist used for validation server-side.
@@ -49,6 +50,7 @@ var AllNotificationCategories = []NotificationCategory{
 	NotificationCategoryTheme,
 	NotificationCategoryUpdate,
 	NotificationCategoryGeneral,
+	NotificationCategoryTicket,
 }
 
 // AllNotificationPriorities is the whitelist used for validation.

@@ -256,6 +256,39 @@ type aiChatMessage struct {
 type aiChatRequest struct {
 	Messages        []aiChatMessage `json:"messages"`
 	ApproveTicketID string          `json:"approve_ticket_id"`
+	// ThreadID binds the turn to a persisted thread: the server prepends
+	// the thread's last 50 messages and persists the new turns. The client
+	// then sends only the new turn(s) in Messages.
+	ThreadID *int64 `json:"thread_id"`
+	// Model is a per-request override honoured for admins (SETTINGS_EDIT)
+	// only; everyone else's value is ignored.
+	Model string `json:"model"`
+}
+
+// aiModelOverride returns the per-request model when the caller holds
+// SETTINGS_EDIT; anyone else's "model" field is silently ignored so a
+// narrowed role can never steer the panel at a pricier model.
+func aiModelOverride(checker *permissions.Checker, uid int64, raw string) string {
+	m := strings.TrimSpace(raw)
+	if m == "" || len(m) > 256 {
+		return ""
+	}
+	if err := checker.EnsureAny(uid, permissions.ViewSettingsKey, permissions.SettingsEditKey); err != nil {
+		return ""
+	}
+	return m
+}
+
+// aiThreadTitle derives a thread title from the first user turn.
+func aiThreadTitle(s string) string {
+	s = strings.Join(strings.Fields(strings.TrimSpace(s)), " ")
+	if s == "" {
+		return "New chat"
+	}
+	if len(s) > 60 {
+		s = s[:60] + "…"
+	}
+	return s
 }
 
 // AIChatHandler runs the assistant loop. Two modes:
@@ -324,12 +357,14 @@ func AIChatHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		result, err := aiExecuteWrite(actx, t.Tool, args)
 		if err != nil {
+			aiThreadPersist(uid, req.ThreadID, nil, "The approved action failed: "+aiCap(err.Error(), 800))
 			writeJSON(w, map[string]any{
 				"reply":    "The approved action failed: " + aiCap(err.Error(), 800),
 				"executed": map[string]any{"tool": t.Tool, "summary": t.Summary, "ok": false, "error": aiCap(err.Error(), 800)},
 			})
 			return
 		}
+		aiThreadPersist(uid, req.ThreadID, nil, "Done — "+t.Summary+"\n\n"+aiCap(result, 1500))
 		writeJSON(w, map[string]any{
 			"reply":    "Done — " + t.Summary + "\n\n" + aiCap(result, 1500),
 			"executed": map[string]any{"tool": t.Tool, "summary": t.Summary, "ok": true, "result": aiCap(result, 1500)},
@@ -338,15 +373,39 @@ func AIChatHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Mode 2: chat loop.
-	if len(req.Messages) == 0 {
-		http.Error(w, "messages are required", http.StatusBadRequest)
+	model := aiModelOverride(checker, uid, req.Model)
+	threadRepo := repository.NewAIThreadRepository(con)
+	var threadID int64
+	var stored []repository.AIMessage
+	if req.ThreadID != nil && *req.ThreadID != 0 {
+		th, err := threadRepo.Owned(uid, *req.ThreadID)
+		if err != nil {
+			http.Error(w, "chat thread not found", http.StatusNotFound)
+			return
+		}
+		threadID = th.ID
+		stored, err = threadRepo.LastMessages(uid, threadID, 50)
+		if err != nil {
+			http.Error(w, "server error", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	// Bound thread: history is the persisted window plus the client's new
+	// turns (cap 10). Unbound: legacy client-supplied history (cap 20).
+	maxClient := 20
+	if threadID != 0 {
+		maxClient = 10
+	}
+	if len(req.Messages) == 0 || len(req.Messages) > maxClient {
+		http.Error(w, fmt.Sprintf("1 to %d messages are required", maxClient), http.StatusBadRequest)
 		return
 	}
-	if len(req.Messages) > 20 {
-		http.Error(w, "at most 20 messages per request", http.StatusBadRequest)
-		return
+	var newUserTurns []string
+	history := make([]aiMsg, 0, len(stored)+len(req.Messages))
+	for _, m := range stored {
+		history = append(history, aiMsg{Role: m.Role, Content: m.Content})
 	}
-	history := make([]aiMsg, 0, len(req.Messages))
 	for _, m := range req.Messages {
 		role := strings.ToLower(strings.TrimSpace(m.Role))
 		if role != "user" && role != "assistant" {
@@ -358,6 +417,9 @@ func AIChatHandler(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		history = append(history, aiMsg{Role: role, Content: content})
+		if role == "user" {
+			newUserTurns = append(newUserTurns, content)
+		}
 	}
 	if len(history) == 0 {
 		http.Error(w, "messages are required", http.StatusBadRequest)
@@ -388,53 +450,106 @@ func AIChatHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	msgs := append([]aiMsg{{Role: "system", Content: sysPrompt}}, history...)
-	defs := aiToolDefs()
 
+	var acc aiUsageAcc
+	reply, ticket, err := aiRunChatLoop(ctx, actx, cfg, model, msgs, &acc)
+	if err != nil {
+		writeJSONStatus(w, http.StatusBadGateway, map[string]any{"error": "AI provider error: " + aiCap(err.Error(), 500)})
+		return
+	}
+	aiLogUsage(r, cfg, acc)
+	if ticket != nil {
+		aiStoreTicket(con, &aiTicket{
+			ID: ticket.ID, UserID: uid, Tool: ticket.Tool, Args: ticket.Args,
+			Summary: ticket.Summary, Diff: ticket.Diff, Expires: time.Now().Add(10 * time.Minute),
+		})
+		aiThreadPersist(uid, req.ThreadID, newUserTurns, reply)
+		writeJSON(w, map[string]any{
+			"reply": reply,
+			"confirmation_ticket": map[string]any{
+				"id": ticket.ID, "tool": ticket.Tool,
+				"summary": ticket.Summary, "diff": ticket.Diff,
+			},
+			"thread_id": threadID,
+		})
+		return
+	}
+	aiThreadPersist(uid, req.ThreadID, newUserTurns, reply)
+	writeJSON(w, map[string]any{"reply": reply, "thread_id": threadID})
+}
+
+// aiThreadPersist appends the new user turns + the assistant reply to a
+// bound thread (no-op when threadID is nil/zero). Failures are logged, not
+// fatal: history loss must never break a chat reply.
+func aiThreadPersist(uid int64, threadID *int64, userTurns []string, assistantReply string) {
+	if threadID == nil || *threadID == 0 {
+		return
+	}
+	con, err := repository.OpenDB()
+	if err != nil {
+		log.Println("ai thread persist: open db:", err)
+		return
+	}
+	defer con.Close()
+	repo := repository.NewAIThreadRepository(con)
+	if _, err := repo.Owned(uid, *threadID); err != nil {
+		return
+	}
+	stored, _ := repo.LastMessages(uid, *threadID, 1)
+	if len(stored) == 0 && len(userTurns) > 0 {
+		_ = repo.Rename(uid, *threadID, aiThreadTitle(userTurns[0]))
+	}
+	for _, u := range userTurns {
+		_ = repo.AddMessage(uid, *threadID, "user", u)
+	}
+	if strings.TrimSpace(assistantReply) != "" {
+		_ = repo.AddMessage(uid, *threadID, "assistant", assistantReply)
+	}
+}
+
+// aiRunChatLoop runs the 5-round tool loop used by the JSON chat endpoint.
+// It returns the final reply text, or a write-ticket proposal (with tool +
+// raw args attached) when the model requested a write.
+func aiRunChatLoop(ctx context.Context, actx *aiCallCtx, cfg *repository.AIConfig, model string, msgs []aiMsg, acc *aiUsageAcc) (string, *aiTicket, error) {
+	defs := aiToolDefs()
 	var lastText string
 	for loop := 0; loop < 5; loop++ {
-		text, calls, err := aiProviderChat(ctx, cfg, msgs, defs)
+		if ctx.Err() != nil {
+			return lastText, nil, ctx.Err()
+		}
+		text, calls, usage, err := aiProviderChatWithFallback(ctx, cfg, model, msgs, defs)
+		acc.add(usage)
 		if err != nil {
 			if lastText != "" {
-				writeJSON(w, map[string]any{"reply": lastText + "\n\n(provider error on follow-up: " + aiCap(err.Error(), 300) + ")"})
-				return
+				return lastText + "\n\n(provider error on follow-up: " + aiCap(err.Error(), 300) + ")", nil, nil
 			}
-			writeJSONStatus(w, http.StatusBadGateway, map[string]any{"error": "AI provider error: " + aiCap(err.Error(), 500)})
-			return
+			return "", nil, err
 		}
 		if len(calls) == 0 {
 			if strings.TrimSpace(text) == "" {
 				text = "I couldn't produce an answer for that. Try rephrasing?"
 			}
-			writeJSON(w, map[string]any{"reply": text})
-			return
+			return text, nil, nil
 		}
 		lastText = text
 		// Echo the assistant turn (with its tool calls) back into history
 		// so the provider keeps the full tool transcript.
 		msgs = append(msgs, aiMsg{Role: "assistant", Content: text, ToolCalls: calls})
 		for _, c := range calls {
-			result, ticket, err := aiRunTool(actx, c.Name, c.Args)
+			result, proposal, err := aiRunTool(actx, c.Name, c.Args)
 			if err != nil {
 				msgs = append(msgs, aiMsg{Role: "tool", ToolCallID: c.ID, Name: c.Name, Content: "error: " + aiCap(err.Error(), 1000)})
 				continue
 			}
-			if ticket != nil {
-				aiStoreTicket(con, &aiTicket{
-					ID: ticket.ID, UserID: uid, Tool: c.Name, Args: c.RawArgs,
-					Summary: ticket.Summary, Diff: ticket.Diff, Expires: time.Now().Add(10 * time.Minute),
-				})
+			if proposal != nil {
 				reply := strings.TrimSpace(text)
 				if reply == "" {
 					reply = "I need your approval before I do that:"
 				}
-				writeJSON(w, map[string]any{
-					"reply": reply,
-					"confirmation_ticket": map[string]any{
-						"id": ticket.ID, "tool": c.Name,
-						"summary": ticket.Summary, "diff": ticket.Diff,
-					},
-				})
-				return
+				return reply, &aiTicket{
+					ID: proposal.ID, Tool: c.Name, Args: c.RawArgs,
+					Summary: proposal.Summary, Diff: proposal.Diff,
+				}, nil
 			}
 			msgs = append(msgs, aiMsg{Role: "tool", ToolCallID: c.ID, Name: c.Name, Content: aiCap(result, 4000)})
 		}
@@ -442,7 +557,7 @@ func AIChatHandler(w http.ResponseWriter, r *http.Request) {
 	if strings.TrimSpace(lastText) == "" {
 		lastText = "I ran out of tool rounds before finishing. Try asking for something smaller?"
 	}
-	writeJSON(w, map[string]any{"reply": lastText + "\n\n(Stopped after 5 tool rounds.)"})
+	return lastText + "\n\n(Stopped after 5 tool rounds.)", nil, nil
 }
 
 // ---------------------------------------------------------------------------
