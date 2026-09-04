@@ -1,5 +1,7 @@
-// Database Backup tab — named snapshots of the SQLite database.
+// Database Backup tab — named snapshots of the panel database.
 // Top-right Create / Upload buttons open sub-page modals (file + URL).
+// Schedules drive cron VACUUM INTO / native dumps + retention prune +
+// optional S3 push; the S3 remote is SigV4 path-style (secret never shown).
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -10,8 +12,17 @@ import {
   uploadDatabaseBackupByURL,
   restoreDatabaseBackup,
   deleteDatabaseBackup,
+  listDBBackupSchedules,
+  createDBBackupSchedule,
+  updateDBBackupSchedule,
+  deleteDBBackupSchedule,
+  pruneDBBackups,
+  getBackupS3Config,
+  putBackupS3Config,
+  pushDBBackupToS3,
+  pullDBBackupFromS3,
 } from '@/shared/api/admin';
-import type { DatabaseBackup } from '../types/database';
+import type { BackupSchedule, DatabaseBackup, S3ConfigView } from '../types/database';
 import { formatBytes } from '../utils/databaseUtils';
 import { glassFieldClass } from '@/shared/components/ui/Field';
 import GlassModal from '@/shared/components/ui/Modal';
@@ -31,6 +42,7 @@ export const DatabaseBackupTab: React.FC = () => {
   const [msg, setMsg] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
 
   const [name, setName] = useState('');
+  const [compression, setCompression] = useState('none');
   const [creating, setCreating] = useState(false);
 
   const fileRef = useRef<HTMLInputElement>(null);
@@ -41,6 +53,29 @@ export const DatabaseBackupTab: React.FC = () => {
 
   const [busyId, setBusyId] = useState<string | null>(null);
 
+  // Schedules (cron VACUUM INTO + retention + S3 push flag).
+  const [schedules, setSchedules] = useState<BackupSchedule[]>([]);
+  const [schedName, setSchedName] = useState('');
+  const [schedCron, setSchedCron] = useState('0 2 * * *');
+  const [schedKeep, setSchedKeep] = useState(7);
+  const [schedAge, setSchedAge] = useState(30);
+  const [schedComp, setSchedComp] = useState('none');
+  const [schedS3, setSchedS3] = useState(false);
+  const [schedBusy, setSchedBusy] = useState(false);
+  const [pruneKeep, setPruneKeep] = useState(7);
+  const [pruneAge, setPruneAge] = useState(30);
+
+  // S3 remote (secret never displayed; only configured flag + bucket).
+  const [s3, setS3] = useState<S3ConfigView | null>(null);
+  const [s3Endpoint, setS3Endpoint] = useState('');
+  const [s3Bucket, setS3Bucket] = useState('');
+  const [s3Region, setS3Region] = useState('');
+  const [s3Prefix, setS3Prefix] = useState('kspanel');
+  const [s3Access, setS3Access] = useState('');
+  const [s3Secret, setS3Secret] = useState('');
+  const [s3Busy, setS3Busy] = useState(false);
+  const [pullName, setPullName] = useState('');
+
   // Sub-page modals opened from the top-right buttons.
   const [createOpen, setCreateOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -50,8 +85,21 @@ export const DatabaseBackupTab: React.FC = () => {
     setLoading(true);
     setError('');
     try {
-      const list = await listDatabaseBackups();
+      const [list, scheds, s3cfg] = await Promise.all([
+        listDatabaseBackups(),
+        listDBBackupSchedules().catch(() => [] as BackupSchedule[]),
+        getBackupS3Config().catch(() => null),
+      ]);
       setBackups(list);
+      setSchedules(scheds);
+      if (s3cfg) {
+        setS3(s3cfg);
+        setS3Endpoint(s3cfg.endpoint || '');
+        setS3Bucket(s3cfg.bucket || '');
+        setS3Region(s3cfg.region || '');
+        setS3Prefix(s3cfg.prefix || 'kspanel');
+        setS3Access(s3cfg.access_key || '');
+      }
     } catch (e: any) {
       setError(e?.response?.data || e?.message || 'Failed to load backups');
     } finally {
