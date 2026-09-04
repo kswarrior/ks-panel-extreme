@@ -564,7 +564,7 @@ const NodeForm: React.FC = () => {
       <div className="fixed top-[max(4.5rem,env(safe-area-inset-top))] right-4 sm:right-6 z-40">
         <div
           className="ks-card rounded-md p-1.5 flex gap-1 shadow-lg shadow-black/40"
-          style={{ '--ks-card-padding': '3px' } as React.CSSProperties}
+          style={{ '--ks-card-padding': '6px' } as React.CSSProperties}
         >
           <button
             type="button"
