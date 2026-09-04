@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { createNode, updateNode, listNodes, probeNode, setupLocalNode, listNodeWssChannels } from '@/shared/api/admin';
 import type { Node, CreateNodeResult, ProbeResult, SetupLocalResult } from '@/shared/types/node';
