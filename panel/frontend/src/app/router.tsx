@@ -323,6 +323,16 @@ const Router: React.FC = () => (
         }
       />
       <Route
+        path="/nodes/schedules"
+        element={
+          <RequireAuth>
+            <RequirePermission permission={PermissionKey.MANAGE_NODES}>
+              <NodeSchedules />
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
+      <Route
         path="/nodes/new"
         element={
           <RequireAuth>
