@@ -4,20 +4,20 @@ import { startInstance, stopInstance, restartInstance } from '@/shared/api/admin
 import { useInstance } from '@/shared/hooks/useInstance';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { PermissionKey, hasPermissionAny } from '@/shared/types/permissions';
+import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 
 const COLLAPSED_KEY = 'ks-instance-power-collapsed';
 
-// InstancePowerBar — self-contained collapsible power dock for the instance
-// details shell (same pattern as InstanceTabs: no props, resolves everything
-// itself from the route + stores).
+// InstancePowerBar — self-contained power controls for an instance.
 //
-//   [ Start | Stop | Restart ] [ < ]
-//
-// Clicking [ < ] slides the three buttons left so only [ > ] stays visible.
-// Compact + floating: minimal padding/margin, `sticky` + negative margins so
-// the box sits in the top-left-most corner of the scrolling content and
-// floats OVER page content (high z) instead of pushing it down.
-const InstancePowerBar: React.FC = () => {
+// Two render modes (same start/stop/restart logic):
+//   • dock (default) — the old collapsible left-aligned dock, kept for any
+//     inline use.
+//   • pill — bare ks-tab icon+label buttons with NO outer card/collapse,
+//     meant to sit inside a PageActionsPill on the details page so it gets
+//     the nodes-style fixed top-right position + slide animation + auto-hide
+//     (scroll/outside-click hides, idle shows) for free.
+const InstancePowerBar: React.FC<{ variant?: 'dock' | 'pill' }> = ({ variant = 'dock' }) => {
   const { id } = useParams();
   const instanceId = Number(id);
   const { instance, loading, reload } = useInstance(instanceId);

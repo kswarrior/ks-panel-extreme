@@ -5,6 +5,7 @@ import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 import { parseSubPages, parsePageActions, parsePageComponents, parsePageConfigure } from '@/features/instance-pages/types/instancePage';
 import type { Template } from '@/shared/types/instance';
 import FormPage from '@/shared/components/forms/FormPage';
+import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import GlassField, { glassFieldClass } from '@/shared/components/ui/Field';
 import Modal from '@/shared/components/ui/Modal';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
@@ -401,8 +402,8 @@ const TemplateForm: React.FC = () => {
     setForm((f) => ({ ...f, allowed_kinds: ordered.join(', ') }));
   };
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!form.name.trim()) { setError('Name is required'); return; }
     if (!form.image.trim()) { setError('Image is required'); return; }
     if (form.color && !/^#[0-9a-fA-F]{6}$/.test(form.color.trim())) { setError('Colour must be a #rrggbb hex value (or empty for default)'); return; }
@@ -525,8 +526,7 @@ const TemplateForm: React.FC = () => {
     return (
       <FormPage
         crumbs={[{ label: 'Templates', to: '/templates' }, { label: editing ? 'Edit Template' : 'New Template' }]}
-        saving={false}
-        submitLabel="Save"
+        hideHeader
       >
         <FormSkeleton fields={6} />
       </FormPage>
@@ -534,12 +534,37 @@ const TemplateForm: React.FC = () => {
   }
 
   return (
+    <>
+      {/* Top-right actions — fixed like the phone tab bar (same ks-tab
+          style), always visible no matter how far the form is scrolled.
+          Footer Cancel/Create removed; everything lives here. */}
+      <PageActionsPill>
+          <button
+            type="button"
+            onClick={() => navigate('/templates')}
+            title="Cancel and back to Templates"
+            aria-label="Cancel and back to Templates"
+            className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition"
+            style={PILL_TAB_STYLE}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => submit()}
+            disabled={saving}
+            title={editing ? 'Save template' : 'Create template'}
+            className="ks-tab ks-tab-active shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-60"
+            style={PILL_TAB_STYLE}
+          >
+            {saving ? 'Saving…' : editing ? 'Save' : 'Create'}
+          </button>
+      </PageActionsPill>
     <FormPage
       crumbs={[{ label: 'Templates', to: '/templates' }, { label: editing ? 'Edit Template' : 'New Template' }]}
-      saving={saving}
-      submitLabel={editing ? 'Save' : 'Create'}
       onSubmit={submit}
       maxWidth="max-w-4xl"
+      hideHeader
     >
       <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4">
         <TemplateTabs tab={tab} onChange={setTab} />

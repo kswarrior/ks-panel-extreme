@@ -7,10 +7,10 @@ import {
   PieChart,
   DashboardSection,
   DashboardGrid,
-  HeaderWithAction,
   StatCard,
 } from '@/shared/components/ui/StatDashboard';
 import GlassCard from '@/shared/components/ui/Card';
+import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 
 const UserStats: React.FC = () => {
   const navigate = useNavigate();
@@ -99,17 +99,14 @@ const UserStats: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <HeaderWithAction
-        title="User Statistics"
-        backHref="/users"
-        backLabel="Users"
-        action={
-          <div className="flex items-center gap-2">
+      {/* Fixed top-right pill — "Statistics" title lives in the app header. */}
+      <PageActionsPill>
             <div className="relative" ref={filterRef}>
               <button
                 type="button"
                 onClick={() => setFilterOpen(!filterOpen)}
-                className={`ks-btn-header ks-icon-btn transition-colors ${filterOpen ? 'is-open' : ''}`}
+                className={`ks-tab inline-flex items-center justify-center transition-colors ${filterOpen ? 'is-open' : ''}`}
+                style={PILL_TAB_STYLE}
                 aria-label="Open filters"
                 aria-expanded={filterOpen}
                 aria-haspopup="true"
@@ -120,7 +117,7 @@ const UserStats: React.FC = () => {
                 <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
               </button>
               {filterOpen && (
-                <div className="absolute left-0 top-full mt-1 z-30 w-56">
+                <div className="absolute right-0 top-full mt-1 z-30 w-56">
                   <div className="ks-dropdown min-w-[200px] animate-in fade-in slide-in-from-to duration-150">
                     <div className="p-3 space-y-3">
                       <div>
@@ -145,9 +142,7 @@ const UserStats: React.FC = () => {
                 </div>
               )}
             </div>
-          </div>
-        }
-      />
+      </PageActionsPill>
 
       {/* Key Metrics Strip - User Status Distribution and Key Metrics removed per requirements */}
       <DashboardGrid columns={4} className="mb-6">

@@ -70,8 +70,8 @@ const TicketForm: React.FC = () => {
     })();
   }, [isEdit, id]);
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     setError('');
     const s = subject.trim();
     if (!s) { setError('Subject is required'); return; }
@@ -135,20 +135,42 @@ const TicketForm: React.FC = () => {
   }
 
   return (
-    <div className="max-w-3xl mx-auto">
-      <div className="flex items-center gap-2 mb-5">
-        <Link to="/tickets" className="ks-btn-ghost inline-flex items-center gap-1 text-sm text-gray-400 hover:text-white px-2 py-1 rounded">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4"><path d="M19 12H5" /><path d="M12 19l-7-7 7-7" /></svg>
-          Back to tickets
-        </Link>
-        <span className="text-gray-600">/</span>
-        <h2 className="text-xl font-semibold text-white">{isEdit ? `Edit ${ticket?.ticket_no || ''}` : 'New Ticket'}</h2>
-      </div>
-
+    <>
+      {/* Top-right actions — title lives in the app header ("Tickets / New
+          Ticket" or "Tickets / Edit Ticket"). Footer Cancel/Create removed;
+          everything lives here. */}
+      <PageActionsPill>
+          <button
+            type="button"
+            onClick={() => navigate('/tickets')}
+            title="Cancel and back to Tickets"
+            aria-label="Cancel and back to Tickets"
+            className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition"
+            style={PILL_TAB_STYLE}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => submit()}
+            disabled={loading}
+            title={isEdit ? 'Save changes' : 'Create ticket'}
+            className="ks-tab ks-tab-active shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-60"
+            style={PILL_TAB_STYLE}
+          >
+            {loading ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Ticket'}
+          </button>
+      </PageActionsPill>
+      <FormPage
+        crumbs={[{ label: 'Tickets', to: '/tickets' }, { label: isEdit ? 'Edit Ticket' : 'New Ticket' }]}
+        onSubmit={submit}
+        maxWidth="max-w-3xl"
+        hideHeader
+      >
       {error && <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-sm">{typeof error === 'string' ? error : JSON.stringify(error)}</div>}
 
       <GlassCard className="p-6">
-        <form onSubmit={submit} className="space-y-5">
+        <div className="space-y-5">
           <div>
             <label className="block text-xs text-gray-400 uppercase tracking-wide mb-1.5">Subject *</label>
             <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Brief summary of the issue…" className="w-full glass-field" required maxLength={200} />
@@ -189,28 +211,7 @@ const TicketForm: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/5">
-            <button type="button" onClick={() => navigate(isEdit && id ? `/tickets/${id}` : '/tickets')} className="ks-btn-ghost px-4 py-2 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-white/10">Cancel</button>
-            <button type="submit" disabled={loading} className="ks-primary-btn bg-white text-black px-6 py-2 rounded-full text-sm font-medium hover:bg-gray-200 disabled:opacity-50">
-              {loading ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Ticket'}
-            </button>
-          </div>
-        </form>
+        </div>
       </GlassCard>
-
-      <div className="mt-4 glass-card rounded-xl p-4 border border-white/5 bg-white/[0.02]">
-        <h4 className="text-xs font-semibold text-gray-300 uppercase tracking-wide mb-2 flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} className="w-4 h-4"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>
-          Tips for a great ticket
-        </h4>
-        <ul className="text-xs text-gray-400 space-y-1 list-disc list-inside">
-          <li>Use a clear, searchable subject — e.g. <span className="text-gray-300">“Invoice #1234 charged twice”</span> beats <span className="text-gray-300">“Billing issue”</span>.</li>
-          <li>Pick the right category so the ticket routes to the right crew.</li>
-          <li>Attach steps, logs or screenshots in the description — copy-paste friendly.</li>
-        </ul>
-      </div>
-    </div>
-  );
-};
 
 export default TicketForm;

@@ -143,7 +143,6 @@ const Settings: React.FC = () => {
   if (loading) {
     return (
       <div>
-        <h2 className="text-xl font-semibold text-white mb-4">Settings</h2>
         <SkeletonCard lines={2} />
       </div>
     );
@@ -154,11 +153,8 @@ const Settings: React.FC = () => {
   const previewSrc = logoPreview || logo?.url;
 
   return (
+    // Title lives in the app header ("Settings").
     <div>
-      <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
-        <h2 className="text-xl font-semibold text-white shrink-0">Settings</h2>
-      </div>
-
       <form
         onSubmit={submit}
         className="glass-card rounded-xl space-y-6 max-w-2xl"

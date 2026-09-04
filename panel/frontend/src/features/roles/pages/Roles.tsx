@@ -7,6 +7,7 @@ import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import LimitSelect from '@/shared/components/ui/LimitSelect';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import GlassCard from '@/shared/components/ui/Card';
+import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import { useConfirm } from '@/shared/stores/confirmStore';
 
 function withAlpha(color: string, alpha: number): string {
@@ -171,20 +172,22 @@ const filterRef = useRef<HTMLDivElement | null>(null);
 
 return (
     <div>
-      <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
-        <h2 className="text-xl font-semibold text-white">Roles</h2>
-        <div className="flex items-center gap-2">
+      {/* Fixed top-right pill — "Roles" title lives in the app header. */}
+      <PageActionsPill>
           <SearchDropdown
             value={search}
             onChange={setSearch}
             placeholder="Search name, display name, description…"
             ariaLabel="Search roles"
+            buttonClassName="ks-tab inline-flex items-center justify-center"
+            buttonStyle={PILL_TAB_STYLE}
           />
           <div className="relative" ref={filterRef}>
             <button
               type="button"
               onClick={() => setFilterOpen(!filterOpen)}
-              className={`ks-btn-header ks-icon-btn transition-colors ${filterOpen ? 'is-open' : ''}`}
+              className={`ks-tab inline-flex items-center justify-center gap-1 transition-colors ${filterOpen ? 'is-open' : ''}`}
+              style={PILL_TAB_STYLE}
               aria-label="Open filters"
               aria-expanded={filterOpen}
               aria-haspopup="true"
@@ -226,7 +229,8 @@ return (
             <button
               type="button"
               onClick={() => setSettingsOpen(!settingsOpen)}
-              className={`ks-btn-header ks-icon-btn transition-colors ${settingsOpen ? 'is-open' : ''}`}
+              className={`ks-tab inline-flex items-center justify-center transition-colors ${settingsOpen ? 'is-open' : ''}`}
+              style={PILL_TAB_STYLE}
               aria-label="Display settings"
               aria-expanded={settingsOpen}
               aria-haspopup="true"
