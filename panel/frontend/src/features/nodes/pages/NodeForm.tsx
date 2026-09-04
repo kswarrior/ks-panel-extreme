@@ -714,7 +714,7 @@ const NodeForm: React.FC = () => {
                 id="name"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder={isLocalMode(form.connection_mode) ? 'local-edge' : isTunnelMode(form.connection_mode) ? 'tunnel-edge' : 'us-east-edge'}
+                placeholder={isLocalMode(form.connection_mode) ? 'local-edge' : form.connection_mode === 'reverse_tunnel' || form.connection_mode === 'local_wss' ? 'tunnel-edge' : 'us-east-edge'}
                 required
               />
             </GlassField>
@@ -1278,7 +1278,7 @@ const NodeForm: React.FC = () => {
               </pre>
               {tokenInfo.configJson && (
                 <div className="mt-3">
-                  <p className="text-sm text-gray-300 mb-1">Config JSON (also via WSS tunnel if local_wss):</p>
+                  <p className="text-sm text-gray-300 mb-1">Config JSON (also via WSS tunnel if local_wss / local_both):</p>
                   <pre className="bg-black border border-white/10 rounded-md px-3 py-2 text-xs text-gray-200 overflow-x-auto max-h-60">
                     {tokenInfo.configJson}
                   </pre>

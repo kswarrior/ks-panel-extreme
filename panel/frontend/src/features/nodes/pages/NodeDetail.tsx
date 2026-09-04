@@ -252,18 +252,20 @@ const NodeDetail: React.FC = () => {
   const diskLabel = formatBytesPair(node.disk_used, node.disk_total);
   const modeLabel = (() => {
     const m = (node as any).connection_mode || (node.address === 'tunnel' ? 'reverse_tunnel' : (node.address.startsWith('127.0.0.1:') || node.address.startsWith('localhost:') ? 'local_port' : 'direct'));
-    const map: Record<string,string> = { direct: 'Direct', reverse_tunnel: 'Reverse Tunnel (WSS)', local_port: 'Local (Port)', local_wss: 'Local (WSS)' };
+    const map: Record<string,string> = { direct: 'Direct', reverse_tunnel: 'Reverse Tunnel (WSS)', both: 'Both (Port + WSS)', local_port: 'Local (Port)', local_wss: 'Local (WSS)', local_both: 'Local (Both)' };
     return map[m] || m;
   })();
   const isLocal = (() => {
     const m = (node as any).connection_mode;
-    if (m === 'local_port' || m === 'local_wss') return true;
-    if (m === 'reverse_tunnel' || m === 'direct') return false;
+    if (m === 'local_port' || m === 'local_wss' || m === 'local_both') return true;
+    if (m === 'reverse_tunnel' || m === 'direct' || m === 'both') return false;
     return node.address.startsWith('127.0.0.1:') || node.address.startsWith('localhost:');
   })();
   const hostUrl = (() => {
     const m = (node as any).connection_mode;
     if (m === 'reverse_tunnel' || node.address === 'tunnel') return 'WSS tunnel (edge dials panel)';
+    if (m === 'both') return `${node.use_tls ? 'https' : 'http'}://${node.address} + WSS tunnel`;
+    if (m === 'local_both') return `127.0.0.1 port + WSS tunnel`;
     return `${node.use_tls ? 'https' : 'http'}://${node.address}`;
   })();
   const country = node.location_country ? countryByCode(node.location_country) : undefined;

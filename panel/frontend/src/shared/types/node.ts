@@ -23,8 +23,10 @@ export interface Node {
   /** Connection mode controlling how panel and edge talk.
    *  direct = panel has edge URL + edge has panel URL (bidirectional HTTP).
    *  reverse_tunnel = only edge stores panel URL, works via WSS tunnel.
+   *  both = BOTH a direct address AND a WSS tunnel; per-task WSS channels pick port vs WSS.
    *  local_port = edge runs on panel host via 127.0.0.1:port (HTTP).
-   *  local_wss = edge runs on panel host via WSS tunnel (127.0.0.1:port over WSS). */
+   *  local_wss = edge runs on panel host via WSS tunnel (127.0.0.1:port over WSS).
+   *  local_both = local edge keeping BOTH port AND tunnel; per-task routing like both. */
   connection_mode: string;
   /** Free-text user-facing notes shown on the node card. */
   notes: string;
