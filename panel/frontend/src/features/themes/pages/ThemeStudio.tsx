@@ -21,6 +21,8 @@ import {
   UtilitiesTab,
   CardsTab,
   CustomCSSTab,
+  MarketTab,
+  HistoryTab,
 } from '@/features/themes/components/ThemeStudio';
 import GlassCard from '@/shared/components/ui/Card';
 import IconColorPicker from '@/shared/components/ui/IconColorPicker';
@@ -170,6 +172,21 @@ const ICON_CSS = (
     <line x1="14" y1="4" x2="10" y2="20" />
   </svg>
 );
+const ICON_MARKET = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
+    <path d="M3 9l1.5-5h15L21 9" />
+    <path d="M3 9h18v2a3 3 0 0 1-3 3 3 3 0 0 1-3-3 3 3 0 0 1-6 0 3 3 0 0 1-3 3 3 3 0 0 1-3-3V9z" />
+    <path d="M5 14v6h14v-6" />
+  </svg>
+);
+const ICON_HISTORY = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
+    <path d="M3 12a9 9 0 1 0 3-6.7" />
+    <polyline points="3 4 3 9 8 9" />
+    <line x1="12" y1="8" x2="12" y2="12" />
+    <line x1="12" y1="12" x2="15" y2="14" />
+  </svg>
+);
 
 // SCOPE_OPTIONS / scopeLabelFor previously lived here but were only ever
 // used by the Custom CSS tab, which now owns its own copy in
@@ -177,7 +194,10 @@ const ICON_CSS = (
 
 // Tabs surfaced in the studio sidebar. Each entry maps to a section key on
 // the Theme object; the panel below renders the matching editor block.
-type TabKey = ThemeKey | 'forms' | 'components' | 'utilities' | 'cards';
+// 'market' + 'history' are studio-level (not theme sections): the
+// marketplace browser (catalog → preview → install) and the version
+// history (list + diff-note + restore) for GLOBAL themes.
+type TabKey = ThemeKey | 'forms' | 'components' | 'utilities' | 'cards' | 'market' | 'history';
 const TABS: Array<{ key: TabKey; label: string; icon: React.ReactNode }> = [
   { key: 'background', label: 'Background', icon: ICON_BG },
   { key: 'sidebar', label: 'Sidebar', icon: ICON_SIDEBAR },
@@ -194,6 +214,8 @@ const TABS: Array<{ key: TabKey; label: string; icon: React.ReactNode }> = [
   { key: 'utilities', label: 'Utilities', icon: ICON_UTILITIES },
   { key: 'cards', label: 'Cards', icon: ICON_CARD },
   { key: 'customCSS', label: 'Custom CSS', icon: ICON_CSS },
+  { key: 'market', label: 'Market', icon: ICON_MARKET },
+  { key: 'history', label: 'History', icon: ICON_HISTORY },
 ];
 
 const ThemeStudio: React.FC = () => {
@@ -443,6 +465,8 @@ const ThemeStudio: React.FC = () => {
             {tab === 'utilities' && <UtilitiesTab draft={draft} patch={patch} />}
             {tab === 'cards' && <CardsTab draft={draft} patch={patch} />}
             {tab === 'customCSS' && <CustomCSSTab draft={draft} patch={patch} />}
+            {tab === 'market' && <MarketTab />}
+            {tab === 'history' && <HistoryTab />}
               </div>
           </GlassCard>
         </div>

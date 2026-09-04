@@ -350,6 +350,27 @@ func handleApply(w http.ResponseWriter, force bool) {
 		writeErr(w, http.StatusBadGateway, "downloaded file is empty or missing")
 		return
 	}
+	// Verified download: hash the temp file BEFORE chmod/swap. Mismatch
+	// deletes the temp file, leaves the live binary untouched and answers
+	// 422. The manifest fetch is best-effort — no published checksum
+	// means proceed unverified with a log line, so old manifests don't
+	// brick edge updates while new ones are enforced.
+	if m, merr := fetchEdgeManifest(); merr != nil {
+		logLines = append(logLines, "could not fetch manifest for checksum ("+merr.Error()+") — installing unverified binary")
+	} else if expected, verr := resolveEdgeExpectedSHA256(m); verr != nil {
+		os.Remove(tmpPath)
+		writeErr(w, http.StatusUnprocessableEntity, "checksum error: "+verr.Error())
+		return
+	} else if expected != "" {
+		if verr := verifyEdgeFileSHA256(tmpPath, expected); verr != nil {
+			os.Remove(tmpPath)
+			writeErr(w, http.StatusUnprocessableEntity, "checksum mismatch — download deleted, live binary untouched: "+verr.Error())
+			return
+		}
+		logLines = append(logLines, "checksum verified (sha256 "+expected[:12]+"…)")
+	} else {
+		logLines = append(logLines, "no checksum published — installing unverified binary")
+	}
 	if err := os.Chmod(tmpPath, 0o755); err != nil {
 		os.Remove(tmpPath)
 		writeErr(w, http.StatusInternalServerError, "chmod failed: "+err.Error())
@@ -707,6 +728,30 @@ if [[ "$DOWN_OK" != "true" ]]; then
     exit 1
 fi
 
+# Checksum verification. SHA256_EXPECTED is embedded by ksedge at
+# script-generation time from the version manifest (verify.go); when empty
+# the install proceeds unverified. A mismatch exits here — DOWNLOADED is
+# already true so the EXIT trap rolls back to .old and the corrupt bytes
+# never reach the live path.
+SHA256_EXPECTED="{{.SHA256}}"
+if [[ -n "$SHA256_EXPECTED" ]]; then
+    if command -v sha256sum >/dev/null 2>&1; then
+        GOT_SHA=$(sha256sum "$TMP_PATH" | awk '{print $1}')
+    elif command -v shasum >/dev/null 2>&1; then
+        GOT_SHA=$(shasum -a 256 "$TMP_PATH" | awk '{print $1}')
+    else
+        log_warn "no sha256 tool found — skipping checksum verification"
+        GOT_SHA="$SHA256_EXPECTED"
+    fi
+    if [[ "$GOT_SHA" != "$SHA256_EXPECTED" ]]; then
+        log_err "checksum mismatch: expected $SHA256_EXPECTED, got $GOT_SHA"
+        exit 1
+    fi
+    log_ok "Checksum verified (sha256)"
+else
+    log_warn "no checksum embedded — installing unverified binary"
+fi
+
 log_info "Installing new binary..."
 mv "$TMP_PATH" "$BINARY_PATH"
 log_ok "New binary installed at $BINARY_PATH"
@@ -765,6 +810,7 @@ func handleReinstallBackground(w http.ResponseWriter) {
 		CurrentVersion string
 		Port           string
 		MirrorList     string
+		SHA256         string
 	}{
 		GeneratedAt:    time.Now().UTC().Format(time.RFC3339),
 		BinaryPath:     exe,
@@ -772,6 +818,7 @@ func handleReinstallBackground(w http.ResponseWriter) {
 		CurrentVersion: local.Version,
 		Port:           port,
 		MirrorList:     mirrors,
+		SHA256:         embeddedEdgeReinstallSHA256(),
 	}
 
 	tmpl, err := template.New("reinstall-edge").Parse(reinstallScriptTemplate)
