@@ -97,6 +97,13 @@ const InstancePowerBar: React.FC = () => {
     borderRadius: 0,
     background: 'transparent',
   };
+  // Collapsed toggle style — ultra-narrow so the shut `>` dock is only a
+  // few px wide (tighter padding + smaller chevron than the open state).
+  const toggleCollapsedStyle: React.CSSProperties = {
+    ...btnStyle,
+    padding: '0 1px',
+    gap: 0,
+  };
 
   return (
     // Plain left-aligned dock — placement/stickiness comes from the parent
@@ -180,11 +187,11 @@ const InstancePowerBar: React.FC = () => {
             aria-label={collapsed ? 'Expand power controls' : 'Collapse power controls'}
             aria-expanded={!collapsed}
             title={collapsed ? 'Show power buttons' : 'Hide power buttons'}
-            style={btnStyle}
+            style={collapsed ? toggleCollapsedStyle : btnStyle}
             className={`${btnBase} text-gray-200 hover:bg-white/10`}
           >
             {collapsed ? (
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3" aria-hidden="true"><polyline points="9 18 15 12 9 6" /></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-2.5 h-2.5" aria-hidden="true"><polyline points="9 18 15 12 9 6" /></svg>
             ) : (
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3" aria-hidden="true"><polyline points="15 18 9 12 15 6" /></svg>
             )}
