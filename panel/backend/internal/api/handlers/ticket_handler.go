@@ -420,6 +420,9 @@ func CreateTicketHandler(w http.ResponseWriter, r *http.Request) {
 		TargetLabel: tk.TicketNo,
 		Message:     fmt.Sprintf("opened ticket %s %q (priority=%s category=%s)", tk.TicketNo, tk.Subject, tk.Priority, tk.Category),
 	})
+	// Notify the assignee (or all staff when unassigned) + email per prefs.
+	// Failures never break the create — Emit* swallows them by design.
+	notifyTicketCreated(r, con, tk, uid)
 	writeJSONStatus(w, http.StatusCreated, tk)
 }
 
@@ -682,6 +685,10 @@ func UpdateTicketHandler(w http.ResponseWriter, r *http.Request) {
 		TargetLabel: updated.TicketNo,
 		Message:     fmt.Sprintf("updated ticket %s", updated.TicketNo),
 	})
+	// Assignment via PUT notifies the new assignee (same as POST /assign).
+	if req.AssignedSet && req.AssignedTo != nil {
+		notifyTicketAssigned(r, con, updated, uid)
+	}
 	writeJSON(w, updated)
 }
 
@@ -819,6 +826,11 @@ func AddTicketCommentHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	// SLA (065): the first STAFF reply stamps first_response_at so
+	// first-response compliance is measurable even before resolution.
+	if canSeeInternal(con, uid) {
+		_ = repo.MarkFirstResponse(id, time.Now().UTC())
+	}
 	RecordActivity(r, repository.ActivityInput{
 		Category:    models.ActivityCategoryTicket,
 		Action:      "comment",
@@ -826,6 +838,9 @@ func AddTicketCommentHandler(w http.ResponseWriter, r *http.Request) {
 		TargetLabel: tk.TicketNo,
 		Message:     fmt.Sprintf("replied to ticket %s", tk.TicketNo),
 	})
+	// Notify owner + assignee (minus the author) + email per prefs.
+	// Internal notes skip the reporter (they can't see them).
+	notifyTicketReplied(r, con, tk, uid, req.Body, req.IsInternal)
 	writeJSONStatus(w, http.StatusCreated, comment)
 }
 
@@ -987,6 +1002,8 @@ func AssignTicketHandler(w http.ResponseWriter, r *http.Request) {
 		TargetLabel: updated.TicketNo,
 		Message:     fmt.Sprintf("assigned ticket %s", updated.TicketNo),
 	})
+	// Notify the new assignee + email per prefs (skips self-assign).
+	notifyTicketAssigned(r, con, updated, uid)
 	writeJSON(w, updated)
 }
 
