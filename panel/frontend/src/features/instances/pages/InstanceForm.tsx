@@ -182,8 +182,8 @@ const InstanceForm: React.FC = () => {
     );
   };
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!name.trim()) { setError('Instance name is required'); return; }
     if (!ownerId) { setError('Select an owner'); return; }
     if (!templateId) { setError('Select a template'); return; }
@@ -261,8 +261,7 @@ const InstanceForm: React.FC = () => {
     return (
       <FormPage
         crumbs={[{ label: 'Instances', to: '/instances' }, { label: 'Deploy Instance' }]}
-        saving={false}
-        submitLabel="Deploy"
+        hideHeader
         maxWidth="max-w-3xl"
       >
         <FormSkeleton fields={5} />
@@ -276,13 +275,36 @@ const InstanceForm: React.FC = () => {
   const driverMissing = selectedTemplate && selectedNode && !driverEnabled(selectedNode, kindKey(selectedTemplate.kind));
 
   return (
+    <>
+      {/* Top-right actions — fixed, auto-hide on scroll (node pattern).
+          Footer Deploy removed; everything lives here. */}
+      <PageActionsPill>
+          <button
+            type="button"
+            onClick={() => navigate('/instances')}
+            title="Cancel and back to Instances"
+            aria-label="Cancel and back to Instances"
+            className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition"
+            style={PILL_TAB_STYLE}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => submit()}
+            disabled={deploying}
+            title="Deploy instance"
+            className="ks-tab ks-tab-active shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-60"
+            style={PILL_TAB_STYLE}
+          >
+            {deploying ? 'Deploying…' : 'Deploy'}
+          </button>
+      </PageActionsPill>
     <FormPage
       crumbs={[{ label: 'Instances', to: '/instances' }, { label: 'Deploy Instance' }]}
-      saving={deploying}
-      submitLabel="Deploy"
-      submittingLabel="Deploying…"
       onSubmit={submit}
       maxWidth="max-w-3xl"
+      hideHeader
     >
       <div className="space-y-6">
         {error && (
@@ -573,6 +595,7 @@ const InstanceForm: React.FC = () => {
 
       </div>
     </FormPage>
+    </>
   );
 };
 
