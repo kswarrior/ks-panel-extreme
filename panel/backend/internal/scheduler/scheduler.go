@@ -158,6 +158,11 @@ func sweep(ctx context.Context) {
 	// probe + table-count sanity (all engines). Failures write
 	// activity_logs + notify admins. Same best-effort contract.
 	sweepDatabaseVerify(ctx)
+
+	// Scheduled update windows (068): cron panel + fleet self-updates
+	// with a maintenance-window guard (skip + log outside the window).
+	// Same best-effort contract as the sweeps above.
+	sweepUpdateWindows(ctx)
 }
 
 // sweepBackupSchedules fires due backup_schedules rows: kind='db' runs a

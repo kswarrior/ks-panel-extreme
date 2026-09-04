@@ -9,7 +9,7 @@ import {
 import type { DatabaseEngineInfo, DatabaseEngineSwitchResponse } from '@/shared/api/admin';
 import type { DatabaseInfo, DatabaseTable } from '@/features/system/types/system';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
-import { MetaRow, StatTile, DeltaPill, Meter, Sparkline, PragmaTile, ChangeDatabaseCard } from '../components/DatabaseComponents';
+import { MetaRow, StatTile, DeltaPill, Meter, Sparkline, PragmaTile, ChangeDatabaseCard, VerifyStatusCard } from '../components/DatabaseComponents';
 import DatabaseBackupTab from '../components/DatabaseBackupTab';
 import type { DatabaseTabId } from '../types/database';
 import { DATABASE_TABS } from '../types/database';
