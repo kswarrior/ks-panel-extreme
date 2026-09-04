@@ -1,7 +1,10 @@
 package handlers
 
 import (
+	"crypto/ed25519"
+	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"os"
 	"path/filepath"
@@ -113,4 +116,83 @@ func TestResolveExpectedSHA256RejectsBadHex(t *testing.T) {
 	if _, err := resolveExpectedSHA256(updateVersionManifest{Version: "0.1.1", SHA256: "zzzz"}); err == nil {
 		t.Fatal("expected error for malformed manifest sha256")
 	}
+}
+
+func TestVerifyPanelSignatureEmptyAllows(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "kspanel.update")
+	if err := os.WriteFile(p, []byte("anything"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := verifyPanelSignature(p, ""); err != nil {
+		t.Fatalf("empty signature must allow (checksum-only), got: %v", err)
+	}
+}
+
+func TestVerifyPanelSignatureRejectsMalformed(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "kspanel.update")
+	if err := os.WriteFile(p, []byte("genuine"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []string{"!!!not-base64!!!", base64.StdEncoding.EncodeToString([]byte("short"))} {
+		if err := verifyPanelSignature(p, bad); err == nil {
+			t.Fatalf("expected error for malformed signature %q", bad)
+		}
+	}
+}
+
+// TestSignatureMismatchAbortsLiveIntact is the signature counterpart of
+// TestVerifyMismatchAbortsLiveIntact: with a configured ed25519 public key,
+// a tampered download fails crypto verification, the temp is deleted and
+// the live binary is byte-identical. Mirrors the handler sequence
+// (signature gate BEFORE the pre-chmod hash gate).
+func TestSignatureMismatchAbortsLiveIntact(t *testing.T) {
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("KSPANEL_COSIGN_PUBLIC_KEY", base64.StdEncoding.EncodeToString(pub))
+
+	dir := t.TempDir()
+	livePath := filepath.Join(dir, "kspanel")
+	tmpGenuine := filepath.Join(dir, "kspanel.genuine")
+	tmpTampered := filepath.Join(dir, "kspanel.update")
+	liveBytes := []byte("live-binary-v1")
+	genuineBytes := []byte("genuine-binary-v2")
+	if err := os.WriteFile(livePath, liveBytes, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(tmpGenuine, genuineBytes, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sig := base64.StdEncoding.EncodeToString(ed25519.Sign(priv, genuineBytes))
+
+	// Genuine bytes verify.
+	if err := verifyPanelSignature(tmpGenuine, sig); err != nil {
+		t.Fatalf("genuine signature must verify, got: %v", err)
+	}
+
+	// Tampered bytes with the genuine signature must fail.
+	if err := os.WriteFile(tmpTampered, []byte("tampered-binary"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := verifyPanelSignature(tmpTampered, sig); err == nil {
+		t.Fatal("expected signature mismatch error for tampered file")
+	} else if !strings.Contains(strings.ToLower(err.Error()), "signature") && !strings.Contains(err.Error(), "mismatch") && !strings.Contains(err.Error(), "verification failed") {
+		t.Fatalf("expected signature error, got: %v", err)
+	}
+	// Handler sequence on mismatch: delete temp, leave live untouched.
+	if err := os.Remove(tmpTampered); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(tmpTampered); !os.IsNotExist(err) {
+		t.Fatal("tampered temp file must be deleted on signature mismatch")
+	}
+	got, err := os.ReadFile(livePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(liveBytes) {
+		t.Fatal("live binary must be untouched on signature mismatch")
+	}
+	_ = os.Remove(tmpGenuine)
 }

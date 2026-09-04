@@ -744,6 +744,41 @@ if [[ "$DOWN_OK" != "true" ]]; then
     exit 1
 fi
 
+# Cosign signature verification (before the hash gate). SIGNATURE_EXPECTED
+# is embedded by ksedge at script-generation time from the version manifest
+# (manifest.signature_edge via tools/stamp-version-manifest.sh from
+# release/ksedge.sig). A mismatch exits here — DOWNLOADED is already true
+# so the EXIT trap rolls back to .old.
+SIGNATURE_EXPECTED="{{.Signature}}"
+if [[ -n "$SIGNATURE_EXPECTED" ]]; then
+    if ! [[ "$SIGNATURE_EXPECTED" =~ ^[A-Za-z0-9+/=_-]+$ ]] || [[ ${#SIGNATURE_EXPECTED} -lt 86 ]]; then
+        log_err "signature format invalid (not base64 or too short)"
+        exit 1
+    fi
+    if command -v cosign >/dev/null 2>&1 && [[ -n "${COSIGN_PUBLIC_KEY:-}${KSEDGE_COSIGN_PUBLIC_KEY:-}" || -n "${KSEDGE_COSIGN_PUBKEY_FILE:-}" || -f "./cosign.pub" ]]; then
+        PUBKEY="${KSEDGE_COSIGN_PUBKEY_FILE:-./cosign.pub}"
+        if [[ -n "${COSIGN_PUBLIC_KEY:-}${KSEDGE_COSIGN_PUBLIC_KEY:-}" ]]; then
+            echo "${COSIGN_PUBLIC_KEY:-${KSEDGE_COSIGN_PUBLIC_KEY}}" > /tmp/ksedge-cosign.pub
+            PUBKEY=/tmp/ksedge-cosign.pub
+        fi
+        echo "$SIGNATURE_EXPECTED" | base64 -d > /tmp/ksedge-sig.bin 2>/dev/null || echo "$SIGNATURE_EXPECTED" > /tmp/ksedge-sig.b64
+        SIGFILE=/tmp/ksedge-sig.bin
+        [[ -f /tmp/ksedge-sig.b64 ]] && SIGFILE=/tmp/ksedge-sig.b64
+        if cosign verify-blob --key "$PUBKEY" --signature "$SIGFILE" "$TMP_PATH" >/dev/null 2>&1; then
+            log_ok "Signature verified (cosign)"
+        else
+            log_err "signature verification failed — download deleted, live binary untouched"
+            exit 1
+        fi
+        rm -f /tmp/ksedge-sig.bin /tmp/ksedge-sig.b64 /tmp/ksedge-cosign.pub
+    else
+        log_warn "cosign not available or no public key — signature format checked, checksum still enforced"
+    fi
+    log_ok "Signature format verified (cosign)"
+else
+    log_warn "no signature embedded — installing with checksum only"
+fi
+
 # Checksum verification. SHA256_EXPECTED is embedded by ksedge at
 # script-generation time from the version manifest (verify.go); when empty
 # the install proceeds unverified. A mismatch exits here — DOWNLOADED is
@@ -827,6 +862,7 @@ func handleReinstallBackground(w http.ResponseWriter) {
 		Port           string
 		MirrorList     string
 		SHA256         string
+		Signature      string
 	}{
 		GeneratedAt:    time.Now().UTC().Format(time.RFC3339),
 		BinaryPath:     exe,
@@ -835,6 +871,7 @@ func handleReinstallBackground(w http.ResponseWriter) {
 		Port:           port,
 		MirrorList:     mirrors,
 		SHA256:         embeddedEdgeReinstallSHA256(),
+		Signature:      embeddedEdgeReinstallSignature(),
 	}
 
 	tmpl, err := template.New("reinstall-edge").Parse(reinstallScriptTemplate)
