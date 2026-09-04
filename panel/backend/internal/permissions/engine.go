@@ -219,3 +219,46 @@ func (c *Checker) CanViewOwn(userID int64, g Group) (bool, error) {
 func (c *Checker) ScopeAllowsAll(userID int64, g Group) (bool, error) {
 	return c.CanViewAll(userID, g)
 }
+
+// ----------------------------------------------------------------------
+// AI Chat helpers — umbrella-implies-all for the "AI Chat" group.
+// ----------------------------------------------------------------------
+
+// HasAICapability reports whether the user holds the AI umbrella
+// (AI_CHAT_USE) OR the specific sub-capability key. Every AI gate uses
+// this so roles carrying only the umbrella keep full access while narrowed
+// roles (e.g. only AI_CHAT_QA) are limited to their verbs.
+func (c *Checker) HasAICapability(userID int64, key string) (bool, error) {
+	if key == "" || key == AIChatUseKey {
+		return c.HasPermission(userID, AIChatUseKey)
+	}
+	return c.HasAnyPermission(userID, AIChatUseKey, key)
+}
+
+// EnsureAICapability fails closed unless the user holds the umbrella or
+// the specific sub-capability.
+func (c *Checker) EnsureAICapability(userID int64, key string) error {
+	has, err := c.HasAICapability(userID, key)
+	if err != nil {
+		return err
+	}
+	if !has {
+		return fmt.Errorf("forbidden: missing permission %s", key)
+	}
+	return nil
+}
+
+// EnsureAIChatAccess gates entering the assistant at all: umbrella or Q&A
+// (threads/tools/writes holders are also allowed in so a granular role
+// built from sub-caps only is never locked out at the door — the tool
+// loop narrows them further inside).
+func (c *Checker) EnsureAIChatAccess(userID int64) error {
+	return c.EnsureAny(userID, AIChatUseKey, AIChatQAKey, AIChatToolsKey, AIChatWritesKey, AIChatThreadsKey)
+}
+
+// AIChatKeysForGate is the route-gate key set for chat/stream/threads:
+// any AI capability lets the request reach the handler; the handler then
+// enforces the finer QA / TOOLS / WRITES split per tool.
+func AIChatKeysForGate() []string {
+	return []string{AIChatUseKey, AIChatQAKey, AIChatToolsKey, AIChatWritesKey, AIChatThreadsKey}
+}
