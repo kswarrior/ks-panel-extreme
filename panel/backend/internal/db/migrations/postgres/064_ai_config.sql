@@ -20,7 +20,7 @@
 --   hosting_name    public hosting brand used in the assistant identity.
 --   hosting_about   short "about us" blurb used in the assistant identity.
 
-INSERT INTO settings (key, value) VALUES
+INSERT OR IGNORE INTO settings (key, value) VALUES
   ('ai_enabled', '0'),
   ('ai_base_url', ''),
   ('ai_api_key_enc', ''),
@@ -31,4 +31,4 @@ INSERT INTO settings (key, value) VALUES
   ('ai_allow_writes', '0'),
   ('ai_system_extra', ''),
   ('hosting_name', ''),
-  ('hosting_about', '') ON CONFLICT DO NOTHING;
+  ('hosting_about', '');
