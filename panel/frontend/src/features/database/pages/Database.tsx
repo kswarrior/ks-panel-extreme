@@ -142,7 +142,14 @@ const DatabasePage: React.FC = () => {
           {tab === 'overview' && !info.engine_not_supported && (
           <>
           <div className="mb-4">
-            <div className="text-xl font-semibold text-white capitalize">{info.engine}</div>
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="text-xl font-semibold text-white capitalize">{info.engine}</div>
+              {writing && <span className="text-[11px] px-1.5 py-0.5 rounded bg-emerald-900/30 border border-emerald-700/40 text-emerald-200">writing</span>}
+              <label className="ml-auto text-xs text-gray-400 flex items-center gap-1.5">
+                <input type="checkbox" checked={live} onChange={(e) => setLive(e.target.checked)} className="h-3.5 w-3.5 accent-emerald-600" />
+                live ({ago(secondsSince || 0)})
+              </label>
+            </div>
             <div className="text-xs text-gray-400 font-mono">v{info.version || '—'}</div>
             <div className="text-xs text-gray-500 font-mono truncate mt-1" title={info.path}>{info.path}</div>
           </div>
@@ -174,6 +181,98 @@ const DatabasePage: React.FC = () => {
               <div className="text-xl font-semibold text-sky-300 tabular-nums">{formatBytes(totals.indexBytes)}</div>
             </div>
           </div>
+
+          <VerifyStatusCard info={info} onRefresh={load} />
+
+          <div className="glass-card rounded-xl p-4 space-y-2">
+            <h3 className="text-sm font-semibold text-white inline-flex items-center gap-2">
+              <span className={`w-2 h-2 rounded-full ${info.integrity_ok && info.foreign_key_ok ? 'bg-emerald-400' : 'bg-red-400'}`} />
+              Health
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div>
+                <div className="text-gray-400 uppercase tracking-wide text-[10px]">Integrity {info.integrity_ok ? '✓' : '✕'}</div>
+                {(info.integrity_issues || []).length > 0 ? (
+                  <div className="mt-1 rounded-md bg-red-900/20 border border-red-700/40 p-2 text-red-200 space-y-0.5">
+                    {(info.integrity_issues || []).map((m, i) => <div key={i}>✕ {m}</div>)}
+                  </div>
+                ) : (
+                  <div className="text-gray-500 mt-1">no issues reported</div>
+                )}
+                {info.integrity_note && <div className="text-[11px] text-gray-500 mt-1">{info.integrity_note}</div>}
+              </div>
+              <div>
+                <div className="text-gray-400 uppercase tracking-wide text-[10px]">Foreign keys {info.foreign_key_ok ? '✓' : '✕'}</div>
+                {(info.foreign_key_issues || []).length > 0 ? (
+                  <div className="mt-1 rounded-md bg-red-900/20 border border-red-700/40 p-2 text-red-200 space-y-0.5">
+                    {(info.foreign_key_issues || []).map((m, i) => <div key={i}>✕ {m}</div>)}
+                  </div>
+                ) : (
+                  <div className="text-gray-500 mt-1">no violations reported</div>
+                )}
+                {info.foreign_key_note && <div className="text-[11px] text-gray-500 mt-1">{info.foreign_key_note}</div>}
+              </div>
+            </div>
+            {info.health_note && <div className="text-[11px] text-gray-500">{info.health_note}</div>}
+            <div className="divide-y divide-white/5">
+              <MetaRow label="Connections" value={info.total_connections || '—'} mono />
+              <MetaRow label="Encoding" value={info.encoding || '—'} mono />
+              <MetaRow label="Journal" value={info.journal_mode || '—'} mono />
+              <MetaRow label="Page size" value={info.page_size ? formatBytes(info.page_size) : '—'} mono />
+            </div>
+          </div>
+
+          <div className="glass-card rounded-xl p-4 space-y-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="text-sm font-semibold text-white">Tables</h3>
+              <span className="text-xs text-gray-500">{filteredTables.length} of {info.tables.length}</span>
+              {!hasSizes && <span className="text-[11px] text-gray-500">sizes unavailable on this engine</span>}
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="filter tables…"
+                className="ml-auto bg-black/30 border border-white/10 rounded-md px-2 py-1 text-xs text-gray-200 font-mono min-w-[10rem]"
+              />
+            </div>
+            {filteredTables.length === 0 ? (
+              <div className="text-sm text-gray-500">No tables match.</div>
+            ) : (
+              <div className="overflow-x-auto -mx-4 px-4">
+                <table className="w-full text-sm">
+                  <thead className="text-[11px] uppercase tracking-wide text-gray-500">
+                    <tr className="border-b border-white/10">
+                      <th className="text-left py-2 pr-2 font-medium">Table</th>
+                      <th className="text-right py-2 px-2 font-medium">Rows</th>
+                      <th className="text-right py-2 px-2 font-medium">Size</th>
+                      <th className="text-right py-2 px-2 font-medium">Indexes</th>
+                      <th className="text-left py-2 pl-2 font-medium">Trend</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {filteredTables.map((t) => (
+                      <tr key={t.name} className="hover:bg-white/[0.03]">
+                        <td className="py-2 pr-2 align-top">
+                          <div className="font-mono text-gray-200 text-xs break-all">{t.name}</div>
+                          <div className="text-[10px] text-gray-500 font-mono">{t.column_count} cols · {t.index_count} idx</div>
+                        </td>
+                        <td className="py-2 px-2 align-top text-right tabular-nums text-gray-300 whitespace-nowrap">
+                          {t.row_count.toLocaleString()} <DeltaPill delta={t.row_delta} mono />
+                        </td>
+                        <td className="py-2 px-2 align-top text-right tabular-nums text-gray-300 whitespace-nowrap">
+                          <div>{formatBytes(t.size_bytes)}</div>
+                          <div className="mt-1 w-24 ml-auto"><Meter pct={(t.size_bytes / maxSize) * 100} /></div>
+                        </td>
+                        <td className="py-2 px-2 align-top text-right tabular-nums text-gray-300 whitespace-nowrap">{formatBytes(t.index_bytes)}</td>
+                        <td className="py-2 pl-2 align-top min-w-[6rem]">
+                          <Sparkline values={history.current[t.name] || []} color="#34d399" />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
           </>
           )}
 
@@ -182,10 +281,10 @@ const DatabasePage: React.FC = () => {
           <div className="glass-card rounded-xl">
             <h3 className="text-sm font-semibold text-white mb-1 inline-flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-sky-400" />
-              {info.engine} — live SQLite monitor unavailable
+              {info.engine} — live monitor unavailable
             </h3>
             <p className="text-sm text-gray-400">
-              The Database page's live tables / PRAGMA monitor is SQLite-specific. For <span className="font-mono text-gray-300">{info.engine}</span>, introspect with <code className="font-mono text-gray-300">{info.engine === 'postgres' ? 'psql' : 'mysql'}</code> or switch engines below.
+              No inspector is implemented for <span className="font-mono text-gray-300">{info.engine}</span> yet. Switch engines below to return to a supported backend.
             </p>
             <div className="mt-2 text-xs text-gray-500 font-mono">
               connected to: <span className="text-gray-300">{info.path}</span> <span className="text-gray-600">· captured {ago(secondsSince || 0)} ago</span>
