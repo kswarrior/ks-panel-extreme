@@ -10,6 +10,7 @@ import {
   StatCard,
 } from '@/shared/components/ui/StatDashboard';
 import GlassCard from '@/shared/components/ui/Card';
+import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 
 const UserStats: React.FC = () => {
@@ -18,6 +19,9 @@ const UserStats: React.FC = () => {
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [timeRange, setTimeRange] = useState<'1h' | '6h' | '24h' | '7d'>('24h');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'suspended'>('all');
   const [filterOpen, setFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
 
@@ -53,15 +57,31 @@ const UserStats: React.FC = () => {
 
   const roleName = (id: number) => roles.find((r) => r.id === id)?.name || `#${id}`;
 
+  const filteredUsers = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    let out = users;
+    if (q) {
+      out = out.filter((u) =>
+        (u.username || '').toLowerCase().includes(q) ||
+        (u.email || '').toLowerCase().includes(q) ||
+        (u.display_name || '').toLowerCase().includes(q) ||
+        roleName(u.role_id).toLowerCase().includes(q)
+      );
+    }
+    if (statusFilter === 'active') out = out.filter((u) => !u.suspended);
+    if (statusFilter === 'suspended') out = out.filter((u) => !!u.suspended);
+    return out;
+  }, [users, search, statusFilter, roles]);
+
   const stats = useMemo(() => {
-    const total = users.length;
-    const suspended = users.filter((u) => u.suspended).length;
+    const total = filteredUsers.length;
+    const suspended = filteredUsers.filter((u) => u.suspended).length;
     const active = total - suspended;
-    const withHistory = users.filter((u) => (u.suspension_count || 0) > 0).length;
-    const withAvatar = users.filter((u) => u.has_avatar).length;
-    const withBanner = users.filter((u) => u.has_banner).length;
+    const withHistory = filteredUsers.filter((u) => (u.suspension_count || 0) > 0).length;
+    const withAvatar = filteredUsers.filter((u) => u.has_avatar).length;
+    const withBanner = filteredUsers.filter((u) => u.has_banner).length;
     return { total, active, suspended, withHistory, withAvatar, withBanner };
-  }, [users]);
+  }, [filteredUsers]);
 
   const statusSlices = useMemo(() => [
     { label: 'Active', value: stats.active, color: '#34d399' },
@@ -69,7 +89,7 @@ const UserStats: React.FC = () => {
   ].filter((s) => s.value > 0), [stats]);
 
   const roleSlices = useMemo(() =>
-    Object.entries(users.reduce((acc, u) => {
+    Object.entries(filteredUsers.reduce((acc, u) => {
       const r = roleName(u.role_id);
       acc[r] = (acc[r] || 0) + 1;
       return acc;

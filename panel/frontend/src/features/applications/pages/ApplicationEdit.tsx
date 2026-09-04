@@ -349,6 +349,7 @@ const ApplicationEdit: React.FC = () => {
         Requested permissions are fixed at upload — re-upload the application to change what it asks for.
       </p>
     </FormPage>
+    </>
   );
 };
 
