@@ -12,6 +12,7 @@ import {
   nodeHeartbeats,
   probeNode,
   probeAllNodes,
+  getNodeUpdateInfo,
 } from '@/shared/api/admin';
 import type { Node, CreateNodeResult, NodeHeartbeat } from '@/shared/types/node';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
@@ -47,6 +48,7 @@ const AdminNodes: React.FC = () => {
   };
   const [nodes, setNodes] = useState<Node[]>([]);
   const [hbMap, setHbMap] = useState<Record<number, NodeHeartbeat[]>>({});
+  const [versionMap, setVersionMap] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -92,6 +94,20 @@ const AdminNodes: React.FC = () => {
         if (r.status === 'fulfilled') next[n.id] = r.value;
       });
       setHbMap(next);
+      // Best-effort live edge versions for the V badge left of View details.
+      // Old/offline edges 404 or time out — those cards simply show no badge.
+      const vResults = await Promise.allSettled(
+        ns.map((n) => getNodeUpdateInfo(n.id)),
+      );
+      const vNext: Record<number, string> = {};
+      ns.forEach((n, i) => {
+        const r = vResults[i];
+        if (r.status === 'fulfilled') {
+          const v = r.value?.local?.version?.trim();
+          if (v) vNext[n.id] = v;
+        }
+      });
+      setVersionMap(vNext);
     } catch (e: any) {
       setError(e?.response?.data || 'Failed to load nodes');
     } finally {
@@ -465,23 +481,28 @@ const AdminNodes: React.FC = () => {
 
                 <footer className="mt-auto pt-2 border-t border-white/[0.06] flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-                    {n.health_enabled === false && (
-                      <span className="text-[9.5px] uppercase tracking-wide bg-gray-700/30 text-gray-400 border border-white/10 px-1.5 py-0.5 rounded shrink-0" title="Background health check disabled on this edge">
-                        health off
-                      </span>
-                    )}
                     {n.notes && (
                       <span className="text-[11px] text-gray-500 truncate flex-1 min-w-0" title={n.notes}>
                         {n.notes}
                       </span>
                     )}
                   </div>
-                  <button
-                    onClick={() => navigate(`/node/${n.id}`)}
-                    className="text-[11px] text-gray-400 hover:text-white transition-colors"
-                  >
-                    View details →
-                  </button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {versionMap[n.id] && (
+                      <span
+                        className="text-[10px] px-1.5 py-0.5 rounded border border-white/10 bg-white/5 text-gray-300 font-mono"
+                        title={`Edge version: ${versionMap[n.id]}`}
+                      >
+                        V {versionMap[n.id]}
+                      </span>
+                    )}
+                    <button
+                      onClick={() => navigate(`/node/${n.id}`)}
+                      className="text-[11px] text-gray-400 hover:text-white transition-colors"
+                    >
+                      View details →
+                    </button>
+                  </div>
                 </footer>
               </div>
             </article>

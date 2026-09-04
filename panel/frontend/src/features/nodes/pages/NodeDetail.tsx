@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { listNodes, nodeHeartbeats, probeNode, listInstances, rotateNodeToken, deleteNode, purgeLocalNode } from '@/shared/api/admin';
+import { listNodes, nodeHeartbeats, probeNode, listInstances, rotateNodeToken, deleteNode, purgeLocalNode, getNodeUpdateInfo } from '@/shared/api/admin';
 import type { Node, NodeHeartbeat } from '@/features/nodes/types/node';
 import GlassCard from '@/shared/components/ui/Card';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
@@ -73,6 +73,7 @@ const NodeDetail: React.FC = () => {
   const [deleting, setDeleting] = useState(false);
   const [purging, setPurging] = useState(false);
   const [rotating, setRotating] = useState(false);
+  const [edgeVersion, setEdgeVersion] = useState('');
 
   const numericId = id ? Number(id) : NaN;
   const validId = Number.isFinite(numericId) && numericId > 0;
@@ -119,6 +120,22 @@ const NodeDetail: React.FC = () => {
     load();
     return () => { cancelled = true; };
   }, [id, numericId, validId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    // Best-effort live edge version for the V badge in the header.
+    // Old/offline edges 404 or time out — the badge simply stays hidden.
+    if (!validId) return;
+    setEdgeVersion('');
+    getNodeUpdateInfo(numericId)
+      .then((info) => {
+        if (cancelled) return;
+        const v = info?.local?.version?.trim();
+        if (v) setEdgeVersion(v);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [numericId, validId]);
 
   const back = () => navigate('/nodes');
 
