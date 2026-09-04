@@ -8,6 +8,7 @@ import { useSettingsStore } from '@/shared/stores/settingsStore';
 import LimitSelect from '@/shared/components/ui/LimitSelect';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import GlassCard from '@/shared/components/ui/Card';
+import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import { useConfirm } from '@/shared/stores/confirmStore';
 
 const MAX_IMAGE_KEY = 'ks.users.maxImageBytes';
@@ -201,21 +202,23 @@ const UsersPage: React.FC = () => {
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <h2 className="text-xl font-semibold text-white">Users</h2>
-        <div className="flex items-center gap-2">
+      {/* Fixed top-right pill — "Users" title lives in the app header. */}
+      <PageActionsPill>
           <SearchDropdown
             value={search}
             onChange={setSearch}
             placeholder="Search username, email, display name…"
             ariaLabel="Search users"
+            buttonClassName="ks-tab inline-flex items-center justify-center"
+            buttonStyle={PILL_TAB_STYLE}
           />
-          
+
           <div className="relative" ref={filterRef}>
             <button
               type="button"
               onClick={() => setFilterOpen((prev) => !prev)}
-              className={`ks-btn-header ks-icon-btn transition-colors ${filterOpen ? 'is-open' : ''}`}
+              className={`ks-tab inline-flex items-center justify-center gap-1 transition-colors ${filterOpen ? 'is-open' : ''}`}
+              style={PILL_TAB_STYLE}
               aria-label="Open filters"
               aria-expanded={filterOpen}
               aria-haspopup="true"
@@ -264,7 +267,8 @@ const UsersPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setSettingsOpen((prev) => !prev)}
-              className={`ks-btn-header ks-icon-btn transition-colors ${settingsOpen ? 'is-open' : ''}`}
+              className={`ks-tab inline-flex items-center justify-center transition-colors ${settingsOpen ? 'is-open' : ''}`}
+              style={PILL_TAB_STYLE}
               aria-label="Display settings"
               aria-expanded={settingsOpen}
               aria-haspopup="true"
@@ -316,7 +320,8 @@ const UsersPage: React.FC = () => {
           <Link
             to="/users/stats"
             aria-label="User Statistics"
-            className="ks-btn-header ks-icon-btn"
+            className="ks-tab inline-flex items-center justify-center"
+            style={PILL_TAB_STYLE}
             title="View user statistics dashboard"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>
@@ -324,13 +329,13 @@ const UsersPage: React.FC = () => {
           <button
             onClick={() => navigate('/users/new')}
             aria-label="Add User"
-            className="ks-btn-header ks-icon-btn"
+            className="ks-tab inline-flex items-center justify-center"
+            style={PILL_TAB_STYLE}
             title="Add User"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /> </svg>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /> </svg>
           </button>
-        </div>
-      </div>
+      </PageActionsPill>
 
       {(search || roleFilter !== 'all' || pageSize !== 25) && (
         <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">

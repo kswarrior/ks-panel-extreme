@@ -116,10 +116,8 @@ const Security: React.FC = () => {
       {error && <p className="text-red-400 mb-3 text-sm">{error}</p>}
 
       {snap && configLoaded && (
+        {/* Title lives in the app header ("Security"); internal side-nav tabs stay in-page. */}
         <div className="space-y-6">
-          <div className="flex items-center gap-3 flex-wrap mb-4">
-            <h2 className="text-xl font-semibold text-white shrink-0">Security</h2>
-          </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4">
             <GlassCard className="lg:sticky lg:top-4 self-start">

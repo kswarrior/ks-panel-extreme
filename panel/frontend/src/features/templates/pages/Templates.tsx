@@ -365,7 +365,8 @@ const Templates: React.FC = () => {
           <Link
             to="/templates/stats"
             aria-label="Template Statistics"
-            className="ks-btn-header ks-icon-btn"
+            className="ks-tab inline-flex items-center justify-center"
+            style={PILL_TAB_STYLE}
             title="View template statistics dashboard"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>
@@ -373,7 +374,8 @@ const Templates: React.FC = () => {
           <button
             onClick={openInstall}
             aria-label="Install Template"
-            className="ks-btn-header ks-icon-btn"
+            className="ks-tab ks-tab-active inline-flex items-center justify-center"
+            style={PILL_TAB_STYLE}
             title="Install Template"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
@@ -381,8 +383,7 @@ const Templates: React.FC = () => {
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
           </button>
-        </div>
-      </div>
+      </PageActionsPill>
 
       <div className="flex items-center justify-between mb-2">
         <p className="text-xs text-gray-500">{filtered.length} of {templates.length} shown</p>

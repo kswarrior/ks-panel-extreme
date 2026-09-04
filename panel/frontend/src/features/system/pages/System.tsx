@@ -82,9 +82,6 @@ const System: React.FC = () => {
   if (!snap) {
     return (
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-white">System</h2>
-        </div>
         <SkeletonGrid count={4} />
         <SkeletonGrid count={3} />
       </div>
@@ -95,24 +92,22 @@ const System: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
-        <h2 className="text-xl font-semibold text-white shrink-0">System</h2>
-        <div className="flex gap-2 overflow-x-auto pb-1 shrink-0">
-          <button
-            type="button"
-            onClick={() => setTab('host')}
-            className={`ks-tab shrink-0 transition-colors ${tab === 'host' ? 'ks-tab-active' : ''}`}
-          >
-            Host
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('panel')}
-            className={`ks-tab shrink-0 transition-colors ${tab === 'panel' ? 'ks-tab-active' : ''}`}
-          >
-            Panel
-          </button>
-        </div>
+      {/* Title lives in the app header ("System"); internal Host/Panel tabs stay in-page. */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 mb-4">
+        <button
+          type="button"
+          onClick={() => setTab('host')}
+          className={`ks-tab shrink-0 transition-colors ${tab === 'host' ? 'ks-tab-active' : ''}`}
+        >
+          Host
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab('panel')}
+          className={`ks-tab shrink-0 transition-colors ${tab === 'panel' ? 'ks-tab-active' : ''}`}
+        >
+          Panel
+        </button>
       </div>
 
       <div className="space-y-4">
@@ -145,7 +140,6 @@ const System: React.FC = () => {
         </div>
       )}
     </div>
-  </div>
   );
 };
 

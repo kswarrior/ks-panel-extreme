@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import FormPage from '@/shared/components/forms/FormPage';
+import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import GlassField, { glassFieldClass } from '@/shared/components/ui/Field';
 import { CATEGORY_META, PRIORITY_META } from '../types/notification';
 import { createNotification } from '../api/notifications';
@@ -35,6 +36,7 @@ const NotificationBroadcast: React.FC = () => {
       <FormPage
         crumbs={[{ label: 'Notifications', to: '/notifications' }, { label: 'Broadcast' }]}
         submitLabel={undefined}
+        hideHeader
       >
         <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-300">
           You do not have permission to broadcast. Requires <code className="text-white">MANAGE_NOTIFICATIONS</code> or <code className="text-white">NOTIFICATIONS_CREATE</code>.

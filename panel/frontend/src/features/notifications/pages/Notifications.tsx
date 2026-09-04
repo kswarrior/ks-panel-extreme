@@ -209,37 +209,51 @@ const NotificationsPage: React.FC = () => {
             )}
           </div>
 
-          <div className="hidden sm:flex items-center gap-1.5 ml-1">
-            <button onClick={onMarkAll} disabled={unreadCount === 0} className="ks-btn-ghost px-3 py-1.5 rounded-md text-xs font-medium border border-white/10 hover:bg-white/10 disabled:opacity-40">Mark all read</button>
-            <button onClick={onClearRead} className="ks-btn-ghost px-3 py-1.5 rounded-md text-xs font-medium border border-white/10 hover:bg-white/10">Clear read</button>
-          </div>
+          <button
+            onClick={onMarkAll}
+            disabled={unreadCount === 0}
+            className="ks-tab shrink-0 px-3 py-1.5 rounded text-xs text-center transition disabled:opacity-40"
+            style={PILL_TAB_STYLE}
+            title="Mark all read"
+          >
+            Mark all read
+          </button>
+          <button
+            onClick={onClearRead}
+            className="ks-tab shrink-0 px-3 py-1.5 rounded text-xs text-center transition"
+            style={PILL_TAB_STYLE}
+            title="Clear read"
+          >
+            Clear read
+          </button>
 
-          {/* Stat icon button — like Templates page (top-right, navigates to dedicated stats page) */}
+          {/* Stat icon button — navigates to dedicated stats page */}
           <Link
             to="/notifications/stats"
             aria-label="Notification Statistics"
-            className="ks-btn-header ks-icon-btn"
+            className="ks-tab inline-flex items-center justify-center"
+            style={PILL_TAB_STYLE}
             title="View notification statistics dashboard"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>
           </Link>
 
-          {/* Broadcast as plus button — like Templates page (top-right plus navigates to full broadcast page) */}
+          {/* Broadcast as plus button — navigates to full broadcast page */}
           {canBroadcast && (
             <Link
               to="/notifications/broadcast"
               aria-label="Broadcast notification"
-              className="ks-btn-header ks-icon-btn"
+              className="ks-tab ks-tab-active inline-flex items-center justify-center"
+              style={PILL_TAB_STYLE}
               title="Broadcast notification"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
                 <line x1="12" y1="5" x2="12" y2="19" />
                 <line x1="5" y1="12" x2="19" y2="12" />
               </svg>
             </Link>
           )}
-        </div>
-      </div>
+      </PageActionsPill>
 
       {/* Action bar */}
       <div className="flex items-center justify-between mb-3">

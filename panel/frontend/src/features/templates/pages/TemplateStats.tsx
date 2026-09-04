@@ -4,11 +4,11 @@ import {
 } from '@/shared/api/admin';
 import type { Template } from '@/shared/types/instance';
 import {
-  HeaderWithAction,
   StatCard,
 } from '@/shared/components/ui/StatDashboard';
 import GlassCard from '@/shared/components/ui/Card';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
+import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 
 type KindKey = 'docker' | 'lxd' | 'kvm' | 'multipass' | 'unknown';
 
@@ -164,23 +164,22 @@ const TemplateStats: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <HeaderWithAction
-        title="Template Statistics"
-        backHref="/templates"
-        backLabel="Templates"
-        action={
-          <div className="flex items-center gap-2">
+      {/* Fixed top-right pill — "Statistics" title lives in the app header. */}
+      <PageActionsPill>
             <SearchDropdown
               value={search}
               onChange={setSearch}
               placeholder="Search name, image, category, type…"
               ariaLabel="Search templates"
+              buttonClassName="ks-tab inline-flex items-center justify-center"
+              buttonStyle={PILL_TAB_STYLE}
             />
             <div className="relative" ref={filterRef}>
               <button
                 type="button"
                 onClick={() => setFilterOpen(!filterOpen)}
-                className={`ks-btn-header ks-icon-btn transition-colors ${filterOpen ? 'is-open' : ''}`}
+                className={`ks-tab inline-flex items-center justify-center gap-1 transition-colors ${filterOpen ? 'is-open' : ''}`}
+                style={PILL_TAB_STYLE}
                 aria-label="Open filters"
                 aria-expanded={filterOpen}
                 aria-haspopup="true"
@@ -193,7 +192,7 @@ const TemplateStats: React.FC = () => {
                 )}
               </button>
               {filterOpen && (
-                <div className="absolute left-0 top-full mt-1 z-30 w-64">
+                <div className="absolute right-0 top-full mt-1 z-30 w-64">
                   <div className="ks-dropdown min-w-[240px] animate-in fade-in slide-in-from-to duration-150">
                     <div className="p-3 space-y-3">
                       <div>
