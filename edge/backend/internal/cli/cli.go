@@ -31,6 +31,7 @@ import (
 	"github.com/example/ksedge/internal/sftp"
 	"github.com/example/ksedge/internal/snapshot"
 	"github.com/example/ksedge/internal/tunnel"
+	"github.com/example/ksedge/internal/update"
 	"github.com/spf13/cobra"
 )
 
@@ -271,6 +272,15 @@ func runHealthServer(cfg config.Config, ctx context.Context, sftpPort int) error
 	sftpHandler := sftp.Handler(cfg.Token)
 	mux.Handle("/api/edge/sftp/provision", sftpHandler)
 	mux.Handle("/api/edge/sftp/delete", sftpHandler)
+	// Edge self-update (per-node Update & Reinstall UI): the update handler
+	// is itself a *ServeMux registering all five paths, so mount the SAME
+	// handler at each literal path to avoid trailing-slash redirects.
+	updateHandler := update.Handler(cfg.Token)
+	mux.Handle("/api/edge/update-info", updateHandler)
+	mux.Handle("/api/edge/update-check", updateHandler)
+	mux.Handle("/api/edge/update-apply", updateHandler)
+	mux.Handle("/api/edge/reinstall", updateHandler)
+	mux.Handle("/api/edge/reinstall-background", updateHandler)
 
 	// Wrap the routing mux in two defensive middlewares so the edge stays
 	// healthy under heavy / hostile load:

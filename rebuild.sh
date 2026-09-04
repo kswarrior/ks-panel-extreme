@@ -383,13 +383,19 @@ resolve_version_info() {
 build_ldflags() {
     local version_ldflags
     version_ldflags="-X github.com/example/kspanel/internal/version.Version=${KSPANEL_VERSION} -X github.com/example/kspanel/internal/version.Commit=${KSPANEL_COMMIT} -X github.com/example/kspanel/internal/version.BuildDate=${KSPANEL_BUILD_DATE}"
+    local edge_version_ldflags
+    edge_version_ldflags="-X github.com/example/ksedge/internal/version.Version=${KSPANEL_VERSION} -X github.com/example/ksedge/internal/version.Commit=${KSPANEL_COMMIT} -X github.com/example/ksedge/internal/version.BuildDate=${KSPANEL_BUILD_DATE}"
 
     if [[ -n "$GO_LDFLAGS_BASE" ]]; then
         KSPANEL_LDFLAGS="${GO_LDFLAGS_BASE} ${version_ldflags}"
     else
         KSPANEL_LDFLAGS="${version_ldflags}"
     fi
-    KSEDGE_LDFLAGS="${GO_LDFLAGS_BASE}"
+    if [[ -n "$GO_LDFLAGS_BASE" ]]; then
+        KSEDGE_LDFLAGS="${GO_LDFLAGS_BASE} ${edge_version_ldflags}"
+    else
+        KSEDGE_LDFLAGS="${edge_version_ldflags}"
+    fi
 
     # Trim leading/trailing whitespace without spawning xargs
     KSPANEL_LDFLAGS="$(printf '%s' "$KSPANEL_LDFLAGS" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
