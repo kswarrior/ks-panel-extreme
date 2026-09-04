@@ -10,7 +10,8 @@ import (
 	"github.com/example/kspanel/internal/secretbox"
 )
 
-// AI config keys in the settings KV table (seeded by migration 064).
+// AI config keys in the settings KV table (seeded by migration 064;
+// fallback + cost keys by 066).
 const (
 	AIEnabledKey     = "ai_enabled"
 	AIBaseURLKey     = "ai_base_url"
@@ -23,10 +24,20 @@ const (
 	AISystemExtraKey = "ai_system_extra"
 	HostingNameKey   = "hosting_name"
 	HostingAboutKey  = "hosting_about"
+	// Fallback provider: used when the primary fails (transport error or
+	// HTTP 5xx / 429). Same shape as the primary triple.
+	AIFallbackBaseURLKey    = "ai_fallback_base_url"
+	AIFallbackAPIKeyEncKey  = "ai_fallback_api_key_enc"
+	AIFallbackModelIDKey    = "ai_fallback_model_id"
+	AIFallbackOllamaModeKey = "ai_fallback_ollama_mode"
+	// Optional per-1k-token prices (USD) for usage/cost audit rows.
+	AICostPer1KInKey  = "ai_cost_per_1k_in"
+	AICostPer1KOutKey = "ai_cost_per_1k_out"
 )
 
 // AIConfig is the full runtime config for the panel-wide AI assistant.
-// APIKey is cleartext and must never be logged or returned to the browser.
+// APIKey / FallbackAPIKey are cleartext and must never be logged or
+// returned to the browser.
 type AIConfig struct {
 	Enabled      bool
 	BaseURL      string
@@ -39,10 +50,23 @@ type AIConfig struct {
 	SystemExtra  string
 	HostingName  string
 	HostingAbout string
+	// Fallback provider (empty BaseURL = unconfigured).
+	FallbackBaseURL    string
+	FallbackAPIKey     string // cleartext; sealed at rest
+	FallbackModelID    string
+	FallbackOllamaMode bool
+	// Usage pricing in USD per 1k tokens (0 = untracked).
+	CostPer1KIn  float64
+	CostPer1KOut float64
 }
 
-// AIConfigView is the browser-safe shape: the secret is replaced by a
-// configured flag so the admin UI can render "key set" without reading it.
+// FallbackConfigured reports whether a secondary provider is set up.
+func (c *AIConfig) FallbackConfigured() bool {
+	return strings.TrimSpace(c.FallbackBaseURL) != "" && strings.TrimSpace(c.FallbackModelID) != ""
+}
+
+// AIConfigView is the browser-safe shape: the secrets are replaced by
+// configured flags so the admin UI can render "key set" without reading it.
 type AIConfigView struct {
 	Enabled          bool    `json:"enabled"`
 	BaseURL          string  `json:"base_url"`
@@ -55,6 +79,13 @@ type AIConfigView struct {
 	SystemExtra      string  `json:"system_extra"`
 	HostingName      string  `json:"hosting_name"`
 	HostingAbout     string  `json:"hosting_about"`
+
+	FallbackBaseURL          string  `json:"fallback_base_url"`
+	FallbackAPIKeyConfigured bool    `json:"fallback_api_key_configured"`
+	FallbackModelID          string  `json:"fallback_model_id"`
+	FallbackOllamaMode       bool    `json:"fallback_ollama_mode"`
+	CostPer1KIn              float64 `json:"cost_per_1k_in"`
+	CostPer1KOut             float64 `json:"cost_per_1k_out"`
 }
 
 // AIConfigRepository persists the assistant config in the settings KV.

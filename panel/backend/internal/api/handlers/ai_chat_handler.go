@@ -71,8 +71,10 @@ func (l *aiUserLimiter) allow(uid int64) bool {
 // ---------------------------------------------------------------------------
 // Confirmation tickets: write tools never execute during chat. They produce
 // a ticket the user approves/denies in the ConfirmCard; approval executes
-// via the same endpoint with approve_ticket_id. Tickets are process-local,
-// bound to the requesting user and expire after 10 minutes.
+// via the same endpoint with approve_ticket_id. Tickets live in the
+// ai_confirmation_tickets table (migration 066) so a pending approval
+// survives panel restarts; they are bound to the requesting user and
+// expire after 10 minutes.
 // ---------------------------------------------------------------------------
 
 type aiTicket struct {
@@ -85,38 +87,30 @@ type aiTicket struct {
 	Expires time.Time       `json:"-"`
 }
 
-var aiTicketStore = struct {
-	sync.Mutex
-	m map[string]*aiTicket
-}{m: make(map[string]*aiTicket)}
-
 func aiNewTicketID() string {
 	buf := make([]byte, 16)
 	_, _ = rand.Read(buf)
 	return hex.EncodeToString(buf)
 }
 
-func aiStoreTicket(t *aiTicket) {
-	aiTicketStore.Lock()
-	defer aiTicketStore.Unlock()
-	now := time.Now()
-	for id, old := range aiTicketStore.m {
-		if old.Expires.Before(now) {
-			delete(aiTicketStore.m, id)
-		}
-	}
-	aiTicketStore.m[t.ID] = t
+func aiStoreTicket(con *sql.DB, t *aiTicket) {
+	repo := repository.NewAITicketRepository(con)
+	_ = repo.Store(&repository.AITicketRow{
+		ID: t.ID, UserID: t.UserID, Tool: t.Tool, ArgsJSON: string(t.Args),
+		Summary: t.Summary, Diff: t.Diff, ExpiresAt: t.Expires,
+	})
 }
 
-func aiTakeTicket(id string, uid int64) (*aiTicket, bool) {
-	aiTicketStore.Lock()
-	defer aiTicketStore.Unlock()
-	t, ok := aiTicketStore.m[id]
-	if !ok || t.UserID != uid || t.Expires.Before(time.Now()) {
+func aiTakeTicket(con *sql.DB, id string, uid int64) (*aiTicket, bool) {
+	row, ok := repository.NewAITicketRepository(con).Take(id, uid)
+	if !ok {
 		return nil, false
 	}
-	delete(aiTicketStore.m, id)
-	return t, true
+	return &aiTicket{
+		ID: row.ID, UserID: row.UserID, Tool: row.Tool,
+		Args: json.RawMessage(row.ArgsJSON), Summary: row.Summary,
+		Diff: row.Diff, Expires: row.ExpiresAt,
+	}, true
 }
 
 // ---------------------------------------------------------------------------
@@ -280,7 +274,7 @@ func AIChatHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Mode 1: approve a pending write ticket.
 	if strings.TrimSpace(req.ApproveTicketID) != "" {
-		t, ok := aiTakeTicket(strings.TrimSpace(req.ApproveTicketID), uid)
+		t, ok := aiTakeTicket(con, strings.TrimSpace(req.ApproveTicketID), uid)
 		if !ok {
 			http.Error(w, "confirmation ticket is unknown, expired or belongs to someone else", http.StatusGone)
 			return
@@ -399,7 +393,7 @@ func AIChatHandler(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			if ticket != nil {
-				aiStoreTicket(&aiTicket{
+				aiStoreTicket(con, &aiTicket{
 					ID: ticket.ID, UserID: uid, Tool: c.Name, Args: c.RawArgs,
 					Summary: ticket.Summary, Diff: ticket.Diff, Expires: time.Now().Add(10 * time.Minute),
 				})

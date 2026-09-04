@@ -3,9 +3,7 @@ package repository
 import (
 	"crypto/tls"
 	"fmt"
-	"net"
 	"net/smtp"
-	"strconv"
 	"strings"
 )
 
@@ -29,30 +27,13 @@ type smtpSettingsRepo struct {
 // SMTP details); a nil error means the message was handed to the SMTP
 // server (the server may still bounce later — we can't observe that).
 func (s *smtpSettingsRepo) SendVerificationCode(to, code, panelName string) error {
-	host, portStr, user, password, from := s.repo.SMTPConfig()
-	if host == "" {
+	host, _, _, _, _ := s.repo.SMTPConfig()
+	if strings.TrimSpace(host) == "" {
 		return fmt.Errorf("SMTP is not configured")
-	}
-	port, err := strconv.Atoi(strings.TrimSpace(portStr))
-	if err != nil || port <= 0 {
-		return fmt.Errorf("invalid SMTP port %q", portStr)
-	}
-	if from == "" {
-		from = "kspanel <kspanel@localhost>"
 	}
 	subject := "Verify your " + panelName + " account"
 	body := fmt.Sprintf("Your verification code is: %s\n\nIt expires in 15 minutes.\n", code)
-	msg := buildEmail(from, to, subject, body)
-
-	addr := net.JoinHostPort(host, strconv.Itoa(port))
-	// TLS for standard implicit-TLS ports (465); STARTTLS for everything else
-	// when the server advertises it. Plain auth is only attempted when creds
-	// are configured — anonymous relays leave user/password empty.
-	auth := smtp.PlainAuth("", user, password, host)
-	if port == 465 {
-		return sendTLS(addr, host, auth, from, []string{to}, msg)
-	}
-	return smtp.SendMail(addr, auth, from, []string{to}, msg)
+	return s.SendMail(to, subject, body)
 }
 
 // buildEmail assembles the minimal RFC822 headers + body the Postfix / Gmail
