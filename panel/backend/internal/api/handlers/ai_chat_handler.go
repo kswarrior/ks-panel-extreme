@@ -273,7 +273,7 @@ func aiModelOverride(checker *permissions.Checker, uid int64, raw string) string
 	if m == "" || len(m) > 256 {
 		return ""
 	}
-	if err := checker.EnsureAny(uid, permissions.ViewSettingsKey, permissions.SettingsEditKey); err != nil {
+	if err := checker.Ensure(uid, permissions.SettingsEditKey); err != nil {
 		return ""
 	}
 	return m

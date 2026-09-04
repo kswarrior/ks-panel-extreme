@@ -120,8 +120,7 @@ const ChatPanel: React.FC = () => {
           value={activeThreadId ?? ''}
           onChange={(e) => {
             const v = e.target.value;
-            if (v === '__new') void newThread();
-            else if (v === '') void selectThread(null);
+            if (v === '') void selectThread(null);
             else void selectThread(Number(v));
           }}
           disabled={loading || !!ticket || threadsLoading}
