@@ -132,7 +132,7 @@ const RoleForm: React.FC = () => {
       onSubmit={submit}
     >
       <div className="space-y-4">
-        <div className="inline-flex flex-wrap gap-1 rounded-lg bg-neutral-900/60 border border-white/10 p-1">
+        <div className="hidden lg:inline-flex flex-wrap gap-1 rounded-lg bg-neutral-900/60 border border-white/10 p-1">
           {ROLE_TABS.map((t) => (
             <button
               key={t.id}

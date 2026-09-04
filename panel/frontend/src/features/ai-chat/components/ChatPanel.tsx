@@ -6,8 +6,9 @@ import { PermissionKey, hasPermissionAny } from '@/shared/types/permissions';
 import { useAIChatStore } from '../store/aiChatStore';
 import ConfirmCard from './ConfirmCard';
 
-// Floating chat panel: header shows "{panel_name} Assistant", theme-aware
-// glass surface, mobile full-width. Mounted once in App beside the FAB.
+// Floating chat panel: header shows "{panel_name} Assistant", uses the
+// profile-dropdown surface (glass-dropdown) so Theme Studio Dropdowns tab
+// tints it identically to the profile menu. Mobile full-width.
 // Replies stream token-by-token (SSE) with a JSON fallback; every turn is
 // bound to a persisted thread so history survives reloads.
 const ChatPanel: React.FC = () => {

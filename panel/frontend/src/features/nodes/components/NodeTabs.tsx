@@ -30,7 +30,7 @@ const meta: Record<NodeFormTabId, { hint: string; icon: React.ReactNode }> = {
 
 export const NodeTabs: React.FC<{ tab: NodeFormTabId; onChange: (id: NodeFormTabId) => void }> = ({ tab, onChange }) => {
   return (
-    <GlassCard className="lg:sticky lg:top-4 self-start">
+    <GlassCard className="hidden lg:block lg:sticky lg:top-4 self-start">
       <nav className="flex lg:flex-col gap-1 overflow-x-auto" role="tablist" aria-label="Node form sections">
         {NODEFORM_TABS.map((t) => {
           const m = meta[t.id];
