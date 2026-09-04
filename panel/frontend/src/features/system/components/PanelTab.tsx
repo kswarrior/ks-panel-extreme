@@ -14,6 +14,7 @@ import type {
   SeriesSample,
 } from '@/features/system/types/system';
 import GlassModal from '@/shared/components/ui/Modal';
+import UpdateWindowsCard from './UpdateWindowsCard';
 import { Donut, Gauge, fmtPct, fmtMB, fmtUptime, fmtGB } from './SystemCharts';
 import { AreaChart, type MetricSample } from '@/shared/components/ui/MetricsChart';
 
@@ -331,6 +332,17 @@ const PanelTab: React.FC<PanelTabProps> = ({ snap, info, infoErr, infoLoading, r
                 </pre>
               </div>
             )}
+            <div className="mt-3 text-[11px] font-mono">
+              {check.remote.sha256 ? (
+                <span className="text-emerald-300">
+                  SHA-256 published ({check.remote.sha256.slice(0, 12)}…) — download verified before install
+                </span>
+              ) : (
+                <span className="text-amber-300">
+                  No checksum published — install will proceed unverified
+                </span>
+              )}
+            </div>
             {check.available && (
               <div className="mt-4 flex items-center gap-2">
                 <button
@@ -372,6 +384,13 @@ const PanelTab: React.FC<PanelTabProps> = ({ snap, info, infoErr, infoLoading, r
           </div>
         )}
       </section>
+
+      {/* Scheduled panel updates — cron + maintenance-window guard */}
+      <UpdateWindowsCard
+        target="panel"
+        title="Update Schedules"
+        description="Cron schedules that self-update the panel binary inside a daily maintenance window (UTC). Outside the window the run is skipped and logged — never executed."
+      />
 
       {/* Confirmation modal — Apply update */}
       <GlassModal

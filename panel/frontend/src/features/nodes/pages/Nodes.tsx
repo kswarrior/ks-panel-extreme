@@ -24,6 +24,8 @@ import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import { useThemeStore } from '@/shared/stores/themeStore';
 import { countryByCode } from '@/shared/components/forms/LocationField/countries';
 import { HeartbeatIcon, DriverRing, ResourceBar } from '../components/NodesComponents';
+import RollingUpdateModal from '../components/RollingUpdateModal';
+import UpdateWindowsCard from '@/features/system/components/UpdateWindowsCard';
 import { NodeIcon } from '../utils/nodeIcons';
 import { resolveState, isLocalAddress, formatBytes, formatBytesPair, formatPercent, withAlpha, buildMonitor, buildEdgeConfig } from '../utils/nodesUtils';
 import type { StateStyle } from '../types/nodes';
@@ -65,6 +67,7 @@ const AdminNodes: React.FC = () => {
   const [stateFilter, setStateFilter] = useState<'all' | Node['state']>('all');
   const [tlsFilter, setTlsFilter] = useState<'all' | 'tls' | 'plain'>('all');
   const [filterOpen, setFilterOpen] = useState(false);
+  const [rollingOpen, setRollingOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -331,6 +334,14 @@ const AdminNodes: React.FC = () => {
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>
           </Link>
+          <button
+            onClick={() => setRollingOpen(true)}
+            aria-label="Fleet rolling update"
+            className="ks-btn-header ks-icon-btn"
+            title="Fleet rolling update (check → apply → health-poll per node)"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>
+          </button>
           <button
             onClick={() => navigate('/nodes/new')}
             aria-label="Add Node"
