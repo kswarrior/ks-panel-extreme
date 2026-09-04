@@ -28,6 +28,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/example/kspanel/internal/edge"
 	"github.com/example/kspanel/internal/models"
 	"github.com/example/kspanel/internal/tunnel"
 )
@@ -118,9 +119,21 @@ func clientFor(node models.Node) *http.Client {
 // and SkipTLSVerify override the package defaults when set.
 func Probe(node models.Node) Result {
 	// For WSS tunnel modes, probe via tunnel connectivity instead of direct HTTP.
+	// Dual-transport modes (both/local_both) prefer the tunnel when connected
+	// and fall back to direct HTTP otherwise (same as local_wss). Only
+	// reverse_tunnel hard-fails when the tunnel is down.
 	mode := strings.ToLower(strings.TrimSpace(node.ConnectionMode))
-	if mode == "reverse_tunnel" || mode == "local_wss" {
-		if tunnel.Global().IsConnected(node.ID) {
+	if mode == "reverse_tunnel" || mode == "local_wss" || mode == "both" || mode == "local_both" {
+		connected := tunnel.Global().IsConnected(node.ID)
+		// Dual modes honour the node-task channel: a port-preferred node
+		// task probes over HTTP even when the tunnel is up.
+		if connected && (mode == "both" || mode == "local_both") {
+			route := edge.DecideRoute(mode, edge.TaskNode, edge.LoadChannels(node.ID), true)
+			if !route.PreferTunnel {
+				connected = false
+			}
+		}
+		if connected {
 			// Tunnel probe: ask edge for health via tunnel RPC and interpret.
 			// Use the tunnel's generic request path /health (GET) with a short timeout.
 			status, body, err := tunnel.Global().Send(node.ID, "GET", "/health", nil, 5*time.Second)
@@ -142,7 +155,8 @@ func Probe(node models.Node) Result {
 		if mode == "reverse_tunnel" {
 			return Result{Reachable: false, Note: "edge not connected via WSS tunnel"}
 		}
-		// local_wss falls through to direct HTTP probe as fallback when tunnel not connected.
+		// local_wss and the dual modes (both/local_both) fall through to
+		// direct HTTP probe as fallback when tunnel not connected.
 	}
 	scheme := "http"
 	if node.UseTLS {

@@ -1295,9 +1295,10 @@ func (c *Client) DeleteSFTP(req SFTPDeleteRequest) (SFTPResponse, error) {
 }
 
 // PageAction dispatches a custom-page action RPC, honouring the WSS tunnel
-// when the node is in reverse_tunnel / local_wss mode (same as Lifecycle,
-// Inspect, etc.). This replaces the previous direct-HTTP dial that bypassed
-// the tunnel and always verified TLS regardless of SkipTLSVerify.
+// when the node is in a tunnel mode (reverse_tunnel / local_wss / both /
+// local_both, same as Lifecycle, Inspect, etc.). This replaces the previous
+// direct-HTTP dial that bypassed the tunnel and always verified TLS
+// regardless of SkipTLSVerify.
 func (c *Client) PageAction(req PageActionRequest) (PageActionResponse, error) {
 	req.Token = c.token
 	if handled, body, status, err := c.tryTunnel("POST", "/api/edge/page-action", req); handled {
