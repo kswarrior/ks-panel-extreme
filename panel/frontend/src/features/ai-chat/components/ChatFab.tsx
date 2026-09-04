@@ -1,0 +1,42 @@
+import React from 'react';
+import { useLocation } from 'react-router-dom';
+import { useAuthStore } from '@/shared/stores/authStore';
+import { PermissionKey } from '@/shared/types/permissions';
+import { useAIChatStore } from '../store/aiChatStore';
+
+// Bottom-right FAB that opens the panel-wide AI assistant. Mounted once in
+// App beside ConfirmDialog; hidden on /auth and for roles without
+// AI_CHAT_USE (the backend re-checks on every call).
+const ChatFab: React.FC = () => {
+  const location = useLocation();
+  const permissions = useAuthStore((s) => s.permissions);
+  const open = useAIChatStore((s) => s.open);
+  const toggle = useAIChatStore((s) => s.toggle);
+
+  if (location.pathname.startsWith('/auth')) return null;
+  if (!permissions.includes(PermissionKey.AI_CHAT_USE)) return null;
+
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      aria-label={open ? 'Close AI assistant' : 'Open AI assistant'}
+      title={open ? 'Close AI assistant' : 'Ask the panel assistant'}
+      className="fixed bottom-5 right-5 z-50 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-transform hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+      style={{ background: 'var(--ks-btn-bg, #fff)', color: 'var(--ks-btn-text, #000)' }}
+    >
+      {open ? (
+        <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18" />
+          <line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+      ) : (
+        <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
+      )}
+    </button>
+  );
+};
+
+export default ChatFab;
