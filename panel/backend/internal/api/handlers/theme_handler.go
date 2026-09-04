@@ -801,16 +801,16 @@ func RollbackThemeHandler(w http.ResponseWriter, r *http.Request) {
 // id/name/description/category/author/version/tags/download_url/icon_svg/
 // preview_image) so operator tooling can treat both catalogs uniformly.
 type themeMarketPage struct {
-	ID          string   `json:"id"`
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	Category    string   `json:"category"`
-	Author      string   `json:"author"`
-	Version     string   `json:"version"`
-	Tags        []string `json:"tags"`
-	DownloadURL string   `json:"download_url"`
-	IconSVG     string   `json:"icon_svg"`
-	PreviewImage string  `json:"preview_image"`
+	ID           string   `json:"id"`
+	Name         string   `json:"name"`
+	Description  string   `json:"description"`
+	Category     string   `json:"category"`
+	Author       string   `json:"author"`
+	Version      string   `json:"version"`
+	Tags         []string `json:"tags"`
+	DownloadURL  string   `json:"download_url"`
+	IconSVG      string   `json:"icon_svg"`
+	PreviewImage string   `json:"preview_image"`
 }
 
 // themeMarketCatalog is the marketplace.json response shape.
