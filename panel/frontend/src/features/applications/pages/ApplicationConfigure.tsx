@@ -7,6 +7,7 @@ import {
   type ApplicationConfigField,
 } from '@/features/applications/api/applications';
 import FormPage from '@/shared/components/forms/FormPage';
+import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import GlassField from '@/shared/components/ui/Field';
 import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 
@@ -74,8 +75,8 @@ const ApplicationConfigure: React.FC = () => {
     });
   };
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!app) return;
 
     // Light validation: keys must be unique + non-empty when the field
@@ -139,8 +140,8 @@ const ApplicationConfigure: React.FC = () => {
           { label: 'Applications', to: '/applications' },
           { label: 'Configure Application' },
         ]}
-        saving={true}
-        submitLabel="Save fields"
+        hideHeader
+        maxWidth="max-w-3xl"
       >
         <FormSkeleton fields={4} />
       </FormPage>
@@ -154,7 +155,8 @@ const ApplicationConfigure: React.FC = () => {
           { label: 'Applications', to: '/applications' },
           { label: 'Configure Application' },
         ]}
-        submitLabel="Save fields"
+        hideHeader
+        maxWidth="max-w-3xl"
       >
         <div className="bg-red-900/30 border border-red-700/50 text-red-300 text-sm px-3 py-2 rounded">
           {error || 'Application not found'}
@@ -169,13 +171,36 @@ const ApplicationConfigure: React.FC = () => {
   ];
 
   return (
+    <>
+      {/* Top-right actions — fixed, auto-hide on scroll (node pattern).
+          Footer Cancel/Save removed; everything lives here. */}
+      <PageActionsPill>
+          <button
+            type="button"
+            onClick={() => navigate('/applications')}
+            title="Cancel and back to Applications"
+            aria-label="Cancel and back to Applications"
+            className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition"
+            style={PILL_TAB_STYLE}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => submit()}
+            disabled={saving}
+            title="Save fields"
+            className="ks-tab ks-tab-active shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-60"
+            style={PILL_TAB_STYLE}
+          >
+            {saving ? 'Saving…' : 'Save fields'}
+          </button>
+      </PageActionsPill>
     <FormPage
       crumbs={crumbs}
-      saving={saving}
-      submitLabel="Save fields"
-      submittingLabel="Saving…"
       onSubmit={submit}
       maxWidth="max-w-3xl"
+      hideHeader
     >
       {error && (
         <div className="bg-red-900/30 border border-red-700/50 text-red-300 text-sm px-3 py-2 rounded">

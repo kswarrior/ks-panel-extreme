@@ -9,10 +9,11 @@ import {
   TimeSeriesChart,
   DashboardSection,
   DashboardGrid,
-  HeaderWithAction,
   StatCard,
 } from '@/shared/components/ui/StatDashboard';
 import GlassCard from '@/shared/components/ui/Card';
+import SearchDropdown from '@/shared/components/ui/SearchDropdown';
+import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 
 type OriginKey = 'builtin' | 'global' | 'local';
 
@@ -33,6 +34,8 @@ const ThemeStats: React.FC = () => {
   const editDraft = useThemeStore((s) => s.editDraft);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [timeRange, setTimeRange] = useState<'1h' | '6h' | '24h' | '7d'>('24h');
   const [filterOpen, setFilterOpen] = useState(false);
   const [originFilter, setOriginFilter] = useState<'all' | OriginKey>('all');
   const [assignedFilter, setAssignedFilter] = useState<'all' | 'assigned' | 'unassigned'>('all');
@@ -79,8 +82,16 @@ const ThemeStats: React.FC = () => {
       const def = themes.find((t) => t.id === 'default');
       if (def) map.set('default', { theme: def, origin: 'builtin' });
     }
-    return Array.from(map.values());
-  }, [themes, globalThemes]);
+    const q = search.trim().toLowerCase();
+    let rows = Array.from(map.values());
+    if (q) {
+      rows = rows.filter(({ theme: t }) =>
+        (t.name || '').toLowerCase().includes(q) ||
+        (t.id || '').toLowerCase().includes(q)
+      );
+    }
+    return rows;
+  }, [themes, globalThemes, search]);
 
   const stats = useMemo(() => {
     const total = allThemes.length;
