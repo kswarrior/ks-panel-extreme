@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -183,4 +184,118 @@ func embeddedReinstallSHA256() string {
 		return ""
 	}
 	return sum
+}
+
+// stageFailure is the typed error from stagePanelBinary. Code is the HTTP
+// status the handler should answer with; IsVerify marks checksum failures
+// so the caller audit-logs them (the artifact, not the panel, is at
+// fault — 422, not 5xx).
+type stageFailure struct {
+	Code     int
+	Msg      string
+	IsVerify bool
+}
+
+func (e *stageFailure) Error() string { return e.Msg }
+
+// stagePanelBinary downloads the release binary into <exe>.update,
+// verifies its SHA-256 when the manifest publishes one, chmods it and
+// swaps it over the running executable (keeping <exe>.old for rollback).
+// kind is "update" or "reinstall" (log wording only). On ANY failure the
+// temp file is removed and the live binary is untouched. The .old
+// rollback + /health-gate relaunch stay with the caller — this function
+// only stages the new binary on the live path. Shared by
+// UpdateApplyHandler, ReinstallHandler and the scheduled-update-window
+// runner so all three enforce identical verification.
+func stagePanelBinary(kind string) (exe string, logLines []string, err error) {
+	logLines = []string{}
+	fail := func(code int, msg string, isVerify bool) (string, []string, error) {
+		return "", logLines, &stageFailure{Code: code, Msg: msg, IsVerify: isVerify}
+	}
+
+	exe, err = os.Executable()
+	if err != nil {
+		return fail(http.StatusInternalServerError, "cannot locate running binary: "+err.Error(), false)
+	}
+	if resolved, rerr := filepath.EvalSymlinks(exe); rerr == nil {
+		exe = resolved
+	}
+	exeDir := filepath.Dir(exe)
+	exeBase := filepath.Base(exe)
+	oldPath := filepath.Join(exeDir, exeBase+".old")
+	tmpPath := filepath.Join(exeDir, exeBase+".update")
+
+	// 1) Stream the new binary into a temp file (NOT into the live path)
+	// so a partial download can't leave a truncated executable that the OS
+	// would happily launch on next start.
+	verb := "downloading "
+	if kind == "reinstall" {
+		verb = "reinstalling from "
+	}
+	logLines = append(logLines, verb+kspanelBinaryURL+" …")
+	if err := downloadUpdateFile(kspanelBinaryURL, tmpPath); err != nil {
+		return fail(http.StatusBadGateway, "download failed: "+err.Error(), false)
+	}
+	fi, statErr := os.Stat(tmpPath)
+	if statErr != nil || fi.Size() == 0 {
+		os.Remove(tmpPath)
+		return fail(http.StatusBadGateway, "downloaded file is empty or missing", false)
+	}
+	// Verified download: hash the temp file BEFORE chmod/swap. The
+	// manifest fetch itself is best-effort: when no checksum is published
+	// (or reachable) anywhere the stage proceeds unverified and logs that
+	// fact, so old manifests don't brick updates while new ones are
+	// enforced.
+	if m, merr := fetchUpdateManifest(); merr != nil {
+		logLines = append(logLines, "could not fetch manifest for checksum ("+merr.Error()+") — installing unverified binary")
+	} else if expected, verr := resolveExpectedSHA256(m); verr != nil {
+		os.Remove(tmpPath)
+		return fail(http.StatusUnprocessableEntity, "checksum error: "+verr.Error(), true)
+	} else if expected != "" {
+		if verr := verifyFileSHA256(tmpPath, expected); verr != nil {
+			os.Remove(tmpPath)
+			return fail(http.StatusUnprocessableEntity, "checksum mismatch — download deleted, live binary untouched: "+verr.Error(), true)
+		}
+		logLines = append(logLines, "checksum verified (sha256 "+expected[:12]+"…)")
+	} else {
+		logLines = append(logLines, "no checksum published — installing unverified binary")
+	}
+	if err := os.Chmod(tmpPath, 0o755); err != nil {
+		os.Remove(tmpPath)
+		return fail(http.StatusInternalServerError, "chmod failed: "+err.Error(), false)
+	}
+	logLines = append(logLines, fmt.Sprintf("downloaded %d bytes", fi.Size()))
+
+	// 2) Move the running binary aside. We rename, not copy — Linux (and
+	// every other Unix) lets you rename an open file, so the running
+	// process keeps executing from the inode even though the directory
+	// entry has moved.
+	if _, statErr := os.Stat(oldPath); statErr == nil {
+		// Drop any prior .old first so the rename below is unambiguous;
+		// otherwise on a second update the old→new rename would refuse.
+		if err := os.Remove(oldPath); err != nil {
+			os.Remove(tmpPath)
+			return fail(http.StatusInternalServerError, "could not remove prior backup: "+err.Error(), false)
+		}
+		logLines = append(logLines, "removed prior "+exeBase+".old")
+	}
+	if err := os.Rename(exe, oldPath); err != nil {
+		os.Remove(tmpPath)
+		return fail(http.StatusInternalServerError, "could not move running binary aside: "+err.Error(), false)
+	}
+	logLines = append(logLines, "moved current binary to "+oldPath)
+
+	// 3) Place the freshly downloaded binary on the live path. If this
+	// step fails we've lost nothing (the .old still has the running code)
+	// — we just abort with an error and the operator can re-run the apply
+	// or manually mv .old back.
+	if err := os.Rename(tmpPath, exe); err != nil {
+		// Best-effort rollback: put the running binary back so the next
+		// launch isn't broken. The .new is left on disk so the operator
+		// can inspect / move it manually.
+		_ = os.Rename(oldPath, exe)
+		return fail(http.StatusInternalServerError, "could not place new binary: "+err.Error(), false)
+	}
+	logLines = append(logLines, "placed new binary at "+exe)
+	return exe, logLines, nil
 }
