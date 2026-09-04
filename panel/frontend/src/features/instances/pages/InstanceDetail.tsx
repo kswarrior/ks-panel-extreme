@@ -23,6 +23,7 @@ import CustomPageView from '@/shared/components/ui/CustomPageView';
 import Terminal, { type TerminalHandle } from '@/shared/components/ui/Terminal';
 import type { Terminal as XTerm } from '@xterm/xterm';
 import InstancePortsEditor from '@/features/instances/pages/InstancePortsEditor';
+import InstancePowerBar from '@/features/instances/components/InstancePowerBar';
 import InstanceSftpCard from '@/features/instances/components/InstanceSftpCard';
 import InstanceSnapshotsTab from '@/features/instances/components/InstanceSnapshotsTab';
 import { useAuthStore } from '@/shared/stores/authStore';
@@ -32,7 +33,7 @@ import { hasPermissionAny } from '@/shared/types/permissions';
 export const InstancePanel: React.FC = () => {
   const { id } = useParams();
   const instanceId = Number(id);
-  const { instance, loading } = useInstance(instanceId);
+  const { instance, loading, reload } = useInstance(instanceId);
   const navigate = useNavigate();
   // Host-origin pages (markdown/blocks render inside the SPA, not an iframe)
   // request navigation through the sdk.navigate() → 'ks-navigate' window
@@ -70,6 +71,8 @@ export const InstancePanel: React.FC = () => {
 
   return (
     <div className="space-y-3">
+      {/* Collapsible power dock — sticky top-left, stays visible on scroll. */}
+      <InstancePowerBar instance={instance} loading={loading} onChanged={() => { void reload(true); }} />
       {loading && (
         <div className="ks-card ks-form-card rounded-xl flex items-center gap-4 animate-pulse">
           <div className="w-9 h-9 rounded-lg bg-neutral-800 shrink-0" />
