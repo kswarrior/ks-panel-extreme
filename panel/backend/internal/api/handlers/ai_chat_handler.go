@@ -394,7 +394,7 @@ func AIChatHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			if ticket != nil {
 				aiStoreTicket(&aiTicket{
-					ID: tID(ticket), UserID: uid, Tool: c.Name, Args: c.RawArgs,
+					ID: ticket.ID, UserID: uid, Tool: c.Name, Args: c.RawArgs,
 					Summary: ticket.Summary, Diff: ticket.Diff, Expires: time.Now().Add(10 * time.Minute),
 				})
 				reply := strings.TrimSpace(text)
@@ -404,7 +404,7 @@ func AIChatHandler(w http.ResponseWriter, r *http.Request) {
 				writeJSON(w, map[string]any{
 					"reply": reply,
 					"confirmation_ticket": map[string]any{
-						"id": tID(ticket), "tool": c.Name,
+						"id": ticket.ID, "tool": c.Name,
 						"summary": ticket.Summary, "diff": ticket.Diff,
 					},
 				})
@@ -418,8 +418,6 @@ func AIChatHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, map[string]any{"reply": lastText + "\n\n(Stopped after 5 tool rounds.)"})
 }
-
-func tID(t *aiTicketProposal) string { return t.ID }
 
 // ---------------------------------------------------------------------------
 // System prompt (built server-side per request).
@@ -815,8 +813,7 @@ func aiRunTool(a *aiCallCtx, name string, args map[string]any) (string, *aiTicke
 		if err != nil {
 			return "", nil, err
 		}
-		raw, _ := json.Marshal(args)
-		return "", &aiTicketProposal{ID: aiNewTicketID(), Summary: summary, Diff: diff}, withRaw(raw)
+		return "", &aiTicketProposal{ID: aiNewTicketID(), Summary: summary, Diff: diff}, nil
 	}
 	switch name {
 	case "list_instances":
@@ -834,15 +831,6 @@ func aiRunTool(a *aiCallCtx, name string, args map[string]any) (string, *aiTicke
 	default:
 		return "", nil, fmt.Errorf("unknown tool %q", name)
 	}
-}
-
-func withRaw(raw json.RawMessage) *aiTicketProposal { return &aiTicketProposal{} }
-
-// fixTicketRaw attaches the marshalled args to a proposal. Kept separate so
-// aiRunTool's write branch stays a three-liner.
-func fixTicketRaw(p *aiTicketProposal, raw json.RawMessage) *aiTicketProposal {
-	p.ID = aiNewTicketID()
-	return p
 }
 
 // aiRedact walks decoded JSON and masks secret-bearing keys so tool output
