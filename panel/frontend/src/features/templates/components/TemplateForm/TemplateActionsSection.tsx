@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { glassFieldClass } from '@/shared/components/ui/Field';
+import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
+import { ICON_PRESETS, COLOR_SWATCHES } from '@/features/instances/types/instanceForm';
 import type { TemplateAction, ActionStep, InstallAction } from '@/features/templates/types/templateForm';
 
 export interface TemplateActionInput extends TemplateAction {}
@@ -37,6 +39,32 @@ export const TemplateActionsSection: React.FC<ActionsSectionProps> = ({
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const move = (i: number, dir: -1 | 1) => { onActionMove?.(i, dir); };
 
+  // Known instance states for the allowed-states chips. Toggling a chip
+  // edits the same CSV string the text input holds — empty means "every
+  // state" at runtime.
+  const toggleActionState = (idx: number, st: string) => {
+    const cur = (actions[idx]?.allowed_states || '')
+      .split(',')
+      .map((x) => x.trim().toLowerCase())
+      .filter(Boolean);
+    const next = cur.includes(st) ? cur.filter((x) => x !== st) : [...cur, st];
+    onActionUpdate(idx, { allowed_states: next.join(', ') });
+  };
+
+  // Sanitized action icon (full <svg> or inner markup — same handling as
+  // the instance tab bar). Falls back to null so callers show a glyph.
+  const actionIcon = (svg: string | undefined, color: string | undefined, boxCls: string, svgCls: string) => {
+    const s = svg ? sanitizeSvgIcon(svg) : '';
+    if (!s) return null;
+    const style = color ? { color } : undefined;
+    if (s.trim().toLowerCase().startsWith('<svg')) {
+      return <span className={boxCls} style={style} aria-hidden="true" dangerouslySetInnerHTML={{ __html: s }} />;
+    }
+    return (
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={svgCls} style={style} aria-hidden="true" dangerouslySetInnerHTML={{ __html: s }} />
+    );
+  };
+
   return (
     <>
       <div className={sectionCls}>
@@ -66,6 +94,7 @@ export const TemplateActionsSection: React.FC<ActionsSectionProps> = ({
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
+                      {actionIcon(a.icon_svg, a.icon_color, 'w-6 h-6 shrink-0 flex items-center justify-center [&>svg]:w-4 [&>svg]:h-4 [&>svg]:block', 'w-4 h-4 shrink-0')}
                       <span className="text-sm font-semibold text-white truncate">{a.name || a.id || `Action ${i + 1}`}</span>
                       <code className="text-[11px] text-gray-500 font-mono">{a.id || 'id'}</code>
                     </div>
