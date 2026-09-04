@@ -22,11 +22,11 @@ func TestValidateCompression(t *testing.T) {
 
 func TestSplitBackupSuffix(t *testing.T) {
 	cases := map[string]string{
-		"kspanel-20240101-000000-a.db":     "none",
-		"kspanel-20240101-000000-a.db.gz":  "gzip",
-		"kspanel-20240101-000000-a.db.zst": "zstd",
-		"kspanel-20240101-000000-a.sql":    "none",
-		"kspanel-20240101-000000-a.sql.gz": "gzip",
+		"kspanel-20060102-150405-20240101-000000-a.db":     "none",
+		"kspanel-20060102-150405-20240101-000000-a.db.gz":  "gzip",
+		"kspanel-20060102-150405-20240101-000000-a.db.zst": "zstd",
+		"kspanel-20060102-150405-20240101-000000-a.sql":    "none",
+		"kspanel-20060102-150405-20240101-000000-a.sql.gz": "gzip",
 	}
 	for name, want := range cases {
 		_, comp := splitBackupSuffix(name)
