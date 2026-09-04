@@ -1190,10 +1190,10 @@ const NodeForm: React.FC = () => {
           ))}
         </div>
       </nav>
-      {/* Spacer — reserves scroll room so the fixed bar never covers the
-          Cancel/Save row or trailing content on short tabs. */}
-      <div aria-hidden="true" className="h-16 lg:hidden" />
       </FormPage>
+      {/* Spacer after the Cancel/Save row — reserves scroll room so the
+          fixed bottom tab bar never covers the action buttons. */}
+      <div aria-hidden="true" className="h-24 lg:hidden" />
 
       {tokenInfo && (
         <GlassModal open={true} onClose={closeTokenModal} title={tokenInfo.title} maxWidth="max-w-2xl">
