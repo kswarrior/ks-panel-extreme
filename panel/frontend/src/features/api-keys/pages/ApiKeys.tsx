@@ -45,6 +45,18 @@ const AdminApiKeys: React.FC = () => {
   const filterRef = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState('');
 
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (filterRef.current && !filterRef.current.contains(event.target as HTMLElement)) {
+        setFilterOpen(false);
+      }
+    }
+    if (filterOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [filterOpen]);
+
   // Toggle a key's active state via the admin API.
   const toggleActive = async (k: ApiKey, nextActive: boolean) => {
     try {
@@ -175,20 +187,22 @@ const AdminApiKeys: React.FC = () => {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
-        <h2 className="text-xl font-semibold text-white">API Keys</h2>
-        <div className="flex items-center gap-2">
+      {/* Fixed top-right pill — auto-hides with a right-to-left slide. Title lives in the app header. */}
+      <PageActionsPill>
           <SearchDropdown
             value={search}
             onChange={setSearch}
             placeholder="Search name, prefix, owner…"
             ariaLabel="Search API keys"
+            buttonClassName="ks-tab inline-flex items-center justify-center"
+            buttonStyle={PILL_TAB_STYLE}
           />
           <div className="relative" ref={filterRef}>
             <button
               type="button"
               onClick={() => setFilterOpen(!filterOpen)}
-              className={`ks-icon-btn transition-colors ${filterOpen ? 'is-open' : ''}`}
+              className={`ks-tab inline-flex items-center justify-center gap-1 transition-colors ${filterOpen ? 'is-open' : ''}`}
+              style={PILL_TAB_STYLE}
               aria-label="Open filters"
               aria-expanded={filterOpen}
               aria-haspopup="true"
@@ -231,7 +245,8 @@ const AdminApiKeys: React.FC = () => {
           <Link
             to="/api-keys/stats"
             aria-label="API Key Statistics"
-            className="ks-btn-header ks-icon-btn"
+            className="ks-tab inline-flex items-center justify-center"
+            style={PILL_TAB_STYLE}
             title="View API key statistics dashboard"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>
@@ -239,7 +254,8 @@ const AdminApiKeys: React.FC = () => {
           <Link
             to="/api-keys/schedules"
             aria-label="API Key schedules"
-            className="ks-btn-header ks-icon-btn"
+            className="ks-tab inline-flex items-center justify-center"
+            style={PILL_TAB_STYLE}
             title="API key expiry & rotation schedule"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
@@ -247,16 +263,16 @@ const AdminApiKeys: React.FC = () => {
           <button
             onClick={() => navigate('/api-keys/new')}
             aria-label="Add API Key"
-            className="ks-icon-btn"
+            className="ks-tab inline-flex items-center justify-center"
+            style={PILL_TAB_STYLE}
             title="Add API Key"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
           </button>
-</div>
-      </div>
+      </PageActionsPill>
 
        {error && <p className="text-red-400 mb-3">{error}</p>}
 
