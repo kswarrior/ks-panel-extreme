@@ -28,6 +28,7 @@ import TemplateForm from '@/features/templates/pages/TemplateForm';
 import TemplateStats from '@/features/templates/pages/TemplateStats';
 import TemplateDetail from '@/features/templates/pages/TemplateDetail';
 import NodeStats from '@/features/nodes/pages/NodeStats';
+import NodeSchedules from '@/features/nodes/pages/NodeSchedules';
 import AdminSettings from '@/features/settings/pages/Settings';
 
 import AdminApiKeys from '@/features/api-keys/pages/ApiKeys';
