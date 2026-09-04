@@ -99,9 +99,31 @@ client.interceptors.request.use(async (config) => {
 let isRedirecting = false;
 client.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     const status: number | undefined = error?.response?.status;
     const url: string = error?.config?.url || '';
+    // Transparent CSRF retry: a 403 "invalid CSRF token" means our cached
+    // token expired (1h TTL). Clear it, mint a fresh one, and retry once
+    // so the user never sees a spurious failure after a long-idle tab.
+    const bodyText: string = (() => {
+      try {
+        const d = error?.response?.data;
+        return typeof d === 'string' ? d : JSON.stringify(d || '');
+      } catch {
+        return '';
+      }
+    })();
+    if (status === 403 && bodyText.toLowerCase().includes('csrf') && !isCsrfExemptUrl(url) && !(error?.config as Record<string, unknown> | undefined)?.__csrfRetried) {
+      clearCsrfToken();
+      const fresh = await fetchCsrfToken();
+      if (fresh && error?.config) {
+        const cfg = error.config;
+        (cfg as Record<string, unknown>).__csrfRetried = true;
+        cfg.headers = cfg.headers || {};
+        (cfg.headers as Record<string, string>)['X-CSRF-Token'] = fresh;
+        return client.request(cfg);
+      }
+    }
     if (status === 401) {
       const isLoginAttempt =
         url.includes('/api/auth/login') || url.includes('/api/auth/switch-login');
