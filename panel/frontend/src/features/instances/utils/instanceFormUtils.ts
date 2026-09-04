@@ -88,6 +88,8 @@ export function specToEditor(spec: string): EditorState {
   if (Array.isArray(s.actions)) {
     out.actions = s.actions.map((a: any) => ({
       id: String(a.id ?? ''), name: String(a.name ?? ''), description: String(a.description ?? ''),
+      icon_svg: String(a.icon_svg ?? ''),
+      icon_color: String(a.icon_color ?? ''),
       allowed_states: Array.isArray(a.allowed_states) ? (a.allowed_states as string[]).join(', ') : String(a.allowed_states ?? ''),
       requires_online: !!a.requires_online, async_run: !!a.async_run, run_on_create: !!a.run_on_create,
       cooldown_s: String(a.cooldown_s ?? ''), user_invokable: a.user_invokable !== false,
@@ -318,6 +320,8 @@ export function serializeEditor(f: EditorState): Record<string, unknown> {
     })),
     actions: f.actions.filter((a) => a.id.trim() !== '').map((a) => ({
       id: a.id, name: a.name, description: a.description,
+      icon_svg: (a.icon_svg || '').trim(),
+      icon_color: (a.icon_color || '').trim().toUpperCase(),
       allowed_states: a.allowed_states.split(',').map((x) => x.trim()).filter(Boolean),
       requires_online: !!a.requires_online, async_run: !!a.async_run, run_on_create: !!a.run_on_create,
       cooldown_s: a.cooldown_s, user_invokable: !!a.user_invokable, session: a.session,

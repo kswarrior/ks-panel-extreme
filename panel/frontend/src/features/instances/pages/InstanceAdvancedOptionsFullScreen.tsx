@@ -218,6 +218,8 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
             id: '',
             name: '',
             description: '',
+            icon_svg: '',
+            icon_color: '',
             allowed_states: '',
             requires_online: false,
             async_run: false,
