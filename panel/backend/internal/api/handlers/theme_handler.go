@@ -10,12 +10,15 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/example/kspanel/internal/models"
 	"github.com/example/kspanel/internal/permissions"
 	"github.com/example/kspanel/internal/repository"
+	"github.com/example/kspanel/internal/themelib"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -228,6 +231,11 @@ func createThemeFromJSON(w http.ResponseWriter, r *http.Request) {
 
 // UpdateThemeHandler overwrites name/description/spec and bumps updated_at.
 // MANAGE_THEMES-gated. 404 when the id doesn't exist.
+//
+// Versioning (migration 067): the CURRENT row is snapshotted into
+// theme_revisions BEFORE the overwrite so the studio History section can
+// list it and roll back to it. The snapshot is best-effort (logged, never
+// fatal): a failed audit write must not block the admin's save.
 func UpdateThemeHandler(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
@@ -250,6 +258,20 @@ func UpdateThemeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer closeFn()
+
+	if cur, cerr := repo.GetTheme(id); cerr == nil && cur != nil {
+		var editor int64
+		if uid, uerr := UserIDFromContext(r); uerr == nil {
+			editor = uid
+		}
+		if next, nerr := repo.NextRevision(id); nerr == nil {
+			if _, rerr := repo.CreateRevision(id, next, cur.Name, cur.Description, cur.Spec, editor); rerr != nil {
+				log.Println("UpdateTheme revision snapshot error:", rerr)
+			}
+		} else {
+			log.Println("UpdateTheme next-rev error:", nerr)
+		}
+	}
 
 	t, err := repo.UpdateTheme(id, dto.Name, dto.Description, dto.Spec)
 	if err != nil {
@@ -656,4 +678,314 @@ func themePortFromHost(hostport, scheme string) string {
 	default:
 		return "443"
 	}
+}
+
+// ---- Theme revisions (migration 067) ----
+
+// themeRevisionResponse is one row of the studio History list. `spec` is
+// included so the UI can render a ThemePreview of the revision without a
+// second round-trip; the list is newest-first.
+type themeRevisionResponse struct {
+	ThemeID     string          `json:"theme_id"`
+	Rev         int             `json:"rev"`
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	Spec        json.RawMessage `json:"spec"`
+	CreatedAt   string          `json:"created_at"`
+}
+
+// ListThemeRevisionsHandler returns every snapshotted revision of a theme,
+// newest-first. MANAGE_THEMES EDIT-gated (same gate as the overwrite that
+// produces revisions). 200 with an empty list when the theme exists but has
+// no history yet; 404 when the theme itself doesn't exist.
+func ListThemeRevisionsHandler(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		http.Error(w, "id is required", http.StatusBadRequest)
+		return
+	}
+	repo, closeFn := openThemeRepo()
+	if repo == nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	defer closeFn()
+	if cur, cerr := repo.GetTheme(id); cerr != nil || cur == nil {
+		http.Error(w, "theme not found", http.StatusNotFound)
+		return
+	}
+	revs, err := repo.ListRevisions(id)
+	if err != nil {
+		log.Println("ListThemeRevisions error:", err)
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	out := make([]themeRevisionResponse, 0, len(revs))
+	for _, rv := range revs {
+		out = append(out, themeRevisionResponse{
+			ThemeID:     rv.ThemeID,
+			Rev:         rv.Rev,
+			Name:        rv.Name,
+			Description: rv.Description,
+			Spec:        rv.Spec,
+			CreatedAt:   isoString(rv.CreatedAt),
+		})
+	}
+	writeJSON(w, out)
+}
+
+// RollbackThemeHandler restores a theme's name/description/spec from one of
+// its revisions. MANAGE_THEMES EDIT-gated and audit-logged. The CURRENT
+// (pre-rollback) row is snapshotted first, so a rollback never destroys
+// history — rolling back is itself just another revision + overwrite.
+func RollbackThemeHandler(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	revRaw := chi.URLParam(r, "rev")
+	if id == "" || revRaw == "" {
+		http.Error(w, "id and rev are required", http.StatusBadRequest)
+		return
+	}
+	rev, err := strconv.Atoi(revRaw)
+	if err != nil || rev < 1 {
+		http.Error(w, "rev must be a positive integer", http.StatusBadRequest)
+		return
+	}
+	var editor int64
+	if uid, uerr := UserIDFromContext(r); uerr == nil {
+		editor = uid
+	}
+	repo, closeFn := openThemeRepo()
+	if repo == nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	defer closeFn()
+
+	cur, cerr := repo.GetTheme(id)
+	if cerr != nil || cur == nil {
+		http.Error(w, "theme not found", http.StatusNotFound)
+		return
+	}
+	target, terr := repo.GetRevision(id, rev)
+	if terr != nil {
+		http.Error(w, "theme revision not found", http.StatusNotFound)
+		return
+	}
+	// Snapshot the pre-rollback row so the rollback itself stays reversible.
+	if next, nerr := repo.NextRevision(id); nerr == nil {
+		if _, rerr := repo.CreateRevision(id, next, cur.Name, cur.Description, cur.Spec, editor); rerr != nil {
+			log.Println("RollbackTheme revision snapshot error:", rerr)
+		}
+	} else {
+		log.Println("RollbackTheme next-rev error:", nerr)
+	}
+	t, uerr := repo.UpdateTheme(id, target.Name, target.Description, target.Spec)
+	if uerr != nil {
+		log.Println("RollbackTheme error:", uerr)
+		http.Error(w, "theme not found", http.StatusNotFound)
+		return
+	}
+	RecordActivity(r, repository.ActivityInput{
+		Category:    models.ActivityCategoryTheme,
+		Action:      "rollback",
+		TargetLabel: t.Name,
+		Message:     fmt.Sprintf("rolled back theme %q to revision %d", t.Name, rev),
+	})
+	writeJSON(w, storedThemeFromModel(*t))
+}
+
+// ---- Theme marketplace (themelib, mirrors the instance-pages market) ----
+
+// themeMarketPage is one catalog entry. Same schema rules as the
+// instance-pages marketplace.json (version/updated/pages with
+// id/name/description/category/author/version/tags/download_url/icon_svg/
+// preview_image) so operator tooling can treat both catalogs uniformly.
+type themeMarketPage struct {
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Category    string   `json:"category"`
+	Author      string   `json:"author"`
+	Version     string   `json:"version"`
+	Tags        []string `json:"tags"`
+	DownloadURL string   `json:"download_url"`
+	IconSVG     string   `json:"icon_svg"`
+	PreviewImage string  `json:"preview_image"`
+}
+
+// themeMarketCatalog is the marketplace.json response shape.
+type themeMarketCatalog struct {
+	Version string            `json:"version"`
+	Updated string            `json:"updated"`
+	Pages   []themeMarketPage `json:"pages"`
+}
+
+// GetThemeMarketHandler returns the theme marketplace catalog: the
+// working-dir themes_market/marketplace.json first, then the copy embedded
+// in the binary (internal/themelib). Empty catalog when neither exists.
+func GetThemeMarketHandler(w http.ResponseWriter, r *http.Request) {
+	data, ok := themelib.ReadCatalog()
+	if !ok {
+		writeJSON(w, themeMarketCatalog{
+			Version: "1.0",
+			Updated: time.Now().Format(time.RFC3339),
+			Pages:   []themeMarketPage{},
+		})
+		return
+	}
+	var catalog themeMarketCatalog
+	if err := json.Unmarshal(data, &catalog); err != nil {
+		log.Println("GetThemeMarket error:", err)
+		http.Error(w, "invalid theme marketplace catalog", http.StatusInternalServerError)
+		return
+	}
+	if catalog.Pages == nil {
+		catalog.Pages = []themeMarketPage{}
+	}
+	writeJSON(w, catalog)
+}
+
+// parseThemeManifest validates raw manifest bytes into an upsert input.
+// The manifest shape is the same one POST /themes (file + URL) accepts:
+// {id, name, description?, spec}. Shared by the market installer so every
+// install path enforces identical rules.
+func parseThemeManifest(raw []byte) (id, name, description string, spec json.RawMessage, verr error) {
+	var manifest map[string]any
+	if err := json.Unmarshal(raw, &manifest); err != nil {
+		return "", "", "", nil, fmt.Errorf("manifest is not valid JSON: %s", err.Error())
+	}
+	id = getString(manifest, "id")
+	name = getString(manifest, "name")
+	description = getString(manifest, "description")
+	specRaw, ok := manifest["spec"]
+	if !ok || specRaw == nil {
+		return "", "", "", nil, fmt.Errorf("spec is required")
+	}
+	specBytes, err := json.Marshal(specRaw)
+	if err != nil {
+		return "", "", "", nil, fmt.Errorf("spec must be valid JSON: %s", err.Error())
+	}
+	if id == "" || name == "" || len(specBytes) == 0 {
+		return "", "", "", nil, fmt.Errorf("id, name and spec are required")
+	}
+	return id, name, description, specBytes, nil
+}
+
+// InstallThemeFromMarketHandler installs one catalog theme into the GLOBAL
+// library. Body: {"id": "<catalog id>"} for a catalog entry, or
+// {"url": "<manifest url>"} for a direct manifest fetch. Catalog entries
+// with a relative download_url (market/*.json) resolve from the local /
+// embedded themelib; absolute http(s) entries are fetched with the EXACT
+// SSRF hardening POST /themes/url uses (public-IP only, DNS-pinned,
+// size/time capped via fetchThemeManifestFromURL). 409 on duplicate id,
+// like every other theme-create path.
+func InstallThemeFromMarketHandler(w http.ResponseWriter, r *http.Request) {
+	uid, err := UserIDFromContext(r)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	var dto struct {
+		ID  string `json:"id"`
+		URL string `json:"url"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&dto); err != nil {
+		http.Error(w, "invalid payload", http.StatusBadRequest)
+		return
+	}
+
+	var raw []byte
+	switch {
+	case strings.TrimSpace(dto.ID) != "":
+		data, ok := themelib.ReadCatalog()
+		if !ok {
+			http.Error(w, "theme marketplace catalog not found", http.StatusNotFound)
+			return
+		}
+		var catalog themeMarketCatalog
+		if err := json.Unmarshal(data, &catalog); err != nil {
+			http.Error(w, "invalid theme marketplace catalog", http.StatusInternalServerError)
+			return
+		}
+		var entry *themeMarketPage
+		for i := range catalog.Pages {
+			if catalog.Pages[i].ID == strings.TrimSpace(dto.ID) {
+				entry = &catalog.Pages[i]
+				break
+			}
+		}
+		if entry == nil {
+			http.Error(w, "theme not found in marketplace", http.StatusNotFound)
+			return
+		}
+		if !strings.Contains(entry.DownloadURL, "://") {
+			b, ok := themelib.Read(filepath.Base(strings.TrimSpace(entry.DownloadURL)))
+			if !ok {
+				http.Error(w, "marketplace theme not found in the local library: "+entry.DownloadURL, http.StatusNotFound)
+				return
+			}
+			raw = b
+		} else {
+			b, ferr := fetchThemeManifestFromURL(r.Context(), entry.DownloadURL)
+			if ferr != nil {
+				var ue *themeAllowedURLError
+				if errors.As(ferr, &ue) {
+					http.Error(w, ue.reason, ue.status)
+					return
+				}
+				log.Println("InstallThemeFromMarket fetch error:", ferr)
+				http.Error(w, "fetch failed", http.StatusBadGateway)
+				return
+			}
+			raw = b
+		}
+	case strings.TrimSpace(dto.URL) != "":
+		b, ferr := fetchThemeManifestFromURL(r.Context(), dto.URL)
+		if ferr != nil {
+			var ue *themeAllowedURLError
+			if errors.As(ferr, &ue) {
+				http.Error(w, ue.reason, ue.status)
+				return
+			}
+			log.Println("InstallThemeFromMarket fetch error:", ferr)
+			http.Error(w, "fetch failed", http.StatusBadGateway)
+			return
+		}
+		raw = b
+	default:
+		http.Error(w, "id or url is required", http.StatusBadRequest)
+		return
+	}
+
+	id, name, description, spec, verr := parseThemeManifest(raw)
+	if verr != nil {
+		http.Error(w, verr.Error(), http.StatusBadRequest)
+		return
+	}
+	repo, closeFn := openThemeRepo()
+	if repo == nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	defer closeFn()
+	t, cerr := repo.CreateTheme(repository.UpsertThemeInput{
+		ID:          id,
+		Name:        name,
+		Description: description,
+		Spec:        spec,
+		Builtin:     false,
+		CreatedBy:   uid,
+	})
+	if cerr != nil {
+		log.Println("InstallThemeFromMarket error:", cerr)
+		http.Error(w, "theme id already exists", http.StatusConflict)
+		return
+	}
+	RecordActivity(r, repository.ActivityInput{
+		Category:    models.ActivityCategoryTheme,
+		Action:      "market-install",
+		TargetLabel: t.Name,
+		Message:     fmt.Sprintf("installed theme %q from the theme marketplace", t.Name),
+	})
+	writeJSONStatus(w, http.StatusCreated, storedThemeFromModel(*t))
 }
