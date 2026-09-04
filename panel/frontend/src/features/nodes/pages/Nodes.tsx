@@ -237,6 +237,11 @@ const AdminNodes: React.FC = () => {
 
   const resetFilters = () => { setSearch(''); setStateFilter('all'); setTlsFilter('all'); };
 
+  // Compact ks-tab sizing shared by every top-right action — mirrors the
+  // node form's Cancel/Create pill (theme paints padding with !important,
+  // so Tailwind px/py alone can never win; the var override does).
+  const tabBtnStyle = { '--ks-tab-px': '10px', '--ks-tab-py': '5px', '--ks-tab-font': '13px' } as React.CSSProperties;
+
   const nodeStats = useMemo(() => {
     const byState: Record<string, number> = {};
     nodes.forEach((n) => {

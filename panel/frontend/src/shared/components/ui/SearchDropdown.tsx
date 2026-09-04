@@ -7,6 +7,10 @@ interface Props {
   ariaLabel?: string;
   className?: string;
   width?: string;
+  // Lets callers restyle the trigger (e.g. ks-tab pill to match the node
+  // form's Cancel/Create buttons). Defaults keep the icon-button look.
+  buttonClassName?: string;
+  buttonStyle?: React.CSSProperties;
 }
 
 // SearchDropdown renders a magnifier icon button. When clicked, the search
@@ -22,6 +26,8 @@ const SearchDropdown: React.FC<Props> = ({
   ariaLabel = 'Search',
   className = '',
   width = 'w-64',
+  buttonClassName = 'ks-icon-btn',
+  buttonStyle,
 }) => {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
@@ -49,9 +55,10 @@ const SearchDropdown: React.FC<Props> = ({
         aria-label={ariaLabel}
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className={`ks-icon-btn transition-colors ${
+        className={`${buttonClassName} transition-colors ${
           open || value ? 'is-open' : ''
         }`}
+        style={buttonStyle}
       >
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
           <circle cx="11" cy="11" r="8" />
