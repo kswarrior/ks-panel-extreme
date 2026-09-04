@@ -24,6 +24,7 @@ import Terminal, { type TerminalHandle } from '@/shared/components/ui/Terminal';
 import type { Terminal as XTerm } from '@xterm/xterm';
 import InstancePortsEditor from '@/features/instances/pages/InstancePortsEditor';
 import InstanceSftpCard from '@/features/instances/components/InstanceSftpCard';
+import InstanceSnapshotsTab from '@/features/instances/components/InstanceSnapshotsTab';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { PermissionKey } from '@/shared/types/permissions';
 import { hasPermissionAny } from '@/shared/types/permissions';
@@ -245,6 +246,14 @@ export const InstanceDynamicPage: React.FC = () => {
   // sftp.json library page calls the same GET via fetchPanel('/sftp')).
   if (effectiveSlug === 'sftp') {
     return <InstanceSftpCard instanceId={instanceId} />;
+  }
+
+  // Snapshots tab is a native built-in like Ports/SFTP (not a custom
+  // spec.pages entry). The legacy backups.json library page keeps working
+  // via the custom-page path below; this native tab is the first-class UI
+  // with schedules + file-level tar backups.
+  if (effectiveSlug === 'snapshots') {
+    return <InstanceSnapshotsTab instanceId={instanceId} />;
   }
 
   if (!isPageAllowed(effectiveSlug, spec)) {

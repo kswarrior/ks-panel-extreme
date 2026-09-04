@@ -156,6 +156,91 @@ export async function deleteSnapshot(instanceId: number, snapName: string): Prom
   await client.delete(`${base(instanceId)}/snapshots/${encodeURIComponent(snapName)}`);
 }
 
+export interface SnapshotSchedule {
+  id: number;
+  kind: string;
+  instance_id?: number | null;
+  name: string;
+  cron: string;
+  enabled: boolean;
+  keep_last_n: number;
+  max_age_days: number;
+  compression: string;
+  s3_push: boolean;
+  next_run_at?: string | null;
+  last_run_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function listSnapshotSchedules(instanceId: number): Promise<SnapshotSchedule[]> {
+  const res = await client.get<SnapshotSchedule[]>(`${base(instanceId)}/snapshots/schedules/`);
+  return Array.isArray(res.data) ? res.data : [];
+}
+
+export async function createSnapshotSchedule(instanceId: number, payload: { name: string; cron: string; enabled: boolean; keep_last_n: number; max_age_days: number; compression: string; s3_push: boolean }): Promise<{ id: number }> {
+  const res = await client.post<{ id: number }>(`${base(instanceId)}/snapshots/schedules/`, payload);
+  return res.data;
+}
+
+export async function updateSnapshotSchedule(instanceId: number, scheduleId: number, payload: { name: string; cron: string; enabled: boolean; keep_last_n: number; max_age_days: number; compression: string; s3_push: boolean }): Promise<void> {
+  await client.put(`${base(instanceId)}/snapshots/schedules/${scheduleId}`, payload);
+}
+
+export async function deleteSnapshotSchedule(instanceId: number, scheduleId: number): Promise<void> {
+  await client.delete(`${base(instanceId)}/snapshots/schedules/${scheduleId}`);
+}
+
+export interface InstanceFileBackup {
+  id: number;
+  instance_id: number;
+  filename: string;
+  size_bytes: number;
+  sha256: string;
+  compressed: boolean;
+  compression: string;
+  s3_pushed: boolean;
+  created_at: string;
+}
+
+export async function listInstanceBackups(instanceId: number): Promise<InstanceFileBackup[]> {
+  const res = await client.get<InstanceFileBackup[]>(`${base(instanceId)}/backups/`);
+  return Array.isArray(res.data) ? res.data : [];
+}
+
+export async function initInstanceBackup(instanceId: number, payload: { filename: string; compression: string }): Promise<{ id: number; filename: string; offset: number }> {
+  const res = await client.post<{ id: number; filename: string; offset: number }>(`${base(instanceId)}/backups/`, payload);
+  return res.data;
+}
+
+export async function uploadInstanceBackupChunk(instanceId: number, backupId: number, data: Blob, offset: number, total?: number): Promise<{ id: number; offset: number; complete: boolean }> {
+  const headers: Record<string, string> = {};
+  if (total != null && total >= 0) {
+    headers['Content-Range'] = `bytes ${offset}-${offset + data.size - 1}/${total}`;
+  } else {
+    headers['Content-Range'] = `bytes ${offset}-${offset + data.size - 1}/*`;
+  }
+  const res = await client.put<{ id: number; offset: number; complete: boolean }>(
+    `${base(instanceId)}/backups/${backupId}/chunk?offset=${offset}`,
+    data,
+    { headers: { ...headers, 'Content-Type': 'application/octet-stream' }, timeout: 0 },
+  );
+  return res.data;
+}
+
+export async function downloadInstanceBackup(instanceId: number, backupId: number): Promise<Blob> {
+  const res = await client.get(`${base(instanceId)}/backups/${backupId}/download`, { responseType: 'blob', timeout: 0 });
+  return res.data as Blob;
+}
+
+export async function restoreInstanceBackup(instanceId: number, backupId: number): Promise<void> {
+  await client.post(`${base(instanceId)}/backups/${backupId}/restore`);
+}
+
+export async function deleteInstanceBackup(instanceId: number, backupId: number): Promise<void> {
+  await client.delete(`${base(instanceId)}/backups/${backupId}`);
+}
+
 // ---- Per-instance audit --------------------------------------------------
 
 export async function listInstanceAudit(
