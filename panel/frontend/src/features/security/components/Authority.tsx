@@ -191,6 +191,7 @@ const Authority: React.FC<AuthorityProps> = ({ onConfigChange }) => {
   const [smtpUser, setSmtpUser] = useState('');
   const [smtpPassword, setSmtpPassword] = useState('');
   const [smtpFrom, setSmtpFrom] = useState('');
+  const [smtpTls, setSmtpTls] = useState('auto');
 
   // Provider inventory + OAuth credentials.
   const [providers, setProviders] = useState<AuthorityProvider[]>([]);
@@ -229,6 +230,7 @@ const Authority: React.FC<AuthorityProps> = ({ onConfigChange }) => {
     setSmtpPort(cfg.smtp_port || '');
     setSmtpUser(cfg.smtp_user || '');
     setSmtpFrom(cfg.smtp_from || '');
+    setSmtpTls((cfg as any).smtp_tls || 'auto');
     setSmtpPassword('');
     setProviders(sanitizeProviders(cfg.providers ?? []));
     setSmsGateway(cfg.otp?.sms_gateway || '');
@@ -313,6 +315,7 @@ const Authority: React.FC<AuthorityProps> = ({ onConfigChange }) => {
       smtp_user: smtpUser.trim(),
       smtp_password: smtpPassword ? smtpPassword : base.smtp_password ?? '',
       smtp_from: smtpFrom.trim(),
+      smtp_tls: smtpTls.trim() || 'auto',
       providers: providers.map((p) => ({
         ...p,
         // Blank secret = keep stored value (server-side preserveSecrets).
@@ -394,6 +397,16 @@ const Authority: React.FC<AuthorityProps> = ({ onConfigChange }) => {
           <TextInput id="smtp-password" label="SMTP Password" type="password" value={smtpPassword} onChange={setSmtpPassword} placeholder="leave blank to keep current" />
           <div className="sm:col-span-2">
             <TextInput id="smtp-from" label="From Address" value={smtpFrom} onChange={setSmtpFrom} placeholder="KSPANEL <kspanel@example.com>" />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="block text-sm font-medium text-gray-300 mb-1" htmlFor="smtp-tls">TLS Mode</label>
+            <select id="smtp-tls" value={smtpTls} onChange={(e) => setSmtpTls(e.target.value)} className="w-full glass-field text-sm">
+              <option value="auto">Auto (465 = implicit TLS, else STARTTLS)</option>
+              <option value="implicit">Implicit TLS (always)</option>
+              <option value="starttls">STARTTLS (require upgrade)</option>
+              <option value="off">Off (plain LAN relay only)</option>
+            </select>
+            <p className="text-xs text-gray-500 mt-1">Ticket + notification mail honours per-user delivery prefs (realtime / digest / off) and opt-out; credentials are never logged.</p>
           </div>
         </div>
       </section>

@@ -45,6 +45,7 @@ export interface AuthorityConfig {
   smtp_user?: string;
   smtp_password?: string;
   smtp_from?: string;
+  smtp_tls?: string;
   register_allow?: string;
   register_role?: string;
   device_account_limit?: string;

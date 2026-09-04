@@ -38,6 +38,7 @@ export interface SettingsSnapshot {
   smtp_user?: string;
   smtp_password?: string;
   smtp_from?: string;
+  smtp_tls?: string;
 }
 
 // Auth flags read by the public /auth/login page (no auth required).
@@ -99,6 +100,7 @@ function normalize(res: Partial<SettingsSnapshot> | undefined): SettingsResponse
     smtp_user: res?.smtp_user,
     smtp_password: res?.smtp_password,
     smtp_from: res?.smtp_from,
+    smtp_tls: (res as any)?.smtp_tls,
   };
 }
 

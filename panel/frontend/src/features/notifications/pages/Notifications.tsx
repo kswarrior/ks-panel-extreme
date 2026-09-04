@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { markRead, markAllRead, deleteNotification, clearNotifications, getNotificationStats } from '../api/notifications';
-import type { Notification, NotificationStats } from '../types/notification';
+import { markRead, markAllRead, deleteNotification, clearNotifications, getNotificationStats, getNotificationPrefs, setNotificationPrefs } from '../api/notifications';
+import type { Notification, NotificationStats, NotificationMode } from '../types/notification';
 import { CATEGORY_META, PRIORITY_META } from '../types/notification';
 import NotificationCard from '../components/NotificationCard';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
