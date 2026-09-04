@@ -49,7 +49,10 @@ func listSQLiteFKs(con *sql.DB) ([]fkConstraint, error) {
 	if derr != nil {
 		return nil, derr
 	}
-	tables, err := listUserTables(d, con)
+	tables, lerr := listUserTables(d, con)
+	if lerr != nil {
+		return nil, lerr
+	}
 	var out []fkConstraint
 	for _, t := range tables {
 		rows, err := con.Query(`PRAGMA foreign_key_list(` + quoteIdent("sqlite", t) + `)`)
