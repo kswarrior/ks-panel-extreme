@@ -722,10 +722,13 @@ func NewRouter() http.Handler {
 		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Post("/api/database/engine", handlers.SetDatabaseEngineHandler)
 
 		// Database → Backup tab (ACCESS_ADMIN_PANEL). Named backups that live
-		// under <DataDir>/backups. Create is VACUUM INTO (SQLite-only);
-		// download streams the raw .db; upload accepts a multipart SQLite
-		// file or a remote URL (SSRF-hardened). Restore is destructive and
-		// requires a panel restart to take effect.
+		// under <DataDir>/backups. Create is VACUUM INTO (SQLite) or a
+		// native pg_dump / mysqldump artifact (Postgres/MySQL) with
+		// gzip/zstd compression; download streams the stored bytes; upload
+		// accepts a multipart SQLite file or a remote URL (SSRF-hardened).
+		// Restore is destructive and requires a panel restart to take
+		// effect. Schedules drive cron VACUUM INTO + retention prune; the
+		// S3 remote pushes/pulls via SigV4 (secret never logged).
 		// Literal sub-paths (/upload) must be registered BEFORE the param
 		// {id} routes so chi resolves them as literals, not as id="upload".
 		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Get("/api/database/backups", handlers.ListDatabaseBackupsHandler)
@@ -735,6 +738,15 @@ func NewRouter() http.Handler {
 		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Get("/api/database/backups/{id}/download", handlers.DownloadDatabaseBackupHandler)
 		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Post("/api/database/backups/{id}/restore", handlers.RestoreDatabaseBackupHandler)
 		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Delete("/api/database/backups/{id}", handlers.DeleteDatabaseBackupHandler)
+		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Get("/api/database/backups/schedules", handlers.ListDBBackupSchedulesHandler)
+		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Post("/api/database/backups/schedules", handlers.CreateDBBackupScheduleHandler)
+		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Put("/api/database/backups/schedules/{schedule_id}", handlers.UpdateDBBackupScheduleHandler)
+		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Delete("/api/database/backups/schedules/{schedule_id}", handlers.DeleteDBBackupScheduleHandler)
+		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Post("/api/database/backups/prune", handlers.PruneDBBackupsHandler)
+		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Get("/api/database/backups/s3", handlers.GetS3ConfigHandler)
+		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Put("/api/database/backups/s3", handlers.PutS3ConfigHandler)
+		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Post("/api/database/backups/{id}/s3/push", handlers.PushDBBackupToS3Handler)
+		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Post("/api/database/backups/s3/pull", handlers.PullDBBackupFromS3Handler)
 
 		// Security page (ACCESS_ADMIN_PANEL). Per-request security telemetry
 		// aggregated into the headline counters + top-N lists the page renders.
