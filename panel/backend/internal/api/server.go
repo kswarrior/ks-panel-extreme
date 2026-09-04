@@ -391,6 +391,16 @@ func NewRouter() http.Handler {
 			r.With(requireUmbrellaOrAction(nodesG, permissions.ActionEdit)).Post("/{id}/wss-channels", handlers.CreateNodeWssChannelHandler)
 			r.With(requireUmbrellaOrAction(nodesG, permissions.ActionEdit)).Put("/{id}/wss-channels/{cid}", handlers.UpdateNodeWssChannelHandler)
 			r.With(requireUmbrellaOrAction(nodesG, permissions.ActionEdit)).Delete("/{id}/wss-channels/{cid}", handlers.DeleteNodeWssChannelHandler)
+			// Per-node edge self-update (NodeDetail → Update & Reinstall):
+			// the panel proxies a trigger RPC to the edge, and the edge
+			// downloads + swaps + restarts via its own reinstall.sh.
+			// Info/check are view-level (like probe); mutating verbs are
+			// edit-level (like setup-local).
+			r.With(requireUmbrellaOrAction(nodesG, permissions.ActionView)).Get("/{id}/update-info", handlers.NodeUpdateInfoHandler)
+			r.With(requireUmbrellaOrAction(nodesG, permissions.ActionView)).Get("/{id}/update-check", handlers.NodeUpdateCheckHandler)
+			r.With(requireUmbrellaOrAction(nodesG, permissions.ActionEdit)).Post("/{id}/update-apply", handlers.NodeUpdateApplyHandler)
+			r.With(requireUmbrellaOrAction(nodesG, permissions.ActionEdit)).Post("/{id}/reinstall", handlers.NodeReinstallHandler)
+			r.With(requireUmbrellaOrAction(nodesG, permissions.ActionEdit)).Post("/{id}/reinstall-background", handlers.NodeReinstallBackgroundHandler)
 		})
 
 		// Admin: template management. MANAGE_TEMPLATES (umbrella) implies
