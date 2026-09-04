@@ -93,6 +93,10 @@ export interface TemplateAction {
   id: string;
   name: string;
   description: string;
+  /** Raw SVG markup for the action tile (empty = default play glyph). */
+  icon_svg: string;
+  /** Optional #rrggbb tint for the action icon in tiles/menus. */
+  icon_color: string;
   allowed_states: string;
   requires_online: boolean;
   async_run: boolean;
