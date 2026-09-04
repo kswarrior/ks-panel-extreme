@@ -17,6 +17,7 @@ import type {
 import { parseSubPages, parsePageComponents, parsePageConfigure } from '@/shared/types/instancePage';
 import { parseConfig } from '@/shared/hooks/useInstance';
 import FormPage from '@/shared/components/forms/FormPage';
+import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 import type { PageContent } from '@/shared/components/ui/CustomPageView';
 import type { PageStudioTabId } from '@/features/instance-pages/types/pageStudio';
@@ -483,8 +484,7 @@ const InstancePageStudio: React.FC = () => {
     return (
       <FormPage
         crumbs={[{ label: 'Instance Pages', to: '/instance-pages' }, { label: isEdit ? 'Edit Page' : 'New Page' }]}
-        saving={false}
-        submitLabel="Save"
+        hideHeader
         maxWidth="max-w-4xl"
       >
         <FormSkeleton fields={6} />
@@ -533,18 +533,42 @@ const InstancePageStudio: React.FC = () => {
   }
 
   return (
+    <>
+      {/* Top-right actions — fixed, auto-hide on scroll (node pattern).
+          Footer Save removed; everything lives here. */}
+      <PageActionsPill>
+          <button
+            type="button"
+            onClick={() => navigate('/instance-pages')}
+            title="Cancel and back to Instance Pages"
+            aria-label="Cancel and back to Instance Pages"
+            className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition"
+            style={PILL_TAB_STYLE}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => handleSave()}
+            disabled={saving || isBuiltin}
+            title={isEdit ? 'Save page' : 'Create page'}
+            className="ks-tab ks-tab-active shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-60"
+            style={PILL_TAB_STYLE}
+          >
+            {saving ? 'Saving…' : isEdit ? 'Save' : 'Create'}
+          </button>
+      </PageActionsPill>
     <FormPage
       crumbs={[{ label: 'Instance Pages', to: '/instance-pages' }, { label: isEdit ? 'Edit Page' : 'New Page' }]}
-      saving={saving}
-      submitLabel={isEdit ? 'Save' : 'Create'}
       onSubmit={handleSave}
       maxWidth="max-w-4xl"
+      hideHeader
       disabled={isBuiltin}
     >
       <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4">
         <PageStudioTabs tab={activeTab} onChange={setActiveTab} isBuiltin={isBuiltin} />
 
-        <div className="space-y-4">
+        <div className="space-y-4 min-w-0">
           {error && (
             <p className="text-red-400 flex items-start justify-between gap-2 border border-red-700/40 rounded px-3 py-2 bg-red-900/20">
               <span>{error}</span>
@@ -690,6 +714,10 @@ const InstancePageStudio: React.FC = () => {
         }}
       />
     </FormPage>
+      {/* Spacer — reserves scroll room so the fixed bottom tab bar never
+          covers trailing form content (node pattern). */}
+      <div aria-hidden="true" className="h-24 lg:hidden" />
+    </>
   );
 };
 

@@ -368,13 +368,6 @@ const ApplicationConfigure: React.FC = () => {
       <div className="flex justify-end gap-2">
         <button
           type="button"
-          onClick={() => navigate('/applications')}
-          className="ks-ghost-btn px-4 py-2 text-sm rounded border border-white/10 bg-white/5 text-gray-200 hover:bg-white/10 hover:text-white transition-colors"
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
           onClick={addField}
           className="px-4 py-2 text-sm rounded border border-white/10 text-white hover:bg-white/10"
         >
@@ -382,6 +375,7 @@ const ApplicationConfigure: React.FC = () => {
         </button>
       </div>
     </FormPage>
+    </>
   );
 };
 
