@@ -214,12 +214,35 @@ export const CATALOGUE: Array<PageEntry & { areaId: AreaId; areaLabel: string }>
   ...STANDALONE_PAGES,
 ];
 
+// bestPageFor(path) returns the MOST SPECIFIC catalogue entry whose matcher
+// claims the pathname (longest `path` wins, earliest entry wins ties). This
+// matters because generic matchers shadow specific ones under first-match
+// semantics — e.g. starts('/users') also matches '/users/new', so a naive
+// first-match walk would resolve User Create to admin.users and a
+// page:admin.users.new assignment would never fire. Longest-path-wins makes
+// per-page theming work for every nested page regardless of registry order.
+export function bestPageFor(
+  pathname: string,
+): (PageEntry & { areaId: AreaId; areaLabel: string }) | null {
+  let best: (PageEntry & { areaId: AreaId; areaLabel: string }) | null = null;
+  for (const p of CATALOGUE) {
+    let m = false;
+    try {
+      m = p.match(pathname, '');
+    } catch {
+      m = false;
+    }
+    if (!m) continue;
+    if (!best || p.path.length > best.path.length) best = p;
+  }
+  return best;
+}
+
 // areaFor(path) returns the area id a given pathname belongs to, or null for
 // the catch-all. The admin area (panel pages at the URL root) has no shared
-// prefix any more, so we resolve the area by walking the per-page matchers in
-// CATALOGUE — every entry already knows its own `match` predicate — and
-// return the first page whose matcher claims the path. Used by the resolver
-// to pick an area-level default when no per-page assignment exists.
+// prefix any more, so we resolve the area via bestPageFor (most-specific
+// matcher wins). Used by the resolver to pick an area-level default when no
+// per-page assignment exists.
 //
 // Instance custom pages (/instances/:id/<slug> and sub-pages) are not
 // enumerated individually; the catch-all instance.panel.custom covers them
@@ -227,9 +250,8 @@ export const CATALOGUE: Array<PageEntry & { areaId: AreaId; areaLabel: string }>
 // so any future slug instantly resolves to the 'instance' area even if the
 // catalogue entry is reordered or the pathname has a trailing query fragment.
 export function areaFor(pathname: string): AreaId | null {
-  for (const p of CATALOGUE) {
-    if (p.match(pathname, '')) return p.areaId;
-  }
+  const best = bestPageFor(pathname);
+  if (best) return best.areaId;
   // Fallback: every per-instance route lives under /instances/<numeric-id>
   // and must follow the instance area's theme (assignment > default). This
   // covers custom pages and any future tabs without requiring a registry edit.

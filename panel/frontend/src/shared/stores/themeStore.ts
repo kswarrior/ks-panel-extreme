@@ -2,7 +2,7 @@ import create from 'zustand';
 import type { Theme, ThemeKey, ThemeCustomCSS } from '@/features/themes/types/theme';
 import { DEFAULT_THEME } from '@/theme/defaults';
 import { rgbaAt } from '@/theme/colorUtils';
-import { AREAS, CATALOGUE, areaFor, type AreaId } from '@/features/instance-pages/types/pageregistry';
+import { AREAS, areaFor, bestPageFor, type AreaId } from '@/features/instance-pages/types/pageregistry';
 import {
   fetchThemesStore,
   assignGlobalTheme,
@@ -137,17 +137,14 @@ export function resolveThemeIdByRoute(
   pathname: string,
   assignments: Partial<Record<Scope, string>>,
 ): string {
-  // Page-level override: find the catalog page whose matcher accepts the
-  // pathname. The registry has no dependency on the store, so we import the
-  // CATALOGUE statically at the top of this module — bundlers produce a
-  // single module graph with no cycle and no runtime `require` (which would
-  // throw in an ESM browser bundle).
-  for (const p of CATALOGUE) {
-    if (p.match(pathname, '')) {
-      const tid = assignments[scopeForPage(p.id)];
-      if (tid) return tid;
-      break; // first matching page wins; fall through to area default
-    }
+  // Page-level override: most-specific catalog page wins (bestPageFor =
+  // longest-path match). Previously this was first-match-wins with a
+  // catch-all auth matcher first in the catalogue, so page:auth.login fired
+  // on EVERY route and every other page:* assignment was dead.
+  const best = bestPageFor(pathname);
+  if (best) {
+    const tid = assignments[scopeForPage(best.id)];
+    if (tid) return tid;
   }
   // Instance sub-page fallback: /instances/:id/<tab>/... should inherit the theme
   // assigned to that tab's page (e.g. files/edit follows page:instance.panel.files).
@@ -559,14 +556,11 @@ function matchingScopeCss(scopes: Record<string, string> | undefined, pathname: 
       seen.add(scope);
     }
   };
-  // Page-level override: the first catalog page whose matcher accepts
-  // the pathname wins (mirrors resolveThemeIdByRoute's first-match
-  // semantics exactly).
-  for (const p of CATALOGUE) {
-    if (p.match(pathname, '')) {
-      push(scopeForPage(p.id));
-      break;
-    }
+  // Page-level override: most-specific catalog page wins (mirrors
+  // resolveThemeIdByRoute's bestPageFor semantics exactly).
+  const best = bestPageFor(pathname);
+  if (best) {
+    push(scopeForPage(best.id));
   }
   // Instance sub-page fallback: mirror resolveThemeIdByRoute exactly so a
   // Custom CSS block assigned to page:instance.panel.files also emits on
