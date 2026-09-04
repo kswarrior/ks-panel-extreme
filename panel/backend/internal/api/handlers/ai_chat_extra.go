@@ -367,7 +367,7 @@ func AIChatStreamHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	checker := permissions.NewChecker(con)
-	if err := checker.Ensure(uid, permissions.AIChatUseKey); err != nil {
+	if err := checker.EnsureAny(uid, permissions.AIChatUseKey, permissions.AIChatQAKey, permissions.AIChatToolsKey, permissions.AIChatWritesKey); err != nil {
 		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 		return
 	}
@@ -440,7 +440,8 @@ func AIChatStreamHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	msgs := append([]aiMsg{{Role: "system", Content: sysPrompt}}, history...)
 	model := aiModelOverride(checker, uid, req.Model)
-	defs := aiToolDefs()
+	_, canRead, canWrite := aiCaps(checker, uid)
+	defs := aiToolDefsForCaps(canRead, canWrite)
 
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -565,6 +566,10 @@ func AIThreadsHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
+	if err := permissions.NewChecker(con).EnsureAIChatAccess(uid); err != nil {
+		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+		return
+	}
 	repo := repository.NewAIThreadRepository(con)
 	switch r.Method {
 	case http.MethodGet:
@@ -612,6 +617,10 @@ func AIThreadHandler(w http.ResponseWriter, r *http.Request) {
 	uid, err := UserIDFromContext(r)
 	if err != nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if err := permissions.NewChecker(con).EnsureAIChatAccess(uid); err != nil {
+		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 		return
 	}
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)

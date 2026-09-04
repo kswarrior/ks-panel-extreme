@@ -692,10 +692,26 @@ func aiBuildSystemPrompt(con *sql.DB, cfg *repository.AIConfig, uid int64, usern
 	_ = con.QueryRow(`SELECT COUNT(*) FROM templates`).Scan(&tmplN)
 	fmt.Fprintf(&b, " Fleet counts: %d instances, %d nodes, %d templates (counts only — no rows are preloaded).", instN, nodeN, tmplN)
 	b.WriteString("\n\nRules: only use the tools you were given; call a list tool before acting on any named resource; never invent IDs — if the user names something, look it up first; keep answers short. Write tools (instance_action, update_settings, create_theme, create_template, create_instance_page, create_user, deploy_instance) do NOT execute immediately: calling one returns a confirmation ticket that the user must approve in the UI. After calling a write tool, briefly summarise what will happen and ask the user to approve it in the confirmation card.")
+	// Capability line so the model respects the caller's AI Chat sub-perms.
+	if actxChecker, actxUID, ok := aiPromptCaps(con, uid); ok {
+		_, canRead, canWrite := aiCaps(actxChecker, actxUID)
+		b.WriteString("\n\nCapability: " + aiCapabilityNote(true, canRead, canWrite, cfg.AllowWrites))
+	}
 	if strings.TrimSpace(cfg.SystemExtra) != "" {
 		b.WriteString("\n\nAdministrator instructions: " + strings.TrimSpace(cfg.SystemExtra))
 	}
 	return b.String(), nil
+}
+
+// aiPromptCaps re-opens the caller's checker for the system-prompt path.
+// aiBuildSystemPrompt only receives con+uid, so it builds a short-lived
+// checker here; failures fall back to full tools (fail open matches the
+// legacy umbrella behaviour for seeded roles).
+func aiPromptCaps(con *sql.DB, uid int64) (*permissions.Checker, int64, bool) {
+	if con == nil {
+		return nil, uid, false
+	}
+	return permissions.NewChecker(con), uid, true
 }
 
 // ---------------------------------------------------------------------------
