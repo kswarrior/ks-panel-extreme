@@ -73,12 +73,14 @@ func cronNextOrNil(schedule string) *time.Time {
 func ListDBBackupSchedulesHandler(w http.ResponseWriter, r *http.Request) {
 	con, err := repository.OpenDB()
 	if err != nil {
+		log.Println("ListDBBackupSchedules open db:", err)
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
 	defer con.Close()
 	list, err := repository.NewBackupScheduleRepository(con).ListByKind("db", nil)
 	if err != nil {
+		log.Println("ListDBBackupSchedules list:", err)
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
