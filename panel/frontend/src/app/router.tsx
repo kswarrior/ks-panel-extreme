@@ -614,6 +614,26 @@ const Router: React.FC = () => (
         }
       />
       <Route
+        path="/applications/new"
+        element={
+          <RequireAuth>
+            <RequirePermission permission={PermissionKey.MANAGE_APPLICATIONS}>
+              <ApplicationEdit />
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/application/:id"
+        element={
+          <RequireAuth>
+            <RequirePermission permission={PermissionKey.MANAGE_APPLICATIONS}>
+              <ApplicationDetail />
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
+      <Route
         path="/applications/:id/edit"
         element={
           <RequireAuth>
@@ -639,6 +659,16 @@ const Router: React.FC = () => (
           <RequireAuth>
             <RequirePermission permission={PermissionKey.MANAGE_APPLICATIONS}>
               <ApplicationStats />
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/applications/schedules"
+        element={
+          <RequireAuth>
+            <RequirePermission permission={PermissionKey.MANAGE_APPLICATIONS}>
+              <ApplicationSchedules />
             </RequirePermission>
           </RequireAuth>
         }

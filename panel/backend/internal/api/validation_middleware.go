@@ -99,9 +99,19 @@ func SecurityHeadersExtendedMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// RequestValidationMiddleware validates incoming requests
+// RequestValidationMiddleware validates incoming requests. It is mounted
+// globally in NewRouter after SecurityMiddleware and before CSRF so every
+// mutating API call is checked. WebSocket handshakes (Upgrade: websocket)
+// and static SPA assets bypass validation — they are GETs with no body and
+// must never 400/415.
 func RequestValidationMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// WebSocket + static bypass (terminal, notifications/stream, tunnel,
+		// /assets/, /@vite). Uses the same helpers as the CSRF layer.
+		if isWebSocketUpgrade(r) || isCSRFStaticAsset(r.URL.Path) {
+			next.ServeHTTP(w, r)
+			return
+		}
 		// Check for suspicious patterns in path
 		if containsSuspiciousPatterns(r.URL.Path) {
 			http.Error(w, "Invalid request", http.StatusBadRequest)
@@ -151,13 +161,21 @@ func containsSuspiciousPatterns(path string) bool {
 	return false
 }
 
-// isAllowedContentType checks if the content type is allowed
+// isAllowedContentType checks if the content type is allowed. The list
+// covers every content type the stock SPA + edge actually send:
+//   - application/json (all JSON APIs),
+//   - application/x-www-form-urlencoded + multipart/form-data (forms,
+//     avatar/banner/logo/mod/app uploads, OAuth form_post),
+//   - text/plain (probes, plain POSTs),
+//   - application/octet-stream (per-instance file-backup chunked PUT
+//     with Content-Range, see instanceAdvanced.ts uploadInstanceBackupChunk).
 func isAllowedContentType(contentType string) bool {
 	allowedTypes := []string{
 		"application/json",
 		"application/x-www-form-urlencoded",
 		"multipart/form-data",
 		"text/plain",
+		"application/octet-stream",
 	}
 
 	lowerType := strings.ToLower(contentType)
