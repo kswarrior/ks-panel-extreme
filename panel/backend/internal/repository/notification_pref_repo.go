@@ -120,8 +120,23 @@ func (r *NotificationPrefsRepository) DigestCandidates(olderThan string) ([]Dige
 	out := []DigestCandidate{}
 	for rows.Next() {
 		var c DigestCandidate
-		if err := rows.Scan(&c.UserID, &c.Email, &c.Unread); err != nil {
+		var uid sql.NullInt64
+		var email sql.NullString
+		var unread sql.NullInt64
+		if err := rows.Scan(&uid, &email, &unread); err != nil {
+			// modernc phantom NULL row on empty result — treat as no work.
+			if strings.Contains(err.Error(), "converting NULL") {
+				continue
+			}
 			return nil, err
+		}
+		if !uid.Valid {
+			continue
+		}
+		c.UserID = uid.Int64
+		c.Email = email.String
+		if unread.Valid {
+			c.Unread = int(unread.Int64)
 		}
 		out = append(out, c)
 	}
