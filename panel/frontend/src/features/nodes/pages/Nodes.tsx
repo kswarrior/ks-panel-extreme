@@ -258,8 +258,10 @@ const AdminNodes: React.FC = () => {
       scheduleShow(1200);
     };
     // Clicks inside the pill (search/filter/popovers) keep it visible.
+    // composedPath avoids the DOM Node name (shadowed by the data model).
     const onPointerDown = (e: PointerEvent) => {
-      if (pillRef.current && !pillRef.current.contains(e.target as Node)) {
+      const path = typeof e.composedPath === 'function' ? e.composedPath() : [];
+      if (pillRef.current && !path.includes(pillRef.current)) {
         setActionsVisible(false);
         scheduleShow(4000);
       }
