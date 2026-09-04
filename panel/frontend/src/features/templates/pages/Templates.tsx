@@ -13,6 +13,7 @@ import GlassCard from '@/shared/components/ui/Card';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import GlassModal from '@/shared/components/ui/Modal';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
+import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import { CardIconTile } from '@/shared/components/ui/IconColorPicker';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 import { useConfirm } from '@/shared/stores/confirmStore';
@@ -277,20 +278,22 @@ const Templates: React.FC = () => {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
-        <h2 className="text-xl font-semibold text-white">Templates</h2>
-        <div className="flex items-center gap-2">
+      {/* Fixed top-right pill — auto-hides with a right-to-left slide. */}
+      <PageActionsPill>
           <SearchDropdown
             value={search}
             onChange={setSearch}
             placeholder="Search name, image, category, type…"
             ariaLabel="Search templates"
+            buttonClassName="ks-tab inline-flex items-center justify-center"
+            buttonStyle={PILL_TAB_STYLE}
           />
           <div className="relative" ref={filterRef}>
             <button
               type="button"
               onClick={() => setFilterOpen(!filterOpen)}
-              className={`ks-btn-header ks-icon-btn transition-colors ${filterOpen ? 'is-open' : ''}`}
+              className={`ks-tab inline-flex items-center justify-center gap-1 transition-colors ${filterOpen ? 'is-open' : ''}`}
+              style={PILL_TAB_STYLE}
               aria-label="Open filters"
               aria-expanded={filterOpen}
               aria-haspopup="true"

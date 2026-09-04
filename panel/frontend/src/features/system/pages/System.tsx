@@ -69,9 +69,6 @@ const System: React.FC = () => {
   if (loading) {
     return (
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-white">System</h2>
-        </div>
         <SkeletonGrid count={4} />
         <SkeletonGrid count={3} />
       </div>
