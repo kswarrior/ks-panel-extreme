@@ -11,6 +11,7 @@ import {
   StatCard,
 } from '@/shared/components/ui/StatDashboard';
 import GlassCard from '@/shared/components/ui/Card';
+import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 
 // Seeded roles the backend creates at first boot (no builtin column exists;
@@ -23,6 +24,9 @@ const RoleStats: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [timeRange, setTimeRange] = useState<'1h' | '6h' | '24h' | '7d'>('24h');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'builtin' | 'custom'>('all');
   const [filterOpen, setFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
 
@@ -56,19 +60,34 @@ const RoleStats: React.FC = () => {
     load();
   }, [load]);
 
+  const filteredRoles = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    let out = roles;
+    if (q) {
+      out = out.filter((r) =>
+        (r.name || '').toLowerCase().includes(q) ||
+        (r.display_name || '').toLowerCase().includes(q) ||
+        (r.description || '').toLowerCase().includes(q)
+      );
+    }
+    if (typeFilter === 'builtin') out = out.filter((r) => BUILTIN_ROLE_NAMES.has(r.name));
+    if (typeFilter === 'custom') out = out.filter((r) => !BUILTIN_ROLE_NAMES.has(r.name));
+    return out;
+  }, [roles, search, typeFilter]);
+
   const stats = useMemo(() => {
-    const total = roles.length;
-    const withPerms = roles.filter((r) => (r.permissions || []).length > 0).length;
-    const withColor = roles.filter((r) => r.color && r.color.trim() !== '').length;
-    const withIcon = roles.filter((r) => r.icon && r.icon.trim() !== '').length;
+    const total = filteredRoles.length;
+    const withPerms = filteredRoles.filter((r) => (r.permissions || []).length > 0).length;
+    const withColor = filteredRoles.filter((r) => r.color && r.color.trim() !== '').length;
+    const withIcon = filteredRoles.filter((r) => r.icon && r.icon.trim() !== '').length;
     // The backend Role model carries no builtin flag — the seeded roles are
     // identified by name (mirrors admin_handler.go's "admin/moderator/user"
     // switch), so derive the split here instead of reading a phantom field.
-    const builtin = roles.filter((r) => BUILTIN_ROLE_NAMES.has(r.name)).length;
+    const builtin = filteredRoles.filter((r) => BUILTIN_ROLE_NAMES.has(r.name)).length;
     const custom = total - builtin;
-    const totalPerms = roles.reduce((sum, r) => sum + (r.permissions || []).length, 0);
+    const totalPerms = filteredRoles.reduce((sum, r) => sum + (r.permissions || []).length, 0);
     return { total, withPerms, withColor, withIcon, builtin, custom, totalPerms };
-  }, [roles]);
+  }, [filteredRoles]);
 
   const permSlices = useMemo(() => [
     { label: 'With Permissions', value: stats.withPerms, color: '#34d399' },

@@ -101,7 +101,7 @@ const UserStats: React.FC = () => {
         value,
         color: ['#38bdf8', '#a78bfa', '#34d399', '#fbbf24', '#f87171', '#fb923c', '#22d3ee', '#c084fc'][i % 8],
       })),
-  [users]);
+  [filteredUsers]);
 
   if (loading) {
     return (
@@ -121,11 +121,31 @@ const UserStats: React.FC = () => {
     <div className="space-y-6">
       {/* Fixed top-right pill — "Statistics" title lives in the app header. */}
       <PageActionsPill>
+            <SearchDropdown
+              value={search}
+              onChange={setSearch}
+              placeholder="Search users..."
+              ariaLabel="Search users"
+              buttonClassName="ks-tab inline-flex items-center justify-center"
+              buttonStyle={PILL_TAB_STYLE}
+            />
+            <select
+              value={timeRange}
+              onChange={(e) => setTimeRange(e.target.value as any)}
+              className="ks-tab"
+              style={PILL_TAB_STYLE}
+              aria-label="Time range"
+            >
+              <option value="1h">Last hour</option>
+              <option value="6h">Last 6 hours</option>
+              <option value="24h">Last 24 hours</option>
+              <option value="7d">Last 7 days</option>
+            </select>
             <div className="relative" ref={filterRef}>
               <button
                 type="button"
                 onClick={() => setFilterOpen(!filterOpen)}
-                className={`ks-tab inline-flex items-center justify-center transition-colors ${filterOpen ? 'is-open' : ''}`}
+                className={`ks-tab inline-flex items-center justify-center gap-1 transition-colors ${filterOpen ? 'is-open' : ''}`}
                 style={PILL_TAB_STYLE}
                 aria-label="Open filters"
                 aria-expanded={filterOpen}
@@ -134,7 +154,9 @@ const UserStats: React.FC = () => {
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
                   <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
                 </svg>
-                <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
+                {(statusFilter !== 'all' || search.trim() !== '') && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
+                )}
               </button>
               {filterOpen && (
                 <div className="absolute right-0 top-full mt-1 z-30 w-56">
@@ -142,10 +164,14 @@ const UserStats: React.FC = () => {
                     <div className="p-3 space-y-3">
                       <div>
                         <label className="block text-xs text-gray-400 uppercase tracking-wide mb-1.5">Status</label>
-                        <select className="w-full glass-field">
-                          <option value="all">All · {stats.total}</option>
-                          <option value="active">Active · {stats.active}</option>
-                          <option value="suspended">Suspended · {stats.suspended}</option>
+                        <select
+                          value={statusFilter}
+                          onChange={(e) => setStatusFilter(e.target.value as any)}
+                          className="w-full glass-field"
+                        >
+                          <option value="all">All · {users.length}</option>
+                          <option value="active">Active</option>
+                          <option value="suspended">Suspended</option>
                         </select>
                       </div>
                       <div className="pt-2 border-t border-white/5 flex items-center justify-end gap-2">
