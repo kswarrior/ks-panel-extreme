@@ -139,6 +139,50 @@ export function formatCpu(cpu: number | null): string {
   return Number.isInteger(cpu) ? `${cpu} vCPU` : `${cpu.toFixed(1)} vCPU`;
 }
 
+// Friendly one-liner for instance.error on the fleet card. The backend stores
+// the edge's raw CLI dump verbatim (edge asExec: "docker exited exit status
+// 125: <combined output>"), which leaks internals + full container IDs into
+// the card. The card shows this short form; the full raw text stays in the
+// title tooltip so nothing is hidden.
+export function formatInstanceError(raw: string | undefined | null): string {
+  if (raw == null) return '';
+  let s = String(raw).replace(/\s+/g, ' ').trim();
+  if (!s) return '';
+  // Strip panel "edge rejected …: " wrapper so the card shows the driver
+  // error itself ("edge rejected start: docker exited …" → "docker exited …").
+  s = s.replace(/^edge rejected:\s*/i, '');
+  s = s.replace(/^edge rejected\s+[^:]+:\s*/i, '');
+  // "docker exited exit status 125: <detail>" → "Docker error (exit 125): <detail>".
+  const m = s.match(/^([a-z][a-z0-9_-]*) exited (exit status \d+):\s*(.*)$/i);
+  if (m) {
+    const driver = m[1].charAt(0).toUpperCase() + m[1].slice(1).toLowerCase();
+    const code = (m[2].match(/\d+/) || [])[0] || m[2];
+    const exitLabel = `exit ${code}`;
+    let detail = (m[3] || '').trim();
+    detail = shortenHexIds(detail);
+    if (!detail) return `${driver} error (${exitLabel})`;
+    // Bare container ID with no daemon message is meaningless on its own —
+    // keep the short ID and point at the tooltip/logs for the full output.
+    if (/^[0-9a-f]{12,64}$/i.test(detail)) {
+      return `${driver} error (${exitLabel}): container ${detail.slice(0, 12)}`;
+    }
+    return truncateOneLine(`${driver} error (${exitLabel}): ${detail}`, 160);
+  }
+  return truncateOneLine(shortenHexIds(s), 160);
+}
+
+function shortenHexIds(s: string): string {
+  // Docker full IDs are 64 hex chars; the card only needs the familiar
+  // 12-char short form. Also collapse 16–63 char runs (truncated IDs).
+  return s.replace(/\b[0-9a-f]{16,64}\b/gi, (id) => id.slice(0, 12));
+}
+
+function truncateOneLine(s: string, max: number): string {
+  const t = s.trim();
+  if (t.length <= max) return t;
+  return t.slice(0, max).trimEnd() + '…';
+}
+
 // Uptime since the instance last entered "running" (started_at).
 // Falls back to updated_at / created_at for rows that pre-date the
 // started_at column (migration 051). Updated every second while mounted.
@@ -388,7 +432,7 @@ const InstanceCard: React.FC<InstanceCardProps> = ({ instance, actions, showOwne
 
         {instance.error && (
           <p className="text-[11px] text-red-300 truncate bg-red-900/20 border border-red-900/30 rounded px-2 py-1" title={instance.error}>
-            ⚠ {instance.error}
+            ⚠ {formatInstanceError(instance.error)}
           </p>
         )}
 
