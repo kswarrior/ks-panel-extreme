@@ -17,6 +17,7 @@ import (
 	"github.com/example/kspanel/internal/cli/print"
 	"github.com/example/kspanel/internal/config"
 	"github.com/example/kspanel/internal/db"
+	"github.com/example/kspanel/internal/models"
 	"github.com/example/kspanel/internal/probe"
 	"github.com/example/kspanel/internal/repository"
 	"github.com/spf13/cobra"
@@ -264,20 +265,31 @@ func runSetupLocalnode(cmd *cobra.Command, args []string) error {
 	// 4) Give the edge a moment to bind, then dial /health to confirm. A
 	// missing edge doesn't fail the command — we still leave the install
 	// in place; the operator just sees "not reachable yet" in the output.
+	// NOTE: do NOT re-read the row via repo.GetNode here — GetNode holds
+	// its outer Rows open while issuing the nested nodeOwnerMap query,
+	// which deadlocks on SQLite's single-connection pool
+	// (SetMaxOpenConns(1)) and hangs the installer forever after the
+	// "started ksedge" log. Probe only needs the address/mode we already
+	// know, so construct the node locally (same values upserted above).
 	time.Sleep(1200 * time.Millisecond)
-	node, _ := repo.GetNode(nodeID)
-	if node != nil {
-		res := probe.Probe(*node)
-		_ = repo.RecordProbe(nodeID, repository.ProbeInput{
-			Reachable: res.Reachable,
-			SeenName:  res.SeenName,
-			CheckedAt: time.Now().UTC(),
-		})
-		if res.Reachable {
-			print.OK("edge", fmt.Sprintf("up and reachable (name=%q, log=%s)", res.SeenName, logPath))
-		} else {
-			print.Step("edge", fmt.Sprintf("not reachable yet — %s", res.Note))
-		}
+	probeNode := models.Node{
+		ID:             nodeID,
+		Name:           setupLocalnodeName,
+		Address:        address,
+		UseTLS:         false,
+		ConnectionMode: "local_port",
+		HealthTimeout:  4,
+	}
+	res := probe.Probe(probeNode)
+	_ = repo.RecordProbe(nodeID, repository.ProbeInput{
+		Reachable: res.Reachable,
+		SeenName:  res.SeenName,
+		CheckedAt: time.Now().UTC(),
+	})
+	if res.Reachable {
+		print.OK("edge", fmt.Sprintf("up and reachable (name=%q, log=%s)", res.SeenName, logPath))
+	} else {
+		print.Step("edge", fmt.Sprintf("not reachable yet — %s", res.Note))
 	}
 
 	// Surface a one-line quick-reference at the end so operators don't have
