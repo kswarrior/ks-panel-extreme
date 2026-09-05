@@ -607,35 +607,6 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
            one list. Each tile below owns exactly one fact. */
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
           <InfoTile
-            label="Status"
-            value={<span className="capitalize">{statusLabel}</span>}
-            hint={isRunning ? 'live & reachable' : 'not running'}
-            accent={isRunning ? 'var(--ks-ok)' : 'var(--ks-faint)'}
-            title={`Status: ${statusLabel}`}
-            icon={
-              <span className="relative flex w-3 h-3" aria-hidden="true">
-                {isRunning && <span className="absolute inline-flex w-full h-full rounded-full bg-emerald-400 opacity-60 animate-ping" />}
-                <span className={`relative inline-flex rounded-full w-3 h-3 ${dot}`} />
-              </span>
-            }
-          />
-          <InfoTile
-            label="Uptime"
-            value={<span className="ks-mono">{uptime}</span>}
-            hint={isRunning ? 'since last start' : 'stopped'}
-            accent="var(--ks-ok)"
-            title={`Uptime: ${uptime}`}
-            icon={tileIcon(<><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>)}
-          />
-          <InfoTile
-            label="Type"
-            value={<span className="capitalize">{typeLabel}</span>}
-            hint="driver"
-            accent="var(--ks-info)"
-            title={`Type: ${typeLabel}`}
-            icon={<KindIcon kind={k} className="w-5 h-5" />}
-          />
-          <InfoTile
             label="Container"
             value={<span className="ks-mono">{instance.name}</span>}
             hint="edge workload name"
