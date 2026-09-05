@@ -251,8 +251,9 @@ go nodeSweepLoop(90*time.Second, time.Minute)
 	// a Ctrl-C comes through cleanly whether the server runs forever or
 	// pulls a 0-port bind error.
 	go func() {
-		c := make(chan os.Signal, 1)
+		c := make(chan os.Signal, 2)
 		signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+		defer signal.Stop(c)
 		select {
 		case <-c:
 			log.Println("Shutting down server (signal)…")
@@ -261,8 +262,11 @@ go nodeSweepLoop(90*time.Second, time.Minute)
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
+		// Log instead of Fatal: a Shutdown error during the graceful path
+		// must not flip the process exit code to 1 — the listener below
+		// still reports servingDone and runLaunch returns nil.
 		if err := srv.Shutdown(ctx); err != nil {
-			log.Fatalf("Server Shutdown Failed:%+v", err)
+			log.Printf("Server Shutdown returned: %v", err)
 		}
 	}()
 

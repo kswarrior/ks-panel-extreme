@@ -230,10 +230,13 @@ func indexBytesFrom(haystack, needle []byte, start int) int {
 	return start + rel
 }
 
-// isDevelopment checks if the application is running in development mode
+// isDevelopment checks if the application is running in development mode.
+// Fail-closed: an unset KSPANEL_ENV means production, so CORS reflects no
+// foreign Origin with credentials unless the operator explicitly opts into
+// development (KSPANEL_ENV=development|dev) or allowlists the origin.
 func isDevelopment() bool {
-	env := os.Getenv("KSPANEL_ENV")
-	return env == "development" || env == "dev" || env == ""
+	env := strings.ToLower(strings.TrimSpace(os.Getenv("KSPANEL_ENV")))
+	return env == "development" || env == "dev"
 }
 
 // isAllowedOrigin checks if the origin is in the allowed list from settings

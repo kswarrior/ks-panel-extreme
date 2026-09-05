@@ -188,14 +188,23 @@ func EnqueueMail(job MailJob) {
 	}
 }
 
-func deliverWithRetry(job MailJob) {
+func deliverWithRetry(ctx context.Context, job MailJob) {
 	var err error
 	for attempt := 0; attempt <= len(mailRetryDelays); attempt++ {
 		if attempt > 0 {
 			d := mailRetryDelays[attempt-1]
 			select {
+			case <-ctx.Done():
+				return
 			case <-time.After(d):
 			}
+		}
+		// Abort before a new attempt when shutting down so a full
+		// retry cycle never runs past panel stop.
+		select {
+		case <-ctx.Done():
+			return
+		default:
 		}
 		if err = mailSend(job.To, job.Subject, job.Body); err == nil {
 			return
