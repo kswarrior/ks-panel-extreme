@@ -463,6 +463,7 @@ const ThemeStudio: React.FC = () => {
             {tab === 'header' && <HeaderTab draft={draft} patch={patch} />}
             {tab === 'button' && <ButtonTab draft={draft} patch={patch} />}
             {tab === 'tabs' && <TabsTab draft={draft} patch={patch} />}
+            {tab === 'pill' && <PillTab draft={draft} patch={patch} />}
             {tab === 'dropdowns' && <DropdownsTab draft={draft} patch={patch} />}
             {tab === 'typography' && <TypographyTab draft={draft} patch={patch} />}
             {tab === 'accent' && <AccentTab draft={draft} patch={patch} />}
