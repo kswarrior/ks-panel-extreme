@@ -24,6 +24,7 @@ import ErrorBoundary from '@/shared/components/ui/ErrorBoundary';
 import Terminal, { type TerminalHandle } from '@/shared/components/ui/Terminal';
 import type { Terminal as XTerm } from '@xterm/xterm';
 import InstancePortsEditor from '@/features/instances/pages/InstancePortsEditor';
+import InstanceOverview from '@/features/instances/pages/InstanceOverview';
 import InstanceSftpCard from '@/features/instances/components/InstanceSftpCard';
 import InstanceSnapshotsTab from '@/features/instances/components/InstanceSnapshotsTab';
 import { useAuthStore } from '@/shared/stores/authStore';
@@ -257,6 +258,15 @@ export const InstanceDynamicPage: React.FC = () => {
   // with schedules + file-level tar backups.
   if (effectiveSlug === 'snapshots') {
     return <InstanceSnapshotsTab instanceId={instanceId} />;
+  }
+
+  // Overview is a native built-in like Ports/SFTP/Snapshots (not a custom
+  // spec.pages entry): the full-page target of the floating instance
+  // menu's "More" link — the menu's own status row + power controls +
+  // actions, plus live CPU / RAM / disk graphs and manage options
+  // (rename, reinstall, destroy).
+  if (effectiveSlug === 'overview') {
+    return <InstanceOverview instanceId={instanceId} />;
   }
 
   if (!isPageAllowed(effectiveSlug, spec)) {

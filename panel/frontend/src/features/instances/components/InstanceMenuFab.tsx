@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import InstanceMenu from './InstanceMenu';
 
 // InstanceMenuFab — the main thing of an instance as a floating square
@@ -96,6 +96,9 @@ const ChevronIcon: React.FC<{ dir: ChevronDir }> = ({ dir }) => (
 
 const InstanceMenuFab: React.FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { id: routeId } = useParams<{ id: string }>();
+  const overviewId = Number(routeId);
   const [pos, setPos] = useState<{ x: number; y: number }>(() =>
     typeof window === 'undefined' ? { x: 0, y: 0 } : (loadPos() ?? defaultPos()),
   );
@@ -384,6 +387,35 @@ const InstanceMenuFab: React.FC = () => {
               <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-300 flex-1 truncate">
                 Instance controls
               </span>
+              {Number.isFinite(overviewId) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpen(false);
+                    navigate(`/instances/${overviewId}/overview`);
+                  }}
+                  title="Open the full instance overview page"
+                  aria-label="More — open full instance overview page"
+                  className="shrink-0 inline-flex items-center gap-0.5 rounded-md px-1.5 py-1 text-[11px] font-medium text-gray-400 hover:text-white hover:bg-white/10 active:scale-95 transition-all duration-150"
+                >
+                  <span>More</span>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2.4}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    width={12}
+                    height={12}
+                    aria-hidden="true"
+                    className="pointer-events-none"
+                  >
+                    <path d="M9 18l6-6-6-6" />
+                  </svg>
+                </button>
+              )}
               <button
                 ref={closeBtnRef}
                 type="button"
