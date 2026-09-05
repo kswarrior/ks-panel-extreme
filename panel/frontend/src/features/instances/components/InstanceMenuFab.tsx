@@ -8,6 +8,11 @@ import InstanceMenu from './InstanceMenu';
 // over the instance details page; a click (no drag) opens the menu with
 // power controls, template actions and the status row.
 //
+// The square carries four small SVG chevron nudge buttons (left / right /
+// up / down) pinned to its four sides — `< SVG >`-style stepping without
+// ever rendering a "<" / ">" text symbol. Click (or Shift+click for a big
+// step) nudges the whole cluster; the centre square itself stays draggable.
+//
 // Drag state: pointer capture on the button, 6px move threshold separates a
 // click from a drag, position clamps to the viewport and persists to
 // localStorage. The menu flips above the button when there is no room
@@ -19,13 +24,25 @@ const MENU_WIDTH = 320;
 const EDGE = 8;
 const CLICK_SLOP = 6;
 const LS_KEY = 'ks-instance-menu-pos';
+// Nudge-arrow geometry: small square tabs pinned to each side of the FAB.
+const ARROW_SIZE = 18;
+const ARROW_GAP = 2;
+const EXTENT = ARROW_SIZE + ARROW_GAP;
+const NUDGE = 12;
+const NUDGE_BIG = 60;
 
 function clampPos(x: number, y: number): { x: number; y: number } {
   const vw = typeof window === 'undefined' ? 1024 : window.innerWidth;
   const vh = typeof window === 'undefined' ? 768 : window.innerHeight;
+  // Reserve EXTENT around the square so the four SVG nudge arrows pinned to
+  // its sides never clip off-screen.
+  const minX = EDGE + EXTENT;
+  const minY = EDGE + EXTENT;
+  const maxX = Math.max(minX, vw - FAB_SIZE - EDGE - EXTENT);
+  const maxY = Math.max(minY, vh - FAB_SIZE - EDGE - EXTENT);
   return {
-    x: Math.min(Math.max(EDGE, x), Math.max(EDGE, vw - FAB_SIZE - EDGE)),
-    y: Math.min(Math.max(EDGE, y), Math.max(EDGE, vh - FAB_SIZE - EDGE)),
+    x: Math.min(Math.max(minX, x), maxX),
+    y: Math.min(Math.max(minY, y), maxY),
   };
 }
 
@@ -48,6 +65,34 @@ function loadPos(): { x: number; y: number } | null {
     return null;
   }
 }
+
+type ChevronDir = 'left' | 'right' | 'up' | 'down';
+
+const CHEVRON_PATH: Record<ChevronDir, string> = {
+  left: 'M15 18l-6-6 6-6',
+  right: 'M9 18l6-6-6-6',
+  up: 'M18 15l-6-6-6 6',
+  down: 'M6 9l6 6 6-6',
+};
+
+// ChevronIcon — pure SVG chevron, never a "<" / ">" / "^" text symbol.
+const ChevronIcon: React.FC<{ dir: ChevronDir }> = ({ dir }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={2.4}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    width={12}
+    height={12}
+    aria-hidden="true"
+    className="pointer-events-none"
+  >
+    <path d={CHEVRON_PATH[dir]} />
+  </svg>
+);
 
 const InstanceMenuFab: React.FC = () => {
   const location = useLocation();
