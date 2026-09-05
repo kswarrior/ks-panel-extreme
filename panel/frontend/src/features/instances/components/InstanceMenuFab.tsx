@@ -157,6 +157,47 @@ const InstanceMenuFab: React.FC = () => {
     }
   };
 
+  // Nudge the whole cluster by (dx, dy) — used by the four SVG chevrons and
+  // by the arrow keys on the centre square. Shift = big step.
+  const nudge = (dx: number, dy: number) => {
+    setPos((p) => {
+      const next = clampPos(p.x + dx, p.y + dy);
+      try {
+        window.localStorage.setItem(LS_KEY, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const onNudgeClick = (dir: ChevronDir) => (e: React.MouseEvent | React.PointerEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const shift = (e as React.MouseEvent).shiftKey;
+    const step = shift ? NUDGE_BIG : NUDGE;
+    if (dir === 'left') nudge(-step, 0);
+    else if (dir === 'right') nudge(step, 0);
+    else if (dir === 'up') nudge(0, -step);
+    else nudge(0, step);
+  };
+
+  // Arrow keys on the centre square move it the same way the chevrons do.
+  const onFabKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    const step = e.shiftKey ? NUDGE_BIG : NUDGE;
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      nudge(-step, 0);
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      nudge(step, 0);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      nudge(0, -step);
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      nudge(0, step);
+    }
+  };
+
   if (typeof document === 'undefined') return null;
 
   const vw = window.innerWidth;
@@ -168,49 +209,98 @@ const InstanceMenuFab: React.FC = () => {
 
   return createPortal(
     <>
-      <button
-        type="button"
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label="Instance menu"
-        title="Instance menu — drag to move, click to open"
-        className="ks-card flex items-center justify-center text-gray-200 hover:text-white transition-colors select-none"
+      {/* Floating cluster: centre square + 4 SVG chevron nudge tabs.
+          Layout looks like `< [wheel] >` horizontally with up/down tabs on
+          top/bottom — all four directions, all icons pure SVG. */}
+      <div
+        aria-hidden={false}
         style={{
           position: 'fixed',
-          left: pos.x,
-          top: pos.y,
-          width: FAB_SIZE,
-          height: FAB_SIZE,
-          borderRadius: FAB_RADIUS,
+          left: pos.x - EXTENT,
+          top: pos.y - EXTENT,
+          width: FAB_SIZE + EXTENT * 2,
+          height: FAB_SIZE + EXTENT * 2,
           zIndex: 2147483641,
-          touchAction: 'none',
-          cursor: dragging ? 'grabbing' : 'grab',
-          padding: 0,
+          pointerEvents: 'none',
         }}
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="w-6 h-6 pointer-events-none"
-          aria-hidden="true"
+        {(
+          [
+            { dir: 'left' as ChevronDir, label: 'Nudge menu left', left: 0, top: EXTENT + (FAB_SIZE - ARROW_SIZE) / 2 },
+            { dir: 'right' as ChevronDir, label: 'Nudge menu right', left: EXTENT * 2 + FAB_SIZE - ARROW_SIZE, top: EXTENT + (FAB_SIZE - ARROW_SIZE) / 2 },
+            { dir: 'up' as ChevronDir, label: 'Nudge menu up', left: EXTENT + (FAB_SIZE - ARROW_SIZE) / 2, top: 0 },
+            { dir: 'down' as ChevronDir, label: 'Nudge menu down', left: EXTENT + (FAB_SIZE - ARROW_SIZE) / 2, top: EXTENT * 2 + FAB_SIZE - ARROW_SIZE },
+          ]
+        ).map((a) => (
+          <button
+            key={a.dir}
+            type="button"
+            aria-label={a.label}
+            title={`${a.label} — Shift for big step`}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={onNudgeClick(a.dir)}
+            className="ks-card flex items-center justify-center text-gray-400 hover:text-white transition-colors select-none"
+            style={{
+              position: 'absolute',
+              left: a.left,
+              top: a.top,
+              width: ARROW_SIZE,
+              height: ARROW_SIZE,
+              borderRadius: 6,
+              pointerEvents: 'auto',
+              padding: 0,
+              cursor: 'pointer',
+              touchAction: 'manipulation',
+            }}
+          >
+            <ChevronIcon dir={a.dir} />
+          </button>
+        ))}
+        <button
+          type="button"
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+          onKeyDown={onFabKeyDown}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-label="Instance menu"
+          title="Instance menu — drag to move, click to open, arrow keys to nudge"
+          className="ks-card flex items-center justify-center text-gray-200 hover:text-white transition-colors select-none"
+          style={{
+            position: 'absolute',
+            left: EXTENT,
+            top: EXTENT,
+            width: FAB_SIZE,
+            height: FAB_SIZE,
+            borderRadius: FAB_RADIUS,
+            pointerEvents: 'auto',
+            touchAction: 'none',
+            cursor: dragging ? 'grabbing' : 'grab',
+            padding: 0,
+          }}
         >
-          <circle cx="12" cy="12" r="8" />
-          <circle cx="12" cy="12" r="2.5" />
-          <path d="M12 4v5.5" />
-          <path d="M12 14.5V20" />
-          <path d="M4 12h5.5" />
-          <path d="M14.5 12H20" />
-        </svg>
-      </button>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="w-6 h-6 pointer-events-none"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="8" />
+            <circle cx="12" cy="12" r="2.5" />
+            <path d="M12 4v5.5" />
+            <path d="M12 14.5V20" />
+            <path d="M4 12h5.5" />
+            <path d="M14.5 12H20" />
+          </svg>
+        </button>
+      </div>
       {open && (
         <>
           <div
