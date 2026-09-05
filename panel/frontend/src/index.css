@@ -761,3 +761,162 @@ nav.overflow-x-auto::-webkit-scrollbar-thumb:hover {
   display: block !important;
 }
 
+/* ------------------------------------------------------------------ *
+ *  Instance menu FAB + popover animations
+ * ------------------------------------------------------------------ *
+ *  The theme paints `.ks-card` with
+ *  `transition: border-color 0.2s ease !important`, so the floating
+ *  square toggle would snap instead of springing. `.ks-fab-anim`
+ *  restores transform/opacity/box-shadow transitions the same way
+ *  `.ks-pill-anim` does for the top-right pill. Menu open/close uses
+ *  keyframe `animation` (not `transition`) so the theme override can't
+ *  clobber it. Reduced-motion is already killed site-wide by the
+ *  `data-ks-reduced-motion` / prefers-reduced-motion rules above. */
+
+/* Toggle + nudge tabs: beat the theme's transition override. */
+.ks-card.ks-fab-anim {
+  transition-property: transform, opacity, box-shadow, border-color, background-color, color, filter !important;
+  transition-duration: 180ms !important;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1) !important;
+  will-change: transform;
+}
+
+/* Cluster entrance: soft pop when the details page mounts the FAB. */
+@keyframes ks-fab-cluster-in {
+  0% { opacity: 0; transform: scale(0.6); }
+  60% { opacity: 1; transform: scale(1.06); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.ks-fab-cluster-enter {
+  animation: ks-fab-cluster-in 320ms cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+
+/* Centre square states. */
+.ks-card.ks-fab-toggle:hover {
+  transform: scale(1.05) !important;
+  border-color: rgba(255, 255, 255, 0.28) !important;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55), 0 0 0 4px rgba(255, 255, 255, 0.06) !important;
+}
+.ks-card.ks-fab-toggle:active {
+  transform: scale(0.93) !important;
+  transition-duration: 90ms !important;
+}
+.ks-card.ks-fab-toggle.is-open {
+  border-color: rgba(52, 211, 153, 0.55) !important;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55), 0 0 0 4px rgba(52, 211, 153, 0.14), 0 0 22px rgba(52, 211, 153, 0.25) !important;
+}
+.ks-card.ks-fab-toggle.is-dragging {
+  transform: scale(1.09) !important;
+  border-color: rgba(255, 255, 255, 0.32) !important;
+  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.65), 0 0 0 6px rgba(255, 255, 255, 0.07) !important;
+  transition-duration: 120ms !important;
+}
+/* Idle breathing glow so the toggle reads as interactive, paused while
+   open / dragging / hovered. */
+@keyframes ks-fab-idle-glow {
+  0%, 100% { box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 0 0 rgba(255, 255, 255, 0); }
+  50% { box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 0 5px rgba(255, 255, 255, 0.05); }
+}
+.ks-card.ks-fab-toggle.is-idle {
+  animation: ks-fab-idle-glow 3.2s ease-in-out infinite;
+}
+.ks-card.ks-fab-toggle.is-idle:hover,
+.ks-card.ks-fab-toggle.is-open,
+.ks-card.ks-fab-toggle.is-dragging {
+  animation: none;
+}
+
+/* Wheel glyph morphs into an "active" state when the menu is open. */
+.ks-fab-toggle .ks-fab-wheel {
+  transition: transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform-origin: 50% 50%;
+}
+.ks-fab-toggle.is-open .ks-fab-wheel {
+  transform: rotate(135deg) scale(1.06);
+  color: #6ee7b7;
+}
+.ks-fab-toggle.is-dragging .ks-fab-wheel {
+  transform: scale(0.94);
+}
+
+/* Nudge chevrons: quiet until the cluster is hovered / focused. */
+.ks-fab-cluster .ks-fab-nudge {
+  opacity: 0.45;
+}
+.ks-fab-cluster:hover .ks-fab-nudge,
+.ks-fab-cluster:focus-within .ks-fab-nudge {
+  opacity: 1;
+}
+.ks-card.ks-fab-nudge:hover {
+  transform: scale(1.18) !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+  color: #fff !important;
+}
+.ks-card.ks-fab-nudge:active {
+  transform: scale(0.88) !important;
+  transition-duration: 90ms !important;
+}
+
+/* Backdrop fade. */
+@keyframes ks-fab-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes ks-fab-backdrop-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+.ks-fab-backdrop-enter {
+  animation: ks-fab-backdrop-in 200ms ease-out backwards;
+}
+.ks-fab-backdrop-exit {
+  animation: ks-fab-backdrop-out 160ms ease-in forwards;
+}
+
+/* Popover enter: scale + rise from the FAB edge. Origin is set inline
+   (top-right when it drops down, bottom-right when it flips up). */
+@keyframes ks-fab-menu-in-down {
+  0% { opacity: 0; transform: scale(0.92) translateY(-10px); }
+  60% { opacity: 1; transform: scale(1.015) translateY(1px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes ks-fab-menu-in-up {
+  0% { opacity: 0; transform: scale(0.92) translateY(10px); }
+  60% { opacity: 1; transform: scale(1.015) translateY(-1px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes ks-fab-menu-out-down {
+  from { opacity: 1; transform: scale(1) translateY(0); }
+  to { opacity: 0; transform: scale(0.94) translateY(-8px); }
+}
+@keyframes ks-fab-menu-out-up {
+  from { opacity: 1; transform: scale(1) translateY(0); }
+  to { opacity: 0; transform: scale(0.94) translateY(8px); }
+}
+.ks-fab-menu-enter-down {
+  animation: ks-fab-menu-in-down 240ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+.ks-fab-menu-enter-up {
+  animation: ks-fab-menu-in-up 240ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+.ks-fab-menu-exit-down {
+  animation: ks-fab-menu-out-down 160ms ease-in forwards;
+}
+.ks-fab-menu-exit-up {
+  animation: ks-fab-menu-out-up 160ms ease-in forwards;
+}
+
+/* Staggered rise for the menu's own sections (power row, actions,
+   info row) so the panel feels assembled rather than flashed in. */
+@keyframes ks-fab-stagger-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.ks-fab-stagger > * {
+  animation: ks-fab-stagger-in 260ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+.ks-fab-stagger > *:nth-child(1) { animation-delay: 40ms; }
+.ks-fab-stagger > *:nth-child(2) { animation-delay: 90ms; }
+.ks-fab-stagger > *:nth-child(3) { animation-delay: 140ms; }
+.ks-fab-stagger > *:nth-child(4) { animation-delay: 180ms; }
+

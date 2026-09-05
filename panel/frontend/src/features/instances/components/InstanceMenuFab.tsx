@@ -100,10 +100,50 @@ const InstanceMenuFab: React.FC = () => {
     typeof window === 'undefined' ? { x: 0, y: 0 } : (loadPos() ?? defaultPos()),
   );
   const [open, setOpen] = useState(false);
+  // `shown` keeps the popover mounted through its exit animation; `leaving`
+  // picks the exit keyframes. `open` is the intent, `shown` is what's painted.
+  const [shown, setShown] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const [dragging, setDragging] = useState(false);
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number; moved: boolean } | null>(null);
+  const closeTimer = useRef<number | null>(null);
+  const closeBtnRef = useRef<HTMLButtonElement>(null);
   const posRef = useRef(pos);
   posRef.current = pos;
+
+  useEffect(() => {
+    if (open) {
+      if (closeTimer.current !== null) {
+        window.clearTimeout(closeTimer.current);
+        closeTimer.current = null;
+      }
+      setShown(true);
+      setLeaving(false);
+    } else if (shown) {
+      setLeaving(true);
+      if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
+      closeTimer.current = window.setTimeout(() => {
+        setShown(false);
+        setLeaving(false);
+        closeTimer.current = null;
+      }, 160);
+    }
+  }, [open, shown]);
+
+  useEffect(
+    () => () => {
+      if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
+    },
+    [],
+  );
+
+  // Move focus into the popover when it finishes entering.
+  useEffect(() => {
+    if (shown && !leaving) {
+      const t = window.setTimeout(() => closeBtnRef.current?.focus({ preventScroll: true }), 240);
+      return () => window.clearTimeout(t);
+    }
+  }, [shown, leaving]);
 
   // Dismiss when the route changes underneath the open menu.
   useEffect(() => {
@@ -214,6 +254,7 @@ const InstanceMenuFab: React.FC = () => {
           top/bottom — all four directions, all icons pure SVG. */}
       <div
         aria-hidden={false}
+        className="ks-fab-cluster ks-fab-cluster-enter"
         style={{
           position: 'fixed',
           left: pos.x - EXTENT,
@@ -239,7 +280,7 @@ const InstanceMenuFab: React.FC = () => {
             title={`${a.label} — Shift for big step`}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={onNudgeClick(a.dir)}
-            className="ks-card flex items-center justify-center text-gray-400 hover:text-white transition-colors select-none"
+            className="ks-card ks-fab-anim ks-fab-nudge flex items-center justify-center text-gray-400 hover:text-white select-none"
             style={{
               position: 'absolute',
               left: a.left,
@@ -267,7 +308,7 @@ const InstanceMenuFab: React.FC = () => {
           aria-expanded={open}
           aria-label="Instance menu"
           title="Instance menu — drag to move, click to open, arrow keys to nudge"
-          className="ks-card flex items-center justify-center text-gray-200 hover:text-white transition-colors select-none"
+          className={`ks-card ks-fab-anim ks-fab-toggle flex items-center justify-center text-gray-200 hover:text-white select-none${open ? ' is-open' : ''}${dragging ? ' is-dragging' : ''}${!open && !dragging ? ' is-idle' : ''}`}
           style={{
             position: 'absolute',
             left: EXTENT,
@@ -289,7 +330,7 @@ const InstanceMenuFab: React.FC = () => {
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
-            className="w-6 h-6 pointer-events-none"
+            className="ks-fab-wheel w-6 h-6 pointer-events-none"
             aria-hidden="true"
           >
             <circle cx="12" cy="12" r="8" />
@@ -301,17 +342,27 @@ const InstanceMenuFab: React.FC = () => {
           </svg>
         </button>
       </div>
-      {open && (
+      {shown && (
         <>
           <div
             onClick={() => setOpen(false)}
-            style={{ position: 'fixed', inset: 0, zIndex: 2147483639 }}
             aria-hidden="true"
+            className={leaving ? 'ks-fab-backdrop-exit' : 'ks-fab-backdrop-enter'}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 2147483639,
+              background: 'rgba(0,0,0,0.35)',
+              backdropFilter: 'blur(2px)',
+              WebkitBackdropFilter: 'blur(2px)',
+            }}
           />
           <div
             role="menu"
             aria-label="Instance menu"
-            className="glass-dropdown text-sm flex flex-col overflow-hidden"
+            className={`glass-dropdown text-sm flex flex-col overflow-hidden${leaving
+              ? (opensUp ? ' ks-fab-menu-exit-up' : ' ks-fab-menu-exit-down')
+              : (opensUp ? ' ks-fab-menu-enter-up' : ' ks-fab-menu-enter-down')}`}
             style={{
               position: 'fixed',
               left: menuLeft,
@@ -321,9 +372,32 @@ const InstanceMenuFab: React.FC = () => {
               maxWidth: 'calc(100vw - 16px)',
               maxHeight: '70vh',
               borderRadius: FAB_RADIUS,
+              transformOrigin: opensUp ? 'bottom right' : 'top right',
             }}
           >
-            <InstanceMenu />
+            {/* Popover header: status pulse + title + animated close. */}
+            <div className="shrink-0 flex items-center gap-2 px-3 pt-2.5 pb-2 border-b border-white/10">
+              <span className="relative flex w-2 h-2 shrink-0" aria-hidden="true">
+                <span className={`absolute inline-flex w-full h-full rounded-full opacity-60 ${open && !leaving ? 'animate-ping bg-emerald-400' : 'bg-gray-500'}`} />
+                <span className={`relative inline-flex rounded-full w-2 h-2 ${open && !leaving ? 'bg-emerald-400' : 'bg-gray-500'}`} />
+              </span>
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-300 flex-1 truncate">
+                Instance controls
+              </span>
+              <button
+                ref={closeBtnRef}
+                type="button"
+                onClick={() => setOpen(false)}
+                aria-label="Close instance menu"
+                title="Close (Esc)"
+                className="shrink-0 rounded-md p-1 text-gray-400 hover:text-white hover:bg-white/10 active:scale-90 transition-all duration-150"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" width={14} height={14} aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+              </button>
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              <InstanceMenu />
+            </div>
           </div>
         </>
       )}
