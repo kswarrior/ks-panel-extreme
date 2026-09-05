@@ -1,4 +1,4 @@
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 
 export type SystemTabId = 'host' | 'panel';
 
@@ -50,6 +50,17 @@ export const SystemTabs: React.FC<SystemTabsProps> = ({
 }) => {
   const order: SystemTabId[] = ['host', 'panel'];
   const refs = useRef<Record<SystemTabId, HTMLButtonElement | null>>({ host: null, panel: null });
+  // Bumped on every selection so the top line's sweep animation remounts and
+  // replays left → right — even when re-clicking the already-active tab.
+  const [sweep, setSweep] = useState(0);
+
+  const select = useCallback(
+    (id: SystemTabId) => {
+      onChange(id);
+      setSweep((s) => s + 1);
+    },
+    [onChange],
+  );
 
   const focusTab = useCallback((id: SystemTabId) => {
     refs.current[id]?.focus();
@@ -65,11 +76,11 @@ export const SystemTabs: React.FC<SystemTabsProps> = ({
       else if (e.key === 'End') next = order[order.length - 1];
       if (next) {
         e.preventDefault();
-        onChange(next);
+        select(next);
         focusTab(next);
       }
     },
-    [tab, onChange, focusTab],
+    [tab, select, focusTab],
   );
 
   const cards: Array<{
@@ -170,14 +181,21 @@ export const SystemTabs: React.FC<SystemTabsProps> = ({
               aria-selected={active}
               aria-controls={`system-panel-${c.id}`}
               tabIndex={active ? 0 : -1}
-              onClick={() => onChange(c.id)}
+              onClick={() => select(c.id)}
               className={`ks-system-tab ks-system-tabs-anim group relative flex items-center gap-3 rounded-lg border p-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${
                 active ? 'is-active' : ''
               }`}
               data-active={active}
             >
-              {/* Top accent bar — the unique marker: grows in on active. */}
-              <span aria-hidden="true" className="ks-system-tab-bar" data-active={active} />
+              {/* Top line — sweeps in from the left on every selection (the
+                  key remounts the span so the CSS animation replays, even on
+                  re-click — see ks-system-bar-sweep in index.css). */}
+              <span
+                key={active ? `${c.id}-on-${sweep}` : `${c.id}-off`}
+                aria-hidden="true"
+                className="ks-system-tab-bar"
+                data-active={active}
+              />
 
               {/* Icon tile — filled when active (theme active colors), glass when idle. */}
               <span aria-hidden="true" className={`ks-system-tab-icon shrink-0 ${active ? 'is-active' : ''}`}>

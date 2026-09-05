@@ -979,12 +979,43 @@ nav.overflow-x-auto::-webkit-scrollbar-thumb:hover {
   background: currentColor;
   opacity: 0;
   transform: scaleX(0);
+  /* Left origin = the line grows from the left towards the right. */
   transform-origin: left center;
-  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease;
+  /* Fade-out when the card deactivates; the grow-in is the keyframe
+     sweep below (transitions can't replay on re-click, animations can). */
+  transition: opacity 180ms ease;
 }
 .ks-system-tab-bar[data-active='true'] {
   opacity: 0.9;
   transform: scaleX(1);
+  animation: ks-system-bar-sweep 380ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+/* Left → right sweep: starts collapsed at the left edge, fills towards
+   the right with a slight overshoot feel from the easing. The `to` frame
+   matches the resting style above so the full line persists afterwards.
+   Remounting the span (key change in SystemTabs) replays this on every
+   click — including re-clicks of the active tab. */
+@keyframes ks-system-bar-sweep {
+  from {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+  40% {
+    opacity: 0.9;
+  }
+  to {
+    transform: scaleX(1);
+    opacity: 0.9;
+  }
+}
+/* Reduced motion — skip the sweep, just show the full line. */
+html[data-ks-reduced-motion='1'] .ks-system-tab-bar[data-active='true'] {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ks-system-tab-bar[data-active='true'] {
+    animation: none;
+  }
 }
 .ks-system-tab-icon {
   display: inline-flex;
