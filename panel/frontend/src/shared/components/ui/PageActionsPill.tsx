@@ -1,15 +1,18 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
+import { useThemeStore } from '@/shared/stores/themeStore';
 
-// Compact ks-tab sizing shared by every top-right pill. The theme paints
-// .ks-tab padding with !important, so Tailwind px/py alone can never win;
-// overriding the theme's own vars scoped to the pill does.
+// Compact ks-tab sizing shared by every top-right pill. Values resolve
+// against the Pill tab's theme vars (var refs with fallbacks reproduce the
+// historic 10/5/13 geometry when no theme is applied yet).
 export const PILL_TAB_STYLE = {
-  '--ks-tab-px': '10px',
-  '--ks-tab-py': '5px',
-  '--ks-tab-font': '13px',
+  '--ks-tab-px': 'var(--ks-pill-tab-px, 10px)',
+  '--ks-tab-py': 'var(--ks-pill-tab-py, 5px)',
+  '--ks-tab-font': 'var(--ks-pill-tab-font, 13px)',
 } as React.CSSProperties;
 
-// Idle delay before the pill slides back in after hiding.
+// Idle delay before the pill slides back in after hiding. The Pill tab's
+// auto_show_delay overrides this per theme (see PageActionsPill below).
 export const PILL_SHOW_DELAY = 2500;
 
 // useAutoHidePill hides a fixed action cluster while the page scrolls or

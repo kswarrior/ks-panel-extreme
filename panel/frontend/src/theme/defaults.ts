@@ -198,6 +198,31 @@ export const DEFAULT_THEME: Theme = {
     header_separator: 'rgba(255,255,255,0.10)',
   },
 
+  // Pill — the fixed top-right action cluster. Surface defaults mirror the
+  // Card tab so the pill keeps inheriting the live card look (see buildVars
+  // eqTok) until an admin explicitly overrides it here; padding/gap/tab
+  // sizing reproduce today's hardcoded pill geometry (6px surface, 10/5px
+  // tab buttons, 13px font, 16px chevron, 300ms slide, 2.5s auto-on).
+  pill: {
+    background: 'rgba(255,255,255,0.04)',
+    border_color: 'rgba(255,255,255,0.10)',
+    border_width: 1,
+    border_radius: 5,
+    padding: 6,
+    backdrop_blur: 1,
+    shadow: '0 8px 32px rgba(0,0,0,0.45)',
+    text_color: '#e5e7eb',
+    gap: 4,
+    tab_padding_x: 10,
+    tab_padding_y: 5,
+    font_size: 13,
+    icon_size: 16,
+    animation: 'slide',
+    animation_duration: 300,
+    auto_hide_enabled: true,
+    auto_show_delay: 2500,
+  },
+
   // Forms / Components / Utilities / Cards seed values REPRODUCE the stock
   // Tailwind look exactly. Where a variant should keep following the base
   // Card tab live (list/stat/form/glass-strong surfaces), its default equals

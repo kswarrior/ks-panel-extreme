@@ -446,6 +446,7 @@ function migrateThemeSections(t: any): Theme {
     loading: sectionBackfill(t?.loading, DEFAULT_THEME.loading),
     tabs: sectionBackfill(t?.tabs, DEFAULT_THEME.tabs),
     dropdowns: sectionBackfill(t?.dropdowns, DEFAULT_THEME.dropdowns),
+    pill: sectionBackfill(t?.pill, DEFAULT_THEME.pill),
     forms: sectionBackfill(t?.forms, DEFAULT_THEME.forms),
     components: sectionBackfill(t?.components, DEFAULT_THEME.components),
     utilities: sectionBackfill(t?.utilities, DEFAULT_THEME.utilities),
@@ -685,6 +686,7 @@ function sanitizeThemeTokens(theme: Theme): Theme {
     button: cleanSection(t.button) as unknown as Theme['button'],
     tabs: cleanSection(t.tabs) as unknown as Theme['tabs'],
     dropdowns: cleanSection(t.dropdowns) as unknown as Theme['dropdowns'],
+    pill: cleanSection(t.pill) as unknown as Theme['pill'],
     forms: cleanSection(t.forms) as unknown as Theme['forms'],
     components: cleanSection(t.components) as unknown as Theme['components'],
     utilities: cleanSection(t.utilities) as unknown as Theme['utilities'],
@@ -1509,7 +1511,23 @@ function buildSectionVars(theme: Theme): { vars: string } {
   --ks-formcard-border: ${eqTok(cd.form_border_color, D.cards.form_border_color, 'var(--ks-card-border)')};
   --ks-formcard-shadow: ${eqTok(cd.form_shadow, D.cards.form_shadow, 'var(--ks-card-shadow)')};
   --ks-formcard-radius: ${cd.form_border_radius === D.cards.form_border_radius ? 'var(--ks-card-radius)' : `${num(cd.form_border_radius, 5)}px`};
-  --ks-formcard-padding: ${cd.form_padding === D.cards.form_padding ? 'var(--ks-card-padding)' : `${num(cd.form_padding, 15)}px`}`,
+  --ks-formcard-padding: ${cd.form_padding === D.cards.form_padding ? 'var(--ks-card-padding)' : `${num(cd.form_padding, 15)}px`};
+
+  /* ---------------- Theme Studio: Pill (top-right actions) ---------------- */
+  --ks-pill-bg: ${eqTok((theme as any).pill?.background, D.pill.background, 'var(--ks-card-bg)')};
+  --ks-pill-border: ${eqTok((theme as any).pill?.border_color, D.pill.border_color, 'var(--ks-card-border)')};
+  --ks-pill-border-width: ${num((theme as any).pill?.border_width, D.pill.border_width)}px;
+  --ks-pill-radius: ${(theme as any).pill?.border_radius === D.pill.border_radius ? 'var(--ks-card-radius)' : `${num((theme as any).pill?.border_radius, 5)}px`};
+  --ks-pill-padding: ${num((theme as any).pill?.padding, D.pill.padding)}px;
+  --ks-pill-blur: ${(theme as any).pill?.backdrop_blur === D.pill.backdrop_blur ? 'var(--ks-card-blur)' : `${num((theme as any).pill?.backdrop_blur, 1)}px`};
+  --ks-pill-shadow: ${eqTok((theme as any).pill?.shadow, D.pill.shadow, 'var(--ks-card-shadow)')};
+  --ks-pill-text: ${safeCssValue((theme as any).pill?.text_color, '#e5e7eb')};
+  --ks-pill-gap: ${num((theme as any).pill?.gap, D.pill.gap)}px;
+  --ks-pill-tab-px: ${num((theme as any).pill?.tab_padding_x, D.pill.tab_padding_x)}px;
+  --ks-pill-tab-py: ${num((theme as any).pill?.tab_padding_y, D.pill.tab_padding_y)}px;
+  --ks-pill-tab-font: ${num((theme as any).pill?.font_size, D.pill.font_size)}px;
+  --ks-pill-icon-size: ${num((theme as any).pill?.icon_size, D.pill.icon_size)}px;
+  --ks-pill-anim-duration: ${clampNum((theme as any).pill?.animation_duration, D.pill.animation_duration, 0, 2000)}ms;`,
   };
 }
 
@@ -2184,6 +2202,43 @@ ${String(f.toggle_thumb_shadow || '').trim() ? `\n.ks-toggle .ks-toggle__thumb {
   box-shadow: var(--ks-formcard-shadow) !important;
   border-radius: var(--ks-formcard-radius) !important;
   padding: var(--ks-formcard-padding) !important;
+}
+
+/* ------------------------------------------------------------------
+   Theme Studio → Pill. The fixed top-right action cluster. The
+   triple-class selector (0,3,0) beats the base .glass-card/.ks-card
+   surface rule (0,1,0) so the Pill tab owns the surface; tokens that
+   still equal the Card default resolve to the live card vars inside
+   buildSectionVars, so the Card tab keeps cascading until overridden.
+   ------------------------------------------------------------------ */
+.ks-card.ks-pill-anim.ks-actions-pill {
+  background-color: var(--ks-pill-bg) !important;
+  border-color: var(--ks-pill-border) !important;
+  border-width: var(--ks-pill-border-width) !important;
+  border-radius: var(--ks-pill-radius) !important;
+  box-shadow: var(--ks-pill-shadow) !important;
+  padding: var(--ks-pill-padding) !important;
+  backdrop-filter: blur(var(--ks-pill-blur)) !important;
+  -webkit-backdrop-filter: blur(var(--ks-pill-blur)) !important;
+}
+/* Action buttons inside the pill take their size from the Pill tab
+   (scoped var override — the Tabs tab still drives .ks-tab elsewhere). */
+.ks-actions-pill .ks-tab {
+  --ks-tab-px: var(--ks-pill-tab-px);
+  --ks-tab-py: var(--ks-pill-tab-py);
+  --ks-tab-font: var(--ks-pill-tab-font);
+}
+/* `<` / `>` collapse toggle. */
+.ks-actions-pill .ks-pill-toggle { color: var(--ks-pill-text) !important; }
+.ks-actions-pill .ks-pill-toggle svg {
+  width: var(--ks-pill-icon-size) !important;
+  height: var(--ks-pill-icon-size) !important;
+}
+/* Collapsing content: gap + duration follow the Pill tab. The motion
+   itself (slide/fade/scale) is applied inline by PageActionsPill. */
+.ks-actions-pill .ks-pill-content {
+  gap: var(--ks-pill-gap) !important;
+  transition-duration: var(--ks-pill-anim-duration) !important;
 }`;
 }
 
