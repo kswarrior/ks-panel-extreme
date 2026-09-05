@@ -124,7 +124,8 @@ export const PageActionsPill: React.FC<PageActionsPillProps> = ({
     : 'translateX(8px)';
   return (
     <div
-      className="fixed top-[max(4.5rem,env(safe-area-inset-top))] right-4 sm:right-6 z-40"
+      className={outerClassName ?? 'fixed top-[max(4.5rem,env(safe-area-inset-top))] right-4 sm:right-6 z-40'}
+      style={outerStyle}
       onMouseEnter={show}
     >
       <div
