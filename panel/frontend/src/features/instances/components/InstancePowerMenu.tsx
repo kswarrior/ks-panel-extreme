@@ -5,6 +5,7 @@ import { invokeInstanceAction, stopInstanceAction } from '@/features/instances/a
 import { useInstance, parseConfig } from '@/shared/hooks/useInstance';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 import { useAuthStore } from '@/shared/stores/authStore';
+import { useConfirm } from '@/shared/stores/confirmStore';
 import { PermissionKey, hasPermissionAny } from '@/shared/types/permissions';
 
 // actionAllowedStates normalises an action's allowed_states (saved as a
@@ -47,6 +48,7 @@ const InstancePowerMenu: React.FC = () => {
   const [error, setError] = useState('');
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [stopPending, setStopPending] = useState<string | null>(null);
+  const confirm = useConfirm();
   // Selector state: which action the bordered row shows, and whether the
   // full action list is dropped down beneath it.
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -105,7 +107,15 @@ const InstancePowerMenu: React.FC = () => {
     if (!instance || busy) return;
     // Kill is forceful (SIGKILL, no graceful shutdown) — confirm first so
     // a stray click can't nuke unsaved in-memory state.
-    if (action === 'kill' && !window.confirm(`Force-stop "${instance.name}" now?\n\nKill skips graceful shutdown — unsaved data inside the instance will be lost.`)) return;
+    if (action === 'kill') {
+      const ok = await confirm({
+        title: 'Kill instance',
+        message: `Force-stop "${instance.name}" now? Kill skips graceful shutdown — unsaved data inside the instance will be lost.`,
+        tone: 'danger',
+        confirmLabel: 'Kill',
+      });
+      if (!ok) return;
+    }
     setBusy(action);
     setError('');
     try {
