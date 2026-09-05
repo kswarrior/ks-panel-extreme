@@ -689,6 +689,305 @@ func UpdateInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"id": id, "status": "creating", "recreated": true})
 }
 
+// updateIdentityRequest is the body for the display-identity rename: only
+// the human-facing labels change (display_name, icon, color). The
+// container/VM name on the edge is immutable and never touched.
+type updateIdentityRequest struct {
+	DisplayName string `json:"display_name"`
+	Icon        string `json:"icon,omitempty"`
+	Color       string `json:"color,omitempty"`
+}
+
+// UpdateInstanceIdentityHandler renames an instance's display identity
+// without touching the workload: no edge call, no recreate, no restart.
+// Same ownership scoping as the config editor (Own → own instances only).
+func UpdateInstanceIdentityHandler(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil || id <= 0 {
+		http.Error(w, "invalid instance id", http.StatusBadRequest)
+		return
+	}
+	var req updateIdentityRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid payload", http.StatusBadRequest)
+		return
+	}
+	if len(req.DisplayName) > 128 {
+		http.Error(w, "display_name too long (max 128 chars)", http.StatusBadRequest)
+		return
+	}
+
+	con, err := repository.OpenDB()
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	defer con.Close()
+
+	instRepo := repository.NewInstanceRepository(con)
+	inst, err := instRepo.Get(id)
+	if err != nil {
+		http.Error(w, "instance not found", http.StatusNotFound)
+		return
+	}
+	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
+		checker := permissions.NewChecker(con)
+		hasOwn, hasAll, _ := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		if !hasAll && hasOwn && inst.OwnerID != uid {
+			http.Error(w, "forbidden: own-scope may only edit own instances", http.StatusForbidden)
+			return
+		}
+	}
+	if err := instRepo.UpdateIdentity(id, req.DisplayName, req.Icon, req.Color); err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	RecordActivity(r, repository.ActivityInput{
+		Category:    models.ActivityCategoryInstance,
+		Action:      "rename",
+		TargetID:    &id,
+		TargetLabel: inst.Name,
+		Message:     fmt.Sprintf("renamed instance %q display name to %q", inst.Name, req.DisplayName),
+	})
+	writeJSON(w, map[string]any{"id": id, "display_name": req.DisplayName})
+}
+
+// ReinstallInstanceHandler wipes the edge workload and redeploys it from
+// the instance's stored spec — a fresh filesystem plus a re-run of the
+// template install workflow, mirroring the config-edit recreate path.
+// ALL data inside the workload is lost. Fail-closed like recreate: the
+// edge must confirm destroy (3 retries) before the row flips to
+// "creating" and the redeploy goroutine starts.
+func ReinstallInstanceHandler(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil || id <= 0 {
+		http.Error(w, "invalid instance id", http.StatusBadRequest)
+		return
+	}
+	con, err := repository.OpenDB()
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	defer con.Close()
+
+	instRepo := repository.NewInstanceRepository(con)
+	inst, err := instRepo.Get(id)
+	if err != nil {
+		http.Error(w, "instance not found", http.StatusNotFound)
+		return
+	}
+	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
+		checker := permissions.NewChecker(con)
+		hasOwn, hasAll, _ := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		if !hasAll && hasOwn && inst.OwnerID != uid {
+			http.Error(w, "forbidden: own-scope may only manage own instances", http.StatusForbidden)
+			return
+		}
+	}
+	if suspended, until, _ := instRepo.IsInstanceSuspended(id); suspended {
+		msg := "instance is suspended indefinitely"
+		if until != nil {
+			msg = fmt.Sprintf("instance is suspended until %s", until.Format("2006-01-02 15:04"))
+		}
+		writeJSONStatus(w, http.StatusForbidden, map[string]any{"error": msg})
+		return
+	}
+	// The stored config is already the merged deploy-time spec — redeploy
+	// it verbatim.
+	cfg := map[string]any{}
+	if inst.Config != "" {
+		if err := json.Unmarshal([]byte(inst.Config), &cfg); err != nil {
+			http.Error(w, "stored config is corrupt, cannot reinstall", http.StatusInternalServerError)
+			return
+		}
+	}
+	nodeRepo := repository.NewNodeRepository(con)
+	node, err := nodeRepo.GetNode(inst.NodeID)
+	if err != nil {
+		writeJSONStatus(w, http.StatusBadGateway, map[string]any{
+			"error":  "reinstall aborted: owning node not found",
+			"detail": err.Error(),
+		})
+		return
+	}
+	token, err := nodeRepo.PlainToken(inst.NodeID)
+	if err != nil || token == "" {
+		writeJSONStatus(w, http.StatusBadGateway, map[string]any{
+			"error": "reinstall aborted: node has no usable edge token (rotate it first)",
+		})
+		return
+	}
+
+	// Tear the current workload down with the same 3-attempt retry policy
+	// the recreate path uses. Fail closed: no destroy confirmation → no
+	// reinstall.
+	var destroyErr error
+	for i := 0; i < 3; i++ {
+		ec := edge.NewWithTimeout(*node, token, 60*time.Second)
+		_, destroyErr = ec.Lifecycle(edge.LifecycleRequest{
+			Action: "destroy",
+			Kind:   inst.Kind,
+			Name:   inst.Name,
+		})
+		if destroyErr == nil {
+			break
+		}
+		time.Sleep(time.Second)
+	}
+	if destroyErr != nil {
+		log.Printf("ReinstallInstance: destroy before reinstall failed for instance %d: %v", id, destroyErr)
+		writeJSONStatus(w, http.StatusBadGateway, map[string]any{
+			"error":  "reinstall aborted: edge refused destroy after 3 retries",
+			"detail": destroyErr.Error(),
+		})
+		return
+	}
+
+	// Clear stale install tracking, then flip to "creating" so no card
+	// claims the old workload still exists while redeploy runs.
+	_ = instRepo.UpdateInstallStatus(id, "", "", -1, "", "")
+	_ = instRepo.SetStatus(id, "creating", "", "")
+
+	RecordActivity(r, repository.ActivityInput{
+		Category:    models.ActivityCategoryInstance,
+		Action:      "reinstall",
+		TargetID:    &id,
+		TargetLabel: inst.Name,
+		Message:     fmt.Sprintf("reinstalled instance %q (%s on %q) — workload wiped and redeployed", inst.Name, inst.Kind, node.Name),
+	})
+
+	go reinstallAsync(id, inst.NodeID, inst.Kind, inst.Name, cfg)
+	writeJSON(w, map[string]any{"id": id, "status": "creating"})
+}
+
+// reinstallAsync redeploys an already-torn-down workload and kicks off its
+// install workflow. It mirrors the config-edit recreate goroutine step for
+// step (deploy → status hand-off → secrets/SFTP → InstallStart) so a
+// reinstall behaves exactly like a first deploy of the same spec.
+func reinstallAsync(instID, nodeID int64, kind, name string, cfg map[string]any) {
+	con2, err := repository.OpenDB()
+	if err != nil {
+		log.Printf("reinstall async: db open failed: %v", err)
+		return
+	}
+	defer con2.Close()
+
+	repo2 := repository.NewInstanceRepository(con2)
+	nodeRepo2 := repository.NewNodeRepository(con2)
+	node2, err := nodeRepo2.GetNode(nodeID)
+	if err != nil {
+		_ = repo2.SetStatus(instID, "errored", "", "reinstall: node not found: "+err.Error())
+		return
+	}
+	token2, err := nodeRepo2.PlainToken(nodeID)
+	if err != nil || token2 == "" {
+		_ = repo2.SetStatus(instID, "errored", "", "reinstall: node token missing")
+		return
+	}
+
+	ec2 := edge.NewWithTimeout(*node2, token2, 5*time.Minute)
+	resp, err := ec2.Lifecycle(edge.LifecycleRequest{
+		Action: "deploy",
+		Kind:   kind,
+		Name:   name,
+		Config: cfg,
+	})
+	if err != nil {
+		log.Printf("reinstall async for instance %d failed: %v", instID, err)
+		_ = repo2.SetStatus(instID, "errored", "", "reinstall failed: "+err.Error())
+		return
+	}
+	status := resp.Status
+	if status == "" {
+		status = "running"
+	}
+
+	// Parse install[] steps from the stored spec, same as the recreate path.
+	var steps []installStepSpec
+	if rawInstall, ok := cfg["install"].([]any); ok {
+		for _, s := range rawInstall {
+			if m, ok := s.(map[string]any); ok {
+				steps = append(steps, installStepSpec{
+					Action:       getString(m, "action"),
+					Command:      getString(m, "command"),
+					URL:          getString(m, "url"),
+					Filename:     getString(m, "filename"),
+					Archive:      getString(m, "archive"),
+					Dest:         getString(m, "dest"),
+					From:         getString(m, "from"),
+					To:           getString(m, "to"),
+					Path:         getString(m, "path"),
+					Content:      getString(m, "content"),
+					Branch:       getString(m, "branch"),
+					Retries:      getString(m, "retries"),
+					IgnoreErrors: getBool(m, "ignore_errors"),
+				})
+			}
+		}
+	}
+	if len(steps) > 0 && status != "running" {
+		failMsg := fmt.Sprintf(
+			"container exited before install workflow could start after reinstall (docker status=%q, id=%s)",
+			status, resp.ExternalID,
+		)
+		log.Printf("reinstall async: instance %d refusing install — %s", instID, failMsg)
+		_ = repo2.SetStatus(instID, "install_failed", resp.ExternalID, failMsg)
+		return
+	}
+	if len(steps) > 0 {
+		status = "installing"
+	}
+	if err := repo2.SetStatus(instID, status, resp.ExternalID, ""); err != nil {
+		log.Printf("reinstall async: failed to update status for instance %d: %v", instID, err)
+		return
+	}
+	if len(steps) > 0 {
+		stepsJSON, _ := json.Marshal(steps)
+		_ = repo2.UpdateInstallStatus(instID, "running", kind+":"+name, 0, "", string(stepsJSON))
+		edgeSteps := make([]edge.InstallStep, len(steps))
+		for i, s := range steps {
+			edgeSteps[i] = edge.InstallStep{
+				Action:       s.Action,
+				Command:      s.Command,
+				URL:          s.URL,
+				Filename:     s.Filename,
+				Archive:      s.Archive,
+				Dest:         s.Dest,
+				From:         s.From,
+				To:           s.To,
+				Path:         s.Path,
+				Content:      s.Content,
+				Branch:       s.Branch,
+				Retries:      s.Retries,
+				IgnoreErrors: s.IgnoreErrors,
+			}
+		}
+		envVars := map[string]string{}
+		if em, ok := cfg["env"].(map[string]any); ok {
+			for k, v := range em {
+				if s, ok := v.(string); ok {
+					envVars[k] = s
+				}
+			}
+		}
+		if _, err := ec2.InstallStart(edge.InstallStartRequest{
+			Token:      token2,
+			Kind:       kind,
+			Name:       name,
+			Steps:      edgeSteps,
+			EnvVars:    envVars,
+			TimeoutSec: timeoutSecFromSpec(cfg["install_timeout_sec"]),
+		}); err != nil {
+			log.Printf("reinstall async: install kick-off for instance %d failed: %v", instID, err)
+			_ = repo2.UpdateInstallStatus(instID, "failed", kind+":"+name, 0, "edge install start failed: "+err.Error(), string(mustJSON(steps)))
+			_ = repo2.SetStatus(instID, "install_failed", resp.ExternalID, "edge install start failed: "+err.Error())
+		}
+		// Success: installSweepLoop polls progress and flips the row to
+		// "running"/"install_failed".
+	}
+}
+
 // mustJSON marshals v or returns "null" on failure — best-effort helper for
 // audit/transcript columns where a marshal failure must never panic.
 func mustJSON(v any) []byte {

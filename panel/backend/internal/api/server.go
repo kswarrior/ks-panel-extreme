@@ -695,6 +695,8 @@ func NewRouter() http.Handler {
 			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionEdit)).Post("/{id}/stop", handlers.StopInstanceHandler)
 			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionEdit)).Post("/{id}/kill", handlers.KillInstanceHandler)
 			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionEdit)).Post("/{id}/restart", handlers.RestartInstanceHandler)
+			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionEdit)).Post("/{id}/reinstall", handlers.ReinstallInstanceHandler)
+			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionEdit)).Put("/{id}/identity", handlers.UpdateInstanceIdentityHandler)
 			// Admin config editor: persists the edited spec; recreates the
 			// workload on the edge only when a create-time-only field changed.
 			r.With(requireUmbrellaOrAction(instancesG, permissions.ActionEdit)).Put("/{id}", handlers.UpdateInstanceHandler)
