@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/example/kspanel/internal/permissions"
 	"github.com/example/kspanel/internal/repository"
 	"github.com/go-chi/chi/v5"
 )
@@ -91,6 +92,17 @@ func guardInstancePageAny(w http.ResponseWriter, r *http.Request, pageSlugs ...s
 	if err != nil || inst == nil {
 		writeJSONStatus(w, http.StatusNotFound, map[string]any{"error": "instance not found"})
 		return false
+	}
+
+	// Ownership scope: Own without All may only reach own instances.
+	// Legacy callers with neither scope keep the old full-access behaviour.
+	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
+		checker := permissions.NewChecker(con)
+		hasOwn, hasAll, _ := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		if !hasAll && hasOwn && inst.OwnerID != uid {
+			writeJSONStatus(w, http.StatusForbidden, map[string]any{"error": "forbidden"})
+			return false
+		}
 	}
 
 	for _, pageSlug := range pageSlugs {

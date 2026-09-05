@@ -15,6 +15,7 @@ import (
 	"github.com/example/kspanel/internal/cron"
 	"github.com/example/kspanel/internal/edge"
 	"github.com/example/kspanel/internal/models"
+	"github.com/example/kspanel/internal/permissions"
 	"github.com/example/kspanel/internal/repository"
 	"github.com/go-chi/chi/v5"
 )
@@ -50,6 +51,17 @@ func loadInstNode(w http.ResponseWriter, r *http.Request) (inst *models.Instance
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode(map[string]any{"error": "instance not found"})
 		return nil, nil, "", false
+	}
+	// Ownership scope: Own without All may only reach own instances.
+	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
+		checker := permissions.NewChecker(con)
+		hasOwn, hasAll, _ := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		if !hasAll && hasOwn && inst.OwnerID != uid {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]any{"error": "forbidden"})
+			return nil, nil, "", false
+		}
 	}
 	node, err := nodeRepo.GetNode(inst.NodeID)
 	if err != nil {
