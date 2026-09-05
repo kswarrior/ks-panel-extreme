@@ -222,7 +222,7 @@ func runLaunch(cmd *cobra.Command, args []string) error {
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		// WriteTimeout bounds non-hijacked responses (hijacked WebSockets
-		// are exempt per net/http semantics) while staying above the 60s
+		// are exempt per net/http semantics) while staying above the 110s
 		// AI-chat outer deadline so healthy SSE streams are not killed.
 		WriteTimeout: 120 * time.Second,
 		IdleTimeout:  120 * time.Second,
