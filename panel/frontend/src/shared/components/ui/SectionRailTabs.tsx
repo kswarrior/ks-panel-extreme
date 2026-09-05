@@ -1,4 +1,4 @@
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 export type RailMarker =
   | { kind: 'dot'; className?: string; title?: string }
