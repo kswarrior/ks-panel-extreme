@@ -5,6 +5,7 @@ export { HeaderTab } from './HeaderTab';
 export { ButtonTab } from './ButtonTab';
 export { TabsTab } from './TabsTab';
 export { PillTab } from './PillTab';
+export { MenuTab } from './MenuTab';
 export { DropdownsTab } from './DropdownsTab';
 export { TypographyTab } from './TypographyTab';
 export { AccentTab } from './AccentTab';

@@ -13,6 +13,7 @@ import {
   ButtonTab,
   TabsTab,
   PillTab,
+  MenuTab,
   DropdownsTab,
   TypographyTab,
   AccentTab,
@@ -175,6 +176,13 @@ const ICON_PILL = (
     <polyline points="15 10.5 12.5 12 15 13.5" />
   </svg>
 );
+const ICON_MENU = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
+    <rect x="4" y="4" width="10" height="10" rx="3" />
+    <circle cx="9" cy="9" r="2.5" />
+    <path d="M18 6h3M18 12h3M18 18h3" />
+  </svg>
+);
 const ICON_DROPDOWNS = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
     <rect x="3" y="4" width="18" height="4" rx="1.5" />
@@ -223,6 +231,7 @@ const TABS: Array<{ key: TabKey; label: string; hint: string; icon: React.ReactN
   { key: 'button', label: 'Button', hint: 'Primary, ghost & icon', icon: ICON_BUTTON },
   { key: 'tabs', label: 'Tabs', hint: 'Active, inactive & indicator', icon: ICON_TABS },
   { key: 'pill', label: 'Pill', hint: 'Surface, motion & timing', icon: ICON_PILL },
+  { key: 'menu', label: 'Menu', hint: 'Instance menu toggle & popover', icon: ICON_MENU },
   { key: 'dropdowns', label: 'Dropdowns', hint: 'Surface, items & danger', icon: ICON_DROPDOWNS },
   { key: 'typography', label: 'Typography', hint: 'Font, colours & size', icon: ICON_TYPOGRAPHY },
   { key: 'accent', label: 'Accent', hint: 'Primary & status colours', icon: ICON_ACCENT },
@@ -459,6 +468,7 @@ const ThemeStudio: React.FC = () => {
             {tab === 'button' && <ButtonTab draft={draft} patch={patch} />}
             {tab === 'tabs' && <TabsTab draft={draft} patch={patch} />}
             {tab === 'pill' && <PillTab draft={draft} patch={patch} />}
+            {tab === 'menu' && <MenuTab draft={draft} patch={patch} />}
             {tab === 'dropdowns' && <DropdownsTab draft={draft} patch={patch} />}
             {tab === 'typography' && <TypographyTab draft={draft} patch={patch} />}
             {tab === 'accent' && <AccentTab draft={draft} patch={patch} />}
