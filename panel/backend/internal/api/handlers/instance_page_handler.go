@@ -1195,6 +1195,14 @@ func ExecutePageActionHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if suspended, until, _ := instanceRepo.IsInstanceSuspended(req.InstanceID); suspended {
+		msg := "instance is suspended indefinitely"
+		if until != nil {
+			msg = fmt.Sprintf("instance is suspended until %s", until.Format("2006-01-02 15:04"))
+		}
+		writeJSONStatus(w, http.StatusForbidden, map[string]any{"error": msg})
+		return
+	}
 
 	// Get the node to get edge connection info
 	nodeRepo := repository.NewNodeRepository(con)
@@ -1588,6 +1596,14 @@ func ExecuteCustomPageActionHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if suspended, until, _ := instanceRepo.IsInstanceSuspended(req.InstanceID); suspended {
+		msg := "instance is suspended indefinitely"
+		if until != nil {
+			msg = fmt.Sprintf("instance is suspended until %s", until.Format("2006-01-02 15:04"))
+		}
+		writeJSONStatus(w, http.StatusForbidden, map[string]any{"error": msg})
+		return
+	}
 
 	// Get the node to get edge connection info
 	nodeRepo := repository.NewNodeRepository(con)
@@ -1724,6 +1740,14 @@ func ExecuteModulePageActionHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
+	}
+	if suspended, until, _ := instanceRepo.IsInstanceSuspended(req.InstanceID); suspended {
+		msg := "instance is suspended indefinitely"
+		if until != nil {
+			msg = fmt.Sprintf("instance is suspended until %s", until.Format("2006-01-02 15:04"))
+		}
+		writeJSONStatus(w, http.StatusForbidden, map[string]any{"error": msg})
+		return
 	}
 
 	// Get the node to get edge connection info

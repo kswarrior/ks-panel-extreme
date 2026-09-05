@@ -493,6 +493,14 @@ func TriggerRunHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "automation not found", http.StatusNotFound)
 		return
 	}
+	if suspended, until, _ := repository.NewInstanceRepository(con).IsInstanceSuspended(id); suspended {
+		msg := "instance is suspended indefinitely"
+		if until != nil {
+			msg = fmt.Sprintf("instance is suspended until %s", until.Format("2006-01-02 15:04"))
+		}
+		writeJSONStatus(w, http.StatusForbidden, map[string]any{"error": msg})
+		return
+	}
 	inst, _, name, ok := loadInstNode(w, r)
 	if !ok {
 		return
@@ -551,14 +559,23 @@ func TriggerRunHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// cronNext returns the next due time for an expression, or zero-time on parse
-// failure (the panel then leaves next_run_at NULL → on-demand only).
+// cronNext returns the next due time for an expression. Empty schedule is
+// on-demand (zero-time → next_run_at NULL). Parse failure or a schedule
+// that never occurs (e.g. Feb 30) parks far in the future instead of zero
+// — MarkRan/ScheduleNext persist zero as year-1, which Due matches on
+// every tick (per-minute refire loop). Mirrors scheduler.nextRun.
 func cronNext(schedule string, from time.Time) time.Time {
-	s, err := cron.Parse(schedule)
-	if err != nil {
+	if schedule == "" {
 		return time.Time{}
 	}
-	return s.Next(from)
+	s, err := cron.Parse(schedule)
+	if err != nil {
+		return from.AddDate(100, 0, 0)
+	}
+	if n := s.Next(from); !n.IsZero() {
+		return n
+	}
+	return from.AddDate(100, 0, 0)
 }
 
 // scheduleLabel renders a friendly readout of a cron expression for audit

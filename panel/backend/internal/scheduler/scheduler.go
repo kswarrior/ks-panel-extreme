@@ -226,11 +226,19 @@ func nextBackupRun(schedule string) time.Time {
 	if schedule == "" {
 		return time.Time{}
 	}
+	now := time.Now()
 	sched, err := cron.Parse(schedule)
 	if err != nil {
-		return time.Time{}
+		// Corrupt row that slipped past API validation: park far in the
+		// future instead of zero — MarkRan persists zero as year-1, which
+		// Due matches on every tick (per-minute refire loop). Mirrors nextRun.
+		return now.AddDate(100, 0, 0)
 	}
-	return sched.Next(time.Now())
+	if n := sched.Next(now); !n.IsZero() {
+		return n
+	}
+	// Parses but never occurs (e.g. Feb 30): same fail-closed parking.
+	return now.AddDate(100, 0, 0)
 }
 
 func loadS3ForScheduler() (backup.S3Config, error) {
@@ -378,6 +386,11 @@ func runJob(ctx context.Context, job models.Automation, instRepo *repository.Ins
 			JobID: job.ID, InstanceID: job.InstanceID, Trigger: "schedule",
 			Command: job.Command, Error: "instance not found", StartedAt: time.Now(), FinishedAt: time.Now(),
 		})
+		_ = automationRepo.MarkRan(job.ID, nextRun(job.Schedule, time.Now()))
+		return
+	}
+	if suspended, _, serr := instRepo.IsInstanceSuspended(job.InstanceID); serr != nil || suspended {
+		log.Printf("automation scheduler: skipping job #%d for suspended instance #%d", job.ID, job.InstanceID)
 		_ = automationRepo.MarkRan(job.ID, nextRun(job.Schedule, time.Now()))
 		return
 	}

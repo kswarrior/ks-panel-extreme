@@ -175,6 +175,24 @@ func isDangerousPath(p string) bool {
 	return false
 }
 
+// destBlocked is the rename-destination denylist. isDangerousPath is shared
+// by the source dispatcher and tryFixPermission so it must stay untouched;
+// the dest jail additionally rejects /var (cron spool), /opt, /srv, /home
+// and /run, which a rename onto (e.g. /var/spool/cron/*) could otherwise
+// abuse.
+func destBlocked(p string) bool {
+	if isDangerousPath(p) {
+		return true
+	}
+	c := filepath.Clean(p)
+	for _, d := range []string{"/var", "/opt", "/srv", "/home", "/run"} {
+		if c == d || strings.HasPrefix(c, d+"/") {
+			return true
+		}
+	}
+	return false
+}
+
 // hostFSDispatcher routes the request to the host filesystem when the
 // panel supplied a host_path that points at a bind-mounted directory the
 // edge actually owns. It returns false when the host path is missing or
@@ -434,7 +452,46 @@ func renameHost(w http.ResponseWriter, r *http.Request, hostPath string) {
 	// benign staged file (e.g. /tmp/a) onto a sensitive host path
 	// (e.g. /etc/cron.d/evil) and escape the host_path jail.
 	cleanTo := filepath.Clean(to)
-	if !filepath.IsAbs(cleanTo) || isDangerousPath(cleanTo) {
+	if !filepath.IsAbs(cleanTo) || destBlocked(cleanTo) {
+		writeErr(w, http.StatusBadRequest, fmt.Sprintf("invalid destination path %q", to))
+		return
+	}
+	// Resolve symlinks on the parent dir so a symlinked ancestor cannot
+	// smuggle the rename out of the jail (e.g. /tmp/link -> /etc with a
+	// dest of /tmp/link/evil). The dest itself may not exist yet, so only
+	// the parent chain is resolved; on error fall back to the deepest
+	// existing ancestor and fail closed when nothing resolves.
+	resolvedTo := cleanTo
+	parent := filepath.Dir(cleanTo)
+	if rp, err := filepath.EvalSymlinks(parent); err == nil {
+		resolvedTo = filepath.Join(rp, filepath.Base(cleanTo))
+	} else {
+		rel := []string{filepath.Base(cleanTo)}
+		cur := parent
+		resolved := ""
+		for {
+			if rp2, err2 := filepath.EvalSymlinks(cur); err2 == nil {
+				resolved = rp2
+				break
+			}
+			np := filepath.Dir(cur)
+			if np == cur {
+				break
+			}
+			rel = append([]string{filepath.Base(cur)}, rel...)
+			cur = np
+		}
+		if resolved == "" {
+			writeErr(w, http.StatusBadRequest, fmt.Sprintf("invalid destination path %q", to))
+			return
+		}
+		resolvedTo = resolved
+		for _, seg := range rel {
+			resolvedTo = filepath.Join(resolvedTo, seg)
+		}
+	}
+	resolvedTo = filepath.Clean(resolvedTo)
+	if !filepath.IsAbs(resolvedTo) || destBlocked(resolvedTo) {
 		writeErr(w, http.StatusBadRequest, fmt.Sprintf("invalid destination path %q", to))
 		return
 	}
