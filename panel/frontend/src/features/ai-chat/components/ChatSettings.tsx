@@ -138,6 +138,12 @@ const ChatSettings: React.FC = () => {
     setTestOut('');
     try {
       const next = await updateAIConfig({
+        // Access is gated by Roles → AI Chat permissions, not by the old
+        // master kill-switches: saving a provider always (re-)enables the
+        // assistant and its write proposals so a fresh DB (enabled=0,
+        // allow_writes=0) can't get stuck with no toggle to flip.
+        enabled: true,
+        allow_writes: true,
         base_url: cfg.base_url,
         api_key: apiKey || undefined,
         model_id: cfg.model_id,
