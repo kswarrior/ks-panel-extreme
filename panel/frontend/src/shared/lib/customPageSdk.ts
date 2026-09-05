@@ -234,19 +234,44 @@ export function createCustomPageSDK(
   // (FormData) must let the browser set the boundary parameter, and raw
   // endpoints (e.g. /files/read) answer text — parsed below by content AND
   // shape so a mislabelled raw-file response never throws.
+  // Every SDK fetch is bounded by a 30s AbortController timeout (unless the
+  // caller passes its own signal) so a hung edge never leaves the page on a
+  // perpetual skeleton. AbortErrors surface as "request timed out" instead
+  // of a raw DOMException.
+  const SDK_FETCH_TIMEOUT_MS = 30000;
+  function fetchWithTimeout(url: string, options?: RequestInit): Promise<Response> {
+    if (options?.signal) {
+      return fetch(url, { ...options, credentials: 'include' });
+    }
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), SDK_FETCH_TIMEOUT_MS);
+    return fetch(url, { ...options, signal: ctrl.signal, credentials: 'include' }).finally(() => {
+      clearTimeout(timer);
+    });
+  }
+  function timeoutErr(e: unknown): Error {
+    if (e instanceof DOMException && e.name === 'AbortError') {
+      return new Error('request timed out after 30s');
+    }
+    return e as Error;
+  }
   async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
     const body = options?.body;
     const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
     const defaultHeaders: Record<string, string> = {};
     if (body != null && !isFormData) defaultHeaders['Content-Type'] = 'application/json';
-    const res = await fetch(url, {
-      ...options,
-      headers: {
-        ...defaultHeaders,
-        ...(options?.headers || {}),
-      },
-      credentials: 'include',
-    });
+    let res: Response;
+    try {
+      res = await fetchWithTimeout(url, {
+        ...options,
+        headers: {
+          ...defaultHeaders,
+          ...(options?.headers || {}),
+        },
+      });
+    } catch (e) {
+      throw timeoutErr(e);
+    }
     if (!res.ok) {
       const text = await res.text();
       throw new Error(sanitizeHttpError(text, res.status));

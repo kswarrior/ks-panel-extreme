@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -77,9 +78,16 @@ func stopViaPIDFile(timeout time.Duration) error {
 	}
 
 	var pid int
-	fmt.Sscanf(string(pidData), "%d", &pid)
-	if pid == 0 {
+	if n, serr := fmt.Sscanf(strings.TrimSpace(string(pidData)), "%d", &pid); serr != nil || n != 1 || pid <= 0 {
 		return fmt.Errorf("invalid PID file")
+	}
+
+	// Staleness guard: PIDs recycle. Only signal when /proc/<pid>/cmdline
+	// still belongs to this binary; otherwise fall back to pkill so we
+	// never SIGTERM an unrelated process that reused the number.
+	if !pidBelongsToUs(pid, exe) {
+		print.Error("stop", fmt.Sprintf("stale PID file (pid %d not ours), falling back to pkill", pid))
+		return pkillPanel(exe)
 	}
 
 	process, err := os.FindProcess(pid)
@@ -92,23 +100,64 @@ func stopViaPIDFile(timeout time.Duration) error {
 		return fmt.Errorf("signal process: %w", err)
 	}
 
-	// Wait for process to exit
-	done := make(chan error, 1)
-	go func() {
-		_, err := process.Wait()
-		done <- err
-	}()
-
-	select {
-	case <-done:
-		print.OK("stop", fmt.Sprintf("Panel stopped (PID: %d)", pid))
-		return nil
-	case <-time.After(timeout):
-		// Force kill
-		process.Kill()
-		print.Error("stop", fmt.Sprintf("Panel force-killed after timeout (PID: %d)", pid))
-		return nil
+	// Wait for process to exit. process.Wait only works for child
+	// processes — for a non-child it errors immediately, so poll with
+	// Signal(0) until the PID disappears or the timeout elapses.
+	deadline := time.Now().Add(timeout)
+	for {
+		if err := process.Signal(syscall.Signal(0)); err != nil {
+			print.OK("stop", fmt.Sprintf("Panel stopped (PID: %d)", pid))
+			return nil
+		}
+		if time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(200 * time.Millisecond)
 	}
+	// Force kill
+	process.Kill()
+	print.Error("stop", fmt.Sprintf("Panel force-killed after timeout (PID: %d)", pid))
+	return nil
+}
+
+// pidBelongsToUs reports whether /proc/<pid>/cmdline argv[0] matches this
+// binary (path or basename). Non-Linux or unreadable /proc fails closed to
+// false so the caller falls back to the pkill path.
+func pidBelongsToUs(pid int, exe string) bool {
+	raw, err := os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", pid))
+	if err != nil || len(raw) == 0 {
+		return false
+	}
+	parts := strings.SplitN(string(raw), "\x00", 2)
+	argv0 := parts[0]
+	if argv0 == "" {
+		return false
+	}
+	if argv0 == exe {
+		return true
+	}
+	base := filepath.Base(exe)
+	argvBase := filepath.Base(argv0)
+	// Compare basenames without extension noise (kspanel vs kspanel.exe).
+	argvBase = strings.TrimSuffix(argvBase, ".exe")
+	base = strings.TrimSuffix(base, ".exe")
+	if argvBase != base {
+		// Fall back to numeric check: /proc/<pid>/exe symlink.
+		if link, lerr := os.Readlink(fmt.Sprintf("/proc/%d/exe", pid)); lerr == nil {
+			if link == exe || filepath.Base(link) == base {
+				return true
+			}
+		}
+		return false
+	}
+	// Basename matches — confirm via exe symlink when readable to defeat
+	// argv[0] spoofing; when unreadable (permissions), trust basename.
+	if link, lerr := os.Readlink(fmt.Sprintf("/proc/%d/exe", pid)); lerr == nil {
+		if link != exe && filepath.Base(link) != base {
+			return false
+		}
+	}
+	return true
 }
 
 func pkillPanel(exe string) error {

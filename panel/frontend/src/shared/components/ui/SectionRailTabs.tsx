@@ -21,9 +21,15 @@ interface SectionRailTabsProps {
   active: string;
   onChange: (id: string) => void;
   ariaLabel: string;
+  // Layout direction. 'horizontal' (default) is a scrollable strip — one
+  // tap on every breakpoint. 'vertical' is a stacked side nav for pages
+  // with many sections (Theme Studio): full-width rows, hints always
+  // visible, indicator line on the left edge growing top → bottom.
+  orientation?: 'horizontal' | 'vertical';
 }
 
-// SectionRailTabs — the ONE shared tab style for Security + Database.
+// SectionRailTabs — the shared tab style for Security + Database
+// (horizontal strip) and Theme Studio (vertical side nav).
 //
 // Why a second style next to the System scope cards:
 //   - System switches between exactly 2 scopes (machine vs app) with live
@@ -32,10 +38,13 @@ interface SectionRailTabsProps {
 //     a compact horizontal rail fits, on desktop AND phones (horizontally
 //     scrollable, one tap — no bottom-pill dropdown, no separate desktop
 //     row / vertical side rail per page).
-//   - Active item keeps the themed solid pill fill plus a bottom indicator
-//     line that grows left → right; inactive items stay transparent with a
-//     hover wash. Item colors reuse the Tabs-tab vars (--ks-tab-*); the
-//     indicator + icon size have their own rail_* knobs in the same tab.
+//   - Theme Studio has ~20 sections: same rail, vertical orientation —
+//     stacked full-width rows with the indicator on the left edge.
+//   - Active item keeps the themed solid pill fill plus an indicator line
+//     that grows on select (bottom, left → right / left edge, top →
+//     bottom); inactive items stay transparent with a hover wash. Item
+//     colors reuse the Tabs-tab vars (--ks-tab-*); the indicator + icon
+//     size have their own rail_* knobs in the same tab.
 //     An optional live marker (status dot / LIVE pulse / count badge)
 //     rides at the row's right edge — used by the instance overview for
 //     status, streaming state and audit count.
@@ -44,7 +53,9 @@ export const SectionRailTabs: React.FC<SectionRailTabsProps> = ({
   active,
   onChange,
   ariaLabel,
+  orientation = 'horizontal',
 }) => {
+  const vertical = orientation === 'vertical';
   const refs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   const focusTab = useCallback((id: string) => {
@@ -73,9 +84,13 @@ export const SectionRailTabs: React.FC<SectionRailTabsProps> = ({
       <div
         role="tablist"
         aria-label={ariaLabel}
-        aria-orientation="horizontal"
+        aria-orientation={orientation}
         onKeyDown={onKeyDown}
-        className="ks-hscroll flex items-stretch gap-1 overflow-x-auto pb-0.5"
+        className={
+          vertical
+            ? 'flex flex-col items-stretch gap-1'
+            : 'ks-hscroll flex items-stretch gap-1 overflow-x-auto pb-0.5'
+        }
       >
         {tabs.map((t) => {
           const isActive = active === t.id;
@@ -93,9 +108,10 @@ export const SectionRailTabs: React.FC<SectionRailTabsProps> = ({
               tabIndex={isActive ? 0 : -1}
               onClick={() => onChange(t.id)}
               data-active={isActive}
-              className={`ks-rail-tab ks-rail-anim group flex items-center gap-2.5 px-3 py-2 text-left shrink-0 min-w-0 outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${
-                isActive ? 'is-active' : ''
-              }`}
+              data-orientation={orientation}
+              className={`ks-rail-tab ks-rail-anim group flex items-center gap-2.5 px-3 py-2 text-left min-w-0 outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${
+                vertical ? 'w-full' : 'shrink-0'
+              } ${isActive ? 'is-active' : ''}`}
             >
               {t.icon && (
                 <span aria-hidden="true" className="ks-rail-ico">
@@ -105,7 +121,7 @@ export const SectionRailTabs: React.FC<SectionRailTabsProps> = ({
               <span className="flex flex-col min-w-0">
                 <span className="text-sm font-medium leading-tight whitespace-nowrap">{t.label}</span>
                 {t.hint && (
-                  <span className="ks-rail-hint hidden sm:block" title={t.hint}>
+                  <span className={`ks-rail-hint ${vertical ? '' : 'hidden sm:block'}`} title={t.hint}>
                     {t.hint}
                   </span>
                 )}
@@ -135,7 +151,9 @@ export const SectionRailTabs: React.FC<SectionRailTabsProps> = ({
                   {t.marker.text}
                 </span>
               )}
-              {/* Bottom indicator — grows left → right on select. */}
+              {/* Indicator — horizontal: bottom line growing left → right;
+                  vertical: left-edge line growing top → bottom (see
+                  .ks-rail-tab[data-orientation='vertical'] in index.css). */}
               <span aria-hidden="true" className="ks-rail-bar" data-active={isActive} />
             </button>
           );

@@ -1164,4 +1164,22 @@ html[data-ks-reduced-motion='1'] .ks-system-tab-bar[data-active='true'] {
   opacity: 0.95;
   transform: scaleX(1);
 }
+/* Vertical orientation (Theme Studio side nav): the indicator moves to
+   the left edge and grows top → bottom. Same themed color/height knobs —
+   height becomes the line thickness. */
+.ks-rail-tab[data-orientation='vertical'] .ks-rail-bar {
+  left: 3px;
+  right: auto;
+  top: 10px;
+  bottom: 10px;
+  width: var(--ks-rail-indicator-height, 2px);
+  height: auto;
+  transform: scaleY(0);
+  transform-origin: top center;
+  transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease;
+}
+.ks-rail-tab[data-orientation='vertical'] .ks-rail-bar[data-active='true'] {
+  opacity: 0.95;
+  transform: scaleY(1);
+}
 
