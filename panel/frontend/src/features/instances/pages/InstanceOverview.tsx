@@ -92,7 +92,7 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
   const [renameBusy, setRenameBusy] = useState(false);
   const [renameMsg, setRenameMsg] = useState('');
   const [reinstallBusy, setReinstallBusy] = useState(false);
-  const [reinstallMsg, setReinstallMsg] = useState('');
+  const [pageMsg, setPageMsg] = useState('');
   const [deleteBusy, setDeleteBusy] = useState(false);
 
   const canControl = hasPermissionAny(
@@ -199,13 +199,13 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
     });
     if (!ok) return;
     setReinstallBusy(true);
-    setReinstallMsg('');
+    setPageMsg('');
     try {
       await reinstallInstance(instanceId);
       await reload(true);
-      setReinstallMsg('Reinstall started — the instance is redeploying.');
+      setPageMsg('Reinstall started — the instance is redeploying.');
     } catch (e: any) {
-      setReinstallMsg(e?.response?.data || e?.message || 'Failed to reinstall');
+      setPageMsg(e?.response?.data || e?.message || 'Failed to reinstall');
     } finally {
       setReinstallBusy(false);
     }
@@ -226,9 +226,63 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
       navigate('/instances');
     } catch (e: any) {
       setDeleteBusy(false);
-      setReinstallMsg(e?.response?.data || e?.message || 'Failed to destroy instance');
-      setTab('manage');
+      setPageMsg(e?.response?.data || e?.message || 'Failed to destroy instance');
     }
+  };
+
+  const onCopyId = async () => {
+    const text = instance.external_id || '';
+    if (!text) return;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard denied — label stays */
+    }
+  };
+
+  // Page actions for the top-right pill (NodeDetail pattern): page-level
+  // navigation + management only — never instance power actions (those
+  // live in the Details tab's Controls card). Items are permission-gated
+  // with existing keys; nothing here mints a new permission.
+  const pillItems = [
+    ...(canControl ? [{ key: 'edit', label: 'Edit advanced config', tone: 'default' as const }] : []),
+    ...(canOpenTemplate && instance.template_id
+      ? [{ key: 'template', label: 'Open template', tone: 'default' as const }]
+      : []),
+    ...(canOpenNode && Number.isFinite(instance.node_id)
+      ? [{ key: 'node', label: 'Open node', tone: 'default' as const }]
+      : []),
+    ...(instance.external_id
+      ? [{ key: 'copyId', label: copied ? 'Copied!' : 'Copy external ID', tone: 'default' as const }]
+      : []),
+    ...(canControl
+      ? [
+          { key: 'reinstall', label: reinstallBusy ? 'Reinstalling…' : 'Reinstall', tone: 'danger' as const, disabled: reinstallBusy || deleteBusy },
+          { key: 'destroy', label: deleteBusy ? 'Destroying…' : 'Destroy', tone: 'danger' as const, disabled: reinstallBusy || deleteBusy },
+        ]
+      : []),
+  ];
+
+  const onPillSelect = (key: string) => {
+    if (key === 'edit') navigate(`/instance/${instanceId}/edit`);
+    else if (key === 'template' && instance.template_id) navigate(`/template/${instance.template_id}`);
+    else if (key === 'node' && Number.isFinite(instance.node_id)) navigate(`/node/${instance.node_id}`);
+    else if (key === 'copyId') void onCopyId();
+    else if (key === 'reinstall') void onReinstall();
+    else if (key === 'destroy') void onDelete();
   };
 
   const infoRows: { label: string; value: React.ReactNode; link?: string }[] = [
@@ -267,6 +321,20 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
 
   return (
     <div className="space-y-4 animate-fade-in">
+      {/* Fixed top-right page-actions pill — page actions only (never
+          instance power actions), like NodeDetail's CardMenu. */}
+      <PageActionsPill>
+        <CardMenu
+          ariaLabel={`Actions for instance ${displayName}`}
+          items={pillItems}
+          onSelect={onPillSelect}
+        />
+      </PageActionsPill>
+      {pageMsg && (
+        <div className="glass-card rounded-xl text-[13px] text-gray-300">
+          <span className="break-words">{pageMsg}</span>
+        </div>
+      )}
       {/* Header */}
       <div className="ks-card flex items-center gap-4">
         <div className="shrink-0 w-12 h-12 rounded-xl flex items-center justify-center border border-white/10 bg-white/[0.03] text-sky-300">
@@ -292,24 +360,6 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
             {(instance.node_name || 'unknown node') + ' · ' + (instance.template_name || 'deleted template')}
           </p>
         </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-1 p-1 rounded-lg bg-white/5 border border-white/10 w-fit" role="tablist" aria-label="Overview sections">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            aria-selected={tab === t.id}
-            onClick={() => setTab(t.id)}
-            className={`px-3 py-1.5 rounded-md text-[13px] font-medium transition-all duration-150 active:scale-95 ${
-              tab === t.id ? 'bg-white/10 text-white shadow' : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
       </div>
 
       {tab === 'resources' && (
@@ -462,7 +512,9 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
 
       {tab === 'manage' && (
         <>
-          {/* Rename */}
+          {/* Rename — the only manage control that isn't a page action.
+              Reinstall / Destroy / editors live once, in the top-right
+              pill above, so nothing appears twice. */}
           <div className="ks-card">
             <h3 className="text-sm font-semibold text-white">Rename</h3>
             <p className="text-xs text-gray-500 mt-1 mb-3">
@@ -493,77 +545,28 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
             )}
             {renameMsg && <p className="text-xs text-gray-400 mt-2">{renameMsg}</p>}
           </div>
-
-          {/* Advanced */}
-          <div className="ks-card">
-            <h3 className="text-sm font-semibold text-white">Advanced</h3>
-            <p className="text-xs text-gray-500 mt-1 mb-3">Full editors for this instance.</p>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => navigate(`/instance/${instanceId}/edit`)}
-                className="ks-btn-secondary px-3 py-1.5 rounded-md text-[13px]"
-              >
-                Edit advanced config
-              </button>
-              {instance.template_id ? (
-                <button
-                  type="button"
-                  onClick={() => navigate(`/template/${instance.template_id}`)}
-                  className="ks-btn-ghost px-3 py-1.5 rounded-md text-[13px]"
-                >
-                  Open template
-                </button>
-              ) : null}
-              {Number.isFinite(instance.node_id) ? (
-                <button
-                  type="button"
-                  onClick={() => navigate(`/node/${instance.node_id}`)}
-                  className="ks-btn-ghost px-3 py-1.5 rounded-md text-[13px]"
-                >
-                  Open node
-                </button>
-              ) : null}
-            </div>
-          </div>
-
-          {/* Danger zone */}
-          <div className="ks-card border-red-900/40">
-            <h3 className="text-sm font-semibold text-red-300">Danger zone</h3>
-            <p className="text-xs text-gray-500 mt-1 mb-3">
-              Reinstall wipes the workload and redeploys from the stored spec. Destroy removes it entirely.
-            </p>
-            {canControl ? (
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={onReinstall}
-                  disabled={reinstallBusy || deleteBusy || status === 'creating' || status === 'installing'}
-                  title={
-                    status === 'creating' || status === 'installing'
-                      ? 'Wait for the deploy to finish before reinstalling'
-                      : 'Wipe and redeploy from the stored spec'
-                  }
-                  className="ks-btn-danger-sm disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  {reinstallBusy ? 'Reinstalling…' : 'Reinstall'}
-                </button>
-                <button
-                  type="button"
-                  onClick={onDelete}
-                  disabled={reinstallBusy || deleteBusy}
-                  className="ks-btn-danger-sm disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  {deleteBusy ? 'Destroying…' : 'Destroy'}
-                </button>
-              </div>
-            ) : (
-              <p className="text-xs text-gray-500">You need instance edit permission for these actions.</p>
-            )}
-            {reinstallMsg && <p className="text-xs text-gray-400 mt-2">{reinstallMsg}</p>}
-          </div>
         </>
       )}
+
+      {/* Section tabs — bottom pill like NodeForm's form sections. */}
+      <PageTabsPill ariaLabel="Overview sections" spacer={false} activeLabel={TAB_META[tab].label}>
+        {TAB_ORDER.map((id) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={tab === id}
+            onClick={() => setTab(id)}
+            className={`ks-tab shrink-0 flex-1 px-3 py-1.5 rounded text-sm text-center transition flex items-center justify-center gap-1.5 ${tab === id ? 'ks-tab-active' : ''}`}
+          >
+            <span className="inline-flex items-center shrink-0">{TAB_META[id].icon}</span>
+            {TAB_META[id].label}
+          </button>
+        ))}
+      </PageTabsPill>
+      {/* Spacer — reserves scroll room so the fixed bottom pill never
+          covers trailing content. */}
+      <div aria-hidden="true" className="h-24 lg:hidden" />
     </div>
   );
 };
