@@ -974,9 +974,9 @@ nav.overflow-x-auto::-webkit-scrollbar-thumb:hover {
   top: 0;
   left: 12px;
   right: 12px;
-  height: 2px;
+  height: var(--ks-scope-line-height, 2px);
   border-radius: 9999px;
-  background: currentColor;
+  background: var(--ks-scope-line, currentColor);
   opacity: 0;
   transform: scaleX(0);
   /* Left origin = the line grows from the left towards the right. */
@@ -988,7 +988,7 @@ nav.overflow-x-auto::-webkit-scrollbar-thumb:hover {
 .ks-system-tab-bar[data-active='true'] {
   opacity: 0.9;
   transform: scaleX(1);
-  animation: ks-system-bar-sweep 380ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation: ks-system-bar-sweep var(--ks-scope-line-speed, 380ms) cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 /* Left → right sweep: starts collapsed at the left edge, fills towards
    the right with a slight overshoot feel from the easing. The `to` frame
@@ -1021,8 +1021,8 @@ html[data-ks-reduced-motion='1'] .ks-system-tab-bar[data-active='true'] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: var(--ks-scope-icon, 40px);
+  height: var(--ks-scope-icon, 40px);
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.06);
@@ -1083,5 +1083,85 @@ html[data-ks-reduced-motion='1'] .ks-system-tab-bar[data-active='true'] {
 .ks-system-tab.is-active .ks-system-tab-meta,
 .ks-system-tab[data-active='true'] .ks-system-tab-meta {
   opacity: 0.65;
+}
+
+/* ------------------------------------------------------------------ *
+ *  Section rail tabs (Security + Database — ONE shared style)
+ * ------------------------------------------------------------------ *
+ *  One horizontal icon+label+hint strip on a glass card, identical on
+ *  both pages and on every breakpoint (phones scroll it horizontally —
+ *  no bottom-pill dropdown). Distinct from the System scope cards (big
+ *  cards + top sweep + check badge) and from the generic ks-tab pills:
+ *  the active item keeps the themed solid pill fill AND grows a bottom
+ *  indicator line left → right.
+ *
+ *  Theming: item colors reuse the Tabs-tab vars (--ks-tab-*) so the base
+ *  look stays in sync; the indicator + icon size have their own rail_*
+ *  knobs in the same Tabs tab. `.ks-rail-anim` beats the theme's
+ *  `transition: border-color !important` the same way `.ks-pill-anim`
+ *  does — otherwise the active fill + line would snap. */
+.ks-rail-anim {
+  transition-property: transform, opacity, background-color, border-color, box-shadow, color !important;
+  transition-duration: 200ms !important;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1) !important;
+}
+.ks-rail-tab {
+  position: relative;
+  background: var(--ks-tab-inactive-bg, transparent);
+  color: var(--ks-tab-inactive-text, #d1d5db);
+  border: 1px solid transparent;
+  border-radius: var(--ks-tab-radius, 6px);
+  overflow: hidden;
+}
+.ks-rail-tab:hover {
+  background: var(--ks-tab-hover-bg, rgba(255, 255, 255, 0.06));
+  color: var(--ks-tab-hover-text, #ffffff);
+}
+.ks-rail-tab.is-active,
+.ks-rail-tab[data-active='true'] {
+  background: var(--ks-tab-active-bg, #ffffff);
+  color: var(--ks-tab-active-text, #000000);
+  border-color: var(--ks-tab-active-bg, #ffffff);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+.ks-rail-tab .ks-rail-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.ks-rail-tab .ks-rail-ico svg {
+  width: var(--ks-rail-icon, 16px);
+  height: var(--ks-rail-icon, 16px);
+}
+.ks-rail-hint {
+  font-size: 10px;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #6b7280;
+}
+.ks-rail-tab.is-active .ks-rail-hint,
+.ks-rail-tab[data-active='true'] .ks-rail-hint {
+  color: inherit;
+  opacity: 0.7;
+}
+.ks-rail-bar {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 3px;
+  height: var(--ks-rail-indicator-height, 2px);
+  border-radius: 9999px;
+  background: var(--ks-rail-indicator, currentColor);
+  opacity: 0;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease;
+}
+.ks-rail-bar[data-active='true'] {
+  opacity: 0.95;
+  transform: scaleX(1);
 }
 
