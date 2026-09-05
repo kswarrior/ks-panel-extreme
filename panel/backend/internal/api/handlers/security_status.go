@@ -11,9 +11,10 @@ import (
 
 // appEnvIsDev mirrors the router-level development check so the status
 // endpoint reports CORS behaviour consistently with what the chain does.
+// Fail-closed like api.isDevelopment: unset KSPANEL_ENV is production.
 func appEnvIsDev() bool {
-	env := os.Getenv("KSPANEL_ENV")
-	return env == "development" || env == "dev" || env == ""
+	env := strings.ToLower(strings.TrimSpace(os.Getenv("KSPANEL_ENV")))
+	return env == "development" || env == "dev"
 }
 
 // SecurityStatusHandler serves GET /api/security/status: a read-only
