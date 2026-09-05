@@ -56,9 +56,10 @@ function actionPhase(isActive: boolean, outcome: 'ok' | 'err' | undefined): Acti
 // below it, mirroring the line below Actions), then the template Actions
 // selector below it: a bordered `name | chevron` row where clicking the
 // name runs/stops the shown action and clicking the SVG chevron (resting
-// `<`-style, rotating down) drops down every action. Rendered in the
-// middle of the floating instance menu (status row above, actions are
-// the last section). Same run/stop
+// `<`-style, rotating down) drops down every action. Action rows are
+// phase-colored — running yellow, failed red, finished-OK green, idle
+// normal text. Rendered in the middle of the floating instance menu
+// (status row above, actions are the last section). Same run/stop
 // semantics + state gating as the old pill; the menu owns dismissal
 // (scrim / Escape), so this only polls while mounted (the menu portal
 // mounts it only while open).
@@ -98,6 +99,23 @@ const InstancePowerMenu: React.FC = () => {
   const workflowInFlight = !!instance && instance.install_state === 'running';
   const runningActionId =
     workflowInFlight && instance.install_kind === 'action' ? instance.install_action_id || '' : '';
+
+  // Outcome memory per action id: the backend clears install_action_id
+  // when a workflow resolves, so the finished row would forget which
+  // action ran. Watch the running → resolved transition and pin the
+  // outcome (done → ok/green, anything else → err/red) to the action
+  // that was in flight, captured in a ref since the row no longer names
+  // it. Reset when the menu remounts; cleared per action on re-run.
+  const [actionOutcome, setActionOutcome] = useState<Record<string, 'ok' | 'err'>>({});
+  const prevRunningRef = useRef('');
+  useEffect(() => {
+    const prev = prevRunningRef.current;
+    prevRunningRef.current = runningActionId;
+    if (prev && prev !== runningActionId && instance && instance.install_state !== 'running') {
+      const done = instance.install_state === 'done';
+      setActionOutcome((m) => ({ ...m, [prev]: done ? 'ok' : 'err' }));
+    }
+  }, [runningActionId, instance?.install_state]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keep action running-state fresh while the instance menu is open (silent
   // reloads so a finished action morphs back to Run without a flash).
@@ -174,16 +192,26 @@ const InstancePowerMenu: React.FC = () => {
         await reload(true);
       } catch (e: any) {
         setError(e?.response?.data || e?.message || `Failed to stop ${actionId}`);
+        setActionOutcome((m) => ({ ...m, [actionId]: 'err' }));
       } finally {
         setStopPending(null);
       }
     } else {
       setBusyAction(actionId);
+      // Fresh run clears any pinned outcome — the row goes yellow while
+      // active and re-resolves when the workflow finishes.
+      setActionOutcome((m) => {
+        if (!(actionId in m)) return m;
+        const n = { ...m };
+        delete n[actionId];
+        return n;
+      });
       try {
         await invokeInstanceAction(instanceId, actionId);
         await reload(true);
       } catch (e: any) {
         setError(e?.response?.data || e?.message || `Failed to run ${actionId}`);
+        setActionOutcome((m) => ({ ...m, [actionId]: 'err' }));
       } finally {
         setBusyAction(null);
       }
@@ -212,6 +240,10 @@ const InstancePowerMenu: React.FC = () => {
   const dCustomFull = dCustom.trim().toLowerCase().startsWith('<svg');
   const dIconColor =
     displayedAction && typeof displayedAction.icon_color === 'string' ? displayedAction.icon_color.trim() : '';
+  // Selector row phase: active (running/busy/stopping) → yellow, pinned
+  // outcome → red/green, otherwise normal text.
+  const dActive = dIsRunning || dIsBusy || dStopping;
+  const dTone = actionTone(actionPhase(dActive, displayedAction ? actionOutcome[displayedAction.id] : undefined));
 
   if (!showPowerRow && templateActions.length === 0 && !error) return null;
 
@@ -323,9 +355,7 @@ const InstancePowerMenu: React.FC = () => {
                   ? (displayedAction.stop_command ? `Stop: runs "${displayedAction.stop_command}" inside the container` : 'Stop the running action')
                   : (dStateHint || displayedAction.description || displayedAction.name || displayedAction.id)}
                 aria-label={dIsRunning ? `Stop action ${displayedAction.name || displayedAction.id}` : `Run action ${displayedAction.name || displayedAction.id}`}
-                className={`min-w-0 flex-1 flex flex-col items-start justify-center gap-0.5 px-2.5 py-2 text-left transition-all duration-150 active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100 ${
-                  dIsRunning ? 'text-red-300 hover:bg-red-900/30' : 'text-emerald-300 hover:bg-emerald-900/30'
-                }`}
+                className={`min-w-0 flex-1 flex flex-col items-start justify-center gap-0.5 px-2.5 py-2 text-left transition-all duration-150 active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100 ${dTone}`}
               >
                 <span className="w-full text-[13px] font-medium leading-tight inline-flex items-center gap-1.5">
                   {(dIsBusy || dIsRunning || dStopping) ? (
@@ -387,6 +417,8 @@ const InstancePowerMenu: React.FC = () => {
                     const customFull = custom.trim().toLowerCase().startsWith('<svg');
                     const iconColor = typeof a.icon_color === 'string' ? a.icon_color.trim() : '';
                     const selected = a.id === displayedAction.id;
+                    const active = isThisRunning || isBusy || stopping;
+                    const tone = actionTone(actionPhase(active, actionOutcome[a.id]));
                     return (
                       <button
                         key={a.id}
@@ -402,9 +434,7 @@ const InstancePowerMenu: React.FC = () => {
                         title={isThisRunning
                           ? (a.stop_command ? `Stop: runs "${a.stop_command}" inside the container` : 'Stop the running action')
                           : (stateHint || a.description || a.name || a.id)}
-                        className={`w-full flex flex-col items-start gap-0.5 px-2.5 py-2 text-left transition-all duration-150 hover:translate-x-0.5 active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-x-0 disabled:active:scale-100 ${
-                          isThisRunning ? 'text-red-300 hover:bg-red-900/30' : 'text-emerald-300 hover:bg-emerald-900/30'
-                        }${selected ? ' bg-white/5' : ''}`}
+                        className={`w-full flex flex-col items-start gap-0.5 px-2.5 py-2 text-left transition-all duration-150 hover:translate-x-0.5 active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-x-0 disabled:active:scale-100 ${tone}${selected ? ' bg-white/5' : ''}`}
                       >
                         <span className="text-[13px] font-medium leading-tight inline-flex items-center gap-1.5">
                           {(isBusy || isThisRunning || stopping) ? (
