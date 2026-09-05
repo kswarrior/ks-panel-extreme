@@ -1,5 +1,5 @@
 // Package lifecycle holds the HTTP handler that the panel calls to deploy,
-// start, stop and destroy workloads on this edge.
+// start, stop, kill and destroy workloads on this edge.
 //
 // Authentication is intentionally minimal: the panel presents the same
 // shared token the edge uses to heartbeat the panel, and we compare it
@@ -98,6 +98,8 @@ func dispatch(ctx context.Context, d drivers.Driver, req Request) (drivers.Resul
 		return d.Start(ctx, req.Name)
 	case "stop":
 		return d.Stop(ctx, req.Name)
+	case "kill":
+		return d.Kill(ctx, req.Name)
 	case "destroy":
 		return d.Destroy(ctx, req.Name)
 	default:

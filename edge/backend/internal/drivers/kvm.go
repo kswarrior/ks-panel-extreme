@@ -145,6 +145,21 @@ func (d *kvm) Stop(ctx context.Context, name string) (Result, error) {
 	return Result{ExternalID: name, Status: "stopped"}, nil
 }
 
+// Kill force-powers-off a domain (virsh destroy ≈ pulling the plug),
+// where Stop asks the guest OS to shut down cleanly first. Idempotent
+// like Stop: destroying a domain that isn't running reports stopped.
+func (d *kvm) Kill(ctx context.Context, name string) (Result, error) {
+	if err := binMissing("virsh"); err != nil {
+		return Result{}, err
+	}
+	if _, err := asExec(ctx, "", "virsh", "destroy", name); err != nil {
+		if !isAlreadyStoppedErr(err) {
+			return Result{}, err
+		}
+	}
+	return Result{ExternalID: name, Status: "stopped"}, nil
+}
+
 func (d *kvm) Destroy(ctx context.Context, name string) (Result, error) {
 	if err := binMissing("virsh"); err != nil {
 		return Result{}, err

@@ -134,6 +134,20 @@ func (d *lxd) Stop(ctx context.Context, name string) (Result, error) {
 	return Result{ExternalID: name, Status: "stopped"}, nil
 }
 
+// Kill force-stops an instance (lxc stop --force, i.e. SIGKILL instead of
+// the graceful shutdown Stop requests). Idempotent like Stop.
+func (d *lxd) Kill(ctx context.Context, name string) (Result, error) {
+	if err := binMissing("lxc"); err != nil {
+		return Result{}, err
+	}
+	if _, err := asExec(ctx, "", "lxc", "stop", "--force", name); err != nil {
+		if !isAlreadyStoppedErr(err) {
+			return Result{}, err
+		}
+	}
+	return Result{ExternalID: name, Status: "stopped"}, nil
+}
+
 // isAlreadyStoppedErr reports whether the CLI rejected a stop because the
 // workload was already down. The drivers' stop contract is idempotent (see
 // docker.Stop): stopping a stopped instance must succeed so a panel Stop /

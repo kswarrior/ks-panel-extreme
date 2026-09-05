@@ -64,6 +64,12 @@ func (d *multipass) Stop(ctx context.Context, name string) (Result, error) {
 	return Result{ExternalID: name, Status: "stopped"}, nil
 }
 
+// Kill maps to a graceful stop: the multipass CLI exposes no force-stop
+// flag, so force and graceful are the same operation on this driver.
+func (d *multipass) Kill(ctx context.Context, name string) (Result, error) {
+	return d.Stop(ctx, name)
+}
+
 func (d *multipass) Destroy(ctx context.Context, name string) (Result, error) {
 	if err := binMissing("multipass"); err != nil {
 		return Result{}, err

@@ -1525,8 +1525,8 @@ func findPortCollision(con sqlDB, nodeID, excludeID int64, want []requestedPort)
 	return requestedPort{}, "", false
 }
 
-// instanceAction is the helper used by start/stop/destroy — they all share
-// the same read-row → dial-node → mirror-status dance.
+// instanceAction is the helper used by start/stop/kill/destroy — they all
+// share the same read-row → dial-node → mirror-status dance.
 func instanceAction(w http.ResponseWriter, r *http.Request, action string) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
@@ -1558,7 +1558,7 @@ func instanceAction(w http.ResponseWriter, r *http.Request, action string) {
 		}
 	}
 	// Suspended instances are blocked from lifecycle mutations (start/stop/
-	// restart) until an admin unsuspends them. Destroy is exempt so a
+	// kill/restart) until an admin unsuspends them. Destroy is exempt so a
 	// suspended workload can still be cleaned up.
 	if action != "destroy" {
 		if suspended, until, _ := instRepo.IsInstanceSuspended(id); suspended {
@@ -1664,7 +1664,7 @@ func instanceAction(w http.ResponseWriter, r *http.Request, action string) {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	default:
-		// start/stop mirror the edge's reported status.
+		// start/stop/kill mirror the edge's reported status.
 		status := resp.Status
 		if status == "" {
 			status = action + "ed" // "started" / "stopped" — best-effort fallback
@@ -1709,12 +1709,13 @@ func emitInstancePost(action string, id int64, inst *models.Instance) {
 
 func StartInstanceHandler(w http.ResponseWriter, r *http.Request)   { instanceAction(w, r, "start") }
 func StopInstanceHandler(w http.ResponseWriter, r *http.Request)    { instanceAction(w, r, "stop") }
+func KillInstanceHandler(w http.ResponseWriter, r *http.Request)    { instanceAction(w, r, "kill") }
 func DestroyInstanceHandler(w http.ResponseWriter, r *http.Request) { instanceAction(w, r, "destroy") }
 
 // RestartInstanceHandler restarts an instance by issuing a stop RPC followed
 // by a start RPC to the owning edge. The edge's lifecycle dispatch has no
-// native "restart" action (the drivers expose Deploy/Start/Stop/Destroy only),
-// so the panel composes the two primitives it already has. Mirrors
+// native "restart" action (restart stays graceful; Kill is the forceful
+// counterpart), so the panel composes the two primitives it already has. Mirrors
 // instanceAction's shape: load row → dial node → retry each RPC up to 3x →
 // mirror the edge-reported status back into the row.
 func RestartInstanceHandler(w http.ResponseWriter, r *http.Request) {

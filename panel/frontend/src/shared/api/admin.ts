@@ -447,6 +447,10 @@ export async function stopInstance(id: number): Promise<void> {
   await client.post(`/api/instances/${id}/stop`);
 }
 
+export async function killInstance(id: number): Promise<void> {
+  await client.post(`/api/instances/${id}/kill`);
+}
+
 export async function restartInstance(id: number): Promise<void> {
   await client.post(`/api/instances/${id}/restart`);
 }

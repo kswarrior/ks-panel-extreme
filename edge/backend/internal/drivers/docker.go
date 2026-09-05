@@ -341,6 +341,30 @@ func (d *docker) Stop(ctx context.Context, name string) (Result, error) {
 	return Result{ExternalID: name, Status: "stopped"}, nil
 }
 
+// Kill force-stops a container with SIGKILL (docker kill) instead of the
+// graceful SIGTERM-then-wait dance Stop performs. Same idempotency
+// contract as Stop: a non-running container is already in the desired
+// end-state, so report stopped rather than failing the panel flow.
+func (d *docker) Kill(ctx context.Context, name string) (Result, error) {
+	if err := binMissing("docker"); err != nil {
+		return Result{}, err
+	}
+	status := dockerStatus(ctx, name)
+	if status == "" || status != "running" {
+		_, _ = asExec(ctx, "", "docker", "update", "--restart=no", name)
+		return Result{ExternalID: name, Status: "stopped"}, nil
+	}
+	if _, err := asExec(ctx, "", "docker", "kill", "-s", "KILL", name); err != nil {
+		return Result{}, err
+	}
+	// Same restart-policy reasoning as Stop: a killed container with
+	// --restart=always would bounce straight back into "Restarting".
+	if _, err := asExec(ctx, "", "docker", "update", "--restart=no", name); err != nil {
+		log.Printf("docker kill: failed to clear restart policy on %s: %v", name, err)
+	}
+	return Result{ExternalID: name, Status: "stopped"}, nil
+}
+
 // isAlreadyGoneErr reports whether docker rejected the call because the
 // container doesn't exist ("No such container: x" on classic endpoints,
 // "Error: No such object: x" on newer ones). Destroy's contract mirrors

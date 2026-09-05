@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { startInstance, stopInstance, restartInstance } from '@/shared/api/admin';
+import { startInstance, stopInstance, restartInstance, killInstance } from '@/shared/api/admin';
 import { invokeInstanceAction, stopInstanceAction } from '@/features/instances/api/instanceAdvanced';
 import { useInstance, parseConfig } from '@/shared/hooks/useInstance';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
@@ -28,8 +28,8 @@ function actionStateOk(a: any, status: string): boolean {
 
 // InstancePowerMenu — power controls for an instance as menu sections
 // (no pill chrome). Rendered at the TOP of the floating instance menu:
-// a Start / Stop / Restart button row first (with a divider line below
-// it, mirroring the line below Actions), then the template Actions
+// a Start / Stop / Restart / Kill button row first (with a divider line
+// below it, mirroring the line below Actions), then the template Actions
 // selector below it: a bordered `name | chevron` row where clicking the
 // name runs/stops the shown action and clicking the SVG chevron (resting
 // `<`-style, rotating down) drops down every action. Rendered in the
@@ -43,7 +43,7 @@ const InstancePowerMenu: React.FC = () => {
   const instanceId = Number(id);
   const { instance, loading, reload } = useInstance(instanceId);
 
-  const [busy, setBusy] = useState<'start' | 'stop' | 'restart' | null>(null);
+  const [busy, setBusy] = useState<'start' | 'stop' | 'restart' | 'kill' | null>(null);
   const [error, setError] = useState('');
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [stopPending, setStopPending] = useState<string | null>(null);
@@ -96,18 +96,22 @@ const InstancePowerMenu: React.FC = () => {
   // so render no buttons rather than clickable-then-failing ones.
   const isTransitional = status === 'creating' || status === 'installing';
   // State-aware buttons: stopped/errored/etc → Start only;
-  // running → Stop + Restart (Start hidden); transitional → none.
+  // running → Stop + Restart + Kill (Start hidden); transitional → none.
   const showStart = !isRunning && !isTransitional;
   const showPowerRow = showStart || isRunning;
   const busyAny = busy !== null || loading;
 
-  const run = async (action: 'start' | 'stop' | 'restart') => {
+  const run = async (action: 'start' | 'stop' | 'restart' | 'kill') => {
     if (!instance || busy) return;
+    // Kill is forceful (SIGKILL, no graceful shutdown) — confirm first so
+    // a stray click can't nuke unsaved in-memory state.
+    if (action === 'kill' && !window.confirm(`Force-stop "${instance.name}" now?\n\nKill skips graceful shutdown — unsaved data inside the instance will be lost.`)) return;
     setBusy(action);
     setError('');
     try {
       if (action === 'start') await startInstance(instance.id);
       else if (action === 'stop') await stopInstance(instance.id);
+      else if (action === 'kill') await killInstance(instance.id);
       else await restartInstance(instance.id);
       await reload(true);
     } catch (e: any) {
