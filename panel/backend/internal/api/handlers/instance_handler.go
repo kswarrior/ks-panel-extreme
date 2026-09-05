@@ -2047,6 +2047,32 @@ func RestartInstanceHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "instance not found", http.StatusNotFound)
 		return
 	}
+	// Ownership scope for restart: Own → must own the instance.
+	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
+		checker := permissions.NewChecker(con)
+		hasOwn, hasAll, _ := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		if !hasAll && hasOwn && inst.OwnerID != uid {
+			http.Error(w, "forbidden: own-scope may only manage own instances", http.StatusForbidden)
+			return
+		}
+	}
+	// Suspended instances stay stopped until an admin unsuspends them.
+	if suspended, until, _ := instRepo.IsInstanceSuspended(id); suspended {
+		msg := "instance is suspended indefinitely"
+		if until != nil {
+			msg = fmt.Sprintf("instance is suspended until %s", until.Format("2006-01-02 15:04"))
+		}
+		writeJSONStatus(w, http.StatusForbidden, map[string]any{"error": msg})
+		return
+	}
+	// A deploy already in flight owns the row — restarting over
+	// "creating"/"installing" races the deploy goroutine and orphans status.
+	if inst.Status == "creating" || inst.Status == "installing" {
+		writeJSONStatus(w, http.StatusConflict, map[string]any{
+			"error": fmt.Sprintf("instance is %q — wait for the deploy to finish before restarting", inst.Status),
+		})
+		return
+	}
 	node, err := nodeRepo.GetNode(inst.NodeID)
 	if err != nil {
 		http.Error(w, "owning node not found", http.StatusBadRequest)

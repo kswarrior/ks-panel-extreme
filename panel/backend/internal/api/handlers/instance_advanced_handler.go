@@ -383,6 +383,14 @@ func UpdateAutomationHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer con.Close()
 	repo := repository.NewAutomationRepository(con)
+	// Bind the job to the URL instance: without this an operator with
+	// access to instance A could overwrite a job on instance B by guessing
+	// its job_id (the scheduler would then run attacker-controlled command
+	// on the victim workload).
+	if existing, gerr := repo.Get(jobID); gerr != nil || existing.InstanceID != id {
+		http.Error(w, "automation not found", http.StatusNotFound)
+		return
+	}
 	if err := repo.Update(jobID, repository.AutomationUpsertInput{
 		InstanceID: id, Name: req.Name, Command: req.Command, Schedule: req.Schedule,
 		Enabled: req.Enabled, SecretRefs: req.SecretRefs, TimeoutSec: req.TimeoutSec,
@@ -418,7 +426,12 @@ func DeleteAutomationHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer con.Close()
-	if err := repository.NewAutomationRepository(con).Delete(jobID); err != nil {
+	repoDel := repository.NewAutomationRepository(con)
+	if existing, gerr := repoDel.Get(jobID); gerr != nil || existing.InstanceID != id {
+		http.Error(w, "automation not found", http.StatusNotFound)
+		return
+	}
+	if err := repoDel.Delete(jobID); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
