@@ -30,6 +30,24 @@ import (
 type hubConn struct {
 	conn *websocket.Conn
 	send chan []byte
+	// wmu serializes conn writes against conn Close: gorilla forbids
+	// concurrent WriteMessage/Close, and Push may drop this conn from
+	// another goroutine while the writer loop is mid-write.
+	wmu sync.Mutex
+	// closeOnce makes Unsubscribe+Close idempotent across the writer
+	// defer, the reader goroutine, and slow-reader drops in Push/PushAll.
+	closeOnce sync.Once
+}
+
+// shutdown unsubscribes uid and closes the conn exactly once, holding wmu
+// so it never races an in-flight WriteMessage/Ping on the writer loop.
+func (h *NotifyHub) shutdown(uid int64, c *hubConn) {
+	c.closeOnce.Do(func() {
+		h.Unsubscribe(uid, c)
+		c.wmu.Lock()
+		_ = c.conn.Close()
+		c.wmu.Unlock()
+	})
 }
 
 // NotifyHub fans notification payloads out to connected users. A push never
@@ -86,8 +104,7 @@ func (h *NotifyHub) Push(uid int64, msg []byte) {
 		select {
 		case c.send <- msg:
 		default:
-			h.Unsubscribe(uid, c)
-			_ = c.conn.Close()
+			h.shutdown(uid, c)
 		}
 	}
 }
@@ -110,8 +127,7 @@ func (h *NotifyHub) PushAll(msg []byte) {
 		select {
 		case s.c.send <- msg:
 		default:
-			h.Unsubscribe(s.uid, s.c)
-			_ = s.c.conn.Close()
+			h.shutdown(s.uid, s.c)
 		}
 	}
 }
@@ -180,19 +196,18 @@ func NotificationStreamHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	hc := &hubConn{conn: conn, send: make(chan []byte, 16)}
 	GlobalNotifyHub.Subscribe(uid, hc)
-	defer func() {
-		GlobalNotifyHub.Unsubscribe(uid, hc)
-		_ = conn.Close()
-	}()
+	defer GlobalNotifyHub.shutdown(uid, hc)
 
 	// Reader: the bell only sends pings; any read error (close, timeout)
-	// ends the subscription. Pong extends the read deadline.
+	// ends the subscription. Pong extends the read deadline. On exit it
+	// shuts the conn down via shutdown() (idempotent) so the writer loop
+	// unblocks instead of parking until the next ping tick.
 	_ = conn.SetReadDeadline(time.Now().Add(90 * time.Second))
 	conn.SetPongHandler(func(string) error {
 		return conn.SetReadDeadline(time.Now().Add(90 * time.Second))
 	})
 	go func() {
-		defer conn.Close()
+		defer GlobalNotifyHub.shutdown(uid, hc)
 		for {
 			if _, _, err := conn.ReadMessage(); err != nil {
 				return
@@ -201,21 +216,29 @@ func NotificationStreamHandler(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	// Writer: ping every 30s so NATs/proxies keep the socket alive.
+	// All writes hold hc.wmu so a concurrent shutdown() Close can never
+	// race WriteMessage (gorilla forbids concurrent close/write).
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 	for {
 		select {
 		case msg, ok := <-hc.send:
-			_ = conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 			if !ok {
 				return
 			}
-			if err := conn.WriteMessage(websocket.TextMessage, msg); err != nil {
+			hc.wmu.Lock()
+			_ = conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			werr := conn.WriteMessage(websocket.TextMessage, msg)
+			hc.wmu.Unlock()
+			if werr != nil {
 				return
 			}
 		case <-ticker.C:
+			hc.wmu.Lock()
 			_ = conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
-			if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+			perr := conn.WriteMessage(websocket.PingMessage, nil)
+			hc.wmu.Unlock()
+			if perr != nil {
 				return
 			}
 		}

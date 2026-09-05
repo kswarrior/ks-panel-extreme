@@ -230,7 +230,9 @@ func TerminalHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// pumpBoth copies frames read from src to dst until either side closes.
+// pumpBoth copies frames read from src to dst until either side closes,
+// preserving the original frame type (text vs binary) so the JSON wire
+// format (e.g. resize{"cols":N}) passes through untouched.
 // It never closes either conn itself: the caller owns the lifetime and
 // closes both ends after the first pump exits, which unblocks the peer
 // pump's ReadMessage. (Closing dst here would race the peer pump's
