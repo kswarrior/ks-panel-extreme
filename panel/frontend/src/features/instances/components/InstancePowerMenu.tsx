@@ -237,9 +237,24 @@ const InstancePowerMenu: React.FC = () => {
               <span>Restart</span>
             </button>
           )}
+          {isRunning && (
+            <button
+              type="button"
+              onClick={() => run('kill')}
+              disabled={busyAny}
+              title={error || 'Kill instance now (force-stop, skips graceful shutdown)'}
+              className={menuBtn('text-red-400')}
+              aria-label="Kill instance"
+            >
+              {busy === 'kill' ? spin : (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>
+              )}
+              <span>Kill</span>
+            </button>
+          )}
         </div>
       )}
-      {/* Divider below Start / Stop / Restart — same hairline as below Actions. */}
+      {/* Divider below Start / Stop / Restart / Kill — same hairline as below Actions. */}
       {showPowerRow && (error || templateActions.length > 0) && (
         <div className="mx-3 mt-3 border-t border-white/10" aria-hidden="true" />
       )}
