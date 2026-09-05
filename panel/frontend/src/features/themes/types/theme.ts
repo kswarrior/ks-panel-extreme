@@ -443,6 +443,33 @@ export interface ThemeCards {
   form_padding: number;          // px
 }
 
+// Pill — the fixed top-right action cluster (PageActionsPill) rendered on
+// nearly every panel page (search / filter / stats / new / …). It never goes
+// invisible: auto-off (scroll / outside-click) and the manual toggle only
+// collapse it to a `<` chevron. This section themes its surface, its button
+// sizing, its collapse animation, and the auto-off → auto-on timing.
+export type PillAnimation = 'slide' | 'fade' | 'scale' | 'none';
+
+export interface ThemePill {
+  background: string;       // pill surface fill (default mirrors card → inherits live Card tab)
+  border_color: string;     // hex or rgba
+  border_width: number;     // px
+  border_radius: number;    // px
+  padding: number;          // px — inner padding of the pill surface
+  backdrop_blur: number;    // px
+  shadow: string;           // raw CSS box-shadow
+  text_color: string;       // `<` / `>` toggle chevron tint
+  gap: number;              // px — space between the action buttons
+  tab_padding_x: number;    // px — action button horizontal padding
+  tab_padding_y: number;    // px — action button vertical padding
+  font_size: number;        // px — action button font size
+  icon_size: number;        // px — `<` / `>` toggle chevron size
+  animation: PillAnimation; // collapse/expand motion
+  animation_duration: number; // ms
+  auto_hide_enabled: boolean; // false = pill never auto-offs, toggle still works
+  auto_show_delay: number;    // ms idle after auto-off before it slides back on
+}
+
 export interface Theme {
   id: string;                // stable id; 'default' is reserved for the seed
   name: string;
@@ -466,6 +493,7 @@ export interface Theme {
   loading: ThemeLoading;
   tabs: ThemeTabs;
   dropdowns: ThemeDropdown;
+  pill: ThemePill;
   forms: ThemeForms;
   components: ThemeComponents;
   utilities: ThemeUtilities;
@@ -475,4 +503,4 @@ export interface Theme {
 
 export type ThemeKey = keyof Pick<Theme,
   'background' | 'card' | 'sidebar' | 'button' | 'header' | 'typography' | 'accent' | 'shape'
-  | 'loading' | 'tabs' | 'dropdowns' | 'forms' | 'components' | 'utilities' | 'cards' | 'customCSS'>;
+  | 'loading' | 'tabs' | 'dropdowns' | 'pill' | 'forms' | 'components' | 'utilities' | 'cards' | 'customCSS'>;
