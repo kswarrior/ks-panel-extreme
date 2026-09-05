@@ -197,7 +197,7 @@ const RoleDetail: React.FC = () => {
           <div className="mt-2 space-y-1.5 text-sm">
             <div className="flex justify-between gap-2"><span className="text-gray-400">Permissions</span><span className="text-white">{perms.length}</span></div>
             <div className="flex justify-between gap-2"><span className="text-gray-400">Members</span><span className="text-white">{members.length}</span></div>
-            <div className="flex justify-between gap-2"><span className="text-gray-400">Auth types</span><span className="text-white text-xs">{role.allowed_auth_types == null ? 'Unrestricted' : role.allowed_auth_types.length === 0 ? 'Password only' : role.allowed_auth_types.join(', ')}</span></div>
+            <div className="flex justify-between gap-2"><span className="text-gray-400">Auth types</span><span className="text-white text-xs">{role.allowed_auth_types == null ? 'Unrestricted' : role.allowed_auth_types.length === 0 || (role.allowed_auth_types.length === 1 && role.allowed_auth_types[0] === 'password') ? 'Password only' : role.allowed_auth_types.join(', ')}</span></div>
           </div>
         </GlassCard>
         <GlassCard className="p-3">

@@ -17,6 +17,7 @@ import (
 
 	"github.com/example/kspanel/internal/edge"
 	"github.com/example/kspanel/internal/models"
+	"github.com/example/kspanel/internal/permissions"
 	"github.com/example/kspanel/internal/repository"
 	"github.com/go-chi/chi/v5"
 )
@@ -548,6 +549,21 @@ func ListCachedResourcesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer con.Close()
 
+	// Ownership scope: Own without All sees only own instances' cache.
+	var allowed map[int64]bool
+	if uid, _ := UserIDFromContext(r); uid != 0 {
+		chk := permissions.NewChecker(con)
+		hasOwn, hasAll, _ := chk.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		if !hasAll && hasOwn {
+			allowed = map[int64]bool{}
+			if owned, oerr := repository.NewInstanceRepository(con).ListByOwner(uid); oerr == nil {
+				for _, o := range owned {
+					allowed[o.ID] = true
+				}
+			}
+		}
+	}
+
 	rows, err := con.Query(`SELECT instance_id, updated_at, metrics FROM instance_live_state`)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
@@ -561,6 +577,9 @@ func ListCachedResourcesHandler(w http.ResponseWriter, r *http.Request) {
 		var updated string
 		var metricsBlob string
 		if err := rows.Scan(&id, &updated, &metricsBlob); err != nil {
+			continue
+		}
+		if allowed != nil && !allowed[id] {
 			continue
 		}
 		item := CachedResourcesItem{ID: id, UpdatedAt: updated}

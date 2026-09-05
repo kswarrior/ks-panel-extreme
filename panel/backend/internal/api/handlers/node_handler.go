@@ -797,6 +797,12 @@ func NodeHeartbeatsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer con.Close()
 	repo := repository.NewNodeRepository(con)
+	// Ownership scope: Own without All may only read own nodes' telemetry.
+	if nd, gerr := repo.GetNode(id); gerr == nil && nd != nil {
+		if nodeOwnForbidden(w, r, nd.OwnerID) {
+			return
+		}
+	}
 	hbs, err := repo.RecentHeartbeats(id, limit)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
@@ -913,6 +919,9 @@ func ProbeNodeHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "node not found", http.StatusNotFound)
 		return
 	}
+	if nodeOwnForbidden(w, r, nd.OwnerID) {
+		return
+	}
 	res := probe.Probe(*nd)
 	_ = repo.RecordProbe(id, repository.ProbeInput{
 		Reachable: res.Reachable,
@@ -953,6 +962,20 @@ func ProbeAllNodesHandler(w http.ResponseWriter, r *http.Request) {
 		log.Println("ProbeAllNodes ListNodes error:", err)
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
+	}
+	// Ownership scope: Own without All probes only own nodes (mirrors List).
+	if uid, _ := UserIDFromContext(r); uid != 0 {
+		chk := permissions.NewChecker(con)
+		hasOwn, hasAll, _ := chk.HasScope(uid, permissions.NodesOwnKey, permissions.NodesAllKey, permissions.ManageNodesKey)
+		if !hasAll && hasOwn {
+			filtered := make([]models.Node, 0, len(nodes))
+			for _, n := range nodes {
+				if n.OwnerID == uid {
+					filtered = append(filtered, n)
+				}
+			}
+			nodes = filtered
+		}
 	}
 
 	type probeResult struct {
@@ -1088,6 +1111,9 @@ func SetupLocalNodeHandler(w http.ResponseWriter, r *http.Request) {
 	node, err := repo.GetNode(id)
 	if err != nil {
 		http.Error(w, "node not found", http.StatusNotFound)
+		return
+	}
+	if nodeOwnForbidden(w, r, node.OwnerID) {
 		return
 	}
 	if !isLocalNode(node) {
@@ -1492,6 +1518,9 @@ func PurgeLocalNodeHandler(w http.ResponseWriter, r *http.Request) {
 	node, err := repo.GetNode(id)
 	if err != nil || node == nil {
 		http.Error(w, "node not found", http.StatusNotFound)
+		return
+	}
+	if nodeOwnForbidden(w, r, node.OwnerID) {
 		return
 	}
 	if !isLocalNode(node) {

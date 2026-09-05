@@ -109,6 +109,12 @@ const RoleForm: React.FC = () => {
     setSaving(true);
     setError('');
     try {
+      // Backend sanitizeAllowedAuthTypes collapses an explicit [] to nil
+      // (unrestricted), so a "password-only" restriction would silently
+      // become "allow everything". Send ["password"] instead — password is
+      // always implicitly allowed and survives the admin-enabled filter,
+      // persisting as a restricted single-entry list.
+      const allowed = form.allowed_auth_types;
       const payload = {
         name: form.name,
         display_name: form.display_name.trim(),
@@ -116,7 +122,10 @@ const RoleForm: React.FC = () => {
         description: form.description,
         icon: form.icon,
         permissions: form.permissions,
-        allowed_auth_types: form.allowed_auth_types,
+        allowed_auth_types:
+          allowed !== null && allowed.length === 0
+            ? [AUTHORITY_PROVIDER.password]
+            : allowed,
       };
       if (editing && role) {
         await updateRole(role.id, payload);
