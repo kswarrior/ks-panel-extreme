@@ -30,6 +30,13 @@ var (
 	dowFL    = fieldLimit{0, 6} // 0 = Sunday
 )
 
+// checkRange fails closed on any value outside the field's legal range.
+func checkRange(v int, lim fieldLimit, what string) error {
+	if v < lim.lo || v > lim.hi {
+		return fmt.Errorf("value %d out of range [%d-%d] for %s", v, lim.lo, lim.hi, what)
+	}
+	return nil
+}
 // Schedule is a parsed 5-field cron expression.
 type Schedule struct {
 	minute, hour, dom, month, dow bitmap
@@ -69,7 +76,7 @@ func parseField(s string, lim fieldLimit) (bitmap, error) {
 	if strings.Contains(s, "/") {
 		parts := strings.SplitN(s, "/", 2)
 		base := parts[0]
-		step, err := strconv.Atoi(parts[1])
+		step, err := strconv.Atoi(strings.TrimSpace(parts[1]))
 		if err != nil || step <= 0 {
 			return 0, fmt.Errorf("invalid step %q", parts[1])
 		}
@@ -77,37 +84,46 @@ func parseField(s string, lim fieldLimit) (bitmap, error) {
 		if base != "*" {
 			if strings.Contains(base, "-") {
 				rp := strings.SplitN(base, "-", 2)
-				lo, err = strconv.Atoi(rp[0])
+				lo, err = strconv.Atoi(strings.TrimSpace(rp[0]))
 				if err != nil {
 					return 0, err
 				}
-				hi, err = strconv.Atoi(rp[1])
+				hi, err = strconv.Atoi(strings.TrimSpace(rp[1]))
 				if err != nil {
 					return 0, err
 				}
 			} else {
-				v, err := strconv.Atoi(base)
+				v, err := strconv.Atoi(strings.TrimSpace(base))
 				if err != nil {
 					return 0, err
 				}
 				lo = v
 			}
 		}
+		if lo < lim.lo || hi > lim.hi || lo > hi {
+			return 0, fmt.Errorf("range %d-%d out of bounds [%d-%d]", lo, hi, lim.lo, lim.hi)
+		}
 		for i := lo; i <= hi; i += step {
 			b.set(i)
+		}
+		if b == 0 {
+			return 0, fmt.Errorf("empty schedule field %q", s)
 		}
 		return b, nil
 	}
 	// range syntax: lo-hi
 	if strings.Contains(s, "-") {
 		parts := strings.SplitN(s, "-", 2)
-		lo, err := strconv.Atoi(parts[0])
+		lo, err := strconv.Atoi(strings.TrimSpace(parts[0]))
 		if err != nil {
 			return 0, err
 		}
-		hi, err := strconv.Atoi(parts[1])
+		hi, err := strconv.Atoi(strings.TrimSpace(parts[1]))
 		if err != nil {
 			return 0, err
+		}
+		if lo < lim.lo || hi > lim.hi || lo > hi {
+			return 0, fmt.Errorf("range %d-%d out of bounds [%d-%d]", lo, hi, lim.lo, lim.hi)
 		}
 		for i := lo; i <= hi; i++ {
 			b.set(i)
@@ -115,8 +131,11 @@ func parseField(s string, lim fieldLimit) (bitmap, error) {
 		return b, nil
 	}
 	// bare number
-	v, err := strconv.Atoi(s)
+	v, err := strconv.Atoi(strings.TrimSpace(s))
 	if err != nil {
+		return 0, err
+	}
+	if err := checkRange(v, lim, s); err != nil {
 		return 0, err
 	}
 	b.set(v)

@@ -215,15 +215,28 @@ func TerminalHandler(w http.ResponseWriter, r *http.Request) {
 	go pumpBoth(clientConn, edgeConn, errCh)
 	go pumpBoth(edgeConn, clientConn, errCh)
 
+	// Wait for the first direction to fail, then unblock the peer by
+	// closing both ends so the second pump's ReadMessage errors out
+	// instead of leaking one goroutine per terminal tab. The deferred
+	// Close calls above make the extra closes idempotent.
 	<-errCh
+	_ = clientConn.Close()
+	_ = edgeConn.Close()
+	// Wait for the second pump, but bound it: a peer that ignores Close
+	// must not park this handler goroutine forever.
+	select {
+	case <-errCh:
+	case <-time.After(5 * time.Second):
+	}
 }
 
 // pumpBoth copies frames read from src to dst until either side closes.
-// We keep the original WebSocket frame type (text vs binary) so the JSON
-// wire format surrounding the binary payloads (e.g. resize{"cols":N}) is
-// preserved untouched.
+// It never closes either conn itself: the caller owns the lifetime and
+// closes both ends after the first pump exits, which unblocks the peer
+// pump's ReadMessage. (Closing dst here would race the peer pump's
+// concurrent WriteMessage on the same conn — gorilla forbids concurrent
+// close/write.)
 func pumpBoth(src, dst *websocket.Conn, errCh chan<- error) {
-	defer func() { _ = dst.Close() }()
 	for {
 		mt, payload, err := src.ReadMessage()
 		if err != nil {

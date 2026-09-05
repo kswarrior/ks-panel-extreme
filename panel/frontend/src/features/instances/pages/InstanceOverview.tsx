@@ -8,8 +8,8 @@
 //     Details (one tile per fact — no Controls / Status cards, those live
 //     in the floating menu), Monitoring (live CPU / RAM / disk graphs,
 //     System-page style), Manage (rename), Activity (audit trail).
-//   • shared section rail (SectionRailTabs: icon + label + hint with live
-//     markers, same style as Security / Database, themed in the Tabs tab).
+//   • section deck (OverviewTabs: one card, per-tab hue wash + glowing
+//     icon tile + growing underline + live markers, 2×2 on phones).
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -31,7 +31,7 @@ import { PermissionKey, hasPermissionAny } from '@/shared/types/permissions';
 import { useConfirm } from '@/shared/stores/confirmStore';
 import ErrorBoundary from '@/shared/components/ui/ErrorBoundary';
 import { PageActionsPill } from '@/shared/components/ui/PageActionsPill';
-import { SectionRailTabs } from '@/shared/components/ui/SectionRailTabs';
+import OverviewTabs from '../components/OverviewTabs';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 
 const STATUS_DOT: Record<string, string> = {
@@ -418,11 +418,10 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
         </div>
       </div>
 
-      {/* Section rail — the panel's shared icon+label+hint tab style
-          (same as Security / Database, themed in the Tabs tab): one row
-          on desktop, horizontally scrollable on phones, with live markers
-          (status dot / LIVE pulse / audit count). */}
-      <SectionRailTabs
+      {/* Section deck — one card, per-tab hue wash + glowing icon tile +
+          growing underline, live markers. 2×2 on phones, one row of four
+          on desktop: every section always visible. */}
+      <OverviewTabs
         ariaLabel="Overview sections"
         active={tab}
         onChange={(id) => setTab(id as TabId)}
@@ -434,6 +433,7 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
               label: meta.label,
               hint: 'Status, controls & info',
               icon: meta.icon,
+              accent: '#38bdf8',
               marker: { kind: 'dot', className: dot, title: `Status: ${statusLabel}` } as const,
             };
           }
@@ -443,6 +443,7 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
               label: meta.label,
               hint: isRunning ? 'Streaming live' : 'CPU · RAM · disk',
               icon: meta.icon,
+              accent: '#34d399',
               marker: isRunning
                 ? ({
                     kind: 'pulse',
@@ -460,6 +461,7 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
               label: meta.label,
               hint: 'Audit trail',
               icon: meta.icon,
+              accent: '#a78bfa',
               marker:
                 audit !== null
                   ? ({
@@ -470,7 +472,14 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
                   : undefined,
             };
           }
-          return { id, label: meta.label, hint: 'Rename', icon: meta.icon, marker: undefined };
+          return {
+            id,
+            label: meta.label,
+            hint: 'Rename',
+            icon: meta.icon,
+            accent: '#fbbf24',
+            marker: undefined,
+          };
         })}
       />
 
