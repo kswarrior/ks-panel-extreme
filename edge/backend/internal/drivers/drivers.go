@@ -26,6 +26,7 @@ const (
 	OpDeploy  Op = "deploy"
 	OpStart   Op = "start"
 	OpStop    Op = "stop"
+	OpKill    Op = "kill"
 	OpDestroy Op = "destroy"
 )
 
@@ -59,6 +60,10 @@ type Driver interface {
 	Start(ctx context.Context, name string) (Result, error)
 	// Stop halts an instance while leaving it on disk.
 	Stop(ctx context.Context, name string) (Result, error)
+	// Kill force-stops an instance NOW (SIGKILL semantics) while leaving
+	// it on disk. It is Stop without the graceful-shutdown grace period,
+	// for hung workloads that ignore the polite signal.
+	Kill(ctx context.Context, name string) (Result, error)
 	// Destroy removes the instance and frees its resources.
 	Destroy(ctx context.Context, name string) (Result, error)
 	// Exec launches the given command inside the instance and exposes its
