@@ -8,11 +8,19 @@ import { parsePageActions, parsePageComponents, parsePageConfigure } from '@/fea
 import { emptyForm } from '../types/templateForm';
 
 function stripUnit(v: string): string {
-  const m = v.match(/^\s*(\d+)\s*([MGmg]?)\s*$/);
+  // Mirror templateForm.stripUnit: handle decimals + trailing time suffix
+  // so "1.5G" -> "1536" and "30s" -> "30" instead of corrupting to
+  // "1.5GM" / "30ss" on the next serialize.
+  const s = (v ?? '').trim();
+  if (s === '') return '';
+  const m = s.match(/^(\d+(?:\.\d+)?)\s*([MGmg]?)(?:[Bb])?(?:[Ii][Bb]?)?\s*[Ss]?$/);
   if (!m) return v;
-  let n = parseInt(m[1], 10);
+  if (/s$/i.test(s) && !m[2]) {
+    return String(m[1].includes('.') ? Math.round(parseFloat(m[1])) : parseInt(m[1], 10));
+  }
+  let n = parseFloat(m[1]);
   if (m[2].toLowerCase() === 'g') n *= 1024;
-  return String(n);
+  return String(Math.round(n));
 }
 
 export function serializeSpec(f: TemplateFormState): string {
@@ -358,10 +366,14 @@ export function parseSpec(raw: string): Partial<TemplateFormState> {
           async_run: !!a.async_run,
           run_on_create: !!a.run_on_create,
           cooldown_s: String(a.cooldown_s ?? ''),
-          user_invokable: a.user_invokable !== false,
+          // Fail-closed defaults: a minimal hand-written action ({id,name,
+          // steps}) must NOT silently gain auto-start/auto-stop/user access
+          // on load. Matches the "Add action" defaults in TemplateForm.tsx
+          // (all false) — explicit true in the spec is preserved via !!.
+          user_invokable: !!a.user_invokable,
           session: baseSession,
-          auto_start_instance: a.auto_start_instance !== false,
-          auto_stop_on_exit: a.auto_stop_on_exit !== false,
+          auto_start_instance: !!a.auto_start_instance,
+          auto_stop_on_exit: !!a.auto_stop_on_exit,
           restart_on_failure: !!a.restart_on_failure,
           allowed_commands: Array.isArray(a.allowed_commands) ? (a.allowed_commands as string[]).join('\n') : String(a.allowed_commands ?? ''),
           blocked_commands: Array.isArray(a.blocked_commands) ? (a.blocked_commands as string[]).join(', ') : String(a.blocked_commands ?? ''),

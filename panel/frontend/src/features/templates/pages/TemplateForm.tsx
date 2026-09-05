@@ -389,19 +389,6 @@ const TemplateForm: React.FC = () => {
     return () => { cancelled = true; };
   }, [id, editing]);
 
-  const allowedKindsSet = useMemo(
-    () => new Set((form as any).allowed_kinds?.split(',').map((s: string) => s.trim().toLowerCase()).filter(Boolean) || []),
-    [(form as any).allowed_kinds],
-  );
-
-  const toggleKind = (key: string) => {
-    const next = new Set(allowedKindsSet);
-    if (next.has(key)) next.delete(key);
-    else next.add(key);
-    const ordered = ['docker', 'kvm', 'multipass', 'lxd'].filter((k) => next.has(k));
-    setForm((f) => ({ ...f, allowed_kinds: ordered.join(', ') }));
-  };
-
   const submit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!form.name.trim()) { setError('Name is required'); return; }
