@@ -6,7 +6,7 @@ import { useInstance, parseConfig } from '@/shared/hooks/useInstance';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { PermissionKey, hasPermissionAny } from '@/shared/types/permissions';
-import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import { PILL_TAB_STYLE, useAutoHidePill } from '@/shared/components/ui/PageActionsPill';
 
 const COLLAPSED_KEY = 'ks-instance-power-collapsed';
 
@@ -57,6 +57,11 @@ const InstancePowerBar: React.FC<{ variant?: 'dock' | 'pill' }> = ({ variant = '
   const [stopPending, setStopPending] = useState<string | null>(null);
   const dockRef = useRef<HTMLDivElement>(null);
   const permissions = useAuthStore((s) => s.permissions);
+  // Auto-off — never invisible. Scroll / outside-click collapses the dock
+  // from < to > (same toggle as manual collapse); idle / hover expands it
+  // back. Manual collapse persists in localStorage, auto-off does not.
+  const autoHide = useAutoHidePill(1500);
+  const [autoOff, setAutoOff] = useState(false);
 
   // Template actions ride on the instance config (same source the home-page
   // Actions card reads: inst.config.actions), filtered the same way —
