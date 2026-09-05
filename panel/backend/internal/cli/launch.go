@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -30,6 +31,54 @@ import (
 	"github.com/example/kspanel/internal/sysinfo"
 	"github.com/spf13/cobra"
 )
+
+// Sweep fan-out bounds: the 60s node-probe, 2s install-poll and 10s
+// metrics-poll loops all fan out one goroutine per due row. Without a cap a
+// fleet of N rows dials N edges concurrently every tick, and a slow edge
+// (15s install RPC, 10s inspect RPC) is still in-flight when the next tick
+// fires — stacking duplicate RPCs for the same row. The semaphores cap
+// concurrent dials (excess rows skip this tick and retry on the next) and
+// the in-flight sets dedup overlapping polls for the same instance.
+var (
+	nodeProbeSem    = make(chan struct{}, 8)
+	installPollSem  = make(chan struct{}, 8)
+	metricsPollSem  = make(chan struct{}, 16)
+	sweepInflightMu sync.Mutex
+	installInflight = map[int64]struct{}{}
+	metricsInflight = map[int64]struct{}{}
+)
+
+func sweepTryAcquire(sem chan struct{}) bool {
+	select {
+	case sem <- struct{}{}:
+		return true
+	default:
+		return false
+	}
+}
+
+func sweepRelease(sem chan struct{}) {
+	select {
+	case <-sem:
+	default:
+	}
+}
+
+func markInflight(m map[int64]struct{}, id int64) bool {
+	sweepInflightMu.Lock()
+	defer sweepInflightMu.Unlock()
+	if _, ok := m[id]; ok {
+		return false
+	}
+	m[id] = struct{}{}
+	return true
+}
+
+func unmarkInflight(m map[int64]struct{}, id int64) {
+	sweepInflightMu.Lock()
+	defer sweepInflightMu.Unlock()
+	delete(m, id)
+}
 
 // launchCmd starts the HTTP API server and serves the embedded UI.
 var launchCmd = &cobra.Command{
@@ -466,7 +515,14 @@ func nodeSweepLoop(threshold, interval time.Duration) {
 		// can't poison the others.
 		if due, derr := repo.NodesDueForHealthCheck(); derr == nil {
 			for _, nd := range due {
+				// Bound concurrent probes: skip this tick when 8 are already
+				// in-flight (next 60s tick retries). A slow edge's dial no
+				// longer stacks unbounded goroutines across ticks.
+				if !sweepTryAcquire(nodeProbeSem) {
+					continue
+				}
 				go func(nd models.Node) {
+					defer sweepRelease(nodeProbeSem)
 					res := probe.Probe(nd)
 					pcon, perr := repository.OpenDB()
 					if perr != nil {
@@ -597,9 +653,21 @@ func installSweepLoop(interval time.Duration) {
 			continue
 		}
 
-		// Poll each in parallel so one slow edge doesn't block the rest.
+		// Poll each in parallel so one slow edge doesn't block the rest,
+		// bounded to 8 concurrent dials with per-instance dedup: a 15s
+		// InstallStatus RPC still in-flight when the next 2s tick fires
+		// skips the duplicate poll instead of stacking a second RPC.
 		for _, ir := range toPoll {
+			if !markInflight(installInflight, ir.id) {
+				continue
+			}
+			if !sweepTryAcquire(installPollSem) {
+				unmarkInflight(installInflight, ir.id)
+				continue
+			}
 			go func(inst instRow) {
+				defer sweepRelease(installPollSem)
+				defer unmarkInflight(installInflight, inst.id)
 				con2, err := repository.OpenDB()
 				if err != nil {
 					return
@@ -835,7 +903,19 @@ func metricsSweepLoop(interval time.Duration) {
 		}
 
 		for _, ir := range toPoll {
+			// Bound to 16 concurrent inspects with per-instance dedup: a
+			// 10s Inspect RPC still in-flight when the next 10s tick fires
+			// skips the duplicate instead of stacking a second dial.
+			if !markInflight(metricsInflight, ir.id) {
+				continue
+			}
+			if !sweepTryAcquire(metricsPollSem) {
+				unmarkInflight(metricsInflight, ir.id)
+				continue
+			}
 			go func(inst instRow) {
+				defer sweepRelease(metricsPollSem)
+				defer unmarkInflight(metricsInflight, inst.id)
 				con2, err := repository.OpenDB()
 				if err != nil {
 					return
