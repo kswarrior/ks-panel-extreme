@@ -1,16 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useInstance } from '@/shared/hooks/useInstance';
+import { getMetrics } from '@/features/instances/api/instanceAdvanced';
+import type { MetricsSnapshot } from '@/shared/types/instanceAdvanced';
 import { KindIcon } from './InstanceFormComponents';
 import { KIND_META, kindKey } from '../types/instanceForm';
 
 // InstanceInfoRow — read-only instance facts as a menu row (no pill
-// chrome). Rendered in the floating instance menu below the power
-// controls, in its own row: merged status/uptime slot + type badge.
+// chrome). Rendered first in the floating instance menu, in its own row:
+// merged status/uptime slot + type badge + live RAM / CPU / disk stats.
 //
 // Merged slot (phone + desktop share the same rule):
 //   • running → uptime only, emerald/green (no status label)
 //   • any other state → status dot + label only (no uptime)
+//
+// RAM / CPU / disk are SVG icon + live value only (no word labels); the
+// values poll the instance's live metrics endpoint while running and show
+// '—' when the instance isn't running or metrics are unavailable.
 
 // Status dot + label — mirrors InstanceCard's STATUS_META so the menu
 // agrees with the fleet cards.
@@ -48,6 +54,62 @@ function useUptime(sinceISO: string | undefined | null, status: string): string 
   return `${s}s`;
 }
 
+// num coerces a metrics blob field to a finite number or null.
+function num(v: unknown): number | null {
+  const n = typeof v === 'number' ? v : parseFloat(String(v ?? ''));
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+// fmtBytesShort renders bytes compactly for the narrow menu row.
+function fmtBytesShort(n: number | null): string {
+  if (n === null || !Number.isFinite(n) || n < 0) return '—';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let v = n;
+  let i = 0;
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024;
+    i++;
+  }
+  return `${i === 0 ? Math.round(v) : v >= 100 ? Math.round(v) : Math.round(v * 10) / 10} ${units[i]}`;
+}
+
+function fmtPctShort(n: number | null): string {
+  if (n === null || !Number.isFinite(n)) return '—';
+  return `${Number.isInteger(n) ? n : Math.round(n * 10) / 10}%`;
+}
+
+// useLiveMetrics polls the instance's live metrics endpoint (same feed the
+// Home page tiles read) every 4s while `live`. Failures keep the last
+// snapshot — a 403 (no metrics/home page on the instance) or a stopped
+// instance simply leaves values at '—'.
+function useLiveMetrics(instanceId: number, live: boolean): MetricsSnapshot | null {
+  const [m, setM] = useState<MetricsSnapshot | null>(null);
+  useEffect(() => {
+    if (!Number.isFinite(instanceId) || !live) {
+      setM(null);
+      return;
+    }
+    let dead = false;
+    const load = async () => {
+      try {
+        const s = await getMetrics(instanceId);
+        if (!dead) setM(s ?? null);
+      } catch {
+        /* keep last snapshot; unavailable reads as '—' */
+      }
+    };
+    void load();
+    const t = window.setInterval(() => {
+      void load();
+    }, 4000);
+    return () => {
+      dead = true;
+      window.clearInterval(t);
+    };
+  }, [instanceId, live]);
+  return m;
+}
+
 const InstanceInfoRow: React.FC = () => {
   const { id } = useParams();
   const instanceId = Number(id);
@@ -68,6 +130,15 @@ const InstanceInfoRow: React.FC = () => {
   const typeBadge = (instance && KIND_META[k]?.badge) || '';
   const isRunning = instance?.status === 'running';
 
+  // Live resource stats — only polled while running; anything missing
+  // renders as '—'.
+  const metrics = useLiveMetrics(instanceId, isRunning);
+  const cpuV = isRunning ? (num(metrics?.cpu_pct) ?? num(metrics?.cpu)) : null;
+  const memUsed = isRunning ? (num(metrics?.mem_used) ?? num(metrics?.mem)) : null;
+  const memTotal = isRunning ? num(metrics?.mem_total) : null;
+  const diskUsed = isRunning ? (num(metrics?.disk_used) ?? num(metrics?.disk)) : null;
+  const diskTotal = isRunning ? num(metrics?.disk_total) : null;
+
   return (
     <div className="shrink-0 px-3 pt-2">
       {loading && !instance ? (
@@ -77,7 +148,7 @@ const InstanceInfoRow: React.FC = () => {
           ))}
         </div>
       ) : (
-        <div className="flex items-center gap-2 rounded-md border border-white/5 bg-white/[0.02] px-2.5 py-2">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-md border border-white/5 bg-white/[0.02] px-2.5 py-2">
           {isRunning ? (
             <span
               className="inline-flex items-center gap-1.5 text-emerald-300 tabular-nums"
@@ -107,6 +178,29 @@ const InstanceInfoRow: React.FC = () => {
               <KindIcon kind={k} className="w-3.5 h-3.5" />
               {typeLabel}
             </span>
+          </span>
+          {/* Live resource stats: SVG icon + value only, no word labels. */}
+          <span className="w-px h-4 bg-white/10 shrink-0" aria-hidden="true" />
+          <span
+            className="inline-flex items-center gap-1 text-sky-300"
+            title={cpuV !== null ? `CPU (live): ${fmtPctShort(cpuV)}` : 'CPU (live): unavailable'}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1.5" /><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2" /></svg>
+            <span className="text-[11px] tabular-nums text-gray-200">{fmtPctShort(cpuV)}</span>
+          </span>
+          <span
+            className="inline-flex items-center gap-1 text-emerald-300"
+            title={memUsed !== null ? `RAM (live): ${fmtBytesShort(memUsed)}${memTotal !== null ? ` / ${fmtBytesShort(memTotal)}` : ''}` : 'RAM (live): unavailable'}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><rect x="2" y="8" width="20" height="9" rx="1.5" /><path d="M6 8v3M10 8v3M14 8v3M18 8v3" /></svg>
+            <span className="text-[11px] tabular-nums text-gray-200">{fmtBytesShort(memUsed)}</span>
+          </span>
+          <span
+            className="inline-flex items-center gap-1 text-amber-300"
+            title={diskUsed !== null ? `Disk (live): ${fmtBytesShort(diskUsed)}${diskTotal !== null ? ` / ${fmtBytesShort(diskTotal)}` : ''}` : 'Disk (live): unavailable'}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><ellipse cx="12" cy="5.5" rx="8" ry="3" /><path d="M4 5.5v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6" /></svg>
+            <span className="text-[11px] tabular-nums text-gray-200">{fmtBytesShort(diskUsed)}</span>
           </span>
         </div>
       )}
