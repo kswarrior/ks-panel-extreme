@@ -88,7 +88,7 @@ export const SectionRailTabs: React.FC<SectionRailTabsProps> = ({
         onKeyDown={onKeyDown}
         className={
           vertical
-            ? 'flex flex-col items-stretch gap-1'
+            ? 'flex flex-col items-stretch gap-1 max-h-[70vh] overflow-y-auto pr-0.5'
             : 'ks-hscroll flex items-stretch gap-1 overflow-x-auto pb-0.5'
         }
       >
