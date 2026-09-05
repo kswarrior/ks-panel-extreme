@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -112,7 +113,21 @@ func aiStreamPost(ctx context.Context, url, apiKey string, body any, parse func(
 	if strings.TrimSpace(apiKey) != "" {
 		req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(apiKey))
 	}
-	client := &http.Client{Timeout: 55 * time.Second}
+	// No total Timeout: this client streams SSE/NDJSON token deltas, and a
+	// total deadline would kill a healthy stream that emits for longer than
+	// the cap even while data flows. The passed ctx (per-round deadline +
+	// client disconnect) bounds the whole call; the transport only bounds
+	// dial/TLS/first-byte so a wedged provider fails fast.
+	client := &http.Client{Transport: &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout:   10 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ResponseHeaderTimeout: 15 * time.Second,
+		IdleConnTimeout:       90 * time.Second,
+		MaxIdleConnsPerHost:   4,
+	}}
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", nil, aiUsage{}, err
@@ -430,7 +445,7 @@ func AIChatStreamHandler(w http.ResponseWriter, r *http.Request) {
 	perms, _ := checker.ListUserPermissions(uid)
 	actx := &aiCallCtx{con: con, uid: uid, username: username, role: role, perms: perms, checker: checker, r: r, cfg: cfg}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 110*time.Second)
 	defer cancel()
 
 	sysPrompt, err := aiBuildSystemPrompt(con, cfg, uid, username, role, perms)
@@ -472,7 +487,11 @@ func AIChatStreamHandler(w http.ResponseWriter, r *http.Request) {
 		onToken := func(tok string) {
 			aiSSEWrite(w, map[string]any{"token": tok})
 		}
-		text, calls, usage, serr := aiStreamWithFallback(ctx, cfg, model, msgs, defs, onToken)
+		// Per-round deadline from the client connection, same rationale
+		// as aiRunChatLoop: one slow round must not starve the rest.
+		roundCtx, roundCancel := context.WithTimeout(r.Context(), 55*time.Second)
+		text, calls, usage, serr := aiStreamWithFallback(roundCtx, cfg, model, msgs, defs, onToken)
+		roundCancel()
 		acc.add(usage)
 		if serr != nil {
 			if lastText != "" {

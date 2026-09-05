@@ -524,7 +524,7 @@ func AIChatHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	actx.cfg = cfg
 
-	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 110*time.Second)
 	defer cancel()
 
 	sysPrompt, err := aiBuildSystemPrompt(con, cfg, uid, username, role, perms)
@@ -647,7 +647,14 @@ func aiRunChatLoop(ctx context.Context, actx *aiCallCtx, cfg *repository.AIConfi
 		if ctx.Err() != nil {
 			return lastText, nil, ctx.Err()
 		}
-		text, calls, usage, err := aiProviderChatWithFallback(ctx, cfg, model, msgs, defs)
+		// Per-round deadline from the client connection (not the shared
+		// outer ctx): round 1 consuming 40s must not starve rounds 2-5
+		// into spurious ctx.Err. The outer ctx still gates the total via
+		// the check above; the server WriteTimeout (120s) caps the worst
+		// case. Client disconnect cancels both (r.Context parent).
+		roundCtx, roundCancel := context.WithTimeout(actx.r.Context(), 50*time.Second)
+		text, calls, usage, err := aiProviderChatWithFallback(roundCtx, cfg, model, msgs, defs)
+		roundCancel()
 		acc.add(usage)
 		if err != nil {
 			if lastText != "" {
@@ -1113,7 +1120,23 @@ func aiPostJSON(ctx context.Context, client *http.Client, url, apiKey string, bo
 		return err
 	}
 	if resp.StatusCode >= 300 {
-		return fmt.Errorf("provider HTTP %d: %s", resp.StatusCode, aiCap(strings.TrimSpace(string(data)), 300))
+		msg := fmt.Sprintf("provider HTTP %d", resp.StatusCode)
+		if s := strings.TrimSpace(string(data)); s != "" {
+			msg += ": " + aiCap(s, 300)
+		}
+		// Mirror aiStreamPost: surface the Retry-After hint so
+		// aiRetryAfterSecs honors the provider's backoff instead of the
+		// 60s default on every non-streaming 429.
+		if ra := strings.TrimSpace(resp.Header.Get("Retry-After")); ra != "" {
+			if n, err := strconv.Atoi(ra); err == nil && n > 0 && n <= 3600 {
+				msg += fmt.Sprintf(" (retry after %ds)", n)
+			} else {
+				msg += " (retry after 60s)"
+			}
+		} else if resp.StatusCode == http.StatusTooManyRequests {
+			msg += " (retry after 60s)"
+		}
+		return fmt.Errorf("%s", msg)
 	}
 	if err := json.Unmarshal(data, out); err != nil {
 		return fmt.Errorf("bad provider response: %w", err)
