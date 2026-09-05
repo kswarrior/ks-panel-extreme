@@ -1,8 +1,21 @@
 # KS Panel — DEBUGGING LOOP
 
-Use this together with `loop.md`.
+Use this together with `loop.md` (single-task rules) and `map.md`
+(repo structure). Order: `map.md` → `loop.md` → this file.
 
 **Goal:** Find and fix every real bug through repeated multi-agent debugging. Never trust an agent's claim without real evidence.
+
+## 0. MODEL COMPATIBILITY
+
+- Primary model: Muse Spark (you are optimized for this file).
+- Also usable as-is with: GLM, MiniMax, Ox, or any other coding model.
+- If a model **cannot spawn real sub-agents**: run the §3 scopes
+  **sequentially in waves** (one scope per pass) instead of in parallel.
+  The loop, evidence bar, and exit conditions stay identical.
+- If a model has a **small context window**: give it exactly ONE §3/§3.1
+  scope plus its file paths. Never paste the whole repo map.
+- No model-specific syntax is required anywhere in this file. The §3.3
+  spawn prompt is plain text — copy/paste into any tool.
 
 ## 1. MAIN LOOP
 
@@ -20,12 +33,15 @@ Never stop because "it looks fixed".
 ```bash
 git status
 git log --oneline -5
-git diff
+git diff --stat
 ```
 
-Read the real project structure, entrypoints and existing `loop.md`.
-
-Never guess filenames or edit duplicate/dead implementations.
+1. Read `map.md`, then `loop.md` §0–§1 (paths, blast radius, duplicates).
+2. Confirm which files are **real** (imported/built) vs duplicate/dead —
+   never guess filenames, never edit `internal/dist/`, `*.db*`,
+   shipped migrations, or release artifacts.
+3. Define the wave scope: which §3 agents run, their disjoint file sets,
+   and the MAIN agent owner for shared contracts (`internal/models/`).
 
 ## 3. SPAWN SPECIALIZED SUB-AGENTS
 
