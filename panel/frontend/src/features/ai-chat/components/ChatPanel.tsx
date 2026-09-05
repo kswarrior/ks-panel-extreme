@@ -318,7 +318,7 @@ const ChatPanel: React.FC = () => {
                   className="rounded-md px-2 py-0.5 border border-red-400/40 text-red-200 hover:bg-red-500/20 hover:text-white transition-colors"
                   aria-label="Open AI settings"
                 >
-                  Enable
+                  Configure
                 </button>
               )}
               {canRetry && !loading && !retrying && !disabledErr && (
