@@ -27,6 +27,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/example/kspanel/internal/edge"
 	"github.com/example/kspanel/internal/models"
 	"github.com/example/kspanel/internal/repository"
 	"github.com/example/kspanel/internal/tunnel"
@@ -129,6 +130,14 @@ func TerminalHandler(w http.ResponseWriter, r *http.Request) {
 	// upgrading so the frontend sees a proper HTTP status (502/501) rather
 	// than a 101 followed by a WS error frame that some clients miss.
 	mode := strings.ToLower(strings.TrimSpace(node.ConnectionMode))
+	// Defensive: legacy rows may carry address=="tunnel" with an empty or
+	// unexpected mode — treat them as reverse_tunnel so they fail closed
+	// with the tunnel error below instead of dialing hostname "tunnel".
+	if strings.TrimSpace(node.Address) == "tunnel" || node.Address == "" {
+		if mode == "" || mode == "direct" {
+			mode = "reverse_tunnel"
+		}
+	}
 	if mode == "reverse_tunnel" {
 		if !tunnel.Global().IsConnected(node.ID) {
 			http.Error(w, "edge not connected via WSS tunnel (reverse_tunnel terminal requires edge to be online)", http.StatusBadGateway)

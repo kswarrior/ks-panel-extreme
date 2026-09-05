@@ -155,6 +155,15 @@ func Probe(node models.Node) Result {
 		if mode == "reverse_tunnel" {
 			return Result{Reachable: false, Note: "edge not connected via WSS tunnel"}
 		}
+		// Dual modes with a strict-WSS node task and no tunnel must not
+		// fall back to HTTP when fallback is disabled (fail closed like
+		// the RPC path in edge.Client.tryTunnel).
+		if mode == "both" || mode == "local_both" {
+			route := edge.DecideRoute(mode, edge.TaskNode, edge.LoadChannels(node.ID), false)
+			if route.Strict && route.Transport == edge.TransportWSS {
+				return Result{Reachable: false, Note: fmt.Sprintf("edge not connected via WSS tunnel (node task prefers WSS for channel %q with fallback disabled)", route.ChannelName)}
+			}
+		}
 		// local_wss and the dual modes (both/local_both) fall through to
 		// direct HTTP probe as fallback when tunnel not connected.
 	}

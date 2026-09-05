@@ -80,9 +80,14 @@ func newClientForNode(node models.Node, token string, timeout time.Duration) *Cl
 		scheme = "https"
 	}
 	address := node.Address
-	if address == "" || address == "tunnel" {
+	if address == "" {
 		address = "127.0.0.1:4040"
 	}
+	// NOTE: address=="tunnel" (reverse_tunnel placeholder) is intentionally
+	// NOT rewritten to loopback. Strict-tunnel RPCs never reach HTTP (they
+	// fail closed in tryTunnel), so baseURL is unused there; keeping the
+	// sentinel ensures any accidental HTTP dial fails fast on DNS instead
+	// of hitting an innocent loopback service.
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{
 			ServerName:         tlsServerName(address),
