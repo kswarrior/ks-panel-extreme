@@ -80,10 +80,35 @@ func main() {
 		root.Exec("CREATE DATABASE repro_w1ms")
 		root.Close()
 		runTwice("MYSQLMS", "mysql", "kspanel:kspanel@tcp(127.0.0.1:3306)/repro_w1ms?parseTime=true&loc=UTC&timeout=10s&multiStatements=true")
+	case "sqlite054":
+		// file-backed sqlite: migrate once, then list 054 owner indexes
+		os.Remove("/tmp/opencode/repro_w1.db")
+		d := mustDialect("sqlite")
+		con, err := d.Open("/tmp/opencode/repro_w1.db")
+		if err != nil {
+			fmt.Println("SQLITE054 OPEN-ERR:", err)
+			return
+		}
+		defer con.Close()
+		if err := db.RunMigrations(d, con); err != nil {
+			fmt.Println("SQLITE054 RUN1-FAIL:", err)
+			return
+		}
+		fmt.Println("SQLITE054 RUN1-OK")
+		for _, idx := range []string{"nodes_owner_idx", "templates_owner_idx", "mods_owner_idx", "applications_owner_idx", "instance_pages_owner_idx", "themes_owner_idx", "roles_owner_idx", "idx_users_suspended", "idx_instances_suspended", "evc_email_idx", "mod_storage_mod_idx"} {
+			var n int
+			_ = con.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name=?`, idx).Scan(&n)
+			fmt.Printf("SQLITE054 index %s present=%d\n", idx, n)
+		}
+		if err := db.RunMigrations(d, con); err != nil {
+			fmt.Println("SQLITE054 RUN2-FAIL:", err)
+			return
+		}
+		fmt.Println("SQLITE054 RUN2-OK")
 	case "myscan":
 		// prove timestamp-into-string scan fails on mysql(parseTime) after migrations
 		d := mustDialect("mysql")
-		con, err := d.Open("kspanel:kspanel@tcp(127.0.0.1:3306)/repro_w1?parseTime=true&loc=UTC&timeout=10s")
+		con, err := d.Open("kspanel:kspanel@tcp(127.0.0.1:3306)/repro_w1ms?parseTime=true&loc=UTC&timeout=10s")
 		if err != nil {
 			fmt.Println("MYS OPEN-ERR:", err)
 			return
