@@ -214,26 +214,26 @@ const ICON_HISTORY = (
 // marketplace browser (catalog → preview → install) and the version
 // history (list + diff-note + restore) for GLOBAL themes.
 type TabKey = ThemeKey | 'theme' | 'forms' | 'components' | 'utilities' | 'cards' | 'market' | 'history';
-const TABS: Array<{ key: TabKey; label: string; icon: React.ReactNode }> = [
-  { key: 'theme', label: 'Theme', icon: ICON_THEME },
-  { key: 'background', label: 'Background', icon: ICON_BG },
-  { key: 'sidebar', label: 'Sidebar', icon: ICON_SIDEBAR },
-  { key: 'header', label: 'Header', icon: ICON_HEADER },
-  { key: 'button', label: 'Button', icon: ICON_BUTTON },
-  { key: 'tabs', label: 'Tabs', icon: ICON_TABS },
-  { key: 'pill', label: 'Pill', icon: ICON_PILL },
-  { key: 'dropdowns', label: 'Dropdowns', icon: ICON_DROPDOWNS },
-  { key: 'typography', label: 'Typography', icon: ICON_TYPOGRAPHY },
-  { key: 'accent', label: 'Accent', icon: ICON_ACCENT },
-  { key: 'shape', label: 'Shape', icon: ICON_SHAPE },
-  { key: 'loading', label: 'Loading', icon: ICON_LOADING },
-  { key: 'forms', label: 'Forms', icon: ICON_FORMS },
-  { key: 'components', label: 'Components', icon: ICON_COMPONENTS },
-  { key: 'utilities', label: 'Utilities', icon: ICON_UTILITIES },
-  { key: 'cards', label: 'Cards', icon: ICON_CARD },
-  { key: 'customCSS', label: 'Custom CSS', icon: ICON_CSS },
-  { key: 'market', label: 'Market', icon: ICON_MARKET },
-  { key: 'history', label: 'History', icon: ICON_HISTORY },
+const TABS: Array<{ key: TabKey; label: string; hint: string; icon: React.ReactNode }> = [
+  { key: 'theme', label: 'Theme', hint: 'Name, note, icon & colour', icon: ICON_THEME },
+  { key: 'background', label: 'Background', hint: 'Image, video, colour & blur', icon: ICON_BG },
+  { key: 'sidebar', label: 'Sidebar', hint: 'Fill, blur, width & items', icon: ICON_SIDEBAR },
+  { key: 'header', label: 'Header', hint: 'Fill, blur, height & bar', icon: ICON_HEADER },
+  { key: 'button', label: 'Button', hint: 'Primary, ghost & icon', icon: ICON_BUTTON },
+  { key: 'tabs', label: 'Tabs', hint: 'Active, inactive & indicator', icon: ICON_TABS },
+  { key: 'pill', label: 'Pill', hint: 'Surface, motion & timing', icon: ICON_PILL },
+  { key: 'dropdowns', label: 'Dropdowns', hint: 'Surface, items & danger', icon: ICON_DROPDOWNS },
+  { key: 'typography', label: 'Typography', hint: 'Font, colours & size', icon: ICON_TYPOGRAPHY },
+  { key: 'accent', label: 'Accent', hint: 'Primary & status colours', icon: ICON_ACCENT },
+  { key: 'shape', label: 'Shape', hint: 'Corner radii', icon: ICON_SHAPE },
+  { key: 'loading', label: 'Loading', hint: 'Spinner, text & backdrop', icon: ICON_LOADING },
+  { key: 'forms', label: 'Forms', hint: 'Inputs, checks & toggles', icon: ICON_FORMS },
+  { key: 'components', label: 'Components', hint: 'Modals, glass & chrome', icon: ICON_COMPONENTS },
+  { key: 'utilities', label: 'Utilities', hint: 'Tokens, shadows & z-index', icon: ICON_UTILITIES },
+  { key: 'cards', label: 'Cards', hint: 'List, stat & form cards', icon: ICON_CARD },
+  { key: 'customCSS', label: 'Custom CSS', hint: 'Raw CSS, global & scoped', icon: ICON_CSS },
+  { key: 'market', label: 'Market', hint: 'Browse & install themes', icon: ICON_MARKET },
+  { key: 'history', label: 'History', hint: 'Versions & restore', icon: ICON_HISTORY },
 ];
 
 const ThemeStudio: React.FC = () => {
@@ -411,27 +411,37 @@ const ThemeStudio: React.FC = () => {
         </button>
       </PageActionsPill>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        <div className="lg:col-span-12">
-          <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4">
-            <GlassCard className="lg:sticky lg:top-4 self-start">
-              <nav className="flex lg:flex-col gap-1 overflow-x-auto">
-                {TABS.map((t) => (
-                  <button
-                    key={t.key}
-                    type="button"
-                    onClick={() => setTab(t.key)}
-                    className={`ks-tab shrink-0 flex items-center gap-2 transition text-left ${tab === t.key ? 'ks-tab-active' : ''}`}
+      <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4">
+        {/* Desktop tabs — vertical on the left like the node form.
+            Sticky so they stay visible while the studio scrolls. */}
+        <GlassCard className="hidden lg:block lg:sticky lg:top-4 self-start">
+          <nav aria-label="Theme studio sections" className="flex lg:flex-col gap-1">
+            {TABS.map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                role="tab"
+                aria-selected={tab === t.key}
+                onClick={() => setTab(t.key)}
+                className={`ks-tab w-full flex items-center gap-2 transition text-left ${
+                  tab === t.key ? 'ks-tab-active' : ''
+                }`}
+              >
+                <span className="inline-flex items-center shrink-0">{t.icon}</span>
+                <span className="flex flex-col min-w-0">
+                  <span>{t.label}</span>
+                  <span
+                    className={`text-[10px] hidden lg:block ${tab === t.key ? 'opacity-70' : 'text-gray-500'}`}
+                    style={tab === t.key ? { color: 'var(--ks-tab-active-text, #000000)' } : undefined}
                   >
-                    <span className="inline-flex items-center">{t.icon}</span>
-                    <span className="flex flex-col">
-                      <span className="text-sm">{t.label}</span>
-                    </span>
-                  </button>
-                ))}
-              </nav>
-            </GlassCard>
-            <div className="space-y-4">
+                    {t.hint}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </nav>
+        </GlassCard>
+        <div className="space-y-4 min-w-0">
               <GlassCard className="space-y-4">
               {/* Fixed-height options box — every studio control scrolls inside
                   (same pattern as the API-key permission list) so the page
