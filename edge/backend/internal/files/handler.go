@@ -428,12 +428,22 @@ func renameHost(w http.ResponseWriter, r *http.Request, hostPath string) {
 		writeErr(w, http.StatusBadRequest, "rename requires a 'to' parameter")
 		return
 	}
-	if err := os.Rename(hostPath, to); err != nil {
-		writeErr(w, http.StatusBadGateway, fmt.Sprintf("rename %s -> %s: %v", hostPath, to, err))
+	// Jail the destination exactly like the source host_path above:
+	// it must be absolute and must not resolve to a system path.
+	// Without this an authenticated file-manager caller could rename a
+	// benign staged file (e.g. /tmp/a) onto a sensitive host path
+	// (e.g. /etc/cron.d/evil) and escape the host_path jail.
+	cleanTo := filepath.Clean(to)
+	if !filepath.IsAbs(cleanTo) || isDangerousPath(cleanTo) {
+		writeErr(w, http.StatusBadRequest, fmt.Sprintf("invalid destination path %q", to))
+		return
+	}
+	if err := os.Rename(hostPath, cleanTo); err != nil {
+		writeErr(w, http.StatusBadGateway, fmt.Sprintf("rename %s -> %s: %v", hostPath, cleanTo, err))
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "from": hostPath, "to": to})
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "from": hostPath, "to": cleanTo})
 }
 
 // deleteHost removes hostPath. Directories are removed recursively

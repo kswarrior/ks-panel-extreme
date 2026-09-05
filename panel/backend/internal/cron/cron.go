@@ -6,8 +6,10 @@
 //
 // Fields: minute hour day-of-month month day-of-week.
 // Next(now) returns the earliest time strictly after `now` matching the
-// expression, checked minute-by-minute (worst-case 525,600 iterations — yawn
-// compared to the 60s scheduler tick). Sub-minute precision is intentionally
+// expression, checked minute-by-minute (worst-case ~3.1M iterations at the
+// 6-year horizon — still trivial next to the 60s scheduler tick, and the
+// horizon covers the 4-year Feb-29 leap cycle so leap-day schedules resolve
+// instead of mis-arming as zero). Sub-minute precision is intentionally
 // unsupported.
 package cron
 
@@ -226,8 +228,9 @@ func (s *Schedule) dowRestricted() bool {
 func (s *Schedule) Next(from time.Time) time.Time {
 	// Round up to the next minute boundary.
 	t := from.Truncate(time.Minute).Add(time.Minute)
-	// Cap iterations to ~2 years so a bad expression can't loop forever.
-	limit := t.AddDate(2, 0, 0)
+	// Cap iterations at ~6 years so a bad expression can't loop forever
+	// while still covering the 4-year Feb-29 leap cycle.
+	limit := t.AddDate(6, 0, 0)
 	for t.Before(limit) {
 		if s.matches(t) {
 			return t

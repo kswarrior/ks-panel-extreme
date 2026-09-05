@@ -477,10 +477,20 @@ func truncate(s string, n int) string {
 }
 
 func nextRun(schedule string, from time.Time) time.Time {
-	sched, err := cron.Parse(schedule)
-	if err != nil || schedule == "" {
+	if schedule == "" {
 		// On-demand jobs: no recurring next slot, the manual run is one-off.
 		return time.Time{}
 	}
-	return sched.Next(from)
+	sched, err := cron.Parse(schedule)
+	if err != nil {
+		// Corrupt row that slipped past API validation: park far in the
+		// future instead of zero — MarkRan persists zero as year-1, which
+		// Due matches on every tick (per-minute refire loop).
+		return from.AddDate(100, 0, 0)
+	}
+	if n := sched.Next(from); !n.IsZero() {
+		return n
+	}
+	// Parses but never occurs (e.g. Feb 30): same fail-closed parking.
+	return from.AddDate(100, 0, 0)
 }
