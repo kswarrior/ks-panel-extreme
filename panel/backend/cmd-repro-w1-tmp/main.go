@@ -82,9 +82,7 @@ func main() {
 		runTwice("MYSQLMS", "mysql", "kspanel:kspanel@tcp(127.0.0.1:3306)/repro_w1ms?parseTime=true&loc=UTC&timeout=10s&multiStatements=true")
 	case "sqlite054":
 		// file-backed sqlite: migrate once, then list 054 owner indexes
-		if os.Getenv("KEEP_DB") == "" {
-			os.Remove("/tmp/opencode/repro_w1.db")
-		}
+		os.Remove("/tmp/opencode/repro_w1.db")
 		d := mustDialect("sqlite")
 		con, err := d.Open("/tmp/opencode/repro_w1.db")
 		if err != nil {
