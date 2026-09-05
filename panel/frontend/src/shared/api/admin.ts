@@ -451,6 +451,19 @@ export async function killInstance(id: number): Promise<void> {
   await client.post(`/api/instances/${id}/kill`);
 }
 
+export async function reinstallInstance(id: number): Promise<{ id: number; status: string }> {
+  const res = await client.post<{ id: number; status: string }>(`/api/instances/${id}/reinstall`);
+  return res.data;
+}
+
+export async function updateInstanceIdentity(
+  id: number,
+  payload: { display_name: string; icon?: string; color?: string },
+): Promise<{ id: number; display_name: string }> {
+  const res = await client.put<{ id: number; display_name: string }>(`/api/instances/${id}/identity`, payload);
+  return res.data;
+}
+
 export async function restartInstance(id: number): Promise<void> {
   await client.post(`/api/instances/${id}/restart`);
 }
