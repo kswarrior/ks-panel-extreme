@@ -2492,6 +2492,23 @@ func InvokeActionHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "instance not found", http.StatusNotFound)
 		return
 	}
+	// Ownership scope for invoke: Own → must own the instance.
+	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
+		checker := permissions.NewChecker(con)
+		hasOwn, hasAll, _ := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		if !hasAll && hasOwn && inst.OwnerID != uid {
+			http.Error(w, "forbidden: own-scope may only manage own instances", http.StatusForbidden)
+			return
+		}
+	}
+	if suspended, until, _ := instRepo.IsInstanceSuspended(id); suspended {
+		msg := "instance is suspended indefinitely"
+		if until != nil {
+			msg = fmt.Sprintf("instance is suspended until %s", until.Format("2006-01-02 15:04"))
+		}
+		writeJSONStatus(w, http.StatusForbidden, map[string]any{"error": msg})
+		return
+	}
 	if inst.InstallState == "running" {
 		// Refuse to overlap an in-flight install workflow (or another action
 		// already in progress). Both share the same edge install record key
@@ -2771,6 +2788,15 @@ func StopActionHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, "instance not found", http.StatusNotFound)
 		return
+	}
+	// Ownership scope for stop: Own → must own the instance.
+	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
+		checker := permissions.NewChecker(con)
+		hasOwn, hasAll, _ := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		if !hasAll && hasOwn && inst.OwnerID != uid {
+			http.Error(w, "forbidden: own-scope may only manage own instances", http.StatusForbidden)
+			return
+		}
 	}
 	// Treat any state where the install workflow is no longer actionable as
 	// "already resolved" — return 200 with edge_state="already_done" so the

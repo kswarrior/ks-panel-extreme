@@ -1186,6 +1186,15 @@ func ExecutePageActionHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "instance not found", http.StatusNotFound)
 		return
 	}
+	// Ownership scope: Own without All may only execute on own instances.
+	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
+		chk := permissions.NewChecker(con)
+		hasOwn, hasAll, _ := chk.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		if !hasAll && hasOwn && instance.OwnerID != uid {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+	}
 
 	// Get the node to get edge connection info
 	nodeRepo := repository.NewNodeRepository(con)
@@ -1570,6 +1579,15 @@ func ExecuteCustomPageActionHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "instance not found", http.StatusNotFound)
 		return
 	}
+	// Ownership scope: Own without All may only execute on own instances.
+	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
+		chk2 := permissions.NewChecker(con)
+		hasOwn, hasAll, _ := chk2.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		if !hasAll && hasOwn && instance.OwnerID != uid {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+	}
 
 	// Get the node to get edge connection info
 	nodeRepo := repository.NewNodeRepository(con)
@@ -1697,6 +1715,15 @@ func ExecuteModulePageActionHandler(w http.ResponseWriter, r *http.Request) {
 	if gerr != nil || instance == nil {
 		http.Error(w, "instance not found", http.StatusNotFound)
 		return
+	}
+	// Ownership scope: Own without All may only execute on own instances.
+	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
+		chk3 := permissions.NewChecker(con)
+		hasOwn, hasAll, _ := chk3.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		if !hasAll && hasOwn && instance.OwnerID != uid {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
 	}
 
 	// Get the node to get edge connection info
