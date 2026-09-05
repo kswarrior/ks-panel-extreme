@@ -173,6 +173,23 @@ func sftpPublicView(inst *models.Instance, cfg *repository.SFTPConfig, nodeAddr 
 		enabled = cfg.Enabled
 	}
 	host := strings.TrimSpace(nodeAddr)
+	// The reverse_tunnel placeholder has no dialable address: the SFTP data
+	// plane needs direct TCP to the edge's :2222, which a NAT-ed tunnel edge
+	// cannot provide. Don't present "tunnel" as a dialable host (it produced
+	// copy-pasteable but undialable sftp://…@tunnel:2222 URIs); return an
+	// empty host/uri plus an explicit warning the SPA can surface.
+	if host == "tunnel" || host == "" {
+		return map[string]any{
+			"enabled":      enabled == 1,
+			"username":     username,
+			"host":         "",
+			"port":         port,
+			"root":         root,
+			"uri":          "",
+			"has_password": hasPassword,
+			"host_warning": "SFTP needs a direct address — reverse_tunnel has no dialable host; use direct/both/local modes for file transfer",
+		}
+	}
 	// Node addresses are stored as host:port (edge HTTP); the SFTP dial
 	// host is the bare hostname/IP without the HTTP port.
 	if h := strings.LastIndex(host, ":"); h > 0 && !strings.HasSuffix(host, "]") {
