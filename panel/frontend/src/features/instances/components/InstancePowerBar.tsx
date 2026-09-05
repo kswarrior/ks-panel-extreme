@@ -117,17 +117,34 @@ const InstancePowerBar: React.FC<{ variant?: 'dock' | 'pill' }> = ({ variant = '
     PermissionKey.INSTANCES_EDIT,
   );
 
+  // Sync auto-off with the idle hook (dock only — pill mode is driven by
+  // its parent PageActionsPill). visible=false => off (collapsed to >),
+  // visible=true (idle elapsed / hover) => back on.
+  useEffect(() => {
+    if (variant !== 'dock') return;
+    const off = !autoHide.visible;
+    setAutoOff(off);
+    if (off) setActionsOpen(false);
+  }, [autoHide.visible, variant]);
+
   if (!canControl || !Number.isFinite(instanceId)) return null;
+
+  // Effective off state: manual collapse OR auto-off. The bar is never
+  // invisible — off just means the buttons slide away and the `>` toggle
+  // stays showing.
+  const isOff = collapsed || (variant === 'dock' && autoOff);
 
   const toggle = () => {
     setActionsOpen(false);
-    setCollapsed((v) => {
-      const next = !v;
-      try {
-        localStorage.setItem(COLLAPSED_KEY, next ? '1' : '0');
-      } catch {}
-      return next;
-    });
+    // Expanding from auto-off restores visibility immediately so it does
+    // not snap back shut until the next scroll/outside-click.
+    autoHide.show();
+    setAutoOff(false);
+    const next = !isOff;
+    try {
+      localStorage.setItem(COLLAPSED_KEY, next ? '1' : '0');
+    } catch {}
+    setCollapsed(next);
   };
 
   const status = instance?.status ?? '';
@@ -286,7 +303,17 @@ const InstancePowerBar: React.FC<{ variant?: 'dock' | 'pill' }> = ({ variant = '
     // Plain left-aligned dock — placement/stickiness comes from the parent
     // (Layout renders it in a row below the header bar, left). Zero
     // padding/margin — flush. Relative so the Actions dropdown anchors here.
-    <div ref={dockRef} className="relative flex justify-start p-0 m-0" aria-label="Instance power controls">
+    // Auto-off never hides this element — off just collapses < to >, so the
+    // `>` toggle stays visible and clickable. Hover restores (<).
+    <div
+      ref={(el) => {
+        dockRef.current = el;
+        (autoHide.ref as React.MutableRefObject<HTMLDivElement | null>).current = el;
+      }}
+      onMouseEnter={autoHide.show}
+      className="relative flex justify-start p-0 m-0"
+      aria-label="Instance power controls"
+    >
       <div className="pointer-events-auto flex flex-col items-start p-0 m-0">
         {/* Rectangular box — ks-card kept for the themed glass surface only;
             zero box metrics enforced inline so theme radius/padding can't win. */}
@@ -298,7 +325,7 @@ const InstancePowerBar: React.FC<{ variant?: 'dock' | 'pill' }> = ({ variant = '
             gap: 0,
             borderRadius: 0,
             // Shut state: hard-cap the whole box at ~25px wide, centered.
-            ...(collapsed
+            ...(isOff
               ? { maxWidth: 25, overflow: 'hidden', justifyContent: 'center' as const }
               : {}),
           }}
@@ -307,18 +334,18 @@ const InstancePowerBar: React.FC<{ variant?: 'dock' | 'pill' }> = ({ variant = '
           <div
             className="flex items-center overflow-hidden transition-all duration-300 ease-in-out"
             style={
-              collapsed
+              isOff
                 ? { maxWidth: 0, opacity: 0, transform: 'translateX(-8px)', pointerEvents: 'none', padding: 0, margin: 0, gap: 0 }
                 : { maxWidth: 320, opacity: 1, transform: 'translateX(0)', padding: 0, margin: 0, gap: 0 }
             }
-            aria-hidden={collapsed}
+            aria-hidden={isOff}
           >
             {showStart && (
             <button
               type="button"
               onClick={() => run('start')}
-              disabled={collapsed || busyAny}
-              tabIndex={collapsed ? -1 : undefined}
+              disabled={isOff || busyAny}
+              tabIndex={isOff ? -1 : undefined}
               title="Start instance"
               style={btnStyle}
               className={`${btnBase} text-emerald-300 hover:bg-emerald-900/30`}
@@ -335,8 +362,8 @@ const InstancePowerBar: React.FC<{ variant?: 'dock' | 'pill' }> = ({ variant = '
             <button
               type="button"
               onClick={() => run('stop')}
-              disabled={collapsed || busyAny}
-              tabIndex={collapsed ? -1 : undefined}
+              disabled={isOff || busyAny}
+              tabIndex={isOff ? -1 : undefined}
               title="Stop instance"
               style={btnStyle}
               className={`${btnBase} text-yellow-300 hover:bg-yellow-900/30`}
@@ -353,8 +380,8 @@ const InstancePowerBar: React.FC<{ variant?: 'dock' | 'pill' }> = ({ variant = '
             <button
               type="button"
               onClick={() => run('restart')}
-              disabled={collapsed || busyAny}
-              tabIndex={collapsed ? -1 : undefined}
+              disabled={isOff || busyAny}
+              tabIndex={isOff ? -1 : undefined}
               title="Restart instance"
               style={btnStyle}
               className={`${btnBase} text-sky-300 hover:bg-sky-900/30`}
@@ -371,8 +398,8 @@ const InstancePowerBar: React.FC<{ variant?: 'dock' | 'pill' }> = ({ variant = '
             <button
               type="button"
               onClick={() => setActionsOpen((v) => !v)}
-              disabled={collapsed}
-              tabIndex={collapsed ? -1 : undefined}
+              disabled={isOff}
+              tabIndex={isOff ? -1 : undefined}
               title={actionsOpen ? 'Hide template actions' : `Show template actions (${templateActions.length})`}
               aria-label="Template actions"
               aria-expanded={actionsOpen}
@@ -391,17 +418,18 @@ const InstancePowerBar: React.FC<{ variant?: 'dock' | 'pill' }> = ({ variant = '
             )}
           </div>
 
-          {/* Collapse toggle — [<] when open, [>] when collapsed */}
+          {/* Collapse toggle — [<] when open, [>] when collapsed.
+              Auto-off shows the same `>` — the bar never goes invisible. */}
           <button
             type="button"
             onClick={toggle}
-            aria-label={collapsed ? 'Expand power controls' : 'Collapse power controls'}
-            aria-expanded={!collapsed}
-            title={collapsed ? 'Show power buttons' : 'Hide power buttons'}
-            style={collapsed ? toggleCollapsedStyle : btnStyle}
+            aria-label={isOff ? 'Expand power controls' : 'Collapse power controls'}
+            aria-expanded={!isOff}
+            title={isOff ? 'Show power buttons' : 'Hide power buttons'}
+            style={isOff ? toggleCollapsedStyle : btnStyle}
             className={`${btnBase} text-gray-200 hover:bg-white/10`}
           >
-            {collapsed ? (
+            {isOff ? (
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-2.5 h-2.5" aria-hidden="true"><polyline points="9 18 15 12 9 6" /></svg>
             ) : (
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3" aria-hidden="true"><polyline points="15 18 9 12 15 6" /></svg>
@@ -411,7 +439,7 @@ const InstancePowerBar: React.FC<{ variant?: 'dock' | 'pill' }> = ({ variant = '
         {/* Template actions dropdown — same run/stop-toggle semantics as the
             home-page Actions card: click an idle action to invoke it, click
             it again while it's the running action to stop it. */}
-        {actionsOpen && !collapsed && templateActions.length > 0 && (
+        {actionsOpen && !isOff && templateActions.length > 0 && (
           <div
             role="menu"
             aria-label="Template actions"
