@@ -39,3 +39,10 @@ drwxr-xr-x 3 runner runner 4.0K Sep  5 20:01 localnode
 → panel        started (pid 2319) on 127.0.0.1:8080
 ✓ panel        ready at http://127.0.0.1:8080
 → launch       started ksedge (pid 2328) on 127.0.0.1:4040
+Terminated
+
+[0;34m==>[0m Launching kspanel on port 8080 (background)...
+[0;32m[OK][0m kspanel running in background (PID 41743)
+[0;32m[OK][0m Logs:   /tmp/kspanel-retest/kspanel.log
+[0;32m[OK][0m Stop:   kill $(cat /tmp/kspanel-retest/kspanel.pid)
+tail: cannot open '/tmp/kspanel-retest/kspanel.log' for reading: No such file or directory
