@@ -449,19 +449,19 @@ STOP PATCHING
 
 ## 10. EXIT CONDITION
 
-Stop only when:
+Stop only when ALL hold (each with command + exit code on record):
 
 ```text
-No known P0/P1 bugs
-Build PASS
-Tests PASS
-Runtime PASS
-Critical panel flows PASS
-Backend/Frontend/Edge contracts PASS
-AI/Loop PASS
-Security PASS
-Fresh-eyes audit PASS
-Final diff reviewed
+No known P0/P1 bugs (P2 list attached or "none")
+Build PASS (panel/backend + edge/backend + frontend)
+Tests PASS (go test ./... both backends + frontend checks)
+Runtime PASS (retest.sh green + log tail read)
+Critical panel flows PASS (login, instances, nodes, themes/templates smoke)
+Backend/Frontend/Edge contracts PASS (V3 grep-proven, no stale refs)
+AI/Loop PASS (or N/A with reason if no provider in scope)
+Security PASS (V9 on all touched surfaces)
+Fresh-eyes audit PASS (= independent agent re-ran §6 on final diff, found no P0/P1)
+Final diff reviewed by MAIN (`git diff` + `--stat` read, verdicts recorded)
 ```
 
 Otherwise start another wave.
