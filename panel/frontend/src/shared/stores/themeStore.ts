@@ -406,6 +406,18 @@ function clampNum(v: unknown, def: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, n));
 }
 
+// softRgba derives a translucent glow colour from a hex accent: '#6ee7b7'
+// at 0.14 → 'rgba(110,231,183,0.14)'. Non-hex input (rgba(), named colour,
+// garbage) passes through untouched so the declaration stays valid.
+function softRgba(v: unknown, alpha: number): string {
+  const s = String(v ?? '').trim();
+  const m = s.match(/^#([0-9a-f]{6})([0-9a-f]{2})?$/i);
+  if (!m) return s || 'rgba(110,231,183,0.14)';
+  const n = parseInt(m[1], 16);
+  const a = Math.max(0, Math.min(1, alpha));
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
+
 // sectionBackfill merges a possibly-missing/partial persisted section onto
 // DEFAULT so every downstream reader sees a well-shaped object. This is the
 // single forward-migration path for theme sections added after a theme was
@@ -447,6 +459,7 @@ function migrateThemeSections(t: any): Theme {
     tabs: sectionBackfill(t?.tabs, DEFAULT_THEME.tabs),
     dropdowns: sectionBackfill(t?.dropdowns, DEFAULT_THEME.dropdowns),
     pill: sectionBackfill(t?.pill, DEFAULT_THEME.pill),
+    menu: sectionBackfill(t?.menu, DEFAULT_THEME.menu),
     forms: sectionBackfill(t?.forms, DEFAULT_THEME.forms),
     components: sectionBackfill(t?.components, DEFAULT_THEME.components),
     utilities: sectionBackfill(t?.utilities, DEFAULT_THEME.utilities),
@@ -687,6 +700,7 @@ function sanitizeThemeTokens(theme: Theme): Theme {
     tabs: cleanSection(t.tabs) as unknown as Theme['tabs'],
     dropdowns: cleanSection(t.dropdowns) as unknown as Theme['dropdowns'],
     pill: cleanSection(t.pill) as unknown as Theme['pill'],
+    menu: cleanSection(t.menu) as unknown as Theme['menu'],
     forms: cleanSection(t.forms) as unknown as Theme['forms'],
     components: cleanSection(t.components) as unknown as Theme['components'],
     utilities: cleanSection(t.utilities) as unknown as Theme['utilities'],

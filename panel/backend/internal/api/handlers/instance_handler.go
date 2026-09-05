@@ -793,6 +793,15 @@ func ReinstallInstanceHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSONStatus(w, http.StatusForbidden, map[string]any{"error": msg})
 		return
 	}
+	// A deploy already in flight owns the row — reinstalling over
+	// "creating"/"installing" would destroy a workload that doesn't exist
+	// yet and orphan the running workflow.
+	if inst.Status == "creating" || inst.Status == "installing" {
+		writeJSONStatus(w, http.StatusConflict, map[string]any{
+			"error": fmt.Sprintf("instance is %q — wait for the deploy to finish before reinstalling", inst.Status),
+		})
+		return
+	}
 	// The stored config is already the merged deploy-time spec — redeploy
 	// it verbatim.
 	cfg := map[string]any{}

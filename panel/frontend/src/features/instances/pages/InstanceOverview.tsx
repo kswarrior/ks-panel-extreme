@@ -11,7 +11,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useInstance } from '@/shared/hooks/useInstance';
-import { useLiveMetrics, type LivePoint } from '../hooks/useLiveMetrics';
+import { useLiveMetrics } from '../hooks/useLiveMetrics';
 import {
   destroyInstance,
   reinstallInstance,
@@ -512,7 +512,12 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
                 <button
                   type="button"
                   onClick={onReinstall}
-                  disabled={reinstallBusy || deleteBusy}
+                  disabled={reinstallBusy || deleteBusy || status === 'creating' || status === 'installing'}
+                  title={
+                    status === 'creating' || status === 'installing'
+                      ? 'Wait for the deploy to finish before reinstalling'
+                      : 'Wipe and redeploy from the stored spec'
+                  }
                   className="ks-btn-danger-sm disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {reinstallBusy ? 'Reinstalling…' : 'Reinstall'}

@@ -225,6 +225,25 @@ export const DEFAULT_THEME: Theme = {
     tabs_menu_fixed_width: 240,
   },
 
+  // Instance menu — floating square toggle + popover on instance pages.
+  // Surface defaults mirror the Card tab (toggle) and the dropdown
+  // backdrop (popover) so the menu inherits the live look until an admin
+  // explicitly overrides it here; sizing reproduces today's hardcoded
+  // geometry (46px square, 15px radius, 320px panel).
+  menu: {
+    toggle_background: 'rgba(255,255,255,0.04)',
+    toggle_border_color: 'rgba(255,255,255,0.10)',
+    toggle_icon_color: '#e5e7eb',
+    toggle_radius: 15,
+    toggle_shadow: '0 8px 32px rgba(0,0,0,0.45)',
+    accent_color: '#6ee7b7',
+    popover_width: 320,
+    popover_background: 'rgba(12,14,18,0.22)',
+    popover_border_color: 'rgba(255,255,255,0.18)',
+    popover_radius: 15,
+    popover_blur: 40,
+  },
+
   // Forms / Components / Utilities / Cards seed values REPRODUCE the stock
   // Tailwind look exactly. Where a variant should keep following the base
   // Card tab live (list/stat/form/glass-strong surfaces), its default equals

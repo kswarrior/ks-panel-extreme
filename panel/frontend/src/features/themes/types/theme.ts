@@ -476,6 +476,24 @@ export interface ThemePill {
   tabs_menu_fixed_width: number;      // px — used when tabs_menu_width === 'fixed'
 }
 
+// Instance menu — the floating draggable square toggle on instance detail
+// pages plus its popover (status row, power controls, template actions).
+// Surface defaults mirror the Card tab so the menu keeps inheriting the
+// live card look until an admin explicitly overrides it here.
+export interface ThemeMenu {
+  toggle_background: string; // square fill (default mirrors card → inherits live Card tab)
+  toggle_border_color: string; // hex or rgba
+  toggle_icon_color: string;  // wheel glyph + chevron tint
+  toggle_radius: number;      // px — square corner radius
+  toggle_shadow: string;      // raw CSS box-shadow at rest
+  accent_color: string;       // open-state glow + active wheel tint
+  popover_width: number;      // px — menu panel width
+  popover_background: string; // panel fill (default mirrors dropdowns)
+  popover_border_color: string; // hex or rgba
+  popover_radius: number;     // px
+  popover_blur: number;       // px — backdrop blur behind the panel
+}
+
 export interface Theme {
   id: string;                // stable id; 'default' is reserved for the seed
   name: string;
@@ -500,6 +518,7 @@ export interface Theme {
   tabs: ThemeTabs;
   dropdowns: ThemeDropdown;
   pill: ThemePill;
+  menu: ThemeMenu;
   forms: ThemeForms;
   components: ThemeComponents;
   utilities: ThemeUtilities;
@@ -509,4 +528,4 @@ export interface Theme {
 
 export type ThemeKey = keyof Pick<Theme,
   'background' | 'card' | 'sidebar' | 'button' | 'header' | 'typography' | 'accent' | 'shape'
-  | 'loading' | 'tabs' | 'dropdowns' | 'pill' | 'forms' | 'components' | 'utilities' | 'cards' | 'customCSS'>;
+  | 'loading' | 'tabs' | 'dropdowns' | 'pill' | 'menu' | 'forms' | 'components' | 'utilities' | 'cards' | 'customCSS'>;
