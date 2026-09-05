@@ -60,22 +60,19 @@ Config / Environment
 Persistence / Database
 Authentication / Permissions
 
-PANEL SYSTEM
-Panel lifecycle
-Panel positioning
-Panel ↔ Edge connection
-Panel ↔ Backend connection
-Panel ↔ Frontend connection
-Panel modes — inspect EVERY mode separately
-Panel visibility / show-hide
-Panel focus / blur
-Panel resize
-Panel drag / position persistence
-Multi-monitor / DPI / resolution
-Fullscreen / maximized-window behavior
-Startup / restart / recovery
+PANEL SYSTEM (this repo is a web SPA — map OS-window items to their browser equivalents)
+Panel lifecycle (mount/unmount, route enter/leave)
+Panel ↔ Edge connection (tunnel client ↔ manager, heartbeat, reconnect)
+Panel ↔ Backend connection (API client, auth session, WSS channels)
+Panel frontend routing (router.tsx — inspect EVERY route separately, no generic agent)
+Panel visibility / loading / error / empty states
+Panel focus / blur / auth-guard redirects
+Responsive behavior / viewport resize
+Layout persistence (sidebar, prefsStore, settingsStore)
+Multi-monitor / DPI / resolution → responsive + zoom equivalents
+Startup / restart / recovery (launch, stop, seed, setup_localnode)
 Keyboard / mouse interactions
-Hotkeys / global events
+Hotkeys / global events (listeners, cleanup on unmount)
 
 UI SYSTEM
 Layout
@@ -114,13 +111,11 @@ Template ↔ panel compatibility
 Missing / broken templates
 Duplicate / stale templates
 
-AI / AGENT SYSTEM
-Model provider layer
-GLM 5.2
-MiniMax M3
-Ox Alpha
-Muse Spark 1.2
-Muse Spark 1.3
+AI / AGENT SYSTEM (discovery-first: grep for providers before spawning)
+Model provider layer (only spawn per-provider agents for providers
+  that EXIST in code — e.g. GLM / MiniMax / Ox / Muse Spark variants.
+  If a name has no code hits, use ONE generic provider agent instead.
+  Never invent a provider agent from this list alone.)
 Prompt construction
 Response parsing
 Retries / timeout / cancellation
@@ -187,18 +182,17 @@ Independent architecture reviewer
 Independent UI/panel reviewer
 Independent security reviewer
 Independent release reviewer
+```
 
-IMPORTANT:
-Create additional agents whenever the real repository contains another major subsystem, mode, option group, connection, provider, or feature not listed above.
-
-Do not force unrelated areas into one agent.
+**IMPORTANT:** Create additional agents whenever the real repository contains
+another major subsystem, mode, option group, connection, provider, or feature
+not listed above. Do not force unrelated areas into one agent.
 
 Each agent gets a narrow scope and must:
 
 `INSPECT → REPRODUCE → FIND ROOT CAUSE → FIX → TEST → REPORT`
 
 Agents may fix their own scope, but the MAIN AGENT must independently verify every important fix afterward.
-```
 
 ### 3.1 REPO-SPECIFIC AGENTS (discovered from `panel/` + `edge/` — spawn these too)
 
@@ -275,10 +269,15 @@ OPS / RELEASE
 3. FILE OWNERSHIP: assign disjoint file sets per agent; shared contracts
    (API shapes, DB models in internal/models/) are READ-ONLY for all except
    the owning agent; MAIN AGENT resolves conflicts.
-4. PANEL MODES: one agent per real mode found in router.tsx / instance_pages/pages/.
-   No generic "panel modes" agent.
-5. PROVIDERS: one agent per real AI provider found in code (GLM / MiniMax /
-   Ox / Muse Spark 1.2 / 1.3). No generic "AI" agent.
+4. ROUTES, not "modes": one agent per real route group found in
+   app/router.tsx + instance_pages/pages/. No generic "panel modes" agent.
+5. PROVIDERS: grep first (`rg -li "glm|minimax|^ox |muse|spark|openai|anthropic" panel/backend/`).
+   One agent per provider WITH code hits. No hits → ONE generic AI-layer agent.
+   Never spawn a provider agent from memory of model names.
+6. WAVE SIZE: max 4–6 parallel agents per wave (fewer for weak models).
+   Extra scopes queue for the next wave. Same rule for sequential fallback.
+7. STUCK AGENT: no report within the agreed timeout → MAIN marks its scope
+   UNVERIFIED, re-queues it next wave with a narrower scope. Never block the wave.
 ```
 
 Give each agent a narrow scope.
@@ -286,6 +285,32 @@ Give each agent a narrow scope.
 Agents may **inspect, reproduce, fix and test** their assigned problems.
 
 Do not let multiple agents edit the same critical files simultaneously.
+
+### 3.3 SUB-AGENT SPAWN PROMPT (copy/paste into ANY model/tool)
+
+```text
+You are a KS Panel debugging sub-agent. Scope: <ONE scope from §3/§3.1>.
+Allowed files: <disjoint list>. Everything else is READ-ONLY.
+Rules: loop.md §1–§3 (plan, minimal diff, follow existing patterns,
+never edit shipped migrations / *.db* / internal/dist/ / release artifacts,
+fail closed on security, no swallowed errors).
+Workflow: INSPECT → REPRODUCE → ROOT CAUSE → FIX → TEST.
+Evidence bar: every claim needs command + exit code + output snippet.
+Banned phrases: "probably fixed", "looks good", "should work".
+Return ONLY the §5 report. Keep it under ~40 lines. List UNVERIFIED honestly.
+Context: repo root <path>, base commit <sha>, wave <n>.
+```
+
+### 3.4 FORBIDDEN FOR ALL AGENTS (any model)
+
+```text
+- No editing the same file as another agent in the same wave.
+- No deleting migrations, no editing shipped SQL, no touching kspanel.db*.
+- No editing internal/dist/ or release/ build output by hand.
+- No logging/printing/returning secrets, tokens, or password hashes.
+- No silent fallbacks, empty catch, or "temporary" workarounds.
+- No commits/pushes unless the MAIN agent explicitly orders it.
+```
 
 ## 4. EACH AGENT MUST
 
@@ -308,7 +333,16 @@ Check for:
 * duplicate/dead/conflicting code
 * build/release failures
 
-No:
+### 4.1 EVIDENCE BAR (same for every model)
+
+A bug counts as FIXED only with ALL of:
+
+1. Reproducer BEFORE the fix (failing command/log/test + exit code).
+2. Same reproducer AFTER the fix (passing + exit code).
+3. Regression check on neighbors (`loop.md` CHECKLIST V, at least V1–V4).
+4. Pasted output snippet or log tail — never a paraphrase.
+
+Banned (treated as NOT DONE):
 
 ```text
 "probably fixed"
@@ -316,38 +350,52 @@ No:
 "should work"
 ```
 
-Evidence only.
+Weaker models: paste FULL command output, not summaries. If you cannot
+run a command, say so in UNVERIFIED — do not fake it.
 
-## 5. AGENT REPORT
+## 5. AGENT REPORT (strict schema — one block per bug)
 
 ```text
-BUG:
-ROOT CAUSE:
-EVIDENCE:
-FIX:
-FILES:
-TESTS:
-EXIT CODES:
-UNVERIFIED:
+SCOPE:      <§3 scope + wave number>
+SEVERITY:   <P0 crash/data-loss/sec-hole | P1 major broken flow | P2 minor/edge-case>
+BUG:        <one line, observable symptom>
+ROOT CAUSE: <one line, code-level cause + file:line>
+EVIDENCE:   <repro command + exit code BEFORE → AFTER>
+FIX:        <what changed + why it addresses the cause>
+FILES:      <paths touched>
+TESTS:      <commands run + exit codes>
+UNVERIFIED: <anything not proven — never leave blank, write "none" if empty>
 ```
+
+Severity guide: P0 = crash, data loss, auth bypass, startup failure.
+P1 = major feature broken, contract mismatch, migration failure.
+P2 = cosmetic, rare edge case, docs drift. P2s batch into one wave;
+P0/P1 block the exit condition.
 
 ## 6. MAIN AGENT AUDIT
 
-After all agents finish, the MAIN AGENT must independently:
+After all agents finish, the MAIN AGENT must independently
+(re-read the files — never trust agent summaries):
 
 ```text
 review every change
-→ inspect git diff
-→ trace affected flows
+→ inspect git diff + git diff --stat
+→ trace affected flows (loop.md V1–V3, both directions)
 → check frontend ↔ backend ↔ edge ↔ DB/API contracts
-→ check agent fixes for regressions
-→ run build/tests/typecheck/lint
-→ run real runtime/panel checks
-→ check AI/model/loop behavior
-→ perform security + resource review
+→ check agent fixes for regressions (§7 second-order check)
+→ run build/tests/typecheck/lint:
+    panel/backend:  go build ./... && go test ./...
+    edge/backend:   go build ./... && go test ./...
+    frontend:       npm run build + tsc --noEmit + lint (per package.json)
+→ run real runtime/panel checks: bash retest.sh (see loop.md V7)
+→ check AI/model/loop behavior (retries, timeouts, fallbacks)
+→ perform security + resource review (loop.md V9: injection, authz,
+  secrets, IDOR, open redirects, mass assignment)
 ```
 
-Assume every sub-agent can be wrong.
+Assume every sub-agent can be wrong. A wave with zero independent
+`git diff` inspection by MAIN = failed wave. Record per-agent verdict:
+ACCEPT / REWORK (with reason) / REVERT.
 
 ## 7. SECOND-ORDER CHECK
 
