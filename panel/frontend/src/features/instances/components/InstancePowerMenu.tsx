@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { startInstance, stopInstance, restartInstance, killInstance } from '@/shared/api/admin';
 import { invokeInstanceAction, stopInstanceAction } from '@/features/instances/api/instanceAdvanced';
@@ -25,6 +25,29 @@ function actionStateOk(a: any, status: string): boolean {
   const toks = actionAllowedStates(a);
   if (toks.length === 0) return true;
   return toks.includes(String(status ?? '').trim().toLowerCase());
+}
+
+type ActionPhase = 'running' | 'ok' | 'err' | 'idle';
+
+// actionTone maps an action's lifecycle phase to its row colors: running
+// (or busy/stopping) → yellow, failed → red, finished OK → green, idle →
+// normal text. Shared by the selector row and every dropdown row.
+function actionTone(phase: ActionPhase): string {
+  switch (phase) {
+    case 'running':
+      return 'text-yellow-300 hover:bg-yellow-900/30';
+    case 'err':
+      return 'text-red-300 hover:bg-red-900/30';
+    case 'ok':
+      return 'text-emerald-300 hover:bg-emerald-900/30';
+    default:
+      return 'text-gray-200 hover:bg-white/10';
+  }
+}
+
+function actionPhase(isActive: boolean, outcome: 'ok' | 'err' | undefined): ActionPhase {
+  if (isActive) return 'running';
+  return outcome ?? 'idle';
 }
 
 // InstancePowerMenu — power controls for an instance as menu sections

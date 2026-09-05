@@ -6,8 +6,9 @@ import { KindIcon } from './InstanceFormComponents';
 import { KIND_META, kindKey } from '../types/instanceForm';
 
 // InstanceInfoRow — read-only instance facts as a menu row (no pill
-// chrome). Rendered first in the floating instance menu, in its own row:
-// merged status/uptime slot + type badge + live RAM / CPU / disk stats.
+// chrome). Rendered first in the floating instance menu, in its own box:
+// line 1 is the merged status/uptime slot + type badge, line 2 is the
+// live RAM / CPU / disk stats.
 //
 // Merged slot (phone + desktop share the same rule):
 //   • running → uptime only, emerald/green (no status label)
@@ -110,60 +111,65 @@ const InstanceInfoRow: React.FC = () => {
           ))}
         </div>
       ) : (
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-md border border-white/5 bg-white/[0.02] px-2.5 py-2">
-          {isRunning ? (
-            <span
-              className="inline-flex items-center gap-1.5 text-emerald-300 tabular-nums"
-              title={`Uptime: ${uptime}`}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-emerald-300" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
-              <span className="text-[13px] font-medium">{uptime}</span>
-            </span>
-          ) : (
-            <span
-              className="inline-flex items-center gap-1.5 text-gray-200"
-              title={`Status: ${sm.label}`}
-            >
-              <span className="relative flex w-2 h-2">
-                {(sm as any).ping && <span className="absolute inline-flex w-full h-full rounded-full bg-emerald-400 opacity-60 animate-ping" />}
-                <span className={`relative inline-flex rounded-full w-2 h-2 ${sm.dot}`} />
+        <div className="flex flex-col gap-1.5 rounded-md border border-white/5 bg-white/[0.02] px-2.5 py-2">
+          {/* Line 1: status / uptime + type. */}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+            {isRunning ? (
+              <span
+                className="inline-flex items-center gap-1.5 text-emerald-300 tabular-nums"
+                title={`Uptime: ${uptime}`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-emerald-300" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+                <span className="text-[13px] font-medium">{uptime}</span>
               </span>
-              <span className="text-[13px] font-medium">{sm.label}</span>
+            ) : (
+              <span
+                className="inline-flex items-center gap-1.5 text-gray-200"
+                title={`Status: ${sm.label}`}
+              >
+                <span className="relative flex w-2 h-2">
+                  {(sm as any).ping && <span className="absolute inline-flex w-full h-full rounded-full bg-emerald-400 opacity-60 animate-ping" />}
+                  <span className={`relative inline-flex rounded-full w-2 h-2 ${sm.dot}`} />
+                </span>
+                <span className="text-[13px] font-medium">{sm.label}</span>
+              </span>
+            )}
+            <span className="w-px h-4 bg-white/10 shrink-0" aria-hidden="true" />
+            <span
+              className="inline-flex items-center"
+              title={`Type: ${typeLabel}`}
+            >
+              <span className={`inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded border ${typeBadge}`}>
+                <KindIcon kind={k} className="w-3.5 h-3.5" />
+                {typeLabel}
+              </span>
             </span>
-          )}
-          <span className="w-px h-4 bg-white/10 shrink-0" aria-hidden="true" />
-          <span
-            className="inline-flex items-center"
-            title={`Type: ${typeLabel}`}
-          >
-            <span className={`inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded border ${typeBadge}`}>
-              <KindIcon kind={k} className="w-3.5 h-3.5" />
-              {typeLabel}
+          </div>
+          {/* Line 2: live resource stats — SVG icon + value only, no word labels. */}
+          <div className="border-t border-white/5" aria-hidden="true" />
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span
+              className="inline-flex items-center gap-1 text-sky-300"
+              title={cpuV !== null ? `CPU (live): ${fmtPctShort(cpuV)}` : 'CPU (live): unavailable'}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1.5" /><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2" /></svg>
+              <span className="text-[11px] tabular-nums text-gray-200">{fmtPctShort(cpuV)}</span>
             </span>
-          </span>
-          {/* Live resource stats: SVG icon + value only, no word labels. */}
-          <span className="w-px h-4 bg-white/10 shrink-0" aria-hidden="true" />
-          <span
-            className="inline-flex items-center gap-1 text-sky-300"
-            title={cpuV !== null ? `CPU (live): ${fmtPctShort(cpuV)}` : 'CPU (live): unavailable'}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1.5" /><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2" /></svg>
-            <span className="text-[11px] tabular-nums text-gray-200">{fmtPctShort(cpuV)}</span>
-          </span>
-          <span
-            className="inline-flex items-center gap-1 text-emerald-300"
-            title={memUsed !== null ? `RAM (live): ${fmtBytesShort(memUsed)}${memTotal !== null ? ` / ${fmtBytesShort(memTotal)}` : ''}` : 'RAM (live): unavailable'}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><rect x="2" y="8" width="20" height="9" rx="1.5" /><path d="M6 8v3M10 8v3M14 8v3M18 8v3" /></svg>
-            <span className="text-[11px] tabular-nums text-gray-200">{fmtBytesShort(memUsed)}</span>
-          </span>
-          <span
-            className="inline-flex items-center gap-1 text-amber-300"
-            title={diskUsed !== null ? `Disk (live): ${fmtBytesShort(diskUsed)}${diskTotal !== null ? ` / ${fmtBytesShort(diskTotal)}` : ''}` : 'Disk (live): unavailable'}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><ellipse cx="12" cy="5.5" rx="8" ry="3" /><path d="M4 5.5v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6" /></svg>
-            <span className="text-[11px] tabular-nums text-gray-200">{fmtBytesShort(diskUsed)}</span>
-          </span>
+            <span
+              className="inline-flex items-center gap-1 text-emerald-300"
+              title={memUsed !== null ? `RAM (live): ${fmtBytesShort(memUsed)}${memTotal !== null ? ` / ${fmtBytesShort(memTotal)}` : ''}` : 'RAM (live): unavailable'}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><rect x="2" y="8" width="20" height="9" rx="1.5" /><path d="M6 8v3M10 8v3M14 8v3M18 8v3" /></svg>
+              <span className="text-[11px] tabular-nums text-gray-200">{fmtBytesShort(memUsed)}</span>
+            </span>
+            <span
+              className="inline-flex items-center gap-1 text-amber-300"
+              title={diskUsed !== null ? `Disk (live): ${fmtBytesShort(diskUsed)}${diskTotal !== null ? ` / ${fmtBytesShort(diskTotal)}` : ''}` : 'Disk (live): unavailable'}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><ellipse cx="12" cy="5.5" rx="8" ry="3" /><path d="M4 5.5v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6" /></svg>
+              <span className="text-[11px] tabular-nums text-gray-200">{fmtBytesShort(diskUsed)}</span>
+            </span>
+          </div>
         </div>
       )}
     </div>
