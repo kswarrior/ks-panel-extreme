@@ -170,6 +170,25 @@ func GetApplicationHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "application not found", http.StatusNotFound)
 		return
 	}
+	// Ownership scope (migration 054): owner-or-ALL; orphans (OwnerID==0
+	// and no uploaded_by fallback) require ALL (fail closed, mirrors Update).
+	if uid, _ := UserIDFromContext(r); uid != 0 {
+		owner := app.OwnerID
+		if owner == 0 && app.UploadedBy != nil {
+			owner = *app.UploadedBy
+		}
+		if owner != uid {
+			if con, perr := repository.OpenDB(); perr == nil {
+				chk := permissions.NewChecker(con)
+				hasOwn, hasAll, _ := chk.HasScope(uid, permissions.ApplicationsOwnKey, permissions.ApplicationsAllKey, permissions.ManageApplicationsKey)
+				con.Close()
+				if !hasAll && hasOwn {
+					http.Error(w, "forbidden", http.StatusForbidden)
+					return
+				}
+			}
+		}
+	}
 	writeJSON(w, toAppResponse(repo, app))
 }
 
@@ -416,6 +435,17 @@ func UpdateApplicationHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "name is required", http.StatusBadRequest)
 		return
 	}
+	// Fail closed on color/icon like Create (slug is immutable on update,
+	// so no slug check here): color is injected into stylesheets, icon is
+	// capped at 16KB.
+	if c := strings.TrimSpace(dto.Color); c != "" && !validNodeColorHex(c) {
+		http.Error(w, "color must be a #rrggbb hex value", http.StatusBadRequest)
+		return
+	}
+	if len(dto.Icon) > 16*1024 {
+		http.Error(w, "icon too large (max 16KB)", http.StatusBadRequest)
+		return
+	}
 	repo, closeFn := openAppRepo()
 	if repo == nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
@@ -424,14 +454,15 @@ func UpdateApplicationHandler(w http.ResponseWriter, r *http.Request) {
 	defer closeFn()
 	// Ownership scope (migration 054): APPLICATIONS_OWN without ALL may
 	// only edit applications they uploaded (owner_id mirrors uploaded_by;
-	// fall back to uploaded_by for pre-054 orphan rows).
+	// fall back to uploaded_by for pre-054 orphan rows). Orphans
+	// (resolved owner==0) require ALL (fail closed, mirrors template).
 	if uid, _ := UserIDFromContext(r); uid != 0 {
 		if ex, gerr := repo.GetApplication(id); gerr == nil && ex != nil {
 			owner := ex.OwnerID
 			if owner == 0 && ex.UploadedBy != nil {
 				owner = *ex.UploadedBy
 			}
-			if owner != 0 && owner != uid {
+			if owner != uid {
 				if con, perr := repository.OpenDB(); perr == nil {
 					chk := permissions.NewChecker(con)
 					hasOwn, hasAll, _ := chk.HasScope(uid, permissions.ApplicationsOwnKey, permissions.ApplicationsAllKey, permissions.ManageApplicationsKey)
@@ -492,8 +523,9 @@ func DeleteApplicationHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	// Ownership scope (migration 054): own-scope callers may only delete
-	// applications they uploaded.
-	if uid, _ := UserIDFromContext(r); uid != 0 && ownerID != 0 && ownerID != uid {
+	// applications they uploaded. Orphans (resolved owner==0) require ALL
+	// (fail closed, mirrors template).
+	if uid, _ := UserIDFromContext(r); uid != 0 && ownerID != uid {
 		if con, perr := repository.OpenDB(); perr == nil {
 			chk := permissions.NewChecker(con)
 			hasOwn, hasAll, _ := chk.HasScope(uid, permissions.ApplicationsOwnKey, permissions.ApplicationsAllKey, permissions.ManageApplicationsKey)
