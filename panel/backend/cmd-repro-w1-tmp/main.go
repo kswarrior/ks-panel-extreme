@@ -72,6 +72,14 @@ func main() {
 		ur := repository.NewUserRepository(con)
 		_, err = ur.GetByID(1)
 		fmt.Printf("PGQ UserRepository.GetByID err=%v\n", err)
+	case "mysqlms":
+		// same as mysql but with multiStatements=true to isolate the
+		// multi-statement root cause from later per-migration bugs
+		root, _ := sql.Open("mysql", "kspanel:kspanel@tcp(127.0.0.1:3306)/?parseTime=true&loc=UTC&timeout=10s")
+		root.Exec("DROP DATABASE IF EXISTS repro_w1ms")
+		root.Exec("CREATE DATABASE repro_w1ms")
+		root.Close()
+		runTwice("MYSQLMS", "mysql", "kspanel:kspanel@tcp(127.0.0.1:3306)/repro_w1ms?parseTime=true&loc=UTC&timeout=10s&multiStatements=true")
 	case "myscan":
 		// prove timestamp-into-string scan fails on mysql(parseTime) after migrations
 		d := mustDialect("mysql")

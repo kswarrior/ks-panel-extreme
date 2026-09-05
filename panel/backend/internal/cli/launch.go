@@ -485,6 +485,16 @@ func warnDuplicatePanelProcesses() {
 			continue
 		}
 		cmdline := strings.TrimSpace(strings.ReplaceAll(string(raw), "\x00", " "))
+		// Only a second `launch` server can actually hold a port open.
+		// Short-lived sibling invocations of the same binary (seed,
+		// setup:localnode, create:user, …) share argv[0] but exit on
+		// their own and must not trip the duplicate-server warning —
+		// otherwise every setup:localnode auto-start flags its own
+		// parent. Mirrors stop.go pkillPanel, which only targets
+		// "… launch" invocations for the same reason.
+		if !strings.Contains(cmdline, "launch") {
+			continue
+		}
 		dups = append(dups, fmt.Sprintf("pid %s: %s", e.Name(), cmdline))
 	}
 	for _, dup := range dups {
