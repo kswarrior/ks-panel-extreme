@@ -229,7 +229,7 @@ const TABS: Array<{ key: TabKey; label: string; hint: string; icon: React.ReactN
   { key: 'sidebar', label: 'Sidebar', hint: 'Fill, blur, width & items', icon: ICON_SIDEBAR },
   { key: 'header', label: 'Header', hint: 'Fill, blur, height & bar', icon: ICON_HEADER },
   { key: 'button', label: 'Button', hint: 'Primary, ghost & icon', icon: ICON_BUTTON },
-  { key: 'tabs', label: 'Tabs', hint: 'Active, inactive & indicator', icon: ICON_TABS },
+  { key: 'tabs', label: 'Tabs', hint: 'Pills, scope cards & rail', icon: ICON_TABS },
   { key: 'pill', label: 'Pill', hint: 'Surface, motion & timing', icon: ICON_PILL },
   { key: 'menu', label: 'Menu', hint: 'Instance menu toggle & popover', icon: ICON_MENU },
   { key: 'dropdowns', label: 'Dropdowns', hint: 'Surface, items & danger', icon: ICON_DROPDOWNS },

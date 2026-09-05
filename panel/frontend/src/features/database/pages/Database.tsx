@@ -10,7 +10,7 @@ import type { DatabaseEngineInfo, DatabaseEngineSwitchResponse } from '@/shared/
 import type { DatabaseInfo, DatabaseTable } from '@/features/system/types/system';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
-import PageTabsPill from '@/shared/components/ui/PageTabsPill';
+import SectionRailTabs from '@/shared/components/ui/SectionRailTabs';
 import { MetaRow, StatTile, DeltaPill, Meter, Sparkline, PragmaTile, ChangeDatabaseCard, VerifyStatusCard } from '../components/DatabaseComponents';
 import DatabaseBackupTab from '../components/DatabaseBackupTab';
 import type { DatabaseTabId } from '../types/database';
@@ -102,9 +102,16 @@ const DatabasePage: React.FC = () => {
 
       {info && (
         <div className="space-y-4">
-          {/* Title lives in the app header ("Database"). Internal tabs stay
-              in-page; backup Create/Upload live in the top-right pill.
-              Desktop row only — phones get the bottom tabs pill. */}
+          {/* Title lives in the app header ("Database"). Internal sections use
+              the shared section rail (same style as Security): one
+              icon+label+hint strip on every breakpoint — phones scroll it
+              horizontally. Backup Create/Upload live in the top-right pill. */}
+          <SectionRailTabs
+            ariaLabel="Database sections"
+            active={tab}
+            onChange={(id) => setTab(id as DatabaseTabId)}
+            tabs={DATABASE_TABS.map((t) => ({ ...t, icon: DB_TAB_ICONS[t.id] }))}
+          />
           {tab === 'backup' && (
             <PageActionsPill>
               <button
@@ -131,19 +138,6 @@ const DatabasePage: React.FC = () => {
               </button>
             </PageActionsPill>
           )}
-          <div className="hidden lg:flex items-center gap-2 overflow-x-auto pb-1 mb-4">
-            {DATABASE_TABS.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setTab(t.id)}
-                className={`ks-tab shrink-0 transition-colors ${tab === t.id ? 'ks-tab-active' : ''}`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-
           {tab === 'overview' && !info.engine_not_supported && (
           <>
           <div className="mb-4">

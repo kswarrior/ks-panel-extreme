@@ -17,9 +17,9 @@ export type {
 
 export type DatabaseTabId = 'overview' | 'tables' | 'change' | 'backup';
 
-export const DATABASE_TABS: Array<{ id: DatabaseTabId; label: string }> = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'tables', label: 'Tables' },
-  { id: 'change', label: 'Switch' },
-  { id: 'backup', label: 'Backup' },
+export const DATABASE_TABS: Array<{ id: DatabaseTabId; label: string; hint: string }> = [
+  { id: 'overview', label: 'Overview', hint: 'Health, size, WAL' },
+  { id: 'tables', label: 'Tables', hint: 'Rows, storage, filter' },
+  { id: 'change', label: 'Switch', hint: 'Change engine' },
+  { id: 'backup', label: 'Backup', hint: 'Create, upload, schedules' },
 ];

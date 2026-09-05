@@ -45,6 +45,25 @@ export const TabsTab: React.FC<TabsTabProps> = ({ draft, patch }) => {
         <Slider label="Indicator height" max={6} value={draft.tabs.indicator_height} onChange={(v) => patch('tabs', { indicator_height: v })} suffix="px" />
       </div>
 
+      <div className="ks-form-card rounded-lg space-y-4">
+        <Label label="Scope cards — System page" hint="The Host / Panel scope switcher: top sweep line + icon tile. Colors above still paint the cards; these tune the line and tile." />
+        <Text label="Sweep line color (CSS, or 'currentColor')" value={draft.tabs.scope_line_color ?? 'currentColor'} onChange={(v) => patch('tabs', { scope_line_color: v })} mono placeholder="currentColor" hint="'currentColor' follows the tab text so the line stays visible on any active fill." />
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Slider label="Line height" max={6} value={draft.tabs.scope_line_height ?? 2} onChange={(v) => patch('tabs', { scope_line_height: v })} suffix="px" />
+          <Slider label="Sweep speed" min={100} max={1000} step={20} value={draft.tabs.scope_line_speed ?? 380} onChange={(v) => patch('tabs', { scope_line_speed: v })} suffix="ms" />
+          <Slider label="Icon tile size" min={28} max={56} value={draft.tabs.scope_icon_size ?? 40} onChange={(v) => patch('tabs', { scope_icon_size: v })} suffix="px" />
+        </div>
+      </div>
+
+      <div className="ks-form-card rounded-lg space-y-4">
+        <Label label="Section rail — Security & Database" hint="The shared horizontal strip on both pages: icon + label + hint with an active pill + growing bottom line." />
+        <ColorField label="Indicator color" value={draft.tabs.rail_indicator_color ?? 'currentColor'} onChange={(v) => patch('tabs', { rail_indicator_color: v })} hint="'currentColor' follows the tab text so the line stays visible on any active fill." />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Slider label="Indicator height" max={6} value={draft.tabs.rail_indicator_height ?? 2} onChange={(v) => patch('tabs', { rail_indicator_height: v })} suffix="px" />
+          <Slider label="Icon size" min={12} max={28} value={draft.tabs.rail_icon_size ?? 16} onChange={(v) => patch('tabs', { rail_icon_size: v })} suffix="px" />
+        </div>
+      </div>
+
       <div className="ks-form-card rounded-lg space-y-3">
         <Label label="Preview" hint="Live sample of the tab bar." />
         <div className="flex flex-wrap items-center gap-2">
@@ -52,6 +71,38 @@ export const TabsTab: React.FC<TabsTabProps> = ({ draft, patch }) => {
           <button type="button" className="ks-tab">Trends</button>
           <button type="button" className="ks-tab">Sources</button>
           <button type="button" className="ks-tab">Defense</button>
+        </div>
+      </div>
+
+      <div className="ks-form-card rounded-lg space-y-3">
+        <Label label="Preview — section rail" hint="The shared Security / Database style, painted from the rail knobs above." />
+        <div className="flex items-stretch gap-1 overflow-x-auto">
+          {['Overview', 'Tables', 'Switch', 'Backup'].map((t, i) => (
+            <span
+              key={t}
+              className={`ks-rail-tab relative flex items-center gap-2 px-3 py-2 text-sm shrink-0 ${i === 0 ? 'is-active' : ''}`}
+              data-active={i === 0}
+            >
+              <span className="text-sm font-medium whitespace-nowrap">{t}</span>
+              <span aria-hidden="true" className="ks-rail-bar" data-active={i === 0} />
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div className="ks-form-card rounded-lg space-y-3">
+        <Label label="Preview — scope cards" hint="The System page style, painted from the scope knobs above. Open the System page to feel the sweep replay on every click." />
+        <div className="grid grid-cols-2 gap-2">
+          {['Host', 'Panel'].map((t, i) => (
+            <span
+              key={t}
+              className={`ks-system-tab relative flex items-center gap-2 rounded-lg border p-3 ${i === 0 ? 'is-active' : ''}`}
+              data-active={i === 0}
+            >
+              <span aria-hidden="true" className="ks-system-tab-bar" data-active={i === 0} />
+              <span className="text-sm font-semibold">{t}</span>
+            </span>
+          ))}
         </div>
       </div>
     </GlassCard>
