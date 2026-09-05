@@ -88,11 +88,28 @@ func newClientForNode(node models.Node, token string, timeout time.Duration) *Cl
 	// fail closed in tryTunnel), so baseURL is unused there; keeping the
 	// sentinel ensures any accidental HTTP dial fails fast on DNS instead
 	// of hitting an innocent loopback service.
+	if timeout <= 0 {
+		timeout = 30 * time.Second
+	}
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{
 			ServerName:         tlsServerName(address),
 			InsecureSkipVerify: node.SkipTLSVerify,
 		},
+		// Bound every phase so a hung edge cannot park a sweep goroutine
+		// past the client's total Timeout, and reuse idle keep-alives
+		// across the 2s/10s poll loops instead of re-dialing + re-TLS on
+		// every tick (FD/handshake churn under fleet load).
+		DialContext: (&net.Dialer{
+			Timeout:   10 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ResponseHeaderTimeout: timeout,
+		MaxIdleConns:          20,
+		MaxIdleConnsPerHost:   4,
+		IdleConnTimeout:       90 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
 	}
 	return &Client{
 		baseURL:        fmt.Sprintf("%s://%s", scheme, address),

@@ -3,8 +3,10 @@ package repository
 import (
 	"crypto/tls"
 	"fmt"
+	"net"
 	"net/smtp"
 	"strings"
+	"time"
 )
 
 // SMTPSender mails a verification code to the supplied address using the
@@ -51,8 +53,11 @@ func buildEmail(from, to, subject, body string) []byte {
 // sendTLS dials an implicit-TLS SMTP port (465). The stdlib's smtp package has
 // no helper for implicit TLS, so we open the TLS connection ourselves, attach
 // a smtp.NewClient to it, auth, and send — mirroring smtp.SendMail's body.
+// The dial is bounded (15s, same as sendPlain) so a hung relay cannot park
+// the mail worker forever and stall the 256-slot queue behind it.
 func sendTLS(addr, host string, auth smtp.Auth, from string, to []string, msg []byte) error {
-	conn, err := tls.Dial("tcp", addr, &tls.Config{ServerName: host})
+	dialer := &net.Dialer{Timeout: 15 * time.Second}
+	conn, err := tls.DialWithDialer(dialer, "tcp", addr, &tls.Config{ServerName: host})
 	if err != nil {
 		return err
 	}

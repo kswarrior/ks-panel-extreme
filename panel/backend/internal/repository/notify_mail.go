@@ -170,7 +170,7 @@ func StartMailWorker(ctx context.Context) {
 				case <-ctx.Done():
 					return
 				case job := <-mailQueue:
-					deliverWithRetry(job)
+					deliverWithRetry(ctx, job)
 				}
 			}
 		}()

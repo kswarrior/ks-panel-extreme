@@ -44,6 +44,9 @@ type hubConn struct {
 func (h *NotifyHub) shutdown(uid int64, c *hubConn) {
 	c.closeOnce.Do(func() {
 		h.Unsubscribe(uid, c)
+		if c.conn == nil {
+			return
+		}
 		c.wmu.Lock()
 		_ = c.conn.Close()
 		c.wmu.Unlock()
