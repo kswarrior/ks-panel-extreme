@@ -64,19 +64,59 @@ interface PageActionsPillProps {
 }
 
 // PageActionsPill renders the fixed top-right action cluster used by every
-// panel page: a compact ks-card pill with auto-hide right-to-left slide
-// (ks-pill-anim beats the theme's `transition: border-color !important`,
-// without which the motion would snap instead of animating).
+// panel page: a compact ks-card pill that is NEVER invisible. Auto-off
+// (scroll / outside-click, 2.5s idle restore) and the manual toggle both
+// just collapse the actions — off shows a `<` toggle, on shows the actions
+// plus a `>` toggle. Hover restores an auto-off pill; a manually-collapsed
+// pill needs a click. (ks-pill-anim beats the theme's
+// `transition: border-color !important`, without which the motion would snap
+// instead of animating).
 export const PageActionsPill: React.FC<PageActionsPillProps> = ({ children, className = '' }) => {
-  const { visible, ref } = useAutoHidePill();
+  const { visible, ref, show } = useAutoHidePill();
+  const [manualOff, setManualOff] = useState(false);
+  // Off = manual collapse OR auto-hide. Never invisible — the `<` toggle
+  // always stays showing so "off" is discoverable.
+  const isOff = manualOff || !visible;
+  const toggle = () => {
+    show();
+    setManualOff(isOff ? false : true);
+  };
   return (
-    <div className="fixed top-[max(4.5rem,env(safe-area-inset-top))] right-4 sm:right-6 z-40">
+    <div
+      className="fixed top-[max(4.5rem,env(safe-area-inset-top))] right-4 sm:right-6 z-40"
+      onMouseEnter={show}
+    >
       <div
         ref={ref}
-        className={`ks-card ks-pill-anim rounded-md flex items-center gap-1 shadow-lg shadow-black/40 ${visible ? 'translate-x-0 opacity-100' : 'pointer-events-none translate-x-8 opacity-0'} ${className}`}
+        className={`ks-card ks-pill-anim rounded-md flex items-center shadow-lg shadow-black/40 opacity-100 ${className}`}
         style={{ '--ks-card-padding': '6px' } as React.CSSProperties}
       >
-        {children}
+        <div
+          className="flex items-center gap-1 overflow-hidden transition-all duration-300 ease-in-out"
+          style={
+            isOff
+              ? { maxWidth: 0, opacity: 0, transform: 'translateX(8px)', pointerEvents: 'none' as const, visibility: 'hidden' as const, padding: 0, margin: 0 }
+              : { maxWidth: 800, opacity: 1, transform: 'translateX(0)', visibility: 'visible' as const, padding: 0, margin: 0 }
+          }
+          aria-hidden={isOff}
+        >
+          {children}
+        </div>
+        <button
+          type="button"
+          onClick={toggle}
+          aria-label={isOff ? 'Show actions' : 'Hide actions'}
+          aria-expanded={!isOff}
+          title={isOff ? 'Show actions' : 'Hide actions'}
+          style={PILL_TAB_STYLE}
+          className="ks-tab inline-flex items-center justify-center shrink-0"
+        >
+          {isOff ? (
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><polyline points="15 18 9 12 15 6" /></svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><polyline points="9 18 15 12 9 6" /></svg>
+          )}
+        </button>
       </div>
     </div>
   );
