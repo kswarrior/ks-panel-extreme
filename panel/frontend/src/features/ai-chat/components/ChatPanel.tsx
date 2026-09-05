@@ -113,7 +113,7 @@ const ChatPanel: React.FC = () => {
           </h3>
           <p className="text-[11px] text-gray-400 truncate">
             {view === 'settings'
-              ? 'Enable · providers · behaviour · retry'
+              ? 'Provider · retry'
               : canUseTools
                 ? 'Ask about your fleet — writes need approval'
                 : 'Q&A mode — ask an admin for AI Chat Tools for fleet lookups'}
@@ -302,10 +302,10 @@ const ChatPanel: React.FC = () => {
                 <span className="block mt-1 text-red-200/80">
                   {isAdmin ? (
                     <>
-                      Open the gear menu → Assistant to enable it and set Base URL + Model, then Save all.
+                      Open the gear menu → Provider settings to set Base URL + Model, then Save all. Access is managed via Roles → AI Chat.
                     </>
                   ) : (
-                    <>Ask an administrator to enable the assistant (gear → Assistant) and configure a provider.</>
+                    <>Ask an administrator to configure a provider and grant AI Chat access.</>
                   )}
                 </span>
               )}

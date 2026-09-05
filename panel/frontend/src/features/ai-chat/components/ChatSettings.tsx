@@ -10,13 +10,12 @@ import {
   type AIRetryPrefs,
 } from '../api/aiChat';
 
-// Chat settings: only Providers (primary/fallback) + Retry.
-// Ollama mode has no toggle — it follows the provider preset / base URL.
-// Same backend as the old Settings > AI Assistant card
-// (GET/PUT /api/ai/config): keys are sealed server-side, blank input
-// means "keep the stored secret".
-type Tab = 'primary' | 'fallback';
-
+// Chat settings: only Provider (single, primary) + Retry.
+// Access (who can chat / propose writes) is controlled via Roles →
+// AI Chat permissions, not here. Ollama mode has no toggle — it follows
+// the provider preset / base URL. Same backend as the old Settings >
+// AI Assistant card (GET/PUT /api/ai/config): keys are sealed
+// server-side, blank input means "keep the stored secret".
 type Preset = 'openai' | 'ollama' | 'custom';
 
 const PRESETS: { id: Preset; label: string; baseUrl: string; ollama: boolean; modelHint: string }[] = [
@@ -51,9 +50,7 @@ const ChatSettings: React.FC = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [testOut, setTestOut] = useState('');
-  const [tab, setTab] = useState<Tab>('primary');
   const [apiKey, setApiKey] = useState('');
-  const [fallbackApiKey, setFallbackApiKey] = useState('');
   const [retryPrefs, setRetryPrefs] = useState<AIRetryPrefs>(() => {
     try {
       return loadRetryPrefs();
@@ -102,38 +99,29 @@ const ChatSettings: React.FC = () => {
     setTestOut('');
   };
 
-  const isFallback = tab === 'fallback';
-  const baseUrl = isFallback ? cfg.fallback_base_url : cfg.base_url;
-  const modelId = isFallback ? cfg.fallback_model_id : cfg.model_id;
-  const ollamaMode = isFallback ? cfg.fallback_ollama_mode : cfg.ollama_mode;
-  const keyConfigured = isFallback ? cfg.fallback_api_key_configured : cfg.api_key_configured;
-  const keyValue = isFallback ? fallbackApiKey : apiKey;
-  const setKeyValue = isFallback ? setFallbackApiKey : setApiKey;
+  const baseUrl = cfg.base_url;
+  const modelId = cfg.model_id;
+  const ollamaMode = cfg.ollama_mode;
+  const keyConfigured = cfg.api_key_configured;
   const preset = detectPreset(baseUrl, ollamaMode);
 
   const applyPreset = (p: Preset) => {
     const found = PRESETS.find((x) => x.id === p);
     if (!found) return;
     if (p === 'custom') return;
-    if (isFallback) {
-      set({ fallback_base_url: found.baseUrl, fallback_ollama_mode: found.ollama });
-      if (!modelId.trim() && found.modelHint) set({ fallback_model_id: found.modelHint });
-    } else {
-      set({ base_url: found.baseUrl, ollama_mode: found.ollama });
-      if (!modelId.trim() && found.modelHint) set({ model_id: found.modelHint });
-    }
+    set({ base_url: found.baseUrl, ollama_mode: found.ollama });
+    if (!modelId.trim() && found.modelHint) set({ model_id: found.modelHint });
   };
 
-  const setBaseUrl = (v: string) =>
-    isFallback ? set({ fallback_base_url: v, fallback_ollama_mode: inferOllamaMode(v) }) : set({ base_url: v, ollama_mode: inferOllamaMode(v) });
-  const setModelId = (v: string) => (isFallback ? set({ fallback_model_id: v }) : set({ model_id: v }));
+  const setBaseUrl = (v: string) => set({ base_url: v, ollama_mode: inferOllamaMode(v) });
+  const setModelId = (v: string) => set({ model_id: v });
 
   const onTest = async () => {
     setTesting(true);
     setTestOut('');
     setError('');
     try {
-      const res = await testAIConfig(isFallback ? 'fallback' : undefined);
+      const res = await testAIConfig();
       setTestOut(res.ok ? `OK (${res.model || 'model'}): ${res.reply || 'ok'}` : `Failed: ${res.error || 'unknown error'}`);
     } catch (err: unknown) {
       const r = (err as { response?: { data?: unknown } })?.response;
@@ -150,28 +138,14 @@ const ChatSettings: React.FC = () => {
     setTestOut('');
     try {
       const next = await updateAIConfig({
-        enabled: cfg.enabled,
         base_url: cfg.base_url,
         api_key: apiKey || undefined,
         model_id: cfg.model_id,
         ollama_mode: cfg.ollama_mode,
-        temperature: cfg.temperature,
-        max_tokens: cfg.max_tokens,
-        allow_writes: cfg.allow_writes,
-        system_extra: cfg.system_extra,
-        hosting_name: cfg.hosting_name,
-        hosting_about: cfg.hosting_about,
-        fallback_base_url: cfg.fallback_base_url,
-        fallback_api_key: fallbackApiKey || undefined,
-        fallback_model_id: cfg.fallback_model_id,
-        fallback_ollama_mode: cfg.fallback_ollama_mode,
-        cost_per_1k_in: cfg.cost_per_1k_in,
-        cost_per_1k_out: cfg.cost_per_1k_out,
       });
       setCfg(next);
       setApiKey('');
-      setFallbackApiKey('');
-      setSuccess('AI Assistant settings saved.');
+      setSuccess('Provider settings saved.');
     } catch (err: unknown) {
       const r = (err as { response?: { data?: unknown } })?.response;
       setError(typeof r?.data === 'string' ? r.data : 'Failed to save provider');
@@ -181,85 +155,25 @@ const ChatSettings: React.FC = () => {
   };
 
   const configured = cfg.base_url.trim() !== '' && cfg.model_id.trim() !== '';
-  const statusLine = !cfg.enabled
-    ? 'Disabled — turn on the assistant so roles with AI Chat access can talk to it.'
-    : !configured
-      ? 'Enabled but not configured — set Base URL + Model ID below, then Test connection.'
-      : 'Enabled and configured — roles with AI Chat access can talk to it.';
 
   return (
     <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
-      <p className="text-[11px] text-gray-500 leading-relaxed">
-        Panel-wide assistant. Keys are sealed server-side and never reach the browser — leave a key blank to keep the stored one.
-      </p>
-
-      {/* ── Assistant (master switches — fixes "disabled by administrator") ── */}
-      <section className="space-y-3">
-        <h4 className={sectionCls}>Assistant</h4>
-        <p className={`text-[11px] leading-relaxed ${!cfg.enabled || !configured ? 'text-amber-300' : 'text-gray-500'}`}>
-          {statusLine}
+      {/* ── Access (roles own who can chat) ── */}
+      <section className="space-y-1.5">
+        <h4 className={sectionCls}>Access</h4>
+        <p className="text-[11px] text-gray-500 leading-relaxed">
+          Who can chat — and who may propose writes — is controlled via Roles → AI Chat permissions.
         </p>
-        <label className="flex items-start justify-between gap-3 cursor-pointer select-none">
-          <span className="flex-1 min-w-0">
-            <span className="block text-xs font-medium text-gray-200">Enable assistant</span>
-            <span className="block text-[11px] text-gray-500">Master kill-switch. Off = everyone gets “disabled by the administrator”.</span>
-          </span>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={cfg.enabled}
-            aria-label="Enable assistant"
-            onClick={() => set({ enabled: !cfg.enabled })}
-            className={`ks-toggle shrink-0 ${cfg.enabled ? 'is-on' : ''}`}
-          >
-            <span className="ks-toggle__thumb" />
-          </button>
-        </label>
-        <label className="flex items-start justify-between gap-3 cursor-pointer select-none">
-          <span className="flex-1 min-w-0">
-            <span className="block text-xs font-medium text-gray-200">Allow writes</span>
-            <span className="block text-[11px] text-gray-500">Lets the assistant propose writes (start/stop, themes, templates…) as approval tickets. Each write still needs the caller’s area permission.</span>
-          </span>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={cfg.allow_writes}
-            aria-label="Allow AI writes"
-            onClick={() => set({ allow_writes: !cfg.allow_writes })}
-            className={`ks-toggle shrink-0 ${cfg.allow_writes ? 'is-on' : ''}`}
-          >
-            <span className="ks-toggle__thumb" />
-          </button>
-        </label>
-      </section>
-
-      {/* ── Providers ─────────────────────────────────────────── */}
-      <section className="space-y-3">
-        <h4 className={sectionCls}>Providers</h4>
-        <div className="grid grid-cols-2 gap-1 p-0.5 rounded-lg bg-black/30 border border-white/10" role="tablist" aria-label="Provider">
-          {(['primary', 'fallback'] as Tab[]).map((t) => (
-            <button
-              key={t}
-              type="button"
-              role="tab"
-              aria-selected={tab === t}
-              onClick={() => {
-                setTab(t);
-                setTestOut('');
-              }}
-              className={`rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
-                tab === t ? 'bg-white text-black' : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              {t === 'primary' ? 'Primary' : 'Fallback'}
-            </button>
-          ))}
-        </div>
-        {isFallback && (
-          <p className="text-[11px] text-gray-500 leading-relaxed">
-            Answers when the primary fails (transport error or HTTP 5xx/429). Empty base URL = no fallback.
+        {!configured && (
+          <p className="text-[11px] leading-relaxed text-amber-300">
+            Not configured — set Base URL + Model ID below, then Test connection.
           </p>
         )}
+      </section>
+
+      {/* ── Provider ─────────────────────────────────────────── */}
+      <section className="space-y-3">
+        <h4 className={sectionCls}>Provider</h4>
 
         <div>
           <label className={labelCls} htmlFor="ai-chat-provider">
@@ -300,8 +214,8 @@ const ChatSettings: React.FC = () => {
           <input
             id="ai-chat-api-key"
             type="password"
-            value={keyValue}
-            onChange={(e) => setKeyValue(e.target.value)}
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
             placeholder={keyConfigured ? 'Blank = keep stored key' : 'sk-… (Ollama usually needs none)'}
             autoComplete="off"
             className={inputCls}
@@ -329,123 +243,13 @@ const ChatSettings: React.FC = () => {
             disabled={testing || saving}
             className="inline-flex items-center gap-2 bg-white/10 text-gray-200 px-3 py-1.5 rounded-md hover:bg-white/20 text-xs disabled:opacity-60"
           >
-            {testing ? 'Testing…' : `Test ${isFallback ? 'fallback' : 'connection'}`}
+            {testing ? 'Testing…' : 'Test connection'}
           </button>
           {testOut && (
             <p className={`text-xs flex-1 min-w-0 truncate ${testOut.startsWith('OK') ? 'text-green-400' : 'text-red-400'}`} title={testOut}>
               {testOut}
             </p>
           )}
-        </div>
-      </section>
-
-      {/* ── Behaviour ───────────────────────────────────────── */}
-      <section className="space-y-3">
-        <h4 className={sectionCls}>Behaviour</h4>
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className={labelCls} htmlFor="ai-chat-temperature">
-              Temperature (0–2)
-            </label>
-            <input
-              id="ai-chat-temperature"
-              type="number"
-              min={0}
-              max={2}
-              step={0.1}
-              value={cfg.temperature}
-              onChange={(e) => set({ temperature: Number(e.target.value) })}
-              className={inputCls}
-            />
-          </div>
-          <div>
-            <label className={labelCls} htmlFor="ai-chat-max-tokens">
-              Max tokens (1–8192)
-            </label>
-            <input
-              id="ai-chat-max-tokens"
-              type="number"
-              min={1}
-              max={8192}
-              step={1}
-              value={cfg.max_tokens}
-              onChange={(e) => set({ max_tokens: Math.round(Number(e.target.value)) || cfg.max_tokens })}
-              className={inputCls}
-            />
-          </div>
-        </div>
-        <div>
-          <label className={labelCls} htmlFor="ai-chat-system-extra">
-            Custom instructions
-          </label>
-          <textarea
-            id="ai-chat-system-extra"
-            value={cfg.system_extra}
-            onChange={(e) => set({ system_extra: e.target.value })}
-            placeholder="Extra system instructions for the assistant…"
-            rows={3}
-            maxLength={8000}
-            className={`${inputCls} resize-y min-h-[64px]`}
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className={labelCls} htmlFor="ai-chat-hosting-name">
-              Hosting name
-            </label>
-            <input
-              id="ai-chat-hosting-name"
-              value={cfg.hosting_name}
-              onChange={(e) => set({ hosting_name: e.target.value })}
-              placeholder="My Hosting"
-              maxLength={256}
-              className={inputCls}
-            />
-          </div>
-          <div>
-            <label className={labelCls} htmlFor="ai-chat-cost-in">
-              Cost / 1k in ($)
-            </label>
-            <input
-              id="ai-chat-cost-in"
-              type="number"
-              min={0}
-              max={1000}
-              step={0.0001}
-              value={cfg.cost_per_1k_in}
-              onChange={(e) => set({ cost_per_1k_in: Number(e.target.value) })}
-              className={inputCls}
-            />
-          </div>
-        </div>
-        <div>
-          <label className={labelCls} htmlFor="ai-chat-hosting-about">
-            Hosting about
-          </label>
-          <textarea
-            id="ai-chat-hosting-about"
-            value={cfg.hosting_about}
-            onChange={(e) => set({ hosting_about: e.target.value })}
-            placeholder="Short about-us blurb used in the assistant identity…"
-            rows={2}
-            maxLength={4000}
-            className={`${inputCls} resize-y min-h-[48px]`}
-          />
-        </div>
-        <div>
-          <label className={labelCls} htmlFor="ai-chat-cost-out">
-            Cost / 1k out ($)
-          </label>
-          <input
-            id="ai-chat-cost-out"
-            type="number"
-            min={0}
-            max={1000}
-            step={0.0001}
-            value={cfg.cost_per_1k_out}
-            onChange={(e) => set({ cost_per_1k_out: Number(e.target.value) })}
-            className={inputCls}
-          />
         </div>
       </section>
 
