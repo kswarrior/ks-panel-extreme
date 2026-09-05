@@ -11,6 +11,7 @@ import {
   HeaderTab,
   ButtonTab,
   TabsTab,
+  PillTab,
   DropdownsTab,
   TypographyTab,
   AccentTab,
@@ -158,6 +159,12 @@ const ICON_TABS = (
     <rect x="6" y="7" width="6" height="2" rx="0.5" fill="currentColor" />
   </svg>
 );
+const ICON_PILL = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
+    <rect x="2" y="7" width="20" height="10" rx="5" />
+    <polyline points="15 10.5 12.5 12 15 13.5" />
+  </svg>
+);
 const ICON_DROPDOWNS = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
     <rect x="3" y="4" width="18" height="4" rx="1.5" />
@@ -204,6 +211,7 @@ const TABS: Array<{ key: TabKey; label: string; icon: React.ReactNode }> = [
   { key: 'header', label: 'Header', icon: ICON_HEADER },
   { key: 'button', label: 'Button', icon: ICON_BUTTON },
   { key: 'tabs', label: 'Tabs', icon: ICON_TABS },
+  { key: 'pill', label: 'Pill', icon: ICON_PILL },
   { key: 'dropdowns', label: 'Dropdowns', icon: ICON_DROPDOWNS },
   { key: 'typography', label: 'Typography', icon: ICON_TYPOGRAPHY },
   { key: 'accent', label: 'Accent', icon: ICON_ACCENT },
