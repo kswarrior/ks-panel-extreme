@@ -8,8 +8,8 @@
 //     Details (the menu's own status row + power controls + actions, plus
 //     an info grid), Monitoring (live CPU / RAM / disk graphs,
 //     System-page style), Manage (rename), Activity (audit trail).
-//   • desktop tab rail (InstanceSectionTabs: icon + hint + live marker +
-//     sliding indicator); phones use the PageTabsPill like NodeForm.
+//   • shared section rail (SectionRailTabs: icon + label + hint with live
+//     markers, same style as Security / Database, themed in the Tabs tab).
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
