@@ -6,7 +6,7 @@ import (
 )
 
 // Out-of-range values must fail at Parse (fail closed) instead of building
-// an unsatisfiable bitmap whose Next() scans 2 years and returns zero —
+// an unsatisfiable bitmap whose Next() scans the horizon and returns zero —
 // zero re-arms scheduler rows into firing every tick.
 func TestParseRejectsOutOfRange(t *testing.T) {
 	for _, expr := range []string{
