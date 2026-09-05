@@ -32,7 +32,9 @@ function actionStateOk(a: any, status: string): boolean {
 // it, mirroring the line below Actions), then the template Actions
 // selector below it: a bordered `name | chevron` row where clicking the
 // name runs/stops the shown action and clicking the SVG chevron (resting
-// `<`-style, rotating down) drops down every action. Same run/stop
+// `<`-style, rotating down) drops down every action. Rendered in the
+// middle of the floating instance menu (status row above, actions are
+// the last section). Same run/stop
 // semantics + state gating as the old pill; the menu owns dismissal
 // (scrim / Escape), so this only polls while mounted (the menu portal
 // mounts it only while open).

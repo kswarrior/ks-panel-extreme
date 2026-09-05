@@ -4,24 +4,25 @@ import InstancePowerMenu from './InstancePowerMenu';
 import InstanceInfoRow from './InstanceInfoRow';
 import ErrorBoundary from '@/shared/components/ui/ErrorBoundary';
 
-// InstanceMenu — the main thing of an instance in a single menu panel:
-// power controls + template actions on top, status / uptime / type row
-// below. Rendered inside the floating draggable square (InstanceMenuFab).
+// InstanceMenu — the main thing of an instance in a single menu panel,
+// ordered top to bottom: status / uptime / type row, then power controls
+// (Start / Stop / Restart), then template actions last. Rendered inside
+// the floating draggable square (InstanceMenuFab).
 const InstanceMenu: React.FC = () => {
   const location = useLocation();
 
   return (
     <div className="ks-fab-stagger flex flex-col min-h-0 py-1">
-      {/* Power controls first, template actions below them. */}
+      {/* Status / uptime / type row first. */}
       <div className="shrink-0 border-b border-white/10 pb-3">
-        <ErrorBoundary resetKey={location.pathname} label="instance-menu-power">
-          <InstancePowerMenu />
-        </ErrorBoundary>
-      </div>
-      {/* Status / uptime / type row below, in its own row. */}
-      <div className="shrink-0 py-1 pb-3">
         <ErrorBoundary resetKey={location.pathname} label="instance-menu-info">
           <InstanceInfoRow />
+        </ErrorBoundary>
+      </div>
+      {/* Power controls next, template actions last. */}
+      <div className="shrink-0 pt-1 pb-3">
+        <ErrorBoundary resetKey={location.pathname} label="instance-menu-power">
+          <InstancePowerMenu />
         </ErrorBoundary>
       </div>
     </div>
