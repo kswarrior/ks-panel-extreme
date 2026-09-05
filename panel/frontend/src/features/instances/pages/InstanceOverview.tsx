@@ -27,6 +27,9 @@ import { useAuthStore } from '@/shared/stores/authStore';
 import { PermissionKey, hasPermissionAny } from '@/shared/types/permissions';
 import { useConfirm } from '@/shared/stores/confirmStore';
 import ErrorBoundary from '@/shared/components/ui/ErrorBoundary';
+import { PageActionsPill } from '@/shared/components/ui/PageActionsPill';
+import PageTabsPill from '@/shared/components/ui/PageTabsPill';
+import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 
 const STATUS_DOT: Record<string, string> = {
   running: 'bg-emerald-400',
@@ -50,11 +53,28 @@ const STATUS_LABEL: Record<string, string> = {
 
 type TabId = 'resources' | 'details' | 'manage';
 
-const TABS: { id: TabId; label: string }[] = [
-  { id: 'resources', label: 'Resources' },
-  { id: 'details', label: 'Details' },
-  { id: 'manage', label: 'Manage' },
-];
+const TAB_META: Record<TabId, { label: string; icon: React.ReactNode }> = {
+  resources: {
+    label: 'Resources',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><path d="M12 20a8 8 0 1 1 8-8" /><path d="M12 12l4-4" /></svg>
+    ),
+  },
+  details: {
+    label: 'Details',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>
+    ),
+  },
+  manage: {
+    label: 'Manage',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg>
+    ),
+  },
+};
+
+const TAB_ORDER: TabId[] = ['resources', 'details', 'manage'];
 
 function fmtDate(iso: string | undefined | null): string {
   if (!iso) return '—';
@@ -81,6 +101,12 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
     PermissionKey.INSTANCES_ALL,
     PermissionKey.INSTANCES_EDIT,
   );
+  // Page-action visibility reuses existing keys only — no new permission
+  // keys. Template / node links need their area keys; everything mutating
+  // rides on the instance control umbrella above.
+  const canOpenTemplate = permissions.includes(PermissionKey.MANAGE_TEMPLATES);
+  const canOpenNode = permissions.includes(PermissionKey.MANAGE_NODES);
+  const [copied, setCopied] = useState(false);
 
   const status = instance?.status ?? '';
   const isRunning = status === 'running';
