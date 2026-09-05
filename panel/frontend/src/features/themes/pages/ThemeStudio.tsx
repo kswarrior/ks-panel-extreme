@@ -27,9 +27,8 @@ import {
   MarketTab,
   HistoryTab,
 } from '@/features/themes/components/ThemeStudio';
-import GlassCard from '@/shared/components/ui/Card';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
-import PageTabsPill from '@/shared/components/ui/PageTabsPill';
+import SectionRailTabs from '@/shared/components/ui/SectionRailTabs';
 
 // renderLoadingPreview renders a preview of the loading animation based on
 // the theme's loading configuration. This is used in the live preview area
@@ -412,36 +411,31 @@ const ThemeStudio: React.FC = () => {
         </button>
       </PageActionsPill>
 
+      {/* Phone tabs — same shared rail style, horizontal: the ~20 sections
+          scroll sideways with one-tap switching (no bottom dropdown). */}
+      <div className="lg:hidden mb-4">
+        <SectionRailTabs
+          ariaLabel="Theme studio sections"
+          orientation="horizontal"
+          active={tab}
+          onChange={(id) => setTab(id as TabKey)}
+          tabs={TABS.map((t) => ({ id: t.key, label: t.label, hint: t.hint, icon: t.icon }))}
+        />
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4">
-        {/* Desktop tabs — vertical on the left like the node form.
-            Sticky so they stay visible while the studio scrolls. */}
-        <GlassCard className="hidden lg:block lg:sticky lg:top-4 self-start">
-          <nav aria-label="Theme studio sections" className="flex lg:flex-col gap-1">
-            {TABS.map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                role="tab"
-                aria-selected={tab === t.key}
-                onClick={() => setTab(t.key)}
-                className={`ks-tab w-full flex items-center gap-2 transition text-left ${
-                  tab === t.key ? 'ks-tab-active' : ''
-                }`}
-              >
-                <span className="inline-flex items-center shrink-0">{t.icon}</span>
-                <span className="flex flex-col min-w-0">
-                  <span>{t.label}</span>
-                  <span
-                    className={`text-[10px] hidden lg:block ${tab === t.key ? 'opacity-70' : 'text-gray-500'}`}
-                    style={tab === t.key ? { color: 'var(--ks-tab-active-text, #000000)' } : undefined}
-                  >
-                    {t.hint}
-                  </span>
-                </span>
-              </button>
-            ))}
-          </nav>
-        </GlassCard>
+        {/* Desktop tabs — same shared rail style as Security/Database, but
+            vertical: ~20 sections stack full-width with hints always
+            visible. Sticky so they stay visible while the studio scrolls. */}
+        <div className="hidden lg:block lg:sticky lg:top-4 self-start">
+          <SectionRailTabs
+            ariaLabel="Theme studio sections"
+            orientation="vertical"
+            active={tab}
+            onChange={(id) => setTab(id as TabKey)}
+            tabs={TABS.map((t) => ({ id: t.key, label: t.label, hint: t.hint, icon: t.icon }))}
+          />
+        </div>
         {/* Content column — NO outer card here (node pattern): every tab
             section renders its own GlassCard, so a wrapper would nest a
             card inside a card. */}
@@ -484,25 +478,6 @@ const ThemeStudio: React.FC = () => {
           </div>
         </div>
       </div>
-      {/* Phone tabs — bottom pill with the same `>` / `<` toggle + auto-off
-          system as the actions pill (PageTabsPill). flex-none +
-          whitespace-nowrap so 19 tabs scroll horizontally instead of
-          squeezing/wrapping. */}
-      <PageTabsPill ariaLabel="Theme studio sections" activeLabel={TABS.find((t) => t.key === tab)?.label}>
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            role="tab"
-            aria-selected={tab === t.key}
-            onClick={() => setTab(t.key)}
-            className={`ks-tab shrink-0 flex-none whitespace-nowrap px-3 py-1.5 rounded text-sm text-center transition flex items-center justify-center gap-1.5 ${tab === t.key ? 'ks-tab-active' : ''}`}
-          >
-            <span className="inline-flex items-center shrink-0">{t.icon}</span>
-            <span className="whitespace-nowrap leading-none">{t.label}</span>
-          </button>
-        ))}
-      </PageTabsPill>
     </div>
   );
 };

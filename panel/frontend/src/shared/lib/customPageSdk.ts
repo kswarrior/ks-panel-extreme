@@ -293,10 +293,12 @@ export function createCustomPageSDK(
   }
   
   async function fetchText(url: string, options?: RequestInit): Promise<string> {
-    const res = await fetch(url, {
-      ...options,
-      credentials: 'include',
-    });
+    let res: Response;
+    try {
+      res = await fetchWithTimeout(url, { ...options });
+    } catch (e) {
+      throw timeoutErr(e);
+    }
     if (!res.ok) throw new Error(sanitizeHttpError(await res.text(), res.status));
     return res.text();
   }
