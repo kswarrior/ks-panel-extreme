@@ -160,6 +160,13 @@ func (*sqliteDialect) Open(dsn string) (*sql.DB, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Pin the pool to a single connection BEFORE applying PRAGMAs: with
+	// modernc.org/sqlite, PRAGMA foreign_keys/busy_timeout are per-connection,
+	// so a wider pool would leave conns 2..N without them (SQLITE_BUSY under
+	// sweep write load + silently unenforced FKs). Single-conn also matches
+	// the Dialect.Open contract above and the modengine/backup call sites.
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
 	if _, err := db.Exec("PRAGMA foreign_keys = ON"); err != nil {
 		db.Close()
 		return nil, err
@@ -176,12 +183,14 @@ func (*sqliteDialect) Open(dsn string) (*sql.DB, error) {
 		db.Close()
 		return nil, err
 	}
-	db.SetMaxOpenConns(10)
 	return db, nil
 }
 
-func (*sqliteDialect) ConfigurePool(*sql.DB) {
-	// No-op: Open already pinned the pool.
+func (*sqliteDialect) ConfigurePool(db *sql.DB) {
+	// Enforce the single-conn invariant even for pools opened elsewhere
+	// (tests, tools) so PRAGMAs applied on one handle stay effective.
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
 }
 
 // datetimeType returns "DATETIME" for SQLite (the migration SQL uses

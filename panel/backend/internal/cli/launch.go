@@ -168,8 +168,15 @@ func runLaunch(cmd *cobra.Command, args []string) error {
 	print.OK("ui", "served from api/handlers")
 
 	srv := &http.Server{
-		Addr:    addr,
-		Handler: api.NewRouter(),
+		Addr:              addr,
+		Handler:           api.NewRouter(),
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		// WriteTimeout bounds non-hijacked responses (hijacked WebSockets
+		// are exempt per net/http semantics) while staying above the 60s
+		// AI-chat outer deadline so healthy SSE streams are not killed.
+		WriteTimeout: 120 * time.Second,
+		IdleTimeout:  120 * time.Second,
 	}
 
 // Start the node-staleness sweep. Once a minute we flip every edge whose
