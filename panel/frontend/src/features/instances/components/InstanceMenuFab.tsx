@@ -53,6 +53,18 @@ function defaultPos(): { x: number; y: number } {
   );
 }
 
+// themedMenuWidth reads the Menu tab's popover width (px) so the panel's
+// right-edge alignment math tracks the theme instead of the 320 default.
+function themedMenuWidth(): number {
+  try {
+    const v = parseFloat(
+      window.getComputedStyle(document.documentElement).getPropertyValue('--ks-menu-popover-width'),
+    );
+    if (Number.isFinite(v) && v >= 200 && v <= 560) return v;
+  } catch {}
+  return MENU_WIDTH;
+}
+
 function loadPos(): { x: number; y: number } | null {
   try {
     const raw = window.localStorage.getItem(LS_KEY);
@@ -251,8 +263,9 @@ const InstanceMenuFab: React.FC = () => {
 
   const vw = window.innerWidth;
   const vh = window.innerHeight;
+  const menuW = themedMenuWidth();
   const menuH = Math.min(560, vh * 0.7);
-  const menuLeft = Math.min(Math.max(EDGE, pos.x + FAB_SIZE - MENU_WIDTH), Math.max(EDGE, vw - MENU_WIDTH - EDGE));
+  const menuLeft = Math.min(Math.max(EDGE, pos.x + FAB_SIZE - menuW), Math.max(EDGE, vw - menuW - EDGE));
   const opensUp = pos.y + FAB_SIZE + EDGE + menuH > vh;
   const menuTop = opensUp ? Math.max(EDGE, pos.y - EDGE - menuH) : pos.y + FAB_SIZE + EDGE;
 
@@ -323,7 +336,7 @@ const InstanceMenuFab: React.FC = () => {
             top: EXTENT,
             width: FAB_SIZE,
             height: FAB_SIZE,
-            borderRadius: FAB_RADIUS,
+            borderRadius: `var(--ks-menu-toggle-radius, ${FAB_RADIUS}px)`,
             pointerEvents: 'auto',
             touchAction: 'none',
             cursor: dragging ? 'grabbing' : 'grab',
@@ -368,7 +381,7 @@ const InstanceMenuFab: React.FC = () => {
           <div
             role="menu"
             aria-label="Instance menu"
-            className={`glass-dropdown text-sm flex flex-col overflow-hidden${leaving
+            className={`glass-dropdown ks-fab-menu text-sm flex flex-col overflow-hidden${leaving
               ? (opensUp ? ' ks-fab-menu-exit-up' : ' ks-fab-menu-exit-down')
               : (opensUp ? ' ks-fab-menu-enter-up' : ' ks-fab-menu-enter-down')}`}
             style={{
@@ -376,10 +389,10 @@ const InstanceMenuFab: React.FC = () => {
               left: menuLeft,
               top: menuTop,
               zIndex: 2147483640,
-              width: MENU_WIDTH,
+              width: `var(--ks-menu-popover-width, ${MENU_WIDTH}px)`,
               maxWidth: 'calc(100vw - 16px)',
               maxHeight: '70vh',
-              borderRadius: FAB_RADIUS,
+              borderRadius: `var(--ks-menu-popover-radius, ${FAB_RADIUS}px)`,
               transformOrigin: opensUp ? 'bottom right' : 'top right',
             }}
           >

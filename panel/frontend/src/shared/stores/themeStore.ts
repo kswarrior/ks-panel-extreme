@@ -1541,7 +1541,20 @@ function buildSectionVars(theme: Theme): { vars: string } {
   --ks-pill-tab-py: ${num((theme as any).pill?.tab_padding_y, D.pill.tab_padding_y)}px;
   --ks-pill-tab-font: ${num((theme as any).pill?.font_size, D.pill.font_size)}px;
   --ks-pill-icon-size: ${num((theme as any).pill?.icon_size, D.pill.icon_size)}px;
-  --ks-pill-anim-duration: ${clampNum((theme as any).pill?.animation_duration, D.pill.animation_duration, 0, 2000)}ms;`,
+  --ks-pill-anim-duration: ${clampNum((theme as any).pill?.animation_duration, D.pill.animation_duration, 0, 2000)}ms;
+  /* ---------------- Theme Studio: Menu (floating instance menu) ---------------- */
+  --ks-menu-toggle-bg: ${eqTok((theme as any).menu?.toggle_background, D.menu.toggle_background, 'var(--ks-card-bg)')};
+  --ks-menu-toggle-border: ${eqTok((theme as any).menu?.toggle_border_color, D.menu.toggle_border_color, 'var(--ks-card-border)')};
+  --ks-menu-toggle-icon: ${safeCssValue((theme as any).menu?.toggle_icon_color, '#e5e7eb')};
+  --ks-menu-toggle-radius: ${(theme as any).menu?.toggle_radius === D.menu.toggle_radius ? 'var(--ks-card-radius)' : `${num((theme as any).menu?.toggle_radius, 15)}px`};
+  --ks-menu-toggle-shadow: ${eqTok((theme as any).menu?.toggle_shadow, D.menu.toggle_shadow, 'var(--ks-card-shadow)')};
+  --ks-menu-accent: ${safeCssValue((theme as any).menu?.accent_color, '#6ee7b7')};
+  --ks-menu-accent-soft: ${softRgba(safeCssValue((theme as any).menu?.accent_color, '#6ee7b7'), 0.14)};
+  --ks-menu-popover-width: ${clampNum((theme as any).menu?.popover_width, D.menu.popover_width, 200, 560)}px;
+  --ks-menu-popover-bg: ${eqTok((theme as any).menu?.popover_background, D.menu.popover_background, 'rgba(12,14,18,0.22)')};
+  --ks-menu-popover-border: ${eqTok((theme as any).menu?.popover_border_color, D.menu.popover_border_color, 'rgba(255,255,255,0.18)')};
+  --ks-menu-popover-radius: ${num((theme as any).menu?.popover_radius, D.menu.popover_radius)}px;
+  --ks-menu-popover-blur: ${num((theme as any).menu?.popover_blur, D.menu.popover_blur)}px;`,
   };
 }
 
@@ -2261,6 +2274,46 @@ ${String(f.toggle_thumb_shadow || '').trim() ? `\n.ks-toggle .ks-toggle__thumb {
 .ks-tabs-pill .ks-pill-content {
   gap: var(--ks-pill-gap) !important;
   transition-duration: var(--ks-pill-anim-duration) !important;
+}
+
+/* ------------------------------------------------------------------
+   Theme Studio → Menu. The floating instance-menu square toggle, its
+   four chevron nudge tabs and the popover panel. The triple-class
+   selector (0,3,0) beats the base .glass-card/.ks-card surface rule
+   (0,1,0) so the Menu tab owns the surface; tokens that still equal the
+   Card default resolve to the live card vars inside buildVars, so the
+   Card tab keeps cascading until overridden. These rules are injected
+   AFTER index.css, so they win same-specificity ties there too.
+   ------------------------------------------------------------------ */
+.ks-card.ks-fab-anim.ks-fab-toggle {
+  background-color: var(--ks-menu-toggle-bg) !important;
+  border-color: var(--ks-menu-toggle-border) !important;
+  color: var(--ks-menu-toggle-icon) !important;
+  border-radius: var(--ks-menu-toggle-radius) !important;
+  box-shadow: var(--ks-menu-toggle-shadow) !important;
+}
+.ks-card.ks-fab-anim.ks-fab-nudge {
+  background-color: var(--ks-menu-toggle-bg) !important;
+  border-color: var(--ks-menu-toggle-border) !important;
+  color: var(--ks-menu-toggle-icon) !important;
+}
+/* Open-state glow follows the Menu accent; stronger than the rest glow
+   so the active state reads at a glance. */
+.ks-card.ks-fab-anim.ks-fab-toggle.is-open {
+  border-color: var(--ks-menu-accent) !important;
+  box-shadow: var(--ks-menu-toggle-shadow), 0 0 0 4px var(--ks-menu-accent-soft), 0 0 22px var(--ks-menu-accent-soft) !important;
+}
+.ks-fab-toggle.is-open .ks-fab-wheel {
+  color: var(--ks-menu-accent) !important;
+}
+/* Popover panel surface follows the Menu tab (NOT the generic dropdown —
+   the menu is wider and themeable on its own). */
+.glass-dropdown.ks-fab-menu {
+  background-color: var(--ks-menu-popover-bg) !important;
+  border-color: var(--ks-menu-popover-border) !important;
+  border-radius: var(--ks-menu-popover-radius) !important;
+  backdrop-filter: blur(var(--ks-menu-popover-blur)) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(var(--ks-menu-popover-blur)) saturate(180%) !important;
 }`;
 }
 
