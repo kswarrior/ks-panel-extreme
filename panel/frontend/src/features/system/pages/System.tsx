@@ -91,31 +91,33 @@ const System: React.FC = () => {
 
   const host: LocalHost = snap.local || {};
 
+  const hostMeta = host.hostname
+    ? `${host.hostname} · CPU ${(host.cpu_percent || 0).toFixed(0)}% · MEM ${(host.ram_used_pct || 0).toFixed(0)}%`
+    : `CPU ${(host.cpu_percent || 0).toFixed(0)}% · MEM ${(host.ram_used_pct || 0).toFixed(0)}% · Load ${(host.load1 || 0).toFixed(2)}`;
+  const panelMeta = info?.local?.version
+    ? `v${info.local.version} · pid ${snap?.local?.pid || '—'} · ${snap?.local?.go_version || 'go'}`
+    : snap?.local?.pid
+      ? `pid ${snap.local.pid} · up ${fmtUptime(snap.local.process_uptime || 0)}`
+      : 'Binary + update channel';
+
   return (
     <div className="space-y-6">
-      {/* Title lives in the app header ("System"); internal Host/Panel tabs stay in-page.
-          Desktop row only — phones get the bottom tabs pill (same `>` / `<`
-          toggle + auto-off system as the actions pill). */}
-      <div className="hidden lg:flex items-center gap-2 overflow-x-auto pb-1 mb-4">
-        <button
-          type="button"
-          onClick={() => setTab('host')}
-          className={`ks-tab shrink-0 transition-colors ${tab === 'host' ? 'ks-tab-active' : ''}`}
-        >
-          Host
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab('panel')}
-          className={`ks-tab shrink-0 transition-colors ${tab === 'panel' ? 'ks-tab-active' : ''}`}
-        >
-          Panel
-        </button>
-      </div>
+      {/* System scope switcher — this page's own tab style (scope cards, not
+          the generic ks-tab strip / bottom pill): Host = machine health,
+          Panel = app + updates. One tap on every breakpoint, with a live
+          footnote so the choice is obvious at a glance. */}
+      <SystemTabs
+        tab={tab}
+        onChange={setTab}
+        hostMeta={hostMeta}
+        panelMeta={panelMeta}
+        lastUpdated={lastUpdated}
+        onRefresh={load}
+      />
 
       <div className="space-y-4">
         {tab === 'host' && (
-          <>
+          <div role="tabpanel" id="system-panel-host" aria-labelledby="system-tab-host">
             {/* Host section */}
             <div>
               {host && (
@@ -127,42 +129,22 @@ const System: React.FC = () => {
                   recentLoad={recentLoad}
                 />
               )}
+            </div>
           </div>
-        </>
-      )}
+        )}
 
-      {tab === 'panel' && (
-        <div>
-          <PanelTab
-            snap={snap}
-            info={info}
-            infoErr={infoErr}
-            infoLoading={infoLoading}
-            reload={reload}
-          />
-        </div>
-      )}
+        {tab === 'panel' && (
+          <div role="tabpanel" id="system-panel-panel" aria-labelledby="system-tab-panel">
+            <PanelTab
+              snap={snap}
+              info={info}
+              infoErr={infoErr}
+              infoLoading={infoLoading}
+              reload={reload}
+            />
+          </div>
+        )}
       </div>
-
-      {/* Phone tabs — bottom pill with the same `>` / `<` toggle + auto-off
-          system as the actions pill (PageTabsPill). */}
-      <PageTabsPill
-        ariaLabel="System sections"
-        activeLabel={tab === 'host' ? 'Host' : 'Panel'}
-      >
-        {(['host', 'panel'] as const).map((id) => (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            aria-selected={tab === id}
-            onClick={() => setTab(id)}
-            className={`ks-tab shrink-0 flex-1 px-3 py-1.5 rounded text-sm text-center transition flex items-center justify-center gap-1.5 ${tab === id ? 'ks-tab-active' : ''}`}
-          >
-            {id === 'host' ? 'Host' : 'Panel'}
-          </button>
-        ))}
-      </PageTabsPill>
     </div>
   );
 };
