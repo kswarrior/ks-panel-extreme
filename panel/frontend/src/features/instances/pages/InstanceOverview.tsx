@@ -91,31 +91,6 @@ function fmtDate(iso: string | undefined | null): string {
   return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString();
 }
 
-// useUptimeTick renders live uptime text, ticking every second while the
-// instance runs (same shape as the fleet cards).
-function useUptimeTick(sinceISO: string | undefined | null, running: boolean): string {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!running || !sinceISO) return;
-    const t = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(t);
-  }, [running, sinceISO]);
-  if (!sinceISO || !running) return '—';
-  const start = new Date(sinceISO).getTime();
-  if (!Number.isFinite(start)) return '—';
-  let s = Math.max(0, Math.floor((now - start) / 1000));
-  const d = Math.floor(s / 86400);
-  s -= d * 86400;
-  const h = Math.floor(s / 3600);
-  s -= h * 3600;
-  const m = Math.floor(s / 60);
-  s -= m * 60;
-  if (d > 0) return `${d}d ${h}h`;
-  if (h > 0) return `${h}h ${m}m`;
-  if (m > 0) return `${m}m ${s}s`;
-  return `${s}s`;
-}
-
 // InfoTile — one datum per card: icon tile + big value + uppercase label +
 // faint hint, Home-tile aesthetic. Clickable tiles navigate (node /
 // template) with a hover lift.
@@ -245,10 +220,6 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
   // latest point for tiles, with 403 backoff when the instance exposes no
   // metrics page.
   const { latest: last, history: hist } = useLiveMetrics(instanceId, isRunning);
-  const uptime = useUptimeTick(
-    instance?.started_at || instance?.updated_at || instance?.created_at,
-    instance?.status === 'running',
-  );
 
   const cpuSamples = useMemo<MetricSample[]>(
     () => hist.filter((h) => h.cpu !== null).map((h) => ({ t: h.t, v: h.cpu as number })),
@@ -633,14 +604,6 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
             icon={tileIcon(<><rect x="3" y="3" width="18" height="18" rx="2" /><line x1="3" y1="9" x2="21" y2="9" /><line x1="9" y1="21" x2="9" y2="9" /></>)}
           />
           <InfoTile
-            label="Owner"
-            value={instance.owner_name || (instance.owner_id ? `#${instance.owner_id}` : 'unattributed')}
-            hint="allocated to"
-            accent="var(--ks-warn)"
-            title={`Owner: ${instance.owner_name || instance.owner_id || 'unattributed'}`}
-            icon={tileIcon(<><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /></>)}
-          />
-          <InfoTile
             label="External ID"
             value={<span className="ks-mono">{instance.external_id || '—'}</span>}
             hint="driver-side ID"
@@ -648,44 +611,31 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
             title={instance.external_id || 'No external ID yet'}
             icon={tileIcon(<><line x1="4" y1="9" x2="20" y2="9" /><line x1="4" y1="15" x2="20" y2="15" /><line x1="10" y1="3" x2="8" y2="21" /><line x1="16" y1="3" x2="14" y2="21" /></>)}
           />
-          <InfoTile
-            label="Created"
-            value={<span className="ks-mono text-[15px]">{fmtDate(instance.created_at)}</span>}
-            hint="deployed at"
-            accent="var(--ks-faint)"
-            title={fmtDate(instance.created_at)}
-            icon={tileIcon(<><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></>)}
-          />
-          <InfoTile
-            label="Updated"
-            value={<span className="ks-mono text-[15px]">{fmtDate(instance.updated_at)}</span>}
-            hint="last change"
-            accent="var(--ks-info)"
-            title={fmtDate(instance.updated_at)}
-            icon={tileIcon(<><path d="M21 12a9 9 0 1 1-2.64-6.36" /><path d="M21 3v6h-6" /></>)}
-          />
-          <InfoTile
-            label="Install"
-            value={
-              instance.install_state === 'failed' ? (
-                <span className="text-red-300">failed</span>
-              ) : (
-                instance.install_state || '—'
-              )
-            }
-            hint={instance.install_state === 'failed' && instance.install_error ? instance.install_error : 'workflow state'}
-            accent={instance.install_state === 'failed' ? 'var(--ks-bad)' : 'var(--ks-info)'}
-            title={instance.install_state === 'failed' && instance.install_error ? instance.install_error : `Install: ${instance.install_state || 'none'}`}
-            icon={tileIcon(<><path d="M12 3v12" /><path d="M7 10l5 5 5-5" /><path d="M4 21h16" /></>)}
-          />
-          <InfoTile
-            label="Display name"
-            value={displayName}
-            hint={instance.display_name ? 'custom label' : 'falls back to container name'}
-            accent="var(--ks-warn)"
-            title={displayName}
-            icon={tileIcon(<><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></>)}
-          />
+          {/* Lifecycle — Created + Updated share one card, side by side. */}
+          <div className="ks-card flex items-center gap-3 col-span-2 animate-slide-up" title="Lifecycle timestamps">
+            <div
+              className="shrink-0 w-10 h-10 rounded-lg flex items-center justify-center border border-white/10 bg-white/[0.03]"
+              style={{ color: 'var(--ks-info)' }}
+              aria-hidden="true"
+            >
+              {tileIcon(<><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></>)}
+            </div>
+            <div className="min-w-0 flex-1 flex items-stretch gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="ks-mono text-[15px] font-semibold text-white leading-tight truncate" title={fmtDate(instance.created_at)}>
+                  {fmtDate(instance.created_at)}
+                </div>
+                <div className="text-[11px] uppercase tracking-wide text-gray-500 mt-0.5">Created</div>
+              </div>
+              <div className="w-px shrink-0 bg-white/10" aria-hidden="true" />
+              <div className="min-w-0 flex-1">
+                <div className="ks-mono text-[15px] font-semibold text-white leading-tight truncate" title={fmtDate(instance.updated_at)}>
+                  {fmtDate(instance.updated_at)}
+                </div>
+                <div className="text-[11px] uppercase tracking-wide text-gray-500 mt-0.5">Updated</div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
