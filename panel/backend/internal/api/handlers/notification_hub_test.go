@@ -90,4 +90,22 @@ func TestTicketNotifPriorityMapping(t *testing.T) {
 	}
 }
 
+func TestNotifyHubSlowReaderDropIsSafe(t *testing.T) {
+	h := &NotifyHub{subs: map[int64]map[*hubConn]struct{}{}}
+	// Nil conn (like the other tests): shutdown must not panic and must
+	// unsubscribe the slow reader instead of blocking the pusher.
+	c := &hubConn{send: make(chan []byte, 1)}
+	h.Subscribe(9, c)
+	c.send <- []byte(`fill`)
+	h.Push(9, []byte(`overflow`))
+	h.Push(9, []byte(`overflow2`))
+	if got := h.Connected(9); got != 0 {
+		t.Fatalf("slow reader must be dropped, connected = %d", got)
+	}
+	// Double shutdown must be idempotent (writer defer + reader defer +
+	// Push drop can all fire for the same conn).
+	h.shutdown(9, c)
+	h.shutdown(9, c)
+}
+
 var _ = newTestHubConn
