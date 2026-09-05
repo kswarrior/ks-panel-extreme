@@ -90,14 +90,14 @@ func (s *Sender) Run(ctx context.Context) {
 
 	// Fire one heartbeat immediately on startup so the panel flips the node
 	// to "up" without waiting a full interval.
-	s.SendOnce()
+	s.SendOnceCtx(ctx)
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			s.SendOnce()
+			s.SendOnceCtx(ctx)
 		}
 	}
 }
@@ -127,6 +127,13 @@ type payload struct {
 // logged but otherwise swallowed — a transient network blip must not kill the
 // edge daemon, the next tick will retry.
 func (s *Sender) SendOnce() {
+	s.SendOnceCtx(context.Background())
+}
+
+// SendOnceCtx is SendOnce with caller cancellation: shutdown unblocks the
+// in-flight POST instead of waiting out the 10s client Timeout, and the
+// response body is drained so the 2-slot keep-alive pool is actually reused.
+func (s *Sender) SendOnceCtx(ctx context.Context) {
 	// Skip heartbeat if token is empty (localnode flow hasn't pushed real config yet)
 	if s.cfg.Token == "" {
 		log.Printf("heartbeat: skipped (token empty)")
@@ -155,7 +162,7 @@ func (s *Sender) SendOnce() {
 	}
 	panelURL := strings.TrimRight(strings.TrimSpace(s.cfg.PanelURL), "/")
 	url := panelURL + "/api/nodes/heartbeat"
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(raw))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(raw))
 	if err != nil {
 		log.Printf("heartbeat: build request: %v", err)
 		return
@@ -166,6 +173,7 @@ func (s *Sender) SendOnce() {
 		log.Printf("heartbeat: POST %s failed: %v", s.targetLog(), err)
 		return
 	}
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4<<10))
 	resp.Body.Close()
 	if resp.StatusCode >= 300 {
 		log.Printf("heartbeat: panel returned %d for %s", resp.StatusCode, s.targetLog())
