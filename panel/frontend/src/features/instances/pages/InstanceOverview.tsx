@@ -4,9 +4,12 @@
 //
 // It gathers everything the floating menu holds plus full-page extras:
 //   • header with name + status / kind badges,
-//   • tabs: Resources (live CPU / RAM / disk graphs, System-page style),
+//   • page-actions pill (top-right, NodeDetail pattern) + section tabs:
 //     Details (the menu's own status row + power controls + actions, plus
-//     an info grid), Manage (rename, advanced links, reinstall, delete).
+//     an info grid), Monitoring (live CPU / RAM / disk graphs,
+//     System-page style), Manage (rename), Activity (audit trail).
+//   • desktop tab rail (InstanceSectionTabs: icon + hint + live marker +
+//     sliding indicator); phones use the PageTabsPill like NodeForm.
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -21,6 +24,7 @@ import {
 import type { ActivityLog } from '@/features/activity/types/activity';
 import InstancePowerMenu from '../components/InstancePowerMenu';
 import InstanceInfoRow from '../components/InstanceInfoRow';
+import InstanceSectionTabs from '../components/InstanceSectionTabs';
 import { KindIcon } from '../components/InstanceFormComponents';
 import { KIND_META, kindKey } from '../types/instanceForm';
 import { AreaChart, DonutChart, type MetricSample } from '@/shared/components/ui/MetricsChart';
@@ -132,6 +136,38 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
   useEffect(() => {
     if (instance) setRename(instance.display_name || '');
   }, [instance?.display_name]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Audit trail for this instance — lazy: fetched when the Activity tab
+  // opens, filtered client-side to this instance's target rows. A 403
+  // (no admin panel access) renders as a note, not an error.
+  const [audit, setAudit] = useState<ActivityLog[] | null>(null);
+  const [auditErr, setAuditErr] = useState('');
+  const [auditLoading, setAuditLoading] = useState(false);
+  useEffect(() => {
+    if (tab !== 'activity' || !Number.isFinite(instanceId)) return;
+    let dead = false;
+    setAuditLoading(true);
+    setAuditErr('');
+    listActivity('instance', 100)
+      .then((rows) => {
+        if (dead) return;
+        setAudit(rows.filter((r) => r.target_id === instanceId));
+      })
+      .catch((e: any) => {
+        if (dead) return;
+        setAuditErr(
+          e?.response?.status === 403
+            ? 'Activity needs admin panel access.'
+            : e?.response?.data || e?.message || 'Failed to load activity',
+        );
+      })
+      .finally(() => {
+        if (!dead) setAuditLoading(false);
+      });
+    return () => {
+      dead = true;
+    };
+  }, [tab, instanceId]);
 
   // Live metrics stream (shared hook — same feed the Home tiles and the
   // floating menu's status row read): history ring for graphs plus the
@@ -370,6 +406,55 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
         </div>
       </div>
 
+      {/* Desktop section rail — icon + label + hint + live marker per tab,
+          sliding gradient indicator. Phones use the PageTabsPill below. */}
+      <InstanceSectionTabs
+        ariaLabel="Overview sections"
+        active={tab}
+        onChange={(id) => setTab(id as TabId)}
+        tabs={TAB_ORDER.map((id) => {
+          if (id === 'details') {
+            return {
+              id,
+              label: TAB_META.details.label,
+              hint: 'Status, controls & info',
+              icon: TAB_META.details.icon,
+              marker: 'status' as const,
+              dotClass: dot,
+              markerTitle: `Status: ${statusLabel}`,
+            };
+          }
+          if (id === 'monitoring') {
+            return {
+              id,
+              label: TAB_META.monitoring.label,
+              hint: isRunning ? 'Streaming live' : 'CPU · RAM · disk',
+              icon: TAB_META.monitoring.icon,
+              marker: (isRunning ? 'live' : 'none') as 'live' | 'none',
+              markerTitle: last?.cpu !== null && last?.cpu !== undefined ? `CPU ${fmtPct(last.cpu)} (live)` : 'Live',
+            };
+          }
+          if (id === 'activity') {
+            return {
+              id,
+              label: TAB_META.activity.label,
+              hint: 'Audit trail',
+              icon: TAB_META.activity.icon,
+              marker: 'count' as const,
+              count: audit?.length ?? null,
+              markerTitle: audit ? `${audit.length} recorded event${audit.length === 1 ? '' : 's'}` : 'Activity',
+            };
+          }
+          return {
+            id,
+            label: TAB_META.manage.label,
+            hint: 'Rename',
+            icon: TAB_META.manage.icon,
+            marker: 'none' as const,
+          };
+        })}
+      />
+
       {tab === 'monitoring' && (
         <ErrorBoundary label="instance-overview-monitoring">
           {!isRunning ? (
@@ -556,7 +641,43 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
         </>
       )}
 
-      {/* Section tabs — bottom pill like NodeForm's form sections. */}
+      {tab === 'activity' && (
+        <div className="ks-card">
+          <h3 className="text-sm font-semibold text-white">Activity</h3>
+          <p className="text-xs text-gray-500 mt-1 mb-3">Audit trail for this instance only.</p>
+          {auditLoading && !audit ? (
+            <div className="space-y-2 animate-pulse" aria-hidden="true">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="h-10 rounded bg-neutral-800" />
+              ))}
+            </div>
+          ) : auditErr ? (
+            <p className="text-[13px] text-gray-400">{auditErr}</p>
+          ) : audit && audit.length > 0 ? (
+            <ul className="max-h-96 overflow-y-auto divide-y divide-white/5">
+              {audit.map((e) => (
+                <li key={e.id} className="py-2 flex items-start gap-3">
+                  <span className="shrink-0 text-[11px] text-gray-500 tabular-nums pt-0.5">
+                    {fmtDate(e.created_at)}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13px] text-gray-200">
+                      <span className="font-medium capitalize">{e.action}</span>
+                      <span className="text-gray-500"> · {e.username || 'system'}</span>
+                    </p>
+                    <p className="text-xs text-gray-400 break-words mt-0.5">{e.message}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-[13px] text-gray-500">No recorded events for this instance yet.</p>
+          )}
+        </div>
+      )}
+
+      {/* Section tabs — bottom pill like NodeForm's form sections (phones);
+          desktops use the rail above. */}
       <PageTabsPill ariaLabel="Overview sections" spacer={false} activeLabel={TAB_META[tab].label}>
         {TAB_ORDER.map((id) => (
           <button
