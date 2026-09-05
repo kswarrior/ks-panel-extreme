@@ -60,6 +60,7 @@ var validInstallActions = map[string]bool{
 func validateTemplateSpec(spec map[string]any) error {
 	// Validate env[] if present
 	if rawEnv, ok := spec["env"].([]any); ok {
+		seenEnv := make(map[string]struct{}, len(rawEnv))
 		for i, e := range rawEnv {
 			m, ok := e.(map[string]any)
 			if !ok {
@@ -69,6 +70,17 @@ func validateTemplateSpec(spec map[string]any) error {
 			if name == "" {
 				return fmt.Errorf("spec.env[%d]: name is required", i)
 			}
+			// Fail closed on variable names: the deploy path substitutes
+			// {{NAME}} verbatim into shell steps and docker -e, so only
+			// POSIX identifiers are accepted (mirrors isAppEnvName used by
+			// the application run engine).
+			if !isAppEnvName(name) {
+				return fmt.Errorf("spec.env[%d]: name %q is not a valid POSIX identifier (A-Z, 0-9, _; must not start with a digit)", i, name)
+			}
+			if _, dup := seenEnv[name]; dup {
+				return fmt.Errorf("spec.env[%d]: duplicate variable name %q", i, name)
+			}
+			seenEnv[name] = struct{}{}
 			rule := getString(m, "rule")
 			if rule != "" {
 				if _, err := regexp.Compile(rule); err != nil {
@@ -142,6 +154,7 @@ func validateTemplateSpec(spec map[string]any) error {
 
 	// Validate actions[] if present
 	if rawActions, ok := spec["actions"].([]any); ok {
+		seenAction := make(map[string]struct{}, len(rawActions))
 		for i, a := range rawActions {
 			m, ok := a.(map[string]any)
 			if !ok {
@@ -151,6 +164,10 @@ func validateTemplateSpec(spec map[string]any) error {
 			if id == "" {
 				return fmt.Errorf("spec.actions[%d]: id is required", i)
 			}
+			if _, dup := seenAction[id]; dup {
+				return fmt.Errorf("spec.actions[%d]: duplicate action id %q", i, id)
+			}
+			seenAction[id] = struct{}{}
 			name := getString(m, "name")
 			if name == "" {
 				return fmt.Errorf("spec.actions[%d]: name is required", i)

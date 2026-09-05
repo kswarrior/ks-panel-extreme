@@ -378,7 +378,7 @@ func DownloadThemeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.json\"", t.Name))
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.json\"", sanitizeDownloadFilename(t.Name)))
 	w.Write(jsonData)
 }
 
