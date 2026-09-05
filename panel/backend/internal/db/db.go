@@ -153,19 +153,33 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				}
 			}
 			if !any {
-				log.Printf("Running migration %s (skipped: every column already present)", name)
-				continue
-			}
-			for _, c := range cols {
-				if hasColumn(d, db, c.table, c.col) {
-					continue
+				log.Printf("Running migration %s (columns already present, ensuring indexes)", name)
+			} else {
+				for _, c := range cols {
+					if hasColumn(d, db, c.table, c.col) {
+						continue
+					}
+					if err := guardedAddColumns(d, db, name, c.table, []columnSpec{
+						{"owner_id", "INTEGER REFERENCES users(id) ON DELETE SET NULL"},
+					}); err != nil {
+						return err
+					}
 				}
-				if err := guardedAddColumns(d, db, name, c.table, []columnSpec{
-					{"owner_id", "INTEGER REFERENCES users(id) ON DELETE SET NULL"},
-				}); err != nil {
+			}
+			// The file body is never exec'd (every ALTER above is applied
+			// individually), so own its seven owner_id lookup indexes here
+			// too — otherwise the CREATE INDEX lines in the body never run
+			// on any dialect (mirrors 045_application_files_runs.sql).
+			// MySQL has no CREATE INDEX IF NOT EXISTS, hence the guard.
+			// Indexes are ensured on every run so pre-054 installs that
+			// already have the columns still converge.
+			for _, c := range cols {
+				idx := c.table + "_owner_idx"
+				if err := guardedCreateIndex(d, db, name, c.table, idx, "owner_id"); err != nil {
 					return err
 				}
 			}
+			log.Printf("Running migration %s", name)
 			continue
 		case name == "014_role_display_color.sql":
 			if err := guardedAddColumns(d, db, name, "roles", []columnSpec{
@@ -183,18 +197,33 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 		case name == "016_email_verification.sql":
 			// CREATE TABLE + ALTER in the same file. The CREATE TABLE block
 			// is idempotent on every dialect; the ALTER on users is guarded.
-			if hasColumn(d, db, "users", "email_verified") {
-				body, rerr := readMigrationsFile(fsys, name)
-				if rerr != nil {
-					return rerr
-				}
-				stripped := stripAlterColumnLines(body, "users", "email_verified")
-				log.Printf("Running migration %s (email_verified already present, ALTER stripped)", name)
-				if _, err := db.Exec(string(stripped)); err != nil {
-					return fmt.Errorf("migration %s failed: %w", name, err)
-				}
-				continue
+			// The evc_email_idx line is stripped and owned by the runtime
+			// guard below: the mysql body carries a bare CREATE INDEX
+			// (no IF NOT EXISTS), which would fail with "duplicate key
+			// name" on every re-launch — mirrors 045.
+			body, rerr := readMigrationsFile(fsys, name)
+			if rerr != nil {
+				return rerr
 			}
+			stripped := stripAlterColumnLines(body, "users", "email_verified")
+			stripped = stripCreateIndexLines(stripped, "evc_email_idx")
+			if hasColumn(d, db, "users", "email_verified") {
+				log.Printf("Running migration %s (email_verified already present, ALTER stripped)", name)
+			} else {
+				if err := guardedAddColumns(d, db, name, "users", []columnSpec{
+					{"email_verified", "INTEGER NOT NULL DEFAULT 0"},
+				}); err != nil {
+					return err
+				}
+				log.Printf("Running migration %s", name)
+			}
+			if _, err := db.Exec(string(stripped)); err != nil {
+				return fmt.Errorf("migration %s failed: %w", name, err)
+			}
+			if err := guardedCreateIndex(d, db, name, "email_verification_codes", "evc_email_idx", "email"); err != nil {
+				return err
+			}
+			continue
 		case name == "018_user_profile.sql":
 			if err := guardedAddColumns(d, db, name, "users", []columnSpec{
 				{"display_name", "TEXT NOT NULL DEFAULT ''"},
