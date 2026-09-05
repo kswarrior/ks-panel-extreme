@@ -1,4 +1,5 @@
 export { BackgroundTab } from './BackgroundTab';
+export { ThemeTab } from './ThemeTab';
 export { SidebarTab } from './SidebarTab';
 export { HeaderTab } from './HeaderTab';
 export { ButtonTab } from './ButtonTab';

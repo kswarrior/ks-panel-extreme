@@ -6,6 +6,7 @@ import type { Theme, ThemeKey } from '@/features/themes/types/theme';
 import Loading from '@/shared/components/ui/Loading';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import {
+  ThemeTab,
   BackgroundTab,
   SidebarTab,
   HeaderTab,
@@ -26,7 +27,6 @@ import {
   HistoryTab,
 } from '@/features/themes/components/ThemeStudio';
 import GlassCard from '@/shared/components/ui/Card';
-import IconColorPicker from '@/shared/components/ui/IconColorPicker';
 
 // renderLoadingPreview renders a preview of the loading animation based on
 // the theme's loading configuration. This is used in the live preview area
@@ -72,6 +72,14 @@ const renderLoadingPreview = (loading: any) => {
 };
 
 // Tab icons
+const ICON_THEME = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
+    <path d="M12 3a9 9 0 1 0 0 18c1.2 0 2-1 2-2 0-1.5-1.5-2-1.5-3.5 0-1.2 1-2 2.2-2H17a4 4 0 0 0 4-4c0-3.3-4-6.5-9-6.5z" />
+    <circle cx="7.5" cy="11.5" r="1" fill="currentColor" />
+    <circle cx="10.5" cy="7.5" r="1" fill="currentColor" />
+    <circle cx="15" cy="7.5" r="1" fill="currentColor" />
+  </svg>
+);
 const ICON_BG = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
     <rect x="3" y="4" width="18" height="16" rx="2" />
@@ -204,8 +212,9 @@ const ICON_HISTORY = (
 // 'market' + 'history' are studio-level (not theme sections): the
 // marketplace browser (catalog → preview → install) and the version
 // history (list + diff-note + restore) for GLOBAL themes.
-type TabKey = ThemeKey | 'forms' | 'components' | 'utilities' | 'cards' | 'market' | 'history';
+type TabKey = ThemeKey | 'theme' | 'forms' | 'components' | 'utilities' | 'cards' | 'market' | 'history';
 const TABS: Array<{ key: TabKey; label: string; icon: React.ReactNode }> = [
+  { key: 'theme', label: 'Theme', icon: ICON_THEME },
   { key: 'background', label: 'Background', icon: ICON_BG },
   { key: 'sidebar', label: 'Sidebar', icon: ICON_SIDEBAR },
   { key: 'header', label: 'Header', icon: ICON_HEADER },
@@ -245,7 +254,7 @@ const ThemeStudio: React.FC = () => {
     s.permissions.includes('EDIT_THEMES'),
   );
 
-  const [tab, setTab] = useState<TabKey>('background');
+  const [tab, setTab] = useState<TabKey>('theme');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
@@ -424,40 +433,23 @@ const ThemeStudio: React.FC = () => {
               </nav>
             </GlassCard>
             <div className="space-y-4">
-              <GlassCard className="space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <input
-                    type="text"
-                    className="w-full bg-black/30 border border-white/10 rounded-md px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/60"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="My Theme"
-                  />
-                  <input
-                    type="text"
-                    className="w-full bg-black/30 border border-white/10 rounded-md px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/60"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="A short note about this theme."
-                  />
-                </div>
-                <div>
-                  <span className="block text-xs text-gray-400 mb-1.5">Card icon & colour — shown on the Themes grid (same tile as nodes / instances)</span>
-                  <IconColorPicker
-                    icon={draft.icon || ''}
-                    color={draft.color || ''}
-                    onIconChange={(v) => patchDraftMeta({ icon: v })}
-                    onColorChange={(v) => patchDraftMeta({ color: v })}
-                    previewName={name || 'Theme'}
-                  />
-                </div>
-              </GlassCard>
-
               <GlassCard className="space-y-4">
               {/* Fixed-height options box — every studio control scrolls inside
                   (same pattern as the API-key permission list) so the page
                   itself never stretches on small laptops. */}
               <div className="max-h-[70vh] overflow-y-auto pr-1">
+            {tab === 'theme' && (
+              <ThemeTab
+                name={name}
+                description={description}
+                icon={draft.icon || ''}
+                color={draft.color || ''}
+                onNameChange={setName}
+                onDescriptionChange={setDescription}
+                onIconChange={(v) => patchDraftMeta({ icon: v })}
+                onColorChange={(v) => patchDraftMeta({ color: v })}
+              />
+            )}
             {tab === 'background' && <BackgroundTab draft={draft} patch={patch} />}
             {tab === 'sidebar' && <SidebarTab draft={draft} patch={patch} />}
             {tab === 'header' && <HeaderTab draft={draft} patch={patch} />}
