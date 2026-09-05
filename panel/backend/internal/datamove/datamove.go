@@ -679,33 +679,44 @@ func Verify(srcD db.Dialect, src *sql.DB, dstD db.Dialect, dst *sql.DB, tables [
 	}
 
 	if dstD.IsSQLite() {
-		con, err := dst.Conn(ctx)
-		if err != nil {
-			return issues, warnings, fmt.Errorf("recheck connection: %w", err)
-		}
-		defer con.Close()
-		var msg string
-		if err := con.QueryRowContext(ctx, `PRAGMA quick_check(1)`).Scan(&msg); err == nil &&
-			strings.TrimSpace(strings.ToLower(msg)) != "ok" {
-			issues = append(issues, "integrity check: "+msg)
-		}
-		if fkrows, err := con.QueryContext(ctx, `PRAGMA foreign_key_check`); err == nil {
-			defer fkrows.Close()
-			for fkrows.Next() {
-				var tbl sql.NullString
-				var rowid sql.NullInt64
-				var ref sql.NullString
-				var fkid sql.NullInt64
-				if err := fkrows.Scan(&tbl, &rowid, &ref, &fkid); err != nil {
-					continue
-				}
-				// modernc.org/sqlite emits one all-null phantom row on clean
-				// DBs — drop it exactly like the Database page inspector does.
-				if !tbl.Valid || strings.TrimSpace(tbl.String) == "" {
-					continue
-				}
-				issues = append(issues, fmt.Sprintf("foreign key violation: %s row %d", tbl.String, rowid.Int64))
+		// Scoped so the dedicated conn is released before the generic
+		// orphan scan below: with a single-conn SQLite pool (modernc
+		// per-conn PRAGMA semantics) holding this conn across
+		// ScanFKOrphans would deadlock waiting for a second slot.
+		var connErr error
+		func() {
+			con, err := dst.Conn(ctx)
+			if err != nil {
+				connErr = err
+				return
 			}
+			defer con.Close()
+			var msg string
+			if err := con.QueryRowContext(ctx, `PRAGMA quick_check(1)`).Scan(&msg); err == nil &&
+				strings.TrimSpace(strings.ToLower(msg)) != "ok" {
+				issues = append(issues, "integrity check: "+msg)
+			}
+			if fkrows, err := con.QueryContext(ctx, `PRAGMA foreign_key_check`); err == nil {
+				defer fkrows.Close()
+				for fkrows.Next() {
+					var tbl sql.NullString
+					var rowid sql.NullInt64
+					var ref sql.NullString
+					var fkid sql.NullInt64
+					if err := fkrows.Scan(&tbl, &rowid, &ref, &fkid); err != nil {
+						continue
+					}
+					// modernc.org/sqlite emits one all-null phantom row on clean
+					// DBs — drop it exactly like the Database page inspector does.
+					if !tbl.Valid || strings.TrimSpace(tbl.String) == "" {
+						continue
+					}
+					issues = append(issues, fmt.Sprintf("foreign key violation: %s row %d", tbl.String, rowid.Int64))
+				}
+			}
+		}()
+		if connErr != nil {
+			return issues, warnings, fmt.Errorf("recheck connection: %w", connErr)
 		}
 	} else {
 		// Real FK-orphan scan on the target via information_schema.
