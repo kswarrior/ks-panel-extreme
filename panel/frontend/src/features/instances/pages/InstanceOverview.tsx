@@ -14,9 +14,11 @@ import { useInstance } from '@/shared/hooks/useInstance';
 import { useLiveMetrics } from '../hooks/useLiveMetrics';
 import {
   destroyInstance,
+  listActivity,
   reinstallInstance,
   updateInstanceIdentity,
 } from '@/shared/api/admin';
+import type { ActivityLog } from '@/features/activity/types/activity';
 import InstancePowerMenu from '../components/InstancePowerMenu';
 import InstanceInfoRow from '../components/InstanceInfoRow';
 import { KindIcon } from '../components/InstanceFormComponents';
@@ -51,19 +53,19 @@ const STATUS_LABEL: Record<string, string> = {
   destroyed: 'Destroyed',
 };
 
-type TabId = 'resources' | 'details' | 'manage';
+type TabId = 'details' | 'monitoring' | 'manage' | 'activity';
 
 const TAB_META: Record<TabId, { label: string; icon: React.ReactNode }> = {
-  resources: {
-    label: 'Resources',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><path d="M12 20a8 8 0 1 1 8-8" /><path d="M12 12l4-4" /></svg>
-    ),
-  },
   details: {
     label: 'Details',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>
+    ),
+  },
+  monitoring: {
+    label: 'Monitoring',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><path d="M12 20a8 8 0 1 1 8-8" /><path d="M12 12l4-4" /></svg>
     ),
   },
   manage: {
@@ -72,9 +74,15 @@ const TAB_META: Record<TabId, { label: string; icon: React.ReactNode }> = {
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg>
     ),
   },
+  activity: {
+    label: 'Activity',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+    ),
+  },
 };
 
-const TAB_ORDER: TabId[] = ['resources', 'details', 'manage'];
+const TAB_ORDER: TabId[] = ['details', 'monitoring', 'manage', 'activity'];
 
 function fmtDate(iso: string | undefined | null): string {
   if (!iso) return '—';
@@ -87,7 +95,7 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
   const confirm = useConfirm();
   const { instance, loading, error, reload } = useInstance(instanceId);
   const permissions = useAuthStore((s) => s.permissions);
-  const [tab, setTab] = useState<TabId>('resources');
+  const [tab, setTab] = useState<TabId>('details');
   const [rename, setRename] = useState('');
   const [renameBusy, setRenameBusy] = useState(false);
   const [renameMsg, setRenameMsg] = useState('');
@@ -362,8 +370,8 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
         </div>
       </div>
 
-      {tab === 'resources' && (
-        <ErrorBoundary label="instance-overview-resources">
+      {tab === 'monitoring' && (
+        <ErrorBoundary label="instance-overview-monitoring">
           {!isRunning ? (
             <div className="glass-card rounded-xl text-center text-gray-400">
               <p className="text-sm">Start the instance to stream live CPU / RAM / disk graphs.</p>
