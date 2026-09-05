@@ -5,8 +5,8 @@
 // It gathers everything the floating menu holds plus full-page extras:
 //   • header with name + status / kind badges,
 //   • page-actions pill (top-right, NodeDetail pattern) + section tabs:
-//     Details (the menu's own status row + power controls + actions, plus
-//     an info grid), Monitoring (live CPU / RAM / disk graphs,
+//     Details (one tile per fact — no Controls / Status cards, those live
+//     in the floating menu), Monitoring (live CPU / RAM / disk graphs,
 //     System-page style), Manage (rename), Activity (audit trail).
 //   • shared section rail (SectionRailTabs: icon + label + hint with live
 //     markers, same style as Security / Database, themed in the Tabs tab).
@@ -22,8 +22,6 @@ import {
   updateInstanceIdentity,
 } from '@/shared/api/admin';
 import type { ActivityLog } from '@/features/activity/types/activity';
-import InstancePowerMenu from '../components/InstancePowerMenu';
-import InstanceInfoRow from '../components/InstanceInfoRow';
 import { KindIcon } from '../components/InstanceFormComponents';
 import { KIND_META, kindKey } from '../types/instanceForm';
 import { AreaChart, DonutChart, type MetricSample } from '@/shared/components/ui/MetricsChart';
@@ -405,40 +403,6 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
     else if (key === 'reinstall') void onReinstall();
     else if (key === 'destroy') void onDelete();
   };
-
-  const infoRows: { label: string; value: React.ReactNode; link?: string }[] = [
-    { label: 'Container name', value: <span className="ks-mono text-[13px]">{instance.name}</span> },
-    { label: 'Kind', value: <span className="capitalize">{instance.kind || '—'}</span> },
-    { label: 'Status', value: <span className="capitalize">{statusLabel}</span> },
-    {
-      label: 'Node',
-      value: instance.node_name || `#${instance.node_id ?? '?'}`,
-      link: Number.isFinite(instance.node_id) ? `/node/${instance.node_id}` : undefined,
-    },
-    {
-      label: 'Template',
-      value: instance.template_name || 'deleted',
-      link: instance.template_id ? `/template/${instance.template_id}` : undefined,
-    },
-    { label: 'Owner', value: instance.owner_name || (instance.owner_id ? `#${instance.owner_id}` : 'unattributed') },
-    {
-      label: 'External ID',
-      value: (
-        <span className="ks-mono text-[12px] text-gray-400 max-w-[16ch] truncate inline-block align-bottom" title={instance.external_id || '—'}>
-          {instance.external_id || '—'}
-        </span>
-      ),
-    },
-    { label: 'Created', value: fmtDate(instance.created_at) },
-    { label: 'Updated', value: fmtDate(instance.updated_at) },
-    {
-      label: 'Install',
-      value:
-        instance.install_state === 'failed'
-          ? <span className="text-red-300">failed{instance.install_error ? ` — ${instance.install_error}` : ''}</span>
-          : (instance.install_state || '—'),
-    },
-  ];
 
   return (
     <div className="space-y-4 animate-fade-in">
