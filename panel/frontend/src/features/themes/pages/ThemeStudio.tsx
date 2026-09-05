@@ -27,6 +27,7 @@ import {
   HistoryTab,
 } from '@/features/themes/components/ThemeStudio';
 import GlassCard from '@/shared/components/ui/Card';
+import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 
 // renderLoadingPreview renders a preview of the loading animation based on
 // the theme's loading configuration. This is used in the live preview area
@@ -342,75 +343,73 @@ const ThemeStudio: React.FC = () => {
 
   return (
     <div>
-      <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
-        <button type="button" onClick={() => navigate('/themes')} className="hover:text-white">Themes</button>
-        <span className="text-gray-600">/</span>
-        <span className="text-gray-200">Theme Studio</span>
-      </div>
-      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-        <div>
-          <h2 className="text-xl font-semibold text-white">Theme Studio</h2>
-          <p className="text-sm text-gray-400 -mt-0.5">
-            Customise every part of the panel. Changes preview live — save to keep them.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => reapply()}
-            className="ks-ghost-btn inline-flex items-center gap-2 px-3 py-1.5 rounded border border-white/10 bg-white/5 text-gray-200 hover:bg-white/10 hover:text-white text-sm"
-            title="Restart the live preview from the saved theme"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /> </svg>
-            Reset preview
-          </button>
-        </div>
-      </div>
-
-      {/* Save scope + actions — top-left, always visible */}
-      <div className="flex justify-start items-center gap-2 flex-wrap mb-4">
-          {canManageGlobal && (
-              <div className="flex items-center gap-1 mr-auto p-1 rounded-lg border border-white/10 bg-white/[0.04]">
-                <button
-                  type="button"
-                  onClick={() => setSaveScope('local')}
-                  className={`ks-tab text-xs rounded-md transition ${saveScope === 'local' ? 'ks-tab-active' : ''}`}
-                  title="Save to this browser (localStorage). Only this user sees this theme."
-                >
-                  Local
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSaveScope('global')}
-                  className={`ks-tab text-xs rounded-md transition ${saveScope === 'global' ? 'ks-tab-active' : ''}`}
-                  title="Publish to the server. Every user will see this theme on the areas/pages you assign it to."
-                >
-                  Global
-                </button>
-              </div>
-            )}
-            <button type="button" onClick={cancel} className="ks-ghost-btn px-4 py-2 text-sm rounded transition-colors">
-              Cancel
-            </button>
-            {editingExisting && (
-              <button
-                type="button"
-                onClick={() => save(true)}
-                disabled={saving}
-                className="ks-ghost-btn px-4 py-2 text-sm rounded disabled:opacity-60"
-              >
-                {saving ? 'Saving…' : 'Save as new'}
-              </button>
-            )}
+      {/* Fixed top-right pill — "Theme Studio" title lives in the app header. */}
+      <PageActionsPill>
+        <button
+          type="button"
+          onClick={() => reapply()}
+          title="Restart the live preview from the saved theme"
+          aria-label="Reset preview"
+          className="ks-tab shrink-0 inline-flex items-center justify-center transition"
+          style={PILL_TAB_STYLE}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>
+        </button>
+        {canManageGlobal && (
+          <>
             <button
               type="button"
-              onClick={() => save(false)}
-              disabled={saving}
-              className="ks-primary-btn px-4 py-2 text-sm rounded hover:bg-gray-200 disabled:opacity-60"
+              onClick={() => setSaveScope('local')}
+              title="Save to this browser (localStorage). Only this user sees this theme."
+              className={`ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition ${saveScope === 'local' ? 'ks-tab-active' : ''}`}
+              style={PILL_TAB_STYLE}
             >
-              {saving ? 'Saving…' : editingExisting ? 'Save' : 'Create theme'}
+              Local
             </button>
-      </div>
+            <button
+              type="button"
+              onClick={() => setSaveScope('global')}
+              title="Publish to the server. Every user will see this theme on the areas/pages you assign it to."
+              className={`ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition ${saveScope === 'global' ? 'ks-tab-active' : ''}`}
+              style={PILL_TAB_STYLE}
+            >
+              Global
+            </button>
+          </>
+        )}
+        <button
+          type="button"
+          onClick={cancel}
+          title="Cancel and back to Themes"
+          aria-label="Cancel and back to Themes"
+          className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition"
+          style={PILL_TAB_STYLE}
+        >
+          Cancel
+        </button>
+        {editingExisting && (
+          <button
+            type="button"
+            onClick={() => save(true)}
+            disabled={saving}
+            title="Save as a new theme"
+            className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-60"
+            style={PILL_TAB_STYLE}
+          >
+            {saving ? 'Saving…' : 'Save as new'}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => save(false)}
+          disabled={saving}
+          title={editingExisting ? 'Save theme' : 'Create theme'}
+          className="ks-tab ks-tab-active shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-60"
+          style={PILL_TAB_STYLE}
+        >
+          {saving ? 'Saving…' : editingExisting ? 'Save' : 'Create'}
+        </button>
+      </PageActionsPill>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         <div className="lg:col-span-12">

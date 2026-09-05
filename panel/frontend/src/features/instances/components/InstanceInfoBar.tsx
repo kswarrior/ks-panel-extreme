@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useInstance } from '@/shared/hooks/useInstance';
-import { useAutoHidePill } from '@/shared/components/ui/PageActionsPill';
+import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import { KindIcon } from './InstanceFormComponents';
 import { KIND_META, kindKey } from '../types/instanceForm';
 
-const INFO_COLLAPSED_KEY = 'ks-instance-info-collapsed';
+// Second-row slot below the power pill (power pill ~38px tall + gap).
+const INFO_PILL_OUTER = 'fixed right-4 sm:right-6 top-[calc(max(4.5rem,env(safe-area-inset-top))+44px)] z-40';
 
-// Status dot + label — mirrors InstanceCard's STATUS_META so the dock
+// Status dot + label — mirrors InstanceCard's STATUS_META so the pill
 // agrees with the fleet cards.
 const STATUS_META: Record<string, { dot: string; label: string; ping?: boolean }> = {
   running: { dot: 'bg-emerald-400', label: 'Running', ping: true },
@@ -43,40 +44,17 @@ function useUptime(sinceISO: string | undefined | null, status: string): string 
   return `${s}s`;
 }
 
-// InstanceInfoBar — self-contained right-side info dock for an instance.
+// InstanceInfoBar — read-only instance facts as a nodes-style fixed
+// top-right pill (second row, directly under the power pill).
 //
-// Mirrors InstancePowerBar's pattern (own useInstance fetch, localStorage
-// collapse) but shows read-only facts instead of controls:
-//   • Status — colored dot + label (Running pulses like the fleet cards)
-//   • Uptime  — live-ticking since started_at while running, '—' otherwise
-//   • Type    — driver badge (docker / kvm / multipass / lxd) with its glyph
-//
-// Fixed to the top-right edge (below the PageActionsPill slot) and
-// auto-dims after 1.5s idle — same behavior as the Cancel/Deploy pill,
-// faster delay. Dim-only: never goes invisible, just "off" (low opacity);
-// hover restores full brightness.
+// Horizontal and compact like the Nodes page pill: status dot + label,
+// live uptime, driver badge. Same glass surface / slide animation /
+// auto-hide (scroll/outside-click hides, idle shows) via PageActionsPill,
+// so both instance pills behave identically.
 const InstanceInfoBar: React.FC = () => {
   const { id } = useParams();
   const instanceId = Number(id);
   const { instance, loading } = useInstance(instanceId);
-  const { visible, ref, show } = useAutoHidePill(1500);
-
-  const [collapsed, setCollapsed] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem(INFO_COLLAPSED_KEY) === '1';
-    } catch {
-      return false;
-    }
-  });
-  const toggle = () => {
-    setCollapsed((v) => {
-      const next = !v;
-      try {
-        localStorage.setItem(INFO_COLLAPSED_KEY, next ? '1' : '0');
-      } catch {}
-      return next;
-    });
-  };
 
   const uptime = useUptime(
     instance?.started_at || instance?.updated_at || instance?.created_at,
@@ -93,75 +71,49 @@ const InstanceInfoBar: React.FC = () => {
   const typeBadge = (instance && KIND_META[k]?.badge) || '';
 
   return (
-    <div
-      className="fixed right-4 sm:right-6 top-[max(8rem,calc(env(safe-area-inset-top)+3.5rem))] z-40"
-      aria-label="Instance info"
-      onMouseEnter={show}
-    >
-      <div
-        ref={ref}
-        className={`ks-card ks-pill-anim rounded-md shadow-lg shadow-black/40 overflow-hidden transition-opacity duration-300 ${
-          visible ? 'opacity-100' : 'opacity-40'
-        }`}
-        style={{ '--ks-card-padding': '8px' } as React.CSSProperties}
-      >
-        {loading && !instance ? (
-          <div className="flex flex-col gap-2 p-1 min-w-[132px] animate-pulse">
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="flex items-center justify-between gap-3">
-                <div className="h-2.5 w-10 rounded bg-neutral-800" />
-                <div className="h-3.5 w-14 rounded bg-neutral-800" />
-              </div>
-            ))}
-          </div>
-        ) : collapsed ? (
-          <button
-            type="button"
-            onClick={toggle}
-            aria-label="Show instance info"
-            aria-expanded={false}
-            title="Show instance info"
-            className="flex items-center justify-center w-6 h-16 text-gray-300 hover:text-white hover:bg-white/5 rounded transition-colors"
+    <PageActionsPill outerClassName={INFO_PILL_OUTER}>
+      {loading && !instance ? (
+        <div className="flex items-center gap-2 px-1 animate-pulse" aria-hidden="true">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="h-3.5 w-14 rounded bg-neutral-800" />
+          ))}
+        </div>
+      ) : (
+        <>
+          <span
+            className="ks-tab inline-flex items-center gap-1.5 text-gray-200"
+            style={PILL_TAB_STYLE}
+            title={`Status: ${sm.label}`}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5" aria-hidden="true"><polyline points="9 18 15 12 9 6" /></svg>
-          </button>
-        ) : (
-          <div className="flex flex-col gap-2 p-1 min-w-[132px]">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-[10px] uppercase tracking-wide text-gray-500">Status</span>
-              <span className="inline-flex items-center gap-1.5 text-xs text-gray-200">
-                <span className="relative flex w-2 h-2">
-                  {sm.ping && <span className="absolute inline-flex w-full h-full rounded-full bg-emerald-400 opacity-60 animate-ping" />}
-                  <span className={`relative inline-flex rounded-full w-2 h-2 ${sm.dot}`} />
-                </span>
-                {sm.label}
-              </span>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-[10px] uppercase tracking-wide text-gray-500">Uptime</span>
-              <span className="text-xs text-gray-200 tabular-nums">{uptime}</span>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-[10px] uppercase tracking-wide text-gray-500">Type</span>
-              <span className={`inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded border ${typeBadge}`}>
-                <KindIcon kind={k} className="w-3.5 h-3.5" />
-                {typeLabel}
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={toggle}
-              aria-label="Hide instance info"
-              aria-expanded={true}
-              title="Hide instance info"
-              className="mt-0.5 flex items-center justify-center w-full py-0.5 text-gray-500 hover:text-white hover:bg-white/5 rounded transition-colors"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5" aria-hidden="true"><polyline points="15 18 9 12 15 6" /></svg>
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
+            <span className="relative flex w-2 h-2">
+              {(sm as any).ping && <span className="absolute inline-flex w-full h-full rounded-full bg-emerald-400 opacity-60 animate-ping" />}
+              <span className={`relative inline-flex rounded-full w-2 h-2 ${sm.dot}`} />
+            </span>
+            <span className="text-[13px] font-medium">{sm.label}</span>
+          </span>
+          <span className="w-px h-4 bg-white/10 shrink-0" aria-hidden="true" />
+          <span
+            className="ks-tab inline-flex items-center gap-1.5 text-gray-200 tabular-nums"
+            style={PILL_TAB_STYLE}
+            title={`Uptime: ${uptime}`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-gray-400" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+            <span className="text-[13px] font-medium">{uptime}</span>
+          </span>
+          <span className="w-px h-4 bg-white/10 shrink-0" aria-hidden="true" />
+          <span
+            className="ks-tab inline-flex items-center"
+            style={PILL_TAB_STYLE}
+            title={`Type: ${typeLabel}`}
+          >
+            <span className={`inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded border ${typeBadge}`}>
+              <KindIcon kind={k} className="w-3.5 h-3.5" />
+              {typeLabel}
+            </span>
+          </span>
+        </>
+      )}
+    </PageActionsPill>
   );
 };
 

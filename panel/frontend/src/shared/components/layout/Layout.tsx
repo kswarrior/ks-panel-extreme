@@ -17,9 +17,9 @@ const Layout: React.FC = () => {
     return /^\/instances\/\d+/.test(location.pathname);
   }, [location.pathname]);
 
-  // Power dock auto-off lives inside InstancePowerBar itself: scroll /
-  // outside-click collapses < to > (never invisible), idle / hover / `>`
-  // click expands back. Layout just positions the floating dock.
+  // Instance pills are nodes-style fixed top-right PageActionsPills owned by
+  // the components themselves (power on top, info stacked below) — Layout
+  // just mounts them inside the instance panel, no positioning wrappers.
 
   useEffect(() => {
     setSidebarOpen(false);
@@ -50,34 +50,25 @@ const Layout: React.FC = () => {
           onToggleSidebar={toggleSidebar}
           inInstancePanel={inInstancePanel}
         />
-        {/* Instance info dock — fixed right edge (Status / Uptime / Type),
-            own auto-hide at 1.5s inside the component. */}
+        {/* Instance pills — nodes-style fixed top-right (power + info stacked),
+            each with its own auto-hide inside PageActionsPill. */}
         {inInstancePanel && (
-          <ErrorBoundary resetKey={location.pathname} label="instance-info">
-            <InstanceInfoBar />
-          </ErrorBoundary>
+          <>
+            <ErrorBoundary resetKey={location.pathname} label="instance-info">
+              <InstanceInfoBar />
+            </ErrorBoundary>
+            <ErrorBoundary resetKey={location.pathname} label="instance-power">
+              <InstancePowerBar variant="pill" />
+            </ErrorBoundary>
+          </>
         )}
-        {/* Page scroll area. The power dock floats OVER the content
-            (absolute overlay, clicks pass through except on the dock itself)
-            so no layout row — and no gap — is reserved for it. */}
+        {/* Page scroll area. */}
         <div className="relative flex-1 min-h-0 flex">
           <main className="flex-1 min-w-0 overflow-auto p-4 sm:p-6">
             <ErrorBoundary resetKey={location.pathname} label="page">
               <Outlet />
             </ErrorBoundary>
           </main>
-          {/* Instance power controls — OUTSIDE the <header> element, floating
-              over the page content top-left, so the header keeps its fixed
-              height and pages start with zero gap. */}
-          {inInstancePanel && (
-            <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex justify-start px-4 sm:px-6 pt-2">
-              <div className="pointer-events-auto opacity-100">
-                <ErrorBoundary resetKey={location.pathname} label="instance-power">
-                  <InstancePowerBar />
-                </ErrorBoundary>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>
