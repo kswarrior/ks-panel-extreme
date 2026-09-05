@@ -248,6 +248,20 @@ func CreateApplicationHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "manifest must declare name and slug", http.StatusBadRequest)
 		return
 	}
+	// Fail closed on slug + color like the mod/template paths: the slug
+	// keys routes and the color is injected into stylesheets.
+	if !models.ValidModSlug(in.Slug) {
+		http.Error(w, "invalid slug: use lowercase letters, digits and hyphens (max 64 chars)", http.StatusBadRequest)
+		return
+	}
+	if c := strings.TrimSpace(in.Color); c != "" && !validNodeColorHex(c) {
+		http.Error(w, "color must be a #rrggbb hex value", http.StatusBadRequest)
+		return
+	}
+	if len(in.Icon) > 16*1024 {
+		http.Error(w, "icon too large (max 16KB)", http.StatusBadRequest)
+		return
+	}
 	if len(specOverride) > 0 {
 		in.ConfigSchema = specOverride
 	}
@@ -331,6 +345,18 @@ func InstallApplicationFromURLHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if in.Name == "" || in.Slug == "" {
 		http.Error(w, "manifest must declare name and slug", http.StatusBadRequest)
+		return
+	}
+	if !models.ValidModSlug(in.Slug) {
+		http.Error(w, "invalid slug: use lowercase letters, digits and hyphens (max 64 chars)", http.StatusBadRequest)
+		return
+	}
+	if c := strings.TrimSpace(in.Color); c != "" && !validNodeColorHex(c) {
+		http.Error(w, "color must be a #rrggbb hex value", http.StatusBadRequest)
+		return
+	}
+	if len(in.Icon) > 16*1024 {
+		http.Error(w, "icon too large (max 16KB)", http.StatusBadRequest)
 		return
 	}
 	repo, closeFn := openAppRepo()
@@ -457,8 +483,26 @@ func DeleteApplicationHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer closeFn()
 	label := ""
-	if a, gerr := repo.GetApplication(id); gerr == nil {
+	var ownerID int64
+	if a, gerr := repo.GetApplication(id); gerr == nil && a != nil {
 		label = a.Name
+		ownerID = a.OwnerID
+		if ownerID == 0 && a.UploadedBy != nil {
+			ownerID = *a.UploadedBy
+		}
+	}
+	// Ownership scope (migration 054): own-scope callers may only delete
+	// applications they uploaded.
+	if uid, _ := UserIDFromContext(r); uid != 0 && ownerID != 0 && ownerID != uid {
+		if con, perr := repository.OpenDB(); perr == nil {
+			chk := permissions.NewChecker(con)
+			hasOwn, hasAll, _ := chk.HasScope(uid, permissions.ApplicationsOwnKey, permissions.ApplicationsAllKey, permissions.ManageApplicationsKey)
+			con.Close()
+			if !hasAll && hasOwn {
+				http.Error(w, "forbidden: own-scope may only delete applications you uploaded", http.StatusForbidden)
+				return
+			}
+		}
 	}
 	if err := repo.DeleteApplication(id); err != nil {
 		http.Error(w, "application not found", http.StatusNotFound)
