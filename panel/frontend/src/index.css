@@ -1183,3 +1183,41 @@ html[data-ks-reduced-motion='1'] .ks-system-tab-bar[data-active='true'] {
   transform: scaleY(1);
 }
 
+/* ------------------------------------------------------------------ *
+ *  Compact chips variant (phones) — same rail, different outfit
+ * ------------------------------------------------------------------ *
+ *  Small rounded icon+label pills with NO hint text and no indicator
+ *  line: the active chip is the solid themed fill. The scroller fades
+ *  only the edge(s) that can scroll further (can-scroll-l/r classes are
+ *  toggled from SectionRailTabs) so fitted content is never clipped. */
+.ks-rail-tab.ks-chip {
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.10);
+}
+.ks-rail-tab.ks-chip:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+}
+.ks-rail-tab.ks-chip .ks-rail-bar {
+  display: none;
+}
+.ks-chipscroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.ks-chipscroll::-webkit-scrollbar {
+  display: none;
+}
+.ks-chipscroll.can-scroll-r:not(.can-scroll-l) {
+  -webkit-mask-image: linear-gradient(to right, black calc(100% - 22px), transparent);
+  mask-image: linear-gradient(to right, black calc(100% - 22px), transparent);
+}
+.ks-chipscroll.can-scroll-l:not(.can-scroll-r) {
+  -webkit-mask-image: linear-gradient(to left, black calc(100% - 22px), transparent);
+  mask-image: linear-gradient(to left, black calc(100% - 22px), transparent);
+}
+.ks-chipscroll.can-scroll-l.can-scroll-r {
+  -webkit-mask-image: linear-gradient(to right, transparent, black 22px, black calc(100% - 22px), transparent);
+  mask-image: linear-gradient(to right, transparent, black 22px, black calc(100% - 22px), transparent);
+}
+

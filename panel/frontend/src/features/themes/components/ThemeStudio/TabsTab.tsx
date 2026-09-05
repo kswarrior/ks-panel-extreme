@@ -91,6 +91,21 @@ export const TabsTab: React.FC<TabsTabProps> = ({ draft, patch }) => {
       </div>
 
       <div className="ks-form-card rounded-lg space-y-3">
+        <Label label="Preview — compact chips" hint="The phone outfit of the same rail: icon + label pills, no hint text." />
+        <div className="ks-card rounded-full p-1 flex items-stretch gap-1.5 overflow-x-auto">
+          {['Overview', 'Tables', 'Switch', 'Backup'].map((t, i) => (
+            <span
+              key={t}
+              className={`ks-rail-tab ks-chip flex items-center gap-1.5 px-3 py-1.5 shrink-0 whitespace-nowrap ${i === 0 ? 'is-active' : ''}`}
+              data-active={i === 0}
+            >
+              <span className="text-[13px] font-medium leading-none whitespace-nowrap">{t}</span>
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div className="ks-form-card rounded-lg space-y-3">
         <Label label="Preview — scope cards" hint="The System page style, painted from the scope knobs above. Open the System page to feel the sweep replay on every click." />
         <div className="grid grid-cols-2 gap-2">
           {['Host', 'Panel'].map((t, i) => (

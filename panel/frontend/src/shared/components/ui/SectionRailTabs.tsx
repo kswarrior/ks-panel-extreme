@@ -26,6 +26,11 @@ interface SectionRailTabsProps {
   // with many sections (Theme Studio): full-width rows, hints always
   // visible, indicator line on the left edge growing top → bottom.
   orientation?: 'horizontal' | 'vertical';
+  // Visual density. 'rail' (default) shows icon + label + hint rows with a
+  // growing indicator line. 'chips' is the compact phone style: small
+  // rounded pills with icon + label only (no hint/notes text), edge-fade
+  // scrolling, and the active chip auto-centered. Desktop stays 'rail'.
+  variant?: 'rail' | 'chips';
 }
 
 // SectionRailTabs — the shared tab style for Security + Database
@@ -54,8 +59,12 @@ export const SectionRailTabs: React.FC<SectionRailTabsProps> = ({
   onChange,
   ariaLabel,
   orientation = 'horizontal',
+  variant = 'rail',
 }) => {
   const vertical = orientation === 'vertical';
+  // Chips only make sense on a horizontal strip; a vertical nav always
+  // renders full rows.
+  const chips = variant === 'chips' && !vertical;
   const refs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   const focusTab = useCallback((id: string) => {
@@ -79,9 +88,42 @@ export const SectionRailTabs: React.FC<SectionRailTabsProps> = ({
     [tabs, active, onChange, focusTab],
   );
 
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  // Edge-fade flags for the chips scroller — mask only the edge(s) that
+  // can actually scroll further, so fitted content never gets clipped.
+  const [scrollEdges, setScrollEdges] = useState('');
+
+  useEffect(() => {
+    if (!chips) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    const update = () => {
+      const canL = el.scrollLeft > 4;
+      const canR = el.scrollLeft + el.clientWidth < el.scrollWidth - 4;
+      setScrollEdges(`${canL ? 'can-scroll-l' : ''} ${canR ? 'can-scroll-r' : ''}`);
+    };
+    update();
+    el.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    return () => {
+      el.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
+    };
+  }, [chips, tabs.length]);
+
+  // Keep the active chip centered (block:'nearest' never moves the page).
+  useEffect(() => {
+    if (!chips) return;
+    refs.current[active]?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  }, [chips, active]);
+
   return (
-    <section aria-label={`${ariaLabel} navigation`} className="ks-card rounded-xl p-1.5 sm:p-2">
+    <section
+      aria-label={`${ariaLabel} navigation`}
+      className={chips ? 'ks-card rounded-full p-1' : 'ks-card rounded-xl p-1.5 sm:p-2'}
+    >
       <div
+        ref={scrollRef}
         role="tablist"
         aria-label={ariaLabel}
         aria-orientation={orientation}
@@ -89,7 +131,9 @@ export const SectionRailTabs: React.FC<SectionRailTabsProps> = ({
         className={
           vertical
             ? 'flex flex-col items-stretch gap-1 max-h-[70vh] overflow-y-auto pr-0.5'
-            : 'ks-hscroll flex items-stretch gap-1 overflow-x-auto pb-0.5'
+            : chips
+              ? `ks-chipscroll scroll-smooth flex items-stretch gap-1.5 overflow-x-auto px-1 py-0.5 ${scrollEdges}`
+              : 'ks-hscroll flex items-stretch gap-1 overflow-x-auto pb-0.5'
         }
       >
         {tabs.map((t) => {
@@ -109,8 +153,10 @@ export const SectionRailTabs: React.FC<SectionRailTabsProps> = ({
               onClick={() => onChange(t.id)}
               data-active={isActive}
               data-orientation={orientation}
-              className={`ks-rail-tab ks-rail-anim group flex items-center gap-2.5 px-3 py-2 text-left min-w-0 outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${
-                vertical ? 'w-full' : 'shrink-0'
+              className={`ks-rail-tab ks-rail-anim group flex items-center min-w-0 outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${
+                chips
+                  ? 'ks-chip shrink-0 gap-1.5 px-3 py-1.5 whitespace-nowrap'
+                  : `${vertical ? 'w-full' : 'shrink-0'} gap-2.5 px-3 py-2 text-left`
               } ${isActive ? 'is-active' : ''}`}
             >
               {t.icon && (
@@ -119,8 +165,16 @@ export const SectionRailTabs: React.FC<SectionRailTabsProps> = ({
                 </span>
               )}
               <span className="flex flex-col min-w-0">
-                <span className="text-sm font-medium leading-tight whitespace-nowrap">{t.label}</span>
-                {t.hint && (
+                <span
+                  className={
+                    chips
+                      ? 'text-[13px] font-medium leading-none whitespace-nowrap'
+                      : 'text-sm font-medium leading-tight whitespace-nowrap'
+                  }
+                >
+                  {t.label}
+                </span>
+                {t.hint && !chips && (
                   <span className={`ks-rail-hint ${vertical ? '' : 'hidden sm:block'}`} title={t.hint}>
                     {t.hint}
                   </span>
