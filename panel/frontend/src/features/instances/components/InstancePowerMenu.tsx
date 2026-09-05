@@ -28,10 +28,14 @@ function actionStateOk(a: any, status: string): boolean {
 
 // InstancePowerMenu — power controls for an instance as menu sections
 // (no pill chrome). Rendered at the TOP of the floating instance menu:
-// a Start / Stop / Restart button row first, then the template Actions
-// list below it. Same run/stop semantics + state gating as the old pill;
-// the menu owns dismissal (scrim / Escape), so this only polls while
-// mounted (the menu portal mounts it only while open).
+// a Start / Stop / Restart button row first (with a divider line below
+// it, mirroring the line below Actions), then the template Actions
+// selector below it: a bordered `name | chevron` row where clicking the
+// name runs/stops the shown action and clicking the SVG chevron (resting
+// `<`-style, rotating down) drops down every action. Same run/stop
+// semantics + state gating as the old pill; the menu owns dismissal
+// (scrim / Escape), so this only polls while mounted (the menu portal
+// mounts it only while open).
 const InstancePowerMenu: React.FC = () => {
   const { id } = useParams();
   const instanceId = Number(id);
@@ -41,6 +45,10 @@ const InstancePowerMenu: React.FC = () => {
   const [error, setError] = useState('');
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [stopPending, setStopPending] = useState<string | null>(null);
+  // Selector state: which action the bordered row shows, and whether the
+  // full action list is dropped down beneath it.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [actionsOpen, setActionsOpen] = useState(false);
   const permissions = useAuthStore((s) => s.permissions);
 
   // Template actions ride on the instance config (same source the home-page
@@ -143,6 +151,29 @@ const InstancePowerMenu: React.FC = () => {
     }
   };
 
+  // Displayed selector action: the running action wins, then the last
+  // picked one, then the first row (stale ids fall through to [0]).
+  const displayedAction: any | null =
+    templateActions.find((t: any) => t.id === (runningActionId || selectedId)) ?? templateActions[0] ?? null;
+  const dIsRunning = !!displayedAction && workflowInFlight && runningActionId === displayedAction.id;
+  const dIsBusy = !!displayedAction && busyAction === displayedAction.id;
+  const dStopping = dIsRunning && stopPending === displayedAction.id;
+  const dStateOk = displayedAction ? actionStateOk(displayedAction, status) : true;
+  const dDisabled =
+    !displayedAction ||
+    (workflowInFlight && !dIsRunning) ||
+    dIsBusy ||
+    dStopping ||
+    (!dIsRunning && !dStateOk);
+  const dStateHint =
+    displayedAction && !dStateOk && !dIsRunning
+      ? `Available in: ${actionAllowedStates(displayedAction).join(', ')}`
+      : '';
+  const dCustom = displayedAction?.icon_svg ? sanitizeSvgIcon(displayedAction.icon_svg) : '';
+  const dCustomFull = dCustom.trim().toLowerCase().startsWith('<svg');
+  const dIconColor =
+    displayedAction && typeof displayedAction.icon_color === 'string' ? displayedAction.icon_color.trim() : '';
+
   if (!showPowerRow && templateActions.length === 0 && !error) return null;
 
   const menuBtn = (tone: string) =>
@@ -202,6 +233,10 @@ const InstancePowerMenu: React.FC = () => {
           )}
         </div>
       )}
+      {/* Divider below Start / Stop / Restart — same hairline as below Actions. */}
+      {showPowerRow && (error || templateActions.length > 0) && (
+        <div className="mx-3 mt-3 border-t border-white/10" aria-hidden="true" />
+      )}
       {error && (
         <div className="mx-3 mt-2 flex items-start gap-2 rounded-md border border-red-900/40 bg-red-950/90 px-2.5 py-2 text-[11px] leading-snug text-red-200">
           <span className="min-w-0 flex-1 break-words">{error}</span>
@@ -215,60 +250,135 @@ const InstancePowerMenu: React.FC = () => {
           </button>
         </div>
       )}
-      {templateActions.length > 0 && (
+      {templateActions.length > 0 && displayedAction && (
         <div className="px-3 pt-2">
-          <p className="px-1 pb-1 text-[10px] font-medium uppercase tracking-wider text-gray-500">Actions</p>
-          <div role="menu" aria-label="Template actions" className="max-h-48 overflow-y-auto rounded-md border border-white/5">
-            {templateActions.map((a: any) => {
-              const isThisRunning = workflowInFlight && runningActionId === a.id;
-              const isBusy = busyAction === a.id;
-              const stopping = isThisRunning && stopPending === a.id;
-              // State gate: a stopped action only starts in an allowed
-              // state — but the RUNNING action must always stay stoppable.
-              const stateOk = actionStateOk(a, status);
-              const disabled = (workflowInFlight && !isThisRunning) || isBusy || stopping || (!isThisRunning && !stateOk);
-              const stateHint = !stateOk && !isThisRunning ? `Available in: ${actionAllowedStates(a).join(', ')}` : '';
-              const custom = a.icon_svg ? sanitizeSvgIcon(a.icon_svg) : '';
-              const customFull = custom.trim().toLowerCase().startsWith('<svg');
-              const iconColor = typeof a.icon_color === 'string' ? a.icon_color.trim() : '';
-              return (
-                <button
-                  key={a.id}
-                  type="button"
-                  role="menuitem"
-                  onClick={() => runTemplateAction(a.id)}
-                  disabled={disabled}
-                  title={isThisRunning
-                    ? (a.stop_command ? `Stop: runs "${a.stop_command}" inside the container` : 'Stop the running action')
-                    : (stateHint || a.description || a.name || a.id)}
-                  className={`w-full flex flex-col items-start gap-0.5 rounded px-2.5 py-2 text-left transition-all duration-150 hover:translate-x-0.5 active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-x-0 disabled:active:scale-100 ${
-                    isThisRunning ? 'text-red-300 hover:bg-red-900/30' : 'text-emerald-300 hover:bg-emerald-900/30'
-                  }`}
-                >
-                  <span className="text-[13px] font-medium leading-tight inline-flex items-center gap-1.5">
-                    {(isBusy || isThisRunning || stopping) ? (
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3 animate-spin shrink-0" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
-                    ) : custom ? (
-                      customFull ? (
-                        <span className="shrink-0 flex items-center [&>svg]:w-3 [&>svg]:h-3 [&>svg]:block" style={iconColor ? { color: iconColor } : undefined} aria-hidden="true" dangerouslySetInnerHTML={{ __html: custom }} />
-                      ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3 shrink-0" style={iconColor ? { color: iconColor } : undefined} aria-hidden="true" dangerouslySetInnerHTML={{ __html: custom }} />
-                      )
+          <p className="px-1 pb-1 text-[10px] font-medium uppercase tracking-wider text-gray-500">
+            Actions{templateActions.length > 1 ? ` (${templateActions.length})` : ''}
+          </p>
+          {/* Bordered selector: `name | chevron` split by a straight divider
+              line. Clicking the name runs/stops the shown action; clicking
+              the SVG chevron (resting `<`-style, pointing down when open)
+              drops down every action. */}
+          <div className="overflow-hidden rounded-md border border-white/10">
+            <div className="flex items-stretch">
+              <button
+                type="button"
+                onClick={() => runTemplateAction(displayedAction.id)}
+                disabled={dDisabled}
+                title={dIsRunning
+                  ? (displayedAction.stop_command ? `Stop: runs "${displayedAction.stop_command}" inside the container` : 'Stop the running action')
+                  : (dStateHint || displayedAction.description || displayedAction.name || displayedAction.id)}
+                aria-label={dIsRunning ? `Stop action ${displayedAction.name || displayedAction.id}` : `Run action ${displayedAction.name || displayedAction.id}`}
+                className={`min-w-0 flex-1 flex flex-col items-start justify-center gap-0.5 px-2.5 py-2 text-left transition-all duration-150 active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100 ${
+                  dIsRunning ? 'text-red-300 hover:bg-red-900/30' : 'text-emerald-300 hover:bg-emerald-900/30'
+                }`}
+              >
+                <span className="w-full text-[13px] font-medium leading-tight inline-flex items-center gap-1.5">
+                  {(dIsBusy || dIsRunning || dStopping) ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3 animate-spin shrink-0" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+                  ) : dCustom ? (
+                    dCustomFull ? (
+                      <span className="shrink-0 flex items-center [&>svg]:w-3 [&>svg]:h-3 [&>svg]:block" style={dIconColor ? { color: dIconColor } : undefined} aria-hidden="true" dangerouslySetInnerHTML={{ __html: dCustom }} />
                     ) : (
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3 shrink-0" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3" /></svg>
-                    )}
-                    {a.name || a.id}
-                  </span>
-                  {!stateOk && !isThisRunning && (
-                    <span className="text-[10px] uppercase tracking-wide text-gray-500 leading-tight">{stateHint}</span>
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3 shrink-0" style={dIconColor ? { color: dIconColor } : undefined} aria-hidden="true" dangerouslySetInnerHTML={{ __html: dCustom }} />
+                    )
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3 shrink-0" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3" /></svg>
                   )}
-                </button>
-              );
-            })}
-            {workflowInFlight && !runningActionId && (
-              <p className="px-2.5 py-1.5 text-[11px] text-yellow-200/80">
-                A workflow is in progress — actions unlock when it resolves.
-              </p>
+                  <span className="min-w-0 flex-1 truncate">{displayedAction.name || displayedAction.id}</span>
+                </span>
+                {dStateHint && (
+                  <span className="text-[10px] uppercase tracking-wide text-gray-500 leading-tight">{dStateHint}</span>
+                )}
+              </button>
+              <div className="w-px shrink-0 bg-white/10" aria-hidden="true" />
+              <button
+                type="button"
+                onClick={() => setActionsOpen((v) => !v)}
+                aria-expanded={actionsOpen}
+                aria-haspopup="listbox"
+                aria-label={actionsOpen ? 'Collapse actions' : 'Expand actions'}
+                title={actionsOpen ? 'Collapse actions' : 'Show all actions'}
+                className="flex w-10 shrink-0 items-center justify-center text-gray-400 transition-all duration-150 hover:bg-white/10 hover:text-white active:scale-90"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="w-4 h-4 transition-transform duration-200"
+                  style={{ transform: actionsOpen ? 'rotate(0deg)' : 'rotate(-90deg)' }}
+                  aria-hidden="true"
+                >
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </button>
+            </div>
+            {actionsOpen && (
+              <div className="ks-actions-drop-enter border-t border-white/10 bg-black/20">
+                <div role="listbox" aria-label="Template actions" className="max-h-48 overflow-y-auto py-1">
+                  {templateActions.map((a: any) => {
+                    const isThisRunning = workflowInFlight && runningActionId === a.id;
+                    const isBusy = busyAction === a.id;
+                    const stopping = isThisRunning && stopPending === a.id;
+                    // State gate: a stopped action only starts in an allowed
+                    // state — but the RUNNING action must always stay stoppable.
+                    const stateOk = actionStateOk(a, status);
+                    const disabled = (workflowInFlight && !isThisRunning) || isBusy || stopping || (!isThisRunning && !stateOk);
+                    const stateHint = !stateOk && !isThisRunning ? `Available in: ${actionAllowedStates(a).join(', ')}` : '';
+                    const custom = a.icon_svg ? sanitizeSvgIcon(a.icon_svg) : '';
+                    const customFull = custom.trim().toLowerCase().startsWith('<svg');
+                    const iconColor = typeof a.icon_color === 'string' ? a.icon_color.trim() : '';
+                    const selected = a.id === displayedAction.id;
+                    return (
+                      <button
+                        key={a.id}
+                        type="button"
+                        role="option"
+                        aria-selected={selected}
+                        onClick={() => {
+                          setSelectedId(a.id);
+                          setActionsOpen(false);
+                          void runTemplateAction(a.id);
+                        }}
+                        disabled={disabled}
+                        title={isThisRunning
+                          ? (a.stop_command ? `Stop: runs "${a.stop_command}" inside the container` : 'Stop the running action')
+                          : (stateHint || a.description || a.name || a.id)}
+                        className={`w-full flex flex-col items-start gap-0.5 px-2.5 py-2 text-left transition-all duration-150 hover:translate-x-0.5 active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-x-0 disabled:active:scale-100 ${
+                          isThisRunning ? 'text-red-300 hover:bg-red-900/30' : 'text-emerald-300 hover:bg-emerald-900/30'
+                        }${selected ? ' bg-white/5' : ''}`}
+                      >
+                        <span className="text-[13px] font-medium leading-tight inline-flex items-center gap-1.5">
+                          {(isBusy || isThisRunning || stopping) ? (
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3 animate-spin shrink-0" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+                          ) : custom ? (
+                            customFull ? (
+                              <span className="shrink-0 flex items-center [&>svg]:w-3 [&>svg]:h-3 [&>svg]:block" style={iconColor ? { color: iconColor } : undefined} aria-hidden="true" dangerouslySetInnerHTML={{ __html: custom }} />
+                            ) : (
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3 shrink-0" style={iconColor ? { color: iconColor } : undefined} aria-hidden="true" dangerouslySetInnerHTML={{ __html: custom }} />
+                            )
+                          ) : (
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3 shrink-0" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                          )}
+                          {a.name || a.id}
+                        </span>
+                        {!stateOk && !isThisRunning && (
+                          <span className="text-[10px] uppercase tracking-wide text-gray-500 leading-tight">{stateHint}</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+                {workflowInFlight && !runningActionId && (
+                  <p className="px-2.5 py-1.5 text-[11px] text-yellow-200/80">
+                    A workflow is in progress — actions unlock when it resolves.
+                  </p>
+                )}
+              </div>
             )}
           </div>
         </div>
