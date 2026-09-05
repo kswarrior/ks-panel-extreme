@@ -197,7 +197,7 @@ const InstancePowerMenu: React.FC = () => {
               type="button"
               onClick={() => run('start')}
               disabled={busyAny}
-              title={error || 'Start instance'}
+              title="Start instance"
               className={menuBtn('text-emerald-300')}
               aria-label="Start instance"
             >
@@ -212,7 +212,7 @@ const InstancePowerMenu: React.FC = () => {
               type="button"
               onClick={() => run('stop')}
               disabled={busyAny}
-              title={error || 'Stop instance'}
+              title="Stop instance"
               className={menuBtn('text-yellow-300')}
               aria-label="Stop instance"
             >
@@ -227,7 +227,7 @@ const InstancePowerMenu: React.FC = () => {
               type="button"
               onClick={() => run('restart')}
               disabled={busyAny}
-              title={error || 'Restart instance'}
+              title="Restart instance"
               className={menuBtn('text-sky-300')}
               aria-label="Restart instance"
             >
@@ -242,7 +242,7 @@ const InstancePowerMenu: React.FC = () => {
               type="button"
               onClick={() => run('kill')}
               disabled={busyAny}
-              title={error || 'Kill instance now (force-stop, skips graceful shutdown)'}
+              title="Kill instance now (force-stop, skips graceful shutdown)"
               className={menuBtn('text-red-400')}
               aria-label="Kill instance"
             >

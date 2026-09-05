@@ -6,7 +6,7 @@ import InstanceMenu from './InstanceMenu';
 // InstanceMenuFab — the main thing of an instance as a floating square
 // toggle (border-radius 15px) with the wheel-hub glyph. Drag it anywhere
 // over the instance details page; a click (no drag) opens the menu with
-// power controls, template actions and the status row.
+// the status row first, then power controls, then template actions.
 //
 // The square carries four small SVG chevron nudge buttons (left / right /
 // up / down) pinned to its four sides — `< SVG >`-style stepping without
