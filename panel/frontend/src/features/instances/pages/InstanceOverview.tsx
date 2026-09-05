@@ -24,7 +24,6 @@ import {
 import type { ActivityLog } from '@/features/activity/types/activity';
 import InstancePowerMenu from '../components/InstancePowerMenu';
 import InstanceInfoRow from '../components/InstanceInfoRow';
-import InstanceSectionTabs from '../components/InstanceSectionTabs';
 import { KindIcon } from '../components/InstanceFormComponents';
 import { KIND_META, kindKey } from '../types/instanceForm';
 import { AreaChart, DonutChart, type MetricSample } from '@/shared/components/ui/MetricsChart';
@@ -34,7 +33,7 @@ import { PermissionKey, hasPermissionAny } from '@/shared/types/permissions';
 import { useConfirm } from '@/shared/stores/confirmStore';
 import ErrorBoundary from '@/shared/components/ui/ErrorBoundary';
 import { PageActionsPill } from '@/shared/components/ui/PageActionsPill';
-import PageTabsPill from '@/shared/components/ui/PageTabsPill';
+import { SectionRailTabs } from '@/shared/components/ui/SectionRailTabs';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 
 const STATUS_DOT: Record<string, string> = {
@@ -406,52 +405,59 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
         </div>
       </div>
 
-      {/* Desktop section rail — icon + label + hint + live marker per tab,
-          sliding gradient indicator. Phones use the PageTabsPill below. */}
-      <InstanceSectionTabs
+      {/* Section rail — the panel's shared icon+label+hint tab style
+          (same as Security / Database, themed in the Tabs tab): one row
+          on desktop, horizontally scrollable on phones, with live markers
+          (status dot / LIVE pulse / audit count). */}
+      <SectionRailTabs
         ariaLabel="Overview sections"
         active={tab}
         onChange={(id) => setTab(id as TabId)}
         tabs={TAB_ORDER.map((id) => {
+          const meta = TAB_META[id];
           if (id === 'details') {
             return {
               id,
-              label: TAB_META.details.label,
+              label: meta.label,
               hint: 'Status, controls & info',
-              icon: TAB_META.details.icon,
-              marker: 'status' as const,
-              dotClass: dot,
-              markerTitle: `Status: ${statusLabel}`,
+              icon: meta.icon,
+              marker: { kind: 'dot', className: dot, title: `Status: ${statusLabel}` } as const,
             };
           }
           if (id === 'monitoring') {
             return {
               id,
-              label: TAB_META.monitoring.label,
+              label: meta.label,
               hint: isRunning ? 'Streaming live' : 'CPU · RAM · disk',
-              icon: TAB_META.monitoring.icon,
-              marker: (isRunning ? 'live' : 'none') as 'live' | 'none',
-              markerTitle: last?.cpu !== null && last?.cpu !== undefined ? `CPU ${fmtPct(last.cpu)} (live)` : 'Live',
+              icon: meta.icon,
+              marker: isRunning
+                ? ({
+                    kind: 'pulse',
+                    title:
+                      last?.cpu !== null && last?.cpu !== undefined
+                        ? `CPU ${fmtPct(last.cpu)} (live)`
+                        : 'Live',
+                  } as const)
+                : undefined,
             };
           }
           if (id === 'activity') {
             return {
               id,
-              label: TAB_META.activity.label,
+              label: meta.label,
               hint: 'Audit trail',
-              icon: TAB_META.activity.icon,
-              marker: 'count' as const,
-              count: audit?.length ?? null,
-              markerTitle: audit ? `${audit.length} recorded event${audit.length === 1 ? '' : 's'}` : 'Activity',
+              icon: meta.icon,
+              marker:
+                audit !== null
+                  ? ({
+                      kind: 'badge',
+                      text: audit.length,
+                      title: `${audit.length} recorded event${audit.length === 1 ? '' : 's'}`,
+                    } as const)
+                  : undefined,
             };
           }
-          return {
-            id,
-            label: TAB_META.manage.label,
-            hint: 'Rename',
-            icon: TAB_META.manage.icon,
-            marker: 'none' as const,
-          };
+          return { id, label: meta.label, hint: 'Rename', icon: meta.icon, marker: undefined };
         })}
       />
 
@@ -676,26 +682,6 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
         </div>
       )}
 
-      {/* Section tabs — bottom pill like NodeForm's form sections (phones);
-          desktops use the rail above. */}
-      <PageTabsPill ariaLabel="Overview sections" spacer={false} activeLabel={TAB_META[tab].label}>
-        {TAB_ORDER.map((id) => (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            aria-selected={tab === id}
-            onClick={() => setTab(id)}
-            className={`ks-tab shrink-0 flex-1 px-3 py-1.5 rounded text-sm text-center transition flex items-center justify-center gap-1.5 ${tab === id ? 'ks-tab-active' : ''}`}
-          >
-            <span className="inline-flex items-center shrink-0">{TAB_META[id].icon}</span>
-            {TAB_META[id].label}
-          </button>
-        ))}
-      </PageTabsPill>
-      {/* Spacer — reserves scroll room so the fixed bottom pill never
-          covers trailing content. */}
-      <div aria-hidden="true" className="h-24 lg:hidden" />
     </div>
   );
 };

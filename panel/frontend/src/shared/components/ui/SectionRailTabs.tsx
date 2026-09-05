@@ -36,6 +36,9 @@ interface SectionRailTabsProps {
 //     line that grows left → right; inactive items stay transparent with a
 //     hover wash. Item colors reuse the Tabs-tab vars (--ks-tab-*); the
 //     indicator + icon size have their own rail_* knobs in the same tab.
+//     An optional live marker (status dot / LIVE pulse / count badge)
+//     rides at the row's right edge — used by the instance overview for
+//     status, streaming state and audit count.
 export const SectionRailTabs: React.FC<SectionRailTabsProps> = ({
   tabs,
   active,
