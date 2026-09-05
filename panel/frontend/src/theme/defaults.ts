@@ -170,6 +170,16 @@ export const DEFAULT_THEME: Theme = {
     font_size: 14,
     indicator_color: '#ffffff',
     indicator_height: 0,
+    // Scope cards (System page) — line follows the tab text so it stays
+    // visible on any active fill; tile + sweep reproduce the stock look.
+    scope_line_color: 'currentColor',
+    scope_line_height: 2,
+    scope_line_speed: 380,
+    scope_icon_size: 40,
+    // Section rail (Security + Database, shared style).
+    rail_indicator_color: 'currentColor',
+    rail_indicator_height: 2,
+    rail_icon_size: 16,
   },
 
   dropdowns: {

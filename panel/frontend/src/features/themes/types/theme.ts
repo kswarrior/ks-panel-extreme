@@ -112,6 +112,16 @@ export interface ThemeButton {
 // /admin/database, /admin/templates/:id/edit, /admin/nodes/:id/edit, …).
 // `active_*` paints the selected tab; `inactive_*` paints the rest. A thin
 // bottom indicator on the active tab is supported via `indicator_*`.
+//
+// Two page-level tab STYLES extend the base pill look, each with its own
+// themed knobs (all backfilled from DEFAULT so older saved themes keep
+// working):
+//   - `scope_*` — the System page's scope cards (Host vs Panel): two large
+//     cards with an icon tile, explainer + live footnote, and a top line
+//     that sweeps left → right on every selection.
+//   - `rail_*` — the shared section rail used by Security AND Database:
+//     one horizontal icon+label+hint strip with an active pill + growing
+//     bottom indicator, identical on both pages, all breakpoints.
 export interface ThemeTabs {
   active_background: string;
   active_text_color: string;
@@ -126,6 +136,15 @@ export interface ThemeTabs {
   font_size: number;
   indicator_color: string;
   indicator_height: number;
+  // Scope cards (System page).
+  scope_line_color: string;    // top sweep-line fill ('currentColor' = follow tab text)
+  scope_line_height: number;   // px
+  scope_line_speed: number;    // ms — left → right sweep duration
+  scope_icon_size: number;     // px — icon tile edge
+  // Section rail (Security + Database, shared style).
+  rail_indicator_color: string; // active underline fill ('currentColor' = follow tab text)
+  rail_indicator_height: number; // px
+  rail_icon_size: number;        // px — item icon glyph
 }
 
 // Dropdown surface — the frosted panel that pops open from the card 3-dot

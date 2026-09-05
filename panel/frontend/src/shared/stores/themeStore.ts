@@ -895,6 +895,15 @@ function buildVars(theme: Theme, opts?: ApplyOpts): string {
   --ks-tab-font: ${(theme as any).tabs?.font_size ?? 14}px;
   --ks-tab-indicator-color: ${(theme as any).tabs?.indicator_color ?? '#ffffff'};
   --ks-tab-indicator-height: ${(theme as any).tabs?.indicator_height ?? 0}px;
+  /* Scope cards (System page top sweep line + icon tile). */
+  --ks-scope-line: ${(theme as any).tabs?.scope_line_color ?? 'currentColor'};
+  --ks-scope-line-height: ${(theme as any).tabs?.scope_line_height ?? 2}px;
+  --ks-scope-line-speed: ${(theme as any).tabs?.scope_line_speed ?? 380}ms;
+  --ks-scope-icon: ${(theme as any).tabs?.scope_icon_size ?? 40}px;
+  /* Section rail (Security + Database shared style). */
+  --ks-rail-indicator: ${(theme as any).tabs?.rail_indicator_color ?? 'currentColor'};
+  --ks-rail-indicator-height: ${(theme as any).tabs?.rail_indicator_height ?? 2}px;
+  --ks-rail-icon: ${(theme as any).tabs?.rail_icon_size ?? 16}px;
 
   --ks-loading-color: ${l.color};
   --ks-loading-bg: ${l.background};
