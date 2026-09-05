@@ -163,6 +163,13 @@ func (c *Client) tryTunnel(method, path string, reqBody any) (bool, []byte, int,
 	task := TaskForPath(path)
 	route := DecideRoute(mode, task, LoadChannels(c.nodeID), connected)
 	if !route.PreferTunnel {
+		// Strict WSS with tunnel down must not fall back to HTTP when the
+		// operator disabled emergency fallback (Strict). Fail closed here
+		// so the caller surfaces the tunnel error instead of dialing the
+		// port the channel explicitly forbade.
+		if !connected && route.Strict && route.Transport == TransportWSS {
+			return true, nil, 0, fmt.Errorf("edge not connected via WSS tunnel (%s mode task %q prefers WSS for channel %q with fallback disabled)", mode, task, route.ChannelName)
+		}
 		// Port preferred (or tunnel down with auto): dial HTTP first. The
 		// emergency tunnel retry after an HTTP dial failure happens in
 		// emergencyViaTunnel, called by each method's HTTP error branch.
@@ -512,8 +519,19 @@ func (c *Client) InstallStatus(req InstallStatusRequest) (InstallStatusResponse,
 				}
 				return out, nil
 			}
+			// Tunnel connected but tryTunnel declined (dual port-preferred):
+			// fall through to HTTP below. A strict-WSS failure would have
+			// returned handled==true with an error above, so no extra check.
 		} else if IsStrictTunnel(c.connectionMode) {
 			return InstallStatusResponse{}, fmt.Errorf("edge not connected via WSS tunnel (reverse_tunnel mode requires edge to be online)")
+		} else if IsDualMode(NormalizeMode(c.connectionMode)) {
+			// Dual with strict WSS install task and no tunnel must not
+			// fall back to HTTP when fallback is disabled.
+			mode := NormalizeMode(c.connectionMode)
+			route := DecideRoute(mode, TaskInstance, LoadChannels(c.nodeID), false)
+			if route.Strict && route.Transport == TransportWSS {
+				return InstallStatusResponse{}, fmt.Errorf("edge not connected via WSS tunnel (%s mode task %q prefers WSS for channel %q with fallback disabled)", mode, TaskInstance, route.ChannelName)
+			}
 		}
 	}
 	endpoint := c.baseURL + "/api/edge/install"
@@ -1440,8 +1458,19 @@ func (c *Client) edgeUpdateGet(path string, out any) error {
 				}
 				return nil
 			}
+			// Tunnel connected but tryTunnel declined (dual port-preferred):
+			// fall through to HTTP below. Strict-WSS failures return
+			// handled==true with an error above.
 		} else if IsStrictTunnel(c.connectionMode) {
 			return fmt.Errorf("edge not connected via WSS tunnel (reverse_tunnel mode requires edge to be online)")
+		} else if IsDualMode(NormalizeMode(c.connectionMode)) {
+			// Dual with strict WSS node task (update RPCs route as node)
+			// and no tunnel must not fall back to HTTP when disabled.
+			mode := NormalizeMode(c.connectionMode)
+			route := DecideRoute(mode, TaskForPath(path), LoadChannels(c.nodeID), false)
+			if route.Strict && route.Transport == TransportWSS {
+				return fmt.Errorf("edge not connected via WSS tunnel (%s mode task %q prefers WSS for channel %q with fallback disabled)", mode, TaskForPath(path), route.ChannelName)
+			}
 		}
 	}
 	endpoint := c.baseURL + path

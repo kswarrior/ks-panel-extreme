@@ -64,8 +64,12 @@ func UsesTunnel(m string) bool {
 }
 
 // UsesDirect reports whether the mode keeps a direct HTTP address dialable.
+// Empty/unknown fail closed to direct HTTP (mirrors DecideRoute default).
 func UsesDirect(m string) bool {
 	m = NormalizeMode(m)
+	if m == "" {
+		return true
+	}
 	return m == "direct" || m == "local_port" || m == "both" || m == "local_both"
 }
 
@@ -93,7 +97,9 @@ func TaskForPath(path string) string {
 		return TaskFiles
 	case strings.Contains(p, "/health"),
 		strings.Contains(p, "/inspect"),
-		strings.Contains(p, "/heartbeat"):
+		strings.Contains(p, "/heartbeat"),
+		strings.Contains(p, "/update"),
+		strings.Contains(p, "/reinstall"):
 		return TaskNode
 	case strings.Contains(p, "/lifecycle"),
 		strings.Contains(p, "/install"),
