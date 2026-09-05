@@ -1,10 +1,19 @@
 import React, { useCallback, useRef } from 'react';
 
+export type RailMarker =
+  | { kind: 'dot'; className?: string; title?: string }
+  | { kind: 'pulse'; title?: string }
+  | { kind: 'badge'; text: string | number; title?: string };
+
 export interface RailTabDef {
   id: string;
   label: string;
   hint?: string;
   icon?: React.ReactNode;
+  /** Optional live marker at the row's right edge: status dot (dynamic
+      colour), LIVE pulse (semantic emerald), or count badge (neutral
+      wash inheriting the tab text so it reads on any active fill). */
+  marker?: RailMarker;
 }
 
 interface SectionRailTabsProps {
@@ -98,6 +107,31 @@ export const SectionRailTabs: React.FC<SectionRailTabsProps> = ({
                   </span>
                 )}
               </span>
+              {t.marker?.kind === 'dot' && (
+                <span
+                  aria-hidden="true"
+                  title={t.marker.title}
+                  className={`ml-0.5 shrink-0 w-2 h-2 rounded-full ${t.marker.className ?? 'bg-gray-500'}`}
+                />
+              )}
+              {t.marker?.kind === 'pulse' && (
+                <span
+                  aria-hidden="true"
+                  title={t.marker.title ?? 'Live'}
+                  className="ml-0.5 shrink-0 relative flex w-2 h-2"
+                >
+                  <span className="absolute inline-flex w-full h-full rounded-full bg-emerald-400 opacity-60 animate-ping" />
+                  <span className="relative inline-flex rounded-full w-2 h-2 bg-emerald-400" />
+                </span>
+              )}
+              {t.marker?.kind === 'badge' && (
+                <span
+                  title={t.marker.title}
+                  className="ml-0.5 shrink-0 min-w-[20px] text-center text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded-full bg-black/10"
+                >
+                  {t.marker.text}
+                </span>
+              )}
               {/* Bottom indicator — grows left → right on select. */}
               <span aria-hidden="true" className="ks-rail-bar" data-active={isActive} />
             </button>
