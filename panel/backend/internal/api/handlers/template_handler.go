@@ -179,6 +179,54 @@ func validateTemplateSpec(spec map[string]any) error {
 					if !validAction {
 						return fmt.Errorf("spec.actions[%d].steps[%d]: unknown action %q", i, j, stepAction)
 					}
+					// Same required-field contract as spec.install[] so an
+					// invalid action step fails fast at template save time
+					// instead of at runtime on the edge (which reports the
+					// same messages from compileStep).
+					switch stepAction {
+					case "download":
+						if getString(sm, "url") == "" || getString(sm, "filename") == "" {
+							return fmt.Errorf("spec.actions[%d].steps[%d]: download requires url and filename", i, j)
+						}
+					case "extract":
+						if getString(sm, "archive") == "" || getString(sm, "dest") == "" {
+							return fmt.Errorf("spec.actions[%d].steps[%d]: extract requires archive and dest", i, j)
+						}
+					case "move":
+						if getString(sm, "from") == "" || getString(sm, "to") == "" {
+							return fmt.Errorf("spec.actions[%d].steps[%d]: move requires from and to", i, j)
+						}
+					case "write":
+						if getString(sm, "path") == "" {
+							return fmt.Errorf("spec.actions[%d].steps[%d]: write requires path", i, j)
+						}
+					case "chmod":
+						if getString(sm, "path") == "" || getString(sm, "command") == "" {
+							return fmt.Errorf("spec.actions[%d].steps[%d]: chmod requires path and command (mode)", i, j)
+						}
+					case "mkdir":
+						if getString(sm, "path") == "" {
+							return fmt.Errorf("spec.actions[%d].steps[%d]: mkdir requires path", i, j)
+						}
+					case "git_clone":
+						if getString(sm, "url") == "" || getString(sm, "dest") == "" {
+							return fmt.Errorf("spec.actions[%d].steps[%d]: git_clone requires url and dest", i, j)
+						}
+					case "pip_install":
+						if getString(sm, "command") == "" {
+							return fmt.Errorf("spec.actions[%d].steps[%d]: pip_install requires command", i, j)
+						}
+					case "npm_install":
+						// command is optional for npm_install
+					case "http_check":
+						if getString(sm, "url") == "" {
+							return fmt.Errorf("spec.actions[%d].steps[%d]: http_check requires url", i, j)
+						}
+					case "shell":
+						if getString(sm, "command") == "" {
+							return fmt.Errorf("spec.actions[%d].steps[%d]: shell requires command", i, j)
+						}
+					}
 				}
 			}
 		}
@@ -188,7 +236,7 @@ func validateTemplateSpec(spec map[string]any) error {
 }
 
 func validateTemplate(req templateDTO) (string, error) {
-	if req.Name == "" {
+	if strings.TrimSpace(req.Name) == "" {
 		return "", errString("template name is required")
 	}
 	if !validKinds[req.Kind] {

@@ -5,11 +5,22 @@ import type { InstancePageSubPage } from '@/features/instance-pages/types/instan
 export type DriverKind = 'docker' | 'lxd' | 'kvm' | 'multipass';
 
 export function stripUnit(v: string): string {
-  const m = v.match(/^\s*(\d+)\s*([MGmg]?)\s*$/);
+  // Strip memory units (M/G, optional B/iB suffix) AND a trailing time
+  // suffix (s) so both "2G" -> "2048" (MB) and "30s" -> "30" (seconds)
+  // round-trip. Handles decimals ("1.5G" -> "1536") so serializeSpec never
+  // emits corrupt "1.5GM" / "30ss" values.
+  const s = (v ?? '').trim();
+  if (s === '') return '';
+  const m = s.match(/^(\d+(?:\.\d+)?)\s*([MGmg]?)(?:[Bb])?(?:[Ii][Bb]?)?\s*[Ss]?$/);
   if (!m) return v;
-  let n = parseInt(m[1], 10);
+  // A trailing "s" with no M/G unit is a time value (healthcheck) — the
+  // numeric part is already correct, don't scale.
+  if (/s$/i.test(s) && !m[2]) {
+    return String(m[1].includes('.') ? Math.round(parseFloat(m[1])) : parseInt(m[1], 10));
+  }
+  let n = parseFloat(m[1]);
   if (m[2].toLowerCase() === 'g') n *= 1024;
-  return String(n);
+  return String(Math.round(n));
 }
 
 export interface PortMapping {

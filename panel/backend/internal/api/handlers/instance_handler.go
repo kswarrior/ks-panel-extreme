@@ -1411,7 +1411,9 @@ func portBindingKey(ip string, host int, proto string) string {
 // opaque `ports` key. It tolerates the shapes the edge driver accepts
 // (host/host_port, container/container_port, protocol, ip) and skips entries
 // without a valid host port so a malformed template surfaces downstream at
-// the edge instead of here.
+// the edge instead of here. Host ports arrive as JSON numbers AND as strings
+// (the template form serialises ports as strings) — both are accepted,
+// otherwise string ports silently bypassed collision detection.
 func extractRequestedPorts(cfg map[string]any) []requestedPort {
 	raw, ok := cfg["ports"].([]any)
 	if !ok || len(raw) == 0 {
@@ -1423,24 +1425,9 @@ func extractRequestedPorts(cfg map[string]any) []requestedPort {
 		if !ok {
 			continue
 		}
-		host := 0
-		switch v := m["host"].(type) {
-		case float64:
-			host = int(v)
-		case int:
-			host = v
-		case int64:
-			host = int(v)
-		}
+		host := portNumberFrom(m["host"])
 		if host == 0 {
-			switch v := m["host_port"].(type) {
-			case float64:
-				host = int(v)
-			case int:
-				host = v
-			case int64:
-				host = int(v)
-			}
+			host = portNumberFrom(m["host_port"])
 		}
 		if host < 1 || host > 65535 {
 			continue
@@ -1450,6 +1437,35 @@ func extractRequestedPorts(cfg map[string]any) []requestedPort {
 		out = append(out, requestedPort{host: host, proto: proto, ip: ip})
 	}
 	return out
+}
+
+// portNumberFrom coerces a JSON-decoded port value (float64/int/int64 from
+// hand-written manifests, string from the template form) into an int.
+// Returns 0 when the value is missing or not a valid port.
+func portNumberFrom(v any) int {
+	switch n := v.(type) {
+	case float64:
+		if n >= 1 && n <= 65535 {
+			return int(n)
+		}
+	case float32:
+		if n >= 1 && n <= 65535 {
+			return int(n)
+		}
+	case int:
+		if n >= 1 && n <= 65535 {
+			return n
+		}
+	case int64:
+		if n >= 1 && n <= 65535 {
+			return int(n)
+		}
+	case string:
+		if p, err := strconv.Atoi(strings.TrimSpace(n)); err == nil && p >= 1 && p <= 65535 {
+			return p
+		}
+	}
+	return 0
 }
 
 // findPortCollision reports whether any wanted host binding is already taken
