@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useInstance } from '@/shared/hooks/useInstance';
-import { getMetrics } from '@/features/instances/api/instanceAdvanced';
-import type { MetricsSnapshot } from '@/shared/types/instanceAdvanced';
+import { useLiveMetrics } from '../hooks/useLiveMetrics';
 import { KindIcon } from './InstanceFormComponents';
 import { KIND_META, kindKey } from '../types/instanceForm';
 
@@ -54,12 +53,6 @@ function useUptime(sinceISO: string | undefined | null, status: string): string 
   return `${s}s`;
 }
 
-// num coerces a metrics blob field to a finite number or null.
-function num(v: unknown): number | null {
-  const n = typeof v === 'number' ? v : parseFloat(String(v ?? ''));
-  return Number.isFinite(n) && n >= 0 ? n : null;
-}
-
 // fmtBytesShort renders bytes compactly for the narrow menu row.
 function fmtBytesShort(n: number | null): string {
   if (n === null || !Number.isFinite(n) || n < 0) return '—';
@@ -76,38 +69,6 @@ function fmtBytesShort(n: number | null): string {
 function fmtPctShort(n: number | null): string {
   if (n === null || !Number.isFinite(n)) return '—';
   return `${Number.isInteger(n) ? n : Math.round(n * 10) / 10}%`;
-}
-
-// useLiveMetrics polls the instance's live metrics endpoint (same feed the
-// Home page tiles read) every 4s while `live`. Failures keep the last
-// snapshot — a 403 (no metrics/home page on the instance) or a stopped
-// instance simply leaves values at '—'.
-function useLiveMetrics(instanceId: number, live: boolean): MetricsSnapshot | null {
-  const [m, setM] = useState<MetricsSnapshot | null>(null);
-  useEffect(() => {
-    if (!Number.isFinite(instanceId) || !live) {
-      setM(null);
-      return;
-    }
-    let dead = false;
-    const load = async () => {
-      try {
-        const s = await getMetrics(instanceId);
-        if (!dead) setM(s ?? null);
-      } catch {
-        /* keep last snapshot; unavailable reads as '—' */
-      }
-    };
-    void load();
-    const t = window.setInterval(() => {
-      void load();
-    }, 4000);
-    return () => {
-      dead = true;
-      window.clearInterval(t);
-    };
-  }, [instanceId, live]);
-  return m;
 }
 
 const InstanceInfoRow: React.FC = () => {
@@ -132,12 +93,12 @@ const InstanceInfoRow: React.FC = () => {
 
   // Live resource stats — only polled while running; anything missing
   // renders as '—'.
-  const metrics = useLiveMetrics(instanceId, isRunning);
-  const cpuV = isRunning ? (num(metrics?.cpu_pct) ?? num(metrics?.cpu)) : null;
-  const memUsed = isRunning ? (num(metrics?.mem_used) ?? num(metrics?.mem)) : null;
-  const memTotal = isRunning ? num(metrics?.mem_total) : null;
-  const diskUsed = isRunning ? (num(metrics?.disk_used) ?? num(metrics?.disk)) : null;
-  const diskTotal = isRunning ? num(metrics?.disk_total) : null;
+  const { latest: metrics } = useLiveMetrics(instanceId, isRunning);
+  const cpuV = metrics?.cpu ?? null;
+  const memUsed = metrics?.memUsed ?? null;
+  const memTotal = metrics?.memTotal ?? null;
+  const diskUsed = metrics?.diskUsed ?? null;
+  const diskTotal = metrics?.diskTotal ?? null;
 
   return (
     <div className="shrink-0 px-3 pt-2">

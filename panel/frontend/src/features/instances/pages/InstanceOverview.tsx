@@ -11,8 +11,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useInstance } from '@/shared/hooks/useInstance';
-import { getMetrics } from '@/features/instances/api/instanceAdvanced';
-import type { MetricsSnapshot } from '@/shared/types/instanceAdvanced';
+import { useLiveMetrics, type LivePoint } from '../hooks/useLiveMetrics';
 import {
   destroyInstance,
   reinstallInstance,
@@ -28,11 +27,6 @@ import { useAuthStore } from '@/shared/stores/authStore';
 import { PermissionKey, hasPermissionAny } from '@/shared/types/permissions';
 import { useConfirm } from '@/shared/stores/confirmStore';
 import ErrorBoundary from '@/shared/components/ui/ErrorBoundary';
-
-function num(v: unknown): number | null {
-  const n = typeof v === 'number' ? v : parseFloat(String(v ?? ''));
-  return Number.isFinite(n) && (n as number) >= 0 ? (n as number) : null;
-}
 
 const STATUS_DOT: Record<string, string> = {
   running: 'bg-emerald-400',
@@ -54,13 +48,6 @@ const STATUS_LABEL: Record<string, string> = {
   destroyed: 'Destroyed',
 };
 
-interface HistPoint {
-  t: number;
-  cpu: number | null;
-  ramPct: number | null;
-  diskPct: number | null;
-}
-
 type TabId = 'resources' | 'details' | 'manage';
 
 const TABS: { id: TabId; label: string }[] = [
@@ -81,7 +68,6 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
   const { instance, loading, error, reload } = useInstance(instanceId);
   const permissions = useAuthStore((s) => s.permissions);
   const [tab, setTab] = useState<TabId>('resources');
-  const [hist, setHist] = useState<HistPoint[]>([]);
   const [rename, setRename] = useState('');
   const [renameBusy, setRenameBusy] = useState(false);
   const [renameMsg, setRenameMsg] = useState('');
@@ -113,53 +99,12 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
     if (instance) setRename(instance.display_name || '');
   }, [instance?.display_name]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Live metrics stream (same feed the Home tiles read): one 4s poll feeds
-  // both the graph history ring (cap 60 ≈ 4 min) and the latest byte
-  // counts. Failures keep the last snapshot — unavailable reads as '—'.
-  useEffect(() => {
-    if (!Number.isFinite(instanceId) || !isRunning) {
-      setHist([]);
-      setLiveBytes({ memUsed: null, memTotal: null, diskUsed: null, diskTotal: null });
-      return;
-    }
-    let dead = false;
-    const poll = async () => {
-      try {
-        const m: MetricsSnapshot = await getMetrics(instanceId);
-        if (dead) return;
-        const memUsed = num(m?.mem_used ?? m?.mem);
-        const memTotal = num(m?.mem_total);
-        const diskUsed = num(m?.disk_used ?? m?.disk);
-        const diskTotal = num(m?.disk_total);
-        const pt: HistPoint = {
-          t: Date.now(),
-          cpu: num(m?.cpu_pct ?? m?.cpu),
-          ramPct:
-            memUsed !== null && memTotal !== null && memTotal > 0
-              ? (memUsed / memTotal) * 100
-              : num(m?.mem_pct),
-          diskPct:
-            diskUsed !== null && diskTotal !== null && diskTotal > 0
-              ? (diskUsed / diskTotal) * 100
-              : num(m?.disk_pct),
-        };
-        setHist((h) => [...h.slice(-59), pt]);
-        setLiveBytes({ memUsed, memTotal, diskUsed, diskTotal });
-      } catch {
-        /* keep last snapshot; tiles read as unavailable */
-      }
-    };
-    void poll();
-    const t = window.setInterval(() => {
-      void poll();
-    }, 4000);
-    return () => {
-      dead = true;
-      window.clearInterval(t);
-    };
-  }, [instanceId, isRunning]);
+  // Live metrics stream (shared hook — same feed the Home tiles and the
+  // floating menu's status row read): history ring for graphs plus the
+  // latest point for tiles, with 403 backoff when the instance exposes no
+  // metrics page.
+  const { latest: last, history: hist } = useLiveMetrics(instanceId, isRunning);
 
-  const last = hist.length > 0 ? hist[hist.length - 1] : null;
   const cpuSamples = useMemo<MetricSample[]>(
     () => hist.filter((h) => h.cpu !== null).map((h) => ({ t: h.t, v: h.cpu as number })),
     [hist],
@@ -171,14 +116,13 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
   const recentCPU = useMemo(() => hist.map((h) => h.cpu ?? 0), [hist]);
   const recentRAM = useMemo(() => hist.map((h) => h.ramPct ?? 0), [hist]);
 
-  // Latest absolute byte counts ride along with the same poll above (the
-  // history ring stores percentages only).
-  const [liveBytes, setLiveBytes] = useState<{
-    memUsed: number | null;
-    memTotal: number | null;
-    diskUsed: number | null;
-    diskTotal: number | null;
-  }>({ memUsed: null, memTotal: null, diskUsed: null, diskTotal: null });
+  // Latest absolute byte counts ride along on the newest history point.
+  const liveBytes = {
+    memUsed: last?.memUsed ?? null,
+    memTotal: last?.memTotal ?? null,
+    diskUsed: last?.diskUsed ?? null,
+    diskTotal: last?.diskTotal ?? null,
+  };
 
   if (loading) {
     return (

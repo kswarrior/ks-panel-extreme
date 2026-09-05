@@ -42,17 +42,6 @@ function toPoint(m: MetricsSnapshot): LivePoint {
   };
 }
 
-const EMPTY_PT: LivePoint = {
-  t: 0,
-  cpu: null,
-  ramPct: null,
-  diskPct: null,
-  memUsed: null,
-  memTotal: null,
-  diskUsed: null,
-  diskTotal: null,
-};
-
 // useLiveMetrics polls the instance's live metrics endpoint (the same feed
 // the Home page tiles read) while `live`, keeping a history ring for
 // graphs plus the latest point for tiles.
