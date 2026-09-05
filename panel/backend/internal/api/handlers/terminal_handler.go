@@ -154,12 +154,24 @@ func TerminalHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	// Dual-transport both/local_both always keep a dialable address, so the
 	// terminal falls through to the direct dial below (port path) regardless
-	// of tunnel state — the emergency path for shell access.
+	// of tunnel state — the emergency path for shell access — unless the
+	// instance task is pinned to strict WSS with fallback disabled. In that
+	// case dialing the port would violate the operator's explicit routing,
+	// so fail closed like edge.Client.tryTunnel does.
 	// local_wss with active tunnel could also dial via tunnel, but the
 	// loopback HTTP dial still works (edge listens on 127.0.0.1), so we
 	// keep the direct path for now and only guard the disconnected case
 	// where fallback is unavailable. The direct dial below will attempt
 	// 127.0.0.1:<port> which succeeds when the edge is on the same host.
+	if mode == "both" || mode == "local_both" {
+		if !tunnel.Global().IsConnected(node.ID) {
+			route := edge.DecideRoute(mode, edge.TaskInstance, edge.LoadChannels(node.ID), false)
+			if route.Strict && route.Transport == edge.TransportWSS {
+				http.Error(w, "edge not connected via WSS tunnel (terminal task prefers WSS with fallback disabled)", http.StatusBadGateway)
+				return
+			}
+		}
+	}
 
 	// Edge WS URL. Token, kind and name are query-escaped so a future token
 	// format that includes special characters does not break the URL or leak
