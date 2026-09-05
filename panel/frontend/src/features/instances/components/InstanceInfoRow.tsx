@@ -80,6 +80,12 @@ const InstanceInfoRow: React.FC = () => {
     instance?.started_at || instance?.updated_at || instance?.created_at,
     instance?.status ?? '',
   );
+  const isRunning = instance?.status === 'running';
+
+  // Live resource stats — only polled while running; anything missing
+  // renders as '—'. Hooks stay above the early returns so hook order is
+  // stable across loading → loaded renders.
+  const { latest: metrics } = useLiveMetrics(instanceId, isRunning);
 
   if (!Number.isFinite(instanceId)) return null;
   if (!instance && !loading) return null;
@@ -89,11 +95,6 @@ const InstanceInfoRow: React.FC = () => {
   const k = instance ? kindKey(instance.kind) : 'unknown';
   const typeLabel = (instance && KIND_META[k]?.label) || instance?.kind || '—';
   const typeBadge = (instance && KIND_META[k]?.badge) || '';
-  const isRunning = instance?.status === 'running';
-
-  // Live resource stats — only polled while running; anything missing
-  // renders as '—'.
-  const { latest: metrics } = useLiveMetrics(instanceId, isRunning);
   const cpuV = metrics?.cpu ?? null;
   const memUsed = metrics?.memUsed ?? null;
   const memTotal = metrics?.memTotal ?? null;
