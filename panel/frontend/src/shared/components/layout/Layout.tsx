@@ -4,8 +4,7 @@ import Header from './Header';
 import Sidebar from './Sidebar';
 import ThemedBackground from './ThemedBackground';
 import ErrorBoundary from '@/shared/components/ui/ErrorBoundary';
-import InstancePowerBar from '@/features/instances/components/InstancePowerBar';
-import InstanceInfoBar from '@/features/instances/components/InstanceInfoBar';
+import InstanceMenuFab from '@/features/instances/components/InstanceMenuFab';
 
 const Layout: React.FC = () => {
   const location = useLocation();
@@ -17,9 +16,8 @@ const Layout: React.FC = () => {
     return /^\/instances\/\d+/.test(location.pathname);
   }, [location.pathname]);
 
-  // Instance pills are nodes-style fixed top-right PageActionsPills owned by
-  // the components themselves (power on top, info stacked below) — Layout
-  // just mounts them inside the instance panel, no positioning wrappers.
+  // The main thing of an instance lives in the floating draggable menu
+  // (InstanceMenuFab) — no floating pills overlay the details pages.
 
   useEffect(() => {
     setSidebarOpen(false);
@@ -50,18 +48,9 @@ const Layout: React.FC = () => {
           onToggleSidebar={toggleSidebar}
           inInstancePanel={inInstancePanel}
         />
-        {/* Instance pills — nodes-style fixed top-right (power + info stacked),
-            each with its own auto-hide inside PageActionsPill. */}
-        {inInstancePanel && (
-          <>
-            <ErrorBoundary resetKey={location.pathname} label="instance-info">
-              <InstanceInfoBar />
-            </ErrorBoundary>
-            <ErrorBoundary resetKey={location.pathname} label="instance-power">
-              <InstancePowerBar variant="pill" />
-            </ErrorBoundary>
-          </>
-        )}
+        {/* Floating draggable instance menu (power, actions, status).
+            Mounted for instance details only. */}
+        {inInstancePanel && <InstanceMenuFab />}
         {/* Page scroll area. */}
         <div className="relative flex-1 min-h-0 flex">
           <main className="flex-1 min-w-0 overflow-auto p-4 sm:p-6">

@@ -1,5 +1,6 @@
 import React from 'react';
 import GlassCard from '@/shared/components/ui/Card';
+import PageTabsPill from '@/shared/components/ui/PageTabsPill';
 
 export interface FormTabDef {
   id: string;
@@ -53,8 +54,9 @@ export const FormTabsDesktop: React.FC<FormTabsProps> = ({ tabs, value, onChange
   );
 };
 
-// FormTabsMobile renders the phone bottom bar (fixed) + the spacer that
-// reserves scroll room so the bar never covers trailing content. Render
+// FormTabsMobile renders the phone bottom bar as a PageTabsPill (fixed +
+// `>` / `<` toggle + auto-off, same system as the actions pill) + the spacer
+// that reserves scroll room so the bar never covers trailing content. Render
 // inside <FormPage> (bar) — the spacer may live inside or just after the
 // form; fixed positioning makes the bar location irrelevant.
 export const FormTabsMobile: React.FC<FormTabsProps & { spacer?: boolean }> = ({
@@ -65,27 +67,22 @@ export const FormTabsMobile: React.FC<FormTabsProps & { spacer?: boolean }> = ({
   spacer = true,
 }) => {
   return (
-    <>
-      <nav aria-label={ariaLabel} className="lg:hidden fixed inset-x-4 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-30">
-        <div className="ks-card rounded-md p-1.5 flex gap-1 overflow-x-auto scrollbar-hide">
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              role="tab"
-              aria-selected={value === t.id}
-              disabled={t.disabled}
-              onClick={() => !t.disabled && onChange(t.id)}
-              className={`ks-tab shrink-0 flex-1 px-3 py-1.5 rounded text-sm text-center transition flex items-center justify-center gap-1.5 ${value === t.id ? 'ks-tab-active' : ''} ${t.disabled ? 'opacity-50' : ''}`}
-            >
-              {t.icon && <span className="inline-flex items-center shrink-0">{t.icon}</span>}
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </nav>
-      {spacer && <div aria-hidden="true" className="h-24 lg:hidden" />}
-    </>
+    <PageTabsPill ariaLabel={ariaLabel} spacer={spacer} activeLabel={tabs.find((t) => t.id === value)?.label}>
+      {tabs.map((t) => (
+        <button
+          key={t.id}
+          type="button"
+          role="tab"
+          aria-selected={value === t.id}
+          disabled={t.disabled}
+          onClick={() => !t.disabled && onChange(t.id)}
+          className={`ks-tab shrink-0 flex-1 px-3 py-1.5 rounded text-sm text-center transition flex items-center justify-center gap-1.5 ${value === t.id ? 'ks-tab-active' : ''} ${t.disabled ? 'opacity-50' : ''}`}
+        >
+          {t.icon && <span className="inline-flex items-center shrink-0">{t.icon}</span>}
+          {t.label}
+        </button>
+      ))}
+    </PageTabsPill>
   );
 };
 

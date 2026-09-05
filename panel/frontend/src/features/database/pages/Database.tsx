@@ -10,6 +10,7 @@ import type { DatabaseEngineInfo, DatabaseEngineSwitchResponse } from '@/shared/
 import type { DatabaseInfo, DatabaseTable } from '@/features/system/types/system';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import PageTabsPill from '@/shared/components/ui/PageTabsPill';
 import { MetaRow, StatTile, DeltaPill, Meter, Sparkline, PragmaTile, ChangeDatabaseCard, VerifyStatusCard } from '../components/DatabaseComponents';
 import DatabaseBackupTab from '../components/DatabaseBackupTab';
 import type { DatabaseTabId } from '../types/database';
@@ -55,7 +56,7 @@ const DatabasePage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!live || tab !== 'overview') return;
+    if (!live || (tab !== 'overview' && tab !== 'tables')) return;
     load();
     const id = window.setInterval(load, REFRESH_MS);
     return () => window.clearInterval(id);
@@ -102,7 +103,8 @@ const DatabasePage: React.FC = () => {
       {info && (
         <div className="space-y-4">
           {/* Title lives in the app header ("Database"). Internal tabs stay
-              in-page; backup Create/Upload live in the top-right pill. */}
+              in-page; backup Create/Upload live in the top-right pill.
+              Desktop row only — phones get the bottom tabs pill. */}
           {tab === 'backup' && (
             <PageActionsPill>
               <button
@@ -129,7 +131,7 @@ const DatabasePage: React.FC = () => {
               </button>
             </PageActionsPill>
           )}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 mb-4">
+          <div className="hidden lg:flex items-center gap-2 overflow-x-auto pb-1 mb-4">
             {DATABASE_TABS.map((t) => (
               <button
                 key={t.id}
@@ -225,6 +227,11 @@ const DatabasePage: React.FC = () => {
             </div>
           </div>
 
+          </>
+          )}
+
+          {tab === 'tables' && !info.engine_not_supported && (
+          <>
           <div className="glass-card rounded-xl p-4 space-y-3">
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="text-sm font-semibold text-white">Tables</h3>
@@ -247,16 +254,23 @@ const DatabasePage: React.FC = () => {
                       <th className="text-left py-2 pr-2 font-medium">Table</th>
                       <th className="text-right py-2 px-2 font-medium">Rows</th>
                       <th className="text-right py-2 px-2 font-medium">Size</th>
-                      <th className="text-right py-2 px-2 font-medium">Indexes</th>
-                      <th className="text-left py-2 pl-2 font-medium">Trend</th>
+                      {/* Phones show Table / Rows / Size only — Indexes + Trend
+                          return on sm+ so the name column never gets squeezed
+                          into a few chars per line. */}
+                      <th className="hidden sm:table-cell text-right py-2 px-2 font-medium">Indexes</th>
+                      <th className="hidden sm:table-cell text-left py-2 pl-2 font-medium">Trend</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5">
                     {filteredTables.map((t) => (
                       <tr key={t.name} className="hover:bg-white/[0.03]">
                         <td className="py-2 pr-2 align-top">
-                          <div className="font-mono text-gray-200 text-xs break-all">{t.name}</div>
-                          <div className="text-[10px] text-gray-500 font-mono">{t.column_count} cols · {t.index_count} idx</div>
+                          {/* break-words (NOT break-all): the name only wraps
+                              when it must overflow — break-all shattered it
+                              into ~4 chars per line on phones. min-w keeps
+                              the column readable; overflow scrolls instead. */}
+                          <div className="font-mono text-gray-200 text-xs break-words min-w-[7rem]">{t.name}</div>
+                          <div className="text-[10px] text-gray-500 font-mono whitespace-nowrap">{t.column_count} cols · {t.index_count} idx</div>
                         </td>
                         <td className="py-2 px-2 align-top text-right tabular-nums text-gray-300 whitespace-nowrap">
                           {t.row_count.toLocaleString()} <DeltaPill delta={t.row_delta} mono />
@@ -265,8 +279,8 @@ const DatabasePage: React.FC = () => {
                           <div>{formatBytes(t.size_bytes)}</div>
                           <div className="mt-1 w-24 ml-auto"><Meter pct={(t.size_bytes / maxSize) * 100} /></div>
                         </td>
-                        <td className="py-2 px-2 align-top text-right tabular-nums text-gray-300 whitespace-nowrap">{formatBytes(t.index_bytes)}</td>
-                        <td className="py-2 pl-2 align-top min-w-[6rem]">
+                        <td className="hidden sm:table-cell py-2 px-2 align-top text-right tabular-nums text-gray-300 whitespace-nowrap">{formatBytes(t.index_bytes)}</td>
+                        <td className="hidden sm:table-cell py-2 pl-2 align-top min-w-[6rem]">
                           <Sparkline values={history.current[t.name] || []} color="#34d399" />
                         </td>
                       </tr>
@@ -275,6 +289,20 @@ const DatabasePage: React.FC = () => {
                 </table>
               </div>
             )}
+          </div>
+          </>
+          )}
+
+          {tab === 'tables' && info.engine_not_supported && (
+          <>
+          <div className="glass-card rounded-xl">
+            <h3 className="text-sm font-semibold text-white mb-1 inline-flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-sky-400" />
+              {info.engine} — tables unavailable
+            </h3>
+            <p className="text-sm text-gray-400">
+              No inspector is implemented for <span className="font-mono text-gray-300">{info.engine}</span> yet.
+            </p>
           </div>
           </>
           )}
@@ -307,6 +335,26 @@ const DatabasePage: React.FC = () => {
           <DatabaseBackupTab />
           </>
           )}
+
+          {/* Phone tabs — bottom pill with the same `>` / `<` toggle + auto-off
+              system as the actions pill (PageTabsPill). */}
+          <PageTabsPill
+            ariaLabel="Database sections"
+            activeLabel={DATABASE_TABS.find((t) => t.id === tab)?.label}
+          >
+            {DATABASE_TABS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={tab === t.id}
+                onClick={() => setTab(t.id)}
+                className={`ks-tab shrink-0 flex-1 px-3 py-1.5 rounded text-sm text-center transition flex items-center justify-center gap-1.5 ${tab === t.id ? 'ks-tab-active' : ''}`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </PageTabsPill>
         </div>
       )}
     </div>

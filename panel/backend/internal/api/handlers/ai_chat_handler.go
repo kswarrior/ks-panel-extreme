@@ -242,14 +242,22 @@ func AIConfigHandler(w http.ResponseWriter, r *http.Request) {
 // AITestHandler sends one tiny probe message through the configured
 // provider so the admin can verify base URL / key / model before saving
 // it for the whole panel. POST {"target":"fallback"} probes the fallback
-// triple instead. Never logs or returns any key.
+// triple instead. The probe accepts optional unsaved-form overrides
+// (base_url/api_key/model_id/ollama_mode): when present they replace the
+// stored values for this probe only, so "Test connection" checks what the
+// admin just typed instead of what is already saved. Blank api_key (""
+// or "*") keeps the stored secret. Never logs or returns any key.
 func AITestHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 	var tReq struct {
-		Target string `json:"target"`
+		Target     string  `json:"target"`
+		BaseURL    *string `json:"base_url"`
+		APIKey     *string `json:"api_key"`
+		ModelID    *string `json:"model_id"`
+		OllamaMode *bool   `json:"ollama_mode"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&tReq)
 	con, err := repository.OpenDB()
@@ -264,7 +272,7 @@ func AITestHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if strings.TrimSpace(tReq.Target) == "fallback" {
-		if !cfg.FallbackConfigured() {
+		if !cfg.FallbackConfigured() && tReq.BaseURL == nil && tReq.ModelID == nil {
 			writeJSONStatus(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "fallback provider is not configured"})
 			return
 		}
@@ -272,6 +280,24 @@ func AITestHandler(w http.ResponseWriter, r *http.Request) {
 		fb.BaseURL, fb.APIKey, fb.ModelID, fb.OllamaMode =
 			cfg.FallbackBaseURL, cfg.FallbackAPIKey, cfg.FallbackModelID, cfg.FallbackOllamaMode
 		cfg = &fb
+	}
+	// Overlay any unsaved-form values supplied by the caller. Pointers
+	// distinguish "field absent" (keep stored) from "field present".
+	if tReq.BaseURL != nil {
+		cfg.BaseURL = strings.TrimRight(strings.TrimSpace(*tReq.BaseURL), "/")
+	}
+	if tReq.ModelID != nil {
+		cfg.ModelID = strings.TrimSpace(*tReq.ModelID)
+	}
+	if tReq.APIKey != nil && *tReq.APIKey != "" && *tReq.APIKey != "*" {
+		cfg.APIKey = *tReq.APIKey
+	}
+	if tReq.OllamaMode != nil {
+		cfg.OllamaMode = *tReq.OllamaMode
+	}
+	if v := strings.TrimSpace(cfg.BaseURL); v != "" && !strings.HasPrefix(v, "http://") && !strings.HasPrefix(v, "https://") {
+		writeJSONStatus(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "base_url must start with http:// or https://"})
+		return
 	}
 	if strings.TrimSpace(cfg.BaseURL) == "" || strings.TrimSpace(cfg.ModelID) == "" {
 		writeJSONStatus(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "base URL and model ID are required"})

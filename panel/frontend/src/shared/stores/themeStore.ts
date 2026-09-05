@@ -2205,13 +2205,16 @@ ${String(f.toggle_thumb_shadow || '').trim() ? `\n.ks-toggle .ks-toggle__thumb {
 }
 
 /* ------------------------------------------------------------------
-   Theme Studio → Pill. The fixed top-right action cluster. The
-   triple-class selector (0,3,0) beats the base .glass-card/.ks-card
-   surface rule (0,1,0) so the Pill tab owns the surface; tokens that
-   still equal the Card default resolve to the live card vars inside
-   buildSectionVars, so the Card tab keeps cascading until overridden.
+   Theme Studio → Pill. The fixed top-right action cluster AND the phone
+   bottom tabs pill (PageTabsPill shares the same pill section, so one
+   Pill tab paints both pills). The triple-class selector (0,3,0) beats the
+   base .glass-card/.ks-card surface rule (0,1,0) so the Pill tab owns the
+   surface; tokens that still equal the Card default resolve to the live
+   card vars inside buildSectionVars, so the Card tab keeps cascading until
+   overridden.
    ------------------------------------------------------------------ */
-.ks-card.ks-pill-anim.ks-actions-pill {
+.ks-card.ks-pill-anim.ks-actions-pill,
+.ks-card.ks-pill-anim.ks-tabs-pill {
   background-color: var(--ks-pill-bg) !important;
   border-color: var(--ks-pill-border) !important;
   border-width: var(--ks-pill-border-width) !important;
@@ -2221,22 +2224,27 @@ ${String(f.toggle_thumb_shadow || '').trim() ? `\n.ks-toggle .ks-toggle__thumb {
   backdrop-filter: blur(var(--ks-pill-blur)) !important;
   -webkit-backdrop-filter: blur(var(--ks-pill-blur)) !important;
 }
-/* Action buttons inside the pill take their size from the Pill tab
+/* Action buttons inside either pill take their size from the Pill tab
    (scoped var override — the Tabs tab still drives .ks-tab elsewhere). */
-.ks-actions-pill .ks-tab {
+.ks-actions-pill .ks-tab,
+.ks-tabs-pill .ks-tab {
   --ks-tab-px: var(--ks-pill-tab-px);
   --ks-tab-py: var(--ks-pill-tab-py);
   --ks-tab-font: var(--ks-pill-tab-font);
 }
-/* Chevron collapse toggle ("<" / ">"). */
-.ks-actions-pill .ks-pill-toggle { color: var(--ks-pill-text) !important; }
-.ks-actions-pill .ks-pill-toggle svg {
+/* Chevron collapse toggle ("<" / ">") — shared by both pills. */
+.ks-actions-pill .ks-pill-toggle,
+.ks-tabs-pill .ks-pill-toggle { color: var(--ks-pill-text) !important; }
+.ks-actions-pill .ks-pill-toggle svg,
+.ks-tabs-pill .ks-pill-toggle svg {
   width: var(--ks-pill-icon-size) !important;
   height: var(--ks-pill-icon-size) !important;
 }
 /* Collapsing content: gap + duration follow the Pill tab. The motion
-   itself (slide/fade/scale) is applied inline by PageActionsPill. */
-.ks-actions-pill .ks-pill-content {
+   itself (slide/fade/scale) is applied inline by PageActionsPill /
+   PageTabsPill. */
+.ks-actions-pill .ks-pill-content,
+.ks-tabs-pill .ks-pill-content {
   gap: var(--ks-pill-gap) !important;
   transition-duration: var(--ks-pill-anim-duration) !important;
 }`;

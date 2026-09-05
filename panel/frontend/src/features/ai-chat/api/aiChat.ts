@@ -250,8 +250,19 @@ export async function updateAIConfig(payload: AIConfigUpdate): Promise<AIConfigV
   return res.data;
 }
 
-export async function testAIConfig(target?: 'fallback'): Promise<AITestResult> {
-  const res = await client.post<AITestResult>('/api/ai/test', target ? { target } : {}, { timeout: 35000 });
+export interface AITestInput {
+  target?: 'fallback';
+  base_url?: string;
+  api_key?: string;
+  model_id?: string;
+  ollama_mode?: boolean;
+}
+
+export async function testAIConfig(input?: AITestInput | 'fallback'): Promise<AITestResult> {
+  let body: AITestInput = {};
+  if (typeof input === 'string') body = { target: input };
+  else if (input) body = input;
+  const res = await client.post<AITestResult>('/api/ai/test', body, { timeout: 35000 });
   return res.data;
 }
 

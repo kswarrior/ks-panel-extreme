@@ -4,6 +4,7 @@ import { createNode, updateNode, listNodes, probeNode, setupLocalNode, listNodeW
 import type { Node, CreateNodeResult, ProbeResult, SetupLocalResult } from '@/shared/types/node';
 import FormPage from '@/shared/components/forms/FormPage';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import PageTabsPill from '@/shared/components/ui/PageTabsPill';
 import GlassCard from '@/shared/components/ui/Card';
 import GlassField, { glassFieldClass } from '@/shared/components/ui/Field';
 import GlassModal from '@/shared/components/ui/Modal';
@@ -1235,28 +1236,25 @@ const NodeForm: React.FC = () => {
             {error && <p className="text-sm text-red-400">{error}</p>}
         </div>
       </div>
-      {/* Fixed to the viewport bottom on phones so the bar never rides
-          up when a tab's content is short. inset-x-4 lines it up with the
-          page padding; safe-area keeps it above the home indicator. */}
-      <nav aria-label="Node form sections" className="lg:hidden fixed inset-x-4 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-30">
-        <div className="ks-card rounded-md p-1.5 flex gap-1 overflow-x-auto scrollbar-hide">
-          {NODEFORM_TABS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              role="tab"
-              aria-selected={tab === t.id}
-              onClick={() => setTab(t.id)}
-              className={`ks-tab shrink-0 flex-1 px-3 py-1.5 rounded text-sm text-center transition flex items-center justify-center gap-1.5 ${tab === t.id ? 'ks-tab-active' : ''}`}
-            >
-              <span className="inline-flex items-center shrink-0">{NODE_TAB_META[t.id].icon}</span>
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </nav>
+      {/* Phone tabs — bottom pill with the same `>` / `<` toggle + auto-off
+          system as the actions pill (PageTabsPill). */}
+      <PageTabsPill ariaLabel="Node form sections" spacer={false} activeLabel={NODEFORM_TABS.find((t) => t.id === tab)?.label}>
+        {NODEFORM_TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            onClick={() => setTab(t.id)}
+            className={`ks-tab shrink-0 flex-1 px-3 py-1.5 rounded text-sm text-center transition flex items-center justify-center gap-1.5 ${tab === t.id ? 'ks-tab-active' : ''}`}
+          >
+            <span className="inline-flex items-center shrink-0">{NODE_TAB_META[t.id].icon}</span>
+            {t.label}
+          </button>
+        ))}
+      </PageTabsPill>
       </FormPage>
-      {/* Spacer — reserves scroll room so the fixed bottom tab bar never
+      {/* Spacer — reserves scroll room so the fixed bottom pill never
           covers trailing form content. */}
       <div aria-hidden="true" className="h-24 lg:hidden" />
 

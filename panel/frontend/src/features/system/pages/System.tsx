@@ -14,6 +14,7 @@ import type {
 } from '@/features/system/types/system';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import GlassModal from '@/shared/components/ui/Modal';
+import PageTabsPill from '@/shared/components/ui/PageTabsPill';
 import { useUpdateInfo } from '../hooks/useUpdateInfo';
 import HostPanel from '../components/HostPanel';
 import PanelTab from '../components/PanelTab';
@@ -92,8 +93,10 @@ const System: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Title lives in the app header ("System"); internal Host/Panel tabs stay in-page. */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 mb-4">
+      {/* Title lives in the app header ("System"); internal Host/Panel tabs stay in-page.
+          Desktop row only — phones get the bottom tabs pill (same `>` / `<`
+          toggle + auto-off system as the actions pill). */}
+      <div className="hidden lg:flex items-center gap-2 overflow-x-auto pb-1 mb-4">
         <button
           type="button"
           onClick={() => setTab('host')}
@@ -140,6 +143,26 @@ const System: React.FC = () => {
         </div>
       )}
       </div>
+
+      {/* Phone tabs — bottom pill with the same `>` / `<` toggle + auto-off
+          system as the actions pill (PageTabsPill). */}
+      <PageTabsPill
+        ariaLabel="System sections"
+        activeLabel={tab === 'host' ? 'Host' : 'Panel'}
+      >
+        {(['host', 'panel'] as const).map((id) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={tab === id}
+            onClick={() => setTab(id)}
+            className={`ks-tab shrink-0 flex-1 px-3 py-1.5 rounded text-sm text-center transition flex items-center justify-center gap-1.5 ${tab === id ? 'ks-tab-active' : ''}`}
+          >
+            {id === 'host' ? 'Host' : 'Panel'}
+          </button>
+        ))}
+      </PageTabsPill>
     </div>
   );
 };

@@ -3,6 +3,7 @@ import { securitySnapshot, securityToggleAttack, securityGetConfig } from '@/sha
 import type { SecuritySnapshot as SecuritySnapshotT, SecurityConfig } from '@/features/security/types/security';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import GlassCard from '@/shared/components/ui/Card';
+import PageTabsPill from '@/shared/components/ui/PageTabsPill';
 import Firewall from '@/features/security/components/Firewall';
 import DDoS from '@/features/security/components/DDoS';
 import Authority from '@/features/security/components/Authority';
@@ -120,7 +121,9 @@ const Security: React.FC = () => {
           {/* Title lives in the app header ("Security"); internal side-nav tabs stay in-page. */}
 
           <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4">
-            <GlassCard className="lg:sticky lg:top-4 self-start">
+            {/* Desktop tabs — vertical rail on the left (node pattern).
+                Phones get the bottom tabs pill instead. */}
+            <GlassCard className="hidden lg:block lg:sticky lg:top-4 self-start">
               <nav className="flex lg:flex-col gap-1 overflow-x-auto">
                 {SECURITY_TABS.map((t) => (
                   <button
@@ -192,6 +195,27 @@ const Security: React.FC = () => {
               )}
             </div>
           </div>
+
+          {/* Phone tabs — bottom pill with the same `>` / `<` toggle + auto-off
+              system as the actions pill (PageTabsPill). */}
+          <PageTabsPill
+            ariaLabel="Security sections"
+            activeLabel={SECURITY_TABS.find((t) => t.id === tab)?.label}
+          >
+            {SECURITY_TABS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={tab === t.id}
+                onClick={() => setTab(t.id)}
+                className={`ks-tab shrink-0 flex-1 px-3 py-1.5 rounded text-sm text-center transition flex items-center justify-center gap-1.5 ${tab === t.id ? 'ks-tab-active' : ''}`}
+              >
+                <span className="inline-flex items-center shrink-0">{t.icon}</span>
+                {t.label}
+              </button>
+            ))}
+          </PageTabsPill>
         </div>
       )}
     </div>

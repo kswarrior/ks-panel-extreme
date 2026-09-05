@@ -221,6 +221,8 @@ export const DEFAULT_THEME: Theme = {
     animation_duration: 300,
     auto_hide_enabled: true,
     auto_show_delay: 2500,
+    tabs_menu_width: 'shrink',
+    tabs_menu_fixed_width: 240,
   },
 
   // Forms / Components / Utilities / Cards seed values REPRODUCE the stock

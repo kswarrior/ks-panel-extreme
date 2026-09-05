@@ -28,6 +28,7 @@ import {
 } from '@/features/themes/components/ThemeStudio';
 import GlassCard from '@/shared/components/ui/Card';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import PageTabsPill from '@/shared/components/ui/PageTabsPill';
 
 // renderLoadingPreview renders a preview of the loading animation based on
 // the theme's loading configuration. This is used in the live preview area
@@ -356,26 +357,17 @@ const ThemeStudio: React.FC = () => {
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>
         </button>
         {canManageGlobal && (
-          <>
-            <button
-              type="button"
-              onClick={() => setSaveScope('local')}
-              title="Save to this browser (localStorage). Only this user sees this theme."
-              className={`ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition ${saveScope === 'local' ? 'ks-tab-active' : ''}`}
-              style={PILL_TAB_STYLE}
-            >
-              Local
-            </button>
-            <button
-              type="button"
-              onClick={() => setSaveScope('global')}
-              title="Publish to the server. Every user will see this theme on the areas/pages you assign it to."
-              className={`ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition ${saveScope === 'global' ? 'ks-tab-active' : ''}`}
-              style={PILL_TAB_STYLE}
-            >
-              Global
-            </button>
-          </>
+          <select
+            value={saveScope}
+            onChange={(e) => setSaveScope(e.target.value as 'local' | 'global')}
+            title={saveScope === 'local' ? 'Save to this browser (localStorage). Only this user sees this theme.' : 'Publish to the server. Every user will see this theme on the areas/pages you assign it to.'}
+            aria-label="Save scope"
+            className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition"
+            style={PILL_TAB_STYLE}
+          >
+            <option value="local">Local</option>
+            <option value="global">Global</option>
+          </select>
         )}
         <button
           type="button"
@@ -441,12 +433,14 @@ const ThemeStudio: React.FC = () => {
             ))}
           </nav>
         </GlassCard>
+        {/* Content column — NO outer card here (node pattern): every tab
+            section renders its own GlassCard, so a wrapper would nest a
+            card inside a card. */}
         <div className="space-y-4 min-w-0">
-              <GlassCard className="space-y-4">
-              {/* Fixed-height options box — every studio control scrolls inside
-                  (same pattern as the API-key permission list) so the page
-                  itself never stretches on small laptops. */}
-              <div className="max-h-[70vh] overflow-y-auto pr-1">
+          {/* Fixed-height options box — every studio control scrolls inside
+              (same pattern as the API-key permission list) so the page
+              itself never stretches on small laptops. */}
+          <div className="max-h-[70vh] overflow-y-auto pr-1 space-y-4">
             {tab === 'theme' && (
               <ThemeTab
                 name={name}
@@ -477,15 +471,28 @@ const ThemeStudio: React.FC = () => {
             {tab === 'customCSS' && <CustomCSSTab draft={draft} patch={patch} />}
             {tab === 'market' && <MarketTab />}
             {tab === 'history' && <HistoryTab />}
-              </div>
-          </GlassCard>
-        </div>
           </div>
         </div>
-
-
-
       </div>
+      {/* Phone tabs — bottom pill with the same `>` / `<` toggle + auto-off
+          system as the actions pill (PageTabsPill). flex-none +
+          whitespace-nowrap so 19 tabs scroll horizontally instead of
+          squeezing/wrapping. */}
+      <PageTabsPill ariaLabel="Theme studio sections" activeLabel={TABS.find((t) => t.key === tab)?.label}>
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.key}
+            onClick={() => setTab(t.key)}
+            className={`ks-tab shrink-0 flex-none whitespace-nowrap px-3 py-1.5 rounded text-sm text-center transition flex items-center justify-center gap-1.5 ${tab === t.key ? 'ks-tab-active' : ''}`}
+          >
+            <span className="inline-flex items-center shrink-0">{t.icon}</span>
+            <span className="whitespace-nowrap leading-none">{t.label}</span>
+          </button>
+        ))}
+      </PageTabsPill>
     </div>
   );
 };

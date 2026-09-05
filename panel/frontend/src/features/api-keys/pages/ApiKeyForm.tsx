@@ -5,6 +5,7 @@ import type { ApiKey, CreateApiKeyResult } from '@/shared/types/apiKey';
 import type { Permission, User } from '@/shared/types/user';
 import FormPage from '@/shared/components/forms/FormPage';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import PageTabsPill from '@/shared/components/ui/PageTabsPill';
 import GlassCard from '@/shared/components/ui/Card';
 import GlassField from '@/shared/components/ui/Field';
 import GlassModal from '@/shared/components/ui/Modal';
@@ -656,26 +657,25 @@ const ApiKeyForm: React.FC = () => {
           {error && <p className="text-sm text-red-400">{error}</p>}
         </div>
       </div>
-        {/* Phone tabs — fixed to viewport bottom (node pattern). */}
-        <nav aria-label="API key form sections" className="lg:hidden fixed inset-x-4 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-30">
-          <div className="ks-card rounded-md p-1.5 flex gap-1 overflow-x-auto scrollbar-hide">
-            {APIKEY_TABS.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                role="tab"
-                aria-selected={tab === t.id}
-                onClick={() => setTab(t.id)}
-                className={`ks-tab shrink-0 flex-1 px-3 py-1.5 rounded text-sm text-center transition flex items-center justify-center gap-1.5 ${tab === t.id ? 'ks-tab-active' : ''}`}
-              >
-                <span className="inline-flex items-center shrink-0">{APIKEY_TAB_META[t.id].icon}</span>
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </nav>
+        {/* Phone tabs — bottom pill with the same `>` / `<` toggle + auto-off
+            system as the actions pill (PageTabsPill). */}
+        <PageTabsPill ariaLabel="API key form sections" spacer={false} activeLabel={APIKEY_TABS.find((t) => t.id === tab)?.label}>
+          {APIKEY_TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={tab === t.id}
+              onClick={() => setTab(t.id)}
+              className={`ks-tab shrink-0 flex-1 px-3 py-1.5 rounded text-sm text-center transition flex items-center justify-center gap-1.5 ${tab === t.id ? 'ks-tab-active' : ''}`}
+            >
+              <span className="inline-flex items-center shrink-0">{APIKEY_TAB_META[t.id].icon}</span>
+              {t.label}
+            </button>
+          ))}
+        </PageTabsPill>
       </FormPage>
-      {/* Spacer — reserves scroll room so the fixed bottom tab bar never
+      {/* Spacer — reserves scroll room so the fixed bottom pill never
           covers trailing form content (node pattern). */}
       <div aria-hidden="true" className="h-24 lg:hidden" />
       {/* Token disclosure modal after creation */}

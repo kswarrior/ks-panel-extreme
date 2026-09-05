@@ -558,8 +558,8 @@ const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Right cluster: notification bell + profile. Always visible so the
-       * header stays a normal single row on every page (instance power
-       * controls now live in the details page's PageActionsPill). */}
+       * header stays a normal single row on every page (the main thing of
+       * an instance lives in the floating instance menu). */}
       <div className="flex items-center gap-2">
           <NotificationBell />
           <RichMenu

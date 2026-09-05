@@ -15,10 +15,11 @@ export type {
   S3ConfigView,
 } from '@/shared/api/admin';
 
-export type DatabaseTabId = 'overview' | 'change' | 'backup';
+export type DatabaseTabId = 'overview' | 'tables' | 'change' | 'backup';
 
 export const DATABASE_TABS: Array<{ id: DatabaseTabId; label: string }> = [
   { id: 'overview', label: 'Overview' },
+  { id: 'tables', label: 'Tables' },
   { id: 'change', label: 'Switch' },
   { id: 'backup', label: 'Backup' },
 ];

@@ -450,6 +450,10 @@ export interface ThemeCards {
 // sizing, its collapse animation, and the auto-off → auto-on timing.
 export type PillAnimation = 'slide' | 'fade' | 'scale' | 'none';
 
+// Upward phone-tabs menu width mode: 'shrink' hugs the longest tab label,
+// 'fixed' uses tabs_menu_fixed_width (clamped to the viewport).
+export type PillTabsMenuWidth = 'shrink' | 'fixed';
+
 export interface ThemePill {
   background: string;       // pill surface fill (default mirrors card → inherits live Card tab)
   border_color: string;     // hex or rgba
@@ -468,6 +472,8 @@ export interface ThemePill {
   animation_duration: number; // ms
   auto_hide_enabled: boolean; // false = pill never auto-offs, toggle still works
   auto_show_delay: number;    // ms idle after auto-off before it slides back on
+  tabs_menu_width: PillTabsMenuWidth; // phone Tabs Pill upward-menu width mode
+  tabs_menu_fixed_width: number;      // px — used when tabs_menu_width === 'fixed'
 }
 
 export interface Theme {

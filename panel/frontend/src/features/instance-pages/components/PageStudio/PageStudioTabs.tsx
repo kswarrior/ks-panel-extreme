@@ -9,6 +9,7 @@ import React from 'react';
 import type { PageStudioTabId } from '@/features/instance-pages/types/pageStudio';
 import { PAGE_STUDIO_TABS } from '@/features/instance-pages/types/pageStudio';
 import GlassCard from '@/shared/components/ui/Card';
+import PageTabsPill from '@/shared/components/ui/PageTabsPill';
 
 interface PageStudioTabsProps {
   tab: PageStudioTabId;
@@ -87,28 +88,28 @@ export const PageStudioTabs: React.FC<PageStudioTabsProps> = ({ tab, onChange, i
           })}
         </nav>
       </GlassCard>
-      {/* Phone tabs — fixed to viewport bottom (node pattern). */}
-      <nav aria-label="Page studio sections" className="lg:hidden fixed inset-x-4 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-30">
-        <div className="ks-card rounded-md p-1.5 flex gap-1 overflow-x-auto scrollbar-hide">
-          {items.map((t) => {
-            const disabled = isBuiltin && t.id !== 'preview';
-            return (
-              <button
-                key={t.id}
-                type="button"
-                role="tab"
-                aria-selected={tab === t.id}
-                onClick={() => !disabled && onChange(t.id)}
-                disabled={disabled}
-                className={`ks-tab shrink-0 flex-1 px-3 py-1.5 rounded text-sm text-center transition flex items-center justify-center gap-1.5 ${tab === t.id ? 'ks-tab-active' : ''} ${disabled ? 'opacity-50' : ''}`}
-              >
-                <span className="inline-flex items-center shrink-0">{t.icon}</span>
-                {t.label}
-              </button>
-            );
-          })}
-        </div>
-      </nav>
+      {/* Phone tabs — bottom pill with the same `>` / `<` toggle + auto-off
+          system as the actions pill (PageTabsPill). No spacer here: the
+          caller renders its own. */}
+      <PageTabsPill ariaLabel="Page studio sections" spacer={false} activeLabel={items.find((t) => t.id === tab)?.label}>
+        {items.map((t) => {
+          const disabled = isBuiltin && t.id !== 'preview';
+          return (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={tab === t.id}
+              onClick={() => !disabled && onChange(t.id)}
+              disabled={disabled}
+              className={`ks-tab shrink-0 flex-1 px-3 py-1.5 rounded text-sm text-center transition flex items-center justify-center gap-1.5 ${tab === t.id ? 'ks-tab-active' : ''} ${disabled ? 'opacity-50' : ''}`}
+            >
+              <span className="inline-flex items-center shrink-0">{t.icon}</span>
+              {t.label}
+            </button>
+          );
+        })}
+      </PageTabsPill>
     </>
   );
 };

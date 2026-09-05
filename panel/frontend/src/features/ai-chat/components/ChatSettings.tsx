@@ -121,17 +121,47 @@ const ChatSettings: React.FC = () => {
     setTestOut('');
     setError('');
     try {
-      const res = await testAIConfig();
+      // Probe the values currently in the form (including the just-typed,
+      // still-unsaved key) so Test works before Save. Blank key falls back
+      // to the stored secret server-side.
+      const res = await testAIConfig({
+        base_url: cfg.base_url,
+        api_key: apiKey || undefined,
+        model_id: cfg.model_id,
+        ollama_mode: cfg.ollama_mode,
+      });
       setTestOut(res.ok ? `OK (${res.model || 'model'}): ${res.reply || 'ok'}` : `Failed: ${res.error || 'unknown error'}`);
     } catch (err: unknown) {
       const r = (err as { response?: { data?: unknown } })?.response;
-      setTestOut(`Failed: ${typeof r?.data === 'string' ? r.data : 'test request failed'}`);
+      const d = r?.data;
+      const msg =
+        typeof d === 'string'
+          ? d
+          : d && typeof d === 'object' && typeof (d as { error?: unknown }).error === 'string'
+            ? ((d as { error: string }).error as string)
+            : 'test request failed';
+      setTestOut(`Failed: ${msg}`);
     } finally {
       setTesting(false);
     }
   };
 
   const onSave = async () => {
+    // Client-side guard with a field-specific message: the chat + test
+    // endpoints both require base_url AND model_id, so saving without them
+    // leaves the panel in "not configured yet" even though base URL + key
+    // look "ok". Catch it here before the PUT.
+    const baseTrimmed = cfg.base_url.trim().replace(/\/+$/, '');
+    const modelTrimmed = cfg.model_id.trim();
+    if (!baseTrimmed || !modelTrimmed) {
+      const missing = [!baseTrimmed ? 'Base URL' : '', !modelTrimmed ? 'Model ID' : ''].filter(Boolean).join(' + ');
+      setError(`${missing} is required — fill it above, then Save all. Chat stays "not configured yet" until both are saved.`);
+      return;
+    }
+    if (!baseTrimmed.startsWith('http://') && !baseTrimmed.startsWith('https://')) {
+      setError('Base URL must start with http:// or https:// (e.g. https://api.openai.com/v1).');
+      return;
+    }
     setSaving(true);
     setError('');
     setSuccess('');
@@ -160,7 +190,9 @@ const ChatSettings: React.FC = () => {
     }
   };
 
-  const configured = cfg.base_url.trim() !== '' && cfg.model_id.trim() !== '';
+  const baseMissing = cfg.base_url.trim() === '';
+  const modelMissing = cfg.model_id.trim() === '';
+  const configured = !baseMissing && !modelMissing;
 
   return (
     <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
@@ -172,7 +204,16 @@ const ChatSettings: React.FC = () => {
         </p>
         {!configured && (
           <p className="text-[11px] leading-relaxed text-amber-300">
-            Not configured — set Base URL + Model ID below, then Test connection.
+            {baseMissing && modelMissing
+              ? 'Not configured — set Base URL + Model ID below, then Save all (chat needs both saved). Test checks what you typed.'
+              : baseMissing
+                ? 'Base URL is missing — set it below, then Save all. Chat stays "not configured yet" until Base URL + Model ID are both saved.'
+                : 'Model ID is missing — set it below (e.g. gpt-4o-mini for OpenAI, llama3.1 for Ollama), then Save all.'}
+          </p>
+        )}
+        {configured && !keyConfigured && !apiKey && !ollamaMode && (
+          <p className="text-[11px] leading-relaxed text-amber-300">
+            No API key stored — OpenAI-compatible providers will reject chats with 401 until a key is entered + saved (Ollama usually needs none).
           </p>
         )}
       </section>
