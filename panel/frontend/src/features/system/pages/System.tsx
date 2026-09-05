@@ -14,7 +14,7 @@ import type {
 } from '@/features/system/types/system';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import GlassModal from '@/shared/components/ui/Modal';
-import PageTabsPill from '@/shared/components/ui/PageTabsPill';
+import SystemTabs from '../components/SystemTabs';
 import { useUpdateInfo } from '../hooks/useUpdateInfo';
 import HostPanel from '../components/HostPanel';
 import PanelTab from '../components/PanelTab';
