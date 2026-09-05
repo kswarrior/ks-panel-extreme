@@ -1513,21 +1513,6 @@ function buildSectionVars(theme: Theme): { vars: string } {
   --ks-formcard-radius: ${cd.form_border_radius === D.cards.form_border_radius ? 'var(--ks-card-radius)' : `${num(cd.form_border_radius, 5)}px`};
   --ks-formcard-padding: ${cd.form_padding === D.cards.form_padding ? 'var(--ks-card-padding)' : `${num(cd.form_padding, 15)}px`},
 
-  /* ---------------- Theme Studio: Pill (top-right actions) ---------------- */
-  --ks-pill-bg: ${eqTok((theme as any).pill?.background, D.pill.background, 'var(--ks-card-bg)')};
-  --ks-pill-border: ${eqTok((theme as any).pill?.border_color, D.pill.border_color, 'var(--ks-card-border)')};
-  --ks-pill-border-width: ${num((theme as any).pill?.border_width, D.pill.border_width)}px;
-  --ks-pill-radius: ${(theme as any).pill?.border_radius === D.pill.border_radius ? 'var(--ks-card-radius)' : `${num((theme as any).pill?.border_radius, 5)}px`};
-  --ks-pill-padding: ${num((theme as any).pill?.padding, D.pill.padding)}px;
-  --ks-pill-blur: ${(theme as any).pill?.backdrop_blur === D.pill.backdrop_blur ? 'var(--ks-card-blur)' : `${num((theme as any).pill?.backdrop_blur, 1)}px`};
-  --ks-pill-shadow: ${eqTok((theme as any).pill?.shadow, D.pill.shadow, 'var(--ks-card-shadow)')};
-  --ks-pill-text: ${safeCssValue((theme as any).pill?.text_color, '#e5e7eb')};
-  --ks-pill-gap: ${num((theme as any).pill?.gap, D.pill.gap)}px;
-  --ks-pill-tab-px: ${num((theme as any).pill?.tab_padding_x, D.pill.tab_padding_x)}px;
-  --ks-pill-tab-py: ${num((theme as any).pill?.tab_padding_y, D.pill.tab_padding_y)}px;
-  --ks-pill-tab-font: ${num((theme as any).pill?.font_size, D.pill.font_size)}px;
-  --ks-pill-icon-size: ${num((theme as any).pill?.icon_size, D.pill.icon_size)}px;
-  --ks-pill-anim-duration: ${clampNum((theme as any).pill?.animation_duration, D.pill.animation_duration, 0, 2000)}ms;`,
   };
 }
 
