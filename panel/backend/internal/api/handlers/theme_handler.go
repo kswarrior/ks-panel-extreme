@@ -205,6 +205,10 @@ func createThemeFromJSON(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "id, name and spec are required", http.StatusBadRequest)
 		return
 	}
+	if !json.Valid(dto.Spec) {
+		http.Error(w, "spec must be valid JSON", http.StatusBadRequest)
+		return
+	}
 
 	repo, closeFn := openThemeRepo()
 	if repo == nil {
@@ -218,8 +222,11 @@ func createThemeFromJSON(w http.ResponseWriter, r *http.Request) {
 		Name:        dto.Name,
 		Description: dto.Description,
 		Spec:        dto.Spec,
-		Builtin:     dto.Builtin,
-		CreatedBy:   uid,
+		// Builtin is server-owned: client-supplied builtin=true would make
+		// the row visible to every own-scope role (AdminList keeps builtins
+		// unfiltered), so force false like every other create path.
+		Builtin:   false,
+		CreatedBy: uid,
 	})
 	if err != nil {
 		log.Println("CreateTheme error:", err)
@@ -251,6 +258,10 @@ func UpdateThemeHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "name and spec are required", http.StatusBadRequest)
 		return
 	}
+	if !json.Valid(dto.Spec) {
+		http.Error(w, "spec must be valid JSON", http.StatusBadRequest)
+		return
+	}
 
 	repo, closeFn := openThemeRepo()
 	if repo == nil {
@@ -258,6 +269,23 @@ func UpdateThemeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer closeFn()
+
+	// Ownership scope (migration 054): THEMES_OWN without THEMES_ALL may
+	// only edit themes they authored; builtins stay editable only for
+	// ALL/umbrella holders (they have no real owner).
+	if uid, _ := UserIDFromContext(r); uid != 0 {
+		if cur, gerr := repo.GetTheme(id); gerr == nil && cur != nil && !cur.Builtin && cur.OwnerID != 0 && cur.OwnerID != uid {
+			if con, perr := repository.OpenDB(); perr == nil {
+				chk := permissions.NewChecker(con)
+				hasOwn, hasAll, _ := chk.HasScope(uid, permissions.ThemesOwnKey, permissions.ThemesAllKey, permissions.ManageThemesKey)
+				con.Close()
+				if !hasAll && hasOwn {
+					http.Error(w, "forbidden: own-scope may only edit themes you authored", http.StatusForbidden)
+					return
+				}
+			}
+		}
+	}
 
 	if cur, cerr := repo.GetTheme(id); cerr == nil && cur != nil {
 		var editor int64
@@ -296,6 +324,21 @@ func DeleteThemeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer closeFn()
+	// Ownership scope (migration 054): own-scope callers may only delete
+	// themes they authored.
+	if uid, _ := UserIDFromContext(r); uid != 0 {
+		if cur, gerr := repo.GetTheme(id); gerr == nil && cur != nil && !cur.Builtin && cur.OwnerID != 0 && cur.OwnerID != uid {
+			if con, perr := repository.OpenDB(); perr == nil {
+				chk := permissions.NewChecker(con)
+				hasOwn, hasAll, _ := chk.HasScope(uid, permissions.ThemesOwnKey, permissions.ThemesAllKey, permissions.ManageThemesKey)
+				con.Close()
+				if !hasAll && hasOwn {
+					http.Error(w, "forbidden: own-scope may only delete themes you authored", http.StatusForbidden)
+					return
+				}
+			}
+		}
+	}
 	if err := repo.DeleteTheme(id); err != nil {
 		log.Println("DeleteTheme error:", err)
 		http.Error(w, "theme not found", http.StatusNotFound)

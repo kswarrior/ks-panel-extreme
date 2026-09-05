@@ -396,6 +396,28 @@ func UpdateApplicationHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer closeFn()
+	// Ownership scope (migration 054): APPLICATIONS_OWN without ALL may
+	// only edit applications they uploaded (owner_id mirrors uploaded_by;
+	// fall back to uploaded_by for pre-054 orphan rows).
+	if uid, _ := UserIDFromContext(r); uid != 0 {
+		if ex, gerr := repo.GetApplication(id); gerr == nil && ex != nil {
+			owner := ex.OwnerID
+			if owner == 0 && ex.UploadedBy != nil {
+				owner = *ex.UploadedBy
+			}
+			if owner != 0 && owner != uid {
+				if con, perr := repository.OpenDB(); perr == nil {
+					chk := permissions.NewChecker(con)
+					hasOwn, hasAll, _ := chk.HasScope(uid, permissions.ApplicationsOwnKey, permissions.ApplicationsAllKey, permissions.ManageApplicationsKey)
+					con.Close()
+					if !hasAll && hasOwn {
+						http.Error(w, "forbidden: own-scope may only edit applications you uploaded", http.StatusForbidden)
+						return
+					}
+				}
+			}
+		}
+	}
 	app, err := repo.UpdateApplication(id, repository.UpdateApplicationInput{
 		Name:         dto.Name,
 		Category:     dto.Category,
