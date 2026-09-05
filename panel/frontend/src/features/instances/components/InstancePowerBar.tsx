@@ -306,15 +306,12 @@ const InstancePowerBar: React.FC<{ variant?: 'dock' | 'pill' }> = ({ variant = '
     // Auto-off never hides this element — off just collapses < to >, so the
     // `>` toggle stays visible and clickable. Hover restores (<).
     <div
-      ref={(el) => {
-        dockRef.current = el;
-        (autoHide.ref as React.MutableRefObject<HTMLDivElement | null>).current = el;
-      }}
+      ref={autoHide.ref}
       onMouseEnter={autoHide.show}
       className="relative flex justify-start p-0 m-0"
       aria-label="Instance power controls"
     >
-      <div className="pointer-events-auto flex flex-col items-start p-0 m-0">
+      <div ref={dockRef} className="pointer-events-auto flex flex-col items-start p-0 m-0">
         {/* Rectangular box — ks-card kept for the themed glass surface only;
             zero box metrics enforced inline so theme radius/padding can't win. */}
         <div
