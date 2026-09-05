@@ -2,8 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { securitySnapshot, securityToggleAttack, securityGetConfig } from '@/shared/api/admin';
 import type { SecuritySnapshot as SecuritySnapshotT, SecurityConfig } from '@/features/security/types/security';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
-import GlassCard from '@/shared/components/ui/Card';
-import PageTabsPill from '@/shared/components/ui/PageTabsPill';
+import SectionRailTabs from '@/shared/components/ui/SectionRailTabs';
 import Firewall from '@/features/security/components/Firewall';
 import DDoS from '@/features/security/components/DDoS';
 import Authority from '@/features/security/components/Authority';
@@ -118,38 +117,18 @@ const Security: React.FC = () => {
 
       {snap && configLoaded && (
         <div className="space-y-6">
-          {/* Title lives in the app header ("Security"); internal side-nav tabs stay in-page. */}
+          {/* Title lives in the app header ("Security"); internal sections use
+              the shared section rail (same style as Database): one
+              icon+label+hint strip on every breakpoint — phones scroll it
+              horizontally. */}
+          <SectionRailTabs
+            ariaLabel="Security sections"
+            active={tab}
+            onChange={(id) => setTab(id as SecurityTabId)}
+            tabs={SECURITY_TABS}
+          />
 
-          <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4">
-            {/* Desktop tabs — vertical rail on the left (node pattern).
-                Phones get the bottom tabs pill instead. */}
-            <GlassCard className="hidden lg:block lg:sticky lg:top-4 self-start">
-              <nav className="flex lg:flex-col gap-1 overflow-x-auto">
-                {SECURITY_TABS.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => setTab(t.id)}
-                    className={`ks-tab shrink-0 flex items-center gap-2 transition text-left ${
-                      tab === t.id ? 'ks-tab-active' : ''
-                    }`}
-                  >
-                    <span className="inline-flex items-center">{t.icon}</span>
-                    <span className="flex flex-col">
-                      <span>{t.label}</span>
-                      <span
-                        className={`text-[10px] hidden lg:block ${tab === t.id ? 'opacity-70' : 'text-gray-500'}`}
-                        style={tab === t.id ? { color: 'var(--ks-tab-active-text, #000000)' } : undefined}
-                      >
-                        {t.hint}
-                      </span>
-                    </span>
-                  </button>
-                ))}
-              </nav>
-            </GlassCard>
-
-            <div>
+          <div>
               {tab === 'firewall' && (
                 <Firewall
                   key={`${tab}-${configVersion}`}
@@ -194,28 +173,6 @@ const Security: React.FC = () => {
                 />
               )}
             </div>
-          </div>
-
-          {/* Phone tabs — bottom pill with the same `>` / `<` toggle + auto-off
-              system as the actions pill (PageTabsPill). */}
-          <PageTabsPill
-            ariaLabel="Security sections"
-            activeLabel={SECURITY_TABS.find((t) => t.id === tab)?.label}
-          >
-            {SECURITY_TABS.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                role="tab"
-                aria-selected={tab === t.id}
-                onClick={() => setTab(t.id)}
-                className={`ks-tab shrink-0 flex-1 px-3 py-1.5 rounded text-sm text-center transition flex items-center justify-center gap-1.5 ${tab === t.id ? 'ks-tab-active' : ''}`}
-              >
-                <span className="inline-flex items-center shrink-0">{t.icon}</span>
-                {t.label}
-              </button>
-            ))}
-          </PageTabsPill>
         </div>
       )}
     </div>
