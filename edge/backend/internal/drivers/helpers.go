@@ -48,7 +48,12 @@ func asStringList(v any) []string {
 
 // asPorts accepts a flexible JSON shape: a slice of typed port mappings
 // or a slice of map[string]any (what JSON decoding produces) and produces
-// a normalised []portMapping.
+// a normalised []portMapping. Host/container arrive as JSON numbers
+// (float64) from hand-written manifests AND as strings from the panel's
+// template form (serializeSpec keeps form inputs as strings), so both are
+// accepted — otherwise form-authored ports decoded to 0:0 and docker got
+// `-p 0:0/tcp`. Aliases mirror the panel's parseSpec tolerance
+// (host/host_port, container/container_port/guest).
 func asPorts(v any) []portMapping {
 	out := []portMapping{}
 	switch sl := v.(type) {
@@ -65,16 +70,8 @@ func asPorts(v any) []portMapping {
 				continue
 			}
 			pm := portMapping{}
-			if n, ok := m["host"].(float64); ok {
-				pm.Host = int(n)
-			} else if n2, ok := m["host_port"].(float64); ok {
-				pm.Host = int(n2)
-			}
-			if n, ok := m["container"].(float64); ok {
-				pm.Container = int(n)
-			} else if n2, ok := m["container_port"].(float64); ok {
-				pm.Container = int(n2)
-			}
+			pm.Host = firstPortNumber(m, "host", "host_port")
+			pm.Container = firstPortNumber(m, "container", "container_port", "guest")
 			if s, ok := m["protocol"].(string); ok {
 				pm.Protocol = s
 			}
@@ -85,6 +82,45 @@ func asPorts(v any) []portMapping {
 		}
 	}
 	return out
+}
+
+// firstPortNumber returns the first valid port number found under any of the
+// given keys. Accepts JSON numbers (float64/int/int64) and numeric strings
+// (the panel form serialises ports as strings). Returns 0 when none parses.
+func firstPortNumber(m map[string]any, keys ...string) int {
+	for _, k := range keys {
+		v, ok := m[k]
+		if !ok || v == nil {
+			continue
+		}
+		switch n := v.(type) {
+		case float64:
+			if n >= 1 && n <= 65535 {
+				return int(n)
+			}
+		case float32:
+			if n >= 1 && n <= 65535 {
+				return int(n)
+			}
+		case int:
+			if n >= 1 && n <= 65535 {
+				return n
+			}
+		case int64:
+			if n >= 1 && n <= 65535 {
+				return int(n)
+			}
+		case string:
+			s := strings.TrimSpace(n)
+			if s == "" {
+				continue
+			}
+			if p, err := strconv.Atoi(s); err == nil && p >= 1 && p <= 65535 {
+				return p
+			}
+		}
+	}
+	return 0
 }
 
 // asMounts flattens the `mounts` and `volumes` keys of the spec into a
