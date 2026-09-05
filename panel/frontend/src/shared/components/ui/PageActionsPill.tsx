@@ -71,6 +71,11 @@ export function useAutoHidePill(delay: number = PILL_SHOW_DELAY, enabled: boolea
 interface PageActionsPillProps {
   children: React.ReactNode;
   className?: string;
+  // Override the fixed outer container (positioning) so stacked pills can
+  // sit below the default slot — e.g. a second info pill under the actions
+  // pill. Defaults reproduce the historic nodes-style top-right slot.
+  outerClassName?: string;
+  outerStyle?: React.CSSProperties;
 }
 
 // PageActionsPill renders the fixed top-right action cluster used by every
@@ -83,7 +88,12 @@ interface PageActionsPillProps {
 // current route like Header's loading bar). (ks-pill-anim beats the theme's
 // `transition: border-color !important`, without which the motion would snap
 // instead of animating).
-export const PageActionsPill: React.FC<PageActionsPillProps> = ({ children, className = '' }) => {
+export const PageActionsPill: React.FC<PageActionsPillProps> = ({
+  children,
+  className = '',
+  outerClassName,
+  outerStyle,
+}) => {
   const location = useLocation();
   const resolveThemeForRoute = useThemeStore((s) => s.resolveThemeForRoute);
   // Pill behavior for the CURRENT route (auto-off switch + auto-on delay +
