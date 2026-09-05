@@ -363,6 +363,21 @@ func (r *InstanceRepository) UpdateConfig(id int64, configJSON string) error {
 	return nil
 }
 
+// UpdateIdentity renames the human-facing display fields (display_name,
+// icon, color) without touching the workload: the container/VM name on the
+// edge is immutable, so only the labels cards and titles render change.
+func (r *InstanceRepository) UpdateIdentity(id int64, displayName, icon, color string) error {
+	res, err := r.db.Exec(`UPDATE instances SET display_name = ?, icon = ?, color = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+		displayName, icon, color, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("instance not found")
+	}
+	return nil
+}
+
 // SetInstallKind updates the install_kind + install_auto_stop columns. Used by
 // InvokeActionHandler when an action is invoked so the install sweep loop can
 // distinguish an action-driven workflow from a template install workflow,
