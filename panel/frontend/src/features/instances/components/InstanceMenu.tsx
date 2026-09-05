@@ -11,7 +11,7 @@ const InstanceMenu: React.FC = () => {
   const location = useLocation();
 
   return (
-    <div className="flex flex-col min-h-0">
+    <div className="ks-fab-stagger flex flex-col min-h-0 py-1">
       {/* Power controls first, template actions below them. */}
       <div className="shrink-0 border-b border-white/10 pb-3">
         <ErrorBoundary resetKey={location.pathname} label="instance-menu-power">
@@ -19,7 +19,7 @@ const InstanceMenu: React.FC = () => {
         </ErrorBoundary>
       </div>
       {/* Status / uptime / type row below, in its own row. */}
-      <div className="shrink-0 pb-3">
+      <div className="shrink-0 py-1 pb-3">
         <ErrorBoundary resetKey={location.pathname} label="instance-menu-info">
           <InstanceInfoRow />
         </ErrorBoundary>

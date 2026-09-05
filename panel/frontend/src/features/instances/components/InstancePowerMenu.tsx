@@ -146,7 +146,7 @@ const InstancePowerMenu: React.FC = () => {
   if (!showPowerRow && templateActions.length === 0 && !error) return null;
 
   const menuBtn = (tone: string) =>
-    `flex-1 inline-flex items-center justify-center gap-1.5 rounded-md px-2 py-2 text-[13px] font-medium transition disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white/5 ${tone}`;
+    `flex-1 inline-flex items-center justify-center gap-1.5 rounded-md px-2 py-2 text-[13px] font-medium transition-all duration-150 active:scale-[0.94] hover:bg-white/10 hover:shadow-[0_2px_12px_rgba(0,0,0,0.35)] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:active:scale-100 ${tone}`;
   const spin = (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 animate-spin" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
   );
@@ -241,7 +241,7 @@ const InstancePowerMenu: React.FC = () => {
                   title={isThisRunning
                     ? (a.stop_command ? `Stop: runs "${a.stop_command}" inside the container` : 'Stop the running action')
                     : (stateHint || a.description || a.name || a.id)}
-                  className={`w-full flex flex-col items-start gap-0.5 rounded px-2.5 py-2 text-left transition disabled:opacity-40 disabled:cursor-not-allowed ${
+                  className={`w-full flex flex-col items-start gap-0.5 rounded px-2.5 py-2 text-left transition-all duration-150 hover:translate-x-0.5 active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-x-0 disabled:active:scale-100 ${
                     isThisRunning ? 'text-red-300 hover:bg-red-900/30' : 'text-emerald-300 hover:bg-emerald-900/30'
                   }`}
                 >
