@@ -497,7 +497,7 @@ const Router: React.FC = () => (
         path="/themes/stats"
         element={
           <RequireAuth>
-            <RequirePermission permission={PermissionKey.MANAGE_TEMPLATES}>
+            <RequirePermission permission={PermissionKey.MANAGE_THEMES}>
               <ThemeStats />
             </RequirePermission>
           </RequireAuth>
