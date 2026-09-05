@@ -272,9 +272,10 @@ func UpdateThemeHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Ownership scope (migration 054): THEMES_OWN without THEMES_ALL may
 	// only edit themes they authored; builtins stay editable only for
-	// ALL/umbrella holders (they have no real owner).
+	// ALL/umbrella holders (they have no real owner). Orphans (OwnerID==0)
+	// also require ALL (fail closed, mirrors template_handler.go).
 	if uid, _ := UserIDFromContext(r); uid != 0 {
-		if cur, gerr := repo.GetTheme(id); gerr == nil && cur != nil && !cur.Builtin && cur.OwnerID != 0 && cur.OwnerID != uid {
+		if cur, gerr := repo.GetTheme(id); gerr == nil && cur != nil && (cur.Builtin || cur.OwnerID != uid) {
 			if con, perr := repository.OpenDB(); perr == nil {
 				chk := permissions.NewChecker(con)
 				hasOwn, hasAll, _ := chk.HasScope(uid, permissions.ThemesOwnKey, permissions.ThemesAllKey, permissions.ManageThemesKey)
@@ -325,9 +326,10 @@ func DeleteThemeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer closeFn()
 	// Ownership scope (migration 054): own-scope callers may only delete
-	// themes they authored.
+	// themes they authored. Builtins and orphans (OwnerID==0) require ALL
+	// (fail closed, mirrors template_handler.go).
 	if uid, _ := UserIDFromContext(r); uid != 0 {
-		if cur, gerr := repo.GetTheme(id); gerr == nil && cur != nil && !cur.Builtin && cur.OwnerID != 0 && cur.OwnerID != uid {
+		if cur, gerr := repo.GetTheme(id); gerr == nil && cur != nil && (cur.Builtin || cur.OwnerID != uid) {
 			if con, perr := repository.OpenDB(); perr == nil {
 				chk := permissions.NewChecker(con)
 				hasOwn, hasAll, _ := chk.HasScope(uid, permissions.ThemesOwnKey, permissions.ThemesAllKey, permissions.ManageThemesKey)
@@ -372,6 +374,28 @@ func AssignThemeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer closeFn()
+	// Ownership scope (migration 054): editing a global assignment affects
+	// all users, so own-scope callers may only assign themes they authored.
+	// Builtins and orphans (OwnerID==0) require ALL; unassign (empty
+	// theme_id) also mutates global state with no owned theme, so it
+	// requires ALL as well (fail closed).
+	if uid, _ := UserIDFromContext(r); uid != 0 {
+		if con, perr := repository.OpenDB(); perr == nil {
+			chk := permissions.NewChecker(con)
+			hasOwn, hasAll, _ := chk.HasScope(uid, permissions.ThemesOwnKey, permissions.ThemesAllKey, permissions.ManageThemesKey)
+			con.Close()
+			if !hasAll && hasOwn {
+				if dto.ThemeID == "" {
+					http.Error(w, "forbidden: own-scope may only assign themes you authored", http.StatusForbidden)
+					return
+				}
+				if cur, gerr := repo.GetTheme(dto.ThemeID); gerr != nil || cur == nil || cur.Builtin || cur.OwnerID != uid {
+					http.Error(w, "forbidden: own-scope may only assign themes you authored", http.StatusForbidden)
+					return
+				}
+			}
+		}
+	}
 	if dto.ThemeID == "" {
 		if err := repo.UnassignTheme(dto.Scope); err != nil {
 			http.Error(w, "server error", http.StatusInternalServerError)
@@ -404,6 +428,23 @@ func DownloadThemeHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil || t == nil {
 		http.Error(w, "theme not found", http.StatusNotFound)
 		return
+	}
+	// Ownership scope (migration 054): owner-or-ALL; orphans (OwnerID==0)
+	// and builtins require ALL (fail closed, mirrors template Download).
+	// Builtins stay downloadable by ALL holders; OWN holders may download
+	// own non-builtin themes.
+	if uid, _ := UserIDFromContext(r); uid != 0 {
+		if t.Builtin || t.OwnerID != uid {
+			if con, perr := repository.OpenDB(); perr == nil {
+				chk := permissions.NewChecker(con)
+				hasOwn, hasAll, _ := chk.HasScope(uid, permissions.ThemesOwnKey, permissions.ThemesAllKey, permissions.ManageThemesKey)
+				con.Close()
+				if !hasAll && hasOwn {
+					http.Error(w, "forbidden", http.StatusForbidden)
+					return
+				}
+			}
+		}
 	}
 
 	exportData := map[string]any{
