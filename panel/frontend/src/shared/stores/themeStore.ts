@@ -2228,7 +2228,7 @@ ${String(f.toggle_thumb_shadow || '').trim() ? `\n.ks-toggle .ks-toggle__thumb {
   --ks-tab-py: var(--ks-pill-tab-py);
   --ks-tab-font: var(--ks-pill-tab-font);
 }
-/* `<` / `>` collapse toggle. */
+/* Chevron collapse toggle ("<" / ">"). */
 .ks-actions-pill .ks-pill-toggle { color: var(--ks-pill-text) !important; }
 .ks-actions-pill .ks-pill-toggle svg {
   width: var(--ks-pill-icon-size) !important;
