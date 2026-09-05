@@ -259,7 +259,11 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 		case name == "020_mod_v2.sql":
 			// Strip the bare engine_version ALTER from the body so a
 			// re-exec doesn't trip on a duplicate column. The CREATE TABLE
-			// mod_storage block is idempotent on every dialect.
+			// mod_storage block is idempotent on every dialect. The
+			// mod_storage_mod_idx line is stripped and owned by the
+			// runtime guard below: the mysql body carries a bare
+			// CREATE INDEX (no IF NOT EXISTS), which would fail with
+			// "duplicate key name" on every re-launch — mirrors 055.
 			if !hasColumn(d, db, "mods", "engine_version") {
 				if _, err := db.Exec("ALTER TABLE mods ADD COLUMN " + addColumnIfNotExistsPrefix(d) + "engine_version INTEGER NOT NULL DEFAULT 1"); err != nil {
 					return fmt.Errorf("migration %s failed: %w", name, err)
@@ -270,9 +274,13 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				return rerr
 			}
 			stripped := stripAlterColumnLines(body, "mods", "engine_version")
+			stripped = stripCreateIndexLines(stripped, "mod_storage_mod_idx")
 			log.Printf("Running migration %s", name)
 			if _, err := db.Exec(string(stripped)); err != nil {
 				return fmt.Errorf("migration %s failed: %w", name, err)
+			}
+			if err := guardedCreateIndex(d, db, name, "mod_storage", "mod_storage_mod_idx", "mod_slug"); err != nil {
+				return err
 			}
 			continue
 		case name == "024_api_key_limits.sql":
@@ -418,9 +426,11 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			}); err != nil {
 				return err
 			}
-			// Create index if not exists (idempotent)
-			if _, err := db.Exec("CREATE INDEX IF NOT EXISTS idx_users_suspended ON users(suspended)"); err != nil {
-				return fmt.Errorf("migration %s failed: %w", name, err)
+			// Create index via the dialect-aware guard: MySQL has no
+			// CREATE INDEX IF NOT EXISTS, so the raw form below would
+			// fail there with a syntax error — mirrors 045.
+			if err := guardedCreateIndex(d, db, name, "users", "idx_users_suspended", "suspended"); err != nil {
+				return err
 			}
 			continue
 		case name == "038_instance_suspension.sql":
@@ -434,9 +444,11 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			}); err != nil {
 				return err
 			}
-			// Create index if not exists (idempotent)
-			if _, err := db.Exec("CREATE INDEX IF NOT EXISTS idx_instances_suspended ON instances(suspended)"); err != nil {
-				return fmt.Errorf("migration %s failed: %w", name, err)
+			// Create index via the dialect-aware guard: MySQL has no
+			// CREATE INDEX IF NOT EXISTS, so the raw form below would
+			// fail there with a syntax error — mirrors 045.
+			if err := guardedCreateIndex(d, db, name, "instances", "idx_instances_suspended", "suspended"); err != nil {
+				return err
 			}
 			continue
 		case name == "035_instance_display.sql":
