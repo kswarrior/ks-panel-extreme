@@ -4,7 +4,6 @@ import Header from './Header';
 import Sidebar from './Sidebar';
 import ThemedBackground from './ThemedBackground';
 import ErrorBoundary from '@/shared/components/ui/ErrorBoundary';
-import { useAutoHidePill } from '@/shared/components/ui/PageActionsPill';
 import InstancePowerBar from '@/features/instances/components/InstancePowerBar';
 import InstanceInfoBar from '@/features/instances/components/InstanceInfoBar';
 
@@ -18,11 +17,9 @@ const Layout: React.FC = () => {
     return /^\/instances\/\d+/.test(location.pathname);
   }, [location.pathname]);
 
-  // Power dock auto-hide — same behavior as the Cancel/Deploy pill
-  // (hide on scroll / outside click, slide back after idle), 1.5s delay.
-  // Dim-only: the dock never goes invisible, it just drops to low opacity
-  // ("off") and hover restores it.
-  const powerHide = useAutoHidePill(1500);
+  // Power dock auto-off lives inside InstancePowerBar itself: scroll /
+  // outside-click collapses < to > (never invisible), idle / hover / `>`
+  // click expands back. Layout just positions the floating dock.
 
   useEffect(() => {
     setSidebarOpen(false);
@@ -74,13 +71,7 @@ const Layout: React.FC = () => {
               height and pages start with zero gap. */}
           {inInstancePanel && (
             <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex justify-start px-4 sm:px-6 pt-2">
-              <div
-                ref={powerHide.ref}
-                onMouseEnter={powerHide.show}
-                className={`pointer-events-auto transition-opacity duration-300 ${
-                  powerHide.visible ? 'opacity-100' : 'opacity-40'
-                }`}
-              >
+              <div className="pointer-events-auto opacity-100">
                 <ErrorBoundary resetKey={location.pathname} label="instance-power">
                   <InstancePowerBar />
                 </ErrorBoundary>
