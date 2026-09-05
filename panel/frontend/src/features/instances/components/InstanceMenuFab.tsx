@@ -171,6 +171,9 @@ const InstanceMenuFab: React.FC = () => {
   }, []);
 
   const onPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    // Primary button only: right/middle clicks must never start a drag (and
+    //, via the null-press guard below, must never toggle the menu either).
+    if (!e.isPrimary || (e.pointerType === 'mouse' && e.button !== 0)) return;
     e.currentTarget.setPointerCapture?.(e.pointerId);
     dragRef.current = { startX: e.clientX, startY: e.clientY, origX: posRef.current.x, origY: posRef.current.y, moved: false };
   };
@@ -191,7 +194,10 @@ const InstanceMenuFab: React.FC = () => {
     const d = dragRef.current;
     dragRef.current = null;
     setDragging(false);
-    if (d?.moved) {
+    // No press started (pointer-cancel without pointerdown, or a
+    // non-primary button) → do nothing. A cancel must never toggle.
+    if (!d) return;
+    if (d.moved) {
       try {
         window.localStorage.setItem(LS_KEY, JSON.stringify(posRef.current));
       } catch {}
@@ -256,7 +262,6 @@ const InstanceMenuFab: React.FC = () => {
           Layout looks like `< [wheel] >` horizontally with up/down tabs on
           top/bottom — all four directions, all icons pure SVG. */}
       <div
-        aria-hidden={false}
         className="ks-fab-cluster ks-fab-cluster-enter"
         style={{
           position: 'fixed',
