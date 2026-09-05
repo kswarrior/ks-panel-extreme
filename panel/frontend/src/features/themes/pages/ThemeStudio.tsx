@@ -411,12 +411,14 @@ const ThemeStudio: React.FC = () => {
         </button>
       </PageActionsPill>
 
-      {/* Phone tabs — same shared rail style, horizontal: the ~20 sections
-          scroll sideways with one-tap switching (no bottom dropdown). */}
+      {/* Phone tabs — compact chips outfit of the same rail: icon + label
+          pills with no hint text, edge-fade scrolling, active chip
+          auto-centered. Desktop keeps the full rows with hints. */}
       <div className="lg:hidden mb-4">
         <SectionRailTabs
           ariaLabel="Theme studio sections"
           orientation="horizontal"
+          variant="chips"
           active={tab}
           onChange={(id) => setTab(id as TabKey)}
           tabs={TABS.map((t) => ({ id: t.key, label: t.label, hint: t.hint, icon: t.icon }))}
