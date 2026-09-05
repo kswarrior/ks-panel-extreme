@@ -116,7 +116,10 @@ func main() {
 		defer con.Close()
 		var created string
 		err = con.QueryRow(`SELECT created_at FROM users LIMIT 1`).Scan(&created)
-		fmt.Printf("MYS scan-DATETIME-into-string err=%v\n", err)
+		fmt.Printf("MYS scan-DATETIME-into-string err=%v val=%q\n", err, created)
+		var createdN sql.NullString
+		err = con.QueryRow(`SELECT created_at FROM users LIMIT 1`).Scan(&createdN)
+		fmt.Printf("MYS scan-DATETIME-into-NullString err=%v\n", err)
 		nr := repository.NewNodeRepository(con)
 		_, err = nr.ListNodes()
 		fmt.Printf("MYS NodeRepository.ListNodes err=%v\n", err)
@@ -130,6 +133,9 @@ func main() {
 		defer con.Close()
 		var created string
 		err = con.QueryRow(`SELECT created_at FROM users LIMIT 1`).Scan(&created)
-		fmt.Printf("PGS scan-TIMESTAMP-into-string err=%v\n", err)
+		fmt.Printf("PGS scan-TIMESTAMP-into-string err=%v val=%q\n", err, created)
+		var createdN sql.NullString
+		err = con.QueryRow(`SELECT created_at FROM users LIMIT 1`).Scan(&createdN)
+		fmt.Printf("PGS scan-TIMESTAMP-into-NullString err=%v\n", err)
 	}
 }
