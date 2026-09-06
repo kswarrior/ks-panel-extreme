@@ -75,7 +75,18 @@ const NotificationsPage: React.FC = () => {
 
   const setUnread = useNotificationStore((s) => s.setUnread);
 
+  // Debounced search (mirrors Tickets.tsx): typing must not spam the API
+  // on every keystroke, and out-of-order responses must not overwrite
+  // newer results — the sequence guard drops stale completions.
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+  const loadSeq = useRef(0);
+
   const load = useCallback(async () => {
+    const my = ++loadSeq.current;
     setLoading(true);
     setError('');
     try {
@@ -84,7 +95,7 @@ const NotificationsPage: React.FC = () => {
       if (pri !== 'all') params.priority = pri;
       if (read === 'unread') params.is_read = false;
       if (read === 'read') params.is_read = true;
-      if (search.trim()) params.q = search.trim();
+      if (debouncedSearch.trim()) params.q = debouncedSearch.trim();
       const sp = new URLSearchParams();
       if (params.category) sp.set('category', params.category);
       if (params.priority) sp.set('priority', params.priority);
@@ -94,23 +105,26 @@ const NotificationsPage: React.FC = () => {
       sp.set('offset', String(page * limit));
       const qs = sp.toString() ? `?${sp.toString()}` : '';
       const res = await client.get<Notification[]>(`/api/notifications${qs}`);
+      if (my !== loadSeq.current) return;
       setRows(res.data);
       const hdr = res.headers['x-total-count'] || res.headers['X-Total-Count'];
       setTotal(hdr ? Number(hdr) : res.data.length);
       try {
         const s = await getNotificationStats();
+        if (my !== loadSeq.current) return;
         setStats(s);
         setUnread(s.unread);
       } catch {}
     } catch (e: any) {
+      if (my !== loadSeq.current) return;
       setError(e?.response?.data || 'Failed to load notifications');
     } finally {
-      setLoading(false);
+      if (my === loadSeq.current) setLoading(false);
     }
-  }, [cat, pri, read, search, page, limit, setUnread]);
+  }, [cat, pri, read, debouncedSearch, page, limit, setUnread]);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { setPage(0); }, [cat, pri, read, search]);
+  useEffect(() => { setPage(0); }, [cat, pri, read, debouncedSearch]);
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {

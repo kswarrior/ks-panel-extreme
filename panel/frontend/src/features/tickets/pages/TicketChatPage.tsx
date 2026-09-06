@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { getTicket, addTicketComment, deleteTicketComment } from '../api/tickets';
 import type { Ticket, TicketComment, TicketAttachment } from '../types/ticket';
@@ -24,21 +24,32 @@ const TicketChatPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [live, setLive] = useState(true);
+  // Sequence + in-flight guards for the 2.5s poll: a slow fetch must not
+  // be overwritten by a stale response, and a tick must not stack another
+  // request while one is still in flight.
+  const loadSeq = useRef(0);
+  const inFlight = useRef(false);
 
   const load = useCallback(
     async (showLoader = true) => {
       if (!id) return;
+      if (!showLoader && inFlight.current) return;
+      const my = ++loadSeq.current;
+      inFlight.current = true;
       if (showLoader) setLoading(true);
       setError('');
       try {
         const detail = await getTicket(Number(id));
+        if (my !== loadSeq.current) return;
         setTicket(detail.ticket);
         setComments(detail.comments);
         setAttachments(detail.attachments ?? []);
       } catch (e: any) {
+        if (my !== loadSeq.current) return;
         if (showLoader) setError(e?.response?.data || 'Failed to load chat');
       } finally {
-        if (showLoader) setLoading(false);
+        if (my === loadSeq.current) inFlight.current = false;
+        if (showLoader && my === loadSeq.current) setLoading(false);
       }
     },
     [id],
@@ -47,6 +58,15 @@ const TicketChatPage: React.FC = () => {
   useEffect(() => {
     load(true);
   }, [load]);
+
+  // Invalidate any in-flight fetch on unmount/ticket-switch so a late
+  // response never writes state for a dead page.
+  useEffect(() => {
+    return () => {
+      loadSeq.current++;
+      inFlight.current = false;
+    };
+  }, []);
 
   // Live polling every 2.5s when live and ticket not closed
   useEffect(() => {

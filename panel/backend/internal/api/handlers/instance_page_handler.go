@@ -2626,6 +2626,40 @@ func copyDirectory(src, dest string) error {
 	return nil
 }
 
+// instancePagePinnedClient dials only the IPs validated up-front so a
+// DNS-rebinding answer can't steer the connection between the LookupIPAddr
+// check and connect, and refuses redirects so a 302 to a private host can't
+// bypass the public-IP check. Mirrors fetchManifestFromURL's pinned dialer
+// (mod_handler.go) for the instance-page import paths.
+func instancePagePinnedClient(ips []net.IPAddr, port string) *http.Client {
+	transport := &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ResponseHeaderTimeout: 10 * time.Second,
+		DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+			var lastErr error
+			for _, ipa := range ips {
+				addr := net.JoinHostPort(ipa.IP.String(), port)
+				conn, derr := (&net.Dialer{Timeout: 10 * time.Second}).DialContext(ctx, network, addr)
+				if derr == nil {
+					return conn, nil
+				}
+				lastErr = derr
+			}
+			if lastErr == nil {
+				lastErr = fmt.Errorf("no dial addresses")
+			}
+			return nil, lastErr
+		},
+	}
+	return &http.Client{
+		Transport: transport, Timeout: 15 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+}
+
 // ImportInstancePageFromURLHandler imports an instance page from a remote URL.
 func ImportInstancePageFromURLHandler(w http.ResponseWriter, r *http.Request) {
 	var req struct {
@@ -2670,8 +2704,14 @@ func ImportInstancePageFromURLHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get(req.URL)
+	client := instancePagePinnedClient(ips, portFromHost(u.Host, u.Scheme))
+	defer client.CloseIdleConnections()
+	fetchReq, rerr := http.NewRequestWithContext(r.Context(), http.MethodGet, strings.TrimSpace(req.URL), nil)
+	if rerr != nil {
+		http.Error(w, "invalid URL", http.StatusBadRequest)
+		return
+	}
+	resp, err := client.Do(fetchReq)
 	if err != nil {
 		http.Error(w, "failed to fetch URL: "+err.Error(), http.StatusBadGateway)
 		return
@@ -2900,8 +2940,14 @@ func ImportInstancePageFromMarketplaceHandler(w http.ResponseWriter, r *http.Req
 				return
 			}
 		}
-		client := &http.Client{Timeout: 10 * time.Second}
-		resp, err := client.Get(marketplacePage.DownloadURL)
+		client := instancePagePinnedClient(ips, portFromHost(mu.Host, mu.Scheme))
+		defer client.CloseIdleConnections()
+		mfetchReq, mrerr := http.NewRequestWithContext(r.Context(), http.MethodGet, strings.TrimSpace(marketplacePage.DownloadURL), nil)
+		if mrerr != nil {
+			http.Error(w, "invalid marketplace DownloadURL", http.StatusBadRequest)
+			return
+		}
+		resp, err := client.Do(mfetchReq)
 		if err != nil {
 			http.Error(w, "failed to fetch page from marketplace: "+err.Error(), http.StatusBadGateway)
 			return
@@ -3038,8 +3084,13 @@ func fetchMarketplacePageBytes(ctx context.Context, mp MarketplacePage) ([]byte,
 			return nil, fmt.Errorf("refusing to fetch %s: host resolves to a non-public address%s", mhost, which)
 		}
 	}
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get(mp.DownloadURL)
+	client := instancePagePinnedClient(ips, portFromHost(mu.Host, mu.Scheme))
+	defer client.CloseIdleConnections()
+	mreq, mrerr := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimSpace(mp.DownloadURL), nil)
+	if mrerr != nil {
+		return nil, fmt.Errorf("invalid marketplace DownloadURL")
+	}
+	resp, err := client.Do(mreq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch page from marketplace: %w", err)
 	}

@@ -538,7 +538,10 @@ func AIChatStreamHandler(w http.ResponseWriter, r *http.Request) {
 					ID: proposal.ID, UserID: uid, Tool: c.Name, Args: c.RawArgs,
 					Summary: proposal.Summary, Diff: proposal.Diff, Expires: time.Now().Add(10 * time.Minute),
 				}
-				aiStoreTicket(con, t)
+				if err := aiStoreTicket(con, t); err != nil {
+					aiSSEWrite(w, map[string]any{"error": "server error"})
+					return
+				}
 				reply := strings.TrimSpace(text)
 				if reply == "" {
 					reply = "I need your approval before I do that:"

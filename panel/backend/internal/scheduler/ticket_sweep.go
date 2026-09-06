@@ -188,7 +188,10 @@ func itoa(n int64) string {
 }
 
 func notifPriorityFor(ticketPriority string) models.NotificationPriority {
-	switch ticketPriority {
+	// Mirror handlers.ticketNotifPriority: normalize case/whitespace so a
+	// non-canonical stored value still maps to the right bell urgency
+	// instead of silently falling back to normal.
+	switch strings.ToLower(strings.TrimSpace(ticketPriority)) {
 	case "low":
 		return models.NotificationPriorityLow
 	case "high":
