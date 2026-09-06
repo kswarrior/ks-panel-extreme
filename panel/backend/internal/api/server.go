@@ -45,8 +45,8 @@ func NewRouter() http.Handler {
 	// at the same constant string the SPA-fallback uses; keeping it
 	// constant avoids surprising URL changes when a reverse proxy sits in
 	// front of the panel.
-	repository.SetLogoURLBuilder(func(_ repository.PanelLogo) string {
-		return "/api/settings/panel-logo"
+	repository.SetLogoURLBuilder(func(logo repository.PanelLogo) string {
+		return repository.LogoURL(logo)
 	})
 
 	r := chi.NewRouter()
@@ -346,6 +346,20 @@ func NewRouter() http.Handler {
 			// bloat the JSON parser path.
 			r.With(requireUmbrellaOrAction(settingsG, permissions.ActionEdit)).Post("/logo", handlers.SettingsLogoUploadHandler)
 			r.With(requireUmbrellaOrAction(settingsG, permissions.ActionEdit)).Delete("/logo", handlers.SettingsLogoDeleteHandler)
+		})
+
+		// Custom panel pages (Settings > Pages: About, Docs, …). CRUD rides
+		// the settings umbrella (same admins who own the brand own the
+		// pages); the nav + slug readers only need a session — each page's
+		// own role allow-list decides who sees it.
+		r.Route("/api/panel-pages", func(r chi.Router) {
+			r.With(requireUmbrellaOrAction(settingsG, permissions.ActionView)).Get("/", handlers.ListPanelPagesHandler)
+			r.With(requireUmbrellaOrAction(settingsG, permissions.ActionEdit)).Post("/", handlers.CreatePanelPageHandler)
+			r.Get("/nav", handlers.PanelPagesNavHandler)
+			r.Get("/slug/{slug}", handlers.GetPanelPageBySlugHandler)
+			r.With(requireUmbrellaOrAction(settingsG, permissions.ActionView)).Get("/{id}", handlers.GetPanelPageHandler)
+			r.With(requireUmbrellaOrAction(settingsG, permissions.ActionEdit)).Put("/{id}", handlers.UpdatePanelPageHandler)
+			r.With(requireUmbrellaOrAction(settingsG, permissions.ActionEdit)).Delete("/{id}", handlers.DeletePanelPageHandler)
 		})
 
 		// Admin: Authority (the auth-only page that replaced the "Auth"
