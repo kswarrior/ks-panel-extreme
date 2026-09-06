@@ -73,10 +73,10 @@ export async function getPanelName(): Promise<PublicBrand & { nameStyle: PanelNa
     const res = await client.get<PublicBrand>('/api/settings/panel-name');
     const data = res.data || ({} as PublicBrand);
     return {
+      ...data,
       panel_name: data?.panel_name || 'KS Panel',
       panel_logo: data?.panel_logo || null,
       footer_text: data?.footer_text,
-      ...data,
       nameStyle: brandNameStyleFromWire(data),
       logoStyle: brandLogoStyleFromWire(data),
     };
