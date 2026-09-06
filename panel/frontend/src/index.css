@@ -663,6 +663,95 @@ nav.overflow-x-auto::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(90deg, #60a5fa, #a78bfa);
 }
 
+/* ------------------------------------------------------------------ *
+ *  AI chat FAB + panel + menu animations
+ * ------------------------------------------------------------------ *
+ *  Dedicated keyframes (not transitions) so the theme's
+ *  `transition: border-color !important` on `.ks-card` can't clobber
+ *  them. Reduced-motion is already killed site-wide above. */
+@keyframes ks-ai-panel-in {
+  0% { opacity: 0; transform: translateY(14px) scale(0.97); }
+  60% { opacity: 1; transform: translateY(-1px) scale(1.005); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+.ks-ai-panel-enter {
+  animation: ks-ai-panel-in 260ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  transform-origin: bottom right;
+}
+@keyframes ks-ai-fab-in {
+  0% { opacity: 0; transform: scale(0.6); }
+  60% { opacity: 1; transform: scale(1.08); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.ks-ai-fab-enter {
+  animation: ks-ai-fab-in 320ms cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+.ks-ai-fab-anim {
+  transition-property: transform, box-shadow, background-color, color !important;
+  transition-duration: 200ms !important;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1) !important;
+  will-change: transform;
+}
+.ks-ai-fab-anim:hover {
+  transform: scale(1.07) !important;
+}
+.ks-ai-fab-anim:active {
+  transform: scale(0.92) !important;
+  transition-duration: 90ms !important;
+}
+.ks-ai-fab-icon {
+  transition: transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 180ms ease;
+  transform-origin: 50% 50%;
+}
+.ks-ai-fab-icon.is-open {
+  transform: rotate(90deg) scale(1.05);
+}
+/* Idle attention ring for the closed FAB so it reads as interactive. */
+@keyframes ks-ai-fab-ring {
+  0% { box-shadow: 0 8px 24px rgba(0,0,0,0.5), 0 0 0 0 rgba(255,255,255,0); }
+  70% { box-shadow: 0 8px 24px rgba(0,0,0,0.5), 0 0 0 10px rgba(255,255,255,0); }
+  100% { box-shadow: 0 8px 24px rgba(0,0,0,0.5), 0 0 0 0 rgba(255,255,255,0); }
+}
+.ks-ai-fab-anim.is-idle {
+  animation: ks-ai-fab-ring 2.6s ease-out infinite;
+}
+.ks-ai-fab-anim.is-open,
+.ks-ai-fab-anim:hover {
+  animation: none;
+}
+/* Header menu-toggle glyph rotates when the thread menu is open. */
+.ks-ai-menu-toggle svg {
+  transition: transform 240ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform-origin: 50% 50%;
+}
+.ks-ai-menu-toggle.is-open svg {
+  transform: rotate(90deg);
+}
+/* Collapsible thread-menu row: grid-rows trick animates height without
+   measuring, opacity fades content in parallel. */
+.ks-ai-threads-collapsible {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition: grid-template-rows 240ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease;
+}
+.ks-ai-threads-collapsible.is-collapsed {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+.ks-ai-threads-collapsible > div {
+  overflow: hidden;
+  min-height: 0;
+}
+/* Jump-to-bottom pill fade/slide. */
+@keyframes ks-ai-jump-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.94); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.ks-ai-jump-enter {
+  animation: ks-ai-jump-in 200ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
 /* Grid layout for All Pages submenu */
 .rich-submenu .rich-menu-grid {
   display: grid;

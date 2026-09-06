@@ -4,6 +4,7 @@ import { useAuthStore } from '@/shared/stores/authStore';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
 import { PermissionKey, hasPermissionAny } from '@/shared/types/permissions';
 import { useAIChatStore } from '../store/aiChatStore';
+import { MarkdownBio } from '@/shared/components/ui/MarkdownBio';
 import ConfirmCard from './ConfirmCard';
 import ChatSettings from './ChatSettings';
 import { canOpenAIChat } from './ChatFab';
@@ -46,7 +47,17 @@ const ChatPanel: React.FC = () => {
   const [renaming, setRenaming] = useState(false);
   const [renameDraft, setRenameDraft] = useState('');
   const [view, setView] = useState<'chat' | 'settings'>('chat');
+  // Right-side thread-menu toggle (header ☰). Open by default so existing
+  // threads stay visible; collapsing slides the row away with animation.
+  const [menuOpen, setMenuOpen] = useState(true);
+  // Smart stick-to-bottom: true while the user sits at the bottom. Scrolling
+  // up unpins so streaming tokens never yank the view away; a jump pill
+  // appears to get back down. Sending / opening / switching re-pins.
+  const [stickToBottom, setStickToBottom] = useState(true);
+  const [showJump, setShowJump] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const stickRef = useRef(true);
+  stickRef.current = stickToBottom;
 
   const isAdmin = hasPermissionAny(permissions, PermissionKey.VIEW_SETTINGS, PermissionKey.SETTINGS_EDIT) &&
     permissions.includes(PermissionKey.SETTINGS_EDIT);
