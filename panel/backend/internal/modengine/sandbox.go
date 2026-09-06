@@ -225,13 +225,16 @@ func (r *gojaRuntime) armInterrupt(ctx context.Context) func() {
 	return func() { timer.Stop() }
 }
 
-// runEval is the locked eval helper used by Start. It arms the interrupt
+// runEval evaluates the entry script during Start. It arms the interrupt
 // watchdog against the VM so an infinite-loop script can't wedge activation
-// forever — the timer calls vm.Interrupt, which surfaces an
-// *InterruptedError from RunString.
+// forever — the timer calls interruptVM, which surfaces an
+// *InterruptedError from RunString. Callers must ensure exclusive access:
+// Start runs on a fresh, unpublished runtime, so no other goroutine can
+// reach r.vm yet. (Every other VM touchpoint — ResolveHook, thunks, Stop —
+// serialises on r.mu.)
 func (r *gojaRuntime) runEval(source, label string) (goja.Value, error) {
 	timer := time.AfterFunc(defaultExecTimeout, func() {
-		r.vm.Interrupt("script timeout")
+		r.interruptVM("script timeout")
 	})
 	defer timer.Stop()
 	v, err := r.vm.RunString(source)
