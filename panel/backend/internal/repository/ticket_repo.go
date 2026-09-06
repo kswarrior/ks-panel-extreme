@@ -94,117 +94,203 @@ func scanTicket(scanner interface{ Scan(...any) error }) (*models.Ticket, error)
 }
 
 // enrichTickets fills denormalised names + comment counts + last reply.
+//
+// Every lookup is batched no matter the batch size: one users
+// SELECT ... WHERE id IN, one comment-count GROUP BY, one last-reply
+// GROUP BY MAX(id), one SLA SELECT ... WHERE id IN. There are no
+// per-ticket queries. Every query/scan failure is propagated to the
+// caller; only a missing user row (deleted author) or a missing SLA
+// sidecar table (pre-065 database) degrades to zero values.
 func (r *TicketRepository) enrichTickets(tickets []models.Ticket) ([]models.Ticket, error) {
 	if len(tickets) == 0 {
 		return tickets, nil
 	}
-	// Build id sets
 	ids := make([]int64, len(tickets))
 	idIdx := make(map[int64]int, len(tickets))
 	for i, t := range tickets {
 		ids[i] = t.ID
 		idIdx[t.ID] = i
 	}
-	// Fill creator / assignee names + avatar fields
+	// Batch users: every creator + assignee in a single IN query.
+	userSet := make(map[int64]struct{}, len(tickets)*2)
 	for i := range tickets {
-		t := &tickets[i]
-		var cName, cDisplayName, cAccentColor, cAvatarSymbol, cAvatarMime, cAvatarFilename, cEmail sql.NullString
-		_ = r.db.QueryRow(`SELECT username, display_name, accent_color, avatar_symbol, avatar_mime, avatar_filename, email FROM users WHERE id = ?`, t.CreatedBy).Scan(&cName, &cDisplayName, &cAccentColor, &cAvatarSymbol, &cAvatarMime, &cAvatarFilename, &cEmail)
-		t.CreatorName = cName.String
-		t.CreatorDisplayName = cDisplayName.String
-		t.CreatorAccentColor = cAccentColor.String
-		t.CreatorAvatarSymbol = cAvatarSymbol.String
-		t.CreatorEmail = cEmail.String
-		if cAvatarMime.Valid && cAvatarFilename.Valid && cAvatarMime.String != "" && cAvatarFilename.String != "" {
-			t.CreatorHasAvatar = true
+		userSet[tickets[i].CreatedBy] = struct{}{}
+		if tickets[i].AssignedTo != nil {
+			userSet[*tickets[i].AssignedTo] = struct{}{}
 		}
-		if t.AssignedTo != nil {
-			var aName, aDisplayName, aAccentColor, aAvatarSymbol, aAvatarMime, aAvatarFilename sql.NullString
-			_ = r.db.QueryRow(`SELECT username, display_name, accent_color, avatar_symbol, avatar_mime, avatar_filename FROM users WHERE id = ?`, *t.AssignedTo).Scan(&aName, &aDisplayName, &aAccentColor, &aAvatarSymbol, &aAvatarMime, &aAvatarFilename)
-			t.AssigneeName = aName.String
-			t.AssigneeDisplayName = aDisplayName.String
-			t.AssigneeAccentColor = aAccentColor.String
-			t.AssigneeAvatarSymbol = aAvatarSymbol.String
-			if aAvatarMime.Valid && aAvatarFilename.Valid && aAvatarMime.String != "" && aAvatarFilename.String != "" {
-				t.AssigneeHasAvatar = true
+	}
+	if len(userSet) > 0 {
+		uids := make([]int64, 0, len(userSet))
+		for id := range userSet {
+			uids = append(uids, id)
+		}
+		holders := strings.Repeat("?,", len(uids))
+		holders = holders[:len(holders)-1]
+		args := make([]any, len(uids))
+		for i, id := range uids {
+			args[i] = id
+		}
+		type userFace struct {
+			name, display, accent, symbol, mime, file, email string
+		}
+		faces := make(map[int64]userFace, len(uids))
+		rows, err := r.db.Query(r.rebind(`SELECT id, username, display_name, accent_color, avatar_symbol, avatar_mime, avatar_filename, email FROM users WHERE id IN (`+holders+`)`), args...)
+		if err != nil {
+			return nil, err
+		}
+		func() {
+			defer rows.Close()
+			for rows.Next() {
+				var id int64
+				var cName, cDisplay, cAccent, cSymbol, cMime, cFile, cEmail sql.NullString
+				if serr := rows.Scan(&id, &cName, &cDisplay, &cAccent, &cSymbol, &cMime, &cFile, &cEmail); serr != nil {
+					err = serr
+					return
+				}
+				faces[id] = userFace{
+					name: cName.String, display: cDisplay.String, accent: cAccent.String,
+					symbol: cSymbol.String, mime: cMime.String, file: cFile.String, email: cEmail.String,
+				}
+			}
+			err = rows.Err()
+		}()
+		if err != nil {
+			return nil, err
+		}
+		for i := range tickets {
+			t := &tickets[i]
+			if u, ok := faces[t.CreatedBy]; ok {
+				t.CreatorName = u.name
+				t.CreatorDisplayName = u.display
+				t.CreatorAccentColor = u.accent
+				t.CreatorAvatarSymbol = u.symbol
+				t.CreatorEmail = u.email
+				if u.mime != "" && u.file != "" {
+					t.CreatorHasAvatar = true
+				}
+			}
+			if t.AssignedTo != nil {
+				if u, ok := faces[*t.AssignedTo]; ok {
+					t.AssigneeName = u.name
+					t.AssigneeDisplayName = u.display
+					t.AssigneeAccentColor = u.accent
+					t.AssigneeAvatarSymbol = u.symbol
+					if u.mime != "" && u.file != "" {
+						t.AssigneeHasAvatar = true
+					}
+				}
 			}
 		}
 	}
-	// Comment counts + last reply
-	if len(ids) > 0 {
-		placeholders := strings.Repeat("?,", len(ids))
-		placeholders = placeholders[:len(placeholders)-1]
-		args := make([]any, len(ids))
-		for i, id := range ids {
-			args[i] = id
-		}
-		rows, err := r.db.Query(
-			`SELECT ticket_id, COUNT(*), MAX(created_at) FROM ticket_comments WHERE ticket_id IN (`+placeholders+`) GROUP BY ticket_id`,
-			args...)
-		if err == nil {
-			defer rows.Close()
-			for rows.Next() {
-				var tid int64
-				var cnt int
-				var maxAt sql.NullString
-				if err := rows.Scan(&tid, &cnt, &maxAt); err == nil {
-					if idx, ok := idIdx[tid]; ok {
-						tickets[idx].CommentCount = cnt
-						if maxAt.Valid && maxAt.String != "" {
-							t := parseTicketTime(maxAt.String)
-							tickets[idx].LastReplyAt = &t
-						}
+	// Comment counts + last reply + SLA sidecar share one IN holder set.
+	holders := strings.Repeat("?,", len(ids))
+	holders = holders[:len(holders)-1]
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	rows, err := r.db.Query(
+		r.rebind(`SELECT ticket_id, COUNT(*), MAX(created_at) FROM ticket_comments WHERE ticket_id IN (`+holders+`) GROUP BY ticket_id`),
+		args...)
+	if err != nil {
+		return nil, err
+	}
+	func() {
+		defer rows.Close()
+		for rows.Next() {
+			var tid int64
+			var cnt int
+			var maxAt sql.NullString
+			if serr := rows.Scan(&tid, &cnt, &maxAt); serr != nil {
+				err = serr
+				return
+			}
+			if idx, ok := idIdx[tid]; ok {
+				tickets[idx].CommentCount = cnt
+				if maxAt.Valid && maxAt.String != "" {
+					if tm := parseTicketTime(maxAt.String); !tm.IsZero() {
+						tickets[idx].LastReplyAt = &tm
 					}
 				}
 			}
 		}
-		// last_reply_by: most recent comment author per ticket
-		for i := range tickets {
-			var lastBy sql.NullInt64
-			var lastAt sql.NullString
-			_ = r.db.QueryRow(`SELECT author_id, created_at FROM ticket_comments WHERE ticket_id = ? ORDER BY id DESC LIMIT 1`, tickets[i].ID).Scan(&lastBy, &lastAt)
-			if lastBy.Valid {
-				v := lastBy.Int64
-				tickets[i].LastReplyBy = &v
+		err = rows.Err()
+	}()
+	if err != nil {
+		return nil, err
+	}
+	// Last-reply author: latest comment id per ticket in ONE query via
+	// GROUP BY MAX(id) (replaces one ORDER BY id DESC LIMIT 1 per ticket).
+	lrRows, err := r.db.Query(
+		r.rebind(`SELECT ticket_id, author_id, created_at FROM ticket_comments WHERE id IN (SELECT MAX(id) FROM ticket_comments WHERE ticket_id IN (`+holders+`) GROUP BY ticket_id)`),
+		args...)
+	if err != nil {
+		return nil, err
+	}
+	func() {
+		defer lrRows.Close()
+		for lrRows.Next() {
+			var tid, author int64
+			var at sql.NullString
+			if serr := lrRows.Scan(&tid, &author, &at); serr != nil {
+				err = serr
+				return
 			}
-		}
-		// SLA sidecar (065): missing table (pre-065 test DBs) or missing row
-		// both read back as zero state — never fail the list for this.
-		if len(ids) > 0 {
-			placeholders := strings.Repeat("?,", len(ids))
-			placeholders = placeholders[:len(placeholders)-1]
-			args := make([]any, len(ids))
-			for i, id := range ids {
-				args[i] = id
-			}
-			if rows, err := r.db.Query(
-				`SELECT ticket_id, first_response_at, sla_breached, escalated, escalated_at FROM ticket_sla WHERE ticket_id IN (`+placeholders+`)`,
-				args...); err == nil {
-				defer rows.Close()
-				for rows.Next() {
-					var tid int64
-					var firstResp, escAt sql.NullString
-					var breached, escalated sql.NullInt64
-					if err := rows.Scan(&tid, &firstResp, &breached, &escalated, &escAt); err != nil {
-						continue
-					}
-					if idx, ok := idIdx[tid]; ok {
-						if firstResp.Valid && firstResp.String != "" {
-							if t := parseTicketTime(firstResp.String); !t.IsZero() {
-								tickets[idx].FirstResponseAt = &t
-							}
-						}
-						tickets[idx].SLABreached = breached.Valid && breached.Int64 != 0
-						tickets[idx].Escalated = escalated.Valid && escalated.Int64 != 0
-						if escAt.Valid && escAt.String != "" {
-							if t := parseTicketTime(escAt.String); !t.IsZero() {
-								tickets[idx].EscalatedAt = &t
-							}
-						}
+			if idx, ok := idIdx[tid]; ok {
+				v := author
+				tickets[idx].LastReplyBy = &v
+				if at.Valid && at.String != "" {
+					if tm := parseTicketTime(at.String); !tm.IsZero() {
+						tickets[idx].LastReplyAt = &tm
 					}
 				}
 			}
 		}
+		err = lrRows.Err()
+	}()
+	if err != nil {
+		return nil, err
+	}
+	// SLA sidecar (065): a missing table (pre-065 databases) reads back as
+	// zero state; any other failure is propagated.
+	slaRows, err := r.db.Query(
+		r.rebind(`SELECT ticket_id, first_response_at, sla_breached, escalated, escalated_at FROM ticket_sla WHERE ticket_id IN (`+holders+`)`),
+		args...)
+	if err != nil {
+		if isMissingTableErr(err) {
+			return tickets, nil
+		}
+		return nil, err
+	}
+	func() {
+		defer slaRows.Close()
+		for slaRows.Next() {
+			var tid int64
+			var firstResp, escAt sql.NullString
+			var breached, escalated sql.NullInt64
+			if serr := slaRows.Scan(&tid, &firstResp, &breached, &escalated, &escAt); serr != nil {
+				err = serr
+				return
+			}
+			if idx, ok := idIdx[tid]; ok {
+				if firstResp.Valid && firstResp.String != "" {
+					if tm := parseTicketTime(firstResp.String); !tm.IsZero() {
+						tickets[idx].FirstResponseAt = &tm
+					}
+				}
+				tickets[idx].SLABreached = breached.Valid && breached.Int64 != 0
+				tickets[idx].Escalated = escalated.Valid && escalated.Int64 != 0
+				if escAt.Valid && escAt.String != "" {
+					if tm := parseTicketTime(escAt.String); !tm.IsZero() {
+						tickets[idx].EscalatedAt = &tm
+					}
+				}
+			}
+		}
+		err = slaRows.Err()
+	}()
+	if err != nil {
+		return nil, err
 	}
 	return tickets, nil
 }
@@ -240,7 +326,7 @@ func (r *TicketRepository) List(filterCategory, filterPriority, filterStatus, se
 	whereClause := strings.Join(where, " AND ")
 	// Count — early return on 0 avoids modernc's phantom all-NULL row on empty result
 	var total int
-	if err := r.db.QueryRow(`SELECT COUNT(*) FROM tickets t WHERE `+whereClause, args...).Scan(&total); err != nil {
+	if err := r.db.QueryRow(r.rebind(`SELECT COUNT(*) FROM tickets t WHERE `+whereClause), args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 	if total == 0 {
@@ -254,7 +340,7 @@ func (r *TicketRepository) List(filterCategory, filterPriority, filterStatus, se
 	}
 	query := `SELECT ` + ticketColumns + ` FROM tickets t WHERE ` + whereClause + ` ORDER BY t.updated_at DESC, t.id DESC LIMIT ? OFFSET ?`
 	args = append(args, limit, offset)
-	rows, err := r.db.Query(query, args...)
+	rows, err := r.db.Query(r.rebind(query), args...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -270,12 +356,15 @@ func (r *TicketRepository) List(filterCategory, filterPriority, filterStatus, se
 	if err := rows.Err(); err != nil {
 		return nil, 0, err
 	}
-	out, _ = r.enrichTickets(out)
-	return out, total, nil
+	enriched, err := r.enrichTickets(out)
+	if err != nil {
+		return nil, 0, err
+	}
+	return enriched, total, nil
 }
 
 func (r *TicketRepository) Get(id int64) (*models.Ticket, error) {
-	row := r.db.QueryRow(`SELECT `+ticketColumns+` FROM tickets t WHERE t.id = ?`, id)
+	row := r.db.QueryRow(r.rebind(`SELECT `+ticketColumns+` FROM tickets t WHERE t.id = ?`), id)
 	tk, err := scanTicket(row)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -284,12 +373,15 @@ func (r *TicketRepository) Get(id int64) (*models.Ticket, error) {
 		return nil, err
 	}
 	tmp := []models.Ticket{*tk}
-	enriched, _ := r.enrichTickets(tmp)
+	enriched, err := r.enrichTickets(tmp)
+	if err != nil {
+		return nil, err
+	}
 	return &enriched[0], nil
 }
 
 func (r *TicketRepository) GetByTicketNo(no string) (*models.Ticket, error) {
-	row := r.db.QueryRow(`SELECT `+ticketColumns+` FROM tickets t WHERE t.ticket_no = ?`, no)
+	row := r.db.QueryRow(r.rebind(`SELECT `+ticketColumns+` FROM tickets t WHERE t.ticket_no = ?`), no)
 	tk, err := scanTicket(row)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -298,7 +390,10 @@ func (r *TicketRepository) GetByTicketNo(no string) (*models.Ticket, error) {
 		return nil, err
 	}
 	tmp := []models.Ticket{*tk}
-	enriched, _ := r.enrichTickets(tmp)
+	enriched, err := r.enrichTickets(tmp)
+	if err != nil {
+		return nil, err
+	}
 	return &enriched[0], nil
 }
 
@@ -344,9 +439,11 @@ func (r *TicketRepository) Create(in CreateTicketInput) (*models.Ticket, error) 
 	// modernc.org/sqlite rejects Go nil as a driver.Value, so nullable
 	// columns are handled via literal SQL NULL when not set (mirrors
 	// activity_repo.Create's pattern) instead of binding a nil.
-	var res sql.Result
+	// execInsertGetIDTx resolves the new id portably: INSERT...RETURNING
+	// on Postgres (pgx has no LastInsertId), Exec+LastInsertId elsewhere.
+	var id int64
 	if in.AssignedTo == nil && in.DueAt == nil {
-		res, err = tx.Exec(
+		id, err = r.execInsertGetIDTx(tx,
 			`INSERT INTO tickets (ticket_no, subject, description, category, priority, status, created_by, assigned_to, created_at, updated_at, closed_at, due_at, tags)
 			 VALUES (?, ?, ?, ?, ?, 'open', ?, NULL, ?, ?, NULL, NULL, ?)`,
 			"TMP",
@@ -356,7 +453,7 @@ func (r *TicketRepository) Create(in CreateTicketInput) (*models.Ticket, error) 
 			tags,
 		)
 	} else if in.AssignedTo != nil && in.DueAt == nil {
-		res, err = tx.Exec(
+		id, err = r.execInsertGetIDTx(tx,
 			`INSERT INTO tickets (ticket_no, subject, description, category, priority, status, created_by, assigned_to, created_at, updated_at, closed_at, due_at, tags)
 			 VALUES (?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, NULL, NULL, ?)`,
 			"TMP",
@@ -367,7 +464,7 @@ func (r *TicketRepository) Create(in CreateTicketInput) (*models.Ticket, error) 
 		)
 	} else if in.AssignedTo == nil && in.DueAt != nil {
 		dueStr := in.DueAt.UTC().Format("2006-01-02 15:04:05")
-		res, err = tx.Exec(
+		id, err = r.execInsertGetIDTx(tx,
 			`INSERT INTO tickets (ticket_no, subject, description, category, priority, status, created_by, assigned_to, created_at, updated_at, closed_at, due_at, tags)
 			 VALUES (?, ?, ?, ?, ?, 'open', ?, NULL, ?, ?, NULL, ?, ?)`,
 			"TMP",
@@ -379,7 +476,7 @@ func (r *TicketRepository) Create(in CreateTicketInput) (*models.Ticket, error) 
 		)
 	} else {
 		dueStr := in.DueAt.UTC().Format("2006-01-02 15:04:05")
-		res, err = tx.Exec(
+		id, err = r.execInsertGetIDTx(tx,
 			`INSERT INTO tickets (ticket_no, subject, description, category, priority, status, created_by, assigned_to, created_at, updated_at, closed_at, due_at, tags)
 			 VALUES (?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, NULL, ?, ?)`,
 			"TMP",
@@ -393,12 +490,8 @@ func (r *TicketRepository) Create(in CreateTicketInput) (*models.Ticket, error) 
 	if err != nil {
 		return nil, err
 	}
-	id, err := res.LastInsertId()
-	if err != nil {
-		return nil, err
-	}
 	ticketNo := fmt.Sprintf("TKT-%06d", id)
-	if _, err := tx.Exec(`UPDATE tickets SET ticket_no = ? WHERE id = ?`, ticketNo, id); err != nil {
+	if _, err := tx.Exec(r.rebind(`UPDATE tickets SET ticket_no = ? WHERE id = ?`), ticketNo, id); err != nil {
 		return nil, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -517,7 +610,7 @@ func (r *TicketRepository) Update(id int64, in UpdateTicketInput) (*models.Ticke
 		args = append(args, *dueVal)
 	}
 	args = append(args, tags, id)
-	query := fmt.Sprintf(`UPDATE tickets SET subject = ?, description = ?, category = ?, priority = ?, status = ?, %s, updated_at = ?, %s, %s, tags = ? WHERE id = ?`,
+	query := fmt.Sprintf(r.rebind(`UPDATE tickets SET subject = ?, description = ?, category = ?, priority = ?, status = ?, %s, updated_at = ?, %s, %s, tags = ? WHERE id = ?`),
 		assignedSQL, closedSQL, dueSQL)
 	_, err = r.db.Exec(query, args...)
 	if err != nil {
@@ -527,7 +620,7 @@ func (r *TicketRepository) Update(id int64, in UpdateTicketInput) (*models.Ticke
 }
 
 func (r *TicketRepository) Delete(id int64) error {
-	res, err := r.db.Exec(`DELETE FROM tickets WHERE id = ?`, id)
+	res, err := r.db.Exec(r.rebind(`DELETE FROM tickets WHERE id = ?`), id)
 	if err != nil {
 		return err
 	}
@@ -549,7 +642,7 @@ func (r *TicketRepository) Stats(uid int64, isStaff bool) (*models.TicketStats, 
 		args = append(args, uid, uid)
 	}
 	// total
-	_ = r.db.QueryRow(`SELECT COUNT(*) FROM tickets WHERE `+where, args...).Scan(&s.Total)
+	_ = r.db.QueryRow(r.rebind(`SELECT COUNT(*) FROM tickets WHERE `+where), args...).Scan(&s.Total)
 	// per status
 	statusMap := map[string]*int{
 		"open":        &s.Open,
@@ -559,19 +652,19 @@ func (r *TicketRepository) Stats(uid int64, isStaff bool) (*models.TicketStats, 
 		"closed":      &s.Closed,
 	}
 	for k, ptr := range statusMap {
-		q := `SELECT COUNT(*) FROM tickets WHERE status = ? AND ` + where
+		q := r.rebind(`SELECT COUNT(*) FROM tickets WHERE status = ? AND ` + where)
 		a := append([]any{k}, args...)
 		_ = r.db.QueryRow(q, a...).Scan(ptr)
 	}
 	// unassigned (only meaningful for staff view, but compute anyway with same where)
-	qUn := `SELECT COUNT(*) FROM tickets WHERE assigned_to IS NULL AND ` + where
+	qUn := r.rebind(`SELECT COUNT(*) FROM tickets WHERE assigned_to IS NULL AND ` + where)
 	_ = r.db.QueryRow(qUn, args...).Scan(&s.Unassigned)
 	// mine: tickets created by or assigned to me (even for staff, show personal count)
-	_ = r.db.QueryRow(`SELECT COUNT(*) FROM tickets WHERE (created_by = ? OR assigned_to = ?)`, uid, uid).Scan(&s.Mine)
+	_ = r.db.QueryRow(r.rebind(`SELECT COUNT(*) FROM tickets WHERE (created_by = ? OR assigned_to = ?)`), uid, uid).Scan(&s.Mine)
 	// SLA (065): breached among the visible set + compliant share. The
 	// sidecar table may not exist on pre-065 test DBs — any error reads
 	// back as zero state, never a stats failure.
-	_ = r.db.QueryRow(`SELECT COUNT(*) FROM ticket_sla WHERE sla_breached = 1 AND ticket_id IN (SELECT id FROM tickets WHERE `+where+`)`, args...).Scan(&s.Breached)
+	_ = r.db.QueryRow(r.rebind(`SELECT COUNT(*) FROM ticket_sla WHERE sla_breached = 1 AND ticket_id IN (SELECT id FROM tickets WHERE `+where+`)`), args...).Scan(&s.Breached)
 	if s.Total > 0 {
 		s.SLAPct = float64(s.Total-s.Breached) * 100 / float64(s.Total)
 	} else {
@@ -589,7 +682,7 @@ func (r *TicketRepository) ListComments(ticketID int64, includeInternal bool) ([
 		where += " AND is_internal = 0"
 	}
 	rows, err := r.db.Query(
-		`SELECT id, ticket_id, author_id, body, is_internal, created_at, updated_at FROM ticket_comments WHERE `+where+` ORDER BY created_at ASC, id ASC`,
+		r.rebind(`SELECT id, ticket_id, author_id, body, is_internal, created_at, updated_at FROM ticket_comments WHERE `+where+` ORDER BY created_at ASC, id ASC`),
 		args...)
 	if err != nil {
 		return nil, err
@@ -609,7 +702,7 @@ func (r *TicketRepository) ListComments(ticketID int64, includeInternal bool) ([
 		c.UpdatedAt = parseTicketTime(updated.String)
 		var name, displayName, accentColor, avatarSymbol sql.NullString
 		var avatarMime, avatarFilename sql.NullString
-		_ = r.db.QueryRow(`SELECT username, display_name, accent_color, avatar_symbol, avatar_mime, avatar_filename FROM users WHERE id = ?`, c.AuthorID).Scan(&name, &displayName, &accentColor, &avatarSymbol, &avatarMime, &avatarFilename)
+		_ = r.db.QueryRow(r.rebind(`SELECT username, display_name, accent_color, avatar_symbol, avatar_mime, avatar_filename FROM users WHERE id = ?`), c.AuthorID).Scan(&name, &displayName, &accentColor, &avatarSymbol, &avatarMime, &avatarFilename)
 		c.AuthorName = name.String
 		c.AuthorDisplayName = displayName.String
 		c.AuthorAccentColor = accentColor.String
