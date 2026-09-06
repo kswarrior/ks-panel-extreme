@@ -141,7 +141,11 @@ func ListProcessesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	ls := refreshLiveState(inst, ec)
 	if ls == nil {
-		writeJSON(w, map[string]any{"processes": []any{}, "cached": false})
+		// No cached state and the edge is unreachable: answer the same
+		// bare-array shape the live path writes below (the SPA's
+		// listProcesses keeps only Array.isArray payloads), not an
+		// object envelope.
+		writeJSON(w, []any{})
 		return
 	}
 	// Forward raw JSON so the SPA decodes the driver-specific fields.

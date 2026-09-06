@@ -264,8 +264,14 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
     () => hist.filter((h) => h.ramPct !== null).map((h) => ({ t: h.t, v: h.ramPct as number })),
     [hist],
   );
-  const recentCPU = useMemo(() => hist.map((h) => h.cpu ?? 0), [hist]);
-  const recentRAM = useMemo(() => hist.map((h) => h.ramPct ?? 0), [hist]);
+  const recentCPU = useMemo(
+    () => hist.filter((h) => h.cpu !== null).map((h) => h.cpu as number),
+    [hist],
+  );
+  const recentRAM = useMemo(
+    () => hist.filter((h) => h.ramPct !== null).map((h) => h.ramPct as number),
+    [hist],
+  );
 
   // Latest absolute byte counts ride along on the newest history point.
   const liveBytes = {
@@ -778,9 +784,9 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
                   <div className="min-w-0 flex-1">
                     <p className="text-[13px] text-gray-200">
                       <span className="font-medium capitalize">{e.action}</span>
-                      <span className="text-gray-500"> · {e.username || 'system'}</span>
+                      <span className="text-gray-500"> · {e.actor || 'system'}</span>
                     </p>
-                    <p className="text-xs text-gray-400 break-words mt-0.5">{e.message}</p>
+                    <p className="text-xs text-gray-400 break-words mt-0.5">{e.detail}</p>
                   </div>
                 </li>
               ))}

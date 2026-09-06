@@ -112,7 +112,9 @@ func TestKillVerifyScriptSplicesAreTyped(t *testing.T) {
 		}
 	}
 	for _, bad := range []string{"", "sigkill", "TERM;reboot", "-9"} {
-		if validKillSignals[strings.ToUpper(bad)] && bad == "TERM;reboot" || validKillSignals[bad] {
+		// Mirror the handler's normalisation (TrimSpace + ToUpper) so the
+		// assertion pins the real gate: none of these may be allow-listed.
+		if validKillSignals[strings.ToUpper(strings.TrimSpace(bad))] {
 			t.Errorf("invalid signal %q passed allowlist", bad)
 		}
 	}

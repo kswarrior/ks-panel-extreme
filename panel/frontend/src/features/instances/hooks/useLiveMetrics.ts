@@ -73,7 +73,14 @@ export function useLiveMetrics(
       return;
     }
     let dead = false;
+    // Skip a tick while the previous poll is still in flight: the edge
+    // inspect aborts at ~10s but the interval is 4s, so without this guard
+    // a wedged edge piles up overlapping slow requests that resolve out of
+    // order and hammer the panel.
+    let inFlight = false;
     const poll = async () => {
+      if (inFlight) return;
+      inFlight = true;
       try {
         const m = await getMetrics(instanceId);
         if (dead) return;
@@ -82,6 +89,8 @@ export function useLiveMetrics(
       } catch (e: any) {
         if (!dead && e?.response?.status === 403) setDenied(true);
         /* otherwise keep last snapshot */
+      } finally {
+        inFlight = false;
       }
     };
     void poll();
