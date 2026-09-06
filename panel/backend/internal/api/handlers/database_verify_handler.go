@@ -179,6 +179,7 @@ func checkSQLite(con *sql.DB) (issues, warnings []string, tableCount int) {
 		}
 		if rerr := rows.Err(); rerr != nil {
 			issues = append(issues, "table listing read failed: "+rerr.Error())
+			rows.Close()
 			return issues, warnings, 0
 		}
 		rows.Close()

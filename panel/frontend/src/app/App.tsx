@@ -21,6 +21,11 @@ const App: React.FC = () => {
   const bootstrapFromServer = useSettingsStore((s) => s.bootstrapFromServer);
   const reapplyTheme = useThemeStore((s) => s.reapply);
   const loadGlobalThemes = useThemeStore((s) => s.loadGlobal);
+  // Non-401 boot-probe failure (5xx / network blip): initialized stays false
+  // so RequireAuth keeps the boot splash instead of bouncing to login.
+  // Without a visible retry the splash hangs forever — flag it so we can
+  // offer a reload.
+  const [bootFailed, setBootFailed] = React.useState(false);
 
   useEffect(() => {
     // The theme store applies the active theme at import time, but a quick
@@ -95,6 +100,8 @@ const App: React.FC = () => {
       // being dropped onto the login screen over a transient error.
       if (err?.response?.status === 401) {
         clearAuth();
+      } else {
+        setBootFailed(true);
       }
     });
     return () => { cancelled = true };
@@ -119,6 +126,18 @@ const App: React.FC = () => {
         <ErrorBoundary label="app">
           <Router />
         </ErrorBoundary>
+        {bootFailed && (
+          <div className="fixed bottom-4 left-1/2 z-[60] -translate-x-1/2 rounded-lg border border-red-500/40 bg-red-950/90 px-4 py-3 text-sm text-red-100 shadow-xl">
+            Couldn&apos;t reach the panel server.{" "}
+            <button
+              type="button"
+              className="underline underline-offset-2 hover:text-white"
+              onClick={() => window.location.reload()}
+            >
+              Retry
+            </button>
+          </div>
+        )}
         {/* Panel-owned confirm() dialog — replaces every native
             window.confirm across the app. */}
         <ConfirmDialog />

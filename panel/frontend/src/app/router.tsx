@@ -160,16 +160,12 @@ const Router: React.FC = () => (
         }
       />
 
-      {/* Panel pages — formerly /admin/<area>. Each page is now gated ONLY
-          by the specific permission it exercises (or, for System /
-          Security / Activity / Database / Themes / Theme-Studio, by
-          nothing more than being authenticated — per KS Panel policy a
-          route with no granular perm key falls through to any logged-in
-          user). There is no longer an "Admin Panel" routing shell or an
-          ACCESS_ADMIN_PANEL gate around the whole surface. */}
+      {/* Panel pages — formerly /admin/<area>. Each page is gated by the
+          specific permission it exercises via <RequirePermission>. There is
+          no longer an "Admin Panel" routing shell around the whole surface. */}
 
       {/* System / Security / Database — gated by ACCESS_ADMIN_PANEL (backend
-          requires it). AuthOnly would expose 403 from the API (Forbidden). */}
+          requires it; an auth-only gate would expose 403 from the API). */}
       <Route path="/system" element={<RequireAuth><RequirePermission permission={PermissionKey.ACCESS_ADMIN_PANEL}><System /></RequirePermission></RequireAuth>} />
       <Route path="/security" element={<RequireAuth><RequirePermission permission={PermissionKey.ACCESS_ADMIN_PANEL}><Security /></RequirePermission></RequireAuth>} />
       <Route path="/database" element={<RequireAuth><RequirePermission permission={PermissionKey.ACCESS_ADMIN_PANEL}><Database /></RequirePermission></RequireAuth>} />
