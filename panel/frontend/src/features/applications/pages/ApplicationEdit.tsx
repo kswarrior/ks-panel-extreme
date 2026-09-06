@@ -205,6 +205,7 @@ const ApplicationEdit: React.FC = () => {
         </div>
       )}
 
+      <div className="ks-card ks-form-card rounded-md space-y-4">
       <GlassField label="Name">
         <input
           value={form.name}
@@ -255,6 +256,7 @@ const ApplicationEdit: React.FC = () => {
         />
       </GlassField>
 
+      <div className="ks-card ks-form-card rounded-md space-y-4">
       <div>
         <span className="ks-label">Icon & colour</span>
         <p className="ks-hint">Shown on the catalog card — same preview tile as nodes / instances / templates.</p>
