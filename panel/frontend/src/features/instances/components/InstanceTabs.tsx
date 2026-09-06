@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { useInstanceNav } from '@/shared/components/layout/InstanceNavContext';
+import { isPageAllowed } from '@/shared/utils/instancePages';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { PermissionKey, hasPermissionAny } from '@/shared/types/permissions';
@@ -9,31 +10,24 @@ import { PermissionKey, hasPermissionAny } from '@/shared/types/permissions';
 // of an instance (power, actions, status) lives in the floating draggable
 // menu (InstanceMenuFab), so this is just the scrollable tab row.
 
-// useEffectiveInstanceNav — instance pages plus the synthetic built-in tabs
-// (Ports, Snapshots), permission-gated. Shared by the inline tab row and
-// the floating menu so both list exactly the same pages.
+// INSTANCE_TOOL_SLUGS are utility pages that never render as tabs — they
+// live in the InstanceToolsDock below (icon cards with their own look) so
+// the tab row stays reserved for content pages. Direct URLs keep working:
+// this only affects nav presentation, never the route guards.
+export const INSTANCE_TOOL_SLUGS = ['files', 'terminal', 'ports'];
+
+// useEffectiveInstanceNav — instance content pages plus the synthetic
+// built-in tabs (Snapshots), permission-gated. Tool slugs (Files /
+// Terminal / Ports) are excluded here — they render in the Tools dock.
 export function useEffectiveInstanceNav() {
   const { nav, instanceId } = useInstanceNav();
   const permissions = useAuthStore((s) => s.permissions);
-  const canEditPorts = hasPermissionAny(permissions, PermissionKey.INSTANCES_EDIT, PermissionKey.MANAGE_INSTANCES);
   const canViewSnapshots = hasPermissionAny(permissions, PermissionKey.INSTANCES_EDIT, PermissionKey.MANAGE_INSTANCES, PermissionKey.VIEW_INSTANCES);
   return useMemo(() => {
-    let out = nav;
-    if (instanceId && canEditPorts && !out.some((n) => n.to === 'ports')) {
-      // Append synthetic Ports tab unless a custom page already uses slug 'ports'
-      out = [
-        ...out,
-        {
-          to: 'ports',
-          label: 'Ports',
-          iconSvg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="7" width="20" height="8" rx="2"/><path d="M6 7v-2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2"/><path d="M6 15v2a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-2"/></svg>',
-          iconKind: 'svg' as const,
-          end: false,
-        },
-      ];
-    }
+    // Content tabs only — tools get their own dock, never the tab row.
+    let out = nav.filter((n) => !INSTANCE_TOOL_SLUGS.includes(n.to));
     if (instanceId && canViewSnapshots && !out.some((n) => n.to === 'snapshots')) {
-      // Native Snapshots tab (built-in, like Ports/SFTP). The legacy
+      // Native Snapshots tab (built-in, like SFTP). The legacy
       // backups.json custom page keeps working under slug 'backups'.
       out = [
         ...out,
@@ -47,7 +41,7 @@ export function useEffectiveInstanceNav() {
       ];
     }
     return out;
-  }, [nav, instanceId, canEditPorts, canViewSnapshots]);
+  }, [nav, instanceId, canViewSnapshots]);
 }
 
 const InstanceTabs: React.FC = () => {
