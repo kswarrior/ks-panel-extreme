@@ -1370,10 +1370,21 @@ func isLocalNode(n *models.Node) bool {
 
 // portFromAddress pulls the port segment off a host:port string, falling back
 // to the supplied default when the address is malformed or lacks a port.
+// Bracketed IPv6 ([host] / [host]:port, the only form validateNodeAddress
+// accepts) is parsed bracket-aware: a bare LastIndex(":") split would return
+// "1]" for "[::1]". Ports must be numeric (isValidPortStr) — anything else
+// falls back rather than propagating garbage into dial strings.
 func portFromAddress(addr, fallback string) string {
+	if strings.HasPrefix(addr, "[") {
+		if end := strings.Index(addr, "]"); end >= 0 {
+			if rest := addr[end+1:]; strings.HasPrefix(rest, ":") && isValidPortStr(rest[1:]) {
+				return rest[1:]
+			}
+		}
+		return fallback
+	}
 	if idx := strings.LastIndex(addr, ":"); idx >= 0 {
-		p := addr[idx+1:]
-		if p != "" {
+		if p := addr[idx+1:]; isValidPortStr(p) {
 			return p
 		}
 	}
