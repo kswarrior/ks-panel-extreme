@@ -77,6 +77,7 @@ import TicketSchedules from '@/features/tickets/pages/TicketSchedules';
 import TicketChatPage from '@/features/tickets/pages/TicketChatPage';
 import InstancePanel, { InstanceDynamicPage } from '@/features/instances/pages/InstanceDetail';
 import Database from '@/features/database/pages/Database';
+import AIChat from '@/features/ai-chat/pages/AIChat';
 import RequireAuth from '@/shared/components/ui/RequireAuth';
 import RequirePermission from '@/shared/components/ui/RequirePermission';
 import { PermissionKey } from '@/shared/types/permissions';
@@ -178,7 +179,11 @@ const Router: React.FC = () => (
       <Route path="/notifications/broadcast" element={<RequireAuth><RequirePermission permission={PermissionKey.MANAGE_NOTIFICATIONS}><NotificationBroadcast /></RequirePermission></RequireAuth>} />
       <Route path="/notifications" element={<RequireAuth><RequirePermission permission={PermissionKey.MANAGE_NOTIFICATIONS}><Notifications /></RequirePermission></RequireAuth>} />
       <Route path="/notification/:id" element={<RequireAuth><RequirePermission permission={PermissionKey.MANAGE_NOTIFICATIONS}><NotificationDetail /></RequirePermission></RequireAuth>} />
-      <Route path="/activity" element={<RequireAuth><RequirePermission permission={PermissionKey.ACCESS_ADMIN_PANEL}><Activity /></RequirePermission></RequireAuth>} />
+       <Route path="/activity" element={<RequireAuth><RequirePermission permission={PermissionKey.ACCESS_ADMIN_PANEL}><Activity /></RequirePermission></RequireAuth>} />
+
+      {/* AI Assistant full page — same ChatView as the floating panel.
+          Area-aware gate: AI_CHAT_USE umbrella admits QA/Tools/Writes too. */}
+      <Route path="/ai-chat" element={<RequireAuth><RequirePermission permission={PermissionKey.AI_CHAT_USE}><AIChat /></RequirePermission></RequireAuth>} />
 
       {/* Themes — public read is open, but the management surface (list + studio)
           is gated by MANAGE_THEMES (any theme sub-cap also admits via RequirePermission). */}
