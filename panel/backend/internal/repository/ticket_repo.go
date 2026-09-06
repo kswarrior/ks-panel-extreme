@@ -724,7 +724,7 @@ func (r *TicketRepository) AddComment(ticketID, authorID int64, body string, isI
 	}
 	// verify ticket exists
 	var exists int
-	if err := r.db.QueryRow(`SELECT COUNT(*) FROM tickets WHERE id = ?`, ticketID).Scan(&exists); err != nil {
+	if err := r.db.QueryRow(r.rebind(`SELECT COUNT(*) FROM tickets WHERE id = ?`), ticketID).Scan(&exists); err != nil {
 		return nil, err
 	}
 	if exists == 0 {
@@ -735,16 +735,17 @@ func (r *TicketRepository) AddComment(ticketID, authorID int64, body string, isI
 	if isInternal {
 		flag = 1
 	}
-	res, err := r.db.Exec(
+	id, err := r.execInsertGetID(
 		`INSERT INTO ticket_comments (ticket_id, author_id, body, is_internal, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
 		ticketID, authorID, body, flag, now, now,
 	)
 	if err != nil {
 		return nil, err
 	}
-	id, _ := res.LastInsertId()
 	// bump ticket updated_at
-	_, _ = r.db.Exec(`UPDATE tickets SET updated_at = ? WHERE id = ?`, now, ticketID)
+	if _, err := r.db.Exec(r.rebind(`UPDATE tickets SET updated_at = ? WHERE id = ?`), now, ticketID); err != nil {
+		return nil, err
+	}
 	return r.GetComment(id)
 }
 
@@ -752,7 +753,7 @@ func (r *TicketRepository) GetComment(id int64) (*models.TicketComment, error) {
 	var c models.TicketComment
 	var body, created, updated sql.NullString
 	var isInternal int
-	err := r.db.QueryRow(`SELECT id, ticket_id, author_id, body, is_internal, created_at, updated_at FROM ticket_comments WHERE id = ?`, id).
+	err := r.db.QueryRow(r.rebind(`SELECT id, ticket_id, author_id, body, is_internal, created_at, updated_at FROM ticket_comments WHERE id = ?`), id).
 		Scan(&c.ID, &c.TicketID, &c.AuthorID, &body, &isInternal, &created, &updated)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -766,7 +767,7 @@ func (r *TicketRepository) GetComment(id int64) (*models.TicketComment, error) {
 	c.UpdatedAt = parseTicketTime(updated.String)
 	var name, displayName, accentColor, avatarSymbol sql.NullString
 	var avatarMime, avatarFilename sql.NullString
-	_ = r.db.QueryRow(`SELECT username, display_name, accent_color, avatar_symbol, avatar_mime, avatar_filename FROM users WHERE id = ?`, c.AuthorID).Scan(&name, &displayName, &accentColor, &avatarSymbol, &avatarMime, &avatarFilename)
+	_ = r.db.QueryRow(r.rebind(`SELECT username, display_name, accent_color, avatar_symbol, avatar_mime, avatar_filename FROM users WHERE id = ?`), c.AuthorID).Scan(&name, &displayName, &accentColor, &avatarSymbol, &avatarMime, &avatarFilename)
 	c.AuthorName = name.String
 	c.AuthorDisplayName = displayName.String
 	c.AuthorAccentColor = accentColor.String
@@ -778,7 +779,7 @@ func (r *TicketRepository) GetComment(id int64) (*models.TicketComment, error) {
 }
 
 func (r *TicketRepository) DeleteComment(commentID, ticketID int64) error {
-	r2, err := r.db.Exec(`DELETE FROM ticket_comments WHERE id = ? AND ticket_id = ?`, commentID, ticketID)
+	r2, err := r.db.Exec(r.rebind(`DELETE FROM ticket_comments WHERE id = ? AND ticket_id = ?`), commentID, ticketID)
 	if err != nil {
 		return err
 	}
@@ -793,7 +794,7 @@ func (r *TicketRepository) UpdateComment(commentID, ticketID int64, body string)
 		return nil, fmt.Errorf("body is required")
 	}
 	now := time.Now().UTC().Format("2006-01-02 15:04:05")
-	res, err := r.db.Exec(`UPDATE ticket_comments SET body = ?, updated_at = ? WHERE id = ? AND ticket_id = ?`, body, now, commentID, ticketID)
+	res, err := r.db.Exec(r.rebind(`UPDATE ticket_comments SET body = ?, updated_at = ? WHERE id = ? AND ticket_id = ?`), body, now, commentID, ticketID)
 	if err != nil {
 		return nil, err
 	}

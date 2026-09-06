@@ -20,7 +20,7 @@ const TicketSLAConfigKey = "ticket_sla_config"
 func (r *TicketRepository) GetSLAConfig() map[string]models.TicketSLAPolicy {
 	def := models.DefaultTicketSLAConfig()
 	var raw string
-	if err := r.db.QueryRow(`SELECT value FROM settings WHERE key = ?`, TicketSLAConfigKey).Scan(&raw); err != nil {
+	if err := r.db.QueryRow(r.rebind(`SELECT value FROM settings WHERE key = ?`), TicketSLAConfigKey).Scan(&raw); err != nil {
 		return def
 	}
 	if strings.TrimSpace(raw) == "" {
@@ -60,8 +60,8 @@ func (r *TicketRepository) SetSLAConfig(cfg map[string]models.TicketSLAPolicy) e
 		return err
 	}
 	_, err = r.db.Exec(
-		`INSERT INTO settings (key, value) VALUES (?, ?)
-		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+		r.rebind(`INSERT INTO settings (key, value) VALUES (?, ?)
+		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`),
 		TicketSLAConfigKey, string(blob),
 	)
 	return err
@@ -89,7 +89,7 @@ func (r *TicketRepository) GetSLA(ticketID int64) (*models.TicketSLA, error) {
 	var firstResp, escAt sql.NullString
 	var breached, escalated sql.NullInt64
 	err := r.db.QueryRow(
-		`SELECT ticket_id, first_response_at, sla_breached, escalated, escalated_at FROM ticket_sla WHERE ticket_id = ?`,
+		r.rebind(`SELECT ticket_id, first_response_at, sla_breached, escalated, escalated_at FROM ticket_sla WHERE ticket_id = ?`),
 		ticketID,
 	).Scan(&s.TicketID, &firstResp, &breached, &escalated, &escAt)
 	if err != nil {
@@ -119,15 +119,15 @@ func (r *TicketRepository) GetSLA(ticketID int64) (*models.TicketSLA, error) {
 // probe first and only insert when absent).
 func (r *TicketRepository) ensureSLARow(ticketID int64) error {
 	var n int
-	if err := r.db.QueryRow(`SELECT COUNT(*) FROM ticket_sla WHERE ticket_id = ?`, ticketID).Scan(&n); err != nil {
+	if err := r.db.QueryRow(r.rebind(`SELECT COUNT(*) FROM ticket_sla WHERE ticket_id = ?`), ticketID).Scan(&n); err != nil {
 		return err
 	}
 	if n > 0 {
 		return nil
 	}
 	_, err := r.db.Exec(
-		`INSERT INTO ticket_sla (ticket_id, first_response_at, sla_breached, escalated, escalated_at)
-		 VALUES (?, NULL, 0, 0, NULL)`, ticketID,
+		r.rebind(`INSERT INTO ticket_sla (ticket_id, first_response_at, sla_breached, escalated, escalated_at)
+		 VALUES (?, NULL, 0, 0, NULL)`), ticketID,
 	)
 	return err
 }

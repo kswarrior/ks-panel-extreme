@@ -135,15 +135,17 @@ func (r *TicketRepository) CreateAttachment(ticketID int64, commentID *int64, fi
 
 	now := time.Now().UTC().Format("2006-01-02 15:04:05")
 	safe := sanitizeAttachmentName(fileName)
-	var res sql.Result
+	// execInsertGetID resolves the id portably (RETURNING id on Postgres,
+	// LastInsertId elsewhere with the error propagated, never swallowed).
+	var id int64
 	if commentID == nil {
-		res, err = r.db.Exec(
+		id, err = r.execInsertGetID(
 			`INSERT INTO ticket_attachments (ticket_id, comment_id, file_name, mime, size_bytes, sha256, uploaded_by, created_at)
 			 VALUES (?, NULL, ?, ?, ?, ?, ?, ?)`,
 			ticketID, safe, mime, len(data), hexSum, uploadedBy, now,
 		)
 	} else {
-		res, err = r.db.Exec(
+		id, err = r.execInsertGetID(
 			`INSERT INTO ticket_attachments (ticket_id, comment_id, file_name, mime, size_bytes, sha256, uploaded_by, created_at)
 			 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 			ticketID, *commentID, safe, mime, len(data), hexSum, uploadedBy, now,
@@ -152,15 +154,14 @@ func (r *TicketRepository) CreateAttachment(ticketID int64, commentID *int64, fi
 	if err != nil {
 		return nil, err
 	}
-	id, _ := res.LastInsertId()
 	dir, err := ticketAttachmentsDir(ticketID)
 	if err != nil {
-		_, _ = r.db.Exec(`DELETE FROM ticket_attachments WHERE id = ?`, id)
+		_, _ = r.db.Exec(r.rebind(`DELETE FROM ticket_attachments WHERE id = ?`), id)
 		return nil, err
 	}
 	dst := filepath.Join(dir, fmt.Sprintf("%d-%s-%s", id, hexSum[:12], safe))
 	if err := os.WriteFile(dst, data, 0o644); err != nil {
-		_, _ = r.db.Exec(`DELETE FROM ticket_attachments WHERE id = ?`, id)
+		_, _ = r.db.Exec(r.rebind(`DELETE FROM ticket_attachments WHERE id = ?`), id)
 		return nil, fmt.Errorf("write attachment: %w", err)
 	}
 	return r.GetAttachment(id)
@@ -202,7 +203,7 @@ const attachmentColumns = `id, ticket_id, comment_id, file_name, mime, size_byte
 
 // GetAttachment returns one attachment row by id.
 func (r *TicketRepository) GetAttachment(id int64) (*models.TicketAttachment, error) {
-	row := r.db.QueryRow(`SELECT `+attachmentColumns+` FROM ticket_attachments WHERE id = ?`, id)
+	row := r.db.QueryRow(r.rebind(`SELECT `+attachmentColumns+` FROM ticket_attachments WHERE id = ?`), id)
 	a, err := scanAttachment(row)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -216,7 +217,7 @@ func (r *TicketRepository) GetAttachment(id int64) (*models.TicketAttachment, er
 // GetAttachmentBySHA returns the existing row for identical bytes on a
 // ticket, or (nil, nil) when no duplicate exists.
 func (r *TicketRepository) GetAttachmentBySHA(ticketID int64, hexSum string) (*models.TicketAttachment, error) {
-	row := r.db.QueryRow(`SELECT `+attachmentColumns+` FROM ticket_attachments WHERE ticket_id = ? AND sha256 = ? ORDER BY id ASC LIMIT 1`, ticketID, hexSum)
+	row := r.db.QueryRow(r.rebind(`SELECT `+attachmentColumns+` FROM ticket_attachments WHERE ticket_id = ? AND sha256 = ? ORDER BY id ASC LIMIT 1`), ticketID, hexSum)
 	a, err := scanAttachment(row)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -229,7 +230,7 @@ func (r *TicketRepository) GetAttachmentBySHA(ticketID int64, hexSum string) (*m
 
 // ListAttachments returns every attachment on a ticket, oldest first.
 func (r *TicketRepository) ListAttachments(ticketID int64) ([]models.TicketAttachment, error) {
-	rows, err := r.db.Query(`SELECT `+attachmentColumns+` FROM ticket_attachments WHERE ticket_id = ? ORDER BY created_at ASC, id ASC`, ticketID)
+	rows, err := r.db.Query(r.rebind(`SELECT `+attachmentColumns+` FROM ticket_attachments WHERE ticket_id = ? ORDER BY created_at ASC, id ASC`), ticketID)
 	if err != nil {
 		return nil, err
 	}
@@ -253,7 +254,7 @@ func (r *TicketRepository) DeleteAttachment(id int64) (*models.TicketAttachment,
 	if err != nil {
 		return nil, err
 	}
-	if _, err := r.db.Exec(`DELETE FROM ticket_attachments WHERE id = ?`, id); err != nil {
+	if _, err := r.db.Exec(r.rebind(`DELETE FROM ticket_attachments WHERE id = ?`), id); err != nil {
 		return nil, err
 	}
 	_ = os.Remove(AttachmentPath(a))
