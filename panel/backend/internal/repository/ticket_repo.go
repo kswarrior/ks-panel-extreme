@@ -629,8 +629,11 @@ func (r *TicketRepository) Update(id int64, in UpdateTicketInput) (*models.Ticke
 		args = append(args, *dueVal)
 	}
 	args = append(args, tags, id)
-	query := fmt.Sprintf(r.rebind(`UPDATE tickets SET subject = ?, description = ?, category = ?, priority = ?, status = ?, %s, updated_at = ?, %s, %s, tags = ? WHERE id = ?`),
-		assignedSQL, closedSQL, dueSQL)
+	// Sprintf FIRST, rebind SECOND: the injected fragments carry their own
+	// "?" binds, so rebinding the template before substitution would leave
+	// a mixed $N/? query that pgx rejects on Postgres.
+	query := r.rebind(fmt.Sprintf(`UPDATE tickets SET subject = ?, description = ?, category = ?, priority = ?, status = ?, %s, updated_at = ?, %s, %s, tags = ? WHERE id = ?`,
+		assignedSQL, closedSQL, dueSQL))
 	_, err = r.db.Exec(query, args...)
 	if err != nil {
 		return nil, err
