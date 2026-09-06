@@ -191,12 +191,23 @@ func sftpPublicView(inst *models.Instance, cfg *repository.SFTPConfig, nodeAddr 
 		}
 	}
 	// Node addresses are stored as host:port (edge HTTP); the SFTP dial
-	// host is the bare hostname/IP without the HTTP port.
-	if h := strings.LastIndex(host, ":"); h > 0 && !strings.HasSuffix(host, "]") {
-		maybeHost := host[:h]
-		maybePort := host[h+1:]
-		if _, perr := strconv.Atoi(maybePort); perr == nil && maybeHost != "" {
-			host = strings.Trim(maybeHost, "[]")
+	// host is the bare hostname/IP without the HTTP port. Bracketed IPv6
+	// ("[::1]:4040") strips to "::1"; a bare IPv6 ("::1", "2001:db8::1")
+	// has no port to strip and must be kept verbatim — splitting on the
+	// last colon would mangle it into ":" / "2001:db8:".
+	if strings.HasPrefix(host, "[") {
+		if h, _, err := splitHostPortBracketed(host); err == nil {
+			host = h
+		} else {
+			host = strings.Trim(host, "[]")
+		}
+	} else if strings.Count(host, ":") == 1 {
+		if h := strings.LastIndex(host, ":"); h > 0 {
+			maybeHost := host[:h]
+			maybePort := host[h+1:]
+			if _, perr := strconv.Atoi(maybePort); perr == nil && maybeHost != "" {
+				host = maybeHost
+			}
 		}
 	}
 	host = strings.Trim(host, "[]")

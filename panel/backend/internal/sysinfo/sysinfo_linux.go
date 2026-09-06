@@ -6,16 +6,18 @@ import (
 	"bufio"
 	"net"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 )
 
 var (
-	panelCPUPrevMu   sync.Mutex
+	panelCPUPrevMu    sync.Mutex
 	panelCPUPrevTotal uint64
-	panelCPUPrevIdle  uint64
+	panelCPUPrevTime  time.Time
 )
 
 // readPanelRSS returns the panel process RSS in MB from /proc/self/status.
@@ -81,28 +83,45 @@ func readPanelCPUPercent() float64 {
 	}
 
 	total := utime + stime
+	now := time.Now()
 
 	panelCPUPrevMu.Lock()
 	defer panelCPUPrevMu.Unlock()
 
-	if panelCPUPrevTotal == 0 {
+	if panelCPUPrevTotal == 0 || panelCPUPrevTime.IsZero() {
 		panelCPUPrevTotal = total
+		panelCPUPrevTime = now
 		return 0
 	}
 
+	if total < panelCPUPrevTotal {
+		panelCPUPrevTotal = total
+		panelCPUPrevTime = now
+		return 0
+	}
 	dt := total - panelCPUPrevTotal
+	elapsed := now.Sub(panelCPUPrevTime).Seconds()
 	panelCPUPrevTotal = total
+	panelCPUPrevTime = now
+	if elapsed <= 0 {
+		return 0
+	}
 
-	// For process CPU%, we don't have idle time, so we approximate using time elapsed
-	// Since we sample at 1s interval, dt is in clock ticks (usually 100 Hz = USER_HZ)
-	// CPU% = (dt / USER_HZ) / interval * 100
-	// But we don't know USER_HZ here. On Linux it's typically 100.
-	// A simpler approach: compare with total CPU time from /proc/stat
-	// For now, return a simple approximation
+	// USER_HZ is 100 on Linux: dt ticks / 100 = cpu-seconds, / elapsed = fraction, *100 = %.
+	// Clamp to 100*cores so a tight poll interval can't amplify jitter past the real ceiling.
 	if dt > 0 {
-		// Assume USER_HZ=100, interval=1s => 100 ticks per second per core
-		// This is a rough approximation
-		return float64(dt) / 100.0 * 100.0 // dt ticks / 100 ticks per second * 100%
+		pct := float64(dt) / elapsed
+		max := 100.0 * float64(runtime.NumCPU())
+		if max < 100 {
+			max = 100
+		}
+		if pct < 0 {
+			return 0
+		}
+		if pct > max {
+			return max
+		}
+		return pct
 	}
 	return 0
 }
@@ -222,7 +241,19 @@ func countCPUThreads() int {
 	if err != nil {
 		return 0
 	}
-	return strings.Count(string(data), "\nprocessor\t")
+	n := strings.Count(string(data), "\nprocessor\t")
+	if strings.HasPrefix(string(data), "processor\t") {
+		n++
+	}
+	if n == 0 {
+		// Fallback for kernels separating with spaces ("processor : 0").
+		for _, line := range strings.Split(string(data), "\n") {
+			if strings.HasPrefix(strings.TrimSpace(line), "processor") {
+				n++
+			}
+		}
+	}
+	return n
 }
 
 // readCPUModel returns the first "model name" entry in /proc/cpuinfo.

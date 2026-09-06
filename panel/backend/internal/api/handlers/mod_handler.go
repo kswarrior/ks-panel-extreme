@@ -185,6 +185,22 @@ func GetModHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
+	// Ownership scope (migration 054): own-scope callers may only read mods
+	// they uploaded. Orphans (OwnerID==0) require ALL (fail closed, mirrors
+	// Update/Delete/template Download).
+	if uid, _ := UserIDFromContext(r); uid != 0 {
+		if mod != nil && mod.OwnerID != uid {
+			if con, perr := repository.OpenDB(); perr == nil {
+				chk := permissions.NewChecker(con)
+				hasOwn, hasAll, _ := chk.HasScope(uid, permissions.ModsOwnKey, permissions.ModsAllKey, permissions.ManageModsKey)
+				con.Close()
+				if !hasAll && hasOwn {
+					http.Error(w, "forbidden: own-scope may only read mods you uploaded", http.StatusForbidden)
+					return
+				}
+			}
+		}
+	}
 	writeJSON(w, toModResponse(repo, mod))
 }
 
@@ -693,9 +709,11 @@ func UpdateModHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer closeFn()
-	// Ownership scope (migration 054): own-scope callers may only edit mods they own.
+	// Ownership scope (migration 054): own-scope callers may only edit mods
+	// they uploaded. Orphans (OwnerID==0) require ALL (fail closed, mirrors
+	// theme/template handlers and the List filter).
 	if uid, _ := UserIDFromContext(r); uid != 0 {
-		if ex, gerr := repo.GetMod(id); gerr == nil && ex != nil && ex.OwnerID != 0 && ex.OwnerID != uid {
+		if ex, gerr := repo.GetMod(id); gerr == nil && ex != nil && ex.OwnerID != uid {
 			if con, perr := repository.OpenDB(); perr == nil {
 				chk := permissions.NewChecker(con)
 				hasOwn, hasAll, _ := chk.HasScope(uid, permissions.ModsOwnKey, permissions.ModsAllKey, permissions.ManageModsKey)
@@ -745,9 +763,11 @@ func DeleteModHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer closeFn()
-	// Ownership scope (migration 054): own-scope callers may only delete mods they own.
+	// Ownership scope (migration 054): own-scope callers may only delete mods
+	// they uploaded. Orphans (OwnerID==0) require ALL (fail closed, mirrors
+	// theme/template handlers and the List filter).
 	if uid, _ := UserIDFromContext(r); uid != 0 {
-		if ex, gerr := repo.GetMod(id); gerr == nil && ex != nil && ex.OwnerID != 0 && ex.OwnerID != uid {
+		if ex, gerr := repo.GetMod(id); gerr == nil && ex != nil && ex.OwnerID != uid {
 			if con, perr := repository.OpenDB(); perr == nil {
 				chk := permissions.NewChecker(con)
 				hasOwn, hasAll, _ := chk.HasScope(uid, permissions.ModsOwnKey, permissions.ModsAllKey, permissions.ManageModsKey)
@@ -843,6 +863,22 @@ func SetModGrantsHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
+	// Ownership scope (migration 054): own-scope callers may only approve
+	// capabilities on mods they uploaded. Orphans (OwnerID==0) require ALL
+	// (fail closed, mirrors Update/Delete).
+	if uid, _ := UserIDFromContext(r); uid != 0 {
+		if ex, gerr := repo.GetMod(id); gerr == nil && ex != nil && ex.OwnerID != uid {
+			if con, perr := repository.OpenDB(); perr == nil {
+				chk := permissions.NewChecker(con)
+				hasOwn, hasAll, _ := chk.HasScope(uid, permissions.ModsOwnKey, permissions.ModsAllKey, permissions.ManageModsKey)
+				con.Close()
+				if !hasAll && hasOwn {
+					http.Error(w, "forbidden: own-scope may only approve mods you uploaded", http.StatusForbidden)
+					return
+				}
+			}
+		}
+	}
 	if err := repo.SetGrants(id, dto.Grants); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -878,6 +914,21 @@ func ActivateModHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer closeFn()
+	// Ownership scope (migration 054): own-scope callers may only activate
+	// mods they uploaded. Orphans (OwnerID==0) require ALL (fail closed).
+	if uid, _ := UserIDFromContext(r); uid != 0 {
+		if ex, gerr := repo.GetMod(id); gerr == nil && ex != nil && ex.OwnerID != uid {
+			if con, perr := repository.OpenDB(); perr == nil {
+				chk := permissions.NewChecker(con)
+				hasOwn, hasAll, _ := chk.HasScope(uid, permissions.ModsOwnKey, permissions.ModsAllKey, permissions.ManageModsKey)
+				con.Close()
+				if !hasAll && hasOwn {
+					http.Error(w, "forbidden: own-scope may only activate mods you uploaded", http.StatusForbidden)
+					return
+				}
+			}
+		}
+	}
 	// Kill switch first: refuse BEFORE flipping the DB flag so "active" rows
 	// and running runtimes never disagree with the engine gate.
 	if !modengine.Default().Enabled() {
@@ -956,6 +1007,21 @@ func DeactivateModHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer closeFn()
+	// Ownership scope (migration 054): own-scope callers may only deactivate
+	// mods they uploaded. Orphans (OwnerID==0) require ALL (fail closed).
+	if uid, _ := UserIDFromContext(r); uid != 0 {
+		if ex, gerr := repo.GetMod(id); gerr == nil && ex != nil && ex.OwnerID != uid {
+			if con, perr := repository.OpenDB(); perr == nil {
+				chk := permissions.NewChecker(con)
+				hasOwn, hasAll, _ := chk.HasScope(uid, permissions.ModsOwnKey, permissions.ModsAllKey, permissions.ManageModsKey)
+				con.Close()
+				if !hasAll && hasOwn {
+					http.Error(w, "forbidden: own-scope may only deactivate mods you uploaded", http.StatusForbidden)
+					return
+				}
+			}
+		}
+	}
 	// Capture the slug BEFORE the row could be touched so the engine teardown
 	// has a stable identity even if the mod is concurrently edited.
 	slug := ""
@@ -1094,6 +1160,21 @@ func ModLogsHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
+	// Ownership scope (migration 054): own-scope callers may only read logs
+	// of mods they uploaded. Orphans (OwnerID==0) require ALL (fail closed).
+	if uid, _ := UserIDFromContext(r); uid != 0 {
+		if mod != nil && mod.OwnerID != uid {
+			if con, perr := repository.OpenDB(); perr == nil {
+				chk := permissions.NewChecker(con)
+				hasOwn, hasAll, _ := chk.HasScope(uid, permissions.ModsOwnKey, permissions.ModsAllKey, permissions.ManageModsKey)
+				con.Close()
+				if !hasAll && hasOwn {
+					http.Error(w, "forbidden: own-scope may only read mods you uploaded", http.StatusForbidden)
+					return
+				}
+			}
+		}
+	}
 	eng := modengine.Default()
 	state := ""
 	if st, ok := eng.ModStatus(mod.Slug); ok {
@@ -1168,6 +1249,22 @@ func DownloadModHandler(w http.ResponseWriter, r *http.Request) {
 		log.Println("DownloadMod GetMod error:", err)
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
+	}
+	// Ownership scope (migration 054): own-scope callers may only download
+	// mods they uploaded. Orphans (OwnerID==0) require ALL (fail closed,
+	// mirrors template/theme Download).
+	if uid, _ := UserIDFromContext(r); uid != 0 {
+		if mod != nil && mod.OwnerID != uid {
+			if con, perr := repository.OpenDB(); perr == nil {
+				chk := permissions.NewChecker(con)
+				hasOwn, hasAll, _ := chk.HasScope(uid, permissions.ModsOwnKey, permissions.ModsAllKey, permissions.ManageModsKey)
+				con.Close()
+				if !hasAll && hasOwn {
+					http.Error(w, "forbidden", http.StatusForbidden)
+					return
+				}
+			}
+		}
 	}
 
 	var body []byte

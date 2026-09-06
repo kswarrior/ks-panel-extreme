@@ -269,7 +269,7 @@ func executeLXDCmd(ctx context.Context, drv drivers.Driver, name, command string
 	if drv.Name() != "lxd" {
 		return Output{OK: false, Error: "lxd commands only available on lxd driver"}
 	}
-	cmd := []string{"/bin/sh", "-lc", fmt.Sprintf("lxc %s %s", command, strings.Join(args, " "))}
+	cmd := []string{"/bin/sh", "-lc", fmt.Sprintf("lxc %s %s", shellQuote(command), shellQuoteArgs(args))}
 	sess, err := drv.Exec(ctx, name, false, 0, 0, cmd)
 	if err != nil {
 		return Output{OK: false, Error: err.Error()}
@@ -302,6 +302,16 @@ func readSession(sess *drivers.ExecSession) (string, string, int) {
 
 func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
+}
+
+// shellQuoteArgs quotes each arg so hostile values (e.g. "; rm -rf /")
+// stay a single shell word instead of splitting the -lc program.
+func shellQuoteArgs(args []string) string {
+	q := make([]string, 0, len(args))
+	for _, a := range args {
+		q = append(q, shellQuote(a))
+	}
+	return strings.Join(q, " ")
 }
 
 type FileEntry struct {
