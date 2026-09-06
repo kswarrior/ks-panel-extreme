@@ -657,7 +657,11 @@ const NodeForm: React.FC = () => {
         <div className="space-y-4 min-w-0">
           {tab === 'general' && (
           <>
-          <div className="space-y-3">
+          <div className="ks-card ks-form-card rounded-md space-y-3">
+            <div>
+              <p className="text-sm text-gray-200 font-medium">Appearance</p>
+              <p className="text-xs text-gray-500">Icon and colour shown on the node card.</p>
+            </div>
             <div className="flex items-start gap-3">
               <div className="flex flex-col items-center gap-1 shrink-0" title="Card preview">
                 <span
@@ -783,6 +787,11 @@ const NodeForm: React.FC = () => {
             )}
           </div>
 
+          <div className="ks-card ks-form-card rounded-md space-y-3">
+            <div>
+              <p className="text-sm text-gray-200 font-medium">Identity</p>
+              <p className="text-xs text-gray-500">Name and label used across the panel.</p>
+            </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <GlassField label="Name" htmlFor="name">
               <input
