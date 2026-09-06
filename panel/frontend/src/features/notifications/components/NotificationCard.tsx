@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { Notification } from '../types/notification';
 import { CATEGORY_META, PRIORITY_META } from '../types/notification';
 
@@ -33,6 +34,7 @@ const NotificationCard: React.FC<{
   onDelete?: (id: number) => void;
   busy?: boolean;
 }> = ({ n, onRead, onDelete, busy }) => {
+  const navigate = useNavigate();
   const cat = CATEGORY_META[n.category] || CATEGORY_META.general;
   const pri = PRIORITY_META[n.priority] || PRIORITY_META.normal;
   const unread = !n.is_read;
@@ -75,7 +77,7 @@ const NotificationCard: React.FC<{
       <footer className="flex items-center justify-between gap-2 pt-2 border-t border-white/[0.06] mt-1">
         <div className="flex items-center gap-2">
           {n.link ? (
-            <a href={n.link} onClick={(e) => { e.preventDefault(); window.location.href = n.link!; }} className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-white hover:bg-gray-100 px-3 py-1.5 rounded-md transition-colors">
+            <a href={n.link} onClick={(e) => { e.preventDefault(); if (n.link!.startsWith('/')) navigate(n.link!); else window.location.href = n.link!; }} className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-white hover:bg-gray-100 px-3 py-1.5 rounded-md transition-colors">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
               {n.action_label || 'Open'}
             </a>

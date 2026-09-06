@@ -239,7 +239,7 @@ func executeDockerCmd(ctx context.Context, drv drivers.Driver, name, command str
 	if drv.Name() != "docker" {
 		return Output{OK: false, Error: "docker commands only available on docker driver"}
 	}
-	cmd := []string{"/bin/sh", "-lc", fmt.Sprintf("docker %s %s", command, strings.Join(args, " "))}
+	cmd := []string{"/bin/sh", "-lc", fmt.Sprintf("docker %s %s", shellQuote(command), shellQuoteArgs(args))}
 	sess, err := drv.Exec(ctx, name, false, 0, 0, cmd)
 	if err != nil {
 		return Output{OK: false, Error: err.Error()}
@@ -254,7 +254,7 @@ func executeKVMCmd(ctx context.Context, drv drivers.Driver, name, command string
 	if drv.Name() != "kvm" {
 		return Output{OK: false, Error: "kvm commands only available on kvm driver"}
 	}
-	cmd := []string{"/bin/sh", "-lc", fmt.Sprintf("virsh %s %s", command, strings.Join(args, " "))}
+	cmd := []string{"/bin/sh", "-lc", fmt.Sprintf("virsh %s %s", shellQuote(command), shellQuoteArgs(args))}
 	sess, err := drv.Exec(ctx, name, false, 0, 0, cmd)
 	if err != nil {
 		return Output{OK: false, Error: err.Error()}

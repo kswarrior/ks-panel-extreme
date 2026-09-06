@@ -236,6 +236,15 @@ const NotificationBell: React.FC = () => {
     } catch {}
   };
 
+  // Open a notification link inside the SPA when it is an in-app path
+  // (the server emits "/tickets/…"); a full window.location reload would
+  // drop all client state. Absolute http(s) URLs still go to the browser.
+  const openLink = (link: string) => {
+    setOpen(false);
+    if (link.startsWith('/')) navigate(link);
+    else window.location.href = link;
+  };
+
   // Portal dropdown — mirrors RichMenu's theme-aware glass-dropdown + scrim
   // so the panel's Theme Studio Dropdowns tab (bg, blur, border, shadow,
   // radius) tints this surface identically to the profile menu. The bell
@@ -419,7 +428,7 @@ const NotificationBell: React.FC = () => {
                             {n.link && (
                               <a
                                 href={n.link}
-                                onClick={(e) => { e.preventDefault(); setOpen(false); window.location.href = n.link!; }}
+                                onClick={(e) => { e.preventDefault(); openLink(n.link!); }}
                                 className="inline-flex items-center gap-1 text-[11px] font-medium text-sky-300 hover:text-sky-200 hover:underline"
                               >
                                 {n.action_label || 'Open'}
