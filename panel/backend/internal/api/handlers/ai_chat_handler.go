@@ -138,15 +138,17 @@ type aiTicket struct {
 	Expires time.Time       `json:"-"`
 }
 
-func aiNewTicketID() string {
+func aiNewTicketID() (string, error) {
 	buf := make([]byte, 16)
-	_, _ = rand.Read(buf)
-	return hex.EncodeToString(buf)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(buf), nil
 }
 
-func aiStoreTicket(con *sql.DB, t *aiTicket) {
+func aiStoreTicket(con *sql.DB, t *aiTicket) error {
 	repo := repository.NewAITicketRepository(con)
-	_ = repo.Store(&repository.AITicketRow{
+	return repo.Store(&repository.AITicketRow{
 		ID: t.ID, UserID: t.UserID, Tool: t.Tool, ArgsJSON: string(t.Args),
 		Summary: t.Summary, Diff: t.Diff, ExpiresAt: t.Expires,
 	})
@@ -556,10 +558,13 @@ func AIChatHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	aiLogUsage(r, cfg, acc)
 	if ticket != nil {
-		aiStoreTicket(con, &aiTicket{
+		if err := aiStoreTicket(con, &aiTicket{
 			ID: ticket.ID, UserID: uid, Tool: ticket.Tool, Args: ticket.Args,
 			Summary: ticket.Summary, Diff: ticket.Diff, Expires: time.Now().Add(10 * time.Minute),
-		})
+		}); err != nil {
+			http.Error(w, "server error", http.StatusInternalServerError)
+			return
+		}
 		aiThreadPersist(uid, req.ThreadID, newUserTurns, reply)
 		writeJSON(w, map[string]any{
 			"reply": reply,
@@ -1303,7 +1308,11 @@ func aiRunTool(a *aiCallCtx, name string, args map[string]any) (string, *aiTicke
 		if err != nil {
 			return "", nil, err
 		}
-		return "", &aiTicketProposal{ID: aiNewTicketID(), Summary: summary, Diff: diff}, nil
+		id, err := aiNewTicketID()
+		if err != nil {
+			return "", nil, fmt.Errorf("server error")
+		}
+		return "", &aiTicketProposal{ID: id, Summary: summary, Diff: diff}, nil
 	}
 	if aiReadTools[name] {
 		if ok, _ := a.checker.HasAICapability(a.uid, permissions.AIChatToolsKey); !ok {
@@ -1757,7 +1766,11 @@ func aiExecCreateTheme(a *aiCallCtx, args map[string]any) (string, error) {
 	if spec == "" {
 		spec = "{}"
 	}
-	id := "ai-" + aiNewTicketID()[:12]
+	id, err := aiNewTicketID()
+	if err != nil {
+		return "", fmt.Errorf("server error")
+	}
+	id = "ai-" + id[:12]
 	t, err := repository.NewThemeRepository(a.con).CreateTheme(repository.UpsertThemeInput{
 		ID: id, Name: name, Description: aiStr(args, "description"),
 		Spec: json.RawMessage(spec), Builtin: false, CreatedBy: a.uid,
