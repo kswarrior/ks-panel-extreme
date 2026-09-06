@@ -225,6 +225,14 @@ export const Icons: Record<string, React.ReactNode> = {
       <circle cx="12" cy="7" r="4" />
     </svg>
   ),
+  // Generic glyph for admin-authored custom pages (Settings > Pages) in
+  // the header breadcrumb. Sidebar rows render each page's own SVG.
+  PageDoc: (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <path d="M14 2v6h6" />
+    </svg>
+  ),
   // KS Warrior logo for footer
   KSWarrior: (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 pointer-events-none" aria-hidden="true">

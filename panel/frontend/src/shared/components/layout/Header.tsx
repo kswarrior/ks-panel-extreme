@@ -8,6 +8,7 @@ import { areaFor, type AreaId } from '@/features/instance-pages/types/pageregist
 import client from '@/shared/api/client';
 import Avatar from '@/shared/components/ui/Avatar';
 import { PanelBrandLogo } from '@/shared/components/brand/PanelBrand';
+import { usePanelPagesStore } from '@/features/settings/stores/panelPagesStore';
 import RichMenu, { type RichMenuItem } from '@/shared/components/ui/RichMenu';
 import InstanceTabs from '@/features/instances/components/InstanceTabs';
 import NotificationBell from '@/features/notifications/components/NotificationBell';
@@ -556,7 +557,16 @@ const Header: React.FC<HeaderProps> = ({
             each page's own title by the area owners). Icon is the same
             glyph the sidebar uses: [SVG] [Parent] [/ Current]. */}
         {!inInstancePanel && (() => {
-          const crumb = resolveHeaderCrumb(location.pathname);
+          // Custom pages (Settings > Pages) resolve their crumb from the
+          // nav store ("Pages / <name>") — the static resolver below can't
+          // know admin-authored names.
+          const pagesMatch = location.pathname.match(/^\/pages\/([^/]+)\/?$/);
+          const customName = pagesMatch
+            ? panelPagesNav.find((n) => n.slug === decodeURIComponent(pagesMatch[1]))?.name
+            : undefined;
+          const crumb = customName
+            ? { parent: 'Pages', parentTo: '/instances', current: customName, icon: 'PageDoc' }
+            : resolveHeaderCrumb(location.pathname);
           if (!crumb) return null;
           const rawIcon = (crumb.icon && SidebarIcons[crumb.icon]) || null;
           // Same glyph as the sidebar, upsized for the header title.
