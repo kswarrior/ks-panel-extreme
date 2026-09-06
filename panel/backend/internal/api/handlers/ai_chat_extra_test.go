@@ -9,6 +9,22 @@ import (
 	"github.com/example/kspanel/internal/repository"
 )
 
+// Probe budget: min(16, configured MaxTokens), floored at 1. The probe
+// must copy the config (never alias/mutate it).
+func TestAIProbeTokens(t *testing.T) {
+	for max, want := range map[int]int{1024: 16, 16: 16, 5: 5, 1: 1, 0: 1, -3: 1} {
+		if got := aiProbeTokens(max); got != want {
+			t.Fatalf("aiProbeTokens(%d) = %d, want %d", max, got, want)
+		}
+	}
+	cfg := &repository.AIConfig{MaxTokens: 5}
+	probe := *cfg
+	probe.MaxTokens = aiProbeTokens(cfg.MaxTokens)
+	if probe.MaxTokens != 5 || cfg.MaxTokens != 5 {
+		t.Fatalf("probe=%d cfg=%d, want 5/5 (config must not be mutated)", probe.MaxTokens, cfg.MaxTokens)
+	}
+}
+
 // Thread titles derive from the first user turn, capped and defaulted.
 func TestAIThreadTitle(t *testing.T) {
 	if got := aiThreadTitle(""); got != "New chat" {

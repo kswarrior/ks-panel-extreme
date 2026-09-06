@@ -197,12 +197,11 @@ const ChatSettings: React.FC = () => {
     setTestOut('');
     try {
       const next = await updateAIConfig({
-        // Access is gated by Roles → AI Chat permissions, not by the old
-        // master kill-switches: saving a provider always (re-)enables the
-        // assistant and its write proposals so a fresh DB (enabled=0,
-        // allow_writes=0) can't get stuck with no toggle to flip.
-        enabled: true,
-        allow_writes: true,
+        // Preserve the kill-switches below: a provider save (e.g. key
+        // rotation) must never silently re-enable the assistant or its
+        // write proposals.
+        enabled: cfg.enabled,
+        allow_writes: cfg.allow_writes,
         base_url: cfg.base_url,
         api_key: apiKey || undefined,
         model_id: cfg.model_id,
@@ -245,6 +244,38 @@ const ChatSettings: React.FC = () => {
             No API key stored — OpenAI-compatible providers will reject chats with 401 until a key is entered + saved (Ollama usually needs none).
           </p>
         )}
+        <label className="flex items-start justify-between gap-3 cursor-pointer select-none">
+          <span className="flex-1 min-w-0">
+            <span className="block text-xs font-medium text-gray-200">Assistant enabled</span>
+            <span className="block text-[11px] text-gray-500">Master kill-switch — off disables chat + streaming for everyone.</span>
+          </span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={cfg.enabled}
+            aria-label="Assistant enabled"
+            onClick={() => set({ enabled: !cfg.enabled })}
+            className={`ks-toggle shrink-0 ${cfg.enabled ? 'is-on' : ''}`}
+          >
+            <span className="ks-toggle__thumb" />
+          </button>
+        </label>
+        <label className="flex items-start justify-between gap-3 cursor-pointer select-none">
+          <span className="flex-1 min-w-0">
+            <span className="block text-xs font-medium text-gray-200">Allow write proposals</span>
+            <span className="block text-[11px] text-gray-500">Off blocks all write tickets — the assistant becomes read-only.</span>
+          </span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={cfg.allow_writes}
+            aria-label="Allow write proposals"
+            onClick={() => set({ allow_writes: !cfg.allow_writes })}
+            className={`ks-toggle shrink-0 ${cfg.allow_writes ? 'is-on' : ''}`}
+          >
+            <span className="ks-toggle__thumb" />
+          </button>
+        </label>
       </section>
 
       {/* ── Provider ─────────────────────────────────────────── */}

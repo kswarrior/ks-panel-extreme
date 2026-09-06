@@ -410,7 +410,7 @@ const InstanceMenuFab: React.FC = () => {
                   type="button"
                   onClick={() => {
                     setOpen(false);
-                    navigate(`/instances/${overviewId}/overview`);
+                    navigate(`/instances/${overviewId}/overview`, { state: { fromMore: true } });
                   }}
                   title="Open the full instance overview page"
                   aria-label="More — open full instance overview page"

@@ -419,6 +419,10 @@ async function runPrompt(
       // JSON fallback for non-rate-limit SSE failures (and as the second
       // chance inside every attempt).
       try {
+        // A rate-limited stream must back off, not immediately spend a
+        // second provider call on the JSON endpoint (same quota/bill).
+        // Re-throw into the shared handler so this attempt counts once.
+        if (rateLimitInfo(streamErr).limited) throw streamErr;
         const res = await sendAIChat(history, { threadId, model });
         const reply = res.reply || 'The assistant returned an empty reply.';
         set((s) => ({

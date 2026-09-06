@@ -33,6 +33,7 @@ import { useConfirm } from '@/shared/stores/confirmStore';
 import ErrorBoundary from '@/shared/components/ui/ErrorBoundary';
 import OverviewTabs from '../components/OverviewTabs';
 import { resolveInstanceControls } from '../utils/instanceControls';
+import { resolveRedirectTarget } from '@/shared/utils/instancePages';
 
 const STATUS_DOT: Record<string, string> = {
   running: 'bg-emerald-400',
@@ -142,6 +143,7 @@ const tileIcon = (inner: React.ReactNode) => (
 
 const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const confirm = useConfirm();
   const { instance, loading, error, reload } = useInstance(instanceId);
   const permissions = useAuthStore((s) => s.permissions);
@@ -169,6 +171,7 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
   // Template allow-list for the built-in controls + overview (instance.Config
   // snapshot, allow-all default for old templates).
   const controls = useMemo(() => resolveInstanceControls(instance?.config), [instance?.config]);
+  const spec = useMemo(() => parseConfig(instance?.config), [instance?.config]);
   const visibleTabs = useMemo<TabId[]>(() => {
     const all: TabId[] = TAB_ORDER.filter((id) => {
       if (id === 'details') return controls.show_details_tab;
@@ -275,6 +278,16 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
   }
   if (!instance || error) {
     return <div className="glass-card rounded-xl text-red-400 text-sm">{error || 'Instance not found'}</div>;
+  }
+
+  // Floating menu "More" link target: when the overview was opened via More,
+  // forward to the template's configured page (default overview). Direct URL
+  // visits land here normally — unknown slugs fall back to overview.
+  if ((location.state as any)?.fromMore) {
+    const target = resolveRedirectTarget(controls.more_page, spec);
+    if (target && target !== 'overview') {
+      return <Navigate to={`/instances/${instanceId}/${target}`} replace />;
+    }
   }
 
   const k = kindKey(instance.kind);
