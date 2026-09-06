@@ -42,8 +42,6 @@ git diff --stat
    shipped migrations, or release artifacts.
 3. Define the wave scope: which §3 agents run, their disjoint file sets,
    and the MAIN agent owner for shared contracts (`internal/models/`).
-4. Read `debugging-report.md` (previous wave state, §11): carry each row's
-   `Fine(n)` counter forward; every in-scope row must leave `Pending`.
 
 ## 3. SPAWN SPECIALIZED SUB-AGENTS
 
@@ -397,8 +395,7 @@ review every change
 
 Assume every sub-agent can be wrong. A wave with zero independent
 `git diff` inspection by MAIN = failed wave. Record per-agent verdict:
-ACCEPT / REWORK (with reason) / REVERT. Then update `debugging-report.md`
-per §11 (MAIN finalizes every in-scope row; counters carry forward).
+ACCEPT / REWORK (with reason) / REVERT.
 
 ## 7. SECOND-ORDER CHECK
 
@@ -492,56 +489,3 @@ Final status must be:
 `NO KNOWN ACTIONABLE DEFECTS FOUND IN VERIFIED SCOPE`
 
 Never claim `BUG FREE`.
-
-## 11. DEBUGGING REPORT (`debugging-report.md`) — mandatory per-wave table
-
-The MAIN agent maintains one cumulative status table in repo-root
-`debugging-report.md`. It is updated EVERY wave, after the §6 audit.
-Sub-agents PROPOSE row values inside their §5 report; only MAIN writes
-the file (avoids concurrent-edit conflicts, §3.4).
-
-```text
-1. ONE ROW PER SCOPE: every §3 scope and every §3.1 repo-specific
-   agent scope gets exactly one row. Rows are NEVER renamed, removed,
-   or reordered mid-loop. New scopes (new driver, provider with code
-   hits, route group) are APPENDED with the next free stable ID.
-2. COLUMNS (exact, in this order):
-   | ID | Section | Part | Subagent Task | Changes | Cases |
-   - ID: stable tag (S01, S02, ...) — the row's permanent key.
-   - Section: scope name copied VERBATIM from §3/§3.1, same spelling
-     and same CASE every wave. Never abbreviate, never re-case
-     ("Theme engine" stays "Theme engine", never "theme engine").
-     This is the "always say names of case" rule: identical
-     case-sensitive names in every wave, every report, every §5 block.
-   - Part: Backend | Frontend | Edge | Cross-cutting (from map.md).
-   - Subagent Task: the wave task for that scope
-     (INSPECT → REPRODUCE → ROOT CAUSE → FIX → TEST → §5 report).
-   - Changes: ONLY one of Yes | Fine(n) | Pending.
-   - Cases: case/bug names touched this wave (same exact case every
-     wave), comma-separated, or "—" when none.
-3. CHANGES SEMANTICS:
-   - Yes     = this wave required/made a change in that scope (fix,
-               refactor, migration, contract change). The Cases cell
-               MUST name each case (e.g. C-014 login retry race).
-               A Yes row MUST link to its §5 block(s).
-   - Fine(n) = no change needed this wave. n counts CONSECUTIVE clean
-               waves: first clean wave Fine(1); still clean next wave
-               Fine(2); then Fine(3), and so on. Any Yes RESETS the
-               counter — the next clean wave after a Yes is Fine(1).
-               Never write bare "Fine" without (n).
-   - Pending = scope not yet checked in any wave (starter state only).
-               Pending is not a verdict; every in-scope row must leave
-               Pending before the §10 exit condition can hold.
-   Example: S14 clean in waves 1–2 → Fine(1), Fine(2); wave 3 fixes
-   C-007 → Yes; wave 4 clean again → Fine(1).
-4. HEADER (top of file, updated per wave): wave number, date UTC,
-   base commit sha, MAIN auditor, in-scope IDs this wave.
-5. WAVE LOG (bottom of file): append one line per wave
-   (wave n | date | commit | changed IDs | new Fine(n) promotions).
-   The table body always shows the CURRENT cumulative state.
-6. EVIDENCE STILL REQUIRED: Fine(n) is a status label, not proof.
-   Every wave's commands + exit codes stay on record per §4.1/§6.
-   A Fine(n) row with no wave evidence = UNVERIFIED.
-7. KEEP IN SYNC: when §3/§3.1 gains a scope, append its row to
-   `debugging-report.md` in the same edit (checked in V2/V3).
-```
