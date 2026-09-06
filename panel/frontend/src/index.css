@@ -1184,11 +1184,13 @@ html[data-ks-reduced-motion='1'] .ks-system-tab-bar[data-active='true'] {
 }
 
 /* ------------------------------------------------------------------ *
- *  Compact chips variant (phones) — same rail, different outfit
+ *  Compact chips variant — same rail, different outfit
  * ------------------------------------------------------------------ *
  *  Small rounded icon+label pills with NO hint text and no indicator
- *  line: the active chip is the solid themed fill. The scroller fades
- *  only the edge(s) that can scroll further (can-scroll-l/r classes are
+ *  line: the active chip is the solid themed fill. Horizontal chips sit
+ *  on top (phones) and fade left/right; vertical chips stack on the
+ *  left (Theme Studio desktop) and fade top/bottom. The scroller fades
+ *  only the edge(s) that can scroll further (can-scroll-* classes are
  *  toggled from SectionRailTabs) so fitted content is never clipped. */
 .ks-rail-tab.ks-chip {
   border-radius: 9999px;
@@ -1219,5 +1221,17 @@ html[data-ks-reduced-motion='1'] .ks-system-tab-bar[data-active='true'] {
 .ks-chipscroll.can-scroll-l.can-scroll-r {
   -webkit-mask-image: linear-gradient(to right, transparent, black 22px, black calc(100% - 22px), transparent);
   mask-image: linear-gradient(to right, transparent, black 22px, black calc(100% - 22px), transparent);
+}
+.ks-chipscroll-vertical.can-scroll-b:not(.can-scroll-t) {
+  -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 22px), transparent);
+  mask-image: linear-gradient(to bottom, black calc(100% - 22px), transparent);
+}
+.ks-chipscroll-vertical.can-scroll-t:not(.can-scroll-b) {
+  -webkit-mask-image: linear-gradient(to top, black calc(100% - 22px), transparent);
+  mask-image: linear-gradient(to top, black calc(100% - 22px), transparent);
+}
+.ks-chipscroll-vertical.can-scroll-t.can-scroll-b {
+  -webkit-mask-image: linear-gradient(to bottom, transparent, black 22px, black calc(100% - 22px), transparent);
+  mask-image: linear-gradient(to bottom, transparent, black 22px, black calc(100% - 22px), transparent);
 }
 
