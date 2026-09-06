@@ -517,6 +517,7 @@ const InstanceForm: React.FC = () => {
                   <p className="text-xs text-gray-500 mt-1.5 font-mono truncate">{selectedNode.address}</p>
                 )}
               </div>
+            </div>
             </GlassCard>
 
             {selectedTemplate && editor.env.length > 0 && (
