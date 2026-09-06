@@ -408,7 +408,7 @@ const ApiKeyForm: React.FC = () => {
 
           {tab === 'identity' && (
           <>
-          <div className="space-y-4">
+          <div className="ks-card ks-form-card rounded-md space-y-4">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-2 min-w-0">
                 <h3 className="text-sm font-semibold text-white">Identity</h3>

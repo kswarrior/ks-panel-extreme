@@ -127,6 +127,7 @@ const UserForm: React.FC = () => {
       onSubmit={submit}
       hideHeader
     >
+      <GlassCard variant="form">
       <div className="space-y-4">
         <GlassField label="Username" htmlFor="username">
           <input
@@ -172,6 +173,7 @@ const UserForm: React.FC = () => {
         </GlassField>
         {error && <p className="text-sm text-red-400">{error}</p>}
       </div>
+      </GlassCard>
     </FormPage>
     </>
   );

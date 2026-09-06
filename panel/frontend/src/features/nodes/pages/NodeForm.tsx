@@ -816,7 +816,13 @@ const NodeForm: React.FC = () => {
               />
             </GlassField>
           </div>
+          </div>
 
+          <div className="ks-card ks-form-card rounded-md space-y-3">
+            <div>
+              <p className="text-sm text-gray-200 font-medium">Connection</p>
+              <p className="text-xs text-gray-500">How the panel reaches this edge.</p>
+            </div>
           <div>
             <span className="block text-sm font-medium text-gray-200 mb-1">Connection mode</span>
             <div className="flex gap-1 p-1 rounded-md border border-white/10 bg-black/30 max-w-[480px]" role="tablist" aria-label="Connection mode">
@@ -943,6 +949,7 @@ const NodeForm: React.FC = () => {
               />
             </GlassField>
           )}
+          </div>
 
           {isTunnelMode(form.connection_mode) && (
             <div className="ks-card ks-form-card rounded-md p-3 space-y-3">
@@ -1226,6 +1233,11 @@ const NodeForm: React.FC = () => {
 
           {tab === 'general' && (
           <>
+          <div className="ks-card ks-form-card rounded-md space-y-3">
+            <div>
+              <p className="text-sm text-gray-200 font-medium">Notes</p>
+              <p className="text-xs text-gray-500">Free-text description shown on the node card.</p>
+            </div>
           <GlassField label="Notes" htmlFor="notes" hint="Free-text description shown on the node card. Use it to record region, owner, or a maintenance note.">
             <textarea
               id="notes"
@@ -1238,6 +1250,7 @@ const NodeForm: React.FC = () => {
 
           <div className="text-xs text-gray-500 font-mono">
             Panel will dial: <span className="text-gray-300">{dialPreview}</span>
+          </div>
           </div>
           </>
           )}
