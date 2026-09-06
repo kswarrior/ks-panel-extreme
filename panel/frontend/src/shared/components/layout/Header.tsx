@@ -10,6 +10,8 @@ import Avatar from '@/shared/components/ui/Avatar';
 import RichMenu, { type RichMenuItem } from '@/shared/components/ui/RichMenu';
 import InstanceTabs from '@/features/instances/components/InstanceTabs';
 import NotificationBell from '@/features/notifications/components/NotificationBell';
+import { canOpenAIChat } from '@/features/ai-chat/components/ChatFab';
+import { useAIChatStore } from '@/features/ai-chat/store/aiChatStore';
 import { Icons as SidebarIcons } from './Sidebar';
 
 interface HeaderProps {
@@ -163,6 +165,21 @@ const Header: React.FC<HeaderProps> = ({
   const prefs = usePrefsStore();
   const setPref = usePrefsStore((s) => s.setPref);
 
+  // AI chat prefs (per-user): floating-button toggle + panel opener.
+  // Shown only for roles with any chat-capable AI key.
+  const permissions = useAuthStore((s) => s.permissions);
+  const canChat = canOpenAIChat(permissions);
+  const fabHidden = useAIChatStore((s) => s.fabHidden);
+  const setFabHidden = useAIChatStore((s) => s.setFabHidden);
+  const setChatOpen = useAIChatStore((s) => s.setOpen);
+  const refreshFabPref = useAIChatStore((s) => s.refreshFabPref);
+
+  // Pick up each account's own FAB preference on login / switch so a
+  // shared browser never leaks one user's toggle to another.
+  React.useEffect(() => {
+    refreshFabPref();
+  }, [activeAccountId, refreshFabPref]);
+
   // theme store — for the theme submenu.
   const themes = useThemeStore((s) => s.themes);
   const globalThemes = useThemeStore((s) => s.globalThemes);
@@ -237,8 +254,8 @@ const Header: React.FC<HeaderProps> = ({
   };
 
   // ---- Menu items ----------------------------------------------------------------
-  // Build the rich item list. Order matters: header → prefs group →
-  // theme submenu → account actions.
+  // Build the rich item list. Order matters: header → prefs group (incl.
+  // the AI chat button toggle + opener) → theme submenu → account actions.
   const items: RichMenuItem[] = React.useMemo(() => {
     const themeChildren: RichMenuItem[] = merged.map((t) => ({
       kind: 'checkbox',
@@ -277,6 +294,30 @@ const Header: React.FC<HeaderProps> = ({
         checked: prefs.showShortcuts,
         hint: 'Reveal hint text next to actions',
       },
+      ...(canChat
+        ? [
+            {
+              kind: 'toggle',
+              key: 'ai-fab',
+              label: 'AI chat button',
+              checked: !fabHidden,
+              hint: 'Floating button',
+            } as RichMenuItem,
+          ]
+        : []),
+      ...(canChat && fabHidden
+        ? [
+            {
+              key: 'open-ai-chat',
+              label: 'Open AI assistant…',
+              icon: (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5" aria-hidden="true">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                </svg>
+              ),
+            } as RichMenuItem,
+          ]
+        : []),
       { kind: 'separator', key: 'sep1' },
       {
         kind: 'submenu',
@@ -336,11 +377,12 @@ const Header: React.FC<HeaderProps> = ({
         ),
       },
     ];
-  }, [merged, prefs, activeThemeId, currentArea, loggingOut, accounts, activeAccountId]);
+  }, [merged, prefs, activeThemeId, currentArea, loggingOut, accounts, activeAccountId, canChat, fabHidden]);
 
   const onSelect = (key: string) => {
     if (key === 'account') navigate('/account');
     else if (key === 'themes') navigate('/themes');
+    else if (key === 'open-ai-chat') setChatOpen(true);
     else if (key === 'add-account') {
       // Send the user to the login page in "add account" mode so the cookie
       // for the current account isn't clobbered; return-to here once done.
@@ -367,6 +409,7 @@ const Header: React.FC<HeaderProps> = ({
     else if (key === 'dense') setPref('dense', next);
     else if (key === 'reducedMotion') setPref('reducedMotion', next);
     else if (key === 'showShortcuts') setPref('showShortcuts', next);
+    else if (key === 'ai-fab') setFabHidden(!next);
     // Theme submenu checkbox items have keys `theme-<id>`.
     else if (key.startsWith('theme-') && activeScope) {
       const tid = key.slice(6);

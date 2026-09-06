@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { startInstance, stopInstance, restartInstance, killInstance } from '@/shared/api/admin';
 import { invokeInstanceAction, stopInstanceAction } from '@/features/instances/api/instanceAdvanced';
 import { useInstance, parseConfig } from '@/shared/hooks/useInstance';
+import { resolveInstanceControls } from '../utils/instanceControls';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { useConfirm } from '@/shared/stores/confirmStore';
@@ -79,10 +80,16 @@ const InstancePowerMenu: React.FC = () => {
   const [actionsOpen, setActionsOpen] = useState(false);
   const permissions = useAuthStore((s) => s.permissions);
 
+  // Template allow-list for the built-in controls (instance.Config
+  // snapshot, allow-all default). Gated together with canControl below.
+  const controls = useMemo(() => resolveInstanceControls(instance?.config), [instance?.config]);
+
   // Template actions ride on the instance config (same source the home-page
   // Actions card reads: inst.config.actions), filtered the same way —
-  // non-empty id + user_invokable !== false.
+  // non-empty id + user_invokable !== false. Hidden entirely when the
+  // template disallows them.
   const templateActions = useMemo((): any[] => {
+    if (!controls.allow_template_actions) return [];
     try {
       const cfg = instance?.config ? parseConfig(instance.config) : null;
       const list = Array.isArray((cfg as any)?.actions) ? (cfg as any).actions : [];
@@ -92,7 +99,7 @@ const InstancePowerMenu: React.FC = () => {
     } catch {
       return [];
     }
-  }, [instance?.config]);
+  }, [instance?.config, controls.allow_template_actions]);
 
   // Running-action tracking — mirrors the Actions card: install_state
   // 'running' + install_kind 'action' morphs the matching row to Stop.
@@ -138,14 +145,23 @@ const InstancePowerMenu: React.FC = () => {
   // Transitional states (deploy/install in flight) — no power action is valid,
   // so render no buttons rather than clickable-then-failing ones.
   const isTransitional = status === 'creating' || status === 'installing';
-  // State-aware buttons: stopped/errored/etc → Start only;
-  // running → Stop + Restart + Kill (Start hidden); transitional → none.
-  const showStart = !isRunning && !isTransitional;
-  const showPowerRow = showStart || isRunning;
+  // State-aware buttons gated by the template allow-list: stopped/errored/etc
+  // → Start only; running → Stop + Restart + Kill (Start hidden);
+  // transitional → none.
+  const showStart = !isRunning && !isTransitional && controls.allow_start;
+  const showStop = isRunning && controls.allow_stop;
+  const showRestart = isRunning && controls.allow_restart;
+  const showKill = isRunning && controls.allow_kill;
+  const showPowerRow = showStart || showStop || showRestart || showKill;
   const busyAny = busy !== null || loading;
 
   const run = async (action: 'start' | 'stop' | 'restart' | 'kill') => {
     if (!instance || busy) return;
+    // Template allow-list gate (defense in depth — buttons are hidden too).
+    if (action === 'start' && !controls.allow_start) return;
+    if (action === 'stop' && !controls.allow_stop) return;
+    if (action === 'restart' && !controls.allow_restart) return;
+    if (action === 'kill' && !controls.allow_kill) return;
     // Kill is forceful (SIGKILL, no graceful shutdown) — confirm first so
     // a stray click can't nuke unsaved in-memory state.
     if (action === 'kill') {
@@ -179,6 +195,7 @@ const InstancePowerMenu: React.FC = () => {
   // busyAction/stopPending, exactly like the card's __ksBusyAction guard.
   const runTemplateAction = async (actionId: string) => {
     if (!instance || busyAction || stopPending) return;
+    if (!controls.allow_template_actions) return;
     const def = templateActions.find((t: any) => t.id === actionId);
     // State gate (defense in depth — the row is disabled too): a stopped
     // action may only start in an allowed state, but the RUNNING action
@@ -272,7 +289,7 @@ const InstancePowerMenu: React.FC = () => {
               <span>Start</span>
             </button>
           )}
-          {isRunning && (
+          {showStop && (
             <button
               type="button"
               onClick={() => run('stop')}
@@ -287,7 +304,7 @@ const InstancePowerMenu: React.FC = () => {
               <span>Stop</span>
             </button>
           )}
-          {isRunning && (
+          {showRestart && (
             <button
               type="button"
               onClick={() => run('restart')}
@@ -302,7 +319,7 @@ const InstancePowerMenu: React.FC = () => {
               <span>Restart</span>
             </button>
           )}
-          {isRunning && (
+          {showKill && (
             <button
               type="button"
               onClick={() => run('kill')}

@@ -20,8 +20,9 @@ Bottom-right FAB opens panel-wide AI assistant. SHIPPED (was plan-only).
 - Migrations `064_ai_config.sql` (base KV) + `066_ai_persistence.sql` (all 3 DBs; numbered 066 because 065 is taken by tickets_attachments_sla_notify): `ai_confirmation_tickets`, `ai_chat_threads`, `ai_chat_messages`, `ai_fallback_*` / `ai_cost_*` settings.
 
 ## Agent tools + safety
-- Read (no confirm): `list_instances, get_instance, list_nodes, list_templates, get_docs, get_system_status`.
-- Write (confirm required): `instance_action, update_settings, create_theme, create_template, create_instance_page, create_user, deploy_instance`.
+- Read (no confirm): `list_instances, get_instance, list_nodes, get_node, list_templates, get_template (sections summary/steps/description), list_instance_pages, get_instance_page, list_users, get_user, list_roles, list_themes, list_tickets, get_ticket, check_panel_update, get_docs, get_system_status`.
+- Write (confirm required): `instance_action, edit_instance, reinstall_instance, delete_instance, suspend_instance, unsuspend_instance, update_settings, create_theme, edit_theme, delete_theme, create_template, edit_template, delete_template, edit_template_steps (remove/add/move), set_template_command, remove_template_action, create_node, edit_node, delete_node, create_instance_page, edit_instance_page, delete_instance_page, create_user, edit_user, delete_user, create_ticket, reply_ticket, update_ticket, broadcast_notification, deploy_instance, reinstall_panel`.
+- Deliberately unoffered: API keys (would persist secrets in chat history), shell/terminal + file writes (RCE surface), role permission editing (lockout risk), mod/application uploads (needs file bytes), backup execution + datamove (long, destructive ops stay in UI).
 - Each tool re-checks existing permission engine (e.g. `create_theme` needs `MANAGE_THEMES`). Denied -> LLM explains.
 - Write flow: LLM -> `confirmation_ticket {id, summary, diff}` (DB-backed, 10-min user-bound, survives restarts) -> `ConfirmCard` Approve/Deny -> execute on approve. All writes go to `activity_logs`.
 - Guards: per-user rate limit 20/min, max 5 tool loops, 60s timeout, redact `password/token/secret` from tool output.
@@ -36,7 +37,7 @@ Bottom-right FAB opens panel-wide AI assistant. SHIPPED (was plan-only).
 5. Admin extra: `{ai_system_extra}` custom instructions.
 
 ## Docs coverage (`get_docs`)
-- 14 topics: `index, instances, templates, nodes, mods, applications, tickets, backups, security, database, automation, sftp, updates, ai` — each 3-5 sentences, accurate to current code.
+- 18 topics served from the embedded skill bundle `panel/backend/internal/aiskills/*.md` (one guide per area, each under the ~4KB tool-result cap): `index, instances, templates, nodes, instance_pages, users, updates, mods, applications, tickets, backups, security, database, automation, sftp, themes, notifications, ai`. Each file doubles as a readable repo doc; `TestAIDocsCoverage` + `aiskills` package tests lock the contract.
 
 ## Build order (done)
 1. Migration + provider client. 2. Config UI + test button. 3. FAB + read-only chat. 4. Tools + confirm cards. 5. Persistent tickets (066) + streaming SSE + threads + fallback + usage/cost + docs expansion.

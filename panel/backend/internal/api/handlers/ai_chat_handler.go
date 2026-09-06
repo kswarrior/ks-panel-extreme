@@ -7,21 +7,26 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/example/kspanel/internal/aiskills"
 	"github.com/example/kspanel/internal/auth"
 	"github.com/example/kspanel/internal/edge"
 	"github.com/example/kspanel/internal/models"
 	"github.com/example/kspanel/internal/permissions"
 	"github.com/example/kspanel/internal/repository"
+	"github.com/example/kspanel/internal/version"
 )
 
 // AI assistant (plan/ai.md): panel-wide chat FAB backed by a server-side
@@ -777,7 +782,7 @@ func aiBuildSystemPrompt(con *sql.DB, cfg *repository.AIConfig, uid int64, usern
 	_ = con.QueryRow(`SELECT COUNT(*) FROM nodes`).Scan(&nodeN)
 	_ = con.QueryRow(`SELECT COUNT(*) FROM templates`).Scan(&tmplN)
 	fmt.Fprintf(&b, " Fleet counts: %d instances, %d nodes, %d templates (counts only — no rows are preloaded).", instN, nodeN, tmplN)
-	b.WriteString("\n\nRules: only use the tools you were given; call a list tool before acting on any named resource; never invent IDs — if the user names something, look it up first; keep answers short. Write tools (instance_action, update_settings, create_theme, create_template, create_instance_page, create_user, deploy_instance) do NOT execute immediately: calling one returns a confirmation ticket that the user must approve in the UI. After calling a write tool, briefly summarise what will happen and ask the user to approve it in the confirmation card.")
+	b.WriteString("\n\nRules: only use the tools you were given; call a list tool before acting on any named resource; never invent IDs — if the user names something, look it up first (list_instances/list_nodes/list_templates/list_instance_pages/list_users/list_themes/list_tickets/list_roles, then get_* for details; check_panel_update before any panel reinstall); keep answers short. Act, don't interrogate: when the user names a template workflow step or action, read get_template (section=steps for install steps, section=runtime for startup command + action buttons) and propose the edit — never ask them to paste the workflow or dictate exact text. Template edits: install-workflow changes use edit_template_steps; startup-command changes use set_template_command; action-button removal uses remove_template_action; description text changes read section=description first and use edit_template. Autostart pattern: gate the new command on files the install workflow guarantees (e.g. server.jar), never on a deleted sentinel; warn that the panel still stops the container once right after install (by design) and every later container start then launches the service. Tickets: staff sees all, others own/assigned; only staff triages or posts internal notes. Write tools (instance_action, edit_instance, reinstall_instance, delete_instance, suspend_instance, unsuspend_instance, update_settings, create_theme, edit_theme, delete_theme, create_template, edit_template, delete_template, edit_template_steps, set_template_command, remove_template_action, create_node, edit_node, delete_node, create_instance_page, edit_instance_page, delete_instance_page, create_user, edit_user, delete_user, create_ticket, reply_ticket, update_ticket, broadcast_notification, deploy_instance, reinstall_panel) do NOT execute immediately: calling one returns a confirmation ticket that the user must approve in the UI. After calling a write tool, briefly summarise what will happen and ask the user to approve it in the confirmation card. Every write re-checks the caller's area permission (instances/templates/nodes/pages/themes/users/tickets/notifications/panel-update) plus the AI Chat Writes grant — if either is missing, explain which permission an admin must grant. reinstall_panel restarts the whole panel (brief downtime, the chat disconnects) — always run check_panel_update first and warn about the restart.")
 	// Capability line so the model respects the caller's AI Chat sub-perms.
 	if actxChecker, actxUID, ok := aiPromptCaps(con, uid); ok {
 		_, canRead, canWrite := aiCaps(actxChecker, actxUID)
@@ -855,8 +860,39 @@ func aiToolDefs() []aiToolDef {
 		mk("list_templates", "List deployment templates (id, name, kind, description).", obj(map[string]any{
 			"limit": aiIntProp("max rows, default 20, max 50"),
 		})),
+		mk("get_node", "Get one edge node by id (name, address, status — tokens are never exposed).", obj(map[string]any{
+			"node_id": aiIntProp("node id from list_nodes — never guess"),
+		}, "node_id")),
+		mk("get_template", "Get one deployment template by id (fields, description, numbered install-workflow steps, startup command + action buttons).", obj(map[string]any{
+			"template_id": aiIntProp("template id from list_templates — never guess"),
+			"section":     aiStrProp("one of: all (default), summary, steps, runtime, description. Steps for workflow edits, runtime for startup-command/action-button edits, description for text edits."),
+		}, "template_id")),
+		mk("list_instance_pages", "List reusable instance pages (id, name, slug, description).", obj(map[string]any{
+			"limit": aiIntProp("max rows, default 20, max 50"),
+		})),
+		mk("get_instance_page", "Get one instance page by id (name, slug, description, content type).", obj(map[string]any{
+			"page_id": aiIntProp("page id from list_instance_pages — never guess"),
+		}, "page_id")),
+		mk("check_panel_update", "Check whether a newer panel release is available (local vs remote version). Read-only, no download.", obj(map[string]any{})),
+		mk("list_users", "List user accounts (id, username, email, role). Own-scope callers see only themselves.", obj(map[string]any{
+			"limit": aiIntProp("max rows, default 20, max 50"),
+		})),
+		mk("get_user", "Get one user by id (never includes password data).", obj(map[string]any{
+			"user_id": aiIntProp("user id from list_users — never guess"),
+		}, "user_id")),
+		mk("list_roles", "List roles (id, name) for account admin — use the exact name in create_user/edit_user.", obj(map[string]any{})),
+		mk("list_themes", "List global themes (id, name, description).", obj(map[string]any{
+			"limit": aiIntProp("max rows, default 20, max 50"),
+		})),
+		mk("list_tickets", "List support tickets (staff sees all, others see own/assigned).", obj(map[string]any{
+			"limit":  aiIntProp("max rows, default 20, max 50"),
+			"status": aiStrProp("optional filter: open, pending, in_progress, resolved, closed"),
+		})),
+		mk("get_ticket", "Get one ticket with its comments (staff sees all incl. internal notes, others see own/assigned).", obj(map[string]any{
+			"ticket_id": aiIntProp("ticket id from list_tickets — never guess"),
+		}, "ticket_id")),
 		mk("get_docs", "Read the built-in panel documentation for a topic.", obj(map[string]any{
-			"topic": aiStrProp("one of: index, instances, templates, nodes, mods, applications, tickets, backups, security, database, automation, sftp, updates, ai. Default index."),
+			"topic": aiStrProp("one of: index, instances, templates, nodes, instance_pages, users, mods, applications, tickets, backups, security, database, automation, sftp, updates, themes, notifications, ai. Default index."),
 		})),
 		mk("get_system_status", "Fleet counts only (instances, nodes, templates, instances by status). No sensitive data.", obj(map[string]any{})),
 		mk("instance_action", "APPROVAL REQUIRED: start, stop or restart an instance on its edge node.", obj(map[string]any{
@@ -898,6 +934,114 @@ func aiToolDefs() []aiToolDef {
 			"node_id":     aiIntProp("node id from list_nodes — never guess"),
 			"template_id": aiIntProp("template id from list_templates — never guess"),
 		}, "name", "node_id", "template_id")),
+		mk("edit_instance", "APPROVAL REQUIRED: rename an instance's display name (human label only — the edge workload name never changes).", obj(map[string]any{
+			"instance_id":  aiIntProp("instance id from list_instances — never guess"),
+			"display_name": aiStrProp("new display name, max 128 chars (required)"),
+		}, "instance_id", "display_name")),
+		mk("reinstall_instance", "APPROVAL REQUIRED: wipe an instance's edge workload and redeploy it from its stored spec (ALL data inside is lost, install workflow re-runs).", obj(map[string]any{
+			"instance_id": aiIntProp("instance id from list_instances — never guess"),
+		}, "instance_id")),
+		mk("delete_instance", "APPROVAL REQUIRED: destroy an instance's edge workload and delete the panel row (irreversible).", obj(map[string]any{
+			"instance_id": aiIntProp("instance id from list_instances — never guess"),
+		}, "instance_id")),
+		mk("suspend_instance", "APPROVAL REQUIRED: suspend an instance with a moderation reason (blocks start/reinstall until unsuspended).", obj(map[string]any{
+			"instance_id":    aiIntProp("instance id from list_instances — never guess"),
+			"reason":         aiStrProp("suspension reason (required)"),
+			"duration_hours": aiIntProp("auto-unsuspend after N hours; omit for indefinite"),
+		}, "instance_id", "reason")),
+		mk("unsuspend_instance", "APPROVAL REQUIRED: lift a suspension so the instance can run again.", obj(map[string]any{
+			"instance_id": aiIntProp("instance id from list_instances — never guess"),
+		}, "instance_id")),
+		mk("edit_template", "APPROVAL REQUIRED: edit a deployment template (name, description, image and/or spec JSON).", obj(map[string]any{
+			"template_id": aiIntProp("template id from list_templates — never guess"),
+			"name":        aiStrProp("new template name"),
+			"description": aiStrProp("new short description"),
+			"image":       aiStrProp("new container / os image"),
+			"spec":        aiStrProp("new template spec as a JSON object string"),
+		}, "template_id")),
+		mk("delete_template", "APPROVAL REQUIRED: delete a deployment template (running instances keep running, they just lose the back-link).", obj(map[string]any{
+			"template_id": aiIntProp("template id from list_templates — never guess"),
+		}, "template_id")),
+		mk("edit_template_steps", "APPROVAL REQUIRED: surgically edit a template's install workflow (op remove/add/move) without rewriting the whole spec. Read get_template section=steps first for 1-based numbers.", obj(map[string]any{
+			"template_id": aiIntProp("template id from list_templates — never guess"),
+			"op":          aiStrProp("one of: remove, add, move (required)"),
+			"step_number": aiIntProp("1-based step number from get_template (required for remove/move)"),
+			"position":    aiIntProp("1-based insert position for add/move; omit to append"),
+			"step":        aiStrProp(`new step as a JSON object string for add (required), e.g. {"action":"shell","command":"echo hi"}`),
+		}, "template_id", "op")),
+		mk("set_template_command", "APPROVAL REQUIRED: set a template's container startup command (exec-form JSON array). Use this to auto-start a service when the container starts. Read get_template section=runtime first.", obj(map[string]any{
+			"template_id": aiIntProp("template id from list_templates — never guess"),
+			"command":     aiStrProp(`startup command as a JSON array string (required), e.g. ["sh","-c","cd /mc && exec java -jar server.jar"]`),
+		}, "template_id", "command")),
+		mk("remove_template_action", "APPROVAL REQUIRED: remove an action button (by id) from a template, e.g. dropping a manual Start button once the service autostarts. Read get_template section=runtime first for ids.", obj(map[string]any{
+			"template_id": aiIntProp("template id from list_templates — never guess"),
+			"action_id":   aiStrProp("action id from get_template runtime (required) — never guess"),
+		}, "template_id", "action_id")),
+		mk("create_node", "APPROVAL REQUIRED: register a new edge node (direct address dial). The edge token is returned once — tell the user to save it.", obj(map[string]any{
+			"name":    aiStrProp("node name (required)"),
+			"address": aiStrProp("dial address host:port, e.g. 10.0.0.5:8443 (required)"),
+		}, "name", "address")),
+		mk("edit_node", "APPROVAL REQUIRED: rename / re-address an edge node.", obj(map[string]any{
+			"node_id": aiIntProp("node id from list_nodes — never guess"),
+			"name":    aiStrProp("new node name"),
+			"address": aiStrProp("new dial address host:port"),
+		}, "node_id")),
+		mk("delete_node", "APPROVAL REQUIRED: delete an edge node (refused while instances still live on it).", obj(map[string]any{
+			"node_id": aiIntProp("node id from list_nodes — never guess"),
+		}, "node_id")),
+		mk("edit_instance_page", "APPROVAL REQUIRED: edit a reusable instance page (name, description and/or markdown/html body).", obj(map[string]any{
+			"page_id":          aiIntProp("page id from list_instance_pages — never guess"),
+			"name":             aiStrProp("new page name"),
+			"description":      aiStrProp("new short description"),
+			"content_markdown": aiStrProp("new markdown body"),
+			"content_html":     aiStrProp("new raw HTML body"),
+		}, "page_id")),
+		mk("delete_instance_page", "APPROVAL REQUIRED: delete a reusable instance page (irreversible).", obj(map[string]any{
+			"page_id": aiIntProp("page id from list_instance_pages — never guess"),
+		}, "page_id")),
+		mk("reinstall_panel", "APPROVAL REQUIRED: reinstall the panel itself to the latest release binary (same flow as System → Reinstall). The panel restarts — brief downtime, chat disconnects.", obj(map[string]any{})),
+		mk("edit_user", "APPROVAL REQUIRED: edit a user account (username, email and/or role by name). Password resets stay on the Users page.", obj(map[string]any{
+			"user_id":  aiIntProp("user id from list_users — never guess"),
+			"username": aiStrProp("new login name"),
+			"email":    aiStrProp("new email address"),
+			"role":     aiStrProp("new role name from list_roles"),
+		}, "user_id")),
+		mk("delete_user", "APPROVAL REQUIRED: delete a user account (irreversible, cannot delete yourself).", obj(map[string]any{
+			"user_id": aiIntProp("user id from list_users — never guess"),
+		}, "user_id")),
+		mk("edit_theme", "APPROVAL REQUIRED: edit a global theme (name, description and/or spec JSON). A revision snapshot is kept automatically.", obj(map[string]any{
+			"theme_id":    aiStrProp("theme id from list_themes — never guess"),
+			"name":        aiStrProp("new theme name"),
+			"description": aiStrProp("new short description"),
+			"spec":        aiStrProp("new theme spec as a JSON object string"),
+		}, "theme_id")),
+		mk("delete_theme", "APPROVAL REQUIRED: delete a global theme (pages using it fall back to default).", obj(map[string]any{
+			"theme_id": aiStrProp("theme id from list_themes — never guess"),
+		}, "theme_id")),
+		mk("create_ticket", "APPROVAL REQUIRED: open a support ticket for the caller.", obj(map[string]any{
+			"subject":     aiStrProp("short subject, max 200 chars (required)"),
+			"description": aiStrProp("full details"),
+			"category":    aiStrProp("one of: general, billing, technical, feature, bug, abuse, other (default general)"),
+			"priority":    aiStrProp("one of: low, medium, high, urgent, critical (default medium)"),
+		}, "subject")),
+		mk("reply_ticket", "APPROVAL REQUIRED: reply to a ticket thread (staff see any ticket, others own/assigned; closed tickets refuse).", obj(map[string]any{
+			"ticket_id": aiIntProp("ticket id from list_tickets — never guess"),
+			"message":   aiStrProp("reply body (required)"),
+			"internal":  aiStrProp("set to 'true' for a staff-only note (staff only, hidden from reporter)"),
+		}, "ticket_id", "message")),
+		mk("update_ticket", "APPROVAL REQUIRED: triage a ticket (status/priority/assignee for staff; owners may edit subject/description/category only).", obj(map[string]any{
+			"ticket_id":   aiIntProp("ticket id from list_tickets — never guess"),
+			"status":      aiStrProp("staff only, one of: open, pending, in_progress, resolved, closed"),
+			"priority":    aiStrProp("staff only for high/urgent/critical, one of: low, medium, high, urgent, critical"),
+			"assigned_to": aiStrProp("staff only: username or id to assign (empty clears)"),
+			"subject":     aiStrProp("new subject"),
+			"description": aiStrProp("new description"),
+			"category":    aiStrProp("one of: general, billing, technical, feature, bug, abuse, other"),
+		}, "ticket_id")),
+		mk("broadcast_notification", "APPROVAL REQUIRED: send an announcement notification to every user (shows in their inbox + realtime push).", obj(map[string]any{
+			"title":   aiStrProp("announcement title (required)"),
+			"message": aiStrProp("announcement body (required)"),
+		}, "title", "message")),
 	}
 }
 
@@ -1238,6 +1382,18 @@ var aiWriteTools = map[string]bool{
 	"instance_action": true, "update_settings": true, "create_theme": true,
 	"create_template": true, "create_instance_page": true, "create_user": true,
 	"deploy_instance": true,
+	"edit_instance": true, "reinstall_instance": true, "delete_instance": true,
+	"suspend_instance": true, "unsuspend_instance": true,
+	"edit_template": true, "delete_template": true,
+	"edit_template_steps": true, "set_template_command": true,
+	"remove_template_action": true,
+	"create_node": true, "edit_node": true, "delete_node": true,
+	"edit_instance_page": true, "delete_instance_page": true,
+	"reinstall_panel": true,
+	"edit_user": true, "delete_user": true,
+	"edit_theme": true, "delete_theme": true,
+	"create_ticket": true, "reply_ticket": true, "update_ticket": true,
+	"broadcast_notification": true,
 }
 
 // aiReadTools are the fleet-inspection tools gated by AI_CHAT_TOOLS (writes
@@ -1245,6 +1401,11 @@ var aiWriteTools = map[string]bool{
 var aiReadTools = map[string]bool{
 	"list_instances": true, "get_instance": true, "list_nodes": true,
 	"list_templates": true, "get_system_status": true,
+	"get_node": true, "get_template": true,
+	"list_instance_pages": true, "get_instance_page": true,
+	"check_panel_update": true,
+	"list_users": true, "get_user": true, "list_roles": true,
+	"list_themes": true, "list_tickets": true, "get_ticket": true,
 }
 
 // aiCaps resolves the caller's AI sub-capabilities. The umbrella
@@ -1382,6 +1543,28 @@ func aiRunTool(a *aiCallCtx, name string, args map[string]any) (string, *aiTicke
 		return aiToolListNodes(a, aiLimit(args))
 	case "list_templates":
 		return aiToolListTemplates(a, aiLimit(args))
+	case "get_node":
+		return aiToolGetNode(a, aiInt(args, "node_id"))
+	case "get_template":
+		return aiToolGetTemplate(a, aiInt(args, "template_id"), aiStr(args, "section"))
+	case "list_instance_pages":
+		return aiToolListInstancePages(a, aiLimit(args))
+	case "get_instance_page":
+		return aiToolGetInstancePage(a, aiInt(args, "page_id"))
+	case "check_panel_update":
+		return aiToolCheckPanelUpdate(a)
+	case "list_users":
+		return aiToolListUsers(a, aiLimit(args))
+	case "get_user":
+		return aiToolGetUser(a, aiInt(args, "user_id"))
+	case "list_roles":
+		return aiToolListRoles(a)
+	case "list_themes":
+		return aiToolListThemes(a, aiLimit(args))
+	case "list_tickets":
+		return aiToolListTickets(a, aiLimit(args), aiStr(args, "status"))
+	case "get_ticket":
+		return aiToolGetTicket(a, aiInt(args, "ticket_id"))
 	case "get_docs":
 		return aiToolGetDocs(aiStr(args, "topic")), nil, nil
 	case "get_system_status":
@@ -1527,32 +1710,464 @@ func aiToolListTemplates(a *aiCallCtx, limit int) (string, *aiTicketProposal, er
 	return aiJSON(out), nil, nil
 }
 
-var aiDocs = map[string]string{
-	"index":        "Topics: instances, templates, nodes, mods, applications, tickets, backups, security, database, automation, sftp, updates, ai. Ask get_docs for one to read it.",
-	"instances":    "Instances are deployed workloads (game servers, apps) running on edge nodes. Each instance is created from a Template, lives on exactly one Node, and has a lifecycle: creating → running ⇄ stopped, plus installing/install_failed while its template install workflow runs. Operators manage them from the Instances pages (start/stop/restart, terminal, files, backups). Suspend/unsuspend is wired for moderation holds, and every mutating action lands in the instance audit timeline.",
-	"templates":    "Templates are reusable blueprints (docker, lxd, kvm or multipass) stored as a JSON spec: image, env vars with validation rules, install steps, actions and custom pages. Deploying a template onto a node creates an instance. Operators define them on the Templates page, which ships a 10-tab builder (Runtime, Install, Environment, EnvVariables, Healthcheck, Labels&Devices, Pages, Actions, Spec Preview) with 40+ spec fields.",
-	"nodes":        "Nodes are edge machines running the ksedge agent. The panel registers each node (address + token), receives heartbeats with telemetry, and proxies lifecycle RPCs (deploy/start/stop/destroy), terminal, files and install workflows through it. A node lists which drivers (docker/lxd/kvm) it has available; deploys are refused when the driver is missing. Connection modes are direct, reverse_tunnel, local_port and local_wss, with TLS options and probe/rotate/purge operations on the NodeDetail page.",
-	"mods":         "Mods are admin-uploaded add-on packages that extend the panel (extra pages, tools, integrations). They install inactive and only activate after the admin approves every capability the mod requested. The sandboxed mod engine v2 runs them in a Goja VM with pre/post event hooks and a slot registry. Applications are the user-facing sibling: admin-curated bot/service templates that users install under their own account with the same capability-approval gate.",
-	"applications": "Applications are admin-curated bot/service templates (Discord, WhatsApp, Telegram, …) that users install under their own account. Like mods they activate only after capability approval. Each install can run on a node, the panel, locally or directly, in host, docker, lxd, kvm or multipass exec mode, and every run is recorded in application_runs. Installing from a URL is SSRF-hardened (public-IP only, DNS-pinned, size/time capped).",
-	"tickets":      "Tickets are user-opened support requests (general, billing, technical, feature, bug, abuse) triaged by staff with status, priority, assignment and comments. The API covers list/get/create/update/delete plus stats, comments and staff assignment, with owner-vs-staff visibility rules. Attachments, SLA tracking and notification preferences extend the base tables. Users work them from the Tickets pages with filters and a per-ticket chat composer.",
-	"backups":      "Backups cover database snapshots on a cron schedule, per-instance snapshots, and file-level tar backups, with optional push to an S3-compatible remote. Schedules live in backup_schedules with a scheduler sweep, retention keep_last_n/max_age_days pruning, gzip/zstd compression and SHA256/size verification. Database dumps use pg_dump/mysqldump with a datamove fallback, and file tars transfer chunked via Content-Range. Docker restores stop the container, load the tar, and reconcile ports and volumes.",
-	"security":     "Security is managed from the Security page with five tabs: Firewall, DDoS, Authority, Authentication and Sessions. Every request is logged to security_requests (24h window) feeding an RPS/top-IPs/blocked/4xx/5xx snapshot, and suspicious probe paths plus automatic DDoS mitigation can stop traffic for 5 minutes. Authentication hardens logins with MFA recovery codes, 5-failures/15-minute lockout, password policy plus history, HttpOnly SameSite-Strict session cookies, per-endpoint rate limits and five OAuth providers. Secrets are sealed with AES-256-GCM and every reveal is audited.",
-	"database":     "The panel runs on SQLite, PostgreSQL or MySQL behind a transparent repository layer, switchable live from the Database page with a parents-first batched datamove (500 rows per batch). Schema is versioned as numbered migrations triplicated across all three dialects via regen.sh, so every feature ships identical tables everywhere. Maintenance offers VACUUM INTO snapshots plus native pg_dump/mysqldump exports with a datamove fallback for cross-engine moves. Connection health, engine version and row counts are visible before any move runs.",
-	"automation":   "Automation runs cron schedules with 5-field expressions that trigger instance actions or shell workflows on their edge node. Each firing is recorded in automation_runs with status, output and timing for later inspection. Triggered runs dial the edge exec channel with secrets resolved server-side, so secret values never reach the browser and secret_refs stay masked in specs. Operators create and monitor schedules from the instance Automation tab alongside one-shot manual triggers.",
-	"sftp":         "SFTP gives per-instance file access through a chrooted SSH server on the edge node (port 2222), provisioned automatically on deploy. Credentials are per-instance bcrypt passwords with 5-failures/15-minute lockout, managed from the instance SFTP card. Paths are jailed to the instance filesystem so users can never escape to the host. The panel API exposes get-or-provision and credential rotation endpoints gated by instance file permissions.",
-	"updates":      "Panel and edge self-updates ship from the System page via check/apply/reinstall flows gated by MANAGE_PANEL_UPDATE. The updater streams the new binary to a temp file (never the live path), verifies it, then swaps it into place with cosign signature checks when enabled. A single-round-trip system snapshot reports versions, node counts and resource tiles so operators see fleet state before rolling out. Failed updates leave the running binary untouched and record the error for retry.",
-	"ai":           "This AI assistant is a panel-wide chat bubble backed by a server-side proxy, so the provider key never reaches the browser. It answers with OpenAI-compatible or Ollama providers, falls back to a secondary provider when the primary fails, and streams replies with SSE (the client falls back to plain JSON automatically). It can list and inspect instances, nodes, templates, docs and system status directly, and proposes writes (start/stop instances, branding, themes, templates, pages, users, deploys) as confirmation tickets you approve in the chat. Chats persist per-user in threads (last 50 messages of context), every write and every token-usage/cost line lands in activity_logs, and admins configure providers, pricing and the writes kill-switch in Settings.",
+func aiToolGetNode(a *aiCallCtx, id int64) (string, *aiTicketProposal, error) {
+	if id == 0 {
+		return "", nil, fmt.Errorf("node_id is required (use list_nodes first — never guess)")
+	}
+	n, err := repository.NewNodeRepository(a.con).GetNode(id)
+	if err != nil || n == nil {
+		return "", nil, fmt.Errorf("node %d not found", id)
+	}
+	hasOwn, hasAll, _ := a.checker.HasScope(a.uid, permissions.NodesOwnKey, permissions.NodesAllKey, permissions.ManageNodesKey)
+	if !hasAll && hasOwn && n.OwnerID != a.uid {
+		return "", nil, fmt.Errorf("forbidden: that node belongs to someone else")
+	}
+	return aiJSON(map[string]any{
+		"id": n.ID, "name": n.Name, "address": n.Address,
+		"status": n.Status, "allowed_kinds": n.AllowedKinds,
+		"connection_mode": n.ConnectionMode,
+	}), nil, nil
 }
 
-func aiToolGetDocs(topic string) string {
-	topic = strings.ToLower(strings.TrimSpace(topic))
-	if topic == "" {
-		topic = "index"
+func aiToolGetTemplate(a *aiCallCtx, id int64, section string) (string, *aiTicketProposal, error) {
+	if id == 0 {
+		return "", nil, fmt.Errorf("template_id is required (use list_templates first — never guess)")
 	}
-	if d, ok := aiDocs[topic]; ok {
+	t, err := repository.NewTemplateRepository(a.con).Get(id)
+	if err != nil || t == nil {
+		return "", nil, fmt.Errorf("template %d not found", id)
+	}
+	hasOwn, hasAll, _ := a.checker.HasScope(a.uid, permissions.TemplatesOwnKey, permissions.TemplatesAllKey, permissions.ManageTemplatesKey)
+	if !hasAll && hasOwn && t.OwnerID != a.uid {
+		return "", nil, fmt.Errorf("forbidden: that template belongs to someone else")
+	}
+	steps := aiTemplateInstallSteps(t)
+	cmd, actions := aiTemplateRuntime(t)
+	section = strings.ToLower(strings.TrimSpace(section))
+	switch section {
+	case "summary":
+		return aiJSON(map[string]any{
+			"id": t.ID, "name": t.Name, "kind": t.Kind, "image": t.Image,
+			"description_chars": len(t.Description),
+			"install_step_count": len(steps),
+			"command":            cmd,
+			"actions":            actions,
+		}), nil, nil
+	case "steps":
+		out := map[string]any{"id": t.ID, "name": t.Name, "install_steps": steps, "actions": actions}
+		if len(steps) == 0 {
+			out["install_steps"] = []string{"(no install workflow — deploys start the container directly)"}
+		}
+		return aiJSON(out), nil, nil
+	case "description":
+		return aiJSON(map[string]any{
+			"id": t.ID, "name": t.Name, "description": t.Description,
+		}), nil, nil
+	case "runtime":
+		return aiJSON(map[string]any{
+			"id": t.ID, "name": t.Name, "command": cmd, "actions": actions,
+			"install_step_count": len(steps),
+		}), nil, nil
+	default:
+		return aiJSON(map[string]any{
+			"id": t.ID, "name": t.Name, "kind": t.Kind,
+			"description": t.Description, "image": t.Image,
+			"command": cmd, "actions": actions,
+			"install_steps": steps,
+		}), nil, nil
+	}
+}
+
+// aiTemplateRuntime extracts the container startup command and the action
+// buttons (id + name) from a template spec. Command is rendered compactly
+// (arrays joined); over-long values are capped so the transcript stays
+// small. Actions are what the user clicks on the instance page — distinct
+// from install[] workflow steps.
+func aiTemplateRuntime(t *models.Template) (string, []string) {
+	var cmd string
+	actions := []string{}
+	if strings.TrimSpace(t.Spec) != "" {
+		var spec map[string]any
+		if err := json.Unmarshal([]byte(t.Spec), &spec); err == nil {
+			switch c := spec["command"].(type) {
+			case string:
+				cmd = c
+			case []any:
+				parts := make([]string, 0, len(c))
+				for _, p := range c {
+					if s, ok := p.(string); ok {
+						parts = append(parts, s)
+					}
+				}
+				cmd = strings.Join(parts, " ")
+			}
+			if raw, ok := spec["actions"].([]any); ok {
+				for _, a := range raw {
+					m, _ := a.(map[string]any)
+					if m == nil {
+						continue
+					}
+					id := aiStr(m, "id")
+					if id == "" {
+						continue
+					}
+					label := aiStr(m, "name")
+					if label == "" {
+						label = id
+					}
+					actions = append(actions, id+": "+label)
+				}
+			}
+		}
+	}
+	return aiCap(cmd, 300), actions
+}
+
+// aiTemplateStepSummary renders one spec.install entry as a numbered
+// one-liner ("#3 shell: touch /mc/.install-complete") using the 1-based
+// numbering users count with. Long values are capped; write-step bodies
+// are never inlined (length only) so giant file contents can't flood the
+// transcript.
+func aiTemplateStepSummary(i int, m map[string]any) string {
+	action := strings.ToLower(strings.TrimSpace(aiStr(m, "action")))
+	if action == "" {
+		action = "(no action)"
+	}
+	var detail string
+	switch action {
+	case "shell", "pip_install", "npm_install":
+		detail = aiStr(m, "command")
+	case "download":
+		detail = aiStr(m, "url") + " → " + aiStr(m, "filename")
+	case "extract":
+		detail = aiStr(m, "archive") + " → " + aiStr(m, "dest")
+	case "move":
+		detail = aiStr(m, "from") + " → " + aiStr(m, "to")
+	case "write":
+		detail = aiStr(m, "path")
+		if c := aiStr(m, "content"); c != "" {
+			detail += fmt.Sprintf(" (%d chars)", len(c))
+		}
+	case "mkdir":
+		detail = aiStr(m, "path")
+	case "chmod":
+		detail = strings.TrimSpace(aiStr(m, "path") + " " + aiStr(m, "command"))
+	case "git_clone":
+		detail = aiStr(m, "url") + " → " + aiStr(m, "dest")
+	case "http_check":
+		detail = aiStr(m, "url")
+	default:
+		detail = aiCap(strings.TrimSpace(fmt.Sprintf("%v", m)), 100)
+	}
+	return aiCap(fmt.Sprintf("#%d %s: %s", i+1, action, strings.TrimSpace(detail)), 160)
+}
+
+// aiTemplateInstallSteps parses spec.install into numbered summaries.
+// Returns nil when the template has no workflow (or an unreadable spec).
+func aiTemplateInstallSteps(t *models.Template) []string {
+	if t == nil || strings.TrimSpace(t.Spec) == "" {
+		return nil
+	}
+	var spec map[string]any
+	if err := json.Unmarshal([]byte(t.Spec), &spec); err != nil {
+		return nil
+	}
+	raw, ok := spec["install"].([]any)
+	if !ok || len(raw) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(raw))
+	for i, s := range raw {
+		if i >= 40 {
+			out = append(out, fmt.Sprintf("…and %d more steps", len(raw)-i))
+			break
+		}
+		m, _ := s.(map[string]any)
+		if m == nil {
+			m = map[string]any{}
+		}
+		out = append(out, aiTemplateStepSummary(i, m))
+	}
+	return out
+}
+
+func aiToolListInstancePages(a *aiCallCtx, limit int) (string, *aiTicketProposal, error) {
+	list, err := repository.NewInstancePageRepository(a.con).List()
+	if err != nil {
+		return "", nil, fmt.Errorf("list instance pages failed")
+	}
+	hasOwn, hasAll, _ := a.checker.HasScope(a.uid, permissions.InstancePagesOwnKey, permissions.InstancePagesAllKey, permissions.ManageInstancePagesKey)
+	if !hasAll && hasOwn {
+		filtered := make([]models.InstancePage, 0, len(list))
+		for _, p := range list {
+			if p.OwnerID == a.uid {
+				filtered = append(filtered, p)
+			}
+		}
+		list = filtered
+	}
+	out := make([]map[string]any, 0, limit)
+	for i, p := range list {
+		if i >= limit {
+			break
+		}
+		out = append(out, map[string]any{
+			"id": p.ID, "name": p.Name, "slug": p.Slug,
+			"description": p.Description,
+		})
+	}
+	return aiJSON(out), nil, nil
+}
+
+func aiToolGetInstancePage(a *aiCallCtx, id int64) (string, *aiTicketProposal, error) {
+	if id == 0 {
+		return "", nil, fmt.Errorf("page_id is required (use list_instance_pages first — never guess)")
+	}
+	p, err := repository.NewInstancePageRepository(a.con).Get(id)
+	if err != nil || p == nil {
+		return "", nil, fmt.Errorf("instance page %d not found", id)
+	}
+	hasOwn, hasAll, _ := a.checker.HasScope(a.uid, permissions.InstancePagesOwnKey, permissions.InstancePagesAllKey, permissions.ManageInstancePagesKey)
+	if !hasAll && hasOwn && p.OwnerID != a.uid {
+		return "", nil, fmt.Errorf("forbidden: that page belongs to someone else")
+	}
+	return aiJSON(map[string]any{
+		"id": p.ID, "name": p.Name, "slug": p.Slug,
+		"description": p.Description, "content_type": p.ContentType,
+	}), nil, nil
+}
+
+// aiToolCheckPanelUpdate reports the local build vs the remote release
+// manifest (same data as System → Updates → "check"). Read-only: no
+// download, no restart. Mirrors the route gate (MANAGE_PANEL_UPDATE) so a
+// role without panel-update rights can't even see the check.
+func aiToolCheckPanelUpdate(a *aiCallCtx) (string, *aiTicketProposal, error) {
+	if err := a.checker.Ensure(a.uid, permissions.ManagePanelUpdateKey); err != nil {
+		return "", nil, fmt.Errorf("denied: checking panel updates needs MANAGE_PANEL_UPDATE — explain that the user lacks permission")
+	}
+	local := version.Snapshot()
+	manifest, err := fetchUpdateManifest()
+	if err != nil {
+		return aiJSON(map[string]any{
+			"available": false, "local_version": local.Version,
+			"error": aiCap(err.Error(), 300),
+		}), nil, nil
+	}
+	return aiJSON(map[string]any{
+		"available":      semverGreater(manifest.Version, local.Version),
+		"local_version":  local.Version,
+		"remote_version": manifest.Version,
+		"notes":          aiCap(manifest.Notes, 500),
+		"checked_at":     time.Now().UTC().Format(time.RFC3339),
+	}), nil, nil
+}
+
+// aiUserScope resolves the Users-area ownership scope like
+// ListUsersHandler: own-scope callers see only themselves.
+func aiUserScope(a *aiCallCtx) (ownOnly bool) {
+	hasOwn, hasAll, _ := a.checker.HasScope(a.uid, permissions.UsersOwnKey, permissions.UsersAllKey, permissions.ManageUsersKey)
+	return !hasAll && hasOwn
+}
+
+func aiUserPublic(u *models.User, roleName string) map[string]any {
+	m := map[string]any{
+		"id": u.ID, "username": u.Username, "email": u.Email,
+		"role_id": u.RoleID, "suspended": u.Suspended,
+	}
+	if roleName != "" {
+		m["role"] = roleName
+	}
+	return m
+}
+
+func aiRoleName(con *sql.DB, roleID int64) string {
+	if r, err := repository.NewRoleRepository(con).GetRoleByID(roleID); err == nil && r != nil {
+		return r.Name
+	}
+	return ""
+}
+
+func aiToolListUsers(a *aiCallCtx, limit int) (string, *aiTicketProposal, error) {
+	if err := a.checker.EnsureAny(a.uid, permissions.ManageUsersKey, permissions.UsersViewKey); err != nil {
+		return "", nil, fmt.Errorf("denied: listing users needs MANAGE_USERS or USERS_VIEW — explain that the user lacks permission")
+	}
+	repo := repository.NewUserRepository(a.con)
+	if aiUserScope(a) {
+		u, err := repo.GetByID(a.uid)
+		if err != nil {
+			return "", nil, fmt.Errorf("server error")
+		}
+		return aiJSON([]map[string]any{aiUserPublic(u, aiRoleName(a.con, u.RoleID))}), nil, nil
+	}
+	users, err := repo.ListUsers()
+	if err != nil {
+		return "", nil, fmt.Errorf("list users failed")
+	}
+	out := make([]map[string]any, 0, limit)
+	for i, u := range users {
+		if i >= limit {
+			break
+		}
+		u := u
+		out = append(out, aiUserPublic(&u, aiRoleName(a.con, u.RoleID)))
+	}
+	return aiJSON(out), nil, nil
+}
+
+func aiToolGetUser(a *aiCallCtx, id int64) (string, *aiTicketProposal, error) {
+	if err := a.checker.EnsureAny(a.uid, permissions.ManageUsersKey, permissions.UsersViewKey); err != nil {
+		return "", nil, fmt.Errorf("denied: viewing users needs MANAGE_USERS or USERS_VIEW — explain that the user lacks permission")
+	}
+	if id == 0 {
+		return "", nil, fmt.Errorf("user_id is required (use list_users first — never guess)")
+	}
+	if aiUserScope(a) && id != a.uid {
+		return "", nil, fmt.Errorf("forbidden: that account belongs to someone else")
+	}
+	u, err := repository.NewUserRepository(a.con).GetByID(id)
+	if err != nil || u == nil {
+		return "", nil, fmt.Errorf("user %d not found", id)
+	}
+	return aiJSON(aiUserPublic(u, aiRoleName(a.con, u.RoleID))), nil, nil
+}
+
+func aiToolListRoles(a *aiCallCtx) (string, *aiTicketProposal, error) {
+	if err := a.checker.EnsureAny(a.uid, permissions.ManageRolesKey, permissions.RolesViewKey, permissions.ManageUsersKey, permissions.UsersViewKey); err != nil {
+		return "", nil, fmt.Errorf("denied: listing roles needs a Roles or Users view grant — explain that the user lacks permission")
+	}
+	roles, err := repository.NewRoleRepository(a.con).ListRoles(0)
+	if err != nil {
+		return "", nil, fmt.Errorf("list roles failed")
+	}
+	out := make([]map[string]any, 0, len(roles))
+	for _, r := range roles {
+		out = append(out, map[string]any{"id": r.ID, "name": r.Name, "display_name": r.DisplayName})
+	}
+	return aiJSON(out), nil, nil
+}
+
+func aiToolListThemes(a *aiCallCtx, limit int) (string, *aiTicketProposal, error) {
+	if err := a.checker.EnsureAny(a.uid, permissions.ManageThemesKey, permissions.UseGlobalThemesKey); err != nil {
+		return "", nil, fmt.Errorf("denied: listing themes needs MANAGE_THEMES or USE_GLOBAL_THEMES — explain that the user lacks permission")
+	}
+	list, err := repository.NewThemeRepository(a.con).ListThemes()
+	if err != nil {
+		return "", nil, fmt.Errorf("list themes failed")
+	}
+	hasOwn, hasAll, _ := a.checker.HasScope(a.uid, permissions.ThemesOwnKey, permissions.ThemesAllKey, permissions.ManageThemesKey)
+	out := make([]map[string]any, 0, limit)
+	for _, t := range list {
+		if len(out) >= limit {
+			break
+		}
+		// Mirror the admin list: builtins are visible to all, own-scope
+		// callers otherwise see only themes they authored.
+		if !hasAll && hasOwn && !t.Builtin && t.OwnerID != a.uid {
+			continue
+		}
+		out = append(out, map[string]any{
+			"id": t.ID, "name": t.Name,
+			"description": t.Description, "builtin": t.Builtin,
+		})
+	}
+	return aiJSON(out), nil, nil
+}
+
+func aiTicketBrief(t *models.Ticket) map[string]any {
+	return map[string]any{
+		"id": t.ID, "ticket_no": t.TicketNo, "subject": t.Subject,
+		"status": t.Status, "priority": t.Priority, "category": t.Category,
+	}
+}
+
+func aiToolListTickets(a *aiCallCtx, limit int, status string) (string, *aiTicketProposal, error) {
+	if err := a.checker.EnsureAny(a.uid, permissions.ManageTicketsKey, permissions.TicketsViewKey); err != nil {
+		return "", nil, fmt.Errorf("denied: listing tickets needs MANAGE_TICKETS or TICKETS_VIEW — explain that the user lacks permission")
+	}
+	status = strings.ToLower(strings.TrimSpace(status))
+	if status != "" && !models.ValidTicketStatuses[status] {
+		return "", nil, fmt.Errorf("invalid status (one of: open, pending, in_progress, resolved, closed)")
+	}
+	if limit <= 0 || limit > 50 {
+		limit = 20
+	}
+	repo := repository.NewTicketRepository(a.con)
+	list, _, err := repo.List("", "", status, "", false, a.uid, limit, 0, isTicketStaff(a.con, a.uid))
+	if err != nil {
+		return "", nil, fmt.Errorf("list tickets failed")
+	}
+	out := make([]map[string]any, 0, len(list))
+	for _, t := range list {
+		t := t
+		out = append(out, aiTicketBrief(&t))
+	}
+	return aiJSON(out), nil, nil
+}
+
+// aiTicketAccess mirrors the ticket handlers: staff sees any ticket,
+// everyone else only their own or assigned ones.
+func aiTicketAccess(a *aiCallCtx, t *models.Ticket) error {
+	if isTicketStaff(a.con, a.uid) {
+		return nil
+	}
+	if t.CreatedBy == a.uid {
+		return nil
+	}
+	if t.AssignedTo != nil && *t.AssignedTo == a.uid {
+		return nil
+	}
+	return fmt.Errorf("forbidden: that ticket belongs to someone else")
+}
+
+func aiToolGetTicket(a *aiCallCtx, id int64) (string, *aiTicketProposal, error) {
+	if err := a.checker.EnsureAny(a.uid, permissions.ManageTicketsKey, permissions.TicketsViewKey); err != nil {
+		return "", nil, fmt.Errorf("denied: viewing tickets needs MANAGE_TICKETS or TICKETS_VIEW — explain that the user lacks permission")
+	}
+	if id == 0 {
+		return "", nil, fmt.Errorf("ticket_id is required (use list_tickets first — never guess)")
+	}
+	repo := repository.NewTicketRepository(a.con)
+	t, err := repo.Get(id)
+	if err != nil || t == nil {
+		return "", nil, fmt.Errorf("ticket %d not found", id)
+	}
+	if err := aiTicketAccess(a, t); err != nil {
+		return "", nil, err
+	}
+	comments, _ := repo.ListComments(id, canSeeInternal(a.con, a.uid))
+	out := aiTicketBrief(t)
+	out["description"] = aiCap(t.Description, 1500)
+	out["created_by"] = t.CreatedBy
+	if t.AssignedTo != nil {
+		out["assigned_to"] = *t.AssignedTo
+	}
+	cl := make([]map[string]any, 0, len(comments))
+	for i, c := range comments {
+		if i >= 20 {
+			break
+		}
+		cl = append(cl, map[string]any{
+			"author": c.AuthorName, "internal": c.IsInternal,
+			"body": aiCap(c.Body, 500),
+		})
+	}
+	out["comments"] = cl
+	return aiJSON(out), nil, nil
+}
+
+// aiDocsFallback is the last-resort get_docs answer when the embedded
+// skill bundle is unavailable (should never happen — go:embed ships it).
+const aiDocsFallback = "Topics: instances, templates, nodes, instance_pages, users, updates, mods, applications, tickets, backups, security, database, automation, sftp, themes, notifications, ai. Ask get_docs for one to read its skill playbook."
+
+// aiToolGetDocs serves the per-area skill guides from the embedded
+// aiskills bundle (panel/backend/internal/aiskills/*.md — one file per
+// topic, each also a readable repo doc). Unknown topics fall back to the
+// index so the model always gets something useful.
+func aiToolGetDocs(topic string) string {
+	if d, ok := aiskills.Get(topic); ok {
 		return d
 	}
-	return aiDocs["index"]
+	return aiDocsFallback
 }
 
 func aiToolSystemStatus(a *aiCallCtx) (string, *aiTicketProposal, error) {
@@ -1596,6 +2211,54 @@ func aiProposeWrite(a *aiCallCtx, name string, args map[string]any) (string, str
 		return aiProposeCreateUser(a, args)
 	case "deploy_instance":
 		return aiProposeDeploy(a, args)
+	case "edit_instance":
+		return aiProposeEditInstance(a, args)
+	case "reinstall_instance":
+		return aiProposeReinstallInstance(a, args)
+	case "delete_instance":
+		return aiProposeDeleteInstance(a, args)
+	case "suspend_instance":
+		return aiProposeSuspendInstance(a, args)
+	case "unsuspend_instance":
+		return aiProposeUnsuspendInstance(a, args)
+	case "edit_template":
+		return aiProposeEditTemplate(a, args)
+	case "delete_template":
+		return aiProposeDeleteTemplate(a, args)
+	case "edit_template_steps":
+		return aiProposeEditTemplateSteps(a, args)
+	case "set_template_command":
+		return aiProposeSetTemplateCommand(a, args)
+	case "remove_template_action":
+		return aiProposeRemoveTemplateAction(a, args)
+	case "create_node":
+		return aiProposeCreateNode(a, args)
+	case "edit_node":
+		return aiProposeEditNode(a, args)
+	case "delete_node":
+		return aiProposeDeleteNode(a, args)
+	case "edit_instance_page":
+		return aiProposeEditInstancePage(a, args)
+	case "delete_instance_page":
+		return aiProposeDeleteInstancePage(a, args)
+	case "reinstall_panel":
+		return aiProposeReinstallPanel(a, args)
+	case "edit_user":
+		return aiProposeEditUser(a, args)
+	case "delete_user":
+		return aiProposeDeleteUser(a, args)
+	case "edit_theme":
+		return aiProposeEditTheme(a, args)
+	case "delete_theme":
+		return aiProposeDeleteTheme(a, args)
+	case "create_ticket":
+		return aiProposeCreateTicket(a, args)
+	case "reply_ticket":
+		return aiProposeReplyTicket(a, args)
+	case "update_ticket":
+		return aiProposeUpdateTicket(a, args)
+	case "broadcast_notification":
+		return aiProposeBroadcast(a, args)
 	default:
 		return "", "", fmt.Errorf("unknown tool %q", name)
 	}
@@ -1627,6 +2290,54 @@ func aiExecuteWrite(a *aiCallCtx, name string, args map[string]any) (string, err
 		return aiExecCreateUser(a, args)
 	case "deploy_instance":
 		return aiExecDeploy(a, args)
+	case "edit_instance":
+		return aiExecEditInstance(a, args)
+	case "reinstall_instance":
+		return aiExecReinstallInstance(a, args)
+	case "delete_instance":
+		return aiExecDeleteInstance(a, args)
+	case "suspend_instance":
+		return aiExecSuspendInstance(a, args)
+	case "unsuspend_instance":
+		return aiExecUnsuspendInstance(a, args)
+	case "edit_template":
+		return aiExecEditTemplate(a, args)
+	case "delete_template":
+		return aiExecDeleteTemplate(a, args)
+	case "edit_template_steps":
+		return aiExecEditTemplateSteps(a, args)
+	case "set_template_command":
+		return aiExecSetTemplateCommand(a, args)
+	case "remove_template_action":
+		return aiExecRemoveTemplateAction(a, args)
+	case "create_node":
+		return aiExecCreateNode(a, args)
+	case "edit_node":
+		return aiExecEditNode(a, args)
+	case "delete_node":
+		return aiExecDeleteNode(a, args)
+	case "edit_instance_page":
+		return aiExecEditInstancePage(a, args)
+	case "delete_instance_page":
+		return aiExecDeleteInstancePage(a, args)
+	case "reinstall_panel":
+		return aiExecReinstallPanel(a, args)
+	case "edit_user":
+		return aiExecEditUser(a, args)
+	case "delete_user":
+		return aiExecDeleteUser(a, args)
+	case "edit_theme":
+		return aiExecEditTheme(a, args)
+	case "delete_theme":
+		return aiExecDeleteTheme(a, args)
+	case "create_ticket":
+		return aiExecCreateTicket(a, args)
+	case "reply_ticket":
+		return aiExecReplyTicket(a, args)
+	case "update_ticket":
+		return aiExecUpdateTicket(a, args)
+	case "broadcast_notification":
+		return aiExecBroadcast(a, args)
 	default:
 		return "", fmt.Errorf("unknown tool %q", name)
 	}
@@ -2299,4 +3010,1688 @@ func aiExecDeploy(a *aiCallCtx, args map[string]any) (string, error) {
 		Message: fmt.Sprintf("AI assistant started deploy of %q (%s) on %q for %s", name, plan.tmpl.Kind, plan.node.Name, username),
 	})
 	return fmt.Sprintf("deploy of %q started (id %d) — watch its status on the Instances page", name, id), nil
+}
+
+// ---------------------------------------------------------------------------
+// Admin-parity writes: everything an admin can do in the UI is also
+// proposable here. Every propose re-checks the caller's area permission
+// (MANAGE_* umbrella or the matching granular verb) plus ownership scope;
+// every execute re-validates first, so a revoked grant or a deleted row
+// fails closed. Approval still happens in the ConfirmCard — nothing here
+// ever runs without the user pressing Approve.
+// ---------------------------------------------------------------------------
+
+// edit_instance (display rename only — no edge call, no recreate).
+
+func aiProposeEditInstance(a *aiCallCtx, args map[string]any) (string, string, error) {
+	if err := a.checker.EnsureAny(a.uid, permissions.ManageInstancesKey, permissions.InstancesEditKey); err != nil {
+		return "", "", fmt.Errorf("denied: renaming instances needs MANAGE_INSTANCES or INSTANCES_EDIT — explain that the user lacks permission")
+	}
+	id := aiInt(args, "instance_id")
+	name := aiStr(args, "display_name")
+	if id == 0 {
+		return "", "", fmt.Errorf("instance_id is required (use list_instances first — never guess)")
+	}
+	if name == "" {
+		return "", "", fmt.Errorf("display_name is required")
+	}
+	if len(name) > 128 {
+		return "", "", fmt.Errorf("display_name too long (max 128 chars)")
+	}
+	inst, err := repository.NewInstanceRepository(a.con).Get(id)
+	if err != nil {
+		return "", "", fmt.Errorf("instance %d not found", id)
+	}
+	if err := aiCheckInstanceScope(a, inst.OwnerID); err != nil {
+		return "", "", err
+	}
+	summary := fmt.Sprintf("rename instance %q display name to %q", inst.Name, name)
+	diff := aiPretty(map[string]any{"tool": "edit_instance", "instance_id": id, "name": inst.Name, "display_name": name})
+	return summary, diff, nil
+}
+
+func aiExecEditInstance(a *aiCallCtx, args map[string]any) (string, error) {
+	instRepo := repository.NewInstanceRepository(a.con)
+	inst, err := instRepo.Get(aiInt(args, "instance_id"))
+	if err != nil {
+		return "", fmt.Errorf("instance %d not found", aiInt(args, "instance_id"))
+	}
+	name := aiStr(args, "display_name")
+	if err := instRepo.UpdateIdentity(inst.ID, name, inst.Icon, inst.Color); err != nil {
+		return "", fmt.Errorf("rename failed: %s", aiCap(err.Error(), 300))
+	}
+	RecordActivity(a.r, repository.ActivityInput{
+		Category: models.ActivityCategoryInstance, Action: "rename",
+		TargetID: &inst.ID, TargetLabel: inst.Name,
+		Message:  fmt.Sprintf("AI assistant renamed instance %q display name to %q for %s", inst.Name, name, a.username),
+	})
+	return fmt.Sprintf("renamed instance %q display name to %q", inst.Name, name), nil
+}
+
+// reinstall_instance (wipe + redeploy from stored spec).
+
+func aiCheckReinstallable(a *aiCallCtx, id int64) (*models.Instance, map[string]any, error) {
+	if err := a.checker.EnsureAny(a.uid, permissions.ManageInstancesKey, permissions.InstancesEditKey); err != nil {
+		return nil, nil, fmt.Errorf("denied: reinstalling needs MANAGE_INSTANCES or INSTANCES_EDIT — explain that the user lacks permission")
+	}
+	if id == 0 {
+		return nil, nil, fmt.Errorf("instance_id is required (use list_instances first — never guess)")
+	}
+	instRepo := repository.NewInstanceRepository(a.con)
+	inst, err := instRepo.Get(id)
+	if err != nil {
+		return nil, nil, fmt.Errorf("instance %d not found", id)
+	}
+	if err := aiCheckInstanceScope(a, inst.OwnerID); err != nil {
+		return nil, nil, err
+	}
+	if suspended, until, _ := instRepo.IsInstanceSuspended(id); suspended {
+		msg := "instance is suspended indefinitely"
+		if until != nil {
+			msg = fmt.Sprintf("instance is suspended until %s", until.Format("2006-01-02 15:04"))
+		}
+		return nil, nil, fmt.Errorf("%s — unsuspend it first", msg)
+	}
+	if inst.Status == "creating" || inst.Status == "installing" {
+		return nil, nil, fmt.Errorf("instance is %q — wait for the deploy to finish before reinstalling", inst.Status)
+	}
+	cfg := map[string]any{}
+	if inst.Config != "" {
+		if err := json.Unmarshal([]byte(inst.Config), &cfg); err != nil {
+			return nil, nil, fmt.Errorf("stored config is corrupt, cannot reinstall")
+		}
+	}
+	node, err := repository.NewNodeRepository(a.con).GetNode(inst.NodeID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("reinstall aborted: owning node not found")
+	}
+	token, err := repository.NewNodeRepository(a.con).PlainToken(inst.NodeID)
+	if err != nil || token == "" {
+		return nil, nil, fmt.Errorf("reinstall aborted: node has no usable edge token (rotate it first)")
+	}
+	_ = node
+	_ = token
+	return inst, cfg, nil
+}
+
+func aiProposeReinstallInstance(a *aiCallCtx, args map[string]any) (string, string, error) {
+	inst, _, err := aiCheckReinstallable(a, aiInt(args, "instance_id"))
+	if err != nil {
+		return "", "", err
+	}
+	summary := fmt.Sprintf("reinstall instance %q (%s on %q) — ALL data inside will be lost", inst.Name, inst.Kind, inst.NodeName)
+	diff := aiPretty(map[string]any{"tool": "reinstall_instance", "instance_id": inst.ID, "name": inst.Name, "kind": inst.Kind, "node": inst.NodeName})
+	return summary, diff, nil
+}
+
+func aiExecReinstallInstance(a *aiCallCtx, args map[string]any) (string, error) {
+	inst, cfg, err := aiCheckReinstallable(a, aiInt(args, "instance_id"))
+	if err != nil {
+		return "", err
+	}
+	instRepo := repository.NewInstanceRepository(a.con)
+	nodeRepo := repository.NewNodeRepository(a.con)
+	node, err := nodeRepo.GetNode(inst.NodeID)
+	if err != nil {
+		return "", fmt.Errorf("reinstall aborted: owning node not found")
+	}
+	token, err := nodeRepo.PlainToken(inst.NodeID)
+	if err != nil || token == "" {
+		return "", fmt.Errorf("reinstall aborted: node has no usable edge token (rotate it first)")
+	}
+	var destroyErr error
+	for i := 0; i < 3; i++ {
+		ec := edge.NewWithTimeout(*node, token, 60*time.Second)
+		_, destroyErr = ec.Lifecycle(edge.LifecycleRequest{Action: "destroy", Kind: inst.Kind, Name: inst.Name})
+		if destroyErr == nil {
+			break
+		}
+		time.Sleep(time.Second)
+	}
+	if destroyErr != nil {
+		return "", fmt.Errorf("reinstall aborted: edge refused destroy after 3 retries: %s", aiCap(destroyErr.Error(), 300))
+	}
+	_ = instRepo.UpdateInstallStatus(inst.ID, "", "", -1, "", "")
+	_ = instRepo.SetStatus(inst.ID, "creating", "", "")
+	RecordActivity(a.r, repository.ActivityInput{
+		Category: models.ActivityCategoryInstance, Action: "reinstall",
+		TargetID: &inst.ID, TargetLabel: inst.Name,
+		Message:  fmt.Sprintf("AI assistant reinstalled instance %q (%s on %q) for %s — workload wiped and redeployed", inst.Name, inst.Kind, node.Name, a.username),
+	})
+	go reinstallAsync(inst.ID, inst.NodeID, inst.Kind, inst.Name, cfg)
+	return fmt.Sprintf("reinstall of %q started — watch its status on the Instances page", inst.Name), nil
+}
+
+// delete_instance (edge destroy + row delete).
+
+func aiProposeDeleteInstance(a *aiCallCtx, args map[string]any) (string, string, error) {
+	if err := a.checker.EnsureAny(a.uid, permissions.ManageInstancesKey, permissions.InstancesDeleteKey); err != nil {
+		return "", "", fmt.Errorf("denied: deleting instances needs MANAGE_INSTANCES or INSTANCES_DELETE — explain that the user lacks permission")
+	}
+	id := aiInt(args, "instance_id")
+	if id == 0 {
+		return "", "", fmt.Errorf("instance_id is required (use list_instances first — never guess)")
+	}
+	inst, err := repository.NewInstanceRepository(a.con).Get(id)
+	if err != nil {
+		return "", "", fmt.Errorf("instance %d not found", id)
+	}
+	if err := aiCheckInstanceScope(a, inst.OwnerID); err != nil {
+		return "", "", err
+	}
+	summary := fmt.Sprintf("delete instance %q (%s on %q) — irreversible", inst.Name, inst.Kind, inst.NodeName)
+	diff := aiPretty(map[string]any{"tool": "delete_instance", "instance_id": id, "name": inst.Name})
+	return summary, diff, nil
+}
+
+func aiExecDeleteInstance(a *aiCallCtx, args map[string]any) (string, error) {
+	instRepo := repository.NewInstanceRepository(a.con)
+	nodeRepo := repository.NewNodeRepository(a.con)
+	inst, err := instRepo.Get(aiInt(args, "instance_id"))
+	if err != nil {
+		return "", fmt.Errorf("instance %d not found", aiInt(args, "instance_id"))
+	}
+	node, err := nodeRepo.GetNode(inst.NodeID)
+	if err != nil {
+		return "", fmt.Errorf("owning node not found")
+	}
+	token, err := nodeRepo.PlainToken(inst.NodeID)
+	if err != nil || token == "" {
+		return "", fmt.Errorf("node has no usable edge token (rotate it first)")
+	}
+	var loopErr error
+	for i := 0; i < 3; i++ {
+		ec := edge.NewWithTimeout(*node, token, 60*time.Second)
+		_, loopErr = ec.Lifecycle(edge.LifecycleRequest{Action: "destroy", Kind: inst.Kind, Name: inst.Name})
+		if loopErr == nil {
+			break
+		}
+		time.Sleep(time.Second)
+	}
+	if loopErr != nil {
+		_ = instRepo.SetStatus(inst.ID, "errored", inst.ExternalID, loopErr.Error())
+		return "", fmt.Errorf("edge refused destroy after 3 retries: %s", aiCap(loopErr.Error(), 300))
+	}
+	removeSFTPFromEdge(a.con, inst)
+	_ = repository.NewSFTPRepository(a.con).Delete(inst.ID)
+	_ = repository.NewSecretRepository(a.con).Delete(inst.ID, repository.SFTPSecretKey)
+	if err := instRepo.Delete(inst.ID); err != nil {
+		return "", fmt.Errorf("edge confirmed destroy but the panel failed to delete the row")
+	}
+	id := inst.ID
+	RecordActivity(a.r, repository.ActivityInput{
+		Category: models.ActivityCategoryInstance, Action: "destroy",
+		TargetID: &id, TargetLabel: inst.Name,
+		Message:  fmt.Sprintf("AI assistant destroyed instance %q (%s) on %q for %s", inst.Name, inst.Kind, inst.NodeName, a.username),
+	})
+	return fmt.Sprintf("deleted instance %q", inst.Name), nil
+}
+
+// suspend / unsuspend.
+
+func aiProposeSuspendInstance(a *aiCallCtx, args map[string]any) (string, string, error) {
+	if err := a.checker.EnsureAny(a.uid, permissions.ManageInstancesKey, permissions.InstancesEditKey); err != nil {
+		return "", "", fmt.Errorf("denied: suspending needs MANAGE_INSTANCES or INSTANCES_EDIT — explain that the user lacks permission")
+	}
+	id := aiInt(args, "instance_id")
+	reason := aiStr(args, "reason")
+	if id == 0 {
+		return "", "", fmt.Errorf("instance_id is required (use list_instances first — never guess)")
+	}
+	if reason == "" {
+		return "", "", fmt.Errorf("reason is required")
+	}
+	inst, err := repository.NewInstanceRepository(a.con).Get(id)
+	if err != nil {
+		return "", "", fmt.Errorf("instance %d not found", id)
+	}
+	if err := aiCheckInstanceScope(a, inst.OwnerID); err != nil {
+		return "", "", err
+	}
+	summary := fmt.Sprintf("suspend instance %q (reason: %s)", inst.Name, reason)
+	diff := aiPretty(map[string]any{"tool": "suspend_instance", "instance_id": id, "name": inst.Name, "reason": reason})
+	return summary, diff, nil
+}
+
+func aiExecSuspendInstance(a *aiCallCtx, args map[string]any) (string, error) {
+	instRepo := repository.NewInstanceRepository(a.con)
+	inst, err := instRepo.Get(aiInt(args, "instance_id"))
+	if err != nil {
+		return "", fmt.Errorf("instance %d not found", aiInt(args, "instance_id"))
+	}
+	reason := aiStr(args, "reason")
+	var until *time.Time
+	if h := aiInt(args, "duration_hours"); h > 0 {
+		t := time.Now().Add(time.Duration(h) * time.Hour)
+		until = &t
+	}
+	count, err := instRepo.SuspendInstance(inst.ID, until, reason, a.uid, a.username)
+	if err != nil {
+		return "", fmt.Errorf("suspend failed: %s", aiCap(err.Error(), 300))
+	}
+	_ = repository.NewSFTPRepository(a.con).SetEnabled(inst.ID, 0)
+	removeSFTPFromEdge(a.con, inst)
+	id := inst.ID
+	RecordActivity(a.r, repository.ActivityInput{
+		Category: models.ActivityCategoryInstance, Action: "suspend",
+		TargetID: &id, TargetLabel: inst.Name,
+		Message:  fmt.Sprintf("AI assistant suspended instance %q (count: %d, reason: %s) for %s", inst.Name, count, reason, a.username),
+	})
+	return fmt.Sprintf("suspended instance %q (count: %d)", inst.Name, count), nil
+}
+
+func aiProposeUnsuspendInstance(a *aiCallCtx, args map[string]any) (string, string, error) {
+	if err := a.checker.EnsureAny(a.uid, permissions.ManageInstancesKey, permissions.InstancesEditKey); err != nil {
+		return "", "", fmt.Errorf("denied: unsuspending needs MANAGE_INSTANCES or INSTANCES_EDIT — explain that the user lacks permission")
+	}
+	id := aiInt(args, "instance_id")
+	if id == 0 {
+		return "", "", fmt.Errorf("instance_id is required (use list_instances first — never guess)")
+	}
+	inst, err := repository.NewInstanceRepository(a.con).Get(id)
+	if err != nil {
+		return "", "", fmt.Errorf("instance %d not found", id)
+	}
+	if err := aiCheckInstanceScope(a, inst.OwnerID); err != nil {
+		return "", "", err
+	}
+	summary := fmt.Sprintf("unsuspend instance %q", inst.Name)
+	diff := aiPretty(map[string]any{"tool": "unsuspend_instance", "instance_id": id, "name": inst.Name})
+	return summary, diff, nil
+}
+
+func aiExecUnsuspendInstance(a *aiCallCtx, args map[string]any) (string, error) {
+	instRepo := repository.NewInstanceRepository(a.con)
+	inst, err := instRepo.Get(aiInt(args, "instance_id"))
+	if err != nil {
+		return "", fmt.Errorf("instance %d not found", aiInt(args, "instance_id"))
+	}
+	if _, err := instRepo.UnsuspendInstance(inst.ID); err != nil {
+		return "", fmt.Errorf("unsuspend failed: %s", aiCap(err.Error(), 300))
+	}
+	if cfg, _ := repository.NewSFTPRepository(a.con).Get(inst.ID); cfg != nil {
+		_ = repository.NewSFTPRepository(a.con).SetEnabled(inst.ID, 1)
+		if fresh, gerr := instRepo.Get(inst.ID); gerr == nil && fresh != nil {
+			_ = provisionSFTPForInstance(a.con, fresh)
+		}
+	}
+	id := inst.ID
+	RecordActivity(a.r, repository.ActivityInput{
+		Category: models.ActivityCategoryInstance, Action: "unsuspend",
+		TargetID: &id, TargetLabel: inst.Name,
+		Message:  fmt.Sprintf("AI assistant unsuspended instance %q for %s", inst.Name, a.username),
+	})
+	return fmt.Sprintf("unsuspended instance %q", inst.Name), nil
+}
+
+// edit / delete template.
+
+func aiProposeEditTemplate(a *aiCallCtx, args map[string]any) (string, string, error) {
+	if err := a.checker.EnsureAny(a.uid, permissions.ManageTemplatesKey, permissions.TemplatesEditKey); err != nil {
+		return "", "", fmt.Errorf("denied: editing templates needs MANAGE_TEMPLATES or TEMPLATES_EDIT — explain that the user lacks permission")
+	}
+	id := aiInt(args, "template_id")
+	if id == 0 {
+		return "", "", fmt.Errorf("template_id is required (use list_templates first — never guess)")
+	}
+	tmpl, err := repository.NewTemplateRepository(a.con).Get(id)
+	if err != nil || tmpl == nil {
+		return "", "", fmt.Errorf("template %d not found", id)
+	}
+	hasOwn, hasAll, _ := a.checker.HasScope(a.uid, permissions.TemplatesOwnKey, permissions.TemplatesAllKey, permissions.ManageTemplatesKey)
+	if !hasAll && hasOwn && tmpl.OwnerID != a.uid {
+		return "", "", fmt.Errorf("forbidden: that template belongs to someone else")
+	}
+	changes := map[string]any{}
+	for _, k := range []string{"name", "description", "image", "spec"} {
+		if v := aiStr(args, k); v != "" {
+			changes[k] = v
+		}
+	}
+	if len(changes) == 0 {
+		return "", "", fmt.Errorf("nothing to change: provide at least one of name, description, image, spec")
+	}
+	if spec, ok := changes["spec"]; ok {
+		var js map[string]any
+		if err := json.Unmarshal([]byte(spec.(string)), &js); err != nil {
+			return "", "", fmt.Errorf("spec must be a valid JSON object string")
+		}
+	}
+	summary := fmt.Sprintf("edit template %q", tmpl.Name)
+	diff := aiPretty(map[string]any{"tool": "edit_template", "template_id": id, "name": tmpl.Name, "changes": changes})
+	return summary, diff, nil
+}
+
+func aiExecEditTemplate(a *aiCallCtx, args map[string]any) (string, error) {
+	repo := repository.NewTemplateRepository(a.con)
+	tmpl, err := repo.Get(aiInt(args, "template_id"))
+	if err != nil || tmpl == nil {
+		return "", fmt.Errorf("template %d not found", aiInt(args, "template_id"))
+	}
+	name, desc, image, spec := tmpl.Name, tmpl.Description, tmpl.Image, tmpl.Spec
+	if v := aiStr(args, "name"); v != "" {
+		name = v
+	}
+	if v, ok := args["description"]; ok {
+		desc = aiStr(map[string]any{"v": v}, "v")
+	}
+	if v, ok := args["image"]; ok {
+		image = aiStr(map[string]any{"v": v}, "v")
+	}
+	if v := aiStr(args, "spec"); v != "" {
+		spec = v
+	}
+	if err := repo.Update(tmpl.ID, repository.TemplateInput{
+		Name: name, Description: desc, Kind: tmpl.Kind, Image: image,
+		Spec: spec, Icon: tmpl.Icon, Color: tmpl.Color,
+	}); err != nil {
+		return "", fmt.Errorf("edit template failed: %s", aiCap(err.Error(), 300))
+	}
+	id := tmpl.ID
+	RecordActivity(a.r, repository.ActivityInput{
+		Category: models.ActivityCategoryTemplate, Action: "update",
+		TargetID: &id, TargetLabel: name,
+		Message:  fmt.Sprintf("AI assistant edited template %q for %s", name, a.username),
+	})
+	return fmt.Sprintf("edited template %q (id %d)", name, tmpl.ID), nil
+}
+
+func aiProposeDeleteTemplate(a *aiCallCtx, args map[string]any) (string, string, error) {
+	if err := a.checker.EnsureAny(a.uid, permissions.ManageTemplatesKey, permissions.TemplatesDeleteKey); err != nil {
+		return "", "", fmt.Errorf("denied: deleting templates needs MANAGE_TEMPLATES or TEMPLATES_DELETE — explain that the user lacks permission")
+	}
+	id := aiInt(args, "template_id")
+	if id == 0 {
+		return "", "", fmt.Errorf("template_id is required (use list_templates first — never guess)")
+	}
+	tmpl, err := repository.NewTemplateRepository(a.con).Get(id)
+	if err != nil || tmpl == nil {
+		return "", "", fmt.Errorf("template %d not found", id)
+	}
+	hasOwn, hasAll, _ := a.checker.HasScope(a.uid, permissions.TemplatesOwnKey, permissions.TemplatesAllKey, permissions.ManageTemplatesKey)
+	if !hasAll && hasOwn && tmpl.OwnerID != a.uid {
+		return "", "", fmt.Errorf("forbidden: that template belongs to someone else")
+	}
+	summary := fmt.Sprintf("delete template %q — running instances keep running", tmpl.Name)
+	diff := aiPretty(map[string]any{"tool": "delete_template", "template_id": id, "name": tmpl.Name})
+	return summary, diff, nil
+}
+
+func aiExecDeleteTemplate(a *aiCallCtx, args map[string]any) (string, error) {
+	repo := repository.NewTemplateRepository(a.con)
+	tmpl, err := repo.Get(aiInt(args, "template_id"))
+	if err != nil || tmpl == nil {
+		return "", fmt.Errorf("template %d not found", aiInt(args, "template_id"))
+	}
+	name := tmpl.Name
+	if err := repo.Delete(tmpl.ID); err != nil {
+		return "", fmt.Errorf("delete template failed: %s", aiCap(err.Error(), 300))
+	}
+	id := tmpl.ID
+	RecordActivity(a.r, repository.ActivityInput{
+		Category: models.ActivityCategoryTemplate, Action: "delete",
+		TargetID: &id, TargetLabel: name,
+		Message:  fmt.Sprintf("AI assistant deleted template %q for %s", name, a.username),
+	})
+	return fmt.Sprintf("deleted template %q", name), nil
+}
+
+// create / edit / delete node.
+
+func aiProposeCreateNode(a *aiCallCtx, args map[string]any) (string, string, error) {
+	if err := a.checker.EnsureAny(a.uid, permissions.ManageNodesKey, permissions.NodesCreateKey); err != nil {
+		return "", "", fmt.Errorf("denied: registering nodes needs MANAGE_NODES or NODES_CREATE — explain that the user lacks permission")
+	}
+	name := aiStr(args, "name")
+	addr := aiStr(args, "address")
+	if name == "" || addr == "" {
+		return "", "", fmt.Errorf("name and address are both required (address like 10.0.0.5:8443)")
+	}
+	if err := validateNodeAddress(addr); err != nil {
+		return "", "", fmt.Errorf("address invalid: %s", aiCap(err.Error(), 200))
+	}
+	if taken, _ := repository.NewNodeRepository(a.con).NameLabelTaken(name, "", 0); taken {
+		return "", "", fmt.Errorf("a node with this name and label pair already exists")
+	}
+	summary := fmt.Sprintf("register edge node %q at %s", name, addr)
+	diff := aiPretty(map[string]any{"tool": "create_node", "name": name, "address": addr})
+	return summary, diff, nil
+}
+
+func aiExecCreateNode(a *aiCallCtx, args map[string]any) (string, error) {
+	name := aiStr(args, "name")
+	addr := aiStr(args, "address")
+	node, token, err := repository.NewNodeRepository(a.con).CreateNode(repository.CreateNodeInput{
+		Name: name, Address: addr, ConnectionMode: "direct",
+		HealthEnabled: true, OwnerID: a.uid,
+	})
+	if err != nil {
+		return "", fmt.Errorf("create node failed: %s", aiCap(err.Error(), 300))
+	}
+	nid := node.ID
+	RecordActivity(a.r, repository.ActivityInput{
+		Category: models.ActivityCategoryNode, Action: "create",
+		TargetID: &nid, TargetLabel: name,
+		Message:  fmt.Sprintf("AI assistant registered edge %q at %s for %s", name, addr, a.username),
+	})
+	return fmt.Sprintf("registered edge %q (id %d) at %s — edge token (show once, save it now): %s", name, node.ID, addr, token), nil
+}
+
+func aiProposeEditNode(a *aiCallCtx, args map[string]any) (string, string, error) {
+	if err := a.checker.EnsureAny(a.uid, permissions.ManageNodesKey, permissions.NodesEditKey); err != nil {
+		return "", "", fmt.Errorf("denied: editing nodes needs MANAGE_NODES or NODES_EDIT — explain that the user lacks permission")
+	}
+	id := aiInt(args, "node_id")
+	if id == 0 {
+		return "", "", fmt.Errorf("node_id is required (use list_nodes first — never guess)")
+	}
+	n, err := repository.NewNodeRepository(a.con).GetNode(id)
+	if err != nil || n == nil {
+		return "", "", fmt.Errorf("node %d not found", id)
+	}
+	hasOwn, hasAll, _ := a.checker.HasScope(a.uid, permissions.NodesOwnKey, permissions.NodesAllKey, permissions.ManageNodesKey)
+	if !hasAll && hasOwn && n.OwnerID != a.uid {
+		return "", "", fmt.Errorf("forbidden: that node belongs to someone else")
+	}
+	changes := map[string]any{}
+	if v := aiStr(args, "name"); v != "" {
+		changes["name"] = v
+	}
+	if v := aiStr(args, "address"); v != "" {
+		if err := validateNodeAddress(v); err != nil {
+			return "", "", fmt.Errorf("address invalid: %s", aiCap(err.Error(), 200))
+		}
+		changes["address"] = v
+	}
+	if len(changes) == 0 {
+		return "", "", fmt.Errorf("nothing to change: provide name and/or address")
+	}
+	summary := fmt.Sprintf("edit edge node %q", n.Name)
+	diff := aiPretty(map[string]any{"tool": "edit_node", "node_id": id, "name": n.Name, "changes": changes})
+	return summary, diff, nil
+}
+
+func aiExecEditNode(a *aiCallCtx, args map[string]any) (string, error) {
+	repo := repository.NewNodeRepository(a.con)
+	n, err := repo.GetNode(aiInt(args, "node_id"))
+	if err != nil || n == nil {
+		return "", fmt.Errorf("node %d not found", aiInt(args, "node_id"))
+	}
+	name, addr := n.Name, n.Address
+	if v := aiStr(args, "name"); v != "" {
+		name = v
+	}
+	if v := aiStr(args, "address"); v != "" {
+		addr = v
+	}
+	if taken, _ := repo.NameLabelTaken(name, n.LocationNode, n.ID); taken {
+		return "", fmt.Errorf("a node with this name and label pair already exists")
+	}
+	if err := repo.UpdateNode(n.ID, repository.UpdateNodeInput{
+		Name: name, Address: addr, UseTLS: n.UseTLS,
+		ConnectionMode: n.ConnectionMode, HealthEnabled: n.HealthEnabled,
+		HealthInterval: n.HealthInterval, HealthTimeout: n.HealthTimeout,
+		HealthRetries: n.HealthRetries, SkipTLSVerify: n.SkipTLSVerify,
+		Notes: n.Notes, InstallDir: n.InstallDir, AllowedKinds: n.AllowedKinds,
+		AllocMemMiB: n.AllocMemMiB, MemOvercommitPct: n.MemOvercommitPct,
+		AllocDiskMiB: n.AllocDiskMiB, DiskOvercommitPct: n.DiskOvercommitPct,
+		InstancesDir: n.InstancesDir, Category: n.Category,
+		LocationCountry: n.LocationCountry, LocationNode: n.LocationNode,
+		Icon: n.Icon, Color: n.Color,
+	}); err != nil {
+		return "", fmt.Errorf("edit node failed: %s", aiCap(err.Error(), 300))
+	}
+	id := n.ID
+	RecordActivity(a.r, repository.ActivityInput{
+		Category: models.ActivityCategoryNode, Action: "update",
+		TargetID: &id, TargetLabel: name,
+		Message:  fmt.Sprintf("AI assistant updated edge %q -> %s for %s", name, addr, a.username),
+	})
+	return fmt.Sprintf("updated edge %q -> %s", name, addr), nil
+}
+
+func aiProposeDeleteNode(a *aiCallCtx, args map[string]any) (string, string, error) {
+	if err := a.checker.EnsureAny(a.uid, permissions.ManageNodesKey, permissions.NodesDeleteKey); err != nil {
+		return "", "", fmt.Errorf("denied: deleting nodes needs MANAGE_NODES or NODES_DELETE — explain that the user lacks permission")
+	}
+	id := aiInt(args, "node_id")
+	if id == 0 {
+		return "", "", fmt.Errorf("node_id is required (use list_nodes first — never guess)")
+	}
+	n, err := repository.NewNodeRepository(a.con).GetNode(id)
+	if err != nil || n == nil {
+		return "", "", fmt.Errorf("node %d not found", id)
+	}
+	hasOwn, hasAll, _ := a.checker.HasScope(a.uid, permissions.NodesOwnKey, permissions.NodesAllKey, permissions.ManageNodesKey)
+	if !hasAll && hasOwn && n.OwnerID != a.uid {
+		return "", "", fmt.Errorf("forbidden: that node belongs to someone else")
+	}
+	var instN int64
+	_ = a.con.QueryRow(`SELECT COUNT(*) FROM instances WHERE node_id = ?`, id).Scan(&instN)
+	if instN > 0 {
+		return "", "", fmt.Errorf("node %q still hosts %d instance(s) — move or delete them first", n.Name, instN)
+	}
+	summary := fmt.Sprintf("delete edge node %q", n.Name)
+	diff := aiPretty(map[string]any{"tool": "delete_node", "node_id": id, "name": n.Name})
+	return summary, diff, nil
+}
+
+func aiExecDeleteNode(a *aiCallCtx, args map[string]any) (string, error) {
+	repo := repository.NewNodeRepository(a.con)
+	n, err := repo.GetNode(aiInt(args, "node_id"))
+	if err != nil || n == nil {
+		return "", fmt.Errorf("node %d not found", aiInt(args, "node_id"))
+	}
+	var instN int64
+	_ = a.con.QueryRow(`SELECT COUNT(*) FROM instances WHERE node_id = ?`, n.ID).Scan(&instN)
+	if instN > 0 {
+		return "", fmt.Errorf("node %q still hosts %d instance(s) — move or delete them first", n.Name, instN)
+	}
+	name := n.Name
+	if err := repo.DeleteNode(n.ID); err != nil {
+		return "", fmt.Errorf("delete node failed: %s", aiCap(err.Error(), 300))
+	}
+	id := n.ID
+	RecordActivity(a.r, repository.ActivityInput{
+		Category: models.ActivityCategoryNode, Action: "delete",
+		TargetID: &id, TargetLabel: name,
+		Message:  fmt.Sprintf("AI assistant deleted edge %q for %s", name, a.username),
+	})
+	return fmt.Sprintf("deleted edge %q", name), nil
+}
+
+// edit / delete instance page.
+
+func aiProposeEditInstancePage(a *aiCallCtx, args map[string]any) (string, string, error) {
+	if err := a.checker.EnsureAny(a.uid, permissions.ManageInstancePagesKey, permissions.InstancePagesEditKey); err != nil {
+		return "", "", fmt.Errorf("denied: editing instance pages needs MANAGE_INSTANCE_PAGES or INSTANCE_PAGES_EDIT — explain that the user lacks permission")
+	}
+	id := aiInt(args, "page_id")
+	if id == 0 {
+		return "", "", fmt.Errorf("page_id is required (use list_instance_pages first — never guess)")
+	}
+	p, err := repository.NewInstancePageRepository(a.con).Get(id)
+	if err != nil || p == nil {
+		return "", "", fmt.Errorf("instance page %d not found", id)
+	}
+	hasOwn, hasAll, _ := a.checker.HasScope(a.uid, permissions.InstancePagesOwnKey, permissions.InstancePagesAllKey, permissions.ManageInstancePagesKey)
+	if !hasAll && hasOwn && p.OwnerID != a.uid {
+		return "", "", fmt.Errorf("forbidden: that page belongs to someone else")
+	}
+	changes := map[string]any{}
+	for _, k := range []string{"name", "description", "content_markdown", "content_html"} {
+		if v := aiStr(args, k); v != "" {
+			changes[k] = v
+		}
+	}
+	if len(changes) == 0 {
+		return "", "", fmt.Errorf("nothing to change: provide at least one of name, description, content_markdown, content_html")
+	}
+	summary := fmt.Sprintf("edit instance page %q", p.Name)
+	diff := aiPretty(map[string]any{"tool": "edit_instance_page", "page_id": id, "name": p.Name, "changes": changes})
+	return summary, diff, nil
+}
+
+func aiExecEditInstancePage(a *aiCallCtx, args map[string]any) (string, error) {
+	repo := repository.NewInstancePageRepository(a.con)
+	p, err := repo.Get(aiInt(args, "page_id"))
+	if err != nil || p == nil {
+		return "", fmt.Errorf("instance page %d not found", aiInt(args, "page_id"))
+	}
+	name, desc, md, html := p.Name, p.Description, p.ContentMarkdown, p.ContentHTML
+	if v := aiStr(args, "name"); v != "" {
+		name = v
+	}
+	if v, ok := args["description"]; ok {
+		desc = aiStr(map[string]any{"v": v}, "v")
+	}
+	if v := aiStr(args, "content_markdown"); v != "" {
+		md = v
+	}
+	if v := aiStr(args, "content_html"); v != "" {
+		html = v
+	}
+	if md == "" && html == "" {
+		return "", fmt.Errorf("one of content_markdown or content_html is required")
+	}
+	ctype := p.ContentType
+	if html != "" {
+		ctype = "html"
+	} else if md != "" {
+		ctype = "markdown"
+	}
+	slug := p.Slug
+	if aiStr(args, "name") != "" && aiStr(args, "slug") == "" {
+		// Keep the existing slug stable so linked instances don't break.
+		slug = p.Slug
+	}
+	if err := repo.Update(p.ID, repository.InstancePageInput{
+		Name: name, Slug: slug, Kind: p.Kind, Category: p.Category,
+		PageType: p.PageType, Description: desc, ContentType: ctype,
+		ContentHTML: html, ContentMarkdown: md, ContentBlocks: p.ContentBlocks,
+		IconSVG: p.IconSVG, IconColor: p.IconColor, Actions: p.Actions,
+		SubPages: p.SubPages, Components: p.Components, Configure: p.Configure,
+		OwnerID: p.OwnerID, Source: p.Source, MarketID: p.MarketID,
+		MarketVersion: p.MarketVersion,
+	}); err != nil {
+		return "", fmt.Errorf("edit instance page failed: %s", aiCap(err.Error(), 300))
+	}
+	id := p.ID
+	RecordActivity(a.r, repository.ActivityInput{
+		Category: models.ActivityCategorySystem, Action: "update",
+		TargetID: &id, TargetLabel: name,
+		Message:  fmt.Sprintf("AI assistant edited instance page %q for %s", name, a.username),
+	})
+	return fmt.Sprintf("edited instance page %q (id %d)", name, p.ID), nil
+}
+
+func aiProposeDeleteInstancePage(a *aiCallCtx, args map[string]any) (string, string, error) {
+	if err := a.checker.EnsureAny(a.uid, permissions.ManageInstancePagesKey, permissions.InstancePagesDeleteKey); err != nil {
+		return "", "", fmt.Errorf("denied: deleting instance pages needs MANAGE_INSTANCE_PAGES or INSTANCE_PAGES_DELETE — explain that the user lacks permission")
+	}
+	id := aiInt(args, "page_id")
+	if id == 0 {
+		return "", "", fmt.Errorf("page_id is required (use list_instance_pages first — never guess)")
+	}
+	p, err := repository.NewInstancePageRepository(a.con).Get(id)
+	if err != nil || p == nil {
+		return "", "", fmt.Errorf("instance page %d not found", id)
+	}
+	hasOwn, hasAll, _ := a.checker.HasScope(a.uid, permissions.InstancePagesOwnKey, permissions.InstancePagesAllKey, permissions.ManageInstancePagesKey)
+	if !hasAll && hasOwn && p.OwnerID != a.uid {
+		return "", "", fmt.Errorf("forbidden: that page belongs to someone else")
+	}
+	summary := fmt.Sprintf("delete instance page %q — irreversible", p.Name)
+	diff := aiPretty(map[string]any{"tool": "delete_instance_page", "page_id": id, "name": p.Name})
+	return summary, diff, nil
+}
+
+func aiExecDeleteInstancePage(a *aiCallCtx, args map[string]any) (string, error) {
+	repo := repository.NewInstancePageRepository(a.con)
+	p, err := repo.Get(aiInt(args, "page_id"))
+	if err != nil || p == nil {
+		return "", fmt.Errorf("instance page %d not found", aiInt(args, "page_id"))
+	}
+	name := p.Name
+	if err := repo.Delete(p.ID); err != nil {
+		return "", fmt.Errorf("delete instance page failed: %s", aiCap(err.Error(), 300))
+	}
+	id := p.ID
+	RecordActivity(a.r, repository.ActivityInput{
+		Category: models.ActivityCategorySystem, Action: "delete",
+		TargetID: &id, TargetLabel: name,
+		Message:  fmt.Sprintf("AI assistant deleted instance page %q for %s", name, a.username),
+	})
+	return fmt.Sprintf("deleted instance page %q", name), nil
+}
+
+// ---------------------------------------------------------------------------
+// Panel self-reinstall: same flow as System → Reinstall (POST
+// /api/system/reinstall) — download the latest release binary into a temp
+// file, verify it, swap it over the running executable (keeping .old for
+// rollback), then restart. Nothing runs until the user presses Approve in
+// the ConfirmCard, and the caller needs MANAGE_PANEL_UPDATE on top of
+// AI Chat Writes.
+// ---------------------------------------------------------------------------
+
+func aiProposeReinstallPanel(a *aiCallCtx, args map[string]any) (string, string, error) {
+	if err := a.checker.Ensure(a.uid, permissions.ManagePanelUpdateKey); err != nil {
+		return "", "", fmt.Errorf("denied: reinstalling the panel needs MANAGE_PANEL_UPDATE — explain that the user lacks permission")
+	}
+	local := version.Snapshot()
+	summary := fmt.Sprintf("reinstall the panel itself to the latest release (now v%s) — the panel WILL restart, expect brief downtime and a chat disconnect", local.Version)
+	diff := aiPretty(map[string]any{
+		"tool": "reinstall_panel", "local_version": local.Version,
+		"source": kspanelBinaryURL, "restart": true,
+	})
+	return summary, diff, nil
+}
+
+func aiExecReinstallPanel(a *aiCallCtx, args map[string]any) (string, error) {
+	local := version.Snapshot()
+	// Identical staging to ReinstallHandler (download → verify → swap,
+	// .old rollback kept). Any failure leaves the live binary untouched
+	// and the error lands back in the chat.
+	exe, logLines, serr := stagePanelBinary("reinstall")
+	if serr != nil {
+		var sf *stageFailure
+		if errors.As(serr, &sf) {
+			return "", fmt.Errorf("panel reinstall failed: %s", aiCap(sf.Msg, 500))
+		}
+		return "", fmt.Errorf("panel reinstall failed: %s", aiCap(serr.Error(), 500))
+	}
+	go recordReinstallActivity(local.Version, filepath.Base(exe))
+	RecordActivity(a.r, repository.ActivityInput{
+		Category: models.ActivityCategorySystem, Action: "self_reinstall",
+		TargetLabel: filepath.Base(exe),
+		Message:     fmt.Sprintf("AI assistant reinstalled the panel from v%s for %s", local.Version, a.username),
+	})
+	// Respond FIRST (the approval JSON + thread persist flush before we
+	// exit), then relaunch exactly like the System → Reinstall endpoint.
+	go func() {
+		time.Sleep(600 * time.Millisecond)
+		if err := relaunchPanel(exe, logLines); err != nil {
+			log.Printf("panel relaunch failed: %v", err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}()
+	return fmt.Sprintf("panel reinstall staged from v%s — restarting now. The chat will disconnect; reload the page in ~30s.", local.Version), nil
+}
+
+// ---------------------------------------------------------------------------
+// Template install-workflow surgery: remove/add/move a single numbered
+// step without rewriting the whole spec. This is what "remove #3 step"
+// means — the model reads get_template section=steps (1-based numbers,
+// same as users count), proposes the op, the user approves, and only then
+// does the spec change. The resulting spec always passes through
+// validateTemplateSpec, so an invalid add/move fails closed with the same
+// message the Templates page would show.
+// ---------------------------------------------------------------------------
+
+// aiTemplateStepsPlan is one validated install-step op applied to a
+// template's spec, ready to save.
+type aiTemplateStepsPlan struct {
+	tmpl    *models.Template
+	spec    map[string]any
+	summary string
+	diff    map[string]any
+}
+
+func aiPlanTemplateSteps(a *aiCallCtx, args map[string]any) (*aiTemplateStepsPlan, error) {
+	if err := a.checker.EnsureAny(a.uid, permissions.ManageTemplatesKey, permissions.TemplatesEditKey); err != nil {
+		return nil, fmt.Errorf("denied: editing template workflows needs MANAGE_TEMPLATES or TEMPLATES_EDIT — explain that the user lacks permission")
+	}
+	id := aiInt(args, "template_id")
+	if id == 0 {
+		return nil, fmt.Errorf("template_id is required (use list_templates first — never guess)")
+	}
+	op := strings.ToLower(aiStr(args, "op"))
+	if op != "remove" && op != "add" && op != "move" {
+		return nil, fmt.Errorf("op must be one of: remove, add, move")
+	}
+	tmpl, err := repository.NewTemplateRepository(a.con).Get(id)
+	if err != nil || tmpl == nil {
+		return nil, fmt.Errorf("template %d not found", id)
+	}
+	hasOwn, hasAll, _ := a.checker.HasScope(a.uid, permissions.TemplatesOwnKey, permissions.TemplatesAllKey, permissions.ManageTemplatesKey)
+	if !hasAll && hasOwn && tmpl.OwnerID != a.uid {
+		return nil, fmt.Errorf("forbidden: that template belongs to someone else")
+	}
+	var spec map[string]any
+	if strings.TrimSpace(tmpl.Spec) != "" {
+		if err := json.Unmarshal([]byte(tmpl.Spec), &spec); err != nil {
+			return nil, fmt.Errorf("stored spec is corrupt, cannot edit steps")
+		}
+	}
+	if spec == nil {
+		spec = map[string]any{}
+	}
+	var install []any
+	if raw, ok := spec["install"].([]any); ok {
+		install = append([]any{}, raw...)
+	}
+	// at converts a 1-based step number (as shown by get_template) to a
+	// slice index, failing closed on out-of-range numbers.
+	at := func(n int64) (int, error) {
+		if n < 1 || n > int64(len(install)) {
+			return 0, fmt.Errorf("step %d is out of range (the workflow has %d steps — see get_template section=steps)", n, len(install))
+		}
+		return int(n - 1), nil
+	}
+	stepMap := func(v any) map[string]any {
+		m, _ := v.(map[string]any)
+		if m == nil {
+			m = map[string]any{}
+		}
+		return m
+	}
+	var summary string
+	diff := map[string]any{"tool": "edit_template_steps", "template_id": id, "name": tmpl.Name, "op": op}
+	switch op {
+	case "remove":
+		idx, err := at(aiInt(args, "step_number"))
+		if err != nil {
+			return nil, err
+		}
+		removed := aiTemplateStepSummary(idx, stepMap(install[idx]))
+		install = append(install[:idx], install[idx+1:]...)
+		summary = fmt.Sprintf("remove install step %s from template %q (%d steps remain)", removed, tmpl.Name, len(install))
+		diff["removed"] = removed
+	case "add":
+		rawStep := aiStr(args, "step")
+		if rawStep == "" {
+			return nil, fmt.Errorf("step is required for add (a JSON object string like {\"action\":\"shell\",\"command\":\"...\"})")
+		}
+		var step map[string]any
+		if err := json.Unmarshal([]byte(rawStep), &step); err != nil {
+			return nil, fmt.Errorf("step must be a valid JSON object: %s", aiCap(err.Error(), 200))
+		}
+		idx := len(install)
+		if pos := aiInt(args, "position"); pos != 0 {
+			if pos < 1 || pos > int64(len(install)+1) {
+				return nil, fmt.Errorf("position %d is out of range (1-%d for this workflow)", pos, len(install)+1)
+			}
+			idx = int(pos - 1)
+		}
+		install = append(install, nil)
+		copy(install[idx+1:], install[idx:])
+		install[idx] = step
+		added := aiTemplateStepSummary(idx, step)
+		summary = fmt.Sprintf("add install step %s to template %q at position %d", added, tmpl.Name, idx+1)
+		diff["added"] = added
+		diff["position"] = idx + 1
+	case "move":
+		idx, err := at(aiInt(args, "step_number"))
+		if err != nil {
+			return nil, err
+		}
+		pos := aiInt(args, "position")
+		if pos == 0 {
+			return nil, fmt.Errorf("position is required for move (1-based target position)")
+		}
+		if pos < 1 || pos > int64(len(install)) {
+			return nil, fmt.Errorf("position %d is out of range (1-%d for this workflow)", pos, len(install))
+		}
+		step := install[idx]
+		install = append(install[:idx], install[idx+1:]...)
+		to := int(pos - 1)
+		if to > len(install) {
+			to = len(install)
+		}
+		install = append(install, nil)
+		copy(install[to+1:], install[to:])
+		install[to] = step
+		moved := aiTemplateStepSummary(to, stepMap(step))
+		summary = fmt.Sprintf("move install step to position %d in template %q (now %s)", to+1, tmpl.Name, moved)
+		diff["moved"] = moved
+		diff["position"] = to + 1
+	}
+	spec["install"] = install
+	if err := validateTemplateSpec(spec); err != nil {
+		return nil, fmt.Errorf("resulting workflow is invalid: %s", aiCap(err.Error(), 300))
+	}
+	diff["resulting_step_count"] = len(install)
+	return &aiTemplateStepsPlan{tmpl: tmpl, spec: spec, summary: summary, diff: diff}, nil
+}
+
+func aiProposeEditTemplateSteps(a *aiCallCtx, args map[string]any) (string, string, error) {
+	plan, err := aiPlanTemplateSteps(a, args)
+	if err != nil {
+		return "", "", err
+	}
+	return plan.summary, aiPretty(plan.diff), nil
+}
+
+func aiExecEditTemplateSteps(a *aiCallCtx, args map[string]any) (string, error) {
+	plan, err := aiPlanTemplateSteps(a, args)
+	if err != nil {
+		return "", err
+	}
+	specBytes, err := json.Marshal(plan.spec)
+	if err != nil {
+		return "", fmt.Errorf("server error")
+	}
+	tmpl := plan.tmpl
+	if err := repository.NewTemplateRepository(a.con).Update(tmpl.ID, repository.TemplateInput{
+		Name: tmpl.Name, Description: tmpl.Description, Kind: tmpl.Kind,
+		Image: tmpl.Image, Spec: string(specBytes), Icon: tmpl.Icon, Color: tmpl.Color,
+	}); err != nil {
+		return "", fmt.Errorf("edit workflow failed: %s", aiCap(err.Error(), 300))
+	}
+	id := tmpl.ID
+	RecordActivity(a.r, repository.ActivityInput{
+		Category: models.ActivityCategoryTemplate, Action: "update",
+		TargetID: &id, TargetLabel: tmpl.Name,
+		Message:  fmt.Sprintf("AI assistant edited install workflow of template %q for %s: %s", tmpl.Name, a.username, plan.summary),
+	})
+	return plan.summary, nil
+}
+
+// ---------------------------------------------------------------------------
+// Template runtime surgery: startup command + action buttons. Setting the
+// command is how a service autostarts when its container starts (e.g. run
+// java directly instead of idling); removing the action button drops the
+// manual Start the autostart replaces. Both re-validate the full spec and
+// preserve every other field.
+// ---------------------------------------------------------------------------
+
+func aiLoadTemplateSpec(a *aiCallCtx, id int64) (*models.Template, map[string]any, error) {
+	if err := a.checker.EnsureAny(a.uid, permissions.ManageTemplatesKey, permissions.TemplatesEditKey); err != nil {
+		return nil, nil, fmt.Errorf("denied: editing templates needs MANAGE_TEMPLATES or TEMPLATES_EDIT — explain that the user lacks permission")
+	}
+	if id == 0 {
+		return nil, nil, fmt.Errorf("template_id is required (use list_templates first — never guess)")
+	}
+	tmpl, err := repository.NewTemplateRepository(a.con).Get(id)
+	if err != nil || tmpl == nil {
+		return nil, nil, fmt.Errorf("template %d not found", id)
+	}
+	hasOwn, hasAll, _ := a.checker.HasScope(a.uid, permissions.TemplatesOwnKey, permissions.TemplatesAllKey, permissions.ManageTemplatesKey)
+	if !hasAll && hasOwn && tmpl.OwnerID != a.uid {
+		return nil, nil, fmt.Errorf("forbidden: that template belongs to someone else")
+	}
+	var spec map[string]any
+	if strings.TrimSpace(tmpl.Spec) != "" {
+		if err := json.Unmarshal([]byte(tmpl.Spec), &spec); err != nil {
+			return nil, nil, fmt.Errorf("stored spec is corrupt, cannot edit")
+		}
+	}
+	if spec == nil {
+		spec = map[string]any{}
+	}
+	return tmpl, spec, nil
+}
+
+func aiSaveTemplateSpec(a *aiCallCtx, tmpl *models.Template, spec map[string]any, what string) (string, error) {
+	if err := validateTemplateSpec(spec); err != nil {
+		return "", fmt.Errorf("resulting template is invalid: %s", aiCap(err.Error(), 300))
+	}
+	specBytes, err := json.Marshal(spec)
+	if err != nil {
+		return "", fmt.Errorf("server error")
+	}
+	if err := repository.NewTemplateRepository(a.con).Update(tmpl.ID, repository.TemplateInput{
+		Name: tmpl.Name, Description: tmpl.Description, Kind: tmpl.Kind,
+		Image: tmpl.Image, Spec: string(specBytes), Icon: tmpl.Icon, Color: tmpl.Color,
+	}); err != nil {
+		return "", fmt.Errorf("edit failed: %s", aiCap(err.Error(), 300))
+	}
+	id := tmpl.ID
+	RecordActivity(a.r, repository.ActivityInput{
+		Category: models.ActivityCategoryTemplate, Action: "update",
+		TargetID: &id, TargetLabel: tmpl.Name,
+		Message:  fmt.Sprintf("AI assistant %s for %s", what, a.username),
+	})
+	return what, nil
+}
+
+// aiParseTemplateCommand validates the exec-form startup command: a JSON
+// array of 1-20 non-empty strings, 2000 chars total. Pure (unit-tested).
+func aiParseTemplateCommand(raw string) ([]any, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, fmt.Errorf("command is required (a JSON array string like [\"sh\",\"-c\",\"...\"])")
+	}
+	var arr []any
+	if err := json.Unmarshal([]byte(raw), &arr); err != nil {
+		return nil, fmt.Errorf("command must be a valid JSON array: %s", aiCap(err.Error(), 200))
+	}
+	if len(arr) == 0 || len(arr) > 20 {
+		return nil, fmt.Errorf("command must hold 1-20 elements")
+	}
+	total := 0
+	for i, e := range arr {
+		s, ok := e.(string)
+		if !ok || strings.TrimSpace(s) == "" {
+			return nil, fmt.Errorf("command[%d] must be a non-empty string", i)
+		}
+		total += len(s)
+	}
+	if total > 2000 {
+		return nil, fmt.Errorf("command is too long (max 2000 chars total)")
+	}
+	return arr, nil
+}
+
+func aiProposeSetTemplateCommand(a *aiCallCtx, args map[string]any) (string, string, error) {
+	tmpl, _, err := aiLoadTemplateSpec(a, aiInt(args, "template_id"))
+	if err != nil {
+		return "", "", err
+	}
+	if _, err := aiParseTemplateCommand(aiStr(args, "command")); err != nil {
+		return "", "", err
+	}
+	old, _ := aiTemplateRuntime(tmpl)
+	summary := fmt.Sprintf("set startup command of template %q (container start will run it directly)", tmpl.Name)
+	diff := aiPretty(map[string]any{
+		"tool": "set_template_command", "template_id": tmpl.ID, "name": tmpl.Name,
+		"old_command": old, "new_command": aiCap(aiStr(args, "command"), 500),
+	})
+	return summary, diff, nil
+}
+
+func aiExecSetTemplateCommand(a *aiCallCtx, args map[string]any) (string, error) {
+	tmpl, spec, err := aiLoadTemplateSpec(a, aiInt(args, "template_id"))
+	if err != nil {
+		return "", err
+	}
+	arr, err := aiParseTemplateCommand(aiStr(args, "command"))
+	if err != nil {
+		return "", err
+	}
+	spec["command"] = arr
+	return aiSaveTemplateSpec(a, tmpl, spec, fmt.Sprintf("set startup command of template %q — new containers (and restarts) run it on start", tmpl.Name))
+}
+
+func aiProposeRemoveTemplateAction(a *aiCallCtx, args map[string]any) (string, string, error) {
+	tmpl, spec, err := aiLoadTemplateSpec(a, aiInt(args, "template_id"))
+	if err != nil {
+		return "", "", err
+	}
+	want := strings.TrimSpace(aiStr(args, "action_id"))
+	if want == "" {
+		return "", "", fmt.Errorf("action_id is required (see get_template section=runtime — never guess)")
+	}
+	raw, _ := spec["actions"].([]any)
+	idx := -1
+	var label string
+	for i, v := range raw {
+		m, _ := v.(map[string]any)
+		if m == nil {
+			continue
+		}
+		if aiStr(m, "id") == want {
+			idx, label = i, aiStr(m, "name")
+			break
+		}
+	}
+	if idx < 0 {
+		ids := []string{}
+		for _, v := range raw {
+			if m, ok := v.(map[string]any); ok && aiStr(m, "id") != "" {
+				ids = append(ids, aiStr(m, "id"))
+			}
+		}
+		if len(ids) == 0 {
+			return "", "", fmt.Errorf("template %q has no action buttons at all", tmpl.Name)
+		}
+		return "", "", fmt.Errorf("no action %q (available: %s)", want, strings.Join(ids, ", "))
+	}
+	if label == "" {
+		label = want
+	}
+	summary := fmt.Sprintf("remove action button %q (%s) from template %q", label, want, tmpl.Name)
+	diff := aiPretty(map[string]any{"tool": "remove_template_action", "template_id": tmpl.ID, "name": tmpl.Name, "removed_action": want, "label": label})
+	return summary, diff, nil
+}
+
+func aiExecRemoveTemplateAction(a *aiCallCtx, args map[string]any) (string, error) {
+	tmpl, spec, err := aiLoadTemplateSpec(a, aiInt(args, "template_id"))
+	if err != nil {
+		return "", err
+	}
+	want := strings.TrimSpace(aiStr(args, "action_id"))
+	raw, _ := spec["actions"].([]any)
+	kept := make([]any, 0, len(raw))
+	found := ""
+	for _, v := range raw {
+		m, _ := v.(map[string]any)
+		if m != nil && aiStr(m, "id") == want {
+			found = aiStr(m, "name")
+			continue
+		}
+		kept = append(kept, v)
+	}
+	if found == "" && len(kept) == len(raw) {
+		return "", fmt.Errorf("no action %q on template %q", want, tmpl.Name)
+	}
+	if found == "" {
+		found = want
+	}
+	spec["actions"] = kept
+	return aiSaveTemplateSpec(a, tmpl, spec, fmt.Sprintf("removed action button %q (%s) from template %q", found, want, tmpl.Name))
+}
+
+// ---------------------------------------------------------------------------
+// Users & roles: full account admin (create_user already existed).
+// Password data never appears in tool output (models.User hides the hash;
+// edit covers username/email/role only — resets stay on the Users page so
+// no secret ever lands in a persisted approval ticket).
+// ---------------------------------------------------------------------------
+
+type aiUserEdit struct {
+	user     *models.User
+	username string
+	email    string
+	roleID   int64
+	roleName string
+}
+
+func aiPlanUserEdit(a *aiCallCtx, args map[string]any) (*aiUserEdit, error) {
+	if err := a.checker.EnsureAny(a.uid, permissions.ManageUsersKey, permissions.UsersEditKey); err != nil {
+		return nil, fmt.Errorf("denied: editing users needs MANAGE_USERS or USERS_EDIT — explain that the user lacks permission")
+	}
+	id := aiInt(args, "user_id")
+	if id == 0 {
+		return nil, fmt.Errorf("user_id is required (use list_users first — never guess)")
+	}
+	u, err := repository.NewUserRepository(a.con).GetByID(id)
+	if err != nil || u == nil {
+		return nil, fmt.Errorf("user %d not found", id)
+	}
+	if aiUserScope(a) && id != a.uid {
+		return nil, fmt.Errorf("forbidden: that account belongs to someone else")
+	}
+	username, email, roleID, roleName := u.Username, u.Email, u.RoleID, aiRoleName(a.con, u.RoleID)
+	if v := aiStr(args, "username"); v != "" {
+		username = v
+	}
+	if v, ok := args["email"]; ok {
+		email = aiStr(map[string]any{"v": v}, "v")
+		if email == "" {
+			return nil, fmt.Errorf("email cannot be empty")
+		}
+	}
+	if v := aiStr(args, "role"); v != "" {
+		role, err := repository.NewRoleRepository(a.con).GetRoleByName(v)
+		if err != nil {
+			return nil, fmt.Errorf("role %q does not exist (use list_roles first — never guess)", v)
+		}
+		roleID, roleName = role.ID, role.Name
+	}
+	if username == u.Username && email == u.Email && roleID == u.RoleID {
+		return nil, fmt.Errorf("nothing to change: provide username, email and/or role")
+	}
+	return &aiUserEdit{user: u, username: username, email: email, roleID: roleID, roleName: roleName}, nil
+}
+
+func aiProposeEditUser(a *aiCallCtx, args map[string]any) (string, string, error) {
+	plan, err := aiPlanUserEdit(a, args)
+	if err != nil {
+		return "", "", err
+	}
+	summary := fmt.Sprintf("edit user %q → username=%q email=%q role=%q", plan.user.Username, plan.username, plan.email, plan.roleName)
+	diff := aiPretty(map[string]any{"tool": "edit_user", "user_id": plan.user.ID, "username": plan.username, "email": plan.email, "role": plan.roleName})
+	return summary, diff, nil
+}
+
+func aiExecEditUser(a *aiCallCtx, args map[string]any) (string, error) {
+	plan, err := aiPlanUserEdit(a, args)
+	if err != nil {
+		return "", err
+	}
+	if err := repository.NewUserRepository(a.con).UpdateUser(plan.user.ID, plan.username, plan.email, plan.roleID, ""); err != nil {
+		return "", fmt.Errorf("could not update user (username/email may already exist)")
+	}
+	id := plan.user.ID
+	RecordActivity(a.r, repository.ActivityInput{
+		Category: models.ActivityCategoryUser, Action: "update",
+		TargetID: &id, TargetLabel: plan.username,
+		Message:  fmt.Sprintf("AI assistant updated user %q (role=%s) for %s", plan.username, plan.roleName, a.username),
+	})
+	return fmt.Sprintf("updated user %q (role %q)", plan.username, plan.roleName), nil
+}
+
+func aiProposeDeleteUser(a *aiCallCtx, args map[string]any) (string, string, error) {
+	if err := a.checker.EnsureAny(a.uid, permissions.ManageUsersKey, permissions.UsersDeleteKey); err != nil {
+		return "", "", fmt.Errorf("denied: deleting users needs MANAGE_USERS or USERS_DELETE — explain that the user lacks permission")
+	}
+	id := aiInt(args, "user_id")
+	if id == 0 {
+		return "", "", fmt.Errorf("user_id is required (use list_users first — never guess)")
+	}
+	if id == a.uid {
+		return "", "", fmt.Errorf("you cannot delete your own account")
+	}
+	u, err := repository.NewUserRepository(a.con).GetByID(id)
+	if err != nil || u == nil {
+		return "", "", fmt.Errorf("user %d not found", id)
+	}
+	if aiUserScope(a) {
+		return "", "", fmt.Errorf("forbidden: that account belongs to someone else")
+	}
+	summary := fmt.Sprintf("delete user %q (<%s>) — irreversible", u.Username, u.Email)
+	diff := aiPretty(map[string]any{"tool": "delete_user", "user_id": id, "username": u.Username})
+	return summary, diff, nil
+}
+
+func aiExecDeleteUser(a *aiCallCtx, args map[string]any) (string, error) {
+	id := aiInt(args, "user_id")
+	u, err := repository.NewUserRepository(a.con).GetByID(id)
+	if err != nil || u == nil {
+		return "", fmt.Errorf("user %d not found", id)
+	}
+	name := u.Username
+	if err := repository.NewUserRepository(a.con).DeleteUser(id, a.uid); err != nil {
+		return "", fmt.Errorf("delete failed: %s", aiCap(err.Error(), 300))
+	}
+	RecordActivity(a.r, repository.ActivityInput{
+		Category: models.ActivityCategoryUser, Action: "delete",
+		TargetID: &id, TargetLabel: name,
+		Message:  fmt.Sprintf("AI assistant deleted user %q for %s", name, a.username),
+	})
+	return fmt.Sprintf("deleted user %q", name), nil
+}
+
+// ---------------------------------------------------------------------------
+// Themes: list/edit/delete to complete create_theme. Mirrors the route
+// gates (EDIT for update/delete) plus the handler's own-scope rule, and
+// snapshots a revision before every overwrite like UpdateThemeHandler.
+// ---------------------------------------------------------------------------
+
+func aiCheckThemeScope(a *aiCallCtx, t *models.Theme) error {
+	if t.Builtin || t.OwnerID != a.uid {
+		hasOwn, hasAll, _ := a.checker.HasScope(a.uid, permissions.ThemesOwnKey, permissions.ThemesAllKey, permissions.ManageThemesKey)
+		if !hasAll && hasOwn {
+			return fmt.Errorf("forbidden: own-scope may only edit themes you authored")
+		}
+	}
+	return nil
+}
+
+func aiProposeEditTheme(a *aiCallCtx, args map[string]any) (string, string, error) {
+	if err := a.checker.EnsureAny(a.uid, permissions.ManageThemesKey, permissions.EditThemesKey); err != nil {
+		return "", "", fmt.Errorf("denied: editing themes needs MANAGE_THEMES or EDIT_THEMES — explain that the user lacks permission")
+	}
+	id := aiStr(args, "theme_id")
+	if id == "" {
+		return "", "", fmt.Errorf("theme_id is required (use list_themes first — never guess)")
+	}
+	t, err := repository.NewThemeRepository(a.con).GetTheme(id)
+	if err != nil || t == nil {
+		return "", "", fmt.Errorf("theme %q not found", id)
+	}
+	if err := aiCheckThemeScope(a, t); err != nil {
+		return "", "", err
+	}
+	changes := map[string]any{}
+	if v := aiStr(args, "name"); v != "" {
+		changes["name"] = v
+	}
+	if v, ok := args["description"]; ok {
+		changes["description"] = aiStr(map[string]any{"v": v}, "v")
+	}
+	if v := aiStr(args, "spec"); v != "" {
+		var js map[string]any
+		if err := json.Unmarshal([]byte(v), &js); err != nil {
+			return "", "", fmt.Errorf("spec must be a valid JSON object string")
+		}
+		changes["spec"] = "(new spec JSON)"
+	}
+	if len(changes) == 0 {
+		return "", "", fmt.Errorf("nothing to change: provide at least one of name, description, spec")
+	}
+	summary := fmt.Sprintf("edit global theme %q", t.Name)
+	diff := aiPretty(map[string]any{"tool": "edit_theme", "theme_id": id, "name": t.Name, "changes": changes})
+	return summary, diff, nil
+}
+
+func aiExecEditTheme(a *aiCallCtx, args map[string]any) (string, error) {
+	repo := repository.NewThemeRepository(a.con)
+	id := aiStr(args, "theme_id")
+	t, err := repo.GetTheme(id)
+	if err != nil || t == nil {
+		return "", fmt.Errorf("theme %q not found", id)
+	}
+	name, desc, spec := t.Name, t.Description, string(t.Spec)
+	if v := aiStr(args, "name"); v != "" {
+		name = v
+	}
+	if v, ok := args["description"]; ok {
+		desc = aiStr(map[string]any{"v": v}, "v")
+	}
+	if v := aiStr(args, "spec"); v != "" {
+		spec = v
+	}
+	if name == "" || !json.Valid([]byte(spec)) {
+		return "", fmt.Errorf("name and a valid JSON spec are required")
+	}
+	// Revision snapshot first (mirrors UpdateThemeHandler) so the
+	// overwrite stays reversible from the theme version history.
+	if next, nerr := repo.NextRevision(id); nerr == nil {
+		_, _ = repo.CreateRevision(id, next, t.Name, t.Description, t.Spec, a.uid)
+	}
+	if _, err := repo.UpdateTheme(id, name, desc, json.RawMessage(spec)); err != nil {
+		return "", fmt.Errorf("edit theme failed: %s", aiCap(err.Error(), 300))
+	}
+	RecordActivity(a.r, repository.ActivityInput{
+		Category: models.ActivityCategorySystem, Action: "update",
+		TargetLabel: name,
+		Message:     fmt.Sprintf("AI assistant edited global theme %q for %s", name, a.username),
+	})
+	return fmt.Sprintf("edited global theme %q", name), nil
+}
+
+func aiProposeDeleteTheme(a *aiCallCtx, args map[string]any) (string, string, error) {
+	if err := a.checker.EnsureAny(a.uid, permissions.ManageThemesKey, permissions.EditThemesKey); err != nil {
+		return "", "", fmt.Errorf("denied: deleting themes needs MANAGE_THEMES or EDIT_THEMES — explain that the user lacks permission")
+	}
+	id := aiStr(args, "theme_id")
+	if id == "" {
+		return "", "", fmt.Errorf("theme_id is required (use list_themes first — never guess)")
+	}
+	t, err := repository.NewThemeRepository(a.con).GetTheme(id)
+	if err != nil || t == nil {
+		return "", "", fmt.Errorf("theme %q not found", id)
+	}
+	if err := aiCheckThemeScope(a, t); err != nil {
+		return "", "", err
+	}
+	summary := fmt.Sprintf("delete global theme %q — pages using it fall back to default", t.Name)
+	diff := aiPretty(map[string]any{"tool": "delete_theme", "theme_id": id, "name": t.Name})
+	return summary, diff, nil
+}
+
+func aiExecDeleteTheme(a *aiCallCtx, args map[string]any) (string, error) {
+	repo := repository.NewThemeRepository(a.con)
+	id := aiStr(args, "theme_id")
+	t, err := repo.GetTheme(id)
+	if err != nil || t == nil {
+		return "", fmt.Errorf("theme %q not found", id)
+	}
+	name := t.Name
+	if err := repo.DeleteTheme(id); err != nil {
+		return "", fmt.Errorf("delete theme failed: %s", aiCap(err.Error(), 300))
+	}
+	RecordActivity(a.r, repository.ActivityInput{
+		Category: models.ActivityCategorySystem, Action: "delete",
+		TargetLabel: name,
+		Message:     fmt.Sprintf("AI assistant deleted global theme %q for %s", name, a.username),
+	})
+	return fmt.Sprintf("deleted global theme %q", name), nil
+}
+
+// ---------------------------------------------------------------------------
+// Tickets: full support lifecycle (list/get/create/reply/update). Mirrors
+// the route + handler policy: staff sees everything, everyone else only
+// their own/assigned tickets; only staff triages (status/assign/escalate)
+// or posts internal notes; closed tickets refuse replies.
+// ---------------------------------------------------------------------------
+
+func aiTicketWriteGate(a *aiCallCtx, keys ...string) error {
+	if err := a.checker.EnsureAny(a.uid, keys...); err != nil {
+		return fmt.Errorf("denied: this ticket action needs a Tickets grant (ask an admin for MANAGE_TICKETS or the matching TICKETS_* permission)")
+	}
+	return nil
+}
+
+func aiProposeCreateTicket(a *aiCallCtx, args map[string]any) (string, string, error) {
+	if err := aiTicketWriteGate(a, permissions.ManageTicketsKey, permissions.TicketsCreateKey); err != nil {
+		return "", "", err
+	}
+	subject := aiStr(args, "subject")
+	if subject == "" {
+		return "", "", fmt.Errorf("subject is required")
+	}
+	if len(subject) > 200 {
+		return "", "", fmt.Errorf("subject must be 200 characters or fewer")
+	}
+	category := aiStr(args, "category")
+	if category == "" {
+		category = "general"
+	}
+	if !models.ValidTicketCategories[category] {
+		return "", "", fmt.Errorf("invalid category (one of: general, billing, technical, feature, bug, abuse, other)")
+	}
+	priority := aiStr(args, "priority")
+	if priority == "" {
+		priority = "medium"
+	}
+	if !models.ValidTicketPriorities[priority] {
+		return "", "", fmt.Errorf("invalid priority (one of: low, medium, high, urgent, critical)")
+	}
+	if len(aiStr(args, "description")) > 10000 {
+		return "", "", fmt.Errorf("description must be 10000 characters or fewer")
+	}
+	summary := fmt.Sprintf("open %s-priority %s ticket %q", priority, category, subject)
+	diff := aiPretty(map[string]any{"tool": "create_ticket", "subject": subject, "category": category, "priority": priority})
+	return summary, diff, nil
+}
+
+func aiExecCreateTicket(a *aiCallCtx, args map[string]any) (string, error) {
+	category, priority := aiStr(args, "category"), aiStr(args, "priority")
+	if category == "" {
+		category = "general"
+	}
+	if priority == "" {
+		priority = "medium"
+	}
+	tk, err := repository.NewTicketRepository(a.con).Create(repository.CreateTicketInput{
+		Subject: aiStr(args, "subject"), Description: aiStr(args, "description"),
+		Category: category, Priority: priority, CreatedBy: a.uid, Tags: "[]",
+	})
+	if err != nil {
+		return "", fmt.Errorf("could not open ticket: %s", aiCap(err.Error(), 300))
+	}
+	notifyTicketCreated(a.r, a.con, tk, a.uid)
+	RecordActivity(a.r, repository.ActivityInput{
+		Category: models.ActivityCategoryTicket, Action: "create",
+		TargetID: &tk.ID, TargetLabel: tk.TicketNo,
+		Message:  fmt.Sprintf("AI assistant opened ticket %s %q for %s", tk.TicketNo, tk.Subject, a.username),
+	})
+	return fmt.Sprintf("opened ticket %s %q", tk.TicketNo, tk.Subject), nil
+}
+
+func aiProposeReplyTicket(a *aiCallCtx, args map[string]any) (string, string, error) {
+	if err := aiTicketWriteGate(a, permissions.ManageTicketsKey, permissions.TicketsViewKey, permissions.TicketsCreateKey, permissions.TicketsEditKey); err != nil {
+		return "", "", err
+	}
+	id := aiInt(args, "ticket_id")
+	msg := aiStr(args, "message")
+	if id == 0 {
+		return "", "", fmt.Errorf("ticket_id is required (use list_tickets first — never guess)")
+	}
+	if msg == "" {
+		return "", "", fmt.Errorf("message is required")
+	}
+	if len(msg) > 10000 {
+		return "", "", fmt.Errorf("message must be 10000 characters or fewer")
+	}
+	tk, err := repository.NewTicketRepository(a.con).Get(id)
+	if err != nil || tk == nil {
+		return "", "", fmt.Errorf("ticket %d not found", id)
+	}
+	if err := aiTicketAccess(a, tk); err != nil {
+		return "", "", err
+	}
+	if tk.Status == "closed" {
+		return "", "", fmt.Errorf("ticket %s is closed — reopen it first (update_ticket status)", tk.TicketNo)
+	}
+	internal := aiStr(args, "internal") == "true"
+	if internal && !canSeeInternal(a.con, a.uid) {
+		return "", "", fmt.Errorf("only staff can post internal notes")
+	}
+	kind := "reply"
+	if internal {
+		kind = "internal note"
+	}
+	summary := fmt.Sprintf("post %s on ticket %s %q", kind, tk.TicketNo, tk.Subject)
+	diff := aiPretty(map[string]any{"tool": "reply_ticket", "ticket_id": id, "ticket_no": tk.TicketNo, "internal": internal, "message": aiCap(msg, 500)})
+	return summary, diff, nil
+}
+
+func aiExecReplyTicket(a *aiCallCtx, args map[string]any) (string, error) {
+	repo := repository.NewTicketRepository(a.con)
+	tk, err := repo.Get(aiInt(args, "ticket_id"))
+	if err != nil || tk == nil {
+		return "", fmt.Errorf("ticket %d not found", aiInt(args, "ticket_id"))
+	}
+	msg := aiStr(args, "message")
+	internal := aiStr(args, "internal") == "true"
+	if _, err := repo.AddComment(tk.ID, a.uid, msg, internal); err != nil {
+		return "", fmt.Errorf("could not post reply: %s", aiCap(err.Error(), 300))
+	}
+	// First staff reply stamps SLA first-response (mirrors the handler).
+	if canSeeInternal(a.con, a.uid) {
+		_ = repo.MarkFirstResponse(tk.ID, time.Now().UTC())
+	}
+	notifyTicketReplied(a.r, a.con, tk, a.uid, msg, internal)
+	id := tk.ID
+	RecordActivity(a.r, repository.ActivityInput{
+		Category: models.ActivityCategoryTicket, Action: "comment",
+		TargetID: &id, TargetLabel: tk.TicketNo,
+		Message:  fmt.Sprintf("AI assistant replied to ticket %s for %s", tk.TicketNo, a.username),
+	})
+	return fmt.Sprintf("replied to ticket %s", tk.TicketNo), nil
+}
+
+type aiTicketUpdate struct {
+	tk   *models.Ticket
+	in   repository.UpdateTicketInput
+	note []string
+}
+
+func aiPlanTicketUpdate(a *aiCallCtx, args map[string]any) (*aiTicketUpdate, error) {
+	if err := aiTicketWriteGate(a, permissions.ManageTicketsKey, permissions.TicketsViewKey, permissions.TicketsCreateKey, permissions.TicketsEditKey, permissions.TicketsDeleteKey); err != nil {
+		return nil, err
+	}
+	id := aiInt(args, "ticket_id")
+	if id == 0 {
+		return nil, fmt.Errorf("ticket_id is required (use list_tickets first — never guess)")
+	}
+	repo := repository.NewTicketRepository(a.con)
+	tk, err := repo.Get(id)
+	if err != nil || tk == nil {
+		return nil, fmt.Errorf("ticket %d not found", id)
+	}
+	isOwner := tk.CreatedBy == a.uid
+	isStaff := canSeeInternal(a.con, a.uid)
+	if !isOwner && !isStaff {
+		if tk.AssignedTo == nil || *tk.AssignedTo != a.uid {
+			return nil, fmt.Errorf("forbidden: that ticket belongs to someone else")
+		}
+	}
+	var in repository.UpdateTicketInput
+	var note []string
+	if v, ok := args["subject"]; ok {
+		s := aiStr(map[string]any{"v": v}, "v")
+		if s == "" {
+			return nil, fmt.Errorf("subject cannot be empty")
+		}
+		if len(s) > 200 {
+			return nil, fmt.Errorf("subject must be 200 characters or fewer")
+		}
+		in.Subject = &s
+		note = append(note, "subject updated")
+	}
+	if v, ok := args["description"]; ok {
+		s := aiStr(map[string]any{"v": v}, "v")
+		if len(s) > 10000 {
+			return nil, fmt.Errorf("description must be 10000 characters or fewer")
+		}
+		in.Description = &s
+		note = append(note, "description updated")
+	}
+	if v := aiStr(args, "category"); v != "" {
+		if !models.ValidTicketCategories[v] {
+			return nil, fmt.Errorf("invalid category (one of: general, billing, technical, feature, bug, abuse, other)")
+		}
+		in.Category = &v
+		note = append(note, "category → "+v)
+	}
+	if v := aiStr(args, "priority"); v != "" {
+		if !models.ValidTicketPriorities[v] {
+			return nil, fmt.Errorf("invalid priority (one of: low, medium, high, urgent, critical)")
+		}
+		if !isStaff && (v == "high" || v == "urgent" || v == "critical") {
+			return nil, fmt.Errorf("only staff can escalate priority to %q", v)
+		}
+		in.Priority = &v
+		note = append(note, "priority → "+v)
+	}
+	if v := aiStr(args, "status"); v != "" {
+		if !models.ValidTicketStatuses[v] {
+			return nil, fmt.Errorf("invalid status (one of: open, pending, in_progress, resolved, closed)")
+		}
+		if !isStaff {
+			return nil, fmt.Errorf("only staff can change status")
+		}
+		in.Status = &v
+		note = append(note, "status → "+v)
+	}
+	if v, ok := args["assigned_to"]; ok {
+		if !isStaff {
+			return nil, fmt.Errorf("only staff can assign tickets")
+		}
+		raw := aiStr(map[string]any{"v": v}, "v")
+		in.AssignedSet = true
+		if raw == "" || raw == "0" || strings.EqualFold(raw, "none") {
+			note = append(note, "unassigned")
+		} else {
+			var uid int64
+			if n, err := strconv.ParseInt(raw, 10, 64); err == nil {
+				uid = n
+			} else if u, gerr := repository.NewUserRepository(a.con).GetByUsername(raw); gerr == nil && u != nil {
+				uid = u.ID
+			} else {
+				return nil, fmt.Errorf("assignee %q not found (use a user id or username from list_users)", raw)
+			}
+			if _, gerr := repository.NewUserRepository(a.con).GetByID(uid); gerr != nil {
+				return nil, fmt.Errorf("assignee %d not found", uid)
+			}
+			in.AssignedTo = &uid
+			note = append(note, "assigned → "+raw)
+		}
+	}
+	if len(note) == 0 {
+		return nil, fmt.Errorf("nothing to change: provide status, priority, assigned_to, subject, description and/or category")
+	}
+	return &aiTicketUpdate{tk: tk, in: in, note: note}, nil
+}
+
+func aiProposeUpdateTicket(a *aiCallCtx, args map[string]any) (string, string, error) {
+	plan, err := aiPlanTicketUpdate(a, args)
+	if err != nil {
+		return "", "", err
+	}
+	summary := fmt.Sprintf("triage ticket %s %q: %s", plan.tk.TicketNo, plan.tk.Subject, strings.Join(plan.note, ", "))
+	diff := aiPretty(map[string]any{"tool": "update_ticket", "ticket_id": plan.tk.ID, "ticket_no": plan.tk.TicketNo, "changes": plan.note})
+	return summary, diff, nil
+}
+
+func aiExecUpdateTicket(a *aiCallCtx, args map[string]any) (string, error) {
+	plan, err := aiPlanTicketUpdate(a, args)
+	if err != nil {
+		return "", err
+	}
+	updated, err := repository.NewTicketRepository(a.con).Update(plan.tk.ID, plan.in)
+	if err != nil {
+		return "", fmt.Errorf("could not update ticket: %s", aiCap(err.Error(), 300))
+	}
+	id := plan.tk.ID
+	RecordActivity(a.r, repository.ActivityInput{
+		Category: models.ActivityCategoryTicket, Action: "update",
+		TargetID: &id, TargetLabel: plan.tk.TicketNo,
+		Message:  fmt.Sprintf("AI assistant triaged ticket %s for %s: %s", plan.tk.TicketNo, a.username, strings.Join(plan.note, ", ")),
+	})
+	return fmt.Sprintf("ticket %s updated (%s, now %s)", updated.TicketNo, strings.Join(plan.note, ", "), updated.Status), nil
+}
+
+// ---------------------------------------------------------------------------
+// Notifications: admin announcements to every inbox. Mirrors the broadcast
+// path of the notification API (fan-out + realtime push + activity log).
+// ---------------------------------------------------------------------------
+
+func aiProposeBroadcast(a *aiCallCtx, args map[string]any) (string, string, error) {
+	if err := a.checker.EnsureAny(a.uid, permissions.ManageNotificationsKey, permissions.NotificationsCreateKey); err != nil {
+		return "", "", fmt.Errorf("denied: broadcasting needs MANAGE_NOTIFICATIONS or NOTIFICATIONS_CREATE — explain that the user lacks permission")
+	}
+	title, msg := aiStr(args, "title"), aiStr(args, "message")
+	if title == "" || msg == "" {
+		return "", "", fmt.Errorf("title and message are both required")
+	}
+	var n int64
+	_ = a.con.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&n)
+	summary := fmt.Sprintf("broadcast announcement %q to %d user(s)", title, n)
+	diff := aiPretty(map[string]any{"tool": "broadcast_notification", "title": title, "message": aiCap(msg, 500), "recipients": n})
+	return summary, diff, nil
+}
+
+func aiExecBroadcast(a *aiCallCtx, args map[string]any) (string, error) {
+	repo := repository.NewNotificationRepository(a.con)
+	ids, err := repo.ListAllUserIDs()
+	if err != nil {
+		return "", fmt.Errorf("server error")
+	}
+	actor := a.uid
+	fanned, err := repo.CreateBroadcast(repository.CreateNotificationInput{
+		ActorID: &actor, ActorName: a.username,
+		Category: models.NotificationCategoryGeneral, Priority: models.NotificationPriorityNormal,
+		Title: aiStr(args, "title"), Message: aiStr(args, "message"), IsBroadcast: true,
+	}, ids)
+	if err != nil {
+		return "", fmt.Errorf("broadcast failed: %s", aiCap(err.Error(), 300))
+	}
+	for i, uid := range ids {
+		if i < len(fanned) {
+			pushAndMailNotification(a.con, repo, uid, fanned[i])
+		}
+	}
+	RecordActivity(a.r, repository.ActivityInput{
+		Category: models.ActivityCategorySystem, Action: "notify_broadcast",
+		TargetLabel: aiStr(args, "title"),
+		Message:     fmt.Sprintf("AI assistant broadcast %q to %d user(s) for %s", aiStr(args, "title"), len(fanned), a.username),
+	})
+	return fmt.Sprintf("broadcast %q to %d user(s)", aiStr(args, "title"), len(fanned)), nil
 }

@@ -3,11 +3,12 @@
 // Snapshots — not a custom spec.pages entry).
 //
 // It gathers everything the floating menu holds plus full-page extras:
-//   • header with name + status / kind badges,
-//   • page-actions pill (top-right, NodeDetail pattern) + section tabs:
-//     Details (one tile per fact — no Controls / Status cards, those live
-//     in the floating menu), Monitoring (live CPU / RAM / disk graphs,
-//     System-page style), Manage (rename), Activity (audit trail).
+//   • header with name + status / kind badges (no top-right action pill),
+//   • section tabs: Details (one tile per fact — no Controls / Status
+//     cards, those live in the floating menu; the External ID tile is
+//     click-to-copy), Monitoring (live CPU / RAM / disk graphs,
+//     System-page style), Manage (rename + reinstall + destroy),
+//     Activity (audit trail).
 //   • section deck (OverviewTabs: one card, per-tab hue wash + glowing
 //     icon tile + growing underline + live markers, 2×2 on phones).
 
@@ -30,9 +31,8 @@ import { useAuthStore } from '@/shared/stores/authStore';
 import { PermissionKey, hasPermissionAny } from '@/shared/types/permissions';
 import { useConfirm } from '@/shared/stores/confirmStore';
 import ErrorBoundary from '@/shared/components/ui/ErrorBoundary';
-import { PageActionsPill } from '@/shared/components/ui/PageActionsPill';
 import OverviewTabs from '../components/OverviewTabs';
-import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
+import { resolveInstanceControls } from '../utils/instanceControls';
 
 const STATUS_DOT: Record<string, string> = {
   running: 'bg-emerald-400',
@@ -93,7 +93,7 @@ function fmtDate(iso: string | undefined | null): string {
 
 // InfoTile — one datum per card: icon tile + big value + uppercase label +
 // faint hint, Home-tile aesthetic. Clickable tiles navigate (node /
-// template) with a hover lift.
+// template) or copy (external ID) with a hover lift.
 const InfoTile: React.FC<{
   icon: React.ReactNode;
   label: string;
@@ -166,6 +166,31 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
   const canOpenNode = permissions.includes(PermissionKey.MANAGE_NODES);
   const [copied, setCopied] = useState(false);
 
+  // Template allow-list for the built-in controls + overview (instance.Config
+  // snapshot, allow-all default for old templates).
+  const controls = useMemo(() => resolveInstanceControls(instance?.config), [instance?.config]);
+  const visibleTabs = useMemo<TabId[]>(() => {
+    const all: TabId[] = TAB_ORDER.filter((id) => {
+      if (id === 'details') return controls.show_details_tab;
+      if (id === 'monitoring') return controls.show_monitoring_tab;
+      if (id === 'manage') return controls.show_manage_tab;
+      return controls.show_activity_tab;
+    });
+    // Fail-safe: the author hid every tab — fall back to details so the
+    // page never renders an empty deck.
+    return all.length > 0 ? all : (['details'] as TabId[]);
+  }, [controls]);
+  // Keep the active tab inside the visible set, preferring the template's
+  // default tab on first load.
+  useEffect(() => {
+    if (!instance) return;
+    if (!visibleTabs.includes(tab)) {
+      const preferred = (controls.default_tab as TabId) || 'details';
+      setTab(visibleTabs.includes(preferred) ? preferred : visibleTabs[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [instance?.id, visibleTabs]);
+
   const status = instance?.status ?? '';
   const isRunning = status === 'running';
 
@@ -217,8 +242,8 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
 
   // Live metrics stream (shared hook — same feed the Home tiles and the
   // floating menu's status row read): history ring for graphs plus the
-  // latest point for tiles, with 403 backoff when the instance exposes no
-  // metrics page.
+  // latest point for tiles. Self-sufficient — the backend serves it for
+  // the built-in Overview without any custom instance page.
   const { latest: last, history: hist } = useLiveMetrics(instanceId, isRunning);
 
   const cpuSamples = useMemo<MetricSample[]>(
@@ -261,7 +286,7 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
   const diskPct = last?.diskPct ?? 0;
 
   const onRename = async () => {
-    if (!canControl || renameBusy) return;
+    if (!canControl || !controls.allow_rename || renameBusy) return;
     setRenameBusy(true);
     setRenameMsg('');
     try {
@@ -280,7 +305,7 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
   };
 
   const onReinstall = async () => {
-    if (!canControl || reinstallBusy) return;
+    if (!canControl || !controls.allow_reinstall || reinstallBusy) return;
     const ok = await confirm({
       title: 'Reinstall instance',
       message: `Wipe "${displayName}" and redeploy it from the stored spec? ALL data inside the workload will be lost.`,
@@ -302,7 +327,7 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
   };
 
   const onDelete = async () => {
-    if (!canControl || deleteBusy) return;
+    if (!canControl || !controls.allow_destroy || deleteBusy) return;
     const ok = await confirm({
       title: 'Destroy instance',
       message: `Destroy "${displayName}"? This runs driver destroy on the edge and removes the row.`,
@@ -322,7 +347,7 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
 
   const onCopyId = async () => {
     const text = instance.external_id || '';
-    if (!text) return;
+    if (!text || !controls.allow_external_id_copy) return;
     try {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(text);
@@ -343,49 +368,14 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
     }
   };
 
-  // Page actions for the top-right pill (NodeDetail pattern): page-level
-  // navigation + management only — never instance power actions (those
-  // live in the Details tab's Controls card). Items are permission-gated
-  // with existing keys; nothing here mints a new permission.
-  const pillItems = [
-    ...(canControl ? [{ key: 'edit', label: 'Edit advanced config', tone: 'default' as const }] : []),
-    ...(canOpenTemplate && instance.template_id
-      ? [{ key: 'template', label: 'Open template', tone: 'default' as const }]
-      : []),
-    ...(canOpenNode && Number.isFinite(instance.node_id)
-      ? [{ key: 'node', label: 'Open node', tone: 'default' as const }]
-      : []),
-    ...(instance.external_id
-      ? [{ key: 'copyId', label: copied ? 'Copied!' : 'Copy external ID', tone: 'default' as const }]
-      : []),
-    ...(canControl
-      ? [
-          { key: 'reinstall', label: reinstallBusy ? 'Reinstalling…' : 'Reinstall', tone: 'danger' as const, disabled: reinstallBusy || deleteBusy },
-          { key: 'destroy', label: deleteBusy ? 'Destroying…' : 'Destroy', tone: 'danger' as const, disabled: reinstallBusy || deleteBusy },
-        ]
-      : []),
-  ];
-
-  const onPillSelect = (key: string) => {
-    if (key === 'edit') navigate(`/instance/${instanceId}/edit`);
-    else if (key === 'template' && instance.template_id) navigate(`/template/${instance.template_id}`);
-    else if (key === 'node' && Number.isFinite(instance.node_id)) navigate(`/node/${instance.node_id}`);
-    else if (key === 'copyId') void onCopyId();
-    else if (key === 'reinstall') void onReinstall();
-    else if (key === 'destroy') void onDelete();
-  };
+  // Page actions used to live in the top-right pill (NodeDetail pattern).
+  // The pill is intentionally gone on this page — power actions live in
+  // the floating menu, Edit / Template / Node / Copy have in-page homes
+  // (Manage tab + Details tiles), and Reinstall / Destroy live in the
+  // Manage tab's danger zone below.
 
   return (
     <div className="space-y-4 animate-fade-in">
-      {/* Fixed top-right page-actions pill — page actions only (never
-          instance power actions), like NodeDetail's CardMenu. */}
-      <PageActionsPill>
-        <CardMenu
-          ariaLabel={`Actions for instance ${displayName}`}
-          items={pillItems}
-          onSelect={onPillSelect}
-        />
-      </PageActionsPill>
       {pageMsg && (
         <div className="glass-card rounded-xl text-[13px] text-gray-300">
           <span className="break-words">{pageMsg}</span>
@@ -418,14 +408,14 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
         </div>
       </div>
 
-      {/* Section deck — one card, per-tab hue wash + glowing icon tile +
-          growing underline, live markers. 2×2 on phones, one row of four
-          on desktop: every section always visible. */}
+      {/* Section deck — one card per visible tab (template allow-list),
+          per-tab hue wash + glowing icon tile + growing underline + live
+          markers. 2×2 on phones, one row on desktop. */}
       <OverviewTabs
         ariaLabel="Overview sections"
         active={tab}
         onChange={(id) => setTab(id as TabId)}
-        tabs={TAB_ORDER.map((id) => {
+        tabs={visibleTabs.map((id) => {
           const meta = TAB_META[id];
           if (id === 'details') {
             return {
@@ -475,7 +465,7 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
           return {
             id,
             label: meta.label,
-            hint: 'Rename',
+            hint: 'Rename · reinstall · destroy',
             icon: meta.icon,
             accent: '#fbbf24',
             marker: undefined,
@@ -483,7 +473,7 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
         })}
       />
 
-      {tab === 'monitoring' && (
+      {tab === 'monitoring' && controls.show_monitoring_tab && (
         <ErrorBoundary label="instance-overview-monitoring">
           {!isRunning ? (
             <div className="glass-card rounded-xl text-center text-gray-400">
@@ -581,7 +571,7 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
         </ErrorBoundary>
       )}
 
-      {tab === 'details' && (
+      {tab === 'details' && controls.show_details_tab && (
         /* One datum per card — the old Controls / Status cards duplicated
            the floating menu, and the old Info card stacked every fact in
            one list. Each tile below owns exactly one fact. */
@@ -599,8 +589,8 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
             value={instance.node_name || `#${instance.node_id ?? '?'}`}
             hint="hosting edge"
             accent="var(--ks-ok)"
-            title={canOpenNode ? `Open node ${instance.node_name || instance.node_id}` : `Node: ${instance.node_name || instance.node_id}`}
-            onClick={canOpenNode && Number.isFinite(instance.node_id) ? () => navigate(`/node/${instance.node_id}`) : undefined}
+            title={canOpenNode && controls.allow_node_link ? `Open node ${instance.node_name || instance.node_id}` : `Node: ${instance.node_name || instance.node_id}`}
+            onClick={canOpenNode && controls.allow_node_link && Number.isFinite(instance.node_id) ? () => navigate(`/node/${instance.node_id}`) : undefined}
             icon={tileIcon(<><rect x="2" y="3" width="20" height="6" rx="2" /><rect x="2" y="13" width="20" height="8" rx="2" /><line x1="6" y1="6" x2="6.01" y2="6" /><line x1="6" y1="17" x2="6.01" y2="17" /></>)}
           />
           <InfoTile
@@ -608,16 +598,17 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
             value={instance.template_name || 'deleted'}
             hint="deployed from"
             accent="#c4b5fd"
-            title={canOpenTemplate && instance.template_id ? `Open template ${instance.template_name}` : `Template: ${instance.template_name || 'deleted'}`}
-            onClick={canOpenTemplate && instance.template_id ? () => navigate(`/template/${instance.template_id}`) : undefined}
+            title={canOpenTemplate && controls.allow_template_link && instance.template_id ? `Open template ${instance.template_name}` : `Template: ${instance.template_name || 'deleted'}`}
+            onClick={canOpenTemplate && controls.allow_template_link && instance.template_id ? () => navigate(`/template/${instance.template_id}`) : undefined}
             icon={tileIcon(<><rect x="3" y="3" width="18" height="18" rx="2" /><line x1="3" y1="9" x2="21" y2="9" /><line x1="9" y1="21" x2="9" y2="9" /></>)}
           />
           <InfoTile
             label="External ID"
-            value={<span className="ks-mono">{instance.external_id || '—'}</span>}
-            hint="driver-side ID"
+            value={<span className="ks-mono">{copied ? 'Copied!' : (instance.external_id || '—')}</span>}
+            hint={instance.external_id ? (copied ? 'copied to clipboard' : controls.allow_external_id_copy ? 'driver-side ID — click to copy' : 'driver-side ID') : 'driver-side ID'}
             accent="var(--ks-faint)"
-            title={instance.external_id || 'No external ID yet'}
+            title={instance.external_id ? (copied ? 'Copied!' : controls.allow_external_id_copy ? `Click to copy: ${instance.external_id}` : instance.external_id) : 'No external ID yet'}
+            onClick={instance.external_id && controls.allow_external_id_copy ? () => void onCopyId() : undefined}
             icon={tileIcon(<><line x1="4" y1="9" x2="20" y2="9" /><line x1="4" y1="15" x2="20" y2="15" /><line x1="10" y1="3" x2="8" y2="21" /><line x1="16" y1="3" x2="14" y2="21" /></>)}
           />
           {/* Lifecycle — Created + Updated share one card, side by side. */}
@@ -648,11 +639,10 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
         </div>
       )}
 
-      {tab === 'manage' && (
-        <>
-          {/* Rename — the only manage control that isn't a page action.
-              Reinstall / Destroy / editors live once, in the top-right
-              pill above, so nothing appears twice. */}
+      {tab === 'manage' && controls.show_manage_tab && (
+        <div className="space-y-4">
+          {/* Rename */}
+          {controls.allow_rename && (
           <div className="ks-card">
             <h3 className="text-sm font-semibold text-white">Rename</h3>
             <p className="text-xs text-gray-500 mt-1 mb-3">
@@ -683,10 +673,70 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
             )}
             {renameMsg && <p className="text-xs text-gray-400 mt-2">{renameMsg}</p>}
           </div>
-        </>
+          )}
+
+          {/* Advanced config — replaces the old pill's "Edit advanced config" entry. */}
+          {canControl && controls.allow_edit_advanced && (
+            <div className="ks-card">
+              <h3 className="text-sm font-semibold text-white">Advanced config</h3>
+              <p className="text-xs text-gray-500 mt-1 mb-3">
+                Edit ports, env, volumes and other driver options for this instance.
+              </p>
+              <button
+                type="button"
+                onClick={() => navigate(`/instance/${instanceId}/edit`)}
+                className="ks-btn-form"
+              >
+                Edit advanced config
+              </button>
+            </div>
+          )}
+
+          {/* Danger zone — replaces the old pill's Reinstall / Destroy entries. */}
+          {(controls.allow_reinstall || controls.allow_destroy) && (
+          <div className="ks-card border-red-500/20">
+            <h3 className="text-sm font-semibold text-red-300">Danger zone</h3>
+            <p className="text-xs text-gray-500 mt-1 mb-3">
+              Destructive actions. Reinstall wipes the workload and redeploys it from the
+              stored spec; destroy removes it from the edge and the panel.
+            </p>
+            {canControl ? (
+              <div className="flex flex-col sm:flex-row gap-2">
+                {controls.allow_reinstall && (
+                <button
+                  type="button"
+                  onClick={() => void onReinstall()}
+                  disabled={reinstallBusy || deleteBusy}
+                  className="ks-btn-form border-red-500/30 text-red-300 hover:bg-red-500/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {reinstallBusy ? 'Reinstalling…' : 'Reinstall'}
+                </button>
+                )}
+                {controls.allow_destroy && (
+                <button
+                  type="button"
+                  onClick={() => void onDelete()}
+                  disabled={reinstallBusy || deleteBusy}
+                  className="ks-btn-form border-red-500/30 text-red-300 hover:bg-red-500/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {deleteBusy ? 'Destroying…' : 'Destroy'}
+                </button>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-500">You need instance edit permission to reinstall or destroy.</p>
+            )}
+          </div>
+          )}
+          {(!controls.allow_rename && !controls.allow_edit_advanced && !controls.allow_reinstall && !controls.allow_destroy) && (
+            <div className="ks-card">
+              <p className="text-xs text-gray-500">All manage actions are disabled for this template.</p>
+            </div>
+          )}
+        </div>
       )}
 
-      {tab === 'activity' && (
+      {tab === 'activity' && controls.show_activity_tab && (
         <div className="ks-card">
           <h3 className="text-sm font-semibold text-white">Activity</h3>
           <p className="text-xs text-gray-500 mt-1 mb-3">Audit trail for this instance only.</p>

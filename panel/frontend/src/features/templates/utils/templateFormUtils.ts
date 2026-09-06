@@ -2,6 +2,7 @@
 
 import type { TemplateFormState, PortMapping, Mount, ResourceLimits, FeatureCaps, EnvVariable, InstallStep, TemplateAction, ActionStep, Label, Device, Healthcheck, Advanced, KvRuntime, MpRuntime, LxdRuntime, PageOverride, RestartPolicy, NetworkMode, LogLevel, InstallAction } from '../types/templateForm';
 import { parsePageActions, parsePageComponents, parsePageConfigure } from '@/features/instance-pages/types/instancePage';
+import { DEFAULT_INSTANCE_CONTROLS, isControlsCustom, resolveInstanceControls } from '@/features/instances/utils/instanceControls';
 // emptyForm is a runtime value (not a type) — it seeds every partial
 // `advanced` produced below so serializeSpec can keep assuming the full
 // Advanced shape (it reads e.g. f.advanced.dns.split(',') unguarded).
@@ -164,6 +165,12 @@ export function serializeSpec(f: TemplateFormState): string {
       }
       return out;
     }),
+    // Built-in Instance controls allow-list. Persisted only when the author
+    // changed something off the allow-all default, so old templates (no
+    // key) and untouched new ones both resolve to allow-all.
+    ...(isControlsCustom(f.instance_controls)
+      ? { instance_controls: { ...f.instance_controls } }
+      : {}),
     advanced: {
       startup_command: f.advanced.startup_command,
       stop_command: f.advanced.stop_command,
@@ -499,6 +506,8 @@ export function parseSpec(raw: string): Partial<TemplateFormState> {
       });
       out.pages = pages;
     }
+    // Built-in Instance controls: missing = allow-all default (old specs).
+    out.instance_controls = resolveInstanceControls(s as Record<string, any>);
     if (Array.isArray(s.devices)) {
       out.devices = s.devices.map((d: any) => ({
         host: String(d.host ?? ''),

@@ -372,13 +372,15 @@ func lifecycleErrSuffix(errText string) string {
 // ----- Metrics --------------------------------------------------------------
 
 func MetricsHandler(w http.ResponseWriter, r *http.Request) {
-	// The metrics feed powers the Home page's resource tiles (RAM / CPU /
-	// disk) as well as the Metrics page itself, so an instance whose
-	// template enabled either page may read it. Instances with neither get
-	// the same structured 403 as before.
-	if !guardInstancePageAny(w, r, "metrics", "home", ".") {
-		return
-	}
+	// The metrics feed powers the BUILT-IN panel UI: the floating instance
+	// menu's status row (InstanceInfoRow) and the More → Overview
+	// Monitoring tab (InstanceOverview). Those are native panel features,
+	// not custom instance pages, so this endpoint is intentionally NOT
+	// gated by guardInstancePageAny — requiring a "metrics"/"home" custom
+	// page left CPU/RAM/disk blank ("—") until the operator imported one
+	// from the marketplace. Auth is still enforced: server.go requires a
+	// VIEW_INSTANCES-family permission, and loadInstNode below enforces
+	// the Own-vs-All ownership scope.
 	inst, ec, _, ok := loadInstNode(w, r)
 	if !ok {
 		return

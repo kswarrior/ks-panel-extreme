@@ -1,0 +1,181 @@
+import React from 'react';
+import type { InstanceControls, OverviewDefaultTab } from '@/features/instances/utils/instanceControls';
+import { DEFAULT_INSTANCE_CONTROLS } from '@/features/instances/utils/instanceControls';
+
+export interface ControlsSectionProps {
+  controls: InstanceControls;
+  onUpdate: (patch: Partial<InstanceControls>) => void;
+  onReset?: () => void;
+  sectionCls: string;
+  labelCls: string;
+}
+
+const MiniToggle: React.FC<{ checked: boolean; onChange: (v: boolean) => void; label: string; hint?: string }> = ({
+  checked,
+  onChange,
+  label,
+  hint,
+}) => (
+  <label className="flex items-start justify-between gap-3 py-1.5 cursor-pointer" title={hint}>
+    <span className="min-w-0">
+      <span className="block text-sm text-gray-200">{label}</span>
+      {hint && <span className="block text-[11px] text-gray-500 mt-0.5">{hint}</span>}
+    </span>
+    <button
+      type="button"
+      onClick={(e) => {
+        e.preventDefault();
+        onChange(!checked);
+      }}
+      className={`relative w-9 h-5 rounded-full transition shrink-0 mt-0.5 ${checked ? 'bg-green-600' : 'bg-neutral-700'}`}
+      aria-pressed={checked}
+      aria-label={label}
+    >
+      <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition ${checked ? 'translate-x-4' : ''}`} />
+    </button>
+  </label>
+);
+
+const CheckRow: React.FC<{ checked: boolean; onChange: (v: boolean) => void; label: string; hint?: string; disabled?: boolean }> = ({
+  checked,
+  onChange,
+  label,
+  hint,
+  disabled,
+}) => (
+  <label
+    className={`flex items-start gap-2.5 py-1.5 ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+    title={hint}
+  >
+    <input
+      type="checkbox"
+      checked={checked}
+      disabled={disabled}
+      onChange={(e) => onChange(e.target.checked)}
+      className="mt-1 h-4 w-4 shrink-0 accent-emerald-500"
+    />
+    <span className="min-w-0">
+      <span className="block text-sm text-gray-200">{label}</span>
+      {hint && <span className="block text-[11px] text-gray-500 mt-0.5">{hint}</span>}
+    </span>
+  </label>
+);
+
+export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
+  controls,
+  onUpdate,
+  onReset,
+  sectionCls,
+  labelCls,
+}) => {
+  const c = controls;
+  const powerCount = [c.allow_start, c.allow_stop, c.allow_restart, c.allow_kill].filter(Boolean).length;
+  const tabCount = [c.show_details_tab, c.show_monitoring_tab, c.show_manage_tab, c.show_activity_tab].filter(Boolean).length;
+
+  return (
+    <div className="space-y-4">
+      <div className={sectionCls}>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div>
+            <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">Instance Controls · Floating menu</h4>
+            <p className="text-xs text-gray-500">What the draggable Instance controls menu may show for instances of this template.</p>
+          </div>
+          {onReset && (
+            <button type="button" onClick={onReset} className="text-xs text-sky-300 hover:text-sky-200 underline" title="Reset all controls to allow-all">
+              Reset to allow all
+            </button>
+          )}
+        </div>
+
+        <MiniToggle
+          checked={c.show_info_row}
+          onChange={(v) => onUpdate({ show_info_row: v })}
+          label="Show status info row"
+          hint="Uptime / status + type badge + live stats box at the top of the menu"
+        />
+
+        <div className="rounded-md border border-white/10 bg-black/20 px-3 py-1 mt-1">
+          <p className={labelCls}>Live stats (checkboxes)</p>
+          <CheckRow checked={c.show_cpu} disabled={!c.show_info_row} onChange={(v) => onUpdate({ show_cpu: v })} label="CPU" hint="Live CPU % in the info row" />
+          <CheckRow checked={c.show_ram} disabled={!c.show_info_row} onChange={(v) => onUpdate({ show_ram: v })} label="RAM" hint="Live memory usage in the info row" />
+          <CheckRow checked={c.show_disk} disabled={!c.show_info_row} onChange={(v) => onUpdate({ show_disk: v })} label="Disk" hint="Live disk usage in the info row" />
+        </div>
+
+        <div className="rounded-md border border-white/10 bg-black/20 px-3 py-1">
+          <p className={labelCls}>Power buttons (checkboxes · {powerCount} of 4 allowed)</p>
+          <CheckRow checked={c.allow_start} onChange={(v) => onUpdate({ allow_start: v })} label="Start" hint="Show Start when stopped / errored" />
+          <CheckRow checked={c.allow_stop} onChange={(v) => onUpdate({ allow_stop: v })} label="Stop" hint="Graceful stop while running" />
+          <CheckRow checked={c.allow_restart} onChange={(v) => onUpdate({ allow_restart: v })} label="Restart" hint="Restart while running" />
+          <CheckRow checked={c.allow_kill} onChange={(v) => onUpdate({ allow_kill: v })} label="Kill" hint="Force-stop (confirm dialog) while running" />
+        </div>
+
+        <MiniToggle
+          checked={c.allow_template_actions}
+          onChange={(v) => onUpdate({ allow_template_actions: v })}
+          label="Template actions"
+          hint="Run/Stop selector for template-defined actions at the bottom of the menu"
+        />
+      </div>
+
+      <div className={sectionCls}>
+        <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">More page · Overview tabs</h4>
+        <p className="text-xs text-gray-500">Which tabs the More → Overview page offers. At least one tab must stay on — the page falls back to the first allowed tab.</p>
+        <div className="rounded-md border border-white/10 bg-black/20 px-3 py-1 mt-2">
+          <p className={labelCls}>Visible tabs (checkboxes · {tabCount} of 4 on)</p>
+          <CheckRow checked={c.show_details_tab} onChange={(v) => onUpdate({ show_details_tab: v })} label="Details" hint="Tiles: container, node, template, external ID, lifecycle" />
+          <CheckRow checked={c.show_monitoring_tab} onChange={(v) => onUpdate({ show_monitoring_tab: v })} label="Monitoring" hint="Live CPU / RAM / disk tiles + graphs" />
+          <CheckRow checked={c.show_manage_tab} onChange={(v) => onUpdate({ show_manage_tab: v })} label="Manage" hint="Rename + advanced config + danger zone" />
+          <CheckRow checked={c.show_activity_tab} onChange={(v) => onUpdate({ show_activity_tab: v })} label="Activity" hint="Per-instance audit trail" />
+        </div>
+        <div className="mt-2">
+          <label className={labelCls}>Default tab (dropdown)</label>
+          <select
+            value={c.default_tab}
+            onChange={(e) => onUpdate({ default_tab: e.target.value as OverviewDefaultTab })}
+            className="glass-field w-full sm:max-w-xs"
+            aria-label="Default overview tab"
+          >
+            <option value="details">Details</option>
+            <option value="monitoring">Monitoring</option>
+            <option value="manage">Manage</option>
+            <option value="activity">Activity</option>
+          </select>
+          <p className="text-[11px] text-gray-500 mt-1">If the default tab is hidden, the page opens the first visible tab instead.</p>
+        </div>
+      </div>
+
+      <div className={sectionCls}>
+        <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">More page · Manage actions</h4>
+        <p className="text-xs text-gray-500">Destructive and mutating buttons inside the Manage tab.</p>
+        <div className="divide-y divide-white/5">
+          <MiniToggle checked={c.allow_rename} onChange={(v) => onUpdate({ allow_rename: v })} label="Rename" hint="Display-name editor" />
+          <MiniToggle checked={c.allow_edit_advanced} onChange={(v) => onUpdate({ allow_edit_advanced: v })} label="Edit advanced config" hint="Ports / env / volumes editor entry" />
+          <MiniToggle checked={c.allow_reinstall} onChange={(v) => onUpdate({ allow_reinstall: v })} label="Reinstall" hint="Wipe + redeploy from stored spec (confirm dialog)" />
+          <MiniToggle checked={c.allow_destroy} onChange={(v) => onUpdate({ allow_destroy: v })} label="Destroy" hint="Driver destroy + remove row (confirm dialog)" />
+        </div>
+      </div>
+
+      <div className={sectionCls}>
+        <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">More page · Details shortcuts</h4>
+        <p className="text-xs text-gray-500">What clicking Details tiles may do.</p>
+        <div className="divide-y divide-white/5">
+          <MiniToggle checked={c.allow_external_id_copy} onChange={(v) => onUpdate({ allow_external_id_copy: v })} label="External ID copy" hint="Click the External ID tile to copy the driver-side ID" />
+          <MiniToggle checked={c.allow_node_link} onChange={(v) => onUpdate({ allow_node_link: v })} label="Node link" hint="Click the Node tile to open its node" />
+          <MiniToggle checked={c.allow_template_link} onChange={(v) => onUpdate({ allow_template_link: v })} label="Template link" hint="Click the Template tile to open its template" />
+        </div>
+      </div>
+
+      <p className="text-[11px] text-gray-500">
+        Empty / old templates allow everything. Saved per template and snapshotted into each new instance on deploy — existing instances keep their own copy.
+        Current: {isCustomNote(c)}
+      </p>
+    </div>
+  );
+};
+
+function isCustomNote(c: InstanceControls): string {
+  const d = DEFAULT_INSTANCE_CONTROLS;
+  const off = (Object.keys(d) as (keyof InstanceControls)[]).filter((k) => c[k] !== d[k]);
+  if (off.length === 0) return 'allow-all (nothing restricted)';
+  return `${off.length} restriction${off.length === 1 ? '' : 's'}: ${off.join(', ')}`;
+}

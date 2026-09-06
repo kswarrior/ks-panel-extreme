@@ -1,6 +1,8 @@
 // TemplateForm types - extracted from TemplateForm.tsx
 
 import type { InstancePageSubPage } from '@/features/instance-pages/types/instancePage';
+import type { InstanceControls } from '@/features/instances/utils/instanceControls';
+import { DEFAULT_INSTANCE_CONTROLS } from '@/features/instances/utils/instanceControls';
 
 export type DriverKind = 'docker' | 'lxd' | 'kvm' | 'multipass';
 
@@ -294,6 +296,9 @@ export interface TemplateFormState {
   healthcheck: Healthcheck;
   advanced: Advanced;
   pages: PageOverride[];
+  // Built-in Instance controls allow-list (spec.instance_controls).
+  // Snapshotted into instance.Config on deploy. Missing = allow all.
+  instance_controls: InstanceControls;
 }
 
 export type TemplateTabId =
@@ -306,6 +311,7 @@ export type TemplateTabId =
   | 'labels'
   | 'healthcheck'
   | 'pages'
+  | 'controls'
   | 'spec';
 
 export const TEMPLATE_TABS: Array<{ id: TemplateTabId; label: string }> = [
@@ -318,6 +324,7 @@ export const TEMPLATE_TABS: Array<{ id: TemplateTabId; label: string }> = [
   { id: 'labels', label: 'Labels & Devices' },
   { id: 'healthcheck', label: 'Healthcheck' },
   { id: 'pages', label: 'Pages' },
+  { id: 'controls', label: 'Instance Controls' },
   { id: 'spec', label: 'Spec Preview' },
 ];
 
@@ -375,6 +382,7 @@ export const emptyForm: TemplateFormState = {
   labels: [],
   devices: [],
   pages: [],
+  instance_controls: { ...DEFAULT_INSTANCE_CONTROLS },
   healthcheck: {
     enabled: false,
     test_command: '',

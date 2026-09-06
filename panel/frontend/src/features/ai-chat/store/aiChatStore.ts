@@ -1,4 +1,5 @@
 import create from 'zustand';
+import { useAuthStore } from '@/shared/stores/authStore';
 import {
   approveAITicket,
   createAIThread,
@@ -51,6 +52,12 @@ interface AIChatState {
   retrying: boolean;
   retryAttempt: number;
   retryMax: number;
+  // Per-user floating-button visibility (profile dropdown toggle). When
+  // hidden the FAB disappears but the chat stays reachable via the
+  // profile menu's "Open AI assistant" row.
+  fabHidden: boolean;
+  setFabHidden: (v: boolean) => void;
+  refreshFabPref: () => void;
   setOpen: (v: boolean) => void;
   toggle: () => void;
   setModelOverride: (v: string) => void;
@@ -67,6 +74,28 @@ interface AIChatState {
 }
 
 const THREAD_KEY = 'ai-chat-thread';
+const FAB_KEY = 'ai-chat-fab-hidden';
+
+// Per-user FAB visibility: the key is namespaced by the active account id
+// so each user on a shared browser keeps their own toggle. Falls back to
+// the un-namespaced key when no account is known yet.
+function fabKey(): string {
+  try {
+    const st = useAuthStore.getState();
+    const id = st.activeAccountId ?? st.user?.id ?? null;
+    return id != null ? `${FAB_KEY}:${id}` : FAB_KEY;
+  } catch {
+    return FAB_KEY;
+  }
+}
+
+function loadFabHidden(): boolean {
+  try {
+    return window.localStorage.getItem(fabKey()) === '1';
+  } catch {
+    return false;
+  }
+}
 
 function storedThreadId(): number | null {
   try {
@@ -117,6 +146,19 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
   retrying: false,
   retryAttempt: 0,
   retryMax: 0,
+  fabHidden: loadFabHidden(),
+
+  setFabHidden: (v) => {
+    try {
+      window.localStorage.setItem(fabKey(), v ? '1' : '0');
+    } catch {
+      // Storage blocked — still applies for this session.
+    }
+    set({ fabHidden: v });
+  },
+  // Re-read the toggle for the current account (call on login / account
+  // switch so a shared browser picks up each user's own preference).
+  refreshFabPref: () => set({ fabHidden: loadFabHidden() }),
 
   setOpen: (v) => set({ open: v }),
   toggle: () => set((s) => ({ open: !s.open })),
@@ -428,6 +470,10 @@ async function runPrompt(
           continue;
         }
         set((s) => ({
+          // Drop the placeholder bubble when nothing ever streamed into
+          // it — otherwise its empty content renders as a stuck
+          // "Thinking…" above the error card. Partial replies are kept.
+          messages: s.messages.filter((m) => m.id !== streamId || m.content.trim() !== ''),
           loading: false,
           streaming: false,
           retrying: false,

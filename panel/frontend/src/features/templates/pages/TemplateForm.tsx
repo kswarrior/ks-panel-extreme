@@ -17,8 +17,10 @@ import {
   TemplateRuntimeSection,
   TemplateLabelsDevicesSection,
   TemplateHealthcheckSection,
+  TemplateControlsSection,
   TemplateSpecPreviewSection,
 } from '@/features/templates/components/TemplateForm';
+import { DEFAULT_INSTANCE_CONTROLS } from '@/features/instances/utils/instanceControls';
 import { TagPicker, Toggle, TemplateTabs, CustomPageStudio } from '../components/TemplateFormComponents';
 import IconColorPicker, { CardIconTile } from '@/shared/components/ui/IconColorPicker';
 import FormSkeleton from '@/shared/components/ui/FormSkeleton';
@@ -723,6 +725,16 @@ const TemplateForm: React.FC = () => {
             addBtn={addBtn}
           />
           </>
+        )}
+
+        {tab === 'controls' && (
+          <TemplateControlsSection
+            controls={form.instance_controls}
+            onUpdate={(patch) => setForm((f) => ({ ...f, instance_controls: { ...f.instance_controls, ...patch } }))}
+            onReset={() => setForm((f) => ({ ...f, instance_controls: { ...DEFAULT_INSTANCE_CONTROLS } }))}
+            sectionCls={sectionCls}
+            labelCls={labelCls}
+          />
         )}
 
         {tab === 'pages' && (

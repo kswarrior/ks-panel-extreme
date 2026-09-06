@@ -55,7 +55,7 @@ interface InstanceAdvancedOptionsFullScreenProps {
   onSubmit?: (e: React.FormEvent) => void;
 }
 
-const ADVANCED_TABS = TEMPLATE_TABS.filter((t) => t.id !== 'general');
+const ADVANCED_TABS = TEMPLATE_TABS.filter((t) => t.id !== 'general' && t.id !== 'controls');
 
 const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScreenProps> = ({
   selectedTemplate,

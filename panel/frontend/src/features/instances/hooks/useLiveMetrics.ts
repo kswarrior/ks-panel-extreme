@@ -44,17 +44,19 @@ function toPoint(m: MetricsSnapshot): LivePoint {
 
 // useLiveMetrics polls the instance's live metrics endpoint (the same feed
 // the Home page tiles read) while `live`, keeping a history ring for
-// graphs plus the latest point for tiles.
+// graphs plus the latest point for tiles. The endpoint is self-sufficient:
+// it serves the built-in menu + Overview without requiring any custom
+// instance page.
 //
 // Failure policy: transient errors keep the last snapshot (reads as '—'
-// only when nothing ever arrived). A 403 — the backend's answer when the
-// instance exposes no metrics/home page — stops polling until `live`
-// flips, instead of hammering a guaranteed denial every few seconds.
+// only when nothing ever arrived). A 403 — ownership scope denial — stops
+// polling until `live` flips, instead of hammering a guaranteed denial
+// every few seconds.
 export function useLiveMetrics(
   instanceId: number,
   live: boolean,
   opts?: { intervalMs?: number; keep?: number },
-): { latest: LivePoint | null; history: LivePoint[] } {
+): { latest: LivePoint | null; history: LivePoint[]; loading: boolean; denied: boolean } {
   const intervalMs = opts?.intervalMs ?? 4000;
   const keep = opts?.keep ?? 60;
   const [denied, setDenied] = useState(false);
@@ -92,5 +94,12 @@ export function useLiveMetrics(
     };
   }, [instanceId, live, denied, intervalMs, keep]);
 
-  return { latest: history.length > 0 ? history[history.length - 1] : null, history };
+  return {
+    latest: history.length > 0 ? history[history.length - 1] : null,
+    history,
+    // Loading = waiting for the first snapshot while live. Lets callers
+    // render a skeleton instead of the '—' placeholder.
+    loading: live && history.length === 0 && !denied,
+    denied,
+  };
 }

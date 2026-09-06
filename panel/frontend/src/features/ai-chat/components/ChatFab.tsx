@@ -5,9 +5,11 @@ import { PermissionKey, hasPermissionAny } from '@/shared/types/permissions';
 import { useAIChatStore } from '../store/aiChatStore';
 
 // Bottom-right FAB that opens the panel-wide AI assistant. Mounted once in
-// App beside ConfirmDialog; hidden on /auth and for roles without any
+// App beside ConfirmDialog; hidden on /auth, for roles without any
 // chat-capable AI key (umbrella or Q&A/Tools/Writes — threads-only holders
-// manage history via API but get no composer, mirroring the backend gate).
+// manage history via API but get no composer, mirroring the backend gate),
+// and when the user switched it off in the profile dropdown (per-user pref
+// — the chat then opens from the profile menu instead).
 export const AI_CHAT_KEYS = [
   PermissionKey.AI_CHAT_USE,
   PermissionKey.AI_CHAT_QA,
@@ -24,9 +26,11 @@ const ChatFab: React.FC = () => {
   const permissions = useAuthStore((s) => s.permissions);
   const open = useAIChatStore((s) => s.open);
   const toggle = useAIChatStore((s) => s.toggle);
+  const fabHidden = useAIChatStore((s) => s.fabHidden);
 
   if (location.pathname.startsWith('/auth')) return null;
   if (!canOpenAIChat(permissions)) return null;
+  if (fabHidden) return null;
 
   return (
     <button

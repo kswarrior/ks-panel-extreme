@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useInstance } from '@/shared/hooks/useInstance';
 import { useLiveMetrics } from '../hooks/useLiveMetrics';
+import { resolveInstanceControls } from '../utils/instanceControls';
 import { KindIcon } from './InstanceFormComponents';
 import { KIND_META, kindKey } from '../types/instanceForm';
 
@@ -15,8 +16,10 @@ import { KIND_META, kindKey } from '../types/instanceForm';
 //   • any other state → status dot + label only (no uptime)
 //
 // RAM / CPU / disk are SVG icon + live value only (no word labels); the
-// values poll the instance's live metrics endpoint while running and show
-// '—' when the instance isn't running or metrics are unavailable.
+// values poll the instance's live metrics endpoint while running. While the
+// first snapshot is in flight a skeleton shimmer renders instead of the
+// '—' placeholder; '—' only shows when the instance isn't running or
+// metrics are unavailable/denied.
 
 // Status dot + label — mirrors InstanceCard's STATUS_META so the menu
 // agrees with the fleet cards.
@@ -72,6 +75,41 @@ function fmtPctShort(n: number | null): string {
   return `${Number.isInteger(n) ? n : Math.round(n * 10) / 10}%`;
 }
 
+// MetricValueSkeleton — shimmer bar used while the first live snapshot is
+// in flight, so the row never flashes a '—' placeholder before real data
+// (e.g. RAM '—' → '1 GB') arrives.
+const MetricValueSkeleton: React.FC<{ widthClass?: string }> = ({ widthClass = 'w-10' }) => (
+  <span
+    aria-hidden="true"
+    className={`inline-block h-3 rounded bg-white/10 animate-pulse ${widthClass}`}
+  />
+);
+
+// MenuRowSkeleton — loading shape that mirrors the real info card (status
+// line + divider + three stat slots) so the menu doesn't jump when data
+// arrives.
+const MenuRowSkeleton: React.FC = () => (
+  <div
+    className="flex flex-col gap-1.5 rounded-md border border-white/5 bg-white/[0.02] px-2.5 py-2 animate-pulse"
+    aria-hidden="true"
+  >
+    <div className="flex items-center gap-2">
+      <div className="h-3.5 w-16 rounded bg-white/10" />
+      <div className="w-px h-4 bg-white/10 shrink-0" />
+      <div className="h-5 w-20 rounded border border-white/5 bg-white/5" />
+    </div>
+    <div className="border-t border-white/5" />
+    <div className="flex items-center gap-3">
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="inline-flex items-center gap-1">
+          <div className="w-4 h-4 rounded bg-white/10" />
+          <div className="h-3 w-10 rounded bg-white/10" />
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
 const InstanceInfoRow: React.FC = () => {
   const { id } = useParams();
   const instanceId = Number(id);
@@ -83,13 +121,19 @@ const InstanceInfoRow: React.FC = () => {
   );
   const isRunning = instance?.status === 'running';
 
-  // Live resource stats — only polled while running; anything missing
-  // renders as '—'. Hooks stay above the early returns so hook order is
-  // stable across loading → loaded renders.
-  const { latest: metrics } = useLiveMetrics(instanceId, isRunning);
+  // Live resource stats — only polled while running. While the first
+  // snapshot is pending we render skeletons (never '—'); '—' is reserved
+  // for not-running / denied / unavailable. Hooks stay above the early
+  // returns so hook order is stable across loading → loaded renders.
+  const { latest: metrics, loading: metricsLoading } = useLiveMetrics(instanceId, isRunning);
+
+  // Template allow-list (instance.Config snapshot, allow-all default).
+  const controls = useMemo(() => resolveInstanceControls(instance?.config), [instance?.config]);
 
   if (!Number.isFinite(instanceId)) return null;
   if (!instance && !loading) return null;
+  // Template author hid the whole info row for this template.
+  if (instance && !controls.show_info_row) return null;
 
   const sm = (instance && STATUS_META[instance.status]) ||
     { dot: 'bg-gray-500', label: instance?.status || '—' };
@@ -105,11 +149,7 @@ const InstanceInfoRow: React.FC = () => {
   return (
     <div className="shrink-0 px-3 pt-2">
       {loading && !instance ? (
-        <div className="flex items-center gap-2 animate-pulse" aria-hidden="true">
-          {[0, 1].map((i) => (
-            <div key={i} className="h-3.5 w-14 rounded bg-neutral-800" />
-          ))}
-        </div>
+        <MenuRowSkeleton />
       ) : (
         <div className="flex flex-col gap-1.5 rounded-md border border-white/5 bg-white/[0.02] px-2.5 py-2">
           {/* Line 1: status / uptime + type. */}
@@ -145,31 +185,78 @@ const InstanceInfoRow: React.FC = () => {
               </span>
             </span>
           </div>
-          {/* Line 2: live resource stats — SVG icon + value only, no word labels. */}
-          <div className="border-t border-white/5" aria-hidden="true" />
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span
-              className="inline-flex items-center gap-1 text-sky-300"
-              title={cpuV !== null ? `CPU (live): ${fmtPctShort(cpuV)}` : 'CPU (live): unavailable'}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1.5" /><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2" /></svg>
-              <span className="text-[11px] tabular-nums text-gray-200">{fmtPctShort(cpuV)}</span>
-            </span>
-            <span
-              className="inline-flex items-center gap-1 text-emerald-300"
-              title={memUsed !== null ? `RAM (live): ${fmtBytesShort(memUsed)}${memTotal !== null ? ` / ${fmtBytesShort(memTotal)}` : ''}` : 'RAM (live): unavailable'}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><rect x="2" y="8" width="20" height="9" rx="1.5" /><path d="M6 8v3M10 8v3M14 8v3M18 8v3" /></svg>
-              <span className="text-[11px] tabular-nums text-gray-200">{fmtBytesShort(memUsed)}</span>
-            </span>
-            <span
-              className="inline-flex items-center gap-1 text-amber-300"
-              title={diskUsed !== null ? `Disk (live): ${fmtBytesShort(diskUsed)}${diskTotal !== null ? ` / ${fmtBytesShort(diskTotal)}` : ''}` : 'Disk (live): unavailable'}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><ellipse cx="12" cy="5.5" rx="8" ry="3" /><path d="M4 5.5v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6" /></svg>
-              <span className="text-[11px] tabular-nums text-gray-200">{fmtBytesShort(diskUsed)}</span>
-            </span>
-          </div>
+          {/* Line 2: live resource stats — SVG icon + value only, no word labels.
+              While running + waiting for the first snapshot, shimmer
+              skeletons render instead of '—' so values pop in without a
+              placeholder flash. Each stat honours the template allow-list. */}
+          {(() => {
+            const showStats = controls.show_cpu || controls.show_ram || controls.show_disk;
+            if (!showStats) return null;
+            return (
+              <>
+                <div className="border-t border-white/5" aria-hidden="true" />
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  {controls.show_cpu && (
+                    <span
+                      className="inline-flex items-center gap-1 text-sky-300"
+                      title={
+                        metricsLoading && isRunning
+                          ? 'CPU (live): loading…'
+                          : cpuV !== null
+                            ? `CPU (live): ${fmtPctShort(cpuV)}`
+                            : 'CPU (live): unavailable'
+                      }
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1.5" /><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2" /></svg>
+                      {metricsLoading && isRunning ? (
+                        <MetricValueSkeleton />
+                      ) : (
+                        <span className="text-[11px] tabular-nums text-gray-200">{fmtPctShort(cpuV)}</span>
+                      )}
+                    </span>
+                  )}
+                  {controls.show_ram && (
+                    <span
+                      className="inline-flex items-center gap-1 text-emerald-300"
+                      title={
+                        metricsLoading && isRunning
+                          ? 'RAM (live): loading…'
+                          : memUsed !== null
+                            ? `RAM (live): ${fmtBytesShort(memUsed)}${memTotal !== null ? ` / ${fmtBytesShort(memTotal)}` : ''}`
+                            : 'RAM (live): unavailable'
+                      }
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><rect x="2" y="8" width="20" height="9" rx="1.5" /><path d="M6 8v3M10 8v3M14 8v3M18 8v3" /></svg>
+                      {metricsLoading && isRunning ? (
+                        <MetricValueSkeleton widthClass="w-12" />
+                      ) : (
+                        <span className="text-[11px] tabular-nums text-gray-200">{fmtBytesShort(memUsed)}</span>
+                      )}
+                    </span>
+                  )}
+                  {controls.show_disk && (
+                    <span
+                      className="inline-flex items-center gap-1 text-amber-300"
+                      title={
+                        metricsLoading && isRunning
+                          ? 'Disk (live): loading…'
+                          : diskUsed !== null
+                            ? `Disk (live): ${fmtBytesShort(diskUsed)}${diskTotal !== null ? ` / ${fmtBytesShort(diskTotal)}` : ''}`
+                            : 'Disk (live): unavailable'
+                      }
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><ellipse cx="12" cy="5.5" rx="8" ry="3" /><path d="M4 5.5v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6" /></svg>
+                      {metricsLoading && isRunning ? (
+                        <MetricValueSkeleton widthClass="w-12" />
+                      ) : (
+                        <span className="text-[11px] tabular-nums text-gray-200">{fmtBytesShort(diskUsed)}</span>
+                      )}
+                    </span>
+                  )}
+                </div>
+              </>
+            );
+          })()}
         </div>
       )}
     </div>

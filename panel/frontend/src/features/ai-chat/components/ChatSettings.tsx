@@ -85,7 +85,36 @@ const ChatSettings: React.FC = () => {
   }, []);
 
   if (loading) {
-    return <p className="px-4 py-6 text-xs text-gray-400 animate-pulse">Loading provider settings…</p>;
+    return (
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4" aria-label="Loading provider settings" aria-busy="true">
+        <div className="space-y-1.5">
+          <div className="h-3 w-20 rounded bg-white/10 animate-pulse" />
+          <div className="h-3 w-full rounded bg-white/5 animate-pulse" />
+        </div>
+        <div className="space-y-3">
+          <div className="h-3 w-24 rounded bg-white/10 animate-pulse" />
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="space-y-1.5">
+              <div className="h-2.5 w-24 rounded bg-white/10 animate-pulse" />
+              <div className="h-8 w-full rounded-md bg-white/5 border border-white/10 animate-pulse" />
+            </div>
+          ))}
+          <div className="flex items-center gap-2">
+            <div className="h-7 w-28 rounded-md bg-white/10 animate-pulse" />
+            <div className="h-3 flex-1 rounded bg-white/5 animate-pulse" />
+          </div>
+        </div>
+        <div className="space-y-3">
+          <div className="h-3 w-16 rounded bg-white/10 animate-pulse" />
+          <div className="h-10 w-full rounded-md bg-white/5 animate-pulse" />
+          <div className="grid grid-cols-2 gap-2">
+            <div className="h-8 rounded-md bg-white/5 animate-pulse" />
+            <div className="h-8 rounded-md bg-white/5 animate-pulse" />
+          </div>
+        </div>
+        <p className="sr-only">Loading provider settings…</p>
+      </div>
+    );
   }
 
   if (!cfg) {

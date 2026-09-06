@@ -82,8 +82,8 @@ export const Toggle: React.FC<ToggleProps> = ({ checked, onChange, label }) => (
   </label>
 );
 
-export const TemplateTabs: React.FC<{ tab: TemplateTabId; onChange: (id: TemplateTabId) => void; tabs?: typeof TEMPLATE_TABS }> = ({ tab, onChange, tabs }) => {
-  const meta: Record<TemplateTabId, { label: string; hint: string; icon: React.ReactNode }> = {
+export const TemplateTabs = <T extends string>({ tab, onChange, tabs }: { tab: T; onChange: (id: T) => void; tabs?: Array<{ id: string; label: string }> }) => {
+  const meta = {
     general: { label: 'General', hint: 'Name, image, kind, category', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/> </svg> },
     environment: { label: 'Environment', hint: 'Ports, mounts, limits, caps', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/> </svg> },
     env: { label: 'Env Variables', hint: 'Variables exposed to users', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/> </svg> },
@@ -93,10 +93,11 @@ export const TemplateTabs: React.FC<{ tab: TemplateTabId; onChange: (id: Templat
     labels: { label: 'Labels & Devices', hint: 'Labels and device mounts', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><circle cx="7.5" cy="15.5" r="3.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/> </svg> },
     healthcheck: { label: 'Healthcheck', hint: 'Health check config', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M12 21s-6-4-8-8a6 6 0 1 1 12 0c-2 4-4 8-4 8z"/> </svg> },
     pages: { label: 'Pages', hint: 'Instance pages selection', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M4 6h16M4 12h16M4 18h10"/> </svg> },
+    controls: { label: 'Instance Controls', hint: 'Menu + More allow-list', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.5"/><path d="M12 4v5.5"/><path d="M12 14.5V20"/><path d="M4 12h5.5"/><path d="M14.5 12H20"/> </svg> },
     spec: { label: 'Spec Preview', hint: 'Serialized template spec', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M3 7h5l3 5-3 5H3"/><path d="M21 7h-5l-3 5 3 5h5"/></svg> },
-  };
+  } as Record<string, { label: string; hint: string; icon: React.ReactNode }>;
   const tabList = tabs ?? TEMPLATE_TABS;
-  const items = tabList.map(t => ({ id: t.id as TemplateTabId, ...meta[t.id as TemplateTabId] }));
+  const items = tabList.map(t => ({ id: t.id, ...(meta[t.id] ?? { label: t.label, hint: '', icon: null }) }));
   return (
     <>
       {/* Desktop tabs — vertical on the left, sticky while scrolling (node pattern). */}
@@ -108,7 +109,7 @@ export const TemplateTabs: React.FC<{ tab: TemplateTabId; onChange: (id: Templat
               type="button"
               role="tab"
               aria-selected={tab === t.id}
-              onClick={() => onChange(t.id)}
+              onClick={() => onChange(t.id as T)}
               className={`ks-tab w-full flex items-center gap-2 transition text-left ${tab === t.id ? 'ks-tab-active' : ''}`}
             >
               <span className="inline-flex items-center shrink-0">{t.icon}</span>
@@ -137,7 +138,7 @@ export const TemplateTabs: React.FC<{ tab: TemplateTabId; onChange: (id: Templat
             type="button"
             role="tab"
             aria-selected={tab === t.id}
-            onClick={() => onChange(t.id)}
+            onClick={() => onChange(t.id as T)}
             className={`ks-tab shrink-0 flex-none whitespace-nowrap px-3 py-1.5 rounded text-sm text-center transition flex items-center justify-center gap-1.5 ${tab === t.id ? 'ks-tab-active' : ''}`}
           >
             <span className="inline-flex items-center shrink-0">{t.icon}</span>
