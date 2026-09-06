@@ -33,40 +33,83 @@ func validUintString(s string) bool {
 // PanelNameHandler – public endpoint (no auth required) used by the login
 // page and the in-app brand to read the current panel name.
 //
-// Always returns 200 with `{"panel_name":"...","panel_logo":{...}}`, even
-// if the DB read fails (in which case the default name is returned and
-// panel_logo is omitted). This keeps the login UI usable even if the DB is
-// transiently unreachable, AND keeps the "first paint" JS payload the SPA
-// uses to bootstrap its store.
+// Always returns 200 with `{"panel_name":"...", "panel_logo":{...},
+// "panel_name_color":"...", ...}`, even if the DB read fails (in which case
+// the defaults are returned and panel_logo is omitted). This keeps the login
+// UI usable even if the DB is transiently unreachable, AND keeps the "first
+// paint" JS payload the SPA uses to bootstrap its store. Brand-style fields
+// ride along so logged-out pages render the styled name without auth.
 func PanelNameHandler(w http.ResponseWriter, r *http.Request) {
 	con, err := repository.OpenDB()
 	if err != nil {
 		writeJSON(w, map[string]any{
-			"panel_name": repository.DefaultPanelName,
-			"panel_logo": nil,
+			"panel_name":               repository.DefaultPanelName,
+			"panel_logo":               nil,
+			"panel_name_color":         repository.DefaultPanelNameColor,
+			"panel_name_font":          repository.DefaultPanelNameFont,
+			"panel_name_weight":        repository.DefaultPanelNameWeight,
+			"panel_name_size":          repository.DefaultPanelNameSize,
+			"panel_name_effect":        repository.DefaultPanelNameEffect,
+			"panel_name_shadow":        repository.DefaultPanelNameShadow,
+			"panel_name_gradient_from": repository.DefaultPanelNameGradientFrom,
+			"panel_name_gradient_to":   repository.DefaultPanelNameGradientTo,
+			"panel_name_gradient_dir":  repository.DefaultPanelNameGradientDir,
+			"panel_name_italic":        repository.DefaultPanelNameItalic,
+			"panel_name_uppercase":     repository.DefaultPanelNameUppercase,
+			"panel_name_spacing":       repository.DefaultPanelNameSpacing,
+			"panel_logo_size":          repository.DefaultPanelLogoSize,
+			"panel_logo_shape":         repository.DefaultPanelLogoShape,
+			"panel_logo_fit":           repository.DefaultPanelLogoFit,
+			"panel_logo_bg":            repository.DefaultPanelLogoBg,
+			"panel_logo_shadow":        repository.DefaultPanelLogoShadow,
+			"panel_logo_ring":          repository.DefaultPanelLogoRing,
 		})
 		return
 	}
 	defer con.Close()
 
 	repo := repository.NewSettingsRepository(con)
-	name, err := repo.GetPanelName()
+	snap, err := repo.Get()
 	if err != nil {
-		log.Println("PanelNameHandler name error:", err)
-		name = repository.DefaultPanelName
+		log.Println("PanelNameHandler snapshot error:", err)
+		writeJSON(w, map[string]any{
+			"panel_name": repository.DefaultPanelName,
+			"panel_logo": nil,
+		})
+		return
 	}
 	out := map[string]any{
-		"panel_name": name,
-		"panel_logo": nil,
+		"panel_name":               snap.PanelName,
+		"panel_logo":               nil,
+		"panel_name_color":         snap.PanelNameColor,
+		"panel_name_font":          snap.PanelNameFont,
+		"panel_name_weight":        snap.PanelNameWeight,
+		"panel_name_size":          snap.PanelNameSize,
+		"panel_name_effect":        snap.PanelNameEffect,
+		"panel_name_shadow":        snap.PanelNameShadow,
+		"panel_name_gradient_from": snap.PanelNameGradientFrom,
+		"panel_name_gradient_to":   snap.PanelNameGradientTo,
+		"panel_name_gradient_dir":  snap.PanelNameGradientDir,
+		"panel_name_italic":        snap.PanelNameItalic,
+		"panel_name_uppercase":     snap.PanelNameUppercase,
+		"panel_name_spacing":       snap.PanelNameSpacing,
+		"panel_logo_size":          snap.PanelLogoSize,
+		"panel_logo_shape":         snap.PanelLogoShape,
+		"panel_logo_fit":           snap.PanelLogoFit,
+		"panel_logo_bg":            snap.PanelLogoBg,
+		"panel_logo_shadow":        snap.PanelLogoShadow,
+		"panel_logo_ring":          snap.PanelLogoRing,
 	}
-	logo, ok, err := repo.GetPanelLogo()
-	if err != nil {
-		log.Println("PanelNameHandler logo error:", err)
-	} else if ok {
-		out["panel_logo"] = map[string]string{
-			"url":      panelLogoURL(logo),
-			"mime":     logo.Mime,
-			"filename": logo.Filename,
+	if snap.PanelLogo != nil {
+		logo, ok, lerr := repo.GetPanelLogo()
+		if lerr != nil {
+			log.Println("PanelNameHandler logo error:", lerr)
+		} else if ok {
+			out["panel_logo"] = map[string]string{
+				"url":      panelLogoURL(logo),
+				"mime":     logo.Mime,
+				"filename": logo.Filename,
+			}
 		}
 	}
 	writeJSON(w, out)
@@ -143,6 +186,25 @@ func SettingsHandler(w http.ResponseWriter, r *http.Request) {
 			SMTPPassword       *string `json:"smtp_password"`
 			SMTPFrom           *string `json:"smtp_from"`
 			SMTPTLS            *string `json:"smtp_tls"`
+			// Panel-name brand styling + logo presentation (Settings > General).
+			PanelNameColor        *string `json:"panel_name_color"`
+			PanelNameFont         *string `json:"panel_name_font"`
+			PanelNameWeight       *string `json:"panel_name_weight"`
+			PanelNameSize         *string `json:"panel_name_size"`
+			PanelNameEffect       *string `json:"panel_name_effect"`
+			PanelNameShadow       *string `json:"panel_name_shadow"`
+			PanelNameGradientFrom *string `json:"panel_name_gradient_from"`
+			PanelNameGradientTo   *string `json:"panel_name_gradient_to"`
+			PanelNameGradientDir  *string `json:"panel_name_gradient_dir"`
+			PanelNameItalic       *string `json:"panel_name_italic"`
+			PanelNameUppercase    *string `json:"panel_name_uppercase"`
+			PanelNameSpacing      *string `json:"panel_name_spacing"`
+			PanelLogoSize         *string `json:"panel_logo_size"`
+			PanelLogoShape        *string `json:"panel_logo_shape"`
+			PanelLogoFit          *string `json:"panel_logo_fit"`
+			PanelLogoBg           *string `json:"panel_logo_bg"`
+			PanelLogoShadow       *string `json:"panel_logo_shadow"`
+			PanelLogoRing         *string `json:"panel_logo_ring"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			http.Error(w, "invalid payload", http.StatusBadRequest)
@@ -206,6 +268,62 @@ func SettingsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		if body.SMTPTLS != nil {
 			snap.SMTPTLS = *body.SMTPTLS
+		}
+		// Brand-style + logo-presentation fields flow straight into the
+		// snapshot; the repo validates each enum/hex and 400s on garbage.
+		if body.PanelNameColor != nil {
+			snap.PanelNameColor = *body.PanelNameColor
+		}
+		if body.PanelNameFont != nil {
+			snap.PanelNameFont = *body.PanelNameFont
+		}
+		if body.PanelNameWeight != nil {
+			snap.PanelNameWeight = *body.PanelNameWeight
+		}
+		if body.PanelNameSize != nil {
+			snap.PanelNameSize = *body.PanelNameSize
+		}
+		if body.PanelNameEffect != nil {
+			snap.PanelNameEffect = *body.PanelNameEffect
+		}
+		if body.PanelNameShadow != nil {
+			snap.PanelNameShadow = *body.PanelNameShadow
+		}
+		if body.PanelNameGradientFrom != nil {
+			snap.PanelNameGradientFrom = *body.PanelNameGradientFrom
+		}
+		if body.PanelNameGradientTo != nil {
+			snap.PanelNameGradientTo = *body.PanelNameGradientTo
+		}
+		if body.PanelNameGradientDir != nil {
+			snap.PanelNameGradientDir = *body.PanelNameGradientDir
+		}
+		if body.PanelNameItalic != nil {
+			snap.PanelNameItalic = *body.PanelNameItalic
+		}
+		if body.PanelNameUppercase != nil {
+			snap.PanelNameUppercase = *body.PanelNameUppercase
+		}
+		if body.PanelNameSpacing != nil {
+			snap.PanelNameSpacing = *body.PanelNameSpacing
+		}
+		if body.PanelLogoSize != nil {
+			snap.PanelLogoSize = *body.PanelLogoSize
+		}
+		if body.PanelLogoShape != nil {
+			snap.PanelLogoShape = *body.PanelLogoShape
+		}
+		if body.PanelLogoFit != nil {
+			snap.PanelLogoFit = *body.PanelLogoFit
+		}
+		if body.PanelLogoBg != nil {
+			snap.PanelLogoBg = *body.PanelLogoBg
+		}
+		if body.PanelLogoShadow != nil {
+			snap.PanelLogoShadow = *body.PanelLogoShadow
+		}
+		if body.PanelLogoRing != nil {
+			snap.PanelLogoRing = *body.PanelLogoRing
 		}
 		if err := repo.Update(&snap); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
