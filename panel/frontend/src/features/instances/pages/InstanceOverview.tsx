@@ -13,8 +13,8 @@
 //     icon tile + growing underline + live markers, 2×2 on phones).
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useInstance } from '@/shared/hooks/useInstance';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { useInstance, parseConfig } from '@/shared/hooks/useInstance';
 import { useLiveMetrics } from '../hooks/useLiveMetrics';
 import {
   destroyInstance,

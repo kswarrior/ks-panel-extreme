@@ -294,6 +294,18 @@ func AIConfigHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// aiProbeTokens bounds the connectivity-probe budget to 16 tokens without
+// ever exceeding the admin's configured MaxTokens (pure, unit-tested).
+func aiProbeTokens(maxTokens int) int {
+	if maxTokens < 1 {
+		return 1
+	}
+	if maxTokens < 16 {
+		return maxTokens
+	}
+	return 16
+}
+
 // AITestHandler sends one tiny probe message through the configured
 // provider so the admin can verify base URL / key / model before saving
 // it for the whole panel. POST {"target":"fallback"} probes the fallback
@@ -360,12 +372,12 @@ func AITestHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
-	probe := cfg
-	probe.MaxTokens = 16
-	if probe.MaxTokens > cfg.MaxTokens {
-		probe.MaxTokens = cfg.MaxTokens
-	}
-	content, _, _, err := aiProviderChat(ctx, probe, []aiMsg{
+	// Probe on a value copy bounded to 16 tokens without ever exceeding
+	// the admin's configured MaxTokens (probe := cfg would alias the
+	// pointer, making the min() branch dead and mutating cfg).
+	probe := *cfg
+	probe.MaxTokens = aiProbeTokens(cfg.MaxTokens)
+	content, _, _, err := aiProviderChat(ctx, &probe, []aiMsg{
 		{Role: "system", Content: "You are a connectivity probe. Reply with exactly: ok"},
 		{Role: "user", Content: "ping"},
 	}, nil)

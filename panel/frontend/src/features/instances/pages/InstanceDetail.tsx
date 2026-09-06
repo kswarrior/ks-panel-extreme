@@ -14,10 +14,10 @@
 // the index route when its page row was imported.
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Outlet, useNavigate, useParams } from 'react-router-dom';
+import { Navigate, Outlet, useNavigate, useParams } from 'react-router-dom';
 import { useInstance, parseConfig } from '@/shared/hooks/useInstance';
 import { useInstanceNavSync } from '@/shared/components/layout/InstanceNavContext';
-import { getPageContent, getPageLabel, isPageAllowed } from '@/shared/utils/instancePages';
+import { getPageContent, getPageLabel, isPageAllowed, resolveRedirectTarget } from '@/shared/utils/instancePages';
 import { pageNavigateTarget } from '@/shared/lib/customPageSdk';
 import CustomPageView from '@/shared/components/ui/CustomPageView';
 import ErrorBoundary from '@/shared/components/ui/ErrorBoundary';
@@ -267,6 +267,16 @@ export const InstanceDynamicPage: React.FC = () => {
   // (rename, reinstall, destroy).
   if (effectiveSlug === 'overview') {
     return <InstanceOverview instanceId={instanceId} />;
+  }
+
+  // Template home page: the index route (instance card click) lands on the
+  // configured slug (e.g. /overview) instead of default Home. Unknown or
+  // disabled slugs fall back to '.' — never a dead page or a loop.
+  if (effectiveSlug === '.') {
+    const home = resolveRedirectTarget((spec as any)?.home_page, spec);
+    if (home) {
+      return <Navigate to={`/instances/${instanceId}/${home}`} replace />;
+    }
   }
 
   if (!isPageAllowed(effectiveSlug, spec)) {
