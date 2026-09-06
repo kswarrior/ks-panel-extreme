@@ -81,7 +81,7 @@ func scanPanelPage(row interface {
 	var icon, ctype, content, roles sql.NullString
 	var name sql.NullString
 	var enabled int
-	var created, updated sql.NullTime
+	var created, updated sql.NullString
 	if err := row.Scan(
 		&p.ID, &p.Slug, &name, &icon, &ctype, &content,
 		&enabled, &roles, &p.SortOrder, &created, &updated,
@@ -97,13 +97,29 @@ func scanPanelPage(row interface {
 	p.Content = content.String
 	p.Enabled = enabled != 0
 	p.RoleIDs = decodePanelPageRoles(roles.String)
+	// Timestamps come back as strings on sqlite ("2006-01-02 15:04:05")
+	// and RFC3339 on postgres — parse leniently, leave zero on garbage
+	// (mirrors theme_repo.parseSQLiteTime).
 	if created.Valid {
-		p.CreatedAt = created.Time
+		if t, err := parsePanelPageTime(created.String); err == nil {
+			p.CreatedAt = t
+		}
 	}
 	if updated.Valid {
-		p.UpdatedAt = updated.Time
+		if t, err := parsePanelPageTime(updated.String); err == nil {
+			p.UpdatedAt = t
+		}
 	}
 	return &p, nil
+}
+
+// parsePanelPageTime accepts both the layout SQLite writes and RFC3339 so it
+// works regardless of which engine (or default) wrote the row.
+func parsePanelPageTime(s string) (time.Time, error) {
+	if t, err := time.Parse("2006-01-02 15:04:05", s); err == nil {
+		return t, nil
+	}
+	return time.Parse(time.RFC3339Nano, s)
 }
 
 const panelPageColumns = `id, slug, name, icon_svg, content_type, content, enabled, roles, sort_order, created_at, updated_at`
