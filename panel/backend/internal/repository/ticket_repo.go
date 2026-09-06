@@ -832,7 +832,7 @@ type AssignableUser struct {
 }
 
 func (r *TicketRepository) ListUsersForAssign() ([]AssignableUser, error) {
-	rows, err := r.db.Query(`SELECT id, username FROM users ORDER BY username ASC`)
+	rows, err := r.db.Query(r.rebind(`SELECT id, username FROM users ORDER BY username ASC`))
 	if err != nil {
 		return nil, err
 	}
