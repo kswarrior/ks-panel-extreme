@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -77,6 +78,12 @@ func Handler(token string) http.Handler {
 			writeErr(w, http.StatusBadRequest, "invalid snapshot name (must be 1-128 chars without path separators)")
 			return
 		}
+		if req.Location != "" {
+			if err := validateLocation(req.Location); err != nil {
+				writeErr(w, http.StatusBadRequest, err.Error())
+				return
+			}
+		}
 
 		drv := drivers.Registry[req.Kind]
 
@@ -111,6 +118,43 @@ func constTimeEqual(a, b string) bool {
 // snapshot directory (fail closed on hostile input).
 func containsPathSep(s string) bool {
 	return strings.Contains(s, "/") || strings.Contains(s, "\\") || strings.Contains(s, "..")
+}
+
+// validateLocation fails closed on hostile snapshot locations. The driver
+// writes a tar file under Location (docker save / lxc export), so a
+// compromised panel must not turn the edge into an arbitrary host-file
+// writer (e.g. Location=/etc/). Require an absolute path, reject NUL and
+// system paths using the same denylist as the file manager.
+func validateLocation(loc string) error {
+	if len(loc) > 512 {
+		return fmt.Errorf("invalid snapshot location (too long)")
+	}
+	if strings.Contains(loc, "\x00") {
+		return fmt.Errorf("invalid snapshot location")
+	}
+	clean := filepath.Clean(loc)
+	if !filepath.IsAbs(clean) {
+		return fmt.Errorf("invalid snapshot location (must be absolute)")
+	}
+	if isDangerousLocation(clean) {
+		return fmt.Errorf("invalid snapshot location (system path)")
+	}
+	return nil
+}
+
+// isDangerousLocation mirrors files.isDangerousPath so the two surfaces can
+// never drift: snapshot tars must never land in system dirs.
+func isDangerousLocation(p string) bool {
+	p = filepath.Clean(p)
+	if p == "/" {
+		return true
+	}
+	for _, d := range []string{"/bin", "/sbin", "/usr", "/etc", "/proc", "/sys", "/dev", "/boot", "/lib", "/lib64", "/root"} {
+		if p == d || strings.HasPrefix(p, d+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 // writeErr emits Response{OK:false, Error: msg} with the chosen HTTP status.

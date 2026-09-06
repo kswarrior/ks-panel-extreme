@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/example/ksedge/internal/drivers"
@@ -64,6 +66,12 @@ func Handler(token string) http.Handler {
 			if p.Protocol != "tcp" && p.Protocol != "udp" {
 				writeErr(w, http.StatusBadRequest, fmt.Sprintf("ports[%d]: protocol must be tcp or udp", i))
 				return
+			}
+			if ip := strings.TrimSpace(p.IP); ip != "" {
+				if net.ParseIP(ip) == nil {
+					writeErr(w, http.StatusBadRequest, fmt.Sprintf("ports[%d]: invalid ip %q", i, p.IP))
+					return
+				}
 			}
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
