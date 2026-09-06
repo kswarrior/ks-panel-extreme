@@ -152,7 +152,7 @@ func runSetupLocalnode(cmd *cobra.Command, args []string) error {
 
 	// 1) Download ksedge if not already on disk. Prefer a local binary next
 	// to the panel (instant, no network) then HF → GitHub fallbacks.
-	if fi, statErr := os.Stat(ksedgePath); statErr != nil || fi.Size() == 0 {
+	if fi, statErr := os.Stat(ksedgePath); statErr != nil || fi.Size() == 0 || fi.IsDir() {
 		if localSrc := findLocalKsedgeCLI(); localSrc != "" {
 			print.Step("download", fmt.Sprintf("copying from local %s", localSrc))
 			if err := copyFileCLI(localSrc, ksedgePath); err != nil {

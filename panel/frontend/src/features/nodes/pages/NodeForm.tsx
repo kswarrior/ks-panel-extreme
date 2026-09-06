@@ -135,7 +135,7 @@ const NodeForm: React.FC = () => {
     setWssSeq(n + 1);
     setWssChannels((prev) => [
       ...prev,
-      { key: `temp-${n}`, name: `wss-${prev.length + 1}`, task: 'all', transport: 'auto', fallback: true },
+      { key: `temp-${n}`, name: `wss-${n + 1}`, task: 'all', transport: 'auto', fallback: true },
     ]);
   };
 

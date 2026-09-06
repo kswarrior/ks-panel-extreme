@@ -37,8 +37,11 @@ export function buildEdgeConfig(
 
 export function buildBootstrapCmd(form: Form, token: string, port: string): string {
   const dir = form.install_dir.trim() || './localnode/ksedge';
-  return `mkdir -p '${dir}'
-cd '${dir}'
+  // Quote for single-quote shell contexts: a ' in the path would otherwise
+  // break out of the quoting and corrupt (or inject into) the snippet.
+  const qdir = dir.replace(/'/g, `'\\''`);
+  return `mkdir -p '${qdir}'
+cd '${qdir}'
 curl -L -o ksedge '${KSEDGE_URL}'
 chmod +x ksedge
 cat > config.json <<'EOF'
