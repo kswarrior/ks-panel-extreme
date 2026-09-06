@@ -263,7 +263,6 @@ func runDBBackupSchedule(schedRepo *repository.BackupScheduleRepository, s repos
 		_ = schedRepo.MarkRan(s.ID, nextBackupRun(s.Cron))
 		return
 	}
-	_ = b
 	if removed, perr := backup.Prune(s.KeepLastN, s.MaxAgeDays); perr != nil {
 		log.Printf("backup scheduler: db schedule #%d prune failed: %v", s.ID, perr)
 	} else if len(removed) > 0 {
