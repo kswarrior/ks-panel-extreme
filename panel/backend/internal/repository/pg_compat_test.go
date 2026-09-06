@@ -251,6 +251,7 @@ func TestStatsMissingSLATableTolerated(t *testing.T) {
 		t.Fatalf("wrong pre-065 stats: %+v", s)
 	}
 }
+
 // TestTicketUpdateQueryPlaceholders pins the Sprintf-before-Rebind order:
 // every nullability branch must emit zero raw "?" on postgres with $N
 // matching the arg count Update passes, and stay verbatim on sqlite.

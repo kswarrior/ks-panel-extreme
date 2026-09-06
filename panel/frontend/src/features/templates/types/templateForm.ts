@@ -296,6 +296,9 @@ export interface TemplateFormState {
   healthcheck: Healthcheck;
   advanced: Advanced;
   pages: PageOverride[];
+  // Landing page slug for the instance index route (/instances/:id).
+  // Empty = default Home (slug "."). Snapshotted into instance.Config.
+  home_page: string;
   // Built-in Instance controls allow-list (spec.instance_controls).
   // Snapshotted into instance.Config on deploy. Missing = allow all.
   instance_controls: InstanceControls;
@@ -382,6 +385,7 @@ export const emptyForm: TemplateFormState = {
   labels: [],
   devices: [],
   pages: [],
+  home_page: '',
   instance_controls: { ...DEFAULT_INSTANCE_CONTROLS },
   healthcheck: {
     enabled: false,

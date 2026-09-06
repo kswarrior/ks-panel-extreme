@@ -57,6 +57,7 @@ export const DEFAULT_INSTANCE_CONTROLS: InstanceControls = {
   show_manage_tab: true,
   show_activity_tab: true,
   default_tab: 'details',
+  more_page: 'overview',
   allow_rename: true,
   allow_edit_advanced: true,
   allow_reinstall: true,
@@ -100,6 +101,9 @@ export function resolveInstanceControls(
   const def = typeof c.default_tab === 'string' && (VALID_DEFAULT_TABS as string[]).includes(c.default_tab)
     ? (c.default_tab as OverviewDefaultTab)
     : d.default_tab;
+  const morePage = typeof c.more_page === 'string' && c.more_page.trim() !== ''
+    ? c.more_page.trim().replace(/^\/+|\/+$/g, '')
+    : d.more_page;
   return {
     show_info_row: boolOr(c.show_info_row, d.show_info_row),
     show_cpu: boolOr(c.show_cpu, d.show_cpu),
@@ -115,6 +119,7 @@ export function resolveInstanceControls(
     show_manage_tab: boolOr(c.show_manage_tab, d.show_manage_tab),
     show_activity_tab: boolOr(c.show_activity_tab, d.show_activity_tab),
     default_tab: def,
+    more_page: morePage || d.more_page,
     allow_rename: boolOr(c.allow_rename, d.allow_rename),
     allow_edit_advanced: boolOr(c.allow_edit_advanced, d.allow_edit_advanced),
     allow_reinstall: boolOr(c.allow_reinstall, d.allow_reinstall),
