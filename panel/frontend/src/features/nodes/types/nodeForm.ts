@@ -114,10 +114,6 @@ export const usesDirect = (m: ConnectionMode): boolean => m === 'direct' || m ==
 export const KSEDGE_URL =
   'https://github.com/kswarrior/ks-panel-extreme/releases/download/ks-panel-edge/ksedge';
 
-// HuggingFace mirror retained as fallback for legacy installs.
-export const KSEDGE_HF_URL =
-  'https://huggingface.co/buckets/kswarrior/opencode-storage/resolve/ks-panel/release/ksedge?download=true';
-
 export const ALL_KINDS: { key: string; label: string; color: string }[] = [
   { key: 'docker', label: 'Docker', color: '#60a5fa' },
   { key: 'kvm', label: 'KVM', color: '#34d399' },

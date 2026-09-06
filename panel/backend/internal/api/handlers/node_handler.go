@@ -1048,31 +1048,14 @@ func probeReachableString(reachable bool) string {
 
 // ============================== LOCAL EDGE SETUP ============================
 
-// ksedgeDownloadURL is the public artifact the bootstrap snippet uses. We keep
-// it here so the panel's "Create & setup" button can pull the same binary the
-// manual curl command would, without the operator having to copy anything.
-// Uses the latest release redirect so the panel never pins to a stale tag
-// (previously ks-release-32876373128-a36954f895a6 would 404 after the next
-// release). GitHub follows the redirect automatically via http.Client.
-const ksedgeDownloadURL = "https://github.com/kswarrior/ks-panel-extreme/releases/latest/download/ksedge"
-
-// ksedgeHuggingFaceURL is the HF bucket mirror that actually hosts the release
-// artifacts (the GitHub release currently has zero assets). The handler tries HF
-// first, then GitHub as fallback.
-const ksedgeHuggingFaceURL = "https://huggingface.co/buckets/kswarrior/opencode-storage/resolve/ks-panel/release/ksedge?download=true"
-
-// ksedgeEdgeURL is the dedicated edge release asset used for local node setup
-// as requested: https://github.com/kswarrior/ks-panel-extreme/releases/download/ks-panel-edge/ksedge
+// ksedgeEdgeURL is the sole source for the ksedge binary used by local node setup:
+// https://github.com/kswarrior/ks-panel-extreme/releases/download/ks-panel-edge/ksedge
 const ksedgeEdgeURL = "https://github.com/kswarrior/ks-panel-extreme/releases/download/ks-panel-edge/ksedge"
 
-// ksedgeDownloadURLs returns the ordered fallback list for ksedge acquisition.
-// ks-panel-edge is tried first per user request, then HF mirror, then latest.
+// ksedgeDownloadURLs returns the single ksedge source for acquisition.
 func ksedgeDownloadURLs() []string {
 	return []string{
 		ksedgeEdgeURL,
-		ksedgeHuggingFaceURL,
-		ksedgeDownloadURL,
-		"https://github.com/kswarrior/ks-panel-extreme/releases/download/ks-release-32876373128-a36954f895a6/ksedge",
 	}
 }
 
@@ -1179,9 +1162,7 @@ func SetupLocalNodeHandler(w http.ResponseWriter, r *http.Request) {
 	//    fetch when a non-empty executable already exists so re-running
 	//    "Create & setup" after a network blip doesn't refetch ~10MB every
 	//    time. Preference order: local binary next to the panel (instant,
-	//    no network, avoids Cloudflare/GitHub timeouts) → HF bucket →
-	//    GitHub latest → pinned tag. This fixes the "Setup failed" 502 that
-	//    occurred when GitHub release ks-release had zero assets (404).
+	//    no network) → ks-panel-edge release URL.
 	//    Treat a directory at ksedgePath (leftover from CLI layout
 	//    localnode/ksedge/) as missing so we don't try to exec a directory.
 	if fi, statErr := os.Stat(ksedgePath); statErr != nil || fi.IsDir() || fi.Size() == 0 {
@@ -1215,11 +1196,11 @@ func SetupLocalNodeHandler(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 			if !downloaded {
-				msg := "all download mirrors failed"
+				msg := "download failed"
 				if lastErr != nil {
 					msg += ": " + lastErr.Error()
 				}
-				msg += " — the GitHub release currently has no ksedge asset; ensure the HF bucket is reachable or place a ksedge binary next to the panel executable (release/ksedge) and retry"
+				msg += " — ensure the ks-panel-edge release is reachable or place a ksedge binary next to the panel executable (release/ksedge) and retry"
 				writeJSONStatus(w, http.StatusBadGateway, map[string]any{
 					"error": msg,
 					"log":   strings.Join(logLines, "\n"),

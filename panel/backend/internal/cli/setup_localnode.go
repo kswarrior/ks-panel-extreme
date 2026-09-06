@@ -45,7 +45,7 @@ var setupLocalnodeCmd = &cobra.Command{
   ./kspanel setup:localnode --port 4040 --name local-edge --no-launch
 
 This is the CLI equivalent of the admin "Create & setup" button — it
-registers a localhost node, downloads ksedge from the public HF mirror into
+registers a localhost node, downloads ksedge from the ks-panel-edge release into
 ./localnode/ksedge/ (next to this binary), writes the panel-generated
 config.json, and launches "./ksedge launch" detached.
 
@@ -67,23 +67,12 @@ func init() {
 	setupLocalnodeCmd.Flags().BoolVar(&setupLocalnodeNoLaunch, "no-launch", false, "Install + write config but do NOT start ksedge")
 }
 
-// ksedgeDownloadURL is the public artefact the bootstrap snippet uses. Kept
-// in this package (matching the one used by the admin HTTP setup handler) so
-// the CLI is self-contained — no cross-package constant chase required.
-// Uses the latest release redirect so the CLI never pins to a stale tag.
-const ksedgeDownloadURL = "https://github.com/kswarrior/ks-panel-extreme/releases/latest/download/ksedge"
-
-const ksedgeHuggingFaceURL = "https://huggingface.co/buckets/kswarrior/opencode-storage/resolve/ks-panel/release/ksedge?download=true"
-
-// ksedgeEdgeURL is the dedicated edge release asset requested for local node setup.
+// ksedgeEdgeURL is the sole source for the ksedge binary used by localnode setup.
 const ksedgeEdgeURL = "https://github.com/kswarrior/ks-panel-extreme/releases/download/ks-panel-edge/ksedge"
 
 func ksedgeDownloadURLs() []string {
 	return []string{
 		ksedgeEdgeURL,
-		ksedgeHuggingFaceURL,
-		ksedgeDownloadURL,
-		"https://github.com/kswarrior/ks-panel-extreme/releases/download/ks-release-32876373128-a36954f895a6/ksedge",
 	}
 }
 
@@ -151,7 +140,7 @@ func runSetupLocalnode(cmd *cobra.Command, args []string) error {
 	logPath := filepath.Join(dir, "ksedge.log")
 
 	// 1) Download ksedge if not already on disk. Prefer a local binary next
-	// to the panel (instant, no network) then HF → GitHub fallbacks.
+	// to the panel (instant, no network) then the ks-panel-edge release URL.
 	if fi, statErr := os.Stat(ksedgePath); statErr != nil || fi.Size() == 0 || fi.IsDir() {
 		if localSrc := findLocalKsedgeCLI(); localSrc != "" {
 			print.Step("download", fmt.Sprintf("copying from local %s", localSrc))
