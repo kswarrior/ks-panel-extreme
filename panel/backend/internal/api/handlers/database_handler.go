@@ -489,6 +489,9 @@ func listTables(con *sql.DB, hasDbstat bool) ([]DatabaseTable, error) {
 			names = append(names, n)
 		}
 	}
+	if rerr := rows.Err(); rerr != nil {
+		return nil, rerr
+	}
 	out := make([]DatabaseTable, 0, len(names))
 	for _, n := range names {
 		var dt DatabaseTable

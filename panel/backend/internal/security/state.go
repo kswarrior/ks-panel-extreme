@@ -56,7 +56,7 @@ type State struct {
 	// be detected and every stale bucket expired; modulo storage made
 	// the clear-loop a no-op after a quiet period and ancient counts
 	// inflated the rolling sum forever.
-	globalCursor  int64
+	globalCursor int64
 
 	// DDoS auto-stop state (protected by ddosMu).
 	ddosMu     sync.Mutex
