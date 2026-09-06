@@ -12,7 +12,12 @@
 #   ./rebuild.sh --help          # Show help
 #
 # Environment Variables (production):
-#   VERSION            Semantic version (e.g., 1.2.3)
+#   VERSION            Explicit semver override (e.g., 1.2.3). When set, it is
+#                      used verbatim and persisted to ./VERSION. When unset,
+#                      the patch of ./VERSION auto-increments every production
+#                      build (1.0.0 -> 1.0.1 -> 1.0.2) and the same version is
+#                      stamped into BOTH kspanel and ksedge plus
+#                      release/version.json.
 #   COMMIT             Git short commit (auto-detected if not set)
 #   BUILD_DATE         ISO8601 UTC (auto-generated if not set)
 #   GOARCH             Target architecture (amd64, arm64)
@@ -56,6 +61,11 @@ KSPANEL_RELEASE_BIN="$RELEASE_DIR/kspanel"
 KSPANEL_OLD_BIN="$KSPANEL_RELEASE_BIN.old"
 KSEDGE_RELEASE_BIN="$RELEASE_DIR/ksedge"
 KSEDGE_OLD_BIN="$KSEDGE_RELEASE_BIN.old"
+
+# Single source of truth for the shared kspanel/ksedge semver. Production
+# rebuilds auto-bump the patch component on every run (1.0.0 -> 1.0.1)
+# unless VERSION is explicitly set in the environment.
+VERSION_FILE="$ROOT_DIR/VERSION"
 
 LOCK_DIR="$ROOT_DIR/.build.lock"
 
@@ -356,13 +366,35 @@ configure_build_mode() {
 # ============================================================================
 
 resolve_version_info() {
-    # Version: from env, or "dev" for development, or "0.0.0" for production
+    # Version: explicit $VERSION wins (and is persisted to $VERSION_FILE so
+    # the next auto-bump continues from it); "dev" for development (no bump,
+    # no persist); otherwise production auto-bumps the patch component of
+    # $VERSION_FILE (1.0.0 -> 1.0.1 -> 1.0.2 ...) so panel + edge always
+    # share the same version. Both binaries receive the identical ldflags.
     if [[ -n "${VERSION:-}" ]]; then
         KSPANEL_VERSION="$VERSION"
+        printf '%s\n' "$KSPANEL_VERSION" > "$VERSION_FILE" 2>/dev/null ||
+            log_warn "could not persist VERSION=$KSPANEL_VERSION to $VERSION_FILE"
+        log_info "Version: explicit $KSPANEL_VERSION (persisted to VERSION)"
     elif [[ "$BUILD_MODE" == "development" ]]; then
         KSPANEL_VERSION="dev"
     else
-        KSPANEL_VERSION="0.0.0"
+        local current="1.0.0"
+        if [[ -f "$VERSION_FILE" ]]; then
+            current="$(tr -d ' \t\r\n' < "$VERSION_FILE" 2>/dev/null || echo "1.0.0")"
+        fi
+        # Strip a leading 'v' for parsing (v1.2.3 -> 1.2.3).
+        local bare="${current#v}"
+        if [[ "$bare" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)([-+].*)?$ ]]; then
+            local major="${BASH_REMATCH[1]}" minor="${BASH_REMATCH[2]}" patch="${BASH_REMATCH[3]}"
+            KSPANEL_VERSION="${major}.${minor}.$((patch + 1))"
+        else
+            log_warn "VERSION file has non-semver '${current}' — resetting to 1.0.0"
+            KSPANEL_VERSION="1.0.0"
+        fi
+        printf '%s\n' "$KSPANEL_VERSION" > "$VERSION_FILE" 2>/dev/null ||
+            log_warn "could not persist VERSION=$KSPANEL_VERSION to $VERSION_FILE"
+        log_info "Version: auto-bumped ${current} -> ${KSPANEL_VERSION} (persisted to VERSION)"
     fi
 
     # Commit: from env, or git short hash, or "unknown"
@@ -948,6 +980,30 @@ generate_checksums() {
     )
 }
 
+# stamp_version_manifest writes release/version.json from the just-built
+# artifacts (kspanel/ksedge + .sha256 sidecars + .sig when signed) using
+# tools/stamp-version-manifest.sh. The single manifest carries one shared
+# "version" for BOTH panel and edge (plus sha256/sha256_edge digests) so
+# /api/system/update-check and /api/edge/update-check compare against the
+# same latest version.
+stamp_version_manifest() {
+    log_step "Stamping release/version.json (version=$KSPANEL_VERSION)..."
+    if [[ "$KSPANEL_VERSION" == "dev" ]]; then
+        log_info "Skipping version.json stamp for development build"
+        return 0
+    fi
+    local stamper="$ROOT_DIR/tools/stamp-version-manifest.sh"
+    if [[ ! -x "$stamper" && ! -f "$stamper" ]]; then
+        log_warn "stamper not found at $stamper — skipping version.json"
+        return 0
+    fi
+    if VERSION="$KSPANEL_VERSION" COMMIT="$KSPANEL_COMMIT" BUILD_DATE="$KSPANEL_BUILD_DATE" bash "$stamper" "$RELEASE_DIR"; then
+        log_ok "Stamped $RELEASE_DIR/version.json (version=$KSPANEL_VERSION)"
+    else
+        log_warn "version.json stamping failed — continuing without manifest"
+    fi
+}
+
 # ============================================================================
 # Code Signing
 # ============================================================================
@@ -1312,6 +1368,9 @@ main() {
 
     # Sign artifacts (if enabled)
     sign_artifacts
+
+    # Stamp the shared version manifest (needs sha256 + sig sidecars above)
+    stamp_version_manifest
 
     # Security verification
     security_verification || exit 1
