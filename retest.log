@@ -4,9 +4,9 @@
 [0;34m[INFO][0m Copying binaries from release/ ...
 [0;32m[OK][0m Test folder ready:
 total 37M
--rwxr-xr-x 1 runner runner  11M Sep  6 08:23 ksedge
--rwxr-xr-x 1 runner runner  27M Sep  6 08:23 kspanel
-drwxr-xr-x 3 runner runner 4.0K Sep  6 08:23 localnode
+-rwxr-xr-x 1 runner runner  11M Sep  6 13:59 ksedge
+-rwxr-xr-x 1 runner runner  27M Sep  6 13:59 kspanel
+drwxr-xr-x 3 runner runner 4.0K Sep  6 13:59 localnode
 → database     sqlite — /tmp/kspanel-retest/kspanel.db
 ✓ connected    sqlite ready
 → migrations   running
@@ -36,9 +36,9 @@ drwxr-xr-x 3 runner runner 4.0K Sep  6 08:23 localnode
 → node         local-edge @ 127.0.0.1:4040 (id 1)
 → download     ksedge already present, skipping
 → config       localnode/ksedge/config.json
-→ panel        started (pid 2548) on 127.0.0.1:8080
+→ panel        started (pid 2508) on 127.0.0.1:8080
 ✓ panel        ready at http://127.0.0.1:8080
-→ launch       started ksedge (pid 2569) on 127.0.0.1:4040
+→ launch       started ksedge (pid 2528) on 127.0.0.1:4040
 ✓ edge         up and reachable (name="local-edge", log=localnode/ksedge/ksedge.log)
 
 node id:      1
@@ -47,10 +47,10 @@ binary:       localnode/ksedge/ksedge
 config:       localnode/ksedge/config.json
 log:          localnode/ksedge/ksedge.log
 [0;34m[INFO][0m Stopping intermediate panel from setup:localnode before final launch...
-[0;34m[INFO][0m Stopping old kspanel (pid 2548)...
+[0;34m[INFO][0m Stopping old kspanel (pid 2508)...
 
 [0;34m==>[0m Launching kspanel on port 8080 (background)...
-[0;32m[OK][0m kspanel running in background (PID 2593)
+[0;32m[OK][0m kspanel running in background (PID 2554)
 [0;32m[OK][0m Logs:   /tmp/kspanel-retest/kspanel.log
 [0;32m[OK][0m Stop:   kill $(cat /tmp/kspanel-retest/kspanel.pid)
  █████╔╝ ███████╗    ██████╔╝███████║██╔██╗ ██║█████╗  ██║
@@ -62,12 +62,12 @@ log:          localnode/ksedge/ksedge.log
 → ui           embedded bundle
 ✓ ui           served from api/handlers
 
-panel pid:    2593
+panel pid:    2554
 engine:       sqlite
 dsn:          /tmp/kspanel-retest/kspanel.db
 listen:       :8080
-open:         http://10.1.0.224:8080
-bind ifs:     10.1.0.224, 172.17.0.1
+open:         http://10.1.0.14:8080
+bind ifs:     10.1.0.14, 172.17.0.1
 go:           1.26.7
 goos:         linux/amd64
 cpus:         4
