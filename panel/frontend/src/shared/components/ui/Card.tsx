@@ -4,7 +4,11 @@ import { useThemeStore } from '@/shared/stores/themeStore';
 
 interface CardProps {
   className?: string;
-  variant?: 'default' | 'strong';
+  // 'default' = base glass card (list/detail surfaces). 'strong' = floating
+  // surfaces (modals, dropdowns). 'form' = form/settings sections — same
+  // glass surface, but painted from the Theme Studio Form Card tokens
+  // (ks-form-card) so the Cards-tab Form Card group restyles them.
+  variant?: 'default' | 'strong' | 'form';
   children?: React.ReactNode;
   id?: string;
 }
