@@ -225,11 +225,18 @@ func AccountLockoutMiddleware(al *AccountLockout) func(http.Handler) http.Handle
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Only apply to login endpoints
 			if r.URL.Path == "/api/auth/login" || r.URL.Path == "/api/auth/switch-login" {
-				// Extract identifier from request
-				var identifier string
-				if r.Method == "POST" {
+			// Extract identifier from request without consuming the body:
+			// the downstream login handler must still decode it (fail
+			// closed: a body we drained would arrive as EOF and break
+			// login / bypass lockout accounting).
+			var identifier string
+			if r.Method == "POST" {
+				body, err := io.ReadAll(r.Body)
+				if err == nil {
+					_ = r.Body.Close()
+					r.Body = io.NopCloser(bytes.NewReader(body))
 					var req map[string]interface{}
-					if err := json.NewDecoder(r.Body).Decode(&req); err == nil {
+					if jerr := json.Unmarshal(body, &req); jerr == nil {
 						if identifier, _ = req["identifier"].(string); identifier == "" {
 							identifier, _ = req["username"].(string)
 						}
@@ -238,6 +245,7 @@ func AccountLockoutMiddleware(al *AccountLockout) func(http.Handler) http.Handle
 						}
 					}
 				}
+			}
 
 				if identifier != "" {
 					// Check if account is locked

@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"bytes"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha1"
@@ -8,6 +9,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -395,13 +397,19 @@ func MFAMiddleware(next http.Handler) http.Handler {
 		hasMFA := false
 
 		if hasMFA {
-			// Check for MFA token in the request
+			// Check for MFA token in the request without consuming the
+			// body for the downstream handler (see AccountLockoutMiddleware).
 			var mfaToken string
 			if r.Method == "POST" {
-				var req map[string]interface{}
-				if err := json.NewDecoder(r.Body).Decode(&req); err == nil {
-					if token, ok := req["mfa_token"].(string); ok {
-						mfaToken = token
+				body, err := io.ReadAll(r.Body)
+				if err == nil {
+					_ = r.Body.Close()
+					r.Body = io.NopCloser(bytes.NewReader(body))
+					var req map[string]interface{}
+					if jerr := json.Unmarshal(body, &req); jerr == nil {
+						if token, ok := req["mfa_token"].(string); ok {
+							mfaToken = token
+						}
 					}
 				}
 			}
