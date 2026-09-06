@@ -336,7 +336,15 @@ func SetLogoURLBuilder(b func(PanelLogo) string) {
 // LogoURL returns the public URL that streams the logo bytes. Public so
 // callers (notably the brand-injection helper in server.go) can render the
 // same payload the JSON API exposes, without taking a DB dependency.
-func LogoURL(_ PanelLogo) string { return "/api/settings/panel-logo" }
+// The filename is appended as a cache-busting query (?v=...) so replacing
+// the logo instantly invalidates the browser's 300s cache — previously the
+// URL was static and admins kept seeing the OLD (often blurrier) bytes.
+func LogoURL(logo PanelLogo) string {
+	if logo.Filename != "" {
+		return "/api/settings/panel-logo?v=" + logo.Filename
+	}
+	return "/api/settings/panel-logo"
+}
 
 // Get reads the full settings snapshot (panel_name + panel_logo + auth
 // gating toggles + SMTP server block).
@@ -373,6 +381,28 @@ func (r *SettingsRepository) Get() (*SettingsSnapshot, error) {
 	snap.SMTPPassword = r.getString(SMTPPasswordKey, "")
 	snap.SMTPFrom = r.getString(SMTPFromKey, "")
 	snap.SMTPTLS = r.getString(SMTPTLSKey, "auto")
+	// Panel-name brand styling + logo presentation. Every read falls back
+	// to the compiled default so old installs (rows absent) render the
+	// same as a fresh one, and the values are sanitized so a hostile/
+	// corrupt row can never break the SPA's CSS.
+	snap.PanelNameColor = normalizeBrandHex(r.getString(PanelNameColorKey, DefaultPanelNameColor), DefaultPanelNameColor)
+	snap.PanelNameFont = normalizeBrandEnum(r.getString(PanelNameFontKey, DefaultPanelNameFont), panelNameFonts, DefaultPanelNameFont)
+	snap.PanelNameWeight = normalizeBrandEnum(r.getString(PanelNameWeightKey, DefaultPanelNameWeight), panelNameWeights, DefaultPanelNameWeight)
+	snap.PanelNameSize = normalizeBrandEnum(r.getString(PanelNameSizeKey, DefaultPanelNameSize), brandSizes, DefaultPanelNameSize)
+	snap.PanelNameEffect = normalizeBrandEnum(r.getString(PanelNameEffectKey, DefaultPanelNameEffect), panelNameEffects, DefaultPanelNameEffect)
+	snap.PanelNameShadow = normalizeBrandEnum(r.getString(PanelNameShadowKey, DefaultPanelNameShadow), brandShadows, DefaultPanelNameShadow)
+	snap.PanelNameGradientFrom = normalizeBrandHex(r.getString(PanelNameGradientFromKey, DefaultPanelNameGradientFrom), DefaultPanelNameGradientFrom)
+	snap.PanelNameGradientTo = normalizeBrandHex(r.getString(PanelNameGradientToKey, DefaultPanelNameGradientTo), DefaultPanelNameGradientTo)
+	snap.PanelNameGradientDir = normalizeBrandEnum(r.getString(PanelNameGradientDirKey, DefaultPanelNameGradientDir), gradientDirs, DefaultPanelNameGradientDir)
+	snap.PanelNameItalic = normalizeToggle(r.getString(PanelNameItalicKey, DefaultPanelNameItalic))
+	snap.PanelNameUppercase = normalizeToggle(r.getString(PanelNameUppercaseKey, DefaultPanelNameUppercase))
+	snap.PanelNameSpacing = normalizeBrandEnum(r.getString(PanelNameSpacingKey, DefaultPanelNameSpacing), brandSpacings, DefaultPanelNameSpacing)
+	snap.PanelLogoSize = normalizeBrandEnum(r.getString(PanelLogoSizeKey, DefaultPanelLogoSize), brandSizes, DefaultPanelLogoSize)
+	snap.PanelLogoShape = normalizeBrandEnum(r.getString(PanelLogoShapeKey, DefaultPanelLogoShape), logoShapes, DefaultPanelLogoShape)
+	snap.PanelLogoFit = normalizeBrandEnum(r.getString(PanelLogoFitKey, DefaultPanelLogoFit), logoFits, DefaultPanelLogoFit)
+	snap.PanelLogoBg = normalizeBrandEnum(r.getString(PanelLogoBgKey, DefaultPanelLogoBg), logoBgs, DefaultPanelLogoBg)
+	snap.PanelLogoShadow = normalizeBrandEnum(r.getString(PanelLogoShadowKey, DefaultPanelLogoShadow), brandShadows, DefaultPanelLogoShadow)
+	snap.PanelLogoRing = normalizeToggle(r.getString(PanelLogoRingKey, DefaultPanelLogoRing))
 	return snap, nil
 }
 
@@ -482,6 +512,159 @@ func (r *SettingsRepository) Update(s *SettingsSnapshot) error {
 			return fmt.Errorf("invalid smtp_tls (want auto|implicit|starttls|off)")
 		}
 	}
+	// Panel-name brand styling + logo presentation. Empty means "not sent"
+	// (skip); every non-empty value is validated so a bad enum/hex 400s
+	// with a clear message instead of poisoning the brand render.
+	if s.PanelNameColor != "" {
+		v, err := validatedBrandHex(s.PanelNameColor)
+		if err != nil {
+			return fmt.Errorf("invalid panel_name_color: %w", err)
+		}
+		if err := r.setString(PanelNameColorKey, v); err != nil {
+			return err
+		}
+	}
+	if s.PanelNameFont != "" {
+		v, err := validatedBrandEnum(s.PanelNameFont, panelNameFonts)
+		if err != nil {
+			return fmt.Errorf("invalid panel_name_font: %w", err)
+		}
+		if err := r.setString(PanelNameFontKey, v); err != nil {
+			return err
+		}
+	}
+	if s.PanelNameWeight != "" {
+		v, err := validatedBrandEnum(s.PanelNameWeight, panelNameWeights)
+		if err != nil {
+			return fmt.Errorf("invalid panel_name_weight: %w", err)
+		}
+		if err := r.setString(PanelNameWeightKey, v); err != nil {
+			return err
+		}
+	}
+	if s.PanelNameSize != "" {
+		v, err := validatedBrandEnum(s.PanelNameSize, brandSizes)
+		if err != nil {
+			return fmt.Errorf("invalid panel_name_size: %w", err)
+		}
+		if err := r.setString(PanelNameSizeKey, v); err != nil {
+			return err
+		}
+	}
+	if s.PanelNameEffect != "" {
+		v, err := validatedBrandEnum(s.PanelNameEffect, panelNameEffects)
+		if err != nil {
+			return fmt.Errorf("invalid panel_name_effect: %w", err)
+		}
+		if err := r.setString(PanelNameEffectKey, v); err != nil {
+			return err
+		}
+	}
+	if s.PanelNameShadow != "" {
+		v, err := validatedBrandEnum(s.PanelNameShadow, brandShadows)
+		if err != nil {
+			return fmt.Errorf("invalid panel_name_shadow: %w", err)
+		}
+		if err := r.setString(PanelNameShadowKey, v); err != nil {
+			return err
+		}
+	}
+	if s.PanelNameGradientFrom != "" {
+		v, err := validatedBrandHex(s.PanelNameGradientFrom)
+		if err != nil {
+			return fmt.Errorf("invalid panel_name_gradient_from: %w", err)
+		}
+		if err := r.setString(PanelNameGradientFromKey, v); err != nil {
+			return err
+		}
+	}
+	if s.PanelNameGradientTo != "" {
+		v, err := validatedBrandHex(s.PanelNameGradientTo)
+		if err != nil {
+			return fmt.Errorf("invalid panel_name_gradient_to: %w", err)
+		}
+		if err := r.setString(PanelNameGradientToKey, v); err != nil {
+			return err
+		}
+	}
+	if s.PanelNameGradientDir != "" {
+		v, err := validatedBrandEnum(s.PanelNameGradientDir, gradientDirs)
+		if err != nil {
+			return fmt.Errorf("invalid panel_name_gradient_dir: %w", err)
+		}
+		if err := r.setString(PanelNameGradientDirKey, v); err != nil {
+			return err
+		}
+	}
+	if s.PanelNameItalic != "" {
+		if err := r.setString(PanelNameItalicKey, normalizeToggle(s.PanelNameItalic)); err != nil {
+			return err
+		}
+	}
+	if s.PanelNameUppercase != "" {
+		if err := r.setString(PanelNameUppercaseKey, normalizeToggle(s.PanelNameUppercase)); err != nil {
+			return err
+		}
+	}
+	if s.PanelNameSpacing != "" {
+		v, err := validatedBrandEnum(s.PanelNameSpacing, brandSpacings)
+		if err != nil {
+			return fmt.Errorf("invalid panel_name_spacing: %w", err)
+		}
+		if err := r.setString(PanelNameSpacingKey, v); err != nil {
+			return err
+		}
+	}
+	if s.PanelLogoSize != "" {
+		v, err := validatedBrandEnum(s.PanelLogoSize, brandSizes)
+		if err != nil {
+			return fmt.Errorf("invalid panel_logo_size: %w", err)
+		}
+		if err := r.setString(PanelLogoSizeKey, v); err != nil {
+			return err
+		}
+	}
+	if s.PanelLogoShape != "" {
+		v, err := validatedBrandEnum(s.PanelLogoShape, logoShapes)
+		if err != nil {
+			return fmt.Errorf("invalid panel_logo_shape: %w", err)
+		}
+		if err := r.setString(PanelLogoShapeKey, v); err != nil {
+			return err
+		}
+	}
+	if s.PanelLogoFit != "" {
+		v, err := validatedBrandEnum(s.PanelLogoFit, logoFits)
+		if err != nil {
+			return fmt.Errorf("invalid panel_logo_fit: %w", err)
+		}
+		if err := r.setString(PanelLogoFitKey, v); err != nil {
+			return err
+		}
+	}
+	if s.PanelLogoBg != "" {
+		v, err := validatedBrandEnum(s.PanelLogoBg, logoBgs)
+		if err != nil {
+			return fmt.Errorf("invalid panel_logo_bg: %w", err)
+		}
+		if err := r.setString(PanelLogoBgKey, v); err != nil {
+			return err
+		}
+	}
+	if s.PanelLogoShadow != "" {
+		v, err := validatedBrandEnum(s.PanelLogoShadow, brandShadows)
+		if err != nil {
+			return fmt.Errorf("invalid panel_logo_shadow: %w", err)
+		}
+		if err := r.setString(PanelLogoShadowKey, v); err != nil {
+			return err
+		}
+	}
+	if s.PanelLogoRing != "" {
+		if err := r.setString(PanelLogoRingKey, normalizeToggle(s.PanelLogoRing)); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -498,6 +681,88 @@ func normalizeToggle(v string) string {
 		return "0"
 	}
 	return "0"
+}
+
+// ── Brand-style allow-lists + validators ────────────────────────────────
+// The frontend renders exactly these enum values; the repo is the source of
+// truth so a corrupt row can never inject an arbitrary CSS string.
+
+var (
+	panelNameFonts   = []string{"inter", "system", "poppins", "montserrat", "roboto", "outfit", "space", "playfair", "mono"}
+	panelNameWeights = []string{"400", "500", "600", "700", "800", "900"}
+	brandSizes       = []string{"sm", "md", "lg", "xl"}
+	panelNameEffects = []string{"none", "shadow", "outline", "3d", "neon", "gradient"}
+	brandShadows     = []string{"none", "sm", "md", "lg", "glow"}
+	gradientDirs     = []string{"90deg", "135deg", "180deg"}
+	brandSpacings    = []string{"tight", "normal", "wide"}
+	logoShapes       = []string{"rounded", "large", "circle", "square"}
+	logoFits         = []string{"contain", "cover", "fill"}
+	logoBgs          = []string{"dark", "transparent", "light"}
+)
+
+// validatedBrandEnum lower-cases/trims v and ensures it is one of allow.
+// Returns the canonical value or an error naming the accepted set.
+func validatedBrandEnum(v string, allow []string) (string, error) {
+	norm := strings.ToLower(strings.TrimSpace(v))
+	for _, a := range allow {
+		if norm == a {
+			return norm, nil
+		}
+	}
+	return "", fmt.Errorf("want one of %s", strings.Join(allow, "|"))
+}
+
+// normalizeBrandEnum is the fail-soft read-path twin: unknown/empty values
+// fall back to def instead of erroring so old/corrupt rows still render.
+func normalizeBrandEnum(v string, allow []string, def string) string {
+	norm := strings.ToLower(strings.TrimSpace(v))
+	if norm == "" {
+		return def
+	}
+	for _, a := range allow {
+		if norm == a {
+			return norm
+		}
+	}
+	return def
+}
+
+// validatedBrandHex ensures v is #rgb or #rrggbb (with or without the hash
+// the SPA always sends it with). Returns the canonical lowercase #rrggbb/#rgb.
+func validatedBrandHex(v string) (string, error) {
+	s := strings.TrimSpace(v)
+	if s == "" {
+		return "", fmt.Errorf("empty color")
+	}
+	if !strings.HasPrefix(s, "#") {
+		s = "#" + s
+	}
+	if len(s) != 4 && len(s) != 7 {
+		return "", fmt.Errorf("want #rgb or #rrggbb")
+	}
+	for _, c := range s[1:] {
+		switch {
+		case c >= '0' && c <= '9':
+		case c >= 'a' && c <= 'f':
+		case c >= 'A' && c <= 'F':
+		default:
+			return "", fmt.Errorf("want #rgb or #rrggbb")
+		}
+	}
+	return strings.ToLower(s), nil
+}
+
+// normalizeBrandHex is the fail-soft read-path twin: garbage falls back to
+// def so the brand never renders an invalid CSS color.
+func normalizeBrandHex(v, def string) string {
+	if _, err := validatedBrandHex(v); err != nil {
+		return def
+	}
+	s := strings.TrimSpace(v)
+	if !strings.HasPrefix(s, "#") {
+		s = "#" + s
+	}
+	return strings.ToLower(s)
 }
 
 // IsRegisterAllowed reports whether public self-registration is enabled.
