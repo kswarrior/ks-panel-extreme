@@ -441,8 +441,8 @@ const ThemeStudio: React.FC = () => {
           />
         </div>
         {/* Content column — NO outer card here (node pattern): every tab
-            section renders its own GlassCard, so a wrapper would nest a
-            card inside a card. */}
+            section renders its own section card (ks-form-card blocks), so a
+            wrapper would nest a card inside a card. */}
         <div className="space-y-4 min-w-0">
           {/* Fixed-height options box — every studio control scrolls inside
               (same pattern as the API-key permission list) so the page

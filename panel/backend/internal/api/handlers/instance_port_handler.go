@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"strconv"
@@ -32,11 +33,16 @@ func ListPortsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	// OWN scope: if caller is Own-restricted, they may only read own instances.
 	// We check here so a user with INSTANCES_OWN can't peek at another user's ports.
+	// Fail closed on checker errors so a DB blip never opens another owner's ports.
 	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
 		if conTmp, cerr := repository.OpenDB(); cerr == nil {
 			checker := permissions.NewChecker(conTmp)
-			hasOwn, hasAll, _ := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+			hasOwn, hasAll, serr := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
 			_ = conTmp.Close()
+			if serr != nil {
+				http.Error(w, "forbidden", http.StatusForbidden)
+				return
+			}
 			if !hasAll && hasOwn && inst.OwnerID != uid {
 				http.Error(w, "forbidden", http.StatusForbidden)
 				return
@@ -103,7 +109,7 @@ func UpdatePortsHandler(w http.ResponseWriter, r *http.Request) {
 			IP        string `json:"ip"`
 		} `json:"ports"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(io.LimitReader(r.Body, 64<<10)).Decode(&req); err != nil {
 		http.Error(w, "invalid payload", http.StatusBadRequest)
 		return
 	}
@@ -174,10 +180,14 @@ func UpdatePortsHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "instance not found", http.StatusNotFound)
 		return
 	}
-	// Ownership scope check for edit: Own may only edit own.
+	// Ownership scope check for edit: Own may only edit own. Fail closed on checker error.
 	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
 		checker := permissions.NewChecker(con)
-		hasOwn, hasAll, _ := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		hasOwn, hasAll, serr := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		if serr != nil {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
 		if !hasAll && hasOwn && inst.OwnerID != uid {
 			http.Error(w, "forbidden: own-scope may only edit own instances", http.StatusForbidden)
 			return

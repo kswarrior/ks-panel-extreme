@@ -453,7 +453,7 @@ httpFallback:
 		}
 		safeErr := strings.ReplaceAll(err.Error(), token, "[redacted]")
 		log.Printf("proxyToEdge: dial edge failed: %v", safeErr)
-		writeJSON(w, map[string]any{
+		writeJSONStatus(w, http.StatusBadGateway, map[string]any{
 			"error": "edge unreachable: " + safeErr,
 		})
 		return

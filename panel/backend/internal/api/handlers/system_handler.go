@@ -251,8 +251,8 @@ const nodeStateQuery = `
 	  CASE
 	    WHEN last_seen_at IS NULL THEN 'pending'
 	    WHEN status = 'up'
-	         AND (hw_ram_ok OR hw_cpu_ok OR hw_disk_ok OR hw_drivers_ok)
-	         AND (NOT hw_ram_ok OR NOT hw_cpu_ok OR NOT hw_disk_ok OR NOT hw_drivers_ok)
+	         AND (COALESCE(hw_ram_ok, 1) OR COALESCE(hw_cpu_ok, 1) OR COALESCE(hw_disk_ok, 1) OR COALESCE(hw_drivers_ok, 1))
+	         AND (NOT COALESCE(hw_ram_ok, 1) OR NOT COALESCE(hw_cpu_ok, 1) OR NOT COALESCE(hw_disk_ok, 1) OR NOT COALESCE(hw_drivers_ok, 1))
 	         THEN 'partial'
 	    WHEN status = 'up' THEN 'up'
 	    ELSE 'down'

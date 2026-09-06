@@ -141,14 +141,19 @@ func sftpEdgeClient(con sqlDB, inst *models.Instance) (*edge.Client, string, err
 }
 
 // sftpOwnScope enforces INSTANCES_OWN: Own may only read/mutate own
-// instances. Returns false (and writes) on denial.
+// instances. Returns false (and writes) on denial. Fail closed on checker
+// errors so a DB blip never opens another owner's dial address.
 func sftpOwnScope(w http.ResponseWriter, r *http.Request, con sqlDB, inst *models.Instance) bool {
 	uid, uerr := UserIDFromContext(r)
 	if uerr != nil || uid == 0 {
 		return true
 	}
 	checker := permissions.NewChecker(con)
-	hasOwn, hasAll, _ := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+	hasOwn, hasAll, serr := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+	if serr != nil {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return false
+	}
 	if !hasAll && hasOwn && inst.OwnerID != uid {
 		http.Error(w, "forbidden: own-scope may only manage own instances", http.StatusForbidden)
 		return false
@@ -196,8 +201,8 @@ func sftpPublicView(inst *models.Instance, cfg *repository.SFTPConfig, nodeAddr 
 	// has no port to strip and must be kept verbatim — splitting on the
 	// last colon would mangle it into ":" / "2001:db8:".
 	if strings.HasPrefix(host, "[") {
-		if h, _, err := splitHostPortBracketed(host); err == nil {
-			host = h
+		if end := strings.LastIndex(host, "]"); end > 0 {
+			host = host[1:end]
 		} else {
 			host = strings.Trim(host, "[]")
 		}
