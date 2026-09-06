@@ -187,6 +187,22 @@ func coerceHandleResult(ret goja.Value) HandleResult {
 	return HandleResult{}
 }
 
+// interruptVM raises a goja interrupt on the live VM, if any. Both watchdog
+// timers funnel through here: Stop() nils r.vm while a timer may still be
+// armed, and a bare r.vm.Interrupt there would nil-dereference inside the
+// timer goroutine — an unrecoverable panic that crashes the panel process.
+// The nil-guard keeps teardown-vs-watchdog a silent no-op; interrupting an
+// idle VM is harmless.
+func (r *gojaRuntime) interruptVM(reason string) {
+	r.mu.Lock()
+	vm := r.vm
+	r.mu.Unlock()
+	if vm == nil {
+		return
+	}
+	vm.Interrupt(reason)
+}
+
 // armInterrupt schedules a watchdog that calls vm.Interrupt after the ctx
 // deadline, terminating an over-running JS call with a goja.InterruptedError
 // (which the thunk recovers as a logged error). Returns a stop() that disarms
@@ -201,9 +217,10 @@ func (r *gojaRuntime) armInterrupt(ctx context.Context) func() {
 	// vm.Interrupt is a method (func(v interface{})) on the Runtime: it sets
 	// the interrupt flag the VM checks at safepoints, turning the in-flight JS
 	// call into an *InterruptedError promptly without needing a pre-wired
-	// channel. Safe to call from the timer goroutine.
+	// channel. Safe to call from the timer goroutine. Routed via
+	// interruptVM so a Stop() racing the deadline cannot nil-dereference.
 	timer := time.AfterFunc(deadline, func() {
-		r.vm.Interrupt("hook timeout")
+		r.interruptVM("hook timeout")
 	})
 	return func() { timer.Stop() }
 }
