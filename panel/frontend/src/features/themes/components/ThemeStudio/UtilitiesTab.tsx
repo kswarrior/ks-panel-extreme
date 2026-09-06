@@ -8,7 +8,7 @@ interface UtilitiesTabProps {
 
 export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({ draft, patch }) => {
   return (
-    <GlassCard className="space-y-4">
+    <div className="space-y-4">
       <div className="ks-form-card rounded-lg space-y-4">
         <Label label="Color Utilities" hint="Semantic colour tokens (--ks-ui-*) available to Custom CSS." />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -80,6 +80,6 @@ export const UtilitiesTab: React.FC<UtilitiesTabProps> = ({ draft, patch }) => {
           <div className="ks-card p-4 min-w-[150px]">Card</div>
         </div>
       </div>
-    </GlassCard>
+    </div>
   );
 };

@@ -21,7 +21,7 @@ const inh = (v: string | undefined, d: string): string => (v == null || v === d 
 
 export const ComponentsTab: React.FC<ComponentsTabProps> = ({ draft, patch }) => {
   return (
-    <GlassCard className="space-y-4">
+    <div className="space-y-4">
       <div className="ks-form-card rounded-lg space-y-4">
         <Label label="Card / Panel" hint="Edits the same values as the Card tab." />
         <ColorField label="Background" value={draft.card?.background ?? 'rgba(255,255,255,0.04)'} onChange={(v) => patch('card', { background: v })} />
@@ -105,6 +105,6 @@ export const ComponentsTab: React.FC<ComponentsTabProps> = ({ draft, patch }) =>
           </div>
         </div>
       </div>
-    </GlassCard>
+    </div>
   );
 };

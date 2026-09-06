@@ -8,7 +8,7 @@ interface FormsTabProps {
 
 export const FormsTab: React.FC<FormsTabProps> = ({ draft, patch }) => {
   return (
-    <GlassCard className="space-y-4">
+    <div className="space-y-4">
       <div className="ks-form-card rounded-lg space-y-4">
         <Label label="Input Fields" hint="Base styling for text inputs, textareas, selects." />
         <ColorField label="Background" value={draft.forms?.input_background ?? 'rgba(0,0,0,0.3)'} onChange={(v) => patch('forms', { input_background: v })} />
@@ -147,6 +147,6 @@ export const FormsTab: React.FC<FormsTabProps> = ({ draft, patch }) => {
           <input type="text" className="ks-input ks-input-disabled" placeholder="Disabled" disabled />
         </div>
       </div>
-    </GlassCard>
+    </div>
   );
 };

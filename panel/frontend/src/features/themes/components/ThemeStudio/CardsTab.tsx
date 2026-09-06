@@ -20,7 +20,7 @@ const inh = (v: string | undefined, d: string): string => (v == null || v === d 
 
 export const CardsTab: React.FC<CardsTabProps> = ({ draft, patch }) => {
   return (
-    <GlassCard className="space-y-4">
+    <div className="space-y-4">
       <div className="ks-form-card rounded-lg space-y-4">
         <Label label="List Card (ks-list-card)" hint="Cards in grids/lists. Defaults follow the Card tab until changed." />
         <ColorField label="Background" value={inh(draft.cards?.list_background, D.cards.list_background)} onChange={(v) => patch('cards', { list_background: v })} placeholder="Follow Card tab" />
@@ -185,6 +185,6 @@ export const CardsTab: React.FC<CardsTabProps> = ({ draft, patch }) => {
           </div>
         </div>
       </div>
-    </GlassCard>
+    </div>
   );
 };

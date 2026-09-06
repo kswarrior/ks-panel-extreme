@@ -1,5 +1,4 @@
 import React from 'react';
-import GlassCard from '@/shared/components/ui/Card';
 import { Label, Select, CodeArea } from '@/theme/studioControls';
 import { scopeForArea, scopeForPage } from '@/shared/stores/themeStore';
 import { AREAS, STANDALONE_PAGES } from '@/features/instance-pages/types/pageregistry';
@@ -29,8 +28,7 @@ function scopeLabelFor(scope: string): string {
 
 export const CustomCSSTab: React.FC<CustomCSSTabProps> = ({ draft, patch }) => {
   return (
-    <>
-      <GlassCard className="space-y-4">
+    <div className="space-y-4">
         <div className="ks-form-card rounded-lg space-y-2">
           <Label
             label="Custom CSS — add completely arbitrary CSS anywhere"
@@ -45,14 +43,16 @@ export const CustomCSSTab: React.FC<CustomCSSTabProps> = ({ draft, patch }) => {
           </p>
         </div>
 
-        <CodeArea
-          label="Global CSS (applies everywhere)"
-          hint="Injected into the panel's theme stylesheet on every page. Write any CSS — it lands after every token rule, so it naturally wins by source order."
-          value={draft.customCSS?.global ?? ''}
-          onChange={(v) => patch('customCSS', { global: v })}
-          placeholder={`/* Example: restyle every card title to uppercase */\n.glass-card > header h2, .glass-card h3 {\n  text-transform: uppercase;\n  letter-spacing: 0.06em;\n}`}
-          rows={10}
-        />
+        <div className="ks-form-card rounded-lg space-y-4">
+          <CodeArea
+            label="Global CSS (applies everywhere)"
+            hint="Injected into the panel's theme stylesheet on every page. Write any CSS — it lands after every token rule, so it naturally wins by source order."
+            value={draft.customCSS?.global ?? ''}
+            onChange={(v) => patch('customCSS', { global: v })}
+            placeholder={`/* Example: restyle every card title to uppercase */\n.glass-card > header h2, .glass-card h3 {\n  text-transform: uppercase;\n  letter-spacing: 0.06em;\n}`}
+            rows={10}
+          />
+        </div>
 
         <div className="ks-form-card rounded-lg space-y-4">
           <Label
@@ -204,7 +204,6 @@ export const CustomCSSTab: React.FC<CustomCSSTabProps> = ({ draft, patch }) => {
             </div>
           </div>
         </div>
-      </GlassCard>
-    </>
+    </div>
   );
 };
