@@ -1534,7 +1534,7 @@ function buildSectionVars(theme: Theme): { vars: string } {
   --ks-formcard-border: ${eqTok(cd.form_border_color, D.cards.form_border_color, 'var(--ks-card-border)')};
   --ks-formcard-shadow: ${eqTok(cd.form_shadow, D.cards.form_shadow, 'var(--ks-card-shadow)')};
   --ks-formcard-radius: ${cd.form_border_radius === D.cards.form_border_radius ? 'var(--ks-card-radius)' : `${num(cd.form_border_radius, 5)}px`};
-  --ks-formcard-padding: ${cd.form_padding === D.cards.form_padding ? 'var(--ks-card-padding)' : `${num(cd.form_padding, 15)}px`},
+  --ks-formcard-padding: ${cd.form_padding === D.cards.form_padding ? 'var(--ks-card-padding)' : `${num(cd.form_padding, 15)}px`};
 
   /* ---------------- Theme Studio: Pill (top-right actions) ---------------- */
   --ks-pill-bg: ${eqTok((theme as any).pill?.background, D.pill.background, 'var(--ks-card-bg)')};
