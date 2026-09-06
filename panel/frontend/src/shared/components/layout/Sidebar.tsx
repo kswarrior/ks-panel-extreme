@@ -3,6 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
 import { PermissionKey, PERMISSION_AREAS, hasPermissionAny } from '@/shared/types/permissions';
+import { PanelBrandLogo, PanelBrandName } from '@/shared/components/brand/PanelBrand';
 import SidebarSkeleton from './SidebarSkeleton';
 
 interface SidebarProps {
@@ -265,6 +266,8 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
   const initialized = useAuthStore((s) => s.initialized);
   const panelName = useSettingsStore((s) => s.panelName);
   const panelLogo = useSettingsStore((s) => s.panelLogo);
+  const nameStyle = useSettingsStore((s) => s.nameStyle);
+  const logoStyle = useSettingsStore((s) => s.logoStyle);
   const footerText = useSettingsStore((s) => s.footerText);
   const isCollapsed = collapsed !== undefined ? collapsed : false;
 
@@ -328,31 +331,9 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
       >
         {/* Fixed top brand area — never scrolls */}
         <div className={`shrink-0 z-10 px-3 py-4 border-b border-gray-800 flex items-center gap-2.5 ${isCollapsed ? 'justify-center' : ''}`}>
-          {panelLogo ? (
-            <img
-              src={panelLogo.url}
-              alt={panelName}
-              className="h-7 w-7 shrink-0 rounded-md object-contain bg-neutral-900 border border-neutral-700"
-            />
-          ) : (
-            <span className="inline-flex items-center justify-center h-7 w-7 shrink-0 rounded-md bg-neutral-900 border border-neutral-700">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="h-4 w-4 text-white"
-                aria-hidden="true"
-              >
-                <path d="M12 2 4 6v6c0 5 3.4 8.6 8 10 4.6-1.4 8-5 8-10V6l-8-4Z" />
-              </svg>
-            </span>
-          )}
+          <PanelBrandLogo logo={panelLogo} style={logoStyle} baseSize={28} alt={panelName} eager />
           {!isCollapsed && (
-            <span className="text-lg font-semibold tracking-tight whitespace-nowrap truncate flex-1 min-w-0">{panelName}</span>
+            <PanelBrandName name={panelName} style={nameStyle} basePx={18} as="span" className="flex-1" />
           )}
         </div>
 

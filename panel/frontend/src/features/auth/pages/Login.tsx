@@ -4,6 +4,7 @@ import client from '@/shared/api/client';
 import { fetchAuthorityBranding, isSafeAuthorityLogoUrl } from '@/shared/api/authorityBranding';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
+import { PanelBrandLogo, PanelBrandName } from '@/shared/components/brand/PanelBrand';
 import ThemedBackground from '@/shared/components/layout/ThemedBackground';
 
 interface LoginResponse {
@@ -24,6 +25,8 @@ const Login: React.FC = () => {
   const { setAuth, addAccount } = useAuthStore();
   const panelName = useSettingsStore((s) => s.panelName);
   const panelLogo = useSettingsStore((s) => s.panelLogo);
+  const nameStyle = useSettingsStore((s) => s.nameStyle);
+  const logoStyle = useSettingsStore((s) => s.logoStyle);
   const footerText = useSettingsStore((s) => s.footerText);
   const setPanelName = useSettingsStore((s) => s.setPanelName);
   const token = useAuthStore((s) => s.token);
@@ -255,24 +258,9 @@ const Login: React.FC = () => {
       <div className="relative z-10 w-full max-w-sm sm:max-w-md animate-fade-in">
         {/* Brand header - logo left, name + subtitle stacked right */}
         <div className="flex items-center gap-4 mb-6 animate-scale-in w-full text-left px-6 sm:px-7">
-          {panelLogo ? (
-            <img
-              src={panelLogo.url}
-              alt={`${panelName} logo`}
-              className="w-16 h-16 rounded-2xl object-contain bg-neutral-900 border border-neutral-700 backdrop-blur-sm animate-pulse-glow shadow-lg shrink-0"
-              loading="eager"
-            />
-          ) : (
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-neutral-900 border border-neutral-700 backdrop-blur-sm animate-pulse-glow shadow-lg shrink-0" aria-hidden="true">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8 text-white" aria-hidden="true">
-                <path d="M12 2 4 6v6c0 5 3.4 8.6 8 10 4.6-1.4 8-5 8-10V6l-8-4Z" />
-              </svg>
-            </div>
-          )}
+          <PanelBrandLogo logo={panelLogo} style={logoStyle} baseSize={64} alt={`${panelName} logo`} eager />
           <div className="flex flex-col items-start text-left min-w-0">
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white drop-shadow-sm leading-tight">
-              {panelName || 'KS Panel'}
-            </h1>
+            <PanelBrandName name={panelName} style={nameStyle} basePx={28} />
             <p className="text-sm text-gray-300/80 tracking-wide mt-0.5">
               {addAccountMode ? 'Add another account' : 'Sign in to your account'}
             </p>
