@@ -344,5 +344,17 @@ export function areaFor(pathname: string): AreaId | null {
   // and must follow the instance area's theme (assignment > default). This
   // covers custom pages and any future tabs without requiring a registry edit.
   if (/^\/instances\/\d+(\/|$)/.test(pathname)) return 'instance';
+  if (/^\/instance\/\d+(\/|$)/.test(pathname)) return 'instance';
+  if (pathname === '/instances/new' || pathname.startsWith('/instances/new/')) return 'instance';
+  if (pathname === '/instances/stats' || pathname.startsWith('/instances/stats/')) return 'instance';
+  if (pathname === '/instances/schedules' || pathname.startsWith('/instances/schedules/')) return 'instance';
+  if (pathname === '/account' || pathname.startsWith('/account/')) return 'instance';
+  if (pathname === '/auth' || pathname.startsWith('/auth/')) return 'auth';
+  // Any other top-level panel route (e.g. a newly added admin page that has
+  // no registry entry yet) belongs to the admin area so it still follows the
+  // area:admin default theme instead of falling back to built-in Default.
+  // Without this, every new <Route> silently lost theming until someone
+  // remembered to add a matching catalogue entry.
+  if (pathname.startsWith('/')) return 'admin';
   return null;
 }
