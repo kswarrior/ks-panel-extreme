@@ -51,18 +51,18 @@ const (
 // migration is needed — a fresh install simply falls back to the defaults
 // below via getString.
 const (
-	PanelNameColorKey       = "panel_name_color"        // hex, e.g. "#ffffff"
-	PanelNameFontKey        = "panel_name_font"         // inter|system|poppins|montserrat|roboto|outfit|space|playfair|mono
-	PanelNameWeightKey      = "panel_name_weight"       // 400|500|600|700|800|900
-	PanelNameSizeKey        = "panel_name_size"         // sm|md|lg|xl
-	PanelNameEffectKey      = "panel_name_effect"       // none|shadow|outline|3d|neon|gradient
-	PanelNameShadowKey      = "panel_name_shadow"       // none|sm|md|lg|glow
+	PanelNameColorKey        = "panel_name_color"         // hex, e.g. "#ffffff"
+	PanelNameFontKey         = "panel_name_font"          // inter|system|poppins|montserrat|roboto|outfit|space|playfair|mono
+	PanelNameWeightKey       = "panel_name_weight"        // 400|500|600|700|800|900
+	PanelNameSizeKey         = "panel_name_size"          // sm|md|lg|xl
+	PanelNameEffectKey       = "panel_name_effect"        // none|shadow|outline|3d|neon|gradient
+	PanelNameShadowKey       = "panel_name_shadow"        // none|sm|md|lg|glow
 	PanelNameGradientFromKey = "panel_name_gradient_from" // hex
 	PanelNameGradientToKey   = "panel_name_gradient_to"   // hex
 	PanelNameGradientDirKey  = "panel_name_gradient_dir"  // 90deg|135deg|180deg
-	PanelNameItalicKey      = "panel_name_italic"       // "1"/"0"
-	PanelNameUppercaseKey   = "panel_name_uppercase"    // "1"/"0"
-	PanelNameSpacingKey     = "panel_name_spacing"      // tight|normal|wide
+	PanelNameItalicKey       = "panel_name_italic"        // "1"/"0"
+	PanelNameUppercaseKey    = "panel_name_uppercase"     // "1"/"0"
+	PanelNameSpacingKey      = "panel_name_spacing"       // tight|normal|wide
 )
 
 // Panel logo-display keys (Settings > General > Panel Logo presentation).
@@ -80,18 +80,18 @@ const (
 // Defaults for the brand-style + logo-display keys. Kept next to the keys
 // so the snapshot reader and the validators share one source of truth.
 const (
-	DefaultPanelNameColor       = "#ffffff"
-	DefaultPanelNameFont        = "inter"
-	DefaultPanelNameWeight      = "800"
-	DefaultPanelNameSize        = "lg"
-	DefaultPanelNameEffect      = "shadow"
-	DefaultPanelNameShadow      = "sm"
+	DefaultPanelNameColor        = "#ffffff"
+	DefaultPanelNameFont         = "inter"
+	DefaultPanelNameWeight       = "800"
+	DefaultPanelNameSize         = "lg"
+	DefaultPanelNameEffect       = "shadow"
+	DefaultPanelNameShadow       = "sm"
 	DefaultPanelNameGradientFrom = "#ffffff"
 	DefaultPanelNameGradientTo   = "#a5b4fc"
 	DefaultPanelNameGradientDir  = "90deg"
-	DefaultPanelNameItalic      = "0"
-	DefaultPanelNameUppercase   = "0"
-	DefaultPanelNameSpacing     = "normal"
+	DefaultPanelNameItalic       = "0"
+	DefaultPanelNameUppercase    = "0"
+	DefaultPanelNameSpacing      = "normal"
 
 	DefaultPanelLogoSize   = "md"
 	DefaultPanelLogoShape  = "large"
@@ -266,18 +266,18 @@ type SettingsSnapshot struct {
 
 	// Panel-name brand styling (Settings > General). Plain strings so they
 	// round-trip through the KV store with no migration.
-	PanelNameColor       string `json:"panel_name_color"`
-	PanelNameFont        string `json:"panel_name_font"`
-	PanelNameWeight      string `json:"panel_name_weight"`
-	PanelNameSize        string `json:"panel_name_size"`
-	PanelNameEffect      string `json:"panel_name_effect"`
-	PanelNameShadow      string `json:"panel_name_shadow"`
+	PanelNameColor        string `json:"panel_name_color"`
+	PanelNameFont         string `json:"panel_name_font"`
+	PanelNameWeight       string `json:"panel_name_weight"`
+	PanelNameSize         string `json:"panel_name_size"`
+	PanelNameEffect       string `json:"panel_name_effect"`
+	PanelNameShadow       string `json:"panel_name_shadow"`
 	PanelNameGradientFrom string `json:"panel_name_gradient_from"`
 	PanelNameGradientTo   string `json:"panel_name_gradient_to"`
 	PanelNameGradientDir  string `json:"panel_name_gradient_dir"`
-	PanelNameItalic      string `json:"panel_name_italic"`
-	PanelNameUppercase   string `json:"panel_name_uppercase"`
-	PanelNameSpacing     string `json:"panel_name_spacing"`
+	PanelNameItalic       string `json:"panel_name_italic"`
+	PanelNameUppercase    string `json:"panel_name_uppercase"`
+	PanelNameSpacing      string `json:"panel_name_spacing"`
 
 	// Panel-logo presentation (how the stored bytes are rendered).
 	PanelLogoSize   string `json:"panel_logo_size"`
