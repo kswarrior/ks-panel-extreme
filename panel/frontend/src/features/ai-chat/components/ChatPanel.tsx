@@ -85,7 +85,31 @@ const ChatPanel: React.FC = () => {
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [messages, loading, streaming, open, ticket]);
+  }, [open, activeThreadId]);
+
+  // Token-by-token streaming re-renders on every chunk: only follow when
+  // the user is pinned to the bottom so they can read history mid-reply.
+  useEffect(() => {
+    if (!stickRef.current) return;
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [messages, loading, streaming, ticket]);
+
+  const scrollToBottom = (smooth = true) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setStickToBottom(true);
+    setShowJump(false);
+    el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+  };
+
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    setStickToBottom(nearBottom);
+    setShowJump(!nearBottom && el.scrollHeight > el.clientHeight + 120);
+  };
 
   if (!open) return null;
   if (location.pathname.startsWith('/auth')) return null;
@@ -94,8 +118,15 @@ const ChatPanel: React.FC = () => {
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!draft.trim() || loading || ticket) return;
+    // Sending re-pins to the bottom so the new turn is visible.
+    setStickToBottom(true);
+    setShowJump(false);
     send(draft);
     setDraft('');
+    requestAnimationFrame(() => {
+      const el = scrollRef.current;
+      if (el) el.scrollTop = el.scrollHeight;
+    });
   };
 
   const activeThread = threads.find((t) => t.id === activeThreadId) || null;
@@ -115,7 +146,7 @@ const ChatPanel: React.FC = () => {
       role="dialog"
       aria-label={`${panelName} Assistant`}
       style={{ position: 'fixed' }}
-      className={`fixed z-50 bottom-24 right-5 w-[380px] max-w-[calc(100vw-2.5rem)] h-[520px] max-h-[calc(100dvh-8rem)] flex flex-col rounded-xl glass-dropdown overflow-hidden`}
+      className={`fixed z-50 bottom-24 right-5 w-[380px] max-w-[calc(100vw-2.5rem)] h-[520px] max-h-[calc(100dvh-8rem)] flex flex-col rounded-xl glass-dropdown overflow-hidden ks-ai-panel-enter`}
     >
       <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-white/10">
         <div className="min-w-0">
@@ -131,6 +162,22 @@ const ChatPanel: React.FC = () => {
           </p>
         </div>
         <div className="flex items-center gap-1 shrink-0">
+          {view === 'chat' && (
+            <button
+              type="button"
+              onClick={() => setMenuOpen((v) => !v)}
+              aria-label={menuOpen ? 'Hide thread menu' : 'Show thread menu'}
+              aria-expanded={menuOpen}
+              title={menuOpen ? 'Hide thread menu' : 'Show thread menu'}
+              className={`ks-ai-menu-toggle rounded-md p-1.5 text-gray-400 hover:text-white hover:bg-white/10 transition-colors ${menuOpen ? 'is-open' : ''}`}
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </svg>
+            </button>
+          )}
           {isAdmin && (
             <button
               type="button"
@@ -170,7 +217,9 @@ const ChatPanel: React.FC = () => {
         <ChatSettings />
       ) : (
       <>
-      <div className="flex items-center gap-1.5 px-3 py-2 border-b border-white/10">
+      <div className={`ks-ai-threads-collapsible ${menuOpen ? '' : 'is-collapsed'}`} aria-hidden={!menuOpen}>
+        <div>
+          <div className="flex items-center gap-1.5 px-3 py-2 border-b border-white/10">
         <select
           value={activeThreadId ?? ''}
           onChange={(e) => {
@@ -230,6 +279,8 @@ const ChatPanel: React.FC = () => {
             </button>
           </>
         )}
+          </div>
+        </div>
       </div>
       {renaming && activeThreadId != null && (
         <form
@@ -272,7 +323,8 @@ const ChatPanel: React.FC = () => {
         </div>
       )}
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
+      <div className="relative flex-1 min-h-0">
+      <div ref={scrollRef} onScroll={handleScroll} className="h-full overflow-y-auto px-3 py-3 space-y-3">
         {messages.length === 0 && (
           <p className="text-xs text-gray-400 leading-relaxed">
             Hi! I can look up instances, nodes and templates, explain how the panel works, and —
@@ -284,10 +336,14 @@ const ChatPanel: React.FC = () => {
           const isLive = streaming && i === messages.length - 1 && m.role === 'assistant';
           if (m.role !== 'user') {
             return (
-              <div key={m.id} className="w-full">
-                <div className="w-full px-1 py-1 text-sm leading-relaxed break-words whitespace-pre-wrap text-gray-100">
-                  {m.content}
-                  {isLive && <span className="inline-block w-2 animate-pulse">▍</span>}
+              <div key={m.id} className="w-full min-w-0">
+                <div className="w-full px-1 py-1 text-sm leading-relaxed text-gray-100 min-w-0 overflow-hidden">
+                  {m.content.trim() === '' ? (
+                    <span className="text-gray-400 animate-pulse">Thinking…</span>
+                  ) : (
+                    <MarkdownBio source={m.content} className="text-sm text-gray-100 leading-relaxed break-words" />
+                  )}
+                  {isLive && m.content.trim() !== '' && <span className="inline-block w-2 animate-pulse text-gray-400">▍</span>}
                 </div>
               </div>
             );
@@ -300,7 +356,7 @@ const ChatPanel: React.FC = () => {
             </div>
           );
         })}
-        {loading && !streaming && (
+        {loading && !streaming && messages.length > 0 && messages[messages.length - 1]?.role !== 'assistant' && (
           <div className="w-full px-1 py-1 text-sm text-gray-400 animate-pulse">
             Thinking…
           </div>
@@ -351,6 +407,22 @@ const ChatPanel: React.FC = () => {
             </span>
           </div>
         )}
+      </div>
+      {showJump && !stickToBottom && (
+        <button
+          type="button"
+          onClick={() => scrollToBottom(true)}
+          aria-label="Scroll to latest message"
+          title="Scroll to latest"
+          className="ks-ai-jump-enter absolute bottom-3 left-1/2 -translate-x-1/2 inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-black/70 backdrop-blur-md px-3 py-1.5 text-xs text-white shadow-lg hover:bg-black/90 transition-colors"
+        >
+          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+          Latest
+          {streaming && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />}
+        </button>
+      )}
       </div>
 
       <form onSubmit={submit} className="border-t border-white/10 p-3 flex items-end gap-2">
