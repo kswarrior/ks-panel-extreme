@@ -346,7 +346,7 @@ func CreateWithOptions(label, compression string) (Backup, error) {
 
 func isSQLiteEngine(engine string) bool {
 	e := strings.ToLower(strings.TrimSpace(engine))
-	return e == "" || e == "sqlite"
+	return e == "" || e == "sqlite" || e == "sqlite3"
 }
 
 func storageSuffix(base, compression string) string {
@@ -932,12 +932,14 @@ func (e *ErrNativeToolMissing) Error() string {
 }
 
 // NativeToolAvailable reports whether pg_dump / mysqldump exists for engine.
+// Engine aliases accepted by db.NewDialect ("postgresql"/"pg", "mariadb")
+// are honoured here so a valid engine never reports its tool as missing.
 func NativeToolAvailable(engine string) bool {
 	switch strings.ToLower(strings.TrimSpace(engine)) {
-	case "postgres":
+	case "postgres", "postgresql", "pg":
 		_, err := exec.LookPath("pg_dump")
 		return err == nil
-	case "mysql":
+	case "mysql", "mariadb":
 		_, err := exec.LookPath("mysqldump")
 		return err == nil
 	default:
@@ -957,7 +959,7 @@ func createNativeWithOptions(engine, dsn, label, compression string) (Backup, er
 	label = sanitizeLabel(label)
 	suffix := storageSuffix(".sql", compression)
 	toolLabel := engine
-	if engine == "postgres" {
+	if engine == "postgres" || engine == "postgresql" || engine == "pg" {
 		toolLabel = "pg_dump"
 	} else {
 		toolLabel = "mysqldump"
@@ -1007,7 +1009,7 @@ func createNativeWithOptions(engine, dsn, label, compression string) (Backup, er
 // fall back to the datamove SQLite snapshot.
 func NativeDump(engine, dsn, dstPath string) error {
 	switch strings.ToLower(strings.TrimSpace(engine)) {
-	case "postgres":
+	case "postgres", "postgresql", "pg":
 		if _, err := exec.LookPath("pg_dump"); err != nil {
 			return &ErrNativeToolMissing{Engine: "postgres", Tool: "pg_dump"}
 		}
@@ -1024,7 +1026,7 @@ func NativeDump(engine, dsn, dstPath string) error {
 			return fmt.Errorf("pg_dump failed: %v", truncateErr(stderr.String(), 500))
 		}
 		return nil
-	case "mysql":
+	case "mysql", "mariadb":
 		if _, err := exec.LookPath("mysqldump"); err != nil {
 			return &ErrNativeToolMissing{Engine: "mysql", Tool: "mysqldump"}
 		}

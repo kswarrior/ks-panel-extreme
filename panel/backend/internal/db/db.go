@@ -649,10 +649,29 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			if _, err := db.Exec(string(stripped)); err != nil {
 				return fmt.Errorf("migration %s failed: %w", name, err)
 			}
-			if err := guardedCreateIndex(d, db, name, "node_wss_channels", "idx_node_wss_channels_node", "node_id"); err != nil {
-				return err
-			}
-			continue
+		if err := guardedCreateIndex(d, db, name, "node_wss_channels", "idx_node_wss_channels_node", "node_id"); err != nil {
+			return err
+		}
+		continue
+	case name == "069_api_key_requests.sql":
+		// API-key rate-limit ledger (key_hash + created_at rows counted by
+		// CheckAPIKeyRateLimit). The CREATE TABLE is IF NOT EXISTS on every
+		// dialect, but the index line is `IF NOT EXISTS` only on
+		// sqlite/postgres (mysql strips it). Guard the index via hasIndex
+		// so the migration is idempotent on every engine — mirrors
+		// 062_node_wss_channels.sql.
+		body, rerr := readMigrationsFile(fsys, name)
+		if rerr != nil {
+			return rerr
+		}
+		stripped := stripCreateIndexLines(body, "idx_api_key_requests_hash_time")
+		if _, err := db.Exec(string(stripped)); err != nil {
+			return fmt.Errorf("migration %s failed: %w", name, err)
+		}
+		if err := guardedCreateIndex(d, db, name, "api_key_requests", "idx_api_key_requests_hash_time", "key_hash, created_at"); err != nil {
+			return err
+		}
+		continue
 		case name == "065_tickets_attachments_sla_notify.sql":
 			// Ticket attachments + SLA sidecar + notification prefs. The
 			// CREATE TABLEs are IF NOT EXISTS on every dialect, but the

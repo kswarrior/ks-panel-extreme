@@ -469,11 +469,17 @@ func compileStep(s Step, env map[string]string) (string, error) {
 		if s.Command == "" {
 			return "", fmt.Errorf("pip_install step requires command")
 		}
-		// `pip install` with --no-cache-dir keeps image layers small.
+		// Each whitespace-separated token is single-quoted so a package
+		// spec carrying shell metachars ("req; rm -rf /") stays one pip
+		// argument instead of splitting the -lc program.
+		pipArgs := shellQuoteFields(sub(s.Command))
+		if pipArgs == "" {
+			return "", fmt.Errorf("pip_install step requires command")
+		}
 		return strings.Join([]string{
 			`set -e`,
-			`if command -v pip >/dev/null 2>&1; then pip install --no-cache-dir ` + sub(s.Command) + `;`,
-			`elif command -v pip3 >/dev/null 2>&1; then pip3 install --no-cache-dir ` + sub(s.Command) + `;`,
+			`if command -v pip >/dev/null 2>&1; then pip install --no-cache-dir ` + pipArgs + `;`,
+			`elif command -v pip3 >/dev/null 2>&1; then pip3 install --no-cache-dir ` + pipArgs + `;`,
 			`else echo "pip not found in image" >&2; exit 127; fi`,
 		}, "\n"), nil
 
@@ -490,7 +496,7 @@ func compileStep(s Step, env map[string]string) (string, error) {
 		}
 		return strings.Join([]string{
 			`set -e`,
-			`if command -v npm >/dev/null 2>&1; then npm install ` + arg + `;`,
+			`if command -v npm >/dev/null 2>&1; then npm install ` + shellQuoteFields(arg) + `;`,
 			`else echo "npm not found in image" >&2; exit 127; fi`,
 		}, "\n"), nil
 
@@ -561,4 +567,16 @@ func parseIntLoose(s string) (int, error) {
 // re-evaluation. Every embedded single quote gets the `'\”` escape.
 func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
+// shellQuoteFields quotes each whitespace-separated field so a package list
+// ("requests flask") stays multiple safe argv words while metachars in any
+// single field ("a; rm") never split the shell program.
+func shellQuoteFields(s string) string {
+	fields := strings.Fields(s)
+	quoted := make([]string, 0, len(fields))
+	for _, f := range fields {
+		quoted = append(quoted, shellQuote(f))
+	}
+	return strings.Join(quoted, " ")
 }
