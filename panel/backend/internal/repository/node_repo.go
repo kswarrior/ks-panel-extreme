@@ -903,12 +903,20 @@ func (r *NodeRepository) MarkStale(threshold time.Duration) (int, error) {
 	}
 	var ids []int64
 	for rows.Next() {
-		var id int64
+		// Null-guarded scan: modernc.org/sqlite emits a single all-NULL
+		// phantom row for a LEFT/JOIN-filtered empty set (same quirk the
+		// instance List() COUNT-guard works around) — a bare int64 scan
+		// turns "no stale nodes" (the normal steady state) into a loud
+		// converting NULL to int64 error.
+		var id sql.NullInt64
 		if err := rows.Scan(&id); err != nil {
 			rows.Close()
 			return 0, err
 		}
-		ids = append(ids, id)
+		if !id.Valid {
+			continue
+		}
+		ids = append(ids, id.Int64)
 	}
 	rows.Close()
 
