@@ -262,6 +262,9 @@ func validateTemplate(req templateDTO) (string, error) {
 	if req.Icon != "" && len(req.Icon) > 16*1024 {
 		return "", errString("icon too large (max 16KB)")
 	}
+	if req.Icon != "" && strings.Contains(strings.ToLower(req.Icon), "<script") {
+		return "", errString("icon must not contain <script>")
+	}
 	if req.Color != "" && !validNodeColorHex(strings.TrimSpace(req.Color)) {
 		return "", errString("color must be a #rrggbb hex value")
 	}
@@ -417,6 +420,10 @@ func handleTemplateFileUpload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "icon too large (max 16KB)", http.StatusBadRequest)
 		return
 	}
+	if icon != "" && strings.Contains(strings.ToLower(icon), "<script") {
+		http.Error(w, "icon must not contain <script>", http.StatusBadRequest)
+		return
+	}
 	if color != "" && !validNodeColorHex(color) {
 		http.Error(w, "color must be a #rrggbb hex value", http.StatusBadRequest)
 		return
@@ -533,6 +540,10 @@ func InstallTemplateFromURLHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if icon != "" && len(icon) > 16*1024 {
 		http.Error(w, "icon too large (max 16KB)", http.StatusBadRequest)
+		return
+	}
+	if icon != "" && strings.Contains(strings.ToLower(icon), "<script") {
+		http.Error(w, "icon must not contain <script>", http.StatusBadRequest)
 		return
 	}
 	if color != "" && !validNodeColorHex(color) {

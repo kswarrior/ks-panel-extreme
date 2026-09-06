@@ -716,6 +716,19 @@ func UpdateInstanceIdentityHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "display_name too long (max 128 chars)", http.StatusBadRequest)
 		return
 	}
+	if req.Icon != "" && len(req.Icon) > 16*1024 {
+		http.Error(w, "icon too large (max 16KB)", http.StatusBadRequest)
+		return
+	}
+	if req.Icon != "" && strings.Contains(strings.ToLower(req.Icon), "<script") {
+		http.Error(w, "icon must not contain <script>", http.StatusBadRequest)
+		return
+	}
+	if req.Color != "" && !validNodeColorHex(strings.TrimSpace(req.Color)) {
+		http.Error(w, "color must be a #rrggbb hex value", http.StatusBadRequest)
+		return
+	}
+	req.Color = strings.ToUpper(strings.TrimSpace(req.Color))
 
 	con, err := repository.OpenDB()
 	if err != nil {
@@ -1038,6 +1051,23 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("instance name %q is invalid (1-63 chars, [a-zA-Z0-9_-], must start with alphanumeric, no leading hyphen)", req.Name), http.StatusBadRequest)
 		return
 	}
+	if len(req.DisplayName) > 128 {
+		http.Error(w, "display_name too long (max 128 chars)", http.StatusBadRequest)
+		return
+	}
+	if req.Icon != "" && len(req.Icon) > 16*1024 {
+		http.Error(w, "icon too large (max 16KB)", http.StatusBadRequest)
+		return
+	}
+	if req.Icon != "" && strings.Contains(strings.ToLower(req.Icon), "<script") {
+		http.Error(w, "icon must not contain <script>", http.StatusBadRequest)
+		return
+	}
+	if req.Color != "" && !validNodeColorHex(strings.TrimSpace(req.Color)) {
+		http.Error(w, "color must be a #rrggbb hex value", http.StatusBadRequest)
+		return
+	}
+	req.Color = strings.ToUpper(strings.TrimSpace(req.Color))
 
 	con, err := repository.OpenDB()
 	if err != nil {
