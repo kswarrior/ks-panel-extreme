@@ -464,7 +464,9 @@ go nodeSweepLoop(90*time.Second, time.Minute)
 
 	<-servingDone
 	if pidPath != "" {
-		_ = os.Remove(pidPath)
+		if rerr := os.Remove(pidPath); rerr != nil && !os.IsNotExist(rerr) {
+			log.Printf("launch: remove pid file: %v", rerr)
+		}
 	}
 	return nil
 }
