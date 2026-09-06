@@ -25,6 +25,7 @@ import Terminal, { type TerminalHandle } from '@/shared/components/ui/Terminal';
 import type { Terminal as XTerm } from '@xterm/xterm';
 import InstancePortsEditor from '@/features/instances/pages/InstancePortsEditor';
 import InstanceOverview from '@/features/instances/pages/InstanceOverview';
+import { InstanceToolsDock } from '@/features/instances/components/InstanceTabs';
 import InstanceSftpCard from '@/features/instances/components/InstanceSftpCard';
 import InstanceSnapshotsTab from '@/features/instances/components/InstanceSnapshotsTab';
 import { useAuthStore } from '@/shared/stores/authStore';
@@ -78,6 +79,11 @@ export const InstancePanel: React.FC = () => {
           <div className="h-5 w-1/3 bg-neutral-800 rounded" />
         </div>
       )}
+
+      {/* Quick tools (Files / Terminal / Ports) — icon cards above the
+          page content, never tabs. Hidden until the instance loads so the
+          allow-list gates resolve against the real spec. */}
+      {!loading && <InstanceToolsDock instanceId={instanceId} spec={spec} />}
 
       <ErrorBoundary resetKey={instanceId} label="instance-panel">
         <Outlet />
