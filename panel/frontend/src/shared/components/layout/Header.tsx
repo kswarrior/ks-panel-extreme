@@ -444,6 +444,9 @@ const Header: React.FC<HeaderProps> = ({
 
   const panelLogo = useSettingsStore((s) => s.panelLogo);
   const logoStyle = useSettingsStore((s) => s.logoStyle);
+  // Subscribed (not getState) so the /pages/ crumb below re-renders with
+  // the real page name once the nav store finishes loading.
+  const panelPagesNav = usePanelPagesStore((s) => s.nav);
 
   const headerNode = (
     <div className="flex items-center gap-2.5 min-w-0">
