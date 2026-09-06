@@ -18,11 +18,11 @@ import { useInstance, parseConfig } from '@/shared/hooks/useInstance';
 import { useLiveMetrics } from '../hooks/useLiveMetrics';
 import {
   destroyInstance,
-  listActivity,
   reinstallInstance,
   updateInstanceIdentity,
 } from '@/shared/api/admin';
-import type { ActivityLog } from '@/features/activity/types/activity';
+import { listInstanceAudit } from '../api/instanceAdvanced';
+import type { InstanceAuditRow } from '@/features/instances/types/instanceAdvanced';
 import { KindIcon } from '../components/InstanceFormComponents';
 import { KIND_META, kindKey } from '../types/instanceForm';
 import { AreaChart, DonutChart, type MetricSample } from '@/shared/components/ui/MetricsChart';
@@ -212,9 +212,11 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
   }, [instance?.display_name]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Audit trail for this instance — lazy: fetched when the Activity tab
-  // opens, filtered client-side to this instance's target rows. A 403
-  // (no admin panel access) renders as a note, not an error.
-  const [audit, setAudit] = useState<ActivityLog[] | null>(null);
+  // opens via the per-instance endpoint (VIEW-gated + Own-scope aware, so
+  // non-admin owners see their own trail). The global /api/activity feed is
+  // admin-only and truncated to the newest 100 fleet rows, which hid this
+  // instance's events behind other instances' activity.
+  const [audit, setAudit] = useState<InstanceAuditRow[] | null>(null);
   const [auditErr, setAuditErr] = useState('');
   const [auditLoading, setAuditLoading] = useState(false);
   useEffect(() => {
@@ -222,18 +224,23 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
     let dead = false;
     setAuditLoading(true);
     setAuditErr('');
-    listActivity('instance', 100)
+    listInstanceAudit(instanceId, 100)
       .then((rows) => {
         if (dead) return;
-        setAudit(rows.filter((r) => r.target_id === instanceId));
+        setAudit(Array.isArray(rows) ? rows : []);
       })
       .catch((e: any) => {
         if (dead) return;
-        setAuditErr(
-          e?.response?.status === 403
-            ? 'Activity needs admin panel access.'
-            : e?.response?.data || e?.message || 'Failed to load activity',
-        );
+        // The endpoint answers plain-text and JSON errors ({error}); never
+        // store the raw payload — an object child crashes the render.
+        const d: unknown = e?.response?.data;
+        const serverMsg =
+          typeof d === 'string'
+            ? d
+            : d && typeof (d as any).error === 'string'
+              ? (d as any).error
+              : '';
+        setAuditErr(serverMsg || e?.message || 'Failed to load activity');
       })
       .finally(() => {
         if (!dead) setAuditLoading(false);
