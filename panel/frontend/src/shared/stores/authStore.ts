@@ -191,7 +191,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const active = nextActive != null ? remaining[nextActive] : null;
       return {
         user: active ? active.user : null,
-        token: active ? active.token : null,
+        token: active ? active.token || 'authenticated' : null,
         permissions: active ? active.permissions : [],
         initialized: true,
         accounts: remaining,
