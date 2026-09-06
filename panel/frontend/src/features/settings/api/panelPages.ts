@@ -73,3 +73,20 @@ export function slugify(raw: string): string {
     .replace(/^-+|-+$/g, '')
     .slice(0, 48);
 }
+
+// sanitizeInlineSvg strips executable constructs before an SVG string is
+// inlined into panel DOM (sidebar glyphs, editor previews). The SERVER
+// re-sanitizes on save (sanitizeIconSVG) — this is the render-side belt
+// to those suspenders, never the trust boundary.
+export function sanitizeInlineSvg(raw: string): string {
+  let cur = raw || '';
+  for (let i = 0; i < 5; i++) {
+    const prev = cur;
+    cur = cur
+      .replace(/<\s*\/?\s*(script|foreignObject|iframe|object|embed|animate|set|handler)\b[^>]*>?/gis, '')
+      .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+      .replace(/(href|xlink:href|src|from|to|values|style)\s*=\s*("\s*(javascript|vbscript|data:text\/html)[^"]*"|'[^']*'|(?:javascript|vbscript|data:text\/html)[^\s>]*)/gi, '');
+    if (cur === prev) break;
+  }
+  return cur;
+}

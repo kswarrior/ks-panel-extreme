@@ -96,6 +96,9 @@ const SETTINGS_TABS = [
   },
 ];
 const Settings: React.FC = () => {
+  // Brand tab = logo + panel-name styling. Auth-related config (SMTP,
+  // registration gates, OAuth, OTP/SMS, TOTP, requirement policy) lives on
+  // Security > Authority; AI config lives in the chat panel's gear menu.
   const [tab, setTab] = useState<SettingsTabId>('brand');
   const setPanelName = useSettingsStore((s) => s.setPanelName);
   const setPanelLogo = useSettingsStore((s) => s.setPanelLogo);
@@ -277,12 +280,6 @@ const Settings: React.FC = () => {
     }
   };
 
-  // Brand data loads for the Brand tab only; the Pages tab fetches its
-  // own list, so switching tabs never re-flashes the brand skeleton.
-  if (false) {
-    return null;
-  }
-
   // The <img> src prefers the local preview (when picking) over the
   // server URL so admins see the new image the instant they select it.
   const previewSrc = logoPreview || logo?.url;
@@ -300,10 +297,24 @@ const Settings: React.FC = () => {
 
   return (
     // Title lives in the app header ("Settings").
-    <div>
+    <div className="space-y-4">
+      {/* Tabs — rail strip on every breakpoint + phone bottom pill. */}
+      <SectionRailTabs
+        ariaLabel="Settings sections"
+        active={tab}
+        onChange={(id) => setTab(id as SettingsTabId)}
+        tabs={SETTINGS_TABS}
+      />
+      {tab === 'pages' ? (
+        <PagesTab />
+      ) : loading ? (
+        <div>
+          <SkeletonCard lines={2} />
+        </div>
+      ) : (
       <form
         onSubmit={submit}
-        className="glass-card ks-form-card rounded-xl space-y-8 max-w-2xl"
+        className="glass-card ks-form-card rounded-xl space-y-6 max-w-2xl"
       >
         {/* ===================== PANEL LOGO ===================== */}
         <section>
@@ -753,6 +764,26 @@ const Settings: React.FC = () => {
           </button>
         </div>
       </form>
+      )}
+      {/* Phone tabs — bottom pill mirroring the rail (RoleForm pattern). */}
+      <PageTabsPill ariaLabel="Settings sections" spacer={false} activeLabel={tab === 'brand' ? 'Brand' : 'Pages'}>
+        {SETTINGS_TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            onClick={() => setTab(t.id as SettingsTabId)}
+            className={`ks-tab shrink-0 flex-1 px-3 py-1.5 rounded text-sm text-center transition flex items-center justify-center gap-1.5 ${tab === t.id ? 'ks-tab-active' : ''}`}
+          >
+            <span className="inline-flex items-center shrink-0">{t.icon}</span>
+            {t.label}
+          </button>
+        ))}
+      </PageTabsPill>
+      {/* Spacer — reserves scroll room so the fixed bottom pill never
+          covers trailing content (RoleForm pattern). */}
+      <div aria-hidden="true" className="h-24 lg:hidden" />
     </div>
   );
 };

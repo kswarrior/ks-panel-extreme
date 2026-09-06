@@ -8,6 +8,7 @@ import {
   createPanelPage,
   deletePanelPage,
   listPanelPages,
+  sanitizeInlineSvg,
   slugify,
   updatePanelPage,
   type PanelPage,
