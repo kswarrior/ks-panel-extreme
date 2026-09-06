@@ -258,6 +258,13 @@ export interface EditorState {
   pages: PageOverride[];
   category: string;
   type: string;
+  // Built-in Instance controls allow-list (spec.instance_controls).
+  // Inherited from the template on deploy; per-instance override here.
+  // Missing = allow all.
+  instance_controls: InstanceControls;
+  // Landing page slug for the instance index route (/instances/:id).
+  // Empty = default Home. Inherited from the template on deploy.
+  home_page: string;
 }
 
 export type InstanceTabId =
@@ -270,6 +277,7 @@ export type InstanceTabId =
   | 'labels'
   | 'healthcheck'
   | 'pages'
+  | 'controls'
   | 'spec';
 
 export interface IconPreset {
@@ -393,6 +401,8 @@ export function emptyEditor(): EditorState {
     category: '',
     type: '',
     pages: [],
+    instance_controls: { ...DEFAULT_INSTANCE_CONTROLS },
+    home_page: '',
     healthcheck: { enabled: false, test_command: '', interval_s: '30', timeout_s: '5', retries: '3', start_period_s: '10' },
     advanced: {
       startup_command: '',
