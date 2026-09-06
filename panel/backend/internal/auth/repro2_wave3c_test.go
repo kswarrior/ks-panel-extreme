@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -13,15 +14,25 @@ type errReader struct{}
 
 func (errReader) Read([]byte) (int, error) { return 0, errors.New("boom") }
 
-func TestReproLockoutReadError(t *testing.T) {
-	al := NewAccountLockout()
+func TestVerifyBodyRestore(t *testing.T) {
+	mw := AccountLockoutMiddleware(NewAccountLockout())
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		b, err := io.ReadAll(r.Body)
-		fmt.Printf("downstream read len=%d err=%v\n", len(b), err)
+		fmt.Printf("downstream len=%d err=%v getbody=%v\n", len(b), err, r.GetBody != nil)
+		if err != nil {
+			t.Fatalf("downstream inherited broken body: %v", err)
+		}
+		if r.GetBody == nil {
+			t.Fatal("GetBody not set")
+		}
 	})
-	h := AccountLockoutMiddleware(al)(next)
-	req := httptest.NewRequest("POST", "/api/auth/login", errReader{})
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, req)
-	fmt.Printf("status=%d\n", rec.Code)
+	mw(next).ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("POST", "/api/auth/login", errReader{}))
+	next2 := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		fmt.Printf("passthrough=%q\n", string(b))
+		if string(b) != `{"identifier":"a"}` {
+			t.Fatalf("body not preserved: %q", string(b))
+		}
+	})
+	mw(next2).ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("POST", "/api/auth/login", strings.NewReader(`{"identifier":"a"}`)))
 }
