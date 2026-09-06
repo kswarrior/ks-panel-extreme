@@ -68,6 +68,54 @@ func aiIsRateLimitErr(err error) bool {
 		strings.Contains(s, "rate limit")
 }
 
+// aiProviderHTTPStatus extracts the HTTP status from provider errors shaped
+// as "provider HTTP NNN..." by aiPostJSON/aiStreamPost. It returns 0 when
+// the error carries no HTTP status (transport failures, timeouts, malformed
+// bodies, inline provider error strings).
+func aiProviderHTTPStatus(err error) int {
+	if err == nil {
+		return 0
+	}
+	s := err.Error()
+	idx := strings.Index(s, "provider HTTP ")
+	if idx < 0 {
+		return 0
+	}
+	rest := s[idx+len("provider HTTP "):]
+	n, digits := 0, 0
+	for _, ch := range rest {
+		if ch < '0' || ch > '9' {
+			break
+		}
+		n = n*10 + int(ch-'0')
+		digits++
+	}
+	if digits == 0 {
+		return 0
+	}
+	return n
+}
+
+// aiShouldFallbackToProvider reports whether a primary provider error
+// warrants failing over to the fallback triple: transport errors (no HTTP
+// status), HTTP 5xx, or rate limits (HTTP 429 / "rate limit" text via
+// aiIsRateLimitErr). Primary 4xx (bad request, auth, forbidden, not found)
+// is a config/credential problem the fallback cannot fix, so the primary
+// error must return directly without double-invoking providers.
+func aiShouldFallbackToProvider(err error) bool {
+	if err == nil {
+		return false
+	}
+	if aiIsRateLimitErr(err) {
+		return true
+	}
+	code := aiProviderHTTPStatus(err)
+	if code == 0 {
+		return true
+	}
+	return code >= 500
+}
+
 // aiRetryAfterSecs extracts the "(retry after Ns)" hint aiStreamPost appends
 // to provider errors. Falls back to 60s for rate-limit errors without a
 // hint, 0 when the error is not rate-limit related.
@@ -960,7 +1008,10 @@ func aiProviderChat(ctx context.Context, cfg *repository.AIConfig, msgs []aiMsg,
 }
 
 // aiProviderChatWithFallback runs one round against the primary provider
-// and fails over to the configured fallback triple on ANY primary error.
+// and fails over to the configured fallback triple only on retryable
+// primary errors (transport failures, HTTP 5xx, 429/rate limits via
+// aiShouldFallbackToProvider). Primary 4xx (auth/config) returns directly
+// so bad credentials are surfaced instead of masked by a fallback round.
 // The answering provider is reported in the usage for the audit log.
 func aiProviderChatWithFallback(ctx context.Context, cfg *repository.AIConfig, model string, msgs []aiMsg, tools []aiToolDef) (string, []aiToolCall, aiUsage, error) {
 	eff := *cfg
@@ -972,7 +1023,7 @@ func aiProviderChatWithFallback(ctx context.Context, cfg *repository.AIConfig, m
 	if err == nil {
 		return text, calls, usage, nil
 	}
-	if !cfg.FallbackConfigured() {
+	if ctx.Err() != nil || !aiShouldFallbackToProvider(err) || !cfg.FallbackConfigured() {
 		return "", nil, usage, err
 	}
 	fb := *cfg

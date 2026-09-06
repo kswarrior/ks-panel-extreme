@@ -70,19 +70,33 @@ func aiStreamProviderTokens(ctx context.Context, cfg *repository.AIConfig, msgs 
 }
 
 // aiStreamWithFallback streams one round against the primary provider and
-// fails over to the configured fallback triple on ANY primary error,
-// mirroring aiProviderChatWithFallback for the non-streaming path.
+// fails over to the configured fallback triple only on retryable primary
+// errors (transport failures, HTTP 5xx, 429/rate limits via
+// aiShouldFallbackToProvider), mirroring aiProviderChatWithFallback for
+// the non-streaming path. Primary 4xx (auth/config) returns directly.
+// Primary deltas are buffered and replayed to onToken only on primary
+// success; on primary error the buffer is discarded so fallback tokens
+// never append to already-flushed primary partials (no garbled interleave).
+// The SSE caller contract is unchanged: onToken sees exactly one
+// provider's tokens.
 func aiStreamWithFallback(ctx context.Context, cfg *repository.AIConfig, model string, msgs []aiMsg, tools []aiToolDef, onToken func(string)) (string, []aiToolCall, aiUsage, error) {
 	eff := *cfg
 	if strings.TrimSpace(model) != "" {
 		eff.ModelID = strings.TrimSpace(model)
 	}
-	text, calls, usage, err := aiStreamProviderTokens(ctx, &eff, msgs, tools, onToken)
+	var buf []string
+	buffered := func(tok string) { buf = append(buf, tok) }
+	text, calls, usage, err := aiStreamProviderTokens(ctx, &eff, msgs, tools, buffered)
 	usage.Provider = "primary"
 	if err == nil {
+		if onToken != nil {
+			for _, tok := range buf {
+				onToken(tok)
+			}
+		}
 		return text, calls, usage, nil
 	}
-	if !cfg.FallbackConfigured() {
+	if ctx.Err() != nil || !aiShouldFallbackToProvider(err) || !cfg.FallbackConfigured() {
 		return "", nil, usage, err
 	}
 	fb := *cfg
