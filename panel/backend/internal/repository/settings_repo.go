@@ -46,6 +46,61 @@ const (
 	PanelPortKey          = "panel_port"
 )
 
+// Panel brand-style keys (Settings > General > Panel Name styling).
+// All stored as plain strings in the settings KV table so no schema
+// migration is needed — a fresh install simply falls back to the defaults
+// below via getString.
+const (
+	PanelNameColorKey       = "panel_name_color"        // hex, e.g. "#ffffff"
+	PanelNameFontKey        = "panel_name_font"         // inter|system|poppins|montserrat|roboto|outfit|space|playfair|mono
+	PanelNameWeightKey      = "panel_name_weight"       // 400|500|600|700|800|900
+	PanelNameSizeKey        = "panel_name_size"         // sm|md|lg|xl
+	PanelNameEffectKey      = "panel_name_effect"       // none|shadow|outline|3d|neon|gradient
+	PanelNameShadowKey      = "panel_name_shadow"       // none|sm|md|lg|glow
+	PanelNameGradientFromKey = "panel_name_gradient_from" // hex
+	PanelNameGradientToKey   = "panel_name_gradient_to"   // hex
+	PanelNameGradientDirKey  = "panel_name_gradient_dir"  // 90deg|135deg|180deg
+	PanelNameItalicKey      = "panel_name_italic"       // "1"/"0"
+	PanelNameUppercaseKey   = "panel_name_uppercase"    // "1"/"0"
+	PanelNameSpacingKey     = "panel_name_spacing"      // tight|normal|wide
+)
+
+// Panel logo-display keys (Settings > General > Panel Logo presentation).
+// These only change HOW the stored logo bytes are rendered (size/shape/fit
+// /background/shadow) — the bytes themselves still live under logos/.
+const (
+	PanelLogoSizeKey   = "panel_logo_size"   // sm|md|lg|xl (scale multiplier)
+	PanelLogoShapeKey  = "panel_logo_shape"  // rounded|large|circle|square
+	PanelLogoFitKey    = "panel_logo_fit"    // contain|cover|fill
+	PanelLogoBgKey     = "panel_logo_bg"     // dark|transparent|light
+	PanelLogoShadowKey = "panel_logo_shadow" // none|sm|md|lg|glow
+	PanelLogoRingKey   = "panel_logo_ring"   // "1"/"0" (border ring on/off)
+)
+
+// Defaults for the brand-style + logo-display keys. Kept next to the keys
+// so the snapshot reader and the validators share one source of truth.
+const (
+	DefaultPanelNameColor       = "#ffffff"
+	DefaultPanelNameFont        = "inter"
+	DefaultPanelNameWeight      = "800"
+	DefaultPanelNameSize        = "lg"
+	DefaultPanelNameEffect      = "shadow"
+	DefaultPanelNameShadow      = "sm"
+	DefaultPanelNameGradientFrom = "#ffffff"
+	DefaultPanelNameGradientTo   = "#a5b4fc"
+	DefaultPanelNameGradientDir  = "90deg"
+	DefaultPanelNameItalic      = "0"
+	DefaultPanelNameUppercase   = "0"
+	DefaultPanelNameSpacing     = "normal"
+
+	DefaultPanelLogoSize   = "md"
+	DefaultPanelLogoShape  = "large"
+	DefaultPanelLogoFit    = "contain"
+	DefaultPanelLogoBg     = "dark"
+	DefaultPanelLogoShadow = "md"
+	DefaultPanelLogoRing   = "1"
+)
+
 // logoDirName is the subdirectory under the data directory that stores
 // uploaded panel logos. Kept private so callers always go through
 // SetPanelLogo / ClearPanelLogo.
@@ -208,6 +263,29 @@ func (r *SettingsRepository) LogoDiskPath(logo PanelLogo) string {
 type SettingsSnapshot struct {
 	PanelName string `json:"panel_name"`
 	PanelLogo *Logo  `json:"panel_logo,omitempty"`
+
+	// Panel-name brand styling (Settings > General). Plain strings so they
+	// round-trip through the KV store with no migration.
+	PanelNameColor       string `json:"panel_name_color"`
+	PanelNameFont        string `json:"panel_name_font"`
+	PanelNameWeight      string `json:"panel_name_weight"`
+	PanelNameSize        string `json:"panel_name_size"`
+	PanelNameEffect      string `json:"panel_name_effect"`
+	PanelNameShadow      string `json:"panel_name_shadow"`
+	PanelNameGradientFrom string `json:"panel_name_gradient_from"`
+	PanelNameGradientTo   string `json:"panel_name_gradient_to"`
+	PanelNameGradientDir  string `json:"panel_name_gradient_dir"`
+	PanelNameItalic      string `json:"panel_name_italic"`
+	PanelNameUppercase   string `json:"panel_name_uppercase"`
+	PanelNameSpacing     string `json:"panel_name_spacing"`
+
+	// Panel-logo presentation (how the stored bytes are rendered).
+	PanelLogoSize   string `json:"panel_logo_size"`
+	PanelLogoShape  string `json:"panel_logo_shape"`
+	PanelLogoFit    string `json:"panel_logo_fit"`
+	PanelLogoBg     string `json:"panel_logo_bg"`
+	PanelLogoShadow string `json:"panel_logo_shadow"`
+	PanelLogoRing   string `json:"panel_logo_ring"`
 
 	// Auth – registration gate + email-verification toggle. "1"/"0" string
 	// booleans match the storage shape used by other key/value settings so
