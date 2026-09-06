@@ -46,6 +46,10 @@ func DueUpdateWindows(now time.Time) ([]repository.UpdateWindow, error) {
 }
 
 // rearmUpdateWindow records a fire/skip outcome and arms the next slot.
+// A corrupt cron that parses at write time but never occurs (or that
+// slipped past validation) arms zero — which Due matches on EVERY tick
+// (per-minute refire loop). Park such rows far in the future instead,
+// mirroring scheduler.nextBackupRun/nextRun's fail-closed parking.
 func rearmUpdateWindow(id int64, cronExpr, status string) {
 	con, err := repository.OpenDB()
 	if err != nil {
@@ -54,6 +58,9 @@ func rearmUpdateWindow(id int64, cronExpr, status string) {
 	}
 	defer con.Close()
 	next := updatewin.NextRun(cronExpr, time.Now())
+	if next.IsZero() {
+		next = time.Now().AddDate(100, 0, 0)
+	}
 	_ = repository.NewUpdateWindowRepository(con).MarkRan(id, &next, status)
 }
 

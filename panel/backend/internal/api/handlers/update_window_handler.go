@@ -107,10 +107,17 @@ func createUpdateWindow(w http.ResponseWriter, r *http.Request, target, auditAct
 		return
 	}
 	defer con.Close()
+	// A disabled window must never carry a next_run_at: Due() already
+	// filters enabled=1, and a stale future/past stamp would fire
+	// immediately on re-enable. Mirrors backup_schedule_handler updates.
+	var next *time.Time
+	if dto.Enabled {
+		next = updateWindowNextRun(dto.Cron)
+	}
 	id, err := repository.NewUpdateWindowRepository(con).Create(repository.UpdateWindowInput{
 		Target: target, Name: dto.Name, Cron: dto.Cron, Enabled: dto.Enabled,
 		WindowStart: dto.WindowStart, WindowEnd: dto.WindowEnd,
-		NextRunAt: updateWindowNextRun(dto.Cron),
+		NextRunAt: next,
 	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -127,7 +134,7 @@ func createUpdateWindow(w http.ResponseWriter, r *http.Request, target, auditAct
 
 func updateUpdateWindow(w http.ResponseWriter, r *http.Request, target, param, auditAction string) {
 	id, err := strconv.ParseInt(chi.URLParam(r, param), 10, 64)
-	if err != nil {
+	if err != nil || id <= 0 {
 		http.Error(w, "invalid id", http.StatusBadRequest)
 		return
 	}
@@ -141,10 +148,15 @@ func updateUpdateWindow(w http.ResponseWriter, r *http.Request, target, param, a
 		return
 	}
 	defer con.Close()
+	// Same disabled-means-NULL contract as create above.
+	var next *time.Time
+	if dto.Enabled {
+		next = updateWindowNextRun(dto.Cron)
+	}
 	if err := repository.NewUpdateWindowRepository(con).Update(id, repository.UpdateWindowInput{
 		Target: target, Name: dto.Name, Cron: dto.Cron, Enabled: dto.Enabled,
 		WindowStart: dto.WindowStart, WindowEnd: dto.WindowEnd,
-		NextRunAt: updateWindowNextRun(dto.Cron),
+		NextRunAt: next,
 	}); err != nil {
 		if err == sql.ErrNoRows {
 			http.Error(w, "not found", http.StatusNotFound)
@@ -164,7 +176,7 @@ func updateUpdateWindow(w http.ResponseWriter, r *http.Request, target, param, a
 
 func deleteUpdateWindow(w http.ResponseWriter, r *http.Request, target, param, auditAction string) {
 	id, err := strconv.ParseInt(chi.URLParam(r, param), 10, 64)
-	if err != nil {
+	if err != nil || id <= 0 {
 		http.Error(w, "invalid id", http.StatusBadRequest)
 		return
 	}

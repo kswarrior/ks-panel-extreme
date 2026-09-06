@@ -111,10 +111,17 @@ func CreateDBBackupScheduleHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer con.Close()
+	// Disabled schedules carry NULL next_run_at (Due filters enabled=1);
+	// arming a disabled row would fire it immediately on re-enable with a
+	// stale stamp. Same contract as the update paths below.
+	var createNext *time.Time
+	if dto.Enabled {
+		createNext = cronNextOrNil(dto.Cron)
+	}
 	id, err := repository.NewBackupScheduleRepository(con).Create(repository.BackupScheduleInput{
 		Kind: "db", Name: dto.Name, Cron: dto.Cron, Enabled: dto.Enabled,
 		KeepLastN: dto.KeepLastN, MaxAgeDays: dto.MaxAgeDays,
-		Compression: dto.Compression, S3Push: dto.S3Push, NextRunAt: cronNextOrNil(dto.Cron),
+		Compression: dto.Compression, S3Push: dto.S3Push, NextRunAt: createNext,
 	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -283,10 +290,14 @@ func CreateSnapshotScheduleHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer con.Close()
+	var snapNext *time.Time
+	if dto.Enabled {
+		snapNext = cronNextOrNil(dto.Cron)
+	}
 	sid, err := repository.NewBackupScheduleRepository(con).Create(repository.BackupScheduleInput{
 		Kind: "snapshot", InstanceID: &id, Name: dto.Name, Cron: dto.Cron, Enabled: dto.Enabled,
 		KeepLastN: dto.KeepLastN, MaxAgeDays: dto.MaxAgeDays,
-		Compression: dto.Compression, S3Push: dto.S3Push, NextRunAt: cronNextOrNil(dto.Cron),
+		Compression: dto.Compression, S3Push: dto.S3Push, NextRunAt: snapNext,
 	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
