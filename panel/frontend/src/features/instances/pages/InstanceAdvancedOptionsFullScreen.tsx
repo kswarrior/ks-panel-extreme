@@ -9,9 +9,12 @@ import {
   TemplateRuntimeSection,
   TemplateLabelsDevicesSection,
   TemplateHealthcheckSection,
+  TemplateControlsSection,
   TemplateSpecPreviewSection,
   TemplatePagesSection,
 } from '@/features/templates/components/TemplateForm';
+import { DEFAULT_INSTANCE_CONTROLS } from '@/features/instances/utils/instanceControls';
+import type { InstanceControls } from '@/features/instances/utils/instanceControls';
 import { glassFieldClass } from '@/shared/components/ui/Field';
 import FormPage from '@/shared/components/forms/FormPage';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
@@ -55,7 +58,7 @@ interface InstanceAdvancedOptionsFullScreenProps {
   onSubmit?: (e: React.FormEvent) => void;
 }
 
-const ADVANCED_TABS = TEMPLATE_TABS.filter((t) => t.id !== 'general' && t.id !== 'controls');
+const ADVANCED_TABS = TEMPLATE_TABS.filter((t) => t.id !== 'general');
 
 const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScreenProps> = ({
   selectedTemplate,
@@ -416,6 +419,15 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
     (patch: Partial<Healthcheck>) => setEditor((f) => ({ ...f, healthcheck: { ...f.healthcheck, ...patch } })),
     [setEditor],
   );
+  const updateControls = useCallback(
+    (patch: Partial<InstanceControls>) =>
+      setEditor((f) => ({ ...f, instance_controls: { ...f.instance_controls, ...patch } })),
+    [setEditor],
+  );
+  const resetControls = useCallback(
+    () => setEditor((f) => ({ ...f, instance_controls: { ...DEFAULT_INSTANCE_CONTROLS } })),
+    [setEditor],
+  );
   const updateAdvanced = useCallback(
     (patch: Partial<Advanced>) => setEditor((f) => ({ ...f, advanced: { ...f.advanced, ...patch } })),
     [setEditor],
@@ -630,28 +642,73 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
 
           {tab === 'pages' && (
               selectedTemplate ? (
-                <TemplatePagesSection
-                  pages={editor.pages}
-                  onPageUpdate={updatePage}
-                  onPageDelete={removePage}
-                  onPageMove={movePage}
-                  onAddPages={(newPages) => {
-                    newPages.forEach((np) => {
-                      if (np.kind === 'custom') {
-                        addCustomPageWithContent(np);
-                      } else {
-                        addCustomPage();
-                      }
-                    });
-                  }}
-                  sectionCls={sectionCls}
-                  labelCls={labelCls}
-                  monoCls={monoCls}
-                  addBtn={addBtn}
-                />
+                <div className="space-y-4">
+                  <div className="ks-card ks-form-card rounded-md space-y-2">
+                    <div>
+                      <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-300 mb-1">Home page</h3>
+                      <p className="text-xs text-gray-500">Which page opens when the instance card is clicked (the instance index route). Enter its slug — the URL it is accessible at. Empty = inherit template default.</p>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-gray-500 text-sm font-mono">/</span>
+                      <input
+                        value={editor.home_page}
+                        onChange={(e) => setEditor((f) => ({ ...f, home_page: e.target.value }))}
+                        placeholder="overview"
+                        aria-label="Home page slug"
+                        title="Slug of the landing page, e.g. overview or home"
+                        className={monoCls + ' flex-1'}
+                      />
+                      {editor.home_page.trim() !== '' && (
+                        <button
+                          type="button"
+                          onClick={() => setEditor((f) => ({ ...f, home_page: '' }))}
+                          className="text-xs text-gray-400 hover:text-white underline shrink-0"
+                          title="Clear — inherit template default"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <TemplatePagesSection
+                    pages={editor.pages}
+                    onPageUpdate={updatePage}
+                    onPageDelete={removePage}
+                    onPageMove={movePage}
+                    onAddPages={(newPages) => {
+                      newPages.forEach((np) => {
+                        if (np.kind === 'custom') {
+                          addCustomPageWithContent(np);
+                        } else {
+                          addCustomPage();
+                        }
+                      });
+                    }}
+                    sectionCls={sectionCls}
+                    labelCls={labelCls}
+                    monoCls={monoCls}
+                    addBtn={addBtn}
+                  />
+                </div>
               ) : (
                 <div className="text-center text-gray-400 text-sm py-6">
                   Pick a template on the General section to reveal its panel pages.
+                </div>
+              )
+          )}
+
+          {tab === 'controls' && (
+              selectedTemplate ? (
+                <TemplateControlsSection
+                  controls={editor.instance_controls}
+                  onUpdate={updateControls}
+                  onReset={resetControls}
+                  sectionCls={sectionCls}
+                  labelCls={labelCls}
+                />
+              ) : (
+                <div className="text-center text-gray-400 text-sm py-6">
+                  Pick a template on the General section to reveal its instance controls.
                 </div>
               )
           )}
