@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -435,8 +436,12 @@ func CreateSnapshotHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req snapshotCreateRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Name == "" {
+	if err := json.NewDecoder(io.LimitReader(r.Body, 64<<10)).Decode(&req); err != nil || strings.TrimSpace(req.Name) == "" {
 		http.Error(w, "name is required", http.StatusBadRequest)
+		return
+	}
+	if err := validateSnapshotName(req.Name); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	resp, err := ec.Snapshot(edge.SnapshotRequest{
@@ -471,8 +476,12 @@ func RestoreSnapshotHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	snapName := chi.URLParam(r, "snap_name")
-	if snapName == "" {
+	if strings.TrimSpace(snapName) == "" {
 		http.Error(w, "snapshot name is required", http.StatusBadRequest)
+		return
+	}
+	if err := validateSnapshotName(snapName); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	_, err := ec.Snapshot(edge.SnapshotRequest{
@@ -497,8 +506,12 @@ func DeleteSnapshotHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	snapName := chi.URLParam(r, "snap_name")
-	if snapName == "" {
+	if strings.TrimSpace(snapName) == "" {
 		http.Error(w, "snapshot name is required", http.StatusBadRequest)
+		return
+	}
+	if err := validateSnapshotName(snapName); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	_, _ = ec.Snapshot(edge.SnapshotRequest{
@@ -549,11 +562,15 @@ func ListCachedResourcesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer con.Close()
 
-	// Ownership scope: Own without All sees only own instances' cache.
+	// Ownership scope: Own without All sees only own instances' cache. Fail closed on checker error.
 	var allowed map[int64]bool
 	if uid, _ := UserIDFromContext(r); uid != 0 {
 		chk := permissions.NewChecker(con)
-		hasOwn, hasAll, _ := chk.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		hasOwn, hasAll, serr := chk.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		if serr != nil {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
 		if !hasAll && hasOwn {
 			allowed = map[int64]bool{}
 			if owned, oerr := repository.NewInstanceRepository(con).ListByOwner(uid); oerr == nil {
@@ -612,6 +629,23 @@ func ListCachedResourcesHandler(w http.ResponseWriter, r *http.Request) {
 		out = append(out, item)
 	}
 	writeJSON(w, out)
+}
+
+// validateSnapshotName rejects hostile snapshot names (path traversal /
+// separators) before they reach the edge driver, which materialises the
+// name as a filename. Fail closed with a 400 reason.
+func validateSnapshotName(name string) error {
+	n := strings.TrimSpace(name)
+	if n == "" {
+		return fmt.Errorf("snapshot name is required")
+	}
+	if len(n) > 128 {
+		return fmt.Errorf("snapshot name too long (max 128)")
+	}
+	if strings.Contains(n, "/") || strings.Contains(n, "\\") || strings.Contains(n, "..") {
+		return fmt.Errorf("snapshot name must not contain path separators")
+	}
+	return nil
 }
 
 // ----- Per-instance audit ---------------------------------------------------
