@@ -10,7 +10,21 @@ const Layout: React.FC = () => {
   const location = useLocation();
   const hideLayout = location.pathname.startsWith('/auth');
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    try {
+      return window.localStorage.getItem('kspanel.sidebar.collapsed') === '1';
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('kspanel.sidebar.collapsed', collapsed ? '1' : '0');
+    } catch {
+      // Storage off / quota: collapse becomes session-only.
+    }
+  }, [collapsed]);
 
   const inInstancePanel = useMemo(() => {
     return /^\/instances\/\d+/.test(location.pathname);

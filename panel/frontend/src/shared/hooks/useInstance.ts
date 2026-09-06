@@ -151,11 +151,11 @@ export function useInstance(id: number) {
     try {
       const list = canManage ? await listInstances() : await listMyInstances();
       const found = list.find((i) => i.id === id);
-      if (!found) setError('Instance not found.');
-      setInstance(found || null);
+      if (!silent && !found) setError('Instance not found.');
+      if (found || !silent) setInstance(found || null);
     } catch (e: any) {
-      if (!silent) setError(e?.response?.data || e?.message || 'Failed to load instance');
-      setInstance(null);
+      if (!silent) setError(typeof e?.response?.data === 'string' ? e.response.data : e?.message || 'Failed to load instance');
+      if (!silent) setInstance(null);
     } finally {
       if (!silent) setLoading(false);
     }

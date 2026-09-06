@@ -1,5 +1,6 @@
 import React from 'react';
-import { Route, Routes, Navigate } from 'react-router-dom';
+import { Route, Routes, Navigate, useLocation } from 'react-router-dom';
+import { useAuthStore } from '@/shared/stores/authStore';
 import Layout from '@/shared/components/layout/Layout';
 import RouteThemeSync from '@/shared/components/layout/RouteThemeSync';
 import Login from '@/features/auth/pages/Login';

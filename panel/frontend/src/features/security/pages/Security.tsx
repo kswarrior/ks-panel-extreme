@@ -52,6 +52,7 @@ const Security: React.FC = () => {
 
   const load = useCallback(async () => {
     setError('');
+    setLoading(true);
     try {
       const s = await securitySnapshot();
       setSnap(s);
@@ -63,7 +64,8 @@ const Security: React.FC = () => {
       const peak = s.peak_rps || 0;
       setRpsHistory([avg * 0.7, avg * 0.9, avg * 1.1, avg * 0.8, cur, peak]);
     } catch (e: any) {
-      setError(e?.response?.data || 'Failed to load security snapshot');
+      const d = e?.response?.data;
+      setError(typeof d === 'string' && d.trim() ? d : e?.message || 'Failed to load security snapshot');
     } finally {
       setLoading(false);
     }
@@ -88,7 +90,8 @@ const Security: React.FC = () => {
       setUnderAttack(res.under_attack);
       if (snap) setSnap({ ...snap, under_attack: res.under_attack });
     } catch (e: any) {
-      setError(e?.response?.data || 'Failed to toggle attack status');
+      const d = e?.response?.data;
+      setError(typeof d === 'string' && d.trim() ? d : e?.message || 'Failed to toggle attack status');
     }
   }, [snap]);
 
@@ -110,6 +113,21 @@ const Security: React.FC = () => {
   if (!snap && loading) return <SkeletonGrid count={8} />;
 
   if (snap && !configLoaded) return <SkeletonGrid count={8} />;
+
+  if (!snap && !loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[40vh] text-center p-8">
+        <p className="text-red-400 mb-3 text-sm">{error || 'Failed to load security snapshot'}</p>
+        <button
+          type="button"
+          onClick={() => { load(); loadFirewallConfig(); }}
+          className="px-4 py-2 text-sm rounded border border-white/10 bg-white/5 text-gray-200 hover:bg-white/10"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div>

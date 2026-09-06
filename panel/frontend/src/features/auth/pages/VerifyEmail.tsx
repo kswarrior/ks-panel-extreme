@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import client from '@/shared/api/client';
 import { sendVerifyCode, verifyEmail } from '@/features/auth/api/auth';
+import { useAuthStore } from '@/shared/stores/authStore';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
 import ThemedBackground from '@/shared/components/layout/ThemedBackground';
 
@@ -25,6 +26,11 @@ const VerifyEmail: React.FC = () => {
   const [sessionIdle, setSessionIdle] = useState<number | null>(null);
   const [sessionMaxPerUser, setSessionMaxPerUser] = useState<number | null>(null);
   const navigate = useNavigate();
+  const authedToken = useAuthStore((s) => s.token);
+  const authedInit = useAuthStore((s) => s.initialized);
+  React.useEffect(() => {
+    if (authedInit && authedToken) navigate('/instances', { replace: true });
+  }, [authedInit, authedToken, navigate]);
   const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   React.useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
   const panelName = useSettingsStore((s) => s.panelName);
