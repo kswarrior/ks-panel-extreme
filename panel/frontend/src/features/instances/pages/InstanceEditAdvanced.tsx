@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getInstance, updateInstance } from '@/shared/api/admin';
 import { parseConfig } from '@/shared/hooks/useInstance';
+import { resolveInstanceControls } from '../utils/instanceControls';
 import FormPage from '@/shared/components/forms/FormPage';
 import GlassCard from '@/shared/components/ui/Card';
 import type { DriverKind } from '../types/instance';
@@ -46,6 +47,7 @@ const InstanceEditAdvancedInner: React.FC = () => {
   const [loadError, setLoadError] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+  const [blockedByTemplate, setBlockedByTemplate] = useState(false);
   const [templateMeta, setTemplateMeta] = useState<{ image: string; kind: DriverKind } | null>(null);
 
   const { editor, setEditor, setTab } = useDeployForm();
@@ -61,6 +63,12 @@ const InstanceEditAdvancedInner: React.FC = () => {
       try {
         const inst = await getInstance(instanceId);
         if (cancelled) return;
+        // Template allow-list: the author may hide advanced-config editing
+        // for this template (the server enforces it too — this is the UI gate).
+        if (!resolveInstanceControls(inst.config).allow_edit_advanced) {
+          setBlockedByTemplate(true);
+          return;
+        }
         const cfg = parseConfig(inst.config);
         envMapToDefinitions(cfg);
         const ed = specToEditor(JSON.stringify(cfg));
@@ -129,6 +137,28 @@ const InstanceEditAdvancedInner: React.FC = () => {
       >
         <GlassCard className="text-sm text-red-300 border border-red-700/40">
           {loadError || 'Instance not found.'}
+        </GlassCard>
+      </FormPage>
+    );
+  }
+
+  if (blockedByTemplate) {
+    return (
+      <FormPage
+        crumbs={[{ label: 'Instances', to: '/instances' }, { label: 'Edit Instance' }]}
+        saving={false}
+        maxWidth="max-w-4xl"
+      >
+        <GlassCard className="text-sm text-gray-300 border border-white/10">
+          <p className="font-medium text-white">Advanced config is disabled for this instance.</p>
+          <p className="text-xs text-gray-500 mt-1">The template does not allow editing ports, env, volumes or other driver options on instances deployed from it.</p>
+          <button
+            type="button"
+            onClick={() => navigate(`/instances/${instanceId}`)}
+            className="ks-btn-form mt-3"
+          >
+            Back to instance
+          </button>
         </GlassCard>
       </FormPage>
     );
