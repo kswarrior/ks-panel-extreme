@@ -57,14 +57,6 @@ const ChatView: React.FC = () => {
 
   const isAdmin = hasPermissionAny(permissions, PermissionKey.VIEW_SETTINGS, PermissionKey.SETTINGS_EDIT) &&
     permissions.includes(PermissionKey.SETTINGS_EDIT);
-  // Granular AI caps for the subtitle + disabled-state hint. Umbrella
-  // implies everything; QA-only roles see a narrower subtitle.
-  const canUseTools = hasPermissionAny(
-    permissions,
-    PermissionKey.AI_CHAT_USE,
-    PermissionKey.AI_CHAT_TOOLS,
-    PermissionKey.AI_CHAT_WRITES,
-  );
   const disabledErr = /disabled by the administrator|not configured yet/i.test(error || '');
 
   // Hydrate threads + active history on open so a reload restores the chat.
@@ -165,15 +157,8 @@ const ChatView: React.FC = () => {
       <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-white/10">
         <div className="min-w-0">
           <h3 className="text-sm font-semibold text-white truncate">
-            {view === 'settings' ? 'Provider settings' : `${panelName} Assistant`}
+            {view === 'settings' ? 'Provider settings' : `${panelName} Assistant [Chat]`}
           </h3>
-          <p className="text-[11px] text-gray-400 truncate">
-            {view === 'settings'
-              ? 'Provider · retry'
-              : canUseTools
-                ? 'Ask about your fleet — writes need approval'
-                : 'Q&A mode — ask an admin for AI Chat Tools for fleet lookups'}
-          </p>
         </div>
         <div className="flex items-center gap-1 shrink-0">
           {isAdmin && (
@@ -228,7 +213,7 @@ const ChatView: React.FC = () => {
             aria-expanded={listOpen}
             aria-label="Chat thread"
             title={activeThread?.title ?? 'New chat'}
-            className="flex-1 min-w-0 flex items-center justify-between gap-2 bg-black/30 text-gray-200 border border-white/10 rounded-md px-2 py-1.5 text-xs hover:border-white/25 focus:outline-none focus:ring-2 focus:ring-white/60 transition-colors disabled:opacity-60"
+            className="w-56 max-w-full min-w-0 flex items-center justify-between gap-2 bg-black/30 text-gray-200 border border-white/10 rounded-md px-2 py-1.5 text-xs hover:border-white/25 focus:outline-none focus:ring-2 focus:ring-white/60 transition-colors disabled:opacity-60"
           >
             <span className="truncate">{activeThread?.title ?? 'New chat'}</span>
             <svg className={`w-3.5 h-3.5 shrink-0 text-gray-400 transition-transform duration-200 ${listOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
