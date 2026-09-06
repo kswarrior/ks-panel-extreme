@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/example/ksedge/internal/drivers"
@@ -104,6 +105,12 @@ func Handler(token string) http.Handler {
 // the inspect endpoint to keep auth parity across all edge RPCs.
 func constTimeEqual(a, b string) bool {
 	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
+}
+
+// containsPathSep rejects snapshot names that could escape the driver's
+// snapshot directory (fail closed on hostile input).
+func containsPathSep(s string) bool {
+	return strings.Contains(s, "/") || strings.Contains(s, "\\") || strings.Contains(s, "..")
 }
 
 // writeErr emits Response{OK:false, Error: msg} with the chosen HTTP status.
