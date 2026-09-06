@@ -508,6 +508,16 @@ func UpdateRoleHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "role not found", http.StatusNotFound)
 		return
 	}
+	// Ownership scope: Own → may only edit roles they authored.
+	// Mirrors ListRolesHandler's owner filter + the Users/ApiKeys mutation
+	// guards; without this an Own-scoped editor could mutate any role
+	// (including admin) by id.
+	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
+		if hasOwn, hasAll, _ := permissions.NewChecker(con).HasScope(uid, permissions.RolesOwnKey, permissions.RolesAllKey, permissions.ManageRolesKey); !hasAll && hasOwn && existing.OwnerID != uid {
+			http.Error(w, "forbidden: own-scope may only edit own roles", http.StatusForbidden)
+			return
+		}
+	}
 	switch existing.Name {
 	case "admin", "moderator", "user":
 		if req.Name != existing.Name {
@@ -561,8 +571,17 @@ func DeleteRoleHandler(w http.ResponseWriter, r *http.Request) {
 	// Capture the role name up-front so the audit row carries a useful
 	// label after DeleteRole refuses built-in roles / completes the row.
 	var label string
+	var ownerID int64
 	if existing, gerr := roleRepo.GetRoleByID(id); gerr == nil && existing != nil {
 		label = existing.Name
+		ownerID = existing.OwnerID
+	}
+	// Ownership scope: Own → may only delete roles they authored.
+	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
+		if hasOwn, hasAll, _ := permissions.NewChecker(con).HasScope(uid, permissions.RolesOwnKey, permissions.RolesAllKey, permissions.ManageRolesKey); !hasAll && hasOwn && ownerID != uid {
+			http.Error(w, "forbidden: own-scope may only delete own roles", http.StatusForbidden)
+			return
+		}
 	}
 	if err := roleRepo.DeleteRole(id); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)

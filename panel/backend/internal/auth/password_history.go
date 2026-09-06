@@ -3,6 +3,7 @@ package auth
 import (
 	"errors"
 	"strconv"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -109,9 +110,18 @@ func (psc *PasswordSimilarityChecker) CalculateSimilarity(password1, password2 s
 	return similarity
 }
 
-// IsPasswordTooSimilar checks if a password is too similar to any in the history
+// IsPasswordTooSimilar checks if a password is too similar to any in the history.
+// History entries hold bcrypt hashes, not plaintext, so a character-overlap
+// comparison against the hash string is meaningless (it would always score
+// near zero and silently disable the check). Hash-looking entries are
+// therefore skipped: exact reuse is still rejected via bcrypt comparison in
+// ValidatePasswordWithHistory; similarity only applies when callers pass
+// plaintext history entries.
 func (psc *PasswordSimilarityChecker) IsPasswordTooSimilar(history []PasswordHistory, newPassword string) bool {
 	for _, entry := range history {
+		if entry.PasswordHash == "" || strings.HasPrefix(entry.PasswordHash, "$2") {
+			continue
+		}
 		similarity := psc.CalculateSimilarity(newPassword, entry.PasswordHash)
 		if similarity > psc.similarityThreshold {
 			return true
@@ -168,7 +178,10 @@ func ValidatePasswordWithHistory(password string, policy *PasswordPolicy, histor
 			}
 		}
 
-		// Check similarity if enabled
+		// Check similarity if enabled. Note: stored history entries are
+		// bcrypt hashes, which IsPasswordTooSimilar skips by design, so
+		// this only fires for plaintext history entries. Exact reuse of a
+		// hashed entry is already rejected by the bcrypt loop above.
 		if config.CheckSimilarity {
 			psc := NewPasswordSimilarityChecker()
 			var historyEntries []PasswordHistory

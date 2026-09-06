@@ -68,10 +68,12 @@ func (al *AccountLockout) RecordFailedAttempt(username string) {
 		return
 	}
 
-	// Check if the attempt is within the lockout window
+	// While locked, further attempts neither extend the lockout nor bump
+	// counters: the expiry stays fixed so an attacker hammering the
+	// endpoint cannot keep a victim locked forever (fail closed, fixed
+	// duration). Expiry is handled lazily by IsAccountLocked / the reset
+	// path below on the next attempt after the duration passes.
 	if attempt.Locked && now.Sub(attempt.LockedAt) < al.lockoutDuration {
-		// Still locked, just update the locked time
-		attempt.LockedAt = now
 		return
 	}
 

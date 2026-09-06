@@ -529,8 +529,6 @@ func (d *docker) Exec(ctx context.Context, name string, tty bool, cols, rows int
 	}, nil
 }
 
-// Non-TTY Close drains all three pipe ends so repeated execs cannot leak fds.
-
 // Runner gathers live metrics/processes/ports for the docker-driven instance
 // by running a portable shell script inside the container through Exec. This
 // avoids depending on `docker stats`/`docker top` formatting (which differ

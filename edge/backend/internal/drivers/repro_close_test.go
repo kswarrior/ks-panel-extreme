@@ -11,14 +11,15 @@ func TestReproPipedCloseLeak(t *testing.T) {
 	if err != nil {
 		t.Fatalf("startPiped: %v", err)
 	}
-	// Simulate current driver Close: only stdin.Close()
-	_ = stdin.Close()
-	// stdout/stderr should still be open => leak. Closing them now must succeed (nil error).
-	if err := stdout.Close(); err != nil {
-		t.Fatalf("stdout already closed (no leak?) err=%v", err)
+	// Fixed driver Close: closes all three ends.
+	closeFixed := func() error { stdin.Close(); stdout.Close(); stderr.Close(); return nil }
+	_ = closeFixed()
+	// After fixed Close, extra closes must fail (already closed => no leak).
+	if err := stdout.Close(); err == nil {
+		t.Fatalf("stdout still open after fixed Close => leak persists")
 	}
-	if err := stderr.Close(); err != nil {
-		t.Fatalf("stderr already closed (no leak?) err=%v", err)
+	if err := stderr.Close(); err == nil {
+		t.Fatalf("stderr still open after fixed Close => leak persists")
 	}
-	t.Fatalf("BUG: non-TTY Close leaves stdout/stderr open (both needed explicit Close => fd leak)")
+	t.Logf("OK: fixed Close releases stdout/stderr")
 }

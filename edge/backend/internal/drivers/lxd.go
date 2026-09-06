@@ -245,7 +245,7 @@ func (d *lxd) Exec(ctx context.Context, name string, tty bool, cols, rows int, c
 	return &ExecSession{
 		Stdin: stdin, Stdout: stdout, Stderr: stderr,
 		Resize: func(int, int) error { return nil },
-		Wait:   wait, Close: func() error { stdin.Close(); return nil },
+		Wait:   wait, Close: func() error { stdin.Close(); stdout.Close(); stderr.Close(); return nil },
 	}, nil
 }
 

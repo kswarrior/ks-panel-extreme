@@ -168,9 +168,17 @@ func (mfa *MFAManager) GenerateBackupCodes(count int) []string {
 	return codes
 }
 
-// ValidateBackupCode validates a backup code
+// ValidateBackupCode validates a backup code. Empty codes never validate
+// (fail closed): used slots are blanked to "" by UseBackupCode, so without
+// the guards below an empty input would match a consumed slot.
 func (mfa *MFAManager) ValidateBackupCode(codes []string, code string) bool {
+	if code == "" {
+		return false
+	}
 	for _, c := range codes {
+		if c == "" {
+			continue
+		}
 		if c == code {
 			return true
 		}
@@ -180,7 +188,13 @@ func (mfa *MFAManager) ValidateBackupCode(codes []string, code string) bool {
 
 // UseBackupCode marks a backup code as used
 func (mfa *MFAManager) UseBackupCode(codes []string, code string) []string {
+	if code == "" {
+		return codes
+	}
 	for i, c := range codes {
+		if c == "" {
+			continue
+		}
 		if c == code {
 			codes[i] = "" // Mark as used
 			break
