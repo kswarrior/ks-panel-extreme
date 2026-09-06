@@ -6,6 +6,7 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -40,7 +41,7 @@ func Handler(token string) http.Handler {
 			return
 		}
 		var req SnapshotRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
 			writeErr(w, http.StatusBadRequest, "invalid payload: "+err.Error())
 			return
 		}
@@ -69,6 +70,10 @@ func Handler(token string) http.Handler {
 		case "create", "restore", "delete":
 		default:
 			writeErr(w, http.StatusBadRequest, fmt.Sprintf("invalid snapshot action: %q (must be create, restore, or delete)", req.Action))
+			return
+		}
+		if req.SnapName == "" || len(req.SnapName) > 128 || containsPathSep(req.SnapName) {
+			writeErr(w, http.StatusBadRequest, "invalid snapshot name (must be 1-128 chars without path separators)")
 			return
 		}
 

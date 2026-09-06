@@ -11,6 +11,7 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -45,7 +46,7 @@ func Handler(token string) http.Handler {
 			return
 		}
 		var req Request
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
 			writeErr(w, http.StatusBadRequest, "invalid payload: "+err.Error())
 			return
 		}
