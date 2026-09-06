@@ -7,6 +7,7 @@ import { useThemeStore, scopeForArea, type Scope } from '@/shared/stores/themeSt
 import { areaFor, type AreaId } from '@/features/instance-pages/types/pageregistry';
 import client from '@/shared/api/client';
 import Avatar from '@/shared/components/ui/Avatar';
+import { PanelBrandLogo } from '@/shared/components/brand/PanelBrand';
 import RichMenu, { type RichMenuItem } from '@/shared/components/ui/RichMenu';
 import InstanceTabs from '@/features/instances/components/InstanceTabs';
 import NotificationBell from '@/features/notifications/components/NotificationBell';
@@ -442,18 +443,16 @@ const Header: React.FC<HeaderProps> = ({
   };
 
   const panelLogo = useSettingsStore((s) => s.panelLogo);
+  const logoStyle = useSettingsStore((s) => s.logoStyle);
 
   const headerNode = (
     <div className="flex items-center gap-2.5 min-w-0">
       {/* Panel logo (or avatar fallback) so the brand stays present at the
-       * top of the profile dropdown next to the identity lines. */}
+       * top of the profile dropdown next to the identity lines. Rendered
+       * with the shared crisp BrandLogo (contain-fit) — the old
+       * object-cover cropped wide logos here. */}
       {panelLogo?.url ? (
-        <img
-          src={panelLogo.url}
-          alt={panelName || 'Panel logo'}
-          className="w-7 h-7 rounded-md object-cover shrink-0"
-          loading="lazy"
-        />
+        <PanelBrandLogo logo={panelLogo} style={logoStyle} baseSize={28} alt={panelName || 'Panel logo'} />
       ) : (
         <Avatar
           name={user?.username || 'Guest'}
