@@ -140,22 +140,64 @@ func validateLocation(loc string) error {
 	if isDangerousLocation(clean) {
 		return fmt.Errorf("invalid snapshot location (system path)")
 	}
+	if resolvedLocationBlocked(clean) {
+		return fmt.Errorf("invalid snapshot location (system path)")
+	}
+	// The driver writes a tar file under Location: it must already be a
+	// directory so a typo (or a planted non-dir path) cannot turn the
+	// edge into an arbitrary host-file writer (fail closed).
+	info, err := os.Stat(clean)
+	if err != nil || !info.IsDir() {
+		return fmt.Errorf("invalid snapshot location (must be an existing directory)")
+	}
 	return nil
 }
 
-// isDangerousLocation mirrors files.isDangerousPath so the two surfaces can
-// never drift: snapshot tars must never land in system dirs.
+// isDangerousLocation mirrors files.isDangerousPath plus the
+// files.destBlocked extras (/var cron spool, /opt, /srv, /home, /run) so
+// the two surfaces can never drift: snapshot tars must never land in
+// system dirs. /tmp stays allowed: it is the documented staging area
+// (see SnapshotRequest.Location) and destBlocked allows it too.
 func isDangerousLocation(p string) bool {
 	p = filepath.Clean(p)
 	if p == "/" {
 		return true
 	}
-	for _, d := range []string{"/bin", "/sbin", "/usr", "/etc", "/proc", "/sys", "/dev", "/boot", "/lib", "/lib64", "/root"} {
+	for _, d := range []string{"/bin", "/sbin", "/usr", "/etc", "/proc", "/sys", "/dev", "/boot", "/lib", "/lib64", "/root", "/var", "/opt", "/srv", "/home", "/run"} {
 		if p == d || strings.HasPrefix(p, d+"/") {
 			return true
 		}
 	}
 	return false
+}
+
+// resolvedLocationBlocked mirrors files.resolvedBlocked against the
+// snapshot denylist: a Location whose symlink chain resolves into a
+// system dir (e.g. /data/link -> /etc with Location=/data/link) is
+// rejected even though the literal path looks benign. For not-yet-visible
+// targets it resolves the deepest existing ancestor and re-attaches the
+// remainder so a planted symlink is still caught.
+func resolvedLocationBlocked(clean string) bool {
+	if rp, err := filepath.EvalSymlinks(clean); err == nil {
+		return isDangerousLocation(filepath.Clean(rp))
+	}
+	rel := []string{}
+	cur := clean
+	for {
+		if rp, err := filepath.EvalSymlinks(cur); err == nil {
+			resolved := filepath.Clean(rp)
+			for i := len(rel) - 1; i >= 0; i-- {
+				resolved = filepath.Join(resolved, rel[i])
+			}
+			return isDangerousLocation(filepath.Clean(resolved))
+		}
+		parent := filepath.Dir(cur)
+		if parent == cur {
+			return false
+		}
+		rel = append(rel, filepath.Base(cur))
+		cur = parent
+	}
 }
 
 // writeErr emits Response{OK:false, Error: msg} with the chosen HTTP status.

@@ -72,10 +72,6 @@ func ChangePasswordHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "old_password and new_password are required", http.StatusBadRequest)
 		return
 	}
-	if len(req.NewPassword) < 8 {
-		http.Error(w, "new password must be at least 8 characters", http.StatusBadRequest)
-		return
-	}
 
 	con, err := repository.OpenDB()
 	if err != nil {
@@ -96,6 +92,13 @@ func ChangePasswordHandler(w http.ResponseWriter, r *http.Request) {
 	// probe reuse/policy oracles without knowing the current password.
 	if err := auth.CheckPassword(me.PasswordHash, req.OldPassword); err != nil {
 		http.Error(w, "old password is incorrect", http.StatusBadRequest)
+		return
+	}
+
+	// Minimum length runs AFTER ownership proof so every new-password
+	// failure path first proves ownership (fail closed).
+	if len(req.NewPassword) < 8 {
+		http.Error(w, "new password must be at least 8 characters", http.StatusBadRequest)
 		return
 	}
 

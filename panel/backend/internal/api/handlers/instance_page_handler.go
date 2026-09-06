@@ -801,6 +801,10 @@ func BulkCreateInstancePagesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Ownership (migration 054, mirrors CreateInstancePageHandler and
+	// repo.Create): attribute bulk rows to the caller. 0 stays NULL/orphan.
+	ownerID, _ := UserIDFromContext(r)
+
 	con, err := repository.OpenDB()
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
@@ -833,7 +837,12 @@ func BulkCreateInstancePagesHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	stmt, err := tx.Prepare(`INSERT INTO instance_pages (name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, icon_color, actions, sub_pages, components, configure, source, market_id, market_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+	var stmt *sql.Stmt
+	if ownerID != 0 {
+		stmt, err = tx.Prepare(`INSERT INTO instance_pages (name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, icon_color, actions, sub_pages, components, configure, owner_id, source, market_id, market_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+	} else {
+		stmt, err = tx.Prepare(`INSERT INTO instance_pages (name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, icon_color, actions, sub_pages, components, configure, source, market_id, market_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+	}
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
@@ -858,7 +867,13 @@ func BulkCreateInstancePagesHandler(w http.ResponseWriter, r *http.Request) {
 			skipped++
 			continue
 		}
-		res, eerr := stmt.Exec(dto.Name, dto.Slug, dto.Kind, dto.Category, dto.Type, dto.Description, dto.ContentType, dto.ContentHTML, dto.ContentMarkdown, dto.ContentBlocks, dto.IconSVG, dto.IconColor, dto.Actions, dto.SubPages, dto.Components, dto.Configure, pageSourceStudio, "", "")
+		var res sql.Result
+		var eerr error
+		if ownerID != 0 {
+			res, eerr = stmt.Exec(dto.Name, dto.Slug, dto.Kind, dto.Category, dto.Type, dto.Description, dto.ContentType, dto.ContentHTML, dto.ContentMarkdown, dto.ContentBlocks, dto.IconSVG, dto.IconColor, dto.Actions, dto.SubPages, dto.Components, dto.Configure, ownerID, pageSourceStudio, "", "")
+		} else {
+			res, eerr = stmt.Exec(dto.Name, dto.Slug, dto.Kind, dto.Category, dto.Type, dto.Description, dto.ContentType, dto.ContentHTML, dto.ContentMarkdown, dto.ContentBlocks, dto.IconSVG, dto.IconColor, dto.Actions, dto.SubPages, dto.Components, dto.Configure, pageSourceStudio, "", "")
+		}
 		if eerr != nil {
 			if isDuplicateSlugError(eerr.Error()) {
 				skipped++
@@ -1687,8 +1702,17 @@ func ExecuteCustomPageActionHandler(w http.ResponseWriter, r *http.Request) {
 // ExecuteModulePageActionHandler executes an action from a module-based page
 // against a specific instance. Unlike ExecutePageActionHandler which requires
 // a predefined instance page ID, this handler is called directly by the
-// module page SDK running in the browser. It validates that the instance
-// has the module enabled in its spec, then proxies to the edge.
+// module page SDK running in the browser.
+//
+// Security model (fail closed, server-side validated — mirrors
+// ExecuteCustomPageActionHandler):
+//   - The SDK stamps every call with the id of the module it renders
+//     (`module_id`). The id must resolve against THIS instance's own
+//     deploy-time config (a spec.pages entry with kind == "module").
+//   - The executed payload must EXACTLY match one of that module row's SAVED
+//     actions. The browser can only name a stored action — it can never invent
+//     new commands, override arguments on a saved action, or reach an instance
+//     whose config does not enable the calling module.
 func ExecuteModulePageActionHandler(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		InstanceID int64             `json:"instance_id"`
@@ -1706,17 +1730,16 @@ func ExecuteModulePageActionHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.InstanceID == 0 || req.ModuleID == "" || req.Type == "" {
+	moduleID := strings.TrimSpace(req.ModuleID)
+	if req.InstanceID == 0 || moduleID == "" || req.Type == "" {
 		http.Error(w, "instance_id, module_id, and type are required", http.StatusBadRequest)
 		return
 	}
-	// Defense-in-depth: the module action store is not persisted yet, so at
-	// minimum reject unknown kinds and bound the edge round-trip.
+	// Defense-in-depth: reject unknown kinds before the allow-list below.
 	if !validActionTypes[req.Type] {
 		http.Error(w, "unknown action type", http.StatusBadRequest)
 		return
 	}
-	reqTimeout := clampActionTimeout(req.Timeout)
 
 	con, err := repository.OpenDB()
 	if err != nil {

@@ -151,8 +151,12 @@ export function useInstance(id: number) {
     try {
       const list = canManage ? await listInstances() : await listMyInstances();
       const found = list.find((i) => i.id === id);
-      if (!silent && !found) setError('Instance not found.');
-      if (found || !silent) setInstance(found || null);
+      // A succeeded list load that omits this id means genuinely
+      // deleted/not-visible: clear even on silent ticks so a deleted
+      // instance surfaces instead of going stale forever. Transport
+      // errors below keep preserving the previous instance.
+      if (!found) setError('Instance not found.');
+      setInstance(found || null);
     } catch (e: any) {
       if (!silent) setError(typeof e?.response?.data === 'string' ? e.response.data : e?.message || 'Failed to load instance');
       if (!silent) setInstance(null);

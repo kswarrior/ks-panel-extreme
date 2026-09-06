@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { securitySnapshot, securityToggleAttack, securityGetConfig } from '@/shared/api/admin';
 import type { SecuritySnapshot as SecuritySnapshotT, SecurityConfig } from '@/features/security/types/security';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
@@ -40,6 +40,10 @@ const SECURITY_TABS: SecurityTabDef[] = [
 
 const Security: React.FC = () => {
   const [snap, setSnap] = useState<SecuritySnapshotT | null>(null);
+  // Mirror for the refresh interval so ticks can skip while in error
+  // state (!snap) without re-subscribing the timer on every snapshot.
+  const snapRef = useRef(snap);
+  snapRef.current = snap;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -102,7 +106,13 @@ const Security: React.FC = () => {
 
   useEffect(() => {
     load();
-    const id = window.setInterval(load, REFRESH_MS);
+    const id = window.setInterval(() => {
+      // While in error state (!snap) skip auto-refresh: re-running
+      // load() would re-flash the skeleton and hammer a failing
+      // endpoint. Manual Retry (and config changes) still reload.
+      if (!snapRef.current) return;
+      load();
+    }, REFRESH_MS);
     return () => window.clearInterval(id);
   }, [load]);
 

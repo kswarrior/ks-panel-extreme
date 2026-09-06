@@ -229,23 +229,30 @@ func AccountLockoutMiddleware(al *AccountLockout) func(http.Handler) http.Handle
 				// the downstream login handler must still decode it (fail
 				// closed: a body we drained would arrive as EOF and break
 				// login / bypass lockout accounting).
-				var identifier string
-				if r.Method == "POST" {
-					body, err := io.ReadAll(r.Body)
-					if err == nil {
-						_ = r.Body.Close()
-						r.Body = io.NopCloser(bytes.NewReader(body))
-						var req map[string]interface{}
-						if jerr := json.Unmarshal(body, &req); jerr == nil {
-							if identifier, _ = req["identifier"].(string); identifier == "" {
-								identifier, _ = req["username"].(string)
-							}
-							if identifier == "" {
-								identifier, _ = req["email"].(string)
-							}
+			var identifier string
+			if r.Method == "POST" {
+				// Bound the peek so a future wiring can never inherit an
+				// unbounded read; always restore the body (value + GetBody)
+				// even on read/parse error so downstream never sees EOF.
+				r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+				body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+				_ = r.Body.Close()
+				r.Body = io.NopCloser(bytes.NewReader(body))
+				r.GetBody = func() (io.ReadCloser, error) {
+					return io.NopCloser(bytes.NewReader(body)), nil
+				}
+				if err == nil {
+					var req map[string]interface{}
+					if jerr := json.Unmarshal(body, &req); jerr == nil {
+						if identifier, _ = req["identifier"].(string); identifier == "" {
+							identifier, _ = req["username"].(string)
+						}
+						if identifier == "" {
+							identifier, _ = req["email"].(string)
 						}
 					}
 				}
+			}
 
 				if identifier != "" {
 					// Check if account is locked
