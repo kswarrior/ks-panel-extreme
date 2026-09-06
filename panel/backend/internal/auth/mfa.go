@@ -399,27 +399,27 @@ func MFAMiddleware(next http.Handler) http.Handler {
 		if hasMFA {
 			// Check for MFA token in the request without consuming the
 			// body for the downstream handler (see AccountLockoutMiddleware).
-		var mfaToken string
-		if r.Method == "POST" {
-			// Bound the peek so a future wiring can never inherit an
-			// unbounded read; always restore the body (value + GetBody)
-			// even on read/parse error so downstream never sees EOF.
-			r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-			body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
-			_ = r.Body.Close()
-			r.Body = io.NopCloser(bytes.NewReader(body))
-			r.GetBody = func() (io.ReadCloser, error) {
-				return io.NopCloser(bytes.NewReader(body)), nil
-			}
-			if err == nil {
-				var req map[string]interface{}
-				if jerr := json.Unmarshal(body, &req); jerr == nil {
-					if token, ok := req["mfa_token"].(string); ok {
-						mfaToken = token
+			var mfaToken string
+			if r.Method == "POST" {
+				// Bound the peek so a future wiring can never inherit an
+				// unbounded read; always restore the body (value + GetBody)
+				// even on read/parse error so downstream never sees EOF.
+				r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+				body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+				_ = r.Body.Close()
+				r.Body = io.NopCloser(bytes.NewReader(body))
+				r.GetBody = func() (io.ReadCloser, error) {
+					return io.NopCloser(bytes.NewReader(body)), nil
+				}
+				if err == nil {
+					var req map[string]interface{}
+					if jerr := json.Unmarshal(body, &req); jerr == nil {
+						if token, ok := req["mfa_token"].(string); ok {
+							mfaToken = token
+						}
 					}
 				}
 			}
-		}
 
 			if mfaToken == "" {
 				http.Error(w, "MFA required", http.StatusUnauthorized)

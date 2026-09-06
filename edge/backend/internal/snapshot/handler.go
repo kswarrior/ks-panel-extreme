@@ -18,22 +18,22 @@ import (
 
 // SnapshotRequest matches the wire format the panel's edge.Snapshot emits.
 type SnapshotRequest struct {
-	Token   string `json:"token"`
-	Kind    string `json:"kind"`
-	Name    string `json:"name"`
+	Token string `json:"token"`
+	Kind  string `json:"kind"`
+	Name  string `json:"name"`
 	// "create" | "restore" | "delete".
-	Action  string `json:"action"`
+	Action   string `json:"action"`
 	SnapName string `json:"snap_name,omitempty"`
-	Type    string `json:"type,omitempty"`    // e.g., "zip", "tar", "docker", "lxd"
+	Type     string `json:"type,omitempty"`     // e.g., "zip", "tar", "docker", "lxd"
 	Location string `json:"location,omitempty"` // e.g., "/mc/", "/tmp/snapshots/"
 }
 
 // SnapshotResponse is what the edge hands back.
 type SnapshotResponse struct {
-	OK        bool   `json:"ok"`
+	OK          bool   `json:"ok"`
 	ExternalRef string `json:"external_ref,omitempty"`
-	SizeBytes int64  `json:"size_bytes,omitempty"`
-	Error     string `json:"error,omitempty"`
+	SizeBytes   int64  `json:"size_bytes,omitempty"`
+	Error       string `json:"error,omitempty"`
 }
 
 // Handler returns an http.HandlerFunc authenticated by the given edge token.
@@ -102,9 +102,9 @@ func Handler(token string) http.Handler {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(SnapshotResponse{
-			OK:        true,
+			OK:          true,
 			ExternalRef: externalRef,
-			SizeBytes: sizeBytes,
+			SizeBytes:   sizeBytes,
 		})
 	})
 }

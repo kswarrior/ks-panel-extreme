@@ -16,9 +16,9 @@ import (
 
 // Request matches the panel's edge.UpdatePorts wire format.
 type Request struct {
-	Token string                `json:"token"`
-	Kind  string                `json:"kind"`
-	Name  string                `json:"name"`
+	Token string                   `json:"token"`
+	Kind  string                   `json:"kind"`
+	Name  string                   `json:"name"`
 	Ports []drivers.PortAllocation `json:"ports"`
 }
 
@@ -67,20 +67,20 @@ func Handler(token string) http.Handler {
 				writeErr(w, http.StatusBadRequest, fmt.Sprintf("ports[%d]: protocol must be tcp or udp", i))
 				return
 			}
-		if ip := strings.TrimSpace(p.IP); ip != "" {
-			// Strip an IPv6 zone ID (fe80::1%eth0) before validating:
-			// net.ParseIP rejects the %zone suffix even though the
-			// address itself is valid. Anything else must still parse
-			// as a literal IP (fail closed on garbage).
-			bare := ip
-			if i := strings.IndexByte(bare, '%'); i >= 0 {
-				bare = bare[:i]
+			if ip := strings.TrimSpace(p.IP); ip != "" {
+				// Strip an IPv6 zone ID (fe80::1%eth0) before validating:
+				// net.ParseIP rejects the %zone suffix even though the
+				// address itself is valid. Anything else must still parse
+				// as a literal IP (fail closed on garbage).
+				bare := ip
+				if i := strings.IndexByte(bare, '%'); i >= 0 {
+					bare = bare[:i]
+				}
+				if net.ParseIP(bare) == nil {
+					writeErr(w, http.StatusBadRequest, fmt.Sprintf("ports[%d]: invalid ip %q", i, p.IP))
+					return
+				}
 			}
-			if net.ParseIP(bare) == nil {
-				writeErr(w, http.StatusBadRequest, fmt.Sprintf("ports[%d]: invalid ip %q", i, p.IP))
-				return
-			}
-		}
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
 		defer cancel()
