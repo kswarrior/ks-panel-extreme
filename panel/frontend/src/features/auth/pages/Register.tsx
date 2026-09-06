@@ -30,7 +30,6 @@ const Register: React.FC = () => {
   const [sessionMaxPerUser, setSessionMaxPerUser] = useState<number | null>(null);
   const [pwdPolicy, setPwdPolicy] = useState<{ min_length: number; max_length: number; require_upper: boolean; require_lower: boolean; require_number: boolean; require_symbol: boolean; no_common?: boolean; no_personal?: boolean } | null>(null);
   const navigate = useNavigate();
-  const location = useLocation();
   const authedToken = useAuthStore((s) => s.token);
   const authedInit = useAuthStore((s) => s.initialized);
   React.useEffect(() => {
