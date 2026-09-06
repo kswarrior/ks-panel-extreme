@@ -47,7 +47,28 @@ const Login: React.FC = () => {
     (async () => {
       // Fetch brand, authority branding and auth flags independently so one
       // failing doesn't block the others.
-      const panelReq = client.get<{ panel_name: string; panel_logo: { url: string; mime: string } | null }>('/api/settings/panel-name');
+      const panelReq = client.get<{
+        panel_name: string;
+        panel_logo: { url: string; mime: string } | null;
+        panel_name_color?: string;
+        panel_name_font?: string;
+        panel_name_weight?: string;
+        panel_name_size?: string;
+        panel_name_effect?: string;
+        panel_name_shadow?: string;
+        panel_name_gradient_from?: string;
+        panel_name_gradient_to?: string;
+        panel_name_gradient_dir?: string;
+        panel_name_italic?: string;
+        panel_name_uppercase?: string;
+        panel_name_spacing?: string;
+        panel_logo_size?: string;
+        panel_logo_shape?: string;
+        panel_logo_fit?: string;
+        panel_logo_bg?: string;
+        panel_logo_shadow?: string;
+        panel_logo_ring?: string;
+      }>('/api/settings/panel-name');
       const brandingReq = fetchAuthorityBranding();
       const flagsReq = client.get<{
         register_allow: boolean;
@@ -74,6 +95,13 @@ const Login: React.FC = () => {
         } else {
           store.setPanelLogo(null);
         }
+        // Brand styling rides the same public payload — apply it so the
+        // logged-out brand matches the admin's Settings preview exactly.
+        const { brandNameStyleFromWire, brandLogoStyleFromWire } = await import(
+          '@/features/settings/api/settings'
+        );
+        store.setNameStyle(brandNameStyleFromWire(snap.data || {}));
+        store.setLogoStyle(brandLogoStyleFromWire(snap.data || {}));
       }
 
       // Authority branding wins over the global panel brand when present

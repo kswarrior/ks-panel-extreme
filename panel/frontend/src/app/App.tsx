@@ -56,6 +56,8 @@ const App: React.FC = () => {
           panel_name: snap.panel_name,
           panel_logo: snap.panel_logo,
           footer_text: snap.footer_text || 'KS Warrior',
+          nameStyle: (snap as any).nameStyle,
+          logoStyle: (snap as any).logoStyle,
         });
         if (typeof document !== 'undefined' && snap.panel_name) {
           document.title = snap.panel_name;
