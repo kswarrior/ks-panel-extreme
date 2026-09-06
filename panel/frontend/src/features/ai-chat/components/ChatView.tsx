@@ -107,6 +107,29 @@ const ChatView: React.FC = () => {
     setShowJump(!nearBottom && el.scrollHeight > el.clientHeight + 120);
   };
 
+  // Close the thread list / 3-dot menu on outside click or Escape.
+  useEffect(() => {
+    if (!listOpen && !dotsOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setListOpen(false);
+        setDotsOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setListOpen(false);
+        setDotsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [listOpen, dotsOpen]);
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!draft.trim() || loading || ticket) return;
@@ -122,6 +145,10 @@ const ChatView: React.FC = () => {
   };
 
   const activeThread = threads.find((t) => t.id === activeThreadId) || null;
+  const threadBusy = loading || !!ticket;
+  const filteredThreads = threadQuery.trim()
+    ? threads.filter((t) => t.title.toLowerCase().includes(threadQuery.trim().toLowerCase()))
+    : threads;
 
   const startRename = () => {
     setRenameDraft(activeThread?.title || '');
@@ -188,70 +215,136 @@ const ChatView: React.FC = () => {
         <ChatSettings />
       ) : (
       <>
-      <div className={`ks-ai-threads-collapsible ${menuOpen ? '' : 'is-collapsed'}`} aria-hidden={!menuOpen}>
-        <div>
-          <div className="flex items-center gap-1.5 px-3 py-2 border-b border-white/10">
-        <select
-          value={activeThreadId ?? ''}
-          onChange={(e) => {
-            const v = e.target.value;
-            if (v === '') void selectThread(null);
-            else void selectThread(Number(v));
-          }}
-          disabled={loading || !!ticket || threadsLoading}
-          aria-label="Chat thread"
-          className="flex-1 min-w-0 bg-black/30 text-gray-200 border border-white/10 rounded-md px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-white/60 disabled:opacity-60"
-        >
-          {!activeThreadId && <option value="">New chat</option>}
-          {threads.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.title} ({t.msg_count})
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          onClick={() => void newThread()}
-          disabled={loading || !!ticket}
-          title="New chat thread"
-          aria-label="New chat thread"
-          className="shrink-0 rounded-md p-1.5 text-gray-400 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-60"
-        >
-          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-        </button>
-        {activeThreadId != null && (
-          <>
-            <button
-              type="button"
-              onClick={startRename}
-              disabled={loading || !!ticket}
-              title="Rename thread"
-              aria-label="Rename thread"
-              className="shrink-0 rounded-md p-1.5 text-gray-400 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-60"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              onClick={() => void removeThread(activeThreadId)}
-              disabled={loading || !!ticket}
-              title="Delete thread"
-              aria-label="Delete thread"
-              className="shrink-0 rounded-md p-1.5 text-gray-400 hover:text-red-300 hover:bg-white/10 transition-colors disabled:opacity-60"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-              </svg>
-            </button>
-          </>
-        )}
-          </div>
+      <div ref={dropdownRef} className="relative px-3 py-2 border-b border-white/10">
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => {
+              setListOpen((v) => !v);
+              setDotsOpen(false);
+            }}
+            disabled={threadBusy}
+            aria-haspopup="listbox"
+            aria-expanded={listOpen}
+            aria-label="Chat thread"
+            title={activeThread?.title ?? 'New chat'}
+            className="flex-1 min-w-0 flex items-center justify-between gap-2 bg-black/30 text-gray-200 border border-white/10 rounded-md px-2 py-1.5 text-xs hover:border-white/25 focus:outline-none focus:ring-2 focus:ring-white/60 transition-colors disabled:opacity-60"
+          >
+            <span className="truncate">{activeThread?.title ?? 'New chat'}</span>
+            <svg className={`w-3.5 h-3.5 shrink-0 text-gray-400 transition-transform duration-200 ${listOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+          {activeThreadId != null && (
+            <div className="relative shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setDotsOpen((v) => !v);
+                  setListOpen(false);
+                }}
+                disabled={threadBusy}
+                aria-haspopup="menu"
+                aria-expanded={dotsOpen}
+                aria-label="Thread options"
+                title="Thread options"
+                className="rounded-md p-1.5 text-gray-400 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-60"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                  <circle cx="12" cy="5" r="1.6" />
+                  <circle cx="12" cy="12" r="1.6" />
+                  <circle cx="12" cy="19" r="1.6" />
+                </svg>
+              </button>
+              {dotsOpen && (
+                <div role="menu" style={{ transformOrigin: 'top right' }} className="ks-ai-menu-enter absolute right-0 top-full mt-1 w-32 rounded-lg glass-dropdown p-1 z-20">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      startRename();
+                      setDotsOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-gray-200 hover:bg-white/10 hover:text-white transition-colors"
+                  >
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z" />
+                    </svg>
+                    Rename
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      void removeThread(activeThreadId);
+                      setDotsOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-gray-200 hover:bg-white/10 hover:text-red-300 transition-colors"
+                  >
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                    </svg>
+                    Delete
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
+        {listOpen && (
+          <div role="listbox" aria-label="Chat threads" style={{ transformOrigin: 'top center' }} className="ks-ai-menu-enter absolute left-3 right-3 top-full mt-1 rounded-lg glass-dropdown z-20 overflow-hidden">
+            <div className="flex items-center gap-1.5 p-2 border-b border-white/10">
+              <input
+                value={threadQuery}
+                onChange={(e) => setThreadQuery(e.target.value)}
+                placeholder="Search chats…"
+                aria-label="Search chats"
+                className="flex-1 min-w-0 bg-black/30 text-white placeholder-gray-500 border border-white/10 rounded-md px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-white/60"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  void newThread();
+                  setThreadQuery('');
+                  setListOpen(false);
+                }}
+                disabled={threadBusy}
+                title="New chat"
+                aria-label="New chat"
+                className="shrink-0 rounded-md p-1.5 text-gray-400 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-60"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+              </button>
+            </div>
+            <div className="max-h-56 overflow-y-auto p-1">
+              {threadsLoading ? (
+                <p className="px-2 py-3 text-xs text-gray-500">Loading…</p>
+              ) : filteredThreads.length === 0 ? (
+                <p className="px-2 py-3 text-xs text-gray-500">{threadQuery.trim() ? 'No chats match' : 'No chats yet'}</p>
+              ) : (
+                filteredThreads.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    role="option"
+                    aria-selected={t.id === activeThreadId}
+                    onClick={() => {
+                      if (t.id !== activeThreadId) void selectThread(t.id);
+                      setListOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-xs text-left transition-colors ${t.id === activeThreadId ? 'bg-white/10 text-white' : 'text-gray-300 hover:bg-white/10 hover:text-white'}`}
+                  >
+                    <span className="truncate">{t.title}</span>
+                    <span className="shrink-0 text-[10px] text-gray-500 font-mono">{t.msg_count}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        )}
       </div>
       {renaming && activeThreadId != null && (
         <form
