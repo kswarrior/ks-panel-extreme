@@ -459,6 +459,11 @@ func UpdateInstanceHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// Template allow-list (instance.Config snapshot, allow-all default) —
+	// this endpoint is the advanced-config editor's save path.
+	if forbidByInstanceControls(w, inst.Config, "allow_edit_advanced", "advanced config edit") {
+		return
+	}
 
 	oldCfg := map[string]any{}
 	if inst.Config != "" {
@@ -2606,6 +2611,10 @@ func InvokeActionHandler(w http.ResponseWriter, r *http.Request) {
 			msg = fmt.Sprintf("instance is suspended until %s", until.Format("2006-01-02 15:04"))
 		}
 		writeJSONStatus(w, http.StatusForbidden, map[string]any{"error": msg})
+		return
+	}
+	// Template allow-list (instance.Config snapshot, allow-all default).
+	if forbidByInstanceControls(w, inst.Config, "allow_template_actions", "template action run") {
 		return
 	}
 	if inst.InstallState == "running" {
