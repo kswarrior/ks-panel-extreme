@@ -751,6 +751,10 @@ func UpdateInstanceIdentityHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// Template allow-list (instance.Config snapshot, allow-all default).
+	if forbidByInstanceControls(w, inst.Config, "allow_rename", "rename") {
+		return
+	}
 	if err := instRepo.UpdateIdentity(id, req.DisplayName, req.Icon, req.Color); err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
@@ -804,6 +808,10 @@ func ReinstallInstanceHandler(w http.ResponseWriter, r *http.Request) {
 			msg = fmt.Sprintf("instance is suspended until %s", until.Format("2006-01-02 15:04"))
 		}
 		writeJSONStatus(w, http.StatusForbidden, map[string]any{"error": msg})
+		return
+	}
+	// Template allow-list (instance.Config snapshot, allow-all default).
+	if forbidByInstanceControls(w, inst.Config, "allow_reinstall", "reinstall") {
 		return
 	}
 	// A deploy already in flight owns the row — reinstalling over
@@ -1666,6 +1674,53 @@ func getBool(m map[string]any, key string) bool {
 	return false
 }
 
+// instanceControlsAllow reports whether the instance's stored config snapshot
+// permits a template-gated control key (e.g. "allow_start"). The block lives
+// at config.instance_controls and is snapshotted from the template spec at
+// deploy time. A missing/unparseable block or key means allow-all, so old
+// templates and instances behave exactly as before.
+func instanceControlsAllow(configJSON, key string) bool {
+	s := strings.TrimSpace(configJSON)
+	if s == "" {
+		return true
+	}
+	var cfg map[string]any
+	if err := json.Unmarshal([]byte(s), &cfg); err != nil {
+		return true
+	}
+	raw, ok := cfg["instance_controls"]
+	if !ok {
+		return true
+	}
+	block, ok := raw.(map[string]any)
+	if !ok {
+		return true
+	}
+	v, ok := block[key]
+	if !ok {
+		return true
+	}
+	b, ok := v.(bool)
+	if !ok {
+		return true
+	}
+	return b
+}
+
+// forbidByInstanceControls rejects a mutating instance call the template's
+// allow-list disables for this instance. It mirrors the frontend's
+// InstanceControls gating so direct API calls cannot bypass template
+// restrictions. Returns true when the request was rejected.
+func forbidByInstanceControls(w http.ResponseWriter, configJSON, key, action string) bool {
+	if instanceControlsAllow(configJSON, key) {
+		return false
+	}
+	writeJSONStatus(w, http.StatusForbidden, map[string]any{
+		"error": fmt.Sprintf("forbidden: template disallows %s for this instance", action),
+	})
+	return true
+}
+
 // maxWorkflowTimeoutSec caps operator-authored workflow budgets at 30 days so
 // the edge's time.Duration(seconds)*time.Second conversion can never overflow.
 const maxWorkflowTimeoutSec = 2592000
@@ -1908,6 +1963,16 @@ func instanceAction(w http.ResponseWriter, r *http.Request, action string) {
 			return
 		}
 	}
+	// Template allow-list (instance.Config snapshot, allow-all default) —
+	// the frontend hides these buttons, but the API must enforce it too.
+	if key, ok := map[string]string{
+		"start": "allow_start", "stop": "allow_stop",
+		"kill": "allow_kill", "destroy": "allow_destroy",
+	}[action]; ok {
+		if forbidByInstanceControls(w, inst.Config, key, action) {
+			return
+		}
+	}
 	node, err := nodeRepo.GetNode(inst.NodeID)
 	if err != nil {
 		http.Error(w, "owning node not found", http.StatusBadRequest)
@@ -2093,6 +2158,10 @@ func RestartInstanceHandler(w http.ResponseWriter, r *http.Request) {
 			msg = fmt.Sprintf("instance is suspended until %s", until.Format("2006-01-02 15:04"))
 		}
 		writeJSONStatus(w, http.StatusForbidden, map[string]any{"error": msg})
+		return
+	}
+	// Template allow-list (instance.Config snapshot, allow-all default).
+	if forbidByInstanceControls(w, inst.Config, "allow_restart", "restart") {
 		return
 	}
 	// A deploy already in flight owns the row — restarting over
