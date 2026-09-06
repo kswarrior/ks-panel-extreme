@@ -117,6 +117,17 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
     (i: number) => setEditor((f) => ({ ...f, env: f.env.filter((_, j) => j !== i) })),
     [setEditor],
   );
+  const moveEnv = useCallback(
+    (i: number, dir: -1 | 1) =>
+      setEditor((f) => {
+        const j = i + dir;
+        if (j < 0 || j >= f.env.length) return f;
+        const e = [...f.env];
+        [e[i], e[j]] = [e[j], e[i]];
+        return { ...f, env: e };
+      }),
+    [setEditor],
+  );
 
   const updatePort = useCallback(
     (i: number, patch: Partial<PortMapping>) =>
@@ -201,6 +212,21 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
     (i: number) => setEditor((f) => ({ ...f, install: f.install.filter((_, j) => j !== i) })),
     [setEditor],
   );
+  const moveInstall = useCallback(
+    (i: number, dir: -1 | 1) =>
+      setEditor((f) => {
+        const j = i + dir;
+        if (j < 0 || j >= f.install.length) return f;
+        const s = [...f.install];
+        [s[i], s[j]] = [s[j], s[i]];
+        return { ...f, install: s };
+      }),
+    [setEditor],
+  );
+  const updateInstallTimeout = useCallback(
+    (v: string) => setEditor((f) => ({ ...f, install_timeout_s: v.replace(/[^0-9]/g, '') })),
+    [setEditor],
+  );
 
   const updateAction = useCallback(
     (i: number, patch: Partial<TemplateAction>) =>
@@ -246,6 +272,17 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
   );
   const delAction = useCallback(
     (i: number) => setEditor((f) => ({ ...f, actions: f.actions.filter((_, j) => j !== i) })),
+    [setEditor],
+  );
+  const moveAction = useCallback(
+    (i: number, dir: -1 | 1) =>
+      setEditor((f) => {
+        const j = i + dir;
+        if (j < 0 || j >= f.actions.length) return f;
+        const a = [...f.actions];
+        [a[i], a[j]] = [a[j], a[i]];
+        return { ...f, actions: a };
+      }),
     [setEditor],
   );
 

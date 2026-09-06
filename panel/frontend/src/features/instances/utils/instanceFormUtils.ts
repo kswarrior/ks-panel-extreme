@@ -86,6 +86,9 @@ export function specToEditor(spec: string): EditorState {
       retries: String(st.retries ?? ''), ignore_errors: !!st.ignore_errors,
     }));
   }
+  if (s.install_timeout_sec !== undefined && s.install_timeout_sec !== null) {
+    out.install_timeout_s = String(s.install_timeout_sec);
+  }
   if (Array.isArray(s.actions)) {
     out.actions = s.actions.map((a: any) => ({
       id: String(a.id ?? ''), name: String(a.name ?? ''), description: String(a.description ?? ''),
@@ -325,6 +328,9 @@ export function serializeEditor(f: EditorState): Record<string, unknown> {
       dest: s.dest, from: s.from, to: s.to, path: s.path, content: s.content, branch: s.branch,
       retries: s.retries, ignore_errors: !!s.ignore_errors,
     })),
+    // Whole-workflow budget for the edge's install runner (seconds). Empty
+    // = the edge's 30-minute default.
+    install_timeout_sec: f.install_timeout_s ? Number(f.install_timeout_s) : undefined,
     actions: f.actions.filter((a) => a.id.trim() !== '').map((a) => ({
       id: a.id, name: a.name, description: a.description,
       icon_svg: (a.icon_svg || '').trim(),
