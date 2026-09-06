@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import GlassCard from '@/shared/components/ui/Card';
 import { ColorField, Label, Slider, Text } from '@/theme/studioControls';
 
 interface MenuTabProps {
@@ -12,7 +11,7 @@ export const MenuTab: React.FC<MenuTabProps> = ({ draft, patch }) => {
   const [previewOpen, setPreviewOpen] = useState(true);
 
   return (
-    <GlassCard className="space-y-4">
+    <div className="space-y-4">
       <div className="ks-form-card rounded-lg space-y-4">
         <Label label="Toggle" hint="The floating square on instance detail pages — surface, icon tint and resting shadow." />
         <ColorField label="Background" value={m.toggle_background} onChange={(v) => patch('menu', { toggle_background: v })} />
@@ -124,6 +123,6 @@ export const MenuTab: React.FC<MenuTabProps> = ({ draft, patch }) => {
           </div>
         </div>
       </div>
-    </GlassCard>
+    </div>
   );
 };

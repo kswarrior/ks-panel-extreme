@@ -1,5 +1,4 @@
 import React from 'react';
-import GlassCard from '@/shared/components/ui/Card';
 import { ColorField, Label, Slider } from '@/theme/studioControls';
 import { DEFAULT_THEME } from '@/theme/defaults';
 

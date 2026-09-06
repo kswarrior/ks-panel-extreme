@@ -1,5 +1,4 @@
 import React from 'react';
-import GlassCard from '@/shared/components/ui/Card';
 import IconColorPicker from '@/shared/components/ui/IconColorPicker';
 import { Label, Text } from '@/theme/studioControls';
 
@@ -29,7 +28,7 @@ export const ThemeTab: React.FC<ThemeTabProps> = ({
   onColorChange,
 }) => {
   return (
-    <GlassCard className="space-y-4">
+    <div className="space-y-4">
       <div className="ks-form-card rounded-lg space-y-4">
         <Label label="Theme" hint="Name and note shown on the Themes grid. The name is required to save." />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -61,6 +60,6 @@ export const ThemeTab: React.FC<ThemeTabProps> = ({
           previewName={name || 'Theme'}
         />
       </div>
-    </GlassCard>
+    </div>
   );
 };

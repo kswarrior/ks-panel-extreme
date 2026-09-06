@@ -1,5 +1,4 @@
 import React from 'react';
-import GlassCard from '@/shared/components/ui/Card';
 import { ColorField, Label, Text, Slider } from '@/theme/studioControls';
 
 interface ButtonTabProps {
@@ -9,8 +8,7 @@ interface ButtonTabProps {
 
 export const ButtonTab: React.FC<ButtonTabProps> = ({ draft, patch }) => {
   return (
-    <>
-      <GlassCard className="space-y-4">
+    <div className="space-y-4">
         <div className="ks-form-card rounded-lg space-y-4">
           <Label label="Primary button (Create / Save / Activate)" hint="High-emphasis solid fill." />
           <ColorField label="Background" value={draft.button.background} onChange={(v) => patch('button', { background: v })} />
@@ -70,7 +68,6 @@ export const ButtonTab: React.FC<ButtonTabProps> = ({ draft, patch }) => {
             </button>
           </div>
         </div>
-      </GlassCard>
-    </>
+    </div>
   );
 };

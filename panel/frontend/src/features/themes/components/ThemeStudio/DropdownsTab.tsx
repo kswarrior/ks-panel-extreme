@@ -1,5 +1,4 @@
 import React from 'react';
-import GlassCard from '@/shared/components/ui/Card';
 import { Select, ColorField, Label, Text, Slider, MediaField } from '@/theme/studioControls';
 
 interface DropdownsTabProps {
@@ -9,7 +8,7 @@ interface DropdownsTabProps {
 
 export const DropdownsTab: React.FC<DropdownsTabProps> = ({ draft, patch }) => {
   return (
-    <GlassCard className="space-y-4">
+    <div className="space-y-4">
       <div className="ks-form-card rounded-lg space-y-4">
         <Label label="Backdrop" hint="Frosted panel that pops open from the card 3-dot menu, the header account menu, the Themes 'Apply to…' picker, and every inline filter dropdown in admin pages." />
         <Select
@@ -257,6 +256,6 @@ export const DropdownsTab: React.FC<DropdownsTabProps> = ({ draft, patch }) => {
           </div>
         </div>
       </div>
-    </GlassCard>
+    </div>
   );
 };

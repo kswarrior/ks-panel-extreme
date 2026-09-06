@@ -1,5 +1,4 @@
 import React from 'react';
-import GlassCard from '@/shared/components/ui/Card';
 import { ColorField, Label, Text, Slider } from '@/theme/studioControls';
 
 interface TabsTabProps {
@@ -9,7 +8,7 @@ interface TabsTabProps {
 
 export const TabsTab: React.FC<TabsTabProps> = ({ draft, patch }) => {
   return (
-    <GlassCard className="space-y-4">
+    <div className="space-y-4">
       <div className="ks-form-card rounded-lg space-y-4">
         <Label label="Active tab (selected)" hint="The pill that marks the current page/section." />
         <ColorField label="Background" value={draft.tabs.active_background} onChange={(v) => patch('tabs', { active_background: v })} />
@@ -120,6 +119,6 @@ export const TabsTab: React.FC<TabsTabProps> = ({ draft, patch }) => {
           ))}
         </div>
       </div>
-    </GlassCard>
+    </div>
   );
 };

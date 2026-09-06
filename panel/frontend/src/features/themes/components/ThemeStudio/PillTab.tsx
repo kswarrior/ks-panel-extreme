@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react';
-import GlassCard from '@/shared/components/ui/Card';
 import { ColorField, Label, Text, Slider, Select } from '@/theme/studioControls';
 
 interface PillTabProps {
@@ -36,7 +35,7 @@ export const PillTab: React.FC<PillTabProps> = ({ draft, patch }) => {
   // vs open `PageName ^` + vertical list), so it has no collapse transform.
 
   return (
-    <GlassCard className="space-y-4">
+    <div className="space-y-4">
       <div className="ks-form-card rounded-lg space-y-4">
         <Label label="Surface" hint="The glass background of both pills — the top-right Actions Pill and the phone Tabs Pill share these settings." />
         <ColorField label="Background" value={p.background} onChange={(v) => patch('pill', { background: v })} />
@@ -280,6 +279,6 @@ export const PillTab: React.FC<PillTabProps> = ({ draft, patch }) => {
           </span>
         </div>
       </div>
-    </GlassCard>
+    </div>
   );
 };
