@@ -39,7 +39,6 @@ export function resolveHeaderCrumb(rawPath: string): HeaderCrumb | null {
     [/^\/instances\/new$/, { parent: 'Instances', parentTo: '/instances', current: 'New Instance', icon: 'Instances' }],
     [/^\/instance\/\d+\/edit$/, { parent: 'Instances', parentTo: '/instances', current: 'Edit Instance', icon: 'Instances' }],
     [/^\/account$/, { parent: 'Account', parentTo: '/account', icon: 'Account' }],
-    [/^\/ai-chat$/, { parent: 'AI Assistant', parentTo: '/ai-chat', icon: 'AIAssistant' }],
     [/^\/system$/, { parent: 'System', parentTo: '/system', icon: 'Dashboard' }],
     [/^\/security$/, { parent: 'Security', parentTo: '/security', icon: 'Security' }],
     [/^\/database$/, { parent: 'Database', parentTo: '/database', icon: 'Database' }],

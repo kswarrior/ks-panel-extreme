@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
 import { PermissionKey, hasPermissionAny } from '@/shared/types/permissions';
@@ -8,15 +7,9 @@ import { MarkdownBio } from '@/shared/components/ui/MarkdownBio';
 import ConfirmCard from './ConfirmCard';
 import ChatSettings from './ChatSettings';
 
-// Shared chat chrome used by BOTH the floating panel (variant="floating")
-// and the full page at /ai-chat (variant="page"). Same store, same threads,
-// same streaming — only the header actions + content width differ:
-// floating shows a fullscreen (expand) button top-right that navigates to
-// the real page; the page variant hides it (and the close button) and
-// centers messages in a wider column.
-const ChatView: React.FC<{ variant: 'floating' | 'page' }> = ({ variant }) => {
-  const isPage = variant === 'page';
-  const navigate = useNavigate();
+// Shared chat chrome for the floating AI panel: header, thread menu,
+// markdown AI output (full-width body), smart stick-to-bottom scrolling.
+const ChatView: React.FC = () => {
   const permissions = useAuthStore((s) => s.permissions);
   const panelName = useSettingsStore((s) => s.panelName);
   const open = useAIChatStore((s) => s.open);
@@ -72,17 +65,16 @@ const ChatView: React.FC<{ variant: 'floating' | 'page' }> = ({ variant }) => {
   );
   const disabledErr = /disabled by the administrator|not configured yet/i.test(error || '');
 
-  // Hydrate threads + active history so a reload restores the chat.
-  // Floating hydrates when opened; the full page hydrates on mount.
+  // Hydrate threads + active history on open so a reload restores the chat.
   useEffect(() => {
-    if (!isPage && !open) return;
+    if (!open) return;
     setView('chat');
     void refreshThreads().then(() => {
       const id = useAIChatStore.getState().activeThreadId;
       if (id) void useAIChatStore.getState().selectThread(id);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPage, open ]);
+  }, [open ]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -139,14 +131,9 @@ const ChatView: React.FC<{ variant: 'floating' | 'page' }> = ({ variant }) => {
     setRenaming(false);
   };
 
-  const openFullscreen = () => {
-    setOpen(false);
-    navigate('/ai-chat');
-  };
-
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className={`flex items-center justify-between gap-2 px-4 py-3 border-b border-white/10 ${isPage ? 'sm:px-6' : ''}`}>
+      <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-white/10">
         <div className="min-w-0">
           <h3 className="text-sm font-semibold text-white truncate">
             {view === 'settings' ? 'Provider settings' : `${panelName} Assistant`}
@@ -197,35 +184,17 @@ const ChatView: React.FC<{ variant: 'floating' | 'page' }> = ({ variant }) => {
               )}
             </button>
           )}
-          {!isPage && (
-            <button
-              type="button"
-              onClick={openFullscreen}
-              aria-label="Open AI assistant full screen"
-              title="Open full screen"
-              className="rounded-md p-1.5 text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M8 3H5a2 2 0 0 0-2 2v3" />
-                <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
-                <path d="M3 16v3a2 2 0 0 0 2 2h3" />
-                <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
-              </svg>
-            </button>
-          )}
-          {!isPage && (
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              aria-label="Close AI assistant"
-              className="rounded-md p-1.5 text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            aria-label="Close AI assistant"
+            className="rounded-md p-1.5 text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
         </div>
       </div>
 
@@ -235,7 +204,7 @@ const ChatView: React.FC<{ variant: 'floating' | 'page' }> = ({ variant }) => {
       <>
       <div className={`ks-ai-threads-collapsible ${menuOpen ? '' : 'is-collapsed'}`} aria-hidden={!menuOpen}>
         <div>
-          <div className={`flex items-center gap-1.5 px-3 py-2 border-b border-white/10 ${isPage ? 'sm:px-6' : ''}`}>
+          <div className="flex items-center gap-1.5 px-3 py-2 border-b border-white/10">
         <select
           value={activeThreadId ?? ''}
           onChange={(e) => {
@@ -300,7 +269,7 @@ const ChatView: React.FC<{ variant: 'floating' | 'page' }> = ({ variant }) => {
       </div>
       {renaming && activeThreadId != null && (
         <form
-          className={`flex items-center gap-1.5 px-3 py-2 border-b border-white/10 ${isPage ? 'sm:px-6' : ''}`}
+          className="flex items-center gap-1.5 px-3 py-2 border-b border-white/10"
           onSubmit={(e) => {
             e.preventDefault();
             commitRename();
@@ -327,7 +296,7 @@ const ChatView: React.FC<{ variant: 'floating' | 'page' }> = ({ variant }) => {
         </form>
       )}
       {isAdmin && (
-        <div className={`px-3 py-1.5 border-b border-white/10 ${isPage ? 'sm:px-6' : ''}`}>
+        <div className="px-3 py-1.5 border-b border-white/10">
           <input
             value={modelOverride}
             onChange={(e) => setModelOverride(e.target.value)}
@@ -340,9 +309,7 @@ const ChatView: React.FC<{ variant: 'floating' | 'page' }> = ({ variant }) => {
       )}
 
       <div className="relative flex-1 min-h-0">
-      <div ref={scrollRef} onScroll={handleScroll} className={`h-full overflow-y-auto px-3 py-3 space-y-3 ${isPage ? 'sm:px-6' : ''}`}>
-        <div className={`w-full min-w-0 ${isPage ? 'mx-auto max-w-3xl' : ''}`}>
-        <div className="space-y-3">
+      <div ref={scrollRef} onScroll={handleScroll} className="h-full overflow-y-auto px-3 py-3 space-y-3">
         {messages.length === 0 && (
           <p className="text-xs text-gray-400 leading-relaxed">
             Hi! I can look up instances, nodes and templates, explain how the panel works, and —
@@ -368,7 +335,7 @@ const ChatView: React.FC<{ variant: 'floating' | 'page' }> = ({ variant }) => {
           }
           return (
             <div key={m.id} className="flex justify-end">
-              <div className={`rounded-lg px-3 py-2 text-sm leading-relaxed break-words whitespace-pre-wrap bg-white text-black ${isPage ? 'max-w-[75%]' : 'max-w-[85%]'}`}>
+              <div className="max-w-[85%] rounded-lg px-3 py-2 text-sm leading-relaxed break-words whitespace-pre-wrap bg-white text-black">
                 {m.content}
               </div>
             </div>
@@ -425,8 +392,6 @@ const ChatView: React.FC<{ variant: 'floating' | 'page' }> = ({ variant }) => {
             </span>
           </div>
         )}
-        </div>
-        </div>
       </div>
       {showJump && !stickToBottom && (
         <button
@@ -445,8 +410,7 @@ const ChatView: React.FC<{ variant: 'floating' | 'page' }> = ({ variant }) => {
       )}
       </div>
 
-      <form onSubmit={submit} className={`border-t border-white/10 p-3 flex items-end gap-2 ${isPage ? 'sm:px-6' : ''}`}>
-        <div className={`flex items-end gap-2 w-full ${isPage ? 'mx-auto max-w-3xl' : ''}`}>
+      <form onSubmit={submit} className="border-t border-white/10 p-3 flex items-end gap-2">
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
@@ -462,7 +426,6 @@ const ChatView: React.FC<{ variant: 'floating' | 'page' }> = ({ variant }) => {
         >
           Send
         </button>
-        </div>
       </form>
       </>
       )}

@@ -214,12 +214,6 @@ export const Icons: Record<string, React.ReactNode> = {
       <circle cx="11.45" cy="19.65" r="0.42" fill="white" opacity="0.62" />
     </svg>
   ),
-  AIAssistant: (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-      <path d="M12 7v6M9 10h6" opacity="0.7" />
-    </svg>
-  ),
   // Account has no sidebar entry but the header shows an "Account" title —
   // reuse a user glyph so the header can still render [SVG] [Account].
   Account: (
@@ -245,7 +239,6 @@ interface SubItem {
 }
 
 const adminSubItems: SubItem[] = [
-  { to: '/ai-chat', label: 'AI Assistant', permission: PermissionKey.AI_CHAT_USE, icon: 'AIAssistant' },
   { to: '/system', label: 'System', permission: PermissionKey.ACCESS_ADMIN_PANEL, icon: 'Dashboard' },
   { to: '/tickets', label: 'Tickets', permission: PermissionKey.MANAGE_TICKETS, icon: 'Tickets' },
   { to: '/notifications', label: 'Notifications', permission: PermissionKey.MANAGE_NOTIFICATIONS, icon: 'Notifications' },
