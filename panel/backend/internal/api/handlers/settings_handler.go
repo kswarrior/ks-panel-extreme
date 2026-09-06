@@ -384,6 +384,12 @@ func SettingsLogoUploadHandler(w http.ResponseWriter, r *http.Request) {
 		// extension so the most common types still work.
 		mime = mimeFromExt(filepath.Ext(hdr.Filename))
 	}
+	// SVGs execute in the panel origin when served on /api/settings/panel-logo
+	// (no CSP, public route). Sanitize with the same rules used for avatars/
+	// instance-page icons so stored XSS cannot be planted via the panel logo.
+	if strings.EqualFold(mime, "image/svg+xml") {
+		data = []byte(sanitizeIconSVG(string(data)))
+	}
 
 	con, err := repository.OpenDB()
 	if err != nil {
@@ -426,8 +432,12 @@ func SettingsLogoDeleteHandler(w http.ResponseWriter, r *http.Request) {
 // panelLogoURL returns the public URL that streams the logo bytes. Kept as
 // a free function (not a method on *SettingsRepository) so the bootstrap
 // injection in server.go can use the same logic without depending on a
-// live *sql.DB.
+// live *sql.DB. The filename rides as ?v=... so the browser cache busts the
+// moment the admin replaces the logo (mirrors repository.LogoURL).
 func panelLogoURL(logo repository.PanelLogo) string {
+	if logo.Filename != "" {
+		return "/api/settings/panel-logo?v=" + logo.Filename
+	}
 	return "/api/settings/panel-logo"
 }
 

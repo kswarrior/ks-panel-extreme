@@ -34,6 +34,26 @@ type brandBootstrap struct {
 	PanelName string `json:"panel_name"`
 	LogoURL   string `json:"logo_url,omitempty"`
 	LogoMime  string `json:"logo_mime,omitempty"`
+	// Panel-name brand styling + logo presentation so the very first paint
+	// already renders the styled brand (no flash of the default white name).
+	PanelNameColor        string `json:"panel_name_color,omitempty"`
+	PanelNameFont         string `json:"panel_name_font,omitempty"`
+	PanelNameWeight       string `json:"panel_name_weight,omitempty"`
+	PanelNameSize         string `json:"panel_name_size,omitempty"`
+	PanelNameEffect       string `json:"panel_name_effect,omitempty"`
+	PanelNameShadow       string `json:"panel_name_shadow,omitempty"`
+	PanelNameGradientFrom string `json:"panel_name_gradient_from,omitempty"`
+	PanelNameGradientTo   string `json:"panel_name_gradient_to,omitempty"`
+	PanelNameGradientDir  string `json:"panel_name_gradient_dir,omitempty"`
+	PanelNameItalic       string `json:"panel_name_italic,omitempty"`
+	PanelNameUppercase    string `json:"panel_name_uppercase,omitempty"`
+	PanelNameSpacing      string `json:"panel_name_spacing,omitempty"`
+	PanelLogoSize         string `json:"panel_logo_size,omitempty"`
+	PanelLogoShape        string `json:"panel_logo_shape,omitempty"`
+	PanelLogoFit          string `json:"panel_logo_fit,omitempty"`
+	PanelLogoBg           string `json:"panel_logo_bg,omitempty"`
+	PanelLogoShadow       string `json:"panel_logo_shadow,omitempty"`
+	PanelLogoRing         string `json:"panel_logo_ring,omitempty"`
 	// Theme is the admin-managed GLOBAL theme store, embedded verbatim so
 	// the browser can resolve the current route's theme and paint it before
 	// React mounts — exactly the same "no flash" trick the brand uses. It
@@ -73,14 +93,34 @@ func writeBrandedIndex(w http.ResponseWriter, r *http.Request, uiFS http.FileSys
 	var boot brandBootstrap
 	if con, err := repository.OpenDB(); err == nil {
 		settingsRepo := repository.NewSettingsRepository(con)
-		if name, nerr := settingsRepo.GetPanelName(); nerr == nil {
+		if snap, serr := settingsRepo.Get(); serr == nil && snap != nil {
+			boot.PanelName = snap.PanelName
+			boot.PanelNameColor = snap.PanelNameColor
+			boot.PanelNameFont = snap.PanelNameFont
+			boot.PanelNameWeight = snap.PanelNameWeight
+			boot.PanelNameSize = snap.PanelNameSize
+			boot.PanelNameEffect = snap.PanelNameEffect
+			boot.PanelNameShadow = snap.PanelNameShadow
+			boot.PanelNameGradientFrom = snap.PanelNameGradientFrom
+			boot.PanelNameGradientTo = snap.PanelNameGradientTo
+			boot.PanelNameGradientDir = snap.PanelNameGradientDir
+			boot.PanelNameItalic = snap.PanelNameItalic
+			boot.PanelNameUppercase = snap.PanelNameUppercase
+			boot.PanelNameSpacing = snap.PanelNameSpacing
+			boot.PanelLogoSize = snap.PanelLogoSize
+			boot.PanelLogoShape = snap.PanelLogoShape
+			boot.PanelLogoFit = snap.PanelLogoFit
+			boot.PanelLogoBg = snap.PanelLogoBg
+			boot.PanelLogoShadow = snap.PanelLogoShadow
+			boot.PanelLogoRing = snap.PanelLogoRing
+			if snap.PanelLogo != nil {
+				boot.LogoURL = snap.PanelLogo.URL
+				boot.LogoMime = snap.PanelLogo.Mime
+			}
+		} else if name, nerr := settingsRepo.GetPanelName(); nerr == nil {
 			boot.PanelName = name
 		} else {
 			boot.PanelName = repository.DefaultPanelName
-		}
-		if logo, ok, lerr := settingsRepo.GetPanelLogo(); lerr == nil && ok {
-			boot.LogoURL = "/api/settings/panel-logo"
-			boot.LogoMime = logo.Mime
 		}
 		// Inline the admin-managed GLOBAL theme store so the SPA's first
 		// paint is already themed (and logged-out visitors see the right
