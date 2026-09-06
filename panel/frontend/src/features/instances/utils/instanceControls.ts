@@ -28,6 +28,9 @@ export interface InstanceControls {
   show_manage_tab: boolean;
   show_activity_tab: boolean;
   default_tab: OverviewDefaultTab;
+  // Floating menu "More" link target (page slug, e.g. "overview"). Rendered
+  // inside the controls block so it snapshots per instance like the rest.
+  more_page: string;
   // More → Overview → Manage buttons.
   allow_rename: boolean;
   allow_edit_advanced: boolean;

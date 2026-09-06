@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/example/kspanel/internal/db"
+	"github.com/example/kspanel/internal/models"
 	_ "modernc.org/sqlite"
 )
 
@@ -179,6 +180,77 @@ func TestTicketCreateCommentRoundtrip(t *testing.T) {
 	}
 }
 
+// TestSetSLAConfigRoundtripPortable pins the UPDATE-then-INSERT upsert:
+// persisting a valid policy must round-trip via GetSLAConfig on the
+// default engine (ON CONFLICT is a MySQL syntax error, so the portable
+// form is the cross-engine proof), and validation still rejects junk.
+func TestSetSLAConfigRoundtripPortable(t *testing.T) {
+	conn := newEnrichTestDB(t)
+	if _, err := conn.Exec(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '')`); err != nil {
+		t.Fatalf("settings setup: %v", err)
+	}
+	repo := NewTicketRepository(conn)
+	good := models.DefaultTicketSLAConfig()
+	p := good["general"]
+	p.FirstResponseMins = 45
+	good["general"] = p
+	if err := repo.SetSLAConfig(good); err != nil {
+		t.Fatalf("SetSLAConfig: %v", err)
+	}
+	got := repo.GetSLAConfig()
+	if got["general"].FirstResponseMins != 45 {
+		t.Fatalf("roundtrip lost policy: %+v", got["general"])
+	}
+	// Second save must update, not duplicate.
+	p.ResolveHours = 99
+	good["general"] = p
+	if err := repo.SetSLAConfig(good); err != nil {
+		t.Fatalf("second SetSLAConfig: %v", err)
+	}
+	if got := repo.GetSLAConfig(); got["general"].ResolveHours != 99 {
+		t.Fatalf("update lost policy: %+v", got["general"])
+	}
+	if err := repo.SetSLAConfig(map[string]models.TicketSLAPolicy{"nope": {FirstResponseMins: 1, ResolveHours: 1}}); err == nil {
+		t.Fatal("unknown category must be rejected")
+	}
+}
+
+// TestStatsPropagatesErrors proves Stats fails closed: a broken
+// connection must surface an error, not silent zero stats.
+func TestStatsPropagatesErrors(t *testing.T) {
+	conn := newEnrichTestDB(t)
+	repo := NewTicketRepository(conn)
+	conn.Close()
+	if _, err := repo.Stats(1, true); err == nil {
+		t.Fatal("Stats on closed DB must return an error, got nil")
+	}
+}
+
+// TestStatsMissingSLATableTolerated proves the pre-065 exception: without
+// ticket_sla only Breached degrades to zero state; core counts still work.
+func TestStatsMissingSLATableTolerated(t *testing.T) {
+	conn, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { conn.Close() })
+	for _, s := range []string{
+		`CREATE TABLE tickets (id INTEGER PRIMARY KEY AUTOINCREMENT, ticket_no TEXT NOT NULL DEFAULT '', subject TEXT NOT NULL DEFAULT '', description TEXT NOT NULL DEFAULT '', category TEXT NOT NULL DEFAULT 'general', priority TEXT NOT NULL DEFAULT 'medium', status TEXT NOT NULL DEFAULT 'open', created_by INTEGER NOT NULL, assigned_to INTEGER, created_at TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT '', closed_at TEXT, due_at TEXT, tags TEXT NOT NULL DEFAULT '[]')`,
+		`INSERT INTO tickets (ticket_no, subject, category, priority, status, created_by, created_at, updated_at, tags) VALUES ('TKT-000001', 'a', 'general', 'medium', 'open', 1, '2026-01-01 10:00:00', '2026-01-01 10:00:00', '[]')`,
+	} {
+		if _, err := conn.Exec(s); err != nil {
+			t.Fatalf("setup: %v", err)
+		}
+	}
+	repo := NewTicketRepository(conn)
+	s, err := repo.Stats(1, true)
+	if err != nil {
+		t.Fatalf("Stats without ticket_sla must succeed: %v", err)
+	}
+	if s.Total != 1 || s.Open != 1 || s.Breached != 0 {
+		t.Fatalf("wrong pre-065 stats: %+v", s)
+	}
+}
 // TestTicketUpdateQueryPlaceholders pins the Sprintf-before-Rebind order:
 // every nullability branch must emit zero raw "?" on postgres with $N
 // matching the arg count Update passes, and stay verbatim on sqlite.

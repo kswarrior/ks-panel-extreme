@@ -31,6 +31,36 @@ export interface ResolvedNavEntry {
 // generic placeholder the template editor shows.
 const FALLBACK_ICON = '<circle cx="12" cy="12" r="9" />';
 
+// BUILTIN_PAGE_SLUGS are native instance routes that render without a
+// spec.pages row (ports / sftp / snapshots / overview in InstanceDetail).
+// `terminal` is intentionally absent — it stays whitelist-gated like every
+// other custom page, so it resolves through isPageAllowed below.
+export const BUILTIN_PAGE_SLUGS = ['overview', 'ports', 'sftp', 'snapshots'];
+
+// normalizePageSlug trims a user-entered page slug/URL into canonical form:
+// leading/trailing slashes and whitespace go away ("  /overview/ " →
+// "overview"). Empty (or non-string) input normalises to ''.
+export function normalizePageSlug(v: unknown): string {
+  if (typeof v !== 'string') return '';
+  return v.trim().replace(/^\/+|\/+$/g, '').trim();
+}
+
+// resolveRedirectTarget validates a configured landing slug (template
+// `home_page`, controls `more_page`) against the instance spec. Returns the
+// canonical slug when it renders something, or null to keep default
+// behaviour. Builtins always resolve; custom slugs must be allow-listed.
+// Unknown/disabled slugs fall back instead of landing on a dead page.
+export function resolveRedirectTarget(
+  raw: unknown,
+  spec: Record<string, any> | null | undefined,
+): string | null {
+  const slug = normalizePageSlug(raw);
+  if (!slug || slug === '.') return null;
+  if (BUILTIN_PAGE_SLUGS.includes(slug)) return slug;
+  if (isPageAllowed(slug, spec)) return slug;
+  return null;
+}
+
 // subPagesOf normalises a spec row's `sub_pages` field into a list of
 // sub-page entries. Multi-page library pages keep their extra pages INSIDE
 // the parent row (effective URL `<slug>/<path>`, e.g. files/edit) instead of

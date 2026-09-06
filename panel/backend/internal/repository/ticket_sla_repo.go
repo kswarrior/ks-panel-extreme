@@ -59,9 +59,22 @@ func (r *TicketRepository) SetSLAConfig(cfg map[string]models.TicketSLAPolicy) e
 	if err != nil {
 		return err
 	}
+	// UPDATE-then-INSERT so the upsert works on every engine: SQLite +
+	// Postgres accept ON CONFLICT but MySQL rejects it (syntax error), and
+	// ON DUPLICATE KEY UPDATE is MySQL-only — mirrors ai_config_repo.set.
+	// Both statements go through rebind for Postgres $N placeholders.
+	res, err := r.db.Exec(
+		r.rebind(`UPDATE settings SET value = ? WHERE key = ?`),
+		string(blob), TicketSLAConfigKey,
+	)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		return nil
+	}
 	_, err = r.db.Exec(
-		r.rebind(`INSERT INTO settings (key, value) VALUES (?, ?)
-		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`),
+		r.rebind(`INSERT INTO settings (key, value) VALUES (?, ?)`),
 		TicketSLAConfigKey, string(blob),
 	)
 	return err

@@ -678,7 +678,9 @@ func (r *TicketRepository) Stats(uid int64, isStaff bool) (*models.TicketStats, 
 		args = append(args, uid, uid)
 	}
 	// total
-	_ = r.db.QueryRow(r.rebind(`SELECT COUNT(*) FROM tickets WHERE `+where), args...).Scan(&s.Total)
+	if err := r.db.QueryRow(r.rebind(`SELECT COUNT(*) FROM tickets WHERE `+where), args...).Scan(&s.Total); err != nil {
+		return nil, err
+	}
 	// per status
 	statusMap := map[string]*int{
 		"open":        &s.Open,
@@ -690,17 +692,30 @@ func (r *TicketRepository) Stats(uid int64, isStaff bool) (*models.TicketStats, 
 	for k, ptr := range statusMap {
 		q := r.rebind(`SELECT COUNT(*) FROM tickets WHERE status = ? AND ` + where)
 		a := append([]any{k}, args...)
-		_ = r.db.QueryRow(q, a...).Scan(ptr)
+		if err := r.db.QueryRow(q, a...).Scan(ptr); err != nil {
+			return nil, err
+		}
 	}
 	// unassigned (only meaningful for staff view, but compute anyway with same where)
 	qUn := r.rebind(`SELECT COUNT(*) FROM tickets WHERE assigned_to IS NULL AND ` + where)
-	_ = r.db.QueryRow(qUn, args...).Scan(&s.Unassigned)
+	if err := r.db.QueryRow(qUn, args...).Scan(&s.Unassigned); err != nil {
+		return nil, err
+	}
 	// mine: tickets created by or assigned to me (even for staff, show personal count)
-	_ = r.db.QueryRow(r.rebind(`SELECT COUNT(*) FROM tickets WHERE (created_by = ? OR assigned_to = ?)`), uid, uid).Scan(&s.Mine)
+	if err := r.db.QueryRow(r.rebind(`SELECT COUNT(*) FROM tickets WHERE (created_by = ? OR assigned_to = ?)`), uid, uid).Scan(&s.Mine); err != nil {
+		return nil, err
+	}
 	// SLA (065): breached among the visible set + compliant share. The
-	// sidecar table may not exist on pre-065 test DBs — any error reads
-	// back as zero state, never a stats failure.
-	_ = r.db.QueryRow(r.rebind(`SELECT COUNT(*) FROM ticket_sla WHERE sla_breached = 1 AND ticket_id IN (SELECT id FROM tickets WHERE `+where+`)`), args...).Scan(&s.Breached)
+	// sidecar table may not exist on pre-065 databases — only a
+	// missing-table error reads back as zero state; any other failure is
+	// propagated (fail closed).
+	if err := r.db.QueryRow(r.rebind(`SELECT COUNT(*) FROM ticket_sla WHERE sla_breached = 1 AND ticket_id IN (SELECT id FROM tickets WHERE `+where+`)`), args...).Scan(&s.Breached); err != nil {
+		if isMissingTableErr(err) {
+			s.Breached = 0
+		} else {
+			return nil, err
+		}
+	}
 	if s.Total > 0 {
 		s.SLAPct = float64(s.Total-s.Breached) * 100 / float64(s.Total)
 	} else {
