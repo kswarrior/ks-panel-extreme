@@ -2,6 +2,8 @@ package repository
 
 import (
 	"database/sql"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/example/kspanel/internal/db"
@@ -174,5 +176,40 @@ func TestTicketCreateCommentRoundtrip(t *testing.T) {
 	}
 	if got.CommentCount != 1 || got.LastReplyBy == nil || *got.LastReplyBy != 2 {
 		t.Fatalf("enrich after comment wrong: count=%d by=%+v", got.CommentCount, got.LastReplyBy)
+	}
+}
+
+// TestTicketUpdateQueryPlaceholders pins the Sprintf-before-Rebind order:
+// every nullability branch must emit zero raw "?" on postgres with $N
+// matching the arg count Update passes, and stay verbatim on sqlite.
+func TestTicketUpdateQueryPlaceholders(t *testing.T) {
+	// binds: 5 fixed + now + tags + id = 8, plus one per set nullable.
+	for _, tc := range []struct {
+		name      string
+		a, c, d   bool
+		wantBinds int
+	}{
+		{"none-set", false, false, false, 8},
+		{"assigned-only", true, false, false, 9},
+		{"closed-only", false, true, false, 9},
+		{"due-only", false, false, true, 9},
+		{"all-set", true, true, true, 11},
+	} {
+		q := ticketUpdateQuery("postgres", tc.a, tc.c, tc.d)
+		if strings.Contains(q, "?") {
+			t.Fatalf("%s: postgres query keeps raw ?: %q", tc.name, q)
+		}
+		if n := strings.Count(q, "$"); n != tc.wantBinds {
+			t.Fatalf("%s: want %d $N binds, got %d: %q", tc.name, tc.wantBinds, n, q)
+		}
+		if want := "$" + strconv.Itoa(tc.wantBinds); !strings.Contains(q, want+" ") && !strings.Contains(q, want+")") && !strings.HasSuffix(q, want) {
+			// Highest placeholder must be exactly $wantBinds (no gaps/dupes
+			// from a pre-substitution numbering).
+			t.Fatalf("%s: missing terminal $%d: %q", tc.name, tc.wantBinds, q)
+		}
+		sq := ticketUpdateQuery("sqlite", tc.a, tc.c, tc.d)
+		if strings.Contains(sq, "$") || strings.Count(sq, "?") != tc.wantBinds {
+			t.Fatalf("%s: sqlite query must keep %d ?: %q", tc.name, tc.wantBinds, sq)
+		}
 	}
 }
