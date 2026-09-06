@@ -141,13 +141,18 @@ func (r *TicketRepository) enrichTickets(tickets []models.Ticket) ([]models.Tick
 		func() {
 			defer rows.Close()
 			for rows.Next() {
-				var id int64
+				var id sql.NullInt64
 				var cName, cDisplay, cAccent, cSymbol, cMime, cFile, cEmail sql.NullString
 				if serr := rows.Scan(&id, &cName, &cDisplay, &cAccent, &cSymbol, &cMime, &cFile, &cEmail); serr != nil {
 					err = serr
 					return
 				}
-				faces[id] = userFace{
+				if !id.Valid {
+					// modernc.org/sqlite phantom all-NULL row on empty
+					// sets (see List's COUNT guard): skip, don't fail.
+					continue
+				}
+				faces[id.Int64] = userFace{
 					name: cName.String, display: cDisplay.String, accent: cAccent.String,
 					symbol: cSymbol.String, mime: cMime.String, file: cFile.String, email: cEmail.String,
 				}
@@ -198,15 +203,19 @@ func (r *TicketRepository) enrichTickets(tickets []models.Ticket) ([]models.Tick
 	func() {
 		defer rows.Close()
 		for rows.Next() {
-			var tid int64
-			var cnt int
+			var tid, cnt sql.NullInt64
 			var maxAt sql.NullString
 			if serr := rows.Scan(&tid, &cnt, &maxAt); serr != nil {
 				err = serr
 				return
 			}
-			if idx, ok := idIdx[tid]; ok {
-				tickets[idx].CommentCount = cnt
+			if !tid.Valid {
+				// modernc.org/sqlite phantom all-NULL row on empty
+				// sets (see List's COUNT guard): skip, don't fail.
+				continue
+			}
+			if idx, ok := idIdx[tid.Int64]; ok {
+				tickets[idx].CommentCount = int(cnt.Int64)
 				if maxAt.Valid && maxAt.String != "" {
 					if tm := parseTicketTime(maxAt.String); !tm.IsZero() {
 						tickets[idx].LastReplyAt = &tm
@@ -230,14 +239,19 @@ func (r *TicketRepository) enrichTickets(tickets []models.Ticket) ([]models.Tick
 	func() {
 		defer lrRows.Close()
 		for lrRows.Next() {
-			var tid, author int64
+			var tid, author sql.NullInt64
 			var at sql.NullString
 			if serr := lrRows.Scan(&tid, &author, &at); serr != nil {
 				err = serr
 				return
 			}
-			if idx, ok := idIdx[tid]; ok {
-				v := author
+			if !tid.Valid || !author.Valid {
+				// modernc.org/sqlite phantom all-NULL row on empty
+				// sets (see List's COUNT guard): skip, don't fail.
+				continue
+			}
+			if idx, ok := idIdx[tid.Int64]; ok {
+				v := author.Int64
 				tickets[idx].LastReplyBy = &v
 				if at.Valid && at.String != "" {
 					if tm := parseTicketTime(at.String); !tm.IsZero() {
@@ -265,14 +279,19 @@ func (r *TicketRepository) enrichTickets(tickets []models.Ticket) ([]models.Tick
 	func() {
 		defer slaRows.Close()
 		for slaRows.Next() {
-			var tid int64
+			var tid sql.NullInt64
 			var firstResp, escAt sql.NullString
 			var breached, escalated sql.NullInt64
 			if serr := slaRows.Scan(&tid, &firstResp, &breached, &escalated, &escAt); serr != nil {
 				err = serr
 				return
 			}
-			if idx, ok := idIdx[tid]; ok {
+			if !tid.Valid {
+				// modernc.org/sqlite phantom all-NULL row on empty
+				// sets (see List's COUNT guard): skip, don't fail.
+				continue
+			}
+			if idx, ok := idIdx[tid.Int64]; ok {
 				if firstResp.Valid && firstResp.String != "" {
 					if tm := parseTicketTime(firstResp.String); !tm.IsZero() {
 						tickets[idx].FirstResponseAt = &tm

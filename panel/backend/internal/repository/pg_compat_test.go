@@ -90,7 +90,7 @@ func TestTicketRepoRebindWiring(t *testing.T) {
 func TestEnrichTicketsBatched(t *testing.T) {
 	conn := newEnrichTestDB(t)
 	repo := NewTicketRepository(conn)
-	out, total, err := repo.List("", "", "", "", true, 0, 10, 0, true)
+	out, total, err := repo.List("", "", "", "", false, 0, 10, 0, true)
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
