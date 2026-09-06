@@ -168,7 +168,6 @@ func pkillPanel(exe string) error {
 	patterns := []string{
 		exe + " launch",
 		base + " launch",
-		exe,
 	}
 	for _, p := range patterns {
 		if err := exec.Command("pkill", "-f", p).Run(); err != nil {
@@ -183,9 +182,11 @@ func pkillPanel(exe string) error {
 	// pkill sends SIGTERM (graceful). Give the process a moment to exit.
 	time.Sleep(2 * time.Second)
 
-	// If a matching process is still alive, force kill it.
-	if exec.Command("pgrep", "-f", exe).Run() == nil {
-		_ = exec.Command("pkill", "-9", "-f", exe).Run()
+	// If a matching launch process is still alive, force kill it. Scoped
+	// to "… launch" so short-lived sibling invocations (seed, stop
+	// itself, …) sharing the binary path are never SIGKILLed.
+	if exec.Command("pgrep", "-f", base+" launch").Run() == nil {
+		_ = exec.Command("pkill", "-9", "-f", base+" launch").Run()
 		time.Sleep(time.Second)
 	}
 

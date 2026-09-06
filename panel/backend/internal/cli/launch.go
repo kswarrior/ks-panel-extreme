@@ -130,6 +130,20 @@ func runLaunch(cmd *cobra.Command, args []string) error {
 
 	typ, _ := cmd.Flags().GetString("type")
 	dsn, _ := cmd.Flags().GetString("dsn")
+	urlFlag, _ := cmd.Flags().GetString("url")
+	userFlag, _ := cmd.Flags().GetString("user")
+	passFlag, _ := cmd.Flags().GetString("password")
+	dbFlag, _ := cmd.Flags().GetString("database")
+	eng := strings.ToLower(strings.TrimSpace(typ))
+
+	// --dsn wins over --url when both are given (power-user override). When
+	// only --url is passed we build the engine's native DSN from the
+	// friendlier host:port + user/pass/db tuple. Mirrors runSeed.
+	if dsn == "" && urlFlag != "" {
+		if built, ok := config.BuildDSNFromURL(eng, urlFlag, userFlag, passFlag, dbFlag); ok {
+			dsn = built
+		}
+	}
 
 	// "--type ddos" is RESERVED as the DDoS emergency launch mode (used by
 	// ddos.sh, internal/api/handlers/ddos_script_handler.go): the panel
@@ -436,8 +450,34 @@ go nodeSweepLoop(90*time.Second, time.Minute)
 		}
 	}
 
+	// Write <exe>.pid so `kspanel stop` can SIGTERM this exact process via
+	// stopViaPIDFile instead of falling through to pkill. Removed on
+	// graceful shutdown below; a crash leaves it stale and stop.go's
+	// pidBelongsToUs guard already handles that case.
+	pidPath := pidFilePath()
+	if pidPath != "" {
+		if werr := os.WriteFile(pidPath, []byte(strconv.Itoa(os.Getpid())), 0o644); werr != nil {
+			log.Printf("launch: write pid file: %v", werr)
+			pidPath = ""
+		}
+	}
+
 	<-servingDone
+	if pidPath != "" {
+		_ = os.Remove(pidPath)
+	}
 	return nil
+}
+
+// pidFilePath returns the <exe>.pid path stopViaPIDFile reads. Empty when
+// the executable path cannot be determined — the caller then skips the
+// PID-file lifecycle and stop falls back to pkill as before.
+func pidFilePath() string {
+	exe, err := os.Executable()
+	if err != nil || exe == "" {
+		return ""
+	}
+	return exe + ".pid"
 }
 
 // warnDuplicatePanelProcesses scans /proc for OTHER running kspanel

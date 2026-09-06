@@ -1,9 +1,11 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 
+	"github.com/example/kspanel/internal/version"
 	"github.com/spf13/cobra"
 )
 
@@ -21,7 +23,31 @@ func Execute() {
 	}
 }
 
+// versionCmd prints the panel build identity from version.Snapshot().
+var versionCmd = &cobra.Command{
+	Use:   "version",
+	Short: "Print the panel build version",
+	RunE:  runVersion,
+}
+
+func runVersion(cmd *cobra.Command, args []string) error {
+	asJSON, err := cmd.Flags().GetBool("json")
+	if err != nil {
+		return err
+	}
+	info := version.Snapshot()
+	if asJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetEscapeHTML(false)
+		return enc.Encode(info)
+	}
+	fmt.Printf("kspanel %s (commit %s, built %s)\n", info.Version, info.Commit, info.BuildDate)
+	return nil
+}
+
 func init() {
+	versionCmd.Flags().Bool("json", false, "Output version as JSON")
+	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(seedCmd)
 	rootCmd.AddCommand(launchCmd)
 	rootCmd.AddCommand(stopCmd)
