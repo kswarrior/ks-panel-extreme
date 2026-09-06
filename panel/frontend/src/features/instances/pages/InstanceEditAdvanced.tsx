@@ -101,6 +101,7 @@ const InstanceEditAdvancedInner: React.FC = () => {
       // value. Re-add explicit empties so "cleared" actually clears.
       if (!('command' in spec)) spec.command = [];
       if (!('healthcheck' in spec)) spec.healthcheck = null;
+      if (!('install_timeout_sec' in spec)) spec.install_timeout_sec = null;
       const res = await updateInstance(instanceId, { config: spec });
       if (res.recreated) {
         alert(

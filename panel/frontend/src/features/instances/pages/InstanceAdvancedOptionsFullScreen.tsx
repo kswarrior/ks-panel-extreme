@@ -563,6 +563,7 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
                   onEnvUpdate={updateEnv}
                   onEnvAdd={addEnv}
                   onEnvDelete={delEnv}
+                  onEnvMove={moveEnv}
                   sectionCls={sectionCls}
                   labelCls={labelCls}
                   monoCls={monoCls}
@@ -582,6 +583,7 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
                   onActionUpdate={updateAction}
                   onActionAdd={addAction}
                   onActionDelete={delAction}
+                  onActionMove={moveAction}
                   onActionStepUpdate={updateActionStep}
                   onActionStepAdd={addActionStep}
                   onActionStepDelete={delActionStep}
@@ -601,9 +603,12 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
               selectedTemplate ? (
                 <TemplateInstallSection
                   install={editor.install}
+                  installTimeoutS={editor.install_timeout_s}
+                  onInstallTimeoutUpdate={updateInstallTimeout}
                   onInstallUpdate={updateInstall}
                   onInstallAdd={addInstall}
                   onInstallDelete={delInstall}
+                  onInstallMove={moveInstall}
                   sectionCls={sectionCls}
                   labelCls={labelCls}
                   monoCls={monoCls}
@@ -700,7 +705,7 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
                           type="button"
                           onClick={() => setEditor((f) => ({ ...f, home_page: '' }))}
                           className="text-xs text-gray-400 hover:text-white underline shrink-0"
-                          title="Clear — inherit template default"
+                          title="Clear — fall back to default Home"
                         >
                           Clear
                         </button>
