@@ -49,17 +49,10 @@ const (
 	ksedgeBinaryURL = "https://github.com/kswarrior/ks-panel-extreme/releases/download/ks-panel-edge/ksedge"
 )
 
-const ksedgeHuggingFaceURL = "https://huggingface.co/buckets/kswarrior/opencode-storage/resolve/ks-panel/release/ksedge?download=true"
-const ksedgeLatestURL = "https://github.com/kswarrior/ks-panel-extreme/releases/latest/download/ksedge"
-
-// ksedgeDownloadURLs returns the ordered fallback list for ksedge
-// acquisition. ks-panel-edge is tried first per user request, then the HF
-// mirror, then latest.
+// ksedgeDownloadURLs returns the sole ksedge binary source.
 func ksedgeDownloadURLs() []string {
 	return []string{
 		ksedgeBinaryURL,
-		ksedgeHuggingFaceURL,
-		ksedgeLatestURL,
 	}
 }
 
@@ -325,8 +318,7 @@ func handleApply(w http.ResponseWriter, force bool) {
 	} else {
 		logLines = append(logLines, "downloading "+ksedgeBinaryURL+" …")
 	}
-	// Try each mirror in order so a single dead origin doesn't brick the
-	// update. Mirrors SetupLocalNodeHandler's fallback list.
+	// Single-source download from the ks-panel-edge release.
 	var lastErr error
 	downloaded := false
 	for _, u := range ksedgeDownloadURLs() {
