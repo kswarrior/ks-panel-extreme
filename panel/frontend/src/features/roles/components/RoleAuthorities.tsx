@@ -19,6 +19,7 @@ const RoleAuthorities: React.FC<RoleAuthoritiesProps> = ({
   authProviders,
 }) => {
   return (
+    <div className="ks-card ks-form-card rounded-md">
     <GlassField label="Allowed sign-in authorities" htmlFor="allowed-auth-types">
       <div className="space-y-4">
         <label className="flex items-start gap-2 cursor-pointer">
@@ -96,6 +97,7 @@ const RoleAuthorities: React.FC<RoleAuthoritiesProps> = ({
         })()}
       </div>
     </GlassField>
+    </div>
   );
 };
 

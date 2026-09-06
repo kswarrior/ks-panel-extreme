@@ -562,7 +562,7 @@ const ApiKeyForm: React.FC = () => {
 
           {tab === 'limits' && (
           <>
-          <div className="space-y-4">
+          <div className="ks-card ks-form-card rounded-md space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-white">Expiry & Request Limits</h3>
               <span className="text-[11px] text-gray-500">{limitSummary}</span>

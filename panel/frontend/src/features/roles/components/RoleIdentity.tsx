@@ -51,7 +51,7 @@ const renderSVG = (svgString: string, size: number = 20) => {
 
 const RoleIdentity: React.FC<RoleIdentityProps> = ({ form, setForm }) => {
   return (
-    <>
+    <div className="ks-card ks-form-card rounded-md space-y-4">
       <GlassField label="Name" htmlFor="name">
         <input
           id="name"
@@ -200,7 +200,7 @@ const RoleIdentity: React.FC<RoleIdentityProps> = ({ form, setForm }) => {
           )}
         </div>
       </div>
-    </>
+    </div>
   );
 };
 

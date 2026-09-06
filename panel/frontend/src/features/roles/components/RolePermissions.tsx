@@ -558,7 +558,7 @@ const RolePermissions: React.FC<RolePermissionsProps> = ({ formPermissions, setF
 
   // ---- main list view ----
   return (
-    <div className="space-y-3">
+    <div className="ks-card ks-form-card rounded-md space-y-3">
       {/* Header with title + import button top-right */}
       <div className="flex items-center justify-between gap-3">
         <div>
