@@ -167,7 +167,14 @@ func AdminListThemesHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	for _, t := range ts {
-		if scopeOwn && !t.Theme.Builtin && t.Theme.OwnerID != scopeUID {
+		// ListThemesWithOwner populates CreatedBy (joined from users) but
+		// leaves OwnerID at zero (it selects created_by, not owner_id).
+		// Fall back to CreatedBy so own-scope authors still see their rows.
+		owner := t.Theme.OwnerID
+		if owner == 0 && t.Theme.CreatedBy != nil {
+			owner = *t.Theme.CreatedBy
+		}
+		if scopeOwn && !t.Theme.Builtin && owner != scopeUID {
 			continue
 		}
 		out = append(out, storedThemeFromOwner(t))
