@@ -271,10 +271,11 @@ func runDBBackupSchedule(schedRepo *repository.BackupScheduleRepository, s repos
 	}
 	if s.S3Push {
 		if cfg, serr := loadS3ForScheduler(); serr == nil {
-			// Push the newest backup (the one we just created).
-			if latest, lerr := backup.List(); lerr == nil && len(latest) > 0 {
-				_ = backup.S3Push(cfg, latest[0].Path)
-			}
+			// Push the backup this tick just created, not List()[0]:
+			// a concurrent manual/scheduled create between Create and
+			// List could otherwise push a different file under this
+			// schedule's retention/marker accounting.
+			_ = backup.S3Push(cfg, b.Path)
 		} else {
 			log.Printf("backup scheduler: db schedule #%d s3 push skipped (remote not configured)", s.ID)
 		}
