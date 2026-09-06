@@ -18,7 +18,7 @@ package version
 var (
 	Version   = "1.0.0"
 	Commit    = "KS Panel Release"
-	BuildDate = "unkonw"
+	BuildDate = "unknown"
 )
 
 // Info bundles the build-time identity into a single struct so handlers

@@ -93,10 +93,14 @@ func (ctm *CSRFTokenManager) CleanupExpiredTokens() {
 	}
 }
 
-// generateSecureToken generates a secure random token
+// generateSecureToken generates a secure random token. Fail closed: a
+// short/failed crypto read must never mint a weak (part-zero) token —
+// chi's Recoverer turns the panic into a 500 with no token issued.
 func generateSecureToken(length int) string {
 	b := make([]byte, length)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		panic("csrf: crypto/rand failed: " + err.Error())
+	}
 	return base64.URLEncoding.EncodeToString(b)
 }
 

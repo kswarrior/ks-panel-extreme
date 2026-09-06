@@ -51,6 +51,11 @@ type State struct {
 	// whole is over its global RPM limit.
 	globalRolling [60]int64
 	globalMu      sync.Mutex
+	// globalCursor is the absolute unix second of the last recorded hit
+	// (0 = none yet). Absolute (not modulo) so a gap >= the window can
+	// be detected and every stale bucket expired; modulo storage made
+	// the clear-loop a no-op after a quiet period and ancient counts
+	// inflated the rolling sum forever.
 	globalCursor  int64
 
 	// DDoS auto-stop state (protected by ddosMu).
@@ -353,17 +358,29 @@ func (s *State) RecordGlobalHit(now time.Time) int64 {
 	s.globalMu.Lock()
 	defer s.globalMu.Unlock()
 	n := int64(len(s.globalRolling))
-	sec := now.Unix() % n
-	cur := s.globalCursor
-	if cur == 0 {
-		cur = sec - 2
+	sec := now.Unix()
+	idx := int((sec%n + n) % n)
+	if s.globalCursor == 0 {
+		// First hit ever: buckets are already zero-valued.
+		s.globalCursor = sec
+	} else {
+		elapsed := sec - s.globalCursor
+		if elapsed < 0 {
+			elapsed = 0 // wall-clock skew: never clear forward
+		}
+		if elapsed >= n {
+			// Gap >= full window: every bucket is ancient.
+			for i := range s.globalRolling {
+				s.globalRolling[i] = 0
+			}
+		} else {
+			for b := s.globalCursor + 1; b <= sec; b++ {
+				s.globalRolling[int((b%n+n)%n)] = 0
+			}
+		}
+		s.globalCursor = sec
 	}
-	for b := cur + 1; b <= sec; b++ {
-		idx := int((b%n + n) % n)
-		s.globalRolling[idx] = 0
-	}
-	s.globalRolling[sec]++
-	s.globalCursor = sec
+	s.globalRolling[idx]++
 	var sum int64
 	for i := 0; i < len(s.globalRolling); i++ {
 		sum += s.globalRolling[i]

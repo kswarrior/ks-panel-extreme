@@ -30,6 +30,20 @@ func instanceBackupDir(instanceID int64) (string, error) {
 	return dir, nil
 }
 
+// backupVersionedName inserts "-retry" before the full (possibly compound)
+// extension so a re-uploaded filename keeps a valid suffix: filepath.Ext
+// only strips the last dot segment ("a.tar.gz" → ext ".gz" → "a.tar-retry.gz",
+// which no longer ends in .tar.gz and breaks suffix-based handling).
+func backupVersionedName(filename string) string {
+	lower := strings.ToLower(filename)
+	for _, ext := range []string{".tar.gz", ".tar.zst", ".db.gz", ".tgz", ".tar", ".db"} {
+		if strings.HasSuffix(lower, ext) {
+			return filename[:len(filename)-len(ext)] + "-retry" + filename[len(filename)-len(ext):]
+		}
+	}
+	return strings.TrimSuffix(filename, filepath.Ext(filename)) + "-retry" + filepath.Ext(filename)
+}
+
 func sanitizeBackupFilename(name string) (string, error) {
 	base := filepath.Base(strings.TrimSpace(name))
 	if base == "" || base == "." || base == ".." {
@@ -127,7 +141,7 @@ func InitInstanceBackupHandler(w http.ResponseWriter, r *http.Request) {
 	dst := filepath.Join(dir, stored)
 	if _, err := os.Stat(dst); err == nil {
 		// Same filename re-uploaded: version it rather than clobbering.
-		stored = strings.TrimSuffix(filename, filepath.Ext(filename)) + "-retry" + filepath.Ext(filename)
+		stored = backupVersionedName(filename)
 		dst = filepath.Join(dir, stored)
 	}
 	f, err := os.OpenFile(dst, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
