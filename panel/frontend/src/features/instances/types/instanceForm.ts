@@ -2,6 +2,8 @@
 
 import type { Template } from '@/shared/types/instance';
 import type { InstancePageSubPage } from '@/features/instance-pages/types/instancePage';
+import type { InstanceControls } from '@/features/instances/utils/instanceControls';
+import { DEFAULT_INSTANCE_CONTROLS } from '@/features/instances/utils/instanceControls';
 
 export type KindKey = 'docker' | 'lxd' | 'kvm' | 'multipass' | 'unknown';
 
