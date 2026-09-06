@@ -100,19 +100,12 @@ const AdminNodes: React.FC = () => {
     setError('');
     let list: Node[] = [];
     try {
+      // Single fast call (local DB read) — cards paint from this alone.
+      // buildMonitor() falls back to n.status until per-node heartbeats
+      // land, so there is no reason to hold the skeleton for the fan-out.
       list = await listNodes();
       if (loadSeq.current !== seq) return;
       setNodes(list);
-      const results = await Promise.allSettled(
-        list.map((n) => nodeHeartbeats(n.id, MONITOR_BARS)),
-      );
-      if (loadSeq.current !== seq) return;
-      const next: Record<number, NodeHeartbeat[]> = {};
-      list.forEach((n, i) => {
-        const r = results[i];
-        if (r.status === 'fulfilled') next[n.id] = r.value;
-      });
-      setHbMap(next);
     } catch (e: any) {
       if (loadSeq.current !== seq) return;
       setError(e?.response?.data || 'Failed to load nodes');
@@ -122,6 +115,25 @@ const AdminNodes: React.FC = () => {
         setLoading(false);
         setRefreshing(false);
       }
+    }
+    if (list.length === 0) return;
+    // Background pass 1: per-node heartbeat strips. One HTTP request per
+    // node, each doing a full GetNode + history scan behind SQLite
+    // MaxOpenConns(1) — the slowest card used to gate the whole grid.
+    // Now each strip pops in as its own request resolves.
+    {
+      const activeSeq = seq;
+      void Promise.allSettled(
+        list.map(async (n) => {
+          try {
+            const hbs = await nodeHeartbeats(n.id, MONITOR_BARS);
+            if (loadSeq.current !== activeSeq) return;
+            setHbMap((prev) => ({ ...prev, [n.id]: hbs }));
+          } catch {
+            // History is best-effort — the card keeps the n.status fallback.
+          }
+        }),
+      );
     }
     // Background pass: live edge versions for the V badge (bottom-left of
     // each card). Never blocks the grid — each badge pops in as its probe
