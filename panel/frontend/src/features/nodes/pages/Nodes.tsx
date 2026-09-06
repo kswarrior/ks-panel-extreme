@@ -98,16 +98,17 @@ const AdminNodes: React.FC = () => {
       setRefreshing(true);
     }
     setError('');
+    let list: Node[] = [];
     try {
-      const ns = await listNodes();
+      list = await listNodes();
       if (loadSeq.current !== seq) return;
-      setNodes(ns);
+      setNodes(list);
       const results = await Promise.allSettled(
-        ns.map((n) => nodeHeartbeats(n.id, MONITOR_BARS)),
+        list.map((n) => nodeHeartbeats(n.id, MONITOR_BARS)),
       );
       if (loadSeq.current !== seq) return;
       const next: Record<number, NodeHeartbeat[]> = {};
-      ns.forEach((n, i) => {
+      list.forEach((n, i) => {
         const r = results[i];
         if (r.status === 'fulfilled') next[n.id] = r.value;
       });
@@ -115,6 +116,7 @@ const AdminNodes: React.FC = () => {
     } catch (e: any) {
       if (loadSeq.current !== seq) return;
       setError(e?.response?.data || 'Failed to load nodes');
+      list = [];
     } finally {
       if (loadSeq.current === seq) {
         setLoading(false);
@@ -125,19 +127,9 @@ const AdminNodes: React.FC = () => {
     // each card). Never blocks the grid — each badge pops in as its probe
     // resolves. Old/offline edges 404 or time out — those cards simply show
     // no badge. Stale responses from an older load() are dropped via seq.
-    nsForVersions(seq);
-    async function nsForVersions(activeSeq: number) {
-      // NOTE: `ns` is captured from the successful listNodes() above. If
-      // the list call itself failed there is nothing to version-probe.
-      let list: Node[] = [];
-      try {
-        // Reuse the already-fetched list when possible; fall back to the
-        // current state on re-entry paths that failed mid-flight.
-        list = (typeof ns !== 'undefined' ? ns : []) as Node[];
-      } catch {
-        return;
-      }
-      await Promise.allSettled(
+    if (list.length > 0) {
+      const activeSeq = seq;
+      void Promise.allSettled(
         list.map(async (n) => {
           try {
             const info = await getNodeUpdateInfo(n.id);
@@ -407,8 +399,12 @@ const AdminNodes: React.FC = () => {
 
       {loading && <SkeletonGrid count={6} />}
 
+      {!loading && refreshing && (
+        <p className="text-[11px] text-gray-500 mb-2" aria-live="polite">Refreshing…</p>
+      )}
+
       {!loading && filteredNodes.length > 0 && (
-        <div className="ks-card-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3" id="ks-nodes-grid">
+        <div className="ks-card-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3" id="ks-nodes-grid" style={refreshing ? { opacity: 0.75 } : undefined}>
           {filteredNodes.map((n) => {
             const resolved = resolveState(n);
             const st = STATE_STYLES[resolved] || STATE_STYLES.down;
