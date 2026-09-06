@@ -115,7 +115,7 @@ export const BLOCK_TYPES: { type: BlockRow['type']; label: string }[] = [
 // Theme-level helpers shared with sections
 // ---------------------------------------------------------------------------
 
-export const sectionCls = 'space-y-4 ks-form-group';
+export const sectionCls = 'ks-card ks-form-card rounded-lg space-y-4';
 export const labelCls = 'block text-sm font-medium text-gray-300 mb-1 ks-label';
 export const monoCls = 'glass-field font-mono ks-input-mono';
 export const addBtn = 'text-xs text-sky-300 hover:text-sky-200 underline';

@@ -459,7 +459,8 @@ const InstanceForm: React.FC = () => {
                 )}
               </div>
             </GlassCard>
-            <div className="border-t border-white/10 pt-4 mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <GlassCard variant="form">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="min-w-0">
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <div className="min-w-0">
@@ -516,10 +517,11 @@ const InstanceForm: React.FC = () => {
                   <p className="text-xs text-gray-500 mt-1.5 font-mono truncate">{selectedNode.address}</p>
                 )}
               </div>
-            </div>
+            </GlassCard>
 
             {selectedTemplate && editor.env.length > 0 && (
-              <div className="border-t border-white/10 pt-4 mt-4">
+              <GlassCard variant="form">
+              <div>
                 <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
                   <div className="min-w-0">
                     <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400">Environment Variables</h4>
@@ -569,10 +571,12 @@ const InstanceForm: React.FC = () => {
                   <p className="text-xs text-gray-500">This template defines no editable or required environment variables</p>
                 )}
               </div>
+              </GlassCard>
             )}
 
 {selectedTemplate && (
-              <div className="border-t border-white/10 pt-4 mt-4">
+              <GlassCard variant="form">
+              <div>
                 <button
                   type="button"
                   onClick={() => navigate('/instances/new/advanced')}
@@ -591,6 +595,7 @@ const InstanceForm: React.FC = () => {
                   <span className="text-[10px] text-gray-400 uppercase tracking-wide shrink-0">Open</span>
                 </button>
               </div>
+              </GlassCard>
             )}
 
       </div>

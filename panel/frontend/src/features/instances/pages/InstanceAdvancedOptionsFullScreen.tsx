@@ -71,7 +71,7 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
 }) => {
   const monoCls = glassFieldClass + ' font-mono ks-input-mono';
   const labelCls = 'block text-sm font-medium text-gray-300 mb-1 ks-label';
-  const sectionCls = 'border border-white/10 rounded-lg p-4 space-y-4 bg-black/20 ks-form-group';
+  const sectionCls = 'ks-card ks-form-card rounded-lg space-y-4';
   const addBtn = 'text-xs text-sky-300 hover:text-sky-200 underline';
 
   const { editor, setEditor, envValues, setEnvValues, tab, setTab } = useDeployForm();

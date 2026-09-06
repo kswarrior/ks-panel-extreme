@@ -739,7 +739,7 @@ const TemplateForm: React.FC = () => {
 
         {tab === 'pages' && (
           <div className="space-y-4">
-            <div className="rounded-md border border-white/10 bg-black/20 p-3 space-y-2">
+            <div className="ks-card ks-form-card rounded-md space-y-2">
               <div>
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-300 mb-1">Home page</h3>
                 <p className="text-xs text-gray-500">Which page opens when the instance card is clicked (the instance index route). Enter its slug — the URL it is accessible at. Empty = default Home.</p>
@@ -773,7 +773,7 @@ const TemplateForm: React.FC = () => {
                 )}
               </p>
             </div>
-            <div className="rounded-md border border-white/10 bg-black/20 p-3 space-y-3">
+            <div className="ks-card ks-form-card rounded-md space-y-3">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div>
                   <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-300 mb-1">Pages</h3>
