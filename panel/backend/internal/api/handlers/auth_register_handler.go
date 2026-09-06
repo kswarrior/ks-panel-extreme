@@ -419,6 +419,11 @@ func deviceIDFromRequest(r *http.Request) string {
 // setDeviceCookie writes the device id into a long-lived HttpOnly cookie so
 // the same browser is recognized across registrations. SameSite=Lax keeps it
 // portable with the SPA's redirect / navigation patterns.
+// The __Host- prefix REQUIRES Secure per RFC 6265bis: browsers discard the
+// cookie when Secure is missing, which silently disables the per-device
+// account limit on plain-HTTP hosts. Secure cookies are accepted from
+// trustworthy origins (localhost over plain HTTP), so always set it like
+// the session cookie does.
 func setDeviceCookie(w http.ResponseWriter, r *http.Request, deviceID string) {
 	c := &http.Cookie{
 		Name:     DeviceCookieName,
@@ -427,10 +432,8 @@ func setDeviceCookie(w http.ResponseWriter, r *http.Request, deviceID string) {
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		Expires:  time.Now().Add(10 * 365 * 24 * time.Hour),
+		Secure:   true,
 	}
-	// Set Secure flag for HTTPS requests
-	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
-		c.Secure = true
-	}
+	_ = r
 	http.SetCookie(w, c)
 }

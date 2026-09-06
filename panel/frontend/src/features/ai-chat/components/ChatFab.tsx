@@ -26,6 +26,7 @@ const ChatFab: React.FC = () => {
   const toggle = useAIChatStore((s) => s.toggle);
 
   if (location.pathname.startsWith('/auth')) return null;
+  if (location.pathname.startsWith('/ai-chat')) return null;
   if (!canOpenAIChat(permissions)) return null;
 
   return (

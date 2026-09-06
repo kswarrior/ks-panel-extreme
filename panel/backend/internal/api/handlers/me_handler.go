@@ -91,6 +91,14 @@ func ChangePasswordHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Verify ownership FIRST (fail closed): policy/history validation below
+	// burns bcrypt comparisons and would otherwise let any session holder
+	// probe reuse/policy oracles without knowing the current password.
+	if err := auth.CheckPassword(me.PasswordHash, req.OldPassword); err != nil {
+		http.Error(w, "old password is incorrect", http.StatusBadRequest)
+		return
+	}
+
 	// Validate new password with complexity policy (driven by Authority config)
 	policy := resolvePasswordPolicy()
 	if err := auth.ValidatePassword(req.NewPassword, policy, me.Username, me.Email); err != nil {
@@ -120,10 +128,6 @@ func ChangePasswordHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := auth.CheckPassword(me.PasswordHash, req.OldPassword); err != nil {
-		http.Error(w, "old password is incorrect", http.StatusBadRequest)
-		return
-	}
 	hash, err := auth.HashPassword(req.NewPassword)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
