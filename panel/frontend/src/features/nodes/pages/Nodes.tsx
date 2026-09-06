@@ -52,7 +52,11 @@ const AdminNodes: React.FC = () => {
   const [hbMap, setHbMap] = useState<Record<number, NodeHeartbeat[]>>({});
   const [versionMap, setVersionMap] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  // Monotonic id so a slow/stale load() never overwrites a newer one, and
+  // so the background version fetch doesn't touch an unmounted page.
+  const loadSeq = useRef(0);
 
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [purgingId, setPurgingId] = useState<number | null>(null);
@@ -83,38 +87,68 @@ const AdminNodes: React.FC = () => {
   }, [filterOpen]);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    const seq = ++loadSeq.current;
+    // Skeleton only on the very first paint (no cards yet). Every later
+    // refresh (delete/purge/recheck/poll) keeps the cards visible and uses
+    // the lightweight `refreshing` flag instead, so the grid never flashes.
+    const firstPaint = seq === 1;
+    if (firstPaint) {
+      setLoading(true);
+    } else {
+      setRefreshing(true);
+    }
     setError('');
     try {
       const ns = await listNodes();
+      if (loadSeq.current !== seq) return;
       setNodes(ns);
       const results = await Promise.allSettled(
         ns.map((n) => nodeHeartbeats(n.id, MONITOR_BARS)),
       );
+      if (loadSeq.current !== seq) return;
       const next: Record<number, NodeHeartbeat[]> = {};
       ns.forEach((n, i) => {
         const r = results[i];
         if (r.status === 'fulfilled') next[n.id] = r.value;
       });
       setHbMap(next);
-      // Best-effort live edge versions for the V badge left of View details.
-      // Old/offline edges 404 or time out — those cards simply show no badge.
-      const vResults = await Promise.allSettled(
-        ns.map((n) => getNodeUpdateInfo(n.id)),
-      );
-      const vNext: Record<number, string> = {};
-      ns.forEach((n, i) => {
-        const r = vResults[i];
-        if (r.status === 'fulfilled') {
-          const v = r.value?.local?.version?.trim();
-          if (v) vNext[n.id] = v;
-        }
-      });
-      setVersionMap(vNext);
     } catch (e: any) {
+      if (loadSeq.current !== seq) return;
       setError(e?.response?.data || 'Failed to load nodes');
     } finally {
-      setLoading(false);
+      if (loadSeq.current === seq) {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    }
+    // Background pass: live edge versions for the V badge (bottom-left of
+    // each card). Never blocks the grid — each badge pops in as its probe
+    // resolves. Old/offline edges 404 or time out — those cards simply show
+    // no badge. Stale responses from an older load() are dropped via seq.
+    nsForVersions(seq);
+    async function nsForVersions(activeSeq: number) {
+      // NOTE: `ns` is captured from the successful listNodes() above. If
+      // the list call itself failed there is nothing to version-probe.
+      let list: Node[] = [];
+      try {
+        // Reuse the already-fetched list when possible; fall back to the
+        // current state on re-entry paths that failed mid-flight.
+        list = (typeof ns !== 'undefined' ? ns : []) as Node[];
+      } catch {
+        return;
+      }
+      await Promise.allSettled(
+        list.map(async (n) => {
+          try {
+            const info = await getNodeUpdateInfo(n.id);
+            if (loadSeq.current !== activeSeq) return;
+            const v = info?.local?.version?.trim();
+            if (v) setVersionMap((prev) => (prev[n.id] === v ? prev : { ...prev, [n.id]: v }));
+          } catch {
+            // Offline/old edge — leave the badge hidden for this card.
+          }
+        }),
+      );
     }
   }, []);
 
