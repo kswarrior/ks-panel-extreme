@@ -271,24 +271,27 @@ const ChatPanel: React.FC = () => {
         )}
         {messages.map((m, i) => {
           const isLive = streaming && i === messages.length - 1 && m.role === 'assistant';
+          if (m.role !== 'user') {
+            return (
+              <div key={m.id} className="w-full">
+                <div className="w-full px-1 py-1 text-sm leading-relaxed break-words whitespace-pre-wrap text-gray-100">
+                  {m.content}
+                  {isLive && <span className="inline-block w-2 animate-pulse">▍</span>}
+                </div>
+              </div>
+            );
+          }
           return (
-            <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div
-                className={`max-w-[85%] rounded-lg px-3 py-2 text-sm leading-relaxed break-words whitespace-pre-wrap ${
-                  m.role === 'user' ? 'bg-white text-black' : 'bg-white/[0.06] text-gray-100 border border-white/10'
-                }`}
-              >
+            <div key={m.id} className="flex justify-end">
+              <div className="max-w-[85%] rounded-lg px-3 py-2 text-sm leading-relaxed break-words whitespace-pre-wrap bg-white text-black">
                 {m.content}
-                {isLive && <span className="inline-block w-2 animate-pulse">▍</span>}
               </div>
             </div>
           );
         })}
         {loading && !streaming && (
-          <div className="flex justify-start">
-            <div className="rounded-lg px-3 py-2 text-sm text-gray-400 bg-white/[0.06] border border-white/10 animate-pulse">
-              Thinking…
-            </div>
+          <div className="w-full px-1 py-1 text-sm text-gray-400 animate-pulse">
+            Thinking…
           </div>
         )}
         {ticket && (
