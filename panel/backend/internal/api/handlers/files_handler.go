@@ -360,7 +360,7 @@ func proxyToEdge(w http.ResponseWriter, r *http.Request, id int64, op, path, con
 		}
 		if status == http.StatusNotFound && contentType != "" {
 			if strings.Contains(string(respBody), "404 page not found") {
-				writeJSON(w, map[string]any{
+				writeJSONStatus(w, http.StatusBadGateway, map[string]any{
 					"error": "this edge node does not expose the file manager endpoint",
 					"hint":  "the running ksedge binary is older than the panel's files route; rebuild and restart ksedge",
 					"edge":  node.Address,
@@ -479,7 +479,7 @@ httpFallback:
 		strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "text/plain") {
 		body, _ := io.ReadAll(resp.Body)
 		if strings.Contains(string(body), "404 page not found") {
-			writeJSON(w, map[string]any{
+			writeJSONStatus(w, http.StatusBadGateway, map[string]any{
 				"error": "this edge node does not expose the file manager endpoint",
 				"hint":  "the running ksedge binary is older than the panel's files route; rebuild and restart ksedge",
 				"edge":  node.Address,
