@@ -581,7 +581,7 @@ func NewRouter() http.Handler {
 			r.With(requireUmbrellaOrAction(appsG, permissions.ActionEdit)).Put("/{id}/grants", handlers.SetApplicationGrantsHandler)
 			r.With(requireUmbrellaOrAction(appsG, permissions.ActionEdit)).Post("/{id}/activate", handlers.ActivateApplicationHandler)
 			r.With(requireUmbrellaOrAction(appsG, permissions.ActionEdit)).Post("/{id}/deactivate", handlers.DeactivateApplicationHandler)
-            r.With(requireUmbrellaOrAction(appsG, permissions.ActionEdit)).Post("/{id}/env", handlers.UpdateApplicationEnvHandler)
+			r.With(requireUmbrellaOrAction(appsG, permissions.ActionEdit)).Post("/{id}/env", handlers.UpdateApplicationEnvHandler)
 			// One-shot execution of the application's script on a chosen
 			// target (registered node / panel host via its local node or
 			// direct shell; host or container/VM exec mode). EDIT-gated like

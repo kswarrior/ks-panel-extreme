@@ -37,10 +37,10 @@ type PanelPage struct {
 // PanelPageNav is the sidebar projection: no content bytes, just identity +
 // the sanitized icon the sidebar renders inline.
 type PanelPageNav struct {
-	Slug     string `json:"slug"`
-	Name     string `json:"name"`
-	IconSVG  string `json:"icon_svg"`
-	URL      string `json:"url"`
+	Slug    string `json:"slug"`
+	Name    string `json:"name"`
+	IconSVG string `json:"icon_svg"`
+	URL     string `json:"url"`
 }
 
 var panelPageSlugRe = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
@@ -109,7 +109,7 @@ func scanPanelPage(row interface {
 const panelPageColumns = `id, slug, name, icon_svg, content_type, content, enabled, roles, sort_order, created_at, updated_at`
 
 // decodePanelPageRoles parses the stored JSON role-id array. NULL/'[['
-// ''/garbage all mean "every role" (nil) so old/corrupt rows stay visible
+// ”/garbage all mean "every role" (nil) so old/corrupt rows stay visible
 // instead of vanishing from every sidebar.
 func decodePanelPageRoles(raw string) []int64 {
 	raw = strings.TrimSpace(raw)
