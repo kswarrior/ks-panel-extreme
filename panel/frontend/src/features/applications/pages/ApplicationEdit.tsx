@@ -256,6 +256,8 @@ const ApplicationEdit: React.FC = () => {
         />
       </GlassField>
 
+      </div>
+
       <div className="ks-card ks-form-card rounded-md space-y-4">
       <div>
         <span className="ks-label">Icon & colour</span>
@@ -279,6 +281,9 @@ const ApplicationEdit: React.FC = () => {
         />
       </GlassField>
 
+      </div>
+
+      <div className="ks-card ks-form-card rounded-md space-y-4">
       <GlassField label="Runtime">
         <select
           value={form.runtime}
@@ -350,6 +355,7 @@ const ApplicationEdit: React.FC = () => {
       <p className="text-[11px] text-gray-500">
         Requested permissions are fixed at upload — re-upload the application to change what it asks for.
       </p>
+      </div>
     </FormPage>
     </>
   );

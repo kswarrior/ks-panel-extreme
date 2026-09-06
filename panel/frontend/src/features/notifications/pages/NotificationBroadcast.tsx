@@ -125,7 +125,7 @@ const NotificationBroadcast: React.FC = () => {
           </div>
         </div>
 
-        <div className="space-y-4">
+        <div className="ks-card ks-form-card rounded-md space-y-4">
           <GlassField
             label="Title *"
             htmlFor="bcast-title"
@@ -220,7 +220,7 @@ const NotificationBroadcast: React.FC = () => {
         </div>
 
         {/* Live preview — mirrors NotificationCard layout */}
-        <div className="border border-white/10 rounded-xl p-4 bg-black/20 space-y-3">
+        <div className="ks-card ks-form-card rounded-md space-y-3">
           <p className="text-[11px] uppercase tracking-wide text-gray-500 font-bold">Preview</p>
           <article className="flex flex-col gap-3 p-4 rounded-xl border glass-card bg-sky-500/[0.04] border-sky-400/25">
             <header className="flex items-start gap-3 min-w-0">
