@@ -88,6 +88,18 @@ import { PermissionKey } from '@/shared/types/permissions';
 // game-lose-the-permission user can't fall through to a page whose element
 // renders React state before the permission gate fires.
 
+// Unknown paths: unauthenticated users go straight to login (preserving
+// the original location in `from`); authenticated users fall back to the
+// instance list where the permission gate decides what renders.
+const CatchAll: React.FC = () => {
+  const token = useAuthStore((s) => s.token);
+  const initialized = useAuthStore((s) => s.initialized);
+  const location = useLocation();
+  if (!initialized) return null;
+  if (!token) return <Navigate to="/auth/login" state={{ from: location }} replace />;
+  return <Navigate to="/instances" replace />;
+};
+
 const Router: React.FC = () => (
   <>
     {/* Repaint with the route-resolved theme whenever the path changes —
@@ -741,8 +753,8 @@ const Router: React.FC = () => (
       />
      </Route>
 
-    {/* Catch-all – redirect to instances if authenticated, else to login */}
-    <Route path="*" element={<Navigate to="/instances" replace />} />
+    {/* Catch-all – auth-aware: login when anonymous, instances otherwise */}
+    <Route path="*" element={<CatchAll />} />
     </Routes>
   </>
 );
