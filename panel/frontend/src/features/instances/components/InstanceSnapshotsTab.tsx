@@ -198,7 +198,7 @@ export const InstanceSnapshotsTab: React.FC<{ instanceId: number }> = ({ instanc
           {msg.text}
         </div>
       )}
-      <div className="glass-card rounded-xl p-4 space-y-3">
+      <div className="glass-card ks-form-card rounded-xl p-4 space-y-3">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-semibold text-white">Snapshots (driver)</h3>
           <span className="text-xs text-gray-500">{snaps.length} saved</span>
@@ -226,7 +226,7 @@ export const InstanceSnapshotsTab: React.FC<{ instanceId: number }> = ({ instanc
         )}
       </div>
 
-      <div className="glass-card rounded-xl p-4 space-y-3">
+      <div className="glass-card ks-form-card rounded-xl p-4 space-y-3">
         <h4 className="text-sm font-semibold text-white">Snapshot schedules (cron)</h4>
         <div className="flex gap-2 flex-wrap">
           <input value={schedName} onChange={(e) => setSchedName(e.target.value)} placeholder="nightly" className={glassFieldClass + ' font-mono text-sm'} />
@@ -246,7 +246,7 @@ export const InstanceSnapshotsTab: React.FC<{ instanceId: number }> = ({ instanc
         ))}
       </div>
 
-      <div className="glass-card rounded-xl p-4 space-y-3">
+      <div className="glass-card ks-form-card rounded-xl p-4 space-y-3">
         <h4 className="text-sm font-semibold text-white">File-level tar backups (chunked, resumable)</h4>
         <p className="text-xs text-gray-400">Panel-stored tars with <code className="font-mono">Content-Range</code> resume on upload and <code className="font-mono">Range</code> resume on download.</p>
         <div className="flex gap-2 flex-wrap">

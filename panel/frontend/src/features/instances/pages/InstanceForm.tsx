@@ -331,7 +331,7 @@ const InstanceForm: React.FC = () => {
           </div>
         )}
 
-        <GlassCard className="">
+        <GlassCard variant="form" className="">
             <div className="mb-1">
               <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-300">General</h3>
               <p className="text-xs text-gray-500">Name, owner, node and template — everything the deployment runs on.</p>
