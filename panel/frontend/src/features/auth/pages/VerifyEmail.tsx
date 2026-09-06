@@ -25,6 +25,8 @@ const VerifyEmail: React.FC = () => {
   const [sessionIdle, setSessionIdle] = useState<number | null>(null);
   const [sessionMaxPerUser, setSessionMaxPerUser] = useState<number | null>(null);
   const navigate = useNavigate();
+  const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  React.useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
   const panelName = useSettingsStore((s) => s.panelName);
   const panelLogo = useSettingsStore((s) => s.panelLogo);
   const footerText = useSettingsStore((s) => s.footerText);

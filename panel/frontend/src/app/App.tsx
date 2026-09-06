@@ -96,9 +96,9 @@ const App: React.FC = () => {
       // being dropped onto the login screen over a transient error.
       if (err?.response?.status === 401) {
         clearAuth();
-      } else {
-        setInitialized(true);
       }
+      // Non-401 (network blip / 5xx): keep initialized=false so RequireAuth
+      // keeps showing the boot splash instead of bouncing to login.
     });
     return () => { cancelled = true };
   }, [setAuth, clearAuth, setInitialized, bootstrapFromServer, reapplyTheme, loadGlobalThemes]);

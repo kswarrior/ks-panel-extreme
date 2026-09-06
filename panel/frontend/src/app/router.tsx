@@ -81,18 +81,10 @@ import RequireAuth from '@/shared/components/ui/RequireAuth';
 import RequirePermission from '@/shared/components/ui/RequirePermission';
 import { PermissionKey } from '@/shared/types/permissions';
 
-// tightening helper: by convention every panel route sits inside <Layout/>
-// (rendered with <RequireAuth/>) but we still wrap each page element in
-// <RequireAuth> individually so a game-lose-the-permission user can't
-// fall through to a page whose element renders React state before the
-// permission gate fires. requireAuthOnly() returns an auth-only element
-// (no permission gate) for the pages that, by KS Panel policy, should be
-// reachable to ANY authenticated user (System / Security / Activity /
-// Database / Themes — formerly gated only by ACCESS_ADMIN_PANEL and now
-// driven purely by "is logged in").
-function AuthOnly({ children }: { children: React.ReactNode }) {
-  return <RequireAuth>{children}</RequireAuth>;
-}
+// Every panel route sits inside <Layout/> (rendered with <RequireAuth/>)
+// plus a per-page <RequireAuth>+<RequirePermission> gate so a
+// game-lose-the-permission user can't fall through to a page whose element
+// renders React state before the permission gate fires.
 
 const Router: React.FC = () => (
   <>
