@@ -35,8 +35,6 @@ const ChatView: React.FC = () => {
   const selectThread = useAIChatStore((s) => s.selectThread);
   const renameThread = useAIChatStore((s) => s.renameThread);
   const removeThread = useAIChatStore((s) => s.removeThread);
-  const modelOverride = useAIChatStore((s) => s.modelOverride);
-  const setModelOverride = useAIChatStore((s) => s.setModelOverride);
   const [draft, setDraft] = useState('');
   const [renaming, setRenaming] = useState(false);
   const [renameDraft, setRenameDraft] = useState('');
@@ -295,28 +293,8 @@ const ChatView: React.FC = () => {
           </button>
         </form>
       )}
-      {isAdmin && (
-        <div className="px-3 py-1.5 border-b border-white/10">
-          <input
-            value={modelOverride}
-            onChange={(e) => setModelOverride(e.target.value)}
-            placeholder="Model override for this chat (admin, blank = default)…"
-            aria-label="Model override"
-            disabled={loading || !!ticket}
-            className="w-full bg-transparent text-gray-500 placeholder-gray-600 rounded px-1 py-0.5 text-[11px] focus:outline-none focus:text-gray-200 disabled:opacity-60"
-          />
-        </div>
-      )}
-
       <div className="relative flex-1 min-h-0">
       <div ref={scrollRef} onScroll={handleScroll} className="h-full overflow-y-auto px-3 py-3 space-y-3">
-        {messages.length === 0 && (
-          <p className="text-xs text-gray-400 leading-relaxed">
-            Hi! I can look up instances, nodes and templates, explain how the panel works, and —
-            with your approval — start/stop instances, create themes, templates, pages and users,
-            or deploy new instances.
-          </p>
-        )}
         {messages.map((m, i) => {
           const isLive = streaming && i === messages.length - 1 && m.role === 'assistant';
           if (m.role !== 'user') {
