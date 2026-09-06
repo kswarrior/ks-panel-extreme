@@ -140,6 +140,9 @@ func checkSQLite(con *sql.DB) (issues, warnings []string, tableCount int) {
 				issues = append(issues, "integrity: "+msg)
 			}
 		}
+		if rerr := rows.Err(); rerr != nil {
+			issues = append(issues, "integrity check read failed: "+rerr.Error())
+		}
 		rows.Close()
 	} else {
 		if v := scalar(con, `PRAGMA integrity_check(1)`); v != "" && strings.ToLower(v) != "ok" {
@@ -160,6 +163,9 @@ func checkSQLite(con *sql.DB) (issues, warnings []string, tableCount int) {
 			}
 			issues = append(issues, fmt.Sprintf("foreign key violation: %s row %d", tbl.String, rowid.Int64))
 		}
+		if rerr := rows.Err(); rerr != nil {
+			issues = append(issues, "foreign key check read failed: "+rerr.Error())
+		}
 		rows.Close()
 	}
 	// Table-count sanity: at least one user table must exist and be countable.
@@ -170,6 +176,10 @@ func checkSQLite(con *sql.DB) (issues, warnings []string, tableCount int) {
 			if serr := rows.Scan(&n); serr == nil {
 				names = append(names, n)
 			}
+		}
+		if rerr := rows.Err(); rerr != nil {
+			issues = append(issues, "table listing read failed: "+rerr.Error())
+			return issues, warnings, 0
 		}
 		rows.Close()
 	} else {

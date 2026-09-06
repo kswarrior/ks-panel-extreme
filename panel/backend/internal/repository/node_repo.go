@@ -930,6 +930,42 @@ func (r *NodeRepository) MarkStale(threshold time.Duration) (int, error) {
 	return int(n), nil
 }
 
+// upsertHeartbeatBucket records one per-minute bucket portably across
+// SQLite / Postgres / MySQL: UPDATE-then-INSERT (mirrors settingsSet in
+// database_verify_repo.go) instead of the SQLite-only
+// "ON CONFLICT ... DO UPDATE" form, which is a syntax error on MySQL.
+// A concurrent insert for the same minute bucket loses the race with a
+// duplicate-key error — converged via a follow-up UPDATE so the status
+// still lands instead of surfacing a 500 on the heartbeat hot path.
+func (r *NodeRepository) upsertHeartbeatBucket(id int64, bucket time.Time, status string) error {
+	res, err := r.db.Exec(`UPDATE node_heartbeats SET status = ? WHERE node_id = ? AND bucket_at = ?`,
+		status, id, bucket)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		return nil
+	}
+	if _, err := r.db.Exec(`INSERT INTO node_heartbeats (node_id, bucket_at, status) VALUES (?, ?, ?)`,
+		id, bucket, status); err != nil {
+		if isDupKeyErr(err) {
+			_, _ = r.db.Exec(`UPDATE node_heartbeats SET status = ? WHERE node_id = ? AND bucket_at = ?`,
+				status, id, bucket)
+			return nil
+		}
+		return err
+	}
+	return nil
+}
+
+// isDupKeyErr reports a duplicate-key violation across SQLite
+// ("UNIQUE constraint failed"), MySQL ("Duplicate entry") and Postgres
+// ("duplicate key value violates unique constraint").
+func isDupKeyErr(err error) bool {
+	low := strings.ToLower(err.Error())
+	return strings.Contains(low, "duplicate") || strings.Contains(low, "unique")
+}
+
 // computeUptimePct counts the up/down buckets over the trailing 24h and returns
 // the percentage as a 0-100 float. A node with no history yet returns 0.
 func (r *NodeRepository) computeUptimePct(id int64) (float64, error) {
@@ -1042,14 +1078,19 @@ func (r *NodeRepository) RecordProbe(id int64, in ProbeInput) error {
 	}
 	// Schedule the next active probe at now + the node's own health_interval
 	// so the sweep loop spreads dials evenly instead of hammering every edge
-	// every tick. NULL when the interval column is missing on a legacy row.
+	// every tick. NULL when the interval is missing on a legacy row.
+	// Computed in Go (not datetime(?,'+'||...) — that's SQLite-only and a
+	// syntax error on Postgres/MySQL).
+	var healthInterval int
+	_ = r.db.QueryRow(`SELECT health_interval FROM nodes WHERE id = ?`, id).Scan(&healthInterval)
+	var nextProbeAt any
+	if healthInterval > 0 {
+		nextProbeAt = in.CheckedAt.Add(time.Duration(healthInterval) * time.Second)
+	}
 	_, err := r.db.Exec(`UPDATE nodes SET
 		probe_reachable = ?, probe_seen_name = ?, probe_checked_at = ?,
 		probe_fail_count = CASE WHEN ? = 1 THEN 0 ELSE probe_fail_count + 1 END,
-		next_probe_at = CASE
-			WHEN health_interval > 0
-			THEN datetime(?, '+' || health_interval || ' seconds')
-			ELSE NULL END,
+		next_probe_at = ?,
 		status = CASE
 			WHEN ? = 1 THEN 'up'
 			WHEN probe_fail_count + 1 >= health_retries THEN 'down'
@@ -1057,7 +1098,7 @@ func (r *NodeRepository) RecordProbe(id int64, in ProbeInput) error {
 		END
 		WHERE id = ?`,
 		boolToInt(in.Reachable), in.SeenName, in.CheckedAt,
-		boolToInt(in.Reachable), in.CheckedAt.Format("2006-01-02 15:04:05"),
+		boolToInt(in.Reachable), nextProbeAt,
 		boolToInt(in.Reachable), id)
 	if err != nil {
 		// Try the migration-011 path (no fail counter / schedule) so a
@@ -1168,10 +1209,13 @@ func (r *NodeRepository) NodesDueForHealthCheck() ([]models.Node, error) {
 	// for reverse_tunnel / local_wss. Without it the sweep probed every
 	// tunnel node via direct HTTP to address "tunnel" and always marked it
 	// down even while the WSS tunnel was healthy.
+	// The due filter uses a Go-side timestamp parameter, not SQLite's
+	// datetime('now') (a syntax error on Postgres/MySQL).
+	now := time.Now().UTC()
 	rows, err := r.db.Query(`SELECT id, name, address, use_tls,
 		health_timeout, skip_tls_verify, health_retries, connection_mode
 		FROM nodes WHERE health_enabled = 1
-		AND (next_probe_at IS NULL OR next_probe_at <= datetime('now'))`)
+		AND (next_probe_at IS NULL OR next_probe_at <= ?)`, now)
 	if err != nil {
 		// Pre-050 DBs lack connection_mode (all rows are implicitly
 		// direct). Fall back to the legacy shape so probing keeps working
@@ -1183,7 +1227,7 @@ func (r *NodeRepository) NodesDueForHealthCheck() ([]models.Node, error) {
 		legacy, lerr := r.db.Query(`SELECT id, name, address, use_tls,
 			health_timeout, skip_tls_verify, health_retries
 			FROM nodes WHERE health_enabled = 1
-			AND (next_probe_at IS NULL OR next_probe_at <= datetime('now'))`)
+			AND (next_probe_at IS NULL OR next_probe_at <= ?)`, now)
 		if lerr != nil {
 			return nil, nil
 		}

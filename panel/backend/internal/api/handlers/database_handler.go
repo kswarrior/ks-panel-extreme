@@ -359,6 +359,10 @@ func DatabaseInfoHandler(w http.ResponseWriter, r *http.Request) {
 				info.IntegrityIssues = append(info.IntegrityIssues, msg)
 			}
 		}
+		if rerr := rows.Err(); rerr != nil {
+			info.IntegrityOk = false
+			info.IntegrityIssues = append(info.IntegrityIssues, "check read failed: "+rerr.Error())
+		}
 		rows.Close()
 	} else {
 		// quick_check unavailable (driver quirk) — fall back so a
@@ -395,6 +399,10 @@ func DatabaseInfoHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			info.ForeignKeyOk = false
 			info.ForeignKeyIssues = append(info.ForeignKeyIssues, tbl.String+" row "+itoa(rowid.Int64))
+		}
+		if rerr := rows.Err(); rerr != nil {
+			info.ForeignKeyOk = false
+			info.ForeignKeyIssues = append(info.ForeignKeyIssues, "check read failed: "+rerr.Error())
 		}
 		rows.Close()
 	}

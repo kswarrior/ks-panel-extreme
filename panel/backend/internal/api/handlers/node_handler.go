@@ -1290,6 +1290,11 @@ func SetupLocalNodeHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to start edge: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	// Reap the child so a finished ksedge never lingers as a zombie under
+	// the panel: Start without Wait leaks the process descriptor until the
+	// panel itself exits. The edge is detached (own process group), so
+	// waiting here only reaps — it doesn't block this handler.
+	go func() { _ = cmd.Wait() }()
 	logLines = append(logLines, fmt.Sprintf("started ksedge (pid %d) on 127.0.0.1:%s", cmd.Process.Pid, port))
 
 	// 4) Give the edge a moment to bind the port, then actively probe it so
