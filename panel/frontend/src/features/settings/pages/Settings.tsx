@@ -16,6 +16,9 @@ import {
 } from '@/shared/stores/settingsStore';
 import { PANEL_NAME_FONTS, PanelBrandLogo, PanelBrandName } from '@/shared/components/brand/PanelBrand';
 import SkeletonCard from '@/shared/components/ui/SkeletonCard';
+import SectionRailTabs from '@/shared/components/ui/SectionRailTabs';
+import PageTabsPill from '@/shared/components/ui/PageTabsPill';
+import PagesTab from '@/features/settings/components/PagesTab';
 import { useConfirm } from '@/shared/stores/confirmStore';
 
 const MAX_LOGO_BYTES = 5 * 1024 * 1024; // mirrors server-side limit
@@ -58,13 +61,42 @@ function formatBytes(n: number): string {
   return `${(n / 1024 / 1024).toFixed(2)} MB`;
 }
 
-// The Settings page is the BRAND panel — panel name + logo live here.
-// Everything auth-related (SMTP, registration gates, OAuth providers,
-// OTP/SMS channels, the TOTP authenticator-app connection, and the
-// configurable registration requirement policy) moved to Security >
-// Authority. The AI Assistant config lives in the chat panel's gear menu
-// (bottom-right bubble).
+// Settings tabs: Brand (logo + panel-name styling) and Pages (custom
+// sidebar pages like About / Docs). The rail is the one-tap strip on every
+// breakpoint (Security/Database pattern); the phone pill mirrors it at the
+// viewport bottom (RoleForm pattern).
+type SettingsTabId = 'brand' | 'pages';
+
+const SETTINGS_TABS = [
+  {
+    id: 'brand',
+    label: 'Brand',
+    hint: 'Logo + panel name',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
+        <circle cx="13.5" cy="6.5" r="2.5" />
+        <circle cx="17.5" cy="10.5" r="2.5" />
+        <circle cx="8.5" cy="7.5" r="2.5" />
+        <circle cx="6.5" cy="12.5" r="2.5" />
+      </svg>
+    ),
+  },
+  {
+    id: 'pages',
+    label: 'Pages',
+    hint: 'About · Docs · custom',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <path d="M14 2v6h6" />
+        <line x1="9" y1="13" x2="15" y2="13" />
+        <line x1="9" y1="17" x2="15" y2="17" />
+      </svg>
+    ),
+  },
+];
 const Settings: React.FC = () => {
+  const [tab, setTab] = useState<SettingsTabId>('brand');
   const setPanelName = useSettingsStore((s) => s.setPanelName);
   const setPanelLogo = useSettingsStore((s) => s.setPanelLogo);
   const setNameStyle = useSettingsStore((s) => s.setNameStyle);
@@ -245,12 +277,10 @@ const Settings: React.FC = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div>
-        <SkeletonCard lines={2} />
-      </div>
-    );
+  // Brand data loads for the Brand tab only; the Pages tab fetches its
+  // own list, so switching tabs never re-flashes the brand skeleton.
+  if (false) {
+    return null;
   }
 
   // The <img> src prefers the local preview (when picking) over the
