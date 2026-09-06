@@ -250,6 +250,9 @@ export interface EditorState {
   caps: FeatureCaps;
   env: EnvVariable[];
   install: InstallStep[];
+  // Whole-workflow budget in seconds for the install workflow
+  // (spec.install_timeout_sec). Empty = the edge's default (30 min).
+  install_timeout_s: string;
   actions: TemplateAction[];
   labels: Label[];
   devices: Device[];
@@ -395,6 +398,7 @@ export function emptyEditor(): EditorState {
     caps: { databases: '', backups: '', networks: '' },
     env: [],
     install: [],
+    install_timeout_s: '',
     actions: [],
     labels: [],
     devices: [],
