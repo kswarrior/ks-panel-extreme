@@ -135,11 +135,11 @@ const AdminNodes: React.FC = () => {
         }),
       );
     }
-    // Background pass: live edge versions for the V badge (bottom-left of
+    // Background pass 2: live edge versions for the V badge (bottom-left of
     // each card). Never blocks the grid — each badge pops in as its probe
     // resolves. Old/offline edges 404 or time out — those cards simply show
     // no badge. Stale responses from an older load() are dropped via seq.
-    if (list.length > 0) {
+    {
       const activeSeq = seq;
       void Promise.allSettled(
         list.map(async (n) => {
