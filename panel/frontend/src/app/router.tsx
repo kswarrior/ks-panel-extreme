@@ -37,6 +37,7 @@ import InstanceSchedules from '@/features/instances/pages/InstanceSchedules';
 import NodeStats from '@/features/nodes/pages/NodeStats';
 import NodeSchedules from '@/features/nodes/pages/NodeSchedules';
 import AdminSettings from '@/features/settings/pages/Settings';
+import PanelPageView from '@/features/settings/pages/PanelPageView';
 
 import AdminApiKeys from '@/features/api-keys/pages/ApiKeys';
 import AdminNodes from '@/features/nodes/pages/Nodes';
@@ -289,6 +290,18 @@ const Router: React.FC = () => (
             <RequirePermission permission={PermissionKey.VIEW_SETTINGS}>
               <AdminSettings />
             </RequirePermission>
+          </RequireAuth>
+        }
+      />
+      {/* Custom panel pages (Settings > Pages: About, Docs, …). Auth-only
+          gate on purpose: visibility is enforced per page server-side
+          (enabled + role allow-list), so any signed-in user may hold the
+          route while the API 404s pages they must not see. */}
+      <Route
+        path="/pages/:slug"
+        element={
+          <RequireAuth>
+            <PanelPageView />
           </RequireAuth>
         }
       />

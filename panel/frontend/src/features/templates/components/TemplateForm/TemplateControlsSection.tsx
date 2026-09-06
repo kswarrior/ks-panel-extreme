@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import type { InstanceControls, OverviewDefaultTab } from '@/features/instances/utils/instanceControls';
 import { DEFAULT_INSTANCE_CONTROLS } from '@/features/instances/utils/instanceControls';
+import { BUILTIN_PAGE_SLUGS, normalizePageSlug } from '@/shared/utils/instancePages';
 
 export interface ControlsSectionProps {
   controls: InstanceControls;
@@ -8,6 +9,11 @@ export interface ControlsSectionProps {
   onReset?: () => void;
   sectionCls: string;
   labelCls: string;
+  /** Enabled page paths of the form being edited (template or instance).
+   *  When provided, the More-link field warns if the entered slug matches
+   *  neither a built-in nor one of these paths — such a value silently
+   *  falls back to Overview at runtime. */
+  pageSlugs?: string[];
 }
 
 const MiniToggle: React.FC<{ checked: boolean; onChange: (v: boolean) => void; label: string; hint?: string }> = ({
@@ -151,6 +157,7 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
   onReset,
   sectionCls,
   labelCls,
+  pageSlugs,
 }) => {
   const c = controls;
   const powerCount = [c.allow_start, c.allow_stop, c.allow_restart, c.allow_kill].filter(Boolean).length;
@@ -158,6 +165,16 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
   const [openTabConfig, setOpenTabConfig] = useState<'details' | 'manage' | null>(null);
   const toggleTabConfig = (tab: 'details' | 'manage') =>
     setOpenTabConfig((prev) => (prev === tab ? null : tab));
+  // More-link validation: normalized slug resolves at runtime only when it
+  // is a built-in or an enabled page path — anything else falls back to
+  // Overview, which is exactly the "I typed ks but still get overview"
+  // trap. Surface it here instead of failing silently.
+  const moreSlug = normalizePageSlug(c.more_page);
+  const moreKnown =
+    moreSlug === '' ||
+    moreSlug === '.' ||
+    (BUILTIN_PAGE_SLUGS as string[]).includes(moreSlug) ||
+    (pageSlugs ?? []).some((s) => normalizePageSlug(s) === moreSlug);
 
   return (
     <div className="space-y-4">
@@ -301,6 +318,11 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
         <p className="text-[11px] text-gray-500 mt-1">
           More opens <code className="font-mono text-sky-300">/{(c.more_page.trim().replace(/^\/+|\/+$/g, '') || DEFAULT_INSTANCE_CONTROLS.more_page)}</code>. Use a page Path or a built-in (overview, ports, sftp, snapshots). Unknown slugs fall back to Overview.
         </p>
+        {!moreKnown && (
+          <p className="text-[11px] text-amber-300 bg-amber-950/30 border border-amber-700/30 rounded-md px-2.5 py-1.5 mt-1.5">
+            No enabled page with path <code className="font-mono">/{moreSlug}</code> here{pageSlugs ? '' : ' (page list unavailable)'} — More will fall back to Overview. Import it under Pages or use a built-in slug.
+          </p>
+        )}
       </div>
 
       <p className="text-[11px] text-gray-500">

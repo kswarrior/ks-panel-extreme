@@ -25,25 +25,8 @@ const segBtn = (active: boolean) =>
       : 'bg-black/30 text-gray-300 border-white/10 hover:bg-white/10'
   }`;
 
-// sanitizeSvgPreview strips executable constructs from an SVG before the
-// editor inlines it for preview. The SERVER re-sanitizes on save with the
-// same rules as avatars (sanitizeIconSVG), so this is only the live-preview
-// shield — never the trust boundary.
-function sanitizeSvgPreview(raw: string): string {
-  let cur = raw || '';
-  for (let i = 0; i < 5; i++) {
-    const prev = cur;
-    cur = cur
-      .replace(/<\s*\/?\s*(script|foreignObject|iframe|object|embed|animate|set|handler)\b[^>]*>?/gis, '')
-      .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
-      .replace(/(href|xlink:href|src|from|to|values|style)\s*=\s*("\s*(javascript|vbscript|data:text\/html)[^"]*"|'[^']*'|(?:javascript|vbscript|data:text\/html)[^\s>]*)/gi, '');
-    if (cur === prev) break;
-  }
-  return cur;
-}
-
 function PageIcon({ svg, className = 'w-4 h-4' }: { svg: string; className?: string }) {
-  const clean = sanitizeSvgPreview(svg);
+  const clean = sanitizeInlineSvg(svg);
   if (!clean.trim()) {
     return (
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">

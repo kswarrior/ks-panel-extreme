@@ -747,6 +747,7 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
                   onReset={resetControls}
                   sectionCls={sectionCls}
                   labelCls={labelCls}
+                  pageSlugs={editor.pages.filter((p) => p.enabled !== false && p.slug).map((p) => String(p.slug))}
                 />
               ) : (
                 <div className="text-center text-gray-400 text-sm py-6">

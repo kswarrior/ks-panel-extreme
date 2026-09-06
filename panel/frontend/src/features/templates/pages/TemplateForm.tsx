@@ -734,6 +734,7 @@ const TemplateForm: React.FC = () => {
             onReset={() => setForm((f) => ({ ...f, instance_controls: { ...DEFAULT_INSTANCE_CONTROLS } }))}
             sectionCls={sectionCls}
             labelCls={labelCls}
+            pageSlugs={form.pages.filter((p) => p.enabled !== false && p.slug).map((p) => String(p.slug))}
           />
         )}
 

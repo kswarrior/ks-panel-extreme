@@ -4,6 +4,8 @@ import { useAuthStore } from '@/shared/stores/authStore';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
 import { PermissionKey, PERMISSION_AREAS, hasPermissionAny } from '@/shared/types/permissions';
 import { PanelBrandLogo, PanelBrandName } from '@/shared/components/brand/PanelBrand';
+import { sanitizeInlineSvg } from '@/features/settings/api/panelPages';
+import { usePanelPagesStore } from '@/features/settings/stores/panelPagesStore';
 import SidebarSkeleton from './SidebarSkeleton';
 
 interface SidebarProps {
@@ -269,7 +271,16 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
   const nameStyle = useSettingsStore((s) => s.nameStyle);
   const logoStyle = useSettingsStore((s) => s.logoStyle);
   const footerText = useSettingsStore((s) => s.footerText);
+  const panelPagesNav = usePanelPagesStore((s) => s.nav);
+  const loadPanelPages = usePanelPagesStore((s) => s.load);
   const isCollapsed = collapsed !== undefined ? collapsed : false;
+
+  // Custom pages (Settings > Pages) for the sidebar. Server-filtered by the
+  // caller's role; loaded once a session exists and refreshed whenever the
+  // Pages editor saves (it calls the store's refresh()).
+  React.useEffect(() => {
+    if (initialized) loadPanelPages();
+  }, [initialized, loadPanelPages]);
 
   // Area-aware permission check: umbrella permission admits any granular key of that area,
   // so a role with only USERS_VIEW still sees the Users page (mirrors RequirePermission).
@@ -343,7 +354,8 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
           {!initialized ? (
             <SidebarSkeleton collapsed={isCollapsed} />
           ) : (
-            canAdmin &&
+            <>
+            {canAdmin &&
             adminEntries.map((item) => (
               <NavLink
                 key={item.to}
@@ -361,7 +373,50 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
                 </span>
                 {!isCollapsed && <span className="truncate">{item.label}</span>}
               </NavLink>
-            ))
+            ))}
+            {/* Custom pages (Settings > Pages: About, Docs, …). Enabled +
+                role-filtered server-side; each carries its own SVG glyph. */}
+            {panelPagesNav.length > 0 && (
+              <>
+                {!isCollapsed && (
+                  <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">
+                    Pages
+                  </p>
+                )}
+                {panelPagesNav.map((p) => {
+                  const clean = sanitizeInlineSvg(p.icon_svg || '');
+                  return (
+                    <NavLink
+                      key={p.url}
+                      to={p.url}
+                      onClick={onClose}
+                      className={({ isActive }) =>
+                        `flex items-center rounded-md text-sm transition text-gray-400 ks-nav-item ${
+                          isCollapsed ? 'justify-center px-2 py-2' : 'gap-3 px-3 py-2'
+                        } ${isActive ? 'ks-nav-active' : ''}`
+                      }
+                      title={isCollapsed ? p.name : undefined}
+                    >
+                      <span className={`shrink-0 flex items-center justify-center w-4 h-4 ${isCollapsed ? 'text-gray-100' : ''}`} aria-hidden="true">
+                        {clean.trim() ? (
+                          <span
+                            className="inline-flex items-center justify-center w-4 h-4 [&>svg]:w-full [&>svg]:h-full"
+                            dangerouslySetInnerHTML={{ __html: clean }}
+                          />
+                        ) : (
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                            <path d="M14 2v6h6" />
+                          </svg>
+                        )}
+                      </span>
+                      {!isCollapsed && <span className="truncate">{p.name}</span>}
+                    </NavLink>
+                  );
+                })}
+              </>
+            )}
+            </>
           )}
         </nav>
 
