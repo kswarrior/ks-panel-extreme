@@ -169,7 +169,7 @@ const TicketForm: React.FC = () => {
       >
       {error && <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-sm">{typeof error === 'string' ? error : JSON.stringify(error)}</div>}
 
-      <GlassCard className="p-6">
+      <GlassCard variant="form" className="p-6">
         <div className="space-y-5">
           <div>
             <label className="block text-xs text-gray-400 uppercase tracking-wide mb-1.5">Subject *</label>

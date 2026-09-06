@@ -157,7 +157,7 @@ const Settings: React.FC = () => {
     <div>
       <form
         onSubmit={submit}
-        className="glass-card rounded-xl space-y-6 max-w-2xl"
+        className="glass-card ks-form-card rounded-xl space-y-6 max-w-2xl"
       >
         {/* ===================== GENERAL ===================== */}
         <section>

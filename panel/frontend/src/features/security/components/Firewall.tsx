@@ -206,7 +206,7 @@ const Firewall: React.FC<FirewallProps> = ({
       )}
       {statusError && <p className="text-xs text-amber-400">{statusError}</p>}
 
-      <form onSubmit={saveConfig} className="glass-card rounded-xl space-y-6">
+      <form onSubmit={saveConfig} className="glass-card ks-form-card rounded-xl space-y-6">
         <section>
           <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-3">
             Per-IP Rate Limit

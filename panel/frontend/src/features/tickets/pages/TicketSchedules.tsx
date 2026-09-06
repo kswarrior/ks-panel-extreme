@@ -83,7 +83,7 @@ const TicketSchedules: React.FC = () => {
       {error && <p className="text-red-400 text-sm">{error}</p>}
       {saved && <p className="text-emerald-300 text-sm">{saved}</p>}
 
-      <GlassCard className="space-y-3">
+      <GlassCard variant="form" className="space-y-3">
         <h3 className="text-sm font-semibold text-white">SLA clocks by priority</h3>
         {rows.length === 0 && (
           <p className="text-sm text-gray-500">No SLA rows configured — tickets have no breach clock.</p>

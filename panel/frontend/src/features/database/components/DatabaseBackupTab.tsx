@@ -533,7 +533,7 @@ export const DatabaseBackupTab: React.FC = () => {
       </div>
 
       {/* Schedules */}
-      <div className="glass-card rounded-xl p-4 space-y-3">
+      <div className="glass-card ks-form-card rounded-xl p-4 space-y-3">
         <h4 className="text-sm font-semibold text-white">Scheduled backups (cron 5-field)</h4>
         <p className="text-xs text-gray-400">Cron drives <code className="font-mono text-gray-300">VACUUM INTO</code> / native dumps on the scheduler tick, then prunes to <code className="font-mono text-gray-300">keep_last_n + max_age_days</code> and optionally pushes to S3.</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -578,7 +578,7 @@ export const DatabaseBackupTab: React.FC = () => {
       </div>
 
       {/* S3 remote */}
-      <div className="glass-card rounded-xl p-4 space-y-3">
+      <div className="glass-card ks-form-card rounded-xl p-4 space-y-3">
         <h4 className="text-sm font-semibold text-white">S3 / remote push (rclone-style)</h4>
         <p className="text-xs text-gray-400">Path-style <code className="font-mono text-gray-300">endpoint/bucket/prefix/filename</code> via SigV4. The secret is sealed with the panel vault and never displayed or logged{s3?.configured ? ` — configured for bucket “${s3.bucket}”.` : ' — not configured.'}</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

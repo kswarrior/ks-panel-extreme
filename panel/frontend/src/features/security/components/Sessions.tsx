@@ -185,7 +185,7 @@ const Sessions: React.FC<SessionsProps> = ({ initialConfig, onConfigChange }) =>
   return (
     <div className="space-y-6 max-w-4xl">
       {/* Session policy */}
-      <form onSubmit={saveConfig} className="glass-card rounded-xl space-y-5 p-5">
+      <form onSubmit={saveConfig} className="glass-card ks-form-card rounded-xl space-y-5 p-5">
         <div>
           <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-3">Session Lifetime</h3>
           <p className="text-xs text-gray-500 mb-4">

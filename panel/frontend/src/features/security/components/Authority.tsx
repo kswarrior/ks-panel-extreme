@@ -365,7 +365,7 @@ const Authority: React.FC<AuthorityProps> = ({ onConfigChange }) => {
   return (
     <form
       onSubmit={submit}
-      className="glass-card rounded-xl space-y-10 max-w-3xl"
+      className="glass-card ks-form-card rounded-xl space-y-10 max-w-3xl"
     >
       {appSecretToast && (
         <div className="ks-card ks-form-card rounded-xl border-emerald-600/50 p-4">

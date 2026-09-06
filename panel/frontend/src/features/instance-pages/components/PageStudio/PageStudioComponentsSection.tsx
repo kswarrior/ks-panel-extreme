@@ -37,7 +37,7 @@ export const PageStudioComponentsSection: React.FC<PageStudioComponentsSectionPr
         {components.map((c, idx) => {
           const isEditing = editingId === c.id;
           return (
-            <GlassCard key={c.id} className="p-4 space-y-3">
+            <GlassCard variant="form" key={c.id} className="p-4 space-y-3">
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="text-sm font-semibold text-white truncate">Component #{idx + 1}</span>

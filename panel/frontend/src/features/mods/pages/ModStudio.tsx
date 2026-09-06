@@ -432,7 +432,7 @@ const ModStudio: React.FC = () => {
       )}
 
       {/* Install-from-URL quick bar (mirrors the Mods page button) */}
-      <GlassCard className="flex items-center gap-2 flex-wrap">
+      <GlassCard variant="form" className="flex items-center gap-2 flex-wrap">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-gray-300 shrink-0">
           <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
           <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
@@ -495,7 +495,7 @@ const ModStudio: React.FC = () => {
         </GlassCard>
 
         {/* Editor */}
-        <GlassCard className="space-y-4 min-w-0">
+        <GlassCard variant="form" className="space-y-4 min-w-0">
           {tab === 'meta' && (
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -648,7 +648,7 @@ const ModStudio: React.FC = () => {
       </div>
 
       {/* Validation + action bar */}
-      <GlassCard className="flex items-center justify-between gap-3 flex-wrap">
+      <GlassCard variant="form" className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
           <button
             type="button"

@@ -86,7 +86,7 @@ export const PageStudioActionsSection: React.FC<PageStudioActionsSectionProps> =
         {actions.map((action, idx) => {
           const isEditing = editingId === action.id;
           return (
-            <GlassCard key={action.id} className="p-4 space-y-3">
+            <GlassCard variant="form" key={action.id} className="p-4 space-y-3">
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="text-sm font-semibold text-white truncate">Action #{idx + 1}</span>

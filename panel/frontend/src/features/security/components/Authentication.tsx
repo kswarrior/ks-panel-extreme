@@ -307,7 +307,7 @@ const Authentication: React.FC<AuthenticationProps> = ({ initialSnapshot, onConf
       )}
 
       {/* ── Password policy ─────────────────────────────────────────── */}
-      <GlassCard>
+      <GlassCard variant="form">
         <SectionTitle
           title="Password Policy"
           sub="Rules for every password set via the password provider — new accounts, admin resets and self-service changes. Leave a toggle off to skip that character class."
@@ -391,7 +391,7 @@ const Authentication: React.FC<AuthenticationProps> = ({ initialSnapshot, onConf
       </GlassCard>
 
       {/* ── Registration security ───────────────────────────────────── */}
-      <GlassCard>
+      <GlassCard variant="form">
         <SectionTitle
           title="Registration Security"
           sub="Control who can create accounts, which role they land in, how many accounts a single device may spawn, and whether new accounts must confirm their email before signing in."
@@ -508,7 +508,7 @@ const Authentication: React.FC<AuthenticationProps> = ({ initialSnapshot, onConf
       </GlassCard>
 
       {/* ── MFA / TOTP ──────────────────────────────────────────────── */}
-      <GlassCard>
+      <GlassCard variant="form">
         <SectionTitle
           title="MFA / TOTP"
           sub="Built-in RFC 6238 TOTP for authenticator apps (Google Authenticator, 2FAS, Aegis, …). The shared secret is issued under App Secrets on the Authority tab."
@@ -539,7 +539,7 @@ const Authentication: React.FC<AuthenticationProps> = ({ initialSnapshot, onConf
       </GlassCard>
 
       {/* ── OTP policy ──────────────────────────────────────────────── */}
-      <GlassCard>
+      <GlassCard variant="form">
         <SectionTitle
           title="OTP Policy"
           sub="One-time passcode behaviour for email and SMS channels. Delivery credentials (SMTP / SMS gateway) live on the Authority tab."
@@ -558,7 +558,7 @@ const Authentication: React.FC<AuthenticationProps> = ({ initialSnapshot, onConf
       </GlassCard>
 
       {/* ── Recovery codes ──────────────────────────────────────────── */}
-      <GlassCard>
+      <GlassCard variant="form">
         <SectionTitle
           title="Recovery Codes"
           sub="Single-use backup codes stored only as bcrypt hashes. Generating a new set invalidates all of the user's previous codes."

@@ -276,7 +276,7 @@ export const ChangeDatabaseCard: React.FC<{ currentEngine?: string; currentPath?
   };
 
   return (
-    <div className="glass-card rounded-xl p-4 space-y-4">
+    <div className="glass-card ks-form-card rounded-xl p-4 space-y-4">
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <div>
           <h3 className="text-sm font-semibold text-white inline-flex items-center gap-2">
@@ -590,7 +590,7 @@ export const VerifyStatusCard: React.FC<{ info: DatabaseInfo; onRefresh: () => v
   const warnings = info.verify_last_warnings || [];
 
   return (
-    <div className="glass-card rounded-xl p-4 space-y-3">
+    <div className="glass-card ks-form-card rounded-xl p-4 space-y-3">
       <div className="flex items-center gap-2 flex-wrap">
         <span className={`w-2 h-2 rounded-full ${dot}`} />
         <h3 className="text-sm font-semibold text-white">Integrity verification</h3>

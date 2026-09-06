@@ -288,7 +288,7 @@ const NotificationsPage: React.FC = () => {
       </div>
 
       {/* Delivery prefs: realtime = WS push + immediate email, digest = WS push + daily email, off = inbox only */}
-      <div className="mb-4 glass-card rounded-xl p-3 flex flex-wrap items-center gap-3">
+      <div className="mb-4 glass-card ks-form-card rounded-xl p-3 flex flex-wrap items-center gap-3">
         <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">Delivery</span>
         <select value={prefMode} onChange={(e) => setPrefMode(e.target.value as NotificationMode)} className="glass-field text-xs" aria-label="Delivery mode">
           <option value="realtime">Realtime (push + email)</option>

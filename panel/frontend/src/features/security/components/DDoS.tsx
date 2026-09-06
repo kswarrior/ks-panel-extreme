@@ -257,7 +257,7 @@ const DDoS: React.FC<DDoSProps> = ({
       {actionError && <p className="text-sm text-red-400 mb-4">{actionError}</p>}
       {actionSuccess && <p className="text-sm text-green-400 mb-4">{actionSuccess}</p>}
 
-      <form onSubmit={saveConfig} className="glass-card rounded-xl space-y-6 max-w-2xl">
+      <form onSubmit={saveConfig} className="glass-card ks-form-card rounded-xl space-y-6 max-w-2xl">
         {configLoading ? (
           <SkeletonGrid count={4} />
         ) : (
