@@ -17,7 +17,6 @@ import ChatPanel from '@/features/ai-chat/components/ChatPanel';
 const App: React.FC = () => {
   const setAuth = useAuthStore((s) => s.setAuth);
   const clearAuth = useAuthStore((s) => s.clearAuth);
-  const setInitialized = useAuthStore((s) => s.setInitialized);
   const user = useAuthStore((s) => s.user);
   const bootstrapFromServer = useSettingsStore((s) => s.bootstrapFromServer);
   const reapplyTheme = useThemeStore((s) => s.reapply);
@@ -97,11 +96,9 @@ const App: React.FC = () => {
       if (err?.response?.status === 401) {
         clearAuth();
       }
-      // Non-401 (network blip / 5xx): keep initialized=false so RequireAuth
-      // keeps showing the boot splash instead of bouncing to login.
     });
     return () => { cancelled = true };
-  }, [setAuth, clearAuth, setInitialized, bootstrapFromServer, reapplyTheme, loadGlobalThemes]);
+  }, [setAuth, clearAuth, bootstrapFromServer, reapplyTheme, loadGlobalThemes]);
 
   // Whenever a session becomes active (initial /api/me success, a login-page
   // login, or a multi-account switch) re-fetch the ADMIN-MANAGED GLOBAL theme

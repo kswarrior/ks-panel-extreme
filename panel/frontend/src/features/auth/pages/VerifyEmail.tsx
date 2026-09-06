@@ -110,7 +110,7 @@ const VerifyEmail: React.FC = () => {
     try {
       await verifyEmail(email.trim(), code.trim());
       setSuccess('Email verified! Redirecting to login…');
-      setTimeout(() => navigate('/auth/login', { replace: true }), 900);
+      timerRef.current = setTimeout(() => navigate('/auth/login', { replace: true }), 900);
     } catch (e: any) {
       const msg = e?.response?.data || 'Invalid or expired code';
       setError(typeof msg === 'string' ? msg : 'Invalid or expired code');
