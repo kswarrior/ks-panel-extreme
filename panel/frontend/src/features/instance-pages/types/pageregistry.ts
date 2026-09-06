@@ -66,7 +66,7 @@ export const AREAS: AreaEntry[] = [
   {
     id: 'instance',
     label: 'Instance Panel',
-    description: 'The instance list plus every per-instance sub-panel (Home, Files, Network, Terminal, Settings).',
+    description: 'The instance list plus every per-instance sub-panel (Home, Files, Network, Terminal, Settings, Ports, SFTP, Snapshots, Overview and custom pages).',
     prefix: '/instances',
     pages: [
       {
@@ -76,6 +76,30 @@ export const AREAS: AreaEntry[] = [
         // Bare /instances (and only that) — the per-instance panels live
         // under /instances/:id/* and are matched by the children below.
         match: (pathname) => pathname === '/instances' || pathname === '/',
+      },
+      {
+        id: 'instance.list.stats',
+        label: 'Instances · Stats',
+        path: '/instances/stats',
+        match: starts('/instances/stats'),
+      },
+      {
+        id: 'instance.list.schedules',
+        label: 'Instances · Schedules',
+        path: '/instances/schedules',
+        match: starts('/instances/schedules'),
+      },
+      {
+        id: 'instance.create',
+        label: 'Instance · Create',
+        path: '/instances/new',
+        match: starts('/instances/new'),
+      },
+      {
+        id: 'instance.edit',
+        label: 'Instance · Edit',
+        path: '/instance/:id/edit',
+        match: (pathname) => /^\/instance\/\d+\/edit\/?$/.test(pathname),
       },
       {
         id: 'instance.panel.home',
@@ -106,6 +130,30 @@ export const AREAS: AreaEntry[] = [
         label: 'Instance · Settings',
         path: '/instances/:id/settings',
         match: defaultInstanceMatcher('settings'),
+      },
+      {
+        id: 'instance.panel.ports',
+        label: 'Instance · Ports',
+        path: '/instances/:id/ports',
+        match: defaultInstanceMatcher('ports'),
+      },
+      {
+        id: 'instance.panel.sftp',
+        label: 'Instance · SFTP',
+        path: '/instances/:id/sftp',
+        match: defaultInstanceMatcher('sftp'),
+      },
+      {
+        id: 'instance.panel.snapshots',
+        label: 'Instance · Snapshots',
+        path: '/instances/:id/snapshots',
+        match: defaultInstanceMatcher('snapshots'),
+      },
+      {
+        id: 'instance.panel.overview',
+        label: 'Instance · Overview',
+        path: '/instances/:id/overview',
+        match: defaultInstanceMatcher('overview'),
       },
       {
         id: 'instance.panel.custom',
