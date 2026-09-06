@@ -140,7 +140,7 @@ func (r *TicketRepository) MarkFirstResponse(ticketID int64, at time.Time) error
 	}
 	ts := at.UTC().Format("2006-01-02 15:04:05")
 	_, err := r.db.Exec(
-		`UPDATE ticket_sla SET first_response_at = COALESCE(first_response_at, ?) WHERE ticket_id = ?`,
+		r.rebind(`UPDATE ticket_sla SET first_response_at = COALESCE(first_response_at, ?) WHERE ticket_id = ?`),
 		ts, ticketID,
 	)
 	return err
@@ -155,7 +155,7 @@ func (r *TicketRepository) MarkBreachedAndEscalate(ticketID int64, at time.Time)
 	}
 	ts := at.UTC().Format("2006-01-02 15:04:05")
 	_, err := r.db.Exec(
-		`UPDATE ticket_sla SET sla_breached = 1, escalated = 1, escalated_at = COALESCE(escalated_at, ?) WHERE ticket_id = ?`,
+		r.rebind(`UPDATE ticket_sla SET sla_breached = 1, escalated = 1, escalated_at = COALESCE(escalated_at, ?) WHERE ticket_id = ?`),
 		ts, ticketID,
 	)
 	return err
@@ -172,10 +172,10 @@ func (r *TicketRepository) OverdueTickets(now time.Time) ([]models.Ticket, error
 	// fresh panel with no tickets yet.
 	var total int
 	if err := r.db.QueryRow(
-		`SELECT COUNT(*) FROM tickets t
+		r.rebind(`SELECT COUNT(*) FROM tickets t
 		 WHERE t.due_at IS NOT NULL AND t.due_at != '' AND t.due_at < ?
 		   AND t.status NOT IN ('closed', 'resolved')
-		   AND NOT EXISTS (SELECT 1 FROM ticket_sla s WHERE s.ticket_id = t.id AND s.sla_breached = 1)`, ts,
+		   AND NOT EXISTS (SELECT 1 FROM ticket_sla s WHERE s.ticket_id = t.id AND s.sla_breached = 1)`), ts,
 	).Scan(&total); err != nil {
 		return nil, err
 	}
@@ -183,11 +183,11 @@ func (r *TicketRepository) OverdueTickets(now time.Time) ([]models.Ticket, error
 		return []models.Ticket{}, nil
 	}
 	rows, err := r.db.Query(
-		`SELECT `+ticketColumns+` FROM tickets t
+		r.rebind(`SELECT `+ticketColumns+` FROM tickets t
 		 WHERE t.due_at IS NOT NULL AND t.due_at != '' AND t.due_at < ?
 		   AND t.status NOT IN ('closed', 'resolved')
 		   AND NOT EXISTS (SELECT 1 FROM ticket_sla s WHERE s.ticket_id = t.id AND s.sla_breached = 1)
-		 ORDER BY t.due_at ASC`, ts,
+		 ORDER BY t.due_at ASC`), ts,
 	)
 	if err != nil {
 		return nil, err
