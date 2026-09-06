@@ -193,6 +193,36 @@ func destBlocked(p string) bool {
 	return false
 }
 
+// resolvedBlocked reports whether clean escapes the host_path jail via a
+// symlink. EvalSymlinks follows the full chain; for not-yet-existing create
+// targets it resolves the deepest existing ancestor and re-attaches the
+// remainder so a symlink planted at /tmp/link -> /etc is still caught.
+func resolvedBlocked(clean string) bool {
+	if rp, err := filepath.EvalSymlinks(clean); err == nil {
+		if isDangerousPath(filepath.Clean(rp)) {
+			return true
+		}
+		return false
+	}
+	rel := []string{}
+	cur := clean
+	for {
+		if rp, err := filepath.EvalSymlinks(cur); err == nil {
+			resolved := filepath.Clean(rp)
+			for i := len(rel) - 1; i >= 0; i-- {
+				resolved = filepath.Join(resolved, rel[i])
+			}
+			return isDangerousPath(filepath.Clean(resolved))
+		}
+		parent := filepath.Dir(cur)
+		if parent == cur {
+			return false
+		}
+		rel = append(rel, filepath.Base(cur))
+		cur = parent
+	}
+}
+
 // hostFSDispatcher routes the request to the host filesystem when the
 // panel supplied a host_path that points at a bind-mounted directory the
 // edge actually owns. It returns false when the host path is missing or
@@ -207,6 +237,9 @@ func hostFSDispatcher(w http.ResponseWriter, r *http.Request, op, hostPath strin
 	}
 	clean := filepath.Clean(hostPath)
 	if !filepath.IsAbs(clean) || isDangerousPath(clean) {
+		return false
+	}
+	if resolvedBlocked(clean) {
 		return false
 	}
 	// Reject anything that tries to walk outside the configured root via
@@ -391,6 +424,9 @@ func tryFixPermission(path string) bool {
 	cleanPath := filepath.Clean(path)
 	cleanDir := filepath.Clean(filepath.Dir(path))
 	if isDangerousPath(cleanPath) || isDangerousPath(cleanDir) {
+		return false
+	}
+	if resolvedBlocked(cleanPath) || resolvedBlocked(cleanDir) {
 		return false
 	}
 	if !filepath.IsAbs(cleanPath) {

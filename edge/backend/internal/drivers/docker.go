@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -787,7 +788,7 @@ func (d *docker) Snapshot(ctx context.Context, name string, action string, snapN
 
 		// If requested, save the image to a tar file
 		if snapType == "tar" && location != "" {
-			tarPath := location + imageName + ".tar"
+			tarPath := filepath.Join(filepath.Clean(location), imageName+".tar")
 			if _, err := asExec(ctx, "", "docker", "save", "-o", tarPath, imageName); err != nil {
 				return "", 0, fmt.Errorf("failed to save image to tar: %w", err)
 			}

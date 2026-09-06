@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -315,7 +316,7 @@ func (d *lxd) Snapshot(ctx context.Context, name string, action string, snapName
 		// addressed as <instance>/<snapshot-name>. The previous three-
 		// positional form made the CLI reject the call outright.
 		if snapType == "tar" && location != "" {
-			tarPath := location + name + "-" + snapName + ".tar"
+			tarPath := filepath.Join(filepath.Clean(location), name+"-"+snapName+".tar")
 			_, err := asExec(ctx, "", "lxc", "export", name+"/"+snapName, tarPath)
 			if err != nil {
 				return "", 0, fmt.Errorf("failed to export snapshot to tar: %w", err)
