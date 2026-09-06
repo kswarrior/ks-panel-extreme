@@ -411,9 +411,9 @@ const ThemeStudio: React.FC = () => {
         </button>
       </PageActionsPill>
 
-      {/* Phone tabs — compact chips outfit of the same rail: icon + label
-          pills with no hint text, edge-fade scrolling, active chip
-          auto-centered. Desktop keeps the full rows with hints. */}
+      {/* Phone tabs — compact chips on top: icon + label pills with no
+          hint text, edge-fade scrolling, active chip auto-centered.
+          Desktop uses the same chips outfit, stacked on the left. */}
       <div className="lg:hidden mb-4">
         <SectionRailTabs
           ariaLabel="Theme studio sections"
@@ -425,14 +425,16 @@ const ThemeStudio: React.FC = () => {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4">
-        {/* Desktop tabs — same shared rail style as Security/Database, but
-            vertical: ~20 sections stack full-width with hints always
-            visible. Sticky so they stay visible while the studio scrolls. */}
+      <div className="grid grid-cols-1 lg:grid-cols-[180px_1fr] gap-4">
+        {/* Desktop tabs — same chips as phones, but vertical on the left:
+            compact icon + label pills (no hints), stacked top → bottom
+            with edge-fade scrolling. Sticky so they stay visible while
+            the studio scrolls. */}
         <div className="hidden lg:block lg:sticky lg:top-4 self-start">
           <SectionRailTabs
             ariaLabel="Theme studio sections"
             orientation="vertical"
+            variant="chips"
             active={tab}
             onChange={(id) => setTab(id as TabKey)}
             tabs={TABS.map((t) => ({ id: t.key, label: t.label, hint: t.hint, icon: t.icon }))}

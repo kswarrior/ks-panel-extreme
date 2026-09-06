@@ -23,13 +23,17 @@ interface SectionRailTabsProps {
   ariaLabel: string;
   // Layout direction. 'horizontal' (default) is a scrollable strip — one
   // tap on every breakpoint. 'vertical' is a stacked side nav for pages
-  // with many sections (Theme Studio): full-width rows, hints always
-  // visible, indicator line on the left edge growing top → bottom.
+  // with many sections (Theme Studio): full-width rows, indicator line on
+  // the left edge growing top → bottom (rail variant) or compact chips
+  // stacked on the left (chips variant — same outfit as phones, left).
   orientation?: 'horizontal' | 'vertical';
   // Visual density. 'rail' (default) shows icon + label + hint rows with a
-  // growing indicator line. 'chips' is the compact phone style: small
-  // rounded pills with icon + label only (no hint/notes text), edge-fade
-  // scrolling, and the active chip auto-centered. Desktop stays 'rail'.
+  // growing indicator line. 'chips' is the compact style: small rounded
+  // pills with icon + label only (no hint/notes text, no indicator line —
+  // the active chip is the solid themed fill), edge-fade scrolling, and
+  // the active chip auto-centered. Horizontal chips scroll left → right
+  // on top (phones); vertical chips stack top → bottom on the left
+  // (Theme Studio desktop).
   variant?: 'rail' | 'chips';
 }
 
@@ -62,9 +66,10 @@ export const SectionRailTabs: React.FC<SectionRailTabsProps> = ({
   variant = 'rail',
 }) => {
   const vertical = orientation === 'vertical';
-  // Chips only make sense on a horizontal strip; a vertical nav always
-  // renders full rows.
-  const chips = variant === 'chips' && !vertical;
+  // Chips work on both axes: horizontal chips scroll left → right on top
+  // (phones), vertical chips stack top → bottom on the left (desktop).
+  // Same outfit — compact icon + label pills, no hints, no indicator.
+  const chips = variant === 'chips';
   const refs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   const focusTab = useCallback((id: string) => {
@@ -98,9 +103,15 @@ export const SectionRailTabs: React.FC<SectionRailTabsProps> = ({
     const el = scrollRef.current;
     if (!el) return;
     const update = () => {
-      const canL = el.scrollLeft > 4;
-      const canR = el.scrollLeft + el.clientWidth < el.scrollWidth - 4;
-      setScrollEdges(`${canL ? 'can-scroll-l' : ''} ${canR ? 'can-scroll-r' : ''}`);
+      if (vertical) {
+        const canT = el.scrollTop > 4;
+        const canB = el.scrollTop + el.clientHeight < el.scrollHeight - 4;
+        setScrollEdges(`${canT ? 'can-scroll-t' : ''} ${canB ? 'can-scroll-b' : ''}`);
+      } else {
+        const canL = el.scrollLeft > 4;
+        const canR = el.scrollLeft + el.clientWidth < el.scrollWidth - 4;
+        setScrollEdges(`${canL ? 'can-scroll-l' : ''} ${canR ? 'can-scroll-r' : ''}`);
+      }
     };
     update();
     el.addEventListener('scroll', update, { passive: true });
@@ -109,18 +120,29 @@ export const SectionRailTabs: React.FC<SectionRailTabsProps> = ({
       el.removeEventListener('scroll', update);
       window.removeEventListener('resize', update);
     };
-  }, [chips, tabs.length]);
+  }, [chips, vertical, tabs.length]);
 
-  // Keep the active chip centered (block:'nearest' never moves the page).
+  // Keep the active chip centered on its scroll axis (block:'nearest' /
+  // inline:'nearest' never moves the page on the cross axis).
   useEffect(() => {
     if (!chips) return;
-    refs.current[active]?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-  }, [chips, active]);
+    refs.current[active]?.scrollIntoView({
+      behavior: 'smooth',
+      block: vertical ? 'center' : 'nearest',
+      inline: vertical ? 'nearest' : 'center',
+    });
+  }, [chips, vertical, active]);
 
   return (
     <section
       aria-label={`${ariaLabel} navigation`}
-      className={chips ? 'ks-card rounded-full p-1' : 'ks-card rounded-xl p-1.5 sm:p-2'}
+      className={
+        chips
+          ? vertical
+            ? 'ks-card rounded-2xl p-1.5'
+            : 'ks-card rounded-full p-1'
+          : 'ks-card rounded-xl p-1.5 sm:p-2'
+      }
     >
       <div
         ref={scrollRef}
@@ -130,7 +152,9 @@ export const SectionRailTabs: React.FC<SectionRailTabsProps> = ({
         onKeyDown={onKeyDown}
         className={
           vertical
-            ? 'flex flex-col items-stretch gap-1 max-h-[70vh] overflow-y-auto pr-0.5'
+            ? chips
+              ? `ks-chipscroll ks-chipscroll-vertical scroll-smooth flex flex-col items-stretch gap-1.5 overflow-y-auto px-0.5 py-0.5 max-h-[70vh] ${scrollEdges}`
+              : 'flex flex-col items-stretch gap-1 max-h-[70vh] overflow-y-auto pr-0.5'
             : chips
               ? `ks-chipscroll scroll-smooth flex items-stretch gap-1.5 overflow-x-auto px-1 py-0.5 ${scrollEdges}`
               : 'ks-hscroll flex items-stretch gap-1 overflow-x-auto pb-0.5'
@@ -155,7 +179,9 @@ export const SectionRailTabs: React.FC<SectionRailTabsProps> = ({
               data-orientation={orientation}
               className={`ks-rail-tab ks-rail-anim group flex items-center min-w-0 outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${
                 chips
-                  ? 'ks-chip shrink-0 gap-1.5 px-3 py-1.5 whitespace-nowrap'
+                  ? vertical
+                    ? 'ks-chip w-full gap-1.5 px-3 py-1.5 text-left'
+                    : 'ks-chip shrink-0 gap-1.5 px-3 py-1.5 whitespace-nowrap'
                   : `${vertical ? 'w-full' : 'shrink-0'} gap-2.5 px-3 py-2 text-left`
               } ${isActive ? 'is-active' : ''}`}
             >
