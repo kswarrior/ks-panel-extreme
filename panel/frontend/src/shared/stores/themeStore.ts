@@ -159,12 +159,15 @@ export function resolveThemeIdByRoute(
       network: 'instance.panel.network',
       terminal: 'instance.panel.terminal',
       settings: 'instance.panel.settings',
+      ports: 'instance.panel.ports',
+      sftp: 'instance.panel.sftp',
+      snapshots: 'instance.panel.snapshots',
+      overview: 'instance.panel.overview',
       metrics: 'instance.panel.custom',
       audit: 'instance.panel.custom',
       automation: 'instance.panel.custom',
       backups: 'instance.panel.custom',
       env: 'instance.panel.custom',
-      ports: 'instance.panel.custom',
       processes: 'instance.panel.custom',
     };
     const mapped = tabPageMap[tab] || 'instance.panel.custom';
@@ -592,12 +595,15 @@ function matchingScopeCss(scopes: Record<string, string> | undefined, pathname: 
       network: 'instance.panel.network',
       terminal: 'instance.panel.terminal',
       settings: 'instance.panel.settings',
+      ports: 'instance.panel.ports',
+      sftp: 'instance.panel.sftp',
+      snapshots: 'instance.panel.snapshots',
+      overview: 'instance.panel.overview',
       metrics: 'instance.panel.custom',
       audit: 'instance.panel.custom',
       automation: 'instance.panel.custom',
       backups: 'instance.panel.custom',
       env: 'instance.panel.custom',
-      ports: 'instance.panel.custom',
       processes: 'instance.panel.custom',
     };
     const mapped = tabPageMap[tab] || 'instance.panel.custom';
