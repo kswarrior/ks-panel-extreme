@@ -290,3 +290,29 @@ func (*mysqlDialect) insertIgnoreKeyword() string { return "INSERT IGNORE" }
 // _mssqlNoteRef keeps mssqlNote referenced so linters do not flag it
 // as unused documentation; the string itself is the design record.
 var _mssqlNoteRef = mssqlNote
+
+// Rebind rewrites a "?"-bind query to the engine's placeholder style.
+// SQLite and MySQL keep "?" verbatim; Postgres (pgx speaks the native
+// $N wire protocol and rejects "?") gets $1, $2, ... in bind order.
+// Repository code builds every statement with "?" and calls Rebind before
+// Exec/QueryRow/Query so one statement runs on all three engines without
+// a query builder. Queries without binds return unchanged.
+func Rebind(engine, query string) string {
+	switch strings.ToLower(strings.TrimSpace(engine)) {
+	case "postgres", "postgresql", "pg":
+		var b strings.Builder
+		b.Grow(len(query) + 8)
+		n := 0
+		for i := 0; i < len(query); i++ {
+			if query[i] == '?' {
+				n++
+				fmt.Fprintf(&b, "$%d", n)
+			} else {
+				b.WriteByte(query[i])
+			}
+		}
+		return b.String()
+	default:
+		return query
+	}
+}

@@ -7,15 +7,30 @@ import (
 	"strings"
 	"time"
 
+	"github.com/example/kspanel/internal/db"
 	"github.com/example/kspanel/internal/models"
 )
 
 type TicketRepository struct {
 	db *sql.DB
+	// dialect pins the engine for placeholder rebinding ("?" -> "$N" on
+	// Postgres) and INSERT id retrieval (RETURNING id on Postgres).
+	// Nil means "sniff the live connection's driver" (see pg_compat.go),
+	// so existing NewTicketRepository callers keep SQLite behaviour
+	// without changes.
+	dialect db.Dialect
 }
 
 func NewTicketRepository(db *sql.DB) *TicketRepository {
 	return &TicketRepository{db: db}
+}
+
+// NewTicketRepositoryWithDialect constructs a TicketRepository with an
+// explicit engine. Tests and Postgres/MySQL callers use it to prove the
+// rebind/RETURNING paths without a live server; handlers keep using
+// NewTicketRepository (driver sniffing covers them).
+func NewTicketRepositoryWithDialect(conn *sql.DB, d db.Dialect) *TicketRepository {
+	return &TicketRepository{db: conn, dialect: d}
 }
 
 func parseTicketTime(s string) time.Time {
