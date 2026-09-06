@@ -7,7 +7,7 @@
 // `go build -ldflags "-X github.com/example/ksedge/internal/version.Version=…
 // -X github.com/example/ksedge/internal/version.Commit=… -X
 // github.com/example/ksedge/internal/version.BuildDate=…"` (rebuild.sh does
-// this for both kspanel and ksedge). The defaults below ("dev" / "unknown")
+// this for both kspanel and ksedge). The defaults below ("1.0.0" / "unknown")
 // make a `go run` or `go build` without flags still answer
 // `/api/edge/update-info` rather than rendering empty fields.
 package version
@@ -16,7 +16,7 @@ package version
 // (not `const`) on purpose — -ldflags only replaces the contents of an
 // existing variable, it can't redefine a constant.
 var (
-	Version   = "dev"
+	Version   = "1.0.0"
 	Commit    = "unknown"
 	BuildDate = "unknown"
 )

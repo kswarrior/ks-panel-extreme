@@ -169,7 +169,8 @@ Modes:
   dev           Development build with debug symbols
 
 Environment Variables:
-  VERSION            Semantic version (e.g., 1.2.3)
+  VERSION            Explicit semver (e.g., 1.2.3, persisted to ./VERSION).
+                     Unset = auto-bump ./VERSION patch each production build.
   COMMIT             Git short commit (auto-detected if not set)
   BUILD_DATE         ISO8601 UTC build date (auto-generated if not set)
   GOOS               Target OS (default: linux)
@@ -179,19 +180,21 @@ Environment Variables:
   SIGN_CMD           Custom signing command (default: cosign sign-blob)
 
 Examples:
-  ./rebuild.sh                          # Production build (garble when installed)
-  ./rebuild.sh dev                      # Development build (never obfuscated)
-  VERSION=1.2.3 ./rebuild.sh            # Production build with version
+  ./rebuild.sh                          # Production build, auto-bump VERSION + stamp version.json
+  ./rebuild.sh dev                      # Development build (never obfuscated, no bump)
+  VERSION=1.2.3 ./rebuild.sh            # Production build with explicit version (persisted)
   GARBLE_ENABLE=0 ./rebuild.sh          # Production build without obfuscation
   GARBLE_ENABLE=1 ./rebuild.sh          # Production build, require obfuscation
   SIGN_KEY=/path/key ./rebuild.sh       # Production build with signing
 
 Output (production):
+  VERSION            # bumped source of truth (shared panel+edge semver)
   release/
   ├── kspanel
   ├── kspanel.sha256
   ├── ksedge
   ├── ksedge.sha256
+  ├── version.json    # shared manifest: same version + sha256/sha256_edge
   └── checksums.txt
 
   If signing enabled:
@@ -1156,6 +1159,24 @@ security_verification() {
             exit 1
         fi
     ) || all_ok=false
+
+    # Shared version manifest check (production only; dev skips stamping)
+    if [[ "$BUILD_MODE" == "production" ]]; then
+        if [[ -f "$RELEASE_DIR/version.json" ]]; then
+            log_ok "Manifest exists: version.json"
+            if command -v python3 >/dev/null 2>&1; then
+                if python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); assert d.get("version"), "missing version"' "$RELEASE_DIR/version.json" 2>/dev/null; then
+                    log_ok "Manifest version.json parses (version=$(python3 -c 'import json; print(json.load(open("'"$RELEASE_DIR"'/version.json")).get("version","?"))' 2>/dev/null))"
+                else
+                    log_err "Manifest version.json is malformed or missing version"
+                    all_ok=false
+                fi
+            fi
+        else
+            log_err "Missing manifest: $RELEASE_DIR/version.json"
+            all_ok=false
+        fi
+    fi
 
     if [[ "$all_ok" == "true" ]]; then
         log_ok "Security verification PASSED"
