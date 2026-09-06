@@ -751,6 +751,15 @@ nav.overflow-x-auto::-webkit-scrollbar-thumb:hover {
 .ks-ai-jump-enter {
   animation: ks-ai-jump-in 200ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
+/* Thread dropdown + 3-dot menu pop. Origin is set inline per usage
+   (top center for the full-width list, top right for the dots menu). */
+@keyframes ks-ai-menu-in {
+  from { opacity: 0; transform: scale(0.96) translateY(-6px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+.ks-ai-menu-enter {
+  animation: ks-ai-menu-in 180ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
 
 /* Grid layout for All Pages submenu */
 .rich-submenu .rich-menu-grid {

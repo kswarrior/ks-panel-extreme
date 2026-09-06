@@ -39,9 +39,13 @@ const ChatView: React.FC = () => {
   const [renaming, setRenaming] = useState(false);
   const [renameDraft, setRenameDraft] = useState('');
   const [view, setView] = useState<'chat' | 'settings'>('chat');
-  // Right-side thread-menu toggle (header ☰). Open by default so existing
-  // threads stay visible; collapsing slides the row away with animation.
-  const [menuOpen, setMenuOpen] = useState(true);
+  // Custom thread dropdown: trigger shows the active chat name, list holds
+  // a search bar + new-chat button + chat list. The 3-dot button beside the
+  // trigger owns Rename / Delete.
+  const [listOpen, setListOpen] = useState(false);
+  const [dotsOpen, setDotsOpen] = useState(false);
+  const [threadQuery, setThreadQuery] = useState('');
+  const dropdownRef = useRef<HTMLDivElement>(null);
   // Smart stick-to-bottom: true while the user sits at the bottom. Scrolling
   // up unpins so streaming tokens never yank the view away; a jump pill
   // appears to get back down. Sending / opening / switching re-pins.
@@ -145,22 +149,6 @@ const ChatView: React.FC = () => {
           </p>
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          {view === 'chat' && (
-            <button
-              type="button"
-              onClick={() => setMenuOpen((v) => !v)}
-              aria-label={menuOpen ? 'Hide thread menu' : 'Show thread menu'}
-              aria-expanded={menuOpen}
-              title={menuOpen ? 'Hide thread menu' : 'Show thread menu'}
-              className={`ks-ai-menu-toggle rounded-md p-1.5 text-gray-400 hover:text-white hover:bg-white/10 transition-colors ${menuOpen ? 'is-open' : ''}`}
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="3" y1="6" x2="21" y2="6" />
-                <line x1="3" y1="12" x2="21" y2="12" />
-                <line x1="3" y1="18" x2="21" y2="18" />
-              </svg>
-            </button>
-          )}
           {isAdmin && (
             <button
               type="button"
