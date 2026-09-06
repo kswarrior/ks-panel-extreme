@@ -11,7 +11,7 @@ interface BackgroundTabProps {
 
 export const BackgroundTab: React.FC<BackgroundTabProps> = ({ draft, patch }) => {
   return (
-    <GlassCard className="space-y-4">
+    <GlassCard variant="form" className="space-y-4">
       <Select
         label="Background type"
         value={draft.background.type}

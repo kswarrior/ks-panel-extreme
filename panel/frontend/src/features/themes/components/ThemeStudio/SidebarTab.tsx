@@ -9,7 +9,7 @@ interface SidebarTabProps {
 
 export const SidebarTab: React.FC<SidebarTabProps> = ({ draft, patch }) => {
   return (
-    <GlassCard className="space-y-4">
+    <GlassCard variant="form" className="space-y-4">
       <ColorField label="Sidebar background" value={draft.sidebar.background} onChange={(v) => patch('sidebar', { background: v })} />
       <ColorField label="Border color" value={draft.sidebar.border_color} onChange={(v) => patch('sidebar', { border_color: v })} />
       <ColorField label="Text color" value={draft.sidebar.text_color} onChange={(v) => patch('sidebar', { text_color: v })} />

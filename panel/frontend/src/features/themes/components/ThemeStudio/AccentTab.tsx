@@ -9,7 +9,7 @@ interface AccentTabProps {
 
 export const AccentTab: React.FC<AccentTabProps> = ({ draft, patch }) => {
   return (
-    <GlassCard className="space-y-4">
+    <GlassCard variant="form" className="space-y-4">
       <ColorField label="Primary" value={draft.accent.primary} onChange={(v) => patch('accent', { primary: v })} />
       <ColorField label="Danger" value={draft.accent.danger} onChange={(v) => patch('accent', { danger: v })} />
       <ColorField label="Success" value={draft.accent.success} onChange={(v) => patch('accent', { success: v })} />

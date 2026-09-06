@@ -15,7 +15,7 @@ export const HeaderTab: React.FC<HeaderTabProps> = ({ draft, patch }) => {
   const lbPosition = draft.header.loading_bar_position ?? 'bottom';
   return (
     <div className="space-y-4">
-    <GlassCard className="space-y-4">
+    <GlassCard variant="form" className="space-y-4">
       <ColorField label="Header background" value={draft.header.background} onChange={(v) => patch('header', { background: v })} />
       <ColorField label="Border color" value={draft.header.border_color} onChange={(v) => patch('header', { border_color: v })} />
       <ColorField label="Text color" value={draft.header.text_color} onChange={(v) => patch('header', { text_color: v })} />
@@ -25,7 +25,7 @@ export const HeaderTab: React.FC<HeaderTabProps> = ({ draft, patch }) => {
       </div>
     </GlassCard>
 
-    <GlassCard className="space-y-4">
+    <GlassCard variant="form" className="space-y-4">
       <div>
         <Label label="Header loading bar" hint="Google-style sweep shown along the header edge while a new page opens." />
       </div>

@@ -10,7 +10,7 @@ interface LoadingTabProps {
 
 export const LoadingTab: React.FC<LoadingTabProps> = ({ draft, patch, renderLoadingPreview }) => {
   return (
-    <GlassCard className="space-y-4">
+    <GlassCard variant="form" className="space-y-4">
       <Select
         label="Loading animation type"
         value={draft.loading.type}

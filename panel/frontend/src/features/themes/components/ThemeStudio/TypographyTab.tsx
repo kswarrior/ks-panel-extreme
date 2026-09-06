@@ -9,7 +9,7 @@ interface TypographyTabProps {
 
 export const TypographyTab: React.FC<TypographyTabProps> = ({ draft, patch }) => {
   return (
-    <GlassCard className="space-y-4">
+    <GlassCard variant="form" className="space-y-4">
       <Text label="Font family" value={draft.typography.font_family} onChange={(v) => patch('typography', { font_family: v })} mono />
       <ColorField label="Heading color" value={draft.typography.heading_color} onChange={(v) => patch('typography', { heading_color: v })} />
       <ColorField label="Body color" value={draft.typography.body_color} onChange={(v) => patch('typography', { body_color: v })} />

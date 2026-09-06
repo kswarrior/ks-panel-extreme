@@ -40,7 +40,7 @@ const Card: React.FC<CardProps> = ({
   children,
   id,
 }) => {
-  const base = variant === 'strong' ? 'glass-strong' : 'glass-card';
+  const base = variant === 'strong' ? 'glass-strong' : variant === 'form' ? 'ks-form-card' : 'glass-card';
   // Subscribe to the active card.glass_style via the full active theme so
   // the modifier class rerenders when the admin changes it in the studio.
   // For default-theme lookups (used by GlassCard at module mount) .glass_style
