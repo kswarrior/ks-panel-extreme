@@ -379,6 +379,11 @@ func (r *NodeRepository) GetNode(id int64) (*models.Node, error) {
 	if e := scanFullNode(rows, &nd); e != nil {
 		return nil, e
 	}
+	// Release the connection BEFORE the nested owner lookup below. On
+	// SQLite the pool is a single connection, so a second query issued
+	// while these rows are still open deadlocks forever — this hung every
+	// per-node endpoint (heartbeats, update-info, probe, detail).
+	rows.Close()
 	nd.State = DeriveState(nd.Status, nd.LastSeenAt,
 		allMetricsOK(nd), anyMetricPartial(nd), probeTrue(nd.ProbeReachable), nd.ProbeCheckedAt)
 	if ow, ok := nodeOwnerMap(r.db)[nd.ID]; ok {
