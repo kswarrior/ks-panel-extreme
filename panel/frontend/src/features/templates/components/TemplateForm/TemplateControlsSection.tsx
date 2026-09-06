@@ -36,6 +36,31 @@ const MiniToggle: React.FC<{ checked: boolean; onChange: (v: boolean) => void; l
   </label>
 );
 
+const CheckRow: React.FC<{ checked: boolean; onChange: (v: boolean) => void; label: string; hint?: string; disabled?: boolean }> = ({
+  checked,
+  onChange,
+  label,
+  hint,
+  disabled,
+}) => (
+  <label
+    className={`flex items-start gap-2.5 py-1.5 ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+    title={hint}
+  >
+    <input
+      type="checkbox"
+      checked={checked}
+      disabled={disabled}
+      onChange={(e) => onChange(e.target.checked)}
+      className="mt-1 h-4 w-4 shrink-0 accent-emerald-500"
+    />
+    <span className="min-w-0">
+      <span className="block text-sm text-gray-200">{label}</span>
+      {hint && <span className="block text-[11px] text-gray-500 mt-0.5">{hint}</span>}
+    </span>
+  </label>
+);
+
 const ConfigGearButton: React.FC<{ open: boolean; onToggle: () => void; label: string }> = ({
   open,
   onToggle,
@@ -130,6 +155,9 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
   const c = controls;
   const powerCount = [c.allow_start, c.allow_stop, c.allow_restart, c.allow_kill].filter(Boolean).length;
   const tabCount = [c.show_details_tab, c.show_monitoring_tab, c.show_manage_tab, c.show_activity_tab].filter(Boolean).length;
+  const [openTabConfig, setOpenTabConfig] = useState<'details' | 'manage' | null>(null);
+  const toggleTabConfig = (tab: 'details' | 'manage') =>
+    setOpenTabConfig((prev) => (prev === tab ? null : tab));
 
   return (
     <div className="space-y-4">
@@ -181,10 +209,53 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
         <p className="text-xs text-gray-500">Which tabs the More → Overview page offers. At least one tab must stay on — the page falls back to the first allowed tab.</p>
         <div className="rounded-md border border-white/10 bg-black/20 px-3 py-1 mt-2">
           <p className={labelCls}>Visible tabs (checkboxes · {tabCount} of 4 on)</p>
-          <CheckRow checked={c.show_details_tab} onChange={(v) => onUpdate({ show_details_tab: v })} label="Details" hint="Tiles: container, node, template, external ID, lifecycle" />
-          <CheckRow checked={c.show_monitoring_tab} onChange={(v) => onUpdate({ show_monitoring_tab: v })} label="Monitoring" hint="Live CPU / RAM / disk tiles + graphs" />
-          <CheckRow checked={c.show_manage_tab} onChange={(v) => onUpdate({ show_manage_tab: v })} label="Manage" hint="Rename + advanced config + danger zone" />
-          <CheckRow checked={c.show_activity_tab} onChange={(v) => onUpdate({ show_activity_tab: v })} label="Activity" hint="Per-instance audit trail" />
+          <TabRow
+            checked={c.show_details_tab}
+            onChange={(v) => {
+              onUpdate({ show_details_tab: v });
+              if (!v && openTabConfig === 'details') setOpenTabConfig(null);
+            }}
+            label="Details"
+            hint="Tiles: container, node, template, external ID, lifecycle"
+            hasConfig
+            configOpen={openTabConfig === 'details'}
+            onToggleConfig={() => toggleTabConfig('details')}
+            configLabel="Configure Details tab — tile shortcuts allowed or not"
+          >
+            <MiniToggle checked={c.allow_external_id_copy} onChange={(v) => onUpdate({ allow_external_id_copy: v })} label="External ID copy" hint="Click the External ID tile to copy the driver-side ID" />
+            <MiniToggle checked={c.allow_node_link} onChange={(v) => onUpdate({ allow_node_link: v })} label="Node link" hint="Click the Node tile to open its node" />
+            <MiniToggle checked={c.allow_template_link} onChange={(v) => onUpdate({ allow_template_link: v })} label="Template link" hint="Click the Template tile to open its template" />
+          </TabRow>
+          <TabRow
+            checked={c.show_monitoring_tab}
+            onChange={(v) => onUpdate({ show_monitoring_tab: v })}
+            label="Monitoring"
+            hint="Live CPU / RAM / disk tiles + graphs"
+          />
+          <TabRow
+            checked={c.show_manage_tab}
+            onChange={(v) => {
+              onUpdate({ show_manage_tab: v });
+              if (!v && openTabConfig === 'manage') setOpenTabConfig(null);
+            }}
+            label="Manage"
+            hint="Rename + advanced config + danger zone"
+            hasConfig
+            configOpen={openTabConfig === 'manage'}
+            onToggleConfig={() => toggleTabConfig('manage')}
+            configLabel="Configure Manage tab — actions allowed or not"
+          >
+            <MiniToggle checked={c.allow_rename} onChange={(v) => onUpdate({ allow_rename: v })} label="Rename" hint="Display-name editor" />
+            <MiniToggle checked={c.allow_edit_advanced} onChange={(v) => onUpdate({ allow_edit_advanced: v })} label="Edit advanced config" hint="Ports / env / volumes editor entry" />
+            <MiniToggle checked={c.allow_reinstall} onChange={(v) => onUpdate({ allow_reinstall: v })} label="Reinstall" hint="Wipe + redeploy from stored spec (confirm dialog)" />
+            <MiniToggle checked={c.allow_destroy} onChange={(v) => onUpdate({ allow_destroy: v })} label="Destroy" hint="Driver destroy + remove row (confirm dialog)" />
+          </TabRow>
+          <TabRow
+            checked={c.show_activity_tab}
+            onChange={(v) => onUpdate({ show_activity_tab: v })}
+            label="Activity"
+            hint="Per-instance audit trail"
+          />
         </div>
         <div className="mt-2">
           <label className={labelCls}>Default tab (dropdown)</label>
@@ -200,27 +271,6 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
             <option value="activity">Activity</option>
           </select>
           <p className="text-[11px] text-gray-500 mt-1">If the default tab is hidden, the page opens the first visible tab instead.</p>
-        </div>
-      </div>
-
-      <div className={sectionCls}>
-        <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">More page · Manage actions</h4>
-        <p className="text-xs text-gray-500">Destructive and mutating buttons inside the Manage tab.</p>
-        <div className="divide-y divide-white/5">
-          <MiniToggle checked={c.allow_rename} onChange={(v) => onUpdate({ allow_rename: v })} label="Rename" hint="Display-name editor" />
-          <MiniToggle checked={c.allow_edit_advanced} onChange={(v) => onUpdate({ allow_edit_advanced: v })} label="Edit advanced config" hint="Ports / env / volumes editor entry" />
-          <MiniToggle checked={c.allow_reinstall} onChange={(v) => onUpdate({ allow_reinstall: v })} label="Reinstall" hint="Wipe + redeploy from stored spec (confirm dialog)" />
-          <MiniToggle checked={c.allow_destroy} onChange={(v) => onUpdate({ allow_destroy: v })} label="Destroy" hint="Driver destroy + remove row (confirm dialog)" />
-        </div>
-      </div>
-
-      <div className={sectionCls}>
-        <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">More page · Details shortcuts</h4>
-        <p className="text-xs text-gray-500">What clicking Details tiles may do.</p>
-        <div className="divide-y divide-white/5">
-          <MiniToggle checked={c.allow_external_id_copy} onChange={(v) => onUpdate({ allow_external_id_copy: v })} label="External ID copy" hint="Click the External ID tile to copy the driver-side ID" />
-          <MiniToggle checked={c.allow_node_link} onChange={(v) => onUpdate({ allow_node_link: v })} label="Node link" hint="Click the Node tile to open its node" />
-          <MiniToggle checked={c.allow_template_link} onChange={(v) => onUpdate({ allow_template_link: v })} label="Template link" hint="Click the Template tile to open its template" />
         </div>
       </div>
 
