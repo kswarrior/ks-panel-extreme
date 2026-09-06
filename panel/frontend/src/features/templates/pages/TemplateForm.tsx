@@ -739,6 +739,40 @@ const TemplateForm: React.FC = () => {
 
         {tab === 'pages' && (
           <div className="space-y-4">
+            <div className="rounded-md border border-white/10 bg-black/20 p-3 space-y-2">
+              <div>
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-300 mb-1">Home page</h3>
+                <p className="text-xs text-gray-500">Which page opens when the instance card is clicked (the instance index route). Enter its slug — the URL it is accessible at. Empty = default Home.</p>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-gray-500 text-sm font-mono">/</span>
+                <input
+                  value={form.home_page}
+                  onChange={(e) => setForm((f) => ({ ...f, home_page: e.target.value }))}
+                  placeholder="overview"
+                  aria-label="Home page slug"
+                  title="Slug of the landing page, e.g. overview or home"
+                  className={monoCls + ' flex-1'}
+                />
+                {form.home_page.trim() !== '' && (
+                  <button
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, home_page: '' }))}
+                    className="text-xs text-gray-400 hover:text-white underline shrink-0"
+                    title="Clear — fall back to default Home"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              <p className="text-[11px] text-gray-500">
+                {form.home_page.trim() !== '' ? (
+                  <>Opens <code className="font-mono text-sky-300">/{form.home_page.trim().replace(/^\/+|\/+$/g, '') || '…'}</code> on card click. Use a page Path from the list below{form.pages.filter((p) => p.enabled !== false && p.slug && !String(p.slug).includes('/')).map((p) => String(p.slug).trim()).filter(Boolean).length > 0 ? <> ({form.pages.filter((p) => p.enabled !== false && p.slug && !String(p.slug).includes('/')).map((p) => String(p.slug).trim()).filter(Boolean).join(', ')})</> : null} or a built-in (overview, ports, sftp, snapshots). Unknown slugs fall back to Home.</>
+                ) : (
+                  <>Card click opens the default Home page (slug “.”, when imported below).</>
+                )}
+              </p>
+            </div>
             <div className="rounded-md border border-white/10 bg-black/20 p-3 space-y-3">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div>

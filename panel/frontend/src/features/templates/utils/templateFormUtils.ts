@@ -171,6 +171,10 @@ export function serializeSpec(f: TemplateFormState): string {
     ...(isControlsCustom(f.instance_controls)
       ? { instance_controls: { ...f.instance_controls } }
       : {}),
+    // Landing page slug for the instance index route. Empty = default Home.
+    ...(f.home_page.trim().replace(/^\/+|\/+$/g, '')
+      ? { home_page: f.home_page.trim().replace(/^\/+|\/+$/g, '') }
+      : {}),
     advanced: {
       startup_command: f.advanced.startup_command,
       stop_command: f.advanced.stop_command,
@@ -506,6 +510,10 @@ export function parseSpec(raw: string): Partial<TemplateFormState> {
       });
       out.pages = pages;
     }
+    // Landing page slug for the instance index route ('' = default Home).
+    out.home_page = typeof s.home_page === 'string'
+      ? s.home_page.trim().replace(/^\/+|\/+$/g, '')
+      : '';
     // Built-in Instance controls: missing = allow-all default (old specs).
     out.instance_controls = resolveInstanceControls(s as Record<string, any>);
     if (Array.isArray(s.devices)) {

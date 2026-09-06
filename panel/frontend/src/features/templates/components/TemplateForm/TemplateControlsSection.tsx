@@ -274,6 +274,35 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
         </div>
       </div>
 
+      <div className={sectionCls}>
+        <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">More page · More link</h4>
+        <p className="text-xs text-gray-500">Which page the floating menu's More button opens. Enter its slug — the URL it is accessible at.</p>
+        <div className="flex items-center gap-1.5 mt-2">
+          <span className="text-gray-500 text-sm font-mono">/</span>
+          <input
+            value={c.more_page}
+            onChange={(e) => onUpdate({ more_page: e.target.value })}
+            placeholder="overview"
+            aria-label="More link target slug"
+            title="Slug of the page the More button opens, e.g. overview or files"
+            className="glass-field font-mono flex-1"
+          />
+          {c.more_page !== DEFAULT_INSTANCE_CONTROLS.more_page && (
+            <button
+              type="button"
+              onClick={() => onUpdate({ more_page: DEFAULT_INSTANCE_CONTROLS.more_page })}
+              className="text-xs text-gray-400 hover:text-white underline shrink-0"
+              title="Reset to overview"
+            >
+              Reset
+            </button>
+          )}
+        </div>
+        <p className="text-[11px] text-gray-500 mt-1">
+          More opens <code className="font-mono text-sky-300">/{(c.more_page.trim().replace(/^\/+|\/+$/g, '') || DEFAULT_INSTANCE_CONTROLS.more_page)}</code>. Use a page Path or a built-in (overview, ports, sftp, snapshots). Unknown slugs fall back to Overview.
+        </p>
+      </div>
+
       <p className="text-[11px] text-gray-500">
         Empty / old templates allow everything. Saved per template and snapshotted into each new instance on deploy — existing instances keep their own copy.
         Current: {isCustomNote(c)}
