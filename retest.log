@@ -4,9 +4,9 @@
 [0;34m[INFO][0m Copying binaries from release/ ...
 [0;32m[OK][0m Test folder ready:
 total 37M
--rwxr-xr-x 1 runner runner  11M Sep  5 20:01 ksedge
--rwxr-xr-x 1 runner runner  26M Sep  5 20:01 kspanel
-drwxr-xr-x 3 runner runner 4.0K Sep  5 20:01 localnode
+-rwxr-xr-x 1 runner runner  11M Sep  6 04:25 ksedge
+-rwxr-xr-x 1 runner runner  27M Sep  6 04:25 kspanel
+drwxr-xr-x 3 runner runner 4.0K Sep  6 04:25 localnode
 → database     sqlite — /tmp/kspanel-retest/kspanel.db
 ✓ connected    sqlite ready
 → migrations   running
@@ -36,13 +36,40 @@ drwxr-xr-x 3 runner runner 4.0K Sep  5 20:01 localnode
 → node         local-edge @ 127.0.0.1:4040 (id 1)
 → download     ksedge already present, skipping
 → config       localnode/ksedge/config.json
-→ panel        started (pid 2319) on 127.0.0.1:8080
+→ panel        started (pid 2525) on 127.0.0.1:8080
 ✓ panel        ready at http://127.0.0.1:8080
-→ launch       started ksedge (pid 2328) on 127.0.0.1:4040
-Terminated
+→ launch       started ksedge (pid 2538) on 127.0.0.1:4040
+✓ edge         up and reachable (name="local-edge", log=localnode/ksedge/ksedge.log)
+
+node id:      1
+edge port:    4040
+binary:       localnode/ksedge/ksedge
+config:       localnode/ksedge/config.json
+log:          localnode/ksedge/ksedge.log
+[0;34m[INFO][0m Stopping intermediate panel from setup:localnode before final launch...
+[0;34m[INFO][0m Stopping old kspanel (pid 2525)...
 
 [0;34m==>[0m Launching kspanel on port 8080 (background)...
-[0;32m[OK][0m kspanel running in background (PID 41743)
+[0;32m[OK][0m kspanel running in background (PID 2555)
 [0;32m[OK][0m Logs:   /tmp/kspanel-retest/kspanel.log
 [0;32m[OK][0m Stop:   kill $(cat /tmp/kspanel-retest/kspanel.pid)
-tail: cannot open '/tmp/kspanel-retest/kspanel.log' for reading: No such file or directory
+ █████╔╝ ███████╗    ██████╔╝███████║██╔██╗ ██║█████╗  ██║
+ ██╔═██╗ ╚════██║    ██╔═══╝ ██╔══██║██║╚██╗██║██╔══╝  ██║
+ ██║  ██╗███████║    ██║      ██║  ██║██║ ╚████║███████╗███████╗
+ ╚═╝  ╚═╝╚══════╝    ╚═╝      ╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝
+→ database     sqlite — /tmp/kspanel-retest/kspanel.db
+✓ database     sqlite ready
+→ ui           embedded bundle
+✓ ui           served from api/handlers
+
+panel pid:    2555
+engine:       sqlite
+dsn:          /tmp/kspanel-retest/kspanel.db
+listen:       :8080
+open:         http://10.1.0.250:8080
+bind ifs:     10.1.0.250, 172.17.0.1
+go:           1.26.7
+goos:         linux/amd64
+cpus:         4
+
+✓ panel ready  running
