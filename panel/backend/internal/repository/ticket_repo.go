@@ -532,6 +532,27 @@ type UpdateTicketInput struct {
 	Tags        *string
 }
 
+// ticketUpdateQuery composes the Update statement for the nullability
+// branch and rebinds it to the engine. Substitution MUST precede rebinding:
+// the injected fragments carry their own "?" binds, and numbering the
+// template first would leave a mixed $N/? query that pgx rejects.
+func ticketUpdateQuery(engine string, hasAssigned, hasClosed, hasDue bool) string {
+	assignedSQL := "assigned_to = NULL"
+	closedSQL := "closed_at = NULL"
+	dueSQL := "due_at = NULL"
+	if hasAssigned {
+		assignedSQL = "assigned_to = ?"
+	}
+	if hasClosed {
+		closedSQL = "closed_at = ?"
+	}
+	if hasDue {
+		dueSQL = "due_at = ?"
+	}
+	return db.Rebind(engine, fmt.Sprintf(`UPDATE tickets SET subject = ?, description = ?, category = ?, priority = ?, status = ?, %s, updated_at = ?, %s, %s, tags = ? WHERE id = ?`,
+		assignedSQL, closedSQL, dueSQL))
+}
+
 func (r *TicketRepository) Update(id int64, in UpdateTicketInput) (*models.Ticket, error) {
 	existing, err := r.Get(id)
 	if err != nil {
@@ -611,29 +632,22 @@ func (r *TicketRepository) Update(id int64, in UpdateTicketInput) (*models.Ticke
 	}
 
 	// Dynamic query to avoid binding NULL via driver
-	assignedSQL := "assigned_to = NULL"
-	closedSQL := "closed_at = NULL"
-	dueSQL := "due_at = NULL"
 	args := []any{subject, description, category, priority, status}
 	if assignedVal != nil {
-		assignedSQL = "assigned_to = ?"
 		args = append(args, *assignedVal)
 	}
 	args = append(args, now)
 	if closedVal != nil {
-		closedSQL = "closed_at = ?"
 		args = append(args, *closedVal)
 	}
 	if dueVal != nil {
-		dueSQL = "due_at = ?"
 		args = append(args, *dueVal)
 	}
 	args = append(args, tags, id)
 	// Sprintf FIRST, rebind SECOND: the injected fragments carry their own
 	// "?" binds, so rebinding the template before substitution would leave
 	// a mixed $N/? query that pgx rejects on Postgres.
-	query := r.rebind(fmt.Sprintf(`UPDATE tickets SET subject = ?, description = ?, category = ?, priority = ?, status = ?, %s, updated_at = ?, %s, %s, tags = ? WHERE id = ?`,
-		assignedSQL, closedSQL, dueSQL))
+	query := ticketUpdateQuery(r.engineOf(), assignedVal != nil, closedVal != nil, dueVal != nil)
 	_, err = r.db.Exec(query, args...)
 	if err != nil {
 		return nil, err
