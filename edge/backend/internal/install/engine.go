@@ -302,6 +302,13 @@ func runCore(ctx context.Context, in Input, exec ExecFn, onStdin func(io.WriteCl
 				// ones back off exponentially (we're willing to wait).
 				select {
 				case <-ctx.Done():
+					res = StepStatus{Index: i, Action: step.Action, Status: stepFailed,
+						Attempt: attempt, ExitCode: -1,
+						Stderr:    "install workflow cancelled: " + ctx.Err().Error(),
+						StartedAt: steps[i].StartedAt, EndedAt: time.Now()}
+					steps[i] = res
+					publish()
+					return StateFailed, steps
 				case <-time.After(time.Duration(2<<attempt) * time.Second):
 				}
 				continue

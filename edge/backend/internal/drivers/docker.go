@@ -525,9 +525,11 @@ func (d *docker) Exec(ctx context.Context, name string, tty bool, cols, rows int
 	return &ExecSession{
 		Stdin: stdin, Stdout: stdout, Stderr: stderr,
 		Resize: func(int, int) error { return nil },
-		Wait:   wait, Close: func() error { stdin.Close(); return nil },
+		Wait:   wait, Close: func() error { stdin.Close(); stdout.Close(); stderr.Close(); return nil },
 	}, nil
 }
+
+// Non-TTY Close drains all three pipe ends so repeated execs cannot leak fds.
 
 // Runner gathers live metrics/processes/ports for the docker-driven instance
 // by running a portable shell script inside the container through Exec. This

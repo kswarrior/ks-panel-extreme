@@ -436,7 +436,7 @@ func edgeBodyLimit(h http.Handler) http.Handler {
 		switch r.URL.Path {
 		case "/api/edge/files":
 			limit = filesLimit
-		case "/api/edge/host-exec":
+		case "/api/edge/host-exec", "/api/edge/exec-rpc":
 			limit = hostExecLim
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, limit)
