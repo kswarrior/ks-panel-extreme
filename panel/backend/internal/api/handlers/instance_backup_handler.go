@@ -212,14 +212,16 @@ func UploadInstanceBackupChunkHandler(w http.ResponseWriter, r *http.Request) {
 	current := fi.Size()
 	// Parse Content-Range when present.
 	start := current
+	var end int64 = -1
 	var total int64 = -1
 	if cr := strings.TrimSpace(r.Header.Get("Content-Range")); cr != "" {
-		s, t, perr := parseContentRange(cr)
+		s, e, t, perr := parseContentRange(cr)
 		if perr != nil {
 			http.Error(w, "invalid Content-Range: "+perr.Error(), http.StatusBadRequest)
 			return
 		}
 		start = s
+		end = e
 		total = t
 	} else if q := strings.TrimSpace(r.URL.Query().Get("offset")); q != "" {
 		v, perr := strconv.ParseInt(q, 10, 64)
@@ -244,6 +246,14 @@ func UploadInstanceBackupChunkHandler(w http.ResponseWriter, r *http.Request) {
 	f.Close()
 	if err != nil {
 		http.Error(w, "chunk write failed", http.StatusInternalServerError)
+		return
+	}
+	// Fail closed: when the client declared a byte range, the body must be
+	// exactly that range — otherwise the stored file silently corrupts
+	// (the old code discarded `end` and accepted any body length).
+	if end >= 0 && n != end-start+1 {
+		_ = os.Truncate(dst, current)
+		http.Error(w, fmt.Sprintf("chunk body is %d bytes but Content-Range declares %d-%d (%d bytes)", n, start, end, end-start+1), http.StatusBadRequest)
 		return
 	}
 	newSize := current + n
@@ -272,34 +282,41 @@ func hashPath(path string) (string, error) {
 }
 
 // parseContentRange parses "bytes <start>-<end>/<total>" where total may be "*".
-func parseContentRange(cr string) (start, total int64, err error) {
+func parseContentRange(cr string) (start, end, total int64, err error) {
 	cr = strings.TrimSpace(cr)
 	if !strings.HasPrefix(strings.ToLower(cr), "bytes ") {
-		return 0, -1, fmt.Errorf("must start with 'bytes '")
+		return 0, -1, -1, fmt.Errorf("must start with 'bytes '")
 	}
 	rest := strings.TrimSpace(cr[6:])
 	slash := strings.Index(rest, "/")
 	if slash < 0 {
-		return 0, -1, fmt.Errorf("missing /total")
+		return 0, -1, -1, fmt.Errorf("missing /total")
 	}
 	rangePart := rest[:slash]
 	totalPart := strings.TrimSpace(rest[slash+1:])
 	dash := strings.Index(rangePart, "-")
 	if dash < 0 {
-		return 0, -1, fmt.Errorf("missing - in range")
+		return 0, -1, -1, fmt.Errorf("missing - in range")
 	}
 	start, err = strconv.ParseInt(strings.TrimSpace(rangePart[:dash]), 10, 64)
 	if err != nil || start < 0 {
-		return 0, -1, fmt.Errorf("bad start")
+		return 0, -1, -1, fmt.Errorf("bad start")
+	}
+	end, err = strconv.ParseInt(strings.TrimSpace(rangePart[dash+1:]), 10, 64)
+	if err != nil || end < start {
+		return 0, -1, -1, fmt.Errorf("bad end")
 	}
 	if totalPart == "*" {
-		return start, -1, nil
+		return start, end, -1, nil
 	}
 	total, err = strconv.ParseInt(totalPart, 10, 64)
 	if err != nil || total < 0 {
-		return 0, -1, fmt.Errorf("bad total")
+		return 0, -1, -1, fmt.Errorf("bad total")
 	}
-	return start, total, nil
+	if end >= total {
+		return 0, -1, -1, fmt.Errorf("range end exceeds total")
+	}
+	return start, end, total, nil
 }
 
 // DownloadInstanceBackupHandler streams the tar with Range support

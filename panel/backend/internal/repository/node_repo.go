@@ -869,11 +869,11 @@ func (r *NodeRepository) IngestHeartbeat(in IngestInput) (int64, error) {
 
 	// UPSERT into the current-minute bucket. Collisions in the same minute
 	// collapse to one row so a chatty edge doesn't bloat the table.
+	// Portable UPDATE-then-INSERT (mirrors settingsSet): the SQLite
+	// "ON CONFLICT ... DO UPDATE" form is a syntax error on MySQL, and
+	// "datetime('now')" below is SQLite-only too.
 	bucket := now.Truncate(time.Minute)
-	if _, err := r.db.Exec(
-		`INSERT INTO node_heartbeats (node_id, bucket_at, status) VALUES (?, ?, 'up')
-		 ON CONFLICT(node_id, bucket_at) DO UPDATE SET status = 'up'`,
-		id.Int64, bucket); err != nil {
+	if err := r.upsertHeartbeatBucket(id.Int64, bucket, "up"); err != nil {
 		return 0, err
 	}
 
@@ -914,10 +914,7 @@ func (r *NodeRepository) MarkStale(threshold time.Duration) (int, error) {
 
 	bucket := time.Now().UTC().Truncate(time.Minute)
 	for _, id := range ids {
-		_, _ = r.db.Exec(
-			`INSERT INTO node_heartbeats (node_id, bucket_at, status) VALUES (?, ?, 'down')
-			 ON CONFLICT(node_id, bucket_at) DO UPDATE SET status = 'down'`,
-			id, bucket)
+		_ = r.upsertHeartbeatBucket(id, bucket, "down")
 		// Keep uptime_pct honest after marking down.
 		if pct, err := r.computeUptimePct(id); err == nil {
 			_, _ = r.db.Exec(`UPDATE nodes SET uptime_pct = ? WHERE id = ?`, pct, id)
