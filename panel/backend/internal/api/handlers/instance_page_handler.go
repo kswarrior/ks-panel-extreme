@@ -1797,7 +1797,7 @@ func ExecuteModulePageActionHandler(w http.ResponseWriter, r *http.Request) {
 	enabledModules := getEnabledModules(spec)
 	moduleAllowed := false
 	for _, m := range enabledModules {
-		if m == req.ModuleID {
+		if m == moduleID {
 			moduleAllowed = true
 			break
 		}
@@ -1807,19 +1807,53 @@ func ExecuteModulePageActionHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Action allow-list: the payload must be byte-for-byte one of the calling
+	// module row's saved actions. Everything actually executed below comes
+	// from the STORED definition, never from the request body. Mirrors
+	// ExecuteCustomPageActionHandler.
+	var matched map[string]any
+	for _, def := range findSpecModuleActions(instance.Config, moduleID) {
+		if savedActionMatches(def, req.Type, req.Command, req.Path, req.Content, req.Args, req.Env) {
+			matched = def
+			break
+		}
+	}
+	if matched == nil {
+		http.Error(w, "action is not defined on this page", http.StatusForbidden)
+		return
+	}
+	execType, execCommand, execPath, execContent, execArgs, execEnv, defTimeout, ok := savedActionExecFields(matched)
+	if !ok {
+		http.Error(w, "saved action definition is invalid", http.StatusForbidden)
+		return
+	}
+	// Argument policy: expand open_args actions from the request (validated,
+	// quoted) or pin the payload to the stored definition.
+	execCommand, execArgs, aerr := resolveExecPayload(matched, execType, execCommand, execArgs, req.Args)
+	if aerr != nil {
+		http.Error(w, aerr.Error(), http.StatusForbidden)
+		return
+	}
+	// Requested timeout is operational, not executable — honour it when the
+	// caller supplied one, else the stored value; always clamped.
+	timeout := clampActionTimeout(req.Timeout)
+	if req.Timeout <= 0 {
+		timeout = clampActionTimeout(defTimeout)
+	}
+
 	// Use the tunnel-aware edge client (honours WSS + SkipTLSVerify).
-	ec := edge.NewWithTimeout(*node, token, time.Duration(reqTimeout+5)*time.Second)
+	ec := edge.NewWithTimeout(*node, token, time.Duration(timeout+5)*time.Second)
 	resp, err := ec.PageAction(edge.PageActionRequest{
 		Kind:     instance.Kind,
 		Name:     instance.Name,
 		ModuleID: req.ModuleID,
-		Type:     req.Type,
-		Command:  req.Command,
-		Path:     req.Path,
-		Content:  req.Content,
-		Args:     req.Args,
-		Env:      req.Env,
-		Timeout:  reqTimeout,
+		Type:     execType,
+		Command:  execCommand,
+		Path:     execPath,
+		Content:  execContent,
+		Args:     execArgs,
+		Env:      execEnv,
+		Timeout:  timeout,
 	})
 	if err != nil {
 		log.Printf("ExecuteModulePageActionHandler: edge page-module action request failed: %v", err)
@@ -1853,6 +1887,57 @@ func getEnabledModules(spec map[string]any) []string {
 		}
 	}
 	return enabled
+}
+
+// findSpecModuleActions resolves the SAVED actions of the calling module row
+// in the instance's deploy-time config snapshot: the spec.pages entry with
+// kind == "module" and a matching module_id that is not explicitly disabled.
+// Returns nil when the row is absent, disabled, or carries no decodable
+// actions — callers treat nil as "nothing allowed" (fail closed, so a forged
+// command is rejected 403). The actions dual-shape decoding (inline array or
+// JSON-encoded string) mirrors parseSpecRows so module rows and custom page
+// rows agree.
+func findSpecModuleActions(specJSON, moduleID string) []map[string]any {
+	specJSON = strings.TrimSpace(specJSON)
+	moduleID = strings.TrimSpace(moduleID)
+	if specJSON == "" || moduleID == "" {
+		return nil
+	}
+	var spec struct {
+		Pages []struct {
+			Kind     string          `json:"kind"`
+			ModuleID string          `json:"module_id"`
+			Enabled  *bool           `json:"enabled"`
+			Actions  json.RawMessage `json:"actions"`
+		} `json:"pages"`
+	}
+	if err := json.Unmarshal([]byte(specJSON), &spec); err != nil {
+		return nil
+	}
+	for _, p := range spec.Pages {
+		if p.Enabled != nil && !*p.Enabled {
+			continue
+		}
+		if p.Kind != "module" || strings.TrimSpace(p.ModuleID) != moduleID {
+			continue
+		}
+		araw := []byte(p.Actions)
+		if len(araw) > 0 && araw[0] == '"' {
+			var encoded string
+			if json.Unmarshal(araw, &encoded) == nil {
+				araw = []byte(encoded)
+			}
+		}
+		if len(araw) == 0 {
+			return nil
+		}
+		var defs []map[string]any
+		if json.Unmarshal(araw, &defs) != nil {
+			return nil
+		}
+		return defs
+	}
+	return nil
 }
 
 // getEnabledPages returns the list of enabled page slugs from the spec.
