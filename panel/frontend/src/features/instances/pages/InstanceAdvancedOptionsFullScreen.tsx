@@ -646,7 +646,7 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
                   <div className="ks-card ks-form-card rounded-md space-y-2">
                     <div>
                       <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-300 mb-1">Home page</h3>
-                      <p className="text-xs text-gray-500">Which page opens when the instance card is clicked (the instance index route). Enter its slug — the URL it is accessible at. Empty = inherit template default.</p>
+                      <p className="text-xs text-gray-500">Which page opens when the instance card is clicked (the instance index route). Enter its slug — the URL it is accessible at. Empty = default Home.</p>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <span className="text-gray-500 text-sm font-mono">/</span>

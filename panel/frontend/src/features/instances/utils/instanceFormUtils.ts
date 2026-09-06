@@ -3,7 +3,7 @@
 import type { EditorState, PortMapping, Mount, ResourceLimits, FeatureCaps, EnvVariable, InstallStep, TemplateAction, ActionStep, Label, Device, Healthcheck, Advanced, KvRuntime, MpRuntime, LxdRuntime, PageOverride } from '../types/instanceForm';
 import { parsePageActions, parsePageComponents, parsePageConfigure } from '@/features/instance-pages/types/instancePage';
 import { parseConfig } from '@/shared/hooks/useInstance';
-import { isControlsCustom, resolveInstanceControls } from '@/features/instances/utils/instanceControls';
+import { resolveInstanceControls } from '@/features/instances/utils/instanceControls';
 import { emptyEditor, emptyKvm, emptyMp, emptyLxd, kindKey, KIND_META, InstallAction, NetworkMode, RestartPolicy, LogLevel } from '../types/instanceForm';
 
 function stripUnit(v: string): string {
@@ -385,15 +385,17 @@ export function serializeEditor(f: EditorState): Record<string, unknown> {
       retries: f.healthcheck.retries,
       start_period: f.healthcheck.start_period_s ? `${f.healthcheck.start_period_s}s` : '',
     } : undefined,
-    // Built-in Instance controls allow-list. Persisted only when changed off
-    // the allow-all default, so untouched instances resolve to allow-all.
-    ...(isControlsCustom(f.instance_controls)
-      ? { instance_controls: { ...f.instance_controls } }
-      : {}),
-    // Landing page slug for the instance index route. Empty = default Home.
-    ...((f.home_page || '').trim().replace(/^\/+|\/+$/g, '')
-      ? { home_page: (f.home_page || '').trim().replace(/^\/+|\/+$/g, '') }
-      : {}),
+    // Built-in Instance controls allow-list. Always emitted (unlike the
+    // template editor which omits when default) so per-instance overrides
+    // and edits can explicitly reset to allow-all: omitting would inherit
+    // the template's block on deploy / keep the old block on edit instead
+    // of clearing. buildOverrides diffs against the baseline so untouched
+    // instances still send no override.
+    instance_controls: { ...f.instance_controls },
+    // Landing page slug for the instance index route. Always emitted so
+    // clearing to "" explicitly restores default Home instead of inheriting
+    // / keeping the old slug via the additive backend merge.
+    home_page: (f.home_page || '').trim().replace(/^\/+|\/+$/g, ''),
     advanced: {
       startup_command: f.advanced.startup_command, stop_command: f.advanced.stop_command,
       stop_signal: f.advanced.stop_signal, working_dir: f.advanced.working_dir,
