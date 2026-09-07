@@ -85,6 +85,11 @@ interface BrandBootstrap {
   logo_url?: string;
   logo_mime?: string;
   footer_text?: string;
+  // Browser-tab brand (Settings > Browser Tab): raw override ("" = fall back
+  // to panel_name) + favicon reference for the tab icon.
+  browser_tab_title?: string;
+  favicon_url?: string;
+  favicon_mime?: string;
   panel_name_color?: string;
   panel_name_font?: string;
   panel_name_weight?: string;
@@ -119,6 +124,8 @@ function readBootstrap(): {
   panelName: string;
   panelLogo: PanelLogo | null;
   footerText: string;
+  browserTabTitle: string;
+  favicon: PanelLogo | null;
   nameStyle: PanelNameStyle;
   logoStyle: PanelLogoStyle;
 } {
@@ -128,6 +135,8 @@ function readBootstrap(): {
       panelName: 'KS Panel',
       panelLogo: null,
       footerText: 'KS Warrior',
+      browserTabTitle: '',
+      favicon: null,
       nameStyle: { ...DEFAULT_PANEL_NAME_STYLE },
       logoStyle: { ...DEFAULT_PANEL_LOGO_STYLE },
     };
@@ -139,6 +148,13 @@ function readBootstrap(): {
       ? { url: boot.logo_url, mime: boot.logo_mime }
       : null;
   const footerText = (boot.footer_text && boot.footer_text.trim()) || 'KS Warrior';
+  const browserTabTitle = (boot.browser_tab_title && boot.browser_tab_title.trim()) || '';
+  const favicon =
+    boot.favicon_url && boot.favicon_mime
+      ? { url: boot.favicon_url, mime: boot.favicon_mime }
+      : boot.favicon_url
+        ? { url: boot.favicon_url, mime: '' }
+        : null;
   return {
     panelName,
     panelLogo,
