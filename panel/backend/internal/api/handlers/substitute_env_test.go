@@ -157,3 +157,49 @@ func TestValidateTemplateSpecScopes(t *testing.T) {
 		}
 	}
 }
+
+func TestParseDotEnv(t *testing.T) {
+	got, err := parseDotEnv("# comment\n\nexport APP_ENV=production\nDB_URL=postgres://db:5432/app\nQUOTED=\"a b\"\nSINGLE='x y'\nEMPTY=\nTRAILING=value # stripped\n")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := map[string]string{
+		"APP_ENV": "production", "DB_URL": "postgres://db:5432/app",
+		"QUOTED": "a b", "SINGLE": "x y", "EMPTY": "", "TRAILING": "value",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v want %v", got, want)
+	}
+	for _, bad := range []string{"NOEQUALS\n", "1BAD=x\n", "BAD NAME=x\n"} {
+		if _, err := parseDotEnv(bad); err == nil {
+			t.Errorf("expected error for %q", bad)
+		}
+	}
+}
+
+func TestResolveEnvWithFile(t *testing.T) {
+	finalEnv := map[string]string{"TAG": "v2", "APP_ENV": "explicit-wins"}
+	merged, err := resolveEnvWithFile("TAG={{TAG}}\nFROM_FILE=yes\nAPP_ENV=file-loses\n", finalEnv)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := map[string]string{"TAG": "v2", "APP_ENV": "explicit-wins", "FROM_FILE": "yes"}
+	if !reflect.DeepEqual(merged, want) {
+		t.Fatalf("got %v want %v", merged, want)
+	}
+	if _, err := resolveEnvWithFile("BROKEN LINE\n", finalEnv); err == nil {
+		t.Fatalf("expected error for malformed file")
+	}
+}
+
+func TestValidateTemplateSpecEnvFile(t *testing.T) {
+	if err := validateTemplateSpec(map[string]any{"env_file": "A=1\nB={{TAG}}\n"}); err != nil {
+		t.Fatalf("valid env_file rejected: %v", err)
+	}
+	if err := validateTemplateSpec(map[string]any{"env_file": "NOEQUALS\n"}); err == nil {
+		t.Fatalf("malformed env_file accepted")
+	}
+	if err := validateTemplateSpec(map[string]any{"env_file": 42}); err == nil {
+		t.Fatalf("non-string env_file accepted")
+	}
+}

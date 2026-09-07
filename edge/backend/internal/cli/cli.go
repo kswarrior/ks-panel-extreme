@@ -259,16 +259,22 @@ func runHealthServer(cfg config.Config, ctx context.Context, sftpPort int) error
 	// guarantees no path can address anything outside the root.
 	mux.Handle("/api/edge/hostfiles", files.HostFilesHandler(cfg.Token, cfg.InstancesDirOr("")))
 	mux.Handle("/api/edge/inspect", inspect.Handler(cfg.Token))
-	// The install handler is itself a *ServeMux registering BOTH
-	// /api/edge/install (POST start / GET poll) AND /api/edge/install/stop
-	// (POST cancel + stop_command). To make the /stop sub-path actually
-	// reachable through the ROOT mux without a trailing-slash redirect
-	// (which would convert the POST into a stripped GET and silently drop
-	// the request body the panel sent) we mount the SAME handler at both
-	// literal paths.
+	// The install handler is itself a *ServeMux registering /api/edge/install
+	// (POST start / GET poll), /api/edge/install/stop (POST cancel +
+	// stop_command) AND /api/edge/install/stdin (POST one console line to
+	// the running workflow — the terminal pane → action/install console
+	// path). To make the sub-paths actually reachable through the ROOT
+	// mux without a trailing-slash redirect (which would convert the POST
+	// into a stripped GET and silently drop the request body the panel
+	// sent) we mount the SAME handler at every literal path. Missing the
+	// /stdin mount 404'd ALL console input relay (every tps/op/stop line).
 	installHandler := install.Handler(cfg.Token)
 	mux.Handle("/api/edge/install", installHandler)
 	mux.Handle("/api/edge/install/stop", installHandler)
+	mux.Handle("/api/edge/install/stdin", installHandler)
+	// Startup-console attach bridge (panel → browser WS onto the
+	// instance's main-process stdio). Same shared-token gate as exec.
+	mux.Handle("/api/edge/attach", attach.Handler(cfg.Token))
 	mux.Handle("/api/edge/page-action", pageaction.Handler(cfg.Token))
 	mux.Handle("/api/edge/snapshot", snapshot.Handler(cfg.Token))
 	mux.Handle("/api/edge/ports/update", ports.Handler(cfg.Token))
