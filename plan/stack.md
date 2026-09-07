@@ -112,10 +112,12 @@ SSRF (public-IP/DNS-pinned/15s/64MiB), traversal guards everywhere, sidecar loop
 
 ## 10. Build order (complete stack)
 
-0. Phase-0 base: migration + `models/stack.go` + `repository/stack_repo.go` + `keys.go` + `stackstore.go` + `stack_handler.go` CRUD/grants/activate + types/api/list-detail. `retest.sh` green, runtime placeholder.
-1. Phase-1 static + Files + Data-KV: proxy `ui/*` + `StackView iframe + SDK theme/fetch/kv` + nav/sidebar + `stack_files.go + StackFilesTab` + `stack_kv` + 1 sample. Goal: install `server-dashboard`, edit `dist/index.html` live, KV works.
-2. Phase-2 sidecar + power: supervisor nodejs/python + `api/*` proxy (+WS) + health/restart/metrics + logs ring + env editor + sqlite per-stack + backup/wipe + snapshots/zip + 2 more samples. Goal: `tracker-tool` CRUD works end-to-end from Files tab.
-3. Phase-3 complete: Studio scaffold + Stats/Schedules + marketplace round-trip (repack download) + `aiskills/stacks.md` + cron lite. Goal: build-export-import a complete stack without CLI.
+0. Phase-0 base: SHIPPED. Migration `071` x3 + `models/stack.go` + `repository/stack_repo.go` + `keys.go` (`MANAGE_STACKS/STACKS_*`, group appended last) + `stackstore.go` + `stack_handler.go` (CRUD/grants/activate/download/nav/engine) + `stack_serve.go` (`ui/*`, `pages`, SDK) + `types/stack.ts` + `api/stacks.ts` + `Stacks/StackDetail/StackView` + router/sidebar/Header/permissions/RolePermissions icon + SeedCore seeds + security_headers. E2E green on sqlite (retest.sh :18081).
+1. Phase-1 static + Files + Data-KV: `stack_files.go + StackFilesTab` explorer/editor + `stack_kv` + `stack_env` + 1 sample. `ui/*`, `StackView iframe + SDK theme`, nav/sidebar already live from Phase-0.
+2. Phase-2 sidecar + power: supervisor nodejs/python + `api/*` proxy (+WS) + health/restart/metrics + logs ring + sqlite isolated/shared + backup/wipe + snapshots/zip + 2 more samples. SDK fetch/kv/nav bridge answers structured unavailable until then.
+3. Phase-3 complete: Studio scaffold + Stats/Schedules + `aiskills/stacks.md` (+ `TestAIDocsCoverage` topic + handler index update) + cron lite. Docs skill deliberately deferred (AI-chat topic list is test-locked).
+
+Decisions locked (defaults): runtimes `static+nodejs+python`, data `KV + sqlite isolated/shared`, limits `20 sidecars, 18000-18100`.
 
 ## 11. Verify (loop.md CHECKLIST V)
 
