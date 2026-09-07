@@ -70,7 +70,7 @@ Panels + latest checked: `KS` (this repo) vs `Pterodactyl v1.15.1 (12 Aug 2026, 
 
 ## 7. Verdict vs (honest)
 
-- KS vs all on breadth: wins tab count, drivers, actions/terminal, pages, health/labels, URL import, detail/governance. Paid for with complexity (startup split, CSV states, string numbers, permissive defaults, dead `timeRange`, snapshot drift, 5-template library).
+- KS vs all on breadth: wins tab count, drivers, actions/terminal, pages, health/labels, URL import, detail/governance, bulk `.env` file. Paid for with complexity (startup split, CSV states, string numbers, permissive defaults, dead `timeRange`, snapshot drift, 5-template library).
 - Ptero vs KS: wins simplicity (one startup, one bash script), `Nests`, multi-image, config parsers, allocations model, ecosystem (~100+, Eggify updates), stable v1.15.x in 2026. Loses everything template-composable.
 - Pelican vs KS: same wins as Ptero + modern skin, configurable egg index, icon handling, S3 backup hosts; loses on stability (still beta37, not 1.0).
 - Puffer vs KS: wins honesty of scope (host+docker, `unshare`, conditions, multi-commands, RCON/TELNET, CurseForge, tester, on-demand templates); loses builder/detail/pages/governance depth.
@@ -97,21 +97,22 @@ Panels + latest checked: `KS` (this repo) vs `Pterodactyl v1.15.1 (12 Aug 2026, 
 | 16 | Config parsers | 20 | 85 | 85 | 30 |
 | 17 | Library size | 25 | 100 | 88 | 65 |
 | 18 | Governance | 78 | 70 | 72 | 55 |
+| 19 | Bulk `.env` file | 90 | 20 | 20 | 35 |
 
 ### Total
 
 | Rank | Panel | Sum | Final `/100` |
 |------|-------|-----|--------------|
-| **1** | **KS** | **1,322 / 1,800** | **73** |
-| 2 | Pelican | 1,258 / 1,800 | 70 |
-| 3 | Pterodactyl | 1,238 / 1,800 | 69 |
-| 4 | PufferPanel | 947 / 1,800 | 53 |
+| **1** | **KS** | **1,412 / 1,900** | **74** |
+| 2 | Pelican | 1,278 / 1,900 | 67 |
+| 3 | Pterodactyl | 1,258 / 1,900 | 66 |
+| 4 | PufferPanel | 982 / 1,900 | 52 |
 
-Narrow lead, not a blowout: KS leads cases 1–7, 10–13, 18; trails badly on 8–9, 14–17. Close the gap with Nest-like grouping, multi-image, config parsers, page/action update detection, and a raw-JSON + tester path; competitors cannot match pages/actions/binding without a format break.
+Narrow lead, not a blowout: KS leads cases 1–7, 10–13, 18–19; trails badly on 8–9, 14–17. Close the gap with Nest-like grouping, multi-image, config parsers, page/action update detection, and a raw-JSON + tester path; competitors cannot match pages/actions/binding without a format break.
 
 ## 9. Sources
 
-- KS: `pages/{Templates,TemplateDetail,TemplateForm,TemplateStats}.tsx`, `components/TemplateForm/*.tsx`, `types/templateForm.ts`, `utils/templateFormUtils.ts`, `models/instance.go:7`, `cli/templates_builtin.go`, `api/server.go:/api/templates`, `repository/template_repo.go`
+- KS: `pages/{Templates,TemplateDetail,TemplateForm,TemplateStats}.tsx`, `components/TemplateForm/*.tsx`, `types/templateForm.ts`, `utils/templateFormUtils.ts`, `models/instance.go:7`, `cli/templates_builtin.go`, `api/server.go:/api/templates`, `repository/template_repo.go`, `handlers/dotenv.go`
 - Ptero: panel `v1.15.1` (Aug 2026), `eggs.pterodactyl.io` (Jul 2026 updates), Eggify v9.7
 - Pelican: panel `v1.0.0-beta37` (Aug 2026), `pelican-eggs` org, egg update/normalize/index features
 - Puffer: docs `v3.0.9`, `templates` repo `v3`, conditions/multi-commands/RCON/CurseForge/tester
