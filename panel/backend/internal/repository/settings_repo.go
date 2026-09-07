@@ -87,6 +87,17 @@ const (
 	FaviconFilenameKey = "favicon_filename"
 )
 
+// PanelRootURLKey stores the SPA base path segment (Settings > General >
+// Root URL). Empty (default) serves the panel at the origin root (/mods,
+// /instances, …); e.g. "panel" serves it at /panel/mods, /panel/instances,
+// … — the frontend Router basename + backend UI fallback both read it.
+// Stored as a plain KV row so no schema migration is needed.
+const PanelRootURLKey = "panel_root_url"
+
+// MaxPanelRootURLLen caps the segment so a hostile/pasted value can't bloat
+// the bootstrapped index.html or the route table.
+const MaxPanelRootURLLen = 32
+
 // MaxBrowserTabTitleLen caps the tab title so a hostile/pasted value can't
 // bloat the bootstrapped index.html or the document.title.
 const MaxBrowserTabTitleLen = 120
@@ -320,6 +331,62 @@ func (r *SettingsRepository) ClearBrowserTabTitle() error {
 	return err
 }
 
+// NormalizePanelRootURL canonicalises a raw root-URL value: lowercase,
+// trimmed of whitespace and slashes. "" stays "" (origin root).
+func NormalizePanelRootURL(v string) string {
+	return strings.ToLower(strings.Trim(strings.TrimSpace(v), "/"))
+}
+
+// ValidatePanelRootURL rejects values that would break routing or collide
+// with panel-owned origin-root paths. Empty (origin root) is always valid.
+func ValidatePanelRootURL(v string) error {
+	norm := NormalizePanelRootURL(v)
+	if norm == "" {
+		return nil
+	}
+	if len([]rune(norm)) > MaxPanelRootURLLen {
+		return fmt.Errorf("root URL too long (max %d characters)", MaxPanelRootURLLen)
+	}
+	for _, c := range norm {
+		if !(c >= 'a' && c <= 'z') && !(c >= '0' && c <= '9') && c != '-' {
+			return fmt.Errorf("root URL must be lowercase letters, digits and hyphens only")
+		}
+	}
+	if norm[0] == '-' {
+		return fmt.Errorf("root URL must start with a letter or digit")
+	}
+	for _, reserved := range []string{"api", "health", "favicon.ico", "assets"} {
+		if norm == reserved {
+			return fmt.Errorf("root URL %q is reserved by the panel", norm)
+		}
+	}
+	return nil
+}
+
+// GetPanelRootURL returns the normalized panel base segment ("" = origin
+// root). Fail closed on a corrupt row: invalid stored values read as "".
+func (r *SettingsRepository) GetPanelRootURL() string {
+	v := NormalizePanelRootURL(r.getString(PanelRootURLKey, ""))
+	if ValidatePanelRootURL(v) != nil {
+		return ""
+	}
+	return v
+}
+
+// SetPanelRootURL persists the panel base segment. Empty clears it back to
+// the origin root (row deleted so Get falls through to "").
+func (r *SettingsRepository) SetPanelRootURL(v string) error {
+	norm := NormalizePanelRootURL(v)
+	if err := ValidatePanelRootURL(norm); err != nil {
+		return err
+	}
+	if norm == "" {
+		_, err := r.db.Exec(`DELETE FROM settings WHERE key = ?`, PanelRootURLKey)
+		return err
+	}
+	return r.setString(PanelRootURLKey, norm)
+}
+
 // EffectiveTabTitle resolves what the browser tab should actually show:
 // the override when set, otherwise the panel name.
 func EffectiveTabTitle(panelName, tabTitle string) string {
@@ -481,6 +548,11 @@ type SettingsSnapshot struct {
 	// migration needed.
 	BrowserTabTitle string `json:"browser_tab_title"`
 	Favicon         *Logo  `json:"favicon,omitempty"`
+
+	// Panel root URL (Settings > General > Root URL). "" (default) serves
+	// the SPA at the origin root; otherwise the single path segment the
+	// panel lives under (e.g. "panel" → /panel/mods). KV-backed.
+	PanelRootURL string `json:"panel_root_url"`
 }
 
 // Logo is the public, JSON-friendly view of the configured panel logo. The
@@ -576,6 +648,9 @@ func (r *SettingsRepository) Get() (*SettingsSnapshot, error) {
 	snap.PanelLogoRing = normalizeToggle(r.getString(PanelLogoRingKey, DefaultPanelLogoRing))
 	// Browser-tab brand: raw override ("" = fallback) + favicon reference.
 	snap.BrowserTabTitle = strings.TrimSpace(r.getString(BrowserTabTitleKey, ""))
+	// Panel root URL: normalized segment ("" = origin root). Defensive
+	// normalize so a hand-edited row can never break routing.
+	snap.PanelRootURL = NormalizePanelRootURL(r.getString(PanelRootURLKey, ""))
 	if fav, ok, ferr := r.GetFavicon(); ferr == nil && ok {
 		furl := ""
 		if logoURLBuilder != nil {

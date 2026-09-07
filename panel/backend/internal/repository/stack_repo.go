@@ -65,7 +65,7 @@ func (r *StackRepository) SetStacksEnabled(enabled bool) error {
 	return err
 }
 
-const stackColumns = "id, name, slug, category, version, description, icon, color, runtime, entrypoint, manifest, spec, frontend_theme_mode, page_style, active, uploaded_by, COALESCE(owner_id, 0), source, source_url, package_size, created_at, updated_at"
+const stackColumns = "id, name, slug, category, version, description, icon, color, runtime, entrypoint, manifest, spec, frontend_theme_mode, page_style, active, uploaded_by, COALESCE(owner_id, 0), source, source_url, package_size, proxy_port, COALESCE(proxy_root_url, ''), created_at, updated_at"
 
 func scanStack(scanner interface{ Scan(...any) error }) (*models.Stack, error) {
 	var s models.Stack
@@ -76,7 +76,8 @@ func scanStack(scanner interface{ Scan(...any) error }) (*models.Stack, error) {
 	var created, updated string
 	var source, sourceURL string
 	var packageSize int64
-	if err := scanner.Scan(&s.ID, &s.Name, &s.Slug, &s.Category, &s.Version, &s.Description, &s.Icon, &s.Color, &s.Runtime, &s.Entrypoint, &manifest, &spec, &s.ThemeMode, &s.PageStyle, &active, &uploadedBy, &ownerID, &source, &sourceURL, &packageSize, &created, &updated); err != nil {
+	var proxyRootURL sql.NullString
+	if err := scanner.Scan(&s.ID, &s.Name, &s.Slug, &s.Category, &s.Version, &s.Description, &s.Icon, &s.Color, &s.Runtime, &s.Entrypoint, &manifest, &spec, &s.ThemeMode, &s.PageStyle, &active, &uploadedBy, &ownerID, &source, &sourceURL, &packageSize, &s.ProxyPort, &proxyRootURL, &created, &updated); err != nil {
 		return nil, err
 	}
 	s.Manifest = json.RawMessage(manifest)
@@ -99,6 +100,17 @@ func scanStack(scanner interface{ Scan(...any) error }) (*models.Stack, error) {
 	s.Source = source
 	s.SourceURL = sourceURL
 	s.PackageSize = packageSize
+	// Proxy mount (migration 072): clamp defensively so a hand-edited row
+	// can never route the panel at a bad port or path.
+	if !models.ValidStackProxyPort(s.ProxyPort) {
+		s.ProxyPort = 0
+	}
+	if proxyRootURL.Valid {
+		s.ProxyRootURL = proxyRootURL.String
+	}
+	if !models.ValidStackProxyRoot(s.ProxyRootURL) || models.IsReservedStackProxyRoot(s.ProxyRootURL) {
+		s.ProxyRootURL = ""
+	}
 	if uploadedBy.Valid {
 		v := uploadedBy.Int64
 		s.UploadedBy = &v
@@ -352,18 +364,42 @@ func (r *StackRepository) CreateStack(in CreateStackInput) (*models.Stack, error
 // UpdateStackInput is the editable overlay: human-facing fields + spec only.
 // Requested caps are NOT mutable (re-declaring caps is a re-upload).
 type UpdateStackInput struct {
-	Name        string
-	Category    string
-	Version     string
-	Description string
-	Icon        string
-	Color       string
-	Spec        json.RawMessage
+	Name         string
+	Category     string
+	Version      string
+	Description  string
+	Icon         string
+	Color        string
+	Spec         json.RawMessage
+	ProxyPort    int
+	ProxyRootURL string
 }
 
 func (r *StackRepository) UpdateStack(id int64, in UpdateStackInput) (*models.Stack, error) {
 	if id == 0 {
 		return nil, fmt.Errorf("stack id is required")
+	}
+	if !models.ValidStackProxyPort(in.ProxyPort) {
+		return nil, fmt.Errorf("invalid proxy port %d (want 0 or 1-65535)", in.ProxyPort)
+	}
+	if !models.ValidStackProxyRoot(in.ProxyRootURL) {
+		return nil, fmt.Errorf("invalid proxy root URL %q (want empty or lowercase letters, digits and hyphens, max 32)", in.ProxyRootURL)
+	}
+	if models.IsReservedStackProxyRoot(in.ProxyRootURL) {
+		return nil, fmt.Errorf("proxy root URL %q is reserved by the panel", in.ProxyRootURL)
+	}
+	if in.ProxyRootURL != "" && in.ProxyPort == 0 {
+		return nil, fmt.Errorf("proxy root URL requires a proxy port (1-65535)")
+	}
+	if in.ProxyPort != 0 && in.ProxyRootURL == "" {
+		return nil, fmt.Errorf("proxy port requires a proxy root URL")
+	}
+	taken, err := r.ProxyRootTaken(in.ProxyRootURL, id)
+	if err != nil {
+		return nil, err
+	}
+	if taken {
+		return nil, fmt.Errorf("proxy root URL %q is already used by another stack", in.ProxyRootURL)
 	}
 	spec := string(in.Spec)
 	if spec == "" {
@@ -371,8 +407,8 @@ func (r *StackRepository) UpdateStack(id int64, in UpdateStackInput) (*models.St
 	}
 	now := time.Now().UTC().Format("2006-01-02 15:04:05")
 	res, err := r.db.Exec(
-		`UPDATE stacks SET name = ?, category = ?, version = ?, description = ?, icon = ?, color = ?, spec = ?, updated_at = ? WHERE id = ?`,
-		in.Name, in.Category, in.Version, in.Description, in.Icon, in.Color, spec, now, id,
+		`UPDATE stacks SET name = ?, category = ?, version = ?, description = ?, icon = ?, color = ?, spec = ?, proxy_port = ?, proxy_root_url = ?, updated_at = ? WHERE id = ?`,
+		in.Name, in.Category, in.Version, in.Description, in.Icon, in.Color, spec, in.ProxyPort, in.ProxyRootURL, now, id,
 	)
 	if err != nil {
 		return nil, err
@@ -381,6 +417,41 @@ func (r *StackRepository) UpdateStack(id int64, in UpdateStackInput) (*models.St
 		return nil, ErrStackNotFound
 	}
 	return r.GetStack(id)
+}
+
+// ProxyRootTaken reports whether a non-empty proxy root URL is already
+// claimed by another stack (excludeID skips the row being edited; 0 skips
+// nothing). Empty roots are never "taken" — every unconfigured stack
+// shares "".
+func (r *StackRepository) ProxyRootTaken(root string, excludeID int64) (bool, error) {
+	if root == "" {
+		return false, nil
+	}
+	var n int
+	if err := r.db.QueryRow(
+		`SELECT COUNT(*) FROM stacks WHERE proxy_root_url = ? AND id != ?`, root, excludeID,
+	).Scan(&n); err != nil {
+		return false, err
+	}
+	return n > 0, nil
+}
+
+// GetActiveStackByProxyRoot returns the active, proxy-configured stack
+// mounted at root ("" never matches), or ErrStackNotFound. The panel's
+// reverse proxy resolves mounts through this single query.
+func (r *StackRepository) GetActiveStackByProxyRoot(root string) (*models.Stack, error) {
+	if root == "" {
+		return nil, ErrStackNotFound
+	}
+	row := r.db.QueryRow(`SELECT `+stackColumns+` FROM stacks WHERE proxy_root_url = ? AND active = 1 AND proxy_port > 0`, root)
+	s, err := scanStack(row)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrStackNotFound
+		}
+		return nil, err
+	}
+	return s, nil
 }
 
 // ListStacks returns every stack with the uploader's username.
