@@ -28,9 +28,7 @@ func TestValidatePanelRootURL(t *testing.T) {
 		{"", true},
 		{"panel", true},
 		{"my-panel2", true},
-		// UPPER normalizes to "upper" (Normalize lowercases) so it validates
-		// like the Settings handler's Normalize-then-Validate path.
-		{"UPPER", true},
+		{"UPPER", false},
 		{"has space", false},
 		{"api", false},
 		{"health", false},
