@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useConfirm } from '@/shared/stores/confirmStore';
 import { downloadFile, readFileText, statPath, writeFile } from '../api/instanceFiles';
@@ -302,6 +302,21 @@ const InstanceFileEditor: React.FC<{ instanceId: number; filesSlug: string }> = 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [tooLarge, setTooLarge] = useState(false);
+  const taRef = useRef<HTMLTextAreaElement>(null);
+  const preRef = useRef<HTMLPreElement>(null);
+  const gutterRef = useRef<HTMLDivElement>(null);
+
+  // The textarea is the scroll container (native caret tracking, IME and
+  // touch scrolling for free); the highlighted layer and the gutter follow
+  // it via transform/scrollTop so all three stay pixel-aligned.
+  const onCodeScroll = useCallback(() => {
+    const ta = taRef.current;
+    if (!ta) return;
+    if (preRef.current) {
+      preRef.current.style.transform = `translate(${-ta.scrollLeft}px,${-ta.scrollTop}px)`;
+    }
+    if (gutterRef.current) gutterRef.current.scrollTop = ta.scrollTop;
+  }, []);
 
   const dirty = text !== savedText;
   const backTo = `/instances/${instanceId}/${filesSlug}`;
@@ -394,8 +409,7 @@ const InstanceFileEditor: React.FC<{ instanceId: number; filesSlug: string }> = 
     void load();
   }, [dirty, confirm, load]);
 
-  const onTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+  const onTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
       e.preventDefault();
       void save();
       return;
@@ -481,58 +495,73 @@ const InstanceFileEditor: React.FC<{ instanceId: number; filesSlug: string }> = 
           </button>
         </div>
       ) : (
-        // Single card: gutter + code share one scroll container; the
-        // transparent textarea overlays the highlighted layer so editing,
-        // caret, IME and mobile keyboards stay fully native.
+        // Single card: gutter + code share one fixed-height row; the
+        // textarea itself scrolls (native caret tracking) while the
+        // highlighted layer and gutter follow it. The transparent textarea
+        // overlays the highlight so editing, caret, IME and mobile
+        // keyboards stay fully native.
         <div className="ks-card !p-0 overflow-hidden">
-          <div className="overflow-auto" style={{ minHeight: 320, maxHeight: '62vh' }}>
-            <div className="flex items-stretch min-h-full" style={{ minHeight: 320 }}>
-              <div
+          <div className="flex items-stretch" style={{ height: 'clamp(320px, 62vh, 900px)' }}>
+            <div
+              ref={gutterRef}
+              aria-hidden="true"
+              onWheel={(e) => {
+                const ta = taRef.current;
+                if (ta) ta.scrollTop += e.deltaY;
+              }}
+              className="shrink-0 select-none text-right overflow-hidden"
+              style={{
+                ...codeTextStyle,
+                padding: '12px 8px 12px 12px',
+                color: 'var(--ks-muted)',
+                background: 'rgba(0,0,0,0.25)',
+              }}
+            >
+              {lineNumbers.map((n) => (
+                <div key={n}>{n}</div>
+              ))}
+            </div>
+            <div className="relative flex-1 min-w-0 h-full">
+              <pre
+                ref={preRef}
                 aria-hidden="true"
-                className="shrink-0 select-none text-right"
                 style={{
                   ...codeTextStyle,
-                  position: 'sticky',
+                  position: 'absolute',
+                  top: 0,
                   left: 0,
-                  zIndex: 1,
-                  padding: '12px 8px 12px 12px',
-                  color: 'var(--ks-muted)',
-                  background: 'rgba(0,0,0,0.25)',
+                  minWidth: '100%',
+                  width: 'max-content',
+                  minHeight: '100%',
+                  padding: '12px 12px 12px 4px',
+                  color: 'var(--ks-body)',
+                  pointerEvents: 'none',
                 }}
-              >
-                {lineNumbers.map((n) => (
-                  <div key={n}>{n}</div>
-                ))}
-              </div>
-              <div className="relative flex-1 min-w-0">
-                <pre
-                  aria-hidden="true"
-                  style={{ ...codeTextStyle, padding: '12px 12px 12px 4px', color: 'var(--ks-body)' }}
-                  dangerouslySetInnerHTML={{ __html: codeHtml }}
-                />
-                <textarea
-                  value={text}
-                  spellCheck={false}
-                  autoCapitalize="off"
-                  autoCorrect="off"
-                  wrap="off"
-                  onChange={(e) => setText(e.target.value)}
-                  onKeyDown={onTextareaKeyDown}
-                  aria-label="File contents"
-                  className="absolute inset-0 w-full h-full"
-                  style={{
-                    ...codeTextStyle,
-                    padding: '12px 12px 12px 4px',
-                    background: 'transparent',
-                    color: 'transparent',
-                    caretColor: 'var(--ks-heading)',
-                    outline: 'none',
-                    border: 0,
-                    resize: 'none',
-                    overflow: 'hidden',
-                  }}
-                />
-              </div>
+                dangerouslySetInnerHTML={{ __html: codeHtml }}
+              />
+              <textarea
+                ref={taRef}
+                value={text}
+                spellCheck={false}
+                autoCapitalize="off"
+                autoCorrect="off"
+                wrap="off"
+                onChange={(e) => setText(e.target.value)}
+                onKeyDown={onTextareaKeyDown}
+                onScroll={onCodeScroll}
+                aria-label="File contents"
+                className="absolute inset-0 w-full h-full overflow-auto"
+                style={{
+                  ...codeTextStyle,
+                  padding: '12px 12px 12px 4px',
+                  background: 'transparent',
+                  color: 'transparent',
+                  caretColor: 'var(--ks-heading)',
+                  outline: 'none',
+                  border: 0,
+                  resize: 'none',
+                }}
+              />
             </div>
           </div>
         </div>
