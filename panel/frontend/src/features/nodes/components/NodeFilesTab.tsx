@@ -222,9 +222,19 @@ const NodeFilesTab: React.FC<NodeFilesTabProps> = ({ nodeId }) => {
   const [deleteErr, setDeleteErr] = useState('');
   const [deleteBusy, setDeleteBusy] = useState(false);
 
+  // Bulk selection: left-side checkboxes for multi download / delete.
+  // Selection is per-folder — navigating or reloading clears it.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const selectAllRef = useRef<HTMLInputElement>(null);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkErr, setBulkErr] = useState('');
+  const [bulkProgress, setBulkProgress] = useState('');
+
   const load = useCallback(async (p: string) => {
     setLoading(true);
     setError('');
+    setSelected(new Set());
     try {
       const res = await listNodeFiles(nodeId, p);
       setEntries(Array.isArray(res.entries) ? res.entries : []);
@@ -242,6 +252,7 @@ const NodeFilesTab: React.FC<NodeFilesTabProps> = ({ nodeId }) => {
     let cancelled = false;
     setLoading(true);
     setError('');
+    setSelected(new Set());
     listNodeFiles(nodeId, '/')
       .then((res) => {
         if (cancelled) return;
@@ -296,6 +307,14 @@ const NodeFilesTab: React.FC<NodeFilesTabProps> = ({ nodeId }) => {
       document.removeEventListener('keydown', onKeyDown);
     };
   }, [menuFor]);
+
+  // The select-all checkbox shows the indeterminate dash for partial
+  // selections (native property, set imperatively).
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = selected.size > 0 && selected.size < entries.length;
+    }
+  }, [selected, entries]);
 
   const segments = relPath.split('/').filter(Boolean);
   const goTo = (p: string) => {
@@ -485,6 +504,80 @@ const NodeFilesTab: React.FC<NodeFilesTabProps> = ({ nodeId }) => {
       setDeleteErr(getErrorMessage(e, 'Delete failed'));
     } finally {
       setDeleteBusy(false);
+    }
+  };
+
+  // Bulk selection helpers. Keys are entry names (selection is cleared on
+  // every navigation/reload, so names are unambiguous within one folder).
+  const toggleOne = (name: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    setSelected((prev) => {
+      if (prev.size === entries.length && entries.length > 0) return new Set();
+      return new Set(entries.map((e) => e.name));
+    });
+  };
+
+  const selectedEntries = entries.filter((e) => selected.has(e.name));
+  const selectedFiles = selectedEntries.filter((e) => !e.is_dir);
+  const selectedFolders = selectedEntries.filter((e) => e.is_dir);
+
+  // Bulk download: folders cannot be downloaded, so only the selected
+  // files are fetched — one anchor click each, staggered so the browser
+  // treats them as one user gesture chain instead of popup spam.
+  const downloadSelected = () => {
+    selectedFiles.forEach((e, i) => {
+      setTimeout(() => {
+        const a = document.createElement('a');
+        a.href = nodeFileDownloadUrl(nodeId, childPath(relPath, e.name));
+        a.download = e.name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }, i * 500);
+    });
+  };
+
+  const openBulkDelete = () => {
+    setBulkErr('');
+    setBulkProgress('');
+    setBulkDeleteOpen(true);
+  };
+
+  const doBulkDelete = async () => {
+    const targets = entries.filter((e) => selected.has(e.name));
+    if (targets.length === 0) {
+      setBulkDeleteOpen(false);
+      return;
+    }
+    setBulkBusy(true);
+    setBulkErr('');
+    let firstErr = '';
+    let done = 0;
+    for (const e of targets) {
+      setBulkProgress(`Deleting ${done + 1} of ${targets.length} — ${e.name}`);
+      try {
+        await deleteNodeFile(nodeId, childPath(relPath, e.name));
+        done++;
+      } catch (err: any) {
+        if (!firstErr) firstErr = `${e.name}: ${getErrorMessage(err, 'Delete failed')}`;
+      }
+    }
+    setBulkProgress('');
+    setBulkBusy(false);
+    setBulkDeleteOpen(false);
+    await load(relPath);
+    // load() resets the banner first, so a partial failure is re-surfaced
+    // after the refresh.
+    if (firstErr) {
+      setError(targets.length === done ? firstErr : `${done} of ${targets.length} deleted. First error — ${firstErr}`);
     }
   };
 
