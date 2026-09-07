@@ -107,6 +107,12 @@ const NoPagesState: React.FC<{ slug: string }> = ({ slug }) => (
   </div>
 );
 
+// hasRenderableContent reports whether a page payload carries anything
+// CustomPageView can render.
+function hasRenderableContent(c: PageContent | null): boolean {
+  return !!c && (!!c.html || !!c.markdown || !!c.blocks);
+}
+
 // specRowState reports whether spec.pages contains a row for `slug`
 // (matching slug or original_slug): 'enabled', 'disabled', or 'absent'.
 // Used so an explicitly DISABLED files/terminal row stays hidden instead of
@@ -366,8 +372,13 @@ export const InstanceDynamicPage: React.FC = () => {
   // Terminal is a self-sufficient builtin: the native xterm bridge renders
   // with zero library imports (its backend bridge skips the page whitelist;
   // route auth + VIEW permission still apply). The canonical /terminal URL
-  // keeps working when the slug is customized.
-  if (effectiveSlug === terminalSlug || (effectiveSlug === 'terminal' && isPageAllowed('terminal', spec))) {
+  // keeps working when the slug is customized. An explicitly disabled
+  // terminal row stays hidden (falls through to the not-in-template card).
+  if (
+    (effectiveSlug === terminalSlug || effectiveSlug === 'terminal') &&
+    specRowState(spec, 'terminal') !== 'disabled' &&
+    specRowState(spec, terminalSlug) !== 'disabled'
+  ) {
     return (
       <ErrorBoundary resetKey={`terminal-${instanceId}`} label="instance-terminal">
         <TerminalRealPage
