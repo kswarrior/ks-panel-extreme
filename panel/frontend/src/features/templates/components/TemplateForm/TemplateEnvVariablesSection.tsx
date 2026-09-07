@@ -115,7 +115,97 @@ export const TemplateEnvVariablesSection: React.FC<EnvVariablesSectionProps> = (
                     </div>
                     <input value={v.default} onChange={(e) => onEnvUpdate(i, { default: e.target.value })} placeholder="Default value" className={monoCls} />
                     {v.display === 'select' && (
-                      <input value={v.options} onChange={(e) => onEnvUpdate(i, { options: e.target.value })} placeholder="Options (comma-separated)" className={glassFieldClass} />
+                      <div className="space-y-2">
+                        <label className="block text-[11px] text-gray-500">Options — icon + label + value per row</label>
+                        {(v.options_list ?? []).map((o, j) => (
+                          <div key={j} className="flex items-center gap-1.5">
+                            <span
+                              className="w-7 h-7 shrink-0 rounded-md flex items-center justify-center border bg-white/[0.05] border-white/10 text-gray-300 [&>svg]:w-4 [&>svg]:h-4 [&>svg]:block"
+                              aria-hidden="true"
+                              dangerouslySetInnerHTML={o.svg.trim() !== '' ? { __html: sanitizeSvgIcon(o.svg) } : undefined}
+                            >
+                              {o.svg.trim() === '' && (
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-gray-600"><circle cx="12" cy="12" r="9" /></svg>
+                              )}
+                            </span>
+                            <input
+                              value={o.svg}
+                              onChange={(e) => {
+                                const rows = [...(v.options_list ?? [])];
+                                rows[j] = { ...rows[j], svg: e.target.value };
+                                onEnvUpdate(i, { options_list: rows });
+                              }}
+                              placeholder="SVG"
+                              title="Option icon (SVG markup)"
+                              className={monoCls + ' w-20 shrink-0'}
+                            />
+                            <input
+                              value={o.label}
+                              onChange={(e) => {
+                                const rows = [...(v.options_list ?? [])];
+                                rows[j] = { ...rows[j], label: e.target.value };
+                                onEnvUpdate(i, { options_list: rows });
+                              }}
+                              placeholder="Display name"
+                              title="Display name"
+                              className={glassFieldClass + ' flex-1 min-w-0'}
+                            />
+                            <input
+                              value={o.value}
+                              onChange={(e) => {
+                                const rows = [...(v.options_list ?? [])];
+                                rows[j] = { ...rows[j], value: e.target.value };
+                                onEnvUpdate(i, { options_list: rows });
+                              }}
+                              placeholder="value"
+                              title="Stored value"
+                              className={monoCls + ' flex-1 min-w-0'}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => onEnvUpdate(i, { options_list: (v.options_list ?? []).filter((_, k) => k !== j) })}
+                              className="p-1.5 rounded text-red-400 hover:text-red-300 hover:bg-white/5 shrink-0"
+                              aria-label={`Remove option ${j + 1}`}
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                            </button>
+                          </div>
+                        ))}
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => onEnvUpdate(i, { options_list: [...(v.options_list ?? []), { svg: '', label: '', value: '' }] })}
+                            className="text-xs text-sky-300 hover:text-sky-200 underline"
+                          >
+                            + Add option
+                          </button>
+                          {(!v.options_list || v.options_list.length === 0) && v.options.trim() !== '' && (
+                            <button
+                              type="button"
+                              onClick={() => onEnvUpdate(i, {
+                                options_list: v.options.split(',').map((s) => s.trim()).filter(Boolean).map((value) => ({ svg: '', label: '', value })),
+                              })}
+                              className="text-xs text-gray-400 hover:text-white underline"
+                              title="Convert the legacy comma list below into rows"
+                            >
+                              Convert comma list ↓ to rows
+                            </button>
+                          )}
+                        </div>
+                        <input value={v.options} onChange={(e) => onEnvUpdate(i, { options: e.target.value })} placeholder="Legacy comma list (auto-synced from rows on save)" className={glassFieldClass} title="Legacy comma-separated values — kept for old readers; rows win when present" />
+                      </div>
+                    )}
+                    {v.display === 'checkbox' && (
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[11px] text-gray-500 mb-0.5">Value when checked</label>
+                          <input value={v.checked_value ?? ''} onChange={(e) => onEnvUpdate(i, { checked_value: e.target.value })} placeholder="true" className={monoCls} />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] text-gray-500 mb-0.5">Value when unchecked</label>
+                          <input value={v.unchecked_value ?? ''} onChange={(e) => onEnvUpdate(i, { unchecked_value: e.target.value })} placeholder="false" className={monoCls} />
+                        </div>
+                      </div>
                     )}
                     <div>
                       <span className="block text-[11px] text-gray-500 mb-1">

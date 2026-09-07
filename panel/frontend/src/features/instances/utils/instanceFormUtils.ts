@@ -75,6 +75,16 @@ export function specToEditor(spec: string): EditorState {
       required: !!e.required, rule: String(e.rule ?? ''),
       display: (['text', 'number', 'select', 'checkbox'].includes(e.display) ? e.display : 'text') as 'text' | 'number' | 'select' | 'checkbox',
       options: String(e.options ?? ''), append: !!e.append, prepend: String(e.prepend ?? ''), append_value: String(e.append_value ?? ''),
+      options_list: Array.isArray(e.options_list)
+        ? (e.options_list as unknown[])
+            .filter((o) => o && typeof o === 'object')
+            .map((o) => {
+              const r = o as Record<string, unknown>;
+              return { svg: String(r.svg ?? ''), label: String(r.label ?? ''), value: String(r.value ?? '') };
+            })
+            .filter((o) => o.value !== '' || o.label !== '')
+        : [],
+      checked_value: String(e.checked_value ?? ''), unchecked_value: String(e.unchecked_value ?? ''),
       ...(Array.isArray(e.scopes) && e.scopes.length > 0 ? { scopes: (e.scopes as unknown[]).map((x) => String(x ?? '').trim().toLowerCase()).filter(Boolean) } : {}),
     }));
   }

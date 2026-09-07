@@ -55,12 +55,34 @@ export function serializeSpec(f: TemplateFormState): string {
     },
     // Env vars persist `scopes` only when restricted to a subset — empty =
     // everywhere (legacy specs and the backend default), so old templates
-    // round-trip byte-identical here.
+    // round-trip byte-identical here. Structured `options_list` rows persist
+    // when present (legacy comma `options` is re-synced from the values so
+    // old readers keep working); checkbox send-values persist when set.
     env: f.env.map((e) => {
       const scopes = normalizeEnvScopes(e.scopes);
-      const { scopes: _drop, ...rest } = e as EnvVariable & { scopes?: unknown };
-      void _drop;
-      return scopes.length > 0 ? { ...rest, scopes } : { ...rest };
+      const rows = Array.isArray(e.options_list)
+        ? e.options_list.filter((o) => o && (o.value !== '' || o.label !== ''))
+        : [];
+      const syncedOptions = rows.length > 0 ? rows.map((o) => o.value).join(',') : e.options;
+      const out: Record<string, unknown> = {
+        ...e,
+        options: syncedOptions,
+        checked_value: e.checked_value || '',
+        unchecked_value: e.unchecked_value || '',
+      };
+      delete out.scopes;
+      delete out.options_list;
+      if (scopes.length > 0) out.scopes = scopes;
+      if (rows.length > 0) {
+        out.options_list = rows.map((o) => ({
+          ...(o.svg.trim() !== '' ? { svg: o.svg } : {}),
+          ...(o.label.trim() !== '' ? { label: o.label } : {}),
+          value: o.value,
+        }));
+      }
+      if (!out.checked_value) delete out.checked_value;
+      if (!out.unchecked_value) delete out.unchecked_value;
+      return out;
     }),
     // Raw `.env` file content (empty is pruned by the cleanup below).
     env_file: f.env_file,
@@ -360,6 +382,21 @@ export function parseSpec(raw: string): Partial<TemplateFormState> {
         rule: String(e.rule ?? ''),
         display: (['text', 'number', 'select', 'checkbox'].includes(e.display) ? e.display : 'text') as 'text' | 'number' | 'select' | 'checkbox',
         options: String(e.options ?? ''),
+        options_list: Array.isArray(e.options_list)
+          ? (e.options_list as unknown[])
+              .filter((o) => o && typeof o === 'object')
+              .map((o) => {
+                const r = o as Record<string, unknown>;
+                return {
+                  svg: String(r.svg ?? ''),
+                  label: String(r.label ?? ''),
+                  value: String(r.value ?? ''),
+                };
+              })
+              .filter((o) => o.value !== '' || o.label !== '')
+          : [],
+        checked_value: String(e.checked_value ?? ''),
+        unchecked_value: String(e.unchecked_value ?? ''),
         append: !!e.append,
         prepend: String(e.prepend ?? ''),
         append_value: String(e.append_value ?? ''),
