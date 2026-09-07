@@ -1104,21 +1104,21 @@ func rewriteTextColumnDefsForMySQL(stmt string) string {
 				}
 			}
 		}
-		// Second pass: column definitions starting with "<col> TEXT".
+		// Second pass: column definitions of shape "<col> <TYPE> ...".
+		// The type-token test (not a prefix test) decides: a column literally
+		// named "key" (permissions.key, instance_secrets.key) must NOT be
+		// mistaken for a KEY table constraint.
 		for _, seg := range splitTopLevel(body, open+1) {
-			su := strings.ToUpper(strings.TrimSpace(seg.text))
-			if strings.HasPrefix(su, "PRIMARY KEY") || strings.HasPrefix(su, "FOREIGN KEY") ||
-				strings.HasPrefix(su, "UNIQUE") || strings.HasPrefix(su, "CHECK") ||
-				strings.HasPrefix(su, "CONSTRAINT") || strings.HasPrefix(su, "KEY") {
-				continue
-			}
 			words := splitSQLWords(seg.text)
-			if len(words) < 2 || !strings.EqualFold(words[1], "TEXT") {
+			if len(words) < 2 || !isColumnTypeName(words[1]) {
 				continue
 			}
 			col := strings.ToLower(unquoteIdent(words[0]))
 			if col == "" {
 				continue
+			}
+			if !strings.EqualFold(words[1], "TEXT") {
+				continue // non-TEXT column: legal on MySQL as-is
 			}
 			segUp := strings.ToUpper(seg.text)
 			if forced[col] || hasSQLKeyword(segUp, "DEFAULT") ||
