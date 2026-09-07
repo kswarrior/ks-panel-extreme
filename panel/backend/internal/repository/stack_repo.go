@@ -221,12 +221,6 @@ func ParseStackManifest(raw []byte) (StackManifestInput, error) {
 	return in, nil
 }
 
-// bytes_TrimSpace avoids importing bytes for one call; it reports whether raw
-// holds only JSON whitespace.
-func bytes_TrimSpace(raw []byte) []byte {
-	return []byte(strings.TrimSpace(string(raw)))
-}
-
 // validateStackPermissionRequests rejects unknown capability codes and
 // duplicate requests (duplicates would trip the insert loop with an obscure
 // SQL error, so fail early with an actionable message).
@@ -322,18 +316,6 @@ func (r *StackRepository) CreateStack(in CreateStackInput) (*models.Stack, error
 	defer tx.Rollback()
 
 	cols := `INSERT INTO stacks (name, slug, category, version, description, icon, color, runtime, entrypoint, manifest, spec, frontend_theme_mode, page_style, active, uploaded_by, owner_id, source, source_url, package_size, created_at, updated_at)`
-	var res interface {
-		LastInsertId() (int64, error)
-	}
-	_ = res
-	var sqlRes interface {
-		LastInsertId() (int64, error)
-	}
-	_ = sqlRes
-	var result interface {
-		LastInsertId() (int64, error)
-	}
-	_ = result
 	var execRes sql.Result
 	if in.UploadedBy != 0 {
 		execRes, err = tx.Exec(

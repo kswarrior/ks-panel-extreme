@@ -73,6 +73,14 @@ const (
 // requested capability.
 ManageApplicationsKey = "MANAGE_APPLICATIONS"
 
+// ManageStacksKey gates the Stacks admin page. Stacks are admin-uploaded
+// full-stack isolated apps (dashboards, tools, trackers — one stack is one
+// item like one mod is one item in Mods). Activation is gated by an
+// explicit per-capability grant, mirroring Mods/Applications: the panel
+// refuses to flip active=1 until the admin has approved every requested
+// capability.
+ManageStacksKey = "MANAGE_STACKS"
+
 	// ManageTicketsKey gates the Tickets support system. Tickets are user-
 	// opened requests (general, billing, technical, feature, bug, abuse)
 	// triaged by staff. MANAGE_TICKETS is the umbrella that grants the
@@ -180,6 +188,11 @@ ApplicationsViewKey   = "APPLICATIONS_VIEW"
 ApplicationsCreateKey = "APPLICATIONS_CREATE"
 ApplicationsEditKey   = "APPLICATIONS_EDIT"
 ApplicationsDeleteKey = "APPLICATIONS_DELETE"
+
+StacksViewKey   = "STACKS_VIEW"
+StacksCreateKey = "STACKS_CREATE"
+StacksEditKey   = "STACKS_EDIT"
+StacksDeleteKey = "STACKS_DELETE"
 
 	InstancePagesViewKey   = "INSTANCE_PAGES_VIEW"
 	InstancePagesCreateKey = "INSTANCE_PAGES_CREATE"
