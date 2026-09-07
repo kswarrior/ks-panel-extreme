@@ -91,6 +91,15 @@ type Step struct {
 	IgnoreErrors bool   `json:"ignore_errors"`
 }
 
+// ConfigFile is one spec.config_files[] row forwarded by the panel.
+// Mirrors panel/backend/internal/edge.ConfigFile + configparse.File.
+type ConfigFile struct {
+	File            string         `json:"file"`
+	Parser          string         `json:"parser"`
+	Find            map[string]any `json:"find"`
+	CreateIfMissing bool           `json:"create_if_missing,omitempty"`
+}
+
 // SessionExecFn is like ExecFn but returns the full ExecSession so the
 // engine can drain stdout/stderr and keep the stdin writer for same-terminal
 // stop mode. The caller must call sess.Close() when done.
@@ -133,6 +142,10 @@ type Input struct {
 	//   = 0 → the legacy 30-minute default so panels that don't send the
 	//         field keep today's safety net.
 	TimeoutSec int `json:"timeout_sec,omitempty"`
+	// ConfigFiles carries spec.config_files[] rows (find values already
+	// substituted). When non-empty the engine applies parsers inside the
+	// workload AFTER the steps succeed, before reporting done.
+	ConfigFiles []ConfigFile `json:"config_files,omitempty"`
 	// OnProgress, when non-nil, is called with a snapshot of the step
 	// transcript every time a step's status changes (start / retry outcome /
 	// completion). The HTTP handler uses it to publish LIVE per-step state
