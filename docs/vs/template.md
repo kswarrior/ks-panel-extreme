@@ -216,7 +216,44 @@ KS `Pages[] + home_page + instance_controls` has no counterpart: Pterodactyl/Pel
 - **KS loses**: ecosystem (5 builtins vs ~100+ eggs vs ~35 puffer templates), no `Nest` grouping, no multi-image map (`docker_images{}`), no declarative `config-file` parsers, Docker-only authors must learn the `advanced` + `actions` split instead of one `startup` line.
 - **Closest ancestor**: PufferPanel-style (`models/instance.go:5` says so) — flat template + operators — extended with VM drivers, actions, and pages. Pterodactyl/Pelican parity would mean adding Nest-like grouping, `docker_images{}` choice, and config-file parsers; PufferPanel parity would mean keeping raw-JSON editing as a first-class path.
 
-## 7. File map
+## 7. Scores (`/100` per case, template system only)
+
+Scored against what the `/templates` page (and its direct backend) can do today.
+`KS` = this repo (§1), `Ptero` = Pterodactyl Egg, `Pelican` = Pelican Egg, `Puffer` = PufferPanel template.
+
+| # | Case | KS | Ptero | Pelican | Puffer | Notes |
+|---|------|----|-------|---------|--------|-------|
+| 1 | List / browse / search / filter | 95 | 75 | 82 | 60 | KS: search + driver + category + sort + counts + limits on card. Pelican +7 over Ptero for modern skin, same model. Puffer: plain list. |
+| 2 | Detail view | 96 | 70 | 78 | 40 | KS: usage (`total/running/stopped`), resources/network/env/install/actions/pages, raw JSON, invalid-spec warning. Others: egg form only / no detail. |
+| 3 | Visual builder | 96 | 70 | 75 | 30 | KS: 11 tabs (§1.3). Ptero/Pelican: admin egg form. Puffer: raw JSON edit. |
+| 4 | Import / export | 98 | 75 | 75 | 70 | KS: file (`multipart`) + URL (SSRF-guarded + preview) + `Download/Copy spec/ID`. Others: file/paste only. |
+| 5 | Metadata / branding | 95 | 60 | 60 | 55 | KS: `icon_svg + color + category/type` (custom values allowed). Others: name/desc only (`type/display` on Puffer). |
+| 6 | Environment in-template (ports/mounts/limits/caps) | 95 | 30 | 30 | 55 | KS: `ports[] + mounts[] + limits + caps` in form. Ptero/Pelican: allocations + limits at server-create, not in egg. Puffer: `${ip/port}` vars only. |
+| 7 | Env variables | 92 | 75 | 75 | 65 | KS: `text/number/select/checkbox + options`, `viewable/editable`, `required + rule`, per-page `configure[]`. Ptero rules engine is strong, hence 75. |
+| 8 | Install workflow | 90 | 85 | 85 | 75 | KS: 11 typed ops + `timeout/retries/ignore_errors`. Ptero/Pelican: full bash freedom (why 85). Puffer: 5 operators + CEL. |
+| 9 | Startup / stop definition | 88 | 90 | 90 | 85 | Ptero/Pelican win on simplicity: one `startup` + `stop` line. KS splits across `advanced + actions`. |
+| 10 | Multi-action system + terminal binding | 97 | 20 | 25 | 40 | KS: `actions[]` (cooldown/async/session/`run_on_create`) + `terminal_id` stdin mirror + allow/block + timeout. Others: one startup (`pre/post` on Puffer). |
+| 11 | Driver coverage | 95 | 50 | 50 | 70 | KS: `docker/lxd/kvm/multipass` + dedicated sections. Puffer: host + docker (why 70). Ptero/Pelican: docker-only, mature yolks (why 50 not 0). |
+| 12 | Advanced runtime + healthcheck/labels/devices | 96 | 15 | 15 | 10 | KS-only: `network_mode/restart/logging/ulimits` + `healthcheck` + `labels/devices`. |
+| 13 | Pages / UI composition | 100 | 10 | 10 | 10 | KS-only: 30-row library + `home_page` + `controls`. Others: fixed server view. |
+| 14 | Grouping / organization | 55 | 90 | 90 | 30 | Ptero/Pelican `Nests` win. KS has `category/type` tags + filter only. Puffer `type` unused. |
+| 15 | Multi-image choice | 20 | 90 | 90 | 20 | Ptero/Pelican `docker_images{}` map win. KS/Puffer: one image per template. |
+| 16 | Config-file parsers | 15 | 85 | 85 | 20 | Ptero/Pelican `config-files` find/replace win. KS does it via page actions instead. |
+| 17 | Library ecosystem size | 25 | 100 | 95 | 60 | 5 builtins vs ~100+ eggs (Pelican inherits) vs ~35 puffer templates. |
+| 18 | Governance (ownership, stats, validation, usage) | 95 | 50 | 55 | 35 | KS: `TEMPLATES_OWN/ALL`, `/templates/stats + /schedules`, instance-usage card, invalid-JSON + required checks. |
+
+### Total
+
+| Rank | Panel | Sum | Final `/100` (avg) |
+|------|-------|-----|--------------------|
+| **1** | **KS Panel** | **1,443 / 1,800** | **80** |
+| 2 | Pelican | 1,165 / 1,800 | 65 |
+| 3 | Pterodactyl | 1,140 / 1,800 | 63 |
+| 4 | PufferPanel | 830 / 1,800 | 46 |
+
+Reading: KS wins the authoring surface (cases 1–8, 10–13, 18) and loses the ecosystem/format-maturity cases (14–17). That matches §6: to close the gap, add Nest-like grouping, `docker_images{}` choice, and config-file parsers; competitors cannot match Pages/Actions/terminal-binding without a format break.
+
+## 8. File map
 
 - List: `panel/frontend/src/features/templates/pages/Templates.tsx`
 - Detail: `panel/frontend/src/features/templates/pages/TemplateDetail.tsx`
