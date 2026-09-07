@@ -1,124 +1,95 @@
-# Stacks Plan — Complete Full-Stack System
+# Stacks Plan
 
-New complete system like Mods / Applications. One `stack` = one full isolated app (dashboard OR tool OR tracker OR any internal app). Dashboard is only `category=dashboard`.
+New complete system like Mods / Applications. One `stack` is one full-stack item (dashboard OR tool). Dashboard is just `category=dashboard`, not the system name.
 
 Split (do not mix):
-- `Mods` = modify panel itself. Goja `ks.log/storage/events`, `pre/post` hooks, `<Slot/>`. No ports, no long-run. Touch nothing.
-- `Applications` = outer headless workloads on edge (`nodejs/python/bash`, `host/docker/lxd/kvm/multipass`). No panel UI. Touch nothing.
-- `Stacks` = new full pages. Isolated frontend + backend sidecar + own nav + own data + own files + own logs. This plan only.
+- `Mods` = modify panel itself. Goja `ks.log/storage/events`, `pre/post` hooks, `<Slot/>`. No ports, no long-run. Touch nothing here.
+- `Applications` = outer headless workloads on edge (`nodejs/python/bash`, `host/docker/lxd/kvm/multipass`). No panel UI. Touch nothing here.
+- `Stacks` = new full pages. Isolated frontend + backend sidecar + own nav + own storage. This plan only.
 
-Defaults (locked to start Phase-0): runtimes `static + nodejs + python`, data `KV + sqlite-file per stack`, limits `20 sidecars, ports 18000-18100, 256MiB/stack, 15s proxy timeout`.
+## Package `.ksps` (KS Panel Stack)
 
-## 1. Package `.ksps` (KS Panel Stack)
+Zip, mirrors `modengine/pkgstore.go` guards (zip-slip, symlink skip, `IsZipBytes`, safe slug `[a-z0-9-]`):
+- `manifest.json` (canonical, root): `name, slug, version, description, icon, category [dashboard|tool|tracker|custom], routes[], nav{}, permissionsRequested[], backend{runtime, entrypoint}, frontend{dist: dist/index.html}`
+- `frontend/dist/**` (static build output, `index.html` entry)
+- `backend/**` (`entrypoint` e.g. `server.js` / `main.py`)
+- `spec.json` (optional opaque UI config, passthrough like mods)
 
-Zip, mirrors `modengine/pkgstore.go` guards (zip-slip, symlink skip, `IsZipBytes`, slug `^[a-z0-9][a-z0-9-]{0,63}$`):
-- `manifest.json` (root, canonical): `name, slug, version, description, icon, color, category [dashboard|tool|tracker|status|crud|custom], routes[], nav{label,icon,order}, permissionsRequested[], backend{runtime [static|nodejs|python], entrypoint, port[0=auto], env{}, health{/health,interval}, cron[]}, frontend{dist, spa:true}, database{kv:true, sqlite:"data.db"|null}, min_panel`
-- `frontend/dist/**` (built static, `index.html` entry, `spa:true` = fallback to index.html)
-- `frontend/pages/**` (SIMPLE pages, no build: `*.md | *.html | *.blocks.json` + `pages.json` manifest; rendered by panel `StackSimplePage` reusing `CustomPageView` + `customPageSdk`)
-- `frontend/theme.css` + `frontend/theme.json` (CUSTOM theme mode only; panel mode uses no files)
-- `backend/**` (`server.js` / `main.py` / empty for static)
-- `spec.json` (opaque UI config passthrough), `README.md` (optional, rendered in Detail)
-- `data/` seed (optional, copied on first install only)
-
-Store: `<datadir>/stack-packages/<slug>.ksps` + live `<datadir>/stack-work/<slug>/` + `<datadir>/stack-data/<slug>/` (sqlite + kv stays here so re-install keeps data unless wiped). `stackstore.go` ports `Save/Load/Exists/EnsureWorkDirLocked/ReadAsset/RepackFromWorkdir/RemoveAll`. Studio/URL/JSON synthesize minimal `.ksps` so every stack downloadable. Download = repack live workdir (edits included), never stale bytes.
+Store: `<datadir>/stack-packages/<slug>.ksps` + extract `<datadir>/stack-work/<slug>/`. Reuse `SavePackage/EnsureWorkDirLocked/ReadAsset` pattern in new `stackstore.go`. Studio/URL/JSON installs synthesize minimal `.ksps` via `BuildPackageZip` so every stack stays downloadable.
 
 Manifest example:
 ```json
 {
   "name": "Server Dashboard", "slug": "server-dashboard", "version": "1.0.0",
-  "category": "dashboard", "icon": "📊", "color": "#0ea5e9",
+  "category": "dashboard", "icon": "📊",
   "routes": [{"path": "/", "title": "Overview"}],
-  "nav": {"label": "Dashboard", "icon": "📊", "order": 10},
-  "permissionsRequested": [
-    {"capability": "metrics.read", "access_level": "read_only"},
-    {"capability": "outbound_http", "access_level": "standard"}
-  ],
-  "backend": {"runtime": "nodejs", "entrypoint": "backend/server.js", "health": "/health"},
-  "frontend": {"dist": "dist", "spa": true, "page_style": "spa|simple", "theme": {"mode": "panel|custom|none", "css": "theme.css"}},
-  "database": {"kv": true, "sql": "isolated|shared|none", "schema": "schema.sql"}
+  "nav": {"label": "Dashboard", "icon": "📊"},
+  "permissionsRequested": [{"capability": "metrics.read", "access_level": "read_only"}],
+  "backend": {"runtime": "nodejs", "entrypoint": "backend/server.js"},
+  "frontend": {"dist": "dist/index.html"}
 }
 ```
 
-## 2. Data (KV + SQL on every panel engine, powerful)
+## Frontend
 
-Panel engines: `sqlite | postgres | mysql` (`db/dialect.go:NewDialect`, MSSQL deferred). Stack data works on all 3, no sqlite-only path.
+New `features/stacks/`, mirrors `features/mods/` + `features/applications/`:
+- `shared/types/stack.ts`: `Stack, StackPermission, StackRoute, StackNav, StackLog, StackStatus(running|stopped|error), StackCategoryMeta, StackRuntimeMeta(nodejs|python|static)`
+- `features/stacks/api/stacks.ts`: `list/get/create/upload/download/update/delete/setGrants/activate/deactivate/getLogs/getStatus/listSamples/installSample`
+- `features/stacks/pages/Stacks.tsx` (catalog + source chip + pending badge), `StackDetail.tsx` (grants checklist + logs + files preview), `StackView.tsx` (route `/stacks/:slug/*` -> sandboxed `iframe src=/api/stacks/:slug/ui/*` + `KSStackSDK` postMessage bridge: theme tokens, nav, `stack.fetch(path)`), `StackStudio.tsx` (Phase-2, minimal manifest builder), `StackStats/Schedules.tsx` (follow mods/applications pattern)
+- `router.tsx`: `/stacks`, `/stack/:id`, `/stacks/:slug/*` (all `MANAGE_STACKS`). Sidebar group auto-built from `GET /api/stacks/nav` (active stacks only).
+- Isolation: `iframe sandbox="allow-scripts allow-same-origin"` + CSP. No `window.KS.registerComponent`, no `<Slot/>`, no global CSS leak. Reuse `CustomPageView` theme vars, not its renderer.
 
-- `stack_kv(stack_slug, key, value, updated_at)` — universal, lives in panel DB (triplicated migration). SDK + backend only, Detail > Data tab search + delete.
-- `sql: isolated` (default, zero-config): one sqlite file per stack `stack-data/<slug>/data.db` (WAL), SAME file even when panel runs postgres/mysql. Zero permission issues, zip backup, easy wipe. Backend gets `STACK_DB_ENGINE=sqlite + STACK_DB=file:...`. Best for dashboards/tools that want own DB.
-- `sql: shared` (panel-native): namespaced tables inside panel DB via `StackDB` abstraction. Prefix `st_<slug>_` on every table (no postgres schema / mysql db permission issues on shared hosting). Stack ships portable `schema.sql` (panel rewrites: `AUTOINCREMENT`→per-dialect, `DATETIME`→`TIMESTAMP` on pg via `dialect.datetimeType()`, `?`→`$N` on pg via `Dialect.Placeholder`). Registry `stack_tables(stack_slug, table_name)` + allow-list: queries may touch `st_<slug>_*` only, single-statement, 5s timeout, block `ATTACH/PRAGMA/outside-prefix DDL`. Backend gets `STACK_DB_ENGINE=<panel engine> + STACK_DB_DSN(loopback/panel pool) + STACK_TABLE_PREFIX`. Frontend only via allow-listed `stack.fetch('/db/*')` paths declared in caps.
-- `sql: none`: KV + files only.
-- Backup/wipe cover both: isolated = zip `data.db`; shared = `SELECT *` dump to JSON + restore (drop prefix tables + re-apply `schema.sql` + re-insert). Buttons in Detail > Data tab (confirm + audit).
-- Env: `stack_env(stack_slug, key, secret[0|1])` — secretbox-encrypted when secret=1, masked in list, Detail > Env tab edit, injected to sidecar only. Merge: manifest defaults < saved env < restart overrides.
+`KSStackSDK` (v1, minimal):
+- `KS.stack.theme()`, `KS.stack.fetch(apiPath, opts)` -> proxied `GET /api/stacks/:slug/api/*` with panel cookie + granted-cap check, `KS.stack.storage.get/set` (namespaced KV via proxy, not direct DB).
 
-## 3. Backend (supervisor, powerful)
+## Stack Files (powerful like Mods, full explorer + editor)
 
-New `stacksupervisor/` only:
-- Runtimes: `static` (no proc), `nodejs` (`node backend/server.js --port $PORT`), `python` (`python main.py --port $PORT` / `uvicorn` if detected). Deny `bash/custom` v1. Kill existing tree on restart/delete (pgid).
-- Port allocator `18000-18100` persisted (`stack_ports`), loopback `127.0.0.1` only. Env injected: `PORT, STACK_SLUG, STACK_WORK, STACK_DATA, STACK_DB_ENGINE, STACK_DB (file path | shared DSN), STACK_TABLE_PREFIX, STACK_KV_PREFIX`.
-- Health: `GET 127.0.0.1:port/health` 3s timeout, 3 retries on start; unhealthy -> `error` + log tail in Detail. Auto-restart max 3, then `error` (no loop).
-- Logs: per-stack ring 500 lines (`stdout+stderr` + supervisor events `start/stop/crash/health`), `GET /api/stacks/:id/logs?tail=200`, live poll 3s in UI. Never log secret values (redact `key|token|secret|password`).
-- Metrics (light): `cpu_ms, mem_kb` via proc poll 10s, shown in Detail header + `GET /api/stacks/:id/status {state,port,pid,uptime,health,metrics}`. Kill-switch global `stacks_enabled` KV + per-stack `active` flag. `BootStacks(ctx)` starts active only.
-- Cron (v1 lite): `manifest.backend.cron[] {id, schedule, path}` -> panel cron calls `stack.fetch(path)` internally, logged to same ring. No separate worker v1.
+Every stack gets full file power, scoped to `stack-work/<slug>/` (extracted `.ksps`). Same UX as `InstanceFiles.tsx` / `NodeFilesTab.tsx`, same ops as `files_handler.go`, but local-disk not edge proxy:
+- Backend `handlers/stack_files.go`: `GET /api/stacks/:id/files?op=list&path=/frontend` -> `{entries[], path}`, `GET /api/stacks/:id/files/read?path=/backend/server.js` (raw bytes + filename header), `POST ?op=write|mkdir|rename|delete|chmod`, `POST /api/stacks/:id/files/upload` (multipart, path target), `POST /api/stacks/:id/files/url` (JSON `{path,url}`, SSRF-guarded like mods URL install). All `MANAGE_STACKS` + `STACKS_OWN/ALL` (own sees own only), traversal-guarded (`Clean + stay under workdir`), size-capped (single file 8MiB, upload 64MiB like `.kspm`), audit `activity_logs` on write/mkdir/rename/delete/chmod/upload.
+- Editing live files auto-invalidates + re-extract marker? No — live edit writes workdir directly, package `.ksps` rebuilt on demand via `RepackFromWorkdir` so download stays in sync. Restart sidecar after backend edit (button + auto-prompt).
+- Frontend `features/stacks/components/StackFilesTab.tsx` (copy `InstanceFiles.tsx` pattern): breadcrumb, list, drag&drop upload, new file/folder, rename/delete, code editor (existing editor component reuse) for `*.js/*.py/*.json/*.html/*.css/*.md`, binary download otherwise. Mounted in `StackDetail.tsx` as `Files` tab beside `Overview/Grants/Logs/Settings`.
+- Safety: block `..`, absolute paths, `.ksextracted` marker hidden; deny editing `manifest.json:slug` rename (slug immutable after create, like mods); secrets never logged.
 
-## 4. Proxy + UI serving (isolation)
+## Backend
 
-`handlers/stack_proxy.go`:
-- `GET /api/stacks/:slug/ui/*` — static from workdir `frontend/dist`, traversal-guarded, `no-cache` html / `1h` hashed assets, `X-Frame-Options: SAMEORIGIN`, CSP `frame-ancestors 'self'`. SPA fallback to `index.html`.
-- `ANY /api/stacks/:slug/api/*` — reverse proxy to sidecar loopback only (never user-supplied host), 15s timeout, 8MiB body cap, strips `Cookie/Authorization`, adds `X-Stack-Slug + X-Stack-Caps`, `403` when cap not granted, audit on non-GET. WebSocket upgrade allowed v1 (passthrough, same cap gate).
-- `GET /api/stacks/nav` — active stacks `{slug,label,icon,order}` for sidebar. Inactive/error hidden.
+New files only, no edits to `mod_handler.go / application_handler.go / modengine/`:
+- `models/stack.go`: `Stack, StackPermission, Cap*` for stacks (`metrics.read`, `instances.read`, `outbound_http` — new namespace, do NOT reuse `CapTerminal/CapFilesystem` raw; map to proxy allow-list)
+- `repository/stack_repo.go`: `Create/Get/List/Update/Delete/Activate/Deactivate/SetGrants/AllGranted`, mirror `mod_repo.go` + `application_repo.go` validation (slug regex, capability whitelist, `granted=false` seed)
+- `stackstore/stackstore.go`: copy `pkgstore.go` pattern for `.ksps`
+- `stacksupervisor/`: port allocator (e.g. `127.0.0.1:18000+`), process supervise (`node backend/server.js` / `python main.py` / `static` = no proc), health check `/health`, log ring (reuse `modengine/status.go` shape), kill per-stack + global switch `stacks_enabled` settings KV
+- `handlers/stack_handler.go`: CRUD + grants + activate/deactivate + logs + status + download, same ownership scope pattern as migration `054` (`STACKS_OWN/ALL`, orphans fail closed)
+- `handlers/stack_proxy.go`: `GET /api/stacks/:slug/ui/*` (static, `no-cache`, traversal-guarded) + `ANY /api/stacks/:slug/api/*` (reverse proxy to sidecar loopback only, timeout 15s, body cap 8MiB, strip secrets, audit)
+- `handlers/stack_samples.go`: 2 built-ins (`server-dashboard` static, `hello-tool` static+KV) through same `ParseManifest->Create` pipeline, `source=sample`
+- `server.go`: mount `/api/stacks/*` protected group, `BootStacks(ctx)` after migrations (start active stacks, skip when kill-switch off)
+- Migrations `0xx_stacks.sql` x3 (mysql/postgres/sqlite): `stacks, stack_permissions (FK cascade), stack_runs? (Phase-2, optional)` — types/defaults/booleans compatible on all 3, never edit shipped migration
+- `permissions/keys.go`: `ManageStacksKey=MANAGE_STACKS`, `StacksOwnKey/STACKS_ALL`, group wiring like Mods/Applications
+- `aiskills/stacks.md`: 4KB guide for `get_docs`
 
-## 5. Stack Files (full explorer + editor, powerful)
+Lifecycle (same gate as mods/apps): `install inactive -> approve every cap -> activate -> running`. `409 + checklist` on pending. Deactivate keeps grants. Delete tears down proc + removes package/workdir (best-effort, log not fail).
 
-Scoped to `stack-work/<slug>/`, UX copy of `InstanceFiles.tsx`:
-- `handlers/stack_files.go`: `?op=list&path=/` -> `{entries[{name,type,size,mtime,mode}],path}`, `read?path=` (8MiB cap, text detect; binary -> download), `write|mkdir|rename|delete|chmod|unzip`, `upload` multipart (64MiB), `url {path,url}` SSRF-guarded, `zip?path=/` (download folder as zip), `snapshot` (zip workdir to `stack-data/<slug>/snapshots/*.zip`, list/restore). All `MANAGE_STACKS` + `STACKS_OWN/ALL`, `Clean+stay-under-workdir`, hide `.ksextracted`, slug immutable, audit all mutating ops.
-- `StackFilesTab.tsx`: breadcrumb + search, drag&drop, new file/folder, rename/delete/chmod, code editor (`js/py/json/html/css/md/yaml/sql`), image preview, zip download, snapshot list/restore, edit-backend prompt `Restart stack?` button. Tabs in Detail: `Overview | Files | Data/Env | Grants | Logs | Settings`.
+## Security (fail closed)
 
-## 6. Frontend themes (both modes) + simple pages
+- SSRF guard on URL install (reuse `fetchManifestFromURL`: public IP only, DNS-pinned, 15s, 64MiB cap)
+- Sidecar binds loopback only, panel proxies; stack never sees panel DB/cookie/secrets; env injected allow-list only
+- `iframe` sandbox + `X-Frame-Options: SAMEORIGIN` on ui routes; `safeSlug` + traversal guard on all asset/proxy paths
+- Capability proxy allow-list: frontend `stack.fetch` can only hit declared caps; ungranted -> `403`
+- Rate-limit proxy + run endpoints; activity log every create/grant/activate/deactivate
 
-Theme modes per stack (`manifest.frontend.theme.mode`, default `panel`):
-- `panel` (theme support ON, inherit): iframe URL gets `?theme=<resolvedThemeId>` + postMessage theme tokens (`--ks-*` vars snapshot from `themeStore.resolveThemeForRoute('/stacks/<slug>')`). `StackView` re-sends on `applyForRoute` change. Stack CSS uses `var(--ks-*)` so it repaints with panel. Admin can bind a GLOBAL theme to scope `stacks.<slug>` via existing assign API — no theme-system edits, scope string only. `RouteThemeSync` already fires on `/stacks/*` path change.
-- `custom` (own theme): stack ships `frontend/theme.css + theme.json`. Panel chrome keeps route theme; iframe content loads theme.css first, panel tokens OFF (SDK `theme()` returns `{mode:'custom'}`). No leakage either direction (iframe sandbox).
-- `none`: no tokens, no css. Bare content.
-- Validation: `mode` enum in `ParseManifest`; unknown -> `panel`. `theme.css` capped 512KiB, served via `ui/*` with `text/css`.
+## Build order
 
-Simple pages (`manifest.frontend.page_style=simple`, no build needed):
-- `frontend/pages/pages.json`: `[{slug,title,icon,file}]`; files `*.md | *.html | *.blocks.json` (blocks = `InstancePages` BlockRow JSON, rendered by `CustomPageView`). Reuses `customPageSdk` (`KSPageSDK`) so `{{config:NAME}}` + page actions work like instance pages.
-- `StackSimplePage.tsx`: route `/stacks/:slug/p/:pageSlug` inside `StackView` tabs; fetches `GET /api/stacks/:slug/pages` (list) + `GET /api/stacks/:slug/pages/:page` (content) then renders via `CustomPageView`. Zero iframe for simple pages (panel-rendered, so panel theme applies natively; `custom` mode wraps in theme.css class).
-- `spa` mode keeps iframe `StackView` as before. Both modes share nav/grants/lifecycle. Studio scaffold offers both.
+1. Phase-0: migration + models + repo + keys + `stackstore` + CRUD/grants/activate handlers + `types/stack.ts + api/stacks.ts + Stacks/Detail` list. Verify with `retest.sh`, no runtime yet (`static` stacks render placeholder).
+2. Phase-1 (MVP static dashboards + Files): `stack_proxy ui/*` + `StackView iframe` + `KSStackSDK theme/fetch/storage(KV)` + `nav` endpoint + sidebar + `stack_files.go + StackFilesTab` explorer/editor + 2 samples. Goal: install -> grant -> activate -> open `/stacks/server-dashboard/` working, edit `dist/index.html` live in Files tab.
+3. Phase-2 (full-stack): supervisor (`nodejs/python/static`), `api/*` proxy, logs/status/kill-switch, env editor, restart button, Studio lite. Goal: `hello-tool` with `backend/server.js` counter API working, editable from Files tab.
+4. Phase-3: marketplace share (download = repack workdir -> `.ksps` round-trip), docs skill, stats/schedules pages.
 
-## 6b. Frontend (complete)
+## Verify (loop.md CHECKLIST V)
 
-- `shared/types/stack.ts`: `Stack{..., category, icon, color, runtime, entrypoint, state, port, source, package_size}, StackPermission, StackEnv{key,masked,secret}, StackKV, StackLog{ts,level,message}, StackStatus, STACK_CATEGORIES, STACK_RUNTIMES, slugify`
-- `features/stacks/api/stacks.ts`: full client — `list/get/create/upload/download/update/delete/setGrants/activate/deactivate/status/logs/nav/files(list/read/write/mkdir/rename/delete/chmod/upload/url/zip/snapshots)/env/kv/dbBackup/wipe/restart/samples`
-- Pages: `Stacks.tsx` (grid + category filter + source chip + state dot), `StackDetail.tsx` (header state+metrics+actions + 6 tabs), `StackView.tsx` (`/stacks/:slug/*` iframe + `KSStackSDK` + loading/error states + reload), `StackStudio.tsx` (manifest form + file scaffold + preview + install), `StackStats/Schedules.tsx` (mirror mods pattern).
-- `router.tsx` + sidebar: `/stacks, /stack/:id, /stacks/:slug/*` gated `MANAGE_STACKS`.
-- `KSStackSDK` (`/ui/ks-stack-sdk.js` served by panel, auto-injected): `KS.stack.theme(), KS.stack.fetch(apiPath,opts), KS.stack.kv.get/set/del, KS.stack.toast(msg), KS.stack.nav(path)` via postMessage; fetch goes through panel proxy so no direct sidecar URL/CORS.
+- `go build ./... && go test ./...`, frontend `build+typecheck+lint`, migration compat x3 DBs
+- Live: `bash retest.sh` — install sample -> pending 409 -> grant -> activate -> open iframe -> proxy fetch -> deactivate -> delete, check `activity_logs` + sidebar nav appears/disappears
+- Security pass: traversal, IDOR (`STACKS_OWN` sees own only), secret redaction, iframe sandbox
 
-## 7. Samples + Studio (build complete stack fast)
+## Open decisions (ask before Phase-2)
 
-- `handlers/stack_samples.go` (same `Parse->Create` pipeline, `source=sample`): `server-dashboard` (static SPA + KV demo), `status-board` (python `/health + /api/status`), `tracker-tool` (nodejs + sqlite CRUD demo). One-click install inactive.
-- `StackStudio`: scaffold buttons `Blank / Dashboard / Tool / Tracker` -> generates `manifest.json + frontend/dist/index.html + backend/server.js|main.py` in-memory -> `Install` via JSON path. After install guide points to Files tab to continue editing live.
-
-## 8. Permissions + lifecycle (parity with Mods/Apps)
-
-- `permissions/keys.go`: `MANAGE_STACKS + STACKS_OWN/ALL`, group wiring. Own sees own only, orphans fail closed (mirror migration `054` handlers).
-- Caps namespace NEW (do not reuse mod caps raw): `metrics.read, instances.read, kv.read_write, db.read_write, outbound_http, notify` with `read_only/read_write/standard` levels. Whitelist enforced in `ParseManifest`; rows seeded `granted=false`; `Activate` -> `409+checklist` when pending; deactivate keeps grants; delete kills proc + removes package/work (data kept unless `?wipe=1`).
-- Migrations `0xx_stacks.sql` x3 (mysql/postgres/sqlite, compatible types): `stacks, stack_permissions(FK cascade), stack_env, stack_kv, stack_ports`. Never edit shipped migration.
-- `aiskills/stacks.md` (<4KB) for `get_docs`.
-
-## 9. Security (fail closed)
-
-SSRF (public-IP/DNS-pinned/15s/64MiB), traversal guards everywhere, sidecar loopback-only + no panel DB/cookie, secrets secretbox + masked + redacted logs, iframe `sandbox allow-scripts` + SAMEORIGIN, rate-limit proxy/files, `activity_logs` on every mutation, `V9` pass on all new routes (IDOR/traversal/injection/secrets).
-
-## 10. Build order (complete stack)
-
-0. Phase-0 base: SHIPPED. Migration `071` x3 + `models/stack.go` + `repository/stack_repo.go` + `keys.go` (`MANAGE_STACKS/STACKS_*`, group appended last) + `stackstore.go` + `stack_handler.go` (CRUD/grants/activate/download/nav/engine) + `stack_serve.go` (`ui/*`, `pages`, SDK) + `types/stack.ts` + `api/stacks.ts` + `Stacks/StackDetail/StackView` + router/sidebar/Header/permissions/RolePermissions icon + SeedCore seeds + security_headers. E2E green on sqlite (retest.sh :18081).
-1. Phase-1 static + Files + Data-KV: `stack_files.go + StackFilesTab` explorer/editor + `stack_kv` + `stack_env` + 1 sample. `ui/*`, `StackView iframe + SDK theme`, nav/sidebar already live from Phase-0.
-2. Phase-2 sidecar + power: supervisor nodejs/python + `api/*` proxy (+WS) + health/restart/metrics + logs ring + sqlite isolated/shared + backup/wipe + snapshots/zip + 2 more samples. SDK fetch/kv/nav bridge answers structured unavailable until then.
-3. Phase-3 complete: Studio scaffold + Stats/Schedules + `aiskills/stacks.md` (+ `TestAIDocsCoverage` topic + handler index update) + cron lite. Docs skill deliberately deferred (AI-chat topic list is test-locked).
-
-Decisions locked (defaults): runtimes `static+nodejs+python`, data `KV + sqlite isolated/shared`, limits `20 sidecars, 18000-18100`.
-
-## 11. Verify (loop.md CHECKLIST V)
-
-`go build ./... && go test ./...`, frontend build+typecheck+lint, migration x3 compat, `bash retest.sh` live: install sample -> 409 checklist -> grant -> activate -> iframe loads -> `stack.fetch` 403 before grant / 200 after -> edit file -> restart -> logs show start -> snapshot -> delete (+wipe) -> nav disappears. Security: traversal `..`, IDOR own-scope, secret mask, sandbox headers. `rebuild.sh` last.
+- Runtimes v1: `static + nodejs` only, or `+python` day one?
+- Per-stack DB: KV only v1, or per-stack sqlite file too?
+- Max sidecars + port range + memory cap defaults?
