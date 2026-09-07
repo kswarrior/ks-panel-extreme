@@ -31,7 +31,7 @@ import Terminal, { type TerminalHandle } from '@/shared/components/ui/Terminal';
 import type { Terminal as XTerm } from '@xterm/xterm';
 import InstancePortsEditor from '@/features/instances/pages/InstancePortsEditor';
 import InstanceOverview from '@/features/instances/pages/InstanceOverview';
-import { PAGE_STARTERS } from '@/features/instance-pages/templates/pageStarters';
+import { LIB_FILES_HTML, LIB_FILES_SUB_PAGES } from '@/features/instance-pages/templates/pageStarters';
 import { resolveInstanceControls, shortcutLabel, shortcutSlug } from '@/features/instances/utils/instanceControls';
 import InstanceSftpCard from '@/features/instances/components/InstanceSftpCard';
 import InstanceSnapshotsTab from '@/features/instances/components/InstanceSnapshotsTab';
