@@ -799,7 +799,7 @@ func UpdateInstanceHandler(w http.ResponseWriter, r *http.Request) {
 			log.Printf("recreate async: failed to update status for instance %d: %v", id, err)
 			return
 		}
-		if len(steps) > 0 {
+		if recreateFiles := configFilesForEdge(merged); len(steps) > 0 || len(recreateFiles) > 0 {
 			stepsJSON, _ := json.Marshal(steps)
 			_ = repo2.UpdateInstallStatus(id, "running", inst.Kind+":"+inst.Name, 0, "", string(stepsJSON))
 			edgeSteps := make([]edge.InstallStep, len(steps))
@@ -840,6 +840,8 @@ func UpdateInstanceHandler(w http.ResponseWriter, r *http.Request) {
 				// Installation console: keep stdin only when the template
 				// binds install_terminal_id (see keepStdinForInstall).
 				KeepStdin: keepStdinForInstall(merged),
+				// Resolved config parsers ride along (same contract as deploy).
+				ConfigFiles: recreateFiles,
 			}); err != nil {
 				log.Printf("recreate async: install kick-off for instance %d failed: %v", id, err)
 				_ = repo2.UpdateInstallStatus(id, "failed", inst.Kind+":"+inst.Name, 0, "edge install start failed: "+err.Error(), string(mustJSON(steps)))
@@ -1144,7 +1146,7 @@ func reinstallAsync(instID, nodeID int64, kind, name string, cfg map[string]any)
 		log.Printf("reinstall async: failed to update status for instance %d: %v", instID, err)
 		return
 	}
-	if len(steps) > 0 {
+	if reinstallFiles := configFilesForEdge(cfg); len(steps) > 0 || len(reinstallFiles) > 0 {
 		stepsJSON, _ := json.Marshal(steps)
 		_ = repo2.UpdateInstallStatus(instID, "running", kind+":"+name, 0, "", string(stepsJSON))
 		edgeSteps := make([]edge.InstallStep, len(steps))
