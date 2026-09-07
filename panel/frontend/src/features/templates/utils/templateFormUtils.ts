@@ -86,7 +86,7 @@ export function serializeSpec(f: TemplateFormState): string {
     install_timeout_sec: f.install_timeout_s ? Number(f.install_timeout_s) : undefined,
     // Installation console binding (attach-by-ID handle for the install
     // workflow). Omitted when empty so old specs stay byte-identical.
-    install_terminal_id: normTid(f.install_terminal_id) || undefined,
+    install_terminal_id: (f.install_terminal_id || '').trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, '') || undefined,
     actions: f.actions.filter((a) => a.id.trim() !== '').map((a) => ({
       id: a.id,
       name: a.name,
@@ -198,7 +198,7 @@ export function serializeSpec(f: TemplateFormState): string {
       startup_command: f.advanced.startup_command,
       // Startup console binding (attach-by-ID handle for the container
       // main process). Always emitted like actions[].terminal_id.
-      startup_terminal_id: normTid(f.advanced.startup_terminal_id),
+      startup_terminal_id: (f.advanced.startup_terminal_id || '').trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, ''),
       stop_command: f.advanced.stop_command,
       stop_signal: f.advanced.stop_signal,
       working_dir: f.advanced.working_dir,
@@ -390,6 +390,15 @@ export function parseSpec(raw: string): Partial<TemplateFormState> {
     }
     if (s.install_timeout_sec !== undefined && s.install_timeout_sec !== null) {
       out.install_timeout_s = String(s.install_timeout_sec);
+    }
+    if (typeof s.install_terminal_id === 'string' && s.install_terminal_id.trim() !== '') {
+      out.install_terminal_id = s.install_terminal_id.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, '');
+    }
+    if (s.advanced && typeof s.advanced === 'object' && typeof (s.advanced as Record<string, any>).startup_terminal_id === 'string' && ((s.advanced as Record<string, any>).startup_terminal_id as string).trim() !== '') {
+      out.advanced = {
+        ...(out.advanced ?? emptyForm.advanced),
+        startup_terminal_id: ((s.advanced as Record<string, any>).startup_terminal_id as string).trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, ''),
+      };
     }
     if (Array.isArray(s.actions)) {
       out.actions = s.actions.map((a: any) => {
