@@ -112,7 +112,7 @@ Clear lead on composability but parsers conceded: KS leads cases 1–7, 10–13,
 
 ## 9. Sources
 
-- KS: `pages/{Templates,TemplateDetail,TemplateForm,TemplateStats}.tsx`, `components/TemplateForm/*.tsx` (incl. `TemplateConfigFilesSection.tsx`), `types/templateForm.ts` (`config_files`, `CONFIG_PARSERS`), `utils/templateFormUtils.ts` (serialize/parse incl. Ptero `config.files` compat), `models/instance.go:7`, `cli/templates_builtin.go`, `api/server.go:/api/templates` (+ `/config-preview`), `repository/template_repo.go`, `handlers/dotenv.go`, `handlers/configparse.go` (validation + 7 parsers + preview), `handlers/instance_handler.go` (deploy forward + pre-start re-sync), `edge/internal/configparse/` (apply + `/api/edge/configparse`), `edge/internal/install/engine.go` (post-install apply), `edge/internal/edge client ConfigParse`
+- KS: `pages/{Templates,TemplateDetail,TemplateForm,TemplateStats}.tsx`, `components/TemplateForm/*.tsx` (10 tabs — Config Files section removed Sept 2026), `types/templateForm.ts` (6 env scopes: install/actions/image/controls/pages/advanced), `utils/templateFormUtils.ts`, `models/instance.go:7`, `cli/templates_builtin.go`, `api/server.go:/api/templates`, `repository/template_repo.go`, `handlers/dotenv.go`, `handlers/instance_handler.go` (deploy + install workflow), `edge/internal/install/engine.go` (steps only)
 - Ptero: panel `v1.15.1` (Aug 2026), `eggs.pterodactyl.io` (Jul 2026 updates), Eggify v9.7
 - Pelican: panel `v1.0.0-beta37` (Aug 2026), `pelican-eggs` org, egg update/normalize/index features
 - Puffer: docs `v3.0.9`, `templates` repo `v3`, conditions/multi-commands/RCON/CurseForge/tester
