@@ -191,8 +191,10 @@ export const TemplateEnvVariablesSection: React.FC<EnvVariablesSectionProps> = (
                           <button
                             type="button"
                             onClick={() => onEnvUpdate(i, { options_list: [...(v.options_list ?? []), { svg: '', label: '', value: '' }] })}
-                            className="text-xs text-sky-300 hover:text-sky-200 underline"
+                            className="inline-flex items-center gap-1.5 text-xs text-sky-300 hover:text-sky-200 underline"
+                            title="Add another value row"
                           >
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M12 22v-5" /><path d="M9 2v6" /><path d="M15 2v6" /><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" /></svg>
                             + Add option
                           </button>
                           {(!v.options_list || v.options_list.length === 0) && v.options.trim() !== '' && (
@@ -211,7 +213,7 @@ export const TemplateEnvVariablesSection: React.FC<EnvVariablesSectionProps> = (
                         <input value={v.options} onChange={(e) => onEnvUpdate(i, { options: e.target.value })} placeholder="Legacy comma list (auto-synced from rows on save)" className={glassFieldClass} title="Legacy comma-separated values — kept for old readers; rows win when present" />
                       </div>
                     )}
-                    {v.display === 'checkbox' && (
+                    {!isAuto && v.display === 'checkbox' && (
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <label className="block text-[11px] text-gray-500 mb-0.5">Value when checked</label>
@@ -223,67 +225,46 @@ export const TemplateEnvVariablesSection: React.FC<EnvVariablesSectionProps> = (
                         </div>
                       </div>
                     )}
-                    <div>
-                      <span className="block text-[11px] text-gray-500 mb-1">
-                        Behaviour — <code className="font-mono text-gray-400">ask</code> prompts the operator at deploy (current); <code className="font-mono text-gray-400">auto</code> hides it and just applies the default (replaces the old .env / per-runtime overrides).
-                      </span>
-                      <div className="flex gap-1.5 flex-wrap">
-                        {(['ask', 'auto'] as const).map((b) => {
-                          const on = normalizeEnvBehavior((v as any).behavior) === b;
-                          return (
-                            <button
-                              key={b}
-                              type="button"
-                              onClick={() => onEnvUpdate(i, { behavior: b } as Partial<EnvVariableInput>)}
-                              aria-pressed={on}
-                              title={b === 'ask' ? 'Prompt the operator at deploy' : 'Hidden auto-set with the default value'}
-                              className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${on ? 'border-sky-500/60 bg-sky-500/15 text-sky-200' : 'border-white/10 bg-white/5 text-gray-500 hover:border-white/25 hover:text-gray-300'}`}
-                            >
-                              {b === 'ask' ? 'ask (prompt)' : 'auto (set silently)'}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                    {(imageNames ?? []).length > 0 && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div>
-                        <span className="block text-[11px] text-gray-500 mb-1">
-                          Images — which named runtimes this var applies to. <code className="font-mono text-gray-400">All</code> (default) = every runtime.
-                        </span>
-                        <div className="flex gap-1.5 flex-wrap">
-                          <button
-                            type="button"
-                            onClick={() => onEnvUpdate(i, { images: [] } as Partial<EnvVariableInput>)}
-                            aria-pressed={normalizeEnvImages((v as any).images).length === 0}
-                            title="Apply to all runtimes"
-                            className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${normalizeEnvImages((v as any).images).length === 0 ? 'border-emerald-500/60 bg-emerald-500/15 text-emerald-200' : 'border-white/10 bg-white/5 text-gray-500 hover:border-white/25 hover:text-gray-300'}`}
-                          >
-                            All
-                          </button>
-                          {(imageNames ?? []).map((n) => {
-                            const cur = normalizeEnvImages((v as any).images);
-                            const on = cur.some((x) => x.toLowerCase() === n.toLowerCase());
-                            return (
-                              <button
-                                key={n}
-                                type="button"
-                                onClick={() => {
-                                  const next = on
-                                    ? cur.filter((x) => x.toLowerCase() !== n.toLowerCase())
-                                    : [...cur, n];
-                                  onEnvUpdate(i, { images: next } as Partial<EnvVariableInput>);
-                                }}
-                                aria-pressed={on}
-                                title={on ? `Remove ${n}` : `Apply to ${n}`}
-                                className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${on ? 'border-emerald-500/60 bg-emerald-500/15 text-emerald-200' : 'border-white/10 bg-white/5 text-gray-500 hover:border-white/25 hover:text-gray-300'}`}
-                              >
-                                {n}
-                              </button>
-                            );
-                          })}
-                        </div>
+                        <label className="block text-[11px] text-gray-500 mb-0.5">Behaviour</label>
+                        <select
+                          value={normalizeEnvBehavior((v as any).behavior)}
+                          onChange={(e) => onEnvUpdate(i, { behavior: e.target.value as EnvVariableInput['behavior'] })}
+                          className={glassFieldClass}
+                          title="ask prompts the operator at deploy; auto hides it and just applies the default (replaces the old .env / per-runtime overrides)"
+                        >
+                          <option value="ask">ask — prompt at deploy</option>
+                          <option value="auto">auto — set silently</option>
+                        </select>
                       </div>
-                    )}
+                      {knownImgs.length > 0 && (
+                        <div>
+                          <label className="block text-[11px] text-gray-500 mb-0.5">Images</label>
+                          <select
+                            value={imgSel}
+                            onChange={(e) => {
+                              const next = e.target.value;
+                              if (next === '__custom') return;
+                              onEnvUpdate(i, { images: next === '__all' ? [] : [next] } as Partial<EnvVariableInput>);
+                            }}
+                            className={glassFieldClass}
+                            title="Which named runtimes this var applies to. All (default) = every runtime."
+                          >
+                            <option value="__all">All images</option>
+                            {knownImgs.map((n) => (
+                              <option key={n} value={n}>{n}</option>
+                            ))}
+                            {extraImgs.map((n) => (
+                              <option key={'x:' + n} value={n}>{n}</option>
+                            ))}
+                            {imgSel === '__custom' && (
+                              <option value="__custom">Custom ({curImgs.length} selected)</option>
+                            )}
+                          </select>
+                        </div>
+                      )}
+                    </div>
                     <div>
                       <span className="block text-[11px] text-gray-500 mb-1">
                         Use in — where <code className="font-mono text-gray-400">{v.name ? `{{${v.name}}}` : '{{NAME}}'} / {v.name ? `\${${v.name}}` : '${NAME}'} / {v.name ? '$(' + v.name + ')' : '$(NAME)'}</code> gets substituted. All on = everywhere (image, install, actions, controls, pages, runtime).
