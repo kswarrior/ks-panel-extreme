@@ -2497,7 +2497,11 @@ func aiExecInstanceAction(a *aiCallCtx, args map[string]any) (string, error) {
 // update_settings
 
 func aiProposeUpdateSettings(a *aiCallCtx, args map[string]any) (string, string, error) {
-	if err := a.checker.EnsureAny(a.uid, permissions.ViewSettingsKey, permissions.SettingsEditKey); err != nil {
+	// Branding changes are settings writes: SETTINGS_EDIT only. Allowing
+	// VIEW_SETTINGS here would let a view-only moderator propose + approve
+	// branding via chat while the direct PUT /api/ai/config now correctly
+	// requires EDIT.
+	if err := a.checker.Ensure(a.uid, permissions.SettingsEditKey); err != nil {
 		return "", "", fmt.Errorf("denied: settings changes need SETTINGS_EDIT — explain that the user lacks permission")
 	}
 	allowed := []string{"panel_name", "hosting_name", "hosting_about"}
