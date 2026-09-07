@@ -10,6 +10,42 @@
 
 export type OverviewDefaultTab = 'details' | 'monitoring' | 'manage' | 'activity';
 
+export type ShortcutKey = 'files' | 'terminal' | 'ports';
+
+export const SHORTCUT_KEYS: ShortcutKey[] = ['files', 'terminal', 'ports'];
+
+// InstanceShortcutConfig — per-tool config for the floating menu's quick
+// shortcuts (Files / Terminal / Ports) + the page they open. Stored inside
+// `instance_controls.shortcuts` so it snapshots per template/instance like
+// the rest of the block; missing keys fall back to the defaults below.
+export interface InstanceShortcutConfig {
+  // Show this shortcut in the floating menu (above Actions).
+  show: boolean;
+  // URL slug the shortcut navigates to (e.g. "files"). Files / Terminal
+  // resolve against the instance's enabled pages; Ports renders its native
+  // editor for its configured slug as well as the canonical "ports".
+  slug: string;
+  // Display name on the menu button.
+  label: string;
+  // Custom SVG icon markup (inner paths or a full <svg>); empty = default.
+  icon_svg: string;
+  // Icon tint (CSS color); empty = default tone.
+  icon_color: string;
+  // Page-context options (only the relevant one applies per tool):
+  // Files page shows the SFTP card above the file manager.
+  show_sftp: boolean;
+  // Terminal page shows the title + Reconnect/Clear header bar.
+  show_header: boolean;
+  // Ports page allows Add / Remove (false = read-only table).
+  allow_edit: boolean;
+}
+
+export interface InstanceShortcuts {
+  files: InstanceShortcutConfig;
+  terminal: InstanceShortcutConfig;
+  ports: InstanceShortcutConfig;
+}
+
 export interface InstanceControls {
   // Floating menu — info row.
   show_info_row: boolean;
