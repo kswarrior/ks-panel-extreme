@@ -155,6 +155,7 @@ func validateTemplateSpec(spec map[string]any) error {
 	// Validate actions[] if present
 	if rawActions, ok := spec["actions"].([]any); ok {
 		seenAction := make(map[string]struct{}, len(rawActions))
+		seenTid := make(map[string]int, len(rawActions))
 		for i, a := range rawActions {
 			m, ok := a.(map[string]any)
 			if !ok {
@@ -175,6 +176,103 @@ func validateTemplateSpec(spec map[string]any) error {
 			stopMode := getString(m, "stop_mode")
 			if stopMode != "" && stopMode != "same" && stopMode != "different" {
 				return fmt.Errorf("spec.actions[%d]: stop_mode must be 'same' or 'different'", i)
+			}
+			// Terminal binding: terminal_id is the pane ID panes enter to
+			// attach (e.g. mc-console). Normalised the same way on every
+			// layer (lowercase, spaces→_, [a-z0-9_-], max 64) so a pane
+			// match is exact on the normalised form.
+			if rawTid, ok := m["terminal_id"]; ok && rawTid != nil {
+				tidStr := ""
+				switch t := rawTid.(type) {
+				case string:
+					tidStr = t
+				default:
+					return fmt.Errorf("spec.actions[%d]: terminal_id must be a string", i)
+				}
+				if strings.TrimSpace(tidStr) != "" {
+					norm := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(tidStr), " ", "_"))
+					if len(norm) > 64 {
+						return fmt.Errorf("spec.actions[%d]: terminal_id must be at most 64 chars", i)
+					}
+					for _, ch := range norm {
+						if !(ch >= 'a' && ch <= 'z' || ch >= '0' && ch <= '9' || ch == '_' || ch == '-') {
+							return fmt.Errorf("spec.actions[%d]: terminal_id must match [a-z0-9_-] (got %q)", i, tidStr)
+						}
+					}
+					if prev, dup := seenTid[norm]; dup {
+						return fmt.Errorf("spec.actions[%d]: duplicate terminal_id %q (also on action %d) — each bound terminal must be unique or panes attach ambiguously", i, norm, prev)
+					}
+					seenTid[norm] = i
+				}
+			}
+			allowInput := getString(m, "terminal_allow_input")
+			if allowInput != "" && allowInput != "all" && allowInput != "allowlist" && allowInput != "disabled" {
+				return fmt.Errorf("spec.actions[%d]: terminal_allow_input must be 'all', 'allowlist' or 'disabled'", i)
+			}
+			if rawTimeout, ok := m["terminal_timeout_s"]; ok && rawTimeout != nil {
+				validTimeout := false
+				switch t := rawTimeout.(type) {
+				case string:
+					s := strings.TrimSpace(t)
+					if s == "" {
+						validTimeout = true
+					} else if p, err := strconv.Atoi(s); err == nil && p >= 0 && p <= 2592000 {
+						validTimeout = true
+					}
+				case float64:
+					if t == 0 || (t > 0 && t <= 2592000) {
+						validTimeout = true
+					}
+				}
+				if !validTimeout {
+					return fmt.Errorf("spec.actions[%d]: terminal_timeout_s must be 0..2592000 seconds", i)
+				}
+			}
+			// terminal_allowed_commands: array of regex (or ""/multiline
+			// string for hand-written specs). Every non-empty entry must
+			// compile so a typo fails fast at save time, not at console
+			// input time.
+			switch v := m["terminal_allowed_commands"].(type) {
+			case nil:
+			case string:
+				if strings.TrimSpace(v) != "" {
+					for _, ln := range strings.Split(v, "\n") {
+						ln = strings.TrimSpace(ln)
+						if ln == "" {
+							continue
+						}
+						if _, err := regexp.Compile(ln); err != nil {
+							return fmt.Errorf("spec.actions[%d]: terminal_allowed_commands has invalid regex %q: %v", i, ln, err)
+						}
+					}
+				}
+			case []any:
+				for _, e := range v {
+					s, ok := e.(string)
+					if !ok {
+						return fmt.Errorf("spec.actions[%d]: terminal_allowed_commands must be strings", i)
+					}
+					if strings.TrimSpace(s) == "" {
+						continue
+					}
+					if _, err := regexp.Compile(strings.TrimSpace(s)); err != nil {
+						return fmt.Errorf("spec.actions[%d]: terminal_allowed_commands has invalid regex %q: %v", i, s, err)
+					}
+				}
+			default:
+				return fmt.Errorf("spec.actions[%d]: terminal_allowed_commands must be an array or string", i)
+			}
+			switch v := m["terminal_blocked_commands"].(type) {
+			case nil:
+			case string:
+			case []any:
+				for _, e := range v {
+					if _, ok := e.(string); !ok {
+						return fmt.Errorf("spec.actions[%d]: terminal_blocked_commands must be strings", i)
+					}
+				}
+			default:
+				return fmt.Errorf("spec.actions[%d]: terminal_blocked_commands must be an array or string", i)
 			}
 			if rawSteps, ok := m["steps"].([]any); ok {
 				for j, step := range rawSteps {

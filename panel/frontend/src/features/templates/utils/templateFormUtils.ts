@@ -398,7 +398,7 @@ export function parseSpec(raw: string): Partial<TemplateFormState> {
           stop_command: String(a.stop_command ?? ''),
           stop_mode: (['same', 'different'].includes(a.stop_mode) ? a.stop_mode : 'different') as 'same' | 'different',
           terminal_id: String(a.terminal_id ?? '').trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, ''),
-          terminal_stop_on_exit: !!a.terminal_stop_on_exit,
+          terminal_stop_on_exit: a.terminal_stop_on_exit !== false,
           terminal_allow_input: (['all', 'allowlist', 'disabled'].includes(a.terminal_allow_input) ? a.terminal_allow_input : 'all') as TemplateAction['terminal_allow_input'],
           terminal_allowed_commands: Array.isArray(a.terminal_allowed_commands) ? (a.terminal_allowed_commands as string[]).join('\n') : String(a.terminal_allowed_commands ?? ''),
           terminal_blocked_commands: Array.isArray(a.terminal_blocked_commands) ? (a.terminal_blocked_commands as string[]).join(', ') : String(a.terminal_blocked_commands ?? ''),
