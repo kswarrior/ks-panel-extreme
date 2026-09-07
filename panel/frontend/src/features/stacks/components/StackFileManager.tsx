@@ -61,7 +61,8 @@ function fileLang(name: string): { label: string; preview: 'none' | 'markdown' |
 
 // templateFor seeds a newly created file with a minimal starter by
 // extension so html/markdown/react-ts/go files open ready to edit.
-function templateFor(name: string): string {
+// Exported for the /stack/:id/files page's create view (same starters).
+export function templateFor(name: string): string {
   const lower = name.toLowerCase();
   const base = name.split('/').pop() || 'app';
   const title = base.replace(/\.[^.]+$/, '') || 'app';

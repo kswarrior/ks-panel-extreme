@@ -45,6 +45,7 @@ import AdminTemplates from '@/features/templates/pages/Templates';
 import AdminMods from '@/features/mods/pages/Mods';
 import AdminStacks from '@/features/stacks/pages/Stacks';
 import StackDetail from '@/features/stacks/pages/StackDetail';
+import StackFiles from '@/features/stacks/pages/StackFiles';
 import StackView from '@/features/stacks/pages/StackView';
 import StackStudio from '@/features/stacks/pages/StackStudio';
 import StackStats from '@/features/stacks/pages/StackStats';
@@ -669,6 +670,16 @@ const Router: React.FC = () => (
           <RequireAuth>
             <RequirePermission permission={PermissionKey.MANAGE_STACKS}>
               <StackDetail />
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/stack/:id/files"
+        element={
+          <RequireAuth>
+            <RequirePermission permission={PermissionKey.MANAGE_STACKS}>
+              <StackFiles />
             </RequirePermission>
           </RequireAuth>
         }

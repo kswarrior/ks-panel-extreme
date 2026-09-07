@@ -97,6 +97,7 @@ export function resolveHeaderCrumb(rawPath: string): HeaderCrumb | null {
     [/^\/stacks\/stats$/, { parent: 'Stacks', parentTo: '/stacks', current: 'Statistics', icon: 'Stacks' }],
     [/^\/stacks\/schedules$/, { parent: 'Stacks', parentTo: '/stacks', current: 'Schedules', icon: 'Stacks' }],
     [/^\/stack\/[^/]+$/, { parent: 'Stacks', parentTo: '/stacks', current: 'Detail', icon: 'Stacks' }],
+    [/^\/stack\/[^/]+\/files$/, { parent: 'Stacks', parentTo: '/stacks', current: 'Files', icon: 'Stacks' }],
     [/^\/stacks\/[^/]+(\/.*)?$/, { parent: 'Stacks', parentTo: '/stacks', current: 'View', icon: 'Stacks' }],
     [/^\/instance-pages$/, { parent: 'Pages', parentTo: '/instance-pages', icon: 'Templates' }],
     [/^\/instance-pages\/stats$/, { parent: 'Pages', parentTo: '/instance-pages', current: 'Statistics', icon: 'Templates' }],

@@ -84,10 +84,18 @@ export async function downloadStack(id: number): Promise<Blob> {
 
 export async function updateStack(
   id: number,
-  payload: { name: string; category: string; version: string; description: string; icon: string; color?: string; spec?: unknown },
+  payload: { name: string; category: string; version: string; description: string; icon: string; color?: string; spec?: unknown; proxyPort?: number; proxyRootUrl?: string },
 ): Promise<Stack> {
   const res = await client.put<Stack>(`/api/stacks/${id}`, payload);
   return res.data;
+}
+
+// stackAppUrl returns the panel-served URL of a stack's proxied Go app
+// (/<root>/), or '' when the proxy is off. Plain anchor href (outside the
+// Router) since the mount lives outside the SPA route tree.
+export function stackAppUrl(s: Pick<Stack, 'proxy_port' | 'proxy_root_url' | 'active'>): string {
+  if (!s.active || !s.proxy_port || !s.proxy_root_url) return '';
+  return `/${s.proxy_root_url}/`;
 }
 
 export async function deleteStack(id: number, wipe = false): Promise<void> {

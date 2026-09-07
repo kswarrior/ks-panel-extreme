@@ -27,6 +27,10 @@ export interface Stack {
   theme_mode: 'panel' | 'custom' | 'none';
   page_style: 'spa' | 'simple';
   active: boolean;
+  // App proxy (migration 072): loopback port + mount segment of the
+  // externally-run stack Go app (0/"" = proxy off). Mirrors models.Stack.
+  proxy_port: number;
+  proxy_root_url?: string;
   owner_name?: string;
   source?: StackSource;
   source_url?: string;
