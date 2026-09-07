@@ -1333,3 +1333,18 @@ html[data-ks-reduced-motion='1'] .ks-system-tab-bar[data-active='true'] {
   mask-image: linear-gradient(to bottom, transparent, black 22px, black calc(100% - 22px), transparent);
 }
 
+/* Pill search-open on phones: when the search bar expands, hide every pill
+   action except search itself + the filter toggle so the input has room and
+   stays writable. Desktop (sm+) keeps all actions visible. The filter toggle
+   is identified by its "Open filters" aria-label, shared by all list pages. */
+@media (max-width: 639px) {
+  .ks-pill-content:has(.ks-search-open)
+    > *:not(.ks-search-wrap):not(:has(button[aria-label="Open filters"])) {
+    display: none !important;
+  }
+  .ks-pill-content:has(.ks-search-open) .ks-search-wrap {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+}
+

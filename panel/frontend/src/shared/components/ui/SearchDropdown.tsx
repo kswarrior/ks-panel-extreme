@@ -95,7 +95,7 @@ const SearchDropdown: React.FC<Props> = ({
   }, [isOpen, value]);
 
   return (
-    <div ref={wrapRef} className={`relative inline-flex items-center min-w-0 ${className}`}>
+    <div ref={wrapRef} className={`ks-search-wrap relative inline-flex items-center min-w-0 ${isOpen ? 'ks-search-open' : ''} ${className}`}>
       <button
         type="button"
         aria-label={ariaLabel}
@@ -112,16 +112,17 @@ const SearchDropdown: React.FC<Props> = ({
         </svg>
       </button>
       {/* Always mounted (width-collapsed when closed) so focus() in the tap
-          handler opens the phone keyboard. Responsive max-width keeps the
-          other pill buttons visible on small screens. */}
+          handler opens the phone keyboard. On phones the pill hides every
+          sibling except search + filter (see index.css), so the input can
+          take a wider share of the row. */}
       <div
         className={`overflow-hidden transition-[width,opacity,margin] duration-200 ease-out ${
           isOpen ? 'opacity-100 ml-1' : 'opacity-0 ml-0'
         } ${width ?? ''}`}
-        style={isOpen ? { width: 'min(12rem, 38vw)', maxWidth: '16rem' } : { width: 0 }}
+        style={isOpen ? { width: 'min(16rem, 55vw)', maxWidth: '16rem' } : { width: 0 }}
         aria-hidden={!isOpen}
       >
-        <div className="relative w-full" style={{ width: 'min(12rem, 38vw)', maxWidth: '16rem' }}>
+        <div className="relative w-full" style={{ width: 'min(16rem, 55vw)', maxWidth: '16rem' }}>
           <input
             ref={inputRef}
             type="search"
