@@ -228,7 +228,9 @@ func (sm *SessionManager) InvalidateAllSessions() int {
 	return count
 }
 
-// GetActiveSessions returns all active sessions for a user
+// GetActiveSessions returns copies of all active sessions for a user.
+// Copies (not live pointers) are returned so callers cannot mutate shared
+// state without the manager lock (go test -race flags pointer sharing).
 func (sm *SessionManager) GetActiveSessions(userID int64) []*Session {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
@@ -236,7 +238,8 @@ func (sm *SessionManager) GetActiveSessions(userID int64) []*Session {
 	var sessions []*Session
 	for _, session := range sm.sessions {
 		if session.UserID == userID && session.IsActive {
-			sessions = append(sessions, session)
+			cp := *session
+			sessions = append(sessions, &cp)
 		}
 	}
 
@@ -286,7 +289,11 @@ func init() {
 	InitializeSessionManager()
 }
 
-// SessionMiddleware extends the existing AuthMiddleware to integrate with session management
+// SessionMiddleware extends the existing AuthMiddleware to integrate with session management.
+// It mirrors AuthMiddleware's revocation-list semantics: untracked tokens
+// (valid HMAC, e.g. minted before a restart) pass, tracked revoked/idle
+// tokens fail. It must NOT use IsSessionValid (tracked-only), which would
+// reject every untracked bearer after a restart.
 func SessionMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Get the token from the request
@@ -303,7 +310,7 @@ func SessionMiddleware(next http.Handler) http.Handler {
 
 		if rawToken != "" {
 			// Validate the session
-			if !SessionManagerInstance.IsSessionValid(rawToken) {
+			if !SessionManagerInstance.TrackedSessionValid(rawToken, CurrentSessionPolicy().IdleTimeout) {
 				// Session is invalid, clear the cookie if it exists
 				if fromCookie {
 					http.SetCookie(w, ClearSessionCookie(r))

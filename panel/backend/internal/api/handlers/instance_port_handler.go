@@ -31,20 +31,23 @@ func ListPortsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	// OWN scope: if caller is Own-restricted, they may only read own instances.
 	// We check here so a user with INSTANCES_OWN can't peek at another user's ports.
-	// Fail closed on checker errors so a DB blip never opens another owner's ports.
+	// Fail closed on checker/DB errors so a DB blip never opens another owner's ports.
 	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
-		if conTmp, cerr := repository.OpenDB(); cerr == nil {
-			checker := permissions.NewChecker(conTmp)
-			hasOwn, hasAll, serr := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
-			_ = conTmp.Close()
-			if serr != nil {
-				http.Error(w, "forbidden", http.StatusForbidden)
-				return
-			}
-			if !hasAll && hasOwn && inst.OwnerID != uid {
-				http.Error(w, "forbidden", http.StatusForbidden)
-				return
-			}
+		conTmp, cerr := repository.OpenDB()
+		if cerr != nil {
+			http.Error(w, "server error", http.StatusInternalServerError)
+			return
+		}
+		checker := permissions.NewChecker(conTmp)
+		hasOwn, hasAll, serr := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		_ = conTmp.Close()
+		if serr != nil {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		if !hasAll && hasOwn && inst.OwnerID != uid {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
 		}
 	}
 	// Live ports from edge (cached).

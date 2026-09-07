@@ -181,7 +181,10 @@ func (mfa *MFAManager) ValidateBackupCode(codes []string, code string) bool {
 		if c == "" {
 			continue
 		}
-		if c == code {
+		if len(c) != len(code) {
+			continue
+		}
+		if subtleConstantTimeCompare(c, code) {
 			return true
 		}
 	}
@@ -197,7 +200,10 @@ func (mfa *MFAManager) UseBackupCode(codes []string, code string) []string {
 		if c == "" {
 			continue
 		}
-		if c == code {
+		if len(c) != len(code) {
+			continue
+		}
+		if subtleConstantTimeCompare(c, code) {
 			codes[i] = "" // Mark as used
 			break
 		}
@@ -205,19 +211,17 @@ func (mfa *MFAManager) UseBackupCode(codes []string, code string) []string {
 	return codes
 }
 
-// generateRandomCode generates a cryptographically secure random alphanumeric code
+// generateRandomCode generates a cryptographically secure random alphanumeric code.
+// Fail closed: a failed crypto read panics (chi's Recoverer turns it into
+// a 500 with no code issued) rather than minting a weak all-zero code.
 func generateRandomCode(length int) string {
 	const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	b := make([]byte, length)
 	if _, err := rand.Read(b); err != nil {
-		// Fallback (should not happen)
-		for i := range b {
-			b[i] = charset[int(b[i])%len(charset)]
-		}
-	} else {
-		for i := range b {
-			b[i] = charset[int(b[i])%len(charset)]
-		}
+		panic("mfa: crypto/rand failed: " + err.Error())
+	}
+	for i := range b {
+		b[i] = charset[int(b[i])%len(charset)]
 	}
 	return string(b)
 }

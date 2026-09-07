@@ -53,9 +53,16 @@ func loadInstNode(w http.ResponseWriter, r *http.Request) (inst *models.Instance
 		return nil, nil, "", false
 	}
 	// Ownership scope: Own without All may only reach own instances.
+	// Fail closed on checker errors so a DB blip never opens another owner's instance.
 	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
 		checker := permissions.NewChecker(con)
-		hasOwn, hasAll, _ := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		hasOwn, hasAll, serr := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		if serr != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]any{"error": "forbidden"})
+			return nil, nil, "", false
+		}
 		if !hasAll && hasOwn && inst.OwnerID != uid {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusForbidden)

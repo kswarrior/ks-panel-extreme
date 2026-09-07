@@ -16,6 +16,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -162,12 +163,17 @@ func parseKB(line string) int64 {
 }
 
 // prevCPUTimes holds the last sampled aggregate idle+busy jiffies so we can
-// compute the delta between heartbeats. A process-wide var is fine because
-// collectors are single-threaded by design (one ticker per edge).
+// compute the delta between heartbeats. Guarded by cpuMu: Collect may run
+// from the heartbeat ticker while an inspect poll or test calls it
+// concurrently, and the unlocked read-modify-write raced (go test -race).
 var prevCPUTimes struct {
 	busy, idle int64
 	seen       bool
 }
+
+// cpuMu serialises the prevCPUTimes read-modify-write below. It is held
+// only for the delta computation, never across /proc I/O.
+var cpuMu sync.Mutex
 
 // cpuPercent returns the CPU usage as a 0-100 percentage computed from the
 // delta since the previous call. The first call after startup always reports

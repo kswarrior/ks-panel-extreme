@@ -71,10 +71,14 @@ func (rl *RateLimiter) janitor() {
 		case <-ticker.C:
 			rl.mu.Lock()
 			now := time.Now()
+			maxWindow := rl.loginWindow
+			if rl.registerWindow > maxWindow {
+				maxWindow = rl.registerWindow
+			}
 			for clientID, attempts := range rl.records {
 				hasValid := false
 				for _, attempt := range attempts {
-					if now.Sub(attempt) <= 15*time.Minute {
+					if now.Sub(attempt) <= maxWindow {
 						hasValid = true
 						break
 					}
@@ -204,15 +208,18 @@ func (rl *RateLimiter) getWindow(endpoint string) time.Duration {
 	}
 }
 
-// RateLimitMiddleware creates middleware that enforces rate limits
+// RateLimitMiddleware creates middleware that enforces rate limits.
+// Every request through the gate is recorded BEFORE the allow check so the
+// cap actually engages; the previous version only recorded on the deny
+// path, leaving IsLocked/IsAllowed permanently under-counted (no-op).
 func RateLimitMiddleware(rl *RateLimiter, endpoint string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			clientID := getClientID(r)
-			
+
 			// Check if client is locked out
 			if rl.IsLocked(clientID, endpoint) {
-				w.Header().Set("Retry-After", rl.getWindow(endpoint).String())
+				w.Header().Set("Retry-After", strconv.FormatInt(int64(rl.getWindow(endpoint).Seconds()), 10))
 				http.Error(w, "rate limit exceeded, please try again later", http.StatusTooManyRequests)
 				return
 			}
@@ -226,12 +233,8 @@ func RateLimitMiddleware(rl *RateLimiter, endpoint string) func(http.Handler) ht
 				return
 			}
 
-			// Record successful attempt (for tracking)
-			if r.Method == "POST" && (r.URL.Path == "/api/auth/login" || r.URL.Path == "/api/auth/register") {
-				// Record attempt after successful validation
-				next.ServeHTTP(w, r)
-				return
-			}
+			// Record this attempt so sustained traffic trips the cap.
+			rl.RecordAttempt(clientID, endpoint)
 
 			next.ServeHTTP(w, r)
 		})

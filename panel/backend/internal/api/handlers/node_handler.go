@@ -722,11 +722,13 @@ func DeleteNodeHandler(w http.ResponseWriter, r *http.Request) {
 	// label even after the row is removed.
 	var label string
 	var ownerID int64
+	var found bool
 	if nd, gerr := repo.GetNode(id); gerr == nil && nd != nil {
 		label = nd.Name
 		ownerID = nd.OwnerID
+		found = true
 	}
-	if nodeOwnForbidden(w, r, ownerID) {
+	if found && nodeOwnForbidden(w, r, ownerID) {
 		return
 	}
 	if err := repo.DeleteNode(id); err != nil {
@@ -990,19 +992,18 @@ func ProbeAllNodesHandler(w http.ResponseWriter, r *http.Request) {
 		note      string
 	}
 
-	// Probe nodes with bounded concurrency so we don't spawn thousands of
-	// goroutines for large fleets. The channel capacity is bounded by the
-	// number of nodes, and we use a WaitGroup to collect results reliably.
+	// Probe nodes with bounded concurrency: acquire the semaphore BEFORE
+	// spawning so large fleets never hold one goroutine stack per node.
 	const maxProbeConcurrency = 20
 	sem := make(chan struct{}, maxProbeConcurrency)
 	var results []probeResult = make([]probeResult, len(nodes))
 	var wg sync.WaitGroup
 
 	for i, nd := range nodes {
+		sem <- struct{}{}
 		wg.Add(1)
 		go func(idx int, node models.Node) {
 			defer wg.Done()
-			sem <- struct{}{}
 			defer func() { <-sem }()
 			res := probe.Probe(node)
 			results[idx] = probeResult{

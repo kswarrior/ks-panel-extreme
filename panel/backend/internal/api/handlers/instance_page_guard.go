@@ -102,9 +102,14 @@ func guardInstancePageAny(w http.ResponseWriter, r *http.Request, pageSlugs ...s
 
 	// Ownership scope: Own without All may only reach own instances.
 	// Legacy callers with neither scope keep the old full-access behaviour.
+	// Fail closed on checker errors so a DB blip never opens another owner's instance.
 	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
 		checker := permissions.NewChecker(con)
-		hasOwn, hasAll, _ := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		hasOwn, hasAll, serr := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		if serr != nil {
+			writeJSONStatus(w, http.StatusForbidden, map[string]any{"error": "forbidden"})
+			return false
+		}
 		if !hasAll && hasOwn && inst.OwnerID != uid {
 			writeJSONStatus(w, http.StatusForbidden, map[string]any{"error": "forbidden"})
 			return false
@@ -264,7 +269,7 @@ func findSpecPageRow(rows []specPageRow, pageSlug string) *specPageRow {
 	}
 	parent, path := pageSlug[:idx], pageSlug[idx+1:]
 	for i := range rows {
-		if rows[i].slug != parent {
+		if rows[i].slug != parent && rows[i].originalSlug != parent {
 			continue
 		}
 		for _, sp := range rows[i].subPages {
