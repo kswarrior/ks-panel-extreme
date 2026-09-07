@@ -553,7 +553,7 @@ func validateTemplateSpec(spec map[string]any) error {
 	// treats both as one unified list. spec.default_image optionally names
 	// the default entry. The top-level `image` column stays the implicit
 	// legacy default so old templates deploy unchanged.
-	if _, err := parseTemplateImages(spec); err != nil {
+	if _, _, err := parseTemplateImages(spec); err != nil {
 		return err
 	}
 
