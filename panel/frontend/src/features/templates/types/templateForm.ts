@@ -67,8 +67,8 @@ export interface EnvVariable {
   options_list?: EnvOption[];
   // Checkbox send-values: stored when checked / unchecked. Empty = legacy
   // `'true'` / `'false'`.
-  checked_value: string;
-  unchecked_value: string;
+  checked_value?: string;
+  unchecked_value?: string;
   append: boolean;
   prepend: string;
   append_value: string;
