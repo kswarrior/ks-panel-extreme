@@ -295,6 +295,13 @@ export const TemplateActionsSection: React.FC<ActionsSectionProps> = ({
                         <label className="block text-[11px] text-gray-400 mb-0.5">Terminal ID (optional — binds this action to terminal panes)</label>
                         <input value={(a as any).terminal_id || ''} onChange={(e) => { const v = e.target.value.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, ''); onActionUpdate(i, { terminal_id: v } as Partial<TemplateActionInput>); }} placeholder="e.g. mc-console (empty = no dedicated terminal)" className={monoCls + ' border-sky-700/40 focus:border-sky-400'} />
                         <p className="text-[11px] text-gray-500 mt-1">On the instance Terminal page, add a terminal and enter this ID — when it matches, that pane streams this action's full log and routes input to the running action (Minecraft server console, bot stdin, …). Multiple panes may share one ID.</p>
+                        {(() => {
+                          const t = normTidLocal((a as any).terminal_id);
+                          if (t !== '' && (tidCounts.get(t) ?? 0) > 1) {
+                            return <p className="text-[11px] text-amber-300 bg-amber-950/30 border border-amber-700/30 rounded-md px-2 py-1 mt-1">Duplicate terminal ID “{t}” — panes attach to the first action only. Use a unique ID per console.</p>;
+                          }
+                          return null;
+                        })()}
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div>
