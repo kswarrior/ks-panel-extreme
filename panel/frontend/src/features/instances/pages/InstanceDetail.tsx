@@ -212,9 +212,40 @@ const TerminalPane: React.FC<{
   const isRunning = !!matchedAction && installState === 'running' && runningActionId === matchedAction.id;
   const actionStopOnExit = matchedAction ? (matchedAction.terminal_stop_on_exit ?? true) : false;
   const effectiveStop = pane.stopOnExit || actionStopOnExit;
-  const effectiveAllowed = pane.allowedCommands.trim() !== '' ? pane.allowedCommands : String(matchedAction?.terminal_allowed_commands ?? '');
-  const effectiveBlocked = pane.blockedCommands.trim() !== '' ? pane.blockedCommands : String(matchedAction?.terminal_blocked_commands ?? '');
-  const effectiveMode: PaneAllowInput = pane.allowInput;
+  // Normalise action lists: the stored spec may hold arrays (form
+  // serialize) or strings (hand-written / legacy rows). Arrays join with
+  // the same separator the validators split on so String([...]) never
+  // corrupts patterns with commas.
+  const actionAllowedRaw = Array.isArray(matchedAction?.terminal_allowed_commands)
+    ? (matchedAction.terminal_allowed_commands as unknown[]).map((x) => String(x ?? '')).filter((s) => s.trim() !== '').join('\n')
+    : String(matchedAction?.terminal_allowed_commands ?? '');
+  const actionBlockedRaw = Array.isArray(matchedAction?.terminal_blocked_commands)
+    ? (matchedAction.terminal_blocked_commands as unknown[]).map((x) => String(x ?? '')).filter((s) => s.trim() !== '').join(',')
+    : String(matchedAction?.terminal_blocked_commands ?? '');
+  const actionModeRaw = String(matchedAction?.terminal_allow_input ?? 'all').trim().toLowerCase();
+  const actionMode: PaneAllowInput = actionModeRaw === 'disabled' || actionModeRaw === 'allowlist' ? actionModeRaw : 'all';
+  // Timeout inherits the matched action's budget when the pane leaves it
+  // empty: a template timeout of 300s locks every bound pane even if the
+  // operator never typed a per-pane value (fully customizable = pane
+  // overrides, action provides the default).
+  const effectiveTimeoutS = pane.timeoutS.trim() !== '' ? pane.timeoutS : String(matchedAction?.terminal_timeout_s ?? '').trim();
+  // Input mode is the strictest of pane + action (fail closed): either side
+  // saying disabled locks input; either side saying allowlist gates lines.
+  // The server enforces the action's policy authoritatively (403); this
+  // keeps the UX honest so a pane can't show "allow all" while the server
+  // rejects every line.
+  const effectiveMode: PaneAllowInput = pane.allowInput === 'disabled' || actionMode === 'disabled'
+    ? 'disabled'
+    : pane.allowInput === 'allowlist' || (matchedAction && actionMode === 'allowlist')
+      ? 'allowlist'
+      : 'all';
+  const paneAllowedTrimmed = pane.allowedCommands.trim();
+  const effectiveAllowed = paneAllowedTrimmed !== '' ? pane.allowedCommands : actionAllowedRaw;
+  // Blocked tokens UNION both lists (defence-in-depth): a token blocked by
+  // either side rejects the line. The old fallback (pane else action) let a
+  // pane list hide the template's denylist in the UI (server still blocked,
+  // but the pane showed a confusing 403 after submit).
+  const effectiveBlocked = [pane.blockedCommands, actionBlockedRaw].map((s) => String(s || '').trim()).filter(Boolean).join(',');
   const readOnly = effectiveMode === 'disabled' || pane.stopped || pane.timedOut;
   const logText = matchedAction ? actionLogText(stepsJson) : '';
 
