@@ -272,6 +272,79 @@ const Settings: React.FC = () => {
     }
   };
 
+  const onPickFavicon = () => faviconInputRef.current?.click();
+
+  const onFaviconFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (e.target) e.target.value = '';
+    if (!file) return;
+    // Browsers report .ico as image/x-icon or image/vnd.microsoft.icon;
+    // some report empty string — fall back to the extension then.
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    const typeOk =
+      ALLOWED_FAVICON_TYPES.includes(file.type) ||
+      ((file.type === '' || file.type === 'application/octet-stream') && (ext === 'ico' || ext === 'svg' || ext === 'png'));
+    if (!typeOk) {
+      setError(`Unsupported icon type "${file.type || 'unknown'}". Allowed: PNG, JPEG, GIF, WebP, SVG, ICO.`);
+      return;
+    }
+    if (file.size > MAX_FAVICON_BYTES) {
+      setError('Icon file is too large (max 5 MiB).');
+      return;
+    }
+    setError('');
+    setSuccess('');
+    setUploadingFavicon(true);
+    const reader = new FileReader();
+    reader.onload = () => setFaviconPreview(typeof reader.result === 'string' ? reader.result : null);
+    reader.readAsDataURL(file);
+    try {
+      const snap = await uploadFavicon(file);
+      const fav = (snap as any).favicon || null;
+      setFaviconLocal(fav);
+      setFavicon(fav);
+      applyBrandToDocument({
+        panelName: snap.panel_name || name,
+        tabTitle: (snap as any).browser_tab_title ?? tabTitle,
+        faviconUrl: fav?.url,
+        faviconMime: fav?.mime,
+      });
+      setFaviconPreview(null);
+      setSuccess('Tab icon uploaded.');
+    } catch (e: any) {
+      setError(e?.response?.data || 'Failed to upload tab icon');
+      setFaviconPreview(null);
+    } finally {
+      setUploadingFavicon(false);
+    }
+  };
+
+  const onRemoveFavicon = async () => {
+    if (!favicon && !faviconPreview) return;
+    if (!(await confirm({ title: 'Remove tab icon', message: 'Remove the custom browser-tab icon? The default icon will be used.', tone: 'danger', confirmLabel: 'Remove' }))) return;
+    setError('');
+    setSuccess('');
+    setUploadingFavicon(true);
+    try {
+      const snap = await deleteFavicon();
+      const fav = (snap as any).favicon || null;
+      setFaviconLocal(fav);
+      setFavicon(null);
+      setFaviconPreview(null);
+      // Drop the <link rel="icon"> back to default: remove ours so the
+      // browser falls back, then re-apply title without an icon.
+      try {
+        document.querySelector('link[rel="icon"]')?.remove();
+      } catch { /* best-effort */ }
+      applyBrandToDocument({ panelName: snap.panel_name || name, tabTitle: (snap as any).browser_tab_title ?? tabTitle });
+      setSuccess('Tab icon removed.');
+    } catch (e: any) {
+      setError(e?.response?.data || 'Failed to remove tab icon');
+    } finally {
+      setUploadingFavicon(false);
+    }
+  };
+
   // The <img> src prefers the local preview (when picking) over the
   // server URL so admins see the new image the instant they select it.
   const previewSrc = logoPreview || logo?.url;
