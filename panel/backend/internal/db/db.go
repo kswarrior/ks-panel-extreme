@@ -1144,6 +1144,8 @@ func rewriteTextColumnDefsForMySQL(stmt string) string {
 			hits[j], hits[j-1] = hits[j-1], hits[j]
 		}
 	}
+	var out strings.Builder
+	out.Grow(len(stmt) + len(hits)*8)
 	pos := 0
 	for _, h := range hits {
 		// Column name precedes the TEXT token: last word before h.start.
@@ -1192,9 +1194,8 @@ func hasSQLKeyword(maskedUpper, kw string) bool {
 			return false
 		}
 		p += i
-		beforeOK := p == 0 || !isIdentChar(maskedUpper[p-1]) && maskedUpper[p-1] != ' '
-		_ = beforeOK
-		// Boundary = non-identifier char on both sides (space counts).
+		// Boundary = non-identifier char on both sides (space counts, so
+		// "PRIMARY KEY" matches inside "... NOT NULL PRIMARY KEY ...").
 		leftOK := p == 0 || !isIdentChar(maskedUpper[p-1])
 		rightOK := p+len(kw) >= len(maskedUpper) || !isIdentChar(maskedUpper[p+len(kw)])
 		if leftOK && rightOK {
@@ -1253,24 +1254,6 @@ func indexWordToken(mask, upper string, from int, kw string) int {
 		return i
 	}
 	return -1
-}
-
-// indexAfterWords skips n whitespace-separated words in mask starting at
-// off; returns the offset right after the n-th word, or -1.
-func indexAfterWords(mask string, off int, _ string, n int) int {
-	i := off
-	for k := 0; k < n; k++ {
-		for i < len(mask) && (mask[i] == ' ' || mask[i] == '\t' || mask[i] == '\r' || mask[i] == '\n') {
-			i++
-		}
-		if i >= len(mask) {
-			return -1
-		}
-		for i < len(mask) && mask[i] != ' ' && mask[i] != '\t' && mask[i] != '\r' && mask[i] != '\n' {
-			i++
-		}
-	}
-	return i
 }
 
 // trimParens strips one surrounding paren pair.
@@ -1538,19 +1521,50 @@ type columnSpec struct {
 // on dialects that support ADD COLUMN IF NOT EXISTS it uses that form (so a
 // racing migration that landed a ms ago is a no-op), on dialects that
 // do not it relies on the hasColumn pre-check.
+//
+// MySQL mapping: a TEXT column with a DEFAULT is illegal (Error 1101), so
+// for mysql/mariadb the leading TEXT of such a spec is rewritten to
+// VARCHAR(N) with the same tier rule the file-statement rewrite uses
+// (mysqlVarcharLen). Specs that already carry VARCHAR (e.g. 050's
+// VARCHAR(32)) pass through untouched; plain TEXT without DEFAULT stays
+// TEXT.
 func guardedAddColumns(d Dialect, db *sql.DB, name, table string, spec []columnSpec) error {
 	prefix := addColumnIfNotExistsPrefix(d)
+	isMySQL := d.Name() == "mysql" || d.Name() == "mariadb"
 	for _, c := range spec {
 		if hasColumn(d, db, table, c.name) {
 			continue
 		}
-		stmt := fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s%s %s", table, prefix, c.name, c.def)
+		def := c.def
+		if isMySQL {
+			def = mysqlGuardedColumnDef(c.name, def)
+		}
+		stmt := fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s%s %s", table, prefix, c.name, def)
 		if _, err := db.Exec(stmt); err != nil {
 			return fmt.Errorf("migration %s failed: %w", name, err)
 		}
 	}
 	log.Printf("Running migration %s", name)
 	return nil
+}
+
+// mysqlGuardedColumnDef rewrites a guarded ALTER column definition for
+// mysql/mariadb: leading TEXT with a DEFAULT becomes VARCHAR(N) (Error
+// 1101 otherwise). Anything else (INTEGER, DATETIME, already-VARCHAR,
+// plain TEXT) is returned unchanged.
+func mysqlGuardedColumnDef(col, def string) string {
+	trimmed := strings.TrimLeft(def, " \t\r\n")
+	if len(trimmed) < len("TEXT") || !strings.EqualFold(trimmed[:len("TEXT")], "TEXT") {
+		return def
+	}
+	if after := trimmed[len("TEXT"):]; after != "" && isIdentChar(after[0]) {
+		return def
+	}
+	maskedUpper := strings.ToUpper(maskSQLLiterals(def))
+	if !hasSQLKeyword(maskedUpper, "DEFAULT") {
+		return def
+	}
+	return fmt.Sprintf("VARCHAR(%d)%s", mysqlVarcharLen(col), trimmed[len("TEXT"):])
 }
 
 // addColumnIfNotExistsPrefix returns "IF NOT EXISTS " for dialectics that
@@ -1665,11 +1679,21 @@ func stripCreateIndexLines(content []byte, indexName string) []byte {
 // guardedCreateIndex creates one index when absent, dialect-aware:
 // sqlite_master for SQLite, pg_indexes for Postgres and
 // information_schema.statistics for MySQL — mirroring hasColumn's shape.
+// On mysql/mariadb, TEXT/BLOB-family columns get a (191) prefix length via
+// qualifyIndexPrefixForMySQL (Error 1170 otherwise); the prefix only
+// affects the access path of these non-unique indexes, never results.
 func guardedCreateIndex(d Dialect, db *sql.DB, migration, table, indexName, column string) error {
 	if hasIndex(d, db, table, indexName) {
 		return nil
 	}
 	stmt := fmt.Sprintf("CREATE INDEX %s ON %s(%s)", indexName, table, column)
+	if d.Name() == "mysql" || d.Name() == "mariadb" {
+		var qerr error
+		stmt, qerr = qualifyIndexPrefixForMySQL(db, table, stmt)
+		if qerr != nil {
+			return fmt.Errorf("migration %s failed: %w", migration, qerr)
+		}
+	}
 	if _, err := db.Exec(stmt); err != nil {
 		return fmt.Errorf("migration %s failed: %w", migration, err)
 	}

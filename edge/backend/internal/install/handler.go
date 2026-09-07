@@ -64,6 +64,19 @@ func Handler(token string) http.Handler {
 		}
 		handleInstallStop(w, r, token, store)
 	})
+	// /api/edge/install/stdin writes one console line to the running
+	// workflow's kept stdin pipe. This is the edge half of a bound terminal
+	// pane's input path: the panel already authenticated the operator and
+	// enforced the action's terminal input policy (disabled/allowlist/
+	// blocked) before forwarding, so the edge only checks its own token +
+	// that a live stdin writer exists.
+	mux.HandleFunc("/api/edge/install/stdin", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			writeInstallErr(w, http.StatusMethodNotAllowed, "method not allowed")
+			return
+		}
+		handleInstallStdin(w, r, token, store)
+	})
 	return mux
 }
 
@@ -201,6 +214,32 @@ func (s *store) clearStdinWriter(key string) {
 		rec.stdinWriter = nil
 		rec.mu.Unlock()
 	}
+}
+
+// WriteStdin writes one console line to the running workflow's kept stdin
+// pipe (bound terminal pane → action console, e.g. Minecraft `/tps`).
+// It reports false when there is no live writer: the workflow already
+// resolved, never kept stdin (KeepStdin=false), or the record is gone —
+// the panel maps that to "terminal stopped" so the pane can lock instead
+// of swallowing keystrokes into the void.
+func (s *store) WriteStdin(key string, data []byte) bool {
+	s.mu.Lock()
+	rec, ok := s.m[key]
+	s.mu.Unlock()
+	if !ok {
+		return false
+	}
+	rec.mu.RLock()
+	w := rec.stdinWriter
+	state := rec.state
+	rec.mu.RUnlock()
+	if w == nil || state != StateRunning {
+		return false
+	}
+	if _, err := w.Write(data); err != nil {
+		return false
+	}
+	return true
 }
 
 // Stop marks the record as cancelled (the running goroutine observes the

@@ -181,7 +181,7 @@ func TerminalHandler(w http.ResponseWriter, r *http.Request) {
 		valid := norm != "" && len(norm) <= 64
 		if valid {
 			for _, ch := range norm {
-				if !(ch >= 'a' && ch <= 'z' || ch >= '0' && ch <= '9' || ch == '_' || ch == '-' || ch == '.') {
+				if !(ch >= 'a' && ch <= 'z' || ch >= '0' && ch <= '9' || ch == '_' || ch == '-') {
 					valid = false
 					break
 				}
@@ -195,14 +195,14 @@ func TerminalHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	timeoutS := ""
 	if rawTimeout := strings.TrimSpace(r.URL.Query().Get("timeout")); rawTimeout != "" {
-		n := 0
+		digits := rawTimeout != ""
 		for _, ch := range rawTimeout {
 			if ch < '0' || ch > '9' {
-				n = -1
+				digits = false
 				break
 			}
 		}
-		if n == 0 {
+		if digits {
 			if v, verr := strconv.Atoi(rawTimeout); verr == nil && v > 0 && v <= 2592000 {
 				timeoutS = strconv.Itoa(v)
 			}
