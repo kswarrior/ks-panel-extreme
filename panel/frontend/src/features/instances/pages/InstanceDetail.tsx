@@ -179,6 +179,7 @@ interface TerminalPaneState {
 //    directly to the container main-process stdio (fully interactive,
 //    no mirror/relay needed).
 // No separate log box, no per-pane options.
+type PaneConnState = 'connecting' | 'connected' | 'reconnecting' | 'closed' | 'error';
 const TerminalPane: React.FC<{
   instanceId: number;
   pane: TerminalPaneState;
@@ -191,10 +192,11 @@ const TerminalPane: React.FC<{
   stepsJson: string;
   canRemove: boolean;
   onRemove: (key: number) => void;
-}> = ({ instanceId, pane, actions, runningActionId, installState, installKind, installTerminalId, startupTerminalId, stepsJson, canRemove, onRemove }) => {
+  onConnState?: (key: number, s: PaneConnState, msg?: string) => void;
+}> = ({ instanceId, pane, actions, runningActionId, installState, installKind, installTerminalId, startupTerminalId, stepsJson, canRemove, onRemove, onConnState }) => {
   const termRef = useRef<XTerm | null>(null);
   const handleRef = useRef<TerminalHandle>(null);
-  const [connState, setConnState] = useState<'connecting' | 'connected' | 'reconnecting' | 'closed' | 'error'>('connecting');
+  const [connState, setConnState] = useState<PaneConnState>('connecting');
   const [connMsg, setConnMsg] = useState('');
   const [cwd, setCwd] = useState('~');
   const [stdinError, setStdinError] = useState('');
@@ -210,21 +212,58 @@ const TerminalPane: React.FC<{
   // Startup console: bound when the pane ID equals the template's
   // advanced.startup_terminal_id. I/O rides the /console WS natively.
   const isStartupBound = tid !== '' && normTid(startupTerminalId) !== '' && tid === normTid(startupTerminalId);
+  const isBound = !!matchedAction || isInstallBound || isStartupBound;
+  // Live mirror is only valid while THIS pane's workflow is actually in
+  // flight. Mirroring the shared install_steps_json while idle is what used
+  // to paint stale/wrong-action logs into every bound pane.
+  const shouldMirror = ( !!matchedAction && isRunning ) || isInstalling;
   const streamLabel = matchedAction ? (matchedAction.name || matchedAction.id) : 'installation';
-  const logText = matchedAction || isInstallBound ? actionLogText(stepsJson) : '';
+  const logText = shouldMirror ? actionLogText(stepsJson) : '';
   // Mirror the bound action's transcript INTO the xterm so the running
   // console (java banner, player joins, node output, …) appears directly
   // in this terminal — there is no separate log box. Deltas are computed against
   // the last mirrored text: exact-prefix appends are written directly,
   // while a slid 8 KiB tail window re-anchors on the previous tail so
   // only truly new bytes are mirrored and polls never spam duplicates.
+  // A new workflow run (runKey change) starts with a separator so the old
+  // scrollback stays readable; when the run ends an ended marker is written
+  // once and mirroring stops (no stale cross-action logs).
   const lastMirroredRef = useRef('');
-  useEffect(() => { lastMirroredRef.current = ''; }, [tid]);
+  const lastRunRef = useRef('');
+  const wasMirroringRef = useRef(false);
+  const runKey = shouldMirror ? `${installKind}:${runningActionId}:${tid}` : '';
+  useEffect(() => { lastMirroredRef.current = ''; lastRunRef.current = ''; wasMirroringRef.current = false; }, [tid]);
+  useEffect(() => {
+    if (onConnState) onConnState(pane.key, connState, connMsg);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connState, connMsg]);
   useEffect(() => {
     const term = termRef.current;
-    if (!term || (!matchedAction && !isInstallBound) || logText === '') return;
+    // Run ended: stamp the marker once, keep scrollback, stop mirroring.
+    if (!shouldMirror) {
+      if (wasMirroringRef.current && term && isBound && !isStartupBound) {
+        term.write(`\r\n\x1b[90m— ${streamLabel} console ended —\x1b[0m\r\n`);
+      }
+      wasMirroringRef.current = false;
+      return;
+    }
+    if (!term || logText === '') {
+      wasMirroringRef.current = true;
+      return;
+    }
+    // New run started (different workflow key): separator + full tail.
+    if (lastRunRef.current !== '' && lastRunRef.current !== runKey) {
+      lastMirroredRef.current = '';
+      term.write(`\r\n\x1b[90m— streaming ${streamLabel} console —\x1b[0m\r\n`);
+      const tail = logText.length > 16384 ? logText.slice(-16384) : logText;
+      term.write(tail);
+      lastMirroredRef.current = logText;
+      lastRunRef.current = runKey;
+      wasMirroringRef.current = true;
+      return;
+    }
     const prev = lastMirroredRef.current;
-    if (logText === prev) return;
+    if (logText === prev && lastRunRef.current === runKey) return;
     let delta: string | null = null;
     if (prev === '') {
       delta = logText;
@@ -234,14 +273,17 @@ const TerminalPane: React.FC<{
       const anchor = prev.slice(-2000);
       const idx = anchor !== '' ? logText.lastIndexOf(anchor) : -1;
       if (idx >= 0) delta = logText.slice(idx + anchor.length);
+      else delta = logText.length > 8000 ? logText.slice(-8000) : logText;
     }
     lastMirroredRef.current = logText;
+    lastRunRef.current = runKey;
+    wasMirroringRef.current = true;
     if (delta === null || delta === '') return;
     if (prev === '') term.write(`\r\n\x1b[90m— streaming ${streamLabel} console —\x1b[0m\r\n`);
     // Cap a single mirror burst so a step transition can't flood scrollback.
     term.write(delta.length > 16384 ? delta.slice(-16384) : delta);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [logText, matchedAction, isInstallBound, streamLabel, tid, connState]);
+  }, [logText, shouldMirror, runKey, streamLabel, tid, isBound, isStartupBound]);
 
   const handleLine = (line: string) => {
     // Fully functional console: every typed line goes straight to the
@@ -274,6 +316,13 @@ const TerminalPane: React.FC<{
   };
 
   const title = pane.name.trim() !== '' ? pane.name.trim() : (tid !== '' ? tid : 'shell');
+  const statusSuffix = shouldMirror
+    ? ' · running'
+    : isStartupBound && connState === 'connected'
+      ? ' · attached'
+      : isBound && !isStartupBound
+        ? ' · idle'
+        : '';
 
   return (
     <div className="rounded-xl border border-white/10 bg-black/20 overflow-hidden">
@@ -281,7 +330,10 @@ const TerminalPane: React.FC<{
         <div className="min-w-0 flex-1">
           <span className="block truncate text-sm font-medium text-white" title={tid ? `${title} · ${tid}` : title}>{title}</span>
           {tid !== '' && (
-            <span className="block truncate font-mono text-[11px] text-gray-500" title={`Terminal ID: ${tid}`}>{tid}{isRunning || isInstalling ? ' · running' : ''}{isStartupBound && !isRunning && !isInstalling && connState === 'connected' ? ' · attached' : ''}</span>
+            <span className="block truncate font-mono text-[11px] text-gray-500" title={`Terminal ID: ${tid}`}>{tid}{statusSuffix}</span>
+          )}
+          {tid === '' && (
+            <span className="block truncate font-mono text-[11px] text-gray-500">shell · {connState}</span>
           )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
