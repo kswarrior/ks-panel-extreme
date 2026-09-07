@@ -849,6 +849,39 @@ func isIdentChar(c byte) bool {
 		(c >= 'a' && c <= 'z')
 }
 
+// rewriteInsertOrIgnoreForPostgres converts a leading INSERT OR IGNORE
+// (any whitespace/casing between keywords) into INSERT ... ON CONFLICT DO
+// NOTHING, which is the idempotent form SeedCore's insertIgnorePrefix uses.
+// Needed because regen.sh's sed conversion is line-scoped: single-line
+// seed INSERTs (065) arrive already converted, but multi-line VALUES lists
+// (029, 032, 033, 052, 064) still carry OR IGNORE and Postgres rejects
+// them with a syntax error. Non-matching statements pass through
+// untouched; shipped files are never modified.
+func rewriteInsertOrIgnoreForPostgres(stmt string) string {
+	rest := stmt
+	for _, want := range []string{"INSERT", "OR", "IGNORE", "INTO"} {
+		trimmed := strings.TrimLeft(rest, " \t\r\n")
+		kw, after := cutKeyword(trimmed)
+		if !strings.EqualFold(kw, want) || after == trimmed {
+			return stmt
+		}
+		rest = after
+	}
+	return "INSERT INTO " + strings.TrimLeft(rest, " \t\r\n") + " ON CONFLICT DO NOTHING"
+}
+
+// cutKeyword splits the first whitespace-delimited token off s. It returns
+// (s, s) when s holds no whitespace so callers can tell "no gap" apart
+// from a real split.
+func cutKeyword(s string) (kw, rest string) {
+	for i := 0; i < len(s); i++ {
+		if s[i] == ' ' || s[i] == '\t' || s[i] == '\r' || s[i] == '\n' {
+			return s[:i], s[i+1:]
+		}
+	}
+	return s, s
+}
+
 // splitSQLStatements cuts a migration body into individual statements. Line
 // comments (--) are stripped quote-aware first — header comments carry
 // semicolons that must not split — then the body is cut on semicolons

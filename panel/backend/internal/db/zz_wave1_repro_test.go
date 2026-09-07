@@ -33,6 +33,14 @@ func TestWave1ReproLiveEngines(t *testing.T) {
 				t.Fatalf("SECOND RunMigrations failed: %v", err)
 			}
 			t.Logf("second run ok")
+			if err := EnsureSchemaAndSeed(d, con); err != nil {
+				t.Fatalf("EnsureSchemaAndSeed failed: %v", err)
+			}
+			t.Logf("seed ok")
+			if err := EnsureSchemaAndSeed(d, con); err != nil {
+				t.Fatalf("SECOND EnsureSchemaAndSeed failed: %v", err)
+			}
+			t.Logf("second seed ok")
 			var n int
 			_ = con.QueryRow("SELECT COUNT(*) FROM permissions").Scan(&n)
 			t.Logf("permissions rows=%d", n)
