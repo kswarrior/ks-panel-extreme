@@ -18,7 +18,7 @@ transform_postgres() {
         -e 's/^PRAGMA foreign_keys *=.*//' \
         -e 's/INTEGER PRIMARY KEY AUTOINCREMENT/SERIAL PRIMARY KEY/g' \
         -e 's/^INSERT OR IGNORE INTO ([a-zA-Z_]+) (.*);[[:space:]]*$/INSERT INTO \1 \2 ON CONFLICT DO NOTHING;/' \
-        -e 's/^ALTER TABLE ([a-zA-Z_]+) ADD COLUMN ([a-zA-Z_]+)/ALTER TABLE \1 ADD COLUMN IF NOT EXISTS \2/' \
+        -e 's/^ALTER TABLE[[:space:]][[:space:]]*([a-zA-Z_]+)[[:space:]][[:space:]]*ADD COLUMN[[:space:]][[:space:]]*([a-zA-Z_]+)/ALTER TABLE \1 ADD COLUMN IF NOT EXISTS \2/' \
         -e 's/DATETIME/TIMESTAMP/g' \
         -e '/^-- SQLite has no/d' \
         -e '/^-- SQLite doesn/d' \
