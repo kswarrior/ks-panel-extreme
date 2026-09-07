@@ -157,7 +157,7 @@ const ApplicationRunModal: React.FC<Props> = ({ app, onClose }) => {
         node_id: target === 'node' ? Number(nodeId) : undefined,
         exec_mode: execMode,
         workload: execMode === 'host' ? undefined : workload,
-        timeout_sec: timeoutSec,
+        timeout_sec: timeout,
         env: envValues,
       });
       setResult(run);

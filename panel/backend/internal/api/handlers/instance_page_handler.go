@@ -1220,7 +1220,11 @@ func ExecutePageActionHandler(w http.ResponseWriter, r *http.Request) {
 	// Ownership scope: Own without All may only execute on own instances.
 	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
 		chk := permissions.NewChecker(con)
-		hasOwn, hasAll, _ := chk.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		hasOwn, hasAll, serr := chk.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		if serr != nil {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
 		if !hasAll && hasOwn && instance.OwnerID != uid {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
@@ -1621,7 +1625,11 @@ func ExecuteCustomPageActionHandler(w http.ResponseWriter, r *http.Request) {
 	// Ownership scope: Own without All may only execute on own instances.
 	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
 		chk2 := permissions.NewChecker(con)
-		hasOwn, hasAll, _ := chk2.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		hasOwn, hasAll, serr := chk2.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		if serr != nil {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
 		if !hasAll && hasOwn && instance.OwnerID != uid {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
@@ -1774,7 +1782,11 @@ func ExecuteModulePageActionHandler(w http.ResponseWriter, r *http.Request) {
 	// Ownership scope: Own without All may only execute on own instances.
 	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
 		chk3 := permissions.NewChecker(con)
-		hasOwn, hasAll, _ := chk3.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		hasOwn, hasAll, serr := chk3.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		if serr != nil {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
 		if !hasAll && hasOwn && instance.OwnerID != uid {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
