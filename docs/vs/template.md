@@ -55,7 +55,7 @@ Panels + latest checked: `KS` (this repo) vs `Pterodactyl v1.15.1 (12 Aug 2026, 
 
 |  | KS | Pterodactyl | Pelican | PufferPanel |
 |---|---|---|---|---|
-| Types/widgets | `text/number/select/checkbox + options` | text + `rules` (laravel rules are genuinely stronger validation) | same | `type + display` + CEL |
+| Types/widgets | `text/number/select/checkbox + options`; select rows carry SVG + label + value; checkbox has custom on/off send-values | text + `rules` (laravel rules are genuinely stronger validation) | same | `type + display` + CEL |
 | Gates | `viewable/editable` | same names, enforced + subuser layer | same + subuser checks fix | `required` only |
 | Per-page vars | `configure[] + config{}` (unique) | no | no | no |
 | Bulk `.env` file | `env_file` textarea (compose-style, substituted, merged under explicit vars) → real env: Docker `-e`, LXD `environment.*`. Honest minus: template-level only (no per-deploy edit), file vars never secret-flagged, KVM/Multipass have no env channel | no bulk (vars one-by-one; each does become real container env) | no bulk | `writefile` can materialize a `.env` file but panel never injects it as process env (app must read it itself) |
@@ -93,7 +93,7 @@ Panels + latest checked: `KS` (this repo) vs `Pterodactyl v1.15.1 (12 Aug 2026, 
 | 12 | Advanced + health/labels | 85 | 20 | 20 | 15 |
 | 13 | Pages / UI | 95 | 15 | 15 | 15 |
 | 14 | Grouping | 50 | 88 | 88 | 35 |
-| 15 | Multi-image | 25 | 90 | 90 | 30 |
+| 15 | Multi-image | 55 | 90 | 90 | 30 |
 | 16 | Config parsers | 20 | 85 | 85 | 30 |
 | 17 | Library size | 25 | 100 | 88 | 65 |
 | 18 | Governance | 78 | 70 | 72 | 55 |
@@ -103,7 +103,7 @@ Panels + latest checked: `KS` (this repo) vs `Pterodactyl v1.15.1 (12 Aug 2026, 
 
 | Rank | Panel | Sum | Final `/100` |
 |------|-------|-----|--------------|
-| **1** | **KS** | **1,412 / 1,900** | **74** |
+| **1** | **KS** | **1,442 / 1,900** | **76** |
 | 2 | Pelican | 1,278 / 1,900 | 67 |
 | 3 | Pterodactyl | 1,258 / 1,900 | 66 |
 | 4 | PufferPanel | 982 / 1,900 | 52 |

@@ -25,13 +25,13 @@
 -- endpoints issue; without them an Own-restricted role would fall back
 -- to a full-table scan as the fleet grows.
 
-ALTER TABLE nodes         ADD COLUMN owner_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
-ALTER TABLE templates     ADD COLUMN owner_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
-ALTER TABLE mods          ADD COLUMN owner_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
-ALTER TABLE applications  ADD COLUMN owner_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE nodes ADD COLUMN IF NOT EXISTS owner_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE templates ADD COLUMN IF NOT EXISTS owner_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE mods ADD COLUMN IF NOT EXISTS owner_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS owner_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE instance_pages ADD COLUMN IF NOT EXISTS owner_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
-ALTER TABLE themes        ADD COLUMN owner_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
-ALTER TABLE roles         ADD COLUMN owner_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE themes ADD COLUMN IF NOT EXISTS owner_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE roles ADD COLUMN IF NOT EXISTS owner_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
 
 CREATE INDEX IF NOT EXISTS nodes_owner_idx           ON nodes(owner_id);
 CREATE INDEX IF NOT EXISTS templates_owner_idx       ON templates(owner_id);

@@ -15,16 +15,16 @@
 
 CREATE TABLE IF NOT EXISTS panel_pages (
     id            BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    slug          VARCHAR(64) NOT NULL UNIQUE,
-    name          VARCHAR(128) NOT NULL DEFAULT '',
-    icon_svg      MEDIUMTEXT NOT NULL,
-    content_type  VARCHAR(16) NOT NULL DEFAULT 'markdown' CHECK (content_type IN ('html','markdown')),
-    content       MEDIUMTEXT NOT NULL,
+    slug          TEXT     NOT NULL UNIQUE,
+    name          TEXT     NOT NULL DEFAULT '',
+    icon_svg      TEXT     NOT NULL DEFAULT '',
+    content_type  TEXT     NOT NULL DEFAULT 'markdown' CHECK (content_type IN ('html','markdown')),
+    content       TEXT     NOT NULL DEFAULT '',
     enabled       INTEGER  NOT NULL DEFAULT 1,
     roles         TEXT     NOT NULL DEFAULT '[]',
     sort_order    INTEGER  NOT NULL DEFAULT 0,
     created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_panel_pages_enabled ON panel_pages(enabled);
