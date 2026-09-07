@@ -651,6 +651,62 @@ func writeJSONInstallStop(w http.ResponseWriter, state string, code int, stdout,
 	})
 }
 
+// StdinInput is the body of POST /api/edge/install/stdin. Kind+Name resolve
+// the workflow record key (same <kind>:<name> the install start used); Data
+// is one console line including its trailing newline, written verbatim to
+// the running step's kept stdin pipe.
+type StdinInput struct {
+	Token string `json:"token"`
+	Kind  string `json:"kind"`
+	Name  string `json:"name"`
+	Data  string `json:"data"`
+}
+
+// handleInstallStdin writes one console line into the running workflow's
+// stdin pipe (bound terminal pane → action console). The panel enforces the
+// action's terminal input policy before forwarding; the edge enforces only
+// its token, the payload budget (8 KiB), and that a live writer exists.
+//
+// Errors: 401 on token mismatch, 400 on missing kind/name or empty/
+// over-budget data, 404 when no workflow record exists, 409 when the record
+// exists but has no writable stdin (already resolved or never kept one).
+// The 409 is what lets the panel flip the pane into "terminal stopped".
+func handleInstallStdin(w http.ResponseWriter, r *http.Request, token string, store *store) {
+	raw, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil {
+		writeInstallErr(w, http.StatusBadRequest, "read body: "+err.Error())
+		return
+	}
+	var in StdinInput
+	if err := json.Unmarshal(raw, &in); err != nil {
+		writeInstallErr(w, http.StatusBadRequest, "invalid payload: "+err.Error())
+		return
+	}
+	if token == "" || subtle.ConstantTimeCompare([]byte(in.Token), []byte(token)) != 1 {
+		writeInstallErr(w, http.StatusUnauthorized, "invalid token")
+		return
+	}
+	if in.Kind == "" || in.Name == "" {
+		writeInstallErr(w, http.StatusBadRequest, "kind and name are required")
+		return
+	}
+	if len(in.Data) == 0 || len(in.Data) > 8192 {
+		writeInstallErr(w, http.StatusBadRequest, "data must be 1..8192 bytes")
+		return
+	}
+	key := in.Kind + ":" + in.Name
+	if _, ok := store.get(key); !ok {
+		writeInstallErr(w, http.StatusNotFound, "no workflow for "+key)
+		return
+	}
+	if !store.WriteStdin(key, []byte(in.Data)) {
+		writeInstallErr(w, http.StatusConflict, "workflow has no live console input (already finished or stdin was not kept)")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
+}
+
 // buildExecFn constructs the same ExecFn handleInstallStart uses (concurrent
 // stdout/stderr drain + the isContainerNotRunningErr retry that absorbs the
 // post-deploy "container not scheduled yet" window). Factored out so the stop

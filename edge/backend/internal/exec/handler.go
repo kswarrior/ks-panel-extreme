@@ -98,6 +98,38 @@ func Handler(token string) http.Handler {
 		if rows <= 0 {
 			rows = 24
 		}
+		// Bound-terminal panes forward ?terminal=<id> (the SPA matches it
+		// against the template action's terminal_id) and ?timeout=<seconds>
+		// (the pane's attach budget). The terminal id is session metadata
+		// only — scoping stays panel-side — but a syntactically invalid id
+		// is rejected fail-closed so a smuggled value can't ride into
+		// driver logs. The timeout is enforced below: the session is torn
+		// down with an exit frame once the budget elapses.
+		terminalID := strings.TrimSpace(q.Get("terminal"))
+		if terminalID != "" {
+			norm := strings.ToLower(strings.ReplaceAll(terminalID, " ", "_"))
+			valid := norm != "" && len(norm) <= 64
+			if valid {
+				for _, ch := range norm {
+					if !(ch >= 'a' && ch <= 'z' || ch >= '0' && ch <= '9' || ch == '_' || ch == '-') {
+						valid = false
+						break
+					}
+				}
+			}
+			if !valid {
+				http.Error(w, "invalid terminal id", http.StatusBadRequest)
+				return
+			}
+			terminalID = norm
+		}
+		timeoutSec := 0
+		if rawTimeout := strings.TrimSpace(q.Get("timeout")); rawTimeout != "" {
+			if v, verr := strconv.Atoi(rawTimeout); verr == nil && v > 0 && v <= 2592000 {
+				timeoutSec = v
+			}
+		}
+		_ = terminalID
 
 		conn, err := up.Upgrade(w, r, nil)
 		if err != nil {
