@@ -491,6 +491,10 @@ func NewRouter() http.Handler {
 			// edit-level (like setup-local).
 			r.With(requireUmbrellaOrAction(nodesG, permissions.ActionView)).Get("/{id}/update-info", handlers.NodeUpdateInfoHandler)
 			r.With(requireUmbrellaOrAction(nodesG, permissions.ActionView)).Get("/{id}/update-check", handlers.NodeUpdateCheckHandler)
+			// Node instance-files browser (NodeDetail → Files tab): read-only,
+			// instances_dir-jailed listing proxied to the edge. View-level
+			// like update-info (no mutating ops exist on this surface).
+			r.With(requireUmbrellaOrAction(nodesG, permissions.ActionView)).Get("/{id}/files", handlers.NodeFilesHandler)
 			r.With(requireUmbrellaOrAction(nodesG, permissions.ActionEdit)).Post("/{id}/update-apply", handlers.NodeUpdateApplyHandler)
 			r.With(requireUmbrellaOrAction(nodesG, permissions.ActionEdit)).Post("/{id}/reinstall", handlers.NodeReinstallHandler)
 			r.With(requireUmbrellaOrAction(nodesG, permissions.ActionEdit)).Post("/{id}/reinstall-background", handlers.NodeReinstallBackgroundHandler)

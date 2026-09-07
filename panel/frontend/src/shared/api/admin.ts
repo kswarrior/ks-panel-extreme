@@ -1345,6 +1345,40 @@ export async function reinstallNodeBackground(id: number): Promise<NodeReinstall
   return res.data;
 }
 
+// ---- Node instance-files browser (NodeDetail → Files) -------------------
+// Read-only listing of the edge daemon's instance-files directory
+// (instances_dir), which is the filesystem root the edge exposes — the
+// operator can inspect per-instance data without seeing the rest of the
+// host. View-level (MANAGE_NODES view), same as update-info/probe.
+
+export interface NodeFileEntry {
+  name: string;
+  size: number;
+  mode: number;
+  is_dir: boolean;
+  mod_time: number;
+}
+
+export interface NodeFilesListResponse {
+  entries: NodeFileEntry[];
+  path: string;
+  root: string;
+  truncated?: boolean;
+}
+
+export async function listNodeFiles(id: number, path: string): Promise<NodeFilesListResponse> {
+  const res = await client.get<NodeFilesListResponse>(`/api/nodes/${id}/files`, {
+    params: { op: 'list', path },
+  });
+  return res.data;
+}
+
+// Download URL for one file inside the instances root. Auth rides the
+// HttpOnly session cookie (same-origin anchor), so no token is embedded.
+export function nodeFileDownloadUrl(id: number, path: string): string {
+  return `/api/nodes/${id}/files?op=read&path=${encodeURIComponent(path)}`;
+}
+
 // ---- Fleet rolling update (POST /api/nodes/update-all) -------------------
 // Orchestrated rollout: order nodes (canary subset first), per node
 // check→apply→poll edge /health + heartbeat until healthy/timeout, stop
