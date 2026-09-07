@@ -105,7 +105,7 @@ const NODE_DETAIL_TABS: Array<{ id: NodeDetailTabId; label: string; hint: string
   },
 ];
 
-const VALID_TABS: NodeDetailTabId[] = ['overview', 'connectivity', 'placement', 'updates', 'timeline'];
+const VALID_TABS: NodeDetailTabId[] = ['resources', 'connectivity', 'placement', 'updates', 'timeline'];
 
 const NodeDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -125,8 +125,10 @@ const NodeDetail: React.FC = () => {
   const [edgeVersion, setEdgeVersion] = useState('');
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = (() => {
-    const q = searchParams.get('tab') as NodeDetailTabId | null;
-    return q && (VALID_TABS as string[]).includes(q) ? (q as NodeDetailTabId) : 'overview';
+    const q = searchParams.get('tab');
+    // Legacy link support: the resources tab used to be called 'overview'.
+    const legacy = q === 'overview' ? 'resources' : q;
+    return legacy && (VALID_TABS as string[]).includes(legacy) ? (legacy as NodeDetailTabId) : 'resources';
   })();
   const [tab, setTab] = useState<NodeDetailTabId>(initialTab);
 
@@ -453,7 +455,7 @@ const NodeDetail: React.FC = () => {
         active={tab}
         onChange={changeTab}
         tabs={NODE_DETAIL_TABS.map((t) =>
-          t.id === 'overview'
+          t.id === 'resources'
             ? { ...t, marker: { kind: 'dot', className: st.dot, title: `Status: ${st.label}` } as const }
             : t.id === 'placement' && instanceStats !== null
               ? { ...t, marker: { kind: 'badge', text: instanceStats.total, title: `${instanceStats.total} instance(s) · ${instanceStats.running} running` } as const }
@@ -461,8 +463,8 @@ const NodeDetail: React.FC = () => {
         )}
       />
 
-      {tab === 'overview' && (
-      <div role="tabpanel" id="rail-panel-overview" aria-labelledby="rail-tab-overview" className="space-y-4">
+      {tab === 'resources' && (
+      <div role="tabpanel" id="rail-panel-resources" aria-labelledby="rail-tab-resources" className="space-y-4">
       <GlassCard className="ks-stat-card p-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <ResourceBar label="RAM" pair={ramLabel} pct={node.ram_total ? (node.ram_used / node.ram_total) * 100 : 0} from="#34d399" to="#10b981" ok={node.hw_ram_ok} />
@@ -504,33 +506,11 @@ const NodeDetail: React.FC = () => {
           </div>
         </div>
 
-        <div className="mt-4">
-          <div className="flex items-center justify-between mb-1">
-            <h4 className="text-[11px] uppercase tracking-wide text-gray-500">Uptime · 24h · {MONITOR_BARS} checks</h4>
-            <span className="text-xs font-mono text-gray-300">{upPct.toFixed(1)}% · {formatUptime(node.uptime_secs)}</span>
-          </div>
-          <div className="flex h-2 bg-white/10 rounded overflow-hidden">
-            {monitor.map((s, i) => (
-              <div
-                key={i}
-                className={`h-full shrink-0 ${s === 'up' ? 'bg-emerald-500' : 'bg-red-700'}`}
-                style={{ width: `${100 / MONITOR_BARS}%` }}
-                title={s === 'up' ? 'up' : 'down'}
-              />
-            ))}
-          </div>
-          <div className="mt-1 flex items-center justify-between text-[11px] text-gray-500">
-            <span>{node.uptime_pct != null ? `${Number(node.uptime_pct).toFixed(1)}% trailing` : ''}</span>
-            <span className="flex items-center gap-1"><span className={`w-2 h-2 rounded-full ${st.dot}`} />{st.label}</span>
-          </div>
-        </div>
-
         <div className="mt-3 flex flex-wrap gap-1.5">
           {node.hw_ram_ok === false && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-900/30 border border-amber-700/30 text-amber-200">RAM: no data</span>}
           {node.hw_cpu_ok === false && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-900/30 border border-amber-700/30 text-amber-200">CPU: no data</span>}
           {node.hw_disk_ok === false && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-900/30 border border-amber-700/30 text-amber-200">Disk: no data</span>}
           {node.hw_drivers_ok === false && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-900/30 border border-amber-700/30 text-amber-200">Drivers: detection failed</span>}
-          {node.hw_uptime_ok === false && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-900/30 border border-amber-700/30 text-amber-200">Uptime: no data</span>}
         </div>
       </GlassCard>
       </div>
@@ -613,7 +593,7 @@ const NodeDetail: React.FC = () => {
       <div role="tabpanel" id="rail-panel-timeline" aria-labelledby="rail-tab-timeline">
       <GlassCard className="p-3">
         <h4 className="text-xs uppercase tracking-wide text-gray-500 mb-2">Timeline</h4>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
           <div className="rounded-lg border border-white/5 bg-white/[0.02] p-2.5">
             <p className="text-[10px] uppercase tracking-wide text-gray-500">Created</p>
             <p className="text-xs text-white mt-1" title={formatDate(node.created_at)}>{formatDate(node.created_at)}</p>
@@ -624,11 +604,27 @@ const NodeDetail: React.FC = () => {
             <p className="text-xs text-white mt-1">{formatDate(node.last_seen_at)}</p>
             <p className="text-[11px] text-gray-500">{node.last_seen_at ? relativeTime(node.last_seen_at) : 'never'}</p>
           </div>
-          <div className="rounded-lg border border-white/5 bg-white/[0.02] p-2.5">
-            <p className="text-[10px] uppercase tracking-wide text-gray-500">Uptime</p>
-            <p className="text-xs text-white mt-1">{formatUptime(node.uptime_secs)} · {node.uptime_pct != null ? `${Number(node.uptime_pct).toFixed(1)}%` : '—'}</p>
-            <p className="text-[11px] text-gray-500">{node.status}</p>
+        </div>
+        <div className="mt-3 rounded-lg border border-white/5 bg-white/[0.02] p-2.5">
+          <div className="flex items-center justify-between mb-1">
+            <h4 className="text-[11px] uppercase tracking-wide text-gray-500">Uptime · 24h · {MONITOR_BARS} checks</h4>
+            <span className="text-xs font-mono text-gray-300">{upPct.toFixed(1)}% · {formatUptime(node.uptime_secs)}</span>
           </div>
+          <div className="flex h-2 bg-white/10 rounded overflow-hidden">
+            {monitor.map((s, i) => (
+              <div
+                key={i}
+                className={`h-full shrink-0 ${s === 'up' ? 'bg-emerald-500' : 'bg-red-700'}`}
+                style={{ width: `${100 / MONITOR_BARS}%` }}
+                title={s === 'up' ? 'up' : 'down'}
+              />
+            ))}
+          </div>
+          <div className="mt-1 flex items-center justify-between text-[11px] text-gray-500">
+            <span>{node.uptime_pct != null ? `${Number(node.uptime_pct).toFixed(1)}% trailing` : ''}</span>
+            <span className="flex items-center gap-1"><span className={`w-2 h-2 rounded-full ${st.dot}`} />{st.label}</span>
+          </div>
+          {node.hw_uptime_ok === false && <span className="mt-1.5 inline-block text-[10px] px-1.5 py-0.5 rounded bg-amber-900/30 border border-amber-700/30 text-amber-200">Uptime: no data</span>}
         </div>
         <div className="mt-3 flex gap-2">
           <button onClick={() => navigate(`/nodes/${node.id}/edit`)} className="px-4 py-2 text-xs rounded-lg bg-white text-black hover:bg-gray-200">Edit node</button>
