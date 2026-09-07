@@ -346,10 +346,13 @@ const TerminalPane: React.FC<{
 // TerminalRealPage — native xterm terminal(s) for the terminal shortcut slug
 // (default `terminal`, customizable in Instance Controls). Terminals are
 // added via the header + button, which opens a small dialog asking only for
-// Name + action terminal ID. A pane whose ID matches a template action's
+// Name + terminal ID. A pane whose ID matches a template action's
 // terminal_id mirrors that action's live console into its xterm and relays
-// typed lines to the running action (Minecraft tps/op/stop, node stdin, …)
-// with no pane-side gating — a real functional console, not a log view.
+// typed lines to the running action (Minecraft tps/op/stop, node stdin, …);
+// the install_terminal_id does the same for the Installation workflow;
+// the startup_terminal_id attaches directly to the container main-process
+// stdio via the /console bridge — all with no pane-side gating, real
+// functional consoles, not log views.
 const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: boolean }> = ({ instance, title, showHeader = true }) => {
   const controls = useMemo(() => resolveInstanceControls(instance?.config), [instance?.config]);
   const termCfg = controls.shortcuts.terminal;
@@ -386,8 +389,26 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
   }, [hasBound, reload]);
   const src: any = live ?? instance;
   const installState: string = src?.install_state ?? '';
-  const runningActionId: string = installState === 'running' && src?.install_kind === 'action' ? (src?.install_action_id || '') : '';
+  const installKind: string = src?.install_kind ?? '';
+  const runningActionId: string = installState === 'running' && installKind === 'action' ? (src?.install_action_id || '') : '';
   const stepsJson: string = src?.install_steps_json ?? '';
+
+  // Installation + startup console IDs ride on the instance config
+  // (deploy-time snapshot of the template spec).
+  const { installTerminalId, startupTerminalId } = useMemo(() => {
+    const empty = { installTerminalId: '', startupTerminalId: '' };
+    try {
+      const cfg = instance?.config ? parseConfig(instance.config) : null;
+      if (!cfg) return empty;
+      const adv = (cfg as any)?.advanced;
+      return {
+        installTerminalId: normTid((cfg as any)?.install_terminal_id),
+        startupTerminalId: adv && typeof adv === 'object' ? normTid(adv.startup_terminal_id) : '',
+      };
+    } catch {
+      return empty;
+    }
+  }, [instance?.config]);
 
   const maxN = parseInt(String(termCfg.terminal_max || '').trim(), 10);
   const atMax = Number.isFinite(maxN) && maxN > 0 && panes.length >= maxN;
@@ -429,13 +450,20 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
           </button>
         </div>
       )}
-      {actions.filter((a: any) => normTid(a?.terminal_id) !== '').length > 0 ? (
-        <p className="text-[11px] text-gray-500">
-          Consoles: {actions.filter((a: any) => normTid(a?.terminal_id) !== '').map((a: any) => `${a.name || a.id} (${normTid(a.terminal_id)})`).join(' · ')} — press + and enter the ID for a live console (tps / op / stop … work while it runs).
-        </p>
-      ) : (
-        <p className="text-[11px] text-gray-500">No action defines a Terminal ID yet — set one under Templates → Actions → Terminal ID (e.g. <code className="font-mono">mc-console</code>) to attach consoles here.</p>
-      )}
+      {(() => {
+        const consoles: string[] = [
+          ...actions.filter((a: any) => normTid(a?.terminal_id) !== '').map((a: any) => `${a.name || a.id} (${normTid(a.terminal_id)})`),
+        ];
+        if (installTerminalId !== '') consoles.push(`Installation (${installTerminalId})`);
+        if (startupTerminalId !== '') consoles.push(`Startup (${startupTerminalId})`);
+        return consoles.length > 0 ? (
+          <p className="text-[11px] text-gray-500">
+            Consoles: {consoles.join(' · ')} — press + and enter the ID for a live console (tps / op / stop … work while it runs).
+          </p>
+        ) : (
+          <p className="text-[11px] text-gray-500">No console bound yet — set a Terminal ID on an action, the Installation workflow, or the Startup command (e.g. <code className="font-mono">mc-console</code>) to attach consoles here.</p>
+        );
+      })()}
 
       {panes.map((p) => (
         <TerminalPane
@@ -445,6 +473,9 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
           actions={actions}
           runningActionId={runningActionId}
           installState={installState}
+          installKind={installKind}
+          installTerminalId={installTerminalId}
+          startupTerminalId={startupTerminalId}
           stepsJson={stepsJson}
           canRemove={panes.length > 1}
           onRemove={removePane}
