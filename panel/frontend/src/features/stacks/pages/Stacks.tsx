@@ -1,7 +1,12 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import GlassCard from '@/shared/components/ui/Card';
 import GlassModal from '@/shared/components/ui/Modal';
+import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
+import SearchDropdown from '@/shared/components/ui/SearchDropdown';
+import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import { CardIconTile } from '@/shared/components/ui/IconColorPicker';
+import IconColorPicker from '@/shared/components/ui/IconColorPicker';
 import {
   listStacks,
   deleteStack,
@@ -9,6 +14,7 @@ import {
   downloadStack,
   installStackFromUrl,
   createStackFromManifest,
+  updateStack,
   activateStack,
   deactivateStack,
   setStackGrants,
@@ -18,8 +24,10 @@ import {
 } from '@/features/stacks/api/stacks';
 import {
   Stack,
+  STACK_CAPABILITIES,
   stackCapabilityMeta,
   stackSourceMeta,
+  STACK_CATEGORIES,
   type StackEngineStatus,
 } from '@/shared/types/stack';
 import { useConfirm } from '@/shared/stores/confirmStore';
@@ -27,15 +35,38 @@ import { useConfirm } from '@/shared/stores/confirmStore';
 const capLabel = (capability: string): string =>
   stackCapabilityMeta(capability)?.label || capability;
 
+const CapDot: React.FC<{ capability: string }> = ({ capability }) => {
+  const meta = stackCapabilityMeta(capability);
+  return <span className={`w-2 h-2 rounded-full ${meta?.dot || 'bg-gray-500'}`} aria-hidden="true" />;
+};
+
+const THEME_BADGE: Record<string, string> = {
+  panel: 'bg-sky-900/40 text-sky-200 border-sky-700/50',
+  custom: 'bg-violet-900/40 text-violet-200 border-violet-700/50',
+  none: 'bg-neutral-800 text-gray-300 border-neutral-700',
+};
+
+const PAGE_BADGE: Record<string, string> = {
+  spa: 'bg-emerald-900/40 text-emerald-200 border-emerald-700/50',
+  simple: 'bg-amber-900/40 text-amber-200 border-amber-700/50',
+};
+
 const Stacks: React.FC = () => {
+  const navigate = useNavigate();
   const confirm = useConfirm();
   const [stacks, setStacks] = useState<Stack[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [themeFilter, setThemeFilter] = useState<'all' | 'panel' | 'custom' | 'none'>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+
+  const [filterOpen, setFilterOpen] = useState(false);
+  const filterRef = useRef<HTMLDivElement>(null);
 
   const [installOpen, setInstallOpen] = useState(false);
-  const [installTab, setInstallTab] = useState<'file' | 'url' | 'json'>('file');
+  const [installTab, setInstallTab] = useState<'file' | 'url' | 'studio' | 'json'>('file');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [urlInput, setUrlInput] = useState('');
   const [jsonInput, setJsonInput] = useState('{\n  "name": "",\n  "slug": "",\n  "category": "dashboard"\n}');
@@ -46,6 +77,18 @@ const Stacks: React.FC = () => {
   const [grants, setGrants] = useState<Record<string, boolean>>({});
   const [grantBusy, setGrantBusy] = useState(false);
   const [grantError, setGrantError] = useState('');
+
+  // edit modal — theme support: icon + colour picker plus meta fields.
+  const [editStack, setEditStack] = useState<Stack | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editVersion, setEditVersion] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+  const [editCategory, setEditCategory] = useState('dashboard');
+  const [editIcon, setEditIcon] = useState('');
+  const [editColor, setEditColor] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
+
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const [engine, setEngineState] = useState<StackEngineStatus | null>(null);
   const [engineBusy, setEngineBusy] = useState(false);
@@ -71,15 +114,54 @@ const Stacks: React.FC = () => {
     void load();
   }, [load]);
 
-  const filtered = stacks.filter((s) => {
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
+        setFilterOpen(false);
+      }
+    }
+    if (filterOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [filterOpen]);
+
+  const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return true;
-    return (
-      s.name.toLowerCase().includes(q) ||
-      s.slug.toLowerCase().includes(q) ||
-      (s.description || '').toLowerCase().includes(q)
-    );
-  });
+    let out = stacks;
+    if (q) {
+      out = out.filter(
+        (s) =>
+          s.name.toLowerCase().includes(q) ||
+          s.slug.toLowerCase().includes(q) ||
+          (s.description || '').toLowerCase().includes(q),
+      );
+    }
+    if (activeFilter !== 'all') out = out.filter((s) => (activeFilter === 'active' ? s.active : !s.active));
+    if (themeFilter !== 'all') out = out.filter((s) => s.theme_mode === themeFilter);
+    if (categoryFilter !== 'all') out = out.filter((s) => s.category === categoryFilter);
+    return out;
+  }, [stacks, search, activeFilter, themeFilter, categoryFilter]);
+
+  const stats = useMemo(() => {
+    const active = stacks.filter((s) => s.active).length;
+    const pending = stacks.filter((s) => s.pending > 0).length;
+    return { total: stacks.length, active, inactive: stacks.length - active, pending };
+  }, [stacks]);
+
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    for (const s of stacks) if (s.category) set.add(s.category);
+    return [...set].sort();
+  }, [stacks]);
+
+  const openInstall = () => {
+    setInstallOpen(true);
+    setInstallTab('file');
+    setUploadFile(null);
+    setUrlInput('');
+    setInstallError('');
+  };
 
   const doInstall = async () => {
     setInstallBusy(true);
@@ -91,9 +173,13 @@ const Stacks: React.FC = () => {
       } else if (installTab === 'url') {
         if (!urlInput.trim()) throw new Error('Enter a URL first.');
         await installStackFromUrl(urlInput.trim());
-      } else {
+      } else if (installTab === 'json') {
         const manifest = JSON.parse(jsonInput);
         await createStackFromManifest(manifest, 'json');
+      } else {
+        setInstallOpen(false);
+        navigate('/stacks/studio');
+        return;
       }
       setInstallOpen(false);
       setUploadFile(null);
@@ -134,6 +220,13 @@ const Stacks: React.FC = () => {
     }
   };
 
+  const approveAll = () => {
+    if (!grantStack) return;
+    const next: Record<string, boolean> = {};
+    for (const p of grantStack.permissions) next[p.capability] = true;
+    setGrants(next);
+  };
+
   const doActivate = async (s: Stack) => {
     try {
       const conflict = await activateStack(s.id);
@@ -148,20 +241,26 @@ const Stacks: React.FC = () => {
     }
   };
 
-  const doDelete = async (s: Stack, wipe: boolean) => {
-    const ok = await confirm({
-      title: wipe ? `Delete ${s.name} + wipe data?` : `Delete ${s.name}?`,
-      message: wipe
-        ? 'The package, workdir AND the stack data dir (KV/sqlite/snapshots) are removed. This cannot be undone.'
-        : 'The package and workdir are removed. Data dir is kept.',
-      confirmLabel: 'Delete',
-    });
-    if (!ok) return;
+  const doStop = async (s: Stack) => {
+    if (!(await confirm({ title: 'Deactivate stack', message: `Deactivate stack "${s.name}"? It stops rendering but stays installed.`, tone: 'warning', confirmLabel: 'Deactivate' }))) return;
     try {
-      await deleteStack(s.id, wipe);
+      await deactivateStack(s.id);
+      await load();
+    } catch (e) {
+      setError(extractStackApiError(e, 'Deactivate failed.'));
+    }
+  };
+
+  const doDelete = async (s: Stack) => {
+    if (!(await confirm({ title: `Delete ${s.name}?`, message: 'The package and workdir are removed. Data dir is kept.', tone: 'danger', confirmLabel: 'Delete' }))) return;
+    setDeletingId(s.id);
+    try {
+      await deleteStack(s.id, false);
       await load();
     } catch (e) {
       setError(extractStackApiError(e, 'Delete failed.'));
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -172,18 +271,53 @@ const Stacks: React.FC = () => {
       const a = document.createElement('a');
       a.href = url;
       a.download = `${s.slug}.ksps`;
+      document.body.appendChild(a);
       a.click();
+      a.remove();
       URL.revokeObjectURL(url);
     } catch (e) {
       setError(extractStackApiError(e, 'Download failed.'));
     }
   };
 
+  const openEdit = (s: Stack) => {
+    setEditStack(s);
+    setEditName(s.name);
+    setEditVersion(s.version);
+    setEditDesc(s.description || '');
+    setEditCategory(s.category || 'dashboard');
+    setEditIcon(s.icon || '');
+    setEditColor(s.color || '');
+  };
+
+  const saveEdit = async () => {
+    if (!editStack) return;
+    setEditSaving(true);
+    try {
+      await updateStack(editStack.id, {
+        name: editName,
+        category: editCategory,
+        version: editVersion,
+        description: editDesc,
+        icon: editIcon,
+        color: editColor,
+      });
+      setEditStack(null);
+      await load();
+    } catch (e) {
+      setError(extractStackApiError(e, 'Failed to save'));
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
   const toggleEngine = async () => {
     if (!engine) return;
+    const next = !engine.enabled;
+    if (!next && !(await confirm({ title: 'Disable stacks engine', message: 'Disable stacks? Every active stack stops rendering immediately. Stacks stay installed and re-activate explicitly once re-enabled.', tone: 'warning', confirmLabel: 'Disable' }))) return;
     setEngineBusy(true);
     try {
-      await setStackEngine(!engine.enabled);
+      await setStackEngine(next);
       await load();
     } catch (e) {
       setError(extractStackApiError(e, 'Engine toggle failed.'));
@@ -193,158 +327,467 @@ const Stacks: React.FC = () => {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-100">Stacks</h1>
-          <p className="text-xs text-gray-500 mt-0.5">
-            Full-stack isolated apps — one stack is one dashboard or tool. Installs inactive until every capability is approved.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {engine && (
-            <button
-              type="button"
-              onClick={() => void toggleEngine()}
-              disabled={engineBusy}
-              className={`text-xs px-3 py-1.5 rounded-lg border ${engine.enabled ? 'bg-emerald-900/40 text-emerald-200 border-emerald-700/50' : 'bg-red-900/40 text-red-200 border-red-700/50'}`}
-              title="Panel-wide stacks kill switch"
-            >
-              {engine.enabled ? 'Stacks on' : 'Stacks off'}
-            </button>
-          )}
+    <div>
+      {/* Fixed top-right pill — mirrors Mods/Templates: search + filter + stats + schedules + engine + install. */}
+      <PageActionsPill>
+        <SearchDropdown
+          value={search}
+          onChange={setSearch}
+          placeholder="Search name, slug, description…"
+          ariaLabel="Search stacks"
+          buttonClassName="ks-tab inline-flex items-center justify-center"
+          buttonStyle={PILL_TAB_STYLE}
+        />
+        <div className="relative" ref={filterRef}>
           <button
             type="button"
-            onClick={() => { setInstallOpen(true); setInstallError(''); }}
-            className="text-xs px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white"
+            onClick={() => setFilterOpen(!filterOpen)}
+            className={`ks-tab inline-flex items-center justify-center gap-1 transition-colors ${filterOpen ? 'is-open' : ''}`}
+            style={PILL_TAB_STYLE}
+            aria-label="Open filters"
+            aria-expanded={filterOpen}
+            aria-haspopup="true"
           >
-            Install stack
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+            </svg>
+            {activeFilter !== 'all' && (
+              <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
+            )}
           </button>
-        </div>
-      </div>
 
-      <div className="flex items-center gap-2">
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search stacks…"
-          className="w-full max-w-sm text-sm px-3 py-2 rounded-lg bg-gray-900/60 border border-gray-700/60 text-gray-200 placeholder:text-gray-500"
-        />
-      </div>
-
-      {error && <p className="text-xs text-red-300">{error}</p>}
-      {loading ? (
-        <p className="text-sm text-gray-500">Loading…</p>
-      ) : filtered.length === 0 ? (
-        <GlassCard>
-          <p className="text-sm text-gray-400">No stacks yet. Install a <code className="font-mono">.ksps</code> package or paste a manifest.</p>
-        </GlassCard>
-      ) : (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {filtered.map((s) => {
-            const src = stackSourceMeta(s.source);
-            return (
-              <GlassCard key={s.id}>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span aria-hidden="true">{s.icon || '📦'}</span>
-                      <Link to={`/stack/${s.id}`} className="font-medium text-gray-100 hover:text-sky-300 truncate">
-                        {s.name}
-                      </Link>
-                      <span className={`w-2 h-2 rounded-full shrink-0 ${s.active ? 'bg-emerald-400' : 'bg-gray-500'}`} title={s.active ? 'active' : 'inactive'} />
-                    </div>
-                    <p className="text-[11px] text-gray-500 font-mono mt-0.5">{s.slug} · v{s.version} · {s.category} · {s.runtime} · {s.page_style}/{s.theme_mode}</p>
-                    {s.description && <p className="text-xs text-gray-400 mt-1 line-clamp-2">{s.description}</p>}
+          {filterOpen && (
+            <div className="absolute right-0 top-full mt-1 z-30 w-64">
+              <div className="ks-dropdown min-w-[240px] animate-in fade-in slide-in-from-to duration-150">
+                <div className="p-3 space-y-3">
+                  <div>
+                    <label className="block text-xs text-gray-400 uppercase tracking-wide mb-1.5">State</label>
+                    <select
+                      value={activeFilter}
+                      onChange={(e) => setActiveFilter(e.target.value as any)}
+                      className="w-full glass-field"
+                    >
+                      <option value="all">All states</option>
+                      <option value="active">Active only</option>
+                      <option value="inactive">Inactive only</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-400 uppercase tracking-wide mb-1.5">Theme</label>
+                    <select
+                      value={themeFilter}
+                      onChange={(e) => setThemeFilter(e.target.value as any)}
+                      className="w-full glass-field"
+                    >
+                      <option value="all">All themes</option>
+                      <option value="panel">Panel theme</option>
+                      <option value="custom">Custom theme.css</option>
+                      <option value="none">Unthemed</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-400 uppercase tracking-wide mb-1.5">Category</label>
+                    <select
+                      value={categoryFilter}
+                      onChange={(e) => setCategoryFilter(e.target.value)}
+                      className="w-full glass-field"
+                    >
+                      <option value="all">All categories</option>
+                      {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <div className="pt-2 border-t border-white/5 flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { setFilterOpen(false); }}
+                      className="px-3 py-1.5 text-sm text-gray-400 hover:text-white"
+                    >
+                      Close
+                    </button>
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-1.5 mt-2">
-                  {src && <span className={`text-[10px] px-2 py-0.5 rounded-md border ${src.badge}`}>{src.label}</span>}
-                  {s.pending > 0 && (
-                    <button type="button" onClick={() => openGrants(s)} className="text-[10px] px-2 py-0.5 rounded-md border bg-amber-900/40 text-amber-200 border-amber-700/50">
-                      {s.pending} grant{s.pending === 1 ? '' : 's'} pending
-                    </button>
-                  )}
-                  {s.permissions.map((p) => (
-                    <span key={p.id} title={`${p.capability} (${p.access_level}) — ${p.granted ? 'granted' : 'pending'}`} className="text-[10px] px-2 py-0.5 rounded-md border border-gray-700/60 text-gray-300">
-                      {capLabel(p.capability)}{p.granted ? '' : ' •'}
-                    </span>
-                  ))}
-                </div>
-                <div className="flex flex-wrap gap-1.5 mt-3">
-                  {s.active ? (
-                    <>
-                      <Link to={`/stacks/${s.slug}/`} className="text-xs px-2.5 py-1 rounded-lg bg-emerald-700/60 hover:bg-emerald-600/60 text-white">Open</Link>
-                      <button type="button" onClick={() => void deactivateStack(s.id).then(() => load()).catch((e) => setError(extractStackApiError(e, 'Deactivate failed.')))} className="text-xs px-2.5 py-1 rounded-lg bg-gray-700/60 hover:bg-gray-600/60 text-gray-200">Stop</button>
-                    </>
+              </div>
+            </div>
+          )}
+        </div>
+        <Link
+          to="/stacks/stats"
+          aria-label="Stack Statistics"
+          className="ks-tab inline-flex items-center justify-center"
+          style={PILL_TAB_STYLE}
+          title="View stack statistics dashboard"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>
+        </Link>
+        <Link
+          to="/stacks/schedules"
+          aria-label="Stack schedules"
+          className="ks-tab inline-flex items-center justify-center"
+          style={PILL_TAB_STYLE}
+          title="Stack schedules"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+        </Link>
+        {engine && (
+          <button
+            onClick={() => void toggleEngine()}
+            disabled={engineBusy}
+            aria-label={engine.enabled ? 'Disable stacks engine' : 'Enable stacks engine'}
+            aria-pressed={!engine.enabled}
+            className="ks-tab inline-flex items-center justify-center gap-1"
+            style={PILL_TAB_STYLE}
+            title={engine.enabled ? 'Stacks engine running — click to disable (kill switch)' : 'Stacks engine DISABLED — click to re-enable'}
+          >
+            {engine.enabled ? (
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M18.36 6.64a9 9 0 1 1-12.73 0" /><line x1="12" y1="2" x2="12" y2="12" /></svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
+            )}
+            {!engine.enabled && <span className="w-1.5 h-1.5 rounded-full bg-red-400" />}
+          </button>
+        )}
+        <button
+          onClick={openInstall}
+          aria-label="Install Stack"
+          className="ks-tab inline-flex items-center justify-center"
+          style={PILL_TAB_STYLE}
+          title="Install Stack"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+        </button>
+      </PageActionsPill>
+
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs text-gray-500">{filtered.length} of {stacks.length} shown · {stats.active} active · {stats.pending} pending grants</p>
+      </div>
+
+      {error && <p className="text-xs text-red-300 mb-2">{error}</p>}
+      {loading ? (
+        <p className="text-sm text-gray-500">Loading…</p>
+      ) : filtered.length === 0 && stacks.length > 0 ? (
+        <div className="ks-card ks-form-card rounded-xl text-center text-gray-400">No stacks match your filters.</div>
+      ) : stacks.length === 0 && !error ? (
+        <div className="flex flex-col items-center justify-center min-h-[40vh] px-4 animate-fade-in">
+          <div className="flex flex-col items-center gap-4">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="w-20 h-20 text-gray-400"
+              aria-hidden="true"
+            >
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+              <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+              <line x1="12" y1="22.08" x2="12" y2="12" />
+            </svg>
+            <p className="text-lg font-medium text-gray-300">No stacks yet</p>
+            <p className="text-sm text-gray-500">Install a <code className="font-mono">.ksps</code> package, paste a manifest, or build one in the Studio.</p>
+          </div>
+        </div>
+      ) : (
+        <div className="ks-card-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" id="ks-stacks-grid">
+          {filtered.map((s) => {
+            const src = stackSourceMeta(s.source);
+            const approved = s.permissions.filter((p) => p.granted).length;
+            const allSet = s.pending === 0;
+            return (
+              <article key={s.id} id={`ks-stack-${s.id}`} className="ks-card ks-list-card group relative glass-card rounded-xl flex flex-col gap-3 hover:border-white/20 transition-colors">
+                <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+                <header className="flex items-start gap-3 min-w-0">
+                  <CardIconTile
+                    icon={s.icon || ''}
+                    color={s.color || ''}
+                    fallback={<span aria-hidden="true" className="text-lg">📦</span>}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-sm font-semibold text-white truncate leading-tight">
+                      <Link to={`/stack/${s.id}`} className="hover:text-sky-300">{s.name}</Link>
+                    </h3>
+                    <p className="text-[11px] text-gray-500 truncate mt-0.5 font-mono">{s.slug}{s.version ? ` · v${s.version}` : ''}{s.category ? ` · ${s.category}` : ''}</p>
+                    {s.description && <p className="text-xs text-gray-400 line-clamp-2 mt-0.5">{s.description}</p>}
+                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] border ${THEME_BADGE[s.theme_mode] || THEME_BADGE.panel}`} title="panel = inherits panel theme, custom = own theme.css, none = unthemed">
+                        theme: {s.theme_mode}
+                      </span>
+                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] border ${PAGE_BADGE[s.page_style] || PAGE_BADGE.spa}`} title="spa = full bundle in iframe, simple = panel-rendered pages">
+                        {s.page_style}
+                      </span>
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] border border-white/10 bg-white/5 text-gray-300 font-mono" title={s.entrypoint || s.runtime}>
+                        {s.runtime}
+                      </span>
+                      {src && src.key !== 'file' && (
+                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] border ${src.badge}`} title={s.source_url || src.label}>
+                          {src.label}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <span className={`shrink-0 inline-flex items-center gap-1 text-[10px] uppercase tracking-wide px-2 py-1 rounded-md border ${s.active ? 'bg-emerald-900/60 text-emerald-200 border-emerald-700/60' : 'bg-neutral-800 text-gray-300 border-neutral-700'}`}>
+                    {s.active ? 'Active' : 'Inactive'}
+                  </span>
+                </header>
+
+                <div className="flex flex-wrap gap-1.5 text-xs">
+                  {s.permissions.length === 0 ? (
+                    <span className="text-[11px] text-gray-500 italic">No permissions requested — safe to activate.</span>
                   ) : (
-                    <button type="button" onClick={() => void doActivate(s)} className="text-xs px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white">Activate</button>
+                    s.permissions.map((p) => {
+                      const meta = stackCapabilityMeta(p.capability);
+                      return (
+                        <span
+                          key={p.id}
+                          className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border ${p.granted ? 'border-emerald-700/30 bg-emerald-900/20 text-emerald-300' : 'border-amber-700/40 bg-amber-900/20 text-amber-300'}`}
+                          title={meta ? `${meta.label} (${p.access_level})` : `${p.capability} (${p.access_level})`}
+                        >
+                          <CapDot capability={p.capability} />
+                          {capLabel(p.capability)}{p.access_level ? ` · ${p.access_level}` : ''}
+                        </span>
+                      );
+                    })
                   )}
-                  <button type="button" onClick={() => openGrants(s)} className="text-xs px-2.5 py-1 rounded-lg bg-gray-700/60 hover:bg-gray-600/60 text-gray-200">Grants</button>
-                  <button type="button" onClick={() => void doDownload(s)} className="text-xs px-2.5 py-1 rounded-lg bg-gray-700/60 hover:bg-gray-600/60 text-gray-200">.ksps</button>
-                  <button type="button" onClick={() => void doDelete(s, false)} className="text-xs px-2.5 py-1 rounded-lg bg-red-900/40 hover:bg-red-800/40 text-red-200">Delete</button>
                 </div>
-              </GlassCard>
+
+                {s.permissions.length > 0 && (
+                  <p className={`text-[11px] ${allSet ? 'text-emerald-400' : 'text-amber-400'}`}>
+                    {approved}/{s.permissions.length} permissions approved{allSet ? ' — ready to activate' : ` · ${s.pending} pending`}.
+                  </p>
+                )}
+
+                <footer className="mt-auto pt-2 border-t border-white/[0.06] flex items-center justify-between gap-2">
+                  <span className="text-[11px] text-gray-500 truncate">
+                    {s.created_at ? <>Uploaded {new Date(s.created_at).toLocaleDateString()}</> : <>id {s.id}</>}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    {s.active ? (
+                      <>
+                        <Link to={`/stacks/${s.slug}/`} className="px-2 py-1 rounded text-xs border border-emerald-700/40 bg-emerald-900/30 text-emerald-200 hover:bg-emerald-900/50">Open</Link>
+                        <button onClick={() => void doStop(s)} className="ks-ghost-btn px-2 py-1 rounded text-xs border border-white/10 bg-white/5 text-white hover:bg-white/10">Stop</button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => void doActivate(s)}
+                          className={`px-2 py-1 rounded text-xs border ${allSet ? 'border-emerald-700/40 bg-emerald-900/30 text-emerald-200 hover:bg-emerald-900/50' : 'border-amber-700/40 bg-amber-900/30 text-amber-200 hover:bg-amber-900/50'}`}
+                        >
+                          {allSet ? 'Activate' : `Activate (${s.pending} to approve)`}
+                        </button>
+                        <button onClick={() => openGrants(s)} className="ks-ghost-btn px-2 py-1 rounded text-xs border border-white/10 bg-white/5 text-white hover:bg-white/10">Grants</button>
+                      </>
+                    )}
+                    <CardMenu
+                      ariaLabel={`Actions for stack ${s.name}`}
+                      items={[
+                        { key: 'open', label: 'Open', tone: 'default' },
+                        { key: 'studio', label: 'Open in Studio', tone: 'default' },
+                        { key: 'edit', label: 'Edit', tone: 'default' },
+                        { key: 'download', label: 'Download .ksps', tone: 'default' },
+                        { key: 'delete', label: deletingId === s.id ? 'Deleting…' : 'Delete', tone: 'danger', disabled: deletingId === s.id },
+                      ]}
+                      onSelect={(key) => {
+                        if (key === 'open') navigate(`/stacks/${s.slug}/`);
+                        else if (key === 'studio') navigate('/stacks/studio');
+                        else if (key === 'edit') openEdit(s);
+                        else if (key === 'download') void doDownload(s);
+                        else if (key === 'delete') void doDelete(s);
+                      }}
+                    />
+                  </div>
+                </footer>
+              </article>
             );
           })}
         </div>
       )}
 
-      {installOpen && (
-        <GlassModal open={installOpen} onClose={() => setInstallOpen(false)} title="Install stack">
-          <div className="flex gap-1.5 mb-3">
-            {(['file', 'url', 'json'] as const).map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setInstallTab(t)}
-                className={`text-xs px-3 py-1.5 rounded-lg border ${installTab === t ? 'bg-sky-900/50 text-sky-200 border-sky-700/60' : 'bg-gray-800/50 text-gray-400 border-gray-700/50'}`}
-              >
-                {t === 'file' ? '.ksps file' : t === 'url' ? 'From URL' : 'JSON'}
+      {/* ---- Install stack modal ---- */}
+      <GlassModal
+        open={installOpen}
+        onClose={() => setInstallOpen(false)}
+        title="Install Stack"
+        maxWidth="max-w-lg"
+        footer={
+          installTab === 'studio' ? (
+            <>
+              <button onClick={() => setInstallOpen(false)} className="ks-btn-cancel ks-btn-ghost">Cancel</button>
+              <button onClick={() => { setInstallOpen(false); navigate('/stacks/studio'); }} className="ks-btn-form ks-btn-primary">
+                Open Stack Studio
               </button>
-            ))}
-          </div>
-          {installTab === 'file' && (
-            <input type="file" accept=".ksps,.zip" onChange={(e) => setUploadFile(e.target.files?.[0] || null)} className="block text-sm text-gray-300" />
-          )}
-          {installTab === 'url' && (
-            <input value={urlInput} onChange={(e) => setUrlInput(e.target.value)} placeholder="https://example.com/my-stack.ksps" className="w-full text-sm px-3 py-2 rounded-lg bg-gray-900/60 border border-gray-700/60 text-gray-200" />
-          )}
-          {installTab === 'json' && (
-            <textarea value={jsonInput} onChange={(e) => setJsonInput(e.target.value)} rows={10} spellCheck={false} className="w-full font-mono text-xs px-3 py-2 rounded-lg bg-gray-900/60 border border-gray-700/60 text-gray-200" />
-          )}
-          {installError && <p className="text-xs text-red-300 mt-2">{installError}</p>}
-          <div className="flex justify-end gap-2 mt-3">
-            <button type="button" onClick={() => setInstallOpen(false)} className="text-xs px-3 py-1.5 rounded-lg bg-gray-700/60 text-gray-200">Cancel</button>
-            <button type="button" onClick={() => void doInstall()} disabled={installBusy} className="text-xs px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white disabled:opacity-50">
-              {installBusy ? 'Installing…' : 'Install (inactive)'}
+            </>
+          ) : (
+            <>
+              <button onClick={() => setInstallOpen(false)} className="ks-btn-cancel ks-btn-ghost">Cancel</button>
+              <button onClick={() => void doInstall()} disabled={installBusy} className="ks-btn-form ks-btn-primary">
+                {installBusy ? 'Installing…' : 'Install (inactive)'}
+              </button>
+            </>
+          )
+        }
+      >
+        <div className="flex gap-1 mb-3 bg-black/30 border border-white/10 rounded-md p-1">
+          {(['file', 'url', 'studio', 'json'] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setInstallTab(t)}
+              className={`ks-tab flex-1 px-3 py-1.5 rounded text-sm flex items-center justify-center gap-1.5 ${installTab === t ? 'ks-tab-active' : ''}`}
+            >
+              {t === 'file' ? '.ksps file' : t === 'url' ? 'From URL' : t === 'studio' ? 'Studio' : 'JSON'}
             </button>
-          </div>
-        </GlassModal>
-      )}
+          ))}
+        </div>
 
-      {grantStack && (
-        <GlassModal open={!!grantStack} onClose={() => setGrantStack(null)} title={`Grants — ${grantStack.name}`}>
-          <p className="text-xs text-gray-400 mb-2">Approve each capability. Activation refuses until all are granted.</p>
-          <div className="space-y-1.5">
-            {grantStack.permissions.length === 0 && <p className="text-xs text-gray-500">No capabilities requested — safe to activate.</p>}
-            {grantStack.permissions.map((p) => (
-              <label key={p.capability} className="flex items-center gap-2 text-sm text-gray-200">
-                <input type="checkbox" checked={!!grants[p.capability]} onChange={(e) => setGrants((g) => ({ ...g, [p.capability]: e.target.checked }))} />
-                <span>{capLabel(p.capability)}</span>
-                <span className="text-[11px] text-gray-500 font-mono">{p.capability} · {p.access_level}</span>
-              </label>
-            ))}
-          </div>
-          {grantError && <p className="text-xs text-red-300 mt-2">{grantError}</p>}
-          <div className="flex justify-end gap-2 mt-3">
-            <button type="button" onClick={() => setGrantStack(null)} className="text-xs px-3 py-1.5 rounded-lg bg-gray-700/60 text-gray-200">Close</button>
-            <button type="button" onClick={() => void saveGrants()} disabled={grantBusy} className="text-xs px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white disabled:opacity-50">
+        {installTab === 'file' && (
+          <>
+            <p className="text-xs text-gray-400">
+              Choose a stack package (<code className="text-gray-300">.ksps</code> — a zip bundling the
+              manifest with its frontend pages/bundle, theme.css and backend entry). The panel installs it{' '}
+              <span className="text-amber-300">inactive</span> — you approve capabilities before activating.
+            </p>
+            <input type="file" accept=".ksps,.zip" onChange={(e) => setUploadFile(e.target.files?.[0] || null)} className="block w-full mt-2 text-sm text-gray-300 file:mr-3 file:px-3 file:py-1.5 file:rounded file:border-0 file:bg-white file:text-black file:text-sm hover:file:bg-gray-200" />
+          </>
+        )}
+
+        {installTab === 'url' && (
+          <>
+            <p className="text-xs text-gray-400">
+              Paste a <code className="text-gray-300">.ksps</code> or manifest URL. The panel fetches it{' '}
+              <span className="text-emerald-300">server-side</span> and installs it{' '}
+              <span className="text-amber-300">inactive</span>.
+            </p>
+            <input value={urlInput} onChange={(e) => setUrlInput(e.target.value)} placeholder="https://example.com/my-stack.ksps" className="block w-full mt-2 bg-black/30 border border-white/10 rounded-md text-sm text-white px-3 py-1.5 font-mono focus:outline-none focus:border-white/40" />
+          </>
+        )}
+
+        {installTab === 'studio' && (
+          <>
+            <p className="text-xs text-gray-400">
+              Build a stack visually — meta, theme, pages, permissions, backend script and files.
+              The Studio emits a standard manifest that installs through the same validated pipeline.
+            </p>
+            <GlassCard className="space-y-3 text-center py-6">
+              <h4 className="text-white font-medium">Stack Studio</h4>
+              <p className="text-gray-400 text-sm">Manifest builder + full workdir file manager (pages, theme.css, backend entry).</p>
+              <div className="flex items-center justify-center gap-2 flex-wrap">
+                <span className="text-xs text-gray-500">Features:</span>
+                <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Meta</span>
+                <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Theme</span>
+                <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Pages</span>
+                <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Permissions</span>
+                <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Backend</span>
+                <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Files</span>
+              </div>
+            </GlassCard>
+          </>
+        )}
+
+        {installTab === 'json' && (
+          <textarea value={jsonInput} onChange={(e) => setJsonInput(e.target.value)} rows={10} spellCheck={false} className="w-full font-mono text-xs px-3 py-2 rounded-lg bg-gray-900/60 border border-gray-700/60 text-gray-200" />
+        )}
+        {installError && <p className="text-xs text-red-300 mt-2">{installError}</p>}
+      </GlassModal>
+
+      {/* ---- Edit modal (theme support: icon + colour) ---- */}
+      <GlassModal
+        open={editStack != null}
+        onClose={() => setEditStack(null)}
+        title={editStack ? `Edit — ${editStack.name}` : 'Edit'}
+        maxWidth="max-w-lg"
+        footer={
+          <>
+            <button onClick={() => setEditStack(null)} className="px-3 py-1.5 rounded text-sm border border-white/10 text-gray-300 hover:bg-white/10">Cancel</button>
+            <button onClick={() => void saveEdit()} disabled={editSaving} className="ks-primary-btn px-3 py-1.5 rounded text-sm bg-white text-black hover:bg-gray-200 disabled:opacity-50">
+              {editSaving ? 'Saving…' : 'Save'}
+            </button>
+          </>
+        }
+      >
+        <label className="block">
+          <span className="text-xs text-gray-400">Name</span>
+          <input value={editName} onChange={(e) => setEditName(e.target.value)} className="block w-full mt-1 bg-black/30 border border-white/10 rounded-md text-sm text-white px-3 py-1.5 focus:outline-none focus:border-white/40" />
+        </label>
+        <div className="grid grid-cols-2 gap-2">
+          <label className="block">
+            <span className="text-xs text-gray-400">Version</span>
+            <input value={editVersion} onChange={(e) => setEditVersion(e.target.value)} className="block w-full mt-1 bg-black/30 border border-white/10 rounded-md text-sm text-white px-3 py-1.5 focus:outline-none focus:border-white/40" />
+          </label>
+          <label className="block">
+            <span className="text-xs text-gray-400">Category</span>
+            <select value={editCategory} onChange={(e) => setEditCategory(e.target.value)} className="block w-full mt-1 bg-black/30 border border-white/10 rounded-md text-sm text-gray-200 px-2 py-1.5 focus:outline-none focus:border-white/40">
+              {STACK_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </label>
+        </div>
+        <label className="block">
+          <span className="text-xs text-gray-400">Description</span>
+          <textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} rows={3} className="block w-full mt-1 bg-black/30 border border-white/10 rounded-md text-sm text-white px-3 py-1.5 focus:outline-none focus:border-white/40" />
+        </label>
+        <div>
+          <span className="block text-xs text-gray-400 mb-1">Icon & colour (card theme)</span>
+          <IconColorPicker icon={editIcon} color={editColor} onIconChange={setEditIcon} onColorChange={setEditColor} previewName={editName} />
+        </div>
+        <p className="text-[11px] text-gray-500">Theme mode / page style are set at install (manifest) — edit files or reinstall to change them.</p>
+      </GlassModal>
+
+      {/* ---- Grant / Activate modal ---- */}
+      <GlassModal
+        open={!!grantStack}
+        onClose={() => setGrantStack(null)}
+        title={grantStack ? `Permissions — ${grantStack.name}` : 'Permissions'}
+        maxWidth="max-w-xl"
+        footer={
+          <>
+            <button onClick={() => setGrantStack(null)} className="px-3 py-1.5 rounded text-sm border border-white/10 text-gray-300 hover:bg-white/10">Close</button>
+            {grantStack && grantStack.permissions.length > 0 && (
+              <button onClick={approveAll} disabled={grantBusy} className="px-3 py-1.5 rounded text-sm border border-white/10 text-gray-200 hover:bg-white/10">Approve all</button>
+            )}
+            <button onClick={() => void saveGrants()} disabled={grantBusy} className="px-3 py-1.5 rounded text-sm border border-white/10 text-white hover:bg-white/10 disabled:opacity-50">
               {grantBusy ? 'Saving…' : 'Save grants'}
             </button>
-          </div>
-        </GlassModal>
-      )}
+          </>
+        }
+      >
+        {grantStack && grantStack.permissions.length === 0 && (
+          <p className="text-sm text-gray-300">This stack requested no capabilities. You can activate it safely.</p>
+        )}
+        {grantStack && grantStack.permissions.length > 0 && (
+          <>
+            <p className="text-xs text-amber-300">
+              This stack needs {grantStack.permissions.length} capability(ies) to fully work. Review each one before approving.
+            </p>
+            <div className="space-y-2">
+              {grantStack.permissions.map((p) => {
+                const meta = STACK_CAPABILITIES.find((c) => c.key === p.capability);
+                const checked = !!grants[p.capability];
+                return (
+                  <label key={p.id} className="ks-card ks-form-card flex items-start gap-3 p-3 rounded-lg cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(e) => setGrants((g) => ({ ...g, [p.capability]: e.target.checked }))}
+                      className="mt-1 w-4 h-4 accent-emerald-500"
+                    />
+                    <div className="min-w-0">
+                      <p className="text-sm text-white flex items-center gap-1.5">
+                        <CapDot capability={p.capability} />
+                        {meta ? meta.label : p.capability}
+                        {p.access_level && <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-white/10 text-gray-300 border border-white/10">{p.access_level}</span>}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-0.5">{meta ? meta.description : 'This stack requested this capability.'}</p>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          </>
+        )}
+        {grantError && <p className="text-red-400 text-xs">{grantError}</p>}
+      </GlassModal>
     </div>
   );
 };
