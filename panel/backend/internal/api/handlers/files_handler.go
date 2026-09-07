@@ -103,11 +103,9 @@ var supportedFileOps = map[string]bool{
 // /api/instances/{id}/files. Read-only ops default to GET; the rest
 // require POST/DELETE — see filesHandlerMethodHint below.
 func InstanceFilesHandler(w http.ResponseWriter, r *http.Request) {
-	// Enforce the template-page whitelist before the op-routing so a denied
-	// request never reaches the edge.
-	if !guardInstancePage(w, r, "files") {
-		return
-	}
+	// Files is a self-sufficient builtin: no spec.pages whitelist gate.
+	// Auth + VIEW permission already ran in middleware (see server.go); the
+	// proxy below dials only the instance's own edge.
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
@@ -139,11 +137,7 @@ func InstanceFilesHandler(w http.ResponseWriter, r *http.Request) {
 // browser so a "Download server.jar" button can save it locally without
 // buffering the whole jar in panel memory.
 func InstanceFileReadHandler(w http.ResponseWriter, r *http.Request) {
-	// Enforce the template-page whitelist: the Files "read/download" surface
-	// is part of the Files tab, so the same gate as the file browser applies.
-	if !guardInstancePage(w, r, "files") {
-		return
-	}
+	// Self-sufficient builtin like InstanceFilesHandler: no spec.pages gate.
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
@@ -867,11 +861,7 @@ type filesUploadURLDTO struct {
 // multipart upload lands on the edge, so the edge's existing write guard
 // applies unchanged.
 func InstanceFileURLUploadHandler(w http.ResponseWriter, r *http.Request) {
-	// Enforce the template-page whitelist BEFORE the URL fetch so a denied
-	// request never burns an SSRF-safe download round-trip.
-	if !guardInstancePage(w, r, "files") {
-		return
-	}
+	// Self-sufficient builtin like InstanceFilesHandler: no spec.pages gate.
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {

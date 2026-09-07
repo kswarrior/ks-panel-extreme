@@ -1,13 +1,19 @@
 // Package handlers: instance_page_guard.go enforces the instance-page
-// whitelist on the per-instance built-in page backend routes (Terminal /
-// Files / Secrets(env) / Automation / Processes / Metrics / Ports /
-// Snapshots(backups) / Audit), mirroring the isPageAllowed /
+// whitelist on the per-instance library page backend routes (Secrets(env)
+// / Automation / Processes / Metrics / Snapshots(backups) / Audit),
+// mirroring the isPageAllowed /
 // resolveInstanceNav whitelist semantics that the SPA already applies in
 // panel/frontend/src/shared/utils/instancePages.ts. Before this guard existed, those routes
 // were gated by requirePermission("VIEW_INSTANCES") only, so any operator
 // with read access could call them even when the instance's config had
 // NOT added the matching page to its spec.pages list — i.e. they could
 // reach a page that had not been added to the instance's pages.
+//
+// Files / Terminal / Ports are deliberately EXEMPT: they are self-sufficient
+// builtins (first-class tools in the floating instance menu) that work
+// without any library page import. Their routes stay auth + permission
+// gated at registration (VIEW for reads, edit umbrella for writes), and
+// each handler dials only the instance's own edge.
 //
 // The guard keeps panel and SPA in lock-step: the same default-mode vs.
 // whitelist-mode rules, including the original_slug branch that lets a

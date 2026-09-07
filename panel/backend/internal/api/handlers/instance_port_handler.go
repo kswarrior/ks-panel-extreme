@@ -90,9 +90,8 @@ func ListPortsHandler(w http.ResponseWriter, r *http.Request) {
 // when the instance is live (status running). Audited via RecordActivity +
 // instance_audit.
 func UpdatePortsHandler(w http.ResponseWriter, r *http.Request) {
-	if !guardInstancePage(w, r, "ports") {
-		return
-	}
+	// Self-sufficient builtin like ListPortsHandler: no spec.pages gate.
+	// Write permission already ran in middleware (ActionEdit umbrella).
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
