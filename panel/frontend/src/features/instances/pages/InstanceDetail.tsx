@@ -26,6 +26,7 @@ import type { Terminal as XTerm } from '@xterm/xterm';
 import InstancePortsEditor from '@/features/instances/pages/InstancePortsEditor';
 import InstanceOverview from '@/features/instances/pages/InstanceOverview';
 import { InstanceToolsDock } from '@/features/instances/components/InstanceTabs';
+import { resolveInstanceControls, shortcutLabel, shortcutSlug } from '@/features/instances/utils/instanceControls';
 import InstanceSftpCard from '@/features/instances/components/InstanceSftpCard';
 import InstanceSnapshotsTab from '@/features/instances/components/InstanceSnapshotsTab';
 import { useAuthStore } from '@/shared/stores/authStore';
@@ -105,12 +106,14 @@ const NoPagesState: React.FC<{ slug: string }> = ({ slug }) => (
   </div>
 );
 
-// TerminalRealPage — native xterm terminal for the `terminal` slug.
-// Replaces the custom-page HTML terminal (LIB_TERMINAL_HTML) with the
-// panel's real Terminal.tsx xterm bridge (full PTY, fit addon, theme,
-// mobile keyboard, reconnection). This makes the instance terminal behave
-// exactly like a local shell, not a div-based log viewer.
-const TerminalRealPage: React.FC<{ instance: any }> = ({ instance }) => {
+// TerminalRealPage — native xterm terminal for the terminal shortcut slug
+// (default `terminal`, customizable in Instance Controls). Replaces the
+// custom-page HTML terminal (LIB_TERMINAL_HTML) with the panel's real
+// Terminal.tsx xterm bridge (full PTY, fit addon, theme, mobile keyboard,
+// reconnection). This makes the instance terminal behave exactly like a
+// local shell, not a div-based log viewer. `showHeader` (Instance Controls
+// page option) hides the title + Reconnect/Clear bar for a chromeless shell.
+const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: boolean }> = ({ instance, title, showHeader = true }) => {
   const termRef = useRef<XTerm | null>(null);
   const handleRef = useRef<TerminalHandle>(null);
   const [state, setState] = useState<'connecting' | 'connected' | 'reconnecting' | 'closed' | 'error'>('connecting');
@@ -146,8 +149,9 @@ const TerminalRealPage: React.FC<{ instance: any }> = ({ instance }) => {
 
   return (
     <div className="animate-fade-in">
+      {showHeader && (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
-        <h2 style={{ fontSize: 20, fontWeight: 600, color: 'var(--ks-heading)', margin: 0 }}>Terminal</h2>
+        <h2 style={{ fontSize: 20, fontWeight: 600, color: 'var(--ks-heading)', margin: 0 }}>{title || 'Terminal'}</h2>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {state !== 'connected' && (
             <button
@@ -165,6 +169,7 @@ const TerminalRealPage: React.FC<{ instance: any }> = ({ instance }) => {
           </button>
         </div>
       </div>
+      )}
 
       <div
         style={{
@@ -233,10 +238,20 @@ export const InstanceDynamicPage: React.FC = () => {
   const slug = (wildcard ?? '').replace(/\/+$/, '');
   const effectiveSlug = slug === '' ? '.' : slug;
 
+  // Shortcut slugs + page options from the instance's own controls snapshot
+  // (Instance Controls section, per-template default overridable per
+  // instance). Files / Terminal navigate to their custom slug; Ports keeps
+  // its canonical route working and additionally answers its custom slug.
+  const controls = resolveInstanceControls(instance.config);
+  const filesSlug = shortcutSlug(controls, 'files');
+  const terminalSlug = shortcutSlug(controls, 'terminal');
+  const portsSlug = shortcutSlug(controls, 'ports');
+
   // Ports editor is a built-in page permission-gated on INSTANCES_EDIT|MANAGE_INSTANCES,
   // not a custom spec.pages entry. Render it before the whitelist check so
-  // /instances/:id/ports works even when the spec has no "ports" row.
-  if (effectiveSlug === 'ports') {
+  // the ports route works even when the spec has no "ports" row. The
+  // canonical /ports URL keeps working when the slug is customized.
+  if (effectiveSlug === 'ports' || effectiveSlug === portsSlug) {
     const can = hasPermissionAny(permissions, PermissionKey.INSTANCES_EDIT, PermissionKey.MANAGE_INSTANCES);
     if (!can) {
       return (
@@ -245,7 +260,7 @@ export const InstanceDynamicPage: React.FC = () => {
         </div>
       );
     }
-    return <InstancePortsEditor />;
+    return <InstancePortsEditor readOnly={!controls.shortcuts.ports.allow_edit} />;
   }
 
   // SFTP card is a built-in page like Ports (not a custom spec.pages entry).
