@@ -545,7 +545,257 @@ func validateTemplateSpec(spec map[string]any) error {
 		}
 	}
 
+	// Multi-image map: named runtimes with per-image metadata.
+	// Native shape is spec.images[] ({name,image,description,default,env});
+	// spec.docker_images{} is the Pterodactyl/Pelican-compatible map shape
+	// ({<name>: <image>}) accepted on input so egg imports keep working —
+	// the builder normalises it into images[] on save, the deploy path
+	// treats both as one unified list. spec.default_image optionally names
+	// the default entry. The top-level `image` column stays the implicit
+	// legacy default so old templates deploy unchanged.
+	if _, err := parseTemplateImages(spec); err != nil {
+		return err
+	}
+
 	return nil
+}
+
+// maxTemplateImages caps the unified multi-image list so a hostile spec
+// cannot blow up the deploy picker or the edge payload.
+const maxTemplateImages = 32
+
+// templateImageEntry is one named runtime in the unified multi-image list.
+type templateImageEntry struct {
+	Name        string
+	Image       string
+	Description string
+	Default     bool
+	Env         map[string]string
+}
+
+// parseTemplateImages reads spec.images[] + spec.docker_images{} into one
+// unified, validated list (plus the default entry name, "" = unset).
+// Names are unique case-insensitively across BOTH shapes. Returns
+// (nil, "", nil) when the spec defines no multi-image map at all.
+func parseTemplateImages(spec map[string]any) ([]templateImageEntry, string, error) {
+	var out []templateImageEntry
+	seen := map[string]int{} // lower(name) -> index in out
+	add := func(where, name, image, desc string, def bool, env map[string]string) error {
+		name = strings.TrimSpace(name)
+		image = strings.TrimSpace(image)
+		if name == "" {
+			return fmt.Errorf("%s: name is required", where)
+		}
+		if len(name) > 100 {
+			return fmt.Errorf("%s: name %q too long (max 100)", where, name)
+		}
+		if image == "" {
+			return fmt.Errorf("%s: image is required", where)
+		}
+		if len(image) > 500 {
+			return fmt.Errorf("%s: image too long (max 500)", where)
+		}
+		if strings.Contains(image, "\n") || strings.Contains(image, "\r") {
+			return fmt.Errorf("%s: image must not contain newlines", where)
+		}
+		if len(desc) > 500 {
+			return fmt.Errorf("%s: description too long (max 500)", where)
+		}
+		lower := strings.ToLower(name)
+		if prev, dup := seen[lower]; dup {
+			return fmt.Errorf("duplicate image name %q (also at index %d) — names must be unique across images[] and docker_images{}", name, prev)
+		}
+		seen[lower] = len(out)
+		out = append(out, templateImageEntry{Name: name, Image: image, Description: strings.TrimSpace(desc), Default: def, Env: env})
+		return nil
+	}
+	defaults := 0
+	if raw, present := spec["images"]; present && raw != nil {
+		arr, ok := raw.([]any)
+		if !ok {
+			return nil, "", fmt.Errorf("spec.images must be an array")
+		}
+		if len(arr) > maxTemplateImages {
+			return nil, "", fmt.Errorf("spec.images holds at most %d entries", maxTemplateImages)
+		}
+		for i, e := range arr {
+			where := fmt.Sprintf("spec.images[%d]", i)
+			m, ok := e.(map[string]any)
+			if !ok {
+				return nil, "", fmt.Errorf("%s must be an object", where)
+			}
+			var env map[string]string
+			if rawEnv, present := m["env"]; present && rawEnv != nil {
+				em, ok := rawEnv.(map[string]any)
+				if !ok {
+					return nil, "", fmt.Errorf("%s: env must be an object of KEY=VALUE strings", where)
+				}
+				if len(em) > 50 {
+					return nil, "", fmt.Errorf("%s: env holds at most 50 keys", where)
+				}
+				env = make(map[string]string, len(em))
+				for k, v := range em {
+					if !isAppEnvName(k) {
+						return nil, "", fmt.Errorf("%s: env key %q is not a valid POSIX identifier (A-Z, 0-9, _; must not start with a digit)", where, k)
+					}
+					s, ok := v.(string)
+					if !ok {
+						return nil, "", fmt.Errorf("%s: env[%q] must be a string", where, k)
+					}
+					if len(s) > 500 {
+						return nil, "", fmt.Errorf("%s: env[%q] too long (max 500)", where, k)
+					}
+					if strings.Contains(s, "\n") || strings.Contains(s, "\r") {
+						return nil, "", fmt.Errorf("%s: env[%q] must not contain newlines", where, k)
+					}
+					env[k] = s
+				}
+				if len(env) == 0 {
+					env = nil
+				}
+			}
+			def := false
+			if rawDef, present := m["default"]; present && rawDef != nil {
+				b, ok := rawDef.(bool)
+				if !ok {
+					return nil, "", fmt.Errorf("%s: default must be a boolean", where)
+				}
+				def = b
+			}
+			if def {
+				defaults++
+				if defaults > 1 {
+					return nil, "", fmt.Errorf("spec.images: at most one entry may set default=true")
+				}
+			}
+			if err := add(where, getString(m, "name"), getString(m, "image"), getString(m, "description"), def, env); err != nil {
+				return nil, "", err
+			}
+		}
+	}
+	if raw, present := spec["docker_images"]; present && raw != nil {
+		dm, ok := raw.(map[string]any)
+		if !ok {
+			return nil, "", fmt.Errorf("spec.docker_images must be an object of name=image strings")
+		}
+		if len(out)+len(dm) > maxTemplateImages {
+			return nil, "", fmt.Errorf("spec holds at most %d images across images[] and docker_images{}", maxTemplateImages)
+		}
+		for _, k := range sortedKeys(dm) {
+			v, ok := dm[k].(string)
+			if !ok || strings.TrimSpace(v) == "" {
+				return nil, "", fmt.Errorf("spec.docker_images[%q] must be a non-empty image string", k)
+			}
+			if err := add(fmt.Sprintf("spec.docker_images[%q]", k), k, v, "", false, nil); err != nil {
+				return nil, "", err
+			}
+		}
+	}
+	defaultImage := ""
+	if raw, present := spec["default_image"]; present && raw != nil {
+		s, ok := raw.(string)
+		if !ok {
+			return nil, "", fmt.Errorf("spec.default_image must be a string")
+		}
+		defaultImage = strings.TrimSpace(s)
+		if defaultImage != "" {
+			if _, ok := seen[strings.ToLower(defaultImage)]; !ok {
+				return nil, "", fmt.Errorf("spec.default_image %q matches no entry in images[] / docker_images{}", defaultImage)
+			}
+			// A default:true entry and default_image must agree — two
+			// different defaults would make the deploy picker lie.
+			for _, e := range out {
+				if e.Default && !strings.EqualFold(e.Name, defaultImage) {
+					return nil, "", fmt.Errorf("spec.default_image %q conflicts with default entry %q — keep exactly one default", defaultImage, e.Name)
+				}
+			}
+		}
+	}
+	if len(out) == 0 {
+		return nil, "", nil
+	}
+	return out, defaultImage, nil
+}
+
+// sortedKeys returns the map's keys in byte order so docker_images{}
+// validation errors and deploy ordering are deterministic.
+func sortedKeys(m map[string]any) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	for i := 0; i < len(keys); i++ {
+		for j := i + 1; j < len(keys); j++ {
+			if keys[j] < keys[i] {
+				keys[i], keys[j] = keys[j], keys[i]
+			}
+		}
+	}
+	return keys
+}
+
+// resolveDeployImage picks the deploy image from the unified multi-image
+// list. key is the operator's image_key ("" = default). defaultImage names
+// the default entry ("" = the default:true entry, else the legacy
+// top-level image, else the first entry). Unknown keys fail closed with
+// the available names so the deploy form can render the choice honestly.
+func resolveDeployImage(entries []templateImageEntry, defaultImage, fallbackImage, key string) (templateImageEntry, error) {
+	if len(entries) == 0 {
+		return templateImageEntry{Name: "default", Image: fallbackImage}, nil
+	}
+	if strings.TrimSpace(key) != "" {
+		for _, e := range entries {
+			if strings.EqualFold(e.Name, strings.TrimSpace(key)) {
+				return e, nil
+			}
+		}
+		names := make([]string, 0, len(entries))
+		for _, e := range entries {
+			names = append(names, e.Name)
+		}
+		return templateImageEntry{}, fmt.Errorf("unknown image %q (available: %s)", strings.TrimSpace(key), strings.Join(names, ", "))
+	}
+	if defaultImage != "" {
+		for _, e := range entries {
+			if strings.EqualFold(e.Name, defaultImage) {
+				return e, nil
+			}
+		}
+	}
+	for _, e := range entries {
+		if e.Default {
+			return e, nil
+		}
+	}
+	if strings.TrimSpace(fallbackImage) != "" {
+		return templateImageEntry{Name: "default", Image: fallbackImage}, nil
+	}
+	return entries[0], nil
+}
+
+// mergeManifestImagesIntoSpec lifts top-level images/docker_images/
+// default_image keys from a file/URL manifest into the spec map when the
+// spec itself carries no multi-image map — the Pterodactyl egg shape keeps
+// those keys top-level, and without this shim a Ptero import would
+// silently drop every runtime but the default. Reports whether it moved
+// anything so callers can re-serialise the spec string they persist.
+func mergeManifestImagesIntoSpec(specMap, manifest map[string]any) bool {
+	if specMap == nil || manifest == nil {
+		return false
+	}
+	_, hasImages := specMap["images"]
+	_, hasDocker := specMap["docker_images"]
+	if hasImages || hasDocker {
+		return false
+	}
+	moved := false
+	for _, k := range []string{"images", "docker_images", "default_image"} {
+		if v, ok := manifest[k]; ok && v != nil {
+			specMap[k] = v
+			moved = true
+		}
+	}
+	return moved
 }
 
 func validateTemplate(req templateDTO) (string, error) {
@@ -732,6 +982,13 @@ func handleTemplateFileUpload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "spec must be valid JSON: "+err.Error(), http.StatusBadRequest)
 		return
 	}
+	// Ptero-egg compat: top-level images/docker_images/default_image ride
+	// into the spec so no runtime is dropped on import.
+	if mergeManifestImagesIntoSpec(specMap, manifest) {
+		if reb, merr := json.Marshal(specMap); merr == nil {
+			spec = string(reb)
+		}
+	}
 	if err := validateTemplateSpec(specMap); err != nil {
 		http.Error(w, "spec validation failed: "+err.Error(), http.StatusBadRequest)
 		return
@@ -853,6 +1110,12 @@ func InstallTemplateFromURLHandler(w http.ResponseWriter, r *http.Request) {
 	if err := json.Unmarshal([]byte(spec), &specMap); err != nil {
 		http.Error(w, "spec must be valid JSON: "+err.Error(), http.StatusBadRequest)
 		return
+	}
+	// Same Ptero-egg compat shim as the file-upload path.
+	if mergeManifestImagesIntoSpec(specMap, manifest) {
+		if reb, merr := json.Marshal(specMap); merr == nil {
+			spec = string(reb)
+		}
 	}
 	if err := validateTemplateSpec(specMap); err != nil {
 		http.Error(w, "spec validation failed: "+err.Error(), http.StatusBadRequest)
