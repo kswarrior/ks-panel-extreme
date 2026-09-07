@@ -462,11 +462,12 @@ export interface ThemeCards {
   form_padding: number;          // px
 }
 
-// Pill — the fixed top-right action cluster (PageActionsPill) rendered on
-// nearly every panel page (search / filter / stats / new / …). It never goes
+// Pill — the fixed pill clusters: top-right Actions (PageActionsPill),
+// phone Tabs (PageTabsPill) and bottom-right Form Actions
+// (PageFormActionsPill for Cancel / Create / Save …). They never go
 // invisible: auto-off (scroll / outside-click) and the manual toggle only
-// collapse it to a `<` chevron. This section themes its surface, its button
-// sizing, its collapse animation, and the auto-off → auto-on timing.
+// collapse them to a `<` chevron. This section themes their shared surface,
+// button sizing, collapse animation, and each auto-off → auto-on timing.
 export type PillAnimation = 'slide' | 'fade' | 'scale' | 'none';
 
 // Upward phone-tabs menu width mode: 'shrink' hugs the longest tab label,
@@ -489,10 +490,12 @@ export interface ThemePill {
   icon_size: number;        // px — `<` / `>` toggle chevron size
   animation: PillAnimation; // collapse/expand motion
   animation_duration: number; // ms
-  auto_hide_enabled: boolean; // false = pill never auto-offs, toggle still works
+  auto_hide_enabled: boolean; // false = top-right pill never auto-offs, toggle still works
   auto_show_delay: number;    // ms idle after auto-off before it slides back on
   tabs_menu_width: PillTabsMenuWidth; // phone Tabs Pill upward-menu width mode
   tabs_menu_fixed_width: number;      // px — used when tabs_menu_width === 'fixed'
+  form_actions_auto_hide_enabled: boolean; // false = bottom-right form pill always shows (default), toggle still works
+  form_actions_auto_show_delay: number;    // ms idle after auto-off before the form pill slides back on
 }
 
 // Instance menu — the floating draggable square toggle on instance detail

@@ -208,11 +208,14 @@ export const DEFAULT_THEME: Theme = {
     header_separator: 'rgba(255,255,255,0.10)',
   },
 
-  // Pill — the fixed top-right action cluster. Surface defaults mirror the
-  // Card tab so the pill keeps inheriting the live card look (see buildVars
+  // Pill — the fixed pill clusters (top-right Actions, phone Tabs,
+  // bottom-right Form Actions). Surface defaults mirror the
+  // Card tab so the pills keep inheriting the live card look (see buildVars
   // eqTok) until an admin explicitly overrides it here; padding/gap/tab
   // sizing reproduce today's hardcoded pill geometry (6px surface, 10/5px
   // tab buttons, 13px font, 16px chevron, 300ms slide, 2.5s auto-on).
+  // The form-actions pill ships with auto-off DISABLED so Cancel/Save are
+  // always visible by default; the Pill tab can opt it into auto-off.
   pill: {
     background: 'rgba(255,255,255,0.04)',
     border_color: 'rgba(255,255,255,0.10)',
@@ -233,6 +236,8 @@ export const DEFAULT_THEME: Theme = {
     auto_show_delay: 2500,
     tabs_menu_width: 'shrink',
     tabs_menu_fixed_width: 240,
+    form_actions_auto_hide_enabled: false,
+    form_actions_auto_show_delay: 2500,
   },
 
   // Instance menu — floating square toggle + popover on instance pages.
