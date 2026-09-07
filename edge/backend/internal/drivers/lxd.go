@@ -23,6 +23,13 @@ func newLXD() Driver { return &lxd{} }
 
 func (d *lxd) Name() string { return "lxd" }
 
+// Attach is not implemented for LXD: there is no `lxc attach`-to-PID-1
+// stdio bridge wired yet. Fail closed so a startup console pane shows a
+// clear error instead of a dead shell.
+func (d *lxd) Attach(_ context.Context, _ string) (*ExecSession, error) {
+	return nil, fmt.Errorf("console attach is not supported for lxd instances (docker only)")
+}
+
 func (d *lxd) Deploy(ctx context.Context, name string, cfg map[string]any) (Result, error) {
 	if err := binMissing("lxc"); err != nil {
 		return Result{}, err

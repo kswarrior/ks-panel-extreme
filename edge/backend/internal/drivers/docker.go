@@ -537,6 +537,85 @@ func (d *docker) Exec(ctx context.Context, name string, tty bool, cols, rows int
 	}, nil
 }
 
+// attachHistoryCap bounds the `docker logs` replay handed to a freshly
+// attached startup console so a spammy server can't blow the WS frame
+// budget on connect (the live stream after it is unbounded).
+const attachHistoryCap = 64 * 1024
+
+// Attach connects to the container's MAIN process stdio (PID 1 — the
+// template's startup command, e.g. a Minecraft server) via `docker
+// attach`, so the Terminal page's startup console is the real server
+// console (tps / op / stop …), not a side shell.
+//
+// History first: `docker logs --tail 500` (capped) replays into Stdout
+// before the live stream, because attach alone only shows output
+// produced AFTER connecting.
+//
+// Fail-closed: a stopped/missing container errors out (the caller
+// surfaces it as a WS error frame) instead of hanging on a dead pipe.
+// Input needs the container to have been started with an open stdin
+// (`docker run -i`, which Deploy passes); on older containers stdin
+// writes are dropped by the daemon while output still streams.
+func (d *docker) Attach(ctx context.Context, name string) (*ExecSession, error) {
+	if err := binMissing("docker"); err != nil {
+		return nil, err
+	}
+	if st := dockerStatus(ctx, name); st != "running" {
+		if st == "" {
+			return nil, fmt.Errorf("docker attach %s: container not found", name)
+		}
+		return nil, fmt.Errorf("docker attach %s: container is %s — start the instance first", name, st)
+	}
+	// History replay (best-effort: a logless container just yields none).
+	hist, _ := asExec(ctx, "", "docker", "logs", "--tail", "500", name)
+	if len(hist) > attachHistoryCap {
+		hist = hist[len(hist)-attachHistoryCap:]
+	}
+	cmd := exec.CommandContext(ctx, "docker", "attach", name)
+	stdin, stdout, stderr, err := startPiped(cmd)
+	if err != nil {
+		return nil, fmt.Errorf("docker attach: %w", err)
+	}
+	// Merge history + live attach output into one Stdout stream. The
+	// pipe writer is closed when the attach copy ends (container stop)
+	// so readers see EOF instead of hanging.
+	pr, pw := io.Pipe()
+	go func() {
+		if len(hist) > 0 {
+			_, _ = pw.Write([]byte(hist))
+			if len(hist) == 0 || hist[len(hist)-1] != '\n' {
+				_, _ = pw.Write([]byte("\n"))
+			}
+		}
+		_, _ = io.Copy(pw, stdout)
+		_ = pw.Close()
+	}()
+	waitCh := make(chan error, 1)
+	go func() { waitCh <- cmd.Wait() }()
+	wait := func() (int, error) {
+		err := <-waitCh
+		if err != nil {
+			if ee, ok := err.(*exec.ExitError); ok {
+				return ee.ExitCode(), err
+			}
+			return -1, err
+		}
+		return 0, nil
+	}
+	return &ExecSession{
+		Stdin: stdin, Stdout: pr, Stderr: stderr,
+		Resize: func(int, int) error { return nil },
+		Wait:   wait,
+		Close: func() error {
+			_ = pw.Close()
+			stdin.Close()
+			stdout.Close()
+			stderr.Close()
+			return nil
+		},
+	}, nil
+}
+
 // Runner gathers live metrics/processes/ports for the docker-driven instance
 // by running a portable shell script inside the container through Exec. This
 // avoids depending on `docker stats`/`docker top` formatting (which differ
@@ -693,7 +772,7 @@ func (d *docker) UpdatePorts(ctx context.Context, name string, allocs []PortAllo
 			return fmt.Errorf("docker rm -f: %w", err)
 		}
 	}
-	args := []string{"run", "--name", containerName}
+	args := []string{"run", "--name", containerName, "-i"} // -i: keep stdin open for the startup console (see Deploy)
 	for _, p := range allocs {
 		proto := p.Protocol
 		if proto == "" {
@@ -941,7 +1020,7 @@ func dockerRestoreFromImage(ctx context.Context, name, image string) error {
 			return fmt.Errorf("docker rm -f: %w", err)
 		}
 	}
-	args := []string{"run", "--name", containerName}
+	args := []string{"run", "--name", containerName, "-i"} // -i: keep stdin open for the startup console (see Deploy)
 	// Preserve port bindings from the previous HostConfig when present.
 	if prevHostCfg != nil {
 		if bindings, ok := prevHostCfg["PortBindings"].(map[string]any); ok {

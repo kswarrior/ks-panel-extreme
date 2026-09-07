@@ -19,6 +19,13 @@ func newKVM() Driver { return &kvm{} }
 
 func (d *kvm) Name() string { return "kvm" }
 
+// Attach is not implemented for KVM: there is no guest-main-process
+// stdio bridge wired yet. Fail closed so a startup console pane shows
+// a clear error instead of a dead shell.
+func (d *kvm) Attach(_ context.Context, _ string) (*ExecSession, error) {
+	return nil, fmt.Errorf("console attach is not supported for kvm instances (docker only)")
+}
+
 func (d *kvm) Deploy(ctx context.Context, name string, cfg map[string]any) (Result, error) {
 	if err := binMissing("virt-install"); err != nil {
 		return Result{}, err
