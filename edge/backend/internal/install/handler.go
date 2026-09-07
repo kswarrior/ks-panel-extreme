@@ -136,6 +136,13 @@ func (s *store) begin(key string, steps []StepStatus) (*record, bool) {
 	rec.err = ""
 	rec.start = time.Now()
 	rec.end = time.Time{}
+	// Clear the previous run's cancel + stdin writer: the old context is
+	// already cancelled (workflow goroutine defers cancel) and its stdin
+	// pipe closed via sess.Close, so reusing them would let Stop fire a
+	// dead cancel or write a stop_command into a closed pipe from the
+	// prior run (KeepStdin=false runs never overwrite stdinWriter).
+	rec.cancel = nil
+	rec.stdinWriter = nil
 	return rec, true
 }
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -91,6 +92,10 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	userRepo := repository.NewUserRepository(con)
 	user, err := userRepo.GetByUsernameOrEmail(identifier)
 	if err != nil {
+		// Record against the identifier even when no account exists so the
+		// remaining-attempts/lockout responses do not oracle valid vs
+		// unknown usernames (fail closed, uniform accounting).
+		auth.AccountLockoutInstance.RecordFailedAttempt(identifier)
 		log.Println("GetByUsernameOrEmail error:", err)
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)
 		return
@@ -99,7 +104,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	// Check account lockout status
 	if auth.AccountLockoutInstance.IsAccountLocked(identifier) {
 		lockoutTime := auth.AccountLockoutInstance.GetLockoutTime(identifier)
-		w.Header().Set("Retry-After", lockoutTime.String())
+		w.Header().Set("Retry-After", strconv.FormatInt(int64(lockoutTime.Seconds()), 10))
 		http.Error(w, "account temporarily locked due to multiple failed attempts", http.StatusTooManyRequests)
 		return
 	}
@@ -273,6 +278,7 @@ func SwitchLoginHandler(w http.ResponseWriter, r *http.Request) {
 	userRepo := repository.NewUserRepository(con)
 	user, err := userRepo.GetByUsernameOrEmail(identifier)
 	if err != nil {
+		auth.AccountLockoutInstance.RecordFailedAttempt(identifier)
 		log.Println("GetByUsernameOrEmail error:", err)
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)
 		return
@@ -284,7 +290,7 @@ func SwitchLoginHandler(w http.ResponseWriter, r *http.Request) {
 	// channel for anyone throttled out of /api/auth/login.
 	if auth.AccountLockoutInstance.IsAccountLocked(identifier) {
 		lockoutTime := auth.AccountLockoutInstance.GetLockoutTime(identifier)
-		w.Header().Set("Retry-After", lockoutTime.String())
+		w.Header().Set("Retry-After", strconv.FormatInt(int64(lockoutTime.Seconds()), 10))
 		http.Error(w, "account temporarily locked due to multiple failed attempts", http.StatusTooManyRequests)
 		return
 	}

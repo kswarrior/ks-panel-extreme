@@ -258,7 +258,7 @@ func AccountLockoutMiddleware(al *AccountLockout) func(http.Handler) http.Handle
 					// Check if account is locked
 					if al.IsAccountLocked(identifier) {
 						lockoutTime := al.GetLockoutTime(identifier)
-						w.Header().Set("Retry-After", lockoutTime.String())
+						w.Header().Set("Retry-After", strconv.FormatInt(int64(lockoutTime.Seconds()), 10))
 						http.Error(w, "account temporarily locked due to multiple failed attempts", http.StatusTooManyRequests)
 						return
 					}

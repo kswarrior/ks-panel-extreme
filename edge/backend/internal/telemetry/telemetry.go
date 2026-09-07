@@ -222,6 +222,8 @@ func cpuPercent() (float64, bool) {
 		busy += vals[i]
 	}
 
+	cpuMu.Lock()
+	defer cpuMu.Unlock()
 	if !prevCPUTimes.seen {
 		prevCPUTimes.busy = busy
 		prevCPUTimes.idle = idle

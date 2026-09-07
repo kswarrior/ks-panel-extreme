@@ -117,13 +117,15 @@ func ChangePasswordHandler(w http.ResponseWriter, r *http.Request) {
 	if historyConfig.Enabled && historyConfig.MaxHistory > 0 {
 		hashes, err := repository.NewPasswordHistoryRepository(con).
 			ListHashes(uid, historyConfig.MaxHistory)
-		if err == nil {
-			for _, h := range hashes {
-				passwordHistory = append(passwordHistory, auth.PasswordHistory{UserID: uid, PasswordHash: h})
-			}
+		if err != nil {
+			// Fail closed: a failed history read must not silently disable
+			// reuse checks (previous code fell through with an empty list).
+			http.Error(w, "could not verify password history", http.StatusInternalServerError)
+			return
 		}
-		// A failed read falls through with the empty list: the reuse
-		// check degrades to no-op instead of locking the user out.
+		for _, h := range hashes {
+			passwordHistory = append(passwordHistory, auth.PasswordHistory{UserID: uid, PasswordHash: h})
+		}
 	}
 
 	if err := auth.ValidatePasswordWithHistory(req.NewPassword, policy, passwordHistory, historyConfig, me.Username, me.Email); err != nil {
