@@ -14,6 +14,10 @@ export type ShortcutKey = 'files' | 'terminal' | 'ports';
 
 export const SHORTCUT_KEYS: ShortcutKey[] = ['files', 'terminal', 'ports'];
 
+// TerminalAllowInput mirrors the template action's per-action gate so pane
+// defaults and action settings speak the same three values.
+export type TerminalAllowInput = 'all' | 'allowlist' | 'disabled';
+
 // InstanceShortcutConfig — per-tool config for the floating menu's quick
 // shortcuts (Files / Terminal / Ports) + the page they open. Stored inside
 // `instance_controls.shortcuts` so it snapshots per template/instance like
@@ -38,6 +42,17 @@ export interface InstanceShortcutConfig {
   show_header: boolean;
   // Ports page allows Add / Remove (false = read-only table).
   allow_edit: boolean;
+  // Terminal page: allow adding more terminal panes side-by-side ("add more
+  // terminal together"). Each pane gets its own ID box; an ID matching a
+  // template action's terminal_id streams that action's log + gated input.
+  terminal_allow_multi: boolean;
+  // Terminal page: cap on simultaneous panes (empty/0 = unlimited).
+  terminal_max: string;
+  // Terminal page: defaults applied to every newly-added pane (each pane
+  // stays fully customizable afterwards without editing the template).
+  terminal_default_stop_on_exit: boolean;
+  terminal_default_allow_input: TerminalAllowInput;
+  terminal_default_timeout_s: string;
 }
 
 export interface InstanceShortcuts {
@@ -86,6 +101,11 @@ const DEFAULT_SHORTCUT_BASE = {
   show_sftp: true,
   show_header: true,
   allow_edit: true,
+  terminal_allow_multi: true,
+  terminal_max: '4',
+  terminal_default_stop_on_exit: true,
+  terminal_default_allow_input: 'all' as TerminalAllowInput,
+  terminal_default_timeout_s: '',
 };
 
 export const DEFAULT_SHORTCUTS: InstanceShortcuts = {
@@ -145,6 +165,10 @@ function slugOr(v: unknown, fallback: string): string {
 function resolveShortcut(raw: unknown, fallback: InstanceShortcutConfig): InstanceShortcutConfig {
   const r: Record<string, any> =
     raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, any>) : {};
+  const allowInput = typeof r.terminal_default_allow_input === 'string' &&
+    ['all', 'allowlist', 'disabled'].includes(r.terminal_default_allow_input)
+    ? (r.terminal_default_allow_input as TerminalAllowInput)
+    : fallback.terminal_default_allow_input;
   return {
     show: boolOr(r.show, fallback.show),
     slug: slugOr(r.slug, fallback.slug),
@@ -154,6 +178,15 @@ function resolveShortcut(raw: unknown, fallback: InstanceShortcutConfig): Instan
     show_sftp: boolOr(r.show_sftp, fallback.show_sftp),
     show_header: boolOr(r.show_header, fallback.show_header),
     allow_edit: boolOr(r.allow_edit, fallback.allow_edit),
+    terminal_allow_multi: boolOr(r.terminal_allow_multi, fallback.terminal_allow_multi),
+    terminal_max: typeof r.terminal_max === 'string' || typeof r.terminal_max === 'number'
+      ? String(r.terminal_max)
+      : fallback.terminal_max,
+    terminal_default_stop_on_exit: boolOr(r.terminal_default_stop_on_exit, fallback.terminal_default_stop_on_exit),
+    terminal_default_allow_input: allowInput,
+    terminal_default_timeout_s: typeof r.terminal_default_timeout_s === 'string' || typeof r.terminal_default_timeout_s === 'number'
+      ? String(r.terminal_default_timeout_s)
+      : fallback.terminal_default_timeout_s,
   };
 }
 

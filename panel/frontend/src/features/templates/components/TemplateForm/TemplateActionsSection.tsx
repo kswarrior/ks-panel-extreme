@@ -280,6 +280,45 @@ export const TemplateActionsSection: React.FC<ActionsSectionProps> = ({
                       </select>
                       <p className="text-[11px] text-gray-500 mt-1"><code>same</code>: sends the command to the process's console (e.g. Minecraft reads "stop" from stdin). <code>different</code>: runs a separate exec (e.g. pkill -f java).</p>
                     </div>
+                    <div className="pt-1 rounded-md border border-sky-700/30 bg-sky-950/20 p-2 space-y-2">
+                      <div>
+                        <label className="block text-[11px] text-gray-400 mb-0.5">Terminal ID (optional — binds this action to terminal panes)</label>
+                        <input value={(a as any).terminal_id || ''} onChange={(e) => { const v = e.target.value.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, ''); onActionUpdate(i, { terminal_id: v } as Partial<TemplateActionInput>); }} placeholder="e.g. mc-console (empty = no dedicated terminal)" className={monoCls + ' border-sky-700/40 focus:border-sky-400'} />
+                        <p className="text-[11px] text-gray-500 mt-1">On the instance Terminal page, add a terminal and enter this ID — when it matches, that pane streams this action's full log and routes input to the running action (Minecraft server console, bot stdin, …). Multiple panes may share one ID.</p>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[11px] text-gray-500 mb-0.5">Terminal input</label>
+                          <select value={(a as any).terminal_allow_input || 'all'} onChange={(e) => onActionUpdate(i, { terminal_allow_input: e.target.value as TemplateActionInput['terminal_allow_input'] } as Partial<TemplateActionInput>)} className={glassFieldClass}>
+                            <option value="all">Allow all input — free stdin (/tps, /op, /ban, …)</option>
+                            <option value="allowlist">Allow selected commands only</option>
+                            <option value="disabled">Disabled — read-only log view</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[11px] text-gray-500 mb-0.5">Terminal timeout (s, optional)</label>
+                          <input type="number" min="0" value={(a as any).terminal_timeout_s || ''} onChange={(e) => onActionUpdate(i, { terminal_timeout_s: e.target.value } as Partial<TemplateActionInput>)} placeholder="no limit" className={monoCls} />
+                        </div>
+                      </div>
+                      <label className="inline-flex items-center gap-2 cursor-pointer">
+                        <button type="button" onClick={() => onActionUpdate(i, { terminal_stop_on_exit: !((a as any).terminal_stop_on_exit ?? true) } as Partial<TemplateActionInput>)} className={`relative w-9 h-5 rounded-full transition ${((a as any).terminal_stop_on_exit ?? true) ? 'bg-green-600' : 'bg-neutral-700'}`} aria-pressed={((a as any).terminal_stop_on_exit ?? true)}>
+                          <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition ${((a as any).terminal_stop_on_exit ?? true) ? 'translate-x-4' : ''}`} />
+                        </button>
+                        <span className="text-sm text-gray-300">Stop terminal when action ends</span>
+                      </label>
+                      <p className="text-[11px] text-gray-500">Locked pane refuses further input once the process exits (Minecraft <code>stop</code> → console closes, no dead keystrokes).</p>
+                      {((a as any).terminal_allow_input === 'allowlist') && (
+                        <div>
+                          <label className="block text-[11px] text-gray-500 mb-0.5">Terminal allowed commands (regex, one per line)</label>
+                          <textarea rows={3} value={(a as any).terminal_allowed_commands || ''} onChange={(e) => onActionUpdate(i, { terminal_allowed_commands: e.target.value } as Partial<TemplateActionInput>)} placeholder={`^tps$\n^op\\s+\\w+\n^ban\\s+\\w+.*`} className={monoCls + ' text-emerald-200'} />
+                        </div>
+                      )}
+                      <div>
+                        <label className="block text-[11px] text-gray-500 mb-0.5">Terminal blocked commands (comma-separated, always rejected)</label>
+                        <input value={(a as any).terminal_blocked_commands || ''} onChange={(e) => onActionUpdate(i, { terminal_blocked_commands: e.target.value } as Partial<TemplateActionInput>)} placeholder="apt sudo reboot shutdown rm mkfs" className={monoCls + ' text-red-300'} />
+                      </div>
+                      <p className="text-[11px] text-gray-500">Fully customizable per action + per pane (the Terminal page can override input/timeout/stop per pane without editing the template).</p>
+                    </div>
                     {a.session === 'console_session' && (
                       <div className="space-y-2 pt-1">
                         <div>
