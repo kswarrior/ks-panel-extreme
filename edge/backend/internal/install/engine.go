@@ -45,8 +45,27 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 	"time"
 )
+
+// liveStdoutCap bounds the streamed per-stream output kept in a running
+// step's transcript (64 KiB each for stdout/stderr). A bound terminal pane
+// (e.g. mc-console) polls this transcript every few seconds, so without a
+// cap a chatty server would bloat every poll payload and the panel's
+// install_steps_json row. The terminal pane renders the last ~8 KiB, so
+// 64 KiB of headroom per stream never clips what the UI can show.
+const liveStdoutCap = 64 * 1024
+
+// appendCapped appends chunk to b, keeping only the last cap bytes so a
+// never-ending server log can't grow the workflow record without bound.
+func appendCapped(b, chunk []byte, cap int) []byte {
+	b = append(b, chunk...)
+	if len(b) > cap {
+		b = append([]byte(nil), b[len(b)-cap:]...)
+	}
+	return b
+}
 
 // Step is one entry of the spec.install[] array the panel forwards. The
 // field names match the JSON the frontend TemplateForm serialises 1:1 so the
