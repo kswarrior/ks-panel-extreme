@@ -27,6 +27,7 @@ import { getPageContent, getPageLabel, isPageAllowed, resolveRedirectTarget, typ
 import { pageNavigateTarget } from '@/shared/lib/customPageSdk';
 import CustomPageView from '@/shared/components/ui/CustomPageView';
 import ErrorBoundary from '@/shared/components/ui/ErrorBoundary';
+import Modal from '@/shared/components/ui/Modal';
 import Terminal, { type TerminalHandle } from '@/shared/components/ui/Terminal';
 import type { Terminal as XTerm } from '@xterm/xterm';
 import InstancePortsEditor from '@/features/instances/pages/InstancePortsEditor';
@@ -116,31 +117,6 @@ function normTid(v: unknown): string {
   return String(v ?? '').trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, '');
 }
 
-// blockedByTokens reports the first blocked token contained in line
-// (case-insensitive), or null when the line is clean.
-function blockedByTokens(line: string, blockedCsv: string): string | null {
-  const toks = String(blockedCsv || '').split(',').map((x) => x.trim()).filter(Boolean);
-  const low = line.toLowerCase();
-  for (const t of toks) {
-    if (t !== '' && low.includes(t.toLowerCase())) return t;
-  }
-  return null;
-}
-
-// allowedByList reports null when line matches one of the regexes (one per
-// line), or a reason when it matches none. Invalid regexes are skipped —
-// the line must still match a VALID pattern to pass.
-function allowedByList(line: string, allowedMultiline: string): string | null {
-  const pats = String(allowedMultiline || '').split('\n').map((x) => x.trim()).filter(Boolean);
-  if (pats.length === 0) return 'no allowed commands configured';
-  for (const p of pats) {
-    try {
-      if (new RegExp(p).test(line)) return null;
-    } catch { /* skip invalid pattern */ }
-  }
-  return 'not in the allowed-commands list';
-}
-
 // actionLogText folds an instance's install_steps_json transcript into one
 // tail string (every step's stdout + stderr, oldest first, last ~8k chars)
 // so a bound pane can show the action's FULL log above the live shell.
@@ -164,23 +140,13 @@ function actionLogText(stepsJson: unknown): string {
   }
 }
 
-type PaneAllowInput = 'all' | 'allowlist' | 'disabled';
-
 interface TerminalPaneState {
   key: number;
-  // Committed ID (drives the WS ?terminal= + action matching). The text box
-  // edits a draft and commits on Enter/blur so typing never storms reconnects.
+  // Display name shown in the pane header (from the Add-terminal dialog).
+  name: string;
+  // Committed action terminal ID (drives WS ?terminal= + action matching).
+  // Set once via the Add-terminal dialog — no inline editing.
   terminalId: string;
-  stopOnExit: boolean;
-  allowInput: PaneAllowInput;
-  // Pane-level overrides; empty = inherit the matched action's lists.
-  allowedCommands: string;
-  blockedCommands: string;
-  timeoutS: string;
-  showOptions: boolean;
-  stopped: boolean;
-  timedOut: boolean;
-  stdinError: string;
 }
 
 // TerminalPane — one attachable console. The xterm below is the live
