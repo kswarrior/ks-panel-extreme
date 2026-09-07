@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -85,8 +84,6 @@ func GenerateSessionToken(userID int64, issuedAt time.Time) string {
 	if issuedAt.IsZero() {
 		issuedAt = time.Now()
 	}
-	uidStr := strconv.FormatInt(issuedAt.Unix(), 10)
-	_ = uidStr
 	uidField := strconv.FormatInt(userID, 10)
 	issuedStr := strconv.FormatInt(issuedAt.Unix(), 10)
 	nonce := make([]byte, 8)
@@ -109,13 +106,40 @@ func GenerateSessionToken(userID int64, issuedAt time.Time) string {
 // the absolute time the token was issued. Callers willing to enforce a
 // max session age can compare time.Since(issuedAt) against their TTL.
 //
-// It also accepts the legacy "<userID>.<sig>" format (no embedded
-// issued-at) so sessions minted before the upgrade keep working — the
+// It accepts the current "<userID>.<issued>.<nonce>.<sig>" format, the
+// previous "<userID>.<issued>.<sig>" format (no nonce, minted before the
+// uniqueness upgrade), and the legacy "<userID>.<sig>" format (no embedded
+// issued-at) so sessions minted before the upgrades keep working — the
 // caller is told issuedAt is the Unix epoch so an explicit "ancient
 // session" check is straightforward.
 func ValidateSessionToken(token string) (int64, time.Time, error) {
-	parts := strings.SplitN(token, ".", 3)
+	parts := strings.SplitN(token, ".", 4)
 	switch len(parts) {
+	case 4:
+		uidStr, issuedStr, nonceStr, sig := parts[0], parts[1], parts[2], parts[3]
+		if nonceStr == "" || sig == "" {
+			return 0, time.Time{}, errors.New("invalid session token payload")
+		}
+		mac := hmac.New(sha256.New, sessionSecret)
+		mac.Write([]byte(uidStr))
+		mac.Write([]byte{'.'})
+		mac.Write([]byte(issuedStr))
+		mac.Write([]byte{'.'})
+		mac.Write([]byte(nonceStr))
+		wantSig := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+		// Compare in constant time to avoid timing side channels.
+		if !hmac.Equal([]byte(wantSig), []byte(sig)) {
+			return 0, time.Time{}, errors.New("invalid session token signature")
+		}
+		uid, err := strconv.ParseInt(uidStr, 10, 64)
+		if err != nil || uid <= 0 {
+			return 0, time.Time{}, errors.New("invalid session token payload")
+		}
+		issuedUnix, err := strconv.ParseInt(issuedStr, 10, 64)
+		if err != nil {
+			return 0, time.Time{}, errors.New("invalid session token payload")
+		}
+		return uid, time.Unix(issuedUnix, 0), nil
 	case 3:
 		uidStr, issuedStr, sig := parts[0], parts[1], parts[2]
 		mac := hmac.New(sha256.New, sessionSecret)
@@ -127,8 +151,8 @@ func ValidateSessionToken(token string) (int64, time.Time, error) {
 		if !hmac.Equal([]byte(wantSig), []byte(sig)) {
 			return 0, time.Time{}, errors.New("invalid session token signature")
 		}
-		var uid int64
-		if _, err := fmt.Sscanf(uidStr, "%d", &uid); err != nil {
+		uid, err := strconv.ParseInt(uidStr, 10, 64)
+		if err != nil || uid <= 0 {
 			return 0, time.Time{}, errors.New("invalid session token payload")
 		}
 		issuedUnix, err := strconv.ParseInt(issuedStr, 10, 64)
@@ -148,8 +172,8 @@ func ValidateSessionToken(token string) (int64, time.Time, error) {
 		if !hmac.Equal([]byte(wantSig), []byte(sig)) {
 			return 0, time.Time{}, errors.New("invalid session token signature")
 		}
-		var uid int64
-		if _, err := fmt.Sscanf(uidStr, "%d", &uid); err != nil {
+		uid, err := strconv.ParseInt(uidStr, 10, 64)
+		if err != nil || uid <= 0 {
 			return 0, time.Time{}, errors.New("invalid session token payload")
 		}
 		return uid, time.Unix(0, 0), nil

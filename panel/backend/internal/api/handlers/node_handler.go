@@ -559,11 +559,16 @@ func nodeOwnForbidden(w http.ResponseWriter, r *http.Request, ownerID int64) boo
 	if uid, _ := UserIDFromContext(r); uid != 0 {
 		con, err := repository.OpenDB()
 		if err != nil {
-			return false
+			http.Error(w, "server error", http.StatusInternalServerError)
+			return true
 		}
 		defer con.Close()
 		chk := permissions.NewChecker(con)
-		hasOwn, hasAll, _ := chk.HasScope(uid, permissions.NodesOwnKey, permissions.NodesAllKey, permissions.ManageNodesKey)
+		hasOwn, hasAll, serr := chk.HasScope(uid, permissions.NodesOwnKey, permissions.NodesAllKey, permissions.ManageNodesKey)
+		if serr != nil {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return true
+		}
 		if !hasAll && hasOwn && ownerID != uid {
 			http.Error(w, "forbidden: own-scope may only access nodes you registered", http.StatusForbidden)
 			return true
