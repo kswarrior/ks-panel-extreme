@@ -46,6 +46,9 @@ import AdminMods from '@/features/mods/pages/Mods';
 import AdminStacks from '@/features/stacks/pages/Stacks';
 import StackDetail from '@/features/stacks/pages/StackDetail';
 import StackView from '@/features/stacks/pages/StackView';
+import StackStudio from '@/features/stacks/pages/StackStudio';
+import StackStats from '@/features/stacks/pages/StackStats';
+import StackSchedules from '@/features/stacks/pages/StackSchedules';
 import ModStudio from '@/features/mods/pages/ModStudio';
 import ModStats from '@/features/mods/pages/ModStats';
 import ModDetail from '@/features/mods/pages/ModDetail';
@@ -626,6 +629,36 @@ const Router: React.FC = () => (
           <RequireAuth>
             <RequirePermission permission={PermissionKey.MANAGE_STACKS}>
               <AdminStacks />
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/stacks/studio"
+        element={
+          <RequireAuth>
+            <RequirePermission permission={PermissionKey.MANAGE_STACKS}>
+              <StackStudio />
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/stacks/stats"
+        element={
+          <RequireAuth>
+            <RequirePermission permission={PermissionKey.MANAGE_STACKS}>
+              <StackStats />
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/stacks/schedules"
+        element={
+          <RequireAuth>
+            <RequirePermission permission={PermissionKey.MANAGE_STACKS}>
+              <StackSchedules />
             </RequirePermission>
           </RequireAuth>
         }
