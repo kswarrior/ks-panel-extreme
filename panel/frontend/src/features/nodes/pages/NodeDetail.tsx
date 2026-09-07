@@ -1,10 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { listNodes, nodeHeartbeats, probeNode, listInstances, rotateNodeToken, deleteNode, purgeLocalNode, getNodeUpdateInfo } from '@/shared/api/admin';
 import type { Node, NodeHeartbeat } from '@/features/nodes/types/node';
 import GlassCard from '@/shared/components/ui/Card';
 import { PageActionsPill } from '@/shared/components/ui/PageActionsPill';
-import SectionRailTabs from '@/shared/components/ui/SectionRailTabs';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import { NodeIcon, nodeIconByKey, isCustomNodeIconSvg } from '../utils/nodeIcons';
 import { HeartbeatIcon, DriverRing, ResourceBar } from '../components/NodesComponents';
@@ -59,53 +58,6 @@ function formatUptime(secs: number): string {
   if (h > 0) return `${h}h`;
   return `${Math.floor(secs / 60)}m`;
 }
-
-type NodeDetailTabId = 'overview' | 'connectivity' | 'placement' | 'updates' | 'timeline';
-
-const NODE_DETAIL_TABS: Array<{ id: NodeDetailTabId; label: string; hint: string; icon: React.ReactNode }> = [
-  {
-    id: 'overview',
-    label: 'Overview',
-    hint: 'Resources, usage & uptime',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>
-    ),
-  },
-  {
-    id: 'connectivity',
-    label: 'Connectivity',
-    hint: 'Mode, TLS, probe & health',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg>
-    ),
-  },
-  {
-    id: 'placement',
-    label: 'Placement',
-    hint: 'Category, limits & drivers',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
-    ),
-  },
-  {
-    id: 'updates',
-    label: 'Edge Update',
-    hint: 'Version, channel & reinstall',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>
-    ),
-  },
-  {
-    id: 'timeline',
-    label: 'Timeline',
-    hint: 'Created, seen & actions',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
-    ),
-  },
-];
-
-const VALID_TABS: NodeDetailTabId[] = ['overview', 'connectivity', 'placement', 'updates', 'timeline'];
 
 const NodeDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -425,8 +377,30 @@ const NodeDetail: React.FC = () => {
             <span className="text-[10px] text-gray-500 uppercase tracking-wide">drivers</span>
           </div>
         </header>
+      </GlassCard>
 
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* Title lives in the app header ("Nodes / Detail"). Internal sections
+          use the shared section rail (same style as Security / Database):
+          one icon+label+hint strip on every breakpoint — horizontally
+          scrollable on phones, one tap to switch. The active tab syncs to
+          ?tab= so links stay shareable. */}
+      <SectionRailTabs
+        ariaLabel="Node detail sections"
+        active={tab}
+        onChange={changeTab}
+        tabs={NODE_DETAIL_TABS.map((t) =>
+          t.id === 'overview'
+            ? { ...t, marker: { kind: 'dot', className: st.dot, title: `Status: ${st.label}` } as const }
+            : t.id === 'placement' && instanceStats !== null
+              ? { ...t, marker: { kind: 'badge', text: instanceStats.total, title: `${instanceStats.total} instance(s) · ${instanceStats.running} running` } as const }
+              : t,
+        )}
+      />
+
+      {tab === 'overview' && (
+      <div role="tabpanel" id="rail-panel-overview" aria-labelledby="rail-tab-overview" className="space-y-4">
+      <GlassCard className="ks-stat-card p-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <ResourceBar label="RAM" pair={ramLabel} pct={node.ram_total ? (node.ram_used / node.ram_total) * 100 : 0} from="#34d399" to="#10b981" ok={node.hw_ram_ok} />
           <ResourceBar label="CPU" pair={cpuPct} pct={node.cpu_percent ?? 0} from="#60a5fa" to="#3b82f6" ok={node.hw_cpu_ok} />
           <ResourceBar label="DISK" pair={diskLabel} pct={node.disk_total ? (node.disk_used / node.disk_total) * 100 : 0} from="#a78bfa" to="#8b5cf6" ok={node.hw_disk_ok} />
@@ -495,8 +469,11 @@ const NodeDetail: React.FC = () => {
           {node.hw_uptime_ok === false && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-900/30 border border-amber-700/30 text-amber-200">Uptime: no data</span>}
         </div>
       </GlassCard>
+      </div>
+      )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      {tab === 'connectivity' && (
+      <div role="tabpanel" id="rail-panel-connectivity" aria-labelledby="rail-tab-connectivity">
         <GlassCard className="p-3">
           <h4 className="text-xs uppercase tracking-wide text-gray-500 mb-2">Connectivity & Health</h4>
           <div className="space-y-1.5 text-sm">
@@ -520,7 +497,11 @@ const NodeDetail: React.FC = () => {
           </div>
           {probeMsg && <p className="mt-2 text-xs px-2 py-1.5 rounded border border-white/10 bg-white/5 text-gray-300">{probeMsg}</p>}
         </GlassCard>
+      </div>
+      )}
 
+      {tab === 'placement' && (
+      <div role="tabpanel" id="rail-panel-placement" aria-labelledby="rail-tab-placement">
         <GlassCard className="p-3">
           <h4 className="text-xs uppercase tracking-wide text-gray-500 mb-2">Allocation & Placement</h4>
           <div className="space-y-1.5 text-sm">
@@ -553,7 +534,10 @@ const NodeDetail: React.FC = () => {
           </div>
         </GlassCard>
       </div>
+      )}
 
+      {tab === 'updates' && (
+      <div role="tabpanel" id="rail-panel-updates" aria-labelledby="rail-tab-updates">
       <GlassCard className="p-4">
         <h4 className="text-xs uppercase tracking-wide text-gray-500 mb-3">Edge Update & Reinstall</h4>
         <NodeUpdateTab nodeId={node.id} nodeName={node.name} />
