@@ -161,11 +161,6 @@ export interface StackFileEntry {
   mod_time?: number;
 }
 
-export interface StackFileList {
-  path: string;
-  entries: StackFileEntry[];
-}
-
 export interface StackFileContent {
   path: string;
   content: string;
