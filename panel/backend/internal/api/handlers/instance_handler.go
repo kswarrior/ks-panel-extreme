@@ -2859,13 +2859,15 @@ func filterEnvForScope(envVars map[string]string, scopes map[string][]string, gr
 	return out
 }
 
-// substituteOne replaces both {{KEY}} and ${KEY} placeholders for the allowed
-// vars. Unknown placeholders are left intact (not erased) so a typo surfaces
-// in the failing step's stderr rather than silently becoming an empty arg.
+// substituteOne replaces {{KEY}}, ${KEY} and $(KEY) placeholders for the
+// allowed vars. Unknown placeholders are left intact (not erased) so a typo
+// surfaces in the failing step's stderr rather than silently becoming an
+// empty arg. Only exact $(KNOWN) names are replaced — any other $(...)
+// (e.g. shell command substitution like $(date)) is left untouched.
 // NOTE: define env names UPPER_SNAKE — a var named e.g. `home` would also
 // rewrite legitimate shell `${home}` expansions in step scripts.
 func substituteOne(s string, allowed map[string]string) string {
-	if !strings.Contains(s, "{{") && !strings.Contains(s, "${") {
+	if !strings.Contains(s, "{{") && !strings.Contains(s, "${") && !strings.Contains(s, "$(") {
 		return s
 	}
 	for k, v := range allowed {
@@ -2874,6 +2876,9 @@ func substituteOne(s string, allowed map[string]string) string {
 		}
 		if strings.Contains(s, "${") {
 			s = strings.ReplaceAll(s, "${"+k+"}", v)
+		}
+		if strings.Contains(s, "$(") {
+			s = strings.ReplaceAll(s, "$("+k+")", v)
 		}
 	}
 	return s
