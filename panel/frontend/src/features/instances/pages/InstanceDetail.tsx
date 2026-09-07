@@ -402,7 +402,7 @@ export const InstanceDynamicPage: React.FC = () => {
     specRowState(spec, filesSlug) !== 'disabled'
   ) {
     const rowContent = getPageContent(effectiveSlug, spec);
-    if (hasRenderableContent(rowContent)) {
+    if (rowContent && (rowContent.html || rowContent.markdown || rowContent.blocks)) {
       return (
         <ErrorBoundary resetKey={`files-${instanceId}`} label="instance-page">
           <div className="space-y-4">
