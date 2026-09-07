@@ -751,6 +751,12 @@ func NewRouter() http.Handler {
 		// terminal input policy (disabled/allowlist/blocked) and requires
 		// the action to be the currently-running workflow.
 		r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Post("/api/instances/{id}/actions/{actionId}/stdin", handlers.ActionStdinHandler)
+		// Installation-console input: one line to the running install
+		// workflow's kept stdin (a terminal pane whose ID matches the
+		// template's install_terminal_id). Same VIEW_INSTANCES gate as
+		// the action stdin route; the handler additionally requires a
+		// running non-action workflow and a bound install_terminal_id.
+		r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Post("/api/instances/{id}/install/stdin", handlers.InstallStdinHandler)
 
 		// Instance-scoped terminal bridge. The browser opens a WebSocket
 		// against this endpoint; the panel authenticates the user via its
@@ -759,6 +765,13 @@ func NewRouter() http.Handler {
 		// the page it backs (the "Terminal" tab in /instances/:id) is
 		// already exposed under that permission.
 		r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Get("/api/instances/{id}/terminal", handlers.TerminalHandler)
+		// Startup-console bridge. Same shape and same VIEW_INSTANCES gate
+		// as the terminal bridge, but the browser attaches to the
+		// instance's MAIN process stdio (template startup command)
+		// through ksedge /api/edge/attach instead of a side shell. The
+		// SPA only dials it from panes whose ID matches the template's
+		// advanced.startup_terminal_id.
+		r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Get("/api/instances/{id}/console", handlers.ConsoleHandler)
 
 		// Instance-scoped File Manager. The browser dials these JSON/stream
 		// routes; the panel authenticates the session cookie, looks up the
