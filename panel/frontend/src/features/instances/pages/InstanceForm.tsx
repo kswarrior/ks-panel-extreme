@@ -497,7 +497,9 @@ const InstanceForm: React.FC = () => {
                   />
                 )}
                 {selectedTemplate && (
-                  <p className="text-xs text-gray-500 mt-1.5 font-mono truncate">{selectedTemplate.image}</p>
+                  <p className="text-xs text-gray-500 mt-1.5 font-mono truncate" title={imageOptions.find((o) => o.name.toLowerCase() === effectiveImageKey.toLowerCase())?.image || selectedTemplate.image}>
+                    {imageOptions.find((o) => o.name.toLowerCase() === effectiveImageKey.toLowerCase())?.image || selectedTemplate.image}
+                  </p>
                 )}
                 {!selectedTemplate && (
                   <p className="text-xs text-amber-200/90 bg-amber-950/30 border border-amber-700/30 rounded-md px-3 py-2 mt-3">
@@ -533,6 +535,50 @@ const InstanceForm: React.FC = () => {
               </div>
             </div>
             </GlassCard>
+
+            {selectedTemplate && imageOptions.length > 0 && (
+              <GlassCard variant="form">
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                  <div className="min-w-0">
+                    <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400">Runtime Image</h4>
+                    <p className="text-xs text-gray-500">This template ships {imageOptions.length} named runtimes — pick the one for this deployment.</p>
+                  </div>
+                  <span className="text-[10px] text-sky-300/80 border border-sky-700/40 bg-sky-950/30 rounded px-1.5 py-0.5 shrink-0">
+                    {imageOptions.length} runtime{imageOptions.length === 1 ? '' : 's'}
+                  </span>
+                </div>
+                <div role="radiogroup" aria-label="Runtime image" className="space-y-1.5">
+                  {imageOptions.map((o) => {
+                    const selected = effectiveImageKey.toLowerCase() === o.name.toLowerCase();
+                    return (
+                      <button
+                        key={o.name}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        onClick={() => setImageKey(o.isDefault ? '' : o.name)}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md border text-left transition-colors ${selected ? 'border-sky-400/60 bg-sky-500/10' : 'border-white/10 bg-white/[0.02] hover:border-white/25'}`}
+                      >
+                        <span className={`w-2 h-2 shrink-0 rounded-full ${selected ? 'bg-sky-300' : 'bg-gray-600'}`} aria-hidden="true" />
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center gap-1.5">
+                            <span className="block text-xs text-gray-100 truncate">{o.name}</span>
+                            {o.isDefault && (
+                              <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded border border-amber-700/60 bg-amber-950/40 text-amber-200">default</span>
+                            )}
+                          </span>
+                          <code className="block text-[10px] text-gray-500 font-mono truncate" title={o.image}>{o.image}</code>
+                          {o.description && <span className="block text-[11px] text-gray-500 truncate">{o.description}</span>}
+                        </span>
+                        {selected && <span className="text-sky-300 text-xs shrink-0">✓</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              </GlassCard>
+            )}
 
             {selectedTemplate && editor.env.length > 0 && (
               <GlassCard variant="form">

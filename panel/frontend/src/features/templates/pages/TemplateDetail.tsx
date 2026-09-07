@@ -213,6 +213,40 @@ const TemplateDetail: React.FC = () => {
   const mounts: any[] = Array.isArray(spec.mounts) ? spec.mounts : [];
   const install: any[] = Array.isArray(spec.install) ? spec.install : [];
   const actions: any[] = Array.isArray(spec.actions) ? spec.actions : [];
+  // Multi-image map: native images[] plus the Ptero-compatible
+  // docker_images{} map (merged, names win on collision like the backend).
+  const detailImages: Array<{ name: string; image: string; description: string; isDefault: boolean; envCount: number }> = (() => {
+    const rows: Array<{ name: string; image: string; description: string; isDefault: boolean; envCount: number }> = [];
+    const seen = new Set<string>();
+    const push = (name: string, image: string, description: string, isDefault: boolean, envCount: number) => {
+      const n = String(name || '').trim();
+      const im = String(image || '').trim();
+      if (n === '' || im === '') return;
+      const lower = n.toLowerCase();
+      if (seen.has(lower)) return;
+      seen.add(lower);
+      rows.push({ name: n, image: im, description: String(description || '').trim(), isDefault: !!isDefault, envCount });
+    };
+    if (Array.isArray(spec.images)) {
+      for (const e of spec.images) {
+        if (!e || typeof e !== 'object') continue;
+        push(String(e.name ?? ''), String(e.image ?? ''), String(e.description ?? ''), !!e.default,
+          e.env && typeof e.env === 'object' ? Object.keys(e.env).length : 0);
+      }
+    }
+    if (spec.docker_images && typeof spec.docker_images === 'object' && !Array.isArray(spec.docker_images)) {
+      for (const k of Object.keys(spec.docker_images).sort()) {
+        const v = (spec.docker_images as Record<string, unknown>)[k];
+        if (typeof v === 'string') push(k, v, '', false, 0);
+      }
+    }
+    const named = typeof spec.default_image === 'string' ? spec.default_image.trim().toLowerCase() : '';
+    if (named) {
+      for (const r of rows) r.isDefault = r.name.toLowerCase() === named;
+    }
+    if (rows.length > 0 && !rows.some((r) => r.isDefault)) rows[0].isDefault = true;
+    return rows;
+  })();
   const caps = spec.caps || {};
   const pages: any[] = Array.isArray(spec.pages) ? spec.pages : [];
   const prettySpec = (() => {
@@ -326,6 +360,29 @@ const TemplateDetail: React.FC = () => {
               {copied === 'image' && <span className="text-[10px] text-emerald-300">copied</span>}
             </h4>
             <p className="text-sm text-gray-200 font-mono break-all rounded-lg border border-white/5 bg-black/20 px-3 py-2">{template.image}</p>
+          </div>
+        )}
+
+        {detailImages.length > 0 && (
+          <div className="mt-4">
+            <h4 className="text-xs uppercase tracking-wide text-gray-500 mb-1">Runtimes · {detailImages.length}</h4>
+            <ul className="space-y-1.5">
+              {detailImages.map((r) => (
+                <li key={r.name} className="flex items-center gap-2.5 rounded-lg border border-white/5 bg-black/20 px-3 py-2">
+                  <span className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded border ${r.isDefault ? 'border-amber-700/60 bg-amber-950/40 text-amber-200' : 'border-white/10 text-gray-500'}`}>
+                    {r.isDefault ? 'default' : 'runtime'}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-xs text-gray-100 truncate">{r.name}</span>
+                    <code className="block text-[11px] text-gray-500 font-mono truncate" title={r.image}>{r.image}</code>
+                    {r.description && <span className="block text-[11px] text-gray-500 truncate">{r.description}</span>}
+                  </span>
+                  {r.envCount > 0 && (
+                    <span className="shrink-0 text-[10px] text-gray-500" title="Per-runtime env overrides">+{r.envCount} env</span>
+                  )}
+                </li>
+              ))}
+            </ul>
           </div>
         )}
       </GlassCard>
