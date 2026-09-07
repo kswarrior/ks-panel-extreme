@@ -75,6 +75,18 @@ type Driver interface {
 	// ignorted when tty=false). Cols/Rows are ignored if the driver can't
 	// size its stdin pipe.
 	Exec(ctx context.Context, name string, tty bool, cols, rows int, command []string) (*ExecSession, error)
+	// Attach connects to the instance's MAIN process stdio (the container
+	// entrypoint / startup command, e.g. a Minecraft server) instead of
+	// spawning a new process like Exec. Bytes written to Stdin reach the
+	// main process's stdin (tps / op / stop …); Stdout/Stderr carry its
+	// console output. Implementations SHOULD replay recent history first
+	// (e.g. `docker logs --tail`) so a freshly-attached console is not
+	// blank. Drivers without main-process attach (kvm, lxd, multipass)
+	// return an error and the caller surfaces it fail-closed.
+	// The container normally needs an open stdin (docker: started with
+	// `-i`) for input to land; without it output still streams but
+	// writes are dropped by the runtime.
+	Attach(ctx context.Context, name string) (*ExecSession, error)
 // Runner collects read-only live state (metrics, processes, ports, info)
 // for the per-instance Processes / Metrics / Ports / Settings pages. Each
 // return value is a raw JSON blob; the panel stores it verbatim in the
