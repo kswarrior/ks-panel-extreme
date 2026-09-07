@@ -20,6 +20,7 @@ import {
   extractStackApiError,
   getStackEngine,
   setStackEngine,
+  stackAppUrl,
 } from '@/features/stacks/api/stacks';
 import {
   Stack,
@@ -561,6 +562,12 @@ const Stacks: React.FC = () => {
                     {s.active ? (
                       <>
                         <Link to={`/stacks/${s.slug}/`} className="px-2 py-1 rounded text-xs border border-emerald-700/40 bg-emerald-900/30 text-emerald-200 hover:bg-emerald-900/50">Open</Link>
+                        {(() => {
+                          const appUrl = stackAppUrl(s);
+                          return appUrl ? (
+                            <a href={appUrl} className="px-2 py-1 rounded text-xs border border-sky-700/40 bg-sky-900/30 text-sky-200 hover:bg-sky-900/50">App</a>
+                          ) : null;
+                        })()}
                         <button onClick={() => void doStop(s)} className="ks-ghost-btn px-2 py-1 rounded text-xs border border-white/10 bg-white/5 text-white hover:bg-white/10">Stop</button>
                       </>
                     ) : (
