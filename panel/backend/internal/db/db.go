@@ -2016,7 +2016,11 @@ func SeedCore(d Dialect, db *sql.DB) error {
 		return err
 	}
 	// Keep the MANAGE_THEMES description current on legacy installs.
-	if _, err := db.Exec(`UPDATE permissions SET description = 'Manage the theme system (umbrella key – enables the theme surface for a role)' WHERE key = 'MANAGE_THEMES'`); err != nil {
+	updateThemesDesc := `UPDATE permissions SET description = 'Manage the theme system (umbrella key – enables the theme surface for a role)' WHERE key = 'MANAGE_THEMES'`
+	if d.Name() == "mysql" || d.Name() == "mariadb" {
+		updateThemesDesc = quoteMySQLReservedIdents(updateThemesDesc)
+	}
+	if _, err := db.Exec(updateThemesDesc); err != nil {
 		return err
 	}
 	// Default roles, in deterministic INSERT order (preserves existing IDs).
@@ -2072,8 +2076,20 @@ func SeedCore(d Dialect, db *sql.DB) error {
 // pre-formatted (it has the parenthetical column-list followed by VALUES
 // followed by the values tuple), so the only thing that varies between
 // dialectics is the verb and the trailing conflict clause.
+//
+// MySQL quoting: KEY is a reserved word, so the (key, description) column
+// list and the p.key WHERE/IN filters are backtick-quoted for the MySQL
+// verb only. The prefix is a closed mapping from insertIgnorePrefix
+// ("INSERT IGNORE" ⟺ mysql/mariadb, "INSERT OR IGNORE" ⟺ sqlite,
+// "INSERT INTO" ⟺ postgres), so branching on it is exact, not heuristic.
+// A future dialect with a new prefix gets no quoting and fails loudly
+// (1064) instead of silently — the mapping above must then be extended.
 func translateSeedInsert(prefix, pgConflict, body, table string) string {
-	return prefix + " " + table + " " + body + pgConflict + ";"
+	q := prefix + " " + table + " " + body + pgConflict + ";"
+	if prefix == "INSERT IGNORE" {
+		q = quoteMySQLReservedIdents(q)
+	}
+	return q
 }
 
 // appConfigField is the in-Go shape of one entry in an application's
