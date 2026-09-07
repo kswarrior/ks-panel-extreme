@@ -172,7 +172,7 @@ func (r *ringSampler) push(s SeriesSample) {
 
 func (r *ringSampler) snapshot() []SeriesSample {
 	if r.count == 0 {
-		return nil
+		return []SeriesSample{}
 	}
 	out := make([]SeriesSample, r.count)
 	if r.count < r.size {
@@ -310,7 +310,9 @@ func LocalSeries() Series {
 	}
 	out.Window = time.Duration(sampler.size) * sampler.interval
 	out.Interval = sampler.interval
-	out.Samples = sampler.snapshot()
+	if s := sampler.snapshot(); s != nil {
+		out.Samples = s
+	}
 	if len(out.Samples) > 0 {
 		out.Current = out.Samples[len(out.Samples)-1]
 	}

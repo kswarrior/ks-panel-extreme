@@ -746,12 +746,12 @@ func aiRunChatLoop(ctx context.Context, actx *aiCallCtx, cfg *repository.AIConfi
 		if ctx.Err() != nil {
 			return lastText, nil, ctx.Err()
 		}
-		// Per-round deadline from the client connection (not the shared
-		// outer ctx): round 1 consuming 40s must not starve rounds 2-5
-		// into spurious ctx.Err. The outer ctx still gates the total via
-		// the check above; the server WriteTimeout (120s) caps the worst
-		// case. Client disconnect cancels both (r.Context parent).
-		roundCtx, roundCancel := context.WithTimeout(actx.r.Context(), 50*time.Second)
+		// Per-round deadline as a CHILD of the outer ctx (not r.Context):
+		// round 1 consuming 40s must not starve rounds 2-5 into spurious
+		// ctx.Err, and the outer 110s budget still cancels an in-flight
+		// round. The server WriteTimeout (120s) caps the worst case.
+		// Client disconnect cancels both (outer ctx derives from r.Context).
+		roundCtx, roundCancel := context.WithTimeout(ctx, 50*time.Second)
 		text, calls, usage, err := aiProviderChatWithFallback(roundCtx, cfg, model, msgs, defs)
 		roundCancel()
 		acc.add(usage)
@@ -822,9 +822,13 @@ func aiBuildSystemPrompt(con *sql.DB, cfg *repository.AIConfig, uid int64, usern
 	fmt.Fprintf(&b, " Fleet counts: %d instances, %d nodes, %d templates (counts only — no rows are preloaded).", instN, nodeN, tmplN)
 	b.WriteString("\n\nRules: only use the tools you were given; call a list tool before acting on any named resource; never invent IDs — if the user names something, look it up first (list_instances/list_nodes/list_templates/list_instance_pages/list_users/list_themes/list_tickets/list_roles, then get_* for details; check_panel_update before any panel reinstall); keep answers short. Act, don't interrogate: when the user names a template workflow step, action, port, or any other template field, read get_template (section=steps for install steps, section=runtime for startup command + action buttons, section=ports for published ports, section=spec for the full raw spec JSON when you need anything else) and propose the edit — never ask them to paste the workflow or dictate exact text. Template edits: install-workflow changes use edit_template_steps; startup-command changes use set_template_command; action-button removal uses remove_template_action; port-mapping changes use edit_template_ports; description text changes read section=description first and use edit_template. Autostart pattern: gate the new command on files the install workflow guarantees (e.g. server.jar), never on a deleted sentinel; warn that the panel still stops the container once right after install (by design) and every later container start then launches the service. Tickets: staff sees all, others own/assigned; only staff triages or posts internal notes. Write tools (instance_action, edit_instance, reinstall_instance, delete_instance, suspend_instance, unsuspend_instance, update_settings, create_theme, edit_theme, delete_theme, create_template, edit_template, delete_template, edit_template_steps, set_template_command, remove_template_action, edit_template_ports, create_node, edit_node, delete_node, create_instance_page, edit_instance_page, delete_instance_page, create_user, edit_user, delete_user, create_ticket, reply_ticket, update_ticket, broadcast_notification, deploy_instance, reinstall_panel) do NOT execute immediately: calling one returns a confirmation ticket that the user must approve in the UI. After calling a write tool, briefly summarise what will happen and ask the user to approve it in the confirmation card. Every write re-checks the caller's area permission (instances/templates/nodes/pages/themes/users/tickets/notifications/panel-update) plus the AI Chat Writes grant — if either is missing, explain which permission an admin must grant. reinstall_panel restarts the whole panel (brief downtime, the chat disconnects) — always run check_panel_update first and warn about the restart.")
 	// Capability line so the model respects the caller's AI Chat sub-perms.
+	// Fail closed: when the checker is unavailable the model is told the
+	// most restrictive (Q&A-only) line instead of an unrestricted prompt.
 	if actxChecker, actxUID, ok := aiPromptCaps(con, uid); ok {
 		_, canRead, canWrite := aiCaps(actxChecker, actxUID)
 		b.WriteString("\n\nCapability: " + aiCapabilityNote(true, canRead, canWrite, cfg.AllowWrites))
+	} else {
+		b.WriteString("\n\nCapability: " + aiCapabilityNote(false, false, false, false))
 	}
 	if strings.TrimSpace(cfg.SystemExtra) != "" {
 		b.WriteString("\n\nAdministrator instructions: " + strings.TrimSpace(cfg.SystemExtra))
@@ -834,8 +838,8 @@ func aiBuildSystemPrompt(con *sql.DB, cfg *repository.AIConfig, uid int64, usern
 
 // aiPromptCaps re-opens the caller's checker for the system-prompt path.
 // aiBuildSystemPrompt only receives con+uid, so it builds a short-lived
-// checker here; failures fall back to full tools (fail open matches the
-// legacy umbrella behaviour for seeded roles).
+// checker here; a nil con reports ok=false and the caller injects the
+// most-restrictive Q&A-only capability line (fail closed).
 func aiPromptCaps(con *sql.DB, uid int64) (*permissions.Checker, int64, bool) {
 	if con == nil {
 		return nil, uid, false
@@ -1482,9 +1486,12 @@ var aiReadTools = map[string]bool{
 
 // aiCaps resolves the caller's AI sub-capabilities. The umbrella
 // AI_CHAT_USE implies everything, so legacy roles keep full access.
+// Fail closed: a nil checker or a DB error yields no capabilities (the
+// chat gate already rejected unauthenticated callers, and aiRunTool
+// re-checks every tool before running it).
 func aiCaps(checker *permissions.Checker, uid int64) (canQA, canRead, canWrite bool) {
 	if checker == nil {
-		return true, true, true
+		return false, false, false
 	}
 	canQA, _ = checker.HasAICapability(uid, permissions.AIChatQAKey)
 	canRead, _ = checker.HasAICapability(uid, permissions.AIChatToolsKey)
@@ -1492,10 +1499,6 @@ func aiCaps(checker *permissions.Checker, uid int64) (canQA, canRead, canWrite b
 	// Writes imply reads (you must look up IDs before proposing).
 	if canWrite {
 		canRead = true
-	}
-	// Anyone who reached the chat gate can at least do Q&A.
-	if !canQA && !canRead && !canWrite {
-		canQA = true
 	}
 	return canQA, canRead, canWrite
 }

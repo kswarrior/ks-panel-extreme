@@ -112,6 +112,7 @@ func UploadTicketAttachmentHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "file too large (max 25 MiB)", http.StatusRequestEntityTooLarge)
 		return
 	}
+	defer r.MultipartForm.RemoveAll()
 	file, hdr, err := r.FormFile("file")
 	if err != nil {
 		http.Error(w, "missing 'file' part", http.StatusBadRequest)

@@ -501,9 +501,11 @@ func AIChatStreamHandler(w http.ResponseWriter, r *http.Request) {
 		onToken := func(tok string) {
 			aiSSEWrite(w, map[string]any{"token": tok})
 		}
-		// Per-round deadline from the client connection, same rationale
-		// as aiRunChatLoop: one slow round must not starve the rest.
-		roundCtx, roundCancel := context.WithTimeout(r.Context(), 55*time.Second)
+		// Per-round deadline as a CHILD of the outer ctx (not r.Context),
+		// same rationale as aiRunChatLoop: one slow round must not starve
+		// the rest, and the outer 110s budget still cancels an in-flight
+		// round. Client disconnect cancels both (outer derives from it).
+		roundCtx, roundCancel := context.WithTimeout(ctx, 55*time.Second)
 		text, calls, usage, serr := aiStreamWithFallback(roundCtx, cfg, model, msgs, defs, onToken)
 		roundCancel()
 		acc.add(usage)

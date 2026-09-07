@@ -169,7 +169,11 @@ func ListInstancesHandler(w http.ResponseWriter, r *http.Request) {
 	// Scope-aware branching: All → full list, Own → owned only.
 	if uid != 0 {
 		checker := permissions.NewChecker(con)
-		hasOwn, hasAll, _ := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		hasOwn, hasAll, serr := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		if serr != nil {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
 		if !hasAll && hasOwn {
 			owned, err := repository.NewInstanceRepository(con).ListByOwner(uid)
 			if err != nil {
@@ -219,7 +223,11 @@ func GetInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	// Ownership scope enforcement.
 	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
 		checker := permissions.NewChecker(con)
-		hasOwn, hasAll, _ := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		hasOwn, hasAll, serr := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		if serr != nil {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
 		if !hasAll && hasOwn && inst.OwnerID != uid {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
@@ -453,7 +461,11 @@ func UpdateInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	// Ownership scope for config edit: Own → must own the instance.
 	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
 		checker := permissions.NewChecker(con)
-		hasOwn, hasAll, _ := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		hasOwn, hasAll, serr := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		if serr != nil {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
 		if !hasAll && hasOwn && inst.OwnerID != uid {
 			http.Error(w, "forbidden: own-scope may only edit own instances", http.StatusForbidden)
 			return
@@ -750,7 +762,11 @@ func UpdateInstanceIdentityHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
 		checker := permissions.NewChecker(con)
-		hasOwn, hasAll, _ := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		hasOwn, hasAll, serr := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		if serr != nil {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
 		if !hasAll && hasOwn && inst.OwnerID != uid {
 			http.Error(w, "forbidden: own-scope may only edit own instances", http.StatusForbidden)
 			return
@@ -801,7 +817,11 @@ func ReinstallInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
 		checker := permissions.NewChecker(con)
-		hasOwn, hasAll, _ := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		hasOwn, hasAll, serr := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		if serr != nil {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
 		if !hasAll && hasOwn && inst.OwnerID != uid {
 			http.Error(w, "forbidden: own-scope may only manage own instances", http.StatusForbidden)
 			return
@@ -1092,7 +1112,11 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	// Ownership scope for create: Own → may create only for self, All/umbrella → any user.
 	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
 		checker := permissions.NewChecker(con)
-		hasOwn, hasAll, _ := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		hasOwn, hasAll, serr := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		if serr != nil {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
 		if !hasAll && hasOwn {
 			if req.OwnerID != 0 && req.OwnerID != uid {
 				http.Error(w, "forbidden: own-scope may only create instances for yourself", http.StatusForbidden)
@@ -1949,7 +1973,11 @@ func instanceAction(w http.ResponseWriter, r *http.Request, action string) {
 	// Ownership scope enforcement for instance lifecycle: Own → must own the instance.
 	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
 		checker := permissions.NewChecker(con)
-		hasOwn, hasAll, _ := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		hasOwn, hasAll, serr := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		if serr != nil {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
 		if !hasAll && hasOwn && inst.OwnerID != uid {
 			http.Error(w, "forbidden: own-scope may only manage own instances", http.StatusForbidden)
 			return
