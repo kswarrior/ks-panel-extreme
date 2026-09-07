@@ -55,6 +55,11 @@ export interface EnvVariable {
   rule: string;
   display: 'text' | 'number' | 'select' | 'checkbox';
   options: string;
+  // Mirrors templates/types/templateForm: structured dropdown rows +
+  // checkbox send-values (the deploy renderer reads them from here).
+  options_list?: Array<{ svg: string; label: string; value: string }>;
+  checked_value: string;
+  unchecked_value: string;
   append: boolean;
   prepend: string;
   append_value: string;
