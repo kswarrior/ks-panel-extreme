@@ -91,6 +91,11 @@ export const PermissionKey = {
   APPLICATIONS_EDIT: 'APPLICATIONS_EDIT',
   APPLICATIONS_DELETE: 'APPLICATIONS_DELETE',
 
+  STACKS_VIEW: 'STACKS_VIEW',
+  STACKS_CREATE: 'STACKS_CREATE',
+  STACKS_EDIT: 'STACKS_EDIT',
+  STACKS_DELETE: 'STACKS_DELETE',
+
   INSTANCE_PAGES_VIEW: 'INSTANCE_PAGES_VIEW',
   INSTANCE_PAGES_CREATE: 'INSTANCE_PAGES_CREATE',
   INSTANCE_PAGES_EDIT: 'INSTANCE_PAGES_EDIT',
@@ -150,6 +155,8 @@ export const PermissionKey = {
   MODS_ALL: 'MODS_ALL',
   APPLICATIONS_OWN: 'APPLICATIONS_OWN',
   APPLICATIONS_ALL: 'APPLICATIONS_ALL',
+  STACKS_OWN: 'STACKS_OWN',
+  STACKS_ALL: 'STACKS_ALL',
   INSTANCE_PAGES_OWN: 'INSTANCE_PAGES_OWN',
   INSTANCE_PAGES_ALL: 'INSTANCE_PAGES_ALL',
   TICKETS_OWN: 'TICKETS_OWN',
@@ -301,6 +308,18 @@ export const PERMISSION_AREAS: PermissionArea[] = [
     },
     ownKey: PermissionKey.APPLICATIONS_OWN,
     allKey: PermissionKey.APPLICATIONS_ALL,
+  },
+  {
+    label: 'Stacks',
+    umbrella: PermissionKey.MANAGE_STACKS,
+    keys: {
+      VIEW: PermissionKey.STACKS_VIEW,
+      CREATE: PermissionKey.STACKS_CREATE,
+      EDIT: PermissionKey.STACKS_EDIT,
+      DELETE: PermissionKey.STACKS_DELETE,
+    },
+    ownKey: PermissionKey.STACKS_OWN,
+    allKey: PermissionKey.STACKS_ALL,
   },
   {
     label: 'Instance Pages',
