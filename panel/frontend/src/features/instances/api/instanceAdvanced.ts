@@ -328,6 +328,30 @@ export async function stopInstanceAction(
   );
   return res.data;
 }
+
+// Send one console line from a bound terminal pane to the running action's
+// stdin (e.g. `/tps` to a Minecraft console whose pane ID matches the
+// action's terminal_id). The server enforces the action's terminal input
+// policy (disabled/allowlist/blocked) and requires the action to be the
+// currently-running workflow — a 409 means the process ended and the pane
+// should lock (stop-terminal-after-end).
+export interface SendActionStdinResponse {
+  id: number;
+  action_id: string;
+  accepted: boolean;
+}
+
+export async function sendActionStdin(
+  instanceId: number,
+  actionId: string,
+  line: string,
+): Promise<SendActionStdinResponse> {
+  const res = await client.post<SendActionStdinResponse>(
+    `/api/instances/${instanceId}/actions/${encodeURIComponent(actionId)}/stdin`,
+    { data: line },
+  );
+  return res.data;
+}
 // (Custom-page action execution lives in the page SDK —
 // shared/lib/customPageSdk.ts → POST /api/instance-pages/execute-action with
 // instance_id + page_slug. A previous host-side helper here posted without

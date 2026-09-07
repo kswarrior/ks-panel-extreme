@@ -243,6 +243,13 @@ func Handler(token string) http.Handler {
 		// the bottom of the handler always sees a meaningful value
 		// regardless of which select arm fired.
 		exitCode := -1
+		// Pane attach budget (?timeout= seconds, forwarded by the panel
+		// from the terminal pane's timeout): when it elapses the session
+		// is torn down so a forgotten console can't linger forever.
+		var timeoutCh <-chan time.Time
+		if timeoutSec > 0 {
+			timeoutCh = time.After(time.Duration(timeoutSec) * time.Second)
+		}
 		select {
 		case <-done:
 			exitCode = <-codeCh
@@ -253,6 +260,13 @@ func Handler(token string) http.Handler {
 		case <-errCh:
 			// Read or write loop ended (likely the WS closed).
 			_ = session.Stdin.Close()
+		case <-timeoutCh:
+			// Attach budget elapsed: stop the session and tell the pane
+			// why it went away (the panel's Terminal page flips the pane
+			// into its timed-out locked state on this exit frame).
+			_ = session.Stdin.Close()
+			cancel()
+			gw.write(map[string]any{"type": "error", "message": "terminal timeout reached — session closed"})
 		}
 
 		gw.write(map[string]any{"type": "exit", "code": exitCode})

@@ -137,6 +137,12 @@ interface TerminalProps {
   // Fired when the bridge reports process exit (used for stop-on-exit panes
   // to flip into the locked "terminal stopped" state).
   onExit?: (code: number) => void;
+  // Fired with each validated input line (without the trailing newline)
+  // when the user presses Enter. Bound terminal panes use it to relay the
+  // line to the running action's console (POST …/actions/:id/stdin) in
+  // addition to the PTY stdin below. Lines blocked by validateInput never
+  // reach here.
+  onLine?: (line: string) => void;
 }
 
 // TerminalHandle exposes imperative actions the host page can wire to
@@ -149,7 +155,7 @@ export interface TerminalHandle {
   reconnect: () => void;
 }
 
-const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStateChange, onTermRef, onTitleChange, terminalId, timeoutS, readOnly, validateInput, onExit }, ref) => {
+const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStateChange, onTermRef, onTitleChange, terminalId, timeoutS, readOnly, validateInput, onExit, onLine }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -177,6 +183,10 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
   useEffect(() => {
     onExitRef.current = onExit;
   }, [onExit]);
+  const onLineRef = useRef(onLine);
+  useEffect(() => {
+    onLineRef.current = onLine;
+  }, [onLine]);
 
   // Bridge the imperative `reconnect()` to the parent's ref. We resolve it
   // lazily (no static dependency array) so the parent always picks up the
@@ -253,6 +263,15 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
       if (readOnlyRef.current) return;
       const validate = validateRef.current;
       if (!validate) {
+        if (d === '\r' || d === '\n') {
+          const line = lineBuf.current;
+          lineBuf.current = '';
+          try { onLineRef.current?.(line); } catch { /* noop */ }
+        } else if (d === '\u007f' || d === '\b') {
+          lineBuf.current = lineBuf.current.slice(0, -1);
+        } else if (d.charCodeAt(0) !== 27 && (d >= ' ' || d === '\t')) {
+          lineBuf.current += d;
+        }
         sendStdin(d);
         return;
       }
@@ -266,6 +285,7 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
           term.write(`\r\n\x1b[31m● blocked: ${reason}\x1b[0m\r\n`);
           return;
         }
+        try { onLineRef.current?.(line); } catch { /* noop */ }
         sendStdin(d);
         return;
       }
