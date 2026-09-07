@@ -629,16 +629,25 @@ const NodeFilesTab: React.FC<NodeFilesTabProps> = ({ nodeId }) => {
           <p className="text-[11px] text-gray-500 mt-1">Instance data appears here once workloads deploy on this edge — or add files with the + button.</p>
         </div>
       ) : (
+        <div ref={listRef}>
         <ul className="divide-y divide-white/5 rounded-lg border border-white/5 bg-white/[0.02] overflow-hidden">
           {entries.map((e) => {
             const full = childPath(relPath, e.name);
+            const key = (e.is_dir ? 'd:' : 'f:') + e.name;
+            const kind = e.is_dir ? null : fileKind(e.name);
+            const accent = e.is_dir ? undefined : KIND_ACCENT[kind as FileKind];
+            const menuId = `node-files-menu-${key}`;
             return (
-              <li key={(e.is_dir ? 'd:' : 'f:') + e.name} className="flex items-center gap-3 px-3 py-2 hover:bg-white/[0.03]">
-                <span className="shrink-0 w-7 h-7 rounded-md flex items-center justify-center bg-white/[0.06] border border-white/10 text-gray-300" aria-hidden="true">
+              <li key={key} className="relative flex items-center gap-3 px-3 py-2 hover:bg-white/[0.03]">
+                <span
+                  className="shrink-0 w-7 h-7 rounded-md flex items-center justify-center bg-white/[0.06] border border-white/10 text-gray-300"
+                  style={accent ? { color: accent } : undefined}
+                  aria-hidden="true"
+                >
                   {e.is_dir ? (
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1 2 2H5a2 2 0 0 1-2-2Z" /></svg>
                   ) : (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
+                    <FileKindIcon kind={kind as FileKind} />
                   )}
                 </span>
                 <div className="min-w-0 flex-1">
@@ -658,24 +667,161 @@ const NodeFilesTab: React.FC<NodeFilesTabProps> = ({ nodeId }) => {
                     {e.is_dir ? 'folder' : formatSize(e.size)}{' · '}{formatModTime(e.mod_time)}
                   </p>
                 </div>
-                {!e.is_dir && (
-                  <a
-                    href={nodeFileDownloadUrl(nodeId, full)}
-                    title={`Download ${e.name}`}
-                    aria-label={`Download ${e.name}`}
-                    className="shrink-0 p-1.5 rounded-md hover:bg-white/10 text-gray-400 hover:text-white"
+                <div className="relative shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setMenuFor((m) => (m === key ? null : key))}
+                    title={`Actions for ${e.name}`}
+                    aria-label={`Actions for ${e.name}`}
+                    aria-expanded={menuFor === key}
+                    aria-haspopup="menu"
+                    aria-controls={menuId}
+                    className="p-1.5 rounded-md hover:bg-white/10 text-gray-400 hover:text-white"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
-                  </a>
-                )}
+                    <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4" aria-hidden="true"><circle cx="12" cy="5" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="12" cy="19" r="1.6" /></svg>
+                  </button>
+                  {menuFor === key && (
+                    <div
+                      id={menuId}
+                      role="menu"
+                      aria-label={`Actions for ${e.name}`}
+                      className="ks-card absolute right-0 top-full mt-1 w-44 rounded-lg p-1 shadow-lg shadow-black/40 z-30"
+                    >
+                      {!e.is_dir && (
+                        <a
+                          role="menuitem"
+                          href={nodeFileDownloadUrl(nodeId, full)}
+                          title={`Download ${e.name}`}
+                          className="w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-sm text-gray-200 hover:bg-white/10 hover:text-white"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                          Download
+                        </a>
+                      )}
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => openRename(e)}
+                        className="w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-sm text-gray-200 hover:bg-white/10 hover:text-white text-left"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /></svg>
+                        Rename
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => copyRowPath(key, full)}
+                        className="w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-sm text-gray-200 hover:bg-white/10 hover:text-white text-left"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4 shrink-0"><rect x="9" y="9" width="10" height="10" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v3" /></svg>
+                        {copiedRow === key ? 'Copied!' : 'Copy path'}
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => openDelete(e)}
+                        className="w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-sm text-red-300 hover:bg-red-900/30 hover:text-red-200 text-left"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+                        Delete
+                      </button>
+                    </div>
+                  )}
+                </div>
               </li>
             );
           })}
         </ul>
+        </div>
       )}
       {truncated && (
         <p className="text-[11px] text-amber-300">Showing the first entries only — this folder is very large.</p>
       )}
+
+      <GlassModal
+        open={renameTarget !== null}
+        onClose={() => { if (!renameBusy) setRenameTarget(null); }}
+        title={renameTarget ? `Rename ${renameTarget.is_dir ? 'folder' : 'file'}` : 'Rename'}
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setRenameTarget(null)}
+              disabled={renameBusy}
+              className="ks-ghost-btn px-3 py-1.5 rounded text-sm disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={doRename}
+              disabled={renameBusy}
+              className="ks-primary-btn px-3 py-1.5 rounded text-sm disabled:opacity-50"
+            >
+              {renameBusy ? 'Renaming…' : 'Save'}
+            </button>
+          </>
+        }
+      >
+        {renameTarget && (
+          <>
+            <p className="text-xs text-gray-500 font-mono truncate mb-2" title={childPath(relPath, renameTarget.name)}>
+              {childPath(relPath, renameTarget.name)}
+            </p>
+            <label className="block text-xs text-gray-400 mb-1" htmlFor="node-files-rename-name">New name</label>
+            <input
+              id="node-files-rename-name"
+              value={renameName}
+              onChange={(e) => { setRenameName(e.target.value); setRenameErr(''); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') doRename(); }}
+              maxLength={255}
+              autoFocus
+              className="ks-input w-full"
+            />
+            {renameErr && <p className="text-red-400 text-xs mt-2">{renameErr}</p>}
+          </>
+        )}
+      </GlassModal>
+
+      <GlassModal
+        open={deleteTarget !== null}
+        onClose={() => { if (!deleteBusy) setDeleteTarget(null); }}
+        title={deleteTarget ? `Delete "${deleteTarget.name}"?` : 'Delete'}
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setDeleteTarget(null)}
+              disabled={deleteBusy}
+              className="ks-ghost-btn px-3 py-1.5 rounded text-sm disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={doDelete}
+              disabled={deleteBusy}
+              className="px-3 py-1.5 rounded text-sm bg-red-900/40 border border-red-700/40 text-red-200 hover:bg-red-900/60 disabled:opacity-50"
+            >
+              {deleteBusy ? 'Deleting…' : 'Delete'}
+            </button>
+          </>
+        }
+      >
+        {deleteTarget && (
+          <>
+            <p className="text-sm text-gray-200">
+              {deleteTarget.is_dir
+                ? 'This deletes the folder and everything inside it. This cannot be undone.'
+                : 'This deletes the file. This cannot be undone.'}
+            </p>
+            <p className="text-xs text-gray-500 font-mono truncate mt-2" title={childPath(relPath, deleteTarget.name)}>
+              {childPath(relPath, deleteTarget.name)}
+            </p>
+            {deleteErr && <p className="text-red-400 text-xs mt-2">{deleteErr}</p>}
+          </>
+        )}
+      </GlassModal>
 
       <GlassModal
         open={createOpen}
