@@ -263,7 +263,6 @@ const TerminalPane: React.FC<{
             border: '1px solid var(--ks-card-border)',
             background: 'var(--ks-term-bg,#1e1e1e)',
             boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-            opacity: pane.stopped || pane.timedOut ? 0.75 : 1,
           }}
         >
           <div
@@ -289,11 +288,7 @@ const TerminalPane: React.FC<{
             ref={handleRef}
             instanceId={instanceId}
             terminalId={tid}
-            timeoutS={effectiveTimeoutS}
-            readOnly={readOnly}
-            validateInput={validator}
             onLine={handleLine}
-            onExit={handleExit}
             onStateChange={(s, m) => { setConnState(s); setConnMsg(m ?? ''); }}
             onTermRef={(t) => (termRef.current = t)}
             onTitleChange={(t) => {
@@ -318,38 +313,23 @@ const TerminalPane: React.FC<{
 };
 
 // TerminalRealPage — native xterm terminal(s) for the terminal shortcut slug
-// (default `terminal`, customizable in Instance Controls). One or more panes
-// ("add more terminal together"): each pane has an ID box; when the ID
-// matches a template action's terminal_id the pane streams that action's
-// full log (details above) and relays gated input to the running action's
-// console while it runs. Per-pane options (stop-on-exit, input mode,
-// allow/block lists, timeout) make every pane fully customizable without
-// touching the template.
+// (default `terminal`, customizable in Instance Controls). Terminals are
+// added via the header + button, which opens a small dialog asking only for
+// Name + action terminal ID. A pane whose ID matches a template action's
+// terminal_id mirrors that action's live console into its xterm and relays
+// typed lines to the running action (Minecraft tps/op/stop, node stdin, …)
+// with no pane-side gating — a real functional console, not a log view.
 const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: boolean }> = ({ instance, title, showHeader = true }) => {
   const controls = useMemo(() => resolveInstanceControls(instance?.config), [instance?.config]);
   const termCfg = controls.shortcuts.terminal;
   const keySeq = useRef(1);
-  const makePane = (key: number): TerminalPaneState => ({
+  const makePane = (key: number, name = '', terminalId = ''): TerminalPaneState => ({
     key,
-    terminalId: '',
-    stopOnExit: termCfg.terminal_default_stop_on_exit,
-    allowInput: (['all', 'allowlist', 'disabled'].includes(termCfg.terminal_default_allow_input) ? termCfg.terminal_default_allow_input : 'all') as PaneAllowInput,
-    allowedCommands: '',
-    blockedCommands: '',
-    timeoutS: termCfg.terminal_default_timeout_s || '',
-    // Options (input mode, timeout, stop-on-exit, allow/block lists) start
-    // expanded so every pane is fully customizable right on the page —
-    // the gear toggles them closed. Template defaults from Instance
-    // Controls still seed each new pane.
-    showOptions: true,
-    stopped: false,
-    timedOut: false,
-    stdinError: '',
+    name,
+    terminalId,
   });
   const [panes, setPanes] = useState<TerminalPaneState[]>(() => [makePane(0)]);
 
-  const patchPane = (key: number, patch: Partial<TerminalPaneState>) =>
-    setPanes((ps) => ps.map((p) => (p.key === key ? { ...p, ...patch } : p)));
   const removePane = (key: number) => setPanes((ps) => (ps.length <= 1 ? ps : ps.filter((p) => p.key !== key)));
 
   // Template actions ride on the instance config (deploy-time snapshot).
@@ -381,7 +361,17 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
   const maxN = parseInt(String(termCfg.terminal_max || '').trim(), 10);
   const atMax = Number.isFinite(maxN) && maxN > 0 && panes.length >= maxN;
   const canAdd = (termCfg.terminal_allow_multi || panes.length === 0) && !atMax;
-  const addPane = () => { const k = keySeq.current++; setPanes((ps) => [...ps, makePane(k)]); };
+  const [showAdd, setShowAdd] = useState(false);
+  const [draftName, setDraftName] = useState('');
+  const [draftId, setDraftId] = useState('');
+  const openAdd = () => { setDraftName(''); setDraftId(''); setShowAdd(true); };
+  const confirmAdd = () => {
+    const v = normTid(draftId);
+    if (v === '') return;
+    const k = keySeq.current++;
+    setPanes((ps) => [...ps, makePane(k, draftName.trim(), v)]);
+    setShowAdd(false);
+  };
 
   return (
     <div className="animate-fade-in space-y-3">
@@ -390,8 +380,8 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
         <h2 style={{ fontSize: 20, fontWeight: 600, color: 'var(--ks-heading)', margin: 0 }}>{title || 'Terminal'}</h2>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {canAdd ? (
-            <button type="button" onClick={addPane} className="ks-btn" title={Number.isFinite(maxN) && maxN > 0 ? `Add another terminal pane (${panes.length}/${maxN})` : 'Add another terminal pane'}>
-              ＋ Add terminal
+            <button type="button" onClick={openAdd} title={Number.isFinite(maxN) && maxN > 0 ? `Add terminal (${panes.length}/${maxN})` : 'Add terminal'} aria-label="Add terminal" className="ks-btn-header ks-icon-btn">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
             </button>
           ) : (
             <span className="text-[11px] text-gray-500" title={atMax ? `Template caps terminals at ${maxN}` : 'Template allows a single terminal pane'}>
@@ -403,12 +393,14 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
       )}
       {!showHeader && canAdd && (
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <button type="button" onClick={addPane} className="ks-btn" title="Add another terminal pane">＋ Add terminal</button>
+          <button type="button" onClick={openAdd} title="Add terminal" aria-label="Add terminal" className="ks-btn-header ks-icon-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+          </button>
         </div>
       )}
       {actions.filter((a: any) => normTid(a?.terminal_id) !== '').length > 0 ? (
         <p className="text-[11px] text-gray-500">
-          Attachable actions: {actions.filter((a: any) => normTid(a?.terminal_id) !== '').map((a: any) => `${a.name || a.id} (${normTid(a.terminal_id)})`).join(' · ')} — enter an ID above to stream its full log + console input.
+          Consoles: {actions.filter((a: any) => normTid(a?.terminal_id) !== '').map((a: any) => `${a.name || a.id} (${normTid(a.terminal_id)})`).join(' · ')} — press + and enter the ID for a live console (tps / op / stop … work while it runs).
         </p>
       ) : (
         <p className="text-[11px] text-gray-500">No action defines a Terminal ID yet — set one under Templates → Actions → Terminal ID (e.g. <code className="font-mono">mc-console</code>) to attach consoles here.</p>
@@ -424,10 +416,63 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
           installState={installState}
           stepsJson={stepsJson}
           canRemove={panes.length > 1}
-          onPatch={patchPane}
           onRemove={removePane}
         />
       ))}
+
+      <Modal
+        open={showAdd}
+        onClose={() => setShowAdd(false)}
+        title="Add terminal"
+        footer={
+          <>
+            <button type="button" onClick={() => setShowAdd(false)} className="ks-btn">
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={confirmAdd}
+              disabled={normTid(draftId) === ''}
+              className="ks-btn-primary ks-btn disabled:opacity-40"
+            >
+              Add
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs text-gray-400 mb-1" htmlFor="terminal-add-name">
+              Name
+            </label>
+            <input
+              id="terminal-add-name"
+              value={draftName}
+              autoFocus
+              onChange={(e) => setDraftName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') confirmAdd(); }}
+              placeholder="e.g. MC console"
+              className="ks-input w-full"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-400 mb-1" htmlFor="terminal-add-id">
+              ID
+            </label>
+            <input
+              id="terminal-add-id"
+              value={draftId}
+              onChange={(e) => setDraftId(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') confirmAdd(); }}
+              placeholder="action terminal id (e.g. mc-console)"
+              className="ks-input w-full ks-mono"
+            />
+            <p className="text-[11px] text-gray-500 mt-1.5">
+              Must match the action's Terminal ID to get its live console.
+            </p>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };
