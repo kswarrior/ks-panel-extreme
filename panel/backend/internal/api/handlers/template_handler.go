@@ -178,7 +178,7 @@ func validateTemplateSpec(spec map[string]any) error {
 					}
 				}
 			}
-			// Scopes gate where {{NAME}}/${NAME} substitutes (empty = everywhere).
+			// Scopes gate where {{NAME}}/${NAME}/$(NAME) substitutes (empty = everywhere).
 			// Strict here so a typo fails fast at save time, not silently at deploy.
 			if rawScopes, present := m["scopes"]; present && rawScopes != nil {
 				arr, ok := rawScopes.([]any)
@@ -197,6 +197,39 @@ func validateTemplateSpec(spec map[string]any) error {
 					if !validEnvScopes[s] {
 						return fmt.Errorf("spec.env[%d]: unknown scope %q (want one of: install, actions, image, controls, pages, advanced, all)", i, s)
 					}
+				}
+			}
+			// Images restrict which named runtimes this var applies to
+			// (empty/missing = All images, the default).
+			if rawImages, present := m["images"]; present && rawImages != nil {
+				arr, ok := rawImages.([]any)
+				if !ok {
+					return fmt.Errorf("spec.env[%d]: images must be an array of runtime names", i)
+				}
+				if len(arr) > 32 {
+					return fmt.Errorf("spec.env[%d]: images holds at most 32 runtime names", i)
+				}
+				for _, v := range arr {
+					s, ok := v.(string)
+					if !ok || strings.TrimSpace(s) == "" {
+						return fmt.Errorf("spec.env[%d]: images must be an array of runtime names", i)
+					}
+					if len(strings.TrimSpace(s)) > 100 {
+						return fmt.Errorf("spec.env[%d]: image name too long (max 100)", i)
+					}
+				}
+			}
+			// Behavior is 'ask' (prompt at deploy, the default) or 'auto'
+			// (hidden auto-set, the replacement for .env / per-runtime overrides).
+			if rawBeh, present := m["behavior"]; present && rawBeh != nil {
+				s, ok := rawBeh.(string)
+				if !ok {
+					return fmt.Errorf("spec.env[%d]: behavior must be \"ask\" or \"auto\"", i)
+				}
+				switch strings.TrimSpace(strings.ToLower(s)) {
+				case "ask", "auto":
+				default:
+					return fmt.Errorf("spec.env[%d]: behavior must be \"ask\" or \"auto\"", i)
 				}
 			}
 		}

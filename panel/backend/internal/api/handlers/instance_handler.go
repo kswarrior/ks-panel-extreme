@@ -2875,6 +2875,55 @@ func filterEnvForScope(envVars map[string]string, scopes map[string][]string, gr
 	return out
 }
 
+// parseEnvImages cleans a raw spec.env[].images value: the list of named
+// runtimes this var applies to. Empty/missing = All images (the default).
+// Entries are trimmed; empties dropped; capped at 32 so a hostile spec
+// cannot blow up the deploy picker.
+func parseEnvImages(raw any) []string {
+	arr, ok := raw.([]any)
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	var out []string
+	for _, v := range arr {
+		s, ok := v.(string)
+		if !ok {
+			continue
+		}
+		if s = strings.TrimSpace(s); s != "" && len(s) <= 100 {
+			out = append(out, s)
+		}
+		if len(out) >= 32 {
+			break
+		}
+	}
+	return out
+}
+
+// parseEnvBehavior cleans a raw spec.env[].behavior value: 'ask' (prompt
+// the operator at deploy, the default) or 'auto' (hidden auto-set).
+// Unknown/empty values fall back to 'ask' so old specs keep working.
+func parseEnvBehavior(raw any) string {
+	if s, ok := raw.(string); ok && strings.TrimSpace(strings.ToLower(s)) == "auto" {
+		return "auto"
+	}
+	return "ask"
+}
+
+// envAppliesToImage reports whether a var scoped to `images` applies to the
+// selected runtime name (case-insensitive). Empty scope = All images.
+func envAppliesToImage(images []string, selected string) bool {
+	if len(images) == 0 {
+		return true
+	}
+	for _, n := range images {
+		if strings.EqualFold(strings.TrimSpace(n), strings.TrimSpace(selected)) {
+			return true
+		}
+	}
+	return false
+}
+
 // substituteOne replaces {{KEY}}, ${KEY} and $(KEY) placeholders for the
 // allowed vars. Unknown placeholders are left intact (not erased) so a typo
 // surfaces in the failing step's stderr rather than silently becoming an

@@ -72,12 +72,20 @@ export interface EnvVariable {
   append: boolean;
   prepend: string;
   append_value: string;
-  // Where this variable may be substituted (`{{NAME}}` / `${NAME}`).
-  // Empty/missing = everywhere (legacy specs). Otherwise a subset of
-  // ENV_VAR_SCOPES — the deploy path only substitutes the variable inside
-  // the listed sections, and only forwards it to the matching workflows
+  // Where this variable may be substituted (`{{NAME}}` / `${NAME}` /
+  // `$(NAME)`). Empty/missing = everywhere (legacy specs). Otherwise a
+  // subset of ENV_VAR_SCOPES — the deploy path only substitutes the variable
+  // inside the listed sections, and only forwards it to the matching workflows
   // (install vs actions).
   scopes?: string[];
+  // Which named runtimes this var applies to (spec.images[] names).
+  // Empty/missing = All images (the default). Non-empty = only these
+  // runtimes (case-insensitive); the deploy form hides the var otherwise.
+  images?: string[];
+  // 'ask' (prompt the operator at deploy, the default) or 'auto' (hidden
+  // auto-set like the old .env / per-runtime overrides — applied with the
+  // default value, never asked). Missing = 'ask' (legacy specs).
+  behavior?: 'ask' | 'auto';
 }
 
 // One dropdown row for a `select` env variable: optional SVG glyph,
@@ -164,6 +172,40 @@ export function normalizeEnvScopes(raw: unknown): string[] {
   }
   if (seen.size === 0 || seen.size === ENV_VAR_SCOPES.length) return [];
   return [...seen];
+}
+
+// normalizeEnvImages cleans a raw images value: runtime names this var
+// applies to. Empty/missing = All images (the default).
+export function normalizeEnvImages(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  for (const v of raw) {
+    const s = String(v ?? '').trim();
+    if (s === '' || s.length > 100) continue;
+    if (!out.some((x) => x.toLowerCase() === s.toLowerCase())) out.push(s);
+    if (out.length >= 32) break;
+  }
+  return out;
+}
+
+// normalizeEnvBehavior cleans a raw behavior value: 'ask' (default) or
+// 'auto' (hidden auto-set). Unknown/empty falls back to 'ask'.
+export function normalizeEnvBehavior(raw: unknown): 'ask' | 'auto' {
+  return String(raw ?? '').trim().toLowerCase() === 'auto' ? 'auto' : 'ask';
+}
+
+// envBehaviorEffective resolves the display state: missing = 'ask'.
+export function envBehaviorEffective(v: Pick<EnvVariable, 'behavior'>): 'ask' | 'auto' {
+  return v.behavior === 'auto' ? 'auto' : 'ask';
+}
+
+// envAppliesToImage reports whether a var applies to a runtime name.
+// Empty images = All images.
+export function envAppliesToImage(images: unknown, selected: string): boolean {
+  const list = normalizeEnvImages(images);
+  if (list.length === 0) return true;
+  const s = (selected || '').trim().toLowerCase();
+  return list.some((n) => n.toLowerCase() === s);
 }
 
 // envScopesEffective resolves the display state: empty = all scopes on.
@@ -433,11 +475,6 @@ export interface TemplateFormState {
   limits: ResourceLimits;
   caps: FeatureCaps;
   env: EnvVariable[];
-  // Raw docker-compose-style `.env` file content (KEY=VALUE per line).
-  // Substituted (`{{NAME}}`/`${NAME}`) then merged under the explicit env
-  // vars at deploy, so it becomes real container env (Docker `-e`, LXD
-  // `environment.*`). Empty = unused.
-  env_file: string;
   install: InstallStep[];
   // Whole-workflow budget in seconds for the template's install workflow
   // (spec.install_timeout_sec). Empty = the edge's default (30 min).
@@ -463,14 +500,12 @@ export interface TemplateFormState {
 }
 
 // One named runtime in the multi-image map (spec.images[] entry):
-// selectable at deploy time via `image_key`, with per-image metadata and
-// optional per-image env overrides (applied under explicit deploy values).
+// selectable at deploy time via `image_key`, with per-image metadata.
 export interface TemplateImage {
   name: string;
   image: string;
   description: string;
   is_default: boolean;
-  env: Record<string, string>;
 }
 
 export const emptyTemplateImage = (): TemplateImage => ({
@@ -478,7 +513,6 @@ export const emptyTemplateImage = (): TemplateImage => ({
   image: '',
   description: '',
   is_default: false,
-  env: {},
 });
 
 export type TemplateTabId =
