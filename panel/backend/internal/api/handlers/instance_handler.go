@@ -1338,22 +1338,23 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	if rawEnv, ok := tmplSpec["env"].([]any); ok {
 		for _, e := range rawEnv {
 			if m, ok := e.(map[string]any); ok {
-				spec := envVarSpec{
-					Name:         getString(m, "name"),
-					Label:        getString(m, "label"),
-					Description:  getString(m, "description"),
-					Default:      getString(m, "default"),
-					UserViewable: getBool(m, "user_viewable"),
-					UserEditable: getBool(m, "user_editable"),
-					Required:     getBool(m, "required"),
-					Rule:         getString(m, "rule"),
-					Display:      getString(m, "display"),
-					Options:      getString(m, "options"),
-					Append:       getBool(m, "append"),
-					Prepend:      getString(m, "prepend"),
-					AppendValue:  getString(m, "append_value"),
-					IsSecret:     getBool(m, "is_secret"),
-				}
+			spec := envVarSpec{
+				Name:         getString(m, "name"),
+				Label:        getString(m, "label"),
+				Description:  getString(m, "description"),
+				Default:      getString(m, "default"),
+				UserViewable: getBool(m, "user_viewable"),
+				UserEditable: getBool(m, "user_editable"),
+				Required:     getBool(m, "required"),
+				Rule:         getString(m, "rule"),
+				Display:      getString(m, "display"),
+				Options:      getString(m, "options"),
+				Append:       getBool(m, "append"),
+				Prepend:      getString(m, "prepend"),
+				AppendValue:  getString(m, "append_value"),
+				IsSecret:     getBool(m, "is_secret"),
+				Scopes:       normalizeEnvScopes(m["scopes"]),
+			}
 				if spec.Name != "" {
 					envSpecs = append(envSpecs, spec)
 				}
@@ -1513,11 +1514,12 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Substitute per-deploy placeholders in mounts.
 	substituteInstanceName(cfg, req.Name)
-	// Substitute {{KEY}} placeholders in all template spec fields using
-	// the validated environment variables. This allows operators to use
-	// {{KEY}} in command, image, mounts, volumes, labels, devices,
-	// advanced settings, etc. — not just in install steps.
-	substituteEnvVars(cfg, finalEnv)
+	// Substitute {{KEY}}/${KEY} placeholders in all template spec fields using
+	// the validated environment variables. Each variable only substitutes
+	// inside its `scopes` sections (empty = everywhere): image vars resolve
+	// the deploy image (multi-image via a select var), controls vars resolve
+	// instance_controls/home_page, and so on — not just install steps.
+	substituteEnvVars(cfg, finalEnv, envScopesByName(envSpecs))
 	// Reject a deploy whose host ports are already taken on this node by
 	// another instance. Without this every second minecraft deploy (default
 	// host 25565) sailed through to `docker run -p 25565:…` and died with
@@ -1758,12 +1760,14 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 
-			_, err = ec2.InstallStart(edge.InstallStartRequest{
-				Token:   token2,
-				Kind:    tmpl.Kind,
-				Name:    req.Name,
-				Steps:   edgeSteps,
-				EnvVars: finalEnv,
+		_, err = ec2.InstallStart(edge.InstallStartRequest{
+			Token:   token2,
+			Kind:    tmpl.Kind,
+			Name:    req.Name,
+			Steps:   edgeSteps,
+			// Only install-scoped vars reach the workflow: an actions-only
+			// var must not leak into (or be required by) install steps.
+			EnvVars: filterEnvForScope(finalEnv, envScopesByName(envSpecs), "install"),
 				// Template-authored workflow budget (spec.install_timeout_sec).
 				// 0 = unset → the edge applies its own 30-minute default, so
 				// templates that never set the field behave exactly as before.
@@ -2668,36 +2672,109 @@ func substituteInstanceName(cfg map[string]any, name string) {
 	}
 }
 
-// substituteEnvVars walks the config map and replaces {{KEY}} placeholders
-// in all string values with the corresponding values from envVars.
-// This allows templates to use {{KEY}} in command, image, mounts, volumes,
-// labels, devices, advanced settings, etc. — not just in install steps.
-func substituteEnvVars(cfg map[string]any, envVars map[string]string) {
+// envScopeGroup maps a template-spec top-level key to the env scope group
+// gating {{KEY}}/${KEY} substitution inside it. `image` covers the deploy
+// image (multi-image via a select var), `controls` covers instance_controls
+// + home_page, `pages` covers spec.pages rows; everything else (startup
+// command, limits, mounts, ports, driver blocks, …) is `advanced`.
+func envScopeGroup(key string) string {
+	switch key {
+	case "install":
+		return "install"
+	case "actions":
+		return "actions"
+	case "image":
+		return "image"
+	case "instance_controls", "home_page":
+		return "controls"
+	case "pages":
+		return "pages"
+	default:
+		return "advanced"
+	}
+}
+
+// envScopesByName indexes restricted scopes by variable name. Vars without a
+// restriction are absent (nil/empty = everywhere, the legacy behavior).
+func envScopesByName(specs []envVarSpec) map[string][]string {
+	out := make(map[string][]string, len(specs))
+	for _, s := range specs {
+		if len(s.Scopes) > 0 {
+			out[s.Name] = s.Scopes
+		}
+	}
+	return out
+}
+
+// filterEnvForScope keeps only the vars allowed in `group`. Unknown vars
+// (extra overrides with no spec entry) pass through, as before.
+func filterEnvForScope(envVars map[string]string, scopes map[string][]string, group string) map[string]string {
+	if len(envVars) == 0 {
+		return envVars
+	}
+	out := make(map[string]string, len(envVars))
+	for k, v := range envVars {
+		if s, restricted := scopes[k]; restricted && len(s) > 0 {
+			allowed := false
+			for _, g := range s {
+				if g == group {
+					allowed = true
+					break
+				}
+			}
+			if !allowed {
+				continue
+			}
+		}
+		out[k] = v
+	}
+	return out
+}
+
+// substituteOne replaces both {{KEY}} and ${KEY} placeholders for the allowed
+// vars. Unknown placeholders are left intact (not erased) so a typo surfaces
+// in the failing step's stderr rather than silently becoming an empty arg.
+// NOTE: define env names UPPER_SNAKE — a var named e.g. `home` would also
+// rewrite legitimate shell `${home}` expansions in step scripts.
+func substituteOne(s string, allowed map[string]string) string {
+	if !strings.Contains(s, "{{") && !strings.Contains(s, "${") {
+		return s
+	}
+	for k, v := range allowed {
+		if strings.Contains(s, "{{") {
+			s = strings.ReplaceAll(s, "{{"+k+"}}", v)
+		}
+		if strings.Contains(s, "${") {
+			s = strings.ReplaceAll(s, "${"+k+"}", v)
+		}
+	}
+	return s
+}
+
+// substituteEnvVars walks the config map and replaces placeholders in all
+// string values (and map keys). `scopes` gates per-section substitution (nil
+// = legacy all-everywhere). The resolved `env` map itself keeps the legacy
+// full-map pass so chained defaults (`A: "{{B}}"`) behave exactly as before.
+func substituteEnvVars(cfg map[string]any, envVars map[string]string, scopes map[string][]string) {
 	if envVars == nil || len(envVars) == 0 {
 		return
 	}
-	substitute := func(s string) string {
-		for k, v := range envVars {
-			s = strings.ReplaceAll(s, "{{"+k+"}}", v)
-		}
-		return s
-	}
 
-	var walk func(any) any
-	walk = func(v any) any {
+	var walk func(v any, allowed map[string]string) any
+	walk = func(v any, allowed map[string]string) any {
 		switch x := v.(type) {
 		case string:
-			return substitute(x)
+			return substituteOne(x, allowed)
 		case map[string]any:
 			out := make(map[string]any, len(x))
 			for k, val := range x {
-				out[substitute(k)] = walk(val)
+				out[substituteOne(k, allowed)] = walk(val, allowed)
 			}
 			return out
 		case []any:
 			out := make([]any, len(x))
 			for i, val := range x {
-				out[i] = walk(val)
+				out[i] = walk(val, allowed)
 			}
 			return out
 		default:
@@ -2706,7 +2783,11 @@ func substituteEnvVars(cfg map[string]any, envVars map[string]string) {
 	}
 
 	for k, v := range cfg {
-		cfg[k] = walk(v)
+		if k == "env" {
+			cfg[k] = walk(v, envVars)
+			continue
+		}
+		cfg[k] = walk(v, filterEnvForScope(envVars, scopes, envScopeGroup(k)))
 	}
 }
 
@@ -2828,6 +2909,28 @@ func InvokeActionHandler(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 			}
+		}
+	}
+	// Only actions-scoped vars reach the action workflow: an install-only var
+	// stays out of action steps. Scopes ride on the owning template's
+	// spec.env (normalized the same way as deploy); unknown vars (extra
+	// overrides with no spec entry) pass through, as before.
+	if len(actionEnvVars) > 0 && tmpl.Spec != "" {
+		var specEnv struct {
+			Env []map[string]any `json:"env"`
+		}
+		if err := json.Unmarshal([]byte(tmpl.Spec), &specEnv); err == nil && len(specEnv.Env) > 0 {
+			scopes := make(map[string][]string, len(specEnv.Env))
+			for _, e := range specEnv.Env {
+				name := getString(e, "name")
+				if name == "" {
+					continue
+				}
+				if s := normalizeEnvScopes(e["scopes"]); len(s) > 0 {
+					scopes[name] = s
+				}
+			}
+			actionEnvVars = filterEnvForScope(actionEnvVars, scopes, "actions")
 		}
 	}
 
