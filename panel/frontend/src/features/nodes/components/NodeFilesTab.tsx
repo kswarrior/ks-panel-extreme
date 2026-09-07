@@ -400,6 +400,10 @@ const NodeFilesTab: React.FC<NodeFilesTabProps> = ({ nodeId }) => {
       await load(relPath);
     } catch (e: any) {
       setCreateErr(getErrorMessage(e, 'Create failed'));
+      // A gateway timeout may still have completed server-side — refresh
+      // so a retry reports the true state ("already exists") instead of
+      // a phantom success path.
+      await load(relPath);
     } finally {
       setCreateBusy(false);
     }
@@ -425,6 +429,7 @@ const NodeFilesTab: React.FC<NodeFilesTabProps> = ({ nodeId }) => {
     } catch (e: any) {
       setUploadProgress('');
       setUploadErr(getErrorMessage(e, 'Upload failed'));
+      await load(relPath);
     } finally {
       setUploadBusy(false);
     }
@@ -446,6 +451,7 @@ const NodeFilesTab: React.FC<NodeFilesTabProps> = ({ nodeId }) => {
       await load(relPath);
     } catch (e: any) {
       setUploadErr(getErrorMessage(e, 'URL upload failed'));
+      await load(relPath);
     } finally {
       setUploadBusy(false);
     }
@@ -466,6 +472,7 @@ const NodeFilesTab: React.FC<NodeFilesTabProps> = ({ nodeId }) => {
       await load(relPath);
     } catch (e: any) {
       setUploadErr(getErrorMessage(e, 'Git clone failed'));
+      await load(relPath);
     } finally {
       setUploadBusy(false);
     }
@@ -513,6 +520,7 @@ const NodeFilesTab: React.FC<NodeFilesTabProps> = ({ nodeId }) => {
       await load(relPath);
     } catch (e: any) {
       setRenameErr(getErrorMessage(e, 'Rename failed'));
+      await load(relPath);
     } finally {
       setRenameBusy(false);
     }
@@ -534,6 +542,7 @@ const NodeFilesTab: React.FC<NodeFilesTabProps> = ({ nodeId }) => {
       await load(relPath);
     } catch (e: any) {
       setDeleteErr(getErrorMessage(e, 'Delete failed'));
+      await load(relPath);
     } finally {
       setDeleteBusy(false);
     }

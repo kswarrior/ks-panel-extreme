@@ -442,11 +442,14 @@ const InstanceFileEditor: React.FC<{ instanceId: number; filesSlug: string }> = 
           </p>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
-          <button type="button" onClick={() => void goBack()} title="Back to the Files page" className="ks-btn">
-            <span className="inline-flex items-center gap-1.5">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5" aria-hidden="true"><path d="M19 12H5" /><path d="M12 19l-7-7 7-7" /></svg>
-              Files
-            </span>
+          <button
+            type="button"
+            onClick={() => void goBack()}
+            title="Back to the Files page"
+            aria-label="Back to the Files page"
+            className="ks-btn-header ks-icon-btn"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><path d="M19 12H5" /><path d="M12 19l-7-7 7-7" /></svg>
           </button>
           <button
             type="button"
@@ -462,10 +465,11 @@ const InstanceFileEditor: React.FC<{ instanceId: number; filesSlug: string }> = 
             type="button"
             onClick={() => void save()}
             disabled={loading || saving || !dirty || !targetPath}
-            title="Write the file (Ctrl+S)"
-            className="ks-btn-primary ks-btn disabled:opacity-40"
+            title={saving ? 'Saving…' : 'Write the file (Ctrl+S)'}
+            aria-label={saving ? 'Saving' : 'Save file'}
+            className="ks-btn-header ks-icon-btn disabled:opacity-40"
           >
-            {saving ? 'Saving…' : 'Save'}
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></svg>
           </button>
         </div>
       </div>
