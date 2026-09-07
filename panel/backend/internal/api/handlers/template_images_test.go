@@ -135,7 +135,8 @@ func TestResolveDeployImageDefaultImageName(t *testing.T) {
 	}
 }
 
-func TestMergeManifestImagesIntoSpec(t *testing.T) {	specMap := map[string]any{}
+func TestMergeManifestImagesIntoSpec(t *testing.T) {
+	specMap := map[string]any{}
 	manifest := map[string]any{
 		"docker_images": map[string]any{"Java 17": "eclipse-temurin:17-jre"},
 		"name":          "x",
@@ -153,5 +154,39 @@ func TestMergeManifestImagesIntoSpec(t *testing.T) {	specMap := map[string]any{}
 	owned := map[string]any{"images": []any{map[string]any{"name": "A", "image": "a:1"}}}
 	if mergeManifestImagesIntoSpec(owned, manifest) {
 		t.Fatalf("must not overwrite existing images")
+	}
+}
+
+// TestBuiltinMinecraftImagesShape pins the canned minecraft template's
+// multi-image demo to the real validator + resolver: the exact JSON shape
+// shipped in templates_builtin.go must validate and resolve both runtimes.
+func TestBuiltinMinecraftImagesShape(t *testing.T) {
+	raw := `{
+  "images": [
+    { "name": "Java 21", "image": "eclipse-temurin:21-jre", "description": "Eclipse Temurin 21 JRE (LTS, default)", "default": true },
+    { "name": "Java 17", "image": "eclipse-temurin:17-jre", "description": "Eclipse Temurin 17 JRE (older plugins)" }
+  ]
+}`
+	var spec map[string]any
+	if err := json.Unmarshal([]byte(raw), &spec); err != nil {
+		t.Fatalf("builtin spec is not JSON: %v", err)
+	}
+	if err := validateTemplateSpec(spec); err != nil {
+		t.Fatalf("builtin minecraft images rejected: %v", err)
+	}
+	entries, def, err := parseTemplateImages(spec)
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("want 2 runtimes, got %d", len(entries))
+	}
+	d, err := resolveDeployImage(entries, def, "eclipse-temurin:21-jre", "")
+	if err != nil || d.Image != "eclipse-temurin:21-jre" {
+		t.Fatalf("default deploy wrong: %v %v", d, err)
+	}
+	j17, err := resolveDeployImage(entries, def, "eclipse-temurin:21-jre", "Java 17")
+	if err != nil || j17.Image != "eclipse-temurin:17-jre" {
+		t.Fatalf("Java 17 deploy wrong: %v %v", j17, err)
 	}
 }
