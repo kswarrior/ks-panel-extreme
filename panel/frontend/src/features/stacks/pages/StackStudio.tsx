@@ -19,32 +19,30 @@ import {
   writeStackFile,
   extractStackApiError,
 } from '@/features/stacks/api/stacks';
-import StackFileManager from '@/features/stacks/components/StackFileManager';
 import { useConfirm } from '@/shared/stores/confirmStore';
 
 // ---------------------------------------------------------------------------
-// StackStudio — visual + code stack builder with a full file manager.
+// StackStudio — visual + code stack builder.
 //
-// The Studio models a stack as an editable draft. Tabs Meta/Theme/Pages/
-// Permissions/Backend/Spec/Raw edit the draft; Files edits the installed
-// stack's workdir (manifest install first, then seed + browse files).
-// Saving ships the draft through POST /api/stacks/ (X-KS-Source: studio) so
-// capabilities stay validated and permissions seed pending — the Studio is a
-// GENERATOR, never a runtime bypass. Seeded files (spa bundle, theme.css,
-// simple pages, backend entry) are written through the workdir file
-// endpoints right after install so downloads keep them.
+// The Studio models a stack as an editable draft. Tabs Meta/Theme/Frontend/
+// Permissions/Backend/Spec/Raw edit the draft. Saving ships the draft through
+// POST /api/stacks/ (X-KS-Source: studio) so capabilities stay validated and
+// permissions seed pending — the Studio is a GENERATOR, never a runtime
+// bypass. Seed content (spa bundle, theme.css, simple pages, backend entry)
+// is written through the workdir file endpoints right after install so
+// downloads keep it; the installed workdir itself is managed from the
+// stack Detail page's Files section.
 // ---------------------------------------------------------------------------
 
-type Tab = 'meta' | 'theme' | 'pages' | 'permissions' | 'backend' | 'spec' | 'files' | 'raw';
+type Tab = 'meta' | 'theme' | 'frontend' | 'permissions' | 'backend' | 'spec' | 'raw';
 
 const TABS: Array<{ key: Tab; label: string; hint: string }> = [
   { key: 'meta', label: 'Meta', hint: 'Name, slug, version, icon' },
   { key: 'theme', label: 'Theme', hint: 'theme_mode + page_style + css' },
-  { key: 'pages', label: 'Pages', hint: 'SPA html or simple markdown' },
+  { key: 'frontend', label: 'Frontend', hint: 'SPA html or simple markdown' },
   { key: 'permissions', label: 'Permissions', hint: 'Capability requests' },
   { key: 'backend', label: 'Backend', hint: 'Sidecar runtime + script' },
   { key: 'spec', label: 'Spec', hint: 'Freeform config blob' },
-  { key: 'files', label: 'Files', hint: 'Workdir file manager' },
   { key: 'raw', label: 'Raw JSON', hint: 'Whole manifest' },
 ];
 
@@ -104,7 +102,6 @@ const StackStudio: React.FC = () => {
   const [installError, setInstallError] = useState('');
   const [installOk, setInstallOk] = useState('');
   const [installedId, setInstalledId] = useState<number | null>(null);
-  const [installedSlug, setInstalledSlug] = useState('');
   const [previewCollapsed, setPreviewCollapsed] = useState(false);
   const [showIssues, setShowIssues] = useState(false);
 
@@ -173,8 +170,8 @@ const StackStudio: React.FC = () => {
   const validation = useMemo(() => validateDraftOf(draft), [draft]);
 
   const seedFiles = async (id: number, d: StackStudioDraft) => {
-    // Best-effort: a failed seed never fails the install, the Files tab
-    // surfaces the workdir so the admin can finish by hand.
+    // Best-effort: a failed seed never fails the install; the installed
+    // workdir is managed from the stack Detail page's Files section.
     const jobs: Array<{ path: string; content: string }> = [];
     if (d.pageStyle === 'spa' && d.frontendHtml.trim()) {
       jobs.push({ path: 'frontend/dist/index.html', content: d.frontendHtml });
@@ -241,9 +238,7 @@ const StackStudio: React.FC = () => {
       const stack = await createStackFromManifest(manifest, 'studio');
       await seedFiles(stack.id, effectiveDraft);
       setInstalledId(stack.id);
-      setInstalledSlug(stack.slug);
-      setInstallOk(`Stack "${stack.name}" installed (inactive) — approve its capabilities on the Stacks page, or keep editing files below.`);
-      setTab('files');
+      setInstallOk(`Stack "${stack.name}" installed (inactive) — approve its capabilities on the Stacks page.`);
     } catch (e: any) {
       setInstallError(extractStackApiError(e, 'Install failed'));
     } finally {
@@ -262,9 +257,7 @@ const StackStudio: React.FC = () => {
     try {
       const stack = await installStackFromUrl(urlInput.trim());
       setInstalledId(stack.id);
-      setInstalledSlug(stack.slug);
       setInstallOk('Installed stack from URL — approve its capabilities on the Stacks page.');
-      setTab('files');
     } catch (e: any) {
       setUrlError(extractStackApiError(e, 'Install failed'));
     } finally {
@@ -280,7 +273,6 @@ const StackStudio: React.FC = () => {
     setInstallOk('');
     setRawError('');
     setInstalledId(null);
-    setInstalledSlug('');
   }, [confirm]);
 
   const togglePerm = (cap: string) => {
@@ -299,7 +291,7 @@ const StackStudio: React.FC = () => {
           <h2 className="text-xl font-semibold text-white">Stack Studio</h2>
           <p className="text-sm text-gray-400 -mt-0.5 max-w-2xl">
             Visually author a stack (full-stack isolated app) and install it in one step — meta, theme,
-            pages, permissions, backend script and files. The Studio emits a manifest the backend validates
+            frontend, permissions and backend script. The Studio emits a manifest the backend validates
             like an uploaded <code className="text-gray-300">.ksps</code>; capabilities still need approval.
           </p>
         </div>
@@ -450,7 +442,7 @@ const StackStudio: React.FC = () => {
             </>
           )}
 
-          {tab === 'pages' && (
+          {tab === 'frontend' && (
             <>
               {draft.pageStyle === 'spa' ? (
                 <TextArea
@@ -549,31 +541,6 @@ const StackStudio: React.FC = () => {
               rows={16}
               mono
             />
-          )}
-
-          {tab === 'files' && (
-            <>
-              {installedId == null ? (
-                <div className="space-y-2">
-                  <p className="text-xs text-gray-400">
-                    Install the stack first — the file manager edits the installed workdir. The Pages,
-                    Theme and Backend tabs already hold the seed content that will be written on install
-                    (SPA html → frontend/dist/index.html, css → frontend/theme.css, simple markdown →
-                    frontend/pages/overview.md, script → entrypoint).
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => void install()}
-                    disabled={installing}
-                    className="px-3 py-1.5 rounded text-sm bg-white text-black hover:bg-gray-200 disabled:opacity-50"
-                  >
-                    {installing ? 'Installing…' : 'Install now to unlock files'}
-                  </button>
-                </div>
-              ) : (
-                <StackFileManager stackId={installedId} slug={installedSlug || draft.slug} />
-              )}
-            </>
           )}
 
           {tab === 'raw' && (
