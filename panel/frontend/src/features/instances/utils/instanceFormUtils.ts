@@ -351,6 +351,12 @@ export function serializeEditor(f: EditorState): Record<string, unknown> {
       max_runtime_s: a.max_runtime_s,
       stop_command: a.stop_command,
       stop_mode: a.stop_mode,
+      terminal_id: (a.terminal_id || '').trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, ''),
+      terminal_stop_on_exit: !!a.terminal_stop_on_exit,
+      terminal_allow_input: (['all', 'allowlist', 'disabled'].includes(a.terminal_allow_input) ? a.terminal_allow_input : 'all') as typeof a.terminal_allow_input,
+      terminal_allowed_commands: a.terminal_allowed_commands.split('\n').map((x) => x.trim()).filter(Boolean),
+      terminal_blocked_commands: a.terminal_blocked_commands.split(',').map((x) => x.trim()).filter(Boolean),
+      terminal_timeout_s: a.terminal_timeout_s,
       steps: a.steps.map((s) => ({
         action: s.action, command: s.command, url: s.url, filename: s.filename, archive: s.archive,
         dest: s.dest, from: s.from, to: s.to, path: s.path, content: s.content, branch: s.branch,
