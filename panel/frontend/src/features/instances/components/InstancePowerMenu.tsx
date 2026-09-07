@@ -290,9 +290,9 @@ const InstancePowerMenu: React.FC = () => {
   const dActive = dIsRunning || dIsBusy || dStopping;
   const dTone = actionTone(actionPhase(dActive, displayedAction ? actionOutcome[displayedAction.id] : undefined));
 
-  // (No early return: the Files / Terminal / Ports shortcut row below
-  // always renders, so the menu stays useful even with no power row,
-  // no template actions and no error.)
+  // (No early return for empty power/actions: the shortcut row below
+  // renders while at least one shortcut is shown, so the menu stays
+  // useful even with no power row, no template actions and no error.)
 
   const menuBtn = (tone: string) =>
     `flex-1 inline-flex items-center justify-center gap-1.5 rounded-md px-2 py-2 text-[13px] font-medium transition-all duration-150 active:scale-[0.94] hover:bg-white/10 hover:shadow-[0_2px_12px_rgba(0,0,0,0.35)] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:active:scale-100 ${tone}`;
@@ -307,38 +307,62 @@ const InstancePowerMenu: React.FC = () => {
           ? 'border-sky-400/60 bg-sky-500/10 text-white shadow-[0_0_12px_rgba(56,189,248,0.15)] hover:bg-sky-500/15'
           : 'border-white/10 bg-white/[0.03] text-gray-200 hover:border-white/25 hover:bg-white/[0.06] hover:text-white'
     }`;
-  const shortcuts = [
-    {
-      slug: 'files',
-      label: 'Files',
-      enabled: filesOk,
-      hint: filesOk ? 'Browse & manage files' : 'Import a Files page (Pages tab) to enable',
-      tone: 'text-amber-300',
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" /></svg>
-      ),
-    },
-    {
-      slug: 'terminal',
-      label: 'Terminal',
-      enabled: terminalOk,
-      hint: terminalOk ? 'Live shell session' : 'Enable the Terminal page (Pages tab) to open a shell',
-      tone: 'text-emerald-300',
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" /></svg>
-      ),
-    },
-    {
-      slug: 'ports',
-      label: 'Ports',
-      enabled: canEditPorts,
-      hint: canEditPorts ? 'Port mappings' : 'Requires instance edit permission',
-      tone: 'text-sky-300',
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><rect x="2" y="7" width="20" height="8" rx="2" /><path d="M6 7v-2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2" /><path d="M6 15v2a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-2" /></svg>
-      ),
-    },
-  ];
+  const shortcuts = (
+    [
+      {
+        key: 'files' as const,
+        slug: filesSlug,
+        enabled: filesOk,
+        hint: filesOk ? 'Browse & manage files' : 'Import a Files page (Pages tab) to enable',
+        fallbackTone: 'text-amber-300',
+        defaultIcon: (
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" /></svg>
+        ),
+      },
+      {
+        key: 'terminal' as const,
+        slug: terminalSlug,
+        enabled: terminalOk,
+        hint: terminalOk ? 'Live shell session' : 'Enable the Terminal page (Pages tab) to open a shell',
+        fallbackTone: 'text-emerald-300',
+        defaultIcon: (
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" /></svg>
+        ),
+      },
+      {
+        key: 'ports' as const,
+        slug: portsSlug,
+        enabled: canEditPorts,
+        hint: canEditPorts ? 'Port mappings' : 'Requires instance edit permission',
+        fallbackTone: 'text-sky-300',
+        defaultIcon: (
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><rect x="2" y="7" width="20" height="8" rx="2" /><path d="M6 7v-2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2" /><path d="M6 15v2a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-2" /></svg>
+        ),
+      },
+    ]
+  )
+    // Hidden shortcuts (show toggle off in Instance Controls) leave the row.
+    .filter((d) => controls.shortcuts[d.key]?.show !== false)
+    .map((d) => {
+      const cfg = controls.shortcuts[d.key];
+      const label = shortcutLabel(controls, d.key);
+      const custom = cfg?.icon_svg ? sanitizeSvgIcon(cfg.icon_svg) : '';
+      const customFull = custom.trim().toLowerCase().startsWith('<svg');
+      const iconColor = typeof cfg?.icon_color === 'string' ? cfg.icon_color.trim() : '';
+      const tone = iconColor !== '' ? '' : d.fallbackTone;
+      const icon = custom ? (
+        customFull ? (
+          <span className="shrink-0 flex items-center [&>svg]:w-4 [&>svg]:h-4 [&>svg]:block" style={iconColor ? { color: iconColor } : undefined} aria-hidden="true" dangerouslySetInnerHTML={{ __html: custom }} />
+        ) : (
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" style={iconColor ? { color: iconColor } : undefined} aria-hidden="true" dangerouslySetInnerHTML={{ __html: custom }} />
+        )
+      ) : (
+        <span className={`inline-flex shrink-0 ${tone}`} style={iconColor ? { color: iconColor } : undefined} aria-hidden="true">
+          {d.defaultIcon}
+        </span>
+      );
+      return { ...d, label, icon };
+    });
   const spin = (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 animate-spin" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
   );
@@ -410,11 +434,14 @@ const InstancePowerMenu: React.FC = () => {
         </div>
       )}
       {/* Divider below Start / Stop / Restart / Kill — same hairline as below Actions. */}
-      {showPowerRow && (
+      {showPowerRow && (shortcuts.length > 0 || error || templateActions.length > 0) && (
         <div className="mx-3 mt-3 border-t border-white/10" aria-hidden="true" />
       )}
       {/* Quick shortcuts — Files / Terminal / Ports, aligned in one
-          horizontally scrollable row directly above Actions. */}
+          horizontally scrollable row directly above Actions. Hidden
+          shortcuts (show toggle off in Instance Controls) leave the row;
+          the row hides entirely when all three are off. */}
+      {shortcuts.length > 0 && (
       <div className="px-3 pt-2">
         <div
           className="flex items-stretch gap-1 overflow-x-auto pb-1"
@@ -426,7 +453,7 @@ const InstancePowerMenu: React.FC = () => {
             const active = location.pathname === to || location.pathname === `${to}/`;
             return (
               <button
-                key={s.slug}
+                key={s.key}
                 type="button"
                 disabled={!s.enabled}
                 onClick={() => {
@@ -437,15 +464,14 @@ const InstancePowerMenu: React.FC = () => {
                 aria-current={active ? 'page' : undefined}
                 className={shortcutBtn(active, s.enabled)}
               >
-                <span className={`inline-flex shrink-0 ${s.enabled ? s.tone : ''}`} aria-hidden="true">
-                  {s.icon}
-                </span>
+                {s.icon}
                 <span>{s.label}</span>
               </button>
             );
           })}
         </div>
       </div>
+      )}
       {/* Divider below shortcuts — only when Actions / error follow. */}
       {(error || templateActions.length > 0) && (
         <div className="mx-3 mt-2 border-t border-white/10" aria-hidden="true" />
