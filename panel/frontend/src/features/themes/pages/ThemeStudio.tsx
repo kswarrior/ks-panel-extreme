@@ -28,6 +28,7 @@ import {
   HistoryTab,
 } from '@/features/themes/components/ThemeStudio';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
 import SectionRailTabs from '@/shared/components/ui/SectionRailTabs';
 
 // renderLoadingPreview renders a preview of the loading animation based on
@@ -352,7 +353,9 @@ const ThemeStudio: React.FC = () => {
 
   return (
     <div>
-      {/* Fixed top-right pill — "Theme Studio" title lives in the app header. */}
+      {/* Fixed top-right pill — "Theme Studio" title lives in the app header.
+          View controls stay here; Cancel / Save live in the bottom-right
+          form pill. */}
       <PageActionsPill>
         <button
           type="button"
@@ -377,6 +380,10 @@ const ThemeStudio: React.FC = () => {
             <option value="global">Global</option>
           </select>
         )}
+      </PageActionsPill>
+      {/* Bottom-right form pill — Cancel / Save / Create always visible by
+          default (auto-off opt-in via the Pill tab). */}
+      <PageFormActionsPill spacer={false}>
         <button
           type="button"
           onClick={cancel}
@@ -409,7 +416,7 @@ const ThemeStudio: React.FC = () => {
         >
           {saving ? 'Saving…' : editingExisting ? 'Save' : 'Create'}
         </button>
-      </PageActionsPill>
+      </PageFormActionsPill>
 
       {/* Phone tabs — compact chips on top: icon + label pills with no
           hint text, edge-fade scrolling, active chip auto-centered.
