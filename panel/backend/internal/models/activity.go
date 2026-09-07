@@ -27,6 +27,9 @@ const (
 	ActivityCategoryTheme ActivityCategory = "theme"
 	// ActivityCategoryAI buckets AI assistant usage/cost audit rows.
 	ActivityCategoryAI ActivityCategory = "ai"
+	// ActivityCategoryStack buckets stack lifecycle audit rows (upload,
+	// grants, activate/deactivate, file edits). Mirrors ActivityCategoryMod.
+	ActivityCategoryStack ActivityCategory = "stack"
 )
 
 // ActivityLog is one row of the admin audit timeline.
