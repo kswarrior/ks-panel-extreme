@@ -671,6 +671,8 @@ const TemplateForm: React.FC = () => {
             install={form.install}
             installTimeoutS={form.install_timeout_s}
             onInstallTimeoutUpdate={(v) => setForm((f) => ({ ...f, install_timeout_s: v.replace(/[^0-9]/g, '') }))}
+            installTerminalId={form.install_terminal_id}
+            onInstallTerminalIdUpdate={(v) => setForm((f) => ({ ...f, install_terminal_id: v }))}
             onInstallUpdate={(i, patch) => setForm((f) => { const s = [...f.install]; s[i] = { ...s[i], ...patch }; return { ...f, install: s }; })}
             onInstallAdd={() => setForm((f) => ({ ...f, install: [...f.install, { action: 'shell', command: '', url: '', filename: '', archive: '', dest: '', from: '', to: '', path: '', content: '', branch: 'main', retries: '0', ignore_errors: false }] }))}
             onInstallDelete={(i) => setForm((f) => ({ ...f, install: f.install.filter((_, j) => j !== i) }))}

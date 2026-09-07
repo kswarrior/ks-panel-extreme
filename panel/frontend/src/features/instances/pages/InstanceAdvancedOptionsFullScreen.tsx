@@ -227,6 +227,10 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
     (v: string) => setEditor((f) => ({ ...f, install_timeout_s: v.replace(/[^0-9]/g, '') })),
     [setEditor],
   );
+  const updateInstallTerminalId = useCallback(
+    (v: string) => setEditor((f) => ({ ...f, install_terminal_id: v })),
+    [setEditor],
+  );
 
   const updateAction = useCallback(
     (i: number, patch: Partial<TemplateAction>) =>
@@ -611,6 +615,8 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
                   install={editor.install}
                   installTimeoutS={editor.install_timeout_s}
                   onInstallTimeoutUpdate={updateInstallTimeout}
+                  installTerminalId={editor.install_terminal_id}
+                  onInstallTerminalIdUpdate={updateInstallTerminalId}
                   onInstallUpdate={updateInstall}
                   onInstallAdd={addInstall}
                   onInstallDelete={delInstall}

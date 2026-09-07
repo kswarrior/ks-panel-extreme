@@ -352,6 +352,26 @@ export async function sendActionStdin(
   );
   return res.data;
 }
+// Send one console line from a terminal pane bound to the Installation
+// workflow (pane ID == the template's install_terminal_id) to the running
+// install's stdin. The server requires a running non-action workflow plus
+// a bound install_terminal_id — a 409 means the install finished and the
+// pane should report it instead of swallowing keystrokes.
+export interface SendInstallStdinResponse {
+  id: number;
+  accepted: boolean;
+}
+
+export async function sendInstallStdin(
+  instanceId: number,
+  line: string,
+): Promise<SendInstallStdinResponse> {
+  const res = await client.post<SendInstallStdinResponse>(
+    `/api/instances/${instanceId}/install/stdin`,
+    { data: line },
+  );
+  return res.data;
+}
 // (Custom-page action execution lives in the page SDK —
 // shared/lib/customPageSdk.ts → POST /api/instance-pages/execute-action with
 // instance_id + page_slug. A previous host-side helper here posted without

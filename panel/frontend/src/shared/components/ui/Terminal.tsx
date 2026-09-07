@@ -25,9 +25,12 @@ import { isHexColor, rgbaAt } from '@/theme/colorUtils';
 
 type ConnState = 'connecting' | 'connected' | 'reconnecting' | 'closed' | 'error';
 
-function wsUrlFor(instanceId: number, terminalId?: string, timeoutS?: string): string {
+function wsUrlFor(instanceId: number, terminalId?: string, timeoutS?: string, endpoint?: string): string {
   const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  const base = `${proto}://${window.location.host}/api/instances/${instanceId}/terminal`;
+  // Startup consoles attach to the main-process bridge (/console);
+  // everything else uses the shell bridge (/terminal).
+  const route = endpoint === 'console' ? 'console' : 'terminal';
+  const base = `${proto}://${window.location.host}/api/instances/${instanceId}/${route}`;
   const q: string[] = [];
   const tid = (terminalId || '').trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, '');
   if (tid) q.push(`terminal=${encodeURIComponent(tid)}`);
@@ -119,10 +122,16 @@ interface TerminalProps {
   // fresh resize frame.
   onTermRef?: (term: XTerm | null) => void;
   onTitleChange?: (title: string) => void;
-  // Action-bound pane identity: forwarded as ?terminal= so the panel/edge
-  // can scope the session (and the parent can match it against a template
-  // action's terminal_id). Empty = plain shell (legacy behaviour).
+  // Bound-pane identity: forwarded as ?terminal= so the panel/edge can
+  // scope the session (and the parent can match it against a template
+  // action/install terminal_id). Empty = plain shell (legacy behaviour).
+  // Startup-console panes dial endpoint='console' instead; the id is
+  // then only a display/match key.
   terminalId?: string;
+  // Which panel bridge to dial: 'terminal' (side shell, default) or
+  // 'console' (instance main-process stdio for startup-console panes).
+  // Same JSON wire protocol on both, so the xterm side is unchanged.
+  endpoint?: 'terminal' | 'console';
   // Attach budget in seconds, forwarded as ?timeout= (empty = no limit).
   timeoutS?: string;
   // When true the pane is read-only: keystrokes are swallowed locally and
@@ -155,7 +164,7 @@ export interface TerminalHandle {
   reconnect: () => void;
 }
 
-const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStateChange, onTermRef, onTitleChange, terminalId, timeoutS, readOnly, validateInput, onExit, onLine }, ref) => {
+const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStateChange, onTermRef, onTitleChange, terminalId, endpoint, timeoutS, readOnly, validateInput, onExit, onLine }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -429,7 +438,7 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
       setState('connecting');
       let ws: WebSocket;
       try {
-        ws = new WebSocket(wsUrlFor(instanceId, terminalId, timeoutS));
+        ws = new WebSocket(wsUrlFor(instanceId, terminalId, timeoutS, endpoint));
       } catch (e: any) {
         setState('error', e?.message || 'Failed to open WebSocket');
         return;
@@ -551,7 +560,7 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
       reconnectRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [instanceId, terminalId, timeoutS]);
+  }, [instanceId, terminalId, timeoutS, endpoint]);
 
   // Re-fit when the container resizes externally (e.g. layout shift).
   useEffect(() => {

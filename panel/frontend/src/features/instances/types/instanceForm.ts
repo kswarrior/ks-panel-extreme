@@ -416,6 +416,7 @@ export function emptyEditor(): EditorState {
     env: [],
     install: [],
     install_timeout_s: '',
+    install_terminal_id: '',
     actions: [],
     labels: [],
     devices: [],
