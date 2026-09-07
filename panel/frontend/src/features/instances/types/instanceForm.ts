@@ -91,6 +91,8 @@ export interface InstallStep {
 
 export interface ActionStep extends InstallStep {}
 
+export type TerminalAllowInput = 'all' | 'allowlist' | 'disabled';
+
 export interface TemplateAction {
   id: string;
   name: string;
@@ -114,6 +116,12 @@ export interface TemplateAction {
   max_runtime_s: string;
   stop_command: string;
   stop_mode: 'same' | 'different';
+  terminal_id: string;
+  terminal_stop_on_exit: boolean;
+  terminal_allow_input: TerminalAllowInput;
+  terminal_allowed_commands: string;
+  terminal_blocked_commands: string;
+  terminal_timeout_s: string;
   steps: ActionStep[];
 }
 
