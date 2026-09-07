@@ -820,7 +820,7 @@ func aiBuildSystemPrompt(con *sql.DB, cfg *repository.AIConfig, uid int64, usern
 	b.WriteString("\n\nLive context: the user is " + strconv.Quote(username) + " (role " + strconv.Quote(role) + ") with permissions [" + strings.Join(perms, ", ") + "].")
 	instN, nodeN, tmplN := aiFleetCounts(con, uid)
 	fmt.Fprintf(&b, " Fleet counts: %d instances, %d nodes, %d templates (counts only — no rows are preloaded).", instN, nodeN, tmplN)
-	b.WriteString("\n\nRules: only use the tools you were given; call a list tool before acting on any named resource; never invent IDs — if the user names something, look it up first (list_instances/list_nodes/list_templates/list_instance_pages/list_users/list_themes/list_tickets/list_roles, then get_* for details; check_panel_update before any panel reinstall); keep answers short. Act, don't interrogate: when the user names a template workflow step or action, read get_template (section=steps for install steps, section=runtime for startup command + action buttons) and propose the edit — never ask them to paste the workflow or dictate exact text. Template edits: install-workflow changes use edit_template_steps; startup-command changes use set_template_command; action-button removal uses remove_template_action; description text changes read section=description first and use edit_template. Autostart pattern: gate the new command on files the install workflow guarantees (e.g. server.jar), never on a deleted sentinel; warn that the panel still stops the container once right after install (by design) and every later container start then launches the service. Tickets: staff sees all, others own/assigned; only staff triages or posts internal notes. Write tools (instance_action, edit_instance, reinstall_instance, delete_instance, suspend_instance, unsuspend_instance, update_settings, create_theme, edit_theme, delete_theme, create_template, edit_template, delete_template, edit_template_steps, set_template_command, remove_template_action, create_node, edit_node, delete_node, create_instance_page, edit_instance_page, delete_instance_page, create_user, edit_user, delete_user, create_ticket, reply_ticket, update_ticket, broadcast_notification, deploy_instance, reinstall_panel) do NOT execute immediately: calling one returns a confirmation ticket that the user must approve in the UI. After calling a write tool, briefly summarise what will happen and ask the user to approve it in the confirmation card. Every write re-checks the caller's area permission (instances/templates/nodes/pages/themes/users/tickets/notifications/panel-update) plus the AI Chat Writes grant — if either is missing, explain which permission an admin must grant. reinstall_panel restarts the whole panel (brief downtime, the chat disconnects) — always run check_panel_update first and warn about the restart.")
+	b.WriteString("\n\nRules: only use the tools you were given; call a list tool before acting on any named resource; never invent IDs — if the user names something, look it up first (list_instances/list_nodes/list_templates/list_instance_pages/list_users/list_themes/list_tickets/list_roles, then get_* for details; check_panel_update before any panel reinstall); keep answers short. Act, don't interrogate: when the user names a template workflow step, action, port, or any other template field, read get_template (section=steps for install steps, section=runtime for startup command + action buttons, section=ports for published ports, section=spec for the full raw spec JSON when you need anything else) and propose the edit — never ask them to paste the workflow or dictate exact text. Template edits: install-workflow changes use edit_template_steps; startup-command changes use set_template_command; action-button removal uses remove_template_action; port-mapping changes use edit_template_ports; description text changes read section=description first and use edit_template. Autostart pattern: gate the new command on files the install workflow guarantees (e.g. server.jar), never on a deleted sentinel; warn that the panel still stops the container once right after install (by design) and every later container start then launches the service. Tickets: staff sees all, others own/assigned; only staff triages or posts internal notes. Write tools (instance_action, edit_instance, reinstall_instance, delete_instance, suspend_instance, unsuspend_instance, update_settings, create_theme, edit_theme, delete_theme, create_template, edit_template, delete_template, edit_template_steps, set_template_command, remove_template_action, edit_template_ports, create_node, edit_node, delete_node, create_instance_page, edit_instance_page, delete_instance_page, create_user, edit_user, delete_user, create_ticket, reply_ticket, update_ticket, broadcast_notification, deploy_instance, reinstall_panel) do NOT execute immediately: calling one returns a confirmation ticket that the user must approve in the UI. After calling a write tool, briefly summarise what will happen and ask the user to approve it in the confirmation card. Every write re-checks the caller's area permission (instances/templates/nodes/pages/themes/users/tickets/notifications/panel-update) plus the AI Chat Writes grant — if either is missing, explain which permission an admin must grant. reinstall_panel restarts the whole panel (brief downtime, the chat disconnects) — always run check_panel_update first and warn about the restart.")
 	// Capability line so the model respects the caller's AI Chat sub-perms.
 	if actxChecker, actxUID, ok := aiPromptCaps(con, uid); ok {
 		_, canRead, canWrite := aiCaps(actxChecker, actxUID)
@@ -1458,7 +1458,7 @@ var aiWriteTools = map[string]bool{
 	"suspend_instance": true, "unsuspend_instance": true,
 	"edit_template": true, "delete_template": true,
 	"edit_template_steps": true, "set_template_command": true,
-	"remove_template_action": true,
+	"remove_template_action": true, "edit_template_ports": true,
 	"create_node": true, "edit_node": true, "delete_node": true,
 	"edit_instance_page": true, "delete_instance_page": true,
 	"reinstall_panel": true,
@@ -1815,6 +1815,7 @@ func aiToolGetTemplate(a *aiCallCtx, id int64, section string) (string, *aiTicke
 	}
 	steps := aiTemplateInstallSteps(t)
 	cmd, actions := aiTemplateRuntime(t)
+	ports := aiTemplatePorts(t)
 	section = strings.ToLower(strings.TrimSpace(section))
 	switch section {
 	case "summary":
@@ -1824,6 +1825,7 @@ func aiToolGetTemplate(a *aiCallCtx, id int64, section string) (string, *aiTicke
 			"install_step_count": len(steps),
 			"command":            cmd,
 			"actions":            actions,
+			"ports":              ports,
 		}), nil, nil
 	case "steps":
 		out := map[string]any{"id": t.ID, "name": t.Name, "install_steps": steps, "actions": actions}
@@ -1840,11 +1842,31 @@ func aiToolGetTemplate(a *aiCallCtx, id int64, section string) (string, *aiTicke
 			"id": t.ID, "name": t.Name, "command": cmd, "actions": actions,
 			"install_step_count": len(steps),
 		}), nil, nil
+	case "ports":
+		out := map[string]any{"id": t.ID, "name": t.Name, "ports": ports}
+		if len(ports) == 0 {
+			out["ports"] = []string{"(no published ports — container ports are not mapped to the host)"}
+		}
+		return aiJSON(out), nil, nil
+	case "spec":
+		// Full raw spec JSON so the model can handle anything else
+		// (mounts, limits, env, …) without the operator pasting JSON.
+		// Capped so a giant spec can't flood the transcript.
+		raw := strings.TrimSpace(t.Spec)
+		if raw == "" {
+			raw = "{}"
+		}
+		return aiJSON(map[string]any{
+			"id": t.ID, "name": t.Name, "kind": t.Kind,
+			"ports": ports,
+			"spec":  aiCap(raw, 8000),
+		}), nil, nil
 	default:
 		return aiJSON(map[string]any{
 			"id": t.ID, "name": t.Name, "kind": t.Kind,
 			"description": t.Description, "image": t.Image,
 			"command": cmd, "actions": actions,
+			"ports": ports,
 			"install_steps": steps,
 		}), nil, nil
 	}
@@ -1895,7 +1917,118 @@ func aiTemplateRuntime(t *models.Template) (string, []string) {
 	return aiCap(cmd, 300), actions
 }
 
-// aiTemplateStepSummary renders one spec.install entry as a numbered
+// aiTemplatePorts parses spec.ports into numbered summaries using the
+// 1-based numbering users count with ("#1 25565:25565/tcp"). Host and
+// container accept JSON numbers or numeric strings (the Templates page
+// serializes them as strings, builtin seeds as numbers). Returns nil when
+// the template has no ports (or an unreadable spec).
+func aiTemplatePorts(t *models.Template) []string {
+	if t == nil || strings.TrimSpace(t.Spec) == "" {
+		return nil
+	}
+	var spec map[string]any
+	if err := json.Unmarshal([]byte(t.Spec), &spec); err != nil {
+		return nil
+	}
+	raw, ok := spec["ports"].([]any)
+	if !ok || len(raw) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(raw))
+	for i, p := range raw {
+		if i >= 20 {
+			out = append(out, fmt.Sprintf("…and %d more ports", len(raw)-i))
+			break
+		}
+		m, _ := p.(map[string]any)
+		if m == nil {
+			m = map[string]any{}
+		}
+		host, _ := aiPortNum(m["host"])
+		container, _ := aiPortNum(m["container"])
+		proto := strings.ToLower(strings.TrimSpace(aiStr(m, "protocol")))
+		if proto == "" {
+			proto = "tcp"
+		}
+		hs, cs := fmt.Sprintf("%v", m["host"]), fmt.Sprintf("%v", m["container"])
+		if host != 0 {
+			hs = strconv.Itoa(host)
+		} else if s := strings.TrimSpace(aiStr(m, "host")); s != "" {
+			hs = s
+		}
+		if container != 0 {
+			cs = strconv.Itoa(container)
+		} else if s := strings.TrimSpace(aiStr(m, "container")); s != "" {
+			cs = s
+		}
+		if strings.TrimSpace(hs) == "" || hs == "<nil>" {
+			hs = "—"
+		}
+		if strings.TrimSpace(cs) == "" || cs == "<nil>" {
+			cs = "—"
+		}
+		out = append(out, fmt.Sprintf("#%d %s:%s/%s", i+1, hs, cs, proto))
+	}
+	return out
+}
+
+// aiPortNum coerces a spec port value (JSON number, int, or numeric string)
+// to an int. Returns ok=false when the value is not a usable port number.
+func aiPortNum(v any) (int, bool) {
+	switch n := v.(type) {
+	case float64:
+		if n >= 1 && n <= 65535 && n == float64(int(n)) {
+			return int(n), true
+		}
+		return 0, false
+	case float32:
+		if n >= 1 && n <= 65535 && float64(n) == float64(int(n)) {
+			return int(n), true
+		}
+		return 0, false
+	case int:
+		if n >= 1 && n <= 65535 {
+			return n, true
+		}
+		return 0, false
+	case int64:
+		if n >= 1 && n <= 65535 {
+			return int(n), true
+		}
+		return 0, false
+	case string:
+		s := strings.TrimSpace(n)
+		if s == "" {
+			return 0, false
+		}
+		p, err := strconv.Atoi(s)
+		if err != nil || p < 1 || p > 65535 {
+			return 0, false
+		}
+		return p, true
+	case json.Number:
+		p, err := strconv.Atoi(strings.TrimSpace(string(n)))
+		if err != nil || p < 1 || p > 65535 {
+			return 0, false
+		}
+		return p, true
+	default:
+		return 0, false
+	}
+}
+
+// aiParsePortProtocol normalizes a protocol string to tcp/udp (default tcp).
+// Pure (unit-tested).
+func aiParsePortProtocol(raw string) (string, error) {
+	p := strings.ToLower(strings.TrimSpace(raw))
+	if p == "" {
+		return "tcp", nil
+	}
+	if p != "tcp" && p != "udp" {
+		return "", fmt.Errorf("protocol must be one of: tcp, udp")
+	}
+	return p, nil
+}
 // one-liner ("#3 shell: touch /mc/.install-complete") using the 1-based
 // numbering users count with. Long values are capped; write-step bodies
 // are never inlined (length only) so giant file contents can't flood the
