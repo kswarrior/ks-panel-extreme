@@ -1015,35 +1015,28 @@ func rewriteTextColumnDefsForMySQL(stmt string) string {
 		if pos < 0 {
 			return stmt
 		}
-		rest := mask[pos+len("ADD COLUMN"):]
-		restUp := strings.ToUpper(rest)
-		if idx := strings.Index(restUp, "IF NOT EXISTS"); idx >= 0 && strings.TrimSpace(rest[:idx]) == "" {
-			rest = rest[idx+len("IF NOT EXISTS"):]
-		}
-		// rest = "<col> TEXT ..." — find the TEXT type token after the col name.
-		fields := splitSQLWords(rest)
-		if len(fields) < 2 {
-			return stmt
-		}
-		// Locate the TEXT token offset: skip the first word (col name).
 		off := pos + len("ADD COLUMN")
-		// advance off past optional IF NOT EXISTS + col name in the ORIGINAL mask
-		off = indexAfterWords(mask, off, rest, 1)
-		if off < 0 {
-			return stmt
+		// Skip optional IF NOT EXISTS, then the column name: the TEXT type
+		// token is the next word after those.
+		restUp := strings.ToUpper(strings.TrimLeft(mask[off:], " \t\r\n"))
+		if strings.HasPrefix(restUp, "IF NOT EXISTS") {
+			off = indexWordToken(mask, upper, off, "EXISTS") + len("EXISTS")
+		}
+		for off < len(mask) && (mask[off] == ' ' || mask[off] == '\t' || mask[off] == '\r' || mask[off] == '\n') {
+			off++
+		}
+		for off < len(mask) && mask[off] != ' ' && mask[off] != '\t' && mask[off] != '\r' && mask[off] != '\n' {
+			off++ // skip the column name
 		}
 		textOff := indexWordToken(mask, upper, off, "TEXT")
 		if textOff < 0 {
 			return stmt
 		}
-		col := unquoteIdent(fields[0])
-		segUpper := strings.ToUpper(rest)
+		segUpper := strings.ToUpper(mask[pos:])
 		if hasSQLKeyword(segUpper, "DEFAULT") || hasSQLKeyword(segUpper, "UNIQUE") ||
 			hasSQLKeyword(segUpper, "PRIMARY KEY") || hasSQLKeyword(segUpper, "REFERENCES") {
 			addHit(span{textOff, textOff + len("TEXT")})
-			_ = col
 		}
-		_ = fields
 	} else {
 		// CREATE TABLE: split the outer paren body into top-level segments.
 		open := strings.Index(mask, "(")
@@ -1144,17 +1137,8 @@ func rewriteTextColumnDefsForMySQL(stmt string) string {
 	if len(hits) == 0 {
 		return stmt
 	}
-	// Splice back-to-front so offsets stay valid; resolve N per column name.
-	var out strings.Builder
-	out.Grow(len(stmt) + len(hits)*8)
-	prev := len(stmt)
-	for k := len(hits) - 1; k >= 0; k-- {
-		h := hits[k]
-		_ = prev
-		_ = h
-		break
-	}
-	// Single forward pass instead: rebuild with replacements sorted by start.
+	// Sort by start offset, then splice back-to-front via a forward rebuild;
+	// N is resolved per column from the name preceding the TEXT token.
 	for i := 1; i < len(hits); i++ {
 		for j := i; j > 0 && hits[j].start < hits[j-1].start; j-- {
 			hits[j], hits[j-1] = hits[j-1], hits[j]

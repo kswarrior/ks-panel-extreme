@@ -170,12 +170,57 @@ func TerminalHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Bound-terminal panes pass ?terminal=<id> (matched against the
+	// instance's template actions' terminal_id by the SPA) and ?timeout=<s>
+	// (pane attach budget). Both are sanitized here (fail closed on a
+	// terminal id that carries anything but [a-z0-9_-]) and forwarded to
+	// the edge exec endpoint, which enforces the timeout server-side.
+	terminalID := ""
+	if rawTerm := strings.TrimSpace(r.URL.Query().Get("terminal")); rawTerm != "" {
+		norm := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(rawTerm), " ", "_"))
+		valid := norm != "" && len(norm) <= 64
+		if valid {
+			for _, ch := range norm {
+				if !(ch >= 'a' && ch <= 'z' || ch >= '0' && ch <= '9' || ch == '_' || ch == '-' || ch == '.') {
+					valid = false
+					break
+				}
+			}
+		}
+		if !valid {
+			http.Error(w, "invalid terminal id (use [a-z0-9_-], max 64 chars)", http.StatusBadRequest)
+			return
+		}
+		terminalID = norm
+	}
+	timeoutS := ""
+	if rawTimeout := strings.TrimSpace(r.URL.Query().Get("timeout")); rawTimeout != "" {
+		n := 0
+		for _, ch := range rawTimeout {
+			if ch < '0' || ch > '9' {
+				n = -1
+				break
+			}
+		}
+		if n == 0 {
+			if v, verr := strconv.Atoi(rawTimeout); verr == nil && v > 0 && v <= 2592000 {
+				timeoutS = strconv.Itoa(v)
+			}
+		}
+	}
+
 	// Edge WS URL. Token, kind and name are query-escaped so a future token
 	// format that includes special characters does not break the URL or leak
 	// into logs unescaped. Kind/name are similarly escaped so names with
 	// spaces or encoded characters survive the round-trip.
 	target := fmt.Sprintf("%s://%s/api/edge/exec?kind=%s&name=%s&tty=%d&token=%s",
 		scheme, node.Address, url.QueryEscape(inst.Kind), url.QueryEscape(name), tty, url.QueryEscape(token))
+	if terminalID != "" {
+		target += "&terminal=" + url.QueryEscape(terminalID)
+	}
+	if timeoutS != "" {
+		target += "&timeout=" + url.QueryEscape(timeoutS)
+	}
 
 	// Upgrade the browser side first. The gorilla dialer speaks WS on a
 	// already-upgraded connection; the browser side needs the standard

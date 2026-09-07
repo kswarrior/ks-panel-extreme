@@ -744,6 +744,13 @@ func NewRouter() http.Handler {
 		// a stale "Stop" click on an action that already finished can't
 		// cancel a different action by mistake.
 		r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Post("/api/instances/{id}/actions/{actionId}/stop", handlers.StopActionHandler)
+		// Bound-terminal console input: one gated line to the running
+		// action's stdin (e.g. Minecraft `/tps` from a terminal pane whose
+		// ID matches the action's terminal_id). Same VIEW_INSTANCES gate as
+		// invoke/stop; the handler additionally enforces the action's
+		// terminal input policy (disabled/allowlist/blocked) and requires
+		// the action to be the currently-running workflow.
+		r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Post("/api/instances/{id}/actions/{actionId}/stdin", handlers.ActionStdinHandler)
 
 		// Instance-scoped terminal bridge. The browser opens a WebSocket
 		// against this endpoint; the panel authenticates the user via its

@@ -686,6 +686,64 @@ func (c *Client) InstallStop(req InstallStopRequest) (InstallStopResponse, error
 	return out, nil
 }
 
+// InstallStdin POSTs one console line to the edge's /api/edge/install/stdin
+// endpoint. The edge writes it to the running workflow's kept stdin pipe
+// (terminal pane → bound action console). A 404/409-style Error payload
+// (no live stdin) is returned as a value, not a Go error, so the panel's
+// ActionStdinHandler can map it to "terminal stopped" for the pane.
+func (c *Client) InstallStdin(req InstallStdinRequest) (InstallStdinResponse, error) {
+	req.Token = c.token
+	// Try WSS tunnel first for reverse_tunnel / local_wss / both / local_both.
+	if handled, body, status, err := c.tryTunnel("POST", "/api/edge/install/stdin", req); handled {
+		if err != nil {
+			return InstallStdinResponse{}, err
+		}
+		var out InstallStdinResponse
+		if err := unmarshalTunnelResponse(body, status, &out); err != nil {
+			return InstallStdinResponse{}, err
+		}
+		if status >= 300 && status != http.StatusNotFound && status != http.StatusConflict {
+			if out.Error != "" {
+				return out, fmt.Errorf("edge rejected: %s", out.Error)
+			}
+			return out, fmt.Errorf("edge returned HTTP %d", status)
+		}
+		return out, nil
+	}
+	body, err := json.Marshal(req)
+	if err != nil {
+		return InstallStdinResponse{}, fmt.Errorf("encode request: %w", err)
+	}
+	endpoint := c.baseURL + "/api/edge/install/stdin"
+	httpReq, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return InstallStdinResponse{}, fmt.Errorf("build request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.http.Do(httpReq)
+	if err != nil {
+		var emOut InstallStdinResponse
+		if ok, err2 := c.tryEmergencyTunnel("POST", "/api/edge/install/stdin", req, &emOut); ok {
+			return emOut, err2
+		}
+		return InstallStdinResponse{}, fmt.Errorf("dial edge: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var out InstallStdinResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return InstallStdinResponse{}, fmt.Errorf("edge returned HTTP %d", resp.StatusCode)
+	}
+	if resp.StatusCode >= 300 && resp.StatusCode != http.StatusNotFound && resp.StatusCode != http.StatusConflict {
+		if out.Error != "" {
+			return out, fmt.Errorf("edge rejected: %s", out.Error)
+		}
+		return out, fmt.Errorf("edge returned HTTP %d", resp.StatusCode)
+	}
+	return out, nil
+}
+
 // A non-2xx status is converted into an error so callers can treat the RPC
 // uniformly with `err != nil`.
 func (c *Client) Lifecycle(req LifecycleRequest) (LifecycleResponse, error) {
