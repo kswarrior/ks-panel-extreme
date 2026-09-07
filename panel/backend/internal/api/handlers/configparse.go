@@ -1795,9 +1795,9 @@ func ConfigPreviewHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Parser  string         `json:"parser"`
-		Content string         `json:"content"`
-		Find    map[string]any `json:"find"`
+		Parser  string            `json:"parser"`
+		Content string            `json:"content"`
+		Find    map[string]any    `json:"find"`
 		Env     map[string]string `json:"env,omitempty"`
 	}
 	dec := json.NewDecoder(io.LimitReader(r.Body, 1<<20))

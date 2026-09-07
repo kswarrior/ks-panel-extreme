@@ -34,17 +34,20 @@ func validUintString(s string) bool {
 // page and the in-app brand to read the current panel name.
 //
 // Always returns 200 with `{"panel_name":"...", "panel_logo":{...},
-// "panel_name_color":"...", ...}`, even if the DB read fails (in which case
-// the defaults are returned and panel_logo is omitted). This keeps the login
-// UI usable even if the DB is transiently unreachable, AND keeps the "first
-// paint" JS payload the SPA uses to bootstrap its store. Brand-style fields
-// ride along so logged-out pages render the styled name without auth.
+// "browser_tab_title":"...", "favicon":{...}, "panel_name_color":"...", ...}`,
+// even if the DB read fails (in which case the defaults are returned and
+// panel_logo/favicon are omitted). This keeps the login UI usable even if
+// the DB is transiently unreachable, AND keeps the "first paint" JS payload
+// the SPA uses to bootstrap its store. Brand-style fields ride along so
+// logged-out pages render the styled name without auth.
 func PanelNameHandler(w http.ResponseWriter, r *http.Request) {
 	con, err := repository.OpenDB()
 	if err != nil {
 		writeJSON(w, map[string]any{
 			"panel_name":               repository.DefaultPanelName,
 			"panel_logo":               nil,
+			"browser_tab_title":        "",
+			"favicon":                  nil,
 			"panel_name_color":         repository.DefaultPanelNameColor,
 			"panel_name_font":          repository.DefaultPanelNameFont,
 			"panel_name_weight":        repository.DefaultPanelNameWeight,
@@ -73,14 +76,18 @@ func PanelNameHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Println("PanelNameHandler snapshot error:", err)
 		writeJSON(w, map[string]any{
-			"panel_name": repository.DefaultPanelName,
-			"panel_logo": nil,
+			"panel_name":        repository.DefaultPanelName,
+			"panel_logo":        nil,
+			"browser_tab_title": "",
+			"favicon":           nil,
 		})
 		return
 	}
 	out := map[string]any{
 		"panel_name":               snap.PanelName,
 		"panel_logo":               nil,
+		"browser_tab_title":        snap.BrowserTabTitle,
+		"favicon":                  nil,
 		"panel_name_color":         snap.PanelNameColor,
 		"panel_name_font":          snap.PanelNameFont,
 		"panel_name_weight":        snap.PanelNameWeight,
@@ -109,6 +116,18 @@ func PanelNameHandler(w http.ResponseWriter, r *http.Request) {
 				"url":      panelLogoURL(logo),
 				"mime":     logo.Mime,
 				"filename": logo.Filename,
+			}
+		}
+	}
+	if snap.Favicon != nil {
+		fav, ok, ferr := repo.GetFavicon()
+		if ferr != nil {
+			log.Println("PanelNameHandler favicon error:", ferr)
+		} else if ok {
+			out["favicon"] = map[string]string{
+				"url":      faviconURL(fav),
+				"mime":     fav.Mime,
+				"filename": fav.Filename,
 			}
 		}
 	}

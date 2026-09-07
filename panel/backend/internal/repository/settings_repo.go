@@ -475,6 +475,12 @@ type SettingsSnapshot struct {
 	SMTPFrom     string `json:"smtp_from"`
 	// SMTPTLS is auto|implicit|starttls|off (065 seed "auto").
 	SMTPTLS string `json:"smtp_tls"`
+
+	// Browser-tab brand (Settings > Browser Tab). Raw override ("" = fall
+	// back to panel_name) + the favicon file reference. KV-backed, no
+	// migration needed.
+	BrowserTabTitle string `json:"browser_tab_title"`
+	Favicon         *Logo  `json:"favicon,omitempty"`
 }
 
 // Logo is the public, JSON-friendly view of the configured panel logo. The
@@ -568,6 +574,22 @@ func (r *SettingsRepository) Get() (*SettingsSnapshot, error) {
 	snap.PanelLogoBg = normalizeBrandEnum(r.getString(PanelLogoBgKey, DefaultPanelLogoBg), logoBgs, DefaultPanelLogoBg)
 	snap.PanelLogoShadow = normalizeBrandEnum(r.getString(PanelLogoShadowKey, DefaultPanelLogoShadow), brandShadows, DefaultPanelLogoShadow)
 	snap.PanelLogoRing = normalizeToggle(r.getString(PanelLogoRingKey, DefaultPanelLogoRing))
+	// Browser-tab brand: raw override ("" = fallback) + favicon reference.
+	snap.BrowserTabTitle = strings.TrimSpace(r.getString(BrowserTabTitleKey, ""))
+	if fav, ok, ferr := r.GetFavicon(); ferr == nil && ok {
+		furl := ""
+		if logoURLBuilder != nil {
+			// Logo builder points at panel-logo; favicon has its own URL.
+			furl = FaviconURL(fav)
+		} else {
+			furl = FaviconURL(fav)
+		}
+		snap.Favicon = &Logo{
+			URL:      furl,
+			Mime:     fav.Mime,
+			Filename: fav.Filename,
+		}
+	}
 	return snap, nil
 }
 
@@ -1007,8 +1029,9 @@ func (r *SettingsRepository) SetPanelPort(port int) error {
 // extensionForMime returns a normalized file extension (including the dot)
 // for the given MIME type, or "" when unsupported. The allow-list keeps the
 // on-disk filename predictable and prevents surprising types from being
-// stored (e.g. SVG is intentionally excluded by default; supply a future
-// flag if you want it).
+// stored. ICO is included for the browser-tab favicon (browsers request it
+// natively); it is also accepted for the panel logo for API consistency
+// (the logo Settings UI simply doesn't offer it).
 func extensionForMime(mime string) string {
 	switch strings.ToLower(strings.TrimSpace(mime)) {
 	case "image/png":
@@ -1021,6 +1044,8 @@ func extensionForMime(mime string) string {
 		return ".webp"
 	case "image/svg+xml":
 		return ".svg"
+	case "image/x-icon", "image/vnd.microsoft.icon", "image/ico":
+		return ".ico"
 	default:
 		return ""
 	}
