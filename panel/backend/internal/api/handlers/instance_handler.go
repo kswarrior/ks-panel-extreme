@@ -248,6 +248,10 @@ type deployRequest struct {
 	DisplayName string            `json:"display_name,omitempty"`
 	Icon        string            `json:"icon,omitempty"`
 	Color       string            `json:"color,omitempty"`
+	// ImageKey selects one named runtime from the template's multi-image
+	// map (spec.images[] / spec.docker_images{}). Empty = the template's
+	// default runtime. Unknown names fail closed with 400.
+	ImageKey    string            `json:"image_key,omitempty"`
 	Overrides   map[string]any    `json:"overrides,omitempty"`
 	EnvVars     map[string]string `json:"env_vars,omitempty"`
 }
@@ -1338,6 +1342,38 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 		tmplSpec[k] = v
 	}
 
+	// ---- MULTI-IMAGE RESOLUTION ----
+	// The operator's image_key (dedicated field, or the legacy
+	// overrides["image_key"] path from advanced editors) picks one named
+	// runtime from spec.images[] / spec.docker_images{}. The key never
+	// reaches the edge config — only the resolved image + name do.
+	imageKey := strings.TrimSpace(req.ImageKey)
+	if imageKey == "" {
+		if ks, ok := req.Overrides["image_key"].(string); ok {
+			imageKey = strings.TrimSpace(ks)
+		}
+	}
+	delete(req.Overrides, "image_key")
+	delete(tmplSpec, "image_key")
+	imageEntries, imageDefault, perr := parseTemplateImages(tmplSpec)
+	if perr != nil {
+		writeJSONStatus(w, http.StatusBadRequest, map[string]any{
+			"error":  "template has an invalid multi-image map",
+			"detail": perr.Error(),
+		})
+		return
+	}
+	selectedImage, serr := resolveDeployImage(imageEntries, imageDefault, tmpl.Image, imageKey)
+	if serr != nil {
+		writeJSONStatus(w, http.StatusBadRequest, map[string]any{
+			"error":  "unknown image",
+			"detail": serr.Error(),
+			"field":  "image_key",
+		})
+		return
+	}
+	hasMultiImage := len(imageEntries) > 0
+
 	// ---- ENV VAR VALIDATION ----
 	// Extract template-defined env vars with their rules.
 	var envSpecs []envVarSpec
@@ -1460,6 +1496,15 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Per-image env rides UNDER explicit operator values but OVER template
+	// defaults: picking "Java 17" sets JAVA_VERSION=17 unless the operator
+	// typed something else on the deploy form.
+	for k, v := range selectedImage.Env {
+		if _, explicit := req.EnvVars[k]; !explicit {
+			finalEnv[k] = v
+		}
+	}
+
 	// ---- ENVIRONMENT FILE (.env) ----
 	// The template's raw env_file content is substituted with the validated
 	// vars, parsed as dotenv, and merged UNDER the explicit vars (explicit
@@ -1507,10 +1552,17 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	if cfg == nil {
 		cfg = map[string]any{}
 	}
-	cfg["image"] = tmpl.Image
+	cfg["image"] = selectedImage.Image
 	for k, v := range req.Overrides {
 		cfg[k] = v
 	}
+	// Record which named runtime this deploy used (audit + edge
+	// visibility). An explicit overrides["image"] still wins above for
+	// power users; the name then describes the selection, not the override.
+	if hasMultiImage {
+		cfg["image_name"] = selectedImage.Name
+	}
+	delete(cfg, "image_key")
 
 	// ---- MERGE VALIDATED ENV INTO DEPLOY CONFIG ----
 	// The merged env vars (explicit over env_file) must be passed to the
