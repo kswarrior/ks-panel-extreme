@@ -716,6 +716,54 @@ const NodeFilesTab: React.FC<NodeFilesTabProps> = ({ nodeId }) => {
         <p className="text-xs px-2 py-1.5 rounded border border-red-900/40 bg-red-900/20 text-red-200">{error}</p>
       )}
 
+      {entries.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap rounded-lg border border-white/5 bg-white/[0.02] px-3 py-1.5">
+          <input
+            ref={selectAllRef}
+            type="checkbox"
+            checked={entries.length > 0 && selected.size === entries.length}
+            onChange={toggleAll}
+            aria-label={selected.size === entries.length && entries.length > 0 ? 'Deselect all' : 'Select all'}
+            className="shrink-0 h-4 w-4 accent-emerald-600 cursor-pointer"
+          />
+          {selected.size > 0 ? (
+            <>
+              <span className="text-xs text-gray-300 font-medium">{selected.size} selected</span>
+              <span className="flex-1" />
+              <button
+                type="button"
+                onClick={downloadSelected}
+                disabled={selectedFiles.length === 0}
+                title={selectedFiles.length === 0 ? 'Select at least one file to download (folders cannot be downloaded)' : `Download ${selectedFiles.length} file${selectedFiles.length === 1 ? '' : 's'}`}
+                className="px-2.5 py-1 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                Download{selectedFiles.length > 0 ? ` (${selectedFiles.length})` : ''}
+              </button>
+              <button
+                type="button"
+                onClick={openBulkDelete}
+                title={`Delete ${selected.size} selected item${selected.size === 1 ? '' : 's'}`}
+                className="px-2.5 py-1 text-xs rounded-md border border-red-900/40 bg-red-900/20 hover:bg-red-900/40 text-red-200 inline-flex items-center gap-1.5"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+                Delete ({selected.size})
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelected(new Set())}
+                title="Clear selection"
+                className="px-2 py-1 text-xs rounded-md text-gray-400 hover:text-white hover:bg-white/10"
+              >
+                Clear
+              </button>
+            </>
+          ) : (
+            <span className="text-[11px] text-gray-500">Tick boxes to download or delete several items at once</span>
+          )}
+        </div>
+      )}
+
       {entries.length === 0 ? (
         <div className="rounded-lg border border-white/5 bg-white/[0.02] p-6 text-center">
           <p className="text-sm text-gray-400">This directory is empty.</p>
@@ -732,6 +780,14 @@ const NodeFilesTab: React.FC<NodeFilesTabProps> = ({ nodeId }) => {
             const menuId = `node-files-menu-${key}`;
             return (
               <li key={key} className="relative flex items-center gap-3 px-3 py-2 hover:bg-white/[0.03]">
+                <input
+                  type="checkbox"
+                  checked={selected.has(e.name)}
+                  onChange={() => toggleOne(e.name)}
+                  aria-label={`Select ${e.name}`}
+                  title={`Select ${e.name}`}
+                  className="shrink-0 h-4 w-4 accent-emerald-600 cursor-pointer"
+                />
                 <span
                   className="shrink-0 w-7 h-7 rounded-md flex items-center justify-center bg-white/[0.06] border border-white/10 text-gray-300"
                   style={accent ? { color: accent } : undefined}
@@ -830,6 +886,50 @@ const NodeFilesTab: React.FC<NodeFilesTabProps> = ({ nodeId }) => {
       {truncated && (
         <p className="text-[11px] text-amber-300">Showing the first entries only — this folder is very large.</p>
       )}
+
+      <GlassModal
+        open={bulkDeleteOpen}
+        onClose={() => { if (!bulkBusy) setBulkDeleteOpen(false); }}
+        title={`Delete ${selectedEntries.length} selected item${selectedEntries.length === 1 ? '' : 's'}?`}
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setBulkDeleteOpen(false)}
+              disabled={bulkBusy}
+              className="ks-ghost-btn px-3 py-1.5 rounded text-sm disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={doBulkDelete}
+              disabled={bulkBusy || selectedEntries.length === 0}
+              className="px-3 py-1.5 rounded text-sm bg-red-900/40 border border-red-700/40 text-red-200 hover:bg-red-900/60 disabled:opacity-50"
+            >
+              {bulkBusy ? 'Deleting…' : `Delete (${selectedEntries.length})`}
+            </button>
+          </>
+        }
+      >
+        <p className="text-sm text-gray-200">
+          {selectedFolders.length > 0
+            ? 'Folders are deleted with everything inside them. This cannot be undone.'
+            : 'These files will be deleted. This cannot be undone.'}
+        </p>
+        <ul className="mt-2 max-h-40 overflow-y-auto rounded-lg border border-white/5 bg-black/30 divide-y divide-white/5">
+          {selectedEntries.slice(0, 8).map((e) => (
+            <li key={(e.is_dir ? 'd:' : 'f:') + e.name} className="px-2.5 py-1.5 text-xs text-gray-300 font-mono truncate" title={e.name}>
+              {e.is_dir ? 'folder / ' : ''}{e.name}
+            </li>
+          ))}
+          {selectedEntries.length > 8 && (
+            <li className="px-2.5 py-1.5 text-xs text-gray-500">…and {selectedEntries.length - 8} more</li>
+          )}
+        </ul>
+        {bulkProgress && <p className="text-xs text-sky-300 mt-2">{bulkProgress}</p>}
+        {bulkErr && <p className="text-red-400 text-xs mt-2">{bulkErr}</p>}
+      </GlassModal>
 
       <GlassModal
         open={renameTarget !== null}
