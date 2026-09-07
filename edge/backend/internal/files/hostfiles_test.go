@@ -3,6 +3,7 @@ package files
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -30,13 +31,27 @@ func TestHostJailResolveKeepsPathsInsideRoot(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ok := []string{"", "/", "/mc-1", "/mc-1/", "mc-1", "/mc-1/world", "/alias", "/alias/world", "/nope/deep/path"}
+	ok := []string{"", "/", "/mc-1", "/mc-1/", "mc-1", "/mc-1/world", "/alias", "/alias/world", "/nope/deep/path",
+		// Above-root traversals clamp back inside the jail ("/.." cleans
+		// to "/", "../etc" to "<root>/etc") — they must resolve, never
+		// escape to the host's own paths.
+		"..", "../etc", "/..", "/../..", "/mc-1/../..", "/mc-1/../../etc"}
 	for _, rel := range ok {
 		if _, err := jail.resolve(rel); err != nil {
 			t.Errorf("resolve(%q) wrongly rejected: %v", rel, err)
 		}
 	}
-	bad := []string{"/..", "/../..", "/mc-1/../..", "/mc-1/../../etc", "..", "../etc", "/evil", "/evil/passwd"}
+	// None of the accepted above-root forms may land outside the root.
+	for _, rel := range []string{"..", "../etc", "/..", "/../..", "/mc-1/../..", "/mc-1/../../etc"} {
+		got, err := jail.resolve(rel)
+		if err != nil {
+			t.Fatalf("resolve(%q): %v", rel, err)
+		}
+		if got != root && !strings.HasPrefix(got, root+string(filepath.Separator)) {
+			t.Errorf("resolve(%q) = %q, outside root %q", rel, got, root)
+		}
+	}
+	bad := []string{"/evil", "/evil/passwd"}
 	for _, rel := range bad {
 		if got, err := jail.resolve(rel); err == nil {
 			t.Errorf("resolve(%q) escaped the jail to %q, want rejection", rel, got)
