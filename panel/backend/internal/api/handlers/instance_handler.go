@@ -2816,6 +2816,8 @@ func envScopeGroup(key string) string {
 		return "controls"
 	case "pages":
 		return "pages"
+	case "config_files", "config":
+		return "config_files"
 	default:
 		return "advanced"
 	}

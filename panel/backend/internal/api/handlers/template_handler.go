@@ -558,6 +558,11 @@ func validateTemplateSpec(spec map[string]any) error {
 		return err
 	}
 
+	// Config-file parsers (spec.config_files + Ptero compat spec.config.files).
+	if err := validateConfigFiles(spec); err != nil {
+		return err
+	}
+
 	return nil
 }
 

@@ -53,6 +53,10 @@ interface DeployFormState {
   baseline: EditorState;
   envValues: Record<string, string>;
   setEnvValues: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  // Selected named runtime from the template's multi-image map ('' =
+  // template default). Reseeded whenever the template changes.
+  imageKey: string;
+  setImageKey: (v: string) => void;
   tab: InstanceTabId;
   setTab: (t: InstanceTabId) => void;
   showAdvanced: boolean;
@@ -96,6 +100,7 @@ export const DeployFormProvider: React.FC<DeployFormProviderProps> = ({ template
   const [editor, setEditor] = useState<EditorState>(emptyEditor());
   const baselineRef = useRef<EditorState>(emptyEditor());
   const [envValues, setEnvValues] = useState<Record<string, string>>({});
+  const [imageKey, setImageKey] = useState<string>('');
   const [tab, setTab] = useState<InstanceTabId>('environment');
   const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
 
@@ -121,6 +126,7 @@ export const DeployFormProvider: React.FC<DeployFormProviderProps> = ({ template
       setEditor(blank);
       baselineRef.current = blank;
       setEnvValues({});
+      setImageKey('');
       return;
     }
     const ed = specToEditor(t.spec);
@@ -132,6 +138,10 @@ export const DeployFormProvider: React.FC<DeployFormProviderProps> = ({ template
       if (v.name) seeded[v.name] = v.default || '';
     }
     setEnvValues(seeded);
+    // '' = template default: the backend resolves it and the picker
+    // highlights the flagged row, so no per-template default name is
+    // needed here.
+    setImageKey('');
   }, [templateId, localTemplates]);
 
   const value = useMemo<DeployFormState>(
@@ -155,6 +165,8 @@ export const DeployFormProvider: React.FC<DeployFormProviderProps> = ({ template
       baseline: baselineRef.current,
       envValues,
       setEnvValues,
+      imageKey,
+      setImageKey,
       tab,
       setTab,
       showAdvanced,
@@ -174,7 +186,7 @@ export const DeployFormProvider: React.FC<DeployFormProviderProps> = ({ template
       error,
       setError,
     }),
-    [templateId, nodeId, ownerId, name, displayName, icon, color, editor, envValues, tab, showAdvanced, nodes, localTemplates, users, roles, loading, deploying, error],
+    [templateId, nodeId, ownerId, name, displayName, icon, color, editor, envValues, imageKey, tab, showAdvanced, nodes, localTemplates, users, roles, loading, deploying, error],
   );
 
   return <DeployFormContext.Provider value={value}>{children}</DeployFormContext.Provider>;

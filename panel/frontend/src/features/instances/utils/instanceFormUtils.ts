@@ -524,6 +524,77 @@ export function structuredCloneSafe<T>(v: T): T {
   return JSON.parse(JSON.stringify(v));
 }
 
+// One named runtime in a template's multi-image map, for the deploy picker.
+// Mirrors the backend's unified list (spec.images[] + spec.docker_images{},
+// plus the top-level image as the implicit legacy default).
+export interface DeployImageOption {
+  name: string;
+  image: string;
+  description: string;
+  isDefault: boolean;
+}
+
+// parseTemplateImages extracts the deploy-time runtime choices from a
+// template spec + its top-level image. Returns [] when the template is
+// single-image (only the fallback). default_image / default:true resolve
+// the isDefault flag; otherwise the fallback image is the default.
+export function parseTemplateImages(specStr: string, fallbackImage: string): DeployImageOption[] {
+  let s: Record<string, any> = {};
+  try {
+    s = JSON.parse(specStr || '{}');
+    if (!s || typeof s !== 'object' || Array.isArray(s)) s = {};
+  } catch {
+    return [];
+  }
+  const rows: DeployImageOption[] = [];
+  const seen = new Set<string>();
+  const push = (name: string, image: string, description: string, isDefault: boolean) => {
+    const n = String(name || '').trim();
+    const im = String(image || '').trim();
+    if (n === '' || im === '') return;
+    const lower = n.toLowerCase();
+    if (seen.has(lower)) return;
+    seen.add(lower);
+    rows.push({ name: n, image: im, description: String(description || '').trim(), isDefault: !!isDefault });
+  };
+  if (Array.isArray(s.images)) {
+    for (const e of s.images) {
+      if (!e || typeof e !== 'object') continue;
+      push(String((e as any).name ?? ''), String((e as any).image ?? ''), String((e as any).description ?? ''), !!(e as any).default);
+    }
+  }
+  if (s.docker_images && typeof s.docker_images === 'object' && !Array.isArray(s.docker_images)) {
+    for (const k of Object.keys(s.docker_images).sort()) {
+      const v = (s.docker_images as Record<string, unknown>)[k];
+      if (typeof v === 'string') push(k, v, '', false);
+    }
+  }
+  if (rows.length === 0) return [];
+  const namedDefault = typeof s.default_image === 'string' ? s.default_image.trim().toLowerCase() : '';
+  let flagged = false;
+  if (namedDefault) {
+    for (const r of rows) {
+      if (r.name.toLowerCase() === namedDefault) {
+        r.isDefault = true;
+        flagged = true;
+      } else if (r.isDefault) {
+        r.isDefault = false;
+      }
+    }
+  } else {
+    flagged = rows.some((r) => r.isDefault);
+  }
+  // The top-level image stays visible as the implicit legacy default when
+  // nothing is flagged — but only if it isn't already one of the rows.
+  const fallback = String(fallbackImage || '').trim();
+  if (!flagged && fallback !== '' && !rows.some((r) => r.image === fallback)) {
+    rows.unshift({ name: 'Default', image: fallback, description: 'Template default image', isDefault: true });
+  } else if (!flagged && !rows.some((r) => r.isDefault)) {
+    rows[0].isDefault = true;
+  }
+  return rows;
+}
+
 export function normSlug(v: string): string {
   return v.toLowerCase().trim().replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '').replace(/-+/g, '-');
 }

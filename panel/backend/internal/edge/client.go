@@ -359,6 +359,19 @@ type InstallStartRequest struct {
 	//   = 0 → omitted from the JSON; the edge applies its own 30-minute
 	//         default, which keeps older callers' behaviour unchanged.
 	TimeoutSec int `json:"timeout_sec,omitempty"`
+	// ConfigFiles carries the resolved spec.config_files[] rows (find values
+	// already {{VAR}}-substituted) so the edge applies config parsers inside
+	// the workload after the install steps. Empty = no parsers.
+	ConfigFiles []ConfigFile `json:"config_files,omitempty"`
+}
+
+// ConfigFile mirrors the template spec.config_files[] row the panel forwards
+// opaquely to the edge (no re-typing beyond JSON).
+type ConfigFile struct {
+	File            string         `json:"file"`
+	Parser          string         `json:"parser"`
+	Find            map[string]any `json:"find"`
+	CreateIfMissing bool           `json:"create_if_missing,omitempty"`
 }
 
 // InstallStep mirrors the edge's internal/install.Step so the panel can pass
