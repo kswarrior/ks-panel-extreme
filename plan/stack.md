@@ -42,6 +42,14 @@ New `features/stacks/`, mirrors `features/mods/` + `features/applications/`:
 `KSStackSDK` (v1, minimal):
 - `KS.stack.theme()`, `KS.stack.fetch(apiPath, opts)` -> proxied `GET /api/stacks/:slug/api/*` with panel cookie + granted-cap check, `KS.stack.storage.get/set` (namespaced KV via proxy, not direct DB).
 
+## Stack Files (powerful like Mods, full explorer + editor)
+
+Every stack gets full file power, scoped to `stack-work/<slug>/` (extracted `.ksps`). Same UX as `InstanceFiles.tsx` / `NodeFilesTab.tsx`, same ops as `files_handler.go`, but local-disk not edge proxy:
+- Backend `handlers/stack_files.go`: `GET /api/stacks/:id/files?op=list&path=/frontend` -> `{entries[], path}`, `GET /api/stacks/:id/files/read?path=/backend/server.js` (raw bytes + filename header), `POST ?op=write|mkdir|rename|delete|chmod`, `POST /api/stacks/:id/files/upload` (multipart, path target), `POST /api/stacks/:id/files/url` (JSON `{path,url}`, SSRF-guarded like mods URL install). All `MANAGE_STACKS` + `STACKS_OWN/ALL` (own sees own only), traversal-guarded (`Clean + stay under workdir`), size-capped (single file 8MiB, upload 64MiB like `.kspm`), audit `activity_logs` on write/mkdir/rename/delete/chmod/upload.
+- Editing live files auto-invalidates + re-extract marker? No — live edit writes workdir directly, package `.ksps` rebuilt on demand via `RepackFromWorkdir` so download stays in sync. Restart sidecar after backend edit (button + auto-prompt).
+- Frontend `features/stacks/components/StackFilesTab.tsx` (copy `InstanceFiles.tsx` pattern): breadcrumb, list, drag&drop upload, new file/folder, rename/delete, code editor (existing editor component reuse) for `*.js/*.py/*.json/*.html/*.css/*.md`, binary download otherwise. Mounted in `StackDetail.tsx` as `Files` tab beside `Overview/Grants/Logs/Settings`.
+- Safety: block `..`, absolute paths, `.ksextracted` marker hidden; deny editing `manifest.json:slug` rename (slug immutable after create, like mods); secrets never logged.
+
 ## Backend
 
 New files only, no edits to `mod_handler.go / application_handler.go / modengine/`:
@@ -70,9 +78,9 @@ Lifecycle (same gate as mods/apps): `install inactive -> approve every cap -> ac
 ## Build order
 
 1. Phase-0: migration + models + repo + keys + `stackstore` + CRUD/grants/activate handlers + `types/stack.ts + api/stacks.ts + Stacks/Detail` list. Verify with `retest.sh`, no runtime yet (`static` stacks render placeholder).
-2. Phase-1 (MVP static dashboards): `stack_proxy ui/*` + `StackView iframe` + `KSStackSDK theme/fetch/storage(KV)` + `nav` endpoint + sidebar + 2 samples. Goal: install -> grant -> activate -> open `/stacks/server-dashboard/` dashboard working, no backend proc.
-3. Phase-2 (full-stack): supervisor (`nodejs/python/static`), `api/*` proxy, logs/status/kill-switch, Studio lite. Goal: `hello-tool` with `backend/server.js` counter API working.
-4. Phase-3: marketplace share (download/upload round-trip), docs skill, stats/schedules pages.
+2. Phase-1 (MVP static dashboards + Files): `stack_proxy ui/*` + `StackView iframe` + `KSStackSDK theme/fetch/storage(KV)` + `nav` endpoint + sidebar + `stack_files.go + StackFilesTab` explorer/editor + 2 samples. Goal: install -> grant -> activate -> open `/stacks/server-dashboard/` working, edit `dist/index.html` live in Files tab.
+3. Phase-2 (full-stack): supervisor (`nodejs/python/static`), `api/*` proxy, logs/status/kill-switch, env editor, restart button, Studio lite. Goal: `hello-tool` with `backend/server.js` counter API working, editable from Files tab.
+4. Phase-3: marketplace share (download = repack workdir -> `.ksps` round-trip), docs skill, stats/schedules pages.
 
 ## Verify (loop.md CHECKLIST V)
 
