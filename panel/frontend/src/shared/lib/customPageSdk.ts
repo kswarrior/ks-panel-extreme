@@ -142,6 +142,13 @@ export interface CustomPageAPI {
   // (e.g. "/instances/12/files/edit?path=/etc/app.conf"). Anything outside
   // /instances/<this-id>/** is rejected by pageNavigateTarget.
   navigate: (to: string) => void;
+
+  // ==================== PAGE IDENTITY ====================
+  // URL slug of the page family rendering right now (e.g. "files" on
+  // /instances/12/files, "files/edit" on the editor sub-page). Pages that
+  // build sibling URLs (explorer <-> editor) must derive them from here
+  // instead of hardcoding slugs — the slug is customizable per instance.
+  pageSlug: string;
   
   // ==================== UTILITIES ====================
   toast: (message: string, type?: 'success' | 'error' | 'info' | 'warning') => void;
@@ -426,6 +433,9 @@ export function createCustomPageSDK(
   // --- SDK API ---
   const sdk: CustomPageAPI = {
     instance: instanceContext,
+
+    // Page identity (see interface docs).
+    pageSlug,
     
     // Persisted page actions
     actions: savedActions,
