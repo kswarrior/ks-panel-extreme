@@ -19,7 +19,7 @@ Panels + latest checked: `KS` (this repo) vs `Pterodactyl v1.15.1 (12 Aug 2026, 
 |  | KS | Pterodactyl | Pelican | PufferPanel |
 |---|---|---|---|---|
 | List | card grid, search + driver/category/sort, counts + limits on card. Honest minus: counts cover only ports/env/installs/mounts, no hierarchy | Nest-filtered egg list, mature but plain | same + Filament skin, sortable columns, icon upload refactor (beta34) | plain list, templates pulled on-demand from GitHub, local override only if modified |
-| Builder | 11 tabs, most complete. Honest minus: startup split (`advanced.startup_command` vs `Actions[].steps`) confuses Docker authors; no raw-JSON edit mode, preview is collapsible only | admin egg form, narrow but every field is honored by Wings | same + egg edit refresh fix, icon upload guard, `p:egg:normalize` command | no builder — raw JSON edit, fast for experts, hostile for beginners |
+| Builder | 10 tabs, most complete. Honest minus: startup split (`advanced.startup_command` vs `Actions[].steps`) confuses Docker authors; no raw-JSON edit mode, preview is collapsible only | admin egg form, narrow but every field is honored by Wings | same + egg edit refresh fix, icon upload guard, `p:egg:normalize` command | no builder — raw JSON edit, fast for experts, hostile for beginners |
 | Import | file (`multipart` + preview) + URL (SSRF-guarded). Honest minus: no signature check, no marketplace pin, no version channel | `Import Egg` + Eggify mass import/update from official repos, outdated-egg detection + compare | same + `egg update check` hardening | `template import`, on-demand GitHub pull |
 | Export | `Download JSON + Copy spec/ID` | `Export` + Eggify packs | same | raw JSON |
 | Detail | resources/network/env/install/actions/pages + instance usage + raw JSON + invalid-spec warning. Honest minus: no version history, diff, or rollback | egg form is the detail | same | no dedicated detail |
@@ -49,7 +49,7 @@ Panels + latest checked: `KS` (this repo) vs `Pterodactyl v1.15.1 (12 Aug 2026, 
 | Stop | `stop_command + same/different mode + terminal_stop_on_exit` (most expressive) | `config.stop` (simple, enough for games) | same | `stop + stopCode` + `skip restarts on stop` (v3.0.9) |
 | Multi-action | `actions[]` (cooldown/async/session/run_on_create) — unique depth. Honest minus: `allowed_states` CSV typos silently narrow; `terminal_id` duplicates attach to first only (warning exists, still footgun); numeric fields are strings | no (schedules + subusers cover parts) | no | `pre/post` + conditions (lighter, harder to misconfigure) |
 | Console binding | `terminal_id` mirror + allow/block regex + timeout — unique. Honest minus: regex per action, no central audit of who typed what beyond instance audit | none | none | RCON/TELNET `stdin` support (narrower, but exactly what games need) |
-| Config-file parsers | `config_files[]` (7 parsers: properties/yaml/json/ini/xml/file/toml) + dot/`[i]`/`*` paths + multi-replace maps + `{{VAR}}` + post-install apply + pre-start re-sync + builder tester + Ptero `config.files` import-compat. TOML is KS-only (beats Ptero/Pelican) | `config-files` find/replace (e.g. `server.properties` without scripts) | same | `writefile` + conditions only |
+| Config-file parsers | removed (Sept 2026) — no parsers, no tester, no pre-start re-sync. Equivalent is `install[]` `write`/`shell` steps + `{{VAR}}` env (whole-file writes, not idempotent key-patches) | `config-files` find/replace (e.g. `server.properties` without scripts) | same | `writefile` + conditions only |
 
 ## 5. Variables vs
 
@@ -70,10 +70,10 @@ Panels + latest checked: `KS` (this repo) vs `Pterodactyl v1.15.1 (12 Aug 2026, 
 
 ## 7. Verdict vs (honest)
 
-- KS vs all on breadth: wins tab count, drivers, actions/terminal, pages, health/labels, URL import, detail/governance, bulk `.env` file, config parsers (7 parsers + toml + tester + pre-start re-sync). Paid for with complexity (startup split, CSV states, string numbers, permissive defaults, dead `timeRange`, snapshot drift, 5-template library).
-- Ptero vs KS: wins simplicity (one startup, one bash script), `Nests`, allocations model, ecosystem (~100+, Eggify updates), stable v1.15.x in 2026. Loses everything template-composable (parsers now trail KS: 6 parsers, no toml/tester/re-sync).
-- Pelican vs KS: same wins as Ptero + modern skin, configurable egg index, icon handling, S3 backup hosts; loses on stability (still beta37, not 1.0) + parsers trail KS.
-- Puffer vs KS: wins honesty of scope (host+docker, `unshare`, conditions, multi-commands, RCON/TELNET, CurseForge, tester, on-demand templates); loses builder/detail/pages/governance depth + parsers (writefile-only).
+- KS vs all on breadth: wins tab count, drivers, actions/terminal, pages, health/labels, URL import, detail/governance, bulk `.env` file. Config parsers were removed (Sept 2026) — file writes now go through `install[]` `write`/`shell` + env, same class as Puffer's `writefile`. Paid for with complexity (startup split, CSV states, string numbers, permissive defaults, dead `timeRange`, snapshot drift, 5-template library).
+- Ptero vs KS: wins simplicity (one startup, one bash script), `Nests`, allocations model, ecosystem (~100+, Eggify updates), stable v1.15.x in 2026 — plus `config-files` find/replace, which KS no longer has. Loses everything template-composable (pages/actions/binding/multi-image/bulk-env).
+- Pelican vs KS: same wins as Ptero + modern skin, configurable egg index, icon handling, S3 backup hosts; loses on stability (still beta37, not 1.0). Keeps the parser edge over KS (same `config-files` as Ptero).
+- Puffer vs KS: wins honesty of scope (host+docker, `unshare`, conditions, multi-commands, RCON/TELNET, CurseForge, tester, on-demand templates); loses builder/detail/pages/governance depth. File-patching is now parity: Puffer `writefile` + conditions vs KS `write`/`shell` + env (both whole-file, no key-path parsers).
 
 ## 8. Scores (`/100` per case, honest)
 
@@ -94,7 +94,7 @@ Panels + latest checked: `KS` (this repo) vs `Pterodactyl v1.15.1 (12 Aug 2026, 
 | 13 | Pages / UI | 95 | 15 | 15 | 15 |
 | 14 | Grouping | 50 | 88 | 88 | 35 |
 | 15 | Multi-image | 100 | 90 | 90 | 30 |
-| 16 | Config parsers | 100 | 85 | 85 | 30 |
+| 16 | Config parsers | 30 | 85 | 85 | 30 |
 | 17 | Library size | 25 | 100 | 88 | 65 |
 | 18 | Governance | 78 | 70 | 72 | 55 |
 | 19 | Bulk `.env` file | 90 | 20 | 20 | 35 |
