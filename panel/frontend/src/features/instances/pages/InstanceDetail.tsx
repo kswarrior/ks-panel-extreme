@@ -35,7 +35,7 @@ import InstanceOverview from '@/features/instances/pages/InstanceOverview';
 import InstanceFiles from '@/features/instances/pages/InstanceFiles';
 import InstanceFileEditor from '@/features/instances/pages/InstanceFileEditor';
 import { resolveInstanceControls, shortcutLabel, shortcutSlug } from '@/features/instances/utils/instanceControls';
-import { sendActionStdin } from '@/features/instances/api/instanceAdvanced';
+import { sendActionStdin, sendInstallStdin } from '@/features/instances/api/instanceAdvanced';
 import InstanceSftpCard from '@/features/instances/components/InstanceSftpCard';
 import InstanceSnapshotsTab from '@/features/instances/components/InstanceSnapshotsTab';
 import { useAuthStore } from '@/shared/stores/authStore';
@@ -151,22 +151,29 @@ interface TerminalPaneState {
 }
 
 // TerminalPane — one live console. The xterm below is the instance shell;
-// when the pane's ID matches a template action's terminal_id the pane
-// mirrors that action's live transcript into the same xterm and relays
-// every typed line to the RUNNING action's console
-// (POST …/actions/:id/stdin) with no pane-side gating — e.g. a Minecraft
-// server's tps / op / stop, or a `node index.js` stdin. Fully functional,
-// no separate log box, no per-pane options.
+// a pane whose ID matches a template terminal ID becomes that console:
+//  - action terminal_id → mirrors the action's live transcript into the
+//    xterm and relays typed lines to the RUNNING action's stdin
+//    (POST …/actions/:id/stdin) — e.g. Minecraft tps / op / stop;
+//  - install_terminal_id → mirrors the Installation transcript and
+//    relays typed lines to the running install (POST …/install/stdin);
+//  - startup_terminal_id → dials the /console bridge instead, attaching
+//    directly to the container main-process stdio (fully interactive,
+//    no mirror/relay needed).
+// No separate log box, no per-pane options.
 const TerminalPane: React.FC<{
   instanceId: number;
   pane: TerminalPaneState;
   actions: any[];
   runningActionId: string;
   installState: string;
+  installKind: string;
+  installTerminalId: string;
+  startupTerminalId: string;
   stepsJson: string;
   canRemove: boolean;
   onRemove: (key: number) => void;
-}> = ({ instanceId, pane, actions, runningActionId, installState, stepsJson, canRemove, onRemove }) => {
+}> = ({ instanceId, pane, actions, runningActionId, installState, installKind, installTerminalId, startupTerminalId, stepsJson, canRemove, onRemove }) => {
   const termRef = useRef<XTerm | null>(null);
   const handleRef = useRef<TerminalHandle>(null);
   const [connState, setConnState] = useState<'connecting' | 'connected' | 'reconnecting' | 'closed' | 'error'>('connecting');
@@ -177,7 +184,16 @@ const TerminalPane: React.FC<{
   const tid = normTid(pane.terminalId);
   const matchedAction = tid !== '' ? actions.find((a: any) => normTid(a?.terminal_id) === tid) : undefined;
   const isRunning = !!matchedAction && installState === 'running' && runningActionId === matchedAction.id;
-  const logText = matchedAction ? actionLogText(stepsJson) : '';
+  // Installation console: bound when the pane ID equals the template's
+  // install_terminal_id; live while a NON-action workflow runs (a running
+  // action owns the same edge key and has its own stdin endpoint).
+  const isInstallBound = tid !== '' && normTid(installTerminalId) !== '' && tid === normTid(installTerminalId);
+  const isInstalling = isInstallBound && installState === 'running' && installKind !== 'action';
+  // Startup console: bound when the pane ID equals the template's
+  // advanced.startup_terminal_id. I/O rides the /console WS natively.
+  const isStartupBound = tid !== '' && normTid(startupTerminalId) !== '' && tid === normTid(startupTerminalId);
+  const streamLabel = matchedAction ? (matchedAction.name || matchedAction.id) : 'installation';
+  const logText = matchedAction || isInstallBound ? actionLogText(stepsJson) : '';
   // Mirror the bound action's transcript INTO the xterm so the running
   // console (java banner, player joins, node output, …) appears directly
   // in this terminal — there is no separate log box. Deltas are computed against
@@ -188,7 +204,7 @@ const TerminalPane: React.FC<{
   useEffect(() => { lastMirroredRef.current = ''; }, [tid]);
   useEffect(() => {
     const term = termRef.current;
-    if (!term || !matchedAction || logText === '') return;
+    if (!term || (!matchedAction && !isInstallBound) || logText === '') return;
     const prev = lastMirroredRef.current;
     if (logText === prev) return;
     let delta: string | null = null;
@@ -203,26 +219,40 @@ const TerminalPane: React.FC<{
     }
     lastMirroredRef.current = logText;
     if (delta === null || delta === '') return;
-    if (prev === '') term.write(`\r\n\x1b[90m— streaming ${matchedAction.name || matchedAction.id} console —\x1b[0m\r\n`);
+    if (prev === '') term.write(`\r\n\x1b[90m— streaming ${streamLabel} console —\x1b[0m\r\n`);
     // Cap a single mirror burst so a step transition can't flood scrollback.
     term.write(delta.length > 16384 ? delta.slice(-16384) : delta);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [logText, matchedAction, tid, connState]);
+  }, [logText, matchedAction, isInstallBound, streamLabel, tid, connState]);
 
   const handleLine = (line: string) => {
     // Fully functional console: every typed line goes straight to the
-    // RUNNING action's stdin (tps / op / stop / say … for Minecraft,
-    // stdin for `node index.js`, …). No pane-side allow/block gating —
-    // the server still enforces the template action's own policy.
-    if (!matchedAction || !isRunning) return;
+    // RUNNING workflow's stdin — the bound action
+    // (POST …/actions/:id/stdin: tps / op / stop / say … for Minecraft,
+    // stdin for `node index.js`, …) or the running install
+    // (POST …/install/stdin). No pane-side allow/block gating — the
+    // server still enforces the action's own policy. Startup consoles
+    // need no relay: input rides the /console WS natively.
     if (line.trim() === '') return;
-    void sendActionStdin(instanceId, matchedAction.id, line).then(
-      () => { if (stdinError) setStdinError(''); },
-      (e: any) => {
-        const msgText = typeof e?.response?.data === 'string' ? e.response.data : (e?.response?.data?.error || e?.message || 'failed to send');
-        setStdinError(String(msgText).slice(0, 300));
-      },
-    );
+    if (matchedAction && isRunning) {
+      void sendActionStdin(instanceId, matchedAction.id, line).then(
+        () => { if (stdinError) setStdinError(''); },
+        (e: any) => {
+          const msgText = typeof e?.response?.data === 'string' ? e.response.data : (e?.response?.data?.error || e?.message || 'failed to send');
+          setStdinError(String(msgText).slice(0, 300));
+        },
+      );
+      return;
+    }
+    if (isInstalling) {
+      void sendInstallStdin(instanceId, line).then(
+        () => { if (stdinError) setStdinError(''); },
+        (e: any) => {
+          const msgText = typeof e?.response?.data === 'string' ? e.response.data : (e?.response?.data?.error || e?.message || 'failed to send');
+          setStdinError(String(msgText).slice(0, 300));
+        },
+      );
+    }
   };
 
   const title = pane.name.trim() !== '' ? pane.name.trim() : (tid !== '' ? tid : 'shell');
@@ -233,7 +263,7 @@ const TerminalPane: React.FC<{
         <div className="min-w-0 flex-1">
           <span className="block truncate text-sm font-medium text-white" title={tid ? `${title} · ${tid}` : title}>{title}</span>
           {tid !== '' && (
-            <span className="block truncate font-mono text-[11px] text-gray-500" title={`Action terminal ID: ${tid}`}>{tid}{isRunning ? ' · running' : ''}</span>
+            <span className="block truncate font-mono text-[11px] text-gray-500" title={`Terminal ID: ${tid}`}>{tid}{isRunning || isInstalling ? ' · running' : ''}{isStartupBound && !isRunning && !isInstalling && connState === 'connected' ? ' · attached' : ''}</span>
           )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
@@ -288,7 +318,8 @@ const TerminalPane: React.FC<{
             ref={handleRef}
             instanceId={instanceId}
             terminalId={tid}
-            onLine={handleLine}
+            endpoint={isStartupBound ? 'console' : undefined}
+            onLine={isStartupBound ? undefined : handleLine}
             onStateChange={(s, m) => { setConnState(s); setConnMsg(m ?? ''); }}
             onTermRef={(t) => (termRef.current = t)}
             onTitleChange={(t) => {
