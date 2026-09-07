@@ -34,6 +34,9 @@ func NewRouter() http.Handler {
 	notificationsG := permissions.AreaGroups[10]
 	settingsG := permissions.AreaGroups[11]
 	themesG := permissions.AreaGroups[12]
+	// Stacks group by label (appended last in AreaGroups so the positional
+	// indexes above keep pointing at the same areas).
+	stacksG := *permissions.GroupByLabel("Stacks")
 
 	// Boot the Mod Engine v2 runtime: spin up a Goja VM for every active mod
 	// so its slots + hooks are live before the first request lands. A per-mod
@@ -599,6 +602,32 @@ func NewRouter() http.Handler {
 			// activation because a run executes arbitrary staged code.
 			r.With(requireUmbrellaOrAction(appsG, permissions.ActionEdit)).Post("/{id}/run", handlers.RunApplicationHandler)
 			r.With(requireUmbrellaOrAction(appsG, permissions.ActionView)).Get("/{id}/runs", handlers.ListApplicationRunsHandler)
+		})
+
+		// Admin: Stacks management. MANAGE_STACKS (umbrella) implies every action;
+		// STACKS_* narrow each route. Stacks are admin-uploaded full-stack
+		// isolated apps (dashboards, tools, trackers — one stack is one item
+		// like one mod is one item in Mods). They install INACTIVE and only
+		// activate after the admin explicitly approves every capability the
+		// stack requested. The grant lifecycle mirrors mods — see
+		// internal/repository/stack_repo.go. Phase-0 serves the catalog
+		// lifecycle; the sidecar supervisor + ui/api proxy land in Phase-2.
+		r.Route("/api/stacks", func(r chi.Router) {
+			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionView)).Get("/", handlers.ListStacksHandler)
+			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionCreate)).Post("/", handlers.CreateStackHandler)
+			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionCreate)).Post("/url", handlers.InstallStackFromURLHandler)
+			// Static literals before param routes so chi resolves "/nav" and
+			// "/engine" as literals instead of capturing them as {id}.
+			r.With(requirePermission("ACCESS_ADMIN_PANEL")).Get("/nav", handlers.StackNavHandler)
+			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionView)).Get("/engine", handlers.StackEngineStatusHandler)
+			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionEdit)).Put("/engine", handlers.SetStackEngineEnabledHandler)
+			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionView)).Get("/{id}", handlers.GetStackHandler)
+			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionEdit)).Put("/{id}", handlers.UpdateStackHandler)
+			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionDelete)).Delete("/{id}", handlers.DeleteStackHandler)
+			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionView)).Get("/{id}/download", handlers.DownloadStackHandler)
+			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionEdit)).Put("/{id}/grants", handlers.SetStackGrantsHandler)
+			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionEdit)).Post("/{id}/activate", handlers.ActivateStackHandler)
+			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionEdit)).Post("/{id}/deactivate", handlers.DeactivateStackHandler)
 		})
 
 		// Admin: Instance Pages management. MANAGE_INSTANCE_PAGES (umbrella) implies every action;

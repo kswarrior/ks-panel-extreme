@@ -221,6 +221,7 @@ func isSecurityRelevantPath(path string) bool {
 		"/api/mods",
 		"/api/templates",
 		"/api/applications",
+		"/api/stacks",
 		"/api/instance-pages",
 		"/api/system/update-apply",
 		"/api/system/reinstall",
