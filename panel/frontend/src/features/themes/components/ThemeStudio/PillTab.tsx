@@ -9,22 +9,31 @@ interface PillTabProps {
 export const PillTab: React.FC<PillTabProps> = ({ draft, patch }) => {
   const p = draft.pill;
   const autoOn = p.auto_hide_enabled ?? true;
+  const formAutoOn = p.form_actions_auto_hide_enabled ?? false;
 
   // Live preview — a miniature of the real top-right pill, painted straight
   // from the draft (surface / sizing / motion / timing). "Simulate
   // auto-off" collapses it with the chosen animation, then slides it back
   // on after the chosen delay so the timing can be felt before saving.
   const [previewOff, setPreviewOff] = useState(false);
+  const [formPreviewOff, setFormPreviewOff] = useState(false);
   const previewTimer = useRef<number | null>(null);
+  const formPreviewTimer = useRef<number | null>(null);
   useEffect(() => {
     return () => {
       if (previewTimer.current) window.clearTimeout(previewTimer.current);
+      if (formPreviewTimer.current) window.clearTimeout(formPreviewTimer.current);
     };
   }, []);
   const simulateOff = () => {
     if (previewTimer.current) window.clearTimeout(previewTimer.current);
     setPreviewOff(true);
     previewTimer.current = window.setTimeout(() => setPreviewOff(false), Math.max(300, Number(p.auto_show_delay) || 2500));
+  };
+  const simulateFormOff = () => {
+    if (formPreviewTimer.current) window.clearTimeout(formPreviewTimer.current);
+    setFormPreviewOff(true);
+    formPreviewTimer.current = window.setTimeout(() => setFormPreviewOff(false), Math.max(300, Number(p.form_actions_auto_show_delay ?? p.auto_show_delay) || 2500));
   };
   const hiddenTransform =
     p.animation === 'fade' ? 'none'
@@ -37,7 +46,7 @@ export const PillTab: React.FC<PillTabProps> = ({ draft, patch }) => {
   return (
     <div className="space-y-4">
       <div className="ks-form-card rounded-lg space-y-4">
-        <Label label="Surface" hint="The glass background of both pills — the top-right Actions Pill and the phone Tabs Pill share these settings." />
+        <Label label="Surface" hint="The glass background of all three pills — the top-right Actions Pill, the phone Tabs Pill and the bottom-right Form Actions Pill (Cancel / Save) share these settings." />
         <ColorField label="Background" value={p.background} onChange={(v) => patch('pill', { background: v })} />
         <ColorField label="Border color" value={p.border_color} onChange={(v) => patch('pill', { border_color: v })} />
         <ColorField label="Toggle color" value={p.text_color} onChange={(v) => patch('pill', { text_color: v })} hint="Tint of the `<` / `>` / `^` collapse chevron." />
@@ -51,7 +60,7 @@ export const PillTab: React.FC<PillTabProps> = ({ draft, patch }) => {
       </div>
 
       <div className="ks-form-card rounded-lg space-y-4">
-        <Label label="Buttons" hint="Size of the buttons living inside both pills (actions + phone tabs)." />
+        <Label label="Buttons" hint="Size of the buttons living inside all three pills (actions + phone tabs + form actions)." />
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Slider label="Button padding X" max={24} value={p.tab_padding_x} onChange={(v) => patch('pill', { tab_padding_x: v })} />
           <Slider label="Button padding Y" max={16} value={p.tab_padding_y} onChange={(v) => patch('pill', { tab_padding_y: v })} />
@@ -82,7 +91,7 @@ export const PillTab: React.FC<PillTabProps> = ({ draft, patch }) => {
       </div>
 
       <div className="ks-form-card rounded-lg space-y-4">
-        <Label label="Collapse animation" hint="Motion played when either pill goes off / on. A pill never disappears — off just shows `<`." />
+        <Label label="Collapse animation" hint="Motion played when any pill goes off / on. A pill never disappears — off just shows `<`." />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Select
             label="Animation"
@@ -100,7 +109,7 @@ export const PillTab: React.FC<PillTabProps> = ({ draft, patch }) => {
       </div>
 
       <div className="ks-form-card rounded-lg space-y-4">
-        <Label label="Auto-off timing" hint="Scroll or outside-click collapses the Actions pill to `<`; idle slides it back on. The phone Tabs pill is manual-only — it starts closed and only its toggle opens it." />
+        <Label label="Auto-off timing" hint="Scroll or outside-click collapses the top-right Actions pill to `<`; idle slides it back on. The phone Tabs pill is manual-only — it starts closed and only its toggle opens it." />
         <label className="flex items-center gap-2 text-xs text-gray-300">
           <input
             type="checkbox"
@@ -122,7 +131,34 @@ export const PillTab: React.FC<PillTabProps> = ({ draft, patch }) => {
           />
         )}
         {!autoOn && (
-          <p className="text-xs text-gray-500">Auto-off disabled — both pills stay open until their `&gt;` toggle is clicked.</p>
+          <p className="text-xs text-gray-500">Auto-off disabled — the Actions pill stays open until its `&gt;` toggle is clicked.</p>
+        )}
+      </div>
+
+      <div className="ks-form-card rounded-lg space-y-4">
+        <Label label="Form actions pill (bottom-right)" hint="Cancel / Create / Save live in a fixed bottom-right pill. It is always visible by default — enable auto-off here to let it collapse on scroll like the Actions pill." />
+        <label className="flex items-center gap-2 text-xs text-gray-300">
+          <input
+            type="checkbox"
+            checked={formAutoOn}
+            onChange={(e) => patch('pill', { form_actions_auto_hide_enabled: e.target.checked })}
+            className="ks-checkbox w-4 h-4"
+          />
+          Auto-off on scroll / outside-click
+        </label>
+        {formAutoOn && (
+          <Slider
+            label="Auto-on delay"
+            min={500}
+            max={10000}
+            step={100}
+            suffix="ms"
+            value={p.form_actions_auto_show_delay ?? p.auto_show_delay ?? 2500}
+            onChange={(v) => patch('pill', { form_actions_auto_show_delay: v })}
+          />
+        )}
+        {!formAutoOn && (
+          <p className="text-xs text-gray-500">Auto-off disabled (default) — the bottom-right Cancel / Save pill always shows until its `&gt;` toggle is clicked.</p>
         )}
       </div>
 
