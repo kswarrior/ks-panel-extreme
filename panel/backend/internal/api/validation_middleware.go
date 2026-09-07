@@ -290,12 +290,6 @@ func sanitizeResponseForLogging(sw *sanitizingResponseWriter) {
 
 	sanitized := body
 	for _, field := range sensitiveFields {
-		// Simple JSON field sanitization (basic approach)
-		_ = []string{
-			fmt.Sprintf(`"%s":"[^"]*"`, field),
-			fmt.Sprintf(`"%s":\s*"[^"]*"`, field),
-		}
-		// This is a basic approach; in production use a proper JSON parser
 		sanitized = sanitizeJSONField(sanitized, field)
 	}
 
