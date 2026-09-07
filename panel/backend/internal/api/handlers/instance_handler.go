@@ -1404,6 +1404,8 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 					AppendValue:  getString(m, "append_value"),
 					IsSecret:     getBool(m, "is_secret"),
 					Scopes:       normalizeEnvScopes(m["scopes"]),
+					Images:       parseEnvImages(m["images"]),
+					Behavior:     parseEnvBehavior(m["behavior"]),
 				}
 				if spec.Name != "" {
 					envSpecs = append(envSpecs, spec)
@@ -1413,14 +1415,22 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build final env map: start with defaults, apply operator overrides,
-	// validate required+regex, apply prepend/append.
+	// validate required+regex, apply prepend/append. Vars scoped to other
+	// images are skipped (multi-image templates only). 'auto' vars are
+	// hidden auto-sets: the default is applied and any operator value is
+	// ignored — the replacement for the old .env / per-runtime overrides.
 	finalEnv := make(map[string]string)
 	for _, spec := range envSpecs {
+		if hasMultiImage && len(spec.Images) > 0 && !envAppliesToImage(spec.Images, selectedImage.Name) {
+			continue
+		}
 		val := spec.Default
-		if v, ok := req.EnvVars[spec.Name]; ok {
-			// Operator provided a value (only allowed if user_editable or admin).
-			// We don't gate by role here — the admin UI only sends editable ones.
-			val = v
+		if spec.Behavior != "auto" {
+			if v, ok := req.EnvVars[spec.Name]; ok {
+				// Operator provided a value (only allowed if user_editable or admin).
+				// We don't gate by role here — the admin UI only sends editable ones.
+				val = v
+			}
 		}
 		// Required check.
 		if spec.Required && strings.TrimSpace(val) == "" {
@@ -1504,20 +1514,18 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Per-image env rides UNDER explicit operator values but OVER template
-	// defaults: picking "Java 17" sets JAVA_VERSION=17 unless the operator
-	// typed something else on the deploy form.
-	for k, v := range selectedImage.Env {
-		if _, explicit := req.EnvVars[k]; !explicit {
-			finalEnv[k] = v
-		}
-	}
+	// ---- LEGACY PER-RUNTIME ENV (removed from builder) ----
+	// Old templates may still carry spec.images[].env overrides. They are
+	// intentionally no longer applied: per-var `images` + `behavior:auto`
+	// replace them. The entries are still accepted by validation so those
+	// templates load without a 400; re-saving drops them.
 
-	// ---- ENVIRONMENT FILE (.env) ----
-	// The template's raw env_file content is substituted with the validated
-	// vars, parsed as dotenv, and merged UNDER the explicit vars (explicit
-	// wins — the docker-compose `environment` beats `env_file` rule), so the
-	// file becomes real workload env instead of inert text.
+	// ---- ENVIRONMENT FILE (.env, legacy) ----
+	// Old templates may still carry spec.env_file (the builder no longer
+	// writes it). It is still honoured here so those templates deploy
+	// unchanged: substituted with the validated vars, parsed as dotenv, and
+	// merged UNDER the explicit vars (explicit wins — the docker-compose
+	// `environment` beats `env_file` rule).
 	mergedEnv, err := resolveEnvWithFile(getString(tmplSpec, "env_file"), finalEnv)
 	if err != nil {
 		writeJSONStatus(w, http.StatusBadRequest, map[string]any{
