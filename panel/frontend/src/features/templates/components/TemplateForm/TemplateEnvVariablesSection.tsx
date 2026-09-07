@@ -78,6 +78,16 @@ export const TemplateEnvVariablesSection: React.FC<EnvVariablesSectionProps> = (
                       <span className="text-sm font-semibold text-white truncate">{v.label || v.name || `Variable ${i + 1}`}</span>
                       <span className={`text-[10px] uppercase tracking-wide border px-1.5 py-0.5 rounded ${displayTagColor(v.display)}`}>{v.display}</span>
                       <code className="text-[11px] text-gray-500 font-mono">{v.name || 'KEY'}</code>
+                      {normalizeEnvBehavior((v as any).behavior) === 'auto' && (
+                        <span className="text-[10px] uppercase tracking-wide border border-sky-700/40 bg-sky-950/30 text-sky-300 px-1.5 py-0.5 rounded" title="Hidden auto-set — applied with the default value, never asked">auto</span>
+                      )}
+                      {normalizeEnvImages((v as any).images).length > 0 && (
+                        <span className="text-[10px] border border-white/10 text-gray-400 px-1.5 py-0.5 rounded" title={`Only for: ${normalizeEnvImages((v as any).images).join(', ')}`}>
+                          {normalizeEnvImages((v as any).images).length === 1
+                            ? normalizeEnvImages((v as any).images)[0]
+                            : `${normalizeEnvImages((v as any).images).length} images`}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">

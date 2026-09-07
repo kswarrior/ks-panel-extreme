@@ -593,12 +593,12 @@ const TemplateForm: React.FC = () => {
                 <GlassField label="Image" htmlFor="image">
                   <input id="image" value={form.image} onChange={(e) => setForm({ ...form, image: e.target.value })} placeholder="e.g. itzg/minecraft-server:latest or {{IMAGE}}" required />
                 </GlassField>
-                <p className="text-[11px] text-gray-500 mt-1">Default runtime. {'{{IMAGE}}'} / {'${IMAGE}'} + a select env var also works, but named runtimes below are the first-class multi-image map.</p>
+                <p className="text-[11px] text-gray-500 mt-1">Default runtime. {'{{IMAGE}}'} / {'${IMAGE}'} / {'$(IMAGE)'} + a select env var also works, but named runtimes below are the first-class multi-image map.</p>
               </div>
               <TemplateImagesSection
                 images={form.images}
                 onImageUpdate={(i, patch) => setForm((f) => { const im = [...f.images]; im[i] = { ...im[i], ...patch }; return { ...f, images: im }; })}
-                onImageAdd={() => setForm((f) => ({ ...f, images: [...f.images, { name: '', image: '', description: '', is_default: f.images.length === 0 && !f.image.trim(), env: {} } as TemplateImage] }))}
+                onImageAdd={() => setForm((f) => ({ ...f, images: [...f.images, { name: '', image: '', description: '', is_default: f.images.length === 0 && !f.image.trim() } as TemplateImage] }))}
                 onImageDelete={(i) => setForm((f) => ({ ...f, images: f.images.filter((_, j) => j !== i) }))}
                 onImageDefault={(i) => setForm((f) => ({ ...f, images: f.images.map((r, j) => ({ ...r, is_default: j === i ? !r.is_default : false })), default_image: '' }))}
                 sectionCls={sectionCls}
@@ -646,11 +646,10 @@ const TemplateForm: React.FC = () => {
           <TemplateEnvVariablesSection
             env={form.env}
             onEnvUpdate={(i, patch) => setForm((f) => { const e = [...f.env]; e[i] = { ...e[i], ...patch }; return { ...f, env: e }; })}
-            onEnvAdd={() => setForm((f) => ({ ...f, env: [...f.env, { name: '', label: '', description: '', default: '', user_viewable: true, user_editable: true, required: false, rule: '', display: 'text', options: '', append: false, prepend: '', append_value: '' }] }))}
+            onEnvAdd={() => setForm((f) => ({ ...f, env: [...f.env, { name: '', label: '', description: '', default: '', user_viewable: true, user_editable: true, required: false, rule: '', display: 'text', options: '', append: false, prepend: '', append_value: '', behavior: 'ask' as const }] }))}
             onEnvDelete={(i) => setForm((f) => ({ ...f, env: f.env.filter((_, j) => j !== i) }))}
             onEnvMove={(i, dir) => setForm((f) => { const e = [...f.env]; const j = i + dir; if (j < 0 || j >= e.length) return f; [e[i], e[j]] = [e[j], e[i]]; return { ...f, env: e }; })}
-            envFile={form.env_file}
-            onEnvFileChange={(v) => setForm((f) => ({ ...f, env_file: v }))}
+            imageNames={form.images.map((r) => r.name).filter((n) => n.trim() !== '')}
             sectionCls={sectionCls}
             labelCls={labelCls}
             monoCls={monoCls}
