@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import type { InstanceControls, OverviewDefaultTab } from '@/features/instances/utils/instanceControls';
-import { DEFAULT_INSTANCE_CONTROLS } from '@/features/instances/utils/instanceControls';
+import type { InstanceControls, InstanceShortcutConfig, OverviewDefaultTab, ShortcutKey } from '@/features/instances/utils/instanceControls';
+import { DEFAULT_INSTANCE_CONTROLS, DEFAULT_SHORTCUTS, SHORTCUT_KEYS, isShortcutCustom } from '@/features/instances/utils/instanceControls';
 import { BUILTIN_PAGE_SLUGS, normalizePageSlug } from '@/shared/utils/instancePages';
+import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
+import { COLOR_SWATCHES, ICON_PRESETS } from '@/features/instances/types/instanceForm';
 
 export interface ControlsSectionProps {
   controls: InstanceControls;
@@ -100,8 +102,7 @@ const ConfigGearButton: React.FC<{ open: boolean; onToggle: () => void; label: s
   </button>
 );
 
-const TabRow: React.FC<{
-  checked: boolean;
+const TabRow: React.FC<{  checked: boolean;
   onChange: (v: boolean) => void;
   label: string;
   hint?: string;
@@ -151,6 +152,24 @@ const TabRow: React.FC<{
   </div>
 );
 
+// ShortcutDefaultGlyph — fallback glyph per shortcut for the config preview
+// (mirrors the floating menu's default icons when no custom SVG is set).
+const ShortcutDefaultGlyph: React.FC<{ shortcutKey: ShortcutKey }> = ({ shortcutKey }) => {
+  if (shortcutKey === 'files') {
+    return (
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" /></svg>
+    );
+  }
+  if (shortcutKey === 'terminal') {
+    return (
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" aria-hidden="true"><polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" /></svg>
+    );
+  }
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" aria-hidden="true"><rect x="2" y="7" width="20" height="8" rx="2" /><path d="M6 7v-2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2" /><path d="M6 15v2a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-2" /></svg>
+  );
+};
+
 export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
   controls,
   onUpdate,
@@ -165,6 +184,16 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
   const [openTabConfig, setOpenTabConfig] = useState<'details' | 'manage' | null>(null);
   const toggleTabConfig = (tab: 'details' | 'manage') =>
     setOpenTabConfig((prev) => (prev === tab ? null : tab));
+  // Shortcut editor: which of Files / Terminal / Ports shows its slug +
+  // name + SVG + page-option config panel.
+  const [openShortcut, setOpenShortcut] = useState<ShortcutKey | null>(null);
+  const toggleShortcut = (key: ShortcutKey) =>
+    setOpenShortcut((prev) => (prev === key ? null : key));
+  const updateShortcut = (key: ShortcutKey, patch: Partial<InstanceShortcutConfig>) =>
+    onUpdate({ shortcuts: { ...c.shortcuts, [key]: { ...c.shortcuts[key], ...patch } } });
+  const resetShortcut = (key: ShortcutKey) =>
+    onUpdate({ shortcuts: { ...c.shortcuts, [key]: { ...DEFAULT_SHORTCUTS[key] } } });
+  const shortcutCount = SHORTCUT_KEYS.filter((k) => c.shortcuts[k]?.show).length;
   // More-link validation: normalized slug resolves at runtime only when it
   // is a built-in or an enabled page path — anything else falls back to
   // Overview, which is exactly the "I typed ks but still get overview"
@@ -219,6 +248,163 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
           label="Template actions"
           hint="Run/Stop selector for template-defined actions at the bottom of the menu"
         />
+      </div>
+
+      <div className={sectionCls}>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div>
+            <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">Menu shortcuts · Files / Terminal / Ports</h4>
+            <p className="text-xs text-gray-500">Quick buttons above Actions in the floating menu. Per shortcut: visibility, URL slug, name, SVG icon + colour, and one page option.</p>
+          </div>
+        </div>
+        <div className="rounded-md border border-white/10 bg-black/20 px-3 py-1 mt-2">
+          <p className={labelCls}>Shortcuts (checkboxes · {shortcutCount} of 3 shown)</p>
+          {SHORTCUT_KEYS.map((key) => {
+            const s = c.shortcuts[key];
+            const d = DEFAULT_SHORTCUTS[key];
+            const slug = normalizePageSlug(s.slug) || d.slug;
+            const label = s.label.trim() || d.label;
+            const custom = isShortcutCustom(s, d);
+            return (
+              <TabRow
+                key={key}
+                checked={s.show}
+                onChange={(v) => updateShortcut(key, { show: v })}
+                label={`${label}${custom ? ' · customized' : ''}`}
+                hint={`Opens /${slug} — gear opens slug, name, SVG + page options`}
+                hasConfig
+                configOpen={openShortcut === key}
+                onToggleConfig={() => toggleShortcut(key)}
+                configLabel={`Configure ${d.label} shortcut — slug, name, SVG icon and page options`}
+              >
+                <div className="py-1 space-y-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[11px] text-gray-500 mb-0.5">URL slug</label>
+                      <div className="flex items-center gap-1">
+                        <span className="text-gray-500 text-sm font-mono">/</span>
+                        <input
+                          value={s.slug}
+                          onChange={(e) => updateShortcut(key, { slug: e.target.value })}
+                          placeholder={d.slug}
+                          aria-label={`${d.label} shortcut URL slug`}
+                          title="URL slug the shortcut navigates to"
+                          className="glass-field font-mono flex-1 min-w-0"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-gray-500 mb-0.5">Name</label>
+                      <input
+                        value={s.label}
+                        onChange={(e) => updateShortcut(key, { label: e.target.value })}
+                        placeholder={d.label}
+                        aria-label={`${d.label} shortcut display name`}
+                        title="Display name on the menu button"
+                        className="glass-field w-full"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-gray-500 mb-0.5">SVG icon + colour</label>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span
+                        className="w-9 h-9 shrink-0 rounded-md flex items-center justify-center border bg-white/[0.05] border-white/10 [&>svg]:w-5 [&>svg]:h-5 [&>svg]:block"
+                        style={s.icon_color ? { color: s.icon_color } : { color: d.icon_color }}
+                        aria-hidden="true"
+                        dangerouslySetInnerHTML={s.icon_svg.trim() !== '' ? { __html: sanitizeSvgIcon(s.icon_svg) } : undefined}
+                      >
+                        {s.icon_svg.trim() === '' && <ShortcutDefaultGlyph shortcutKey={key} />}
+                      </span>
+                      <div className="flex gap-1.5 overflow-x-auto ks-hscroll pb-1 flex-1 min-w-0">
+                        {ICON_PRESETS.map((p) => (
+                          <button
+                            key={p.value || 'none'}
+                            type="button"
+                            onClick={() => updateShortcut(key, { icon_svg: p.svg })}
+                            className={`shrink-0 flex items-center gap-1 px-2 py-1.5 rounded-lg border transition-colors ${s.icon_svg === p.svg ? 'border-sky-400/60 bg-sky-500/15' : 'border-white/10 bg-white/5 hover:border-white/20'}`}
+                            title={p.label || 'Default icon'}
+                          >
+                            {p.svg ? (
+                              <span className="[&>svg]:w-4 [&>svg]:h-4 [&>svg]:block" dangerouslySetInnerHTML={{ __html: p.svg }} />
+                            ) : (
+                              <span className="text-[11px] text-gray-400 px-0.5">∅</span>
+                            )}
+                            <span className="text-[11px] text-gray-300">{p.label || 'Default'}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                      <input
+                        value={s.icon_svg}
+                        onChange={(e) => updateShortcut(key, { icon_svg: e.target.value })}
+                        placeholder="…or paste custom SVG markup"
+                        aria-label={`${d.label} shortcut custom SVG`}
+                        className="glass-field font-mono"
+                      />
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {COLOR_SWATCHES.map((sw) => (
+                          <button
+                            key={sw.value || 'none'}
+                            type="button"
+                            onClick={() => updateShortcut(key, { icon_color: sw.value })}
+                            className={`shrink-0 w-6 h-6 rounded-md border transition-transform ${(s.icon_color || '') === sw.value ? 'border-white scale-105' : 'border-white/10 hover:border-white/30'}`}
+                            style={{ backgroundColor: sw.value || 'transparent' }}
+                            title={sw.label || 'Default colour'}
+                          />
+                        ))}
+                        <input
+                          type="color"
+                          value={/^#[0-9a-fA-F]{6}$/.test(s.icon_color || '') ? (s.icon_color as string) : d.icon_color}
+                          onChange={(e) => updateShortcut(key, { icon_color: e.target.value })}
+                          className="w-6 h-6 rounded-md border border-white/10 cursor-pointer bg-transparent p-0"
+                          title="Custom colour"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  {key === 'files' && (
+                    <MiniToggle
+                      checked={s.show_sftp}
+                      onChange={(v) => updateShortcut(key, { show_sftp: v })}
+                      label="Show SFTP card"
+                      hint="SFTP connection card above the file manager on the Files page"
+                    />
+                  )}
+                  {key === 'terminal' && (
+                    <MiniToggle
+                      checked={s.show_header}
+                      onChange={(v) => updateShortcut(key, { show_header: v })}
+                      label="Show header bar"
+                      hint="Title + Reconnect / Clear buttons above the terminal"
+                    />
+                  )}
+                  {key === 'ports' && (
+                    <MiniToggle
+                      checked={s.allow_edit}
+                      onChange={(v) => updateShortcut(key, { allow_edit: v })}
+                      label="Allow Add / Remove"
+                      hint="Off = read-only port table on the Ports page"
+                    />
+                  )}
+                  {custom && (
+                    <div className="pt-1">
+                      <button
+                        type="button"
+                        onClick={() => resetShortcut(key)}
+                        className="text-xs text-gray-400 hover:text-white underline"
+                        title={`Reset ${d.label} shortcut to defaults`}
+                      >
+                        Reset {d.label} to defaults
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </TabRow>
+            );
+          })}
+        </div>
       </div>
 
       <div className={sectionCls}>
@@ -335,7 +521,12 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
 
 function isCustomNote(c: InstanceControls): string {
   const d = DEFAULT_INSTANCE_CONTROLS;
-  const off = (Object.keys(d) as (keyof InstanceControls)[]).filter((k) => c[k] !== d[k]);
+  const off = (Object.keys(d) as (keyof InstanceControls)[])
+    .filter((k) => k !== 'shortcuts' && c[k] !== d[k])
+    .map(String);
+  for (const k of SHORTCUT_KEYS) {
+    if (isShortcutCustom(c.shortcuts[k], d.shortcuts[k])) off.push(`shortcuts.${k}`);
+  }
   if (off.length === 0) return 'allow-all (nothing restricted)';
   return `${off.length} restriction${off.length === 1 ? '' : 's'}: ${off.join(', ')}`;
 }

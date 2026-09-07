@@ -253,7 +253,7 @@ const SHORTCUT_FIELDS: (keyof InstanceShortcutConfig)[] = [
   'allow_edit',
 ];
 
-function isShortcutCustom(a: InstanceShortcutConfig, b: InstanceShortcutConfig): boolean {
+export function isShortcutCustom(a: InstanceShortcutConfig, b: InstanceShortcutConfig): boolean {
   return SHORTCUT_FIELDS.some((k) => a[k] !== b[k]);
 }
 
