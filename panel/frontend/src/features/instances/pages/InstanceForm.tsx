@@ -200,8 +200,12 @@ const InstanceForm: React.FC = () => {
     setDeploying(true);
     setError('');
     const envVarPayload: Record<string, string> = {};
+    const selImg = (imageKey.trim() !== '' ? imageKey.trim() : (imageOptions.find((o) => o.isDefault)?.name || '')).toLowerCase();
     for (const v of editor.env) {
       if (!v.name) continue;
+      if ((v as any).behavior === 'auto') continue;
+      const imgs = Array.isArray((v as any).images) ? ((v as any).images as unknown[]).map((x) => String(x ?? '').trim()).filter(Boolean) : [];
+      if (imageOptions.length > 0 && imgs.length > 0 && !imgs.some((n) => n.toLowerCase() === selImg)) continue;
       const val = envValues[v.name];
       if (val === undefined) continue;
       if (val === '' && !v.required) continue;
@@ -287,6 +291,20 @@ const InstanceForm: React.FC = () => {
   const effectiveImageKey = imageKey.trim() !== ''
     ? imageKey.trim()
     : (imageOptions.find((o) => o.isDefault)?.name || '');
+  // Env vars visible for this runtime: hidden auto-sets never prompt (they
+  // are applied server-side with the default), and image-scoped vars only
+  // show when the selected runtime matches (empty = All images).
+  const visibleEnvVars = useMemo(() => {
+    const sel = effectiveImageKey.trim().toLowerCase();
+    return editor.env.filter((v) => {
+      if (!v.name || !(v.user_editable || v.required)) return false;
+      if ((v as any).behavior === 'auto') return false;
+      const imgs = Array.isArray((v as any).images) ? (v as any).images as unknown[] : [];
+      const list = imgs.map((x) => String(x ?? '').trim()).filter(Boolean);
+      if (imageOptions.length > 0 && list.length > 0 && !list.some((n) => n.toLowerCase() === sel)) return false;
+      return true;
+    });
+  }, [editor.env, effectiveImageKey, imageOptions.length]);
 
   return (
     <>
@@ -589,12 +607,11 @@ const InstanceForm: React.FC = () => {
                     <p className="text-xs text-gray-500">Provide the values for this deployment. Required vars are flagged; defaults from the template are pre-filled</p>
                   </div>
                   <span className="text-[10px] text-emerald-300/80 border border-emerald-700/40 bg-emerald-950/30 rounded px-1.5 py-0.5 shrink-0">
-                    {editor.env.length} variable{editor.env.length === 1 ? '' : 's'}
+                    {visibleEnvVars.length} variable{visibleEnvVars.length === 1 ? '' : 's'}
                   </span>
                 </div>
                 <div className="space-y-3">
-                  {editor.env
-                    .filter((v) => v.name && (v.user_editable || v.required))
+                  {visibleEnvVars
                     .map((v, idx) => {
                       const val = envValues[v.name] ?? '';
                       const rows = parseEnvOptions(v);
@@ -675,8 +692,8 @@ const InstanceForm: React.FC = () => {
                       );
                     })}
                 </div>
-                {editor.env.filter((v) => v.name && (v.user_editable || v.required)).length === 0 && (
-                  <p className="text-xs text-gray-500">This template defines no editable or required environment variables</p>
+                {visibleEnvVars.length === 0 && (
+                  <p className="text-xs text-gray-500">This template defines no editable or required environment variables{imageOptions.length > 0 ? ' for the selected runtime' : ''}</p>
                 )}
               </div>
               </GlassCard>
