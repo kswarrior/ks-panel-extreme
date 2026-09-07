@@ -47,6 +47,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/example/ksedge/internal/configparse"
 )
 
 // liveStdoutCap bounds the streamed per-stream output kept in a running
@@ -426,7 +428,67 @@ func runCore(ctx context.Context, in Input, exec ExecFn, onStdin func(io.WriteCl
 		// stepNonfatal: continue to next step (the operator opted in via
 		// ignore_errors).
 	}
+	// Config-file parsers run AFTER the steps succeed (files are created by
+	// install write/download steps, so pre-install apply would miss them —
+	// same ordering as Wings: install, then config patch, then boot).
+	if len(in.ConfigFiles) > 0 {
+		cfgResults, cfgErr := applyConfigFiles(ctx, exec, in.ConfigFiles)
+		// Surface each file as a synthetic transcript row (action=config)
+		// so the panel poller + terminal UI show what was patched.
+		for _, cr := range cfgResults {
+			st := StepStatus{
+				Index: len(steps), Action: "config",
+				Status: stepDone, Attempt: 0, ExitCode: 0,
+				Stdout: "config " + cr.File + changedWord(cr.Changed),
+				StartedAt: time.Now(), EndedAt: time.Now(),
+			}
+			if cr.Error != "" {
+				st.Status = stepFailed
+				st.ExitCode = 1
+				st.Stderr = cr.Error
+			}
+			steps = append(steps, st)
+		}
+		publish()
+		if cfgErr != nil {
+			return StateFailed, steps
+		}
+	}
 	return StateDone, steps
+}
+
+func changedWord(changed bool) string {
+	if changed {
+		return ": patched"
+	}
+	return ": already in sync"
+}
+
+type configApplyResult struct {
+	File    string
+	Changed bool
+	Error   string
+}
+
+func applyConfigFiles(ctx context.Context, exec ExecFn, files []ConfigFile) ([]configApplyResult, error) {
+	conv := make([]configparse.File, 0, len(files))
+	for _, f := range files {
+		conv = append(conv, configparse.File{
+			File:            f.File,
+			Parser:          f.Parser,
+			Find:            f.Find,
+			CreateIfMissing: f.CreateIfMissing,
+		})
+	}
+	adapted := func(ctx context.Context, command []string) (string, string, int, error) {
+		return exec(ctx, command)
+	}
+	res, err := configparse.ApplyViaExec(ctx, adapted, conv)
+	out := make([]configApplyResult, 0, len(res))
+	for _, r := range res {
+		out = append(out, configApplyResult{File: r.File, Changed: r.Changed, Error: r.Error})
+	}
+	return out, err
 }
 
 // compileStep turns one Step into the `sh -lc '<script>'` blob the engine
