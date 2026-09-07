@@ -1900,6 +1900,7 @@ func SeedCore(d Dialect, db *sql.DB) error {
 		('MANAGE_THEMES', 'Manage the theme system (umbrella key – enables the theme surface for a role)'),
 		('MANAGE_MODS', 'Upload, edit and activate/deactivate Mods (panel add-ons)'),
 		('MANAGE_APPLICATIONS', 'Manage the Applications catalog (upload, edit, activate/deactivate)'),
+		('MANAGE_STACKS', 'Manage the Stacks catalog (upload, edit, activate/deactivate full-stack apps)'),
 		('USE_APPLICATIONS', 'Install and run user-level Applications (bots, services)'),
 		('USE_LOCAL_THEMES', 'Use personal (browser) themes and assign them to pages for yourself'),
 		('CREATE_LOCAL_THEMES', 'Create new personal (browser localStorage) themes in the Theme Studio'),
@@ -1942,6 +1943,10 @@ func SeedCore(d Dialect, db *sql.DB) error {
 		('APPLICATIONS_CREATE', 'Add a new Application to the catalog'),
 		('APPLICATIONS_EDIT', 'Edit an Application and approve its requested capabilities'),
 		('APPLICATIONS_DELETE', 'Remove an Application from the catalog'),
+		('STACKS_VIEW', 'View the Stacks catalog'),
+		('STACKS_CREATE', 'Upload a new Stack package'),
+		('STACKS_EDIT', 'Edit a Stack and approve its requested capabilities'),
+		('STACKS_DELETE', 'Remove a Stack package'),
 		('SETTINGS_VIEW', 'View the panel settings page'),
 		('SETTINGS_EDIT', 'Change panel settings and upload logo')`, "permissions")); err != nil {
 		return err
@@ -2001,6 +2006,8 @@ func SeedCore(d Dialect, db *sql.DB) error {
 		('MODS_ALL', 'Mods — any mod'),
 		('APPLICATIONS_OWN', 'Applications — only own apps'),
 		('APPLICATIONS_ALL', 'Applications — any application'),
+		('STACKS_OWN', 'Stacks — only own stacks'),
+		('STACKS_ALL', 'Stacks — any stack'),
 		('INSTANCE_PAGES_OWN', 'Instance Pages — only own pages'),
 		('INSTANCE_PAGES_ALL', 'Instance Pages — any page'),
 		('TICKETS_OWN', 'Tickets — only own tickets (created by / assigned to self)'),

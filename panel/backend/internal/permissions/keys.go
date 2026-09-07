@@ -270,6 +270,9 @@ StacksDeleteKey = "STACKS_DELETE"
 	ApplicationsOwnKey = "APPLICATIONS_OWN"
 	ApplicationsAllKey = "APPLICATIONS_ALL"
 
+	StacksOwnKey = "STACKS_OWN"
+	StacksAllKey = "STACKS_ALL"
+
 	InstancePagesOwnKey = "INSTANCE_PAGES_OWN"
 	InstancePagesAllKey = "INSTANCE_PAGES_ALL"
 
@@ -407,6 +410,11 @@ var AreaGroups = []Group{
 		AIChatWritesKey,
 		AIChatThreadsKey,
 	}},
+	// Stacks cluster, appended last so the positional AreaGroups indexes
+	// server.go relies on (0..12) keep pointing at the same areas.
+	{Label: "Stacks", Umbrella: ManageStacksKey, Keys: map[Action]string{
+		ActionView: StacksViewKey, ActionCreate: StacksCreateKey, ActionEdit: StacksEditKey, ActionDelete: StacksDeleteKey,
+	}, OwnKey: StacksOwnKey, AllKey: StacksAllKey},
 }
 
 // AllGroups is the ordered slice of every regulatable area. It is the union of
