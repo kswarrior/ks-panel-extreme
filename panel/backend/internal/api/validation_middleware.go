@@ -238,37 +238,34 @@ func (sw *sanitizingResponseWriter) Write(b []byte) (int, error) {
 	return sw.ResponseWriter.Write(b)
 }
 
-// sanitizeRequestForLogging removes sensitive data from request before logging
+// sanitizeRequestForLogging builds redacted copies of sensitive request
+// material for logging. It must NEVER mutate the live request: the previous
+// version rewrote r.Header (Authorization/Cookie) to "[REDACTED]" in place,
+// which would destroy credentials for downstream AuthMiddleware if this
+// middleware were ever mounted before it, and rewrote r.URL.RawQuery.
 func sanitizeRequestForLogging(r *http.Request) {
-	// Remove sensitive headers
-	sensitiveHeaders := []string{
-		"Authorization",
-		"Cookie",
-		"X-CSRF-Token",
-		"X-API-Key",
-	}
-	for _, header := range sensitiveHeaders {
-		if r.Header.Get(header) != "" {
-			r.Header.Set(header, "[REDACTED]")
+	// Redacted header snapshot (for logging only, never written back).
+	redactedHeaders := make(map[string]string, len(r.Header))
+	for k, v := range r.Header {
+		switch k {
+		case "Authorization", "Cookie", "X-Csrf-Token", "X-Api-Key":
+			redactedHeaders[k] = "[REDACTED]"
+		default:
+			if len(v) > 0 {
+				redactedHeaders[k] = v[0]
+			}
 		}
 	}
+	_ = redactedHeaders
 
-	// Sanitize query parameters
+	// Redacted query snapshot (never written back to r.URL).
 	query := r.URL.Query()
-	sensitiveParams := []string{
-		"password",
-		"token",
-		"secret",
-		"key",
-		"api_key",
-		"auth",
-	}
-	for _, param := range sensitiveParams {
+	for _, param := range []string{"password", "token", "secret", "key", "api_key", "auth"} {
 		if query.Get(param) != "" {
 			query.Set(param, "[REDACTED]")
 		}
 	}
-	r.URL.RawQuery = query.Encode()
+	_ = query.Encode()
 }
 
 // sanitizeResponseForLogging removes sensitive data from response before logging
@@ -308,16 +305,15 @@ func sanitizeResponseForLogging(sw *sanitizingResponseWriter) {
 }
 
 // sanitizeJSONField sanitizes a specific field in JSON string by
-// replacing its value with [REDACTED]. Uses a simple string-based
-// approach; in production a proper JSON parser should be used.
+// replacing its value with [REDACTED]. Uses a real regexp over
+// `"field"\s*:\s*"[^"]*"` (plus bare non-string values); the previous
+// version built a regex-shaped string but passed it to strings.Replace,
+// so it never matched anything and secrets passed through.
 func sanitizeJSONField(jsonStr, field string) string {
-	escaped := strings.ReplaceAll(field, `"`, `\"`)
-	// Match "field": "value" or "field":value (no space after colon)
-	re := fmt.Sprintf(`"%s":[^,}]*`, escaped)
-	// Simple replacement: replace the value portion with [REDACTED]
-	replacement := fmt.Sprintf(`"%s":"[REDACTED]"`, escaped)
-	if strings.Contains(jsonStr, fmt.Sprintf(`"%s":`, escaped)) {
-		jsonStr = strings.Replace(jsonStr, re, replacement, 1)
-	}
-	return jsonStr
+	pattern := `"` + regexp.QuoteMeta(field) + `"\s*:\s*"[^"]*"`
+	re := regexp.MustCompile(pattern)
+	out := re.ReplaceAllString(jsonStr, `"`+field+`":"[REDACTED]"`)
+	patternBare := `"` + regexp.QuoteMeta(field) + `"\s*:\s*[^,}\s][^,}]*`
+	reBare := regexp.MustCompile(patternBare)
+	return reBare.ReplaceAllString(out, `"`+field+`":"[REDACTED]"`)
 }
