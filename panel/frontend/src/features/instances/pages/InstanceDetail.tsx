@@ -119,7 +119,8 @@ function normTid(v: unknown): string {
 
 // actionLogText folds an instance's install_steps_json transcript into one
 // tail string (every step's stdout + stderr, oldest first, last ~8k chars)
-// so a bound pane can show the action's FULL log above the live shell.
+// so a bound pane can mirror the action's live console directly inside its
+// xterm (no separate log box).
 function actionLogText(stepsJson: unknown): string {
   try {
     const raw = typeof stepsJson === 'string' ? stepsJson : JSON.stringify(stepsJson ?? '');
@@ -183,7 +184,6 @@ const TerminalPane: React.FC<{
   // the last mirrored text: exact-prefix appends are written directly,
   // while a slid 8 KiB tail window re-anchors on the previous tail so
   // only truly new bytes are mirrored and polls never spam duplicates.
-  // The log box above stays the complete source of truth.
   const lastMirroredRef = useRef('');
   useEffect(() => { lastMirroredRef.current = ''; }, [tid]);
   useEffect(() => {
@@ -343,9 +343,9 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
     }
   }, [instance?.config]);
 
-  // Live workflow status for the running-action chips + log tail. The routed
-  // snapshot goes stale the moment an action starts, so poll silently while
-  // any pane is bound to an ID (same 3s cadence as the actions menu).
+  // Live workflow status for the console mirror. The routed snapshot goes
+  // stale the moment an action starts, so poll silently while any pane is
+  // bound to an ID (same 3s cadence as the actions menu).
   const { instance: live, reload } = useInstance(Number(instance?.id));
   const hasBound = panes.some((p) => normTid(p.terminalId) !== '');
   useEffect(() => {
