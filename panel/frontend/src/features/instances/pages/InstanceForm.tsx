@@ -7,6 +7,8 @@ import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActi
 import GlassCard from '@/shared/components/ui/Card';
 import { SearchableSelect, type SearchableOption } from '@/shared/components/ui/SearchableSelect';
 import { glassFieldClass } from '@/shared/components/ui/Field';
+import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
+import { parseEnvOptions, checkboxChecked, checkboxValues } from '@/features/templates/types/templateForm';
 import {
   KindIcon,
 } from '../components/InstanceFormComponents';
@@ -537,7 +539,8 @@ const InstanceForm: React.FC = () => {
                     .filter((v) => v.name && (v.user_editable || v.required))
                     .map((v, idx) => {
                       const val = envValues[v.name] ?? '';
-                      const opts = (v.options || '').split(',').map((o) => o.trim()).filter(Boolean);
+                      const rows = parseEnvOptions(v);
+                      const [cbOn, cbOff] = checkboxValues(v);
                       const missing = !!v.required && (val === undefined || val === '');
                       return (
                         <div key={(v.name || 'var') + ':' + idx} className="border border-white/10 rounded-md p-3 space-y-1.5 bg-black/30">
@@ -549,16 +552,62 @@ const InstanceForm: React.FC = () => {
                             {v.rule && <span className="text-[10px] text-gray-500 font-mono" title="Validation rule (regex)">rule: {v.rule}</span>}
                           </div>
                           {v.description && <p className="text-[11px] text-gray-500">{v.description}</p>}
-                          {v.display === 'select' && opts.length > 0 ? (
-                            <select value={val} onChange={(e) => setEnvValues((m) => ({ ...m, [v.name]: e.target.value }))} className={monoCls + (missing ? ' border-red-700/40' : '')}>
-                              {!v.required && <option value="">— none —</option>}
-                              {opts.map((o) => <option key={o} value={o}>{o}</option>)}
-                            </select>
+                          {v.display === 'select' && rows.length > 0 ? (
+                            <div role="radiogroup" aria-label={v.label || v.name} className="space-y-1.5">
+                              {!v.required && (
+                                <button
+                                  type="button"
+                                  role="radio"
+                                  aria-checked={val === ''}
+                                  onClick={() => setEnvValues((m) => ({ ...m, [v.name]: '' }))}
+                                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md border text-left transition-colors ${val === '' ? 'border-sky-400/60 bg-sky-500/10' : 'border-white/10 bg-white/[0.02] hover:border-white/25'}`}
+                                >
+                                  <span className="text-xs text-gray-400">— none —</span>
+                                </button>
+                              )}
+                              {rows.map((o, j) => {
+                                const selected = val === o.value;
+                                return (
+                                  <button
+                                    key={`${o.value}:${j}`}
+                                    type="button"
+                                    role="radio"
+                                    aria-checked={selected}
+                                    onClick={() => setEnvValues((m) => ({ ...m, [v.name]: o.value }))}
+                                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md border text-left transition-colors ${selected ? 'border-sky-400/60 bg-sky-500/10' : 'border-white/10 bg-white/[0.02] hover:border-white/25'}`}
+                                  >
+                                    {o.svg.trim() !== '' ? (
+                                      <span
+                                        className="w-6 h-6 shrink-0 rounded flex items-center justify-center text-gray-200 [&>svg]:w-5 [&>svg]:h-5 [&>svg]:block"
+                                        aria-hidden="true"
+                                        dangerouslySetInnerHTML={{ __html: sanitizeSvgIcon(o.svg) }}
+                                      />
+                                    ) : (
+                                      <span className={`w-2 h-2 shrink-0 rounded-full ${selected ? 'bg-sky-300' : 'bg-gray-600'}`} aria-hidden="true" />
+                                    )}
+                                    <span className="min-w-0 flex-1">
+                                      <span className="block text-xs text-gray-100 truncate">{o.label || o.value}</span>
+                                      {o.label && <code className="block text-[10px] text-gray-500 font-mono truncate">{o.value}</code>}
+                                    </span>
+                                    {selected && <span className="text-sky-300 text-xs shrink-0">✓</span>}
+                                  </button>
+                                );
+                              })}
+                            </div>
                           ) : v.display === 'checkbox' ? (
-                            <label className="inline-flex items-center gap-2 text-xs text-gray-300">
-                              <input type="checkbox" className="ks-checkbox" checked={val === 'true' || val === '1' || val === 'on'} onChange={(e) => setEnvValues((m) => ({ ...m, [v.name]: e.target.checked ? 'true' : 'false' }))} />
-                              enable
-                            </label>
+                            <button
+                              type="button"
+                              role="switch"
+                              aria-checked={checkboxChecked(v, val)}
+                              onClick={() => setEnvValues((m) => ({ ...m, [v.name]: checkboxChecked(v, envValues[v.name] ?? '') ? cbOff : cbOn }))}
+                              className="flex items-center gap-2.5 text-xs text-gray-300"
+                              title={checkboxChecked(v, val) ? `On → ${cbOn}` : `Off → ${cbOff}`}
+                            >
+                              <span className={`relative w-9 h-5 rounded-full transition shrink-0 ${checkboxChecked(v, val) ? 'bg-green-600' : 'bg-neutral-700'}`}>
+                                <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition ${checkboxChecked(v, val) ? 'translate-x-4' : ''}`} />
+                              </span>
+                              <span className="font-mono text-[11px] text-gray-400">{checkboxChecked(v, val) ? cbOn : cbOff}</span>
+                            </button>
                           ) : v.display === 'number' ? (
                             <input type="number" inputMode="numeric" step="any" value={val} onChange={(e) => setEnvValues((m) => ({ ...m, [v.name]: e.target.value }))} placeholder={v.default ? `default: ${v.default}` : 'number'} className={monoCls + (missing ? ' border-red-700/40' : '')} />
                           ) : (

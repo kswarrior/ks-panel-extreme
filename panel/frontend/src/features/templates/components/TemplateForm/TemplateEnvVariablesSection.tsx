@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { glassFieldClass } from '@/shared/components/ui/Field';
+import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 import type { EnvVariable } from '@/features/templates/types/templateForm';
 import { ENV_VAR_SCOPES, envScopesEffective } from '@/features/templates/types/templateForm';
 
