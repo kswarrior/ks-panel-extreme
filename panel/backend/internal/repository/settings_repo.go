@@ -77,6 +77,20 @@ const (
 	PanelLogoRingKey   = "panel_logo_ring"   // "1"/"0" (border ring on/off)
 )
 
+// Browser-tab brand keys (Settings > Browser Tab). Stored as plain KV rows
+// so no schema migration is needed on any engine — same pattern as the
+// panel_name_* style keys above. An empty tab title means "fall back to
+// panel_name" (see EffectiveTabTitle).
+const (
+	BrowserTabTitleKey = "browser_tab_title"
+	FaviconMimeKey     = "favicon_mime"
+	FaviconFilenameKey = "favicon_filename"
+)
+
+// MaxBrowserTabTitleLen caps the tab title so a hostile/pasted value can't
+// bloat the bootstrapped index.html or the document.title.
+const MaxBrowserTabTitleLen = 120
+
 // Defaults for the brand-style + logo-display keys. Kept next to the keys
 // so the snapshot reader and the validators share one source of truth.
 const (
@@ -105,6 +119,11 @@ const (
 // uploaded panel logos. Kept private so callers always go through
 // SetPanelLogo / ClearPanelLogo.
 const logoDirName = "logos"
+
+// faviconDirName is the subdirectory under the data directory that stores
+// uploaded browser-tab favicons. Separate from logos/ so clearing one never
+// touches the other. Callers must go through SetFavicon / ClearFavicon.
+const faviconDirName = "favicons"
 
 // LogoFilenamePrefix is the on-disk filename prefix. The full filename is
 // "panel-<random>.ext", generated per upload so concurrent uploads don't
