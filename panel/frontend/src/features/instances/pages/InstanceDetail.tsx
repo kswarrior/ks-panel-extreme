@@ -183,10 +183,11 @@ interface TerminalPaneState {
   stdinError: string;
 }
 
-// TerminalPane — one attachable console. The xterm below is always the live
+// TerminalPane — one attachable console. The xterm below is the live
 // container shell; when the pane's ID matches a template action's
-// terminal_id the pane additionally streams that action's full log and
-// relays validated input lines to the RUNNING action's console
+// terminal_id the pane additionally streams that action's full log (log
+// box above, mirrored live into the shell below) and relays validated
+// input lines to the RUNNING action's console
 // (POST …/actions/:id/stdin) — e.g. a Minecraft server's /tps /op /ban.
 const TerminalPane: React.FC<{
   instanceId: number;
@@ -305,6 +306,38 @@ const TerminalPane: React.FC<{
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveMode, effectiveAllowed, effectiveBlocked, paneAllowedTrimmed, actionAllowedRaw, actionMode]);
+
+  // Mirror the bound action's transcript INTO the xterm so the running
+  // console (java's banner, player joins, …) appears in the terminal
+  // itself, not only in the log box above. Deltas are computed against
+  // the last mirrored text: exact-prefix appends are written directly,
+  // while a slid 8 KiB tail window re-anchors on the previous tail so
+  // only truly new bytes are mirrored and polls never spam duplicates.
+  // The log box above stays the complete source of truth.
+  const lastMirroredRef = useRef('');
+  useEffect(() => { lastMirroredRef.current = ''; }, [tid]);
+  useEffect(() => {
+    const term = termRef.current;
+    if (!term || !matchedAction || logText === '') return;
+    const prev = lastMirroredRef.current;
+    if (logText === prev) return;
+    let delta: string | null = null;
+    if (prev === '') {
+      delta = logText;
+    } else if (logText.startsWith(prev)) {
+      delta = logText.slice(prev.length);
+    } else {
+      const anchor = prev.slice(-2000);
+      const idx = anchor !== '' ? logText.lastIndexOf(anchor) : -1;
+      if (idx >= 0) delta = logText.slice(idx + anchor.length);
+    }
+    lastMirroredRef.current = logText;
+    if (delta === null || delta === '') return;
+    if (prev === '') term.write(`\r\n\x1b[90m— streaming ${matchedAction.name || matchedAction.id} console —\x1b[0m\r\n`);
+    // Cap a single mirror burst so a step transition can't flood scrollback.
+    term.write(delta.length > 16384 ? delta.slice(-16384) : delta);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [logText, matchedAction, tid, connState]);
 
   const handleLine = (line: string) => {
     if (!matchedAction || !isRunning || pane.stopped || pane.timedOut) return;
@@ -437,10 +470,18 @@ const TerminalPane: React.FC<{
           <button type="button" onClick={() => onPatch(pane.key, { stdinError: '' })} aria-label="Dismiss" className="shrink-0 text-red-300/70 hover:text-white">✕</button>
         </div>
       )}
-      {matchedAction && logText && (
+      {matchedAction && (
         <details className="mx-3 mb-2 rounded-md border border-white/10 bg-black/40" open={isRunning}>
           <summary className="cursor-pointer px-2.5 py-1.5 text-[11px] text-gray-400 hover:text-gray-200">Action log · {matchedAction.name || matchedAction.id} ({installState || 'idle'}) — click to {isRunning ? 'collapse' : 'expand'}</summary>
-          <pre className="ks-mono max-h-48 overflow-y-auto whitespace-pre-wrap break-words px-2.5 pb-2 text-[11px] leading-relaxed text-gray-300">{logText}</pre>
+          {logText ? (
+            <pre className="ks-mono max-h-48 overflow-y-auto whitespace-pre-wrap break-words px-2.5 pb-2 text-[11px] leading-relaxed text-gray-300">{logText}</pre>
+          ) : (
+            <p className="px-2.5 pb-2 text-[11px] text-gray-500">
+              {isRunning
+                ? 'Live console — lines appear here (and in the terminal below) as the process writes them. Type below to send input to the running action.'
+                : 'No captured output yet — invoke the action to stream its console here.'}
+            </p>
+          )}
         </details>
       )}
 
@@ -526,7 +567,11 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
     allowedCommands: '',
     blockedCommands: '',
     timeoutS: termCfg.terminal_default_timeout_s || '',
-    showOptions: false,
+    // Options (input mode, timeout, stop-on-exit, allow/block lists) start
+    // expanded so every pane is fully customizable right on the page —
+    // the gear toggles them closed. Template defaults from Instance
+    // Controls still seed each new pane.
+    showOptions: true,
     stopped: false,
     timedOut: false,
     stdinError: '',
