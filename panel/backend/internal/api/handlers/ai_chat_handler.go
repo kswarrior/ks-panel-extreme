@@ -2245,7 +2245,6 @@ func aiToolSystemStatus(a *aiCallCtx) (string, *aiTicketProposal, error) {
 	} else {
 		rows, err = a.con.Query(`SELECT status, COUNT(*) FROM instances GROUP BY status`)
 	}
-	byStatus := map[string]int64{}
 	if err == nil {
 		defer rows.Close()
 		for rows.Next() {
