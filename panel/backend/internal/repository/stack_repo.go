@@ -27,22 +27,6 @@ func NewStackRepository(db *sql.DB) *StackRepository {
 // handlers map it to 404 while real DB failures surface as 500.
 var ErrStackNotFound = errors.New("stack not found")
 
-// isStackScanNotFound reports whether a QueryRow.Scan error means "no such
-// row". database/sql returns sql.ErrNoRows, but the modernc.org/sqlite driver
-// used for SQLite returns a NULL-conversion error instead when scanning an
-// empty result into non-nullable destinations (e.g. `converting NULL to
-// int64`). Both mean NotFound; anything else is a real DB failure.
-func isStackScanNotFound(err error) bool {
-	if err == nil {
-		return false
-	}
-	if errors.Is(err, sql.ErrNoRows) {
-		return true
-	}
-	msg := err.Error()
-	return strings.Contains(msg, "converting NULL") || strings.Contains(msg, "no rows in result set")
-}
-
 // ErrStackPermissionsNotGranted is returned by Activate when grants are
 // pending. The handler maps it to HTTP 409 with the checklist.
 var ErrStackPermissionsNotGranted = errors.New("not all requested stack permissions have been granted")
@@ -462,7 +446,7 @@ func (r *StackRepository) GetActiveStackByProxyRoot(root string) (*models.Stack,
 	row := r.db.QueryRow(`SELECT `+stackColumns+` FROM stacks WHERE proxy_root_url = ? AND active = 1 AND proxy_port > 0`, root)
 	s, err := scanStack(row)
 	if err != nil {
-		if isStackScanNotFound(err) {
+		if err == sql.ErrNoRows {
 			return nil, ErrStackNotFound
 		}
 		return nil, err
@@ -549,7 +533,7 @@ func (r *StackRepository) GetStack(id int64) (*models.Stack, error) {
 	row := r.db.QueryRow(`SELECT `+stackColumns+` FROM stacks WHERE id = ?`, id)
 	s, err := scanStack(row)
 	if err != nil {
-		if isStackScanNotFound(err) {
+		if err == sql.ErrNoRows {
 			return nil, ErrStackNotFound
 		}
 		return nil, err
@@ -568,7 +552,7 @@ func (r *StackRepository) GetStackBySlug(slug string) (*models.Stack, error) {
 	row := r.db.QueryRow(`SELECT `+stackColumns+` FROM stacks WHERE slug = ?`, slug)
 	s, err := scanStack(row)
 	if err != nil {
-		if isStackScanNotFound(err) {
+		if err == sql.ErrNoRows {
 			return nil, ErrStackNotFound
 		}
 		return nil, err
