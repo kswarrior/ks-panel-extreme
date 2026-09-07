@@ -718,25 +718,6 @@ const Settings: React.FC = () => {
         </div>
       </form>
       )}
-      {/* Phone tabs — bottom pill mirroring the rail (RoleForm pattern). */}
-      <PageTabsPill ariaLabel="Settings sections" spacer={false} activeLabel={tab === 'brand' ? 'Brand' : 'Pages'}>
-        {SETTINGS_TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            aria-selected={tab === t.id}
-            onClick={() => setTab(t.id as SettingsTabId)}
-            className={`ks-tab shrink-0 flex-1 px-3 py-1.5 rounded text-sm text-center transition flex items-center justify-center gap-1.5 ${tab === t.id ? 'ks-tab-active' : ''}`}
-          >
-            <span className="inline-flex items-center shrink-0">{t.icon}</span>
-            {t.label}
-          </button>
-        ))}
-      </PageTabsPill>
-      {/* Spacer — reserves scroll room so the fixed bottom pill never
-          covers trailing content (RoleForm pattern). */}
-      <div aria-hidden="true" className="h-24 lg:hidden" />
     </div>
   );
 };
