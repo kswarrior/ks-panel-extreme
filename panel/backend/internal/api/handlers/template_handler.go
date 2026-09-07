@@ -49,6 +49,47 @@ var validKinds = map[string]bool{
 	"multipass": true,
 }
 
+// validEnvScopes is the set of template sections an env variable may be
+// applied to (spec.env[].scopes). Empty/missing = everywhere (legacy).
+var validEnvScopes = map[string]bool{
+	"install": true, "actions": true, "image": true,
+	"controls": true, "pages": true, "advanced": true,
+}
+
+// normalizeEnvScopes cleans a raw scopes value: unknown entries are dropped,
+// "all" (or all six) collapses to nil = everywhere, keeping old specs stable.
+func normalizeEnvScopes(raw any) []string {
+	arr, ok := raw.([]any)
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	seen := map[string]bool{}
+	for _, v := range arr {
+		s, ok := v.(string)
+		if !ok {
+			continue
+		}
+		s = strings.TrimSpace(strings.ToLower(s))
+		if s == "" {
+			continue
+		}
+		if s == "all" {
+			return nil
+		}
+		if validEnvScopes[s] {
+			seen[s] = true
+		}
+	}
+	if len(seen) == 0 || len(seen) == len(validEnvScopes) {
+		return nil
+	}
+	out := make([]string, 0, len(seen))
+	for s := range seen {
+		out = append(out, s)
+	}
+	return out
+}
+
 // validInstallActions is the set of valid install action types.
 var validInstallActions = map[string]bool{
 	"shell": true, "download": true, "extract": true, "move": true,
@@ -85,6 +126,27 @@ func validateTemplateSpec(spec map[string]any) error {
 			if rule != "" {
 				if _, err := regexp.Compile(rule); err != nil {
 					return fmt.Errorf("spec.env[%d]: rule must be valid regex: %w", i, err)
+				}
+			}
+			// Scopes gate where {{NAME}}/${NAME} substitutes (empty = everywhere).
+			// Strict here so a typo fails fast at save time, not silently at deploy.
+			if rawScopes, present := m["scopes"]; present && rawScopes != nil {
+				arr, ok := rawScopes.([]any)
+				if !ok {
+					return fmt.Errorf("spec.env[%d]: scopes must be an array of section names", i)
+				}
+				for _, v := range arr {
+					s, ok := v.(string)
+					if !ok {
+						return fmt.Errorf("spec.env[%d]: scopes must be an array of section names", i)
+					}
+					s = strings.TrimSpace(strings.ToLower(s))
+					if s == "" || s == "all" {
+						continue
+					}
+					if !validEnvScopes[s] {
+						return fmt.Errorf("spec.env[%d]: unknown scope %q (want one of: install, actions, image, controls, pages, advanced, all)", i, s)
+					}
 				}
 			}
 		}

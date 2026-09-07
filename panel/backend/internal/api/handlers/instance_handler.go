@@ -269,6 +269,9 @@ type envVarSpec struct {
 	Prepend      string `json:"prepend"`
 	AppendValue  string `json:"append_value"`
 	IsSecret     bool   `json:"is_secret"`
+	// Scopes restricts where {{NAME}}/${NAME} substitutes (empty = everywhere).
+	// Normalized at parse time via normalizeEnvScopes (template_handler.go).
+	Scopes []string `json:"scopes,omitempty"`
 }
 
 // installStepSpec mirrors the template's spec.install[] entry.
