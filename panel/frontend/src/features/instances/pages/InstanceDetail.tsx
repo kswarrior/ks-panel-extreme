@@ -416,7 +416,10 @@ const TerminalPane: React.FC<{
 // TerminalRealPage — native xterm terminal(s) for the terminal shortcut slug
 // (default `terminal`, customizable in Instance Controls). Terminals are
 // added via the header + button, which opens a small dialog asking only for
-// Name + terminal ID. A pane whose ID matches a template action's
+// Name + terminal ID (empty ID = plain shell). Panes render as TABS: the tab
+// bar sits directly below the Terminal header text + add button, clicking a
+// tab activates that pane (inactive panes stay mounted hidden so their WS
+// stays alive). A pane whose ID matches a template action's
 // terminal_id mirrors that action's live console into its xterm and relays
 // typed lines to the running action (Minecraft tps/op/stop, node stdin, …);
 // the install_terminal_id does the same for the Installation workflow;
@@ -433,8 +436,35 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
     terminalId,
   });
   const [panes, setPanes] = useState<TerminalPaneState[]>(() => [makePane(0)]);
+  const [activeKey, setActiveKey] = useState<number>(0);
+  const [connMap, setConnMap] = useState<Record<number, PaneConnState>>({});
 
-  const removePane = (key: number) => setPanes((ps) => (ps.length <= 1 ? ps : ps.filter((p) => p.key !== key)));
+  const removePane = (key: number) => {
+    setPanes((ps) => {
+      if (ps.length <= 1) return ps;
+      const idx = ps.findIndex((p) => p.key === key);
+      const next = ps.filter((p) => p.key !== key);
+      if (key === activeKey) {
+        const fallback = next[Math.min(idx, next.length - 1)] ?? next[0];
+        if (fallback) setActiveKey(fallback.key);
+      }
+      return next;
+    });
+    setConnMap((m) => {
+      const n = { ...m };
+      delete n[key];
+      return n;
+    });
+  };
+  // Keep the active tab valid if panes change from elsewhere.
+  useEffect(() => {
+    if (!panes.some((p) => p.key === activeKey) && panes.length > 0) {
+      setActiveKey(panes[0].key);
+    }
+  }, [panes, activeKey]);
+  const handleConnState = (key: number, s: PaneConnState) => {
+    setConnMap((m) => (m[key] === s ? m : { ...m, [key]: s }));
+  };
 
   // Template actions ride on the instance config (deploy-time snapshot).
   const actions: any[] = useMemo(() => {
@@ -487,12 +517,35 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
   const [draftName, setDraftName] = useState('');
   const [draftId, setDraftId] = useState('');
   const openAdd = () => { setDraftName(''); setDraftId(''); setShowAdd(true); };
+  // Empty ID = plain shell (valid). A non-empty draft that normalises to
+  // empty (e.g. "!!!") is invalid — block Add and show the rule inline
+  // instead of silently mangling the ID.
+  const draftNorm = normTid(draftId);
+  const draftInvalid = draftId.trim() !== '' && draftNorm === '';
   const confirmAdd = () => {
-    const v = normTid(draftId);
-    if (v === '') return;
+    if (draftInvalid) return;
+    const v = draftNorm;
     const k = keySeq.current++;
     setPanes((ps) => [...ps, makePane(k, draftName.trim(), v)]);
+    setActiveKey(k);
     setShowAdd(false);
+  };
+  const tabStatusFor = (p: TerminalPaneState): { dot: string; label: string } => {
+    const tid = normTid(p.terminalId);
+    if (tid === '') return { dot: 'bg-gray-500', label: 'shell' };
+    const matched = actions.find((a: any) => normTid(a?.terminal_id) === tid);
+    const running = !!matched && installState === 'running' && runningActionId === matched.id;
+    const installing = tid === normTid(installTerminalId) && installTerminalId !== '' && installState === 'running' && installKind !== 'action';
+    if (running || installing) return { dot: 'bg-green-400', label: 'running' };
+    const startup = tid === normTid(startupTerminalId) && startupTerminalId !== '';
+    if (startup) {
+      const cs = connMap[p.key];
+      return { dot: cs === 'connected' ? 'bg-sky-400' : 'bg-gray-500', label: cs === 'connected' ? 'attached' : 'startup' };
+    }
+    if (matched || (tid === normTid(installTerminalId) && installTerminalId !== '')) {
+      return { dot: 'bg-amber-400', label: 'idle' };
+    }
+    return { dot: 'bg-gray-500', label: tid };
   };
 
   return (
