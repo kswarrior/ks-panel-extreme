@@ -1338,23 +1338,23 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	if rawEnv, ok := tmplSpec["env"].([]any); ok {
 		for _, e := range rawEnv {
 			if m, ok := e.(map[string]any); ok {
-			spec := envVarSpec{
-				Name:         getString(m, "name"),
-				Label:        getString(m, "label"),
-				Description:  getString(m, "description"),
-				Default:      getString(m, "default"),
-				UserViewable: getBool(m, "user_viewable"),
-				UserEditable: getBool(m, "user_editable"),
-				Required:     getBool(m, "required"),
-				Rule:         getString(m, "rule"),
-				Display:      getString(m, "display"),
-				Options:      getString(m, "options"),
-				Append:       getBool(m, "append"),
-				Prepend:      getString(m, "prepend"),
-				AppendValue:  getString(m, "append_value"),
-				IsSecret:     getBool(m, "is_secret"),
-				Scopes:       normalizeEnvScopes(m["scopes"]),
-			}
+				spec := envVarSpec{
+					Name:         getString(m, "name"),
+					Label:        getString(m, "label"),
+					Description:  getString(m, "description"),
+					Default:      getString(m, "default"),
+					UserViewable: getBool(m, "user_viewable"),
+					UserEditable: getBool(m, "user_editable"),
+					Required:     getBool(m, "required"),
+					Rule:         getString(m, "rule"),
+					Display:      getString(m, "display"),
+					Options:      getString(m, "options"),
+					Append:       getBool(m, "append"),
+					Prepend:      getString(m, "prepend"),
+					AppendValue:  getString(m, "append_value"),
+					IsSecret:     getBool(m, "is_secret"),
+					Scopes:       normalizeEnvScopes(m["scopes"]),
+				}
 				if spec.Name != "" {
 					envSpecs = append(envSpecs, spec)
 				}
@@ -1760,14 +1760,14 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 
-		_, err = ec2.InstallStart(edge.InstallStartRequest{
-			Token:   token2,
-			Kind:    tmpl.Kind,
-			Name:    req.Name,
-			Steps:   edgeSteps,
-			// Only install-scoped vars reach the workflow: an actions-only
-			// var must not leak into (or be required by) install steps.
-			EnvVars: filterEnvForScope(finalEnv, envScopesByName(envSpecs), "install"),
+			_, err = ec2.InstallStart(edge.InstallStartRequest{
+				Token: token2,
+				Kind:  tmpl.Kind,
+				Name:  req.Name,
+				Steps: edgeSteps,
+				// Only install-scoped vars reach the workflow: an actions-only
+				// var must not leak into (or be required by) install steps.
+				EnvVars: filterEnvForScope(finalEnv, envScopesByName(envSpecs), "install"),
 				// Template-authored workflow budget (spec.install_timeout_sec).
 				// 0 = unset → the edge applies its own 30-minute default, so
 				// templates that never set the field behave exactly as before.
