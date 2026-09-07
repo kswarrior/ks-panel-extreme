@@ -33,21 +33,26 @@ Manifest example:
   ],
   "backend": {"runtime": "nodejs", "entrypoint": "backend/server.js", "health": "/health"},
   "frontend": {"dist": "dist", "spa": true},
-  "database": {"kv": true, "sqlite": "data.db"}
+  "database": {"kv": true, "sql": "isolated|shared|none", "schema": "schema.sql"}
 }
 ```
 
-## 2. Data (KV + sqlite per stack, powerful)
+## 2. Data (KV + SQL on every panel engine, powerful)
 
-- `stack_kv(stack_slug, key, value, updated_at)` — namespaced, SDK + backend env access only, listed in Detail > Data tab with search + delete.
-- `stack-data/<slug>/data.db` (sqlite, one file per stack, WAL) — created when `database.sqlite` set. Backend gets `STACK_DB=/.../data.db`, frontend only via `stack.fetch('/db/query')` allow-listed read paths declared in caps. Backup button zips `data.db` to download. Wipe-data button (confirm, audit).
-- Env: `stack_env(stack_slug, key, secret[0|1])` — secretbox-encrypted when secret=1, never returned to list (masked), editable in Detail > Env tab, injected to sidecar only. Merged: manifest defaults < saved env < per-restart overrides.
+Panel engines: `sqlite | postgres | mysql` (`db/dialect.go:NewDialect`, MSSQL deferred). Stack data works on all 3, no sqlite-only path.
+
+- `stack_kv(stack_slug, key, value, updated_at)` — universal, lives in panel DB (triplicated migration). SDK + backend only, Detail > Data tab search + delete.
+- `sql: isolated` (default, zero-config): one sqlite file per stack `stack-data/<slug>/data.db` (WAL), SAME file even when panel runs postgres/mysql. Zero permission issues, zip backup, easy wipe. Backend gets `STACK_DB_ENGINE=sqlite + STACK_DB=file:...`. Best for dashboards/tools that want own DB.
+- `sql: shared` (panel-native): namespaced tables inside panel DB via `StackDB` abstraction. Prefix `st_<slug>_` on every table (no postgres schema / mysql db permission issues on shared hosting). Stack ships portable `schema.sql` (panel rewrites: `AUTOINCREMENT`→per-dialect, `DATETIME`→`TIMESTAMP` on pg via `dialect.datetimeType()`, `?`→`$N` on pg via `Dialect.Placeholder`). Registry `stack_tables(stack_slug, table_name)` + allow-list: queries may touch `st_<slug>_*` only, single-statement, 5s timeout, block `ATTACH/PRAGMA/outside-prefix DDL`. Backend gets `STACK_DB_ENGINE=<panel engine> + STACK_DB_DSN(loopback/panel pool) + STACK_TABLE_PREFIX`. Frontend only via allow-listed `stack.fetch('/db/*')` paths declared in caps.
+- `sql: none`: KV + files only.
+- Backup/wipe cover both: isolated = zip `data.db`; shared = `SELECT *` dump to JSON + restore (drop prefix tables + re-apply `schema.sql` + re-insert). Buttons in Detail > Data tab (confirm + audit).
+- Env: `stack_env(stack_slug, key, secret[0|1])` — secretbox-encrypted when secret=1, masked in list, Detail > Env tab edit, injected to sidecar only. Merge: manifest defaults < saved env < restart overrides.
 
 ## 3. Backend (supervisor, powerful)
 
 New `stacksupervisor/` only:
 - Runtimes: `static` (no proc), `nodejs` (`node backend/server.js --port $PORT`), `python` (`python main.py --port $PORT` / `uvicorn` if detected). Deny `bash/custom` v1. Kill existing tree on restart/delete (pgid).
-- Port allocator `18000-18100` persisted (`stack_ports`), loopback `127.0.0.1` only. Env injected: `PORT, STACK_SLUG, STACK_WORK, STACK_DATA, STACK_DB, STACK_KV_PREFIX`.
+- Port allocator `18000-18100` persisted (`stack_ports`), loopback `127.0.0.1` only. Env injected: `PORT, STACK_SLUG, STACK_WORK, STACK_DATA, STACK_DB_ENGINE, STACK_DB (file path | shared DSN), STACK_TABLE_PREFIX, STACK_KV_PREFIX`.
 - Health: `GET 127.0.0.1:port/health` 3s timeout, 3 retries on start; unhealthy -> `error` + log tail in Detail. Auto-restart max 3, then `error` (no loop).
 - Logs: per-stack ring 500 lines (`stdout+stderr` + supervisor events `start/stop/crash/health`), `GET /api/stacks/:id/logs?tail=200`, live poll 3s in UI. Never log secret values (redact `key|token|secret|password`).
 - Metrics (light): `cpu_ms, mem_kb` via proc poll 10s, shown in Detail header + `GET /api/stacks/:id/status {state,port,pid,uptime,health,metrics}`. Kill-switch global `stacks_enabled` KV + per-stack `active` flag. `BootStacks(ctx)` starts active only.
