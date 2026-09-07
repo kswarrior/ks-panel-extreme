@@ -1,5 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
+import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 
 interface FormPageProps {
   // Breadcrumb pieces rendered left-to-right. The last item is the
@@ -103,16 +105,17 @@ const FormPage: React.FC<FormPageProps> = ({
         {children}
       </div>
 
-      {/* Action row — sticks below the form; never scrolls away so the
-          Save button is always reachable. */}
+      {/* Action row — fixed bottom-right form pill (Cancel / Save); always
+          visible by default so Save never scrolls away. Auto-off is opt-in
+          via the Theme Studio's Pill tab. */}
       {(submitLabel || secondaryActions) && (
-        <div className="flex justify-end items-center gap-2">
+        <PageFormActionsPill>
           {secondaryActions}
           <button
             type="button"
             onClick={onCancel}
-            className="ks-ghost-btn px-4 py-2 text-sm rounded border border-white/10 bg-white/5
-                      text-gray-200 hover:bg-white/10 hover:text-white transition-colors"
+            className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition"
+            style={PILL_TAB_STYLE}
           >
             Cancel
           </button>
@@ -120,13 +123,13 @@ const FormPage: React.FC<FormPageProps> = ({
             <button
               type="submit"
               disabled={saving || disabled}
-              className="ks-primary-btn px-4 py-2 text-sm rounded bg-white text-black
-                        hover:bg-gray-200 disabled:opacity-60 transition-colors"
+              className="ks-tab ks-tab-active shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-60"
+              style={PILL_TAB_STYLE}
             >
               {saving ? submittingLabel || 'Saving…' : submitLabel}
             </button>
           )}
-        </div>
+        </PageFormActionsPill>
       )}
     </form>
   );
