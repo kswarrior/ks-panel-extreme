@@ -3652,3 +3652,150 @@ func ActionStdinHandler(w http.ResponseWriter, r *http.Request) {
 		"accepted":  true,
 	})
 }
+
+// installConsoleIDFromConfig reads the instance's deploy-time config
+// snapshot for the template's install_terminal_id (the attach-by-ID
+// handle for the Installation workflow console). Empty = this instance
+// has no installation console bound.
+func installConsoleIDFromConfig(configJSON string) string {
+	s := strings.TrimSpace(configJSON)
+	if s == "" {
+		return ""
+	}
+	var spec map[string]any
+	if err := json.Unmarshal([]byte(s), &spec); err != nil {
+		return ""
+	}
+	return installConsoleIDFromSpec(spec)
+}
+
+// InstallStdinHandler forwards one console line from a terminal pane
+// bound to the Installation workflow (pane ID == the template's
+// install_terminal_id) into the running install workflow's kept stdin
+// pipe. URL: POST /api/instances/{id}/install/stdin, body
+// {"data": "<line>"}.
+//
+// Enforcement mirrors ActionStdinHandler but for installs:
+//  1. install_state must be 'running' with install_kind != 'action' —
+//     input to a finished install, or to a running ACTION workflow (which
+//     has its own per-action stdin endpoint), is rejected (409).
+//  2. The instance's config must bind install_terminal_id — unbound
+//     installs have no console (403).
+//  3. There is no per-install allowlist policy (unlike actions): any
+//     line is relayed while the install runs. The gate is the binding +
+//     the same VIEW/own-scope/controls checks as action consoles.
+// The payload is capped at 4 KiB; the edge appends "\n" and writes it to
+// the workflow's kept stdin pipe (deploy/reinstall/recreate kickoffs set
+// KeepStdin exactly when install_terminal_id is bound).
+func InstallStdinHandler(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	var body struct {
+		Data string `json:"data"`
+	}
+	raw, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil {
+		http.Error(w, "read body: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := json.Unmarshal(raw, &body); err != nil {
+		http.Error(w, "invalid payload", http.StatusBadRequest)
+		return
+	}
+	line := strings.TrimRight(body.Data, "\r\n")
+	if len(line) > 4096 {
+		http.Error(w, "input line too long (max 4096 chars)", http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(line) == "" {
+		http.Error(w, "empty input", http.StatusBadRequest)
+		return
+	}
+
+	con, err := repository.OpenDB()
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	defer con.Close()
+
+	instRepo := repository.NewInstanceRepository(con)
+	nodeRepo := repository.NewNodeRepository(con)
+
+	inst, err := instRepo.Get(id)
+	if err != nil {
+		http.Error(w, "instance not found", http.StatusNotFound)
+		return
+	}
+	// Ownership scope: Own without All may only write to own instances.
+	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
+		chk := permissions.NewChecker(con)
+		hasOwn, hasAll, serr := chk.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		if serr != nil {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		if !hasAll && hasOwn && inst.OwnerID != uid {
+			http.Error(w, "forbidden: own-scope may only manage own instances", http.StatusForbidden)
+			return
+		}
+	}
+	if forbidByInstanceControls(w, inst.Config, "allow_template_actions", "installation console input") {
+		return
+	}
+
+	// The console only exists while a NON-action workflow (deploy /
+	// reinstall / recreate install) is the running workflow. A running
+	// action owns the same edge key and has its own stdin endpoint, so
+	// refuse here rather than injecting a line into the wrong console.
+	if inst.InstallState != "running" || inst.InstallKind == "action" {
+		http.Error(w, "installation is not running (terminal stopped)", http.StatusConflict)
+		return
+	}
+	if installConsoleIDFromConfig(inst.Config) == "" {
+		http.Error(w, "installation has no terminal (install_terminal_id is empty)", http.StatusForbidden)
+		return
+	}
+
+	token, err := nodeRepo.PlainToken(inst.NodeID)
+	if err != nil || token == "" {
+		writeJSONStatus(w, http.StatusBadGateway, map[string]any{
+			"error": "node has no usable edge token (rotate it first)",
+		})
+		return
+	}
+	node, err := nodeRepo.GetNode(inst.NodeID)
+	if err != nil {
+		http.Error(w, "owner node not found", http.StatusNotFound)
+		return
+	}
+	ec := edge.NewWithTimeout(*node, token, 60*time.Second)
+	name := inst.ExternalID
+	if name == "" {
+		name = inst.Name
+	}
+	stresp, sterr := ec.InstallStdin(edge.InstallStdinRequest{
+		Kind: inst.Kind,
+		Name: name,
+		Data: line + "\n",
+	})
+	if sterr != nil {
+		writeJSONStatus(w, http.StatusBadGateway, map[string]any{
+			"error": "edge rejected console input: " + sterr.Error(),
+		})
+		return
+	}
+	if stresp.Error != "" {
+		writeJSONStatus(w, http.StatusConflict, map[string]any{
+			"error": stresp.Error,
+		})
+		return
+	}
+	writeJSON(w, map[string]any{
+		"id":       id,
+		"accepted": true,
+	})
+}
