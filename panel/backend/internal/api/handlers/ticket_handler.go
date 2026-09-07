@@ -212,6 +212,15 @@ func ListTicketsHandler(w http.ResponseWriter, r *http.Request) {
 	mineOnly := mineStr == "1" || strings.EqualFold(mineStr, "true")
 	limit, _ := strconv.Atoi(q.Get("limit"))
 	offset, _ := strconv.Atoi(q.Get("offset"))
+	if limit < 0 {
+		limit = 0
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	if offset < 0 {
+		offset = 0
+	}
 
 	if category != "" && !models.ValidTicketCategories[category] {
 		http.Error(w, "invalid category", http.StatusBadRequest)
@@ -668,6 +677,12 @@ func UpdateTicketHandler(w http.ResponseWriter, r *http.Request) {
 		if len(*req.Tags) > 20 {
 			http.Error(w, "too many tags", http.StatusBadRequest)
 			return
+		}
+		for _, t := range *req.Tags {
+			if len(t) > 30 {
+				http.Error(w, "tag too long (max 30)", http.StatusBadRequest)
+				return
+			}
 		}
 		b, _ := json.Marshal(*req.Tags)
 		s := string(b)

@@ -123,6 +123,7 @@ func UploadDatabaseBackupHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid multipart payload: "+err.Error(), http.StatusBadRequest)
 		return
 	}
+	defer r.MultipartForm.RemoveAll()
 	file, hdr, err := r.FormFile("file")
 	if err != nil {
 		// Accept alternative field name "backup" for ergonomics.

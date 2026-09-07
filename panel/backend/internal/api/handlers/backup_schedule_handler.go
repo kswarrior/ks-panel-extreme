@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -517,7 +518,6 @@ func PullDBBackupFromS3Handler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "s3 remote is not configured", http.StatusBadRequest)
 		return
 	}
-	dst := strings.TrimSuffix(name, ".tmp") // never write a .tmp name
 	// Ensure the pulled file lands inside the backup dir under a valid name.
 	if _, comp := splitBackupSuffixForName(name); comp == "" {
 		// splitBackupSuffixForName mirrors backup.splitBackupSuffix (unexported);
@@ -525,8 +525,7 @@ func PullDBBackupFromS3Handler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unsupported backup suffix (want .db/.sql with optional .gz/.zst)", http.StatusBadRequest)
 		return
 	}
-	_ = dst
-	if err := backup.S3Pull(cfg, name, backup.ListDir()+"/"+name); err != nil {
+	if err := backup.S3Pull(cfg, name, filepath.Join(backup.ListDir(), name)); err != nil {
 		http.Error(w, "s3 pull failed: "+err.Error(), http.StatusBadGateway)
 		return
 	}

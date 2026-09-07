@@ -528,7 +528,11 @@ func ListInstancePagesHandler(w http.ResponseWriter, r *http.Request) {
 	// umbrella → full library.
 	if uid, _ := UserIDFromContext(r); uid != 0 {
 		chk := permissions.NewChecker(con)
-		hasOwn, hasAll, _ := chk.HasScope(uid, permissions.InstancePagesOwnKey, permissions.InstancePagesAllKey, permissions.ManageInstancePagesKey)
+		hasOwn, hasAll, serr := chk.HasScope(uid, permissions.InstancePagesOwnKey, permissions.InstancePagesAllKey, permissions.ManageInstancePagesKey)
+		if serr != nil {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
 		if !hasAll && hasOwn {
 			filtered := make([]models.InstancePage, 0, len(pages))
 			for _, p := range pages {
@@ -563,7 +567,11 @@ func GetInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if uid, _ := UserIDFromContext(r); uid != 0 {
 		chk := permissions.NewChecker(con)
-		hasOwn, hasAll, _ := chk.HasScope(uid, permissions.InstancePagesOwnKey, permissions.InstancePagesAllKey, permissions.ManageInstancePagesKey)
+		hasOwn, hasAll, serr := chk.HasScope(uid, permissions.InstancePagesOwnKey, permissions.InstancePagesAllKey, permissions.ManageInstancePagesKey)
+		if serr != nil {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
 		if !hasAll && hasOwn && page.OwnerID != uid {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
@@ -670,7 +678,11 @@ func UpdateInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if uid, _ := UserIDFromContext(r); uid != 0 {
 		chk := permissions.NewChecker(con)
-		hasOwn, hasAll, _ := chk.HasScope(uid, permissions.InstancePagesOwnKey, permissions.InstancePagesAllKey, permissions.ManageInstancePagesKey)
+		hasOwn, hasAll, serr := chk.HasScope(uid, permissions.InstancePagesOwnKey, permissions.InstancePagesAllKey, permissions.ManageInstancePagesKey)
+		if serr != nil {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
 		if !hasAll && hasOwn {
 			if ex, gerr := repo.Get(id); gerr == nil && ex != nil && ex.OwnerID != uid {
 				http.Error(w, "forbidden: own-scope may only edit instance pages you authored", http.StatusForbidden)
@@ -747,7 +759,11 @@ func DeleteInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if uid, _ := UserIDFromContext(r); uid != 0 {
 		chk := permissions.NewChecker(con)
-		hasOwn, hasAll, _ := chk.HasScope(uid, permissions.InstancePagesOwnKey, permissions.InstancePagesAllKey, permissions.ManageInstancePagesKey)
+		hasOwn, hasAll, serr := chk.HasScope(uid, permissions.InstancePagesOwnKey, permissions.InstancePagesAllKey, permissions.ManageInstancePagesKey)
+		if serr != nil {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
 		if !hasAll && hasOwn && ownerID != uid {
 			http.Error(w, "forbidden: own-scope may only delete instance pages you authored", http.StatusForbidden)
 			return

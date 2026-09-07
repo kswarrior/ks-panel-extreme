@@ -77,12 +77,30 @@ const NodeUpdateTab: React.FC<NodeUpdateTabProps> = ({ nodeId, nodeName }) => {
     }
   }, [nodeId]);
 
+  const watchersRef = useRef<{ tick: number | null; poll: number | null }>({ tick: null, poll: null });
+
+  const stopWatchers = useCallback(() => {
+    if (watchersRef.current.poll !== null) window.clearInterval(watchersRef.current.poll);
+    if (watchersRef.current.tick !== null) window.clearInterval(watchersRef.current.tick);
+    watchersRef.current = { tick: null, poll: null };
+  }, []);
+
+  // Unmount / node switch must not leave the 1s tick + 2s poll running:
+  // the tick calls setRestartSeconds forever and the poll hammers
+  // getNodeUpdateInfo after the tab is gone.
+  useEffect(() => stopWatchers, [stopWatchers]);
+  useEffect(() => { stopWatchers(); }, [nodeId, stopWatchers]);
+
   const watchEdgeRestart = useCallback((prevVersion?: string) => {
+    // A second Apply/Reinstall while a watch is in flight replaces it —
+    // otherwise two tick+poll pairs stack and race setRestarting.
+    stopWatchers();
     setRestarting(true);
     const startedAt = Date.now();
     const tick = window.setInterval(() => {
       setRestartSeconds(Math.round((Date.now() - startedAt) / 1000));
     }, 1000);
+    watchersRef.current.tick = tick;
     let attempts = 0;
     let sawDown = false;
     const poll = window.setInterval(async () => {
@@ -93,20 +111,26 @@ const NodeUpdateTab: React.FC<NodeUpdateTabProps> = ({ nodeId, nodeName }) => {
         if (fresh?.local?.version && prevVersion && fresh.local.version !== prevVersion) {
           window.clearInterval(poll);
           window.clearInterval(tick);
+          watchersRef.current = { tick: null, poll: null };
           setRestarting(false);
         } else if (fresh?.local?.version && sawDown) {
           window.clearInterval(poll);
           window.clearInterval(tick);
+          watchersRef.current = { tick: null, poll: null };
           setRestarting(false);
         }
         if (attempts >= 240) {
           window.clearInterval(poll);
+          window.clearInterval(tick);
+          watchersRef.current = { tick: null, poll: null };
+          setRestarting(false);
         }
       } catch {
         sawDown = true;
       }
     }, 2000);
-  }, [nodeId]);
+    watchersRef.current.poll = poll;
+  }, [nodeId, stopWatchers]);
 
   const doApply = useCallback(async () => {
     setConfirmOpen(false);

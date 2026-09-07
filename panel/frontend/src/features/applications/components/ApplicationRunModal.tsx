@@ -125,6 +125,19 @@ const ApplicationRunModal: React.FC<Props> = ({ app, onClose }) => {
   const submit = async () => {
     setError('');
     setResult(null);
+    // Mirror backend guards (application_run.go): node target needs a node,
+    // container/VM modes need a workload, timeout must be 5..1800. Catching
+    // these inline keeps the modal open with a readable message instead of
+    // surfacing the raw 400 body.
+    if (target === 'node' && (nodeId === '' || !Number.isFinite(Number(nodeId)))) {
+      setError('Pick a node to run on.');
+      return;
+    }
+    const timeout = Number(timeoutSec);
+    if (!Number.isFinite(timeout) || timeout < 5 || timeout > 1800) {
+      setError('Timeout must be 5–1800 seconds.');
+      return;
+    }
     if (execMode !== 'host' && !workload) {
       setError(`Pick a ${execMode} workload to run inside.`);
       return;

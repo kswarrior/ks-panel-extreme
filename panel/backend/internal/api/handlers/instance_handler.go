@@ -2178,7 +2178,11 @@ func RestartInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	// Ownership scope for restart: Own → must own the instance.
 	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
 		checker := permissions.NewChecker(con)
-		hasOwn, hasAll, _ := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		hasOwn, hasAll, serr := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		if serr != nil {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
 		if !hasAll && hasOwn && inst.OwnerID != uid {
 			http.Error(w, "forbidden: own-scope may only manage own instances", http.StatusForbidden)
 			return
@@ -2627,7 +2631,11 @@ func InvokeActionHandler(w http.ResponseWriter, r *http.Request) {
 	// Ownership scope for invoke: Own → must own the instance.
 	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
 		checker := permissions.NewChecker(con)
-		hasOwn, hasAll, _ := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		hasOwn, hasAll, serr := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		if serr != nil {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
 		if !hasAll && hasOwn && inst.OwnerID != uid {
 			http.Error(w, "forbidden: own-scope may only manage own instances", http.StatusForbidden)
 			return
@@ -2928,7 +2936,11 @@ func StopActionHandler(w http.ResponseWriter, r *http.Request) {
 	// Ownership scope for stop: Own → must own the instance.
 	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
 		checker := permissions.NewChecker(con)
-		hasOwn, hasAll, _ := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		hasOwn, hasAll, serr := checker.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		if serr != nil {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
 		if !hasAll && hasOwn && inst.OwnerID != uid {
 			http.Error(w, "forbidden: own-scope may only manage own instances", http.StatusForbidden)
 			return

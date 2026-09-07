@@ -86,6 +86,17 @@ func parseExpiry(s string) (*time.Time, error) {
 	return nil, fmt.Errorf("invalid expires_at: %q", s)
 }
 
+// validateRateLimit fails closed on a negative per-key quota: a negative
+// limit would otherwise be stored as-is and then treated as "no limit" by
+// CheckAPIKeyRateLimit (<=0 means unlimited), silently turning a typo into
+// an unlimited key. nil stays "no limit"; window <=0 still defaults to 60s.
+func validateRateLimit(rateLimit *int64) error {
+	if rateLimit != nil && *rateLimit < 0 {
+		return fmt.Errorf("rate_limit must be >= 0")
+	}
+	return nil
+}
+
 func ListApiKeysHandler(w http.ResponseWriter, r *http.Request) {
 	uid, err := UserIDFromContext(r)
 	if err != nil {
@@ -161,6 +172,10 @@ func CreateApiKeyHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "name is required", http.StatusBadRequest)
 		return
 	}
+	if err := validateRateLimit(req.RateLimit); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	expiry, err := parseExpiryPtr(req.ExpiresAt)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -234,6 +249,10 @@ func UpdateApiKeyHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Name == "" {
 		http.Error(w, "name is required", http.StatusBadRequest)
+		return
+	}
+	if err := validateRateLimit(req.RateLimit); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	expiry, err := parseExpiryPtr(req.ExpiresAt)
@@ -417,6 +436,10 @@ func AdminCreateApiKeyHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "user_id is required", http.StatusBadRequest)
 		return
 	}
+	if err := validateRateLimit(req.RateLimit); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	expiry, err := parseExpiryPtr(req.ExpiresAt)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -497,6 +520,10 @@ func AdminUpdateApiKeyHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Name == "" {
 		http.Error(w, "name is required", http.StatusBadRequest)
+		return
+	}
+	if err := validateRateLimit(req.RateLimit); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	expiry, err := parseExpiryPtr(req.ExpiresAt)

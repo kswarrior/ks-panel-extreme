@@ -245,9 +245,15 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
     el.addEventListener('touchend', handleTouchEnd as EventListener, { passive: false });
 
     // Initial size to the bridge so the edge spawns at the right geometry.
-    setTimeout(() => sendResize(term.cols, term.rows), 100);
+    // Tracked so unmount within the window doesn't touch a disposed term.
+    const resizeTimer = window.setTimeout(() => {
+      try {
+        if (termRef.current) sendResize(term.cols, term.rows);
+      } catch { /* noop */ }
+    }, 100);
 
     return () => {
+      window.clearTimeout(resizeTimer);
       el.removeEventListener('click', focusTerm);
       el.removeEventListener('touchstart', handleTouchStart as EventListener);
       el.removeEventListener('touchend', handleTouchEnd as EventListener);
