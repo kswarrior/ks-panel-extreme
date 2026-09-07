@@ -163,7 +163,7 @@ export const PillTab: React.FC<PillTabProps> = ({ draft, patch }) => {
       </div>
 
       <div className="ks-form-card rounded-lg space-y-3">
-        <Label label="Preview" hint="Live samples painted from this tab — the Actions Pill (top-right) and the Tabs Pill (phone bottom dropdown). Simulate collapses both (the Tabs Pill re-opens via its toggle)." />
+        <Label label="Preview" hint="Live samples painted from this tab — the Actions Pill (top-right), the Tabs Pill (phone bottom dropdown) and the Form Actions Pill (bottom-right Cancel / Save). Simulate collapses the auto pills (the Tabs Pill re-opens via its toggle)." />
         <p className="text-[11px] uppercase tracking-wide text-gray-500">Actions Pill</p>
         <div className="flex items-center justify-end">
           <div
@@ -312,6 +312,96 @@ export const PillTab: React.FC<PillTabProps> = ({ draft, patch }) => {
           </button>
           <span className="text-[11px] text-gray-500">
             {autoOn ? `off → on after ${p.auto_show_delay}ms` : 'enable auto-off to test timing'}
+          </span>
+        </div>
+        <p className="text-[11px] uppercase tracking-wide text-gray-500 pt-1">Form Actions Pill</p>
+        <div className="flex items-center justify-end">
+          <div
+            className="flex items-center shadow-lg shadow-black/40"
+            style={{
+              background: p.background,
+              borderColor: p.border_color,
+              borderWidth: p.border_width,
+              borderStyle: 'solid',
+              borderRadius: p.border_radius,
+              boxShadow: p.shadow,
+              padding: p.padding,
+              backdropFilter: `blur(${p.backdrop_blur}px)`,
+              color: p.text_color,
+            }}
+          >
+            <div
+              className="flex items-center overflow-hidden transition-all ease-in-out"
+              style={
+                formPreviewOff
+                  ? {
+                      maxWidth: 0,
+                      opacity: 0,
+                      transform: hiddenTransform,
+                      transformOrigin: p.animation === 'scale' ? 'right center' : undefined,
+                      transitionDuration: `${p.animation_duration}ms`,
+                      transitionProperty: p.animation === 'none' ? 'none' : undefined,
+                      pointerEvents: 'none',
+                      visibility: 'hidden',
+                      padding: 0,
+                      margin: 0,
+                      gap: 0,
+                    }
+                  : {
+                      maxWidth: 400,
+                      opacity: 1,
+                      transform: 'none',
+                      transitionDuration: `${p.animation_duration}ms`,
+                      transitionProperty: p.animation === 'none' ? 'none' : undefined,
+                      padding: 0,
+                      margin: 0,
+                      gap: p.gap,
+                    }
+              }
+              aria-hidden={formPreviewOff}
+            >
+              {['Cancel', 'Save'].map((t, i) => (
+                <span
+                  key={t}
+                  className={`ks-tab inline-flex items-center justify-center shrink-0 whitespace-nowrap ${i === 1 ? 'ks-tab-active' : ''}`}
+                  style={{
+                    ['--ks-tab-px' as any]: `${p.tab_padding_x}px`,
+                    ['--ks-tab-py' as any]: `${p.tab_padding_y}px`,
+                    ['--ks-tab-font' as any]: `${p.font_size}px`,
+                  }}
+                >
+                  {t}
+                </span>
+              ))}
+            </div>
+            <span
+              className="ks-tab inline-flex items-center justify-center shrink-0"
+              style={{
+                ['--ks-tab-px' as any]: `${p.tab_padding_x}px`,
+                ['--ks-tab-py' as any]: `${p.tab_padding_y}px`,
+                color: p.text_color,
+              }}
+              aria-hidden="true"
+            >
+              {formPreviewOff ? (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ width: p.icon_size, height: p.icon_size }}><polyline points="15 18 9 12 15 6" /></svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ width: p.icon_size, height: p.icon_size }}><polyline points="9 18 15 12 9 6" /></svg>
+              )}
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={simulateFormOff}
+            disabled={!formAutoOn}
+            className="ks-ghost-btn px-3 py-1.5 text-xs rounded border border-white/10 bg-white/5 hover:bg-white/10 text-gray-200 disabled:opacity-40"
+          >
+            Simulate form auto-off
+          </button>
+          <span className="text-[11px] text-gray-500">
+            {formAutoOn ? `off → on after ${p.form_actions_auto_show_delay ?? p.auto_show_delay ?? 2500}ms` : 'always shows by default — enable auto-off above to test timing'}
           </span>
         </div>
       </div>
