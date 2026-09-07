@@ -833,6 +833,9 @@ func UpdateInstanceHandler(w http.ResponseWriter, r *http.Request) {
 				Steps:      edgeSteps,
 				EnvVars:    envVars,
 				TimeoutSec: timeoutSecFromSpec(merged["install_timeout_sec"]),
+				// Installation console: keep stdin only when the template
+				// binds install_terminal_id (see keepStdinForInstall).
+				KeepStdin: keepStdinForInstall(merged),
 			}); err != nil {
 				log.Printf("recreate async: install kick-off for instance %d failed: %v", id, err)
 				_ = repo2.UpdateInstallStatus(id, "failed", inst.Kind+":"+inst.Name, 0, "edge install start failed: "+err.Error(), string(mustJSON(steps)))
@@ -1173,6 +1176,9 @@ func reinstallAsync(instID, nodeID int64, kind, name string, cfg map[string]any)
 			Steps:      edgeSteps,
 			EnvVars:    envVars,
 			TimeoutSec: timeoutSecFromSpec(cfg["install_timeout_sec"]),
+			// Installation console: keep stdin only when the template
+			// binds install_terminal_id (see keepStdinForInstall).
+			KeepStdin: keepStdinForInstall(cfg),
 		}); err != nil {
 			log.Printf("reinstall async: install kick-off for instance %d failed: %v", instID, err)
 			_ = repo2.UpdateInstallStatus(instID, "failed", kind+":"+name, 0, "edge install start failed: "+err.Error(), string(mustJSON(steps)))
@@ -1807,6 +1813,9 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 				// 0 = unset → the edge applies its own 30-minute default, so
 				// templates that never set the field behave exactly as before.
 				TimeoutSec: timeoutSecFromSpec(tmplSpec["install_timeout_sec"]),
+				// Installation console: keep stdin only when the template
+				// binds install_terminal_id (see keepStdinForInstall).
+				KeepStdin: keepStdinForInstall(tmplSpec),
 			})
 			if err != nil {
 				log.Printf("install kick-off for instance %d failed: %v", id, err)
@@ -1963,6 +1972,37 @@ func timeoutSecFromSpec(v any) int {
 		n = maxWorkflowTimeoutSec
 	}
 	return n
+}
+
+// installConsoleIDFromSpec reports the template spec's install_terminal_id
+// (the attach-by-ID handle for the Installation workflow console, sibling
+// of install_timeout_sec), normalised exactly like action terminal_ids.
+// Empty = the install runs non-interactive (legacy behaviour, no stdin
+// pipe kept). Non-empty = kickoff sites pass KeepStdin so a terminal pane
+// bound to this ID can stream the transcript AND send input while the
+// workflow runs.
+func installConsoleIDFromSpec(spec map[string]any) string {
+	if spec == nil {
+		return ""
+	}
+	raw, ok := spec["install_terminal_id"]
+	if !ok || raw == nil {
+		return ""
+	}
+	s, ok := raw.(string)
+	if !ok {
+		return ""
+	}
+	return strings.ToLower(strings.ReplaceAll(strings.TrimSpace(s), " ", "_"))
+}
+
+// keepStdinForInstall reports whether a deploy-time install workflow must
+// keep its current step's stdin open: only when the template binds an
+// Installation console (install_terminal_id). Keeping the pipe changes
+// step stdio semantics (a step reading stdin blocks instead of seeing
+// EOF), so workflows without a console keep the legacy closed-stdin path.
+func keepStdinForInstall(spec map[string]any) bool {
+	return installConsoleIDFromSpec(spec) != ""
 }
 
 // validInstanceName checks the instance name against docker-compatible rules.
