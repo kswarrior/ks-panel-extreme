@@ -77,13 +77,16 @@ export const TemplateEnvironmentSection: React.FC<EnvironmentSectionProps> = ({
         <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">Section B · Infra & Environment</h4>
         <div>
           <label className={labelCls}>{runtimeLabel}</label>
-          <input 
-            value={image} 
-            onChange={(e) => onImageChange?.(e.target.value)} 
-            placeholder={kind === 'docker' ? 'registry.example.com/app:latest' : '/path/to/ubuntu.iso'} 
-            className={monoCls} 
+          <input
+            value={image}
+            onChange={(e) => onImageChange?.(e.target.value)}
+            placeholder={kind === 'docker' ? 'registry.example.com/app:latest or {{IMAGE}}' : '/path/to/ubuntu.iso'}
+            className={monoCls}
             readOnly={!onImageChange}
           />
+          <p className="text-[11px] text-gray-500 mt-1">
+            Variables work here: <code className="font-mono text-gray-400">{'{{IMAGE}}'}</code> / <code className="font-mono text-gray-400">{'${IMAGE}'}</code> + a select env var = multi-image template.
+          </p>
         </div>
 
         <div>
