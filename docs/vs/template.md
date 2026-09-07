@@ -1,4 +1,4 @@
-# Template System vs — `/templates` Only (honest, Sept 2026)
+# Template System vs — `/templates` Only (honest, Sept 2026, rev 2: config parsers removed)
 
 Scope: template blueprint system only. Every row compares all four panels. No standalone feature tour.
 
