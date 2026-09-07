@@ -18,15 +18,13 @@ import (
 )
 
 // ListPortsHandler returns merged DB allocations + live inspect ports.
-// It keeps the original "ports" page guard so only instances with that page
-// enabled can read. The response is an object for the new editor but remains
+// Ports is a self-sufficient builtin: no spec.pages whitelist gate (auth +
+// VIEW permission already ran in middleware; Own-scope is checked below).
+// The response is an object for the new editor but remains
 // backward compatible with the legacy array consumers: legacy callers that
 // expect a bare array will now receive an object with a `ports` key (the live
 // array) — the frontend helper normalizes both shapes.
 func ListPortsHandler(w http.ResponseWriter, r *http.Request) {
-	if !guardInstancePage(w, r, "ports") {
-		return
-	}
 	inst, ec, _, ok := loadInstNode(w, r)
 	if !ok {
 		return

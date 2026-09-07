@@ -68,13 +68,10 @@ var upgrader = websocket.Upgrader{
 // is registered with r.With(requirePermission("VIEW_INSTANCES")) in
 // server.go).
 func TerminalHandler(w http.ResponseWriter, r *http.Request) {
-	// Enforce the template-page whitelist: the Terminal tab is only reachable
-	// when the instance's template added "terminal" (or a renamed variant)
-	// to spec.pages. Done BEFORE the WebSocket upgrade so a denial returns a
-	// plain 403 JSON instead of an aborted WS handshake.
-	if !guardInstancePage(w, r, "terminal") {
-		return
-	}
+	// Terminal is a self-sufficient builtin: no spec.pages whitelist gate.
+	// Auth + VIEW permission already ran in middleware (see server.go), and
+	// the bridge dials only the instance's own edge. The page whitelist
+	// remains enforced for library custom pages (env/automation/…).
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
