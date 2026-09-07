@@ -312,6 +312,11 @@ export interface TemplateFormState {
   limits: ResourceLimits;
   caps: FeatureCaps;
   env: EnvVariable[];
+  // Raw docker-compose-style `.env` file content (KEY=VALUE per line).
+  // Substituted (`{{NAME}}`/`${NAME}`) then merged under the explicit env
+  // vars at deploy, so it becomes real container env (Docker `-e`, LXD
+  // `environment.*`). Empty = unused.
+  env_file: string;
   install: InstallStep[];
   // Whole-workflow budget in seconds for the template's install workflow
   // (spec.install_timeout_sec). Empty = the edge's default (30 min).
@@ -405,6 +410,7 @@ export const emptyForm: TemplateFormState = {
   limits: { ram_mb: '', cpu_pct: '', disk_mb: '', swap_mb: '' },
   caps: { databases: '', backups: '', networks: '' },
   env: [],
+  env_file: '',
   install: [],
   install_timeout_s: '',
   actions: [],
