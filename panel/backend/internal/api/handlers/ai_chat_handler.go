@@ -3064,16 +3064,22 @@ func aiPlanDeploy(a *aiCallCtx, args map[string]any) (*aiDeployPlan, error) {
 		cfg = map[string]any{}
 	}
 	cfg["image"] = tmpl.Image
+	// Environment file (.env): substituted with the defaults, parsed, and
+	// merged under the explicit vars — same compose rule as the deploy path.
+	mergedEnv, merr := resolveEnvWithFile(getString(spec, "env_file"), finalEnv)
+	if merr != nil {
+		return nil, fmt.Errorf("template env_file invalid: %w", merr)
+	}
 	envMap, ok := cfg["env"].(map[string]any)
 	if !ok {
 		envMap = map[string]any{}
 		cfg["env"] = envMap
 	}
-	for k, v := range finalEnv {
+	for k, v := range mergedEnv {
 		envMap[k] = v
 	}
 	substituteInstanceName(cfg, name)
-	substituteEnvVars(cfg, finalEnv, nil)
+	substituteEnvVars(cfg, mergedEnv, nil)
 	// Redacted copy for the row: strip secret defaults at rest.
 	cfgForStore := cfg
 	if len(envSpecs) > 0 {

@@ -1454,6 +1454,20 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// ---- ENVIRONMENT FILE (.env) ----
+	// The template's raw env_file content is substituted with the validated
+	// vars, parsed as dotenv, and merged UNDER the explicit vars (explicit
+	// wins — the docker-compose `environment` beats `env_file` rule), so the
+	// file becomes real workload env instead of inert text.
+	mergedEnv, err := resolveEnvWithFile(getString(tmplSpec, "env_file"), finalEnv)
+	if err != nil {
+		writeJSONStatus(w, http.StatusBadRequest, map[string]any{
+			"error":  "env_file invalid",
+			"detail": err.Error(),
+		})
+		return
+	}
+
 	// ---- INSTALL STEPS ----
 	// Extract install[] steps from template spec.
 	var installSteps []installStepSpec
@@ -1493,10 +1507,10 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// ---- MERGE VALIDATED ENV INTO DEPLOY CONFIG ----
-	// The operator's validated env vars (finalEnv) must be passed to the
+	// The merged env vars (explicit over env_file) must be passed to the
 	// container via docker -e so they're available at runtime, AND to the
-	// edge install workflow for {{KEY}} substitution. The template's stored
-	// spec.env may have defaults; we override with the validated values.
+	// edge install workflow for {{KEY}}/${KEY} substitution. The template's
+	// stored spec.env may have defaults; we override with the validated values.
 	//
 	// The cfg["env"] type assertion uses comma-ok so a template that defines
 	// env as a non-map (some old templates serialised it as `[]`) doesn't
@@ -1508,18 +1522,38 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 		envMap = map[string]any{}
 		cfg["env"] = envMap
 	}
-	for k, v := range finalEnv {
+	for k, v := range mergedEnv {
 		envMap[k] = v
 	}
 
 	// Substitute per-deploy placeholders in mounts.
 	substituteInstanceName(cfg, req.Name)
 	// Substitute {{KEY}}/${KEY} placeholders in all template spec fields using
-	// the validated environment variables. Each variable only substitutes
+	// the merged environment variables. Each variable only substitutes
 	// inside its `scopes` sections (empty = everywhere): image vars resolve
 	// the deploy image (multi-image via a select var), controls vars resolve
 	// instance_controls/home_page, and so on — not just install steps.
-	substituteEnvVars(cfg, finalEnv, envScopesByName(envSpecs))
+	// File-declared vars carry no scope entry, so they resolve everywhere.
+	substituteEnvVars(cfg, mergedEnv, envScopesByName(envSpecs))
+	// LXD has no docker-style `-e`: forward the merged env as
+	// `environment.*` container config so it becomes real process env there
+	// too. Operator-authored `config` keys win on conflict; a non-map config
+	// is left alone (never crash a deploy on shape drift).
+	if tmpl.Kind == "lxd" && len(mergedEnv) > 0 {
+		lxdCfg, ok := cfg["config"].(map[string]any)
+		if !ok && cfg["config"] == nil {
+			lxdCfg = map[string]any{}
+			cfg["config"] = lxdCfg
+			ok = true
+		}
+		if ok {
+			for k, v := range mergedEnv {
+				if _, exists := lxdCfg["environment."+k]; !exists {
+					lxdCfg["environment."+k] = v
+				}
+			}
+		}
+	}
 	// Reject a deploy whose host ports are already taken on this node by
 	// another instance. Without this every second minecraft deploy (default
 	// host 25565) sailed through to `docker run -p 25565:…` and died with
@@ -1765,9 +1799,10 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 				Kind:  tmpl.Kind,
 				Name:  req.Name,
 				Steps: edgeSteps,
-				// Only install-scoped vars reach the workflow: an actions-only
-				// var must not leak into (or be required by) install steps.
-				EnvVars: filterEnvForScope(finalEnv, envScopesByName(envSpecs), "install"),
+			// Only install-scoped vars reach the workflow: an actions-only
+			// var must not leak into (or be required by) install steps.
+			// File-declared (.env) vars carry no scope and pass through.
+			EnvVars: filterEnvForScope(mergedEnv, envScopesByName(envSpecs), "install"),
 				// Template-authored workflow budget (spec.install_timeout_sec).
 				// 0 = unset → the edge applies its own 30-minute default, so
 				// templates that never set the field behave exactly as before.
