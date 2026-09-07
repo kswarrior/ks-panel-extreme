@@ -28,7 +28,11 @@ func TestValidatePanelRootURL(t *testing.T) {
 		{"", true},
 		{"panel", true},
 		{"my-panel2", true},
-		{"UPPER", false},
+		// Normalize lowercases before validate in every caller
+		// (settings_handler, GetPanelRootURL), so "UPPER" arrives as
+		// "upper" and is valid. Raw uppercase without normalize is
+		// rejected — covered by the direct call below.
+		{"UPPER", true},
 		{"has space", false},
 		{"api", false},
 		{"health", false},
@@ -41,5 +45,10 @@ func TestValidatePanelRootURL(t *testing.T) {
 		if (err == nil) != tc.valid {
 			t.Errorf("ValidatePanelRootURL(%q) err = %v, want valid=%v", tc.in, err, tc.valid)
 		}
+	}
+	// Raw (un-normalized) uppercase must be rejected: callers must
+	// Normalize first; Validate alone enforces the lowercase contract.
+	if err := ValidatePanelRootURL("UPPER"); err == nil {
+		t.Errorf("ValidatePanelRootURL(%q) err = nil, want rejection of raw uppercase", "UPPER")
 	}
 }
