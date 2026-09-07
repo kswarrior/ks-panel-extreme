@@ -2847,7 +2847,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     // (via RouteThemeSync) so the next page picks whichever assignment is
     // in effect. No second applyForRoute here — it would immediately undo
     // this paint when the saved theme isn't assigned to this route.
-    applyTheme(saved, { pathname: typeof window !== 'undefined' ? window.location.pathname : '/' });
+    applyTheme(saved, { pathname: typeof window !== 'undefined' ? stripPanelBase(window.location.pathname) : '/' });
     return saved;
   },
 

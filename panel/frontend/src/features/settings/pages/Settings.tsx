@@ -74,6 +74,7 @@ const Settings: React.FC = () => {
   const setLogoStyle = useSettingsStore((s) => s.setLogoStyle);
   const setBrowserTabTitle = useSettingsStore((s) => s.setBrowserTabTitle);
   const setFavicon = useSettingsStore((s) => s.setFavicon);
+  const setPanelRootUrl = useSettingsStore((s) => s.setPanelRootUrl);
   const confirm = useConfirm();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -83,6 +84,7 @@ const Settings: React.FC = () => {
   const [success, setSuccess] = useState('');
   const [name, setName] = useState('KS Panel');
   const [tabTitle, setTabTitle] = useState('');
+  const [rootUrl, setRootUrl] = useState('');
   const [nameStyle, setNameStyleLocal] = useState<PanelNameStyle>({ ...DEFAULT_PANEL_NAME_STYLE });
   const [logoStyle, setLogoStyleLocal] = useState<PanelLogoStyle>({ ...DEFAULT_PANEL_LOGO_STYLE });
   const [logo, setLogo] = useState<{ url: string; mime: string; filename?: string } | null>(null);
@@ -104,6 +106,7 @@ const Settings: React.FC = () => {
         setName(snap.panel_name || 'KS Panel');
         setLogo(snap.panel_logo || null);
         setTabTitle((snap as any).browser_tab_title || '');
+        setRootUrl((snap as any).panel_root_url || '');
         setFaviconLocal((snap as any).favicon || null);
         setNameStyleLocal(brandNameStyleFromWire(snap as any));
         setLogoStyleLocal(brandLogoStyleFromWire(snap as any));
@@ -142,6 +145,15 @@ const Settings: React.FC = () => {
       setError(`Browser tab title is too long (max ${MAX_TAB_TITLE_LEN} characters)`);
       return;
     }
+    const normRoot = rootUrl.trim().toLowerCase().replace(/^\/+|\/+$/g, '');
+    if (normRoot && !/^[a-z0-9][a-z0-9-]{0,31}$/.test(normRoot)) {
+      setError('Root URL must be lowercase letters, digits and hyphens (max 32), starting with a letter or digit');
+      return;
+    }
+    if (['api', 'health', 'favicon.ico', 'assets'].includes(normRoot)) {
+      setError(`Root URL "${normRoot}" is reserved by the panel`);
+      return;
+    }
     setSaving(true);
     setError('');
     setSuccess('');
@@ -152,6 +164,7 @@ const Settings: React.FC = () => {
       const snap = await updateSettings({
         panel_name: name.trim(),
         browser_tab_title: tabTitle.trim(),
+        panel_root_url: normRoot,
         panel_name_color: nameStyle.color,
         panel_name_font: nameStyle.font,
         panel_name_weight: nameStyle.weight,
@@ -173,6 +186,8 @@ const Settings: React.FC = () => {
       });
       setName(snap.panel_name);
       setTabTitle((snap as any).browser_tab_title || '');
+      setRootUrl((snap as any).panel_root_url || '');
+      setPanelRootUrl((snap as any).panel_root_url || '');
       // Push the new brand into the global store so Header / Sidebar / Login
       // pick it up without a reload.
       setPanelName(snap.panel_name);
@@ -803,6 +818,40 @@ const Settings: React.FC = () => {
                 </div>
               </div>
             </div>
+          </div>
+        </section>
+
+        {/* ===================== ROOT URL ===================== */}
+        <section>
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">
+            Root URL
+          </h3>
+          <p className="text-xs text-gray-500 mb-4">
+            The path segment the panel lives under. Empty (default) serves the panel at the origin root
+            (<span className="font-mono">/mods</span>, <span className="font-mono">/instances</span>, …);
+            e.g. <span className="font-mono">panel</span> serves it at <span className="font-mono">/panel/mods</span>,{' '}
+            <span className="font-mono">/panel/instances/…</span>. Takes effect after you reload the page.
+          </p>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1" htmlFor="panel-root-url">
+              Base path
+            </label>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500 font-mono">/</span>
+              <input
+                id="panel-root-url"
+                value={rootUrl}
+                onChange={(e) => setRootUrl(e.target.value.toLowerCase())}
+                className={fieldClass}
+                placeholder="(empty = origin root)"
+                spellCheck={false}
+                autoComplete="off"
+              />
+            </div>
+            <p className="mt-1.5 text-[11px] text-gray-500">
+              Lowercase letters, digits and hyphens, max 32. Reserved: api, health, favicon.ico, assets.
+              Must not equal a stack app mount.
+            </p>
           </div>
         </section>
 

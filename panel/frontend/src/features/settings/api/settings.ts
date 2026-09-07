@@ -21,6 +21,7 @@ export interface PublicBrand {
   footer_text?: string;
   browser_tab_title?: string;
   favicon?: PanelLogo | null;
+  panel_root_url?: string;
   panel_name_color?: string;
   panel_name_font?: string;
   panel_name_weight?: string;
@@ -107,6 +108,9 @@ export interface SettingsSnapshot {
   // to panel_name) + tab icon file reference.
   browser_tab_title?: string;
   favicon?: PanelLogo | null;
+  // Panel root URL (Settings > General > Root URL): single path segment the
+  // SPA lives under ("" = origin root). Takes effect after a reload.
+  panel_root_url?: string;
   // Panel-name brand styling + logo presentation (Settings > General).
   panel_name_color?: string;
   panel_name_font?: string;

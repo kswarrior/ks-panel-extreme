@@ -163,7 +163,9 @@ function componentToHtml(comp: PageComponentDef): string {
 
 // Minimal markdown-to-HTML converter for component content.
 // Mirrors the subset handled by renderMarkdown but outputs HTML string.
-function markdownToHtml(md: string): string {
+// Exported for the stack file editor's Markdown preview (same renderer the
+// panel itself paints with, so preview matches the served page).
+export function markdownToHtml(md: string): string {
   if (!md.trim()) return '';
   return md
     .split('\n')

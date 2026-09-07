@@ -60,6 +60,7 @@ const App: React.FC = () => {
           footer_text: snap.footer_text || 'KS Warrior',
           browser_tab_title: (snap as any).browser_tab_title || '',
           favicon: (snap as any).favicon || null,
+          panel_root_url: (snap as any).panel_root_url || '',
           nameStyle: (snap as any).nameStyle,
           logoStyle: (snap as any).logoStyle,
         });
