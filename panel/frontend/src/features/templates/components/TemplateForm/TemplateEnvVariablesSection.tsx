@@ -29,7 +29,6 @@ export const TemplateEnvVariablesSection: React.FC<EnvVariablesSectionProps> = (
   onEnvMove,
   imageNames,
   sectionCls,
-  labelCls,
   monoCls,
   addBtn,
 }) => {
