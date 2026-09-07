@@ -4,6 +4,7 @@ import Router from '@/app/router';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
 import { getPanelName } from '@/features/settings/api/settings';
+import { applyBrandToDocument } from '@/shared/utils/brandTab';
 import { fetchAuthorityBranding, isSafeAuthorityLogoUrl } from '@/shared/api/authorityBranding';
 import { useThemeStore } from '@/shared/stores/themeStore';
 import client from '@/shared/api/client';

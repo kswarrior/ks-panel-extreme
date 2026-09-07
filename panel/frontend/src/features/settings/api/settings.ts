@@ -13,10 +13,14 @@ import {
 // Returns the panel name + optional logo so callers can bootstrap their
 // store without further round trips. Brand-style fields ride along so
 // logged-out pages render the styled name without a second fetch.
+// browser_tab_title ("": fall back to panel_name) + favicon (tab icon)
+// ride the same payload so the first paint already has the right tab.
 export interface PublicBrand {
   panel_name: string;
   panel_logo: PanelLogo | null;
   footer_text?: string;
+  browser_tab_title?: string;
+  favicon?: PanelLogo | null;
   panel_name_color?: string;
   panel_name_font?: string;
   panel_name_weight?: string;
@@ -77,6 +81,8 @@ export async function getPanelName(): Promise<PublicBrand & { nameStyle: PanelNa
       panel_name: data?.panel_name || 'KS Panel',
       panel_logo: data?.panel_logo || null,
       footer_text: data?.footer_text,
+      browser_tab_title: (data?.browser_tab_title || '').trim(),
+      favicon: (data as any)?.favicon || null,
       nameStyle: brandNameStyleFromWire(data),
       logoStyle: brandLogoStyleFromWire(data),
     };
@@ -85,6 +91,8 @@ export async function getPanelName(): Promise<PublicBrand & { nameStyle: PanelNa
       panel_name: 'KS Panel',
       panel_logo: null,
       footer_text: 'KS Warrior',
+      browser_tab_title: '',
+      favicon: null,
       nameStyle: { ...DEFAULT_PANEL_NAME_STYLE },
       logoStyle: { ...DEFAULT_PANEL_LOGO_STYLE },
     };
@@ -95,6 +103,10 @@ export async function getPanelName(): Promise<PublicBrand & { nameStyle: PanelNa
 export interface SettingsSnapshot {
   panel_name: string;
   panel_logo?: PanelLogo | null;
+  // Browser-tab brand (Settings > Browser Tab): raw override ("" = fall back
+  // to panel_name) + tab icon file reference.
+  browser_tab_title?: string;
+  favicon?: PanelLogo | null;
   // Panel-name brand styling + logo presentation (Settings > General).
   panel_name_color?: string;
   panel_name_font?: string;
@@ -178,6 +190,8 @@ function normalize(res: Partial<SettingsSnapshot> | undefined): SettingsResponse
   return {
     panel_name: res?.panel_name || 'KS Panel',
     panel_logo: res?.panel_logo || null,
+    browser_tab_title: ((res as any)?.browser_tab_title || '').trim(),
+    favicon: (res as any)?.favicon || null,
     panel_name_color: res?.panel_name_color,
     panel_name_font: res?.panel_name_font,
     panel_name_weight: res?.panel_name_weight,
@@ -238,5 +252,24 @@ export async function uploadPanelLogo(file: File): Promise<SettingsResponse> {
 // `panel_logo: null` so the header / login fall back to the default SVG.
 export async function deletePanelLogo(): Promise<SettingsResponse> {
   const res = await client.delete<SettingsSnapshot>('/api/settings/logo');
+  return normalize(res.data);
+}
+
+// uploadFavicon streams the file in a multipart/form-data POST. Mirrors the
+// backend's SettingsFaviconUploadHandler (5 MiB max;
+// png/jpg/gif/webp/svg/ico).
+export async function uploadFavicon(file: File): Promise<SettingsResponse> {
+  const form = new FormData();
+  form.append('favicon', file);
+  const res = await client.post<SettingsSnapshot>('/api/settings/favicon', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return normalize(res.data);
+}
+
+// deleteFavicon clears the configured tab icon on the server and returns the
+// refreshed settings snapshot.
+export async function deleteFavicon(): Promise<SettingsResponse> {
+  const res = await client.delete<SettingsSnapshot>('/api/settings/favicon');
   return normalize(res.data);
 }

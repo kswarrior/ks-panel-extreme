@@ -192,9 +192,24 @@ export function serializeSpec(f: TemplateFormState): string {
       ? ((f as any).config_files as Array<{ file: string; parser: string; find: Record<string, string>; create_if_missing?: boolean; description?: string }>)
           .filter((c) => c && c.file.trim() !== '')
           .map((c) => {
-            const find: Record<string, string> = {};
+            const find: Record<string, unknown> = {};
             Object.entries(c.find || {}).forEach(([k, v]) => {
-              if (k.trim() !== '') find[k] = String(v ?? '');
+              if (k.trim() === '') return;
+              const t = String(v ?? '');
+              // Multi-replace maps ride as real objects so the backend
+              // executes them as multi-replace (not as an exact-set of a
+              // JSON blob). Plain strings pass through verbatim.
+              const trimmed = t.trim();
+              if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+                try {
+                  const parsed: unknown = JSON.parse(trimmed);
+                  if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                    find[k] = parsed;
+                    return;
+                  }
+                } catch { /* fall through as plain string */ }
+              }
+              find[k] = String(v ?? '');
             });
             const out: Record<string, unknown> = {
               file: c.file.trim(),

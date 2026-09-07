@@ -159,6 +159,8 @@ function readBootstrap(): {
     panelName,
     panelLogo,
     footerText,
+    browserTabTitle,
+    favicon,
     nameStyle: {
       color: pick(boot.panel_name_color, DEFAULT_PANEL_NAME_STYLE.color),
       font: pick(boot.panel_name_font, DEFAULT_PANEL_NAME_STYLE.font),
@@ -193,6 +195,9 @@ interface SettingsState {
   panelName: string;
   panelLogo: PanelLogo | null;
   footerText: string;
+  // Browser-tab override ("" = fall back to panelName) + tab icon.
+  browserTabTitle: string;
+  favicon: PanelLogo | null;
   nameStyle: PanelNameStyle;
   logoStyle: PanelLogoStyle;
   // Authority branding override (GET /api/authority/branding, public).
@@ -203,6 +208,8 @@ interface SettingsState {
   setPanelName: (name: string) => void;
   setPanelLogo: (logo: PanelLogo | null) => void;
   setFooterText: (text: string) => void;
+  setBrowserTabTitle: (title: string) => void;
+  setFavicon: (favicon: PanelLogo | null) => void;
   setNameStyle: (style: PanelNameStyle) => void;
   setLogoStyle: (style: PanelLogoStyle) => void;
   setBranding: (branding: AuthorityBranding | null) => void;
@@ -212,6 +219,8 @@ interface SettingsState {
     panel_name: string;
     panel_logo: PanelLogo | null;
     footer_text: string;
+    browser_tab_title?: string;
+    favicon?: PanelLogo | null;
     nameStyle?: Partial<PanelNameStyle>;
     logoStyle?: Partial<PanelLogoStyle>;
   }) => void;
@@ -221,6 +230,8 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   panelName: initial.panelName,
   panelLogo: initial.panelLogo,
   footerText: initial.footerText,
+  browserTabTitle: initial.browserTabTitle,
+  favicon: initial.favicon,
   nameStyle: initial.nameStyle,
   logoStyle: initial.logoStyle,
   branding: null,
@@ -228,6 +239,8 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     set({ panelName: (name && name.trim()) || 'KS Panel' }),
   setPanelLogo: (logo: PanelLogo | null) => set({ panelLogo: logo }),
   setFooterText: (text: string) => set({ footerText: (text && text.trim()) || 'KS Warrior' }),
+  setBrowserTabTitle: (title: string) => set({ browserTabTitle: (title || '').trim() }),
+  setFavicon: (favicon: PanelLogo | null) => set({ favicon }),
   setNameStyle: (style: PanelNameStyle) => set({ nameStyle: { ...style } }),
   setLogoStyle: (style: PanelLogoStyle) => set({ logoStyle: { ...style } }),
   setBranding: (branding: AuthorityBranding | null) => set({ branding }),
@@ -236,6 +249,8 @@ export const useSettingsStore = create<SettingsState>((set) => ({
       panelName: (snap.panel_name && snap.panel_name.trim()) || 'KS Panel',
       panelLogo: snap.panel_logo,
       footerText: (snap.footer_text && snap.footer_text.trim()) || 'KS Warrior',
+      browserTabTitle: ((snap as any).browser_tab_title || (snap as any).browserTabTitle || '').trim(),
+      favicon: (snap as any).favicon ?? null,
       nameStyle: { ...prev.nameStyle, ...(snap.nameStyle || {}) },
       logoStyle: { ...prev.logoStyle, ...(snap.logoStyle || {}) },
     })),
