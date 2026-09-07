@@ -1408,3 +1408,32 @@ input[type="search"] {
   appearance: none !important;
 }
 
+/* Pill filter/sort dropdowns: keep inside the viewport on all screens.
+   Desktop keeps the absolute anchor but never exceeds the viewport width.
+   Phones pin the open menu as a full-width sheet below the pill so it can
+   never slide off the left edge of the screen. */
+.ks-actions-pill div.absolute.right-0.top-full {
+  max-width: calc(100vw - 2rem) !important;
+}
+.ks-actions-pill div.absolute.right-0.top-full > div {
+  max-width: calc(100vw - 2rem) !important;
+}
+@media (max-width: 639px) {
+  .ks-actions-pill div.absolute.right-0.top-full {
+    position: fixed !important;
+    left: 1rem !important;
+    right: 1rem !important;
+    top: calc(max(4.5rem, env(safe-area-inset-top)) + 3.25rem) !important;
+    width: auto !important;
+    max-width: none !important;
+    margin-top: 0 !important;
+    transform: none !important;
+    z-index: 50 !important;
+  }
+  .ks-actions-pill div.absolute.right-0.top-full > div {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+}
+
