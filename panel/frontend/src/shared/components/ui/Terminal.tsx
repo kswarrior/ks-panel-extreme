@@ -410,7 +410,7 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
       setState('connecting');
       let ws: WebSocket;
       try {
-        ws = new WebSocket(wsUrlFor(instanceId));
+        ws = new WebSocket(wsUrlFor(instanceId, terminalId, timeoutS));
       } catch (e: any) {
         setState('error', e?.message || 'Failed to open WebSocket');
         return;
@@ -424,9 +424,7 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
         // banner stops reading the stale "reconnecting in Ns" from the
         // previous close.
         setState('connecting');
-      };
-
-      ws.onmessage = (ev) => {
+      };      ws.onmessage = (ev) => {
         const term = termRef.current;
         if (!term || typeof ev.data !== 'string') return;
         let msg: any;
@@ -439,7 +437,13 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
             attempt = 0;
             setState('connected');
             // Reset scrollback so the freshly-attached shell starts blank.
-            term.reset();
+            // Action-bound panes keep their scrollback: the parent streams
+            // the running action's log lines into the same buffer, and a
+            // reset here would wipe the matched-action history on every
+            // reconnect.
+            if (!terminalId || String(terminalId).trim() === '') {
+              term.reset();
+            }
             const cols = Number(msg.cols) || term.cols;
             const rows = Number(msg.rows) || term.rows;
             if (cols && rows && (cols !== term.cols || rows !== term.rows)) {
@@ -463,6 +467,7 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
             } else {
               term.write(`\r\n\x1b[90m● session closed\x1b[0m`);
             }
+            try { onExitRef.current?.(Number.isFinite(code) ? code : -1); } catch { /* noop */ }
             break;
           }
           case 'error': {
