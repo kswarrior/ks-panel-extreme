@@ -59,6 +59,47 @@ func TestHostJailResolveKeepsPathsInsideRoot(t *testing.T) {
 	}
 }
 
+// TestCloneRepoNameDerivesSafeNames checks the git-clone destination
+// sanitiser: only clean repo names pass, everything shaped like a flag,
+// traversal or shell metachar is rejected.
+func TestCloneRepoNameDerivesSafeNames(t *testing.T) {
+	ok := map[string]string{
+		"https://github.com/example/repo.git":      "repo",
+		"https://github.com/example/repo":          "repo",
+		"https://github.com/example/my-mod_2_pack": "my-mod_2_pack",
+		"http://git.local:3000/a/b.git":            "b",
+	}
+	for raw, want := range ok {
+		got, err := cloneRepoName(raw)
+		if err != nil {
+			t.Errorf("cloneRepoName(%q): %v", raw, err)
+			continue
+		}
+		if got != want {
+			t.Errorf("cloneRepoName(%q) = %q, want %q", raw, got, want)
+		}
+	}
+	bad := []string{
+		"",
+		"not a url",
+		"git@github.com:example/repo.git", // scp syntax: no scheme
+		"ssh://git@github.com/example/repo.git",
+		"git://github.com/example/repo.git",
+		"ftp://github.com/example/repo.git",
+		"https://github.com/",
+		"https://github.com/.git",
+		"https://github.com/-evil.git", // would look like a flag
+		"https://github.com/.hidden.git",
+		"https://github.com/a b.git",
+		"https://github.com/;rm -rf.git",
+		"https:///repo.git",
+	}
+	for _, raw := range bad {
+		if got, err := cloneRepoName(raw); err == nil {
+			t.Errorf("cloneRepoName(%q) = %q, want rejection", raw, got)
+		}
+	}
+}
 // TestNewHostJailRejectsBadRoots ensures a missing/relative instances dir
 // fails closed at handler construction instead of jailing to ".".
 func TestNewHostJailRejectsBadRoots(t *testing.T) {
