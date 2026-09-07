@@ -6,7 +6,7 @@ import { DEFAULT_INSTANCE_CONTROLS, isControlsCustom, resolveInstanceControls } 
 // emptyForm is a runtime value (not a type) — it seeds every partial
 // `advanced` produced below so serializeSpec can keep assuming the full
 // Advanced shape (it reads e.g. f.advanced.dns.split(',') unguarded).
-import { emptyForm, normalizeEnvScopes } from '../types/templateForm';
+import { emptyForm, normalizeEnvScopes, normalizeEnvImages, normalizeEnvBehavior } from '../types/templateForm';
 
 function stripUnit(v: string): string {
   // Mirror templateForm.stripUnit: handle decimals + trailing time suffix
@@ -26,18 +26,15 @@ function stripUnit(v: string): string {
 
 export function serializeSpec(f: TemplateFormState): string {
   // Named multi-image runtimes: rows with an empty name or image are
-  // dropped so half-filled editor rows never poison the spec. Per-image
-  // env prunes empty values. default_image is emitted only when it names
-  // a surviving row (the backend would 400 otherwise).
+  // dropped so half-filled editor rows never poison the spec.
+  // default_image is emitted only when it names a surviving row (the
+  // backend would 400 otherwise).
   const imageRows = (f.images || [])
     .map((r) => ({
       name: (r.name || '').trim(),
       image: (r.image || '').trim(),
       description: (r.description || '').trim(),
       is_default: !!r.is_default,
-      env: Object.fromEntries(
-        Object.entries(r.env || {}).filter(([, v]) => String(v ?? '').trim() !== ''),
-      ) as Record<string, string>,
     }))
     .filter((r) => r.name !== '' && r.image !== '');
   const defaultImageName = (f.default_image || '').trim();
@@ -69,13 +66,17 @@ export function serializeSpec(f: TemplateFormState): string {
       backups: f.caps.backups,
       networks: f.caps.networks,
     },
-    // Env vars persist `scopes` only when restricted to a subset — empty =
-    // everywhere (legacy specs and the backend default), so old templates
-    // round-trip byte-identical here. Structured `options_list` rows persist
-    // when present (legacy comma `options` is re-synced from the values so
-    // old readers keep working); checkbox send-values persist when set.
+    // Env vars persist `scopes`/`images` only when restricted — empty =
+    // everywhere / All images (legacy specs and the backend default), so old
+    // templates round-trip byte-identical here. `behavior` persists only
+    // when 'auto' (ask is the default). Structured `options_list` rows
+    // persist when present (legacy comma `options` is re-synced from the
+    // values so old readers keep working); checkbox send-values persist
+    // when set.
     env: f.env.map((e) => {
       const scopes = normalizeEnvScopes(e.scopes);
+      const images = normalizeEnvImages((e as any).images);
+      const behavior = normalizeEnvBehavior((e as any).behavior);
       const rows = Array.isArray(e.options_list)
         ? e.options_list.filter((o) => o && (o.value !== '' || o.label !== ''))
         : [];
@@ -87,8 +88,12 @@ export function serializeSpec(f: TemplateFormState): string {
         unchecked_value: e.unchecked_value || '',
       };
       delete out.scopes;
+      delete (out as any).images;
+      delete (out as any).behavior;
       delete out.options_list;
       if (scopes.length > 0) out.scopes = scopes;
+      if (images.length > 0) (out as any).images = images;
+      if (behavior === 'auto') (out as any).behavior = 'auto';
       if (rows.length > 0) {
         out.options_list = rows.map((o) => ({
           ...(o.svg.trim() !== '' ? { svg: o.svg } : {}),
@@ -100,15 +105,12 @@ export function serializeSpec(f: TemplateFormState): string {
       if (!out.unchecked_value) delete out.unchecked_value;
       return out;
     }),
-    // Raw `.env` file content (empty is pruned by the cleanup below).
-    env_file: f.env_file,
     // Named multi-image runtimes (spec.images[]) + explicit default.
     images: imageRows.map((r) => ({
       name: r.name,
       image: r.image,
       ...(r.description ? { description: r.description } : {}),
       ...(r.is_default ? { default: true } : {}),
-      ...(Object.keys(r.env).length > 0 ? { env: r.env } : {}),
     })),
     ...(imageRows.some((r) => r.name.toLowerCase() === defaultImageName.toLowerCase()) && defaultImageName
       ? { default_image: defaultImageName }

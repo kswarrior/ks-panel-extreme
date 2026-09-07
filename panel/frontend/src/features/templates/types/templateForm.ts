@@ -592,7 +592,6 @@ export const emptyForm: TemplateFormState = {
   limits: { ram_mb: '', cpu_pct: '', disk_mb: '', swap_mb: '' },
   caps: { databases: '', backups: '', networks: '' },
   env: [],
-  env_file: '',
   install: [],
   install_timeout_s: '',
   install_terminal_id: '',
