@@ -1159,6 +1159,25 @@ func rewriteTextColumnDefsForMySQL(stmt string) string {
 	return out.String()
 }
 
+// isColumnTypeName reports whether tok is a column type name (with or
+// without a parenthesised length, e.g. "TEXT" or "VARCHAR(255)").
+func isColumnTypeName(tok string) bool {
+	if i := strings.Index(tok, "("); i >= 0 {
+		tok = tok[:i]
+	}
+	switch strings.ToUpper(tok) {
+	case "TEXT", "TINYTEXT", "MEDIUMTEXT", "LONGTEXT",
+		"BLOB", "TINYBLOB", "MEDIUMBLOB", "LONGBLOB",
+		"INTEGER", "INT", "BIGINT", "SMALLINT", "SERIAL",
+		"VARCHAR", "CHAR", "CHARACTER",
+		"DATETIME", "TIMESTAMP", "DATE", "TIME",
+		"REAL", "FLOAT", "DOUBLE", "NUMERIC", "DECIMAL",
+		"BOOLEAN", "BOOL", "BYTEA":
+		return true
+	}
+	return false
+}
+
 // maskSQLLiterals blanks single-quoted literals ('' = escaped quote) with
 // spaces, preserving length so offsets into the mask match the original.
 // Keyword/regex searches run on the mask; splices apply to the original.
