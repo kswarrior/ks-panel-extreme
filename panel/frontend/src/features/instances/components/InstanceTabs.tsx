@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom';
 import { useInstanceNav } from '@/shared/components/layout/InstanceNavContext';
 import { isPageAllowed } from '@/shared/utils/instancePages';
+import { resolveInstanceControls, shortcutLabel, shortcutSlug } from '../utils/instanceControls';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { PermissionKey, hasPermissionAny } from '@/shared/types/permissions';
@@ -185,10 +186,10 @@ export default InstanceTabs;
 // InstanceToolsDock — quick-access cards for the three utility pages
 // (Files / Terminal / Ports). Deliberately NOT tabs: big icon tiles with
 // a name + one-line hint, grouped under a "Tools" label, so operators
-// spot them instantly instead of hunting the tab row. Routing and guards
-// are untouched — each card links to the same route the tab used to, and
-// a card renders dimmed with an explanatory tooltip when its page isn't
-// available (page not imported, or missing permission).
+// spot them instantly instead of hunting the tab row. Slug / label / icon
+// come from instance_controls.shortcuts (same source as the floating
+// menu's shortcut row); a card renders dimmed with an explanatory tooltip
+// when its page isn't available (page not imported, or missing permission).
 export const InstanceToolsDock: React.FC<{
   instanceId: number;
   spec: Record<string, any> | null;
@@ -197,51 +198,75 @@ export const InstanceToolsDock: React.FC<{
   const location = useLocation();
   const permissions = useAuthStore((s) => s.permissions);
   const canEditPorts = hasPermissionAny(permissions, PermissionKey.INSTANCES_EDIT, PermissionKey.MANAGE_INSTANCES);
+  // Shortcut display (slug / label / icon) comes from instance_controls so
+  // the dock agrees with the floating menu's shortcut row. The dock always
+  // renders all three cards (dimmed when unavailable) — the `show` toggle
+  // only hides the floating-menu button.
+  const controls = useMemo(() => resolveInstanceControls(spec as any), [spec]);
 
   if (!instanceId || loading) return null;
 
-  const filesOk = isPageAllowed('files', spec);
-  const terminalOk = isPageAllowed('terminal', spec);
+  const filesSlug = shortcutSlug(controls, 'files');
+  const terminalSlug = shortcutSlug(controls, 'terminal');
+  const portsSlug = shortcutSlug(controls, 'ports');
+  const filesOk = isPageAllowed(filesSlug, spec);
+  const terminalOk = isPageAllowed(terminalSlug, spec);
+
+  const dockIcon = (key: 'files' | 'terminal' | 'ports', fallback: React.ReactNode) => {
+    const cfg = controls.shortcuts[key];
+    const custom = cfg?.icon_svg ? sanitizeSvgIcon(cfg.icon_svg) : '';
+    if (!custom) return fallback;
+    const full = custom.trim().toLowerCase().startsWith('<svg');
+    const color = typeof cfg?.icon_color === 'string' ? cfg.icon_color.trim() : '';
+    return full ? (
+      <span className="flex items-center [&>svg]:w-5 [&>svg]:h-5 [&>svg]:block" style={color ? { color } : undefined} aria-hidden="true" dangerouslySetInnerHTML={{ __html: custom }} />
+    ) : (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" style={color ? { color } : undefined} aria-hidden="true" dangerouslySetInnerHTML={{ __html: custom }} />
+    );
+  };
 
   const tools = [
     {
-      slug: 'files',
-      label: 'Files',
+      key: 'files' as const,
+      slug: filesSlug,
+      label: shortcutLabel(controls, 'files'),
       hint: filesOk ? 'Browse & manage files' : 'Import a Files page (Pages tab) to enable',
       enabled: filesOk,
       tile: 'bg-amber-500/15 border-amber-400/30 text-amber-300',
-      icon: (
+      icon: dockIcon('files', (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" aria-hidden="true">
           <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
         </svg>
-      ),
+      )),
     },
     {
-      slug: 'terminal',
-      label: 'Terminal',
+      key: 'terminal' as const,
+      slug: terminalSlug,
+      label: shortcutLabel(controls, 'terminal'),
       hint: terminalOk ? 'Live shell session' : 'Enable the Terminal page (Pages tab) to open a shell',
       enabled: terminalOk,
       tile: 'bg-emerald-500/15 border-emerald-400/30 text-emerald-300',
-      icon: (
+      icon: dockIcon('terminal', (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" aria-hidden="true">
           <polyline points="4 17 10 11 4 5" />
           <line x1="12" y1="19" x2="20" y2="19" />
         </svg>
-      ),
+      )),
     },
     {
-      slug: 'ports',
-      label: 'Ports',
+      key: 'ports' as const,
+      slug: portsSlug,
+      label: shortcutLabel(controls, 'ports'),
       hint: canEditPorts ? 'Port mappings' : 'Requires instance edit permission',
       enabled: canEditPorts,
       tile: 'bg-sky-500/15 border-sky-400/30 text-sky-300',
-      icon: (
+      icon: dockIcon('ports', (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" aria-hidden="true">
           <rect x="2" y="7" width="20" height="8" rx="2" />
           <path d="M6 7v-2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2" />
           <path d="M6 15v2a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-2" />
         </svg>
-      ),
+      )),
     },
   ];
 
@@ -275,11 +300,11 @@ export const InstanceToolsDock: React.FC<{
           </>
         );
         return t.enabled ? (
-          <NavLink key={t.slug} to={to} title={`${t.label} — ${t.hint}`} aria-label={t.label} className={cls}>
+          <NavLink key={t.key} to={to} title={`${t.label} — ${t.hint}`} aria-label={t.label} className={cls}>
             {body}
           </NavLink>
         ) : (
-          <span key={t.slug} title={`${t.label} — ${t.hint}`} aria-label={`${t.label} (unavailable)`} aria-disabled="true" className={cls}>
+          <span key={t.key} title={`${t.label} — ${t.hint}`} aria-label={`${t.label} (unavailable)`} aria-disabled="true" className={cls}>
             {body}
           </span>
         );
