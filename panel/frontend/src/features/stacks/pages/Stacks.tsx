@@ -13,7 +13,6 @@ import {
   uploadStackPackage,
   downloadStack,
   installStackFromUrl,
-  createStackFromManifest,
   updateStack,
   activateStack,
   deactivateStack,
@@ -66,10 +65,9 @@ const Stacks: React.FC = () => {
   const filterRef = useRef<HTMLDivElement>(null);
 
   const [installOpen, setInstallOpen] = useState(false);
-  const [installTab, setInstallTab] = useState<'file' | 'url' | 'studio' | 'json'>('file');
+  const [installTab, setInstallTab] = useState<'file' | 'url' | 'studio'>('file');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [urlInput, setUrlInput] = useState('');
-  const [jsonInput, setJsonInput] = useState('{\n  "name": "",\n  "slug": "",\n  "category": "dashboard"\n}');
   const [installBusy, setInstallBusy] = useState(false);
   const [installError, setInstallError] = useState('');
 
@@ -173,9 +171,6 @@ const Stacks: React.FC = () => {
       } else if (installTab === 'url') {
         if (!urlInput.trim()) throw new Error('Enter a URL first.');
         await installStackFromUrl(urlInput.trim());
-      } else if (installTab === 'json') {
-        const manifest = JSON.parse(jsonInput);
-        await createStackFromManifest(manifest, 'json');
       } else {
         setInstallOpen(false);
         navigate('/stacks/studio');
@@ -186,9 +181,7 @@ const Stacks: React.FC = () => {
       setUrlInput('');
       await load();
     } catch (e: any) {
-      setInstallError(e?.message && installTab === 'json' && e instanceof SyntaxError
-        ? `Invalid JSON: ${e.message}`
-        : extractStackApiError(e, 'Install failed.'));
+      setInstallError(extractStackApiError(e, 'Install failed.'));
     } finally {
       setInstallBusy(false);
     }
@@ -631,13 +624,13 @@ const Stacks: React.FC = () => {
         }
       >
         <div className="flex gap-1 mb-3 bg-black/30 border border-white/10 rounded-md p-1">
-          {(['file', 'url', 'studio', 'json'] as const).map((t) => (
+          {(['file', 'url', 'studio'] as const).map((t) => (
             <button
               key={t}
               onClick={() => setInstallTab(t)}
               className={`ks-tab flex-1 px-3 py-1.5 rounded text-sm flex items-center justify-center gap-1.5 ${installTab === t ? 'ks-tab-active' : ''}`}
             >
-              {t === 'file' ? '.ksps file' : t === 'url' ? 'From URL' : t === 'studio' ? 'Studio' : 'JSON'}
+              {t === 'file' ? '.ksps file' : t === 'url' ? 'From URL' : 'Studio'}
             </button>
           ))}
         </div>
@@ -667,28 +660,24 @@ const Stacks: React.FC = () => {
         {installTab === 'studio' && (
           <>
             <p className="text-xs text-gray-400">
-              Build a stack visually — meta, theme, pages, permissions, backend script and files.
+              Build a stack visually — meta, theme, frontend, permissions and backend script.
               The Studio emits a standard manifest that installs through the same validated pipeline.
             </p>
             <GlassCard className="space-y-3 text-center py-6">
               <h4 className="text-white font-medium">Stack Studio</h4>
-              <p className="text-gray-400 text-sm">Manifest builder + full workdir file manager (pages, theme.css, backend entry).</p>
+              <p className="text-gray-400 text-sm">Manifest builder with theme, frontend and backend editors.</p>
               <div className="flex items-center justify-center gap-2 flex-wrap">
                 <span className="text-xs text-gray-500">Features:</span>
                 <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Meta</span>
                 <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Theme</span>
-                <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Pages</span>
+                <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Frontend</span>
                 <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Permissions</span>
                 <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Backend</span>
-                <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Files</span>
               </div>
             </GlassCard>
           </>
         )}
 
-        {installTab === 'json' && (
-          <textarea value={jsonInput} onChange={(e) => setJsonInput(e.target.value)} rows={10} spellCheck={false} className="w-full font-mono text-xs px-3 py-2 rounded-lg bg-gray-900/60 border border-gray-700/60 text-gray-200" />
-        )}
         {installError && <p className="text-xs text-red-300 mt-2">{installError}</p>}
       </GlassModal>
 
