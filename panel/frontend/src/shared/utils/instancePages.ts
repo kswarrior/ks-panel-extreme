@@ -32,10 +32,11 @@ export interface ResolvedNavEntry {
 const FALLBACK_ICON = '<circle cx="12" cy="12" r="9" />';
 
 // BUILTIN_PAGE_SLUGS are native instance routes that render without a
-// spec.pages row (ports / sftp / snapshots / overview in InstanceDetail).
-// `terminal` is intentionally absent — it stays whitelist-gated like every
-// other custom page, so it resolves through isPageAllowed below.
-export const BUILTIN_PAGE_SLUGS = ['overview', 'ports', 'sftp', 'snapshots'];
+// spec.pages row (overview / ports / sftp / snapshots / files / terminal in
+// InstanceDetail). Files / Terminal / Ports are self-sufficient builtins:
+// they work with zero library page imports, and their backend bridges skip
+// the page whitelist (auth + permission gates still apply).
+export const BUILTIN_PAGE_SLUGS = ['overview', 'ports', 'sftp', 'snapshots', 'files', 'terminal'];
 
 // normalizePageSlug trims a user-entered page slug/URL into canonical form:
 // leading/trailing slashes and whitespace go away ("  /overview/ " →
