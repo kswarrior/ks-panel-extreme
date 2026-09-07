@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { listNodes, listTemplates, listUsers, listRoles, deployInstance } from '@/shared/api/admin';
 import type { DeployRequest } from '@/shared/types/instance';
 import FormPage from '@/shared/components/forms/FormPage';
-import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
 import GlassCard from '@/shared/components/ui/Card';
 import { SearchableSelect, type SearchableOption } from '@/shared/components/ui/SearchableSelect';
 import { glassFieldClass } from '@/shared/components/ui/Field';
@@ -308,9 +309,9 @@ const InstanceForm: React.FC = () => {
 
   return (
     <>
-      {/* Top-right actions — fixed, auto-hide on scroll (node pattern).
+      {/* Bottom-right form actions — fixed, auto-hide on scroll (node pattern).
           Footer Deploy removed; everything lives here. */}
-      <PageActionsPill>
+      <PageFormActionsPill spacer={false}>
           <button
             type="button"
             onClick={() => navigate('/instances')}
@@ -331,7 +332,7 @@ const InstanceForm: React.FC = () => {
           >
             {deploying ? 'Deploying…' : 'Deploy'}
           </button>
-      </PageActionsPill>
+      </PageFormActionsPill>
     <FormPage
       crumbs={[{ label: 'Instances', to: '/instances' }, { label: 'Deploy Instance' }]}
       onSubmit={submit}

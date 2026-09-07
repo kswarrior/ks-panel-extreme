@@ -4,7 +4,8 @@ import { createTicket, getTicket, updateTicket } from '../api/tickets';
 import type { Ticket, TicketCategory, TicketPriority } from '../types/ticket';
 import GlassCard from '@/shared/components/ui/Card';
 import FormPage from '@/shared/components/forms/FormPage';
-import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
 import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 
 const CATEGORIES: { value: TicketCategory; label: string }[] = [
@@ -136,10 +137,10 @@ const TicketForm: React.FC = () => {
 
   return (
     <>
-      {/* Top-right actions — title lives in the app header ("Tickets / New
+      {/* Bottom-right form actions — title lives in the app header ("Tickets / New
           Ticket" or "Tickets / Edit Ticket"). Footer Cancel/Create removed;
           everything lives here. */}
-      <PageActionsPill>
+      <PageFormActionsPill spacer={false}>
           <button
             type="button"
             onClick={() => navigate('/tickets')}
@@ -160,7 +161,7 @@ const TicketForm: React.FC = () => {
           >
             {loading ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Ticket'}
           </button>
-      </PageActionsPill>
+      </PageFormActionsPill>
       <FormPage
         crumbs={[{ label: 'Tickets', to: '/tickets' }, { label: isEdit ? 'Edit Ticket' : 'New Ticket' }]}
         onSubmit={submit}

@@ -3,7 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { createNode, updateNode, listNodes, probeNode, setupLocalNode, listNodeWssChannels } from '@/shared/api/admin';
 import type { Node, CreateNodeResult, ProbeResult, SetupLocalResult } from '@/shared/types/node';
 import FormPage from '@/shared/components/forms/FormPage';
-import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
 import PageTabsPill from '@/shared/components/ui/PageTabsPill';
 import GlassCard from '@/shared/components/ui/Card';
 import GlassField, { glassFieldClass } from '@/shared/components/ui/Field';
@@ -577,14 +578,14 @@ const NodeForm: React.FC = () => {
 
   return (
     <>
-      {/* Top-right actions — fixed like the phone tab bar (same ks-tab
+      {/* Bottom-right form actions — fixed like the phone tab bar (same ks-tab
           style), always visible no matter how far the form is scrolled.
           Footer Cancel/Create removed; everything lives here.
           Padding is shrunk via the theme's own vars (--ks-card-padding /
           --ks-tab-px/py/font): the theme paints .ks-card/.ks-tab padding
           with !important, so Tailwind px/py classes alone can never win —
           overriding the var value scoped to this pill does. */}
-      <PageActionsPill>
+      <PageFormActionsPill spacer={false}>
           <button
             type="button"
             onClick={() => navigate('/nodes')}
@@ -617,7 +618,7 @@ const NodeForm: React.FC = () => {
           >
             {saving ? 'Saving…' : editing ? 'Save' : 'Create'}
           </button>
-      </PageActionsPill>
+      </PageFormActionsPill>
       <FormPage
         crumbs={[{ label: 'Nodes', to: '/nodes' }, { label: editing ? 'Edit Node' : 'New Node' }]}
         onSubmit={submit}

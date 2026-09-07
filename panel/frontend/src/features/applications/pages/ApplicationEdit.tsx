@@ -14,7 +14,8 @@ import {
   ApplicationCapability,
 } from '@/features/applications/types/application';
 import FormPage from '@/shared/components/forms/FormPage';
-import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
 import GlassField from '@/shared/components/ui/Field';
 import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 import IconColorPicker from '@/shared/components/ui/IconColorPicker';
@@ -169,9 +170,9 @@ const ApplicationEdit: React.FC = () => {
 
   return (
     <>
-      {/* Top-right actions — fixed, auto-hide on scroll (node pattern).
+      {/* Bottom-right form actions — fixed, auto-hide on scroll (node pattern).
           Footer Save removed; everything lives here. */}
-      <PageActionsPill>
+      <PageFormActionsPill spacer={false}>
           <button
             type="button"
             onClick={() => navigate('/applications')}
@@ -192,7 +193,7 @@ const ApplicationEdit: React.FC = () => {
           >
             {saving ? 'Saving…' : editing ? 'Save' : 'Create'}
           </button>
-      </PageActionsPill>
+      </PageFormActionsPill>
     <FormPage
       crumbs={crumbs}
       onSubmit={submit}

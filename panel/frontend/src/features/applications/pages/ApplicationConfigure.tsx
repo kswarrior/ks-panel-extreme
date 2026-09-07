@@ -7,7 +7,8 @@ import {
   type ApplicationConfigField,
 } from '@/features/applications/api/applications';
 import FormPage from '@/shared/components/forms/FormPage';
-import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
 import GlassField from '@/shared/components/ui/Field';
 import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 
@@ -172,9 +173,9 @@ const ApplicationConfigure: React.FC = () => {
 
   return (
     <>
-      {/* Top-right actions — fixed, auto-hide on scroll (node pattern).
+      {/* Bottom-right form actions — fixed, auto-hide on scroll (node pattern).
           Footer Cancel/Save removed; everything lives here. */}
-      <PageActionsPill>
+      <PageFormActionsPill spacer={false}>
           <button
             type="button"
             onClick={() => navigate('/applications')}
@@ -195,7 +196,7 @@ const ApplicationConfigure: React.FC = () => {
           >
             {saving ? 'Saving…' : 'Save fields'}
           </button>
-      </PageActionsPill>
+      </PageFormActionsPill>
     <FormPage
       crumbs={crumbs}
       onSubmit={submit}

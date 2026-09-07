@@ -4,7 +4,8 @@ import { createAdminApiKey, listAdminApiKeys, listPermissions, listUsers, update
 import type { ApiKey, CreateApiKeyResult } from '@/shared/types/apiKey';
 import type { Permission, User } from '@/shared/types/user';
 import FormPage from '@/shared/components/forms/FormPage';
-import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
 import PageTabsPill from '@/shared/components/ui/PageTabsPill';
 import GlassCard from '@/shared/components/ui/Card';
 import GlassField from '@/shared/components/ui/Field';
@@ -345,9 +346,9 @@ const ApiKeyForm: React.FC = () => {
 
   return (
     <>
-      {/* Top-right actions — fixed like the phone tab bar, auto-hide on
+      {/* Bottom-right form actions — fixed like the phone tab bar, auto-hide on
           scroll (node pattern). Footer Cancel/Save removed. */}
-      <PageActionsPill>
+      <PageFormActionsPill spacer={false}>
           <button
             type="button"
             onClick={() => navigate('/api-keys')}
@@ -368,7 +369,7 @@ const ApiKeyForm: React.FC = () => {
           >
             {saving ? 'Saving…' : editing ? 'Save' : 'Create'}
           </button>
-      </PageActionsPill>
+      </PageFormActionsPill>
       <FormPage
         crumbs={[{ label: 'API Keys', to: '/api-keys' }, { label: editing ? 'Edit API Key' : 'New API Key' }]}
         onSubmit={submit}

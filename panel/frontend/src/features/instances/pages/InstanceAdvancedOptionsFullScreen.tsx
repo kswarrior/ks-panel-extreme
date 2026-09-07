@@ -17,7 +17,8 @@ import { DEFAULT_INSTANCE_CONTROLS } from '@/features/instances/utils/instanceCo
 import type { InstanceControls } from '@/features/instances/utils/instanceControls';
 import { glassFieldClass } from '@/shared/components/ui/Field';
 import FormPage from '@/shared/components/forms/FormPage';
-import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
 import ThemedBackground from '@/shared/components/layout/ThemedBackground';
 import { useDeployForm } from '../stores/deployFormStore';
 import type {
@@ -501,10 +502,10 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
   return (
     <div className="relative min-h-screen">
       <ThemedBackground />
-      {/* Top-right actions — fixed, auto-hide on scroll (node pattern).
+      {/* Bottom-right form actions — fixed, auto-hide on scroll (node pattern).
           Back lives here (was headerActions); Save only when submitLabel set
           (edit flow). Deploy flow has no save — just Back. */}
-      <PageActionsPill>
+      <PageFormActionsPill spacer={false}>
           <button
             type="button"
             onClick={onClose}
@@ -527,7 +528,7 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
               {saving ? (submittingLabel || 'Saving…') : submitLabel}
             </button>
           )}
-      </PageActionsPill>
+      </PageFormActionsPill>
       <FormPage
         crumbs={crumbs}
         onSubmit={onSubmit}

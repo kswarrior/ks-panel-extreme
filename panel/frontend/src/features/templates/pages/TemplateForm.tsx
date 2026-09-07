@@ -5,7 +5,8 @@ import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 import { parseSubPages, parsePageActions, parsePageComponents, parsePageConfigure } from '@/features/instance-pages/types/instancePage';
 import type { Template } from '@/shared/types/instance';
 import FormPage from '@/shared/components/forms/FormPage';
-import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
 import GlassField, { glassFieldClass } from '@/shared/components/ui/Field';
 import Modal from '@/shared/components/ui/Modal';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
@@ -526,10 +527,10 @@ const TemplateForm: React.FC = () => {
 
   return (
     <>
-      {/* Top-right actions — fixed like the phone tab bar (same ks-tab
+      {/* Bottom-right form actions — fixed like the phone tab bar (same ks-tab
           style), always visible no matter how far the form is scrolled.
           Footer Cancel/Create removed; everything lives here. */}
-      <PageActionsPill>
+      <PageFormActionsPill spacer={false}>
           <button
             type="button"
             onClick={() => navigate('/templates')}
@@ -550,7 +551,7 @@ const TemplateForm: React.FC = () => {
           >
             {saving ? 'Saving…' : editing ? 'Save' : 'Create'}
           </button>
-      </PageActionsPill>
+      </PageFormActionsPill>
     <FormPage
       crumbs={[{ label: 'Templates', to: '/templates' }, { label: editing ? 'Edit Template' : 'New Template' }]}
       onSubmit={submit}

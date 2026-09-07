@@ -17,7 +17,8 @@ import type {
 import { parseSubPages, parsePageComponents, parsePageConfigure } from '@/shared/types/instancePage';
 import { parseConfig } from '@/shared/hooks/useInstance';
 import FormPage from '@/shared/components/forms/FormPage';
-import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
 import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 import type { PageContent } from '@/shared/components/ui/CustomPageView';
 import type { PageStudioTabId } from '@/features/instance-pages/types/pageStudio';
@@ -534,9 +535,9 @@ const InstancePageStudio: React.FC = () => {
 
   return (
     <>
-      {/* Top-right actions — fixed, auto-hide on scroll (node pattern).
+      {/* Bottom-right form actions — fixed, auto-hide on scroll (node pattern).
           Footer Save removed; everything lives here. */}
-      <PageActionsPill>
+      <PageFormActionsPill spacer={false}>
           <button
             type="button"
             onClick={() => navigate('/instance-pages')}
@@ -557,7 +558,7 @@ const InstancePageStudio: React.FC = () => {
           >
             {saving ? 'Saving…' : isEdit ? 'Save' : 'Create'}
           </button>
-      </PageActionsPill>
+      </PageFormActionsPill>
     <FormPage
       crumbs={[{ label: 'Instance Pages', to: '/instance-pages' }, { label: isEdit ? 'Edit Page' : 'New Page' }]}
       onSubmit={handleSave}

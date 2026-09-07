@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import FormPage from '@/shared/components/forms/FormPage';
-import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
 import GlassField, { glassFieldClass } from '@/shared/components/ui/Field';
 import { CATEGORY_META, PRIORITY_META } from '../types/notification';
 import { createNotification } from '../api/notifications';
@@ -76,10 +77,10 @@ const NotificationBroadcast: React.FC = () => {
 
   return (
     <>
-      {/* Top-right actions — "Broadcast" title lives in the app header
+      {/* Bottom-right form actions — "Broadcast" title lives in the app header
           ("Notifications / Broadcast"). Footer Cancel/Broadcast removed;
           everything lives here. */}
-      <PageActionsPill>
+      <PageFormActionsPill spacer={false}>
           <button
             type="button"
             onClick={() => navigate('/notifications')}
@@ -100,7 +101,7 @@ const NotificationBroadcast: React.FC = () => {
           >
             {saving ? 'Sending…' : 'Broadcast to all'}
           </button>
-      </PageActionsPill>
+      </PageFormActionsPill>
       <FormPage
         crumbs={[{ label: 'Notifications', to: '/notifications' }, { label: 'Broadcast' }]}
         onSubmit={onSubmit}

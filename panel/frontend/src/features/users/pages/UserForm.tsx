@@ -5,7 +5,8 @@ import type { User, Role } from '@/shared/types/user';
 import GlassCard from '@/shared/components/ui/Card';
 import GlassField, { glassFieldClass } from '@/shared/components/ui/Field';
 import FormPage from '@/shared/components/forms/FormPage';
-import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
 import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 
 type Form = {
@@ -99,8 +100,8 @@ const UserForm: React.FC = () => {
 
   return (
     <>
-      {/* Top-right actions — Cancel + Save live here; the footer bar is removed. */}
-      <PageActionsPill>
+      {/* Bottom-right form actions — Cancel + Save live here; the footer bar is removed. */}
+      <PageFormActionsPill spacer={false}>
           <button
             type="button"
             onClick={() => navigate('/users')}
@@ -121,7 +122,7 @@ const UserForm: React.FC = () => {
           >
             {saving ? 'Saving…' : editing ? 'Save' : 'Create'}
           </button>
-      </PageActionsPill>
+      </PageFormActionsPill>
     <FormPage
       crumbs={[{ label: 'Users', to: '/users' }, { label: editing ? 'Edit User' : 'New User' }]}
       onSubmit={submit}

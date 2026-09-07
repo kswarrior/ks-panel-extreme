@@ -4,7 +4,8 @@ import { createRole, listAuthProviders, listPermissions, listRoles, updateRole }
 import type { Role, Permission } from '@/shared/types/user';
 import type { AuthProviderInfo } from '@/features/authority/types/authority';
 import FormPage from '@/shared/components/forms/FormPage';
-import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
 import PageTabsPill from '@/shared/components/ui/PageTabsPill';
 import GlassCard from '@/shared/components/ui/Card';
 import RoleIdentity from '@/features/roles/components/RoleIdentity';
@@ -153,8 +154,8 @@ const RoleForm: React.FC = () => {
 
   return (
     <>
-      {/* Top-right actions — Cancel + Save live here; the footer bar is removed. */}
-      <PageActionsPill>
+      {/* Bottom-right form actions — Cancel + Save live here; the footer bar is removed. */}
+      <PageFormActionsPill spacer={false}>
           <button
             type="button"
             onClick={() => navigate('/roles')}
@@ -175,7 +176,7 @@ const RoleForm: React.FC = () => {
           >
             {saving ? 'Saving…' : editing ? 'Save' : 'Create'}
           </button>
-      </PageActionsPill>
+      </PageFormActionsPill>
     <FormPage
       crumbs={[{ label: 'Roles', to: '/roles' }, { label: editing ? 'Edit Role' : 'New Role' }]}
       onSubmit={submit}
