@@ -745,6 +745,30 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 //     mirroring what regen.sh now emits for new files; sqlite/mysql keep
 //     the original text.
 //
+//   - MySQL rejects TEXT/BLOB columns with a DEFAULT (Error 1101) and TEXT
+//     columns in any key specification without a key length (Error 1170:
+//     inline UNIQUE, TEXT PRIMARY KEY, table-level PRIMARY KEY/UNIQUE over
+//     TEXT, and CREATE INDEX on TEXT). The shipped mysql files predate this
+//     rule (169 TEXT...DEFAULT column defs in 49 files, 9 inline TEXT
+//     UNIQUEs, 4 TEXT PRIMARY KEYs, 5 table-level PK/UNIQUE constraints over
+//     TEXT, 22 indexed TEXT columns) and shipped migrations are frozen, so
+//     the runner rewrites the affected column definitions to VARCHAR for
+//     mysql/mariadb only (rewriteTextColumnDefsForMySQL). SQLite/Postgres
+//     keep TEXT (unbounded) — the VARCHAR cap (255/1024) only exists on
+//     MySQL. Indexes over surviving TEXT columns (no DEFAULT/UNIQUE/PK, so
+//     they stay TEXT) get a (191) prefix via qualifyIndexPrefixForMySQL.
+//
+//   - MySQL also requires FK columns to match the referenced column's type
+//     exactly (Error 3780). regen.sh mapped every PK to BIGINT while every
+//     FK column stayed INTEGER, so 001 (role_permissions.role_id INTEGER
+//     -> roles.id BIGINT) fails right after the TEXT fixes. The runner maps
+//     the BIGINT auto-increment PK back to INTEGER for mysql/mariadb only
+//     (rewriteBigintPKForMySQL), which also re-aligns mysql with the
+//     sqlite (INTEGER) and postgres (SERIAL=int4) PK types. All 38 BIGINT
+//     sites in the shipped corpus are this exact PK pattern; no BIGINT FK
+//     or counter column exists, so the rule is scoped to the full PK
+//     phrase and cannot touch anything else.
+//
 // Fail-closed: when a pass resolves nothing, the FIRST statement error of
 // that pass is returned with the migration name and statement index —
 // later statements usually fail only as a consequence (e.g. a missing
@@ -752,6 +776,7 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 func execMigrationBody(d Dialect, db *sql.DB, name string, content []byte) error {
 	stmts := splitSQLStatements(content)
 	pending := stmts
+	isMySQL := d.Name() == "mysql" || d.Name() == "mariadb"
 	for pass := 0; len(pending) > 0 && pass <= len(stmts); pass++ {
 		type failure struct {
 			idx int
@@ -761,7 +786,7 @@ func execMigrationBody(d Dialect, db *sql.DB, name string, content []byte) error
 		var errs []failure
 		progressed := false
 		for i, s := range pending {
-			if idx, tbl, ok := parseCreateIndex(s); ok && (d.Name() == "mysql" || d.Name() == "mariadb") {
+			if idx, tbl, ok := parseCreateIndex(s); ok && isMySQL {
 				if hasIndex(d, db, tbl, idx) {
 					progressed = true
 					continue
@@ -771,6 +796,19 @@ func execMigrationBody(d Dialect, db *sql.DB, name string, content []byte) error
 			if d.Name() == "postgres" {
 				stmt = rewriteBlobForPostgres(stmt)
 				stmt = rewriteInsertOrIgnoreForPostgres(stmt)
+			}
+			if isMySQL {
+				stmt = rewriteBigintPKForMySQL(stmt)
+				stmt = rewriteTextColumnDefsForMySQL(stmt)
+				if _, tbl, ok := parseCreateIndex(stmt); ok {
+					var qerr error
+					stmt, qerr = qualifyIndexPrefixForMySQL(db, tbl, stmt)
+					if qerr != nil {
+						errs = append(errs, failure{i + 1, qerr})
+						failed = append(failed, s)
+						continue
+					}
+				}
 			}
 			if _, err := db.Exec(stmt); err != nil {
 				errs = append(errs, failure{i + 1, err})

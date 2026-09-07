@@ -47,6 +47,20 @@ type templateActionSpec struct {
 	// to keep a server alive until the operator clicks Stop. A positive
 	// value becomes the edge workflow's hard deadline.
 	MaxRuntimeS string `json:"max_runtime_s,omitempty"`
+	// TerminalID binds this action to instance-control terminal panes.
+	// Empty = no dedicated terminal (legacy behaviour). A pane whose ID
+	// matches (case-insensitive) streams this action's log + gated input.
+	TerminalID string `json:"terminal_id,omitempty"`
+	// TerminalStopOnExit locks bound panes when the action's process ends.
+	TerminalStopOnExit bool `json:"terminal_stop_on_exit,omitempty"`
+	// TerminalAllowInput gates bound-pane input: "all" | "allowlist" | "disabled".
+	TerminalAllowInput string `json:"terminal_allow_input,omitempty"`
+	// TerminalAllowedCommands is the allowlist (regex per line) for bound panes.
+	TerminalAllowedCommands []string `json:"terminal_allowed_commands,omitempty"`
+	// TerminalBlockedCommands is the denylist (tokens), checked first.
+	TerminalBlockedCommands []string `json:"terminal_blocked_commands,omitempty"`
+	// TerminalTimeoutS is the bound-pane attach budget in seconds ("" = none).
+	TerminalTimeoutS string `json:"terminal_timeout_s,omitempty"`
 	Steps       []struct {
 		Action       string `json:"action"`
 		Command      string `json:"command"`
@@ -2821,12 +2835,16 @@ func InvokeActionHandler(w http.ResponseWriter, r *http.Request) {
 	var loopErr error
 	for i := 0; i < 3; i++ {
 		resp, loopErr = ec.InstallStart(edge.InstallStartRequest{
-			Token:      token,
-			Kind:       inst.Kind,
-			Name:       inst.Name,
-			Steps:      edgeSteps,
-			EnvVars:    actionEnvVars,
-			KeepStdin:  action.StopMode == "same",
+			Token:   token,
+			Kind:    inst.Kind,
+			Name:    inst.Name,
+			Steps:   edgeSteps,
+			EnvVars: actionEnvVars,
+			// Keep the running step's stdin open when the stop path needs
+			// it (same-terminal stop) OR when terminal panes may attach:
+			// any action with a terminal_id can receive gated console
+			// input (Minecraft /tps, /op, …) via ActionStdinHandler.
+			KeepStdin:  action.StopMode == "same" || strings.TrimSpace(action.TerminalID) != "",
 			TimeoutSec: timeoutSec,
 		})
 		if loopErr == nil {
