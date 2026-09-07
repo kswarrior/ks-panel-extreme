@@ -60,13 +60,13 @@ function formatUptime(secs: number): string {
   return `${Math.floor(secs / 60)}m`;
 }
 
-type NodeDetailTabId = 'overview' | 'connectivity' | 'placement' | 'updates' | 'timeline';
+type NodeDetailTabId = 'resources' | 'connectivity' | 'placement' | 'updates' | 'timeline';
 
 const NODE_DETAIL_TABS: Array<{ id: NodeDetailTabId; label: string; hint: string; icon: React.ReactNode }> = [
   {
-    id: 'overview',
-    label: 'Overview',
-    hint: 'Resources, usage & uptime',
+    id: 'resources',
+    label: 'Resources',
+    hint: 'RAM, CPU, disk & instances',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>
     ),
@@ -98,7 +98,7 @@ const NODE_DETAIL_TABS: Array<{ id: NodeDetailTabId; label: string; hint: string
   {
     id: 'timeline',
     label: 'Timeline',
-    hint: 'Created, seen & actions',
+    hint: 'Created, seen, uptime & actions',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
     ),
