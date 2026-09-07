@@ -2,14 +2,12 @@ package handlers
 
 import (
 	"encoding/json"
-	"errors"
 	"mime"
 	"net/http"
 	"path"
 	"path/filepath"
 	"strings"
 
-	"github.com/example/kspanel/internal/repository"
 	"github.com/example/kspanel/internal/stackstore"
 	"github.com/go-chi/chi/v5"
 )
@@ -31,20 +29,6 @@ const stackDistRoot = "frontend/dist"
 
 // stackPagesRoot is the workdir-relative directory holding simple pages.
 const stackPagesRoot = "frontend/pages"
-
-// activeStackBySlug loads the stack and refuses when missing/inactive. It
-// returns nil + writes the HTTP error on refusal so callers bail out.
-func activeStackBySlug(w http.ResponseWriter, slug string) *struct{} {
-	return nil
-}
-
-// loadActiveStack resolves slug to an active stack row (nil + 404 written
-// when missing or inactive).
-func loadActiveStack(w http.ResponseWriter, slug string) interface {
-	GetID() int64
-} {
-	return nil
-}
 
 // StackUIHandler streams one file from an ACTIVE stack's spa bundle. Empty
 // rel serves index.html; missing files fall back to index.html when the
@@ -186,10 +170,6 @@ func StackPageHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	raw, err := stackstore.ReadAsset(slug, path.Join(stackPagesRoot, path.Clean("/"+found.File)))
 	if err != nil {
-		if errors.Is(err, errStackAssetNotFound()) {
-			http.NotFound(w, r)
-			return
-		}
 		http.NotFound(w, r)
 		return
 	}
@@ -208,12 +188,6 @@ func StackPageHandler(w http.ResponseWriter, r *http.Request) {
 		"content": string(raw),
 	})
 }
-
-// errStackAssetNotFound is a sentinel comparator for missing assets. The
-// store surfaces os.ErrNotExist wrapped; errors.Is covers both.
-func errStackAssetNotFound() error { return errNotExist }
-
-var errNotExist = errors.New("not exist")
 
 // readStackPageEntries returns the page table for slug, preferring
 // pages.json and falling back to a directory scan.
@@ -281,14 +255,9 @@ const ksStackSDK = `(function () {
   };
 })();`
 
-// StackSDKHandler serves the SDK bootstrap (long-cacheable, versioned by
-// content: the hash comment below changes when the script does).
+// StackSDKHandler serves the SDK bootstrap (long-cacheable).
 func StackSDKHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/javascript")
 	w.Header().Set("Cache-Control", "public, max-age=3600")
 	_, _ = w.Write([]byte(ksStackSDK))
 }
-
-// Unused stubs removed before merge — activeStackBySlug/loadActiveStack were
-// superseded by inline repo checks above. They are deleted here to keep V5
-// (no dead code) green.

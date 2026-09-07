@@ -730,7 +730,15 @@ func NewRouter() http.Handler {
 		// inside the admin shell alongside the slots that point at them.
 		r.With(requirePermission("ACCESS_ADMIN_PANEL")).Get("/api/mods/v1/assets/{slug}/*", handlers.ModAssetHandler)
 
-		// Admin: instance management. MANAGE_INSTANCES (umbrella) implies
+		// Stacks content serving. STACKS_VIEW-gated: spa bundle files, simple
+	// pages and the SDK bootstrap. Inactive stacks 404 inside the handlers
+	// so installed-but-not-activated stacks never render.
+	r.With(requireUmbrellaOrAction(stacksG, permissions.ActionView)).Get("/api/stacks/v1/ui/{slug}/*", handlers.StackUIHandler)
+	r.With(requireUmbrellaOrAction(stacksG, permissions.ActionView)).Get("/api/stacks/v1/pages/{slug}", handlers.StackPagesHandler)
+	r.With(requireUmbrellaOrAction(stacksG, permissions.ActionView)).Get("/api/stacks/v1/pages/{slug}/{page}", handlers.StackPageHandler)
+	r.With(requireUmbrellaOrAction(stacksG, permissions.ActionView)).Get("/api/stacks/v1/ks-stack-sdk.js", handlers.StackSDKHandler)
+
+	// Admin: instance management. MANAGE_INSTANCES (umbrella) implies
 		// every action; INSTANCES_* narrow each route. Deploy spins up a
 		// real workload on the chosen edge by RPC; start/stop/destroy
 		// operate on the row the deploy created.
