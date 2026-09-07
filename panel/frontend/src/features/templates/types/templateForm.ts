@@ -61,6 +61,14 @@ export interface EnvVariable {
   rule: string;
   display: 'text' | 'number' | 'select' | 'checkbox';
   options: string;
+  // Structured dropdown rows (preferred over the legacy comma `options`
+  // string): each carries its own SVG glyph + display label + value, e.g. a
+  // JDK picker row `{svg: java-glyph, label: "Temurin 21", value: "21"}`.
+  options_list?: EnvOption[];
+  // Checkbox send-values: stored when checked / unchecked. Empty = legacy
+  // `'true'` / `'false'`.
+  checked_value: string;
+  unchecked_value: string;
   append: boolean;
   prepend: string;
   append_value: string;
@@ -70,6 +78,62 @@ export interface EnvVariable {
   // the listed sections, and only forwards it to the matching workflows
   // (install vs actions).
   scopes?: string[];
+}
+
+// One dropdown row for a `select` env variable: optional SVG glyph,
+// human label, and the stored value.
+export interface EnvOption {
+  svg: string;
+  label: string;
+  value: string;
+}
+
+// parseEnvOptions resolves the dropdown rows for any env-like object:
+// structured `options_list` wins, otherwise the legacy comma `options`
+// string splits into value-only rows. Tolerates hand-written specs.
+export function parseEnvOptions(
+  v: { options?: unknown; options_list?: unknown },
+): EnvOption[] {
+  if (Array.isArray(v.options_list)) {
+    const rows: EnvOption[] = [];
+    for (const o of v.options_list) {
+      if (!o || typeof o !== 'object') continue;
+      const r = o as Record<string, unknown>;
+      const value = String(r.value ?? '');
+      const label = String(r.label ?? '');
+      if (value === '' && label === '') continue;
+      rows.push({ svg: String(r.svg ?? ''), label, value });
+    }
+    if (rows.length > 0) return rows;
+  }
+  const raw = typeof v.options === 'string' ? v.options : '';
+  return raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((value) => ({ svg: '', label: '', value }));
+}
+
+// checkboxValues resolves the (on, off) send-values for a checkbox var,
+// falling back to the legacy 'true'/'false' when unset.
+export function checkboxValues(
+  v: { checked_value?: unknown; unchecked_value?: unknown },
+): [string, string] {
+  const on = typeof v.checked_value === 'string' && v.checked_value !== '' ? v.checked_value : 'true';
+  const off = typeof v.unchecked_value === 'string' && v.unchecked_value !== '' ? v.unchecked_value : 'false';
+  return [on, off];
+}
+
+// checkboxChecked reports whether a stored value means "checked".
+export function checkboxChecked(
+  v: { checked_value?: unknown; unchecked_value?: unknown },
+  stored: string,
+): boolean {
+  const [on, off] = checkboxValues(v);
+  if (stored === on) return true;
+  if (stored === off) return false;
+  // Legacy values predate custom send-values.
+  return stored === 'true' || stored === '1' || stored === 'on';
 }
 
 // Sections an env variable can be applied to. `image` covers the template
