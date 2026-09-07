@@ -588,21 +588,65 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
         );
       })()}
 
+      {/* Tabs bar — directly below the Terminal header text + add button,
+          above the active terminal. Horizontally scrollable; inactive panes
+          stay mounted hidden so their WS sessions survive tab switches. */}
+      <div role="tablist" aria-label="Terminals" className="flex items-center gap-1.5 overflow-x-auto pb-1 -mb-1">
+        {panes.map((p, idx) => {
+          const tid = normTid(p.terminalId);
+          const label = p.name.trim() !== '' ? p.name.trim() : (tid !== '' ? tid : `shell ${idx + 1}`);
+          const st = tabStatusFor(p);
+          const active = p.key === activeKey;
+          return (
+            <div
+              key={p.key}
+              role="tab"
+              aria-selected={active}
+              aria-label={`${label}${tid ? ` (${tid})` : ''}`}
+              onClick={() => setActiveKey(p.key)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActiveKey(p.key); } }}
+              tabIndex={0}
+              title={tid ? `${label} · ${tid} · ${st.label}` : `${label} · ${st.label}`}
+              className={`group inline-flex items-center gap-2 pl-3 pr-1.5 py-1.5 rounded-lg border text-sm font-medium cursor-pointer whitespace-nowrap transition shrink-0 ${active ? 'bg-white/10 border-white/20 text-white' : 'bg-black/20 border-white/10 text-gray-400 hover:text-gray-200 hover:bg-white/5'}`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${st.dot}`} aria-hidden="true" />
+              <span className="max-w-[10rem] truncate">{label}</span>
+              {tid !== '' && (
+                <span className="max-w-[8rem] truncate font-mono text-[11px] opacity-60">{tid}</span>
+              )}
+              {panes.length > 1 && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); removePane(p.key); }}
+                  title={`Close ${label}`}
+                  aria-label={`Close ${label}`}
+                  className="p-1 rounded-md text-gray-500 hover:text-red-300 hover:bg-white/10 shrink-0"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
       {panes.map((p) => (
-        <TerminalPane
-          key={p.key}
-          instanceId={instance.id}
-          pane={p}
-          actions={actions}
-          runningActionId={runningActionId}
-          installState={installState}
-          installKind={installKind}
-          installTerminalId={installTerminalId}
-          startupTerminalId={startupTerminalId}
-          stepsJson={stepsJson}
-          canRemove={panes.length > 1}
-          onRemove={removePane}
-        />
+        <div key={p.key} style={{ display: p.key === activeKey ? '' : 'none' }}>
+          <TerminalPane
+            instanceId={instance.id}
+            pane={p}
+            actions={actions}
+            runningActionId={runningActionId}
+            installState={installState}
+            installKind={installKind}
+            installTerminalId={installTerminalId}
+            startupTerminalId={startupTerminalId}
+            stepsJson={stepsJson}
+            canRemove={panes.length > 1}
+            onRemove={removePane}
+            onConnState={handleConnState}
+          />
+        </div>
       ))}
 
       <Modal
@@ -617,7 +661,7 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
             <button
               type="button"
               onClick={confirmAdd}
-              disabled={normTid(draftId) === ''}
+              disabled={draftInvalid}
               className="ks-btn-primary ks-btn disabled:opacity-40"
             >
               Add
@@ -642,7 +686,7 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
           </div>
           <div>
             <label className="block text-xs text-gray-400 mb-1" htmlFor="terminal-add-id">
-              ID
+              ID <span className="text-gray-500">(empty = plain shell)</span>
             </label>
             <input
               id="terminal-add-id"
@@ -652,9 +696,19 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
               placeholder="action terminal id (e.g. mc-console)"
               className="ks-input w-full ks-mono"
             />
-            <p className="text-[11px] text-gray-500 mt-1.5">
-              Must match the action's Terminal ID to get its live console.
-            </p>
+            {draftInvalid ? (
+              <p className="text-[11px] text-red-300 mt-1.5">
+                Invalid ID — use only letters, numbers, _ and - (max 64 chars).
+              </p>
+            ) : draftNorm !== '' ? (
+              <p className="text-[11px] text-gray-500 mt-1.5">
+                Terminal ID: <code className="font-mono text-gray-300">{draftNorm}</code> — must match the action's Terminal ID to get its live console.
+              </p>
+            ) : (
+              <p className="text-[11px] text-gray-500 mt-1.5">
+                Leave empty for a plain shell, or enter the action's Terminal ID for its live console.
+              </p>
+            )}
           </div>
         </div>
       </Modal>

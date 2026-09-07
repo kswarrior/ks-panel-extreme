@@ -139,7 +139,8 @@ export function checkboxChecked(
 // Sections an env variable can be applied to. `image` covers the template
 // image field (multi-image via a select var), `controls` covers
 // instance_controls + home_page, `pages` covers spec.pages rows,
-// `advanced` covers startup/limits/mounts/ports and driver blocks.
+// `advanced` covers startup/limits/mounts/ports and driver blocks,
+// `config_files` covers spec.config_files[] parser find values.
 export const ENV_VAR_SCOPES = [
   'install',
   'actions',
@@ -147,6 +148,7 @@ export const ENV_VAR_SCOPES = [
   'controls',
   'pages',
   'advanced',
+  'config_files',
 ] as const;
 
 export type EnvVarScope = (typeof ENV_VAR_SCOPES)[number];
@@ -460,6 +462,10 @@ export interface TemplateFormState {
   // Built-in Instance controls allow-list (spec.instance_controls).
   // Snapshotted into instance.Config on deploy. Missing = allow all.
   instance_controls: InstanceControls;
+  // Config-file parsers (spec.config_files[]): Ptero `config.files` parity
+  // + toml extra. Applied post-install inside the workload and re-synced
+  // pre-start so hand-edited files converge before boot.
+  config_files: ConfigFileEntry[];
 }
 
 // One named runtime in the multi-image map (spec.images[] entry):
