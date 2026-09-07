@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/example/kspanel/internal/api/handlers"
 )
 
 // CSRFTokenManager manages CSRF tokens
@@ -282,6 +284,13 @@ func isCSRFExemptPath(path string) bool {
 		return true
 	}
 	if len(path) >= 16 && path[:16] == "/api/edge/tunnel" {
+		return true
+	}
+	// Stack-app mounts: the proxied Go app's own forms POST back to its
+	// mount with the session cookie but no panel CSRF token. The proxy
+	// chain still demands a valid panel session + STACKS_VIEW, so this
+	// only skips the token check, never the auth.
+	if handlers.IsStackProxyPath(path) {
 		return true
 	}
 	return false

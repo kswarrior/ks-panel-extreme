@@ -36,6 +36,10 @@ type stackResponse struct {
 	ThemeMode   string          `json:"theme_mode"`
 	PageStyle   string          `json:"page_style"`
 	Active      bool            `json:"active"`
+	// ProxyPort/ProxyRootURL float an externally-run stack Go app at
+	// /<root>/* (migration 072). 0/"" = proxy off.
+	ProxyPort    int    `json:"proxy_port"`
+	ProxyRootURL string `json:"proxy_root_url,omitempty"`
 	OwnerName   string          `json:"owner_name,omitempty"`
 	Source      string          `json:"source"`
 	SourceURL   string          `json:"source_url,omitempty"`
@@ -82,6 +86,8 @@ func toStackResponse(repo *repository.StackRepository, s *models.Stack) stackRes
 		ThemeMode:   s.ThemeMode,
 		PageStyle:   s.PageStyle,
 		Active:      s.Active,
+		ProxyPort:   s.ProxyPort,
+		ProxyRootURL: s.ProxyRootURL,
 		OwnerName:   s.OwnerName,
 		Source:      source,
 		SourceURL:   s.SourceURL,
@@ -211,6 +217,10 @@ type stackUpsertDTO struct {
 	Entrypoint           string                          `json:"entrypoint"`
 	ThemeMode            string                          `json:"themeMode"`
 	PageStyle            string                          `json:"pageStyle"`
+	// ProxyPort/ProxyRootURL configure the /<root> reverse proxy to the
+	// externally-run stack app (0/"" = off).
+	ProxyPort            int                             `json:"proxyPort"`
+	ProxyRootURL         string                          `json:"proxyRootUrl"`
 	Spec                 json.RawMessage                 `json:"spec"`
 	PermissionsRequested []repository.StackPermissionReq `json:"permissionsRequested"`
 }
@@ -474,9 +484,53 @@ func UpdateStackHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "forbidden: own-scope may only edit stacks you uploaded", http.StatusForbidden)
 		return
 	}
+	// Validate the proxy mount up front so misconfiguration 400s/409s with
+	// a clear message (the repo re-validates defensively; anything it
+	// rejects past these checks is an exact-race duplicate or DB failure).
+	proxyRoot := strings.TrimSpace(dto.ProxyRootURL)
+	if !models.ValidStackProxyPort(dto.ProxyPort) {
+		http.Error(w, "invalid proxy port (want 0 or 1-65535)", http.StatusBadRequest)
+		return
+	}
+	if !models.ValidStackProxyRoot(proxyRoot) {
+		http.Error(w, "invalid proxy root URL (want empty or lowercase letters, digits and hyphens, max 32)", http.StatusBadRequest)
+		return
+	}
+	if models.IsReservedStackProxyRoot(proxyRoot) {
+		http.Error(w, "proxy root URL is reserved by the panel", http.StatusBadRequest)
+		return
+	}
+	if proxyRoot != "" && dto.ProxyPort == 0 {
+		http.Error(w, "proxy root URL requires a proxy port (1-65535)", http.StatusBadRequest)
+		return
+	}
+	if dto.ProxyPort != 0 && proxyRoot == "" {
+		http.Error(w, "proxy port requires a proxy root URL", http.StatusBadRequest)
+		return
+	}
+	if taken, terr := repo.ProxyRootTaken(proxyRoot, id); terr != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	} else if taken {
+		http.Error(w, "proxy root URL is already used by another stack", http.StatusConflict)
+		return
+	}
+	// A proxy mount must not shadow the panel's own base path (Settings >
+	// General > Root URL): /panel/<root> would never reach the mount.
+	if proxyRoot != "" {
+		if con, cerr := repository.OpenDB(); cerr == nil {
+			base := repository.NewSettingsRepository(con).GetPanelRootURL()
+			_ = con.Close()
+			if base != "" && strings.EqualFold(base, strings.ToLower(strings.Trim(proxyRoot, "/"))) {
+				http.Error(w, "proxy root URL collides with the panel root URL", http.StatusBadRequest)
+				return
+			}
+		}
+	}
 	s, err := repo.UpdateStack(id, repository.UpdateStackInput{
 		Name: dto.Name, Category: dto.Category, Version: dto.Version,
 		Description: dto.Description, Icon: dto.Icon, Color: dto.Color, Spec: dto.Spec,
+		ProxyPort: dto.ProxyPort, ProxyRootURL: proxyRoot,
 	})
 	if err != nil {
 		if errors.Is(err, repository.ErrStackNotFound) {

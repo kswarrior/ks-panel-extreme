@@ -1073,6 +1073,18 @@ func NewRouter() http.Handler {
 	// Serve SPA from embedded UI – any route not matched above falls through to UI
 	uiFS := ui.FileSystem()
 	r.Handle("/*", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Stack-app mounts first: an admin-configured proxy root (e.g.
+		// /dash for a dashboard on 127.0.0.1:6600) serves the external Go
+		// app behind the panel session. Explicit admin config wins over
+		// static files so a mount can never be shadowed by a UI asset.
+		if stack, upstream, ok := handlers.LookupStackProxyRoot(r.URL.Path); ok {
+			AuthMiddleware(requireUmbrellaOrAction(stacksG, permissions.ActionView)(
+				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					handlers.ServeStackProxy(w, r, stack, upstream)
+				}),
+			)).ServeHTTP(w, r)
+			return
+		}
 		// Serve static files; index.html (and any unmatched path) gets
 		// brand-injected so the SPA boots already knowing its name + logo,
 		// fixing the "KS Panel" flash on hard reload.
