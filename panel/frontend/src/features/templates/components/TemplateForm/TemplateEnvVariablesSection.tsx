@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { glassFieldClass } from '@/shared/components/ui/Field';
 import type { EnvVariable } from '@/features/templates/types/templateForm';
-import { ENV_VAR_SCOPES, envScopesEffective } from '@/features/templates/types/templateForm';
 
 export interface EnvVariableInput extends EnvVariable {}
 
@@ -110,46 +109,6 @@ export const TemplateEnvVariablesSection: React.FC<EnvVariablesSectionProps> = (
                     {v.display === 'select' && (
                       <input value={v.options} onChange={(e) => onEnvUpdate(i, { options: e.target.value })} placeholder="Options (comma-separated)" className={glassFieldClass} />
                     )}
-                    <div>
-                      <span className="block text-[11px] text-gray-500 mb-1">
-                        Use in — where <code className="font-mono text-gray-400">{v.name ? `{{${v.name}}}` : '{{NAME}}'} / {v.name ? `\${${v.name}}` : '${NAME}'}</code> gets substituted. All on = everywhere (image, install, actions, controls, pages, runtime).
-                      </span>
-                      <div className="flex gap-1.5 flex-wrap">
-                        {ENV_VAR_SCOPES.map((s) => {
-                          const on = envScopesEffective(v).includes(s);
-                          return (
-                            <button
-                              key={s}
-                              type="button"
-                              onClick={() => {
-                                const cur = new Set(envScopesEffective(v));
-                                if (on && cur.size === 1) return; // keep at least one
-                                if (on) cur.delete(s);
-                                else cur.add(s);
-                                const next = [...cur];
-                                onEnvUpdate(i, { scopes: next.length === ENV_VAR_SCOPES.length ? [] : next } as Partial<EnvVariableInput>);
-                              }}
-                              aria-pressed={on}
-                              title={on ? `Remove ${s}` : `Allow in ${s}`}
-                              className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${on ? 'border-emerald-500/60 bg-emerald-500/15 text-emerald-200' : 'border-white/10 bg-white/5 text-gray-500 hover:border-white/25 hover:text-gray-300'}`}
-                            >
-                              {s}
-                            </button>
-                          );
-                        })}
-                        <button
-                          type="button"
-                          onClick={() => onEnvUpdate(i, { scopes: [] } as Partial<EnvVariableInput>)}
-                          className="text-[10px] px-1.5 py-0.5 rounded border border-white/10 text-gray-400 hover:text-white hover:border-white/25"
-                          title="Allow everywhere"
-                        >
-                          all
-                        </button>
-                      </div>
-                      <p className="text-[11px] text-gray-500 mt-1">
-                        Multi-image: put <code className="font-mono text-gray-400">{'{{IMAGE}}'}</code> in the image field and make a <code className="font-mono text-gray-400">select</code> var named <code className="font-mono text-gray-400">IMAGE</code> with the images as options.
-                      </p>
-                    </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <input value={v.prepend} onChange={(e) => onEnvUpdate(i, { prepend: e.target.value })} placeholder="prepend" className={monoCls} />
                       <input value={v.append_value} onChange={(e) => onEnvUpdate(i, { append_value: e.target.value })} placeholder="append" className={monoCls} />
