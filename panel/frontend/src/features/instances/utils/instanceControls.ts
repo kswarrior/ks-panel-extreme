@@ -76,7 +76,23 @@ export interface InstanceControls {
   allow_external_id_copy: boolean;
   allow_node_link: boolean;
   allow_template_link: boolean;
+  // Floating menu — quick shortcuts (Files / Terminal / Ports) above Actions.
+  shortcuts: InstanceShortcuts;
 }
+
+const DEFAULT_SHORTCUT_BASE = {
+  show: true,
+  icon_svg: '',
+  show_sftp: true,
+  show_header: true,
+  allow_edit: true,
+};
+
+export const DEFAULT_SHORTCUTS: InstanceShortcuts = {
+  files: { ...DEFAULT_SHORTCUT_BASE, slug: 'files', label: 'Files', icon_color: '#fbbf24' },
+  terminal: { ...DEFAULT_SHORTCUT_BASE, slug: 'terminal', label: 'Terminal', icon_color: '#34d399' },
+  ports: { ...DEFAULT_SHORTCUT_BASE, slug: 'ports', label: 'Ports', icon_color: '#38bdf8' },
+};
 
 export const DEFAULT_INSTANCE_CONTROLS: InstanceControls = {
   show_info_row: true,
@@ -101,12 +117,54 @@ export const DEFAULT_INSTANCE_CONTROLS: InstanceControls = {
   allow_external_id_copy: true,
   allow_node_link: true,
   allow_template_link: true,
+  shortcuts: {
+    files: { ...DEFAULT_SHORTCUTS.files },
+    terminal: { ...DEFAULT_SHORTCUTS.terminal },
+    ports: { ...DEFAULT_SHORTCUTS.ports },
+  },
 };
 
 const VALID_DEFAULT_TABS: OverviewDefaultTab[] = ['details', 'monitoring', 'manage', 'activity'];
 
 function boolOr(v: unknown, fallback: boolean): boolean {
   return typeof v === 'boolean' ? v : fallback;
+}
+
+function strOr(v: unknown, fallback: string): string {
+  return typeof v === 'string' && v.trim() !== '' ? v : fallback;
+}
+
+function slugOr(v: unknown, fallback: string): string {
+  if (typeof v !== 'string' || v.trim() === '') return fallback;
+  const s = v.trim().replace(/^\/+|\/+$/g, '').trim();
+  return s !== '' ? s : fallback;
+}
+
+// resolveShortcut normalises one shortcuts.<key> entry; absent/garbled
+// entries fall back field-by-field so old snapshots keep working.
+function resolveShortcut(raw: unknown, fallback: InstanceShortcutConfig): InstanceShortcutConfig {
+  const r: Record<string, any> =
+    raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, any>) : {};
+  return {
+    show: boolOr(r.show, fallback.show),
+    slug: slugOr(r.slug, fallback.slug),
+    label: strOr(r.label, fallback.label).trim(),
+    icon_svg: typeof r.icon_svg === 'string' ? r.icon_svg : fallback.icon_svg,
+    icon_color: typeof r.icon_color === 'string' ? r.icon_color.trim() : fallback.icon_color,
+    show_sftp: boolOr(r.show_sftp, fallback.show_sftp),
+    show_header: boolOr(r.show_header, fallback.show_header),
+    allow_edit: boolOr(r.allow_edit, fallback.allow_edit),
+  };
+}
+
+function resolveShortcuts(raw: unknown): InstanceShortcuts {
+  const r: Record<string, any> =
+    raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, any>) : {};
+  return {
+    files: resolveShortcut(r.files, DEFAULT_SHORTCUTS.files),
+    terminal: resolveShortcut(r.terminal, DEFAULT_SHORTCUTS.terminal),
+    ports: resolveShortcut(r.ports, DEFAULT_SHORTCUTS.ports),
+  };
 }
 
 // resolveInstanceControls normalises a template spec or instance config
@@ -163,12 +221,48 @@ export function resolveInstanceControls(
     allow_external_id_copy: boolOr(c.allow_external_id_copy, d.allow_external_id_copy),
     allow_node_link: boolOr(c.allow_node_link, d.allow_node_link),
     allow_template_link: boolOr(c.allow_template_link, d.allow_template_link),
+    shortcuts: resolveShortcuts(c.shortcuts),
   };
+}
+
+// shortcutSlug returns the normalized URL slug for a menu shortcut.
+export function shortcutSlug(controls: InstanceControls, key: ShortcutKey): string {
+  const s = controls?.shortcuts?.[key]?.slug;
+  if (typeof s === 'string' && s.trim() !== '') {
+    const norm = s.trim().replace(/^\/+|\/+$/g, '').trim();
+    if (norm !== '') return norm;
+  }
+  return DEFAULT_SHORTCUTS[key].slug;
+}
+
+// shortcutLabel returns the display name for a menu shortcut.
+export function shortcutLabel(controls: InstanceControls, key: ShortcutKey): string {
+  const s = controls?.shortcuts?.[key]?.label;
+  if (typeof s === 'string' && s.trim() !== '') return s.trim();
+  return DEFAULT_SHORTCUTS[key].label;
+}
+
+const SHORTCUT_FIELDS: (keyof InstanceShortcutConfig)[] = [
+  'show',
+  'slug',
+  'label',
+  'icon_svg',
+  'icon_color',
+  'show_sftp',
+  'show_header',
+  'allow_edit',
+];
+
+function isShortcutCustom(a: InstanceShortcutConfig, b: InstanceShortcutConfig): boolean {
+  return SHORTCUT_FIELDS.some((k) => a[k] !== b[k]);
 }
 
 // isControlsCustom reports whether the block carries any non-default value
 // (used to decide if serializeSpec should persist it).
 export function isControlsCustom(c: InstanceControls): boolean {
   const d = DEFAULT_INSTANCE_CONTROLS;
-  return (Object.keys(d) as (keyof InstanceControls)[]).some((k) => c[k] !== d[k]);
+  if ((Object.keys(d) as (keyof InstanceControls)[]).some((k) => k !== 'shortcuts' && c[k] !== d[k])) {
+    return true;
+  }
+  return SHORTCUT_KEYS.some((k) => isShortcutCustom(c.shortcuts[k], d.shortcuts[k]));
 }
