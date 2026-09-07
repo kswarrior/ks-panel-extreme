@@ -203,3 +203,50 @@ func TestValidateTemplateSpecEnvFile(t *testing.T) {
 		t.Fatalf("non-string env_file accepted")
 	}
 }
+
+func TestValidateTemplateSpecEnvOptions(t *testing.T) {
+	opt := func(m map[string]any) map[string]any {
+		base := map[string]any{"name": "JAVA", "display": "select", "options_list": []any{m}}
+		return map[string]any{"env": []any{base}}
+	}
+	if err := validateTemplateSpec(opt(map[string]any{
+		"svg": "<svg></svg>", "label": "Temurin 21", "value": "21",
+	})); err != nil {
+		t.Fatalf("valid options row rejected: %v", err)
+	}
+	if err := validateTemplateSpec(opt(map[string]any{"label": "no value"})); err == nil {
+		t.Fatalf("value-less option accepted")
+	}
+	if err := validateTemplateSpec(opt(map[string]any{"value": "x", "svg": "<ScRiPt>alert(1)</ScRiPt>"})); err == nil {
+		t.Fatalf("script svg accepted")
+	}
+	if err := validateTemplateSpec(map[string]any{"env": []any{map[string]any{"name": "X", "options_list": "nope"}}}); err == nil {
+		t.Fatalf("non-array options_list accepted")
+	}
+	many := make([]any, 0, 51)
+	for i := 0; i < 51; i++ {
+		many = append(many, map[string]any{"value": "v"})
+	}
+	if err := validateTemplateSpec(map[string]any{"env": []any{map[string]any{"name": "X", "options_list": many}}}); err == nil {
+		t.Fatalf("oversized options_list accepted")
+	}
+}
+
+func TestValidateTemplateSpecEnvCheckboxValues(t *testing.T) {
+	withVals := func(extra map[string]any) map[string]any {
+		base := map[string]any{"name": "FEAT", "display": "checkbox"}
+		for k, v := range extra {
+			base[k] = v
+		}
+		return map[string]any{"env": []any{base}}
+	}
+	if err := validateTemplateSpec(withVals(map[string]any{"checked_value": "--enable", "unchecked_value": ""})); err != nil {
+		t.Fatalf("valid checkbox values rejected: %v", err)
+	}
+	if err := validateTemplateSpec(withVals(map[string]any{"checked_value": 7})); err == nil {
+		t.Fatalf("non-string checked_value accepted")
+	}
+	if err := validateTemplateSpec(withVals(map[string]any{"unchecked_value": "a\nb"})); err == nil {
+		t.Fatalf("newline unchecked_value accepted")
+	}
+}

@@ -97,12 +97,7 @@ CREATE INDEX IF NOT EXISTS idx_stack_kv_slug ON stack_kv(stack_slug);
 CREATE INDEX IF NOT EXISTS idx_stacks_slug ON stacks(slug);
 CREATE INDEX IF NOT EXISTS idx_stacks_active ON stacks(active);
 
--- Seed the catalog permissions so the admin role picks them up on launch.
-INSERT OR IGNORE INTO permissions (key, description) VALUES
-    ('MANAGE_STACKS', 'Manage the Stacks catalog (upload, edit, activate/deactivate)'),
-    ('STACKS_VIEW',   'View the Stacks catalog'),
-    ('STACKS_CREATE', 'Upload a new Stack package'),
-    ('STACKS_EDIT',   'Edit a Stack and approve its requested capabilities'),
-    ('STACKS_DELETE', 'Remove a Stack package'),
-    ('STACKS_OWN',    'Stacks — only own stacks (visibility scoped to owned)'),
-    ('STACKS_ALL',    'Stacks — any stack (full admin over all stacks)');
+-- Catalog permission seeds live in db.go SeedCore (not here): the `key`
+-- column trips regen.sh's MySQL reserved-word gate, and SeedCore is the
+-- current convention (see 070_panel_pages.sql which seeds nothing).
+-- SeedCore must gain MANAGE_STACKS + STACKS_VIEW/CREATE/EDIT/DELETE/OWN/ALL.

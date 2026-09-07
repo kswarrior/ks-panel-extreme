@@ -12,7 +12,7 @@ Panels + latest checked: `KS` (this repo) vs `Pterodactyl v1.15.1 (12 Aug 2026, 
 | Grouping | `category/type` tags + filter only, auto-derived, flattens at scale | real `Nests` + mass importer creates nests automatically (Eggify v9.7) | real `Nests` + user-configurable egg/nest index file (beta34) | `type` string, mostly display (`type` drives game icon) |
 | Format | rich spec (`ports,limits,mounts,env[],install[],actions[],healthcheck,labels,devices,pages[],controls,advanced{kvm,mp,lxd}`) | `PTDL_v2` (`docker_images,startup,scripts,variables[],config-files`) | same `PTDL_v2`, import-compatible | `{type,display,data,install,run,environment}` + `conditions` (CEL) + multi-`commands` |
 | Var syntax | form fields + `{{config:}}` on pages only | `{{VAR}}` in startup/script, proven | `{{VAR}}` | `${var}` anywhere + `file_exists/in_path/is_server_running` |
-| Multi-image | one `image` per template | `docker_images{}` map (Java 17/21, SteamCMD yolks) | same map | one image, but `conditions` allow dual-env (docker vs standard) in one file |
+| Multi-image | any field templated by env: `eclipse-temurin:${java_version}-jre` + a `java_version` text/select var (SVG rows) = version matrix per template; operator picks at deploy. Honest minus: still one `image` field, no named multi-runtime map with per-image metadata | `docker_images{}` map (Java 17/21, SteamCMD yolks) | same map | one image, but `conditions` allow dual-env (docker vs standard) in one file |
 
 ## 2. Authoring surface vs
 
