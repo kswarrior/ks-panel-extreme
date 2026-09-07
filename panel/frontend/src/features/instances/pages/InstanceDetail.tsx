@@ -115,9 +115,9 @@ function hasRenderableContent(c: PageContent | null): boolean {
 
 // specRowState reports whether spec.pages contains a row for `slug`
 // (matching slug or original_slug): 'enabled', 'disabled', or 'absent'.
-// Used so an explicitly DISABLED files/terminal row stays hidden instead of
-// falling back to the self-sufficient starter content.
-function specRowState(spec: Record<string, any> | null, slug: string): 'enabled' | 'disabled' | 'absent' {
+// Exported for the floating menu so its shortcut buttons dim exactly when
+// the page itself would refuse to render (explicitly disabled row).
+export function specRowState(spec: Record<string, any> | null, slug: string): 'enabled' | 'disabled' | 'absent' {
   const pages = Array.isArray(spec?.pages) ? spec.pages : [];
   for (const p of pages) {
     if (!p || typeof p !== 'object') continue;
@@ -392,18 +392,23 @@ export const InstanceDynamicPage: React.FC = () => {
 
   // Files is a self-sufficient builtin: an imported files row renders when
   // present, otherwise the bundled library starter renders, so the page
-  // works with zero imports. The SFTP card rides above the manager unless
-  // the Files shortcut's "Show SFTP card" page option is off.
-  if (effectiveSlug === filesSlug || (effectiveSlug === 'files' && isPageAllowed('files', spec))) {
+  // works with zero imports. An explicitly disabled files row stays hidden;
+  // an enabled-but-empty row keeps the re-import guidance card. The SFTP
+  // card rides above the manager unless the Files shortcut's "Show SFTP
+  // card" page option is off.
+  if (
+    (effectiveSlug === filesSlug || effectiveSlug === 'files') &&
+    specRowState(spec, 'files') !== 'disabled' &&
+    specRowState(spec, filesSlug) !== 'disabled'
+  ) {
     const rowContent = getPageContent(effectiveSlug, spec);
-    const content = hasRenderableContent(rowContent) ? rowContent : filesStarterContent(null);
-    if (content) {
+    if (hasRenderableContent(rowContent)) {
       return (
         <ErrorBoundary resetKey={`files-${instanceId}`} label="instance-page">
           <div className="space-y-4">
             {controls.shortcuts.files.show_sftp && <InstanceSftpCard instanceId={instanceId} />}
             <CustomPageView
-              content={content}
+              content={rowContent}
               title={getPageLabel(effectiveSlug, spec) ?? shortcutLabel(controls, 'files')}
               instanceContext={instanceContext}
               pageSlug={effectiveSlug}
@@ -412,15 +417,45 @@ export const InstanceDynamicPage: React.FC = () => {
         </ErrorBoundary>
       );
     }
+    if (specRowState(spec, effectiveSlug) === 'absent') {
+      const starterContent = filesStarterContent(null);
+      if (starterContent) {
+        return (
+          <ErrorBoundary resetKey={`files-${instanceId}`} label="instance-page">
+            <div className="space-y-4">
+              {controls.shortcuts.files.show_sftp && <InstanceSftpCard instanceId={instanceId} />}
+              <CustomPageView
+                content={starterContent}
+                title={getPageLabel(effectiveSlug, spec) ?? shortcutLabel(controls, 'files')}
+                instanceContext={instanceContext}
+                pageSlug={effectiveSlug}
+              />
+            </div>
+          </ErrorBoundary>
+        );
+      }
+    } else {
+      // Enabled-but-empty row — same re-import guidance as the generic path.
+      return (
+        <div className="glass-card rounded-xl text-center text-gray-400">
+          <p className="text-sm">This page (<code className="text-gray-300">/{slug}</code>) has no content.</p>
+          <p className="text-xs text-gray-500 mt-1">Re-import it from the Instance Pages library to restore its definition.</p>
+        </div>
+      );
+    }
     // No row and no starter (never expected) — fall through to the
     // whitelist path below, which renders the standard guidance cards.
   }
 
-  // Files editor sub-page fallback: when the instance has no files row of
-  // its own, `<filesSlug>/edit` renders the bundled starter editor instead
-  // of the not-in-template card. Instances WITH a files row resolve their
-  // own edit sub-page through the whitelist path below (unchanged).
-  if (effectiveSlug === `${filesSlug}/edit` && !hasRenderableContent(getPageContent(effectiveSlug, spec))) {
+  // Files editor sub-page fallback: when the instance has no files row at
+  // all, `<filesSlug>/edit` renders the bundled starter editor instead of
+  // the not-in-template card. Instances WITH a files row resolve their own
+  // edit sub-page through the whitelist path below (unchanged).
+  if (
+    effectiveSlug === `${filesSlug}/edit` &&
+    specRowState(spec, filesSlug) === 'absent' &&
+    !hasRenderableContent(getPageContent(effectiveSlug, spec))
+  ) {
     const editContent = filesStarterContent('edit');
     if (editContent) {
       return (
