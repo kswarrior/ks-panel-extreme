@@ -481,6 +481,30 @@ type InstallStdinResponse struct {
 	Error string `json:"error,omitempty"`
 }
 
+// ConfigParseRequest is the body POST'd to /api/edge/configparse to apply
+// spec.config_files[] parsers inside a running workload (pre-start re-sync).
+type ConfigParseRequest struct {
+	Token      string       `json:"token"`
+	Kind       string       `json:"kind"`
+	Name       string       `json:"name"`
+	Files      []ConfigFile `json:"files"`
+	TimeoutSec int          `json:"timeout_sec,omitempty"`
+}
+
+// ConfigParseFileResult is one file's outcome from the edge.
+type ConfigParseFileResult struct {
+	File    string `json:"file"`
+	Changed bool   `json:"changed"`
+	Error   string `json:"error,omitempty"`
+}
+
+// ConfigParseResponse is what the edge hands back.
+type ConfigParseResponse struct {
+	OK      bool                    `json:"ok"`
+	Applied []ConfigParseFileResult `json:"applied,omitempty"`
+	Error   string                  `json:"error,omitempty"`
+}
+
 // InstallStart POSTs the install kick-off to the edge. Returns the install_id
 // immediately so the panel can start polling.
 func (c *Client) InstallStart(req InstallStartRequest) (InstallStartResponse, error) {
