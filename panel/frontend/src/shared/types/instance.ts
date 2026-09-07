@@ -107,6 +107,12 @@ export interface DeployRequest {
   /** Shallow-merged onto the template.spec before POSTing to ksedge. */
   overrides?: Record<string, unknown>;
   /**
+   * Named runtime from the template's multi-image map (spec.images[] /
+   * spec.docker_images{}). Empty/omitted = the template's default runtime.
+   * Unknown names fail closed with 400 + the available names.
+   */
+  image_key?: string;
+  /**
    * Per-deploy values for template-defined env variables. The panel
    * validates each against the template's env[] rules (required, regex,
    * append/prepend) server-side and builds the final KEY=VALUE map that

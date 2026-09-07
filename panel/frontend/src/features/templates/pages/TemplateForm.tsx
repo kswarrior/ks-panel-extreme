@@ -18,6 +18,7 @@ import {
   TemplateLabelsDevicesSection,
   TemplateHealthcheckSection,
   TemplateControlsSection,
+  TemplateImagesSection,
   TemplateSpecPreviewSection,
 } from '@/features/templates/components/TemplateForm';
 import { DEFAULT_INSTANCE_CONTROLS } from '@/features/instances/utils/instanceControls';
@@ -45,6 +46,7 @@ import type {
   PageOverride,
   TemplateTabId,
   BlockRow,
+  TemplateImage,
 } from '../types/templateForm';
 import {
   emptyForm,
@@ -591,8 +593,19 @@ const TemplateForm: React.FC = () => {
                 <GlassField label="Image" htmlFor="image">
                   <input id="image" value={form.image} onChange={(e) => setForm({ ...form, image: e.target.value })} placeholder="e.g. itzg/minecraft-server:latest or {{IMAGE}}" required />
                 </GlassField>
-                <p className="text-[11px] text-gray-500 mt-1">{'{{IMAGE}}'} / {'${IMAGE}'} + a select env var = multi-image template.</p>
+                <p className="text-[11px] text-gray-500 mt-1">Default runtime. {'{{IMAGE}}'} / {'${IMAGE}'} + a select env var also works, but named runtimes below are the first-class multi-image map.</p>
               </div>
+              <TemplateImagesSection
+                images={form.images}
+                onImageUpdate={(i, patch) => setForm((f) => { const im = [...f.images]; im[i] = { ...im[i], ...patch }; return { ...f, images: im }; })}
+                onImageAdd={() => setForm((f) => ({ ...f, images: [...f.images, { name: '', image: '', description: '', is_default: f.images.length === 0 && !f.image.trim(), env: {} } as TemplateImage] }))}
+                onImageDelete={(i) => setForm((f) => ({ ...f, images: f.images.filter((_, j) => j !== i) }))}
+                onImageDefault={(i) => setForm((f) => ({ ...f, images: f.images.map((r, j) => ({ ...r, is_default: j === i ? !r.is_default : false })), default_image: '' }))}
+                sectionCls={sectionCls}
+                labelCls={labelCls}
+                monoCls={monoCls}
+                addBtn={addBtn}
+              />
               <GlassField label="Category" htmlFor="category">
                 <TagPicker value={form.category} options={['game', 'web', 'database', 'proxy', 'bot', 'other']} placeholder="game" onChange={(v) => setForm({ ...form, category: v })} onAdd={(v) => setForm({ ...form, category: v })} onDelete={() => setForm({ ...form, category: '' })} />
               </GlassField>

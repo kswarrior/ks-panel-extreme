@@ -54,6 +54,7 @@ var validKinds = map[string]bool{
 var validEnvScopes = map[string]bool{
 	"install": true, "actions": true, "image": true,
 	"controls": true, "pages": true, "advanced": true,
+	"config_files": true,
 }
 
 // normalizeEnvScopes cleans a raw scopes value: unknown entries are dropped,
@@ -195,7 +196,7 @@ func validateTemplateSpec(spec map[string]any) error {
 						continue
 					}
 					if !validEnvScopes[s] {
-						return fmt.Errorf("spec.env[%d]: unknown scope %q (want one of: install, actions, image, controls, pages, advanced, all)", i, s)
+						return fmt.Errorf("spec.env[%d]: unknown scope %q (want one of: install, actions, image, controls, pages, advanced, config_files, all)", i, s)
 					}
 				}
 			}

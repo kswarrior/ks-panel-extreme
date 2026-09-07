@@ -471,7 +471,18 @@ export function parseSpec(raw: string): Partial<TemplateFormState> {
       }
       if (rows.length > 0) out.images = rows;
       if (typeof s.default_image === 'string' && s.default_image.trim() !== '') {
-        out.default_image = s.default_image.trim();
+        const named = s.default_image.trim();
+        // Unify on the is_default flag: when the named default agrees with
+        // the rows (no conflicting default:true elsewhere) it becomes the
+        // row flag so the builder shows a single default mechanism.
+        // Conflicts are kept raw so the backend 400 explains the problem.
+        const target = rows.find((r) => r.name.toLowerCase() === named.toLowerCase());
+        const conflict = rows.find((r) => r.is_default && r.name.toLowerCase() !== named.toLowerCase());
+        if (target && !conflict) {
+          target.is_default = true;
+        } else {
+          out.default_image = named;
+        }
       }
     }
     if (Array.isArray(s.install)) {
