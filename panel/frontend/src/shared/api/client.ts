@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { useAuthStore } from '@/shared/stores/authStore';
+import { loginPath, onAuthRoute } from '@/shared/utils/panelBase';
 
 // Base instance – Vite proxy will forward /api to the backend.
 const client = axios.create({
@@ -153,10 +154,10 @@ client.interceptors.response.use(
           // RequireAuth Navigate — don't force a full reload there, just
           // ensure the store is cleared and let React handle the redirect.
           const isMeProbe = url.includes('/api/me');
-          if (!isMeProbe && typeof window !== 'undefined' && !window.location.pathname.startsWith('/auth')) {
+          if (!isMeProbe && typeof window !== 'undefined' && !onAuthRoute(window.location.pathname)) {
             // Replace so the back button doesn't return to a 401-failed page.
             setTimeout(() => {
-              window.location.replace('/auth/login');
+              window.location.replace(loginPath());
             }, 0);
             setTimeout(() => {
               isRedirecting = false;
@@ -168,7 +169,7 @@ client.interceptors.response.use(
             }, 500);
             // If this was a post-boot protected 401 while somehow still on
             // /auth (shouldn't happen), still try to settle at login
-            if (!isMeProbe && typeof window !== 'undefined' && window.location.pathname.startsWith('/auth')) {
+            if (!isMeProbe && typeof window !== 'undefined' && onAuthRoute(window.location.pathname)) {
               try {
                 state.clearAuth();
               } catch {}

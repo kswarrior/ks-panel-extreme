@@ -1,4 +1,5 @@
 import create from 'zustand';
+import { stripPanelBase } from '@/shared/utils/panelBase';
 import type { Theme, ThemeKey, ThemeCustomCSS } from '@/features/themes/types/theme';
 import { DEFAULT_THEME } from '@/theme/defaults';
 import { rgbaAt } from '@/theme/colorUtils';
@@ -2520,7 +2521,7 @@ const initial = loadPersisted();
 // inline in index.html by the Go server, so it is present at module-import.
 {
   loadBootstrapTheme();
-  const p = typeof window !== 'undefined' ? window.location.pathname : '/';
+  const p = typeof window !== 'undefined' ? stripPanelBase(window.location.pathname) : '/';
   applyTheme(resolveThemeForInitial(p, {
     themes: initial.themes,
     assignments: initial.assignments,
@@ -2574,7 +2575,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   load: () => {
     const p = loadPersisted();
     set({ themes: p.themes, assignments: p.assignments });
-    const pth = typeof window !== 'undefined' ? window.location.pathname : '/';
+    const pth = typeof window !== 'undefined' ? stripPanelBase(window.location.pathname) : '/';
     const tid = resolveThemeIdByRoute(pth, p.assignments);
     applyTheme(p.themes.find((t) => t.id === tid) || DEFAULT_THEME, { pathname: pth });
   },
@@ -2622,11 +2623,15 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   },
 
   resolveThemeForRoute: (pathname) => {
-    return resolveThemeFromStore(get(), pathname);
+    // Strip the panel base (Settings > Root URL) so theme scopes match the
+    // logical route. Idempotent: react-router already strips the basename
+    // from useLocation paths, and stripPanelBase leaves those unchanged.
+    return resolveThemeFromStore(get(), stripPanelBase(pathname));
   },
 
   applyForRoute: (pathname) => {
-    applyTheme(resolveThemeFromStore(get(), pathname), { pathname });
+    const stripped = stripPanelBase(pathname);
+    applyTheme(resolveThemeFromStore(get(), stripped), { pathname: stripped });
   },
 
   assignTheme: (themeId, scope) => {
@@ -2712,7 +2717,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     set({ themes });
     persistFrom(get);
     if (typeof window !== 'undefined') {
-      const tid = resolveThemeIdByRoute(window.location.pathname, get().assignments);
+      const tid = resolveThemeIdByRoute(stripPanelBase(window.location.pathname), get().assignments);
       if (tid === id) get().applyForRoute(window.location.pathname);
     }
   },
