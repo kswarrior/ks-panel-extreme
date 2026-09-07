@@ -62,6 +62,8 @@ export function serializeSpec(f: TemplateFormState): string {
       void _drop;
       return scopes.length > 0 ? { ...rest, scopes } : { ...rest };
     }),
+    // Raw `.env` file content (empty is pruned by the cleanup below).
+    env_file: f.env_file,
     install: f.install.map((s) => ({
       action: s.action,
       command: s.command,
