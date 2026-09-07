@@ -499,3 +499,83 @@ func cloneHostRoot(w http.ResponseWriter, r *http.Request, jail hostJail, abs, d
 		"url":  rawURL,
 	})
 }
+
+// renameHostRoot moves the jailed path abs to a jailed destination. Both
+// `path` and `to` live in the same root-relative coordinate space (the SPA
+// sends both as breadcrumb paths), so the destination is resolved through
+// the identical jail — a `to` escaping the root is refused outright.
+// Overwrites are refused (409): rename is for renaming, not replacing.
+func renameHostRoot(w http.ResponseWriter, r *http.Request, jail hostJail, abs, disp, toQ string) {
+	to := strings.TrimSpace(toQ)
+	if to == "" {
+		// Accept a JSON body too — POST ?op=rename with JSON is what
+		// newer callers send; the query form keeps curl one-liners working.
+		var body struct {
+			To string `json:"to"`
+		}
+		_ = json.NewDecoder(io.LimitReader(r.Body, 64<<10)).Decode(&body)
+		to = strings.TrimSpace(body.To)
+	}
+	if to == "" {
+		writeErr(w, http.StatusBadRequest, "rename requires a 'to' parameter")
+		return
+	}
+	destAbs, err := jail.resolve(to)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	destDisp := displayRel(to)
+	if destAbs == abs {
+		writeErr(w, http.StatusBadRequest, "source and destination are the same")
+		return
+	}
+	if _, err := os.Stat(abs); err != nil {
+		if os.IsNotExist(err) {
+			writeErr(w, http.StatusNotFound, "no such file or directory")
+			return
+		}
+		writeErr(w, http.StatusBadGateway, fmt.Sprintf("stat: %v", err))
+		return
+	}
+	if _, err := os.Stat(destAbs); err == nil {
+		writeErr(w, http.StatusConflict, fmt.Sprintf("%q already exists", filepath.Base(destAbs)))
+		return
+	}
+	if err := os.Rename(abs, destAbs); err != nil {
+		writeErr(w, http.StatusBadGateway, fmt.Sprintf("rename: %v", err))
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "from": disp, "to": destDisp})
+}
+
+// deleteHostRoot removes the jailed path abs. Directories go recursively
+// (rm -rf semantics) — the SPA confirms before invoking this on a folder.
+// The root itself can never be deleted.
+func deleteHostRoot(w http.ResponseWriter, jail hostJail, abs, disp string) {
+	if abs == jail.root {
+		writeErr(w, http.StatusBadRequest, "cannot delete the instances root")
+		return
+	}
+	info, err := os.Stat(abs)
+	if err != nil {
+		if os.IsNotExist(err) {
+			writeErr(w, http.StatusNotFound, "no such file or directory")
+			return
+		}
+		writeErr(w, http.StatusBadGateway, fmt.Sprintf("stat: %v", err))
+		return
+	}
+	if info.IsDir() {
+		err = os.RemoveAll(abs)
+	} else {
+		err = os.Remove(abs)
+	}
+	if err != nil {
+		writeErr(w, http.StatusBadGateway, fmt.Sprintf("delete: %v", err))
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "path": disp})
+}
