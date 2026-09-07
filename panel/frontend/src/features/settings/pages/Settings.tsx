@@ -2,9 +2,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   brandLogoStyleFromWire,
   brandNameStyleFromWire,
+  deleteFavicon,
   deletePanelLogo,
   getSettings,
   updateSettings,
+  uploadFavicon,
   uploadPanelLogo,
 } from '@/features/settings/api/settings';
 import {
@@ -15,11 +17,15 @@ import {
   type PanelNameStyle,
 } from '@/shared/stores/settingsStore';
 import { PANEL_NAME_FONTS, PanelBrandLogo, PanelBrandName } from '@/shared/components/brand/PanelBrand';
+import { applyBrandToDocument, effectiveTabTitle } from '@/shared/utils/brandTab';
 import SkeletonCard from '@/shared/components/ui/SkeletonCard';
 import { useConfirm } from '@/shared/stores/confirmStore';
 
 const MAX_LOGO_BYTES = 5 * 1024 * 1024; // mirrors server-side limit
 const ALLOWED_LOGO_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp', 'image/svg+xml'];
+const MAX_FAVICON_BYTES = 5 * 1024 * 1024; // mirrors server-side limit
+const ALLOWED_FAVICON_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp', 'image/svg+xml', 'image/x-icon', 'image/vnd.microsoft.icon', 'image/ico'];
+const MAX_TAB_TITLE_LEN = 120;
 
 const NAME_COLOR_PRESETS = ['#ffffff', '#e5e7eb', '#a5b4fc', '#93c5fd', '#6ee7b7', '#fcd34d', '#fca5a5', '#f0abfc'];
 const GRADIENT_PRESETS: Array<[string, string]> = [
@@ -66,23 +72,30 @@ const Settings: React.FC = () => {
   const setPanelLogo = useSettingsStore((s) => s.setPanelLogo);
   const setNameStyle = useSettingsStore((s) => s.setNameStyle);
   const setLogoStyle = useSettingsStore((s) => s.setLogoStyle);
+  const setBrowserTabTitle = useSettingsStore((s) => s.setBrowserTabTitle);
+  const setFavicon = useSettingsStore((s) => s.setFavicon);
   const confirm = useConfirm();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingFavicon, setUploadingFavicon] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [name, setName] = useState('KS Panel');
+  const [tabTitle, setTabTitle] = useState('');
   const [nameStyle, setNameStyleLocal] = useState<PanelNameStyle>({ ...DEFAULT_PANEL_NAME_STYLE });
   const [logoStyle, setLogoStyleLocal] = useState<PanelLogoStyle>({ ...DEFAULT_PANEL_LOGO_STYLE });
   const [logo, setLogo] = useState<{ url: string; mime: string; filename?: string } | null>(null);
+  const [favicon, setFaviconLocal] = useState<{ url: string; mime: string; filename?: string } | null>(null);
   // Cache-bust the <img> when the user picks a local file to preview it
   // before the upload finishes. Resets to empty when the upload completes
   // (the server returns the canonical URL).
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoDims, setLogoDims] = useState<{ w: number; h: number } | null>(null);
   const [logoFileInfo, setLogoFileInfo] = useState<{ size: number; type: string } | null>(null);
+  const [faviconPreview, setFaviconPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const faviconInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -90,6 +103,8 @@ const Settings: React.FC = () => {
         const snap = await getSettings();
         setName(snap.panel_name || 'KS Panel');
         setLogo(snap.panel_logo || null);
+        setTabTitle((snap as any).browser_tab_title || '');
+        setFaviconLocal((snap as any).favicon || null);
         setNameStyleLocal(brandNameStyleFromWire(snap as any));
         setLogoStyleLocal(brandLogoStyleFromWire(snap as any));
       } catch (e: any) {
@@ -123,6 +138,10 @@ const Settings: React.FC = () => {
       setError('Panel name cannot be empty');
       return;
     }
+    if (tabTitle.trim().length > MAX_TAB_TITLE_LEN) {
+      setError(`Browser tab title is too long (max ${MAX_TAB_TITLE_LEN} characters)`);
+      return;
+    }
     setSaving(true);
     setError('');
     setSuccess('');
@@ -132,6 +151,7 @@ const Settings: React.FC = () => {
       // be wiped here.
       const snap = await updateSettings({
         panel_name: name.trim(),
+        browser_tab_title: tabTitle.trim(),
         panel_name_color: nameStyle.color,
         panel_name_font: nameStyle.font,
         panel_name_weight: nameStyle.weight,
@@ -152,10 +172,20 @@ const Settings: React.FC = () => {
         panel_logo_ring: logoStyle.ring,
       });
       setName(snap.panel_name);
+      setTabTitle((snap as any).browser_tab_title || '');
       // Push the new brand into the global store so Header / Sidebar / Login
       // pick it up without a reload.
       setPanelName(snap.panel_name);
-      document.title = snap.panel_name;
+      setBrowserTabTitle((snap as any).browser_tab_title || '');
+      const fav = (snap as any).favicon || null;
+      setFaviconLocal(fav);
+      setFavicon(fav);
+      applyBrandToDocument({
+        panelName: snap.panel_name,
+        tabTitle: (snap as any).browser_tab_title,
+        faviconUrl: fav?.url,
+        faviconMime: fav?.mime,
+      });
       const ns = brandNameStyleFromWire(snap as any);
       const ls = brandLogoStyleFromWire(snap as any);
       setNameStyleLocal(ns);
