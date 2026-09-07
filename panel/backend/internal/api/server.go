@@ -355,6 +355,10 @@ func NewRouter() http.Handler {
 			// bloat the JSON parser path.
 			r.With(requireUmbrellaOrAction(settingsG, permissions.ActionEdit)).Post("/logo", handlers.SettingsLogoUploadHandler)
 			r.With(requireUmbrellaOrAction(settingsG, permissions.ActionEdit)).Delete("/logo", handlers.SettingsLogoDeleteHandler)
+			// Favicon upload/delete — same permission model as the logo
+			// (the tab icon is part of the panel brand admins own).
+			r.With(requireUmbrellaOrAction(settingsG, permissions.ActionEdit)).Post("/favicon", handlers.SettingsFaviconUploadHandler)
+			r.With(requireUmbrellaOrAction(settingsG, permissions.ActionEdit)).Delete("/favicon", handlers.SettingsFaviconDeleteHandler)
 		})
 
 		// Custom panel pages (Settings > Pages: About, Docs, …). CRUD rides

@@ -34,6 +34,12 @@ type brandBootstrap struct {
 	PanelName string `json:"panel_name"`
 	LogoURL   string `json:"logo_url,omitempty"`
 	LogoMime  string `json:"logo_mime,omitempty"`
+	// Browser-tab brand (Settings > Browser Tab): raw override ("" = fall
+	// back to panel_name) + the favicon file reference. The SPA resolves the
+	// effective title client-side the same way the server does for <title>.
+	BrowserTabTitle string `json:"browser_tab_title,omitempty"`
+	FaviconURL      string `json:"favicon_url,omitempty"`
+	FaviconMime     string `json:"favicon_mime,omitempty"`
 	// Panel-name brand styling + logo presentation so the very first paint
 	// already renders the styled brand (no flash of the default white name).
 	PanelNameColor        string `json:"panel_name_color,omitempty"`
@@ -95,6 +101,7 @@ func writeBrandedIndex(w http.ResponseWriter, r *http.Request, uiFS http.FileSys
 		settingsRepo := repository.NewSettingsRepository(con)
 		if snap, serr := settingsRepo.Get(); serr == nil && snap != nil {
 			boot.PanelName = snap.PanelName
+			boot.BrowserTabTitle = snap.BrowserTabTitle
 			boot.PanelNameColor = snap.PanelNameColor
 			boot.PanelNameFont = snap.PanelNameFont
 			boot.PanelNameWeight = snap.PanelNameWeight
