@@ -520,7 +520,8 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
 
     // Surface `reconnect` to the parent via the forwarded ref. Stored in
     // a ref so it always points at the freshest closure (the effect re-
-    // runs if `instanceId` changes, replacing `open`/`forceReconnect`).
+    // runs if `instanceId`/`terminalId`/`timeoutS` change, replacing
+    // `open`/`forceReconnect`).
     reconnectRef.current = forceReconnect;
 
     open();
@@ -531,7 +532,7 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
       reconnectRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [instanceId]);
+  }, [instanceId, terminalId, timeoutS]);
 
   // Re-fit when the container resizes externally (e.g. layout shift).
   useEffect(() => {
