@@ -1,8 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import { useInstanceNav } from '@/shared/components/layout/InstanceNavContext';
-import { isPageAllowed } from '@/shared/utils/instancePages';
-import { resolveInstanceControls, shortcutLabel, shortcutSlug } from '../utils/instanceControls';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { PermissionKey, hasPermissionAny } from '@/shared/types/permissions';
@@ -11,21 +9,22 @@ import { PermissionKey, hasPermissionAny } from '@/shared/types/permissions';
 // of an instance (power, actions, status) lives in the floating draggable
 // menu (InstanceMenuFab), so this is just the scrollable tab row.
 
-// INSTANCE_TOOL_SLUGS are utility pages that never render as tabs — they
-// live in the InstanceToolsDock below (icon cards with their own look) so
-// the tab row stays reserved for content pages. Direct URLs keep working:
-// this only affects nav presentation, never the route guards.
+// INSTANCE_TOOL_SLUGS are self-sufficient utility pages (Files / Terminal /
+// Ports) that never render as tabs — they live in the floating instance
+// menu's shortcut row, so the tab row stays reserved for content pages.
+// Direct URLs keep working: this only affects nav presentation, never the
+// route guards.
 export const INSTANCE_TOOL_SLUGS = ['files', 'terminal', 'ports'];
 
 // useEffectiveInstanceNav — instance content pages plus the synthetic
 // built-in tabs (Snapshots), permission-gated. Tool slugs (Files /
-// Terminal / Ports) are excluded here — they render in the Tools dock.
+// Terminal / Ports) are excluded here — they render in the floating menu.
 export function useEffectiveInstanceNav() {
   const { nav, instanceId } = useInstanceNav();
   const permissions = useAuthStore((s) => s.permissions);
   const canViewSnapshots = hasPermissionAny(permissions, PermissionKey.INSTANCES_EDIT, PermissionKey.MANAGE_INSTANCES, PermissionKey.VIEW_INSTANCES);
   return useMemo(() => {
-    // Content tabs only — tools get their own dock, never the tab row.
+    // Content tabs only — tools live in the floating menu, never the tab row.
     let out = nav.filter((n) => !INSTANCE_TOOL_SLUGS.includes(n.to));
     if (instanceId && canViewSnapshots && !out.some((n) => n.to === 'snapshots')) {
       // Native Snapshots tab (built-in, like SFTP). The legacy
@@ -182,133 +181,3 @@ return (
 };
 
 export default InstanceTabs;
-
-// InstanceToolsDock — quick-access cards for the three utility pages
-// (Files / Terminal / Ports). Deliberately NOT tabs: big icon tiles with
-// a name + one-line hint, grouped under a "Tools" label, so operators
-// spot them instantly instead of hunting the tab row. Slug / label / icon
-// come from instance_controls.shortcuts (same source as the floating
-// menu's shortcut row); a card renders dimmed with an explanatory tooltip
-// when its page isn't available (page not imported, or missing permission).
-export const InstanceToolsDock: React.FC<{
-  instanceId: number;
-  spec: Record<string, any> | null;
-  loading?: boolean;
-}> = ({ instanceId, spec, loading }) => {
-  const location = useLocation();
-  const permissions = useAuthStore((s) => s.permissions);
-  const canEditPorts = hasPermissionAny(permissions, PermissionKey.INSTANCES_EDIT, PermissionKey.MANAGE_INSTANCES);
-  // Shortcut display (slug / label / icon) comes from instance_controls so
-  // the dock agrees with the floating menu's shortcut row. The dock always
-  // renders all three cards (dimmed when unavailable) — the `show` toggle
-  // only hides the floating-menu button.
-  const controls = useMemo(() => resolveInstanceControls(spec as any), [spec]);
-
-  if (!instanceId || loading) return null;
-
-  const filesSlug = shortcutSlug(controls, 'files');
-  const terminalSlug = shortcutSlug(controls, 'terminal');
-  const portsSlug = shortcutSlug(controls, 'ports');
-  const filesOk = isPageAllowed(filesSlug, spec);
-  const terminalOk = isPageAllowed(terminalSlug, spec);
-
-  const dockIcon = (key: 'files' | 'terminal' | 'ports', fallback: React.ReactNode) => {
-    const cfg = controls.shortcuts[key];
-    const custom = cfg?.icon_svg ? sanitizeSvgIcon(cfg.icon_svg) : '';
-    if (!custom) return fallback;
-    const full = custom.trim().toLowerCase().startsWith('<svg');
-    const color = typeof cfg?.icon_color === 'string' ? cfg.icon_color.trim() : '';
-    return full ? (
-      <span className="flex items-center [&>svg]:w-5 [&>svg]:h-5 [&>svg]:block" style={color ? { color } : undefined} aria-hidden="true" dangerouslySetInnerHTML={{ __html: custom }} />
-    ) : (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" style={color ? { color } : undefined} aria-hidden="true" dangerouslySetInnerHTML={{ __html: custom }} />
-    );
-  };
-
-  const tools = [
-    {
-      key: 'files' as const,
-      slug: filesSlug,
-      label: shortcutLabel(controls, 'files'),
-      hint: filesOk ? 'Browse & manage files' : 'Import a Files page (Pages tab) to enable',
-      enabled: filesOk,
-      tile: 'bg-amber-500/15 border-amber-400/30 text-amber-300',
-      icon: dockIcon('files', (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" aria-hidden="true">
-          <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
-        </svg>
-      )),
-    },
-    {
-      key: 'terminal' as const,
-      slug: terminalSlug,
-      label: shortcutLabel(controls, 'terminal'),
-      hint: terminalOk ? 'Live shell session' : 'Enable the Terminal page (Pages tab) to open a shell',
-      enabled: terminalOk,
-      tile: 'bg-emerald-500/15 border-emerald-400/30 text-emerald-300',
-      icon: dockIcon('terminal', (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" aria-hidden="true">
-          <polyline points="4 17 10 11 4 5" />
-          <line x1="12" y1="19" x2="20" y2="19" />
-        </svg>
-      )),
-    },
-    {
-      key: 'ports' as const,
-      slug: portsSlug,
-      label: shortcutLabel(controls, 'ports'),
-      hint: canEditPorts ? 'Port mappings' : 'Requires instance edit permission',
-      enabled: canEditPorts,
-      tile: 'bg-sky-500/15 border-sky-400/30 text-sky-300',
-      icon: dockIcon('ports', (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" aria-hidden="true">
-          <rect x="2" y="7" width="20" height="8" rx="2" />
-          <path d="M6 7v-2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2" />
-          <path d="M6 15v2a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-2" />
-        </svg>
-      )),
-    },
-  ];
-
-  return (
-    <div
-      className="ks-card ks-form-card rounded-xl px-3 py-2.5 flex items-center gap-2 flex-wrap"
-      aria-label="Instance tools"
-    >
-      <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 shrink-0 mr-1">
-        Tools
-      </span>
-      {tools.map((t) => {
-        const to = `/instances/${instanceId}/${t.slug}`;
-        const active = location.pathname === to || location.pathname === `${to}/`;
-        const cls = `flex items-center gap-2.5 rounded-xl border px-3 py-1.5 transition min-w-0 ${
-          t.enabled
-            ? active
-              ? 'border-sky-400/60 bg-sky-500/10 shadow-[0_0_12px_rgba(56,189,248,0.15)]'
-              : 'border-white/10 bg-white/[0.03] hover:border-white/25 hover:bg-white/[0.06]'
-            : 'border-white/[0.06] bg-transparent opacity-45 cursor-not-allowed'
-        }`;
-        const body = (
-          <>
-            <span className={`w-9 h-9 rounded-lg flex items-center justify-center border shrink-0 ${t.tile}`}>
-              {t.icon}
-            </span>
-            <span className="min-w-0 text-left">
-              <span className="block text-sm font-medium text-white leading-tight">{t.label}</span>
-              <span className="block text-[11px] text-gray-500 leading-tight truncate">{t.hint}</span>
-            </span>
-          </>
-        );
-        return t.enabled ? (
-          <NavLink key={t.key} to={to} title={`${t.label} — ${t.hint}`} aria-label={t.label} className={cls}>
-            {body}
-          </NavLink>
-        ) : (
-          <span key={t.key} title={`${t.label} — ${t.hint}`} aria-label={`${t.label} (unavailable)`} aria-disabled="true" className={cls}>
-            {body}
-          </span>
-        );
-      })}
-    </div>
-  );
-};

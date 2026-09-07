@@ -55,7 +55,9 @@ function actionPhase(isActive: boolean, outcome: 'ok' | 'err' | undefined): Acti
 // InstancePowerMenu — power controls for an instance as menu sections
 // (no pill chrome). Rendered at the TOP of the floating instance menu:
 // a Start / Stop / Restart / Kill button row first (with a divider line
-// below it, mirroring the line below Actions), then the template Actions
+// below it, mirroring the line below Actions), then the self-sufficient
+// Files / Terminal / Ports shortcut row (horizontally scrollable, always
+// clickable — no library import needed), then the template Actions
 // selector below it: a bordered `name | chevron` row where clicking the
 // name runs/stops the shown action and clicking the SVG chevron (resting
 // `<`-style, rotating down) drops down every action. Action rows are

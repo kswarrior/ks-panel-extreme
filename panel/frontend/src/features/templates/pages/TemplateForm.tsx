@@ -768,7 +768,7 @@ const TemplateForm: React.FC = () => {
               </div>
               <p className="text-[11px] text-gray-500">
                 {form.home_page.trim() !== '' ? (
-                  <>Opens <code className="font-mono text-sky-300">/{form.home_page.trim().replace(/^\/+|\/+$/g, '') || '…'}</code> on card click. Use a page Path from the list below{form.pages.filter((p) => p.enabled !== false && p.slug && !String(p.slug).includes('/')).map((p) => String(p.slug).trim()).filter(Boolean).length > 0 ? <> ({form.pages.filter((p) => p.enabled !== false && p.slug && !String(p.slug).includes('/')).map((p) => String(p.slug).trim()).filter(Boolean).join(', ')})</> : null} or a built-in (overview, ports, sftp, snapshots). Unknown slugs fall back to Home.</>
+                  <>Opens <code className="font-mono text-sky-300">/{form.home_page.trim().replace(/^\/+|\/+$/g, '') || '…'}</code> on card click. Use a page Path from the list below{form.pages.filter((p) => p.enabled !== false && p.slug && !String(p.slug).includes('/')).map((p) => String(p.slug).trim()).filter(Boolean).length > 0 ? <> ({form.pages.filter((p) => p.enabled !== false && p.slug && !String(p.slug).includes('/')).map((p) => String(p.slug).trim()).filter(Boolean).join(', ')})</> : null} or a built-in (overview, ports, sftp, snapshots, files, terminal). Unknown slugs fall back to Home.</>
                 ) : (
                   <>Card click opens the default Home page (slug “.”, when imported below).</>
                 )}
