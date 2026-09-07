@@ -70,8 +70,8 @@ type ModalState =
   | { kind: 'upload'; busy: boolean }
   | { kind: 'edit'; path: string; content: string; busy: boolean; dirty: boolean };
 
-// StackFileManager — full workdir file manager for one stack (Studio Files
-// tab + Detail Files section). Browses stack-work/<slug>/ through the
+// StackFileManager — full workdir file manager for one stack (the Detail
+// page's Files section). Browses stack-work/<slug>/ through the
 // MANAGE_STACKS-gated file endpoints: list, read/write, mkdir, rename,
 // delete, multipart upload, download.
 const StackFileManager: React.FC<{ stackId: number; slug: string }> = ({ stackId, slug }) => {
