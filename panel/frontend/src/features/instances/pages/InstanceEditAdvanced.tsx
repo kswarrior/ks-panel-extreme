@@ -102,6 +102,7 @@ const InstanceEditAdvancedInner: React.FC = () => {
       if (!('command' in spec)) spec.command = [];
       if (!('healthcheck' in spec)) spec.healthcheck = null;
       if (!('install_timeout_sec' in spec)) spec.install_timeout_sec = null;
+      if (!('install_terminal_id' in spec)) spec.install_terminal_id = null;
       const res = await updateInstance(instanceId, { config: spec });
       if (res.recreated) {
         alert(
