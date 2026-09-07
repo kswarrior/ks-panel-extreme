@@ -783,7 +783,7 @@ func UpdateInstanceHandler(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-		if recreateGuard := len(steps) > 0 || len(configFilesForEdge(merged)) > 0; recreateGuard && status != "running" {
+		if recreateGuard := len(steps) > 0; recreateGuard && status != "running" {
 			failMsg := fmt.Sprintf(
 				"container exited before install workflow could start after recreate (docker status=%q, id=%s)",
 				status, resp.ExternalID,
@@ -792,7 +792,7 @@ func UpdateInstanceHandler(w http.ResponseWriter, r *http.Request) {
 			_ = repo2.SetStatus(id, "install_failed", resp.ExternalID, failMsg)
 			return
 		}
-		if recreateNeedsWorkflow := len(steps) > 0 || len(configFilesForEdge(merged)) > 0; recreateNeedsWorkflow {
+		if recreateNeedsWorkflow := len(steps) > 0; recreateNeedsWorkflow {
 			status = "installing"
 		}
 		if err := repo2.SetStatus(id, status, resp.ExternalID, ""); err != nil {
