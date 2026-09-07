@@ -267,13 +267,15 @@ const TerminalPane: React.FC<{
   }, [isRunning]);
 
   // Pane attach budget: auto-lock when the configured timeout elapses.
+  // Uses the EFFECTIVE timeout (pane override else the matched action's
+  // terminal_timeout_s) so a template timeout locks every bound pane.
   useEffect(() => {
-    const n = parseInt(String(pane.timeoutS || '').trim(), 10);
+    const n = parseInt(String(effectiveTimeoutS || '').trim(), 10);
     if (!Number.isFinite(n) || n <= 0) return;
     const t = window.setTimeout(() => onPatch(pane.key, { timedOut: true }), n * 1000);
     return () => window.clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pane.key, pane.timeoutS, pane.terminalId]);
+  }, [pane.key, effectiveTimeoutS, pane.terminalId]);
 
   const validator = useMemo(() => {
     if (effectiveMode === 'disabled') return undefined;
@@ -282,13 +284,27 @@ const TerminalPane: React.FC<{
       const hit = blockedByTokens(line, effectiveBlocked);
       if (hit) return `contains blocked token "${hit}"`;
       if (effectiveMode === 'allowlist') {
-        const reason = allowedByList(line, effectiveAllowed);
-        if (reason) return reason;
+        // Strictest: when BOTH pane and action define allowlists the line
+        // must match each side (pane narrows, template enforces). When only
+        // one side defines it, matching that side suffices. Mirrors the
+        // server (which enforces the action list) while letting panes narrow
+        // further without ever widening past the template.
+        const paneHas = paneAllowedTrimmed !== '';
+        const actionHas = actionAllowedRaw.trim() !== '' && actionMode === 'allowlist';
+        if (paneHas && actionHas) {
+          const rPane = allowedByList(line, pane.allowedCommands);
+          if (rPane) return rPane;
+          const rAction = allowedByList(line, actionAllowedRaw);
+          if (rAction) return rAction;
+        } else {
+          const reason = allowedByList(line, effectiveAllowed);
+          if (reason) return reason;
+        }
       }
       return null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveMode, effectiveAllowed, effectiveBlocked]);
+  }, [effectiveMode, effectiveAllowed, effectiveBlocked, paneAllowedTrimmed, actionAllowedRaw, actionMode]);
 
   const handleLine = (line: string) => {
     if (!matchedAction || !isRunning || pane.stopped || pane.timedOut) return;
@@ -372,25 +388,37 @@ const TerminalPane: React.FC<{
               </select>
             </div>
             <div>
-              <label className="block text-[11px] text-gray-500 mb-0.5">Timeout (s, empty = none)</label>
-              <input type="number" min="0" value={pane.timeoutS} onChange={(e) => onPatch(pane.key, { timeoutS: e.target.value.replace(/[^0-9]/g, '') })} placeholder="no limit" className="glass-field font-mono w-full" />
+              <label className="block text-[11px] text-gray-500 mb-0.5">Timeout (s, empty = {matchedAction && String(matchedAction?.terminal_timeout_s ?? '').trim() !== '' ? `action default ${String(matchedAction.terminal_timeout_s).trim()}s` : 'no limit'})</label>
+              <input type="number" min="0" value={pane.timeoutS} onChange={(e) => onPatch(pane.key, { timeoutS: e.target.value.replace(/[^0-9]/g, '') })} placeholder={matchedAction && String(matchedAction?.terminal_timeout_s ?? '').trim() !== '' ? String(matchedAction.terminal_timeout_s).trim() : 'no limit'} className="glass-field font-mono w-full" />
+              {pane.timeoutS.trim() === '' && matchedAction && String(matchedAction?.terminal_timeout_s ?? '').trim() !== '' && (
+                <p className="text-[11px] text-gray-500 mt-1">Using action timeout {String(matchedAction.terminal_timeout_s).trim()}s — type a value to override per pane.</p>
+              )}
             </div>
           </div>
           <label className="inline-flex items-center gap-2 cursor-pointer">
             <button type="button" onClick={() => onPatch(pane.key, { stopOnExit: !pane.stopOnExit })} className={`relative w-9 h-5 rounded-full transition ${pane.stopOnExit ? 'bg-green-600' : 'bg-neutral-700'}`} aria-pressed={pane.stopOnExit} aria-label="Stop terminal when action ends">
               <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition ${pane.stopOnExit ? 'translate-x-4' : ''}`} />
             </button>
-            <span className="text-sm text-gray-300">Stop terminal when action ends{(matchedAction?.terminal_stop_on_exit ?? false) && !pane.stopOnExit ? ' (template still enforces it)' : ''}</span>
+            <span className="text-sm text-gray-300">Stop terminal when action ends{(matchedAction?.terminal_stop_on_exit ?? true) && !pane.stopOnExit ? ' (template still enforces it)' : ''}</span>
           </label>
-          {pane.allowInput === 'allowlist' && (
+          {effectiveMode === 'allowlist' && actionMode === 'allowlist' && pane.allowInput !== 'allowlist' && (
+            <p className="text-[11px] text-amber-200/90">Template restricts this console to selected commands — input is gated even though this pane says “allow all”. Pick “Selected commands only” to preview the gate per pane.</p>
+          )}
+          {effectiveMode === 'disabled' && pane.allowInput !== 'disabled' && (
+            <p className="text-[11px] text-amber-200/90">Template sets this console to read-only — panes cannot re-enable input.</p>
+          )}
+          {(pane.allowInput === 'allowlist' || effectiveMode === 'allowlist') && (
             <div>
               <label className="block text-[11px] text-gray-500 mb-0.5">Allowed commands (regex, one per line — empty = action's list)</label>
-              <textarea rows={2} value={pane.allowedCommands} onChange={(e) => onPatch(pane.key, { allowedCommands: e.target.value })} placeholder={effectiveAllowed || '^tps$\n^op\\s+\\w+'} className="glass-field font-mono w-full text-emerald-200" />
+              <textarea rows={2} value={pane.allowedCommands} onChange={(e) => onPatch(pane.key, { allowedCommands: e.target.value })} placeholder={actionAllowedRaw || '^tps$\n^op\\s+\\w+'} className="glass-field font-mono w-full text-emerald-200" />
+              {paneAllowedTrimmed !== '' && actionAllowedRaw.trim() !== '' && actionMode === 'allowlist' && (
+                <p className="text-[11px] text-gray-500 mt-1">Both pane + action lists apply (line must match each) — narrow per pane without ever widening past the template.</p>
+              )}
             </div>
           )}
           <div>
             <label className="block text-[11px] text-gray-500 mb-0.5">Blocked commands (comma-separated — empty = action's list)</label>
-            <input value={pane.blockedCommands} onChange={(e) => onPatch(pane.key, { blockedCommands: e.target.value })} placeholder={effectiveBlocked || 'apt sudo reboot shutdown rm mkfs'} className="glass-field font-mono w-full text-red-300" />
+            <input value={pane.blockedCommands} onChange={(e) => onPatch(pane.key, { blockedCommands: e.target.value })} placeholder={actionBlockedRaw || 'apt sudo reboot shutdown rm mkfs'} className="glass-field font-mono w-full text-red-300" />
           </div>
         </div>
       )}
@@ -450,7 +478,7 @@ const TerminalPane: React.FC<{
             ref={handleRef}
             instanceId={instanceId}
             terminalId={tid}
-            timeoutS={pane.timeoutS}
+            timeoutS={effectiveTimeoutS}
             readOnly={readOnly}
             validateInput={validator}
             onLine={handleLine}

@@ -66,6 +66,16 @@ export const TemplateActionsSection: React.FC<ActionsSectionProps> = ({
     );
   };
 
+  // Duplicate terminal IDs attach ambiguously (the pane matches the first
+  // action). Surface it inline so the author picks a unique ID per console.
+  const normTidLocal = (v: unknown): string =>
+    String(v ?? '').trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, '');
+  const tidCounts = new Map<string, number>();
+  for (const a of actions) {
+    const t = normTidLocal((a as any).terminal_id);
+    if (t !== '') tidCounts.set(t, (tidCounts.get(t) ?? 0) + 1);
+  }
+
   return (
     <>
       <div className={sectionCls}>
