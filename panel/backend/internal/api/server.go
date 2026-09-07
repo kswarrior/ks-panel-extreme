@@ -380,16 +380,17 @@ func NewRouter() http.Handler {
 		})
 
 		// AI assistant (plan/ai.md). Proxy-only: the provider key never
-		// reaches the browser. Config read is masked and open to any
-		// authenticated user (the FAB needs it); writes + test are
-		// SETTINGS_EDIT; chat, stream, threads accept the AI Chat umbrella
+		// reaches the browser. Config read is masked and gated to settings
+		// viewers (VIEW_SETTINGS or SETTINGS_VIEW); writes + test are
+		// SETTINGS_EDIT only (provider keys are sensitive — VIEW_SETTINGS
+		// alone must not edit); chat, stream, threads accept the AI Chat umbrella
 		// or any sub-cap (QA/TOOLS/WRITES/THREADS) — the handler narrows
 		// further per tool — and chat/stream are per-user rate-limited
 		// inside the handler.
 		r.Route("/api/ai", func(r chi.Router) {
-			r.Get("/config", handlers.AIConfigHandler)
-			r.With(requireUmbrellaOrAction(settingsG, permissions.ActionEdit)).Put("/config", handlers.AIConfigHandler)
-			r.With(requireUmbrellaOrAction(settingsG, permissions.ActionEdit)).Post("/test", handlers.AITestHandler)
+			r.With(requireUmbrellaOrAction(settingsG, permissions.ActionView)).Get("/config", handlers.AIConfigHandler)
+			r.With(requirePermission(permissions.SettingsEditKey)).Put("/config", handlers.AIConfigHandler)
+			r.With(requirePermission(permissions.SettingsEditKey)).Post("/test", handlers.AITestHandler)
 			r.With(requireAnyPermission(permissions.AIChatKeysForGate()...)).Post("/chat", handlers.AIChatHandler)
 			r.With(requireAnyPermission(permissions.AIChatKeysForGate()...)).Post("/chat/stream", handlers.AIChatStreamHandler)
 			r.With(requireAnyPermission(permissions.AIChatKeysForGate()...)).Get("/threads", handlers.AIThreadsHandler)
@@ -397,6 +398,7 @@ func NewRouter() http.Handler {
 			r.With(requireAnyPermission(permissions.AIChatKeysForGate()...)).Get("/threads/{id}/messages", handlers.AIThreadHandler)
 			r.With(requireAnyPermission(permissions.AIChatKeysForGate()...)).Put("/threads/{id}", handlers.AIThreadHandler)
 			r.With(requireAnyPermission(permissions.AIChatKeysForGate()...)).Delete("/threads/{id}", handlers.AIThreadHandler)
+			r.With(requireAnyPermission(permissions.AIChatKeysForGate()...)).Delete("/ticket/{id}", handlers.AITicketDenyHandler)
 			r.With(requireUmbrellaOrAction(settingsG, permissions.ActionView)).Get("/usage", handlers.AIUsageHandler)
 		})
 

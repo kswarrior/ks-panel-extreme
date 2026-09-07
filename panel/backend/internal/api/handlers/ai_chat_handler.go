@@ -223,8 +223,12 @@ func aiTakeTicket(con *sql.DB, id string, uid int64) (*aiTicket, bool) {
 // Config endpoints.
 // ---------------------------------------------------------------------------
 
-// AIConfigHandler serves the masked config (any authenticated user — the
-// secret is never included) and accepts admin updates (SETTINGS_EDIT).
+// AIConfigHandler serves the masked config (settings viewers —
+// VIEW_SETTINGS or SETTINGS_VIEW/EDIT — the secret is never included)
+// and accepts admin updates (SETTINGS_EDIT only: provider keys are
+// sensitive, VIEW_SETTINGS alone must not edit). The route table enforces
+// the same gate; the handler re-checks so it fails closed even if the
+// route gate is ever loosened.
 func AIConfigHandler(w http.ResponseWriter, r *http.Request) {
 	con, err := repository.OpenDB()
 	if err != nil {
@@ -232,10 +236,20 @@ func AIConfigHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer con.Close()
+	uid, err := UserIDFromContext(r)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	checker := permissions.NewChecker(con)
 	repo := repository.NewAIConfigRepository(con)
 
 	switch r.Method {
 	case http.MethodGet:
+		if err := checker.EnsureAny(uid, permissions.ViewSettingsKey, permissions.SettingsViewKey, permissions.SettingsEditKey); err != nil {
+			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+			return
+		}
 		view, err := repo.View()
 		if err != nil {
 			http.Error(w, "server error", http.StatusInternalServerError)
@@ -243,6 +257,10 @@ func AIConfigHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, view)
 	case http.MethodPut:
+		if err := checker.Ensure(uid, permissions.SettingsEditKey); err != nil {
+			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+			return
+		}
 		var body struct {
 			Enabled     *bool    `json:"enabled"`
 			BaseURL     *string  `json:"base_url"`
@@ -319,6 +337,23 @@ func AITestHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	con, err := repository.OpenDB()
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	defer con.Close()
+	uid, err := UserIDFromContext(r)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	// Fail closed alongside the route gate: probing can hit an
+	// attacker-supplied base_url (SSRF/bill surface), so SETTINGS_EDIT only.
+	if err := permissions.NewChecker(con).Ensure(uid, permissions.SettingsEditKey); err != nil {
+		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+		return
+	}
 	var tReq struct {
 		Target     string  `json:"target"`
 		BaseURL    *string `json:"base_url"`
@@ -327,12 +362,6 @@ func AITestHandler(w http.ResponseWriter, r *http.Request) {
 		OllamaMode *bool   `json:"ollama_mode"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&tReq)
-	con, err := repository.OpenDB()
-	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
-		return
-	}
-	defer con.Close()
 	cfg, err := repository.NewAIConfigRepository(con).Get()
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
@@ -789,10 +818,7 @@ func aiBuildSystemPrompt(con *sql.DB, cfg *repository.AIConfig, uid int64, usern
 	}
 	b.WriteString("\n\nPanel knowledge: this panel manages game servers and app workloads. Architecture: a central Panel plus Edge agents (ksedge) on each node. Instances are deployed from Templates (blueprints for docker, lxd, kvm or multipass drivers) onto Nodes (edge machines). Mods extend the panel, Applications are user-installable services, Tickets are support requests. You can inspect the fleet with your tools; you know instance, node and template IDs only from tool output.")
 	b.WriteString("\n\nLive context: the user is " + strconv.Quote(username) + " (role " + strconv.Quote(role) + ") with permissions [" + strings.Join(perms, ", ") + "].")
-	var instN, nodeN, tmplN int64
-	_ = con.QueryRow(`SELECT COUNT(*) FROM instances`).Scan(&instN)
-	_ = con.QueryRow(`SELECT COUNT(*) FROM nodes`).Scan(&nodeN)
-	_ = con.QueryRow(`SELECT COUNT(*) FROM templates`).Scan(&tmplN)
+	instN, nodeN, tmplN := aiFleetCounts(con, uid)
 	fmt.Fprintf(&b, " Fleet counts: %d instances, %d nodes, %d templates (counts only — no rows are preloaded).", instN, nodeN, tmplN)
 	b.WriteString("\n\nRules: only use the tools you were given; call a list tool before acting on any named resource; never invent IDs — if the user names something, look it up first (list_instances/list_nodes/list_templates/list_instance_pages/list_users/list_themes/list_tickets/list_roles, then get_* for details; check_panel_update before any panel reinstall); keep answers short. Act, don't interrogate: when the user names a template workflow step or action, read get_template (section=steps for install steps, section=runtime for startup command + action buttons) and propose the edit — never ask them to paste the workflow or dictate exact text. Template edits: install-workflow changes use edit_template_steps; startup-command changes use set_template_command; action-button removal uses remove_template_action; description text changes read section=description first and use edit_template. Autostart pattern: gate the new command on files the install workflow guarantees (e.g. server.jar), never on a deleted sentinel; warn that the panel still stops the container once right after install (by design) and every later container start then launches the service. Tickets: staff sees all, others own/assigned; only staff triages or posts internal notes. Write tools (instance_action, edit_instance, reinstall_instance, delete_instance, suspend_instance, unsuspend_instance, update_settings, create_theme, edit_theme, delete_theme, create_template, edit_template, delete_template, edit_template_steps, set_template_command, remove_template_action, create_node, edit_node, delete_node, create_instance_page, edit_instance_page, delete_instance_page, create_user, edit_user, delete_user, create_ticket, reply_ticket, update_ticket, broadcast_notification, deploy_instance, reinstall_panel) do NOT execute immediately: calling one returns a confirmation ticket that the user must approve in the UI. After calling a write tool, briefly summarise what will happen and ask the user to approve it in the confirmation card. Every write re-checks the caller's area permission (instances/templates/nodes/pages/themes/users/tickets/notifications/panel-update) plus the AI Chat Writes grant — if either is missing, explain which permission an admin must grant. reinstall_panel restarts the whole panel (brief downtime, the chat disconnects) — always run check_panel_update first and warn about the restart.")
 	// Capability line so the model respects the caller's AI Chat sub-perms.
