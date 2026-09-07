@@ -56,17 +56,17 @@ func StackUIHandler(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	rel := chi.URLParam(r, "*")
-	rel = strings.TrimPrefix(rel, "/")
-	if rel == "" {
-		rel = path.Join(stackDistRoot, "index.html")
-	} else {
-		rel = path.Clean("/" + rel)
-	}
+	rel := strings.TrimPrefix(chi.URLParam(r, "*"), "/")
 	// Candidate 1: inside the spa bundle. Candidate 2: workdir-root
 	// relative (covers frontend/theme.css for custom theme mode). Both
 	// stay under the workdir via ReadAsset's traversal guard.
-	candidates := []string{path.Join(stackDistRoot, strings.TrimPrefix(rel, "/")), strings.TrimPrefix(rel, "/")}
+	candidates := []string{}
+	if rel == "" {
+		candidates = []string{path.Join(stackDistRoot, "index.html")}
+	} else {
+		clean := strings.TrimPrefix(path.Clean("/"+rel), "/")
+		candidates = []string{path.Join(stackDistRoot, clean), clean}
+	}
 	var body []byte
 	served := ""
 	for _, c := range candidates {
