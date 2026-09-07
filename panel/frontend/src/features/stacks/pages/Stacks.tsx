@@ -291,7 +291,7 @@ const Stacks: React.FC = () => {
       )}
 
       {installOpen && (
-        <GlassModal onClose={() => setInstallOpen(false)} title="Install stack">
+        <GlassModal open={installOpen} onClose={() => setInstallOpen(false)} title="Install stack">
           <div className="flex gap-1.5 mb-3">
             {(['file', 'url', 'json'] as const).map((t) => (
               <button
@@ -324,7 +324,7 @@ const Stacks: React.FC = () => {
       )}
 
       {grantStack && (
-        <GlassModal onClose={() => setGrantStack(null)} title={`Grants — ${grantStack.name}`}>
+        <GlassModal open={!!grantStack} onClose={() => setGrantStack(null)} title={`Grants — ${grantStack.name}`}>
           <p className="text-xs text-gray-400 mb-2">Approve each capability. Activation refuses until all are granted.</p>
           <div className="space-y-1.5">
             {grantStack.permissions.length === 0 && <p className="text-xs text-gray-500">No capabilities requested — safe to activate.</p>}
