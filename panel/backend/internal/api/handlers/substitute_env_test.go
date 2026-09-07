@@ -17,6 +17,64 @@ func TestSubstituteOneBothSyntaxes(t *testing.T) {
 	}
 }
 
+func TestSubstituteOneParenSyntax(t *testing.T) {
+	env := map[string]string{"TAG": "v2"}
+	got := substituteOne("img=$(TAG) keep=$(MISSING) shell=$(date) plain=$TAG", env)
+	want := "img=v2 keep=$(MISSING) shell=$(date) plain=$TAG"
+	if got != want {
+		t.Fatalf("got %q want %q", got, want)
+	}
+}
+
+func TestParseEnvImagesBehavior(t *testing.T) {
+	if out := parseEnvImages(nil); len(out) != 0 {
+		t.Fatalf("nil must mean All, got %v", out)
+	}
+	if out := parseEnvImages([]any{" Java 21 ", "", "java 21", 42}); len(out) != 1 || out[0] != "Java 21" {
+		t.Fatalf("images must trim + dedupe-exact + drop non-strings, got %v", out)
+	}
+	if got := parseEnvBehavior(nil); got != "ask" {
+		t.Fatalf("nil behavior must be ask, got %q", got)
+	}
+	if got := parseEnvBehavior("AUTO"); got != "auto" {
+		t.Fatalf("AUTO must normalize to auto, got %q", got)
+	}
+	if got := parseEnvBehavior("bogus"); got != "ask" {
+		t.Fatalf("unknown behavior must fall back to ask, got %q", got)
+	}
+	if !envAppliesToImage(nil, "Java 21") {
+		t.Fatalf("empty scope must apply to every image")
+	}
+	if !envAppliesToImage([]string{"java 21"}, "Java 21") {
+		t.Fatalf("image match must be case-insensitive")
+	}
+	if envAppliesToImage([]string{"Java 17"}, "Java 21") {
+		t.Fatalf("non-matching image must not apply")
+	}
+}
+
+func TestValidateTemplateSpecEnvImagesBehavior(t *testing.T) {
+	env := func(extra map[string]any) map[string]any {
+		base := map[string]any{"name": "X", "default": "1"}
+		for k, v := range extra {
+			base[k] = v
+		}
+		return map[string]any{"env": []any{base}}
+	}
+	if err := validateTemplateSpec(env(map[string]any{"images": []any{"Java 21"}, "behavior": "auto"})); err != nil {
+		t.Fatalf("valid images+behavior rejected: %v", err)
+	}
+	if err := validateTemplateSpec(env(map[string]any{"images": "nope"})); err == nil {
+		t.Fatalf("non-array images accepted")
+	}
+	if err := validateTemplateSpec(env(map[string]any{"images": []any{""}})); err == nil {
+		t.Fatalf("empty image name accepted")
+	}
+	if err := validateTemplateSpec(env(map[string]any{"behavior": "sometimes"})); err == nil {
+		t.Fatalf("unknown behavior accepted")
+	}
+}
+
 func TestNormalizeEnvScopes(t *testing.T) {
 	if out := normalizeEnvScopes(nil); len(out) != 0 {
 		t.Fatalf("nil must mean everywhere, got %v", out)

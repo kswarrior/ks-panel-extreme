@@ -2885,14 +2885,20 @@ func parseEnvImages(raw any) []string {
 		return nil
 	}
 	var out []string
+	seen := map[string]bool{}
 	for _, v := range arr {
 		s, ok := v.(string)
 		if !ok {
 			continue
 		}
-		if s = strings.TrimSpace(s); s != "" && len(s) <= 100 {
-			out = append(out, s)
+		if s = strings.TrimSpace(s); s == "" || len(s) > 100 {
+			continue
 		}
+		if seen[strings.ToLower(s)] {
+			continue
+		}
+		seen[strings.ToLower(s)] = true
+		out = append(out, s)
 		if len(out) >= 32 {
 			break
 		}
