@@ -169,7 +169,7 @@ type templateActionSpec struct {
 	// documents that as the default, and long_running actions are supposed
 	// to keep a server alive until the operator clicks Stop. A positive
 	// value becomes the edge workflow's hard deadline.
-	MaxRuntimeS string `json:"max_runtime_s,omitempty"`
+	MaxRuntimeS flexString `json:"max_runtime_s,omitempty"`
 	// TerminalID binds this action to instance-control terminal panes.
 	// Empty = no dedicated terminal (legacy behaviour). A pane whose ID
 	// matches (case-insensitive) streams this action's log + gated input.
@@ -179,11 +179,11 @@ type templateActionSpec struct {
 	// TerminalAllowInput gates bound-pane input: "all" | "allowlist" | "disabled".
 	TerminalAllowInput string `json:"terminal_allow_input,omitempty"`
 	// TerminalAllowedCommands is the allowlist (regex per line) for bound panes.
-	TerminalAllowedCommands []string `json:"terminal_allowed_commands,omitempty"`
+	TerminalAllowedCommands flexLines `json:"terminal_allowed_commands,omitempty"`
 	// TerminalBlockedCommands is the denylist (tokens), checked first.
-	TerminalBlockedCommands []string `json:"terminal_blocked_commands,omitempty"`
+	TerminalBlockedCommands flexTokens `json:"terminal_blocked_commands,omitempty"`
 	// TerminalTimeoutS is the bound-pane attach budget in seconds ("" = none).
-	TerminalTimeoutS string `json:"terminal_timeout_s,omitempty"`
+	TerminalTimeoutS flexString `json:"terminal_timeout_s,omitempty"`
 	Steps       []struct {
 		Action       string `json:"action"`
 		Command      string `json:"command"`
@@ -1906,6 +1906,10 @@ func timeoutSecFromSpec(v any) int {
 		}
 	case string:
 		if p, err := strconv.Atoi(strings.TrimSpace(t)); err == nil && p > 0 {
+			n = p
+		}
+	case flexString:
+		if p, err := strconv.Atoi(strings.TrimSpace(string(t))); err == nil && p > 0 {
 			n = p
 		}
 	case int:
