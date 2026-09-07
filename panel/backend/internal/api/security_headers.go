@@ -329,6 +329,8 @@ func classifySecurityEvent(path string, statusCode int) string {
 		return "template_management_failure"
 	case strings.HasPrefix(path, "/api/applications") && statusCode != http.StatusOK:
 		return "application_management_failure"
+	case strings.HasPrefix(path, "/api/stacks") && statusCode != http.StatusOK:
+		return "stack_management_failure"
 	case strings.HasPrefix(path, "/api/system") && statusCode != http.StatusOK:
 		return "system_management_failure"
 	case strings.HasPrefix(path, "/api/database") && statusCode != http.StatusOK:
