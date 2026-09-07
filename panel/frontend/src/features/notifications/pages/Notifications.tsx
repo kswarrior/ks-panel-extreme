@@ -242,6 +242,24 @@ const NotificationsPage: React.FC = () => {
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
           </button>
+          <button
+            onClick={onClearAll}
+            className="ks-tab inline-flex items-center justify-center"
+            style={PILL_TAB_STYLE}
+            title="Clear all"
+            aria-label="Clear all"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /></svg>
+          </button>
+          <button
+            onClick={load}
+            className="ks-tab inline-flex items-center justify-center"
+            style={PILL_TAB_STYLE}
+            title="Refresh"
+            aria-label="Refresh"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polyline points="1 4 1 10 7 10" /><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" /></svg>
+          </button>
 
           {/* Stat icon button — navigates to dedicated stats page */}
           <Link
@@ -283,10 +301,6 @@ const NotificationsPage: React.FC = () => {
       {/* Action bar */}
       <div className="flex items-center justify-between mb-3">
         <p className="text-xs text-gray-500">{total} notification{total === 1 ? '' : 's'} · page {page + 1} of {totalPages}{hasFilters ? ' · filtered' : ''}</p>
-        <div className="flex items-center gap-2">
-          <button onClick={load} className="ks-btn-ghost px-2.5 py-1 rounded-md text-xs border border-white/10">Refresh</button>
-          <button onClick={onClearAll} className="text-xs font-medium text-red-300 hover:text-red-200 px-2 py-1 rounded-md border border-red-500/20 hover:bg-red-500/10">Clear all</button>
-        </div>
       </div>
 
       {/* Delivery prefs: realtime = WS push + immediate email, digest = WS push + daily email, off = inbox only */}
