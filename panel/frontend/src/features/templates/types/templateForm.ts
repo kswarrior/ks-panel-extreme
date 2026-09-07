@@ -139,8 +139,7 @@ export function checkboxChecked(
 // Sections an env variable can be applied to. `image` covers the template
 // image field (multi-image via a select var), `controls` covers
 // instance_controls + home_page, `pages` covers spec.pages rows,
-// `advanced` covers startup/limits/mounts/ports and driver blocks,
-// `config_files` covers spec.config_files[] parser find values.
+// `advanced` covers startup/limits/mounts/ports and driver blocks.
 export const ENV_VAR_SCOPES = [
   'install',
   'actions',
@@ -148,7 +147,6 @@ export const ENV_VAR_SCOPES = [
   'controls',
   'pages',
   'advanced',
-  'config_files',
 ] as const;
 
 export type EnvVarScope = (typeof ENV_VAR_SCOPES)[number];
@@ -462,10 +460,6 @@ export interface TemplateFormState {
   // Built-in Instance controls allow-list (spec.instance_controls).
   // Snapshotted into instance.Config on deploy. Missing = allow all.
   instance_controls: InstanceControls;
-  // Config-file parsers (spec.config_files[]): Ptero `config.files` parity
-  // + toml extra. Applied post-install inside the workload and re-synced
-  // pre-start so hand-edited files converge before boot.
-  config_files: ConfigFileEntry[];
 }
 
 // One named runtime in the multi-image map (spec.images[] entry):
@@ -487,52 +481,12 @@ export const emptyTemplateImage = (): TemplateImage => ({
   env: {},
 });
 
-// One config-file parser row (spec.config_files[] entry): which file to
-// patch, with which parser, and which key-paths to set. `find` maps
-// key-path -> scalar or multi-replace map (old->new). `create_if_missing`
-// creates the file when the install never wrote it.
-export interface ConfigFileEntry {
-  file: string;
-  parser: ConfigParser;
-  find: Record<string, string>;
-  create_if_missing: boolean;
-  description: string;
-}
-
-export type ConfigParser =
-  | 'properties'
-  | 'yaml'
-  | 'json'
-  | 'ini'
-  | 'xml'
-  | 'file'
-  | 'toml';
-
-export const CONFIG_PARSERS: Array<{ id: ConfigParser; label: string; hint: string }> = [
-  { id: 'properties', label: 'Properties', hint: 'server.properties key=value' },
-  { id: 'yaml', label: 'YAML', hint: 'dot + [i] + * wildcards' },
-  { id: 'json', label: 'JSON', hint: 'dot + [i] + * wildcards' },
-  { id: 'ini', label: 'INI', hint: 'section.key' },
-  { id: 'xml', label: 'XML', hint: 'tag + tag@attr' },
-  { id: 'file', label: 'File', hint: 'line-prefix replace' },
-  { id: 'toml', label: 'TOML', hint: 'KS-only, beats Ptero' },
-];
-
-export const emptyConfigFile = (): ConfigFileEntry => ({
-  file: '',
-  parser: 'properties',
-  find: {},
-  create_if_missing: false,
-  description: '',
-});
-
 export type TemplateTabId =
   | 'general'
   | 'environment'
   | 'env'
   | 'actions'
   | 'install'
-  | 'config'
   | 'runtime'
   | 'labels'
   | 'healthcheck'
@@ -546,7 +500,6 @@ export const TEMPLATE_TABS: Array<{ id: TemplateTabId; label: string }> = [
   { id: 'env', label: 'Env Variables' },
   { id: 'actions', label: 'Actions' },
   { id: 'install', label: 'Install' },
-  { id: 'config', label: 'Config Files' },
   { id: 'runtime', label: 'Runtime' },
   { id: 'labels', label: 'Labels & Devices' },
   { id: 'healthcheck', label: 'Healthcheck' },
