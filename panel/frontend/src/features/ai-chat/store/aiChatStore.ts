@@ -253,7 +253,7 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
   },
 
   removeThread: async (id) => {
-    if (get().loading) return;
+    if (get().loading || get().ticket) return;
     try {
       await deleteAIThread(id);
       set((s) => {
