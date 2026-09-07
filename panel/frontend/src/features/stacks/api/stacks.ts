@@ -149,3 +149,55 @@ export function stackUiUrl(slug: string, subPath = ''): string {
 }
 
 export const STACK_SDK_URL = '/api/stacks/v1/ks-stack-sdk.js';
+
+// ---- Workdir file manager (Studio Files tab + Detail Files section) --------
+
+export async function listStackFiles(id: number, dir: string): Promise<StackFileEntry[]> {
+  const res = await client.get<{ path: string; entries: StackFileEntry[] }>(
+    `/api/stacks/${id}/files`,
+    { params: { path: dir } },
+  );
+  return res.data.entries || [];
+}
+
+export async function readStackFile(id: number, filePath: string): Promise<StackFileContent> {
+  const res = await client.get<StackFileContent>(`/api/stacks/${id}/files/read`, {
+    params: { path: filePath },
+  });
+  return res.data;
+}
+
+export async function writeStackFile(id: number, filePath: string, content: string): Promise<void> {
+  await client.post(`/api/stacks/${id}/files`, { op: 'write', path: filePath, content });
+}
+
+export async function mkdirStackPath(id: number, dirPath: string): Promise<void> {
+  await client.post(`/api/stacks/${id}/files`, { op: 'mkdir', path: dirPath });
+}
+
+export async function renameStackPath(id: number, from: string, to: string): Promise<void> {
+  await client.post(`/api/stacks/${id}/files`, { op: 'rename', path: from, new_path: to });
+}
+
+export async function deleteStackPath(id: number, target: string): Promise<void> {
+  await client.post(`/api/stacks/${id}/files`, { op: 'delete', path: target });
+}
+
+export async function uploadStackFiles(id: number, dir: string, files: File[]): Promise<{ uploaded: number }> {
+  const form = new FormData();
+  for (const f of files) form.append('files', f, f.name);
+  const res = await client.post<{ uploaded: number }>(
+    `/api/stacks/${id}/files/upload`,
+    form,
+    { params: { path: dir }, headers: { 'Content-Type': 'multipart/form-data' } },
+  );
+  return res.data;
+}
+
+export async function downloadStackFile(id: number, filePath: string): Promise<Blob> {
+  const res = await client.get<Blob>(`/api/stacks/${id}/files/download`, {
+    params: { path: filePath },
+    responseType: 'blob',
+  });
+  return res.data;
+}
