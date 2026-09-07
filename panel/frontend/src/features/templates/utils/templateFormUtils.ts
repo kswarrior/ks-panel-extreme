@@ -25,6 +25,22 @@ function stripUnit(v: string): string {
 }
 
 export function serializeSpec(f: TemplateFormState): string {
+  // Named multi-image runtimes: rows with an empty name or image are
+  // dropped so half-filled editor rows never poison the spec. Per-image
+  // env prunes empty values. default_image is emitted only when it names
+  // a surviving row (the backend would 400 otherwise).
+  const imageRows = (f.images || [])
+    .map((r) => ({
+      name: (r.name || '').trim(),
+      image: (r.image || '').trim(),
+      description: (r.description || '').trim(),
+      is_default: !!r.is_default,
+      env: Object.fromEntries(
+        Object.entries(r.env || {}).filter(([, v]) => String(v ?? '').trim() !== ''),
+      ) as Record<string, string>,
+    }))
+    .filter((r) => r.name !== '' && r.image !== '');
+  const defaultImageName = (f.default_image || '').trim();
   const spec: Record<string, unknown> = {
     category: f.category,
     type: f.type,
@@ -86,6 +102,17 @@ export function serializeSpec(f: TemplateFormState): string {
     }),
     // Raw `.env` file content (empty is pruned by the cleanup below).
     env_file: f.env_file,
+    // Named multi-image runtimes (spec.images[]) + explicit default.
+    images: imageRows.map((r) => ({
+      name: r.name,
+      image: r.image,
+      ...(r.description ? { description: r.description } : {}),
+      ...(r.is_default ? { default: true } : {}),
+      ...(Object.keys(r.env).length > 0 ? { env: r.env } : {}),
+    })),
+    ...(imageRows.some((r) => r.name.toLowerCase() === defaultImageName.toLowerCase()) && defaultImageName
+      ? { default_image: defaultImageName }
+      : {}),
     install: f.install.map((s) => ({
       action: s.action,
       command: s.command,
@@ -407,6 +434,45 @@ export function parseSpec(raw: string): Partial<TemplateFormState> {
     }
     if (typeof s.env_file === 'string') {
       out.env_file = s.env_file;
+    }
+    // Named multi-image runtimes: native spec.images[] plus the
+    // Ptero-compatible spec.docker_images{} map (merged in sorted order,
+    // skipped when the name already exists case-insensitively). The next
+    // save normalises everything to images[] — one source of truth.
+    {
+      const rows: Array<{ name: string; image: string; description: string; is_default: boolean; env: Record<string, string> }> = [];
+      const seen = new Set<string>();
+      const pushRow = (name: string, image: string, description: string, is_default: boolean, env: Record<string, string>) => {
+        const n = (name || '').trim();
+        const im = (image || '').trim();
+        if (n === '' || im === '') return;
+        const lower = n.toLowerCase();
+        if (seen.has(lower)) return;
+        seen.add(lower);
+        rows.push({ name: n, image: im, description: (description || '').trim(), is_default: !!is_default, env: env || {} });
+      };
+      if (Array.isArray(s.images)) {
+        for (const e of s.images as any[]) {
+          if (!e || typeof e !== 'object') continue;
+          const env: Record<string, string> = {};
+          if (e.env && typeof e.env === 'object' && !Array.isArray(e.env)) {
+            for (const [k, v] of Object.entries(e.env as Record<string, unknown>)) {
+              if (typeof v === 'string' && v.trim() !== '') env[k] = v;
+            }
+          }
+          pushRow(String(e.name ?? ''), String(e.image ?? ''), String(e.description ?? ''), !!e.default, env);
+        }
+      }
+      if (s.docker_images && typeof s.docker_images === 'object' && !Array.isArray(s.docker_images)) {
+        for (const k of Object.keys(s.docker_images as Record<string, unknown>).sort()) {
+          const v = (s.docker_images as Record<string, unknown>)[k];
+          if (typeof v === 'string') pushRow(k, v, '', false, {});
+        }
+      }
+      if (rows.length > 0) out.images = rows;
+      if (typeof s.default_image === 'string' && s.default_image.trim() !== '') {
+        out.default_image = s.default_image.trim();
+      }
     }
     if (Array.isArray(s.install)) {
       out.install = s.install.map((st: any) => ({
