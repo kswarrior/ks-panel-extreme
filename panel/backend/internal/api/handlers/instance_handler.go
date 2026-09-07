@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"reflect"
@@ -3143,5 +3144,204 @@ func StopActionHandler(w http.ResponseWriter, r *http.Request) {
 		"stdout":       resp.Stdout,
 		"stderr":       resp.Stderr,
 		"stop_command": stopCommand,
+	})
+}
+
+// ActionStdinHandler forwards one console line from a bound terminal pane to
+// the running action's stdin (e.g. Minecraft `/tps`, `/op <player>`).
+// URL: POST /api/instances/{id}/actions/{actionId}/stdin, body {"data": "<line>"}.
+//
+// Enforcement is fail-closed and server-side (the frontend's allowlist is UX
+// only and never trusted):
+//  1. The action must define a terminal_id (unbound actions have no console).
+//  2. install_state must be 'running' with install_action_id == actionId —
+//     input to a dead action is rejected (409), which is also what makes
+//     "stop terminal after end" real: the pane locks because the server
+//     refuses every line once the process exits.
+//  3. terminal_allow_input == "disabled" → 403; == "allowlist" → the line
+//     must match one of terminal_allowed_commands (regex per line) and must
+//     not contain a terminal_blocked_commands token → else 403.
+// The payload is capped at 4 KiB; the edge appends "\n" and writes it to the
+// workflow's kept stdin pipe (InvokeActionHandler sets KeepStdin for every
+// action with a terminal_id, so the writer exists while the step runs).
+func ActionStdinHandler(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	actionID := chi.URLParam(r, "actionId")
+	if actionID == "" {
+		http.Error(w, "invalid action id", http.StatusBadRequest)
+		return
+	}
+	var body struct {
+		Data string `json:"data"`
+	}
+	raw, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil {
+		http.Error(w, "read body: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := json.Unmarshal(raw, &body); err != nil {
+		http.Error(w, "invalid payload", http.StatusBadRequest)
+		return
+	}
+	line := strings.TrimRight(body.Data, "\r\n")
+	if len(line) > 4096 {
+		http.Error(w, "input line too long (max 4096 chars)", http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(line) == "" {
+		http.Error(w, "empty input", http.StatusBadRequest)
+		return
+	}
+
+	con, err := repository.OpenDB()
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	defer con.Close()
+
+	instRepo := repository.NewInstanceRepository(con)
+	tmplRepo := repository.NewTemplateRepository(con)
+	nodeRepo := repository.NewNodeRepository(con)
+
+	inst, err := instRepo.Get(id)
+	if err != nil {
+		http.Error(w, "instance not found", http.StatusNotFound)
+		return
+	}
+	// Ownership scope: Own without All may only write to own instances.
+	if uid, uerr := UserIDFromContext(r); uerr == nil && uid != 0 {
+		chk := permissions.NewChecker(con)
+		hasOwn, hasAll, serr := chk.HasScope(uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+		if serr != nil {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		if !hasAll && hasOwn && inst.OwnerID != uid {
+			http.Error(w, "forbidden: own-scope may only manage own instances", http.StatusForbidden)
+			return
+		}
+	}
+	if forbidByInstanceControls(w, inst.Config, "allow_template_actions", "template action input") {
+		return
+	}
+
+	// The console only exists while THIS action is the running workflow.
+	if inst.InstallState != "running" || inst.InstallKind != "action" || inst.InstallActionID != actionID {
+		http.Error(w, "action is not running (terminal stopped)", http.StatusConflict)
+		return
+	}
+
+	tmpl, err := tmplRepo.Get(inst.TemplateID)
+	if err != nil {
+		http.Error(w, "owning template not found (deleted?)", http.StatusBadRequest)
+		return
+	}
+	var spec struct {
+		Actions []templateActionSpec `json:"actions"`
+	}
+	if err := json.Unmarshal([]byte(tmpl.Spec), &spec); err != nil {
+		http.Error(w, "template spec is not valid JSON", http.StatusInternalServerError)
+		return
+	}
+	var action *templateActionSpec
+	for i := range spec.Actions {
+		if spec.Actions[i].ID == actionID {
+			action = &spec.Actions[i]
+			break
+		}
+	}
+	if action == nil {
+		http.Error(w, "unknown action", http.StatusNotFound)
+		return
+	}
+	if strings.TrimSpace(action.TerminalID) == "" {
+		http.Error(w, "action has no terminal (terminal_id is empty)", http.StatusForbidden)
+		return
+	}
+	mode := strings.TrimSpace(action.TerminalAllowInput)
+	if mode == "" {
+		mode = "all"
+	}
+	if mode == "disabled" {
+		http.Error(w, "terminal input is disabled for this action", http.StatusForbidden)
+		return
+	}
+	// Blocked tokens first (defence-in-depth): a line containing any blocked
+	// token is rejected even if it also matches the allowlist.
+	for _, tok := range action.TerminalBlockedCommands {
+		t := strings.TrimSpace(tok)
+		if t == "" {
+			continue
+		}
+		if strings.Contains(strings.ToLower(line), strings.ToLower(t)) {
+			http.Error(w, "input blocked by terminal policy", http.StatusForbidden)
+			return
+		}
+	}
+	if mode == "allowlist" {
+		allowed := false
+		for _, pat := range action.TerminalAllowedCommands {
+			p := strings.TrimSpace(pat)
+			if p == "" {
+				continue
+			}
+			re, rerr := regexp.Compile(p)
+			if rerr != nil {
+				continue
+			}
+			if re.MatchString(line) {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			http.Error(w, "input not in terminal allowlist", http.StatusForbidden)
+			return
+		}
+	}
+
+	token, err := nodeRepo.PlainToken(inst.NodeID)
+	if err != nil || token == "" {
+		writeJSONStatus(w, http.StatusBadGateway, map[string]any{
+			"error": "node has no usable edge token (rotate it first)",
+		})
+		return
+	}
+	node, err := nodeRepo.GetNode(inst.NodeID)
+	if err != nil {
+		http.Error(w, "owner node not found", http.StatusNotFound)
+		return
+	}
+	ec := edge.NewClient(node.Address, token, node.UseTLS, node.ID, node.ConnectionMode)
+	name := inst.ExternalID
+	if name == "" {
+		name = inst.Name
+	}
+	stresp, sterr := ec.InstallStdin(edge.InstallStdinRequest{
+		Kind: inst.Kind,
+		Name: name,
+		Data: line + "\n",
+	})
+	if sterr != nil {
+		writeJSONStatus(w, http.StatusBadGateway, map[string]any{
+			"error": "edge rejected console input: " + sterr.Error(),
+		})
+		return
+	}
+	if stresp.Error != "" {
+		writeJSONStatus(w, http.StatusConflict, map[string]any{
+			"error": stresp.Error,
+		})
+		return
+	}
+	writeJSON(w, map[string]any{
+		"id":        id,
+		"action_id": actionID,
+		"accepted":  true,
 	})
 }

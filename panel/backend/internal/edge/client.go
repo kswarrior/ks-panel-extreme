@@ -447,6 +447,27 @@ type InstallStopResponse struct {
 	Error    string `json:"error,omitempty"`
 }
 
+// InstallStdinRequest is the body POST'd to /api/edge/install/stdin to write
+// one console line to the running workflow's kept stdin pipe (the terminal
+// pane path: an operator typing `/tps` into a bound Minecraft console).
+// Kind+Name resolve the same <kind>:<name> record key the install start
+// used; Data is the raw line including its trailing newline.
+type InstallStdinRequest struct {
+	Token string `json:"token"`
+	Kind  string `json:"kind"`
+	Name  string `json:"name"`
+	Data  string `json:"data"`
+}
+
+// InstallStdinResponse reports whether the line reached a live stdin pipe.
+// OK=false with Error set means the workflow has no writable stdin (already
+// resolved, or the step never kept one) — the panel surfaces that as
+// "terminal stopped" so the pane can lock.
+type InstallStdinResponse struct {
+	OK    bool   `json:"ok"`
+	Error string `json:"error,omitempty"`
+}
+
 // InstallStart POSTs the install kick-off to the edge. Returns the install_id
 // immediately so the panel can start polling.
 func (c *Client) InstallStart(req InstallStartRequest) (InstallStartResponse, error) {

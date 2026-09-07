@@ -920,6 +920,510 @@ func cutKeyword(s string) (kw, rest string) {
 	return s, s
 }
 
+// rewriteBigintPKForMySQL maps the regen.sh BIGINT auto-increment PK back
+// to INTEGER for mysql/mariadb only. regen.sh widened every PK to BIGINT
+// while every FK column stayed INTEGER, and MySQL rejects such pairs with
+// Error 3780 (incompatible columns), so without this 001 fails on
+// role_permissions.role_id INTEGER -> roles.id BIGINT right after the TEXT
+// fixes. Scoped to the full "BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY"
+// phrase (the only BIGINT shape in the shipped corpus: 38 sites, all PKs),
+// matched case-insensitively outside string literals, so a future BIGINT
+// counter or data column is never touched.
+func rewriteBigintPKForMySQL(stmt string) string {
+	mask := maskSQLLiterals(stmt)
+	upper := strings.ToUpper(mask)
+	const want = "BIGINT"
+	var out strings.Builder
+	out.Grow(len(stmt))
+	i := 0
+	for i < len(stmt) {
+		if i+len(want) <= len(stmt) && upper[i:i+len(want)] == want &&
+			(i == 0 || !isIdentChar(stmt[i-1])) &&
+			(i+len(want) == len(stmt) || !isIdentChar(stmt[i+len(want)])) {
+			rest := strings.ToUpper(strings.TrimLeft(mask[i+len(want):], " \t\r\n"))
+			if strings.HasPrefix(rest, "NOT NULL AUTO_INCREMENT PRIMARY KEY") {
+				out.WriteString("INTEGER")
+				i += len(want)
+				continue
+			}
+		}
+		out.WriteByte(stmt[i])
+		i++
+	}
+	return out.String()
+}
+
+// mysqlLongTextColumns names the TEXT columns whose runtime payload is a
+// JSON blob, rendered content, captured output, or free-form user text that
+// routinely exceeds 255 characters (template/instance spec, page content,
+// application files, run output, ticket descriptions, ...). They map to
+// VARCHAR(1024); every other rewritten TEXT column maps to VARCHAR(255),
+// which covers the longest seed literal in the shipped corpus (390 chars
+// into settings.value, which itself stays TEXT) and every identifier,
+// enum, status, hash, slug, e-mail (RFC max 254), and token in the schema
+// (edge token kse_+64 hex = 68 chars). The cap only exists on MySQL:
+// SQLite/Postgres keep unbounded TEXT. Payloads beyond the cap fail loudly
+// (strict-mode "Data too long"), never silently truncate.
+func mysqlVarcharLen(col string) int {
+	switch strings.ToLower(col) {
+	case "spec", "config", "config_schema", "config_values", "files",
+		"permissions", "env", "secret_refs", "metrics", "processes", "ports",
+		"info", "content_html", "content_markdown", "content_blocks",
+		"icon_svg", "sub_pages", "components", "configure", "actions",
+		"install_steps_json", "install_error", "value", "output",
+		"error_output", "stdout", "stderr", "command", "summary", "diff",
+		"content", "args_json", "metadata", "message", "detail",
+		"description", "bio", "notes", "social_links", "tags", "roles",
+		"user_agent", "path", "last_error", "error", "target_label", "note",
+		"link", "title":
+		return 1024
+	default:
+		return 255
+	}
+}
+
+// rewriteTextColumnDefsForMySQL converts exactly those TEXT column
+// definitions that MySQL rejects — DEFAULT (Error 1101), inline
+// UNIQUE/PRIMARY KEY (Error 1170), membership in a table-level PRIMARY
+// KEY/UNIQUE constraint (Error 1170: 017 capability, 021 key, 023 name,
+// 020 mod_slug/key, 067 theme_id), or FK linkage whose referenced PK was
+// itself converted (inline REFERENCES or table-level FOREIGN KEY
+// membership; else Error 3780: mod_storage.mod_slug -> mods.slug,
+// theme_assignments.theme_id -> themes.id) — to VARCHAR(N) for
+// mysql/mariadb only. Plain TEXT columns (no DEFAULT, unindexed,
+// non-key) stay TEXT: they are legal on MySQL and unbounded. Matching is
+// quote-aware (string literals are masked first, so a literal containing
+// "TEXT DEFAULT" can never trigger a rewrite) and word-boundaried (a
+// column named "context" or "latest" is safe).
+func rewriteTextColumnDefsForMySQL(stmt string) string {
+	mask := maskSQLLiterals(stmt)
+	trimmed := strings.TrimLeft(mask, " \t\r\n(")
+	upperLead := strings.ToUpper(trimmed)
+	isCreate := strings.HasPrefix(upperLead, "CREATE TABLE ")
+	isAlter := strings.HasPrefix(upperLead, "ALTER TABLE ")
+	if !isCreate && !isAlter {
+		return stmt
+	}
+	type span struct{ start, end int } // [start,end) offsets of the TEXT token in stmt
+	var hits []span
+	addHit := func(s span) { hits = append(hits, s) }
+
+	if isAlter {
+		// ALTER TABLE <t> ADD COLUMN [IF NOT EXISTS] <col> TEXT ...
+		upper := strings.ToUpper(mask)
+		pos := strings.Index(upper, "ADD COLUMN")
+		if pos < 0 {
+			return stmt
+		}
+		rest := mask[pos+len("ADD COLUMN"):]
+		restUp := strings.ToUpper(rest)
+		if idx := strings.Index(restUp, "IF NOT EXISTS"); idx >= 0 && strings.TrimSpace(rest[:idx]) == "" {
+			rest = rest[idx+len("IF NOT EXISTS"):]
+		}
+		// rest = "<col> TEXT ..." — find the TEXT type token after the col name.
+		fields := splitSQLWords(rest)
+		if len(fields) < 2 {
+			return stmt
+		}
+		// Locate the TEXT token offset: skip the first word (col name).
+		off := pos + len("ADD COLUMN")
+		// advance off past optional IF NOT EXISTS + col name in the ORIGINAL mask
+		off = indexAfterWords(mask, off, rest, 1)
+		if off < 0 {
+			return stmt
+		}
+		textOff := indexWordToken(mask, upper, off, "TEXT")
+		if textOff < 0 {
+			return stmt
+		}
+		col := unquoteIdent(fields[0])
+		segUpper := strings.ToUpper(rest)
+		if hasSQLKeyword(segUpper, "DEFAULT") || hasSQLKeyword(segUpper, "UNIQUE") ||
+			hasSQLKeyword(segUpper, "PRIMARY KEY") || hasSQLKeyword(segUpper, "REFERENCES") {
+			addHit(span{textOff, textOff + len("TEXT")})
+			_ = col
+		}
+		_ = fields
+	} else {
+		// CREATE TABLE: split the outer paren body into top-level segments.
+		open := strings.Index(mask, "(")
+		if open < 0 {
+			return stmt
+		}
+		depth := 0
+		close := -1
+		for i := open; i < len(mask); i++ {
+			switch mask[i] {
+			case '(':
+				depth++
+			case ')':
+				depth--
+				if depth == 0 {
+					close = i
+					i = len(mask)
+				}
+			}
+		}
+		if close < 0 {
+			return stmt
+		}
+		body := mask[open+1 : close]
+		// First pass: collect table-level constraint columns.
+		forced := map[string]bool{}
+		for _, seg := range splitTopLevel(body, open+1) {
+			su := strings.ToUpper(strings.TrimSpace(seg.text))
+			var list string
+			switch {
+			case strings.HasPrefix(su, "PRIMARY KEY"):
+				list = seg.text[strings.Index(strings.ToUpper(seg.text), "PRIMARY KEY")+len("PRIMARY KEY"):]
+			case strings.HasPrefix(su, "UNIQUE"):
+				// UNIQUE, UNIQUE KEY, UNIQUE INDEX — with or without a name.
+				paren := strings.Index(seg.text, "(")
+				if paren >= 0 {
+					list = seg.text[paren:]
+				}
+			case strings.HasPrefix(su, "FOREIGN KEY"):
+				paren := strings.Index(seg.text, "(")
+				end := strings.Index(strings.ToUpper(seg.text), "REFERENCES")
+				if paren >= 0 && end > paren {
+					list = seg.text[paren:end]
+				}
+			case strings.HasPrefix(su, "CONSTRAINT"):
+				// CONSTRAINT <name> PRIMARY KEY|UNIQUE|FOREIGN KEY ...
+				up := strings.ToUpper(seg.text)
+				if p := strings.Index(up, "PRIMARY KEY"); p >= 0 {
+					list = seg.text[p+len("PRIMARY KEY"):]
+				} else if p := strings.Index(up, "FOREIGN KEY"); p >= 0 {
+					if e := strings.Index(up[p:], "REFERENCES"); e >= 0 {
+						list = seg.text[p : p+e]
+					}
+				} else if p := strings.Index(up, "UNIQUE"); p >= 0 {
+					if q := strings.Index(seg.text[p:], "("); q >= 0 {
+						list = seg.text[p+q:]
+					}
+				}
+			default:
+				continue
+			}
+			for _, c := range splitTopLevel(strings.TrimSpace(trimParens(list)), 0) {
+				if nm := strings.ToLower(unquoteIdent(strings.TrimSpace(c.text))); nm != "" {
+					forced[nm] = true
+				}
+			}
+		}
+		// Second pass: column definitions starting with "<col> TEXT".
+		for _, seg := range splitTopLevel(body, open+1) {
+			su := strings.ToUpper(strings.TrimSpace(seg.text))
+			if strings.HasPrefix(su, "PRIMARY KEY") || strings.HasPrefix(su, "FOREIGN KEY") ||
+				strings.HasPrefix(su, "UNIQUE") || strings.HasPrefix(su, "CHECK") ||
+				strings.HasPrefix(su, "CONSTRAINT") || strings.HasPrefix(su, "KEY") {
+				continue
+			}
+			words := splitSQLWords(seg.text)
+			if len(words) < 2 || !strings.EqualFold(words[1], "TEXT") {
+				continue
+			}
+			col := strings.ToLower(unquoteIdent(words[0]))
+			if col == "" {
+				continue
+			}
+			segUp := strings.ToUpper(seg.text)
+			if forced[col] || hasSQLKeyword(segUp, "DEFAULT") ||
+				hasSQLKeyword(segUp, "UNIQUE") || hasSQLKeyword(segUp, "PRIMARY KEY") ||
+				hasSQLKeyword(segUp, "REFERENCES") {
+				// Offset of the TEXT token: seg.start + len(col token) + gap.
+				// Re-find word-boundaried TEXT at/after the column name.
+				colEnd := seg.start + strings.Index(seg.text, words[0]) + len(words[0])
+				textOff := indexWordToken(mask, strings.ToUpper(mask), colEnd, "TEXT")
+				if textOff >= 0 && textOff < seg.start+len(seg.text) {
+					addHit(span{textOff, textOff + len("TEXT")})
+				}
+			}
+		}
+	}
+	if len(hits) == 0 {
+		return stmt
+	}
+	// Splice back-to-front so offsets stay valid; resolve N per column name.
+	var out strings.Builder
+	out.Grow(len(stmt) + len(hits)*8)
+	prev := len(stmt)
+	for k := len(hits) - 1; k >= 0; k-- {
+		h := hits[k]
+		_ = prev
+		_ = h
+		break
+	}
+	// Single forward pass instead: rebuild with replacements sorted by start.
+	for i := 1; i < len(hits); i++ {
+		for j := i; j > 0 && hits[j].start < hits[j-1].start; j-- {
+			hits[j], hits[j-1] = hits[j-1], hits[j]
+		}
+	}
+	pos := 0
+	for _, h := range hits {
+		// Column name precedes the TEXT token: last word before h.start.
+		nm := lastWordBefore(mask, h.start)
+		n := mysqlVarcharLen(unquoteIdent(nm))
+		out.WriteString(stmt[pos:h.start])
+		fmt.Fprintf(&out, "VARCHAR(%d)", n)
+		pos = h.end
+	}
+	out.WriteString(stmt[pos:])
+	return out.String()
+}
+
+// maskSQLLiterals blanks single-quoted literals ('' = escaped quote) with
+// spaces, preserving length so offsets into the mask match the original.
+// Keyword/regex searches run on the mask; splices apply to the original.
+func maskSQLLiterals(s string) string {
+	b := []byte(s)
+	inStr := false
+	for i := 0; i < len(b); i++ {
+		if b[i] == '\'' {
+			if inStr && i+1 < len(b) && b[i+1] == '\'' {
+				b[i] = ' '
+				b[i+1] = ' '
+				i++
+				continue
+			}
+			inStr = !inStr
+			b[i] = ' '
+			continue
+		}
+		if inStr {
+			b[i] = ' '
+		}
+	}
+	return string(b)
+}
+
+// hasSQLKeyword reports a word-boundary (non-identifier-char) match of kw
+// (which may itself contain a single space, e.g. "PRIMARY KEY") in the
+// already-masked, already-uppercased segment.
+func hasSQLKeyword(maskedUpper, kw string) bool {
+	for i := 0; ; {
+		p := strings.Index(maskedUpper[i:], kw)
+		if p < 0 {
+			return false
+		}
+		p += i
+		beforeOK := p == 0 || !isIdentChar(maskedUpper[p-1]) && maskedUpper[p-1] != ' '
+		_ = beforeOK
+		// Boundary = non-identifier char on both sides (space counts).
+		leftOK := p == 0 || !isIdentChar(maskedUpper[p-1])
+		rightOK := p+len(kw) >= len(maskedUpper) || !isIdentChar(maskedUpper[p+len(kw)])
+		if leftOK && rightOK {
+			return true
+		}
+		i = p + 1
+	}
+}
+
+// segText pairs a top-level comma segment with its offset in the mask.
+type segText struct {
+	text  string
+	start int
+}
+
+// splitTopLevel splits s on commas at paren depth 0 (mask: no literals).
+func splitTopLevel(s string, base int) []segText {
+	var out []segText
+	depth := 0
+	cur := 0
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '(':
+			depth++
+		case ')':
+			depth--
+		case ',':
+			if depth == 0 {
+				out = append(out, segText{s[cur:i], base + cur})
+				cur = i + 1
+			}
+		}
+	}
+	out = append(out, segText{s[cur:], base + cur})
+	return out
+}
+
+// splitSQLWords splits on ASCII whitespace.
+func splitSQLWords(s string) []string {
+	return strings.Fields(s)
+}
+
+// indexWordToken finds kw (already uppercase) in upper at/after `from` with
+// identifier-char boundaries on both sides; -1 when absent.
+func indexWordToken(mask, upper string, from int, kw string) int {
+	for i := from; i+len(kw) <= len(upper); i++ {
+		if upper[i:i+len(kw)] != kw {
+			continue
+		}
+		if i > 0 && isIdentChar(mask[i-1]) {
+			continue
+		}
+		if i+len(kw) < len(mask) && isIdentChar(mask[i+len(kw)]) {
+			continue
+		}
+		return i
+	}
+	return -1
+}
+
+// indexAfterWords skips n whitespace-separated words in mask starting at
+// off; returns the offset right after the n-th word, or -1.
+func indexAfterWords(mask string, off int, _ string, n int) int {
+	i := off
+	for k := 0; k < n; k++ {
+		for i < len(mask) && (mask[i] == ' ' || mask[i] == '\t' || mask[i] == '\r' || mask[i] == '\n') {
+			i++
+		}
+		if i >= len(mask) {
+			return -1
+		}
+		for i < len(mask) && mask[i] != ' ' && mask[i] != '\t' && mask[i] != '\r' && mask[i] != '\n' {
+			i++
+		}
+	}
+	return i
+}
+
+// trimParens strips one surrounding paren pair.
+func trimParens(s string) string {
+	s = strings.TrimSpace(s)
+	if len(s) >= 2 && s[0] == '(' && s[len(s)-1] == ')' {
+		return s[1 : len(s)-1]
+	}
+	return s
+}
+
+// lastWordBefore returns the last whitespace-delimited token ending at/before off.
+func lastWordBefore(mask string, off int) string {
+	i := off - 1
+	for i >= 0 && (mask[i] == ' ' || mask[i] == '\t' || mask[i] == '\r' || mask[i] == '\n') {
+		i--
+	}
+	end := i + 1
+	for i >= 0 && mask[i] != ' ' && mask[i] != '\t' && mask[i] != '\r' && mask[i] != '\n' && mask[i] != '(' && mask[i] != ',' {
+		i--
+	}
+	if end <= i+1 {
+		return ""
+	}
+	return mask[i+1 : end]
+}
+
+// qualifyIndexPrefixForMySQL appends a (191) prefix length to every
+// TEXT/BLOB-family column of a CREATE INDEX statement, per the live
+// information_schema column types (table_schema = DATABASE()). MySQL
+// rejects TEXT/BLOB in a key spec without a length (Error 1170); 191 chars
+// x utf8mb4 = 764 bytes fits even the legacy 767-byte prefix limit, and a
+// non-unique index is only an access path so the prefix changes no query
+// semantics. VARCHAR/INTEGER/DATETIME columns pass through untouched.
+// Fail-closed: a lookup error is returned (migration fails loudly); an
+// unknown table (zero rows — index ordered before its table this pass)
+// returns the statement unchanged so the existing retry loop defers it to
+// a later pass instead of misfiring.
+func qualifyIndexPrefixForMySQL(db *sql.DB, table, stmt string) (string, error) {
+	cols, ok := parseCreateIndexColumns(stmt)
+	if !ok || len(cols) == 0 {
+		return stmt, nil
+	}
+	rows, err := db.Query(`SELECT column_name, data_type FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ?`, table)
+	if err != nil {
+		return "", fmt.Errorf("mysql index prefix lookup for %s failed: %w", table, err)
+	}
+	defer rows.Close()
+	types := map[string]string{}
+	for rows.Next() {
+		var cname, dtype string
+		if err := rows.Scan(&cname, &dtype); err != nil {
+			return "", fmt.Errorf("mysql index prefix lookup for %s failed: %w", table, err)
+		}
+		types[strings.ToLower(cname)] = strings.ToLower(dtype)
+	}
+	if err := rows.Err(); err != nil {
+		return "", fmt.Errorf("mysql index prefix lookup for %s failed: %w", table, err)
+	}
+	if len(types) == 0 {
+		return stmt, nil
+	}
+	needsPrefix := func(col string) bool {
+		switch types[strings.ToLower(col)] {
+		case "tinytext", "text", "mediumtext", "longtext",
+			"tinyblob", "blob", "mediumblob", "longblob":
+			return true
+		}
+		return false
+	}
+	changed := false
+	for i, c := range cols {
+		base, dir := splitIndexDir(c.text)
+		if base == "" || !needsPrefix(base) {
+			continue
+		}
+		if strings.Contains(c.text, "(") {
+			continue // already has an explicit prefix length
+		}
+		cols[i].text = c.text[:len(c.text)-len(dir)] + "(191)" + dir
+		changed = true
+	}
+	if !changed {
+		return stmt, nil
+	}
+	open := strings.LastIndex(stmt, "(")
+	close := strings.LastIndex(stmt, ")")
+	if open < 0 || close < 0 || close < open {
+		return stmt, nil
+	}
+	var b strings.Builder
+	b.Grow(len(stmt) + len(cols)*6)
+	b.WriteString(stmt[:open+1])
+	for i, c := range cols {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		b.WriteString(c.text)
+	}
+	b.WriteString(stmt[close:])
+	return b.String(), nil
+}
+
+// parseCreateIndexColumns extracts the raw column expressions of a CREATE
+// [UNIQUE] INDEX statement (ok=false for anything else). Quoting and
+// ASC/DESC suffixes are preserved for re-emission; splitIndexDir strips
+// them for type lookup.
+func parseCreateIndexColumns(stmt string) ([]segText, bool) {
+	open := strings.LastIndex(stmt, "(")
+	close := strings.LastIndex(stmt, ")")
+	if open < 0 || close < 0 || close < open {
+		return nil, false
+	}
+	head := strings.ToUpper(strings.TrimSpace(stmt[:open]))
+	if !strings.Contains(head, "INDEX") || !strings.Contains(head, " ON ") {
+		return nil, false
+	}
+	cols := splitTopLevel(stmt[open+1:close], open+1)
+	for i := range cols {
+		cols[i].text = strings.TrimSpace(cols[i].text)
+	}
+	return cols, true
+}
+
+// splitIndexDir splits "col DESC" into ("col", " DESC"); plain "col" into
+// ("col", ""). The base keeps its original quoting for re-emission.
+func splitIndexDir(expr string) (base, dir string) {
+	up := strings.ToUpper(strings.TrimSpace(expr))
+	for _, suffix := range []string{" DESC", " ASC"} {
+		if strings.HasSuffix(up, suffix) {
+			cut := strings.TrimSpace(expr[:len(expr)-len(suffix)])
+			return unquoteIdent(cut), expr[len(cut):]
+		}
+	}
+	return unquoteIdent(strings.TrimSpace(expr)), ""
+}
+
 // splitSQLStatements cuts a migration body into individual statements. Line
 // comments (--) are stripped quote-aware first — header comments carry
 // semicolons that must not split — then the body is cut on semicolons
