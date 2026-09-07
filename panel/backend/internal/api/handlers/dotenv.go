@@ -58,7 +58,7 @@ func parseDotEnv(content string) (map[string]string, error) {
 	return out, nil
 }
 
-// resolveEnvWithFile substitutes {{KEY}}/${KEY} refs inside the template's
+// resolveEnvWithFile substitutes {{KEY}}/${KEY}/$(KEY) refs inside the template's
 // raw `env_file` content using finalEnv, parses the result as dotenv, and
 // merges it UNDER finalEnv (explicit per-variable definitions win — the
 // docker-compose `environment` beats `env_file` rule). File-declared names

@@ -229,7 +229,7 @@ type templateActionSpec struct {
 // user_editable, append/prepend). At deploy time we validate the operator's
 // provided overrides against these rules and build the final KEY=VALUE map
 // that goes to docker -e AND to the edge install env_vars for {{KEY}}
-// substitution.
+// substitution ({{KEY}} / ${KEY} / $(KEY) forms).
 
 // deployRequest is the body the admin Instances page POSTs to spin up a new
 // workload. TemplateID picks the driver+spec, NodeID picks the host, OwnerID
@@ -273,9 +273,17 @@ type envVarSpec struct {
 	Prepend      string `json:"prepend"`
 	AppendValue  string `json:"append_value"`
 	IsSecret     bool   `json:"is_secret"`
-	// Scopes restricts where {{NAME}}/${NAME} substitutes (empty = everywhere).
+	// Scopes restricts where {{NAME}}/${NAME}/$(NAME) substitutes (empty = everywhere).
 	// Normalized at parse time via normalizeEnvScopes (template_handler.go).
 	Scopes []string `json:"scopes,omitempty"`
+	// Images restricts which named runtimes this var applies to (empty = All
+	// images, the default). Names match spec.images[] entries
+	// case-insensitively; ignored for single-image templates.
+	Images []string `json:"images,omitempty"`
+	// Behavior is 'ask' (prompt the operator at deploy, the default) or
+	// 'auto' (hidden auto-set like the old .env / per-runtime overrides —
+	// applied with the default value, never asked).
+	Behavior string `json:"behavior,omitempty"`
 }
 
 // installStepSpec mirrors the template's spec.install[] entry.
@@ -2801,7 +2809,7 @@ func substituteInstanceName(cfg map[string]any, name string) {
 }
 
 // envScopeGroup maps a template-spec top-level key to the env scope group
-// gating {{KEY}}/${KEY} substitution inside it. `image` covers the deploy
+// gating {{KEY}}/${KEY}/$(KEY) substitution inside it. `image` covers the deploy
 // image (multi-image via a select var), `controls` covers instance_controls
 // + home_page, `pages` covers spec.pages rows; everything else (startup
 // command, limits, mounts, ports, driver blocks, …) is `advanced`.
