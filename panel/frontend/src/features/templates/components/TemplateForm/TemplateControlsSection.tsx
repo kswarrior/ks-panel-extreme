@@ -535,7 +535,7 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
 
       <div className={sectionCls}>
         <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">More page · More link</h4>
-        <p className="text-xs text-gray-500">Which page the floating menu's More button opens. Enter its slug — the URL it is accessible at.</p>
+        <p className="text-xs text-gray-500">Which page the floating menu's More button opens. Enter its slug — the URL it is accessible at. Env variables work here too (<code className="font-mono text-gray-400">{'{{HOME_PAGE}}'}</code> / <code className="font-mono text-gray-400">{'${HOME_PAGE}'}</code>).</p>
         <div className="flex items-center gap-1.5 mt-2">
           <span className="text-gray-500 text-sm font-mono">/</span>
           <input

@@ -587,9 +587,12 @@ const TemplateForm: React.FC = () => {
                   <option value="multipass">Multipass</option>
                 </select>
               </GlassField>
-              <GlassField label="Image" htmlFor="image">
-                <input id="image" value={form.image} onChange={(e) => setForm({ ...form, image: e.target.value })} placeholder="e.g. itzg/minecraft-server:latest" required />
-              </GlassField>
+              <div>
+                <GlassField label="Image" htmlFor="image">
+                  <input id="image" value={form.image} onChange={(e) => setForm({ ...form, image: e.target.value })} placeholder="e.g. itzg/minecraft-server:latest or {{IMAGE}}" required />
+                </GlassField>
+                <p className="text-[11px] text-gray-500 mt-1">{'{{IMAGE}}'} / {'${IMAGE}'} + a select env var = multi-image template.</p>
+              </div>
               <GlassField label="Category" htmlFor="category">
                 <TagPicker value={form.category} options={['game', 'web', 'database', 'proxy', 'bot', 'other']} placeholder="game" onChange={(v) => setForm({ ...form, category: v })} onAdd={(v) => setForm({ ...form, category: v })} onDelete={() => setForm({ ...form, category: '' })} />
               </GlassField>
