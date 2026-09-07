@@ -5,7 +5,6 @@ import { invokeInstanceAction, stopInstanceAction } from '@/features/instances/a
 import { useInstance, parseConfig } from '@/shared/hooks/useInstance';
 import { resolveInstanceControls, shortcutLabel, shortcutSlug } from '../utils/instanceControls';
 import { specRowState } from '../pages/InstanceDetail';
-import { isPageAllowed } from '@/shared/utils/instancePages';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { useConfirm } from '@/shared/stores/confirmStore';
