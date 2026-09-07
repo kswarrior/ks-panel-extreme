@@ -255,6 +255,11 @@ export type LogDriver = 'json-file' | 'syslog' | 'journald' | 'none';
 
 export interface Advanced {
   startup_command: string;
+  // Terminal binding for the Startup command's main-process console
+  // (same attach-by-ID UX as actions[].terminal_id): a terminal pane
+  // whose ID matches this value attaches to the container's main stdio.
+  // Empty = no dedicated startup console.
+  startup_terminal_id: string;
   stop_command: string;
   stop_signal: string;
   working_dir: string;
@@ -363,6 +368,12 @@ export interface TemplateFormState {
   // Whole-workflow budget in seconds for the template's install workflow
   // (spec.install_timeout_sec). Empty = the edge's default (30 min).
   install_timeout_s: string;
+  // Terminal binding for the Installation workflow console (same
+  // attach-by-ID UX as actions[].terminal_id): a terminal pane whose ID
+  // matches this value streams the install transcript and relays input
+  // while the workflow runs. Empty = no dedicated install console (the
+  // install runs non-interactive, legacy behaviour).
+  install_terminal_id: string;
   actions: TemplateAction[];
   labels: Label[];
   devices: Device[];
@@ -455,6 +466,7 @@ export const emptyForm: TemplateFormState = {
   env_file: '',
   install: [],
   install_timeout_s: '',
+  install_terminal_id: '',
   actions: [],
   labels: [],
   devices: [],
@@ -471,6 +483,7 @@ export const emptyForm: TemplateFormState = {
   },
   advanced: {
     startup_command: '',
+    startup_terminal_id: '',
     stop_command: '',
     stop_signal: '',
     working_dir: '',

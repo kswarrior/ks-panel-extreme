@@ -84,6 +84,9 @@ export function serializeSpec(f: TemplateFormState): string {
     // edge's 30-minute default, so templates that don't set it are
     // unaffected.
     install_timeout_sec: f.install_timeout_s ? Number(f.install_timeout_s) : undefined,
+    // Installation console binding (attach-by-ID handle for the install
+    // workflow). Omitted when empty so old specs stay byte-identical.
+    install_terminal_id: normTid(f.install_terminal_id) || undefined,
     actions: f.actions.filter((a) => a.id.trim() !== '').map((a) => ({
       id: a.id,
       name: a.name,
@@ -193,6 +196,9 @@ export function serializeSpec(f: TemplateFormState): string {
       : {}),
     advanced: {
       startup_command: f.advanced.startup_command,
+      // Startup console binding (attach-by-ID handle for the container
+      // main process). Always emitted like actions[].terminal_id.
+      startup_terminal_id: normTid(f.advanced.startup_terminal_id),
       stop_command: f.advanced.stop_command,
       stop_signal: f.advanced.stop_signal,
       working_dir: f.advanced.working_dir,
