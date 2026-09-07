@@ -207,7 +207,68 @@ export const TemplateEnvVariablesSection: React.FC<EnvVariablesSectionProps> = (
                     )}
                     <div>
                       <span className="block text-[11px] text-gray-500 mb-1">
-                        Use in — where <code className="font-mono text-gray-400">{v.name ? `{{${v.name}}}` : '{{NAME}}'} / {v.name ? `\${${v.name}}` : '${NAME}'}</code> gets substituted. All on = everywhere (image, install, actions, controls, pages, runtime).
+                        Behaviour — <code className="font-mono text-gray-400">ask</code> prompts the operator at deploy (current); <code className="font-mono text-gray-400">auto</code> hides it and just applies the default (replaces the old .env / per-runtime overrides).
+                      </span>
+                      <div className="flex gap-1.5 flex-wrap">
+                        {(['ask', 'auto'] as const).map((b) => {
+                          const on = normalizeEnvBehavior((v as any).behavior) === b;
+                          return (
+                            <button
+                              key={b}
+                              type="button"
+                              onClick={() => onEnvUpdate(i, { behavior: b } as Partial<EnvVariableInput>)}
+                              aria-pressed={on}
+                              title={b === 'ask' ? 'Prompt the operator at deploy' : 'Hidden auto-set with the default value'}
+                              className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${on ? 'border-sky-500/60 bg-sky-500/15 text-sky-200' : 'border-white/10 bg-white/5 text-gray-500 hover:border-white/25 hover:text-gray-300'}`}
+                            >
+                              {b === 'ask' ? 'ask (prompt)' : 'auto (set silently)'}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    {(imageNames ?? []).length > 0 && (
+                      <div>
+                        <span className="block text-[11px] text-gray-500 mb-1">
+                          Images — which named runtimes this var applies to. <code className="font-mono text-gray-400">All</code> (default) = every runtime.
+                        </span>
+                        <div className="flex gap-1.5 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => onEnvUpdate(i, { images: [] } as Partial<EnvVariableInput>)}
+                            aria-pressed={normalizeEnvImages((v as any).images).length === 0}
+                            title="Apply to all runtimes"
+                            className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${normalizeEnvImages((v as any).images).length === 0 ? 'border-emerald-500/60 bg-emerald-500/15 text-emerald-200' : 'border-white/10 bg-white/5 text-gray-500 hover:border-white/25 hover:text-gray-300'}`}
+                          >
+                            All
+                          </button>
+                          {(imageNames ?? []).map((n) => {
+                            const cur = normalizeEnvImages((v as any).images);
+                            const on = cur.some((x) => x.toLowerCase() === n.toLowerCase());
+                            return (
+                              <button
+                                key={n}
+                                type="button"
+                                onClick={() => {
+                                  const next = on
+                                    ? cur.filter((x) => x.toLowerCase() !== n.toLowerCase())
+                                    : [...cur, n];
+                                  onEnvUpdate(i, { images: next } as Partial<EnvVariableInput>);
+                                }}
+                                aria-pressed={on}
+                                title={on ? `Remove ${n}` : `Apply to ${n}`}
+                                className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${on ? 'border-emerald-500/60 bg-emerald-500/15 text-emerald-200' : 'border-white/10 bg-white/5 text-gray-500 hover:border-white/25 hover:text-gray-300'}`}
+                              >
+                                {n}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    <div>
+                      <span className="block text-[11px] text-gray-500 mb-1">
+                        Use in — where <code className="font-mono text-gray-400">{v.name ? `{{${v.name}}}` : '{{NAME}}'} / {v.name ? `\${${v.name}}` : '${NAME}'} / {v.name ? '$(' + v.name + ')' : '$(NAME)'}</code> gets substituted. All on = everywhere (image, install, actions, controls, pages, runtime).
                       </span>
                       <div className="flex gap-1.5 flex-wrap">
                         {ENV_VAR_SCOPES.map((s) => {
@@ -281,22 +342,6 @@ export const TemplateEnvVariablesSection: React.FC<EnvVariablesSectionProps> = (
             );
           })}
         </div>
-        {onEnvFileChange && (
-          <div className="mt-4 pt-3 border-t border-white/5">
-            <label className={labelCls}>Environment file (.env)</label>
-            <textarea
-              rows={6}
-              value={envFile ?? ''}
-              onChange={(e) => onEnvFileChange(e.target.value)}
-              placeholder={'# KEY=VALUE per line, like docker-compose env_file\nAPP_ENV=production\nDB_URL=postgres://db:5432/app\n# variables work here too: TAG={{TAG}}'}
-              spellCheck={false}
-              className={monoCls + ' w-full'}
-            />
-            <p className="text-[11px] text-gray-500 mt-1">
-              Bulk env like a compose <code className="font-mono text-gray-400">.env</code> file: substituted at deploy, then merged <em>under</em> the variables above (an explicit var wins on conflict) into real container env (Docker <code className="font-mono text-gray-400">-e</code>, LXD <code className="font-mono text-gray-400">environment.*</code>).
-            </p>
-          </div>
-        )}
       </div>
     </>
   );
