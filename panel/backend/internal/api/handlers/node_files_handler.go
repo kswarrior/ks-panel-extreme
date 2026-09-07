@@ -15,7 +15,9 @@
 //	      Content-Disposition so downloads land with the right filename.
 //	POST /api/nodes/{id}/files?op=mkdir&path=/mc-1/newdir
 //	POST /api/nodes/{id}/files?op=write|upload&path=/mc-1/notes.txt (body = bytes)
-//	    → mutate-state proxy (the SPA uses POST for all three).
+//	    → mutate-state proxy (the SPA uses POST for all mutations).
+//	POST /api/nodes/{id}/files?op=rename&path=/mc-1/old.txt&to=/mc-1/new.txt
+//	POST /api/nodes/{id}/files?op=delete&path=/mc-1/old.txt
 //	POST /api/nodes/{id}/files/url   (JSON {path,url})
 //	    → SSRF-safe fetch of `url`, then proxies the bytes to the edge
 //	      as op=upload at `path`. Same trust model as InstallModFromURL.
@@ -49,6 +51,7 @@ import (
 var supportedNodeFileOps = map[string]bool{
 	"list": true, "stat": true, "read": true,
 	"mkdir": true, "write": true, "upload": true,
+	"rename": true, "delete": true,
 }
 
 // nodeFilesBinaryOps ride outside the WSS tunnel (no binary payloads on
@@ -87,7 +90,7 @@ func NodeFilesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	// Reads use GET, mutations require POST — a prefetch/crawler GET can
 	// never mutate the instances directory.
-	wantPost := op == "mkdir" || op == "write" || op == "upload"
+	wantPost := op == "mkdir" || op == "write" || op == "upload" || op == "rename" || op == "delete"
 	if wantPost && r.Method != http.MethodPost {
 		http.Error(w, "method not allowed (use POST for "+op+")", http.StatusMethodNotAllowed)
 		return
@@ -124,6 +127,12 @@ func proxyNodeToEdgeHostFiles(w http.ResponseWriter, r *http.Request, node *mode
 	q.Set("op", op)
 	q.Set("path", path)
 	q.Set("token", token)
+	// Forward the rename destination verbatim; the edge resolves it
+	// through the identical jail, so a `to` outside the root is refused
+	// there (defence in depth next to the SPA sending root-relative paths).
+	if to := r.URL.Query().Get("to"); to != "" {
+		q.Set("to", to)
+	}
 	scheme := "http"
 	if node.UseTLS {
 		scheme = "https"
