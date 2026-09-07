@@ -424,7 +424,7 @@ func runCore(ctx context.Context, in Input, exec ExecFn, onStdin func(io.WriteCl
 // those tools exist; the failing step's stderr will say so, which is the
 // honest failure mode.
 //
-// We {{KEY}}-substitute env vars on every string field of the step so an
+// We {{KEY}}/${KEY}-substitute env vars on every string field of the step so an
 // operator can keep a single template that does e.g. `java -Xmx{{RAM}}M`
 // without baking the value in.
 func compileStep(s Step, env map[string]string) (string, error) {
@@ -593,16 +593,23 @@ func compileStep(s Step, env map[string]string) (string, error) {
 	}
 }
 
-// substitute replaces every {{KEY}} occurrence on `v` with the matching
-// entry from `env`. Unknown placeholders are left intact (not erased) so a
-// typo in a template surfaces in the failing step's stderr rather than
-// silently becoming an empty arg.
+// substitute replaces every {{KEY}} and ${KEY} occurrence on `v` with the
+// matching entry from `env`. Unknown placeholders are left intact (not
+// erased) so a typo in a template surfaces in the failing step's stderr
+// rather than silently becoming an empty arg.
+// NOTE: prefer UPPER_SNAKE env names — a var named e.g. `home` would also
+// rewrite legitimate shell `${home}` expansions in step scripts.
 func substitute(v string, env map[string]string) string {
-	if env == nil || !strings.Contains(v, "{{") {
+	if env == nil || (!strings.Contains(v, "{{") && !strings.Contains(v, "${")) {
 		return v
 	}
 	for k, val := range env {
-		v = strings.ReplaceAll(v, "{{"+k+"}}", val)
+		if strings.Contains(v, "{{") {
+			v = strings.ReplaceAll(v, "{{"+k+"}}", val)
+		}
+		if strings.Contains(v, "${") {
+			v = strings.ReplaceAll(v, "${"+k+"}", val)
+		}
 	}
 	return v
 }

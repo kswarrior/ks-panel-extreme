@@ -3073,7 +3073,7 @@ func aiPlanDeploy(a *aiCallCtx, args map[string]any) (*aiDeployPlan, error) {
 		envMap[k] = v
 	}
 	substituteInstanceName(cfg, name)
-	substituteEnvVars(cfg, finalEnv)
+	substituteEnvVars(cfg, finalEnv, nil)
 	// Redacted copy for the row: strip secret defaults at rest.
 	cfgForStore := cfg
 	if len(envSpecs) > 0 {
