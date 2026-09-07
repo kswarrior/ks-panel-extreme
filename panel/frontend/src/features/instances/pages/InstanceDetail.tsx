@@ -313,14 +313,19 @@ export const InstanceDynamicPage: React.FC = () => {
     );
   }
 
-  // Real terminal: render native xterm for `terminal` slug when the template
-  // explicitly enables it. Terminal is now gated by the same whitelist as every
-  // other page (empty-by-default); the previous unconditional bypass showed a
-  // terminal UI that immediately failed with 403 from the backend guard.
-  if (effectiveSlug === 'terminal') {
+  // Real terminal: render native xterm for the terminal shortcut slug when
+  // the template explicitly enables it. Terminal stays gated by the same
+  // whitelist as every other page (empty-by-default); the previous
+  // unconditional bypass showed a terminal UI that immediately failed with
+  // 403 from the backend guard.
+  if (effectiveSlug === terminalSlug) {
     return (
       <ErrorBoundary resetKey={`terminal-${instanceId}`} label="instance-terminal">
-        <TerminalRealPage instance={instance} />
+        <TerminalRealPage
+          instance={instance}
+          title={shortcutLabel(controls, 'terminal')}
+          showHeader={controls.shortcuts.terminal.show_header}
+        />
       </ErrorBoundary>
     );
   }
@@ -369,12 +374,13 @@ export const InstanceDynamicPage: React.FC = () => {
   // Files area: surface the SFTP card above the file manager so operators
   // discover native SFTP next to the browser files. The card gates its own
   // Enable/Rotate/Disable buttons on INSTANCES_EDIT|MANAGE_INSTANCES; the
-  // masked dial params stay visible to any instance viewer.
-  if (effectiveSlug === 'files') {
+  // masked dial params stay visible to any instance viewer. The card itself
+  // hides when the Files shortcut's "Show SFTP card" page option is off.
+  if (effectiveSlug === filesSlug) {
     return (
       <ErrorBoundary resetKey={`files-${instanceId}`} label="instance-page">
         <div className="space-y-4">
-          <InstanceSftpCard instanceId={instanceId} />
+          {controls.shortcuts.files.show_sftp && <InstanceSftpCard instanceId={instanceId} />}
           <CustomPageView content={content} title={label} instanceContext={instanceContext} pageSlug={effectiveSlug} />
         </div>
       </ErrorBoundary>

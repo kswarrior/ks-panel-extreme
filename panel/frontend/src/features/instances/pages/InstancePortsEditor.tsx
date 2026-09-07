@@ -21,11 +21,13 @@ const protocolOptions = [
   { value: 'udp' as const, label: 'udp' },
 ];
 
-const InstancePortsEditor: React.FC = () => {
+const InstancePortsEditor: React.FC<{ readOnly?: boolean }> = ({ readOnly = false }) => {
   const { id } = useParams();
   const instanceId = Number(id);
   const permissions = useAuthStore((s) => s.permissions);
-  const canEdit = hasPermissionAny(permissions, PermissionKey.INSTANCES_EDIT, PermissionKey.MANAGE_INSTANCES);
+  // `readOnly` is the Ports shortcut's "Allow Add / Remove" page option
+  // (Instance Controls): a read-only page hides Add + Remove even for editors.
+  const canEdit = !readOnly && hasPermissionAny(permissions, PermissionKey.INSTANCES_EDIT, PermissionKey.MANAGE_INSTANCES);
   const confirm = useConfirm();
 
   const [ports, setPorts] = useState<InstancePort[]>([]);
