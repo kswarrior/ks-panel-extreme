@@ -201,6 +201,7 @@ func validateConfigFormat(cfg config.Config) string {
 //	GET  /api/edge/exec          — panel→edge WebSocket bridge for terminal/shell
 //	POST /api/edge/exec-rpc      — panel→edge one-shot command exec (automation / process-kill)
 //	GET/POST/DELETE /api/edge/files — panel→edge file manager (list/read/stat/write/upload/mkdir/rename/delete/chmod)
+//	GET /api/edge/hostfiles — panel→edge instances-dir browser, jailed to instances_dir (list/stat/read)
 //	POST /api/edge/inspect       — panel→edge live state (metrics/processes/ports)
 //	POST /api/edge/install       — panel→edge kick off an install workflow (async)
 //	GET  /api/edge/install       — panel→edge poll an in-progress install
@@ -252,6 +253,11 @@ func runHealthServer(cfg config.Config, ctx context.Context, sftpPort int) error
 	// container or VM. Same shared-token gate as every other RPC.
 	mux.Handle("/api/edge/host-exec", hostexec.Handler(cfg.Token))
 	mux.Handle("/api/edge/files", files.Handler(cfg.Token))
+	// Read-only browser for the daemon's own instance-files directory
+	// (instances_dir) with that directory as root — the panel's
+	// NodeDetail → Files tab. Same shared-token gate; the jail inside
+	// guarantees no path can address anything outside the root.
+	mux.Handle("/api/edge/hostfiles", files.HostFilesHandler(cfg.Token, cfg.InstancesDirOr("")))
 	mux.Handle("/api/edge/inspect", inspect.Handler(cfg.Token))
 	// The install handler is itself a *ServeMux registering BOTH
 	// /api/edge/install (POST start / GET poll) AND /api/edge/install/stop

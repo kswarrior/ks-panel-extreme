@@ -1333,18 +1333,57 @@ html[data-ks-reduced-motion='1'] .ks-system-tab-bar[data-active='true'] {
   mask-image: linear-gradient(to bottom, transparent, black 22px, black calc(100% - 22px), transparent);
 }
 
-/* Pill search-open on phones: when the search bar expands, hide every pill
-   action except search itself + the filter toggle so the input has room and
-   stays writable. Desktop (sm+) keeps all actions visible. The filter toggle
-   is identified by its "Open filters" aria-label, shared by all list pages. */
+/* Pill search-open on phones: search takes the whole pill — every other
+   action (including filter) is hidden so only the search bar shows.
+   Desktop (sm+) keeps all actions visible. The bar itself goes clean /
+   modern: transparent pill + borderless input. */
 @media (max-width: 639px) {
   .ks-pill-content:has(.ks-search-open)
-    > *:not(.ks-search-wrap):not(:has(button[aria-label="Open filters"])) {
+    > *:not(.ks-search-wrap) {
     display: none !important;
   }
   .ks-pill-content:has(.ks-search-open) .ks-search-wrap {
     flex: 1 1 auto;
     min-width: 0;
+  }
+  /* Clean floating bar — no pill surface, border or shadow. */
+  .ks-actions-pill:has(.ks-search-open) {
+    background: transparent !important;
+    background-color: transparent !important;
+    border-color: transparent !important;
+    border-width: 0 !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  /* Borderless modern input — transparent field, subtle bottom hairline. */
+  .ks-actions-pill:has(.ks-search-open) .ks-search-wrap input {
+    background: transparent !important;
+    background-color: transparent !important;
+    border-color: transparent !important;
+    border-width: 0 !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.18) !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    padding-left: 0.25rem !important;
+  }
+  .ks-actions-pill:has(.ks-search-open) .ks-search-wrap input:focus {
+    outline: none !important;
+    border-color: transparent !important;
+    border-bottom-color: rgba(255, 255, 255, 0.45) !important;
+    box-shadow: none !important;
+  }
+  .ks-actions-pill:has(.ks-search-open) .ks-search-wrap input::placeholder {
+    color: rgba(255, 255, 255, 0.38) !important;
+  }
+  /* Search icon button also transparent to match the clean bar. */
+  .ks-actions-pill:has(.ks-search-open) .ks-search-wrap > button {
+    background: transparent !important;
+    background-color: transparent !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
   }
 }
 
