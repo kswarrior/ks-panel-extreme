@@ -843,6 +843,32 @@ func aiPromptCaps(con *sql.DB, uid int64) (*permissions.Checker, int64, bool) {
 	return permissions.NewChecker(con), uid, true
 }
 
+// aiFleetCounts returns fleet totals scoped to what the caller may actually
+// see: own-scope holders (Own without All) get their own rows only, everyone
+// else gets the global totals. This keeps the system prompt + status tool
+// consistent with the scoped list_* tools instead of leaking the full fleet
+// size to restricted users.
+func aiFleetCounts(con *sql.DB, uid int64) (instN, nodeN, tmplN int64) {
+	checker := permissions.NewChecker(con)
+	count := func(globalQ, ownQ string, ownKey, allKey, umbrella string) int64 {
+		var n int64
+		hasOwn, hasAll, _ := checker.HasScope(uid, ownKey, allKey, umbrella)
+		if !hasAll && hasOwn {
+			_ = con.QueryRow(ownQ, uid).Scan(&n)
+		} else {
+			_ = con.QueryRow(globalQ).Scan(&n)
+		}
+		return n
+	}
+	instN = count(`SELECT COUNT(*) FROM instances`, `SELECT COUNT(*) FROM instances WHERE owner_id = ?`,
+		permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+	nodeN = count(`SELECT COUNT(*) FROM nodes`, `SELECT COUNT(*) FROM nodes WHERE owner_id = ?`,
+		permissions.NodesOwnKey, permissions.NodesAllKey, permissions.ManageNodesKey)
+	tmplN = count(`SELECT COUNT(*) FROM templates`, `SELECT COUNT(*) FROM templates WHERE owner_id = ?`,
+		permissions.TemplatesOwnKey, permissions.TemplatesAllKey, permissions.ManageTemplatesKey)
+	return instN, nodeN, tmplN
+}
+
 // ---------------------------------------------------------------------------
 // Provider client: one client, two modes.
 // OpenAI-compatible: POST {base_url}/chat/completions
@@ -2209,11 +2235,16 @@ func aiToolGetDocs(topic string) string {
 }
 
 func aiToolSystemStatus(a *aiCallCtx) (string, *aiTicketProposal, error) {
-	var instN, nodeN, tmplN int64
-	_ = a.con.QueryRow(`SELECT COUNT(*) FROM instances`).Scan(&instN)
-	_ = a.con.QueryRow(`SELECT COUNT(*) FROM nodes`).Scan(&nodeN)
-	_ = a.con.QueryRow(`SELECT COUNT(*) FROM templates`).Scan(&tmplN)
-	rows, err := a.con.Query(`SELECT status, COUNT(*) FROM instances GROUP BY status`)
+	instN, nodeN, tmplN := aiFleetCounts(a.con, a.uid)
+	byStatus := map[string]int64{}
+	hasOwn, hasAll, _ := a.checker.HasScope(a.uid, permissions.InstancesOwnKey, permissions.InstancesAllKey, permissions.ManageInstancesKey)
+	var rows *sql.Rows
+	var err error
+	if !hasAll && hasOwn {
+		rows, err = a.con.Query(`SELECT status, COUNT(*) FROM instances WHERE owner_id = ? GROUP BY status`, a.uid)
+	} else {
+		rows, err = a.con.Query(`SELECT status, COUNT(*) FROM instances GROUP BY status`)
+	}
 	byStatus := map[string]int64{}
 	if err == nil {
 		defer rows.Close()

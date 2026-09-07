@@ -235,6 +235,20 @@ func (r *AIThreadRepository) AddMessage(uid, threadID int64, role, content strin
 	return err
 }
 
+// MessageCount returns the TOTAL persisted turns in uid's thread (no window
+// cap), matching List's MsgCount semantics. The detail endpoint serves the
+// last-50 window for messages but reports the total here.
+func (r *AIThreadRepository) MessageCount(uid, threadID int64) (int, error) {
+	if _, err := r.Owned(uid, threadID); err != nil {
+		return 0, err
+	}
+	var n int
+	if err := r.db.QueryRow(`SELECT COUNT(*) FROM ai_chat_messages WHERE thread_id = ?`, threadID).Scan(&n); err != nil {
+		return 0, err
+	}
+	return n, nil
+}
+
 // LastMessages returns up to n of uid's thread turns, oldest-first (model
 // context order). n is clamped to 1..50 — the server's context window.
 // NULL-id rows are skipped for the same phantom-row reason as List, so a

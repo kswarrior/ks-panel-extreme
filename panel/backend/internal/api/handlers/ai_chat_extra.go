@@ -680,7 +680,14 @@ func AIThreadHandler(w http.ResponseWriter, r *http.Request) {
 		if msgs == nil {
 			msgs = []repository.AIMessage{}
 		}
-		th.MsgCount = len(msgs)
+		// MsgCount is the TOTAL persisted turns (matches List), while
+		// messages is the last-50 window. Overwriting with len(msgs)
+		// would under-report threads with >50 turns.
+		if total, terr := repo.MessageCount(uid, id); terr == nil {
+			th.MsgCount = total
+		} else {
+			th.MsgCount = len(msgs)
+		}
 		writeJSON(w, map[string]any{"thread": th, "messages": msgs})
 	case http.MethodPut:
 		var body struct {
