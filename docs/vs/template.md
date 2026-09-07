@@ -103,12 +103,12 @@ Panels + latest checked: `KS` (this repo) vs `Pterodactyl v1.15.1 (12 Aug 2026, 
 
 | Rank | Panel | Sum | Final `/100` |
 |------|-------|-----|--------------|
-| **1** | **KS** | **1,567 / 1,900** | **82** |
+| **1** | **KS** | **1,497 / 1,900** | **79** |
 | 2 | Pelican | 1,278 / 1,900 | 67 |
 | 3 | Pterodactyl | 1,258 / 1,900 | 66 |
 | 4 | PufferPanel | 982 / 1,900 | 52 |
 
-Narrow lead, now a clear gap on composability: KS leads cases 1–7, 10–13, 15–16, 18–19; trails on 8–9 (single bash script simplicity), 14 (Nests), 17 (library size). Close the remaining gap with Nest-like grouping, page/action update detection, and a raw-JSON edit mode; competitors cannot match pages/actions/binding/multi-image/parsers without a format break.
+Clear lead on composability but parsers conceded: KS leads cases 1–7, 10–13, 15, 18–19; trails on 8–9 (single bash script simplicity), 14 (Nests), 16 (config parsers — removed, now parity with Puffer), 17 (library size). Close the remaining gap with Nest-like grouping, page/action update detection, and a raw-JSON edit mode; competitors cannot match pages/actions/binding/multi-image/bulk-env without a format break.
 
 ## 9. Sources
 
