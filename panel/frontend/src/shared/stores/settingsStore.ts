@@ -90,6 +90,10 @@ interface BrandBootstrap {
   browser_tab_title?: string;
   favicon_url?: string;
   favicon_mime?: string;
+  // Panel root URL (Settings > General > Root URL): single path segment the
+  // SPA lives under ("" = origin root). panelBase.ts is the runtime reader;
+  // this stays in the bootstrap type so stores stay in sync.
+  panel_root_url?: string;
   panel_name_color?: string;
   panel_name_font?: string;
   panel_name_weight?: string;
@@ -126,6 +130,7 @@ function readBootstrap(): {
   footerText: string;
   browserTabTitle: string;
   favicon: PanelLogo | null;
+  panelRootUrl: string;
   nameStyle: PanelNameStyle;
   logoStyle: PanelLogoStyle;
 } {
@@ -137,6 +142,7 @@ function readBootstrap(): {
       footerText: 'KS Warrior',
       browserTabTitle: '',
       favicon: null,
+      panelRootUrl: '',
       nameStyle: { ...DEFAULT_PANEL_NAME_STYLE },
       logoStyle: { ...DEFAULT_PANEL_LOGO_STYLE },
     };
@@ -149,6 +155,8 @@ function readBootstrap(): {
       : null;
   const footerText = (boot.footer_text && boot.footer_text.trim()) || 'KS Warrior';
   const browserTabTitle = (boot.browser_tab_title && boot.browser_tab_title.trim()) || '';
+  const panelRootUrl =
+    typeof boot.panel_root_url === 'string' ? boot.panel_root_url.trim().toLowerCase().replace(/^\/+|\/+$/g, '') : '';
   const favicon =
     boot.favicon_url && boot.favicon_mime
       ? { url: boot.favicon_url, mime: boot.favicon_mime }
@@ -161,6 +169,7 @@ function readBootstrap(): {
     footerText,
     browserTabTitle,
     favicon,
+    panelRootUrl,
     nameStyle: {
       color: pick(boot.panel_name_color, DEFAULT_PANEL_NAME_STYLE.color),
       font: pick(boot.panel_name_font, DEFAULT_PANEL_NAME_STYLE.font),
@@ -198,6 +207,10 @@ interface SettingsState {
   // Browser-tab override ("" = fall back to panelName) + tab icon.
   browserTabTitle: string;
   favicon: PanelLogo | null;
+  // Panel root URL segment the SPA lives under ("" = origin root). Read at
+  // boot from the inline bootstrap (panelBase.ts owns runtime use); kept in
+  // the store so the Settings page can display the active value.
+  panelRootUrl: string;
   nameStyle: PanelNameStyle;
   logoStyle: PanelLogoStyle;
   // Authority branding override (GET /api/authority/branding, public).
@@ -210,6 +223,7 @@ interface SettingsState {
   setFooterText: (text: string) => void;
   setBrowserTabTitle: (title: string) => void;
   setFavicon: (favicon: PanelLogo | null) => void;
+  setPanelRootUrl: (rootUrl: string) => void;
   setNameStyle: (style: PanelNameStyle) => void;
   setLogoStyle: (style: PanelLogoStyle) => void;
   setBranding: (branding: AuthorityBranding | null) => void;
@@ -221,6 +235,7 @@ interface SettingsState {
     footer_text: string;
     browser_tab_title?: string;
     favicon?: PanelLogo | null;
+    panel_root_url?: string;
     nameStyle?: Partial<PanelNameStyle>;
     logoStyle?: Partial<PanelLogoStyle>;
   }) => void;
@@ -232,6 +247,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   footerText: initial.footerText,
   browserTabTitle: initial.browserTabTitle,
   favicon: initial.favicon,
+  panelRootUrl: initial.panelRootUrl,
   nameStyle: initial.nameStyle,
   logoStyle: initial.logoStyle,
   branding: null,
@@ -241,6 +257,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setFooterText: (text: string) => set({ footerText: (text && text.trim()) || 'KS Warrior' }),
   setBrowserTabTitle: (title: string) => set({ browserTabTitle: (title || '').trim() }),
   setFavicon: (favicon: PanelLogo | null) => set({ favicon }),
+  setPanelRootUrl: (rootUrl: string) => set({ panelRootUrl: (rootUrl || '').trim() }),
   setNameStyle: (style: PanelNameStyle) => set({ nameStyle: { ...style } }),
   setLogoStyle: (style: PanelLogoStyle) => set({ logoStyle: { ...style } }),
   setBranding: (branding: AuthorityBranding | null) => set({ branding }),
@@ -251,6 +268,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
       footerText: (snap.footer_text && snap.footer_text.trim()) || 'KS Warrior',
       browserTabTitle: ((snap as any).browser_tab_title || (snap as any).browserTabTitle || '').trim(),
       favicon: (snap as any).favicon ?? null,
+      panelRootUrl: (((snap as any).panel_root_url || '') as string).trim(),
       nameStyle: { ...prev.nameStyle, ...(snap.nameStyle || {}) },
       logoStyle: { ...prev.logoStyle, ...(snap.logoStyle || {}) },
     })),

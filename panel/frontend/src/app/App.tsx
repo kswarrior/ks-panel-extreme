@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter } from 'react-router-dom';
+import { panelBasename } from '@/shared/utils/panelBase';
 import Router from '@/app/router';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
@@ -136,7 +137,7 @@ const App: React.FC = () => {
   }, [user?.id, loadGlobalThemes]);
 
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={panelBasename}>
       <InstanceNavProvider>
         <ErrorBoundary label="app">
           <Router />
