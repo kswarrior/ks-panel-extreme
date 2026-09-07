@@ -44,6 +44,12 @@ type Stack struct {
 	SourceURL string `json:"source_url,omitempty"`
 	// PackageSize is the .ksps byte size (0 = synthesize on download).
 	PackageSize int64     `json:"package_size"`
+	// ProxyPort is the loopback TCP port of the externally-run stack Go app
+	// (0 = proxy off). ProxyRootURL is the first path segment the panel
+	// serves that app at, e.g. 'dash' floats it at /dash/* ("" = off).
+	// Migration 072.
+	ProxyPort    int    `json:"proxy_port"`
+	ProxyRootURL string `json:"proxy_root_url,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
@@ -104,6 +110,41 @@ func ValidStackPageStyle(style string) bool {
 	switch style {
 	case "", StackPageSPA, StackPageSimple:
 		return true
+	}
+	return false
+}
+
+var stackProxyRootRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
+
+// ValidStackProxyPort reports whether port is a usable proxy target.
+// 0 disables the proxy; otherwise a TCP port number is required.
+func ValidStackProxyPort(port int) bool {
+	return port == 0 || (port >= 1 && port <= 65535)
+}
+
+// ValidStackProxyRoot reports whether root is a usable proxy mount: one
+// lowercase path segment (empty disables the proxy).
+func ValidStackProxyRoot(root string) bool {
+	if root == "" {
+		return true
+	}
+	return stackProxyRootRe.MatchString(root)
+}
+
+// ReservedStackProxyRoots are first path segments the proxy mount must never
+// claim: the API tree, the health probe, the favicon alias and the SPA
+// asset prefix all live at the origin root beside proxy mounts.
+func ReservedStackProxyRoots() []string {
+	return []string{"api", "health", "favicon.ico", "assets"}
+}
+
+// IsReservedStackProxyRoot reports whether root collides with a panel-owned
+// origin-root path.
+func IsReservedStackProxyRoot(root string) bool {
+	for _, r := range ReservedStackProxyRoots() {
+		if root == r {
+			return true
+		}
 	}
 	return false
 }
