@@ -799,7 +799,7 @@ func UpdateInstanceHandler(w http.ResponseWriter, r *http.Request) {
 			log.Printf("recreate async: failed to update status for instance %d: %v", id, err)
 			return
 		}
-		if recreateFiles := configFilesForEdge(merged); len(steps) > 0 || len(recreateFiles) > 0 {
+		if len(steps) > 0 {
 			stepsJSON, _ := json.Marshal(steps)
 			_ = repo2.UpdateInstallStatus(id, "running", inst.Kind+":"+inst.Name, 0, "", string(stepsJSON))
 			edgeSteps := make([]edge.InstallStep, len(steps))
@@ -840,8 +840,6 @@ func UpdateInstanceHandler(w http.ResponseWriter, r *http.Request) {
 				// Installation console: keep stdin only when the template
 				// binds install_terminal_id (see keepStdinForInstall).
 				KeepStdin: keepStdinForInstall(merged),
-				// Resolved config parsers ride along (same contract as deploy).
-				ConfigFiles: recreateFiles,
 			}); err != nil {
 				log.Printf("recreate async: install kick-off for instance %d failed: %v", id, err)
 				_ = repo2.UpdateInstallStatus(id, "failed", inst.Kind+":"+inst.Name, 0, "edge install start failed: "+err.Error(), string(mustJSON(steps)))
@@ -1130,7 +1128,7 @@ func reinstallAsync(instID, nodeID int64, kind, name string, cfg map[string]any)
 			}
 		}
 	}
-	if reinstallGuard := len(steps) > 0 || len(configFilesForEdge(cfg)) > 0; reinstallGuard && status != "running" {
+	if reinstallGuard := len(steps) > 0; reinstallGuard && status != "running" {
 		failMsg := fmt.Sprintf(
 			"container exited before install workflow could start after reinstall (docker status=%q, id=%s)",
 			status, resp.ExternalID,
@@ -1139,14 +1137,14 @@ func reinstallAsync(instID, nodeID int64, kind, name string, cfg map[string]any)
 		_ = repo2.SetStatus(instID, "install_failed", resp.ExternalID, failMsg)
 		return
 	}
-	if len(steps) > 0 || len(configFilesForEdge(cfg)) > 0 {
+	if len(steps) > 0 {
 		status = "installing"
 	}
 	if err := repo2.SetStatus(instID, status, resp.ExternalID, ""); err != nil {
 		log.Printf("reinstall async: failed to update status for instance %d: %v", instID, err)
 		return
 	}
-	if reinstallFiles := configFilesForEdge(cfg); len(steps) > 0 || len(reinstallFiles) > 0 {
+	if len(steps) > 0 {
 		stepsJSON, _ := json.Marshal(steps)
 		_ = repo2.UpdateInstallStatus(instID, "running", kind+":"+name, 0, "", string(stepsJSON))
 		edgeSteps := make([]edge.InstallStep, len(steps))
@@ -1185,8 +1183,6 @@ func reinstallAsync(instID, nodeID int64, kind, name string, cfg map[string]any)
 			// Installation console: keep stdin only when the template
 			// binds install_terminal_id (see keepStdinForInstall).
 			KeepStdin: keepStdinForInstall(cfg),
-			// Resolved config parsers ride along (same contract as deploy).
-			ConfigFiles: reinstallFiles,
 		}); err != nil {
 			log.Printf("reinstall async: install kick-off for instance %d failed: %v", instID, err)
 			_ = repo2.UpdateInstallStatus(instID, "failed", kind+":"+name, 0, "edge install start failed: "+err.Error(), string(mustJSON(steps)))
@@ -2312,30 +2308,6 @@ func instanceAction(w http.ResponseWriter, r *http.Request, action string) {
 				"message": msg,
 			})
 			return
-		}
-	}
-
-	// Config-file parsers pre-start re-sync (Wings parity): hand-edited files
-	// are patched back before boot so ports/env stay correct. Best-effort but
-	// fail-closed: a parser error aborts the start with the edge message so
-	// the operator fixes the template instead of booting a misconfigured game.
-	if action == "start" && strings.TrimSpace(inst.Config) != "" {
-		var cfgMap map[string]any
-		if err := json.Unmarshal([]byte(inst.Config), &cfgMap); err == nil {
-			if files := configFilesForEdge(cfgMap); len(files) > 0 {
-				ecCfg := edge.NewWithTimeout(*node, token, 60*time.Second)
-				if _, cerr := ecCfg.ConfigParse(edge.ConfigParseRequest{
-					Kind: inst.Kind, Name: inst.Name, Files: files, TimeoutSec: 60,
-				}); cerr != nil {
-					log.Printf("instanceAction: pre-start configparse for instance %d failed: %v", id, cerr)
-					_ = instRepo.SetStatus(id, "errored", inst.ExternalID, "config parser failed: "+cerr.Error())
-					writeJSONStatus(w, http.StatusBadGateway, map[string]any{
-						"error":  "config parser failed: " + cerr.Error(),
-						"detail": "fix spec.config_files[] or the file content inside the workload, then retry start",
-					})
-					return
-				}
-			}
 		}
 	}
 
