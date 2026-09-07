@@ -40,7 +40,13 @@ func (d *docker) Deploy(ctx context.Context, name string, cfg map[string]any) (R
 	if err := binMissing("docker"); err != nil {
 		return Result{}, err
 	}
-	args := []string{"run", "--name", name}
+	// -i keeps the container's stdin open so a later `docker attach`
+	// (the Terminal page's startup console) can SEND input to the main
+	// process (tps / op / stop …). Without it attach still streams
+	// output but stdin writes are dropped by the daemon. Harmless for
+	// non-interactive entrypoints: nothing reads the pipe unless
+	// attached. (No -t: a PID-1 TTY would change process behaviour.)
+	args := []string{"run", "--name", name, "-i"}
 	for _, p := range asPorts(cfg["ports"]) {
 		proto := p.Protocol
 		if proto == "" {
