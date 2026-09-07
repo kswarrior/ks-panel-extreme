@@ -249,25 +249,6 @@ const TemplateDetail: React.FC = () => {
   })();
   const caps = spec.caps || {};
   const pages: any[] = Array.isArray(spec.pages) ? spec.pages : [];
-  const configFiles: any[] = (() => {
-    if (Array.isArray((spec as any).config_files)) return (spec as any).config_files;
-    if ((spec as any).config_files && typeof (spec as any).config_files === 'object') {
-      return Object.entries((spec as any).config_files as Record<string, unknown>)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([file, v]) => ({ file, ...((v as any) || {}) }));
-    }
-    const cfg = (spec as any).config;
-    if (cfg && typeof cfg === 'object' && !Array.isArray(cfg)) {
-      const files = (cfg as any).files;
-      if (Array.isArray(files)) return files;
-      if (files && typeof files === 'object') {
-        return Object.entries(files as Record<string, unknown>)
-          .sort(([a], [b]) => a.localeCompare(b))
-          .map(([file, v]) => ({ file, ...((v as any) || {}) }));
-      }
-    }
-    return [];
-  })();
   const prettySpec = (() => {
     try { return JSON.stringify(spec, null, 2); } catch { return template.spec || '{}'; }
   })();
@@ -349,7 +330,7 @@ const TemplateDetail: React.FC = () => {
           <div className="rounded-lg border border-white/5 bg-white/[0.02] p-2.5">
             <h4 className="text-[10px] uppercase tracking-wide text-gray-500">Spec items</h4>
             <p className="text-xs text-white mt-1 truncate">{ports.length} ports · {env.length} env · {mounts.length} mounts</p>
-            <p className="text-[11px] text-gray-500">{install.length} install steps · {actions.length} actions · {configFiles.length} parsers</p>
+            <p className="text-[11px] text-gray-500">{install.length} install steps · {actions.length} actions</p>
           </div>
         </div>
 
@@ -477,16 +458,6 @@ const TemplateDetail: React.FC = () => {
                     <li key={i} className="text-xs text-gray-300 truncate"><span className="text-gray-500 mr-1">{i+1}.</span>{s.action || s.command || s.url || s.content?.slice(0,30) || 'step'}</li>
                   ))}
                 </ol>
-              )}
-            </div>
-            <div>
-              <p className="text-[11px] uppercase tracking-wide text-gray-500">Config parsers · {configFiles.length}</p>
-              {configFiles.length === 0 ? <p className="text-xs text-gray-500">No config parsers</p> : (
-                <ul className="mt-1 space-y-1 max-h-24 overflow-auto pr-1">
-                  {configFiles.map((c: any, i: number) => (
-                    <li key={i} className="text-xs text-gray-300 truncate"><span className="font-mono text-white">{c.file || `file_${i}`}</span> <span className="text-gray-500">· {c.parser || 'properties'} · {c.find ? Object.keys(c.find).length : 0} keys</span></li>
-                  ))}
-                </ul>
               )}
             </div>
             <div>
