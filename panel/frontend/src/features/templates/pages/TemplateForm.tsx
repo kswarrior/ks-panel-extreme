@@ -14,7 +14,6 @@ import {
   TemplateEnvVariablesSection,
   TemplateActionsSection,
   TemplateInstallSection,
-  TemplateConfigFilesSection,
   TemplateRuntimeSection,
   TemplateLabelsDevicesSection,
   TemplateHealthcheckSection,
@@ -697,13 +696,6 @@ const TemplateForm: React.FC = () => {
             addBtn={addBtn}
           />
           </>
-        )}
-
-        {tab === 'config' && (
-          <TemplateConfigFilesSection
-            value={(form as any).config_files || []}
-            onChange={(v) => setForm((f) => ({ ...f, config_files: v } as any))}
-          />
         )}
 
         {tab === 'runtime' && (
