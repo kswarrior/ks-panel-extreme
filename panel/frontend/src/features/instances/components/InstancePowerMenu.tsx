@@ -285,10 +285,55 @@ const InstancePowerMenu: React.FC = () => {
   const dActive = dIsRunning || dIsBusy || dStopping;
   const dTone = actionTone(actionPhase(dActive, displayedAction ? actionOutcome[displayedAction.id] : undefined));
 
-  if (!showPowerRow && templateActions.length === 0 && !error) return null;
+  // (No early return: the Files / Terminal / Ports shortcut row below
+  // always renders, so the menu stays useful even with no power row,
+  // no template actions and no error.)
 
   const menuBtn = (tone: string) =>
     `flex-1 inline-flex items-center justify-center gap-1.5 rounded-md px-2 py-2 text-[13px] font-medium transition-all duration-150 active:scale-[0.94] hover:bg-white/10 hover:shadow-[0_2px_12px_rgba(0,0,0,0.35)] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:active:scale-100 ${tone}`;
+  // Aligned shortcut buttons (Files / Terminal / Ports): equal-width cells
+  // in one horizontally scrollable row — active route glows, unavailable
+  // pages render dimmed + disabled with an explanatory tooltip.
+  const shortcutBtn = (active: boolean, enabled: boolean) =>
+    `flex-1 min-w-[92px] inline-flex items-center justify-center gap-1.5 rounded-md border px-2 py-2 text-[13px] font-medium whitespace-nowrap transition-all duration-150 active:scale-[0.94] ${
+      !enabled
+        ? 'border-white/[0.06] text-gray-600 opacity-45 cursor-not-allowed'
+        : active
+          ? 'border-sky-400/60 bg-sky-500/10 text-white shadow-[0_0_12px_rgba(56,189,248,0.15)] hover:bg-sky-500/15'
+          : 'border-white/10 bg-white/[0.03] text-gray-200 hover:border-white/25 hover:bg-white/[0.06] hover:text-white'
+    }`;
+  const shortcuts = [
+    {
+      slug: 'files',
+      label: 'Files',
+      enabled: filesOk,
+      hint: filesOk ? 'Browse & manage files' : 'Import a Files page (Pages tab) to enable',
+      tone: 'text-amber-300',
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" /></svg>
+      ),
+    },
+    {
+      slug: 'terminal',
+      label: 'Terminal',
+      enabled: terminalOk,
+      hint: terminalOk ? 'Live shell session' : 'Enable the Terminal page (Pages tab) to open a shell',
+      tone: 'text-emerald-300',
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" /></svg>
+      ),
+    },
+    {
+      slug: 'ports',
+      label: 'Ports',
+      enabled: canEditPorts,
+      hint: canEditPorts ? 'Port mappings' : 'Requires instance edit permission',
+      tone: 'text-sky-300',
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><rect x="2" y="7" width="20" height="8" rx="2" /><path d="M6 7v-2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2" /><path d="M6 15v2a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-2" /></svg>
+      ),
+    },
+  ];
   const spin = (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 animate-spin" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
   );
@@ -360,8 +405,45 @@ const InstancePowerMenu: React.FC = () => {
         </div>
       )}
       {/* Divider below Start / Stop / Restart / Kill — same hairline as below Actions. */}
-      {showPowerRow && (error || templateActions.length > 0) && (
+      {showPowerRow && (
         <div className="mx-3 mt-3 border-t border-white/10" aria-hidden="true" />
+      )}
+      {/* Quick shortcuts — Files / Terminal / Ports, aligned in one
+          horizontally scrollable row directly above Actions. */}
+      <div className="px-3 pt-2">
+        <div
+          className="flex items-stretch gap-1 overflow-x-auto pb-1"
+          role="group"
+          aria-label="Instance shortcuts"
+        >
+          {shortcuts.map((s) => {
+            const to = `/instances/${instanceId}/${s.slug}`;
+            const active = location.pathname === to || location.pathname === `${to}/`;
+            return (
+              <button
+                key={s.slug}
+                type="button"
+                disabled={!s.enabled}
+                onClick={() => {
+                  if (s.enabled) navigate(to);
+                }}
+                title={`${s.label} — ${s.hint}`}
+                aria-label={s.label}
+                aria-current={active ? 'page' : undefined}
+                className={shortcutBtn(active, s.enabled)}
+              >
+                <span className={`inline-flex shrink-0 ${s.enabled ? s.tone : ''}`} aria-hidden="true">
+                  {s.icon}
+                </span>
+                <span>{s.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      {/* Divider below shortcuts — only when Actions / error follow. */}
+      {(error || templateActions.length > 0) && (
+        <div className="mx-3 mt-2 border-t border-white/10" aria-hidden="true" />
       )}
       {error && (
         <div className="mx-3 mt-2 flex items-start gap-2 rounded-md border border-red-900/40 bg-red-950/90 px-2.5 py-2 text-[11px] leading-snug text-red-200">
