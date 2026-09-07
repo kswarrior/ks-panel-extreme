@@ -109,25 +109,79 @@ const NoPagesState: React.FC<{ slug: string }> = ({ slug }) => (
   </div>
 );
 
-// TerminalRealPage — native xterm terminal for the terminal shortcut slug
-// (default `terminal`, customizable in Instance Controls). The panel's real
-// Terminal.tsx xterm bridge (full PTY, fit addon, theme, mobile keyboard,
-// reconnection). `showHeader` (Instance Controls page option) hides the
-// title + Reconnect/Clear bar for a chromeless shell.
-const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: boolean }> = ({ instance, title, showHeader = true }) => {
-  const termRef = useRef<XTerm | null>(null);
-  const handleRef = useRef<TerminalHandle>(null);
-  const [state, setState] = useState<'connecting' | 'connected' | 'reconnecting' | 'closed' | 'error'>('connecting');
-  const [msg, setMsg] = useState('');
-  const [cwd, setCwd] = useState('~');
+// normTid normalises a terminal/action ID the same way on every layer
+// (template form, panel bridge, edge exec): lowercase, spaces → _,
+// only [a-z0-9_-] survive. Matching is exact on the normalised form.
+function normTid(v: unknown): string {
+  return String(v ?? '').trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, '');
+}
 
-  const host = instance.node_name || ('node-' + (instance.node_id ?? '?'));
-  const user = instance.kind === 'docker' ? 'root' : 'ubuntu';
+// blockedByTokens reports the first blocked token contained in line
+// (case-insensitive), or null when the line is clean.
+function blockedByTokens(line: string, blockedCsv: string): string | null {
+  const toks = String(blockedCsv || '').split(',').map((x) => x.trim()).filter(Boolean);
+  const low = line.toLowerCase();
+  for (const t of toks) {
+    if (t !== '' && low.includes(t.toLowerCase())) return t;
+  }
+  return null;
+}
 
-  const onStateChange = (s: typeof state, m?: string) => {
-    setState(s);
-    setMsg(m ?? '');
-  };
+// allowedByList reports null when line matches one of the regexes (one per
+// line), or a reason when it matches none. Invalid regexes are skipped —
+// the line must still match a VALID pattern to pass.
+function allowedByList(line: string, allowedMultiline: string): string | null {
+  const pats = String(allowedMultiline || '').split('\n').map((x) => x.trim()).filter(Boolean);
+  if (pats.length === 0) return 'no allowed commands configured';
+  for (const p of pats) {
+    try {
+      if (new RegExp(p).test(line)) return null;
+    } catch { /* skip invalid pattern */ }
+  }
+  return 'not in the allowed-commands list';
+}
+
+// actionLogText folds an instance's install_steps_json transcript into one
+// tail string (every step's stdout + stderr, oldest first, last ~8k chars)
+// so a bound pane can show the action's FULL log above the live shell.
+function actionLogText(stepsJson: unknown): string {
+  try {
+    const raw = typeof stepsJson === 'string' ? stepsJson : JSON.stringify(stepsJson ?? '');
+    if (!raw || !raw.trim()) return '';
+    const steps = JSON.parse(raw);
+    if (!Array.isArray(steps)) return '';
+    const parts: string[] = [];
+    for (const s of steps) {
+      if (s && typeof s === 'object') {
+        const out = [s.stdout, s.stderr].filter((x) => typeof x === 'string' && x !== '').join('\n');
+        if (out) parts.push(`— step ${s.index ?? '?'} (${s.action ?? 'shell'} · ${s.status ?? ''}) —\n${out}`);
+      }
+    }
+    const full = parts.join('\n').replace(/\r\n/g, '\n');
+    return full.length > 8000 ? '…(earlier output truncated)…\n' + full.slice(-8000) : full;
+  } catch {
+    return '';
+  }
+}
+
+type PaneAllowInput = 'all' | 'allowlist' | 'disabled';
+
+interface TerminalPaneState {
+  key: number;
+  // Committed ID (drives the WS ?terminal= + action matching). The text box
+  // edits a draft and commits on Enter/blur so typing never storms reconnects.
+  terminalId: string;
+  stopOnExit: boolean;
+  allowInput: PaneAllowInput;
+  // Pane-level overrides; empty = inherit the matched action's lists.
+  allowedCommands: string;
+  blockedCommands: string;
+  timeoutS: string;
+  showOptions: boolean;
+  stopped: boolean;
+  timedOut: boolean;
+  stdinError: string;
+}
 
   const handleTitleChange = (title: string) => {
     if (!title) return;

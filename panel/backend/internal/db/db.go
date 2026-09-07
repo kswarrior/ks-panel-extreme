@@ -798,6 +798,7 @@ func execMigrationBody(d Dialect, db *sql.DB, name string, content []byte) error
 				stmt = rewriteInsertOrIgnoreForPostgres(stmt)
 			}
 			if isMySQL {
+				stmt = quoteMySQLReservedIdents(stmt)
 				stmt = rewriteBigintPKForMySQL(stmt)
 				stmt = rewriteTextColumnDefsForMySQL(stmt)
 				if _, tbl, ok := parseCreateIndex(stmt); ok {
