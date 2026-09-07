@@ -726,11 +726,13 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 //     carries multiStatements=true, which the panel never sets — every
 //     multi-statement file (e.g. 001 with five CREATE TABLEs) failed on
 //     first launch with Error 1064.
+//
 //   - MySQL has no CREATE INDEX IF NOT EXISTS and regen.sh strips the
 //     clause from the mysql files, so re-running any index-bearing file
 //     failed with "Duplicate key name". Bare CREATE INDEX lines are owned
 //     by the hasIndex guard below on mysql/mariadb (mirrors
 //     guardedCreateIndex); sqlite/postgres keep their native IF NOT EXISTS.
+//
 //   - Postgres validates FK references at CREATE TABLE time while SQLite
 //     allows forward references, so 001 (users before roles) failed with
 //     "relation roles does not exist". Failed statements retry on later
@@ -738,14 +740,25 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 //     shipped corpus is idempotent (IF NOT EXISTS / OR IGNORE / guarded),
 //     so a retry can never double-apply.
 //
-// Fail-closed: when a pass resolves nothing, the last statement error is
-// returned with the migration name and statement index.
+//   - Postgres has no BLOB type (BYTEA instead) but 021 ships value_blob
+//     BLOB in every dialect. The statement is rewritten for postgres only,
+//     mirroring what regen.sh now emits for new files; sqlite/mysql keep
+//     the original text.
+//
+// Fail-closed: when a pass resolves nothing, the FIRST statement error of
+// that pass is returned with the migration name and statement index —
+// later statements usually fail only as a consequence (e.g. a missing
+// table its index wanted), so the last error would mask the root cause.
 func execMigrationBody(d Dialect, db *sql.DB, name string, content []byte) error {
 	stmts := splitSQLStatements(content)
 	pending := stmts
-	var lastErr error
 	for pass := 0; len(pending) > 0 && pass <= len(stmts); pass++ {
+		type failure struct {
+			idx int
+			err error
+		}
 		var failed []string
+		var errs []failure
 		progressed := false
 		for i, s := range pending {
 			if idx, tbl, ok := parseCreateIndex(s); ok && (d.Name() == "mysql" || d.Name() == "mariadb") {
@@ -754,8 +767,12 @@ func execMigrationBody(d Dialect, db *sql.DB, name string, content []byte) error
 					continue
 				}
 			}
-			if _, err := db.Exec(s); err != nil {
-				lastErr = fmt.Errorf("migration %s statement %d failed: %w", name, i+1, err)
+			stmt := s
+			if d.Name() == "postgres" {
+				stmt = rewriteBlobForPostgres(s)
+			}
+			if _, err := db.Exec(stmt); err != nil {
+				errs = append(errs, failure{i + 1, err})
 				failed = append(failed, s)
 				continue
 			}
@@ -765,14 +782,70 @@ func execMigrationBody(d Dialect, db *sql.DB, name string, content []byte) error
 			return nil
 		}
 		if !progressed {
-			return lastErr
+			return fmt.Errorf("migration %s statement %d failed: %w", name, errs[0].idx, errs[0].err)
 		}
 		pending = failed
 	}
-	if lastErr != nil {
-		return lastErr
-	}
 	return fmt.Errorf("migration %s failed: statements did not converge", name)
+}
+
+// rewriteBlobForPostgres swaps the standalone BLOB type token for BYTEA.
+// Only the type position is touched (word-boundary match, case-insensitive
+// via upper-casing a copy for search while splicing the original): string
+// literals and identifiers containing "blob" (e.g. value_blob) keep their
+// exact bytes. The shipped corpus holds exactly one BLOB column
+// (021 value_blob); regen.sh emits BYTEA for new postgres files, so this
+// rewrite only keeps the already-shipped 021 working without editing it.
+func rewriteBlobForPostgres(stmt string) string {
+	upper := strings.ToUpper(stmt)
+	var out strings.Builder
+	out.Grow(len(stmt))
+	i := 0
+	for i < len(stmt) {
+		if isBlobTokenAt(upper, stmt, i) {
+			out.WriteString("BYTEA")
+			i += len("BLOB")
+			continue
+		}
+		out.WriteByte(stmt[i])
+		i++
+	}
+	return out.String()
+}
+
+// isBlobTokenAt reports whether upper[pos:pos+4] == "BLOB" as a standalone
+// type token: outside single-quoted literals and bounded by non-identifier
+// characters on both sides.
+func isBlobTokenAt(upper, orig string, pos int) bool {
+	if pos+4 > len(orig) || upper[pos:pos+4] != "BLOB" {
+		return false
+	}
+	if pos > 0 && isIdentChar(orig[pos-1]) {
+		return false
+	}
+	if pos+4 < len(orig) && isIdentChar(orig[pos+4]) {
+		return false
+	}
+	inStr := false
+	for i := 0; i < pos; i++ {
+		if orig[i] == '\'' {
+			if inStr && i+1 < len(orig) && orig[i+1] == '\'' {
+				i++
+				continue
+			}
+			inStr = !inStr
+		}
+	}
+	return !inStr
+}
+
+// isIdentChar reports whether c can continue a SQL identifier (letters,
+// digits, underscore, dollar sign).
+func isIdentChar(c byte) bool {
+	return c == '_' || c == '$' ||
+		(c >= '0' && c <= '9') ||
+		(c >= 'A' && c <= 'Z') ||
+		(c >= 'a' && c <= 'z')
 }
 
 // splitSQLStatements cuts a migration body into individual statements. Line
