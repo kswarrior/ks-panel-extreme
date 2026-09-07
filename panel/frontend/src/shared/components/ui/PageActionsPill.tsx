@@ -41,29 +41,46 @@ export function useAutoHidePill(delay: number = PILL_SHOW_DELAY, enabled: boolea
       setVisible(true);
       return;
     }
+    const focusInside = () => {
+      const el = document.activeElement as HTMLElement | null;
+      return !!el && !!ref.current && ref.current.contains(el);
+    };
     const scheduleShow = (d: number) => {
       if (timer.current) window.clearTimeout(timer.current);
       timer.current = window.setTimeout(() => setVisible(true), d);
     };
     const onScroll = () => {
+      // Typing with the phone keyboard open resizes/scrolls the viewport —
+      // never collapse the pill while search/filter input has focus, or the
+      // search bar would vanish mid-typing.
+      if (focusInside()) return;
       setVisible(false);
       scheduleShow(delay);
     };
     const onPointerDown = (e: PointerEvent) => {
       const path = typeof e.composedPath === 'function' ? e.composedPath() : [];
       if (ref.current && !path.includes(ref.current)) {
+        // Tapping outside still collapses, but not while typing.
+        if (focusInside()) return;
         setVisible(false);
         scheduleShow(delay);
       }
     };
+    // Focusing anything inside (search input, filter selects) restores the
+    // pill immediately so the bar stays while writing.
+    const onFocusIn = (e: FocusEvent) => {
+      if (ref.current && ref.current.contains(e.target as Node)) show();
+    };
     document.addEventListener('scroll', onScroll, true);
     document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('focusin', onFocusIn);
     return () => {
       document.removeEventListener('scroll', onScroll, true);
       document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('focusin', onFocusIn);
       if (timer.current) window.clearTimeout(timer.current);
     };
-  }, [delay, enabled]);
+  }, [delay, enabled, show]);
 
   return { visible, ref, show };
 }
@@ -134,7 +151,7 @@ export const PageActionsPill: React.FC<PageActionsPillProps> = ({
         style={{ '--ks-card-padding': '6px' } as React.CSSProperties}
       >
         <div
-          className="ks-pill-content flex items-center gap-1 overflow-hidden transition-all duration-300 ease-in-out"
+          className="ks-pill-content flex items-center gap-1 transition-all duration-300 ease-in-out"
           style={
             isOff
               ? {
@@ -145,10 +162,11 @@ export const PageActionsPill: React.FC<PageActionsPillProps> = ({
                   transition: animation === 'none' ? 'none' : undefined,
                   pointerEvents: 'none' as const,
                   visibility: 'hidden' as const,
+                  overflow: 'hidden' as const,
                   padding: 0,
                   margin: 0,
                 }
-              : { maxWidth: 800, opacity: 1, transform: 'none', padding: 0, margin: 0 }
+              : { maxWidth: 800, opacity: 1, transform: 'none', padding: 0, margin: 0, overflow: 'visible' as const }
           }
           aria-hidden={isOff}
         >
