@@ -58,6 +58,7 @@ Panels + latest checked: `KS` (this repo) vs `Pterodactyl v1.15.1 (12 Aug 2026, 
 | Types/widgets | `text/number/select/checkbox + options` | text + `rules` (laravel rules are genuinely stronger validation) | same | `type + display` + CEL |
 | Gates | `viewable/editable` | same names, enforced + subuser layer | same + subuser checks fix | `required` only |
 | Per-page vars | `configure[] + config{}` (unique) | no | no | no |
+| Bulk `.env` file | `env_file` textarea (compose-style, substituted, merged under explicit vars) → real env: Docker `-e`, LXD `environment.*`. Honest minus: template-level only (no per-deploy edit), file vars never secret-flagged, KVM/Multipass have no env channel | no bulk (vars one-by-one; each does become real container env) | no bulk | `writefile` can materialize a `.env` file but panel never injects it as process env (app must read it itself) |
 | Honest minus | `rule` is a bare regex box; `append/prepend/append_value` trio is confusing | variable UX is dated but predictable | same | docs openly mark `type` as grouping-reserved, not enforced |
 
 ## 6. UI composition vs

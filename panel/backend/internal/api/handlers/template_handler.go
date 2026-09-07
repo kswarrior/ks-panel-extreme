@@ -424,6 +424,77 @@ func validateTemplateSpec(spec map[string]any) error {
 		}
 	}
 
+	// Installation + startup console bindings: install_terminal_id
+	// (top-level, next to install_timeout_sec) and
+	// advanced.startup_terminal_id (next to startup_command) give the
+	// install workflow and the container main process the same
+	// attach-by-ID UX actions already have via actions[].terminal_id.
+	// Same normalisation ([a-z0-9_-], max 64) and the same uniqueness
+	// rule: an ID used twice (action/action, action/install,
+	// action/startup, install/startup) would attach panes ambiguously,
+	// so duplicates fail fast at save time.
+	normConsoleTid := func(raw any) (string, error) {
+		s, ok := raw.(string)
+		if !ok {
+			return "", fmt.Errorf("must be a string")
+		}
+		if strings.TrimSpace(s) == "" {
+			return "", nil
+		}
+		norm := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(s), " ", "_"))
+		if len(norm) > 64 {
+			return "", fmt.Errorf("must be at most 64 chars")
+		}
+		for _, ch := range norm {
+			if !(ch >= 'a' && ch <= 'z' || ch >= '0' && ch <= '9' || ch == '_' || ch == '-') {
+				return "", fmt.Errorf("must match [a-z0-9_-] (got %q)", s)
+			}
+		}
+		return norm, nil
+	}
+	usedTids := map[string]string{}
+	if rawActions, ok := spec["actions"].([]any); ok {
+		for i, a := range rawActions {
+			m, ok := a.(map[string]any)
+			if !ok {
+				continue
+			}
+			if tid, err := normConsoleTid(m["terminal_id"]); err == nil && tid != "" {
+				if _, seen := usedTids[tid]; !seen {
+					usedTids[tid] = fmt.Sprintf("actions[%d]", i)
+				}
+			}
+		}
+	}
+	if raw, present := spec["install_terminal_id"]; present && raw != nil {
+		tid, err := normConsoleTid(raw)
+		if err != nil {
+			return fmt.Errorf("spec.install_terminal_id %s", err.Error())
+		}
+		if tid != "" {
+			if prev, dup := usedTids[tid]; dup {
+				return fmt.Errorf("spec.install_terminal_id %q is already used by %s — each bound terminal must be unique or panes attach ambiguously", tid, prev)
+			}
+			usedTids[tid] = "install_terminal_id"
+		}
+	}
+	if rawAdv, present := spec["advanced"]; present && rawAdv != nil {
+		if adv, ok := rawAdv.(map[string]any); ok {
+			if raw, present := adv["startup_terminal_id"]; present && raw != nil {
+				tid, err := normConsoleTid(raw)
+				if err != nil {
+					return fmt.Errorf("spec.advanced.startup_terminal_id %s", err.Error())
+				}
+				if tid != "" {
+					if prev, dup := usedTids[tid]; dup {
+						return fmt.Errorf("spec.advanced.startup_terminal_id %q is already used by %s — each bound terminal must be unique or panes attach ambiguously", tid, prev)
+					}
+					usedTids[tid] = "advanced.startup_terminal_id"
+				}
+			}
+		}
+	}
+
 	return nil
 }
 
