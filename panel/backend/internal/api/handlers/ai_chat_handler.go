@@ -2029,6 +2029,8 @@ func aiParsePortProtocol(raw string) (string, error) {
 	}
 	return p, nil
 }
+
+// aiTemplateStepSummary renders one spec.install entry as a numbered
 // one-liner ("#3 shell: touch /mc/.install-complete") using the 1-based
 // numbering users count with. Long values are capped; write-step bodies
 // are never inlined (length only) so giant file contents can't flood the
@@ -2440,6 +2442,8 @@ func aiProposeWrite(a *aiCallCtx, name string, args map[string]any) (string, str
 		return aiProposeSetTemplateCommand(a, args)
 	case "remove_template_action":
 		return aiProposeRemoveTemplateAction(a, args)
+	case "edit_template_ports":
+		return aiProposeEditTemplatePorts(a, args)
 	case "create_node":
 		return aiProposeCreateNode(a, args)
 	case "edit_node":
@@ -2519,6 +2523,8 @@ func aiExecuteWrite(a *aiCallCtx, name string, args map[string]any) (string, err
 		return aiExecSetTemplateCommand(a, args)
 	case "remove_template_action":
 		return aiExecRemoveTemplateAction(a, args)
+	case "edit_template_ports":
+		return aiExecEditTemplatePorts(a, args)
 	case "create_node":
 		return aiExecCreateNode(a, args)
 	case "edit_node":
@@ -4344,6 +4350,192 @@ func aiExecRemoveTemplateAction(a *aiCallCtx, args map[string]any) (string, erro
 	}
 	spec["actions"] = kept
 	return aiSaveTemplateSpec(a, tmpl, spec, fmt.Sprintf("removed action button %q (%s) from template %q", found, want, tmpl.Name))
+}
+
+// ---------------------------------------------------------------------------
+// Template port surgery: remove/add a single published port without
+// rewriting the whole spec. This is what "remove port 25565" means — the
+// model reads get_template section=ports (1-based numbers, same as users
+// count), proposes the op, the user approves, and only then does the spec
+// change. The resulting spec always passes through validateTemplateSpec,
+// so an invalid add fails closed with the same message the Templates page
+// would show.
+// ---------------------------------------------------------------------------
+
+// aiTemplatePortsPlan is one validated port op applied to a template's
+// spec, ready to save.
+type aiTemplatePortsPlan struct {
+	tmpl    *models.Template
+	spec    map[string]any
+	summary string
+	diff    map[string]any
+}
+
+func aiPlanTemplatePorts(a *aiCallCtx, args map[string]any) (*aiTemplatePortsPlan, error) {
+	if err := a.checker.EnsureAny(a.uid, permissions.ManageTemplatesKey, permissions.TemplatesEditKey); err != nil {
+		return nil, fmt.Errorf("denied: editing template ports needs MANAGE_TEMPLATES or TEMPLATES_EDIT — explain that the user lacks permission")
+	}
+	id := aiInt(args, "template_id")
+	if id == 0 {
+		return nil, fmt.Errorf("template_id is required (use list_templates first — never guess)")
+	}
+	op := strings.ToLower(aiStr(args, "op"))
+	if op != "remove" && op != "add" {
+		return nil, fmt.Errorf("op must be one of: remove, add")
+	}
+	tmpl, spec, err := aiLoadTemplateSpec(a, id)
+	if err != nil {
+		return nil, err
+	}
+	var ports []any
+	if raw, ok := spec["ports"].([]any); ok {
+		ports = append([]any{}, raw...)
+	}
+	// at converts a 1-based port number (as shown by get_template
+	// section=ports) to a slice index, failing closed on out-of-range.
+	at := func(n int64) (int, error) {
+		if n < 1 || n > int64(len(ports)) {
+			return 0, fmt.Errorf("port %d is out of range (the template has %d published ports — see get_template section=ports)", n, len(ports))
+		}
+		return int(n - 1), nil
+	}
+	portLabel := func(m map[string]any) string {
+		host, _ := aiPortNum(m["host"])
+		container, _ := aiPortNum(m["container"])
+		proto := strings.ToLower(strings.TrimSpace(aiStr(m, "protocol")))
+		if proto == "" {
+			proto = "tcp"
+		}
+		hs, cs := strings.TrimSpace(aiStr(m, "host")), strings.TrimSpace(aiStr(m, "container"))
+		if host != 0 {
+			hs = strconv.Itoa(host)
+		}
+		if container != 0 {
+			cs = strconv.Itoa(container)
+		}
+		if hs == "" {
+			hs = "—"
+		}
+		if cs == "" {
+			cs = "—"
+		}
+		return fmt.Sprintf("%s:%s/%s", hs, cs, proto)
+	}
+	var summary string
+	diff := map[string]any{"tool": "edit_template_ports", "template_id": id, "name": tmpl.Name, "op": op}
+	switch op {
+	case "remove":
+		idx := -1
+		if n := aiInt(args, "port_number"); n != 0 {
+			i, err := at(n)
+			if err != nil {
+				return nil, err
+			}
+			idx = i
+		} else if h, ok := aiPortNum(args["host"]); ok {
+			for i, v := range ports {
+				m, _ := v.(map[string]any)
+				if m == nil {
+					continue
+				}
+				if ph, ok := aiPortNum(m["host"]); ok && ph == h {
+					idx = i
+					break
+				}
+			}
+			if idx < 0 {
+				return nil, fmt.Errorf("no published port with host %d (the template has %d published ports — see get_template section=ports)", h, len(ports))
+			}
+		} else {
+			return nil, fmt.Errorf("port_number (1-based from get_template section=ports) or host (e.g. 25565) is required for remove")
+		}
+		m, _ := ports[idx].(map[string]any)
+		if m == nil {
+			m = map[string]any{}
+		}
+		removed := portLabel(m)
+		ports = append(ports[:idx], ports[idx+1:]...)
+		summary = fmt.Sprintf("remove published port %s from template %q (%d ports remain)", removed, tmpl.Name, len(ports))
+		diff["removed"] = removed
+	case "add":
+		host, ok := aiPortNum(args["host"])
+		if !ok {
+			return nil, fmt.Errorf("host is required for add (host port 1-65535, e.g. 25565)")
+		}
+		container, ok := aiPortNum(args["container"])
+		if !ok {
+			container = host
+		}
+		proto, err := aiParsePortProtocol(aiStr(args, "protocol"))
+		if err != nil {
+			return nil, err
+		}
+		if len(ports) >= 20 {
+			return nil, fmt.Errorf("template already has 20 published ports — remove one first")
+		}
+		for _, v := range ports {
+			m, _ := v.(map[string]any)
+			if m == nil {
+				continue
+			}
+			ph, _ := aiPortNum(m["host"])
+			pproto := strings.ToLower(strings.TrimSpace(aiStr(m, "protocol")))
+			if pproto == "" {
+				pproto = "tcp"
+			}
+			if ph == host && pproto == proto {
+				return nil, fmt.Errorf("host port %d/%s is already published", host, proto)
+			}
+		}
+		ports = append(ports, map[string]any{"host": host, "container": container, "protocol": proto})
+		added := fmt.Sprintf("%d:%d/%s", host, container, proto)
+		summary = fmt.Sprintf("add published port %s to template %q (%d ports total)", added, tmpl.Name, len(ports))
+		diff["added"] = added
+	}
+	spec["ports"] = ports
+	if len(ports) == 0 {
+		// Keep the key as an empty list (not null) so the Templates page
+		// and edge drivers see a consistent shape.
+		spec["ports"] = []any{}
+	}
+	if err := validateTemplateSpec(spec); err != nil {
+		return nil, fmt.Errorf("resulting template is invalid: %s", aiCap(err.Error(), 300))
+	}
+	diff["resulting_port_count"] = len(ports)
+	return &aiTemplatePortsPlan{tmpl: tmpl, spec: spec, summary: summary, diff: diff}, nil
+}
+
+func aiProposeEditTemplatePorts(a *aiCallCtx, args map[string]any) (string, string, error) {
+	plan, err := aiPlanTemplatePorts(a, args)
+	if err != nil {
+		return "", "", err
+	}
+	return plan.summary, aiPretty(plan.diff), nil
+}
+
+func aiExecEditTemplatePorts(a *aiCallCtx, args map[string]any) (string, error) {
+	plan, err := aiPlanTemplatePorts(a, args)
+	if err != nil {
+		return "", err
+	}
+	specBytes, err := json.Marshal(plan.spec)
+	if err != nil {
+		return "", fmt.Errorf("server error")
+	}
+	tmpl := plan.tmpl
+	if err := repository.NewTemplateRepository(a.con).Update(tmpl.ID, repository.TemplateInput{
+		Name: tmpl.Name, Description: tmpl.Description, Kind: tmpl.Kind,
+		Image: tmpl.Image, Spec: string(specBytes), Icon: tmpl.Icon, Color: tmpl.Color,
+	}); err != nil {
+		return "", fmt.Errorf("edit ports failed: %s", aiCap(err.Error(), 300))
+	}
+	id := tmpl.ID
+	RecordActivity(a.r, repository.ActivityInput{
+		Category: models.ActivityCategoryTemplate, Action: "update",
+		TargetID: &id, TargetLabel: tmpl.Name,
+		Message:  fmt.Sprintf("AI assistant edited published ports of template %q for %s: %s", tmpl.Name, a.username, plan.summary),
+	})
+	return plan.summary, nil
 }
 
 // ---------------------------------------------------------------------------
