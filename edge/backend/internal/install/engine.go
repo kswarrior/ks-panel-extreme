@@ -276,29 +276,85 @@ func runCore(ctx context.Context, in Input, exec ExecFn, onStdin func(io.WriteCl
 				sess, sessErr := in.SessionExec(ctx, []string{"/bin/sh", "-lc", script})
 				if sessErr != nil {
 					execErr = sessErr
-				} else {
-					// Expose stdin to the handler (if callback provided)
-					if onStdin != nil {
-						onStdin(sess.Stdin)
-					}
-					// Drain stdout/stderr concurrently like buildExecFn does
-					stdoutCh := make(chan string, 1)
-					stderrCh := make(chan string, 1)
-					go func() {
-						b, _ := io.ReadAll(sess.Stdout)
-						stdoutCh <- string(b)
-					}()
-					go func() {
-						b, _ := io.ReadAll(sess.Stderr)
-						stderrCh <- string(b)
-					}()
-					// Wait for process exit
-					code, execErr = sess.Wait()
-					stdout = <-stdoutCh
-					stderr = <-stderrCh
-					// Close session
-					sess.Close()
+			} else {
+				// Expose stdin to the handler (if callback provided)
+				if onStdin != nil {
+					onStdin(sess.Stdin)
 				}
+				// Stream stdout/stderr LIVE into the step transcript while
+				// the process runs. Long-running actions (java on
+				// mc-console) print their console for hours before ever
+				// exiting — the previous code drained both pipes with a
+				// blocking io.ReadAll, so every mid-run InstallStatus poll
+				// carried empty stdout and a bound terminal pane showed
+				// "running" with no java output at all. Streamed chunks
+				// update steps[i] (capped) and re-publish throttled, so
+				// the panel's 2s sweep → install_steps_json → terminal
+				// pane log shows the console as it happens.
+				var liveMu sync.Mutex
+				var outBuf, errBuf []byte
+				var lastPub time.Time
+				publishLive := func() {
+					liveMu.Lock()
+					steps[i].Stdout = string(outBuf)
+					steps[i].Stderr = string(errBuf)
+					snapshot := make([]StepStatus, len(steps))
+					copy(snapshot, steps)
+					liveMu.Unlock()
+					if in.OnProgress != nil {
+						in.OnProgress(snapshot)
+					}
+				}
+				stream := func(r io.Reader, isOut bool, done chan<- string) {
+					buf := make([]byte, 4096)
+					for {
+						n, rerr := r.Read(buf)
+						var shouldPub bool
+						liveMu.Lock()
+						if n > 0 {
+							if isOut {
+								outBuf = appendCapped(outBuf, buf[:n], liveStdoutCap)
+							} else {
+								errBuf = appendCapped(errBuf, buf[:n], liveStdoutCap)
+							}
+							if time.Since(lastPub) >= 500*time.Millisecond {
+								lastPub = time.Now()
+								shouldPub = true
+							}
+						}
+						liveMu.Unlock()
+						if shouldPub {
+							publishLive()
+						}
+						if rerr != nil {
+							liveMu.Lock()
+							var final string
+							if isOut {
+								final = string(outBuf)
+							} else {
+								final = string(errBuf)
+							}
+							liveMu.Unlock()
+							done <- final
+							return
+						}
+					}
+				}
+				stdoutCh := make(chan string, 1)
+				stderrCh := make(chan string, 1)
+				go stream(sess.Stdout, true, stdoutCh)
+				go stream(sess.Stderr, false, stderrCh)
+				// Wait for process exit. Both stream goroutines send their
+				// buffered transcript on done BEFORE returning, and we
+				// receive both below — that receive synchronises with every
+				// transcript write they made, so the steps[i] assignment
+				// after is free of data races without further locking.
+				code, execErr = sess.Wait()
+				stdout = <-stdoutCh
+				stderr = <-stderrCh
+				// Close session
+				sess.Close()
+			}
 			} else {
 				stdout, stderr, code, execErr = exec(ctx, []string{"/bin/sh", "-lc", script})
 			}
