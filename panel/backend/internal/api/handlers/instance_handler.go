@@ -1130,7 +1130,7 @@ func reinstallAsync(instID, nodeID int64, kind, name string, cfg map[string]any)
 			}
 		}
 	}
-	if len(steps) > 0 && status != "running" {
+	if reinstallGuard := len(steps) > 0 || len(configFilesForEdge(cfg)) > 0; reinstallGuard && status != "running" {
 		failMsg := fmt.Sprintf(
 			"container exited before install workflow could start after reinstall (docker status=%q, id=%s)",
 			status, resp.ExternalID,
@@ -1139,7 +1139,7 @@ func reinstallAsync(instID, nodeID int64, kind, name string, cfg map[string]any)
 		_ = repo2.SetStatus(instID, "install_failed", resp.ExternalID, failMsg)
 		return
 	}
-	if len(steps) > 0 {
+	if len(steps) > 0 || len(configFilesForEdge(cfg)) > 0 {
 		status = "installing"
 	}
 	if err := repo2.SetStatus(instID, status, resp.ExternalID, ""); err != nil {
