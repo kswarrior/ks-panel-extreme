@@ -217,10 +217,10 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				}
 				log.Printf("Running migration %s", name)
 			}
-		if err := execMigrationBody(d, db, name, stripped); err != nil {
-			return err
-		}
-		if err := guardedCreateIndex(d, db, name, "email_verification_codes", "evc_email_idx", "email"); err != nil {
+			if err := execMigrationBody(d, db, name, stripped); err != nil {
+				return err
+			}
+			if err := guardedCreateIndex(d, db, name, "email_verification_codes", "evc_email_idx", "email"); err != nil {
 				return err
 			}
 			continue
@@ -275,11 +275,11 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			}
 			stripped := stripAlterColumnLines(body, "mods", "engine_version")
 			stripped = stripCreateIndexLines(stripped, "mod_storage_mod_idx")
-		log.Printf("Running migration %s", name)
-		if err := execMigrationBody(d, db, name, stripped); err != nil {
-			return err
-		}
-		if err := guardedCreateIndex(d, db, name, "mod_storage", "mod_storage_mod_idx", "mod_slug"); err != nil {
+			log.Printf("Running migration %s", name)
+			if err := execMigrationBody(d, db, name, stripped); err != nil {
+				return err
+			}
+			if err := guardedCreateIndex(d, db, name, "mod_storage", "mod_storage_mod_idx", "mod_slug"); err != nil {
 				return err
 			}
 			continue
@@ -534,10 +534,10 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			}
 			stripped := stripAlterColumnLines(body, "applications", "files")
 			stripped = stripCreateIndexLines(stripped, "idx_application_runs_app")
-		if err := execMigrationBody(d, db, name, stripped); err != nil {
-			return err
-		}
-		if err := guardedCreateIndex(d, db, name, "application_runs", "idx_application_runs_app", "application_id"); err != nil {
+			if err := execMigrationBody(d, db, name, stripped); err != nil {
+				return err
+			}
+			if err := guardedCreateIndex(d, db, name, "application_runs", "idx_application_runs_app", "application_id"); err != nil {
 				return err
 			}
 			continue
@@ -596,10 +596,10 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				return rerr
 			}
 			stripped := stripCreateIndexLines(body, "idx_instance_ports_instance")
-		if err := execMigrationBody(d, db, name, stripped); err != nil {
-			return err
-		}
-		if err := guardedCreateIndex(d, db, name, "instance_ports", "idx_instance_ports_instance", "instance_id"); err != nil {
+			if err := execMigrationBody(d, db, name, stripped); err != nil {
+				return err
+			}
+			if err := guardedCreateIndex(d, db, name, "instance_ports", "idx_instance_ports_instance", "instance_id"); err != nil {
 				return err
 			}
 			continue
@@ -646,10 +646,10 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				return rerr
 			}
 			stripped := stripCreateIndexLines(body, "idx_node_wss_channels_node")
-		if err := execMigrationBody(d, db, name, stripped); err != nil {
-			return err
-		}
-		if err := guardedCreateIndex(d, db, name, "node_wss_channels", "idx_node_wss_channels_node", "node_id"); err != nil {
+			if err := execMigrationBody(d, db, name, stripped); err != nil {
+				return err
+			}
+			if err := guardedCreateIndex(d, db, name, "node_wss_channels", "idx_node_wss_channels_node", "node_id"); err != nil {
 				return err
 			}
 			continue
@@ -665,10 +665,10 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				return rerr
 			}
 			stripped := stripCreateIndexLines(body, "idx_api_key_requests_hash_time")
-		if err := execMigrationBody(d, db, name, stripped); err != nil {
-			return err
-		}
-		if err := guardedCreateIndex(d, db, name, "api_key_requests", "idx_api_key_requests_hash_time", "key_hash, created_at"); err != nil {
+			if err := execMigrationBody(d, db, name, stripped); err != nil {
+				return err
+			}
+			if err := guardedCreateIndex(d, db, name, "api_key_requests", "idx_api_key_requests_hash_time", "key_hash, created_at"); err != nil {
 				return err
 			}
 			continue
@@ -685,10 +685,10 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			}
 			stripped := stripCreateIndexLines(body, "idx_ticket_attachments_ticket")
 			stripped = stripCreateIndexLines(stripped, "idx_ticket_attachments_sha")
-		if err := execMigrationBody(d, db, name, stripped); err != nil {
-			return err
-		}
-		if err := guardedCreateIndex(d, db, name, "ticket_attachments", "idx_ticket_attachments_ticket", "ticket_id"); err != nil {
+			if err := execMigrationBody(d, db, name, stripped); err != nil {
+				return err
+			}
+			if err := guardedCreateIndex(d, db, name, "ticket_attachments", "idx_ticket_attachments_ticket", "ticket_id"); err != nil {
 				return err
 			}
 			if err := guardedCreateIndex(d, db, name, "ticket_attachments", "idx_ticket_attachments_sha", "sha256"); err != nil {
@@ -778,7 +778,7 @@ func execMigrationBody(d Dialect, db *sql.DB, name string, content []byte) error
 // splitSQLStatements cuts a migration body into individual statements. Line
 // comments (--) are stripped quote-aware first — header comments carry
 // semicolons that must not split — then the body is cut on semicolons
-// outside single-quoted literals ('' is the escaped quote). Empty fragments
+// outside single-quoted literals (” is the escaped quote). Empty fragments
 // are dropped so stray comment-only tails never reach the driver (pgx
 // rejects empty queries). Verified against the shipped corpus: no
 // semicolons inside string literals, no -- inside literals, no
@@ -822,7 +822,7 @@ func splitSQLStatements(content []byte) []string {
 }
 
 // cutLineComment removes a -- comment suffix outside single-quoted
-// literals ('' is the escaped quote). All -- occurrences in the shipped
+// literals (” is the escaped quote). All -- occurrences in the shipped
 // corpus are real comment starts; the quote tracking keeps a future
 // literal containing -- intact.
 func cutLineComment(ln string) string {
