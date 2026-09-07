@@ -549,6 +549,9 @@ export interface TagPickerProps {
   onChange: (v: string) => void;
   onAdd: (v: string) => void;
   onDelete: (v: string) => void;
+  // Rename a managed entry (old -> new). Optional — the picker manages its
+  // own list internally; callers that persist taxonomies can sync here.
+  onRename?: (oldValue: string, newValue: string) => void;
 }
 
 export interface ToggleProps {

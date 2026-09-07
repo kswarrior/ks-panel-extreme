@@ -183,10 +183,10 @@ const StackFileManager: React.FC<{ stackId: number; slug: string; initialDir?: s
     }
     const full = joinRel(dir, e.name);
     setEditError('');
-    setModal({ kind: 'edit', path: full, content: '', busy: true, dirty: false });
+    setModal({ kind: 'edit', path: full, content: '', busy: true, dirty: false, view: 'code' });
     try {
       const file = await readStackFile(stackId, full);
-      setModal({ kind: 'edit', path: full, content: file.content, busy: false, dirty: false });
+      setModal({ kind: 'edit', path: full, content: file.content, busy: false, dirty: false, view: 'code' });
     } catch (err) {
       setModal(null);
       setError(extractStackApiError(err, 'Failed to read file'));
@@ -238,7 +238,8 @@ const StackFileManager: React.FC<{ stackId: number; slug: string; initialDir?: s
     try {
       const rel = joinRel(dir, name);
       if (modal.tab === 'file') {
-        await writeStackFile(stackId, rel, '');
+        // New files open seeded: .go/.md/.html/.tsx starters by extension.
+        await writeStackFile(stackId, rel, templateFor(name));
       } else {
         await mkdirStackPath(stackId, rel);
       }
@@ -301,12 +302,12 @@ const StackFileManager: React.FC<{ stackId: number; slug: string; initialDir?: s
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="ks-mono flex items-center gap-1 min-h-6 overflow-x-auto max-w-full text-[13px]" aria-label="Current directory">
-          <button type="button" onClick={() => setDir('')} title={`${slug} workdir root`} className="shrink-0 text-gray-400 hover:text-white transition-colors">
-            /{slug}
+          <button type="button" onClick={() => setDir(home)} title={home ? `${slug} ${home} root` : `${slug} workdir root`} className="shrink-0 text-gray-400 hover:text-white transition-colors">
+            /{slug}{home ? `/${home}` : ''}
           </button>
-          {crumbs.map((seg, i) => {
-            const tgt = crumbs.slice(0, i + 1).join('/');
-            const last = i === crumbs.length - 1;
+          {relCrumbs.map((seg, i) => {
+            const tgt = home ? `${home}/${relCrumbs.slice(0, i + 1).join('/')}` : relCrumbs.slice(0, i + 1).join('/');
+            const last = i === relCrumbs.length - 1;
             return (
               <span key={tgt} className="inline-flex items-center gap-1 shrink-0">
                 <span className="text-gray-600">/</span>
@@ -333,18 +334,22 @@ const StackFileManager: React.FC<{ stackId: number; slug: string; initialDir?: s
           <button type="button" onClick={() => void load(dir)} title="Refresh" aria-label="Refresh" className="ks-btn-header ks-icon-btn">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><polyline points="1 4 1 10 7 10" /><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" /></svg>
           </button>
-          <button type="button" onClick={() => fileInputRef.current?.click()} title="Upload" aria-label="Upload" className="ks-btn-header ks-icon-btn">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
-          </button>
-          <button type="button" onClick={() => setModal({ kind: 'create', tab: 'file', name: '', busy: false })} title="Create" aria-label="Create" className="ks-btn-header ks-icon-btn">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-          </button>
+          {!bare && (
+            <>
+              <button type="button" onClick={() => fileInputRef.current?.click()} title="Upload" aria-label="Upload" className="ks-btn-header ks-icon-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
+              </button>
+              <button type="button" onClick={() => setModal({ kind: 'create', tab: 'file', name: '', busy: false })} title="Create" aria-label="Create" className="ks-btn-header ks-icon-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+              </button>
+            </>
+          )}
         </div>
       </div>
 
-      {dir && (
-        <button type="button" onClick={() => setDir(parentRel(dir))} className="text-xs text-sky-300 hover:text-sky-200">
-          ↑ Up to {parentRel(dir) || `/${slug}`}
+      {upTarget !== null && (
+        <button type="button" onClick={() => setDir(upTarget)} className="text-xs text-sky-300 hover:text-sky-200">
+          ↑ Up to {upTarget || `/${slug}`}
         </button>
       )}
 
@@ -557,13 +562,57 @@ const StackFileManager: React.FC<{ stackId: number; slug: string; initialDir?: s
             {modal.busy && !modal.content ? (
               <p className="text-sm text-gray-400">Loading…</p>
             ) : (
-              <textarea
-                value={modal.content}
-                onChange={(e) => setModal({ ...modal, content: e.target.value, dirty: true })}
-                rows={22}
-                spellCheck={false}
-                className="w-full font-mono text-xs px-3 py-2 rounded-lg bg-gray-900/60 border border-gray-700/60 text-gray-200"
-              />
+              <>
+                {(() => {
+                  const lang = fileLang(modal.path);
+                  return (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] border border-white/10 bg-white/5 text-gray-300 font-mono">
+                        {lang.label}
+                      </span>
+                      {lang.preview !== 'none' && (
+                        <div className="flex gap-1 rounded-lg border border-white/10 bg-black/30 p-0.5" role="tablist" aria-label="Editor view">
+                          {(['code', 'preview'] as const).map((v) => (
+                            <button
+                              key={v}
+                              type="button"
+                              role="tab"
+                              aria-selected={modal.view === v}
+                              onClick={() => setModal({ ...modal, view: v })}
+                              className={`rounded px-2.5 py-1 text-xs capitalize transition ${modal.view === v ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'}`}
+                            >
+                              {v}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+                {modal.view === 'preview' ? (
+                  fileLang(modal.path).preview === 'markdown' ? (
+                    <div
+                      className="rounded-lg border border-white/10 bg-black/30 p-4 text-sm text-gray-200 max-h-[60vh] overflow-y-auto ks-markdown"
+                      dangerouslySetInnerHTML={{ __html: markdownToHtml(modal.content) }}
+                    />
+                  ) : (
+                    <iframe
+                      title={`Preview of ${modal.path}`}
+                      sandbox=""
+                      srcDoc={modal.content}
+                      className="w-full rounded-lg border border-white/10 bg-white min-h-[50vh]"
+                    />
+                  )
+                ) : (
+                  <textarea
+                    value={modal.content}
+                    onChange={(e) => setModal({ ...modal, content: e.target.value, dirty: true })}
+                    rows={22}
+                    spellCheck={false}
+                    className="w-full font-mono text-xs px-3 py-2 rounded-lg bg-gray-900/60 border border-gray-700/60 text-gray-200"
+                  />
+                )}
+              </>
             )}
             {editError && <p className="text-xs text-red-300">{editError}</p>}
           </div>

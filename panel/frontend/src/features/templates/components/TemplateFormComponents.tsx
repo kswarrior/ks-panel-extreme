@@ -6,23 +6,61 @@ import { TEMPLATE_TABS, BLOCK_LABELS, emptyForm } from '../types/templateForm';
 import GlassCard from '@/shared/components/ui/Card';
 import PageTabsPill from '@/shared/components/ui/PageTabsPill';
 
-export const TagPicker: React.FC<TagPickerProps> = ({ value, options, placeholder, onChange, onAdd, onDelete }) => {
+export const TagPicker: React.FC<TagPickerProps> = ({ value, options, placeholder, onChange, onAdd, onDelete, onRename }) => {
   const [query, setQuery] = useState(value);
   const [open, setOpen] = useState(false);
+  // Managed taxonomy list, seeded from props. Typing an unknown value never
+  // adds it implicitly — only the explicit "Create" row does. Resyncs only
+  // when the incoming options *content* changes (callers pass inline
+  // literals, so identity comparison would wipe user edits every render).
+  const [items, setItems] = useState<string[]>(options);
+  const optionsKey = options.join('\0');
+  useEffect(() => setItems(options), [optionsKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Inline rename state: which entry is being renamed + its draft text.
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState('');
   const ref = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => setQuery(value), [value]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node)) { setOpen(false); setRenaming(null); }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const filtered = options.filter((o) => o.toLowerCase().includes(query.toLowerCase()));
-  const isNew = query.trim() !== '' && !options.includes(query.trim());
+  const trimmed = query.trim();
+  const filtered = items.filter((o) => o.toLowerCase().includes(query.toLowerCase()));
+  // Unknown text (case-insensitive) offers an explicit Create row — never auto-added.
+  const isNew = trimmed !== '' && !items.some((o) => o.toLowerCase() === trimmed.toLowerCase());
+
+  const commitCreate = () => {
+    if (!isNew) return;
+    setItems((prev) => [...prev, trimmed]);
+    onAdd(trimmed);
+    onChange(trimmed);
+    setQuery(trimmed);
+    setOpen(false);
+  };
+
+  const commitDelete = (opt: string) => {
+    setItems((prev) => prev.filter((o) => o !== opt));
+    onDelete(opt);
+    if (value === opt) { onChange(''); setQuery(''); }
+  };
+
+  const commitRename = () => {
+    if (renaming === null) return;
+    const next = renameDraft.trim();
+    // Reject empty names and case-insensitive duplicates of *other* entries.
+    if (next === '' || items.some((o) => o !== renaming && o.toLowerCase() === next.toLowerCase())) return;
+    setItems((prev) => prev.map((o) => (o === renaming ? next : o)));
+    onRename?.(renaming, next);
+    if (value === renaming) { onChange(next); setQuery(next); }
+    setRenaming(null);
+  };
 
   return (
     <div className="relative" ref={ref}>
@@ -30,6 +68,17 @@ export const TagPicker: React.FC<TagPickerProps> = ({ value, options, placeholde
         value={query}
         onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}
+        onKeyDown={(e) => {
+          // Enter picks the first existing match only — unknown text is
+          // never created via keyboard, only via the Create row click.
+          if (e.key === 'Enter' && filtered.length > 0) {
+            e.preventDefault();
+            onChange(filtered[0]);
+            setQuery(filtered[0]);
+            setOpen(false);
+          }
+          if (e.key === 'Escape') { setOpen(false); setRenaming(null); }
+        }}
         placeholder={placeholder}
         className="glass-field"
       />
@@ -38,28 +87,78 @@ export const TagPicker: React.FC<TagPickerProps> = ({ value, options, placeholde
           {isNew && (
             <button
               type="button"
-              onClick={() => { onAdd(query.trim()); onChange(query.trim()); setOpen(false); }}
-              className="w-full text-left px-3 py-2 text-sm text-green-300 hover:bg-white/10"
+              onClick={commitCreate}
+              className="w-full flex items-center gap-2 text-left px-3 py-2 text-sm text-green-300 hover:bg-white/10"
             >
-              + Add "{query.trim()}"
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 shrink-0"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+              <span className="truncate">Create "{trimmed}"</span>
             </button>
           )}
           {filtered.length === 0 && !isNew && (
             <p className="px-3 py-2 text-xs text-gray-500">No matches</p>
           )}
           {filtered.map((opt) => (
-            <div key={opt} className="flex items-center justify-between group px-3 py-2 text-sm text-gray-200 hover:bg-white/10">
-              <button type="button" onClick={() => { onChange(opt); setQuery(opt); setOpen(false); }} className="flex-1 text-left">
-                {opt}
-              </button>
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); onDelete(opt); if (value === opt) onChange(''); }}
-                className="text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 ml-2"
-                aria-label="delete"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /> </svg>
-              </button>
+            <div key={opt} className="flex items-center gap-1 px-2 py-1.5 text-sm text-gray-200 hover:bg-white/10">
+              {/* Left-side managed-taxonomy actions */}
+              <span className="flex items-center shrink-0">
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setRenaming(opt); setRenameDraft(opt); }}
+                  className="p-1.5 rounded text-gray-500 hover:text-sky-300 hover:bg-white/10"
+                  title={`Rename "${opt}"`}
+                  aria-label={`Rename ${opt}`}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); commitDelete(opt); }}
+                  className="p-1.5 rounded text-gray-500 hover:text-red-400 hover:bg-white/10"
+                  title={`Delete "${opt}"`}
+                  aria-label={`Delete ${opt}`}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+                </button>
+              </span>
+              {renaming === opt ? (
+                <span className="flex-1 flex items-center gap-1 min-w-0">
+                  <input
+                    value={renameDraft}
+                    autoFocus
+                    onChange={(e) => setRenameDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      e.stopPropagation();
+                      if (e.key === 'Enter') { e.preventDefault(); commitRename(); }
+                      if (e.key === 'Escape') setRenaming(null);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="glass-field flex-1 min-w-0 !py-1 text-sm"
+                    aria-label={`New name for ${opt}`}
+                  />
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); commitRename(); }}
+                    className="p-1.5 rounded text-green-400 hover:text-green-300 hover:bg-white/10 shrink-0"
+                    title="Save rename"
+                    aria-label="Save rename"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><polyline points="20 6 9 17 4 12" /></svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setRenaming(null); }}
+                    className="p-1.5 rounded text-gray-500 hover:text-white hover:bg-white/10 shrink-0"
+                    title="Cancel rename"
+                    aria-label="Cancel rename"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-3.5 h-3.5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                  </button>
+                </span>
+              ) : (
+                <button type="button" onClick={() => { onChange(opt); setQuery(opt); setOpen(false); }} className="flex-1 text-left truncate">
+                  {opt}
+                </button>
+              )}
             </div>
           ))}
         </div>
