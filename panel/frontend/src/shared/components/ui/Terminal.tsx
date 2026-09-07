@@ -255,51 +255,50 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
       wsRef.current?.send(JSON.stringify({ type: 'resize', cols, rows }));
     };
 
-    // Gated input: read-only panes swallow everything; allowlist panes echo
-    // freely but validate each completed line on Enter and drop blocked
-    // lines with a red reason instead of forwarding them.
+    // Gated input: read-only panes swallow everything. Otherwise the PTY
+    // always receives the chunk verbatim while every COMPLETED line is
+    // offered to onLine (the action-console relay, which no-ops unless the
+    // pane is bound + running). Keystroke gating is a guardrail — the
+    // server-side stdin policy is the enforced boundary (an unbound pane
+    // is the same shell anyway) — but the relay must see every line,
+    // including lines inside a paste chunk ("cmd1\rcmd2\r"), so the
+    // server can allow/deny each one.
     const lineBuf = { current: '' };
     const dataSub = term.onData((d) => {
       if (readOnlyRef.current) return;
-      const validate = validateRef.current;
-      if (!validate) {
-        if (d === '\r' || d === '\n') {
-          const line = lineBuf.current;
-          lineBuf.current = '';
-          try { onLineRef.current?.(line); } catch { /* noop */ }
-        } else if (d === '\u007f' || d === '\b') {
-          lineBuf.current = lineBuf.current.slice(0, -1);
-        } else if (d.charCodeAt(0) !== 27 && (d >= ' ' || d === '\t')) {
-          lineBuf.current += d;
-        }
-        sendStdin(d);
-        return;
-      }
-      // Track the current line so Enter can be validated. Control sequences
-      // (arrows, etc.) start with ESC and don't affect the buffer.
-      if (d === '\r' || d === '\n') {
-        const line = lineBuf.current;
-        lineBuf.current = '';
-        const reason = validate(line);
-        if (reason) {
-          term.write(`\r\n\x1b[31m● blocked: ${reason}\x1b[0m\r\n`);
-          return;
-        }
-        try { onLineRef.current?.(line); } catch { /* noop */ }
-        sendStdin(d);
-        return;
-      }
-      if (d === '\u007f' || d === '\b') {
-        lineBuf.current = lineBuf.current.slice(0, -1);
-        sendStdin(d);
-        return;
-      }
+      // Control sequences (arrows, etc.) ride through untouched and never
+      // touch the line buffer or the relay.
       if (d.charCodeAt(0) === 27) {
         sendStdin(d);
         return;
       }
-      if (d >= ' ' || d === '\t') lineBuf.current += d;
+      const validate = validateRef.current;
+      const lines: string[] = [];
+      let cur = lineBuf.current;
+      for (let i = 0; i < d.length; i++) {
+        const ch = d[i];
+        if (ch === '\r' || ch === '\n') {
+          lines.push(cur);
+          cur = '';
+        } else if (ch === '\u007f' || ch === '\b') {
+          cur = cur.slice(0, -1);
+        } else if (ch >= ' ' || ch === '\t') {
+          cur += ch;
+        }
+      }
+      lineBuf.current = cur;
       sendStdin(d);
+      for (const ln of lines) {
+        if (ln.trim() === '') continue;
+        if (validate) {
+          const reason = validate(ln);
+          if (reason) {
+            term.write(`\r\n\x1b[31m● blocked: ${reason}\x1b[0m\r\n`);
+            continue;
+          }
+        }
+        try { onLineRef.current?.(ln); } catch { /* noop */ }
+      }
     });
     const resizeSub = term.onResize(({ cols, rows }) => sendResize(cols, rows));
     const titleSub = term.onTitleChange((t) => onTitleChangeRef.current?.(t));
