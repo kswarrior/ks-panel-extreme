@@ -72,6 +72,13 @@ const InstanceForm: React.FC = () => {
 
   const roleForId = (id: number) => roles.find((r) => r.id === id);
 
+  // Derived selections — plain values (not hooks), kept above every
+  // row-renderer so closures like renderNodeRow never read them from TDZ.
+  const selectedTemplate = templates.find((t) => t.id === templateId);
+  const selectedNode = nodes.find((n) => n.id === nodeId);
+  const selectedOwner = users.find((u) => u.id === ownerId);
+  const driverMissing = selectedTemplate && selectedNode && !driverEnabled(selectedNode, kindKey(selectedTemplate.kind));
+
   const ownerOptions: SearchableOption<number>[] = useMemo(() => users.map((u) => {
     const role = roleForId(u.role_id);
     const badge = role ? (role.display_name || role.name) : 'user';
@@ -271,11 +278,6 @@ const InstanceForm: React.FC = () => {
   // first render (loading=true) ran fewer hooks than the next one
   // (loading=false) — React error #310 ("Rendered more hooks than during
   // the previous render") which crashed /instances/new on every load.
-  // Derived plain values live here too so hook deps stay stable.
-  const selectedTemplate = templates.find((t) => t.id === templateId);
-  const selectedNode = nodes.find((n) => n.id === nodeId);
-  const selectedOwner = users.find((u) => u.id === ownerId);
-  const driverMissing = selectedTemplate && selectedNode && !driverEnabled(selectedNode, kindKey(selectedTemplate.kind));
   // Named runtimes from the template's multi-image map. Empty = the
   // template is single-image (only the top-level image is deployed).
   const imageOptions = useMemo(
