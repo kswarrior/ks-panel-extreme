@@ -359,19 +359,6 @@ type InstallStartRequest struct {
 	//   = 0 → omitted from the JSON; the edge applies its own 30-minute
 	//         default, which keeps older callers' behaviour unchanged.
 	TimeoutSec int `json:"timeout_sec,omitempty"`
-	// ConfigFiles carries the resolved spec.config_files[] rows (find values
-	// already {{VAR}}-substituted) so the edge applies config parsers inside
-	// the workload after the install steps. Empty = no parsers.
-	ConfigFiles []ConfigFile `json:"config_files,omitempty"`
-}
-
-// ConfigFile mirrors the template spec.config_files[] row the panel forwards
-// opaquely to the edge (no re-typing beyond JSON).
-type ConfigFile struct {
-	File            string         `json:"file"`
-	Parser          string         `json:"parser"`
-	Find            map[string]any `json:"find"`
-	CreateIfMissing bool           `json:"create_if_missing,omitempty"`
 }
 
 // InstallStep mirrors the edge's internal/install.Step so the panel can pass
@@ -479,30 +466,6 @@ type InstallStdinRequest struct {
 type InstallStdinResponse struct {
 	OK    bool   `json:"ok"`
 	Error string `json:"error,omitempty"`
-}
-
-// ConfigParseRequest is the body POST'd to /api/edge/configparse to apply
-// spec.config_files[] parsers inside a running workload (pre-start re-sync).
-type ConfigParseRequest struct {
-	Token      string       `json:"token"`
-	Kind       string       `json:"kind"`
-	Name       string       `json:"name"`
-	Files      []ConfigFile `json:"files"`
-	TimeoutSec int          `json:"timeout_sec,omitempty"`
-}
-
-// ConfigParseFileResult is one file's outcome from the edge.
-type ConfigParseFileResult struct {
-	File    string `json:"file"`
-	Changed bool   `json:"changed"`
-	Error   string `json:"error,omitempty"`
-}
-
-// ConfigParseResponse is what the edge hands back.
-type ConfigParseResponse struct {
-	OK      bool                    `json:"ok"`
-	Applied []ConfigParseFileResult `json:"applied,omitempty"`
-	Error   string                  `json:"error,omitempty"`
 }
 
 // InstallStart POSTs the install kick-off to the edge. Returns the install_id

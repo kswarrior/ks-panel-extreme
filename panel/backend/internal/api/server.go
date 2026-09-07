@@ -537,7 +537,6 @@ func NewRouter() http.Handler {
 			r.With(requireUmbrellaOrAction(templatesG, permissions.ActionView)).Get("/", handlers.ListTemplatesHandler)
 			r.With(requireUmbrellaOrAction(templatesG, permissions.ActionCreate)).Post("/", handlers.CreateTemplateHandler)
 			r.With(requireUmbrellaOrAction(templatesG, permissions.ActionCreate)).Post("/url", handlers.InstallTemplateFromURLHandler)
-			r.With(requireUmbrellaOrAction(templatesG, permissions.ActionView)).Post("/config-preview", handlers.ConfigPreviewHandler)
 			r.With(requireUmbrellaOrAction(templatesG, permissions.ActionEdit)).Put("/{id}", handlers.UpdateTemplateHandler)
 			r.With(requireUmbrellaOrAction(templatesG, permissions.ActionDelete)).Delete("/{id}", handlers.DeleteTemplateHandler)
 			r.With(requireUmbrellaOrAction(templatesG, permissions.ActionView)).Get("/{id}/download", handlers.DownloadTemplateHandler)

@@ -54,11 +54,10 @@ var validKinds = map[string]bool{
 var validEnvScopes = map[string]bool{
 	"install": true, "actions": true, "image": true,
 	"controls": true, "pages": true, "advanced": true,
-	"config_files": true,
 }
 
 // normalizeEnvScopes cleans a raw scopes value: unknown entries are dropped,
-// "all" (or all seven) collapses to nil = everywhere, keeping old specs stable.
+// "all" (or all six) collapses to nil = everywhere, keeping old specs stable.
 func normalizeEnvScopes(raw any) []string {
 	arr, ok := raw.([]any)
 	if !ok || len(arr) == 0 {
@@ -196,7 +195,7 @@ func validateTemplateSpec(spec map[string]any) error {
 						continue
 					}
 					if !validEnvScopes[s] {
-						return fmt.Errorf("spec.env[%d]: unknown scope %q (want one of: install, actions, image, controls, pages, advanced, config_files, all)", i, s)
+						return fmt.Errorf("spec.env[%d]: unknown scope %q (want one of: install, actions, image, controls, pages, advanced, all)", i, s)
 					}
 				}
 			}
@@ -555,11 +554,6 @@ func validateTemplateSpec(spec map[string]any) error {
 	// the default entry. The top-level `image` column stays the implicit
 	// legacy default so old templates deploy unchanged.
 	if _, _, err := parseTemplateImages(spec); err != nil {
-		return err
-	}
-
-	// Config-file parsers (spec.config_files + Ptero compat spec.config.files).
-	if err := validateConfigFiles(spec); err != nil {
 		return err
 	}
 
