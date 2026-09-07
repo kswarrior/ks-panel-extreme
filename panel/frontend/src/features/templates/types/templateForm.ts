@@ -64,6 +64,48 @@ export interface EnvVariable {
   append: boolean;
   prepend: string;
   append_value: string;
+  // Where this variable may be substituted (`{{NAME}}` / `${NAME}`).
+  // Empty/missing = everywhere (legacy specs). Otherwise a subset of
+  // ENV_VAR_SCOPES — the deploy path only substitutes the variable inside
+  // the listed sections, and only forwards it to the matching workflows
+  // (install vs actions).
+  scopes?: string[];
+}
+
+// Sections an env variable can be applied to. `image` covers the template
+// image field (multi-image via a select var), `controls` covers
+// instance_controls + home_page, `pages` covers spec.pages rows,
+// `advanced` covers startup/limits/mounts/ports and driver blocks.
+export const ENV_VAR_SCOPES = [
+  'install',
+  'actions',
+  'image',
+  'controls',
+  'pages',
+  'advanced',
+] as const;
+
+export type EnvVarScope = (typeof ENV_VAR_SCOPES)[number];
+
+// normalizeEnvScopes cleans a raw scopes value from a spec: unknown entries
+// and the legacy 'all' token collapse to "everywhere" (empty array), so old
+// templates and hand-written manifests keep working unchanged.
+export function normalizeEnvScopes(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set<string>();
+  for (const v of raw) {
+    const s = String(v ?? '').trim().toLowerCase();
+    if (s === '' || s === 'all') return [];
+    if ((ENV_VAR_SCOPES as readonly string[]).includes(s)) seen.add(s);
+  }
+  if (seen.size === 0 || seen.size === ENV_VAR_SCOPES.length) return [];
+  return [...seen];
+}
+
+// envScopesEffective resolves the display state: empty = all scopes on.
+export function envScopesEffective(v: Pick<EnvVariable, 'scopes'>): string[] {
+  const n = normalizeEnvScopes(v.scopes);
+  return n.length > 0 ? n : [...ENV_VAR_SCOPES];
 }
 
 export interface Label {

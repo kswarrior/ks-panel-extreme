@@ -58,6 +58,9 @@ export interface EnvVariable {
   append: boolean;
   prepend: string;
   append_value: string;
+  // Mirrors templates/types/templateForm EnvVariable.scopes: sections this
+  // variable substitutes into (empty/missing = everywhere). Deploy-time only.
+  scopes?: string[];
 }
 
 export interface Label {

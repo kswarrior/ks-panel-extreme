@@ -6,7 +6,7 @@ import { DEFAULT_INSTANCE_CONTROLS, isControlsCustom, resolveInstanceControls } 
 // emptyForm is a runtime value (not a type) — it seeds every partial
 // `advanced` produced below so serializeSpec can keep assuming the full
 // Advanced shape (it reads e.g. f.advanced.dns.split(',') unguarded).
-import { emptyForm } from '../types/templateForm';
+import { emptyForm, normalizeEnvScopes } from '../types/templateForm';
 
 function stripUnit(v: string): string {
   // Mirror templateForm.stripUnit: handle decimals + trailing time suffix
@@ -53,7 +53,15 @@ export function serializeSpec(f: TemplateFormState): string {
       backups: f.caps.backups,
       networks: f.caps.networks,
     },
-    env: f.env,
+    // Env vars persist `scopes` only when restricted to a subset — empty =
+    // everywhere (legacy specs and the backend default), so old templates
+    // round-trip byte-identical here.
+    env: f.env.map((e) => {
+      const scopes = normalizeEnvScopes(e.scopes);
+      const { scopes: _drop, ...rest } = e as EnvVariable & { scopes?: unknown };
+      void _drop;
+      return scopes.length > 0 ? { ...rest, scopes } : { ...rest };
+    }),
     install: f.install.map((s) => ({
       action: s.action,
       command: s.command,
@@ -347,6 +355,9 @@ export function parseSpec(raw: string): Partial<TemplateFormState> {
         append: !!e.append,
         prepend: String(e.prepend ?? ''),
         append_value: String(e.append_value ?? ''),
+        ...(normalizeEnvScopes(e.scopes).length > 0
+          ? { scopes: normalizeEnvScopes(e.scopes) }
+          : {}),
       }));
     }
     if (Array.isArray(s.install)) {
