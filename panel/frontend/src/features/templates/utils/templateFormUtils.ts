@@ -432,43 +432,45 @@ export function parseSpec(raw: string): Partial<TemplateFormState> {
         ...(normalizeEnvScopes(e.scopes).length > 0
           ? { scopes: normalizeEnvScopes(e.scopes) }
           : {}),
+        ...(normalizeEnvImages(e.images).length > 0
+          ? { images: normalizeEnvImages(e.images) }
+          : {}),
+        ...(normalizeEnvBehavior(e.behavior) === 'auto'
+          ? { behavior: 'auto' as const }
+          : {}),
       }));
     }
-    if (typeof s.env_file === 'string') {
-      out.env_file = s.env_file;
-    }
+    // NOTE: spec.env_file (legacy .env) is intentionally not parsed into the
+    // form — the builder no longer writes it. Old specs keep working at
+    // deploy time via the backend compat path.
     // Named multi-image runtimes: native spec.images[] plus the
     // Ptero-compatible spec.docker_images{} map (merged in sorted order,
     // skipped when the name already exists case-insensitively). The next
     // save normalises everything to images[] — one source of truth.
+    // NOTE: legacy spec.images[].env overrides are intentionally dropped —
+    // per-var `images` + `behavior:auto` replace them.
     {
-      const rows: Array<{ name: string; image: string; description: string; is_default: boolean; env: Record<string, string> }> = [];
+      const rows: Array<{ name: string; image: string; description: string; is_default: boolean }> = [];
       const seen = new Set<string>();
-      const pushRow = (name: string, image: string, description: string, is_default: boolean, env: Record<string, string>) => {
+      const pushRow = (name: string, image: string, description: string, is_default: boolean) => {
         const n = (name || '').trim();
         const im = (image || '').trim();
         if (n === '' || im === '') return;
         const lower = n.toLowerCase();
         if (seen.has(lower)) return;
         seen.add(lower);
-        rows.push({ name: n, image: im, description: (description || '').trim(), is_default: !!is_default, env: env || {} });
+        rows.push({ name: n, image: im, description: (description || '').trim(), is_default: !!is_default });
       };
       if (Array.isArray(s.images)) {
         for (const e of s.images as any[]) {
           if (!e || typeof e !== 'object') continue;
-          const env: Record<string, string> = {};
-          if (e.env && typeof e.env === 'object' && !Array.isArray(e.env)) {
-            for (const [k, v] of Object.entries(e.env as Record<string, unknown>)) {
-              if (typeof v === 'string' && v.trim() !== '') env[k] = v;
-            }
-          }
-          pushRow(String(e.name ?? ''), String(e.image ?? ''), String(e.description ?? ''), !!e.default, env);
+          pushRow(String(e.name ?? ''), String(e.image ?? ''), String(e.description ?? ''), !!e.default);
         }
       }
       if (s.docker_images && typeof s.docker_images === 'object' && !Array.isArray(s.docker_images)) {
         for (const k of Object.keys(s.docker_images as Record<string, unknown>).sort()) {
           const v = (s.docker_images as Record<string, unknown>)[k];
-          if (typeof v === 'string') pushRow(k, v, '', false, {});
+          if (typeof v === 'string') pushRow(k, v, '', false);
         }
       }
       if (rows.length > 0) out.images = rows;

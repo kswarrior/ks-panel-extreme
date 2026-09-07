@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { glassFieldClass } from '@/shared/components/ui/Field';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 import type { EnvVariable } from '@/features/templates/types/templateForm';
-import { ENV_VAR_SCOPES, envScopesEffective } from '@/features/templates/types/templateForm';
+import { ENV_VAR_SCOPES, envScopesEffective, normalizeEnvImages, normalizeEnvBehavior } from '@/features/templates/types/templateForm';
 
 export interface EnvVariableInput extends EnvVariable {}
 
@@ -12,11 +12,9 @@ export interface EnvVariablesSectionProps {
   onEnvAdd: () => void;
   onEnvDelete: (i: number) => void;
   onEnvMove?: (i: number, dir: -1 | 1) => void;
-  // Raw `.env` file content (template-level, like docker-compose `env_file`
-  // but inline). Undefined = the caller doesn't support it (e.g. the deploy
-  // page editor) and the textarea stays hidden.
-  envFile?: string;
-  onEnvFileChange?: (v: string) => void;
+  // Names of the template's named runtimes (spec.images[]). Used by the
+  // per-var image selector; empty = single-image template (selector hidden).
+  imageNames?: string[];
   sectionCls: string;
   labelCls: string;
   monoCls: string;
@@ -29,8 +27,7 @@ export const TemplateEnvVariablesSection: React.FC<EnvVariablesSectionProps> = (
   onEnvAdd,
   onEnvDelete,
   onEnvMove,
-  envFile,
-  onEnvFileChange,
+  imageNames,
   sectionCls,
   labelCls,
   monoCls,

@@ -14,28 +14,6 @@ export interface ImagesSectionProps {
   addBtn: string;
 }
 
-function formatEnvLines(env: Record<string, string>): string {
-  return Object.entries(env || {})
-    .map(([k, v]) => `${k}=${v}`)
-    .join('\n');
-}
-
-function parseEnvLines(raw: string): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const line of raw.split('\n')) {
-    const t = line.trim();
-    if (t === '' || t.startsWith('#')) continue;
-    const idx = t.indexOf('=');
-    if (idx <= 0) continue;
-    const k = t.slice(0, idx).trim();
-    const v = t.slice(idx + 1).trim();
-    if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(k) && !v.includes('\n') && !v.includes('\r')) {
-      out[k] = v;
-    }
-  }
-  return out;
-}
-
 export const TemplateImagesSection: React.FC<ImagesSectionProps> = ({
   images,
   onImageUpdate,
@@ -58,7 +36,8 @@ export const TemplateImagesSection: React.FC<ImagesSectionProps> = ({
     <p className="text-[11px] text-gray-500">
       Named runtimes the operator picks at deploy time (e.g. Java 21 vs Java 17). The
       top-level Image above stays the implicit default; the ★ row is the default when
-      set. Optional per-runtime env overrides apply under explicit deploy values.
+      set. Per-image env differences live on the Env Variables tab (per-var image
+      selector + auto-set).
     </p>
     {images.length === 0 && (
       <p className="text-xs text-gray-500 border border-dashed border-white/10 rounded-md px-3 py-2">
@@ -115,16 +94,6 @@ export const TemplateImagesSection: React.FC<ImagesSectionProps> = ({
               onChange={(e) => onImageUpdate(i, { description: e.target.value })}
               placeholder="Eclipse Temurin 21 JRE (LTS)"
               className={glassFieldClass}
-            />
-          </div>
-          <div>
-            <label className={labelCls}>Per-runtime env overrides (optional, KEY=value per line)</label>
-            <textarea
-              rows={2}
-              value={formatEnvLines(r.env)}
-              onChange={(e) => onImageUpdate(i, { env: parseEnvLines(e.target.value) })}
-              placeholder={'JAVA_VERSION=21\n# applied under explicit deploy values'}
-              className={monoCls}
             />
           </div>
         </div>
