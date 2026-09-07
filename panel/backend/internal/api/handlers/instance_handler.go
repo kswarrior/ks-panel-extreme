@@ -1789,7 +1789,8 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 		if status == "" {
 			status = "running"
 		}
-		if len(installSteps) > 0 && status != "running" {
+		needsWorkflow := len(installSteps) > 0 || len(deployConfigFiles) > 0
+		if needsWorkflow && status != "running" {
 			failMsg := fmt.Sprintf(
 				"container exited before install workflow could start (docker status=%q, id=%s) — the template's command exits on first run; check that the command keeps the container alive until the install workflow has finished downloading dependencies",
 				status, resp.ExternalID,
@@ -1800,7 +1801,7 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 			_ = instRepo2.SetStatus(id, "install_failed", resp.ExternalID, failMsg)
 			return
 		}
-		if len(installSteps) > 0 {
+		if needsWorkflow {
 			status = "installing"
 		}
 		if err := instRepo2.SetStatus(id, status, resp.ExternalID, ""); err != nil {
