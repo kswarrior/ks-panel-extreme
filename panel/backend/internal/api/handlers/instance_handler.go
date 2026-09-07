@@ -21,6 +21,128 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+// flexLines unmarshals a JSON array of strings OR a single string (one
+// pattern per line). The template form serializes allowlists as arrays,
+// but hand-written specs and the builtin minecraft seed historically used
+// "" / multiline strings — without this the whole spec.actions[] unmarshal
+// fails with "cannot unmarshal string into []string" and Invoke/Stdin
+// break for every bound terminal (e.g. mc-console).
+type flexLines []string
+
+func (f *flexLines) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		*f = nil
+		return nil
+	}
+	var arr []string
+	if err := json.Unmarshal(data, &arr); err == nil {
+		*f = arr
+		return nil
+	}
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			*f = nil
+			return nil
+		}
+		lines := strings.Split(s, "\n")
+		out := make([]string, 0, len(lines))
+		for _, ln := range lines {
+			ln = strings.TrimSpace(ln)
+			if ln != "" {
+				out = append(out, ln)
+			}
+		}
+		*f = out
+		return nil
+	}
+	var n float64
+	if err := json.Unmarshal(data, &n); err == nil {
+		if n == 0 {
+			*f = nil
+			return nil
+		}
+		*f = []string{strconv.FormatFloat(n, 'f', -1, 64)}
+		return nil
+	}
+	*f = nil
+	return nil
+}
+
+// flexTokens unmarshals a JSON array of strings OR a single string holding
+// comma- and/or newline-separated tokens (the form's blocked-commands
+// shape). Same backward-compat story as flexLines.
+type flexTokens []string
+
+func (f *flexTokens) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		*f = nil
+		return nil
+	}
+	var arr []string
+	if err := json.Unmarshal(data, &arr); err == nil {
+		*f = arr
+		return nil
+	}
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			*f = nil
+			return nil
+		}
+		parts := strings.FieldsFunc(s, func(r rune) bool { return r == ',' || r == '\n' })
+		out := make([]string, 0, len(parts))
+		for _, p := range parts {
+			p = strings.TrimSpace(p)
+			if p != "" {
+				out = append(out, p)
+			}
+		}
+		*f = out
+		return nil
+	}
+	var n float64
+	if err := json.Unmarshal(data, &n); err == nil {
+		if n == 0 {
+			*f = nil
+			return nil
+		}
+		*f = []string{strconv.FormatFloat(n, 'f', -1, 64)}
+		return nil
+	}
+	*f = nil
+	return nil
+}
+
+// flexString unmarshals a JSON string OR number (timeout fields are strings
+// in the form but numbers in hand-written specs). Empty/zero = "".
+type flexString string
+
+func (f *flexString) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		*f = ""
+		return nil
+	}
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		*f = flexString(s)
+		return nil
+	}
+	var n float64
+	if err := json.Unmarshal(data, &n); err == nil {
+		if n == 0 {
+			*f = ""
+			return nil
+		}
+		*f = flexString(strconv.FormatFloat(n, 'f', -1, 64))
+		return nil
+	}
+	*f = ""
+	return nil
+}
+
 // templateActionSpec is the subset of a template's spec.actions[i] entry
 // InvokeActionHandler / StopActionHandler consume. Kept narrow on purpose:
 // missing fields default to their zero value, which is safe behaviour for the
