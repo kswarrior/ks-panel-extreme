@@ -1379,6 +1379,59 @@ export function nodeFileDownloadUrl(id: number, path: string): string {
   return `/api/nodes/${id}/files?op=read&path=${encodeURIComponent(path)}`;
 }
 
+// ---- Node instance-files mutations (Files tab → + menu, edit-level) -----
+// mkdir / write / upload go through POST /api/nodes/{id}/files; URL and
+// git-clone have dedicated endpoints mirroring the instance File Manager.
+
+export async function mkdirNodeFile(id: number, path: string): Promise<{ ok: boolean; path: string }> {
+  const res = await client.post<{ ok: boolean; path: string }>(
+    `/api/nodes/${id}/files`,
+    null,
+    { params: { op: 'mkdir', path } },
+  );
+  return res.data;
+}
+
+export async function writeNodeFile(id: number, path: string, content: string): Promise<{ ok: boolean; path: string }> {
+  const res = await client.post<{ ok: boolean; path: string }>(
+    `/api/nodes/${id}/files`,
+    content,
+    { params: { op: 'write', path }, headers: { 'Content-Type': 'text/plain' } },
+  );
+  return res.data;
+}
+
+export async function uploadNodeFile(id: number, path: string, file: File): Promise<{ ok: boolean; path: string }> {
+  const res = await client.post<{ ok: boolean; path: string }>(
+    `/api/nodes/${id}/files`,
+    file,
+    {
+      params: { op: 'upload', path },
+      headers: { 'Content-Type': 'application/octet-stream' },
+      timeout: 600000,
+    },
+  );
+  return res.data;
+}
+
+export async function uploadNodeFileFromUrl(id: number, path: string, url: string): Promise<{ ok: boolean; path: string }> {
+  const res = await client.post<{ ok: boolean; path: string }>(
+    `/api/nodes/${id}/files/url`,
+    { path, url },
+    { timeout: 600000 },
+  );
+  return res.data;
+}
+
+export async function cloneNodeRepo(id: number, path: string, url: string): Promise<{ ok: boolean; path: string }> {
+  const res = await client.post<{ ok: boolean; path: string }>(
+    `/api/nodes/${id}/files/clone`,
+    { path, url },
+    { timeout: 600000 },
+  );
+  return res.data;
+}
+
 // ---- Fleet rolling update (POST /api/nodes/update-all) -------------------
 // Orchestrated rollout: order nodes (canary subset first), per node
 // check→apply→poll edge /health + heartbeat until healthy/timeout, stop
