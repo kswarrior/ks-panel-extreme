@@ -4,6 +4,7 @@ import client from '@/shared/api/client';
 import { fetchAuthorityBranding, isSafeAuthorityLogoUrl } from '@/shared/api/authorityBranding';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
+import { applyBrandToDocument } from '@/shared/utils/brandTab';
 import { PanelBrandLogo, PanelBrandName } from '@/shared/components/brand/PanelBrand';
 import ThemedBackground from '@/shared/components/layout/ThemedBackground';
 
@@ -53,6 +54,8 @@ const Login: React.FC = () => {
       const panelReq = client.get<{
         panel_name: string;
         panel_logo: { url: string; mime: string } | null;
+        browser_tab_title?: string;
+        favicon?: { url: string; mime: string } | null;
         panel_name_color?: string;
         panel_name_font?: string;
         panel_name_weight?: string;
@@ -90,7 +93,15 @@ const Login: React.FC = () => {
         const snap = panelRes.value;
         if (snap.data?.panel_name) {
           setPanelName(snap.data.panel_name);
-          document.title = snap.data.panel_name;
+          const st = useSettingsStore.getState();
+          if (snap.data?.browser_tab_title !== undefined) st.setBrowserTabTitle(snap.data.browser_tab_title || '');
+          if (snap.data?.favicon !== undefined) st.setFavicon(snap.data.favicon || null);
+          applyBrandToDocument({
+            panelName: snap.data.panel_name,
+            tabTitle: snap.data.browser_tab_title,
+            faviconUrl: (snap.data as any).favicon?.url,
+            faviconMime: (snap.data as any).favicon?.mime,
+          });
         }
         const store = useSettingsStore.getState();
         if (snap.data?.panel_logo) {
@@ -123,7 +134,12 @@ const Login: React.FC = () => {
         });
         if (b.panel_name) {
           setPanelName(b.panel_name);
-          document.title = b.panel_name;
+          const cur = useSettingsStore.getState();
+          applyBrandToDocument({
+            panelName: b.panel_name,
+            faviconUrl: cur.favicon?.url,
+            faviconMime: cur.favicon?.mime,
+          });
         }
         if (b.logo_url && isSafeAuthorityLogoUrl(b.logo_url)) {
           store.setPanelLogo({ url: b.logo_url, mime: '' });

@@ -57,12 +57,17 @@ const App: React.FC = () => {
           panel_name: snap.panel_name,
           panel_logo: snap.panel_logo,
           footer_text: snap.footer_text || 'KS Warrior',
+          browser_tab_title: (snap as any).browser_tab_title || '',
+          favicon: (snap as any).favicon || null,
           nameStyle: (snap as any).nameStyle,
           logoStyle: (snap as any).logoStyle,
         });
-        if (typeof document !== 'undefined' && snap.panel_name) {
-          document.title = snap.panel_name;
-        }
+        applyBrandToDocument({
+          panelName: snap.panel_name,
+          tabTitle: (snap as any).browser_tab_title,
+          faviconUrl: (snap as any).favicon?.url,
+          faviconMime: (snap as any).favicon?.mime,
+        });
       }
       if (brandRes.status === 'fulfilled') {
         const b = brandRes.value;
@@ -76,7 +81,14 @@ const App: React.FC = () => {
         });
         if (b.panel_name) {
           store.setPanelName(b.panel_name);
-          if (typeof document !== 'undefined') document.title = b.panel_name;
+          // Authority name wins for the tab (same clobber order as before);
+          // the global favicon stays — authorities have no icon concept.
+          const cur = useSettingsStore.getState();
+          applyBrandToDocument({
+            panelName: b.panel_name,
+            faviconUrl: cur.favicon?.url,
+            faviconMime: cur.favicon?.mime,
+          });
         }
         if (b.logo_url && isSafeAuthorityLogoUrl(b.logo_url)) {
           store.setPanelLogo({ url: b.logo_url, mime: '' });

@@ -170,3 +170,30 @@ func TestApplyMultiReplace(t *testing.T) {
 		t.Fatalf("unexpected output:\n%s", out)
 	}
 }
+
+func TestValidateConfigFilesMultiReplaceMap(t *testing.T) {
+	// Builder serializes multi-replace as a real object value.
+	spec := map[string]any{
+		"config_files": []any{
+			map[string]any{
+				"file":   "config.yml",
+				"parser": "yaml",
+				"find": map[string]any{
+					"servers.*.address": map[string]any{"127.0.0.1": "0.0.0.0"},
+				},
+			},
+		},
+	}
+	if err := validateConfigFiles(spec); err != nil {
+		t.Fatalf("multi-replace map rejected: %v", err)
+	}
+	out, changed, err := ApplyConfigContent("yaml", "servers:\n  a:\n    address: 127.0.0.1\n", map[string]any{
+		"servers.*.address": map[string]any{"127.0.0.1": "0.0.0.0"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !changed || !strings.Contains(out, "0.0.0.0") {
+		t.Fatalf("multi-replace did not apply:\n%s", out)
+	}
+}
