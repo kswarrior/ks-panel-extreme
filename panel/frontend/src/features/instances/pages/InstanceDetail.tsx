@@ -107,10 +107,20 @@ const NoPagesState: React.FC<{ slug: string }> = ({ slug }) => (
   </div>
 );
 
-// hasRenderableContent reports whether a page payload carries anything
-// CustomPageView can render.
-function hasRenderableContent(c: PageContent | null): boolean {
-  return !!c && (!!c.html || !!c.markdown || !!c.blocks);
+// specRowState reports whether spec.pages contains a row for `slug`
+// (matching slug or original_slug): 'enabled', 'disabled', or 'absent'.
+// Used so an explicitly DISABLED files/terminal row stays hidden instead of
+// falling back to the self-sufficient starter content.
+function specRowState(spec: Record<string, any> | null, slug: string): 'enabled' | 'disabled' | 'absent' {
+  const pages = Array.isArray(spec?.pages) ? spec.pages : [];
+  for (const p of pages) {
+    if (!p || typeof p !== 'object') continue;
+    const s = typeof (p as any).slug === 'string' ? String((p as any).slug).trim() : '';
+    const o = typeof (p as any).original_slug === 'string' ? String((p as any).original_slug).trim() : '';
+    if (s !== slug && o !== slug) continue;
+    return (p as any).enabled === false ? 'disabled' : 'enabled';
+  }
+  return 'absent';
 }
 
 // filesStarterContent returns the bundled Files library starter as fallback
@@ -423,23 +433,6 @@ export const InstanceDynamicPage: React.FC = () => {
     );
   }
 
-  // Real terminal: render native xterm for the terminal shortcut slug when
-  // the template explicitly enables it. Terminal stays gated by the same
-  // whitelist as every other page (empty-by-default); the previous
-  // unconditional bypass showed a terminal UI that immediately failed with
-  // 403 from the backend guard.
-  if (effectiveSlug === terminalSlug) {
-    return (
-      <ErrorBoundary resetKey={`terminal-${instanceId}`} label="instance-terminal">
-        <TerminalRealPage
-          instance={instance}
-          title={shortcutLabel(controls, 'terminal')}
-          showHeader={controls.shortcuts.terminal.show_header}
-        />
-      </ErrorBoundary>
-    );
-  }
-
   // Label: the row's label, a nested sub-page's name ("Editor" for
   // files/edit), "Home" for ".", or the raw slug as last resort.
   const label = getPageLabel(effectiveSlug, spec) ?? (effectiveSlug === '.' ? 'Home' : effectiveSlug);
@@ -454,48 +447,6 @@ export const InstanceDynamicPage: React.FC = () => {
     );
   }
 
-  // Build instance context for the custom page SDK. install_* fields ride
-  // along so overview-style pages can surface install-workflow progress.
-  const instanceContext = {
-    id: instance.id,
-    name: instance.name,
-    kind: instance.kind,
-    status: instance.status,
-    template_id: instance.template_id,
-    template_name: instance.template_name ?? null,
-    node_id: instance.node_id,
-    node_name: instance.node_name ?? null,
-    owner_id: instance.owner_id ?? null,
-    owner_name: instance.owner_name ?? null,
-    config: instance.config ? parseConfig(instance.config) : {},
-    external_id: instance.external_id ?? '',
-    created_at: instance.created_at ?? '',
-    updated_at: instance.updated_at ?? '',
-    install_state: instance.install_state ?? '',
-    install_kind: instance.install_kind ?? '',
-    install_step: typeof instance.install_step === 'number' ? instance.install_step : -1,
-    install_error: instance.install_error ?? '',
-    install_steps_json: instance.install_steps_json ?? '',
-    install_action_id: instance.install_action_id ?? '',
-    display_name: instance.display_name ?? '',
-    icon: instance.icon ?? '',
-    color: instance.color ?? '',
-  };
-  // Files area: surface the SFTP card above the file manager so operators
-  // discover native SFTP next to the browser files. The card gates its own
-  // Enable/Rotate/Disable buttons on INSTANCES_EDIT|MANAGE_INSTANCES; the
-  // masked dial params stay visible to any instance viewer. The card itself
-  // hides when the Files shortcut's "Show SFTP card" page option is off.
-  if (effectiveSlug === filesSlug) {
-    return (
-      <ErrorBoundary resetKey={`files-${instanceId}`} label="instance-page">
-        <div className="space-y-4">
-          {controls.shortcuts.files.show_sftp && <InstanceSftpCard instanceId={instanceId} />}
-          <CustomPageView content={content} title={label} instanceContext={instanceContext} pageSlug={effectiveSlug} />
-        </div>
-      </ErrorBoundary>
-    );
-  }
   return (
     <ErrorBoundary resetKey={`${effectiveSlug}-${instanceId}`} label="instance-page">
       <CustomPageView content={content} title={label} instanceContext={instanceContext} pageSlug={effectiveSlug} />
