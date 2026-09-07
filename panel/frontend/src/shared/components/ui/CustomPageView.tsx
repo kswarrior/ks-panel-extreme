@@ -573,7 +573,7 @@ function safeInlineJson(v: unknown): string {
     .replace(/\u2029/g, '\\u2029');
 }
 
-function buildIframeDocument(htmlContent: string, instanceContextJson: string, savedActionsJson: string, pageQuery: string, themeCss?: string, pageConfigJson?: string): string {
+function buildIframeDocument(htmlContent: string, instanceContextJson: string, savedActionsJson: string, pageQuery: string, themeCss?: string, pageConfigJson?: string, pageSlugJson?: string): string {
   const bootstrapSrc = `
 (function() {
   'use strict';
@@ -619,7 +619,7 @@ function buildIframeDocument(htmlContent: string, instanceContextJson: string, s
     }
   });
 
-  var sdk = { instance: ${instanceContextJson}, actions: ${savedActionsJson}, config: ${pageConfigJson || '{}'} };
+  var sdk = { instance: ${instanceContextJson}, actions: ${savedActionsJson}, config: ${pageConfigJson || '{}'}, pageSlug: ${pageSlugJson || '""'} };
   try { window.KS_PAGE_CONFIG = sdk.config; } catch(e) {}
   ${JSON.stringify(BRIDGE_METHODS)}.forEach(function(m) {
     var parts = m.split('.');
@@ -1355,6 +1355,7 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
       location.search,
       themeCss,
       safeInlineJson(pageConfigMap),
+      safeInlineJson(pageSlug ?? ''),
     );
   }, [content.type, content.html, content.components, content.configure, content.config, content.actions, instanceContext, location.search, activeTheme, pageSlug, pageConfigMap]);
 
