@@ -111,7 +111,14 @@ export const Icons: Record<string, React.ReactNode> = {
       <rect x="14" y="3" width="8" height="8" rx="1.5" />
       <rect x="2" y="13" width="8" height="8" rx="1.5" />
       <rect x="14" y="13" width="8" height="8" rx="1.5" />
-     </svg>
+    </svg>
+  ),
+  Stacks: (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
+      <path d="M12 2 2 7l10 5 10-5-10-5z" />
+      <path d="M2 12l10 5 10-5" />
+      <path d="M2 17l10 5 10-5" />
+    </svg>
   ),
   Dashboard: (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
@@ -265,6 +272,7 @@ const adminSubItems: SubItem[] = [
   { to: '/instance-pages', label: 'Instance Pages', permission: PermissionKey.MANAGE_INSTANCE_PAGES, icon: 'Templates' },
   { to: '/mods', label: 'Mods', permission: PermissionKey.MANAGE_MODS, icon: 'Mods' },
   { to: '/applications', label: 'Applications', permission: PermissionKey.MANAGE_APPLICATIONS, icon: 'Applications' },
+  { to: '/stacks', label: 'Stacks', permission: PermissionKey.MANAGE_STACKS, icon: 'Stacks' },
   { to: '/themes', label: 'Themes', permission: PermissionKey.MANAGE_THEMES, icon: 'Themes' },
   { to: '/instances', label: 'All Instances', permission: PermissionKey.MANAGE_INSTANCES, icon: 'Instances' },
 ];
