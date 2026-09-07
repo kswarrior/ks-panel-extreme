@@ -23,6 +23,10 @@
 //	       "uploaded" vs "saved", mirroring /api/edge/files)
 //	POST ?op=clone&token=…  JSON body (or query) { "path": "/mc-1", "url": "https://github.com/…/repo.git" }
 //	    -> { "ok": true, "path": "/mc-1/repo", "url": "…" }
+//	POST ?op=rename&path=/mc-1/old.txt&to=/mc-1/new.txt&token=…
+//	    -> { "ok": true, "from": "/mc-1/old.txt", "to": "/mc-1/new.txt" }
+//	POST ?op=delete&path=/mc-1/old.txt&token=…
+//	    -> { "ok": true, "path": "/mc-1/old.txt" }
 //
 // `path` is always interpreted RELATIVE to the instances root: "/" is the
 // root itself, "/mc-1/world" is <root>/mc-1/world. There is deliberately no
@@ -69,6 +73,8 @@ var hostWriteOps = map[string]bool{
 	"write":  true,
 	"upload": true,
 	"clone":  true,
+	"rename": true,
+	"delete": true,
 }
 
 // hostJail is a resolved instances-dir root plus its symlink-resolved form.
@@ -224,6 +230,10 @@ func HostFilesHandler(token, instancesDir string) http.Handler {
 			writeHostRoot(w, r, jail, abs, disp)
 		case "clone":
 			cloneHostRoot(w, r, jail, abs, disp, q.Get("url"))
+		case "rename":
+			renameHostRoot(w, r, jail, abs, disp, q.Get("to"))
+		case "delete":
+			deleteHostRoot(w, jail, abs, disp)
 		default:
 			writeErr(w, http.StatusBadRequest, "unknown op: "+op)
 		}
