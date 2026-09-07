@@ -1432,6 +1432,24 @@ export async function cloneNodeRepo(id: number, path: string, url: string): Prom
   return res.data;
 }
 
+export async function renameNodeFile(id: number, path: string, to: string): Promise<{ ok: boolean; from: string; to: string }> {
+  const res = await client.post<{ ok: boolean; from: string; to: string }>(
+    `/api/nodes/${id}/files`,
+    null,
+    { params: { op: 'rename', path, to } },
+  );
+  return res.data;
+}
+
+export async function deleteNodeFile(id: number, path: string): Promise<{ ok: boolean; path: string }> {
+  const res = await client.post<{ ok: boolean; path: string }>(
+    `/api/nodes/${id}/files`,
+    null,
+    { params: { op: 'delete', path } },
+  );
+  return res.data;
+}
+
 // ---- Fleet rolling update (POST /api/nodes/update-all) -------------------
 // Orchestrated rollout: order nodes (canary subset first), per node
 // check→apply→poll edge /health + heartbeat until healthy/timeout, stop

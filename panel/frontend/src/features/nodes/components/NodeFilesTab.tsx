@@ -7,6 +7,8 @@ import {
   uploadNodeFile,
   uploadNodeFileFromUrl,
   cloneNodeRepo,
+  renameNodeFile,
+  deleteNodeFile,
   type NodeFileEntry,
 } from '@/shared/api/admin';
 import GlassModal from '@/shared/components/ui/Modal';
@@ -50,6 +52,101 @@ function formatModTime(ts: number): string {
 function childPath(parent: string, name: string): string {
   return parent === '/' ? `/${name}` : `${parent}/${name}`;
 }
+
+// fileKind classifies a file by extension (plus a few well-known
+// extension-less names) so every type gets its own icon + accent. Folders
+// intentionally share one icon — only files vary.
+type FileKind = 'image' | 'archive' | 'code' | 'doc' | 'audio' | 'video' | 'data' | 'binary' | 'file';
+
+const EXT_KIND: Record<string, FileKind> = {
+  png: 'image', jpg: 'image', jpeg: 'image', gif: 'image', webp: 'image', svg: 'image',
+  ico: 'image', bmp: 'image', avif: 'image', tif: 'image', tiff: 'image',
+  zip: 'archive', tar: 'archive', gz: 'archive', tgz: 'archive', bz2: 'archive',
+  xz: 'archive', rar: 'archive', '7z': 'archive',
+  js: 'code', mjs: 'code', cjs: 'code', ts: 'code', tsx: 'code', jsx: 'code',
+  py: 'code', java: 'code', go: 'code', rs: 'code', c: 'code', h: 'code',
+  cpp: 'code', hpp: 'code', cc: 'code', cs: 'code', php: 'code', rb: 'code',
+  swift: 'code', kt: 'code', kts: 'code', sh: 'code', bash: 'code', zsh: 'code',
+  ps1: 'code', bat: 'code', cmd: 'code', sql: 'code', lua: 'code', pl: 'code',
+  css: 'code', scss: 'code', less: 'code', html: 'code', htm: 'code',
+  vue: 'code', svelte: 'code', astro: 'code', json: 'code', json5: 'code',
+  yml: 'code', yaml: 'code', toml: 'code', xml: 'code', nix: 'code', tf: 'code',
+  md: 'doc', markdown: 'doc', txt: 'doc', log: 'doc', ini: 'doc', cfg: 'doc',
+  conf: 'doc', config: 'doc', env: 'doc', properties: 'doc', pdf: 'doc',
+  rtf: 'doc', tex: 'doc', csv: 'doc', tsv: 'doc',
+  mp3: 'audio', wav: 'audio', ogg: 'audio', oga: 'audio', flac: 'audio',
+  m4a: 'audio', aac: 'audio', opus: 'audio',
+  mp4: 'video', mkv: 'video', avi: 'video', mov: 'video', webm: 'video', m4v: 'video',
+  db: 'data', sqlite: 'data', sqlite3: 'data', 'db-shm': 'data', 'db-wal': 'data',
+  dat: 'data', mca: 'data', mcr: 'data', region: 'data', nbt: 'data',
+  schematic: 'data', schem: 'data', litematic: 'data',
+  exe: 'binary', jar: 'binary', bin: 'binary', so: 'binary', dll: 'binary',
+  msi: 'binary', dmg: 'binary', apk: 'binary', appimage: 'binary', run: 'binary',
+  class: 'binary', pyc: 'binary',
+};
+
+const NAME_KIND: Record<string, FileKind> = {
+  dockerfile: 'code', makefile: 'code', gemfile: 'code', rakefile: 'code',
+  vagrantfile: 'code', jenkinsfile: 'code', cmakelists: 'code',
+  license: 'doc', readme: 'doc',
+};
+
+const KIND_ACCENT: Record<FileKind, string> = {
+  image: '#c4b5fd',
+  archive: '#fbbf24',
+  code: '#38bdf8',
+  doc: '#9ca3af',
+  audio: '#f472b6',
+  video: '#f87171',
+  data: '#34d399',
+  binary: '#fb923c',
+  file: '#9ca3af',
+};
+
+function fileKind(name: string): FileKind {
+  const lower = name.toLowerCase();
+  if (NAME_KIND[lower]) return NAME_KIND[lower];
+  const dot = lower.lastIndexOf('.');
+  if (dot > 0 && dot < lower.length - 1) {
+    const ext = lower.slice(dot + 1);
+    if (EXT_KIND[ext]) return EXT_KIND[ext];
+  }
+  return 'file';
+}
+
+const FileKindIcon: React.FC<{ kind: FileKind; className?: string }> = ({ kind, className = 'w-4 h-4' }) => {
+  const common = {
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.8,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    className,
+    'aria-hidden': true,
+  };
+  switch (kind) {
+    case 'image':
+      return (<svg {...common}><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>);
+    case 'archive':
+      return (<svg {...common}><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" /></svg>);
+    case 'code':
+      return (<svg {...common}><polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" /></svg>);
+    case 'doc':
+      return (<svg {...common}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>);
+    case 'audio':
+      return (<svg {...common}><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>);
+    case 'video':
+      return (<svg {...common}><path d="M23 7l-7 5 7 5V7z" /><rect x="1" y="5" width="15" height="14" rx="2" /></svg>);
+    case 'data':
+      return (<svg {...common}><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" /><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" /></svg>);
+    case 'binary':
+      return (<svg {...common}><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /><polyline points="3.27 6.96 12 12.01 20.73 6.96" /><line x1="12" y1="22.08" x2="12" y2="12" /></svg>);
+    case 'file':
+    default:
+      return (<svg {...common}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>);
+  }
+};
 
 // validateEntryName rejects names that could escape the current directory
 // or confuse the listing (separators, dot-dots, empties). The edge jail is
@@ -108,6 +205,23 @@ const NodeFilesTab: React.FC<NodeFilesTabProps> = ({ nodeId }) => {
   const [uploadProgress, setUploadProgress] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Per-row ⋮ menu (download / rename / copy path / delete). One open at
+  // a time, keyed by d:/f: + name like the list keys.
+  const [menuFor, setMenuFor] = useState<string | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const [copiedRow, setCopiedRow] = useState<string | null>(null);
+
+  // Rename dialog: prefilled name input + Save/Cancel.
+  const [renameTarget, setRenameTarget] = useState<NodeFileEntry | null>(null);
+  const [renameName, setRenameName] = useState('');
+  const [renameErr, setRenameErr] = useState('');
+  const [renameBusy, setRenameBusy] = useState(false);
+
+  // Delete confirm dialog (recursive warning for folders).
+  const [deleteTarget, setDeleteTarget] = useState<NodeFileEntry | null>(null);
+  const [deleteErr, setDeleteErr] = useState('');
+  const [deleteBusy, setDeleteBusy] = useState(false);
+
   const load = useCallback(async (p: string) => {
     setLoading(true);
     setError('');
@@ -163,6 +277,25 @@ const NodeFilesTab: React.FC<NodeFilesTabProps> = ({ nodeId }) => {
       document.removeEventListener('keydown', onKeyDown);
     };
   }, [menuOpen]);
+
+  // Row menus close on outside-tap / Escape (same manual-dismiss
+  // pattern as the + menu above).
+  useEffect(() => {
+    if (!menuFor) return;
+    const onPointerDown = (e: PointerEvent) => {
+      const path = typeof e.composedPath === 'function' ? e.composedPath() : [];
+      if (listRef.current && !path.includes(listRef.current)) setMenuFor(null);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuFor(null);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [menuFor]);
 
   const segments = relPath.split('/').filter(Boolean);
   const goTo = (p: string) => {
@@ -284,6 +417,74 @@ const NodeFilesTab: React.FC<NodeFilesTabProps> = ({ nodeId }) => {
       setUploadErr(getErrorMessage(e, 'Git clone failed'));
     } finally {
       setUploadBusy(false);
+    }
+  };
+
+  const copyRowPath = async (key: string, full: string) => {
+    try {
+      await navigator.clipboard.writeText(full);
+      setCopiedRow(key);
+      setTimeout(() => setCopiedRow(null), 1500);
+    } catch {
+      // clipboard denied — menu just closes
+    }
+    setMenuFor(null);
+  };
+
+  const openRename = (entry: NodeFileEntry) => {
+    setMenuFor(null);
+    setRenameTarget(entry);
+    setRenameName(entry.name);
+    setRenameErr('');
+  };
+
+  const doRename = async () => {
+    if (!renameTarget) return;
+    const err = validateEntryName(renameName);
+    if (err) {
+      setRenameErr(err);
+      return;
+    }
+    const name = renameName.trim();
+    if (name === renameTarget.name) {
+      setRenameErr('Enter a different name');
+      return;
+    }
+    if (entries.some((e) => e.name === name)) {
+      setRenameErr(`"${name}" already exists here`);
+      return;
+    }
+    setRenameBusy(true);
+    setRenameErr('');
+    try {
+      await renameNodeFile(nodeId, childPath(relPath, renameTarget.name), childPath(relPath, name));
+      setRenameTarget(null);
+      await load(relPath);
+    } catch (e: any) {
+      setRenameErr(getErrorMessage(e, 'Rename failed'));
+    } finally {
+      setRenameBusy(false);
+    }
+  };
+
+  const openDelete = (entry: NodeFileEntry) => {
+    setMenuFor(null);
+    setDeleteTarget(entry);
+    setDeleteErr('');
+  };
+
+  const doDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleteBusy(true);
+    setDeleteErr('');
+    try {
+      await deleteNodeFile(nodeId, childPath(relPath, deleteTarget.name));
+      setDeleteTarget(null);
+      await load(relPath);
+    } catch (e: any) {
+      setDeleteErr(getErrorMessage(e, 'Delete failed'));
+    } finally {
+      setDeleteBusy(false);
     }
   };
 
