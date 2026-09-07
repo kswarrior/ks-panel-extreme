@@ -183,86 +183,377 @@ interface TerminalPaneState {
   stdinError: string;
 }
 
-  const handleTitleChange = (title: string) => {
-    if (!title) return;
-    try {
-      let t = String(title);
-      const m = t.match(/file:\/\/[^\/]*(\/.*)/);
-      if (m) {
-        setCwd(m[1]);
-        return;
+// TerminalPane — one attachable console. The xterm below is always the live
+// container shell; when the pane's ID matches a template action's
+// terminal_id the pane additionally streams that action's full log and
+// relays validated input lines to the RUNNING action's console
+// (POST …/actions/:id/stdin) — e.g. a Minecraft server's /tps /op /ban.
+const TerminalPane: React.FC<{
+  instanceId: number;
+  pane: TerminalPaneState;
+  actions: any[];
+  runningActionId: string;
+  installState: string;
+  stepsJson: string;
+  canRemove: boolean;
+  onPatch: (key: number, patch: Partial<TerminalPaneState>) => void;
+  onRemove: (key: number) => void;
+}> = ({ instanceId, pane, actions, runningActionId, installState, stepsJson, canRemove, onPatch, onRemove }) => {
+  const termRef = useRef<XTerm | null>(null);
+  const handleRef = useRef<TerminalHandle>(null);
+  const [connState, setConnState] = useState<'connecting' | 'connected' | 'reconnecting' | 'closed' | 'error'>('connecting');
+  const [connMsg, setConnMsg] = useState('');
+  const [cwd, setCwd] = useState('~');
+  const [idDraft, setIdDraft] = useState(pane.terminalId);
+  useEffect(() => { setIdDraft(pane.terminalId); }, [pane.terminalId]);
+
+  const tid = normTid(pane.terminalId);
+  const matchedAction = tid !== '' ? actions.find((a: any) => normTid(a?.terminal_id) === tid) : undefined;
+  const isRunning = !!matchedAction && installState === 'running' && runningActionId === matchedAction.id;
+  const actionStopOnExit = matchedAction ? (matchedAction.terminal_stop_on_exit ?? true) : false;
+  const effectiveStop = pane.stopOnExit || actionStopOnExit;
+  const effectiveAllowed = pane.allowedCommands.trim() !== '' ? pane.allowedCommands : String(matchedAction?.terminal_allowed_commands ?? '');
+  const effectiveBlocked = pane.blockedCommands.trim() !== '' ? pane.blockedCommands : String(matchedAction?.terminal_blocked_commands ?? '');
+  const effectiveMode: PaneAllowInput = pane.allowInput;
+  const readOnly = effectiveMode === 'disabled' || pane.stopped || pane.timedOut;
+  const logText = matchedAction ? actionLogText(stepsJson) : '';
+
+  // Track attach lifetime: once the bound action ran in this pane, its end
+  // locks the pane when stop-on-exit applies (Minecraft `stop` → console
+  // closes, no dead keystrokes). A fresh run unlocks the pane again.
+  const prevRunningRef = useRef(false);
+  const everAttachedRef = useRef(false);
+  useEffect(() => {
+    const was = prevRunningRef.current;
+    prevRunningRef.current = isRunning;
+    if (isRunning) {
+      everAttachedRef.current = true;
+      if (pane.stopped) onPatch(pane.key, { stopped: false, stdinError: '' });
+    } else if (was && everAttachedRef.current && effectiveStop && !pane.stopped) {
+      onPatch(pane.key, { stopped: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isRunning]);
+
+  // Pane attach budget: auto-lock when the configured timeout elapses.
+  useEffect(() => {
+    const n = parseInt(String(pane.timeoutS || '').trim(), 10);
+    if (!Number.isFinite(n) || n <= 0) return;
+    const t = window.setTimeout(() => onPatch(pane.key, { timedOut: true }), n * 1000);
+    return () => window.clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pane.key, pane.timeoutS, pane.terminalId]);
+
+  const validator = useMemo(() => {
+    if (effectiveMode === 'disabled') return undefined;
+    if (effectiveMode !== 'allowlist' && effectiveBlocked.trim() === '') return undefined;
+    return (line: string): string | null => {
+      const hit = blockedByTokens(line, effectiveBlocked);
+      if (hit) return `contains blocked token "${hit}"`;
+      if (effectiveMode === 'allowlist') {
+        const reason = allowedByList(line, effectiveAllowed);
+        if (reason) return reason;
       }
-      const pathMatch = t.match(/([~\/][^\s]*)\s*$/);
-      if (pathMatch) {
-        let p = pathMatch[1].split(' — ')[0].split(' - ')[0];
-        if (p) setCwd(p);
-        return;
-      }
-      if (t.indexOf('/') >= 0) setCwd(t);
-    } catch {}
+      return null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveMode, effectiveAllowed, effectiveBlocked]);
+
+  const handleLine = (line: string) => {
+    if (!matchedAction || !isRunning || pane.stopped || pane.timedOut) return;
+    if (line.trim() === '') return;
+    void sendActionStdin(instanceId, matchedAction.id, line).then(
+      () => { if (pane.stdinError) onPatch(pane.key, { stdinError: '' }); },
+      (e: any) => {
+        const status = e?.response?.status;
+        const msgText = typeof e?.response?.data === 'string' ? e.response.data : (e?.response?.data?.error || e?.message || 'failed to send');
+        if (status === 409) {
+          onPatch(pane.key, { stopped: true, stdinError: '' });
+        } else {
+          onPatch(pane.key, { stdinError: String(msgText).slice(0, 300) });
+        }
+      },
+    );
   };
 
+  const handleExit = () => {
+    if (effectiveStop && !pane.stopped) onPatch(pane.key, { stopped: true });
+  };
+
+  const commitId = () => {
+    const v = normTid(idDraft);
+    if (v !== normTid(pane.terminalId)) {
+      onPatch(pane.key, { terminalId: v, stopped: false, timedOut: false, stdinError: '' });
+      everAttachedRef.current = false;
+    }
+  };
+
+  const statusChip = !tid ? null : !matchedAction ? (
+    <span className="text-[11px] px-1.5 py-0.5 rounded border border-amber-500/40 bg-amber-500/10 text-amber-200" title="No template action uses this terminal ID — plain shell. Set it under Templates → Actions → Terminal ID.">unbound · shell only</span>
+  ) : isRunning ? (
+    <span className="text-[11px] px-1.5 py-0.5 rounded border border-emerald-500/40 bg-emerald-500/10 text-emerald-200" title={`Action "${matchedAction.name || matchedAction.id}" is running — log streaming + input relay live.`}>● {matchedAction.name || matchedAction.id} · running</span>
+  ) : (
+    <span className="text-[11px] px-1.5 py-0.5 rounded border border-white/15 bg-white/5 text-gray-300" title={`Bound to action "${matchedAction.name || matchedAction.id}" (idle) — full log below; input relays when it runs.`}>⇄ {matchedAction.name || matchedAction.id} · idle</span>
+  );
+
   return (
-    <div className="animate-fade-in">
-      {showHeader && (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
-        <h2 style={{ fontSize: 20, fontWeight: 600, color: 'var(--ks-heading)', margin: 0 }}>{title || 'Terminal'}</h2>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {state !== 'connected' && (
-            <button
-              type="button"
-              onClick={() => handleRef.current?.reconnect()}
-              className="ks-btn"
-              title="Reconnect the live shell now"
-              style={{ borderColor: 'var(--ks-info-line)', color: 'var(--ks-info)' } as React.CSSProperties}
-            >
-              ⟳ Reconnect
+    <div className="rounded-xl border border-white/10 bg-black/20 overflow-hidden">
+      <div className="flex items-center gap-2 flex-wrap px-3 pt-2.5 pb-2">
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+          <span className="text-gray-500 text-xs font-mono shrink-0">id:</span>
+          <input
+            value={idDraft}
+            onChange={(e) => setIdDraft(e.target.value)}
+            onBlur={commitId}
+            onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+            placeholder="terminal id — match an action (e.g. mc-console)"
+            aria-label="Terminal ID — enter the action's terminal ID to attach"
+            title="Enter the template action's Terminal ID and press Enter — on match this pane streams that action's full log and relays input while it runs"
+            className="glass-field font-mono flex-1 min-w-[10rem]"
+          />
+        </div>
+        {statusChip}
+        <div className="flex items-center gap-1 shrink-0">
+          <button type="button" onClick={() => onPatch(pane.key, { showOptions: !pane.showOptions })} aria-expanded={pane.showOptions} title="Pane options — stop-on-exit, input mode, timeout (fully customizable per pane)" className={`p-1.5 rounded-md border transition ${pane.showOptions ? 'border-sky-500/50 bg-sky-500/15 text-sky-300' : 'border-white/10 text-gray-400 hover:text-white'}`}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+          </button>
+          {connState !== 'connected' && (
+            <button type="button" onClick={() => handleRef.current?.reconnect()} className="ks-btn" title="Reconnect the live shell now">⟳</button>
+          )}
+          <button type="button" onClick={() => termRef.current?.clear()} className="ks-btn" title="Clear the terminal scrollback">Clear</button>
+          {canRemove && (
+            <button type="button" onClick={() => onRemove(pane.key)} className="p-1.5 rounded-md text-red-400 hover:text-red-300 hover:bg-white/5" title="Remove this terminal pane" aria-label="Remove terminal pane">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
             </button>
           )}
-          <button type="button" onClick={() => termRef.current?.clear()} className="ks-btn" title="Clear the terminal scrollback">
-            Clear
-          </button>
+        </div>
+      </div>
+
+      {pane.showOptions && (
+        <div className="mx-3 mb-2 rounded-md border border-white/10 bg-black/30 px-3 py-2 space-y-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <label className="block text-[11px] text-gray-500 mb-0.5">Input mode</label>
+              <select value={pane.allowInput} onChange={(e) => onPatch(pane.key, { allowInput: e.target.value as PaneAllowInput })} className="glass-field w-full">
+                <option value="all">Allow all input</option>
+                <option value="allowlist">Selected commands only</option>
+                <option value="disabled">Read-only log</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[11px] text-gray-500 mb-0.5">Timeout (s, empty = none)</label>
+              <input type="number" min="0" value={pane.timeoutS} onChange={(e) => onPatch(pane.key, { timeoutS: e.target.value.replace(/[^0-9]/g, '') })} placeholder="no limit" className="glass-field font-mono w-full" />
+            </div>
+          </div>
+          <label className="inline-flex items-center gap-2 cursor-pointer">
+            <button type="button" onClick={() => onPatch(pane.key, { stopOnExit: !pane.stopOnExit })} className={`relative w-9 h-5 rounded-full transition ${pane.stopOnExit ? 'bg-green-600' : 'bg-neutral-700'}`} aria-pressed={pane.stopOnExit} aria-label="Stop terminal when action ends">
+              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition ${pane.stopOnExit ? 'translate-x-4' : ''}`} />
+            </button>
+            <span className="text-sm text-gray-300">Stop terminal when action ends{(matchedAction?.terminal_stop_on_exit ?? false) && !pane.stopOnExit ? ' (template still enforces it)' : ''}</span>
+          </label>
+          {pane.allowInput === 'allowlist' && (
+            <div>
+              <label className="block text-[11px] text-gray-500 mb-0.5">Allowed commands (regex, one per line — empty = action's list)</label>
+              <textarea rows={2} value={pane.allowedCommands} onChange={(e) => onPatch(pane.key, { allowedCommands: e.target.value })} placeholder={effectiveAllowed || '^tps$\n^op\\s+\\w+'} className="glass-field font-mono w-full text-emerald-200" />
+            </div>
+          )}
+          <div>
+            <label className="block text-[11px] text-gray-500 mb-0.5">Blocked commands (comma-separated — empty = action's list)</label>
+            <input value={pane.blockedCommands} onChange={(e) => onPatch(pane.key, { blockedCommands: e.target.value })} placeholder={effectiveBlocked || 'apt sudo reboot shutdown rm mkfs'} className="glass-field font-mono w-full text-red-300" />
+          </div>
+        </div>
+      )}
+
+      {(pane.stopped || pane.timedOut) && (
+        <div className="mx-3 mb-2 rounded-md border border-red-900/40 bg-red-950/60 px-2.5 py-1.5 text-[11px] text-red-200">
+          {pane.timedOut ? 'Terminal timeout reached — pane locked. Clear the timeout or add a new terminal to continue.' : 'Terminal stopped — the action ended and input is locked. Clear the ID or add a new terminal to continue.'}
+        </div>
+      )}
+      {readOnly && !pane.stopped && !pane.timedOut && (
+        <div className="mx-3 mb-2 rounded-md border border-white/10 bg-white/5 px-2.5 py-1.5 text-[11px] text-gray-400">Read-only — this pane shows the log but accepts no input.</div>
+      )}
+      {pane.stdinError && (
+        <div className="mx-3 mb-2 flex items-start gap-2 rounded-md border border-red-900/40 bg-red-950/90 px-2.5 py-1.5 text-[11px] text-red-200">
+          <span className="flex-1 break-words">{pane.stdinError}</span>
+          <button type="button" onClick={() => onPatch(pane.key, { stdinError: '' })} aria-label="Dismiss" className="shrink-0 text-red-300/70 hover:text-white">✕</button>
+        </div>
+      )}
+      {matchedAction && logText && (
+        <details className="mx-3 mb-2 rounded-md border border-white/10 bg-black/40" open={isRunning}>
+          <summary className="cursor-pointer px-2.5 py-1.5 text-[11px] text-gray-400 hover:text-gray-200">Action log · {matchedAction.name || matchedAction.id} ({installState || 'idle'}) — click to {isRunning ? 'collapse' : 'expand'}</summary>
+          <pre className="ks-mono max-h-48 overflow-y-auto whitespace-pre-wrap break-words px-2.5 pb-2 text-[11px] leading-relaxed text-gray-300">{logText}</pre>
+        </details>
+      )}
+
+      <div className="px-3 pb-3">
+        <div
+          style={{
+            borderRadius: 10,
+            overflow: 'hidden',
+            border: '1px solid var(--ks-card-border)',
+            background: 'var(--ks-term-bg,#1e1e1e)',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+            opacity: pane.stopped || pane.timedOut ? 0.75 : 1,
+          }}
+        >
+          <div
+            className="ks-mono"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '6px 10px',
+              background: 'var(--ks-term-bg,#1e1e1e)',
+              borderBottom: '1px solid var(--ks-card-border)',
+              fontSize: 11,
+              color: 'var(--ks-muted)',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{tid ? `console:${tid}` : 'shell'}:{cwd}$</span>
+            <span style={{ marginLeft: 'auto', flexShrink: 0 }}>{connState}{connMsg ? ` — ${connMsg}` : ''}</span>
+          </div>
+          <Terminal
+            ref={handleRef}
+            instanceId={instanceId}
+            terminalId={tid}
+            timeoutS={pane.timeoutS}
+            readOnly={readOnly}
+            validateInput={validator}
+            onLine={handleLine}
+            onExit={handleExit}
+            onStateChange={(s, m) => { setConnState(s); setConnMsg(m ?? ''); }}
+            onTermRef={(t) => (termRef.current = t)}
+            onTitleChange={(t) => {
+              if (!t) return;
+              try {
+                const mm = String(t).match(/file:\/\/[^/]*(\/.*)/);
+                if (mm) { setCwd(mm[1]); return; }
+                const pm = String(t).match(/([~/][^\s]*)\s*$/);
+                if (pm) {
+                  const pp = pm[1].split(' — ')[0].split(' - ')[0];
+                  if (pp) setCwd(pp);
+                  return;
+                }
+                if (t.indexOf('/') >= 0) setCwd(t);
+              } catch { /* noop */ }
+            }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// TerminalRealPage — native xterm terminal(s) for the terminal shortcut slug
+// (default `terminal`, customizable in Instance Controls). One or more panes
+// ("add more terminal together"): each pane has an ID box; when the ID
+// matches a template action's terminal_id the pane streams that action's
+// full log (details above) and relays gated input to the running action's
+// console while it runs. Per-pane options (stop-on-exit, input mode,
+// allow/block lists, timeout) make every pane fully customizable without
+// touching the template.
+const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: boolean }> = ({ instance, title, showHeader = true }) => {
+  const controls = useMemo(() => resolveInstanceControls(instance?.config), [instance?.config]);
+  const termCfg = controls.shortcuts.terminal;
+  const keySeq = useRef(1);
+  const makePane = (key: number): TerminalPaneState => ({
+    key,
+    terminalId: '',
+    stopOnExit: termCfg.terminal_default_stop_on_exit,
+    allowInput: (['all', 'allowlist', 'disabled'].includes(termCfg.terminal_default_allow_input) ? termCfg.terminal_default_allow_input : 'all') as PaneAllowInput,
+    allowedCommands: '',
+    blockedCommands: '',
+    timeoutS: termCfg.terminal_default_timeout_s || '',
+    showOptions: false,
+    stopped: false,
+    timedOut: false,
+    stdinError: '',
+  });
+  const [panes, setPanes] = useState<TerminalPaneState[]>(() => [makePane(0)]);
+
+  const patchPane = (key: number, patch: Partial<TerminalPaneState>) =>
+    setPanes((ps) => ps.map((p) => (p.key === key ? { ...p, ...patch } : p)));
+  const removePane = (key: number) => setPanes((ps) => (ps.length <= 1 ? ps : ps.filter((p) => p.key !== key)));
+
+  // Template actions ride on the instance config (deploy-time snapshot).
+  const actions: any[] = useMemo(() => {
+    try {
+      const cfg = instance?.config ? parseConfig(instance.config) : null;
+      const list = Array.isArray((cfg as any)?.actions) ? (cfg as any).actions : [];
+      return list.filter((a: any) => a && typeof a.id === 'string' && a.id.trim() !== '');
+    } catch {
+      return [];
+    }
+  }, [instance?.config]);
+
+  // Live workflow status for the running-action chips + log tail. The routed
+  // snapshot goes stale the moment an action starts, so poll silently while
+  // any pane is bound to an ID (same 3s cadence as the actions menu).
+  const { instance: live, reload } = useInstance(Number(instance?.id));
+  const hasBound = panes.some((p) => normTid(p.terminalId) !== '');
+  useEffect(() => {
+    if (!hasBound) return;
+    const t = window.setInterval(() => { void reload(true); }, 3000);
+    return () => window.clearInterval(t);
+  }, [hasBound, reload]);
+  const src: any = live ?? instance;
+  const installState: string = src?.install_state ?? '';
+  const runningActionId: string = installState === 'running' && src?.install_kind === 'action' ? (src?.install_action_id || '') : '';
+  const stepsJson: string = src?.install_steps_json ?? '';
+
+  const maxN = parseInt(String(termCfg.terminal_max || '').trim(), 10);
+  const atMax = Number.isFinite(maxN) && maxN > 0 && panes.length >= maxN;
+  const canAdd = (termCfg.terminal_allow_multi || panes.length === 0) && !atMax;
+  const addPane = () => { const k = keySeq.current++; setPanes((ps) => [...ps, makePane(k)]); };
+
+  return (
+    <div className="animate-fade-in space-y-3">
+      {showHeader && (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 600, color: 'var(--ks-heading)', margin: 0 }}>{title || 'Terminal'}</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {canAdd ? (
+            <button type="button" onClick={addPane} className="ks-btn" title={Number.isFinite(maxN) && maxN > 0 ? `Add another terminal pane (${panes.length}/${maxN})` : 'Add another terminal pane'}>
+              ＋ Add terminal
+            </button>
+          ) : (
+            <span className="text-[11px] text-gray-500" title={atMax ? `Template caps terminals at ${maxN}` : 'Template allows a single terminal pane'}>
+              {atMax ? `Max ${maxN} terminals` : 'Multi-terminal disabled by template'}
+            </span>
+          )}
         </div>
       </div>
       )}
-
-      <div
-        style={{
-          borderRadius: 10,
-          overflow: 'hidden',
-          border: '1px solid var(--ks-card-border)',
-          background: 'var(--ks-term-bg,#1e1e1e)',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-        }}
-      >
-        <div
-          className="ks-mono"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '6px 10px',
-            background: 'var(--ks-term-bg,#1e1e1e)',
-            borderBottom: '1px solid var(--ks-card-border)',
-            fontSize: 11,
-            color: 'var(--ks-muted)',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-          }}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ width: 11, height: 11, flexShrink: 0, opacity: 0.7 }}>
-            <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
-            <path d="M8 13h4" />
-            <path d="M12 9v8" />
-          </svg>
-          <span>{user}@{host}:</span>
-          <span style={{ color: 'var(--ks-secondary)', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cwd}</span>
-          <span style={{ color: 'var(--ks-secondary)', marginLeft: 1 }}>$</span>
+      {!showHeader && canAdd && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <button type="button" onClick={addPane} className="ks-btn" title="Add another terminal pane">＋ Add terminal</button>
         </div>
+      )}
+      {actions.filter((a: any) => normTid(a?.terminal_id) !== '').length > 0 ? (
+        <p className="text-[11px] text-gray-500">
+          Attachable actions: {actions.filter((a: any) => normTid(a?.terminal_id) !== '').map((a: any) => `${a.name || a.id} (${normTid(a.terminal_id)})`).join(' · ')} — enter an ID above to stream its full log + console input.
+        </p>
+      ) : (
+        <p className="text-[11px] text-gray-500">No action defines a Terminal ID yet — set one under Templates → Actions → Terminal ID (e.g. <code className="font-mono">mc-console</code>) to attach consoles here.</p>
+      )}
 
-        <Terminal ref={handleRef} instanceId={instance.id} onStateChange={onStateChange} onTermRef={(t) => (termRef.current = t)} onTitleChange={handleTitleChange} />
-      </div>
+      {panes.map((p) => (
+        <TerminalPane
+          key={p.key}
+          instanceId={instance.id}
+          pane={p}
+          actions={actions}
+          runningActionId={runningActionId}
+          installState={installState}
+          stepsJson={stepsJson}
+          canRemove={panes.length > 1}
+          onPatch={patchPane}
+          onRemove={removePane}
+        />
+      ))}
     </div>
   );
 };

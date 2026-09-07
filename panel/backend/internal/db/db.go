@@ -921,6 +921,76 @@ func cutKeyword(s string) (kw, rest string) {
 	return s, s
 }
 
+// quoteMySQLReservedIdents backtick-quotes the MySQL reserved words the
+// shipped schema uses as bare column names — KEY (permissions.key,
+// settings.key, mod_storage.key, instance_secrets.key plus every INSERT
+// ... (key, ...) seed column list) and TRIGGER
+// (automation_runs.trigger) — for mysql/mariadb only. Bare use is a
+// syntax error (Error 1064) on MySQL while legal on SQLite/Postgres.
+// Key phrases (PRIMARY KEY, FOREIGN KEY, UNIQUE KEY) are left alone, as
+// are already-quoted identifiers and string literals (masked first, so a
+// literal like 'monkey' or 'trigger warning' can never match — word
+// boundaries additionally protect api_keys, key_hash, keyboard, etc.).
+// Runtime Go queries with bare key/trigger are OUT of scope for the
+// migration runner (repository files are owned by other waves); the runner
+// makes DDL + seed DML converge, and the residual is listed in the Wave 2
+// report for a query-layer follow-up.
+func quoteMySQLReservedIdents(stmt string) string {
+	mask := maskSQLLiterals(stmt)
+	upper := strings.ToUpper(mask)
+	type hit struct{ start, end int }
+	var hits []hit
+	for _, kw := range []string{"KEY", "TRIGGER"} {
+		for i := 0; i+len(kw) <= len(upper); {
+			p := strings.Index(upper[i:], kw)
+			if p < 0 {
+				break
+			}
+			p += i
+			i = p + 1
+			if p > 0 && isIdentChar(mask[p-1]) {
+				continue
+			}
+			if p+len(kw) < len(mask) && isIdentChar(mask[p+len(kw)]) {
+				continue
+			}
+			// Already quoted (`key`, "key", [key])? Leave alone.
+			if p > 0 && (stmt[p-1] == '`' || stmt[p-1] == '"' || stmt[p-1] == '[') {
+				continue
+			}
+			if kw == "KEY" {
+				prev := lastWordBefore(mask, p)
+				switch strings.ToUpper(prev) {
+				case "PRIMARY", "FOREIGN", "UNIQUE", "DUPLICATE":
+					continue
+				}
+			}
+			hits = append(hits, hit{p, p + len(kw)})
+		}
+	}
+	if len(hits) == 0 {
+		return stmt
+	}
+	for i := 1; i < len(hits); i++ {
+		for j := i; j > 0 && hits[j].start < hits[j-1].start; j-- {
+			hits[j], hits[j-1] = hits[j-1], hits[j]
+		}
+	}
+	var out strings.Builder
+	out.Grow(len(stmt) + len(hits)*2)
+	pos := 0
+	for _, h := range hits {
+		if h.start < pos {
+			continue // overlapping; first wins
+		}
+		out.WriteString(stmt[pos:h.start])
+		out.WriteString("`" + strings.ToLower(stmt[h.start:h.end]) + "`")
+		pos = h.end
+	}
+	out.WriteString(stmt[pos:])
+	return out.String()
+}
+
 // rewriteBigintPKForMySQL maps the regen.sh BIGINT auto-increment PK back
 // to INTEGER for mysql/mariadb only. regen.sh widened every PK to BIGINT
 // while every FK column stayed INTEGER, and MySQL rejects such pairs with
