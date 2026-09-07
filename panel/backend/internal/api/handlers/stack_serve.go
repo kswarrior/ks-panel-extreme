@@ -61,10 +61,21 @@ func StackUIHandler(w http.ResponseWriter, r *http.Request) {
 	if rel == "" {
 		rel = path.Join(stackDistRoot, "index.html")
 	} else {
-		rel = path.Join(stackDistRoot, path.Clean("/"+rel))
+		rel = path.Clean("/" + rel)
 	}
-	body, err := stackstore.ReadAsset(slug, rel)
-	if err != nil {
+	// Candidate 1: inside the spa bundle. Candidate 2: workdir-root
+	// relative (covers frontend/theme.css for custom theme mode). Both
+	// stay under the workdir via ReadAsset's traversal guard.
+	candidates := []string{path.Join(stackDistRoot, strings.TrimPrefix(rel, "/")), strings.TrimPrefix(rel, "/")}
+	var body []byte
+	served := ""
+	for _, c := range candidates {
+		if b, err := stackstore.ReadAsset(slug, c); err == nil {
+			body, served = b, c
+			break
+		}
+	}
+	if body == nil {
 		// SPA fallback: client routes resolve to index.html.
 		if s.PageStyle != "simple" {
 			if fb, ferr := stackstore.ReadAsset(slug, path.Join(stackDistRoot, "index.html")); ferr == nil {
@@ -75,7 +86,7 @@ func StackUIHandler(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	serveStackAsset(w, body, rel)
+	serveStackAsset(w, body, served)
 }
 
 func serveStackAsset(w http.ResponseWriter, body []byte, rel string) {
