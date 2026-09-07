@@ -2,6 +2,8 @@ import client from '@/shared/api/client';
 import type {
   Stack,
   StackActivateConflict,
+  StackFileContent,
+  StackFileEntry,
   StackNavEntry,
   StackEngineStatus,
   StackPageEntry,

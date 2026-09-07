@@ -127,7 +127,20 @@ export interface StackPageContent {
 export type StackThemeMode = 'panel' | 'custom' | 'none';
 export type StackPageStyle = 'spa' | 'simple';
 
+export const STACK_THEME_MODES: Array<{ value: StackThemeMode; label: string; hint: string }> = [
+  { value: 'panel', label: 'Panel theme', hint: 'Inherits the panel route theme via --ks-* tokens' },
+  { value: 'custom', label: 'Custom theme.css', hint: 'Ships frontend/theme.css (or frontend/dist/theme.css)' },
+  { value: 'none', label: 'Unthemed', hint: 'No theme tokens, raw bundle styles only' },
+];
+
+export const STACK_PAGE_STYLES: Array<{ value: StackPageStyle; label: string; hint: string }> = [
+  { value: 'spa', label: 'SPA bundle', hint: 'Full frontend/dist bundle in a sandboxed iframe' },
+  { value: 'simple', label: 'Simple pages', hint: 'Panel-rendered markdown/html/blocks from frontend/pages/' },
+];
+
 export const STACK_CATEGORIES = ['dashboard', 'tool', 'tracker', 'status', 'crud', 'custom'] as const;
+
+export const STACK_RUNTIMES = ['static', 'nodejs', 'python'] as const;
 
 export function slugify(input: string): string {
   return input
@@ -136,4 +149,105 @@ export function slugify(input: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 64);
+}
+
+// ---- Workdir file manager ----------------------------------------------
+
+export interface StackFileEntry {
+  name: string;
+  is_dir: boolean;
+  size: number;
+  mode?: string;
+  mod_time?: number;
+}
+
+export interface StackFileList {
+  path: string;
+  entries: StackFileEntry[];
+}
+
+export interface StackFileContent {
+  path: string;
+  content: string;
+  size: number;
+}
+
+// ---- Stack Studio --------------------------------------------------------
+// Visual + code manifest builder (mirrors ModStudio's draft contract): the
+// admin edits structured tabs or raw JSON, previews the emitted manifest
+// live, and installs through POST /api/stacks/ (X-KS-Source: studio) so the
+// backend validates capabilities + seeds pending grants like any upload.
+
+export interface StackStudioDraft {
+  name: string;
+  slug: string;
+  version: string;
+  description: string;
+  icon: string;
+  color: string;
+  category: string;
+  runtime: string;
+  entrypoint: string;
+  themeMode: StackThemeMode;
+  pageStyle: StackPageStyle;
+  permissionsRequested: StackPermissionRequest[];
+  backendScript: string;
+  frontendHtml: string;
+  frontendCss: string;
+  simplePage: string;
+  spec: Record<string, any>;
+}
+
+export const blankStackStudioDraft = (): StackStudioDraft => ({
+  name: '',
+  slug: '',
+  version: '1.0.0',
+  description: '',
+  icon: '',
+  color: '',
+  category: 'dashboard',
+  runtime: 'static',
+  entrypoint: '',
+  themeMode: 'panel',
+  pageStyle: 'spa',
+  permissionsRequested: [],
+  backendScript: '',
+  frontendHtml: '',
+  frontendCss: '',
+  simplePage: '# Hello\n\nStarter simple page. Edit it on the Pages tab.',
+  spec: {},
+});
+
+// emitStackStudioManifest turns a draft into the exact JSON the backend's
+// POST /api/stacks/ (ParseStackManifest) expects. Flat keys stay canonical;
+// the nested frontend/backend blocks ride along for readability.
+export function emitStackStudioManifest(draft: StackStudioDraft): Record<string, any> {
+  const out: Record<string, any> = {
+    name: draft.name,
+    slug: draft.slug,
+    version: draft.version || '1.0.0',
+    description: draft.description,
+    icon: draft.icon,
+    color: draft.color,
+    category: draft.category || 'dashboard',
+    runtime: draft.runtime || 'static',
+    entrypoint: draft.entrypoint,
+    themeMode: draft.themeMode,
+    pageStyle: draft.pageStyle,
+    permissionsRequested: draft.permissionsRequested,
+    frontend: {
+      page_style: draft.pageStyle,
+      theme: { mode: draft.themeMode },
+    },
+    backend: {
+      runtime: draft.runtime || 'static',
+      entrypoint: draft.entrypoint,
+    },
+  };
+  if (draft.backendScript.trim()) out.backendScriptSource = draft.backendScript;
+  if (draft.frontendHtml.trim()) out.frontendHtml = draft.frontendHtml;
+  if (draft.frontendCss.trim()) out.frontendCss = draft.frontendCss;
+  if (draft.pageStyle === 'simple' && draft.simplePage.trim()) out.simplePage = draft.simplePage;
+  if (Object.keys(draft.spec).length) out.spec = draft.spec;
+  return out;
 }
