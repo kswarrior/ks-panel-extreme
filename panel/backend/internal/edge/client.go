@@ -781,6 +781,69 @@ func (c *Client) InstallStdin(req InstallStdinRequest) (InstallStdinResponse, er
 	return out, nil
 }
 
+// ConfigParse POSTs config-file parser apply to the edge (pre-start re-sync).
+func (c *Client) ConfigParse(req ConfigParseRequest) (ConfigParseResponse, error) {
+	req.Token = c.token
+	if handled, body, status, err := c.tryTunnel("POST", "/api/edge/configparse", req); handled {
+		if err != nil {
+			return ConfigParseResponse{}, err
+		}
+		var out ConfigParseResponse
+		if err := unmarshalTunnelResponse(body, status, &out); err != nil {
+			return ConfigParseResponse{}, err
+		}
+		if status >= 300 {
+			if out.Error != "" {
+				return out, fmt.Errorf("edge rejected: %s", out.Error)
+			}
+			return out, fmt.Errorf("edge returned HTTP %d", status)
+		}
+		if !out.OK {
+			if out.Error != "" {
+				return out, fmt.Errorf("%s", out.Error)
+			}
+			return out, fmt.Errorf("edge reported failure without a message")
+		}
+		return out, nil
+	}
+	body, err := json.Marshal(req)
+	if err != nil {
+		return ConfigParseResponse{}, fmt.Errorf("encode request: %w", err)
+	}
+	endpoint := c.baseURL + "/api/edge/configparse"
+	httpReq, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return ConfigParseResponse{}, fmt.Errorf("build request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	resp, err := c.http.Do(httpReq)
+	if err != nil {
+		var emOut ConfigParseResponse
+		if ok, err2 := c.tryEmergencyTunnel("POST", "/api/edge/configparse", req, &emOut); ok {
+			return emOut, err2
+		}
+		return ConfigParseResponse{}, fmt.Errorf("dial edge: %w", err)
+	}
+	defer resp.Body.Close()
+	var out ConfigParseResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return ConfigParseResponse{}, fmt.Errorf("edge returned HTTP %d", resp.StatusCode)
+	}
+	if resp.StatusCode >= 300 {
+		if out.Error != "" {
+			return out, fmt.Errorf("edge rejected: %s", out.Error)
+		}
+		return out, fmt.Errorf("edge returned HTTP %d", resp.StatusCode)
+	}
+	if !out.OK {
+		if out.Error != "" {
+			return out, fmt.Errorf("%s", out.Error)
+		}
+		return out, fmt.Errorf("edge reported failure without a message")
+	}
+	return out, nil
+}
+
 // A non-2xx status is converted into an error so callers can treat the RPC
 // uniformly with `err != nil`.
 func (c *Client) Lifecycle(req LifecycleRequest) (LifecycleResponse, error) {

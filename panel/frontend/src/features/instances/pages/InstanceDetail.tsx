@@ -118,24 +118,42 @@ function normTid(v: unknown): string {
 }
 
 // actionLogText folds an instance's install_steps_json transcript into one
-// tail string (every step's stdout + stderr, oldest first, last ~8k chars)
-// so a bound pane can mirror the action's live console directly inside its
-// xterm (no separate log box).
+// tail string (every step's stdout + stderr + output fallback, oldest first,
+// last ~8k chars) so a bound pane can mirror the action's live console
+// directly inside its xterm (no separate log box). Headers carry step
+// index/action/status/exit so the log reads properly (not a raw blob).
 function actionLogText(stepsJson: unknown): string {
   try {
     const raw = typeof stepsJson === 'string' ? stepsJson : JSON.stringify(stepsJson ?? '');
     if (!raw || !raw.trim()) return '';
-    const steps = JSON.parse(raw);
+    let steps: unknown = JSON.parse(raw);
+    // Some callers nest under { steps: [...] } — unwrap once.
+    if (steps && typeof steps === 'object' && !Array.isArray(steps) && Array.isArray((steps as any).steps)) {
+      steps = (steps as any).steps;
+    }
     if (!Array.isArray(steps)) return '';
     const parts: string[] = [];
     for (const s of steps) {
       if (s && typeof s === 'object') {
-        const out = [s.stdout, s.stderr].filter((x) => typeof x === 'string' && x !== '').join('\n');
-        if (out) parts.push(`— step ${s.index ?? '?'} (${s.action ?? 'shell'} · ${s.status ?? ''}) —\n${out}`);
+        const rec = s as Record<string, unknown>;
+        const stdout = typeof rec.stdout === 'string' ? rec.stdout : '';
+        const stderr = typeof rec.stderr === 'string' ? rec.stderr : '';
+        const output = typeof rec.output === 'string' ? rec.output : '';
+        const out = [stdout, stderr, output].filter((x) => x !== '').join('\n');
+        if (!out) continue;
+        const idx = (rec.index ?? '?') as unknown;
+        const act = (rec.action ?? 'shell') as unknown;
+        const status = typeof rec.status === 'string' && rec.status !== '' ? ` · ${rec.status}` : '';
+        const code = typeof rec.exit_code === 'number' ? ` · exit ${rec.exit_code}` : '';
+        parts.push(`— step ${String(idx)} (${String(act)}${status}${code}) —\n${out}`);
+      } else if (typeof s === 'string' && s !== '') {
+        parts.push(s);
       }
     }
-    const full = parts.join('\n').replace(/\r\n/g, '\n');
-    return full.length > 8000 ? '…(earlier output truncated)…\n' + full.slice(-8000) : full;
+    if (parts.length === 0) return '';
+    const full = parts.join('\n').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const withNl = !full.endsWith('\n') ? full + '\n' : full;
+    return withNl.length > 8000 ? '…(earlier output truncated)…\n' + withNl.slice(-8000) : withNl;
   } catch {
     return '';
   }

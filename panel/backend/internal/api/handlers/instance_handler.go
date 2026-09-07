@@ -2325,6 +2325,30 @@ func instanceAction(w http.ResponseWriter, r *http.Request, action string) {
 		}
 	}
 
+	// Config-file parsers pre-start re-sync (Wings parity): hand-edited files
+	// are patched back before boot so ports/env stay correct. Best-effort but
+	// fail-closed: a parser error aborts the start with the edge message so
+	// the operator fixes the template instead of booting a misconfigured game.
+	if action == "start" && strings.TrimSpace(inst.Config) != "" {
+		var cfgMap map[string]any
+		if err := json.Unmarshal([]byte(inst.Config), &cfgMap); err == nil {
+			if files := configFilesForEdge(cfgMap); len(files) > 0 {
+				ecCfg := edge.NewWithTimeout(*node, token, 60*time.Second)
+				if _, cerr := ecCfg.ConfigParse(edge.ConfigParseRequest{
+					Kind: inst.Kind, Name: inst.Name, Files: files, TimeoutSec: 60,
+				}); cerr != nil {
+					log.Printf("instanceAction: pre-start configparse for instance %d failed: %v", id, cerr)
+					_ = instRepo.SetStatus(id, "errored", inst.ExternalID, "config parser failed: "+cerr.Error())
+					writeJSONStatus(w, http.StatusBadGateway, map[string]any{
+						"error":  "config parser failed: " + cerr.Error(),
+						"detail": "fix spec.config_files[] or the file content inside the workload, then retry start",
+					})
+					return
+				}
+			}
+		}
+	}
+
 	// Try to perform lifecycle action with retries in case the edge is temporarily
 	// unresponsive.
 	var resp edge.LifecycleResponse
