@@ -14,7 +14,7 @@ func TestTempWave2Edge(t *testing.T) {
 		{"CREATE TABLE t (spec TEXT NOT NULL DEFAULT '{}')", "CREATE TABLE t (spec VARCHAR(1024) NOT NULL DEFAULT '{}')"},
 		{"CREATE TABLE t (status TEXT NOT NULL DEFAULT 'open')", "CREATE TABLE t (status VARCHAR(255) NOT NULL DEFAULT 'open')"},
 		// literal containing keywords must not fire
-		{"CREATE TABLE t (note TEXT, x TEXT NOT NULL DEFAULT 'a TEXT UNIQUE thing')", "CREATE TABLE t (note TEXT, x VARCHAR(1024) NOT NULL DEFAULT 'a TEXT UNIQUE thing')"},
+		{"CREATE TABLE t (note TEXT, x TEXT NOT NULL DEFAULT 'a TEXT UNIQUE thing')", "CREATE TABLE t (note TEXT, x VARCHAR(255) NOT NULL DEFAULT 'a TEXT UNIQUE thing')"},
 		// column named context / latest
 		{"CREATE TABLE t (context TEXT NOT NULL DEFAULT 'x')", "CREATE TABLE t (context VARCHAR(255) NOT NULL DEFAULT 'x')"},
 		// key_hash (substring of key + suffix) untouched
