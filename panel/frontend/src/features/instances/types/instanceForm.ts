@@ -66,6 +66,12 @@ export interface EnvVariable {
   // Mirrors templates/types/templateForm EnvVariable.scopes: sections this
   // variable substitutes into (empty/missing = everywhere). Deploy-time only.
   scopes?: string[];
+  // Mirrors templates/types/templateForm EnvVariable.images: named runtimes
+  // this var applies to (empty/missing = All images).
+  images?: string[];
+  // Mirrors templates/types/templateForm EnvVariable.behavior: 'ask'
+  // (prompt at deploy, default) or 'auto' (hidden auto-set).
+  behavior?: 'ask' | 'auto';
 }
 
 export interface Label {

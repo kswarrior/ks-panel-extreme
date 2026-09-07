@@ -86,6 +86,8 @@ export function specToEditor(spec: string): EditorState {
         : [],
       checked_value: String(e.checked_value ?? ''), unchecked_value: String(e.unchecked_value ?? ''),
       ...(Array.isArray(e.scopes) && e.scopes.length > 0 ? { scopes: (e.scopes as unknown[]).map((x) => String(x ?? '').trim().toLowerCase()).filter(Boolean) } : {}),
+      ...(Array.isArray(e.images) && e.images.length > 0 ? { images: (e.images as unknown[]).map((x) => String(x ?? '').trim()).filter((x) => x !== '') } : {}),
+      ...(String(e.behavior ?? '').trim().toLowerCase() === 'auto' ? { behavior: 'auto' as const } : {}),
     }));
   }
   if (Array.isArray(s.install)) {
