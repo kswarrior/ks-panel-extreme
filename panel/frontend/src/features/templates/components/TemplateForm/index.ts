@@ -6,6 +6,7 @@ export { TemplateActionsSection } from './TemplateActionsSection';
 export type { ActionsSectionProps } from './TemplateActionsSection';
 export { TemplateInstallSection } from './TemplateInstallSection';
 export type { InstallSectionProps } from './TemplateInstallSection';
+export { default as TemplateConfigFilesSection } from './TemplateConfigFilesSection';
 export { TemplateRuntimeSection } from './TemplateRuntimeSection';
 export type { RuntimeSectionProps } from './TemplateRuntimeSection';
 export { TemplateLabelsDevicesSection } from './TemplateLabelsDevicesSection';
