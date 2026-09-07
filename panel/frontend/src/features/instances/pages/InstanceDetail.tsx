@@ -341,16 +341,11 @@ export const InstanceDynamicPage: React.FC = () => {
     color: instance.color ?? '',
   };
 
-  // Terminal is a self-sufficient builtin: the native xterm bridge renders
-  // with zero library imports (its backend bridge skips the page whitelist;
-  // route auth + VIEW permission still apply). The canonical /terminal URL
-  // keeps working when the slug is customized. An explicitly disabled
-  // terminal row stays hidden (falls through to the not-in-template card).
-  if (
-    (effectiveSlug === terminalSlug || effectiveSlug === 'terminal') &&
-    specRowState(spec, 'terminal') !== 'disabled' &&
-    specRowState(spec, terminalSlug) !== 'disabled'
-  ) {
+  // Terminal is a pure builtin, not an instance-pages system page: the
+  // native xterm bridge always renders (its backend bridge skips the page
+  // whitelist; route auth + VIEW permission still apply). The canonical
+  // /terminal URL keeps working when the slug is customized.
+  if (effectiveSlug === terminalSlug || effectiveSlug === 'terminal') {
     return (
       <ErrorBoundary resetKey={`terminal-${instanceId}`} label="instance-terminal">
         <TerminalRealPage
@@ -362,80 +357,79 @@ export const InstanceDynamicPage: React.FC = () => {
     );
   }
 
-  // Files is a self-sufficient builtin: an imported files row renders when
-  // present, otherwise the bundled library starter renders, so the page
-  // works with zero imports. An explicitly disabled files row stays hidden;
-  // an enabled-but-empty row keeps the re-import guidance card. The SFTP
-  // card rides above the manager unless the Files shortcut's "Show SFTP
-  // card" page option is off.
-  if (
-    (effectiveSlug === filesSlug || effectiveSlug === 'files') &&
-    specRowState(spec, 'files') !== 'disabled' &&
-    specRowState(spec, filesSlug) !== 'disabled'
-  ) {
-    const rowContent = getPageContent(effectiveSlug, spec);
-    if (rowContent && (rowContent.html || rowContent.markdown || rowContent.blocks)) {
-      return (
-        <ErrorBoundary resetKey={`files-${instanceId}`} label="instance-page">
-          <div className="space-y-4">
-            {controls.shortcuts.files.show_sftp && <InstanceSftpCard instanceId={instanceId} />}
+  // Files is a pure builtin, not an instance-pages system page: the bundled
+  // file manager always renders (spec.pages rows for these slugs, if any
+  // linger from older imports, are ignored by design). The bottom pill
+  // switches the Explorer and SFTP views; both stay mounted so switching
+  // never loses explorer state. The pill hides when the Files shortcut's
+  // "Show SFTP card" page option is off.
+  if (effectiveSlug === filesSlug || effectiveSlug === 'files') {
+    const showSftp = controls.shortcuts.files.show_sftp;
+    const showExplorer = !showSftp || filesTab === 'explorer';
+    return (
+      <ErrorBoundary resetKey={`files-${instanceId}`} label="instance-page">
+        <div className="space-y-4 pb-20">
+          <div className={showExplorer ? '' : 'hidden'}>
             <CustomPageView
-              content={rowContent}
-              title={getPageLabel(effectiveSlug, spec) ?? shortcutLabel(controls, 'files')}
+              content={FILES_EXPLORER_CONTENT}
+              title={shortcutLabel(controls, 'files')}
               instanceContext={instanceContext}
               pageSlug={effectiveSlug}
             />
           </div>
-        </ErrorBoundary>
-      );
-    }
-    if (specRowState(spec, effectiveSlug) === 'absent') {
-      const starterContent = filesStarterContent(null);
-      if (starterContent) {
-        return (
-          <ErrorBoundary resetKey={`files-${instanceId}`} label="instance-page">
-            <div className="space-y-4">
-              {controls.shortcuts.files.show_sftp && <InstanceSftpCard instanceId={instanceId} />}
-              <CustomPageView
-                content={starterContent}
-                title={getPageLabel(effectiveSlug, spec) ?? shortcutLabel(controls, 'files')}
-                instanceContext={instanceContext}
-                pageSlug={effectiveSlug}
-              />
+          {showSftp && (
+            <div className={filesTab === 'sftp' ? '' : 'hidden'}>
+              <InstanceSftpCard instanceId={instanceId} />
             </div>
-          </ErrorBoundary>
-        );
-      }
-    } else {
-      // Enabled-but-empty row — same re-import guidance as the generic path.
-      return (
-        <div className="glass-card rounded-xl text-center text-gray-400">
-          <p className="text-sm">This page (<code className="text-gray-300">/{slug}</code>) has no content.</p>
-          <p className="text-xs text-gray-500 mt-1">Re-import it from the Instance Pages library to restore its definition.</p>
+          )}
         </div>
-      );
-    }
-    // No row and no starter (never expected) — fall through to the
-    // whitelist path below, which renders the standard guidance cards.
+        {showSftp && (
+          <nav
+            aria-label="Files views"
+            className="fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 z-40"
+          >
+            <div
+              role="tablist"
+              aria-label="Files views"
+              className="ks-card rounded-full p-1 flex items-center gap-1 shadow-lg shadow-black/40"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={filesTab === 'explorer'}
+                onClick={() => setFilesTab('explorer')}
+                title="File explorer"
+                className={`ks-tab rounded-full inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium transition${filesTab === 'explorer' ? ' ks-tab-active' : ''}`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" /></svg>
+                <span>Explorer</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={filesTab === 'sftp'}
+                onClick={() => setFilesTab('sftp')}
+                title="SFTP access"
+                className={`ks-tab rounded-full inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium transition${filesTab === 'sftp' ? ' ks-tab-active' : ''}`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+                <span>SFTP</span>
+              </button>
+            </div>
+          </nav>
+        )}
+      </ErrorBoundary>
+    );
   }
 
-  // Files editor sub-page fallback: when the instance has no files row at
-  // all, `<filesSlug>/edit` renders the bundled starter editor instead of
-  // the not-in-template card. Instances WITH a files row resolve their own
-  // edit sub-page through the whitelist path below (unchanged).
-  if (
-    effectiveSlug === `${filesSlug}/edit` &&
-    specRowState(spec, filesSlug) === 'absent' &&
-    !hasRenderableContent(getPageContent(effectiveSlug, spec))
-  ) {
-    const editContent = filesStarterContent('edit');
-    if (editContent) {
-      return (
-        <ErrorBoundary resetKey={`files-edit-${instanceId}`} label="instance-page">
-          <CustomPageView content={editContent} title="Editor" instanceContext={instanceContext} pageSlug={effectiveSlug} />
-        </ErrorBoundary>
-      );
-    }
+  // Files editor sub-page: always the bundled editor (pure builtin, like
+  // the manager above).
+  if (effectiveSlug === `${filesSlug}/edit` && FILES_EDITOR_CONTENT) {
+    return (
+      <ErrorBoundary resetKey={`files-edit-${instanceId}`} label="instance-page">
+        <CustomPageView content={FILES_EDITOR_CONTENT} title="Editor" instanceContext={instanceContext} pageSlug={effectiveSlug} />
+      </ErrorBoundary>
+    );
   }
 
   if (!isPageAllowed(effectiveSlug, spec)) {

@@ -4,7 +4,6 @@ import { startInstance, stopInstance, restartInstance, killInstance } from '@/sh
 import { invokeInstanceAction, stopInstanceAction } from '@/features/instances/api/instanceAdvanced';
 import { useInstance, parseConfig } from '@/shared/hooks/useInstance';
 import { resolveInstanceControls, shortcutLabel, shortcutSlug } from '../utils/instanceControls';
-import { specRowState } from '../pages/InstanceDetail';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { useConfirm } from '@/shared/stores/confirmStore';
@@ -143,30 +142,15 @@ const InstancePowerMenu: React.FC = () => {
     PermissionKey.INSTANCES_EDIT,
   );
 
-  // Quick shortcuts (Files / Terminal / Ports) — the floating menu's
-  // first-class tools, surfaced directly above the template Actions so
-  // operators can jump without closing it. Slug / label / icon come from
+  // Quick shortcuts (Files / Terminal / Ports) — pure builtins surfaced
+  // directly above the template Actions so operators can jump without
+  // closing the menu. Slug / label / icon come from
   // instance_controls.shortcuts (template author or per-instance override).
-  // Files / Terminal / Ports are self-sufficient: always clickable, no
-  // library import needed. A shortcut dims only when its page is explicitly
-  // disabled in the instance's pages (it would render not-in-template) or,
-  // for Ports, when the operator lacks instance edit permission.
-  const toolSpec = useMemo(() => {
-    try {
-      return instance?.config ? parseConfig(instance.config) : null;
-    } catch {
-      return null;
-    }
-  }, [instance?.config]);
+  // Always clickable — no library import needed. Only Ports gates on
+  // permission (its editor is permission-gated).
   const filesSlug = shortcutSlug(controls, 'files');
   const terminalSlug = shortcutSlug(controls, 'terminal');
   const portsSlug = shortcutSlug(controls, 'ports');
-  const filesBlocked =
-    specRowState(toolSpec as any, 'files') === 'disabled' ||
-    specRowState(toolSpec as any, filesSlug) === 'disabled';
-  const terminalBlocked =
-    specRowState(toolSpec as any, 'terminal') === 'disabled' ||
-    specRowState(toolSpec as any, terminalSlug) === 'disabled';
   const canEditPorts = hasPermissionAny(
     permissions,
     PermissionKey.INSTANCES_EDIT,
@@ -319,8 +303,8 @@ const InstancePowerMenu: React.FC = () => {
       {
         key: 'files' as const,
         slug: filesSlug,
-        enabled: !filesBlocked,
-        hint: filesBlocked ? 'Disabled in this instance\u2019s pages' : 'Browse & manage files',
+        enabled: true,
+        hint: 'Browse & manage files',
         fallbackTone: 'text-amber-300',
         defaultIcon: (
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" /></svg>
@@ -329,8 +313,8 @@ const InstancePowerMenu: React.FC = () => {
       {
         key: 'terminal' as const,
         slug: terminalSlug,
-        enabled: !terminalBlocked,
-        hint: terminalBlocked ? 'Disabled in this instance\u2019s pages' : 'Live shell session',
+        enabled: true,
+        hint: 'Live shell session',
         fallbackTone: 'text-emerald-300',
         defaultIcon: (
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" /></svg>
