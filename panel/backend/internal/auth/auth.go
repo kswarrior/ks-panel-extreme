@@ -2,8 +2,10 @@ package auth
 
 import (
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -63,13 +65,18 @@ func CheckPassword(hash, pw string) error {
 }
 
 // GenerateSessionToken returns a signed token of the form
-// "<userID>.<issuedUnix>.<base64url(HMAC-over- userID|issuedUnix)>".
+// "<userID>.<issuedUnix>.<nonce>.<base64url(HMAC-over- userID|issuedUnix|nonce)>".
 //
 // The userID and issued-at are carried in clear text so they can be read
-// back during validation; the HMAC covers both, protecting them from
+// back during validation; the HMAC covers all fields, protecting them from
 // tampering (and detaching the token's lifetime from the cookie's
 // Expires header, which a client can strip out — without the embedded
 // issued-at a stolen cookie would be replayable until the secret rotates).
+//
+// The nonce is 8 crypto-random bytes (hex): two logins by the same user in
+// the same second must never mint the same token string, otherwise the
+// SessionManager map (keyed by token) would collapse two devices into one
+// entry and a single logout would kill both sessions.
 //
 // issuedAt lets the middleware compute the session's remaining life and,
 // when it dips under rotationWindow, mint a fresh cookie (sliding expiry).
@@ -78,14 +85,23 @@ func GenerateSessionToken(userID int64, issuedAt time.Time) string {
 	if issuedAt.IsZero() {
 		issuedAt = time.Now()
 	}
-	uidStr := fmt.Sprintf("%d", userID)
+	uidStr := strconv.FormatInt(issuedAt.Unix(), 10)
+	_ = uidStr
+	uidField := strconv.FormatInt(userID, 10)
 	issuedStr := strconv.FormatInt(issuedAt.Unix(), 10)
+	nonce := make([]byte, 8)
+	if _, err := rand.Read(nonce); err != nil {
+		panic("auth: crypto/rand failed: " + err.Error())
+	}
+	nonceStr := hex.EncodeToString(nonce)
 	mac := hmac.New(sha256.New, sessionSecret)
-	mac.Write([]byte(uidStr))
+	mac.Write([]byte(uidField))
 	mac.Write([]byte{'.'})
 	mac.Write([]byte(issuedStr))
+	mac.Write([]byte{'.'})
+	mac.Write([]byte(nonceStr))
 	sig := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
-	return uidStr + "." + issuedStr + "." + sig
+	return uidField + "." + issuedStr + "." + nonceStr + "." + sig
 }
 
 // ValidateSessionToken verifies the signature of a token produced by
