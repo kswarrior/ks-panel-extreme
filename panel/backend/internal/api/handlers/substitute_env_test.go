@@ -27,7 +27,7 @@ func TestNormalizeEnvScopes(t *testing.T) {
 	if out := normalizeEnvScopes([]any{"Install", "bogus", "", "ACTIONS"}); !reflect.DeepEqual(sortedCopy(out), []string{"actions", "install"}) {
 		t.Fatalf("subset must be lowercased + unknowns dropped, got %v", out)
 	}
-	full := []any{"install", "actions", "image", "controls", "pages", "advanced"}
+	full := []any{"install", "actions", "image", "controls", "pages", "advanced", "config_files"}
 	if out := normalizeEnvScopes(full); len(out) != 0 {
 		t.Fatalf("full set must collapse to everywhere, got %v", out)
 	}

@@ -58,7 +58,7 @@ var validEnvScopes = map[string]bool{
 }
 
 // normalizeEnvScopes cleans a raw scopes value: unknown entries are dropped,
-// "all" (or all six) collapses to nil = everywhere, keeping old specs stable.
+// "all" (or all seven) collapses to nil = everywhere, keeping old specs stable.
 func normalizeEnvScopes(raw any) []string {
 	arr, ok := raw.([]any)
 	if !ok || len(arr) == 0 {
