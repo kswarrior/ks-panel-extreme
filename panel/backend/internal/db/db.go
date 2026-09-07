@@ -672,6 +672,22 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				return err
 			}
 			continue
+		case name == "072_stack_proxy.sql":
+			// Per-stack Go-app reverse proxy config (proxy_port +
+			// proxy_root_url on stacks, migration 072). The ALTERs are not
+			// idempotent on sqlite/mysql, so each column is added via the
+			// runtime guard; the index line is likewise guarded (mysql
+			// strips IF NOT EXISTS) — mirrors 059/069.
+			if err := guardedAddColumns(d, db, name, "stacks", []columnSpec{
+				{"proxy_port", "INTEGER NOT NULL DEFAULT 0"},
+				{"proxy_root_url", "VARCHAR(64) NOT NULL DEFAULT ''"},
+			}); err != nil {
+				return err
+			}
+			if err := guardedCreateIndex(d, db, name, "stacks", "idx_stacks_proxy_root", "proxy_root_url"); err != nil {
+				return err
+			}
+			continue
 		case name == "065_tickets_attachments_sla_notify.sql":
 			// Ticket attachments + SLA sidecar + notification prefs. The
 			// CREATE TABLEs are IF NOT EXISTS on every dialect, but the
