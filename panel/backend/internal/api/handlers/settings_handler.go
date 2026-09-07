@@ -47,6 +47,7 @@ func PanelNameHandler(w http.ResponseWriter, r *http.Request) {
 			"panel_name":               repository.DefaultPanelName,
 			"panel_logo":               nil,
 			"browser_tab_title":        "",
+			"panel_root_url":           "",
 			"favicon":                  nil,
 			"panel_name_color":         repository.DefaultPanelNameColor,
 			"panel_name_font":          repository.DefaultPanelNameFont,
@@ -79,6 +80,7 @@ func PanelNameHandler(w http.ResponseWriter, r *http.Request) {
 			"panel_name":        repository.DefaultPanelName,
 			"panel_logo":        nil,
 			"browser_tab_title": "",
+			"panel_root_url":    "",
 			"favicon":           nil,
 		})
 		return
@@ -87,6 +89,7 @@ func PanelNameHandler(w http.ResponseWriter, r *http.Request) {
 		"panel_name":               snap.PanelName,
 		"panel_logo":               nil,
 		"browser_tab_title":        snap.BrowserTabTitle,
+		"panel_root_url":           snap.PanelRootURL,
 		"favicon":                  nil,
 		"panel_name_color":         snap.PanelNameColor,
 		"panel_name_font":          snap.PanelNameFont,
@@ -228,6 +231,11 @@ func SettingsHandler(w http.ResponseWriter, r *http.Request) {
 			// handler can tell "not sent" (nil, skip) apart from "clear back
 			// to the panel_name fallback" (non-nil empty, delete the row).
 			BrowserTabTitle *string `json:"browser_tab_title"`
+			// Panel root URL (Settings > General > Root URL). Pointer so
+			// "not sent" (nil, skip) stays apart from "clear back to the
+			// origin root" (non-nil empty, delete the row). Takes effect
+			// in the SPA after a reload.
+			PanelRootURL *string `json:"panel_root_url"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			http.Error(w, "invalid payload", http.StatusBadRequest)
@@ -351,6 +359,30 @@ func SettingsHandler(w http.ResponseWriter, r *http.Request) {
 		// Browser-tab title bypasses snap (empty must CLEAR, not skip).
 		if body.BrowserTabTitle != nil {
 			if err := repo.SetBrowserTabTitle(*body.BrowserTabTitle); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+		}
+		// Panel root URL bypasses snap too (empty must CLEAR, not skip).
+		// It must not collide with a live stack-app mount: /panel/<root>
+		// would never reach the mount once the SPA moves under /panel.
+		if body.PanelRootURL != nil {
+			norm := repository.NormalizePanelRootURL(*body.PanelRootURL)
+			if err := repository.ValidatePanelRootURL(norm); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			if norm != "" {
+				stackRepo := repository.NewStackRepository(con)
+				if taken, terr := stackRepo.ProxyRootTaken(norm, 0); terr != nil {
+					http.Error(w, "server error", http.StatusInternalServerError)
+					return
+				} else if taken {
+					http.Error(w, "root URL collides with a stack app mount", http.StatusBadRequest)
+					return
+				}
+			}
+			if err := repo.SetPanelRootURL(norm); err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}

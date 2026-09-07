@@ -40,6 +40,11 @@ type brandBootstrap struct {
 	BrowserTabTitle string `json:"browser_tab_title,omitempty"`
 	FaviconURL      string `json:"favicon_url,omitempty"`
 	FaviconMime     string `json:"favicon_mime,omitempty"`
+	// Panel root URL (Settings > General > Root URL): the single path
+	// segment the SPA lives under ("" = origin root). The frontend reads it
+	// synchronously at module init to set the Router basename before first
+	// paint, so no round-trip is needed.
+	PanelRootURL string `json:"panel_root_url,omitempty"`
 	// Panel-name brand styling + logo presentation so the very first paint
 	// already renders the styled brand (no flash of the default white name).
 	PanelNameColor        string `json:"panel_name_color,omitempty"`
@@ -102,6 +107,7 @@ func writeBrandedIndex(w http.ResponseWriter, r *http.Request, uiFS http.FileSys
 		if snap, serr := settingsRepo.Get(); serr == nil && snap != nil {
 			boot.PanelName = snap.PanelName
 			boot.BrowserTabTitle = snap.BrowserTabTitle
+			boot.PanelRootURL = snap.PanelRootURL
 			boot.PanelNameColor = snap.PanelNameColor
 			boot.PanelNameFont = snap.PanelNameFont
 			boot.PanelNameWeight = snap.PanelNameWeight
