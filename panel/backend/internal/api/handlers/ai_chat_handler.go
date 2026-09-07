@@ -927,9 +927,9 @@ func aiToolDefs() []aiToolDef {
 		mk("get_node", "Get one edge node by id (name, address, status — tokens are never exposed).", obj(map[string]any{
 			"node_id": aiIntProp("node id from list_nodes — never guess"),
 		}, "node_id")),
-		mk("get_template", "Get one deployment template by id (fields, description, numbered install-workflow steps, startup command + action buttons).", obj(map[string]any{
+		mk("get_template", "Get one deployment template by id (fields, description, numbered install-workflow steps, startup command + action buttons, published ports, or the full spec JSON).", obj(map[string]any{
 			"template_id": aiIntProp("template id from list_templates — never guess"),
-			"section":     aiStrProp("one of: all (default), summary, steps, runtime, description. Steps for workflow edits, runtime for startup-command/action-button edits, description for text edits."),
+			"section":     aiStrProp("one of: all (default), summary, steps, runtime, ports, spec, description. Steps for workflow edits, runtime for startup-command/action-button edits, ports for port-mapping edits, spec for the full raw spec JSON when you need anything else, description for text edits."),
 		}, "template_id")),
 		mk("list_instance_pages", "List reusable instance pages (id, name, slug, description).", obj(map[string]any{
 			"limit": aiIntProp("max rows, default 20, max 50"),
@@ -1041,6 +1041,14 @@ func aiToolDefs() []aiToolDef {
 			"template_id": aiIntProp("template id from list_templates — never guess"),
 			"action_id":   aiStrProp("action id from get_template runtime (required) — never guess"),
 		}, "template_id", "action_id")),
+		mk("edit_template_ports", "APPROVAL REQUIRED: surgically edit a template's published ports (op remove/add) without rewriting the whole spec. Read get_template section=ports first for 1-based numbers.", obj(map[string]any{
+			"template_id": aiIntProp("template id from list_templates — never guess"),
+			"op":          aiStrProp("one of: remove, add (required)"),
+			"port_number": aiIntProp("1-based port number from get_template section=ports (required for remove unless host is given)"),
+			"host":        aiIntProp("host port 1-65535 (required for add; alternative identifier for remove, e.g. 25565)"),
+			"container":   aiIntProp("container port 1-65535 for add (defaults to host when omitted)"),
+			"protocol":    aiStrProp("one of: tcp, udp (default tcp)"),
+		}, "template_id", "op")),
 		mk("create_node", "APPROVAL REQUIRED: register a new edge node (direct address dial). The edge token is returned once — tell the user to save it.", obj(map[string]any{
 			"name":    aiStrProp("node name (required)"),
 			"address": aiStrProp("dial address host:port, e.g. 10.0.0.5:8443 (required)"),
