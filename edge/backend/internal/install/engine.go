@@ -439,7 +439,7 @@ func runCore(ctx context.Context, in Input, exec ExecFn, onStdin func(io.WriteCl
 			st := StepStatus{
 				Index: len(steps), Action: "config",
 				Status: stepDone, Attempt: 0, ExitCode: 0,
-				Stdout: "config " + cr.File + changedWord(cr.Changed),
+				Stdout:    "config " + cr.File + changedWord(cr.Changed),
 				StartedAt: time.Now(), EndedAt: time.Now(),
 			}
 			if cr.Error != "" {

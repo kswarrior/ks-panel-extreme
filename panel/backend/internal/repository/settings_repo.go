@@ -277,6 +277,152 @@ func (r *SettingsRepository) LogoDiskPath(logo PanelLogo) string {
 	return filepath.Join(config.DataDir(), logoDirName, logo.Filename)
 }
 
+// ── Browser-tab brand (tab title + favicon) ─────────────────────────────
+// The favicon bytes live on disk under favicons/ (mirroring logos/); only
+// the mime + basename travel in the KV store so no migration is needed.
+
+// FaviconFilenamePrefix is the on-disk filename prefix for favicons.
+// Random suffix per upload busts the browser cache and avoids collisions.
+const FaviconFilenamePrefix = "favicon-"
+
+// MaxFaviconBytes mirrors the panel-logo 5 MiB cap so admins can reuse the
+// same source file for both without re-exporting.
+const MaxFaviconBytes = 5 << 20
+
+// GetBrowserTabTitle returns the raw configured tab title ("" when unset,
+// meaning "fall back to panel_name").
+func (r *SettingsRepository) GetBrowserTabTitle() string {
+	return strings.TrimSpace(r.getString(BrowserTabTitleKey, ""))
+}
+
+// SetBrowserTabTitle persists the tab title. Empty clears it back to the
+// panel_name fallback (row deleted so Get falls through to "").
+func (r *SettingsRepository) SetBrowserTabTitle(title string) error {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return r.ClearBrowserTabTitle()
+	}
+	if len([]rune(title)) > MaxBrowserTabTitleLen {
+		return fmt.Errorf("browser tab title too long (max %d characters)", MaxBrowserTabTitleLen)
+	}
+	// Reject NUL/controls that would poison the bootstrapped <title>.
+	for _, c := range title {
+		if c == 0 || (c < 0x20 && c != '\t') || c == 0x7f {
+			return fmt.Errorf("browser tab title contains invalid characters")
+		}
+	}
+	return r.setString(BrowserTabTitleKey, title)
+}
+
+// ClearBrowserTabTitle removes the override so the tab falls back to panel_name.
+func (r *SettingsRepository) ClearBrowserTabTitle() error {
+	_, err := r.db.Exec(`DELETE FROM settings WHERE key = ?`, BrowserTabTitleKey)
+	return err
+}
+
+// EffectiveTabTitle resolves what the browser tab should actually show:
+// the override when set, otherwise the panel name.
+func EffectiveTabTitle(panelName, tabTitle string) string {
+	if strings.TrimSpace(tabTitle) != "" {
+		return strings.TrimSpace(tabTitle)
+	}
+	if strings.TrimSpace(panelName) != "" {
+		return strings.TrimSpace(panelName)
+	}
+	return DefaultPanelName
+}
+
+// GetFavicon returns the configured favicon's metadata. ok=false when none
+// is configured — callers short-circuit to 204 in that case.
+func (r *SettingsRepository) GetFavicon() (PanelLogo, bool, error) {
+	mime := strings.TrimSpace(r.getString(FaviconMimeKey, ""))
+	filename := strings.TrimSpace(r.getString(FaviconFilenameKey, ""))
+	if mime == "" || filename == "" {
+		return PanelLogo{}, false, nil
+	}
+	// Fail closed on a corrupt row: the allow-list is the same gate the
+	// upload path enforces, so a hand-edited DB can't smuggle a scriptable
+	// type past the Content-Type header.
+	if extensionForMime(mime) == "" {
+		return PanelLogo{}, false, nil
+	}
+	// Basename-only: a hand-edited row pointing at ../ must never escape
+	// the favicons dir.
+	if filename != filepath.Base(filename) || strings.Contains(filename, "\x00") {
+		return PanelLogo{}, false, nil
+	}
+	return PanelLogo{Mime: mime, Filename: filename}, true, nil
+}
+
+// SetFavicon stores a new favicon file on disk and records its metadata in
+// the KV store. Returns the stored PanelLogo so callers can respond without
+// a second read. Previous file is removed after the DB write succeeds.
+func (r *SettingsRepository) SetFavicon(data []byte, mime string) (PanelLogo, error) {
+	if len(data) == 0 {
+		return PanelLogo{}, fmt.Errorf("favicon file is empty")
+	}
+	if len(data) > MaxFaviconBytes {
+		return PanelLogo{}, fmt.Errorf("favicon file too large (max 5 MiB)")
+	}
+	mime = strings.TrimSpace(mime)
+	ext := extensionForMime(mime)
+	if ext == "" {
+		return PanelLogo{}, fmt.Errorf("unsupported favicon mime type %q", mime)
+	}
+	if err := os.MkdirAll(filepath.Join(config.DataDir(), faviconDirName), 0o755); err != nil {
+		return PanelLogo{}, fmt.Errorf("create favicon dir: %w", err)
+	}
+	filename := FaviconFilenamePrefix + randHex(8) + ext
+	dst := filepath.Join(config.DataDir(), faviconDirName, filename)
+	if err := os.WriteFile(dst, data, 0o644); err != nil {
+		return PanelLogo{}, fmt.Errorf("write favicon file: %w", err)
+	}
+	prev, _, _ := r.GetFavicon()
+	if err := r.setString(FaviconMimeKey, mime); err != nil {
+		_ = os.Remove(dst)
+		return PanelLogo{}, fmt.Errorf("persist favicon mime: %w", err)
+	}
+	if err := r.setString(FaviconFilenameKey, filename); err != nil {
+		_ = os.Remove(dst)
+		_, _ = r.db.Exec(`DELETE FROM settings WHERE key = ?`, FaviconMimeKey)
+		return PanelLogo{}, fmt.Errorf("persist favicon filename: %w", err)
+	}
+	if prev.Filename != "" && prev.Filename != filename {
+		_ = os.Remove(filepath.Join(config.DataDir(), faviconDirName, prev.Filename))
+	}
+	return PanelLogo{Mime: mime, Filename: filename}, nil
+}
+
+// ClearFavicon removes the on-disk favicon file and its KV rows. No-op when unset.
+func (r *SettingsRepository) ClearFavicon() error {
+	prev, ok, _ := r.GetFavicon()
+	if _, err := r.db.Exec(`DELETE FROM settings WHERE key = ?`, FaviconMimeKey); err != nil {
+		return fmt.Errorf("clear favicon mime: %w", err)
+	}
+	if _, err := r.db.Exec(`DELETE FROM settings WHERE key = ?`, FaviconFilenameKey); err != nil {
+		return fmt.Errorf("clear favicon filename: %w", err)
+	}
+	if ok && prev.Filename != "" {
+		_ = os.Remove(filepath.Join(config.DataDir(), faviconDirName, prev.Filename))
+	}
+	return nil
+}
+
+// FaviconDiskPath returns the absolute path to the favicon file on disk.
+// Call only when GetFavicon returned ok=true.
+func (r *SettingsRepository) FaviconDiskPath(logo PanelLogo) string {
+	return filepath.Join(config.DataDir(), faviconDirName, logo.Filename)
+}
+
+// FaviconURL returns the public URL streaming the favicon bytes. The
+// filename rides as ?v=... so replacing the icon busts the 300s cache.
+func FaviconURL(logo PanelLogo) string {
+	if logo.Filename != "" {
+		return "/api/settings/favicon?v=" + logo.Filename
+	}
+	return "/api/settings/favicon"
+}
+
 // SettingsSnapshot holds the current settings for the GET endpoint and the
 // bootstrap endpoint used by the SPA at startup.
 type SettingsSnapshot struct {

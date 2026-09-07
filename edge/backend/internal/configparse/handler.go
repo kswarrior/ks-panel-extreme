@@ -197,11 +197,11 @@ func firstLine(s string) string {
 
 // Request is the body of POST /api/edge/configparse.
 type Request struct {
-	Token   string         `json:"token"`
-	Kind    string         `json:"kind"`
-	Name    string         `json:"name"`
-	Files   []File         `json:"files"`
-	Timeout int            `json:"timeout_sec,omitempty"`
+	Token   string `json:"token"`
+	Kind    string `json:"kind"`
+	Name    string `json:"name"`
+	Files   []File `json:"files"`
+	Timeout int    `json:"timeout_sec,omitempty"`
 }
 
 // Response is what the edge hands back.
