@@ -61,6 +61,13 @@ export const TemplateEnvVariablesSection: React.FC<EnvVariablesSectionProps> = (
         <div className="space-y-3">
           {env.map((v, i) => {
             const isEditing = editingIdx === i;
+            const isAuto = normalizeEnvBehavior((v as any).behavior) === 'auto';
+            const curImgs = normalizeEnvImages((v as any).images);
+            const knownImgs = imageNames ?? [];
+            // Dropdown value: '__all' (default) | single runtime name |
+            // '__custom' (legacy multi-select, preserved until changed).
+            const imgSel = curImgs.length === 0 ? '__all' : curImgs.length === 1 ? curImgs[0] : '__custom';
+            const extraImgs = curImgs.filter((c) => !knownImgs.some((k) => k.toLowerCase() === c.toLowerCase()));
             return (
               <div key={i} className="ks-card ks-form-card rounded-md overflow-hidden">
                 <div className="p-3 flex items-center gap-3 flex-wrap">
@@ -105,6 +112,7 @@ export const TemplateEnvVariablesSection: React.FC<EnvVariablesSectionProps> = (
                       <input value={v.label} onChange={(e) => onEnvUpdate(i, { label: e.target.value })} placeholder="Display label" className={glassFieldClass} />
                     </div>
                     <input value={v.description} onChange={(e) => onEnvUpdate(i, { description: e.target.value })} placeholder="Description" className={glassFieldClass} />
+                    {!isAuto && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div>
                         <label className="block text-[11px] text-gray-500 mb-0.5">Display type</label>
@@ -120,8 +128,9 @@ export const TemplateEnvVariablesSection: React.FC<EnvVariablesSectionProps> = (
                         <input value={v.rule} onChange={(e) => onEnvUpdate(i, { rule: e.target.value })} placeholder="^[a-zA-Z0-9_]+$" className={monoCls} />
                       </div>
                     </div>
+                    )}
                     <input value={v.default} onChange={(e) => onEnvUpdate(i, { default: e.target.value })} placeholder="Default value" className={monoCls} />
-                    {v.display === 'select' && (
+                    {!isAuto && v.display === 'select' && (
                       <div className="space-y-2">
                         <label className="block text-[11px] text-gray-500">Options — icon + label + value per row</label>
                         {(v.options_list ?? []).map((o, j) => (
