@@ -636,6 +636,8 @@ const TemplateForm: React.FC = () => {
             onEnvAdd={() => setForm((f) => ({ ...f, env: [...f.env, { name: '', label: '', description: '', default: '', user_viewable: true, user_editable: true, required: false, rule: '', display: 'text', options: '', append: false, prepend: '', append_value: '' }] }))}
             onEnvDelete={(i) => setForm((f) => ({ ...f, env: f.env.filter((_, j) => j !== i) }))}
             onEnvMove={(i, dir) => setForm((f) => { const e = [...f.env]; const j = i + dir; if (j < 0 || j >= e.length) return f; [e[i], e[j]] = [e[j], e[i]]; return { ...f, env: e }; })}
+            envFile={form.env_file}
+            onEnvFileChange={(v) => setForm((f) => ({ ...f, env_file: v }))}
             sectionCls={sectionCls}
             labelCls={labelCls}
             monoCls={monoCls}

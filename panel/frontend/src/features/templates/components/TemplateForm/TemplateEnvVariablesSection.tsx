@@ -193,6 +193,22 @@ export const TemplateEnvVariablesSection: React.FC<EnvVariablesSectionProps> = (
             );
           })}
         </div>
+        {onEnvFileChange && (
+          <div className="mt-4 pt-3 border-t border-white/5">
+            <label className={labelCls}>Environment file (.env)</label>
+            <textarea
+              rows={6}
+              value={envFile ?? ''}
+              onChange={(e) => onEnvFileChange(e.target.value)}
+              placeholder={'# KEY=VALUE per line, like docker-compose env_file\nAPP_ENV=production\nDB_URL=postgres://db:5432/app\n# variables work here too: TAG={{TAG}}'}
+              spellCheck={false}
+              className={monoCls + ' w-full'}
+            />
+            <p className="text-[11px] text-gray-500 mt-1">
+              Bulk env like a compose <code className="font-mono text-gray-400">.env</code> file: substituted at deploy, then merged <em>under</em> the variables above (an explicit var wins on conflict) into real container env (Docker <code className="font-mono text-gray-400">-e</code>, LXD <code className="font-mono text-gray-400">environment.*</code>).
+            </p>
+          </div>
+        )}
       </div>
     </>
   );

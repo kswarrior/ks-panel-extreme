@@ -152,6 +152,21 @@ func validateTemplateSpec(spec map[string]any) error {
 		}
 	}
 
+	// Validate env_file (.env content) if present: must be a string, size
+	// capped, and parse cleanly so a typo fails at save time, not at deploy.
+	if rawFile, present := spec["env_file"]; present && rawFile != nil {
+		content, ok := rawFile.(string)
+		if !ok {
+			return fmt.Errorf("spec.env_file must be a string")
+		}
+		if len(content) > envFileMaxBytes {
+			return fmt.Errorf("spec.env_file exceeds %d bytes", envFileMaxBytes)
+		}
+		if _, err := parseDotEnv(content); err != nil {
+			return fmt.Errorf("spec.env_file: %w", err)
+		}
+	}
+
 	// Validate install[] if present
 	if rawInstall, ok := spec["install"].([]any); ok {
 		for i, s := range rawInstall {
