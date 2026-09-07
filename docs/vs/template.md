@@ -49,7 +49,7 @@ Panels + latest checked: `KS` (this repo) vs `Pterodactyl v1.15.1 (12 Aug 2026, 
 | Stop | `stop_command + same/different mode + terminal_stop_on_exit` (most expressive) | `config.stop` (simple, enough for games) | same | `stop + stopCode` + `skip restarts on stop` (v3.0.9) |
 | Multi-action | `actions[]` (cooldown/async/session/run_on_create) — unique depth. Honest minus: `allowed_states` CSV typos silently narrow; `terminal_id` duplicates attach to first only (warning exists, still footgun); numeric fields are strings | no (schedules + subusers cover parts) | no | `pre/post` + conditions (lighter, harder to misconfigure) |
 | Console binding | `terminal_id` mirror + allow/block regex + timeout — unique. Honest minus: regex per action, no central audit of who typed what beyond instance audit | none | none | RCON/TELNET `stdin` support (narrower, but exactly what games need) |
-| Config-file parsers | removed (Sept 2026) — no parsers, no tester, no pre-start re-sync. Equivalent is `install[]` `write`/`shell` steps + `{{VAR}}` env (whole-file writes, not idempotent key-patches) | `config-files` find/replace (e.g. `server.properties` without scripts) | same | `writefile` + conditions only |
+| Config-file parsers | out of scope (unscored, see §7) — `install[]` `write`/`shell` + `{{VAR}}` env cover the builtin library; whole-file writes, not idempotent key-patches | `config-files` find/replace (e.g. `server.properties` without scripts) | same | `writefile` + conditions only |
 
 ## 5. Variables vs
 
@@ -70,10 +70,10 @@ Panels + latest checked: `KS` (this repo) vs `Pterodactyl v1.15.1 (12 Aug 2026, 
 
 ## 7. Verdict vs (honest)
 
-- KS vs all on breadth: wins tab count, drivers, actions/terminal, pages, health/labels, URL import, detail/governance, bulk `.env` file. Config parsers were removed (Sept 2026) — file writes now go through `install[]` `write`/`shell` + env, same class as Puffer's `writefile`. Paid for with complexity (startup split, CSV states, string numbers, permissive defaults, dead `timeRange`, snapshot drift, 5-template library).
-- Ptero vs KS: wins simplicity (one startup, one bash script), `Nests`, allocations model, ecosystem (~100+, Eggify updates), stable v1.15.x in 2026 — plus `config-files` find/replace, which KS no longer has. Loses everything template-composable (pages/actions/binding/multi-image/bulk-env).
-- Pelican vs KS: same wins as Ptero + modern skin, configurable egg index, icon handling, S3 backup hosts; loses on stability (still beta37, not 1.0). Keeps the parser edge over KS (same `config-files` as Ptero).
-- Puffer vs KS: wins honesty of scope (host+docker, `unshare`, conditions, multi-commands, RCON/TELNET, CurseForge, tester, on-demand templates); loses builder/detail/pages/governance depth. File-patching is now parity: Puffer `writefile` + conditions vs KS `write`/`shell` + env (both whole-file, no key-path parsers).
+- KS vs all on breadth: wins tab count, drivers, actions/terminal, pages, health/labels, URL import, detail/governance, per-var image targeting + auto-set env. Key-path config parsers are deliberately out of scope (verified: no builtin template needs key-patching — `eula.txt` is a fresh whole-file `write`, `server.properties` is generated on first start) and unscored, same class as Puffer's `writefile`. Paid for with complexity (startup split, CSV states, string numbers, permissive defaults, dead `timeRange`, snapshot drift, 5-template library).
+- Ptero vs KS: wins simplicity (one startup, one bash script), `Nests`, allocations model, ecosystem (~100+, Eggify updates), stable v1.15.x in 2026 — plus `config-files` find/replace for hand-edited configs, the one parser case KS covers only via `shell`/`sed`. Loses everything template-composable (pages/actions/binding/multi-image/per-var env).
+- Pelican vs KS: same wins as Ptero + modern skin, configurable egg index, icon handling, S3 backup hosts; loses on stability (still beta37, not 1.0).
+- Puffer vs KS: wins honesty of scope (host+docker, `unshare`, conditions, multi-commands, RCON/TELNET, CurseForge, tester, on-demand templates); loses builder/detail/pages/governance depth. File writes are parity: Puffer `writefile` + conditions vs KS `write`/`shell` + env.
 
 ## 8. Scores (`/100` per case, honest)
 
@@ -94,21 +94,20 @@ Panels + latest checked: `KS` (this repo) vs `Pterodactyl v1.15.1 (12 Aug 2026, 
 | 13 | Pages / UI | 95 | 15 | 15 | 15 |
 | 14 | Grouping | 50 | 88 | 88 | 35 |
 | 15 | Multi-image | 100 | 90 | 90 | 30 |
-| 16 | Config parsers | 30 | 85 | 85 | 30 |
-| 17 | Library size | 25 | 100 | 88 | 65 |
-| 18 | Governance | 78 | 70 | 72 | 55 |
-| 19 | Bulk `.env` file | 90 | 20 | 20 | 35 |
+| 16 | Library size | 25 | 100 | 88 | 65 |
+| 17 | Governance | 78 | 70 | 72 | 55 |
+| 18 | Bulk `.env` file | 90 | 20 | 20 | 35 |
 
 ### Total
 
 | Rank | Panel | Sum | Final `/100` |
 |------|-------|-----|--------------|
-| **1** | **KS** | **1,497 / 1,900** | **79** |
-| 2 | Pelican | 1,278 / 1,900 | 67 |
-| 3 | Pterodactyl | 1,258 / 1,900 | 66 |
-| 4 | PufferPanel | 982 / 1,900 | 52 |
+| **1** | **KS** | **1,467 / 1,800** | **82** |
+| 2 | Pelican | 1,193 / 1,800 | 66 |
+| 3 | Pterodactyl | 1,173 / 1,800 | 65 |
+| 4 | PufferPanel | 952 / 1,800 | 53 |
 
-Clear lead on composability but parsers conceded: KS leads cases 1–7, 10–13, 15, 18–19; trails on 8–9 (single bash script simplicity), 14 (Nests), 16 (config parsers — removed, now parity with Puffer), 17 (library size). Close the remaining gap with Nest-like grouping, page/action update detection, and a raw-JSON edit mode; competitors cannot match pages/actions/binding/multi-image/bulk-env without a format break.
+Config parsers excluded from scoring (deliberately out of scope — no builtin template needs key-patching); without the old penalty row KS moves 79 → 82. Remaining gap: Nests-style grouping (case 14) and library size (case 16). Clear lead on composability: KS leads cases 1–7, 10–13, 15, 17–18; trails on 8–9 (single bash script simplicity), 14 (Nests), 16 (library size). Close the remaining gap with Nest-like grouping, page/action update detection, and a raw-JSON edit mode; competitors cannot match pages/actions/binding/multi-image/per-var env without a format break.
 
 ## 9. Sources
 
