@@ -2817,8 +2817,6 @@ func envScopeGroup(key string) string {
 		return "controls"
 	case "pages":
 		return "pages"
-	case "config_files", "config":
-		return "config_files"
 	default:
 		return "advanced"
 	}
@@ -2859,50 +2857,6 @@ func filterEnvForScope(envVars map[string]string, scopes map[string][]string, gr
 		out[k] = v
 	}
 	return out
-}
-
-// configFilesForEdge normalizes spec.config_files (native array + Ptero
-// compat object/nested shapes) from an already-substituted cfg map into the
-// edge wire type. Returns nil when the template defines no parsers.
-func configFilesForEdge(cfg map[string]any) []edge.ConfigFile {
-	entries, err := normalizeConfigFiles(cfg)
-	if err != nil || len(entries) == 0 {
-		return nil
-	}
-	out := make([]edge.ConfigFile, 0, len(entries))
-	for _, e := range entries {
-		out = append(out, edge.ConfigFile{
-			File:            e.File,
-			Parser:          e.Parser,
-			Find:            e.Find,
-			CreateIfMissing: e.CreateIfMissing,
-		})
-	}
-	return out
-}
-
-// stripPteroConfigFiles removes the Ptero-compat spec.config.files object
-// from cfg["config"] after extraction so LXD/docker drivers never see a
-// stray "files" key as driver config. Native spec.config_files[] is untouched.
-func stripPteroConfigFiles(cfg map[string]any) {
-	rawCfg, ok := cfg["config"].(map[string]any)
-	if !ok {
-		return
-	}
-	if rawFiles, present := rawCfg["files"]; present && rawFiles != nil {
-		switch rawFiles.(type) {
-		case map[string]any, []any:
-			delete(rawCfg, "files")
-		case string:
-			s := strings.TrimSpace(rawFiles.(string))
-			if s == "" || s == "{}" || s == "[]" || s == "null" {
-				delete(rawCfg, "files")
-			}
-		}
-	}
-	if len(rawCfg) == 0 {
-		// Keep empty map (LXD code treats nil vs empty distinctly); do not delete.
-	}
 }
 
 // substituteOne replaces both {{KEY}} and ${KEY} placeholders for the allowed
