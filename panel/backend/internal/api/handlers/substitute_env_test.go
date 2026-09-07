@@ -124,3 +124,36 @@ func TestFilterEnvForScope(t *testing.T) {
 		t.Fatalf("image filter wrong: %v", got)
 	}
 }
+
+func TestValidateTemplateSpecScopes(t *testing.T) {
+	env := func(scopes any) map[string]any {
+		m := map[string]any{"name": "IMAGE", "default": "x"}
+		if scopes != nil {
+			m["scopes"] = scopes
+		}
+		return m
+	}
+	cases := []struct {
+		name    string
+		scopes  any
+		wantErr bool
+	}{
+		{"missing", nil, false},
+		{"subset", []any{"install", "actions"}, false},
+		{"all-token", []any{"all"}, false},
+		{"empty-array", []any{}, false},
+		{"string-not-array", "install", true},
+		{"unknown-scope", []any{"install", "bogus"}, true},
+		{"non-string-entry", []any{"install", 42}, true},
+	}
+	for _, c := range cases {
+		spec := map[string]any{"env": []any{env(c.scopes)}}
+		err := validateTemplateSpec(spec)
+		if c.wantErr && err == nil {
+			t.Errorf("%s: expected error, got nil", c.name)
+		}
+		if !c.wantErr && err != nil {
+			t.Errorf("%s: unexpected error: %v", c.name, err)
+		}
+	}
+}
