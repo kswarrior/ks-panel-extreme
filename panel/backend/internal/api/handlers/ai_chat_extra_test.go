@@ -185,3 +185,47 @@ func TestAIParseTemplateCommand(t *testing.T) {
 		t.Fatal("garbage must be rejected")
 	}
 }
+
+// Published-port summaries use the 1-based numbering users count with, and
+// accept JSON numbers or numeric strings (Templates page vs builtin seeds).
+func TestAITemplatePorts(t *testing.T) {
+	tmpl := &models.Template{Spec: `{"ports":[{"host":25565,"container":25565,"protocol":"tcp"},{"host":"8080","container":"80"}]}`}
+	ports := aiTemplatePorts(tmpl)
+	if len(ports) != 2 || ports[0] != "#1 25565:25565/tcp" || ports[1] != "#2 8080:80/tcp" {
+		t.Fatalf("ports wrong: %q", ports)
+	}
+	if got := aiTemplatePorts(&models.Template{Spec: `{}`}); len(got) != 0 {
+		t.Fatalf("empty spec must yield no ports, got %q", got)
+	}
+	if got := aiTemplatePorts(&models.Template{Spec: `{{{`}); len(got) != 0 {
+		t.Fatalf("corrupt spec must yield no ports, got %q", got)
+	}
+}
+
+// Port numbers coerce JSON numbers and numeric strings, rejecting
+// out-of-range and garbage.
+func TestAIPortNum(t *testing.T) {
+	for _, v := range []any{float64(25565), 25565, int64(25565), "25565", " 8080 "} {
+		if n, ok := aiPortNum(v); !ok || n < 1 || n > 65535 {
+			t.Fatalf("port %v must parse, got %d ok=%v", v, n, ok)
+		}
+	}
+	for _, v := range []any{float64(0), 0, 70000, "0", "99999", "abc", "", nil, true} {
+		if _, ok := aiPortNum(v); ok {
+			t.Fatalf("port %v must be rejected", v)
+		}
+	}
+}
+
+// Port protocols default to tcp and accept tcp/udp only.
+func TestAIParsePortProtocol(t *testing.T) {
+	if p, err := aiParsePortProtocol(""); err != nil || p != "tcp" {
+		t.Fatalf("blank protocol must default tcp, got %q err=%v", p, err)
+	}
+	if p, err := aiParsePortProtocol("UDP"); err != nil || p != "udp" {
+		t.Fatalf("UDP must normalize udp, got %q err=%v", p, err)
+	}
+	if _, err := aiParsePortProtocol("sctp"); err == nil {
+		t.Fatal("sctp must be rejected")
+	}
+}
