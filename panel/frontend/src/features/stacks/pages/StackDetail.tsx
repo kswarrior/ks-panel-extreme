@@ -10,6 +10,8 @@ import {
   activateStack,
   deactivateStack,
   deleteStack,
+  updateStack,
+  stackAppUrl,
   extractStackApiError,
 } from '@/features/stacks/api/stacks';
 import { Stack, stackCapabilityMeta, stackSourceMeta } from '@/shared/types/stack';
@@ -28,6 +30,10 @@ const StackDetail: React.FC = () => {
   const [grants, setGrants] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
   const [toggling, setToggling] = useState(false);
+  // App proxy (externally-run Go app floated at /<root>).
+  const [proxyPort, setProxyPort] = useState('');
+  const [proxyRoot, setProxyRoot] = useState('');
+  const [proxySaving, setProxySaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -38,6 +44,8 @@ const StackDetail: React.FC = () => {
       const init: Record<string, boolean> = {};
       for (const p of s.permissions) init[p.capability] = p.granted;
       setGrants(init);
+      setProxyPort(s.proxy_port ? String(s.proxy_port) : '');
+      setProxyRoot(s.proxy_root_url || '');
     } catch (e) {
       setError(extractStackApiError(e, 'Failed to load stack.'));
     } finally {
@@ -102,8 +110,46 @@ const StackDetail: React.FC = () => {
     }
   };
 
-  const remove = async (wipe: boolean) => {
-    const ok = await confirm({
+  const saveProxy = async () => {
+    if (!stack) return;
+    const port = proxyPort.trim() === '' ? 0 : Number(proxyPort);
+    if (!Number.isInteger(port) || port < 0 || port > 65535) {
+      setError('Proxy port must be empty (off) or 1-65535.');
+      return;
+    }
+    const root = proxyRoot.trim().toLowerCase();
+    if (root && !/^[a-z0-9][a-z0-9-]{0,31}$/.test(root)) {
+      setError('Proxy root URL must be lowercase letters, digits and hyphens (max 32).');
+      return;
+    }
+    if ((root && port === 0) || (!root && port !== 0)) {
+      setError('Proxy port and root URL must be set together (or both empty to disable).');
+      return;
+    }
+    setProxySaving(true);
+    try {
+      const s = await updateStack(stack.id, {
+        name: stack.name,
+        category: stack.category,
+        version: stack.version,
+        description: stack.description || '',
+        icon: stack.icon || '',
+        color: stack.color || '',
+        spec: stack.spec || {},
+        proxyPort: port,
+        proxyRootUrl: root,
+      });
+      setStack(s);
+      setProxyPort(s.proxy_port ? String(s.proxy_port) : '');
+      setProxyRoot(s.proxy_root_url || '');
+    } catch (e) {
+      setError(extractStackApiError(e, 'Failed to save proxy.'));
+    } finally {
+      setProxySaving(false);
+    }
+  };
+
+  const remove = async (wipe: boolean) => {    const ok = await confirm({
       title: wipe ? `Delete ${stack.name} + wipe data?` : `Delete ${stack.name}?`,
       message: wipe ? 'Package, workdir AND data dir are removed.' : 'Package and workdir are removed. Data dir is kept.',
       confirmLabel: 'Delete',
@@ -216,9 +262,65 @@ const StackDetail: React.FC = () => {
       </GlassCard>
 
       <GlassCard>
+        <h2 className="text-sm font-medium text-gray-200 mb-1">App proxy</h2>
+        <p className="text-xs text-gray-500 mb-3">
+          Float an externally-run Go app (a complete program you run yourself, e.g. a dashboard on{' '}
+          <code className="font-mono">127.0.0.1:6600</code>) at <code className="font-mono">/&lt;root&gt;/</code> behind
+          the panel session — no API key needed, the app sees you via <code className="font-mono">X-Panel-User-*</code> headers.
+          Works while the stack is active.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg">
+          <label className="block">
+            <span className="text-xs text-gray-400">Loopback port (empty = off)</span>
+            <input
+              value={proxyPort}
+              onChange={(e) => setProxyPort(e.target.value.replace(/[^0-9]/g, '').slice(0, 5))}
+              placeholder="6600"
+              inputMode="numeric"
+              className="block w-full mt-1 bg-black/30 border border-white/10 rounded-md text-sm text-white px-3 py-1.5 font-mono focus:outline-none focus:border-white/40"
+            />
+          </label>
+          <label className="block">
+            <span className="text-xs text-gray-400">Root URL segment</span>
+            <div className="flex items-center gap-1.5 mt-1">
+              <span className="text-sm text-gray-500 font-mono">/</span>
+              <input
+                value={proxyRoot}
+                onChange={(e) => setProxyRoot(e.target.value.toLowerCase())}
+                placeholder="dash"
+                spellCheck={false}
+                autoComplete="off"
+                className="block w-full bg-black/30 border border-white/10 rounded-md text-sm text-white px-3 py-1.5 font-mono focus:outline-none focus:border-white/40"
+              />
+            </div>
+          </label>
+        </div>
+        <div className="flex gap-2 mt-3 flex-wrap">
+          <button type="button" onClick={() => void saveProxy()} disabled={proxySaving} className="text-xs px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white disabled:opacity-50">
+            {proxySaving ? 'Saving…' : 'Save proxy'}
+          </button>
+          {(() => {
+            const url = stackAppUrl(stack);
+            return url ? (
+              <a href={url} className="text-xs px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white">
+                Open app at {url}
+              </a>
+            ) : null;
+          })()}
+        </div>
+      </GlassCard>
+
+      <GlassCard>
         <h2 className="text-sm font-medium text-gray-200 mb-1">Files</h2>
         <p className="text-xs text-gray-500 mb-3">Workdir of <code className="font-mono">{stack.slug}</code> — pages, theme.css, backend entry. Edits repackage the .ksps.</p>
         <StackFileManager stackId={stack.id} slug={stack.slug} />
+        <button
+          type="button"
+          onClick={() => navigate(`/stack/${stack.id}/files`)}
+          className="mt-3 text-xs px-3 py-1.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-gray-200"
+        >
+          Open full-page file manager →
+        </button>
       </GlassCard>
 
       <GlassCard>
