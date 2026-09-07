@@ -193,6 +193,12 @@ func NewRouter() http.Handler {
 		// image streamed from disk, served behind no auth gate so the
 		// /auth/login page can render before the user has a session.
 		r.Get("/api/settings/panel-logo", handlers.PanelLogoHandler)
+		// Public favicon stream — same auth model as panel-name/panel-logo.
+		// Served unauthenticated so the browser tab + login page paint the
+		// custom icon before any session exists. 204 when unset. /favicon.ico
+		// is the auto-requested alias browsers fetch without a <link> tag.
+		r.Get("/api/settings/favicon", handlers.FaviconHandler)
+		r.Get("/favicon.ico", handlers.FaviconHandler)
 
 		// Public authority branding snapshot for the login page: the
 		// authority-specific logo/background when the admin configured one,

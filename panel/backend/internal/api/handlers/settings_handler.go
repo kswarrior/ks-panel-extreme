@@ -224,6 +224,10 @@ func SettingsHandler(w http.ResponseWriter, r *http.Request) {
 			PanelLogoBg           *string `json:"panel_logo_bg"`
 			PanelLogoShadow       *string `json:"panel_logo_shadow"`
 			PanelLogoRing         *string `json:"panel_logo_ring"`
+			// Browser-tab brand (Settings > Browser Tab). Pointer so the
+			// handler can tell "not sent" (nil, skip) apart from "clear back
+			// to the panel_name fallback" (non-nil empty, delete the row).
+			BrowserTabTitle *string `json:"browser_tab_title"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			http.Error(w, "invalid payload", http.StatusBadRequest)
@@ -344,6 +348,13 @@ func SettingsHandler(w http.ResponseWriter, r *http.Request) {
 		if body.PanelLogoRing != nil {
 			snap.PanelLogoRing = *body.PanelLogoRing
 		}
+		// Browser-tab title bypasses snap (empty must CLEAR, not skip).
+		if body.BrowserTabTitle != nil {
+			if err := repo.SetBrowserTabTitle(*body.BrowserTabTitle); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+		}
 		if err := repo.Update(&snap); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -448,6 +459,111 @@ func SettingsLogoDeleteHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, snap)
 }
 
+// FaviconHandler serves the configured browser-tab favicon bytes (no auth).
+// When none is configured we return 204 so callers fall back to the
+// default icon without a broken-image/error body. Also serves /favicon.ico
+// (browsers request it automatically).
+func FaviconHandler(w http.ResponseWriter, r *http.Request) {
+	con, err := repository.OpenDB()
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	defer con.Close()
+	repo := repository.NewSettingsRepository(con)
+	logo, ok, err := repo.GetFavicon()
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	if !ok {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	w.Header().Set("Content-Type", logo.Mime)
+	w.Header().Set("Cache-Control", "private, max-age=300")
+	http.ServeFile(w, r, repo.FaviconDiskPath(logo))
+}
+
+// SettingsFaviconUploadHandler accepts a multipart/form-data POST with a
+// single "favicon" file part (png/jpg/gif/webp/svg/ico, 5 MiB max). Returns
+// the full settings snapshot so the SPA refreshes in one round trip.
+func SettingsFaviconUploadHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if err := r.ParseMultipartForm(5 << 20); err != nil {
+		http.Error(w, "invalid multipart payload: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	file, hdr, err := r.FormFile("favicon")
+	if err != nil {
+		http.Error(w, "missing 'favicon' file part", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+	if hdr.Size > 5<<20 {
+		http.Error(w, "favicon file too large (max 5 MiB)", http.StatusRequestEntityTooLarge)
+		return
+	}
+	data, err := io.ReadAll(io.LimitReader(file, 5<<20+1))
+	if err != nil {
+		http.Error(w, "read favicon file: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	if len(data) > 5<<20 {
+		http.Error(w, "favicon file too large (max 5 MiB)", http.StatusRequestEntityTooLarge)
+		return
+	}
+	mime := strings.TrimSpace(hdr.Header.Get("Content-Type"))
+	if mime == "" {
+		mime = mimeFromExt(filepath.Ext(hdr.Filename))
+	}
+	// SVGs execute in the panel origin when served publicly — sanitize with
+	// the same rules as the panel logo / avatars so stored XSS can't be
+	// planted via the favicon.
+	if strings.EqualFold(mime, "image/svg+xml") {
+		data = []byte(sanitizeIconSVG(string(data)))
+	}
+
+	con, err := repository.OpenDB()
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	defer con.Close()
+	repo := repository.NewSettingsRepository(con)
+	if _, err := repo.SetFavicon(data, mime); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	snap, _ := repo.Get()
+	writeJSON(w, snap)
+}
+
+// SettingsFaviconDeleteHandler deletes the configured favicon (and its file
+// on disk). Mirrors the upload success shape so the SPA refreshes in place.
+func SettingsFaviconDeleteHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	con, err := repository.OpenDB()
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	defer con.Close()
+	repo := repository.NewSettingsRepository(con)
+	if err := repo.ClearFavicon(); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	snap, _ := repo.Get()
+	writeJSON(w, snap)
+}
+
 // panelLogoURL returns the public URL that streams the logo bytes. Kept as
 // a free function (not a method on *SettingsRepository) so the bootstrap
 // injection in server.go can use the same logic without depending on a
@@ -458,6 +574,12 @@ func panelLogoURL(logo repository.PanelLogo) string {
 		return "/api/settings/panel-logo?v=" + logo.Filename
 	}
 	return "/api/settings/panel-logo"
+}
+
+// faviconURL returns the public URL streaming the favicon bytes (cache-busted
+// via ?v=... like the logo). Kept beside panelLogoURL so the two stay in sync.
+func faviconURL(logo repository.PanelLogo) string {
+	return repository.FaviconURL(logo)
 }
 
 // MIME-from-extension fallback for clients whose multipart writer is lazy.
@@ -475,6 +597,8 @@ func mimeFromExt(ext string) string {
 		return "image/webp"
 	case ".svg":
 		return "image/svg+xml"
+	case ".ico":
+		return "image/x-icon"
 	default:
 		return ""
 	}
