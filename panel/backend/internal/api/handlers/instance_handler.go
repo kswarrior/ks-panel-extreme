@@ -1799,10 +1799,10 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 				Kind:  tmpl.Kind,
 				Name:  req.Name,
 				Steps: edgeSteps,
-			// Only install-scoped vars reach the workflow: an actions-only
-			// var must not leak into (or be required by) install steps.
-			// File-declared (.env) vars carry no scope and pass through.
-			EnvVars: filterEnvForScope(mergedEnv, envScopesByName(envSpecs), "install"),
+				// Only install-scoped vars reach the workflow: an actions-only
+				// var must not leak into (or be required by) install steps.
+				// File-declared (.env) vars carry no scope and pass through.
+				EnvVars: filterEnvForScope(mergedEnv, envScopesByName(envSpecs), "install"),
 				// Template-authored workflow budget (spec.install_timeout_sec).
 				// 0 = unset → the edge applies its own 30-minute default, so
 				// templates that never set the field behave exactly as before.
