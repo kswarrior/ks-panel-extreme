@@ -584,6 +584,7 @@ export function parseSpec(raw: string): Partial<TemplateFormState> {
       const log = (a.logging ?? {}) as Record<string, any>;
       const outA: Advanced = {
         startup_command: String(a.startup_command ?? ''),
+        startup_terminal_id: String(a.startup_terminal_id ?? '').trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, ''),
         stop_command: String(a.stop_command ?? ''),
         stop_signal: String(a.stop_signal ?? ''),
         working_dir: String(a.working_dir ?? ''),
