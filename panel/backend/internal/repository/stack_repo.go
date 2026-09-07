@@ -465,7 +465,7 @@ func (r *StackRepository) ListStacks() ([]models.Stack, error) {
 		return out, nil
 	}
 	rows, err := r.db.Query(`
-		SELECT s.id, s.name, s.slug, s.category, s.version, s.description, s.icon, s.color, s.runtime, s.entrypoint, s.manifest, s.spec, s.frontend_theme_mode, s.page_style, s.active, s.uploaded_by, COALESCE(s.owner_id, 0), s.source, s.source_url, s.package_size, s.created_at, s.updated_at, u.username
+		SELECT s.id, s.name, s.slug, s.category, s.version, s.description, s.icon, s.color, s.runtime, s.entrypoint, s.manifest, s.spec, s.frontend_theme_mode, s.page_style, s.active, s.uploaded_by, COALESCE(s.owner_id, 0), s.source, s.source_url, s.package_size, s.proxy_port, COALESCE(s.proxy_root_url, ''), s.created_at, s.updated_at, u.username
 		FROM stacks s
 		LEFT JOIN users u ON u.id = s.uploaded_by
 		ORDER BY s.updated_at DESC`)
@@ -482,8 +482,9 @@ func (r *StackRepository) ListStacks() ([]models.Stack, error) {
 		var created, updated string
 		var source, sourceURL string
 		var packageSize int64
+		var proxyRootURL sql.NullString
 		var owner sql.NullString
-		if err := rows.Scan(&s.ID, &s.Name, &s.Slug, &s.Category, &s.Version, &s.Description, &s.Icon, &s.Color, &s.Runtime, &s.Entrypoint, &manifest, &spec, &s.ThemeMode, &s.PageStyle, &active, &uploadedBy, &ownerID, &source, &sourceURL, &packageSize, &created, &updated, &owner); err != nil {
+		if err := rows.Scan(&s.ID, &s.Name, &s.Slug, &s.Category, &s.Version, &s.Description, &s.Icon, &s.Color, &s.Runtime, &s.Entrypoint, &manifest, &spec, &s.ThemeMode, &s.PageStyle, &active, &uploadedBy, &ownerID, &source, &sourceURL, &packageSize, &s.ProxyPort, &proxyRootURL, &created, &updated, &owner); err != nil {
 			return nil, err
 		}
 		s.Manifest = json.RawMessage(manifest)
@@ -503,6 +504,15 @@ func (r *StackRepository) ListStacks() ([]models.Stack, error) {
 		s.Source = source
 		s.SourceURL = sourceURL
 		s.PackageSize = packageSize
+		if !models.ValidStackProxyPort(s.ProxyPort) {
+			s.ProxyPort = 0
+		}
+		if proxyRootURL.Valid {
+			s.ProxyRootURL = proxyRootURL.String
+		}
+		if !models.ValidStackProxyRoot(s.ProxyRootURL) || models.IsReservedStackProxyRoot(s.ProxyRootURL) {
+			s.ProxyRootURL = ""
+		}
 		if uploadedBy.Valid {
 			v := uploadedBy.Int64
 			s.UploadedBy = &v
