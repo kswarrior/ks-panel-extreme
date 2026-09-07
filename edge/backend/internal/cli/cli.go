@@ -16,9 +16,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/example/ksedge/internal/attach"
 	"github.com/example/ksedge/internal/config"
 	"github.com/example/ksedge/internal/exec"
-	"github.com/example/ksedge/internal/attach"
 	"github.com/example/ksedge/internal/execrpc"
 	"github.com/example/ksedge/internal/files"
 	"github.com/example/ksedge/internal/health"
