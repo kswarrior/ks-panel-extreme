@@ -563,7 +563,6 @@ export const emptyForm: TemplateFormState = {
   install_timeout_s: '',
   install_terminal_id: '',
   actions: [],
-  config_files: [],
   labels: [],
   devices: [],
   pages: [],

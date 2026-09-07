@@ -185,42 +185,6 @@ export function serializeSpec(f: TemplateFormState): string {
       container: d.container,
       cgroup: !!d.cgroup,
     })),
-    // Config-file parsers (spec.config_files[]): file + parser + find map.
-    // Rows without a file path are dropped; find entries with empty keys are
-    // dropped. create_if_missing/description persist only when set.
-    config_files: (f as any).config_files
-      ? ((f as any).config_files as Array<{ file: string; parser: string; find: Record<string, string>; create_if_missing?: boolean; description?: string }>)
-          .filter((c) => c && c.file.trim() !== '')
-          .map((c) => {
-            const find: Record<string, unknown> = {};
-            Object.entries(c.find || {}).forEach(([k, v]) => {
-              if (k.trim() === '') return;
-              const t = String(v ?? '');
-              // Multi-replace maps ride as real objects so the backend
-              // executes them as multi-replace (not as an exact-set of a
-              // JSON blob). Plain strings pass through verbatim.
-              const trimmed = t.trim();
-              if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-                try {
-                  const parsed: unknown = JSON.parse(trimmed);
-                  if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-                    find[k] = parsed;
-                    return;
-                  }
-                } catch { /* fall through as plain string */ }
-              }
-              find[k] = String(v ?? '');
-            });
-            const out: Record<string, unknown> = {
-              file: c.file.trim(),
-              parser: (c.parser || 'properties').toLowerCase(),
-              find,
-            };
-            if (c.create_if_missing) out.create_if_missing = true;
-            if ((c.description || '').trim() !== '') out.description = (c.description || '').trim();
-            return out;
-          })
-      : undefined,
     healthcheck: f.healthcheck.enabled ? {
       test: f.healthcheck.test_command,
       interval: f.healthcheck.interval_s ? `${f.healthcheck.interval_s}s` : '',
@@ -604,60 +568,6 @@ export function parseSpec(raw: string): Partial<TemplateFormState> {
     }
     if (Array.isArray(s.labels)) {
       out.labels = s.labels.map((l: any) => ({ key: String(l.key ?? ''), value: String(l.value ?? '') }));
-    }
-    // Config-file parsers: native array + object-map + Ptero nested
-    // spec.config.files. Normalised to rows; find values stringified so the
-    // builder edits them as text (numbers/bools round-trip via String()).
-    {
-      const rows: Array<{ file: string; parser: string; find: Record<string, string>; create_if_missing: boolean; description: string }> = [];
-      const pushRow = (raw: any, fallbackFile?: string) => {
-        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return;
-        const file = String((raw as any).file ?? (raw as any).path ?? fallbackFile ?? '').trim();
-        if (file === '') return;
-        let parser = String((raw as any).parser ?? '').trim().toLowerCase();
-        if (parser === 'yml') parser = 'yaml';
-        if (!['properties', 'yaml', 'json', 'ini', 'xml', 'file', 'toml'].includes(parser)) parser = 'properties';
-        const find: Record<string, string> = {};
-        const rf = (raw as any).find;
-        if (rf && typeof rf === 'object' && !Array.isArray(rf)) {
-          for (const [k, v] of Object.entries(rf as Record<string, unknown>)) {
-            if (k.trim() === '') continue;
-            if (v !== null && typeof v === 'object' && !Array.isArray(v)) {
-              // Multi-replace map: keep as JSON so the builder can edit it raw.
-              // Simple scalar rows stay plain text.
-              find[k] = JSON.stringify(v);
-            } else {
-              find[k] = String(v ?? '');
-            }
-          }
-        }
-        rows.push({
-          file,
-          parser,
-          find,
-          create_if_missing: !!((raw as any).create_if_missing ?? (raw as any).createIfMissing),
-          description: String((raw as any).description ?? ''),
-        });
-      };
-      if (Array.isArray((s as any).config_files)) {
-        for (const e of (s as any).config_files as any[]) pushRow(e);
-      } else if ((s as any).config_files && typeof (s as any).config_files === 'object') {
-        for (const k of Object.keys((s as any).config_files as Record<string, unknown>).sort()) {
-          pushRow(((s as any).config_files as Record<string, unknown>)[k], k);
-        }
-      }
-      const cfg = (s as any).config;
-      if (cfg && typeof cfg === 'object' && !Array.isArray(cfg)) {
-        const files = (cfg as Record<string, unknown>).files;
-        if (Array.isArray(files)) {
-          for (const e of files as any[]) pushRow(e);
-        } else if (files && typeof files === 'object') {
-          for (const k of Object.keys(files as Record<string, unknown>).sort()) {
-            pushRow((files as Record<string, unknown>)[k], k);
-          }
-        }
-      }
-      if (rows.length > 0) (out as any).config_files = rows;
     }
     if (Array.isArray(s.pages)) {
       // Every row is treated as a custom page. Legacy rows that predate the
