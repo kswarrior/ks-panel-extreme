@@ -217,10 +217,10 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				}
 				log.Printf("Running migration %s", name)
 			}
-			if _, err := db.Exec(string(stripped)); err != nil {
-				return fmt.Errorf("migration %s failed: %w", name, err)
-			}
-			if err := guardedCreateIndex(d, db, name, "email_verification_codes", "evc_email_idx", "email"); err != nil {
+		if err := execMigrationBody(d, db, name, stripped); err != nil {
+			return err
+		}
+		if err := guardedCreateIndex(d, db, name, "email_verification_codes", "evc_email_idx", "email"); err != nil {
 				return err
 			}
 			continue
@@ -275,11 +275,11 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			}
 			stripped := stripAlterColumnLines(body, "mods", "engine_version")
 			stripped = stripCreateIndexLines(stripped, "mod_storage_mod_idx")
-			log.Printf("Running migration %s", name)
-			if _, err := db.Exec(string(stripped)); err != nil {
-				return fmt.Errorf("migration %s failed: %w", name, err)
-			}
-			if err := guardedCreateIndex(d, db, name, "mod_storage", "mod_storage_mod_idx", "mod_slug"); err != nil {
+		log.Printf("Running migration %s", name)
+		if err := execMigrationBody(d, db, name, stripped); err != nil {
+			return err
+		}
+		if err := guardedCreateIndex(d, db, name, "mod_storage", "mod_storage_mod_idx", "mod_slug"); err != nil {
 				return err
 			}
 			continue
@@ -534,10 +534,10 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			}
 			stripped := stripAlterColumnLines(body, "applications", "files")
 			stripped = stripCreateIndexLines(stripped, "idx_application_runs_app")
-			if _, err := db.Exec(string(stripped)); err != nil {
-				return fmt.Errorf("migration %s failed: %w", name, err)
-			}
-			if err := guardedCreateIndex(d, db, name, "application_runs", "idx_application_runs_app", "application_id"); err != nil {
+		if err := execMigrationBody(d, db, name, stripped); err != nil {
+			return err
+		}
+		if err := guardedCreateIndex(d, db, name, "application_runs", "idx_application_runs_app", "application_id"); err != nil {
 				return err
 			}
 			continue
@@ -596,10 +596,10 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				return rerr
 			}
 			stripped := stripCreateIndexLines(body, "idx_instance_ports_instance")
-			if _, err := db.Exec(string(stripped)); err != nil {
-				return fmt.Errorf("migration %s failed: %w", name, err)
-			}
-			if err := guardedCreateIndex(d, db, name, "instance_ports", "idx_instance_ports_instance", "instance_id"); err != nil {
+		if err := execMigrationBody(d, db, name, stripped); err != nil {
+			return err
+		}
+		if err := guardedCreateIndex(d, db, name, "instance_ports", "idx_instance_ports_instance", "instance_id"); err != nil {
 				return err
 			}
 			continue
@@ -646,10 +646,10 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				return rerr
 			}
 			stripped := stripCreateIndexLines(body, "idx_node_wss_channels_node")
-			if _, err := db.Exec(string(stripped)); err != nil {
-				return fmt.Errorf("migration %s failed: %w", name, err)
-			}
-			if err := guardedCreateIndex(d, db, name, "node_wss_channels", "idx_node_wss_channels_node", "node_id"); err != nil {
+		if err := execMigrationBody(d, db, name, stripped); err != nil {
+			return err
+		}
+		if err := guardedCreateIndex(d, db, name, "node_wss_channels", "idx_node_wss_channels_node", "node_id"); err != nil {
 				return err
 			}
 			continue
@@ -665,10 +665,10 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				return rerr
 			}
 			stripped := stripCreateIndexLines(body, "idx_api_key_requests_hash_time")
-			if _, err := db.Exec(string(stripped)); err != nil {
-				return fmt.Errorf("migration %s failed: %w", name, err)
-			}
-			if err := guardedCreateIndex(d, db, name, "api_key_requests", "idx_api_key_requests_hash_time", "key_hash, created_at"); err != nil {
+		if err := execMigrationBody(d, db, name, stripped); err != nil {
+			return err
+		}
+		if err := guardedCreateIndex(d, db, name, "api_key_requests", "idx_api_key_requests_hash_time", "key_hash, created_at"); err != nil {
 				return err
 			}
 			continue
@@ -685,10 +685,10 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			}
 			stripped := stripCreateIndexLines(body, "idx_ticket_attachments_ticket")
 			stripped = stripCreateIndexLines(stripped, "idx_ticket_attachments_sha")
-			if _, err := db.Exec(string(stripped)); err != nil {
-				return fmt.Errorf("migration %s failed: %w", name, err)
-			}
-			if err := guardedCreateIndex(d, db, name, "ticket_attachments", "idx_ticket_attachments_ticket", "ticket_id"); err != nil {
+		if err := execMigrationBody(d, db, name, stripped); err != nil {
+			return err
+		}
+		if err := guardedCreateIndex(d, db, name, "ticket_attachments", "idx_ticket_attachments_ticket", "ticket_id"); err != nil {
 				return err
 			}
 			if err := guardedCreateIndex(d, db, name, "ticket_attachments", "idx_ticket_attachments_sha", "sha256"); err != nil {
@@ -697,9 +697,14 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			continue
 		}
 
-		// Generic path: read + exec the file verbatim. The Postgres files
-		// already use ADD COLUMN IF NOT EXISTS so the body itself is
-		// idempotent; the SQLite files shipping today are either idempotent
+		// Generic path: read the file and exec it statement-by-statement
+		// (see execMigrationBody). One Exec per statement because the
+		// MySQL driver rejects multi-statement strings without
+		// multiStatements=true (which the panel never sets) and because
+		// MySQL has no CREATE INDEX IF NOT EXISTS, so bare index lines
+		// must be guarded per statement on re-run. Postgres files already
+		// use ADD COLUMN IF NOT EXISTS so the body itself is idempotent;
+		// the SQLite files shipping today are either idempotent
 		// (CREATE TABLE IF NOT EXISTS + at most one guarded ALTER we already
 		// short-circuited above) or pure DDL with no re-run risk.
 		content, err := readMigrationsFile(fsys, name)
@@ -707,11 +712,185 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 			return err
 		}
 		log.Printf("Running migration %s", name)
-		if _, err := db.Exec(string(content)); err != nil {
-			return fmt.Errorf("migration %s failed: %w", name, err)
+		if err := execMigrationBody(d, db, name, content); err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+// execMigrationBody executes one migration file statement-by-statement
+// instead of a single verbatim Exec. Three reasons, one per engine:
+//
+//   - MySQL (go-sql-driver) rejects multi-statement strings unless the DSN
+//     carries multiStatements=true, which the panel never sets — every
+//     multi-statement file (e.g. 001 with five CREATE TABLEs) failed on
+//     first launch with Error 1064.
+//   - MySQL has no CREATE INDEX IF NOT EXISTS and regen.sh strips the
+//     clause from the mysql files, so re-running any index-bearing file
+//     failed with "Duplicate key name". Bare CREATE INDEX lines are owned
+//     by the hasIndex guard below on mysql/mariadb (mirrors
+//     guardedCreateIndex); sqlite/postgres keep their native IF NOT EXISTS.
+//   - Postgres validates FK references at CREATE TABLE time while SQLite
+//     allows forward references, so 001 (users before roles) failed with
+//     "relation roles does not exist". Failed statements retry on later
+//     passes until a full pass makes no progress — every statement in the
+//     shipped corpus is idempotent (IF NOT EXISTS / OR IGNORE / guarded),
+//     so a retry can never double-apply.
+//
+// Fail-closed: when a pass resolves nothing, the last statement error is
+// returned with the migration name and statement index.
+func execMigrationBody(d Dialect, db *sql.DB, name string, content []byte) error {
+	stmts := splitSQLStatements(content)
+	pending := stmts
+	var lastErr error
+	for pass := 0; len(pending) > 0 && pass <= len(stmts); pass++ {
+		var failed []string
+		progressed := false
+		for i, s := range pending {
+			if idx, tbl, ok := parseCreateIndex(s); ok && (d.Name() == "mysql" || d.Name() == "mariadb") {
+				if hasIndex(d, db, tbl, idx) {
+					progressed = true
+					continue
+				}
+			}
+			if _, err := db.Exec(s); err != nil {
+				lastErr = fmt.Errorf("migration %s statement %d failed: %w", name, i+1, err)
+				failed = append(failed, s)
+				continue
+			}
+			progressed = true
+		}
+		if len(failed) == 0 {
+			return nil
+		}
+		if !progressed {
+			return lastErr
+		}
+		pending = failed
+	}
+	if lastErr != nil {
+		return lastErr
+	}
+	return fmt.Errorf("migration %s failed: statements did not converge", name)
+}
+
+// splitSQLStatements cuts a migration body into individual statements. Line
+// comments (--) are stripped quote-aware first — header comments carry
+// semicolons that must not split — then the body is cut on semicolons
+// outside single-quoted literals ('' is the escaped quote). Empty fragments
+// are dropped so stray comment-only tails never reach the driver (pgx
+// rejects empty queries). Verified against the shipped corpus: no
+// semicolons inside string literals, no -- inside literals, no
+// triggers/procedures — a future migration adding any of those must extend
+// this splitter, not work around it.
+func splitSQLStatements(content []byte) []string {
+	lines := strings.Split(string(content), "\n")
+	for i, ln := range lines {
+		lines[i] = cutLineComment(ln)
+	}
+	body := strings.Join(lines, "\n")
+	var out []string
+	var cur strings.Builder
+	inStr := false
+	for i := 0; i < len(body); i++ {
+		c := body[i]
+		if c == '\'' {
+			if inStr && i+1 < len(body) && body[i+1] == '\'' {
+				cur.WriteByte(c)
+				cur.WriteByte(body[i+1])
+				i++
+				continue
+			}
+			inStr = !inStr
+			cur.WriteByte(c)
+			continue
+		}
+		if c == ';' && !inStr {
+			if s := strings.TrimSpace(cur.String()); s != "" {
+				out = append(out, s)
+			}
+			cur.Reset()
+			continue
+		}
+		cur.WriteByte(c)
+	}
+	if s := strings.TrimSpace(cur.String()); s != "" {
+		out = append(out, s)
+	}
+	return out
+}
+
+// cutLineComment removes a -- comment suffix outside single-quoted
+// literals ('' is the escaped quote). All -- occurrences in the shipped
+// corpus are real comment starts; the quote tracking keeps a future
+// literal containing -- intact.
+func cutLineComment(ln string) string {
+	inStr := false
+	for i := 0; i+1 < len(ln); i++ {
+		if ln[i] == '\'' {
+			if inStr && ln[i+1] == '\'' {
+				i++
+				continue
+			}
+			inStr = !inStr
+			continue
+		}
+		if !inStr && ln[i] == '-' && ln[i+1] == '-' {
+			return ln[:i]
+		}
+	}
+	return ln
+}
+
+// parseCreateIndex extracts (index, table) from a CREATE [UNIQUE] INDEX
+// statement, tolerating the optional IF NOT EXISTS clause and
+// double-quote/backtick/bracket quoting. ok=false for anything else so the
+// caller falls through to a plain Exec.
+func parseCreateIndex(stmt string) (index, table string, ok bool) {
+	upper := strings.ToUpper(strings.TrimSpace(stmt))
+	if !strings.HasPrefix(upper, "CREATE ") || !strings.Contains(upper, " INDEX ") {
+		return "", "", false
+	}
+	rest := strings.TrimSpace(stmt[len("CREATE "):])
+	if strings.HasPrefix(strings.ToUpper(rest), "UNIQUE ") {
+		rest = strings.TrimSpace(rest[len("UNIQUE "):])
+	}
+	if !strings.HasPrefix(strings.ToUpper(rest), "INDEX ") {
+		return "", "", false
+	}
+	rest = strings.TrimSpace(rest[len("INDEX "):])
+	if strings.HasPrefix(strings.ToUpper(rest), "IF NOT EXISTS ") {
+		rest = strings.TrimSpace(rest[len("IF NOT EXISTS "):])
+	}
+	onPos := strings.Index(strings.ToUpper(rest), " ON ")
+	if onPos < 0 {
+		return "", "", false
+	}
+	index = unquoteIdent(strings.TrimSpace(rest[:onPos]))
+	after := strings.TrimSpace(rest[onPos+len(" ON "):])
+	paren := strings.Index(after, "(")
+	if paren < 0 {
+		return "", "", false
+	}
+	table = unquoteIdent(strings.TrimSpace(after[:paren]))
+	if index == "" || table == "" {
+		return "", "", false
+	}
+	return index, table, true
+}
+
+// unquoteIdent strips one layer of double-quote/backtick/bracket quoting
+// from an identifier spliced out of a CREATE INDEX statement.
+func unquoteIdent(s string) string {
+	if len(s) >= 2 {
+		if (s[0] == '"' && s[len(s)-1] == '"') ||
+			(s[0] == '`' && s[len(s)-1] == '`') ||
+			(s[0] == '[' && s[len(s)-1] == ']') {
+			return s[1 : len(s)-1]
+		}
+	}
+	return s
 }
 
 // columnSpec pairs a column name with the type/clause a guarded ALTER should
