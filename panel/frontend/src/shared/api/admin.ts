@@ -351,6 +351,17 @@ export async function installTemplateFromURL(url: string): Promise<{ id: number 
   return res.data;
 }
 
+// Config-parser tester: renders a parser apply without touching an instance.
+export async function previewTemplateConfig(payload: {
+  parser: string;
+  content: string;
+  find: Record<string, unknown>;
+  env?: Record<string, string>;
+}): Promise<{ content: string; changed: boolean }> {
+  const res = await client.post<{ content: string; changed: boolean }>('/api/templates/config-preview', payload);
+  return res.data;
+}
+
 // ---- Instances -----------------------------------------------------------
 export async function listInstances(): Promise<Instance[]> {
   const res = await client.get<Instance[]>('/api/instances/');

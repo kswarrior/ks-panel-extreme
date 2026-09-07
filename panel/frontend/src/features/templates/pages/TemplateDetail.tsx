@@ -349,7 +349,7 @@ const TemplateDetail: React.FC = () => {
           <div className="rounded-lg border border-white/5 bg-white/[0.02] p-2.5">
             <h4 className="text-[10px] uppercase tracking-wide text-gray-500">Spec items</h4>
             <p className="text-xs text-white mt-1 truncate">{ports.length} ports · {env.length} env · {mounts.length} mounts</p>
-            <p className="text-[11px] text-gray-500">{install.length} install steps · {actions.length} actions</p>
+            <p className="text-[11px] text-gray-500">{install.length} install steps · {actions.length} actions · {configFiles.length} parsers</p>
           </div>
         </div>
 
