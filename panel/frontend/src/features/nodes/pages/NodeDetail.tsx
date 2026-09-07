@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { listNodes, nodeHeartbeats, probeNode, listInstances, rotateNodeToken, deleteNode, purgeLocalNode, getNodeUpdateInfo } from '@/shared/api/admin';
 import type { Node, NodeHeartbeat } from '@/features/nodes/types/node';
 import GlassCard from '@/shared/components/ui/Card';
 import { PageActionsPill } from '@/shared/components/ui/PageActionsPill';
+import SectionRailTabs from '@/shared/components/ui/SectionRailTabs';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import { NodeIcon, nodeIconByKey, isCustomNodeIconSvg } from '../utils/nodeIcons';
 import { HeartbeatIcon, DriverRing, ResourceBar } from '../components/NodesComponents';
@@ -58,6 +59,53 @@ function formatUptime(secs: number): string {
   if (h > 0) return `${h}h`;
   return `${Math.floor(secs / 60)}m`;
 }
+
+type NodeDetailTabId = 'overview' | 'connectivity' | 'placement' | 'updates' | 'timeline';
+
+const NODE_DETAIL_TABS: Array<{ id: NodeDetailTabId; label: string; hint: string; icon: React.ReactNode }> = [
+  {
+    id: 'overview',
+    label: 'Overview',
+    hint: 'Resources, usage & uptime',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>
+    ),
+  },
+  {
+    id: 'connectivity',
+    label: 'Connectivity',
+    hint: 'Mode, TLS, probe & health',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg>
+    ),
+  },
+  {
+    id: 'placement',
+    label: 'Placement',
+    hint: 'Category, limits & drivers',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
+    ),
+  },
+  {
+    id: 'updates',
+    label: 'Edge Update',
+    hint: 'Version, channel & reinstall',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>
+    ),
+  },
+  {
+    id: 'timeline',
+    label: 'Timeline',
+    hint: 'Created, seen & actions',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+    ),
+  },
+];
+
+const VALID_TABS: NodeDetailTabId[] = ['overview', 'connectivity', 'placement', 'updates', 'timeline'];
 
 const NodeDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
