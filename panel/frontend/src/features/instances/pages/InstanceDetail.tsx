@@ -107,53 +107,22 @@ const NoPagesState: React.FC<{ slug: string }> = ({ slug }) => (
   </div>
 );
 
-// hasRenderableContent reports whether a page payload carries anything
-// CustomPageView can render.
-function hasRenderableContent(c: PageContent | null): boolean {
-  return !!c && (!!c.html || !!c.markdown || !!c.blocks);
-}
-
-// specRowState reports whether spec.pages contains a row for `slug`
-// (matching slug or original_slug): 'enabled', 'disabled', or 'absent'.
-// Exported for the floating menu so its shortcut buttons dim exactly when
-// the page itself would refuse to render (explicitly disabled row).
-export function specRowState(spec: Record<string, any> | null, slug: string): 'enabled' | 'disabled' | 'absent' {
-  const pages = Array.isArray(spec?.pages) ? spec.pages : [];
-  for (const p of pages) {
-    if (!p || typeof p !== 'object') continue;
-    const s = typeof (p as any).slug === 'string' ? String((p as any).slug).trim() : '';
-    const o = typeof (p as any).original_slug === 'string' ? String((p as any).original_slug).trim() : '';
-    if (s !== slug && o !== slug) continue;
-    return (p as any).enabled === false ? 'disabled' : 'enabled';
-  }
-  return 'absent';
-}
-
-// filesStarterContent returns the bundled Files library starter as fallback
-// PageContent so the Files page is self-sufficient with zero library imports:
-// `subPath` null → the file manager, 'edit' → the editor sub-page. Returns
-// null when the starter itself carries no content (never expected).
-function filesStarterContent(subPath: string | null): PageContent | null {
-  const starter = PAGE_STARTERS.find((s) => s.slug === 'files');
-  if (!starter) return null;
-  if (subPath) {
-    const sub = (starter.subPages ?? []).find((sp) => String(sp.path).trim() === subPath);
-    const html = typeof sub?.content_html === 'string' ? sub.content_html : '';
-    if (html.trim() === '') return null;
-    return { type: 'html', html };
-  }
-  const html = typeof starter.html === 'string' ? starter.html : '';
-  if (html.trim() === '') return null;
-  return { type: 'html', html };
-}
+// Builtin Files content: the file manager + editor are pure builtins, not
+// instance-pages library content, so the page always renders this bundled UI
+// (spec.pages rows for these slugs, if any linger from older imports, are
+// ignored by design).
+const FILES_EXPLORER_CONTENT: PageContent = { type: 'html', html: LIB_FILES_HTML };
+const FILES_EDITOR_CONTENT: PageContent | null = (() => {
+  const sub = LIB_FILES_SUB_PAGES.find((sp) => String(sp.path).trim() === 'edit');
+  const html = typeof sub?.content_html === 'string' ? sub.content_html : '';
+  return html.trim() !== '' ? { type: 'html', html } : null;
+})();
 
 // TerminalRealPage — native xterm terminal for the terminal shortcut slug
-// (default `terminal`, customizable in Instance Controls). Replaces the
-// custom-page HTML terminal (LIB_TERMINAL_HTML) with the panel's real
+// (default `terminal`, customizable in Instance Controls). The panel's real
 // Terminal.tsx xterm bridge (full PTY, fit addon, theme, mobile keyboard,
-// reconnection). This makes the instance terminal behave exactly like a
-// local shell, not a div-based log viewer. `showHeader` (Instance Controls
-// page option) hides the title + Reconnect/Clear bar for a chromeless shell.
+// reconnection). `showHeader` (Instance Controls page option) hides the
+// title + Reconnect/Clear bar for a chromeless shell.
 const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: boolean }> = ({ instance, title, showHeader = true }) => {
   const termRef = useRef<XTerm | null>(null);
   const handleRef = useRef<TerminalHandle>(null);
@@ -263,6 +232,9 @@ export const InstanceDynamicPage: React.FC = () => {
   const instanceId = Number(id);
   const { instance, loading, error } = useInstance(instanceId);
   const permissions = useAuthStore((s) => s.permissions);
+  // Files bottom pill: Explorer <-> SFTP views. Declared before the early
+  // returns so hook order stays stable across loading states.
+  const [filesTab, setFilesTab] = useState<'explorer' | 'sftp'>('explorer');
 
   if (loading) return <div className="glass-card rounded-xl flex items-center gap-4 animate-pulse"><div className="w-9 h-9 rounded-lg bg-neutral-800 shrink-0" /><div className="h-5 w-1/3 bg-neutral-800 rounded" /></div>;
   if (!instance || error) return <div className="glass-card rounded-xl text-red-400 text-sm">{error || 'Instance not found'}</div>;
