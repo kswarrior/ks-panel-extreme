@@ -15,6 +15,7 @@ import { Gauge } from '@/features/system/components/SystemCharts';
 import { fmtGB } from '@/features/system/components/SystemCharts';
 import { useConfirm } from '@/shared/stores/confirmStore';
 import NodeUpdateTab from '../components/NodeUpdateTab';
+import NodeFilesTab from '../components/NodeFilesTab';
 
 function getErrorMessage(e: any, fallback: string): string {
   const data = e?.response?.data;
@@ -60,7 +61,7 @@ function formatUptime(secs: number): string {
   return `${Math.floor(secs / 60)}m`;
 }
 
-type NodeDetailTabId = 'resources' | 'connectivity' | 'placement' | 'updates' | 'timeline';
+type NodeDetailTabId = 'resources' | 'connectivity' | 'placement' | 'files' | 'updates' | 'timeline';
 
 const NODE_DETAIL_TABS: Array<{ id: NodeDetailTabId; label: string; hint: string; icon: React.ReactNode }> = [
   {
@@ -88,6 +89,14 @@ const NODE_DETAIL_TABS: Array<{ id: NodeDetailTabId; label: string; hint: string
     ),
   },
   {
+    id: 'files',
+    label: 'Files',
+    hint: 'Instance files on this edge',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" /></svg>
+    ),
+  },
+  {
     id: 'updates',
     label: 'Edge Update',
     hint: 'Version, channel & reinstall',
@@ -105,7 +114,7 @@ const NODE_DETAIL_TABS: Array<{ id: NodeDetailTabId; label: string; hint: string
   },
 ];
 
-const VALID_TABS: NodeDetailTabId[] = ['resources', 'connectivity', 'placement', 'updates', 'timeline'];
+const VALID_TABS: NodeDetailTabId[] = ['resources', 'connectivity', 'placement', 'files', 'updates', 'timeline'];
 
 const NodeDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -577,6 +586,15 @@ const NodeDetail: React.FC = () => {
             </div>
           </div>
         </GlassCard>
+      </div>
+      )}
+
+      {tab === 'files' && (
+      <div role="tabpanel" id="rail-panel-files" aria-labelledby="rail-tab-files">
+      <GlassCard className="p-4">
+        <h4 className="text-xs uppercase tracking-wide text-gray-500 mb-3">Instance Files</h4>
+        <NodeFilesTab nodeId={node.id} />
+      </GlassCard>
       </div>
       )}
 
