@@ -769,7 +769,8 @@ func execMigrationBody(d Dialect, db *sql.DB, name string, content []byte) error
 			}
 			stmt := s
 			if d.Name() == "postgres" {
-				stmt = rewriteBlobForPostgres(s)
+				stmt = rewriteBlobForPostgres(stmt)
+				stmt = rewriteInsertOrIgnoreForPostgres(stmt)
 			}
 			if _, err := db.Exec(stmt); err != nil {
 				errs = append(errs, failure{i + 1, err})
