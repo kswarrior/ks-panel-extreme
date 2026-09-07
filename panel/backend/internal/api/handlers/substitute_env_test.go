@@ -192,8 +192,7 @@ func TestResolveEnvWithFile(t *testing.T) {
 	}
 }
 
-func TestValidateTemplateSpecEnvFile(t *testing.T) {
-	if err := validateTemplateSpec(map[string]any{"env_file": "A=1\nB={{TAG}}\n"}); err != nil {
+func TestValidateTemplateSpecEnvFile(t *testing.T) {	if err := validateTemplateSpec(map[string]any{"env_file": "A=1\nB={{TAG}}\n"}); err != nil {
 		t.Fatalf("valid env_file rejected: %v", err)
 	}
 	if err := validateTemplateSpec(map[string]any{"env_file": "NOEQUALS\n"}); err == nil {

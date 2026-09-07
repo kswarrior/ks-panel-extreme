@@ -14,6 +14,8 @@ Defaults (locked to start Phase-0): runtimes `static + nodejs + python`, data `K
 Zip, mirrors `modengine/pkgstore.go` guards (zip-slip, symlink skip, `IsZipBytes`, slug `^[a-z0-9][a-z0-9-]{0,63}$`):
 - `manifest.json` (root, canonical): `name, slug, version, description, icon, color, category [dashboard|tool|tracker|status|crud|custom], routes[], nav{label,icon,order}, permissionsRequested[], backend{runtime [static|nodejs|python], entrypoint, port[0=auto], env{}, health{/health,interval}, cron[]}, frontend{dist, spa:true}, database{kv:true, sqlite:"data.db"|null}, min_panel`
 - `frontend/dist/**` (built static, `index.html` entry, `spa:true` = fallback to index.html)
+- `frontend/pages/**` (SIMPLE pages, no build: `*.md | *.html | *.blocks.json` + `pages.json` manifest; rendered by panel `StackSimplePage` reusing `CustomPageView` + `customPageSdk`)
+- `frontend/theme.css` + `frontend/theme.json` (CUSTOM theme mode only; panel mode uses no files)
 - `backend/**` (`server.js` / `main.py` / empty for static)
 - `spec.json` (opaque UI config passthrough), `README.md` (optional, rendered in Detail)
 - `data/` seed (optional, copied on first install only)
@@ -32,7 +34,7 @@ Manifest example:
     {"capability": "outbound_http", "access_level": "standard"}
   ],
   "backend": {"runtime": "nodejs", "entrypoint": "backend/server.js", "health": "/health"},
-  "frontend": {"dist": "dist", "spa": true},
+  "frontend": {"dist": "dist", "spa": true, "page_style": "spa|simple", "theme": {"mode": "panel|custom|none", "css": "theme.css"}},
   "database": {"kv": true, "sql": "isolated|shared|none", "schema": "schema.sql"}
 }
 ```
@@ -71,7 +73,20 @@ Scoped to `stack-work/<slug>/`, UX copy of `InstanceFiles.tsx`:
 - `handlers/stack_files.go`: `?op=list&path=/` -> `{entries[{name,type,size,mtime,mode}],path}`, `read?path=` (8MiB cap, text detect; binary -> download), `write|mkdir|rename|delete|chmod|unzip`, `upload` multipart (64MiB), `url {path,url}` SSRF-guarded, `zip?path=/` (download folder as zip), `snapshot` (zip workdir to `stack-data/<slug>/snapshots/*.zip`, list/restore). All `MANAGE_STACKS` + `STACKS_OWN/ALL`, `Clean+stay-under-workdir`, hide `.ksextracted`, slug immutable, audit all mutating ops.
 - `StackFilesTab.tsx`: breadcrumb + search, drag&drop, new file/folder, rename/delete/chmod, code editor (`js/py/json/html/css/md/yaml/sql`), image preview, zip download, snapshot list/restore, edit-backend prompt `Restart stack?` button. Tabs in Detail: `Overview | Files | Data/Env | Grants | Logs | Settings`.
 
-## 6. Frontend (complete)
+## 6. Frontend themes (both modes) + simple pages
+
+Theme modes per stack (`manifest.frontend.theme.mode`, default `panel`):
+- `panel` (theme support ON, inherit): iframe URL gets `?theme=<resolvedThemeId>` + postMessage theme tokens (`--ks-*` vars snapshot from `themeStore.resolveThemeForRoute('/stacks/<slug>')`). `StackView` re-sends on `applyForRoute` change. Stack CSS uses `var(--ks-*)` so it repaints with panel. Admin can bind a GLOBAL theme to scope `stacks.<slug>` via existing assign API — no theme-system edits, scope string only. `RouteThemeSync` already fires on `/stacks/*` path change.
+- `custom` (own theme): stack ships `frontend/theme.css + theme.json`. Panel chrome keeps route theme; iframe content loads theme.css first, panel tokens OFF (SDK `theme()` returns `{mode:'custom'}`). No leakage either direction (iframe sandbox).
+- `none`: no tokens, no css. Bare content.
+- Validation: `mode` enum in `ParseManifest`; unknown -> `panel`. `theme.css` capped 512KiB, served via `ui/*` with `text/css`.
+
+Simple pages (`manifest.frontend.page_style=simple`, no build needed):
+- `frontend/pages/pages.json`: `[{slug,title,icon,file}]`; files `*.md | *.html | *.blocks.json` (blocks = `InstancePages` BlockRow JSON, rendered by `CustomPageView`). Reuses `customPageSdk` (`KSPageSDK`) so `{{config:NAME}}` + page actions work like instance pages.
+- `StackSimplePage.tsx`: route `/stacks/:slug/p/:pageSlug` inside `StackView` tabs; fetches `GET /api/stacks/:slug/pages` (list) + `GET /api/stacks/:slug/pages/:page` (content) then renders via `CustomPageView`. Zero iframe for simple pages (panel-rendered, so panel theme applies natively; `custom` mode wraps in theme.css class).
+- `spa` mode keeps iframe `StackView` as before. Both modes share nav/grants/lifecycle. Studio scaffold offers both.
+
+## 6b. Frontend (complete)
 
 - `shared/types/stack.ts`: `Stack{..., category, icon, color, runtime, entrypoint, state, port, source, package_size}, StackPermission, StackEnv{key,masked,secret}, StackKV, StackLog{ts,level,message}, StackStatus, STACK_CATEGORIES, STACK_RUNTIMES, slugify`
 - `features/stacks/api/stacks.ts`: full client — `list/get/create/upload/download/update/delete/setGrants/activate/deactivate/status/logs/nav/files(list/read/write/mkdir/rename/delete/chmod/upload/url/zip/snapshots)/env/kv/dbBackup/wipe/restart/samples`

@@ -128,6 +128,56 @@ func validateTemplateSpec(spec map[string]any) error {
 					return fmt.Errorf("spec.env[%d]: rule must be valid regex: %w", i, err)
 				}
 			}
+			// Structured dropdown rows (spec.env[].options_list): each row is
+			// {svg, label, value} — icon + display name + stored value. Value
+			// is required (the deploy form already offers its own "none"
+			// row for optional vars); svg follows the template-icon rules.
+			if rawOpts, present := m["options_list"]; present && rawOpts != nil {
+				arr, ok := rawOpts.([]any)
+				if !ok {
+					return fmt.Errorf("spec.env[%d]: options_list must be an array", i)
+				}
+				if len(arr) > 50 {
+					return fmt.Errorf("spec.env[%d]: options_list holds at most 50 rows", i)
+				}
+				for j, o := range arr {
+					om, ok := o.(map[string]any)
+					if !ok {
+						return fmt.Errorf("spec.env[%d].options_list[%d] must be an object", i, j)
+					}
+					if getString(om, "value") == "" {
+						return fmt.Errorf("spec.env[%d].options_list[%d]: value is required", i, j)
+					}
+					if len(getString(om, "value")) > 500 {
+						return fmt.Errorf("spec.env[%d].options_list[%d]: value too long (max 500)", i, j)
+					}
+					if len(getString(om, "label")) > 200 {
+						return fmt.Errorf("spec.env[%d].options_list[%d]: label too long (max 200)", i, j)
+					}
+					svg := getString(om, "svg")
+					if len(svg) > 16*1024 {
+						return fmt.Errorf("spec.env[%d].options_list[%d]: svg too large (max 16KB)", i, j)
+					}
+					if svg != "" && strings.Contains(strings.ToLower(svg), "<script") {
+						return fmt.Errorf("spec.env[%d].options_list[%d]: svg must not contain <script>", i, j)
+					}
+				}
+			}
+			// Checkbox send-values: plain strings, capped like other fields.
+			for _, k := range []string{"checked_value", "unchecked_value"} {
+				if v, present := m[k]; present && v != nil {
+					s, ok := v.(string)
+					if !ok {
+						return fmt.Errorf("spec.env[%d]: %s must be a string", i, k)
+					}
+					if len(s) > 500 {
+						return fmt.Errorf("spec.env[%d]: %s too long (max 500)", i, k)
+					}
+					if strings.Contains(s, "\n") || strings.Contains(s, "\r") {
+						return fmt.Errorf("spec.env[%d]: %s must not contain newlines", i, k)
+					}
+				}
+			}
 			// Scopes gate where {{NAME}}/${NAME} substitutes (empty = everywhere).
 			// Strict here so a typo fails fast at save time, not silently at deploy.
 			if rawScopes, present := m["scopes"]; present && rawScopes != nil {
