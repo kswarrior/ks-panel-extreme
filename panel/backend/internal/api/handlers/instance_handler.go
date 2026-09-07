@@ -1827,8 +1827,10 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 		// A down edge must not fail the deploy — rotate re-pushes later.
 		autoProvisionSFTPOnDeploy(con2, id)
 
-		// If template has install steps, kick off the install workflow.
-		if len(installSteps) > 0 {
+		// If template has install steps or config parsers, kick off the install workflow.
+		// Config-only templates (no install[] but config_files[]) still run a
+		// workflow so parsers apply inside the workload post-deploy.
+		if len(installSteps) > 0 || len(deployConfigFiles) > 0 {
 			installState := "running"
 			installID := tmpl.Kind + ":" + req.Name
 			installStep := 0
@@ -1867,6 +1869,10 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 				// Only install-scoped vars reach the workflow: an actions-only
 				// var must not leak into (or be required by) install steps.
 				// File-declared (.env) vars carry no scope and pass through.
+				// Config-file parsers resolve via the config_files scope, but
+				// the workflow still needs the install-scoped subset for step
+				// substitution; the edge re-resolves parser find values from
+				// ConfigFiles (already substituted at deploy).
 				EnvVars: filterEnvForScope(mergedEnv, envScopesByName(envSpecs), "install"),
 				// Template-authored workflow budget (spec.install_timeout_sec).
 				// 0 = unset → the edge applies its own 30-minute default, so
@@ -1875,6 +1881,8 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 				// Installation console: keep stdin only when the template
 				// binds install_terminal_id (see keepStdinForInstall).
 				KeepStdin: keepStdinForInstall(tmplSpec),
+				// Resolved config-file parsers (spec.config_files[]).
+				ConfigFiles: deployConfigFiles,
 			})
 			if err != nil {
 				log.Printf("install kick-off for instance %d failed: %v", id, err)

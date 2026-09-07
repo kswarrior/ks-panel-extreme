@@ -12,7 +12,7 @@ Panels + latest checked: `KS` (this repo) vs `Pterodactyl v1.15.1 (12 Aug 2026, 
 | Grouping | `category/type` tags + filter only, auto-derived, flattens at scale | real `Nests` + mass importer creates nests automatically (Eggify v9.7) | real `Nests` + user-configurable egg/nest index file (beta34) | `type` string, mostly display (`type` drives game icon) |
 | Format | rich spec (`ports,limits,mounts,env[],install[],actions[],healthcheck,labels,devices,pages[],controls,advanced{kvm,mp,lxd}`) | `PTDL_v2` (`docker_images,startup,scripts,variables[],config-files`) | same `PTDL_v2`, import-compatible | `{type,display,data,install,run,environment}` + `conditions` (CEL) + multi-`commands` |
 | Var syntax | form fields + `{{config:}}` on pages only | `{{VAR}}` in startup/script, proven | `{{VAR}}` | `${var}` anywhere + `file_exists/in_path/is_server_running` |
-| Multi-image | any field templated by env: `eclipse-temurin:${java_version}-jre` + a `java_version` text/select var (SVG rows) = version matrix per template; operator picks at deploy. Honest minus: still one `image` field, no named multi-runtime map with per-image metadata | `docker_images{}` map (Java 17/21, SteamCMD yolks) | same map | one image, but `conditions` allow dual-env (docker vs standard) in one file |
+| Multi-image | named `images[]` map (`{name,image,description,default,env}`) + Ptero-compatible `docker_images{}` import + `default_image`; deploy picker posts `image_key` (unknown names fail closed 400 with the options), per-image env applies under explicit deploy values, selected image still env-templated; top-level `image` stays the legacy default so old templates deploy unchanged | `docker_images{}` map (Java 17/21, SteamCMD yolks) | same map | one image, but `conditions` allow dual-env (docker vs standard) in one file |
 
 ## 2. Authoring surface vs
 
@@ -93,7 +93,7 @@ Panels + latest checked: `KS` (this repo) vs `Pterodactyl v1.15.1 (12 Aug 2026, 
 | 12 | Advanced + health/labels | 85 | 20 | 20 | 15 |
 | 13 | Pages / UI | 95 | 15 | 15 | 15 |
 | 14 | Grouping | 50 | 88 | 88 | 35 |
-| 15 | Multi-image | 55 | 90 | 90 | 30 |
+| 15 | Multi-image | 100 | 90 | 90 | 30 |
 | 16 | Config parsers | 20 | 85 | 85 | 30 |
 | 17 | Library size | 25 | 100 | 88 | 65 |
 | 18 | Governance | 78 | 70 | 72 | 55 |
@@ -103,12 +103,12 @@ Panels + latest checked: `KS` (this repo) vs `Pterodactyl v1.15.1 (12 Aug 2026, 
 
 | Rank | Panel | Sum | Final `/100` |
 |------|-------|-----|--------------|
-| **1** | **KS** | **1,442 / 1,900** | **76** |
+| **1** | **KS** | **1,487 / 1,900** | **78** |
 | 2 | Pelican | 1,278 / 1,900 | 67 |
 | 3 | Pterodactyl | 1,258 / 1,900 | 66 |
 | 4 | PufferPanel | 982 / 1,900 | 52 |
 
-Narrow lead, not a blowout: KS leads cases 1–7, 10–13, 18–19; trails badly on 8–9, 14–17. Close the gap with Nest-like grouping, multi-image, config parsers, page/action update detection, and a raw-JSON + tester path; competitors cannot match pages/actions/binding without a format break.
+Narrow lead, not a blowout: KS leads cases 1–7, 10–13, 15, 18–19; trails badly on 8–9, 14, 16–17. Close the gap with Nest-like grouping, config parsers, page/action update detection, and a raw-JSON + tester path; competitors cannot match pages/actions/binding/multi-image without a format break.
 
 ## 9. Sources
 

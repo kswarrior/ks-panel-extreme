@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -134,8 +135,7 @@ func TestResolveDeployImageDefaultImageName(t *testing.T) {
 	}
 }
 
-func TestMergeManifestImagesIntoSpec(t *testing.T) {
-	specMap := map[string]any{}
+func TestMergeManifestImagesIntoSpec(t *testing.T) {	specMap := map[string]any{}
 	manifest := map[string]any{
 		"docker_images": map[string]any{"Java 17": "eclipse-temurin:17-jre"},
 		"name":          "x",
