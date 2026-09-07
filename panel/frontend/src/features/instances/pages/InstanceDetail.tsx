@@ -108,14 +108,6 @@ const NoPagesState: React.FC<{ slug: string }> = ({ slug }) => (
   </div>
 );
 
-  // Files is a pure builtin, not an instance-pages system page: the native
-  // file manager below always renders (spec.pages rows for these slugs, if
-  // any linger from older imports, are ignored by design). The bottom pill
-  // switches the Explorer and SFTP views; both stay mounted so switching
-  // never loses explorer state. The pill hides when the Files shortcut's
-  // "Show SFTP card" page option is off.
-  if (effectiveSlug === filesSlug || effectiveSlug === 'files') {
-
 // TerminalRealPage — native xterm terminal for the terminal shortcut slug
 // (default `terminal`, customizable in Instance Controls). The panel's real
 // Terminal.tsx xterm bridge (full PTY, fit addon, theme, mobile keyboard,
@@ -355,9 +347,9 @@ export const InstanceDynamicPage: React.FC = () => {
     );
   }
 
-  // Files is a pure builtin, not an instance-pages system page: the bundled
-  // file manager always renders (spec.pages rows for these slugs, if any
-  // linger from older imports, are ignored by design). The bottom pill
+  // Files is a pure builtin, not an instance-pages system page: the native
+  // file manager below always renders (spec.pages rows for these slugs, if
+  // any linger from older imports, are ignored by design). The bottom pill
   // switches the Explorer and SFTP views; both stay mounted so switching
   // never loses explorer state. The pill hides when the Files shortcut's
   // "Show SFTP card" page option is off.
@@ -368,12 +360,7 @@ export const InstanceDynamicPage: React.FC = () => {
       <ErrorBoundary resetKey={`files-${instanceId}`} label="instance-page">
         <div className="space-y-4 pb-20">
           <div className={showExplorer ? '' : 'hidden'}>
-            <CustomPageView
-              content={FILES_EXPLORER_CONTENT}
-              title={shortcutLabel(controls, 'files')}
-              instanceContext={instanceContext}
-              pageSlug={effectiveSlug}
-            />
+            <InstanceFiles instanceId={instanceId} filesSlug={filesSlug} />
           </div>
           {showSftp && (
             <div className={filesTab === 'sftp' ? '' : 'hidden'}>
@@ -399,7 +386,7 @@ export const InstanceDynamicPage: React.FC = () => {
                 title="File explorer"
                 className={`ks-tab rounded-full inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium transition${filesTab === 'explorer' ? ' ks-tab-active' : ''}`}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1 2 2H5a2 2 0 0 1-2-2Z" /></svg>
                 <span>Explorer</span>
               </button>
               <button
@@ -416,6 +403,16 @@ export const InstanceDynamicPage: React.FC = () => {
             </div>
           </nav>
         )}
+      </ErrorBoundary>
+    );
+  }
+
+  // Files editor sub-page: the native React editor (pure builtin, like the
+  // manager above).
+  if (effectiveSlug === `${filesSlug}/edit`) {
+    return (
+      <ErrorBoundary resetKey={`files-edit-${instanceId}`} label="instance-page">
+        <InstanceFileEditor instanceId={instanceId} filesSlug={filesSlug} />
       </ErrorBoundary>
     );
   }
