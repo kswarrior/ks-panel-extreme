@@ -783,7 +783,7 @@ func UpdateInstanceHandler(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-		if len(steps) > 0 && status != "running" {
+		if recreateGuard := len(steps) > 0 || len(configFilesForEdge(merged)) > 0; recreateGuard && status != "running" {
 			failMsg := fmt.Sprintf(
 				"container exited before install workflow could start after recreate (docker status=%q, id=%s)",
 				status, resp.ExternalID,
@@ -792,7 +792,7 @@ func UpdateInstanceHandler(w http.ResponseWriter, r *http.Request) {
 			_ = repo2.SetStatus(id, "install_failed", resp.ExternalID, failMsg)
 			return
 		}
-		if len(steps) > 0 {
+		if recreateNeedsWorkflow := len(steps) > 0 || len(configFilesForEdge(merged)) > 0; recreateNeedsWorkflow {
 			status = "installing"
 		}
 		if err := repo2.SetStatus(id, status, resp.ExternalID, ""); err != nil {
@@ -1185,6 +1185,8 @@ func reinstallAsync(instID, nodeID int64, kind, name string, cfg map[string]any)
 			// Installation console: keep stdin only when the template
 			// binds install_terminal_id (see keepStdinForInstall).
 			KeepStdin: keepStdinForInstall(cfg),
+			// Resolved config parsers ride along (same contract as deploy).
+			ConfigFiles: reinstallFiles,
 		}); err != nil {
 			log.Printf("reinstall async: install kick-off for instance %d failed: %v", instID, err)
 			_ = repo2.UpdateInstallStatus(instID, "failed", kind+":"+name, 0, "edge install start failed: "+err.Error(), string(mustJSON(steps)))
