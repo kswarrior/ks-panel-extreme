@@ -414,6 +414,16 @@ export interface TemplateFormState {
   description: string;
   kind: DriverKind;
   image: string;
+  // Named multi-image runtimes (spec.images[]): each row is a selectable
+  // runtime with per-image metadata. The top-level `image` stays the
+  // implicit default so old templates deploy unchanged; when rows exist
+  // the deploy form offers them as a picker and posts `image_key`.
+  // Ptero-style spec.docker_images{} maps are merged into this list on
+  // load (sorted by name) and saved back as images[].
+  images: TemplateImage[];
+  // Explicit default entry name (spec.default_image). Empty = the
+  // default:true row, else the top-level image, else the first row.
+  default_image: string;
   /** Raw SVG markup for the template tile (migration 059). */
   icon: string;
   /** Optional #rrggbb accent tinting the tile on cards. */
@@ -451,6 +461,25 @@ export interface TemplateFormState {
   // Snapshotted into instance.Config on deploy. Missing = allow all.
   instance_controls: InstanceControls;
 }
+
+// One named runtime in the multi-image map (spec.images[] entry):
+// selectable at deploy time via `image_key`, with per-image metadata and
+// optional per-image env overrides (applied under explicit deploy values).
+export interface TemplateImage {
+  name: string;
+  image: string;
+  description: string;
+  is_default: boolean;
+  env: Record<string, string>;
+}
+
+export const emptyTemplateImage = (): TemplateImage => ({
+  name: '',
+  image: '',
+  description: '',
+  is_default: false,
+  env: {},
+});
 
 export type TemplateTabId =
   | 'general'
@@ -520,6 +549,8 @@ export const emptyForm: TemplateFormState = {
   description: '',
   kind: 'docker',
   image: '',
+  images: [],
+  default_image: '',
   icon: '',
   color: '',
   ports: [{ host: '', guest: '', protocol: 'tcp' }],

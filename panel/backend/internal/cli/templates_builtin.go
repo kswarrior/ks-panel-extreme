@@ -31,12 +31,16 @@ var builtinTemplates = []builtinTemplate{
 	{
 		Key:         "minecraft",
 		Name:        "Minecraft",
-		Description: "Vanilla Minecraft server on the Eclipse Temurin 21 JRE. The install workflow downloads the official server.jar into the /mc bind-mount and writes eula.txt; once install completes the panel stops the container, so the operator must explicitly click the 'Start Java' action button on the instance home page to launch `java -jar server.jar`. Auto-start-instance is enabled on the action so a stopped container is started first, then the action runs java inside; auto-stop-on-exit ensures the container is torn down again when the java process exits (so a crashed server doesn't leave a half-idle container). The /mc world directory is bind-mounted to a host path so the File Manager can browse it and server.jar + the world survive container restarts.",
+		Description: "Vanilla Minecraft server on the Eclipse Temurin 21 JRE. The install workflow downloads the official server.jar into the /mc bind-mount and writes eula.txt; once install completes the panel stops the container, so the operator must explicitly click the 'Start Java' action button on the instance home page to launch `java -jar server.jar`. Auto-start-instance is enabled on the action so a stopped container is started first, then the action runs java inside; auto-stop-on-exit ensures the container is torn down again when the java process exits (so a crashed server doesn't leave a half-idle container). The /mc world directory is bind-mounted to a host path so the File Manager can browse it and server.jar + the world survive container restarts. Ships two named runtimes (Java 21 default, Java 17 for older plugins) — pick one at deploy time.",
 		Kind:        "docker",
 		Image:       "eclipse-temurin:21-jre",
 		Spec: `{
   "category": "game",
   "type": "minecraft",
+  "images": [
+    { "name": "Java 21", "image": "eclipse-temurin:21-jre", "description": "Eclipse Temurin 21 JRE (LTS, default)", "default": true },
+    { "name": "Java 17", "image": "eclipse-temurin:17-jre", "description": "Eclipse Temurin 17 JRE (older plugins)" }
+  ],
   "ports": [
     { "host": 25565, "container": 25565, "protocol": "tcp" }
   ],
