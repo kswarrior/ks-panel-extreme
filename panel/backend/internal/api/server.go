@@ -638,6 +638,12 @@ func NewRouter() http.Handler {
 			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionEdit)).Put("/{id}/grants", handlers.SetStackGrantsHandler)
 			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionEdit)).Post("/{id}/activate", handlers.ActivateStackHandler)
 			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionEdit)).Post("/{id}/deactivate", handlers.DeactivateStackHandler)
+			// Workdir file manager (Studio Files tab + Detail Files section).
+			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionView)).Get("/{id}/files", handlers.ListStackFilesHandler)
+			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionView)).Get("/{id}/files/read", handlers.ReadStackFileHandler)
+			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionView)).Get("/{id}/files/download", handlers.DownloadStackFileHandler)
+			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionEdit)).Post("/{id}/files", handlers.MutateStackFileHandler)
+			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionEdit)).Post("/{id}/files/upload", handlers.UploadStackFilesHandler)
 		})
 
 		// Admin: Instance Pages management. MANAGE_INSTANCE_PAGES (umbrella) implies every action;
