@@ -266,18 +266,12 @@ const InstanceForm: React.FC = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <FormPage
-        crumbs={[{ label: 'Instances', to: '/instances' }, { label: 'Deploy Instance' }]}
-        hideHeader
-        maxWidth="max-w-3xl"
-      >
-        <FormSkeleton fields={5} />
-      </FormPage>
-    );
-  }
-
+  // NOTE: every hook must run before ANY early return. These two useMemo
+  // calls used to sit after the `if (loading) return` below, so the
+  // first render (loading=true) ran fewer hooks than the next one
+  // (loading=false) — React error #310 ("Rendered more hooks than during
+  // the previous render") which crashed /instances/new on every load.
+  // Derived plain values live here too so hook deps stay stable.
   const selectedTemplate = templates.find((t) => t.id === templateId);
   const selectedNode = nodes.find((n) => n.id === nodeId);
   const selectedOwner = users.find((u) => u.id === ownerId);
@@ -306,6 +300,18 @@ const InstanceForm: React.FC = () => {
       return true;
     });
   }, [editor.env, effectiveImageKey, imageOptions.length]);
+
+  if (loading) {
+    return (
+      <FormPage
+        crumbs={[{ label: 'Instances', to: '/instances' }, { label: 'Deploy Instance' }]}
+        hideHeader
+        maxWidth="max-w-3xl"
+      >
+        <FormSkeleton fields={5} />
+      </FormPage>
+    );
+  }
 
   return (
     <>
