@@ -303,6 +303,19 @@ export async function approveAITicket(ticketId: string, threadId?: number | null
   }
 }
 
+// Deny invalidates a pending write ticket server-side (single-use consume,
+// idempotent) so a denied proposal can never be approved later via the API.
+// The UI still clears its pending state even if this call fails — the ticket
+// expires after 10 minutes either way.
+export async function denyAITicket(ticketId: string): Promise<void> {
+  try {
+    await client.delete(`/api/ai/ticket/${encodeURIComponent(ticketId)}`);
+  } catch {
+    // Deny is best-effort: the ticket expires on its own. Swallowing here
+    // keeps the UI responsive; the store still clears the pending card.
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Streaming (SSE POST /api/ai/chat/stream). axios can't consume incremental
 // bodies, so this uses fetch with the same auth (Bearer + cookie). Resolves

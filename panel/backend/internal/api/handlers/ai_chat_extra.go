@@ -749,7 +749,10 @@ func AIUsageHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
-	if err := permissions.NewChecker(con).EnsureAny(uid, permissions.ViewSettingsKey, permissions.SettingsEditKey); err != nil {
+	// Mirror the route View gate (VIEW_SETTINGS or SETTINGS_VIEW/EDIT):
+	// omitting SETTINGS_VIEW would lock out view-only narrowed roles that
+	// the route admits.
+	if err := permissions.NewChecker(con).EnsureAny(uid, permissions.ViewSettingsKey, permissions.SettingsViewKey, permissions.SettingsEditKey); err != nil {
 		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 		return
 	}
@@ -821,4 +824,45 @@ func AIUsageHandler(w http.ResponseWriter, r *http.Request) {
 		"by_model": byModel,
 		"recent":   recentOut,
 	})
+}
+
+// ---------------------------------------------------------------------------
+// Confirmation-ticket deny (DELETE /api/ai/ticket/{id}).
+// ---------------------------------------------------------------------------
+
+// AITicketDenyHandler invalidates a pending write-ticket without executing
+// it. Deny is idempotent (unknown/expired/foreign ids still answer ok) so
+// the UI can always clear its pending state, but a denied ticket can never
+// be approved afterwards: deny consumes it via the same single-use Take as
+// approval. Scoped by the chat gate + user_id, so users can only deny their
+// own tickets.
+func AITicketDenyHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	con, err := repository.OpenDB()
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	defer con.Close()
+	uid, err := UserIDFromContext(r)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if err := permissions.NewChecker(con).EnsureAIChatAccess(uid); err != nil {
+		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+		return
+	}
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		http.Error(w, "invalid ticket id", http.StatusBadRequest)
+		return
+	}
+	// Consume (and discard) the ticket when it exists and is ours; anything
+	// else is already gone, which is the desired end state for a deny.
+	_, _ = aiTakeTicket(con, id, uid)
+	writeJSON(w, map[string]any{"ok": true})
 }

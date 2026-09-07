@@ -4,6 +4,7 @@ import {
   approveAITicket,
   createAIThread,
   deleteAIThread,
+  denyAITicket,
   getAIThread,
   listAIThreads,
   loadRetryPrefs,
@@ -181,7 +182,9 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
   },
 
   newThread: async () => {
-    if (get().loading) return;
+    // Block while a write ticket is pending (mirrors selectThread): starting
+    // a fresh thread would orphan the approval context the ticket belongs to.
+    if (get().loading || get().ticket) return;
     try {
       const th = await createAIThread();
       rememberThreadId(th.id);
@@ -344,6 +347,10 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
   denyTicket: () => {
     const t = get().ticket;
     if (!t) return;
+    // Invalidate server-side so the denied proposal can never be approved
+    // later via the API (the history bubble keeps the ID visible, so the
+    // server must consume it). Best-effort: expiry covers any failure.
+    void denyAITicket(t.id);
     const note: ChatBubble = {
       id: get().nextId,
       role: 'assistant',
