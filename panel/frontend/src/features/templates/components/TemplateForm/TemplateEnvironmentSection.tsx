@@ -85,7 +85,7 @@ export const TemplateEnvironmentSection: React.FC<EnvironmentSectionProps> = ({
             readOnly={!onImageChange}
           />
           <p className="text-[11px] text-gray-500 mt-1">
-            Variables work here: <code className="font-mono text-gray-400">{'{{IMAGE}}'}</code> / <code className="font-mono text-gray-400">{'${IMAGE}'}</code> + a select env var = multi-image template.
+            Variables work here: <code className="font-mono text-gray-400">{'{{IMAGE}}'}</code> / <code className="font-mono text-gray-400">{'${IMAGE}'}</code> / <code className="font-mono text-gray-400">{'$(IMAGE)'}</code> + a select env var = multi-image template.
           </p>
         </div>
 
