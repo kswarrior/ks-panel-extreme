@@ -90,6 +90,12 @@ var builtinTemplates = []builtinTemplate{
 "max_runtime_s": "",
        "stop_command": "stop",
        "stop_mode": "same",
+       "terminal_id": "mc-console",
+       "terminal_stop_on_exit": true,
+       "terminal_allow_input": "all",
+       "terminal_allowed_commands": "",
+       "terminal_blocked_commands": "",
+       "terminal_timeout_s": "",
        "steps": [
         { "action": "shell", "command": "cd /mc && exec java -Xmx1500M -jar server.jar --nogui" }
       ]
