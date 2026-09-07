@@ -284,6 +284,11 @@ const SHORTCUT_FIELDS: (keyof InstanceShortcutConfig)[] = [
   'show_sftp',
   'show_header',
   'allow_edit',
+  'terminal_allow_multi',
+  'terminal_max',
+  'terminal_default_stop_on_exit',
+  'terminal_default_allow_input',
+  'terminal_default_timeout_s',
 ];
 
 export function isShortcutCustom(a: InstanceShortcutConfig, b: InstanceShortcutConfig): boolean {

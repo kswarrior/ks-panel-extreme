@@ -25,9 +25,15 @@ import { isHexColor, rgbaAt } from '@/theme/colorUtils';
 
 type ConnState = 'connecting' | 'connected' | 'reconnecting' | 'closed' | 'error';
 
-function wsUrlFor(instanceId: number): string {
+function wsUrlFor(instanceId: number, terminalId?: string, timeoutS?: string): string {
   const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  return `${proto}://${window.location.host}/api/instances/${instanceId}/terminal`;
+  const base = `${proto}://${window.location.host}/api/instances/${instanceId}/terminal`;
+  const q: string[] = [];
+  const tid = (terminalId || '').trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, '');
+  if (tid) q.push(`terminal=${encodeURIComponent(tid)}`);
+  const t = String(timeoutS ?? '').trim().replace(/[^0-9]/g, '');
+  if (t && t !== '0') q.push(`timeout=${encodeURIComponent(t)}`);
+  return q.length > 0 ? `${base}?${q.join('&')}` : base;
 }
 
 // terminalThemeFor derives the xterm palette from the ACTIVE theme so the
@@ -113,6 +119,24 @@ interface TerminalProps {
   // fresh resize frame.
   onTermRef?: (term: XTerm | null) => void;
   onTitleChange?: (title: string) => void;
+  // Action-bound pane identity: forwarded as ?terminal= so the panel/edge
+  // can scope the session (and the parent can match it against a template
+  // action's terminal_id). Empty = plain shell (legacy behaviour).
+  terminalId?: string;
+  // Attach budget in seconds, forwarded as ?timeout= (empty = no limit).
+  timeoutS?: string;
+  // When true the pane is read-only: keystrokes are swallowed locally and
+  // never reach the bridge (used for `disabled` input mode and for
+  // stop-on-exit panes after the bound action ends).
+  readOnly?: boolean;
+  // Line gate for bound terminals (allowlist mode): receives the completed
+  // line (without the trailing newline) when the user presses Enter.
+  // Return an error message to block the line (rendered in red), null to
+  // allow it through. Character echo still works; only the submit is gated.
+  validateInput?: (line: string) => string | null;
+  // Fired when the bridge reports process exit (used for stop-on-exit panes
+  // to flip into the locked "terminal stopped" state).
+  onExit?: (code: number) => void;
 }
 
 // TerminalHandle exposes imperative actions the host page can wire to
@@ -125,7 +149,7 @@ export interface TerminalHandle {
   reconnect: () => void;
 }
 
-const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStateChange, onTermRef, onTitleChange }, ref) => {
+const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStateChange, onTermRef, onTitleChange, terminalId, timeoutS, readOnly, validateInput, onExit }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -141,6 +165,18 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
   useEffect(() => {
     onTitleChangeRef.current = onTitleChange;
   }, [onTitleChange]);
+  const readOnlyRef = useRef(readOnly);
+  useEffect(() => {
+    readOnlyRef.current = readOnly;
+  }, [readOnly]);
+  const validateRef = useRef(validateInput);
+  useEffect(() => {
+    validateRef.current = validateInput;
+  }, [validateInput]);
+  const onExitRef = useRef(onExit);
+  useEffect(() => {
+    onExitRef.current = onExit;
+  }, [onExit]);
 
   // Bridge the imperative `reconnect()` to the parent's ref. We resolve it
   // lazily (no static dependency array) so the parent always picks up the
@@ -209,7 +245,42 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
       wsRef.current?.send(JSON.stringify({ type: 'resize', cols, rows }));
     };
 
-    const dataSub = term.onData((d) => sendStdin(d));
+    // Gated input: read-only panes swallow everything; allowlist panes echo
+    // freely but validate each completed line on Enter and drop blocked
+    // lines with a red reason instead of forwarding them.
+    const lineBuf = { current: '' };
+    const dataSub = term.onData((d) => {
+      if (readOnlyRef.current) return;
+      const validate = validateRef.current;
+      if (!validate) {
+        sendStdin(d);
+        return;
+      }
+      // Track the current line so Enter can be validated. Control sequences
+      // (arrows, etc.) start with ESC and don't affect the buffer.
+      if (d === '\r' || d === '\n') {
+        const line = lineBuf.current;
+        lineBuf.current = '';
+        const reason = validate(line);
+        if (reason) {
+          term.write(`\r\n\x1b[31m● blocked: ${reason}\x1b[0m\r\n`);
+          return;
+        }
+        sendStdin(d);
+        return;
+      }
+      if (d === '\u007f' || d === '\b') {
+        lineBuf.current = lineBuf.current.slice(0, -1);
+        sendStdin(d);
+        return;
+      }
+      if (d.charCodeAt(0) === 27) {
+        sendStdin(d);
+        return;
+      }
+      if (d >= ' ' || d === '\t') lineBuf.current += d;
+      sendStdin(d);
+    });
     const resizeSub = term.onResize(({ cols, rows }) => sendResize(cols, rows));
     const titleSub = term.onTitleChange((t) => onTitleChangeRef.current?.(t));
 

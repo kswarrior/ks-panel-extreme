@@ -373,12 +373,68 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
                     />
                   )}
                   {key === 'terminal' && (
+                    <>
                     <MiniToggle
                       checked={s.show_header}
                       onChange={(v) => updateShortcut(key, { show_header: v })}
                       label="Show header bar"
                       hint="Title + Reconnect / Clear buttons above the terminal"
                     />
+                    <MiniToggle
+                      checked={s.terminal_allow_multi}
+                      onChange={(v) => updateShortcut(key, { terminal_allow_multi: v })}
+                      label="Allow multiple terminals"
+                      hint="Operators may add more terminal panes together on the Terminal page"
+                    />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                      <div>
+                        <label className="block text-[11px] text-gray-500 mb-0.5">Max terminals (empty = unlimited)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={s.terminal_max}
+                          onChange={(e) => updateShortcut(key, { terminal_max: e.target.value.replace(/[^0-9]/g, '') })}
+                          placeholder="4"
+                          aria-label="Maximum terminal panes"
+                          className="glass-field font-mono w-full"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] text-gray-500 mb-0.5">New-pane input default</label>
+                        <select
+                          value={s.terminal_default_allow_input}
+                          onChange={(e) => updateShortcut(key, { terminal_default_allow_input: e.target.value as typeof s.terminal_default_allow_input })}
+                          aria-label="Default terminal input mode"
+                          className="glass-field w-full"
+                        >
+                          <option value="all">Allow all input</option>
+                          <option value="allowlist">Selected commands only</option>
+                          <option value="disabled">Read-only</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <MiniToggle
+                        checked={s.terminal_default_stop_on_exit}
+                        onChange={(v) => updateShortcut(key, { terminal_default_stop_on_exit: v })}
+                        label="Stop pane when action ends"
+                        hint="New panes lock input once the bound action's process exits"
+                      />
+                      <div>
+                        <label className="block text-[11px] text-gray-500 mb-0.5">New-pane timeout (s, optional)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={s.terminal_default_timeout_s}
+                          onChange={(e) => updateShortcut(key, { terminal_default_timeout_s: e.target.value.replace(/[^0-9]/g, '') })}
+                          placeholder="no limit"
+                          aria-label="Default terminal timeout seconds"
+                          className="glass-field font-mono w-full"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-gray-500">Each pane stays fully customizable (ID, input mode, timeout, stop-on-exit) without editing the template. Enter an action's Terminal ID to stream its full log + gated input.</p>
+                    </>
                   )}
                   {key === 'ports' && (
                     <MiniToggle
