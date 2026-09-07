@@ -31,7 +31,8 @@ import Terminal, { type TerminalHandle } from '@/shared/components/ui/Terminal';
 import type { Terminal as XTerm } from '@xterm/xterm';
 import InstancePortsEditor from '@/features/instances/pages/InstancePortsEditor';
 import InstanceOverview from '@/features/instances/pages/InstanceOverview';
-import { LIB_FILES_HTML, LIB_FILES_SUB_PAGES } from '@/features/instance-pages/templates/pageStarters';
+import InstanceFiles from '@/features/instances/pages/InstanceFiles';
+import InstanceFileEditor from '@/features/instances/pages/InstanceFileEditor';
 import { resolveInstanceControls, shortcutLabel, shortcutSlug } from '@/features/instances/utils/instanceControls';
 import InstanceSftpCard from '@/features/instances/components/InstanceSftpCard';
 import InstanceSnapshotsTab from '@/features/instances/components/InstanceSnapshotsTab';
@@ -107,16 +108,13 @@ const NoPagesState: React.FC<{ slug: string }> = ({ slug }) => (
   </div>
 );
 
-// Builtin Files content: the file manager + editor are pure builtins, not
-// instance-pages library content, so the page always renders this bundled UI
-// (spec.pages rows for these slugs, if any linger from older imports, are
-// ignored by design).
-const FILES_EXPLORER_CONTENT: PageContent = { type: 'html', html: LIB_FILES_HTML };
-const FILES_EDITOR_CONTENT: PageContent | null = (() => {
-  const sub = LIB_FILES_SUB_PAGES.find((sp) => String(sp.path).trim() === 'edit');
-  const html = typeof sub?.content_html === 'string' ? sub.content_html : '';
-  return html.trim() !== '' ? { type: 'html', html } : null;
-})();
+  // Files is a pure builtin, not an instance-pages system page: the native
+  // file manager below always renders (spec.pages rows for these slugs, if
+  // any linger from older imports, are ignored by design). The bottom pill
+  // switches the Explorer and SFTP views; both stay mounted so switching
+  // never loses explorer state. The pill hides when the Files shortcut's
+  // "Show SFTP card" page option is off.
+  if (effectiveSlug === filesSlug || effectiveSlug === 'files') {
 
 // TerminalRealPage — native xterm terminal for the terminal shortcut slug
 // (default `terminal`, customizable in Instance Controls). The panel's real
