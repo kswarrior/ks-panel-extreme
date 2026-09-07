@@ -18,7 +18,6 @@ import (
 
 	"github.com/example/ksedge/internal/attach"
 	"github.com/example/ksedge/internal/config"
-	"github.com/example/ksedge/internal/configparse"
 	"github.com/example/ksedge/internal/exec"
 	"github.com/example/ksedge/internal/execrpc"
 	"github.com/example/ksedge/internal/files"
@@ -274,10 +273,6 @@ func runHealthServer(cfg config.Config, ctx context.Context, sftpPort int) error
 	mux.Handle("/api/edge/install", installHandler)
 	mux.Handle("/api/edge/install/stop", installHandler)
 	mux.Handle("/api/edge/install/stdin", installHandler)
-	// Config-file parsers (spec.config_files[]): applied post-install by the
-	// install engine and pre-start via POST /api/edge/configparse so
-	// hand-edited files are re-synced before boot (Wings parity + toml extra).
-	mux.Handle("/api/edge/configparse", configparse.Handler(cfg.Token))
 	// Startup-console attach bridge (panel → browser WS onto the
 	// instance's main-process stdio). Same shared-token gate as exec.
 	mux.Handle("/api/edge/attach", attach.Handler(cfg.Token))
