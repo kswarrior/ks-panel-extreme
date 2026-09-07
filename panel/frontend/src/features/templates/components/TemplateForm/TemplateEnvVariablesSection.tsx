@@ -11,6 +11,11 @@ export interface EnvVariablesSectionProps {
   onEnvAdd: () => void;
   onEnvDelete: (i: number) => void;
   onEnvMove?: (i: number, dir: -1 | 1) => void;
+  // Raw `.env` file content (template-level, like docker-compose `env_file`
+  // but inline). Undefined = the caller doesn't support it (e.g. the deploy
+  // page editor) and the textarea stays hidden.
+  envFile?: string;
+  onEnvFileChange?: (v: string) => void;
   sectionCls: string;
   labelCls: string;
   monoCls: string;
@@ -23,6 +28,8 @@ export const TemplateEnvVariablesSection: React.FC<EnvVariablesSectionProps> = (
   onEnvAdd,
   onEnvDelete,
   onEnvMove,
+  envFile,
+  onEnvFileChange,
   sectionCls,
   labelCls,
   monoCls,

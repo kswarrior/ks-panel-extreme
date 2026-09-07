@@ -362,6 +362,9 @@ export function parseSpec(raw: string): Partial<TemplateFormState> {
           : {}),
       }));
     }
+    if (typeof s.env_file === 'string') {
+      out.env_file = s.env_file;
+    }
     if (Array.isArray(s.install)) {
       out.install = s.install.map((st: any) => ({
         action: (st.action ?? 'shell') as InstallAction,
