@@ -621,6 +621,36 @@ const Router: React.FC = () => (
         }
       />
       <Route
+        path="/stacks"
+        element={
+          <RequireAuth>
+            <RequirePermission permission={PermissionKey.MANAGE_STACKS}>
+              <AdminStacks />
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/stack/:id"
+        element={
+          <RequireAuth>
+            <RequirePermission permission={PermissionKey.MANAGE_STACKS}>
+              <StackDetail />
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/stacks/:slug/*"
+        element={
+          <RequireAuth>
+            <RequirePermission permission={PermissionKey.MANAGE_STACKS}>
+              <StackView />
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
+      <Route
         path="/applications"
         element={
           <RequireAuth>
