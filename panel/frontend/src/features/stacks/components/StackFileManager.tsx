@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Modal from '@/shared/components/ui/Modal';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
+import { markdownToHtml } from '@/shared/components/ui/CustomPageView';
 import { useConfirm } from '@/shared/stores/confirmStore';
 import {
   listStackFiles,
@@ -42,6 +43,42 @@ function classify(name: string, isDir: boolean): string {
   return 'binary';
 }
 
+// fileLang maps a filename to its editor language + preview capability:
+// markdown and html get a live Preview tab; TypeScript/TSX/Go/JS/CSS/JSON
+// edit as code with a language badge so the admin always knows the mode.
+function fileLang(name: string): { label: string; preview: 'none' | 'markdown' | 'html' } {
+  const lower = name.toLowerCase();
+  if (/\.md$|\.markdown$/.test(lower)) return { label: 'Markdown', preview: 'markdown' };
+  if (/\.html?$/.test(lower)) return { label: 'HTML', preview: 'html' };
+  if (/\.tsx$/.test(lower)) return { label: 'React TS', preview: 'none' };
+  if (/\.ts$/.test(lower)) return { label: 'TypeScript', preview: 'none' };
+  if (/\.jsx?$/.test(lower)) return { label: 'JavaScript', preview: 'none' };
+  if (/\.go$/.test(lower)) return { label: 'Go', preview: 'none' };
+  if (/\.css$/.test(lower)) return { label: 'CSS', preview: 'none' };
+  if (/\.json$/.test(lower)) return { label: 'JSON', preview: 'none' };
+  return { label: 'Text', preview: 'none' };
+}
+
+// templateFor seeds a newly created file with a minimal starter by
+// extension so html/markdown/react-ts/go files open ready to edit.
+function templateFor(name: string): string {
+  const lower = name.toLowerCase();
+  const base = name.split('/').pop() || 'app';
+  const title = base.replace(/\.[^.]+$/, '') || 'app';
+  if (/\.go$/.test(lower)) {
+    const pkg = /^[a-z][a-z0-9_]*$/.test(title.toLowerCase()) ? title.toLowerCase() : 'main';
+    return `package ${pkg}\n\nimport "net/http"\n\n// ${base} — served by the panel at /<root> when this stack's\n// proxy port + root URL are configured (Detail > App proxy).\nfunc main() {\n\thttp.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {\n\t\tw.Header().Set("Content-Type", "text/html; charset=utf-8")\n\t\t_, _ = w.Write([]byte("<h1>${title}</h1>"))\n\t})\n\t_ = http.ListenAndServe("127.0.0.1:6600", nil)\n}\n`;
+  }
+  if (/\.md$|\.markdown$/.test(lower)) return `# ${title}\n\nWrite it in Markdown — the Preview tab renders it.\n`;
+  if (/\.html?$/.test(lower)) {
+    return `<!doctype html>\n<html>\n<head><meta charset="utf-8"><title>${title}</title></head>\n<body>\n<h1>${title}</h1>\n<script src="/api/stacks/v1/ks-stack-sdk.js"></script>\n</body>\n</html>\n`;
+  }
+  if (/\.tsx$/.test(lower)) {
+    return `import React from 'react';\n\nexport default function ${title.replace(/[^a-zA-Z0-9]/g, '') || 'StackView'}() {\n  return <h1>${title}</h1>;\n}\n`;
+  }
+  return '';
+}
+
 const FileGlyph: React.FC<{ kind: string }> = ({ kind }) => {
   const inner =
     kind === 'folder' ? (
@@ -68,15 +105,22 @@ type ModalState =
   | { kind: 'create'; tab: 'file' | 'folder'; name: string; busy: boolean }
   | { kind: 'rename'; from: string; name: string; busy: boolean }
   | { kind: 'upload'; busy: boolean }
-  | { kind: 'edit'; path: string; content: string; busy: boolean; dirty: boolean };
+  | { kind: 'edit'; path: string; content: string; busy: boolean; dirty: boolean; view: 'code' | 'preview' };
 
 // StackFileManager — full workdir file manager for one stack (the Detail
-// page's Files section). Browses stack-work/<slug>/ through the
-// MANAGE_STACKS-gated file endpoints: list, read/write, mkdir, rename,
-// delete, multipart upload, download.
-const StackFileManager: React.FC<{ stackId: number; slug: string }> = ({ stackId, slug }) => {
+// page's Files section + the /stack/:id/files page). Browses
+// stack-work/<slug>/ through the MANAGE_STACKS-gated file endpoints: list,
+// read/write, mkdir, rename, delete, multipart upload, download.
+//
+// initialDir scopes the browser to a subtree ("frontend" | "backend" on the
+// Files page; "" = workdir root on Detail). bare hides the toolbar's
+// Upload/Create buttons when the owning page provides its own top-right
+// Create. The editor is language-aware: markdown + html get a live Preview
+// tab, ts/tsx/go/js/css/json edit as labelled code, and new files are
+// seeded with a starter template by extension.
+const StackFileManager: React.FC<{ stackId: number; slug: string; initialDir?: string; bare?: boolean }> = ({ stackId, slug, initialDir = '', bare = false }) => {
   const confirm = useConfirm();
-  const [dir, setDir] = useState('');
+  const [dir, setDir] = useState(initialDir);
   const [entries, setEntries] = useState<StackFileEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -84,6 +128,8 @@ const StackFileManager: React.FC<{ stackId: number; slug: string }> = ({ stackId
   const [modal, setModal] = useState<ModalState | null>(null);
   const [editError, setEditError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // initialDir is mount-time only (the Files page remounts via key when the
+  // Frontend/Backend root switches); dir state owns navigation afterwards.
 
   const load = useCallback(async (d: string) => {
     setLoading(true);
@@ -112,6 +158,23 @@ const StackFileManager: React.FC<{ stackId: number; slug: string }> = ({ stackId
   }, [entries, filter]);
 
   const crumbs = useMemo(() => (dir || '').split('/').filter(Boolean), [dir]);
+
+  // home is the scope root ("frontend" | "backend" on the Files page, "" on
+  // Detail). Navigation never escapes above it: the root button and the Up
+  // link clamp to home, and browsing only descends.
+  const home = useMemo(() => (initialDir || '').replace(/^\/+|\/+$/g, ''), [initialDir]);
+  const relCrumbs = useMemo(() => {
+    if (!home) return crumbs;
+    const idx = crumbs.findIndex((_, i) => crumbs.slice(0, i + 1).join('/') === home);
+    return idx < 0 ? crumbs : crumbs.slice(idx + 1);
+  }, [crumbs, home]);
+  const upTarget = useMemo(() => {
+    if (dir === home) return null;
+    if (home && !dir.startsWith(home + '/') && dir !== home) return home;
+    const p = parentRel(dir);
+    if (home && (p === '' || (!p.startsWith(home + '/') && p !== home))) return home;
+    return p;
+  }, [dir, home]);
 
   const openEntry = async (e: StackFileEntry) => {
     if (e.is_dir) {
