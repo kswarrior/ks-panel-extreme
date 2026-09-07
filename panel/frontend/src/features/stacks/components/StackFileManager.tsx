@@ -67,15 +67,19 @@ export function templateFor(name: string): string {
   const base = name.split('/').pop() || 'app';
   const title = base.replace(/\.[^.]+$/, '') || 'app';
   if (/\.go$/.test(lower)) {
-    const pkg = /^[a-z][a-z0-9_]*$/.test(title.toLowerCase()) ? title.toLowerCase() : 'main';
-    return `package ${pkg}\n\nimport "net/http"\n\n// ${base} — served by the panel at /<root> when this stack's\n// proxy port + root URL are configured (Detail > App proxy).\nfunc main() {\n\thttp.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {\n\t\tw.Header().Set("Content-Type", "text/html; charset=utf-8")\n\t\t_, _ = w.Write([]byte("<h1>${title}</h1>"))\n\t})\n\t_ = http.ListenAndServe("127.0.0.1:6600", nil)\n}\n`;
+    // Starter is a runnable loopback app: package main is mandatory for
+    // func main (a per-file package name would not compile).
+    return `package main\n\nimport "net/http"\n\n// ${base} — served by the panel at /<root> when this stack's\n// proxy port + root URL are configured (Detail > App proxy).\nfunc main() {\n\thttp.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {\n\t\tw.Header().Set("Content-Type", "text/html; charset=utf-8")\n\t\t_, _ = w.Write([]byte("<h1>${title}</h1>"))\n\t})\n\t_ = http.ListenAndServe("127.0.0.1:6600", nil)\n}\n`;
   }
   if (/\.md$|\.markdown$/.test(lower)) return `# ${title}\n\nWrite it in Markdown — the Preview tab renders it.\n`;
   if (/\.html?$/.test(lower)) {
     return `<!doctype html>\n<html>\n<head><meta charset="utf-8"><title>${title}</title></head>\n<body>\n<h1>${title}</h1>\n<script src="/api/stacks/v1/ks-stack-sdk.js"></script>\n</body>\n</html>\n`;
   }
   if (/\.tsx$/.test(lower)) {
-    return `import React from 'react';\n\nexport default function ${title.replace(/[^a-zA-Z0-9]/g, '') || 'StackView'}() {\n  return <h1>${title}</h1>;\n}\n`;
+    let comp = title.replace(/[^a-zA-Z0-9]/g, '') || 'StackView';
+    if (/^[0-9]/.test(comp)) comp = `View${comp}`;
+    comp = comp.charAt(0).toUpperCase() + comp.slice(1);
+    return `import React from 'react';\n\nexport default function ${comp}() {\n  return <h1>${title}</h1>;\n}\n`;
   }
   return '';
 }
@@ -114,11 +118,12 @@ type ModalState =
 // read/write, mkdir, rename, delete, multipart upload, download.
 //
 // initialDir scopes the browser to a subtree ("frontend" | "backend" on the
-// Files page; "" = workdir root on Detail). bare hides the toolbar's
-// Upload/Create buttons when the owning page provides its own top-right
-// Create. The editor is language-aware: markdown + html get a live Preview
-// tab, ts/tsx/go/js/css/json edit as labelled code, and new files are
-// seeded with a starter template by extension.
+// Files page; "" = workdir root on Detail). bare hides only the toolbar's
+// Create button when the owning page provides its own top-right Create
+// (upload stays so the Files page keeps uploads). The editor is
+// language-aware: markdown + html get a live Preview tab, ts/tsx/go/js/css/json
+// edit as labelled code, and new files are seeded with a starter template
+// by extension.
 const StackFileManager: React.FC<{ stackId: number; slug: string; initialDir?: string; bare?: boolean }> = ({ stackId, slug, initialDir = '', bare = false }) => {
   const confirm = useConfirm();
   const [dir, setDir] = useState(initialDir);
@@ -335,15 +340,17 @@ const StackFileManager: React.FC<{ stackId: number; slug: string; initialDir?: s
           <button type="button" onClick={() => void load(dir)} title="Refresh" aria-label="Refresh" className="ks-btn-header ks-icon-btn">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><polyline points="1 4 1 10 7 10" /><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" /></svg>
           </button>
+          {/* Upload stays visible even in bare mode (the /stack/:id/files
+              page hides only Create behind its own top-right button, so the
+              page would otherwise lose uploads entirely). Create is hidden
+              when the owning page provides it. */}
+          <button type="button" onClick={() => fileInputRef.current?.click()} title="Upload" aria-label="Upload" className="ks-btn-header ks-icon-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
+          </button>
           {!bare && (
-            <>
-              <button type="button" onClick={() => fileInputRef.current?.click()} title="Upload" aria-label="Upload" className="ks-btn-header ks-icon-btn">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
-              </button>
-              <button type="button" onClick={() => setModal({ kind: 'create', tab: 'file', name: '', busy: false })} title="Create" aria-label="Create" className="ks-btn-header ks-icon-btn">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-              </button>
-            </>
+            <button type="button" onClick={() => setModal({ kind: 'create', tab: 'file', name: '', busy: false })} title="Create" aria-label="Create" className="ks-btn-header ks-icon-btn">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+            </button>
           )}
         </div>
       </div>
