@@ -1387,3 +1387,24 @@ html[data-ks-reduced-motion='1'] .ks-system-tab-bar[data-active='true'] {
   }
 }
 
+/* Hide the browser-native search clear (blue X) — we render our own white
+   clear button inside SearchDropdown, otherwise two crosses show at once. */
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-decoration,
+input[type="search"]::-webkit-search-results-button,
+input[type="search"]::-webkit-search-results-decoration {
+  display: none !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+}
+input[type="search"]::-ms-clear,
+input[type="search"]::-ms-reveal {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+input[type="search"] {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+}
+
