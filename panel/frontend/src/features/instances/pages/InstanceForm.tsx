@@ -15,7 +15,7 @@ import {
 import ThemedBackground from '@/shared/components/layout/ThemedBackground';
 import { useDeployForm } from '../stores/deployFormStore';
 import { KIND_META, ICON_PRESETS, COLOR_SWATCHES, driverEnabled, kindKey } from '../types/instanceForm';
-import { buildOverrides } from '../utils/instanceFormUtils';
+import { buildOverrides, parseTemplateImages } from '../utils/instanceFormUtils';
 import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 
 const monoCls = glassFieldClass + ' font-mono ks-input-mono';
@@ -34,6 +34,7 @@ const InstanceForm: React.FC = () => {
     editor,
     envValues,
     setEnvValues,
+    imageKey, setImageKey,
     baseline,
     nodes, setNodes,
     templates, setTemplates,
@@ -218,6 +219,7 @@ const InstanceForm: React.FC = () => {
       node_id: nodeId,
       overrides: buildOverrides(editor, baseline),
       env_vars: Object.keys(envVarPayload).length ? envVarPayload : undefined,
+      ...(imageKey.trim() ? { image_key: imageKey.trim() } : {}),
     };
     try {
       const created = await deployInstance(payload);
@@ -275,6 +277,16 @@ const InstanceForm: React.FC = () => {
   const selectedNode = nodes.find((n) => n.id === nodeId);
   const selectedOwner = users.find((u) => u.id === ownerId);
   const driverMissing = selectedTemplate && selectedNode && !driverEnabled(selectedNode, kindKey(selectedTemplate.kind));
+  // Named runtimes from the template's multi-image map. Empty = the
+  // template is single-image (only the top-level image is deployed).
+  const imageOptions = useMemo(
+    () => (selectedTemplate ? parseTemplateImages(selectedTemplate.spec, selectedTemplate.image) : []),
+    [selectedTemplate],
+  );
+  // '' means "template default" — highlight the flagged row.
+  const effectiveImageKey = imageKey.trim() !== ''
+    ? imageKey.trim()
+    : (imageOptions.find((o) => o.isDefault)?.name || '');
 
   return (
     <>
