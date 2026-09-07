@@ -732,25 +732,28 @@ type filesURLError struct {
 
 func (e *filesURLError) Error() string { return e.reason }
 
-// fetchBytesFromURL performs the SSRF-hardened GET described above and
-// returns the response body + the parsed *url.URL (URL needed for the
-// basename / Content-Type fallback). Body is capped at
-// filesURLFetchMaxBytes; a hard cap means a hostile or mis-reported origin
-// can grow the read past the limit before we return 413.
-func fetchBytesFromURL(ctx context.Context, raw string) (*url.URL, []byte, string, error) {
+// validatePublicHTTPURL parses raw as an http(s) URL and resolves its
+// host, requiring every answer to be a public IP. It is the SSRF guard
+// shared by the file-URL upload and the node git-clone endpoints: scheme
+// must be http(s), the host must resolve, every resolved IP must be
+// public (loopback/private/link-local/multicast/unspecified rejected,
+// incl. IPv6 equivalents), and the caller gets the validated IPs back so
+// it can pin its dial to them, closing the DNS-rebinding gap (a TOCTOU
+// between the validation lookup and the actual connect).
+func validatePublicHTTPURL(ctx context.Context, raw string) (*url.URL, []net.IPAddr, *filesURLError) {
 	u, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil {
-		return nil, nil, "", &filesURLError{http.StatusBadRequest, "invalid URL: " + err.Error()}
+		return nil, nil, &filesURLError{http.StatusBadRequest, "invalid URL: " + err.Error()}
 	}
 	if u.Scheme != "http" && u.Scheme != "https" {
-		return nil, nil, "", &filesURLError{http.StatusBadRequest, "URL must use http or https"}
+		return nil, nil, &filesURLError{http.StatusBadRequest, "URL must use http or https"}
 	}
 	if u.Host == "" {
-		return nil, nil, "", &filesURLError{http.StatusBadRequest, "URL is missing a host"}
+		return nil, nil, &filesURLError{http.StatusBadRequest, "URL is missing a host"}
 	}
 	host := u.Hostname()
 	if host == "" {
-		return nil, nil, "", &filesURLError{http.StatusBadRequest, "URL is missing a host"}
+		return nil, nil, &filesURLError{http.StatusBadRequest, "URL is missing a host"}
 	}
 
 	// Resolve up-front and validate every IP — closing the DNS-rebinding gap
@@ -760,7 +763,7 @@ func fetchBytesFromURL(ctx context.Context, raw string) (*url.URL, []byte, strin
 	defer cancelDNS()
 	ips, err := resolver.LookupIPAddr(dnsCtx, host)
 	if err != nil || len(ips) == 0 {
-		return nil, nil, "", &filesURLError{http.StatusBadGateway, "could not resolve host: " + host}
+		return nil, nil, &filesURLError{http.StatusBadGateway, "could not resolve host: " + host}
 	}
 	for _, ipa := range ips {
 		if ip := ipa.IP; ip == nil || !isPublicIP(ip) {
@@ -768,11 +771,24 @@ func fetchBytesFromURL(ctx context.Context, raw string) (*url.URL, []byte, strin
 			if ip != nil {
 				which = " (" + ip.String() + ")"
 			}
-			return nil, nil, "", &filesURLError{
+			return nil, nil, &filesURLError{
 				http.StatusBadRequest,
 				fmt.Sprintf("refusing to fetch %s: host resolves to a non-public address%s; only public hosts are allowed", host, which),
 			}
 		}
+	}
+	return u, ips, nil
+}
+
+// fetchBytesFromURL performs the SSRF-hardened GET described above and
+// returns the response body + the parsed *url.URL (URL needed for the
+// basename / Content-Type fallback). Body is capped at
+// filesURLFetchMaxBytes; a hard cap means a hostile or mis-reported origin
+// can grow the read past the limit before we return 413.
+func fetchBytesFromURL(ctx context.Context, raw string) (*url.URL, []byte, string, error) {
+	u, ips, ferr := validatePublicHTTPURL(ctx, raw)
+	if ferr != nil {
+		return nil, nil, "", ferr
 	}
 
 	// Pin the dial to the resolved IPs so a second DNS answer can't redirect
