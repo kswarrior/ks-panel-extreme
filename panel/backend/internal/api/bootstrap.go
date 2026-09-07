@@ -124,6 +124,10 @@ func writeBrandedIndex(w http.ResponseWriter, r *http.Request, uiFS http.FileSys
 				boot.LogoURL = snap.PanelLogo.URL
 				boot.LogoMime = snap.PanelLogo.Mime
 			}
+			if snap.Favicon != nil {
+				boot.FaviconURL = snap.Favicon.URL
+				boot.FaviconMime = snap.Favicon.Mime
+			}
 		} else if name, nerr := settingsRepo.GetPanelName(); nerr == nil {
 			boot.PanelName = name
 		} else {
@@ -200,29 +204,60 @@ func buildThemeBootstrap(pathname string, themes []models.Theme, asg []models.Th
 }
 
 // brand and the document title match the configured values from the very
-// first render. We replace two places:
+// first render. We replace three places:
 //
-//   - <title>...</title>
+//   - <title>...</title> (effective tab title: browser_tab_title || panel_name)
+//   - <link rel="icon" ...> (custom favicon when configured)
 //   - a tiny inline <script> that sets window.__KSPANEL_BOOTSTRAP__ and
-//     applies document.title immediately. The settingsStore reads the same
-//     global synchronously during module init so React's first render
-//     already has the right values.
+//     applies document.title + favicon immediately. The settingsStore reads
+//     the same global synchronously during module init so React's first
+//     render already has the right values.
 //
 // Anything we miss is harmless – the SPA's settingsStore reconciliation
 // fetches the live values on mount.
 func injectBrandIntoIndexHTML(html []byte, boot brandBootstrap) []byte {
+	effectiveTitle := repository.EffectiveTabTitle(boot.PanelName, boot.BrowserTabTitle)
+	if strings.TrimSpace(effectiveTitle) == "" {
+		effectiveTitle = repository.DefaultPanelName
+	}
 	// 1) Document title – start from a known-good replacement. The
 	//    upstream index.html ships as <title>KS Panel</title>; we overwrite
 	//    it inline when present so search-engine crawlers / tab favicon
-	//    tools see the right name even before JS runs.
+	//    tools see the right name even before JS runs. Escaped so a hostile
+	//    title can't break out of <title> (</title><script> injection).
 	titleOpen := []byte("<title>")
 	titleClose := []byte("</title>")
 	if i := indexBytes(html, titleOpen); i >= 0 {
 		if j := indexBytesFrom(html, titleClose, i); j >= 0 {
 			out := make([]byte, 0, len(html))
 			out = append(out, html[:i+len(titleOpen)]...)
-			out = append(out, []byte(boot.PanelName)...)
+			out = append(out, []byte(escapeHTMLText(effectiveTitle))...)
 			out = append(out, html[j:]...)
+			html = out
+		}
+	}
+
+	// 1b) Favicon link. Strip any shipped icon links first so the custom
+	// icon is the only candidate (otherwise the browser may keep the stale
+	// default). Then inject ours when configured.
+	html = stripIconLinks(html)
+	if strings.TrimSpace(boot.FaviconURL) != "" {
+		mimeAttr := ""
+		if strings.TrimSpace(boot.FaviconMime) != "" {
+			mimeAttr = ` type="` + escapeHTMLAttr(strings.TrimSpace(boot.FaviconMime)) + `"`
+		}
+		link := []byte(`<link rel="icon" href="` + escapeHTMLAttr(strings.TrimSpace(boot.FaviconURL)) + `"` + mimeAttr + `>`)
+		if idx := indexBytes(html, []byte(`</head>`)); idx >= 0 {
+			out := make([]byte, 0, len(html)+len(link))
+			out = append(out, html[:idx]...)
+			out = append(out, link...)
+			out = append(out, html[idx:]...)
+			html = out
+		} else if idx := indexBytes(html, []byte(`<script type="module"`)); idx >= 0 {
+			out := make([]byte, 0, len(html)+len(link))
+			out = append(out, html[:idx]...)
+			out = append(out, link...)
+			out = append(out, html[idx:]...)
 			html = out
 		}
 	}
@@ -235,8 +270,14 @@ func injectBrandIntoIndexHTML(html []byte, boot brandBootstrap) []byte {
 		return html
 	}
 	script := []byte("<script>window.__KSPANEL_BOOTSTRAP__=" + string(bootJSON) +
-		`;(function(){var n=window.__KSPANEL_BOOTSTRAP__&&window.__KSPANEL_BOOTSTRAP__.panel_name;` +
-		`if(n){document.title=n}})();</script>`)
+		`;(function(){var b=window.__KSPANEL_BOOTSTRAP__||{};` +
+		`var t=b.browser_tab_title||b.panel_name;` +
+		`if(t){document.title=t}` +
+		`var f=b.favicon_url;` +
+		`if(f){var l=document.querySelector('link[rel=\"icon\"]');` +
+		`if(!l){l=document.createElement('link');l.rel='icon';document.head.appendChild(l)}` +
+		`l.href=f;` +
+		`if(b.favicon_mime){l.type=b.favicon_mime}}})();</script>`)
 	marker := []byte(`<script type="module"`)
 	if idx := indexBytes(html, marker); idx >= 0 {
 		out := make([]byte, 0, len(html)+len(script))
@@ -244,6 +285,51 @@ func injectBrandIntoIndexHTML(html []byte, boot brandBootstrap) []byte {
 		out = append(out, script...)
 		out = append(out, html[idx:]...)
 		html = out
+	}
+	return html
+}
+
+// escapeHTMLText escapes the five characters that can break out of a <title>
+// text node. Kept local (no html import) to match the file's stdlib-minimal style.
+func escapeHTMLText(s string) string {
+	r := strings.ReplaceAll(s, "&", "&amp;")
+	r = strings.ReplaceAll(r, "<", "&lt;")
+	r = strings.ReplaceAll(r, ">", "&gt;")
+	return r
+}
+
+// escapeHTMLAttr escapes an attribute value (double-quoted context).
+func escapeHTMLAttr(s string) string {
+	r := escapeHTMLText(s)
+	r = strings.ReplaceAll(r, `"`, "&quot;")
+	return r
+}
+
+// stripIconLinks removes existing <link ... rel="icon" ...> tags so the
+// injected custom favicon is unambiguous. Case-insensitive on rel, tolerant
+// of attribute order. Single pass is enough — index.html ships at most one.
+func stripIconLinks(html []byte) []byte {
+	lower := []byte(strings.ToLower(string(html)))
+	for {
+		li := indexBytes(lower, []byte("<link"))
+		if li < 0 {
+			break
+		}
+		end := indexBytesFrom(lower, []byte(">"), li)
+		if end < 0 {
+			break
+		}
+		tag := lower[li : end+1]
+		if indexBytes(tag, []byte(`rel="icon"`)) >= 0 ||
+			indexBytes(tag, []byte(`rel='icon'`)) >= 0 ||
+			indexBytes(tag, []byte(`rel=icon`)) >= 0 {
+			html = append(html[:li], html[end+1:]...)
+			lower = append(lower[:li], lower[end+1:]...)
+			continue
+		}
+		// Not an icon link — skip past it.
+		rest := stripIconLinks(html[end+1:])
+		return append(html[:end+1], rest...)
 	}
 	return html
 }
