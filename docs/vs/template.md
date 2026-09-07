@@ -49,7 +49,7 @@ Panels + latest checked: `KS` (this repo) vs `Pterodactyl v1.15.1 (12 Aug 2026, 
 | Stop | `stop_command + same/different mode + terminal_stop_on_exit` (most expressive) | `config.stop` (simple, enough for games) | same | `stop + stopCode` + `skip restarts on stop` (v3.0.9) |
 | Multi-action | `actions[]` (cooldown/async/session/run_on_create) — unique depth. Honest minus: `allowed_states` CSV typos silently narrow; `terminal_id` duplicates attach to first only (warning exists, still footgun); numeric fields are strings | no (schedules + subusers cover parts) | no | `pre/post` + conditions (lighter, harder to misconfigure) |
 | Console binding | `terminal_id` mirror + allow/block regex + timeout — unique. Honest minus: regex per action, no central audit of who typed what beyond instance audit | none | none | RCON/TELNET `stdin` support (narrower, but exactly what games need) |
-| Config-file parsers | no, via page actions (flexible, but every game reinvented) | `config-files` find/replace (e.g. `server.properties` without scripts) | same | `writefile` + conditions only |
+| Config-file parsers | `config_files[]` (7 parsers: properties/yaml/json/ini/xml/file/toml) + dot/`[i]`/`*` paths + multi-replace maps + `{{VAR}}` + post-install apply + pre-start re-sync + builder tester + Ptero `config.files` import-compat. TOML is KS-only (beats Ptero/Pelican) | `config-files` find/replace (e.g. `server.properties` without scripts) | same | `writefile` + conditions only |
 
 ## 5. Variables vs
 
