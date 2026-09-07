@@ -17,8 +17,40 @@ interface NodeFilesTabProps {
   nodeId: number;
 }
 
+function friendlyGatewayMessage(data: any): string | null {
+  // Proxies/gateways (Cloudflare, nginx, tunnels) answer with raw HTML or
+  // RFC7807 problem+json when the origin is slow or drops the connection —
+  // e.g. a big recursive delete outliving the proxy's response window. The
+  // operation may still have completed server-side, so never dump the blob:
+  // say what happened and point at the refreshed list.
+  const hint = 'The operation may still have completed — the list is refreshed below, check whether the item is gone and retry if not.';
+  if (typeof data === 'string') {
+    if (/<html|<!doctype/i.test(data)) {
+      return `Gateway error: the panel did not answer in time. ${hint}`;
+    }
+    return null;
+  }
+  if (data && typeof data === 'object') {
+    const d = data as any;
+    if (d.cloudflare_error === true || d.error_name === 'origin_bad_gateway' || typeof d.ray_id === 'string') {
+      return `Gateway error (502): the panel did not answer in time. ${hint}`;
+    }
+    if (typeof d.title === 'string' && typeof d.status === 'number' && d.status >= 500 && typeof d.detail === 'string') {
+      return `Gateway error (${d.status}): ${d.title}. ${hint}`;
+    }
+  }
+  return null;
+}
+
 function getErrorMessage(e: any, fallback: string): string {
   const data = e?.response?.data;
+  // Network-level failure (no response at all): same may-have-completed
+  // story as a gateway timeout.
+  if (!e?.response && (e?.code === 'ECONNABORTED' || e?.message === 'Network Error')) {
+    return `Request failed before the panel answered (${e?.code === 'ECONNABORTED' ? 'timed out' : 'network error'}). The operation may still have completed — the list is refreshed below, check and retry if needed.`;
+  }
+  const friendly = friendlyGatewayMessage(data);
+  if (friendly) return friendly;
   if (typeof data === 'string' && data.trim()) return data;
   if (data && typeof data === 'object') {
     if (typeof (data as any).error === 'string') return (data as any).error;
