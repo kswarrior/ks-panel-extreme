@@ -75,6 +75,7 @@ export function specToEditor(spec: string): EditorState {
       required: !!e.required, rule: String(e.rule ?? ''),
       display: (['text', 'number', 'select', 'checkbox'].includes(e.display) ? e.display : 'text') as 'text' | 'number' | 'select' | 'checkbox',
       options: String(e.options ?? ''), append: !!e.append, prepend: String(e.prepend ?? ''), append_value: String(e.append_value ?? ''),
+      ...(Array.isArray(e.scopes) && e.scopes.length > 0 ? { scopes: (e.scopes as unknown[]).map((x) => String(x ?? '').trim().toLowerCase()).filter(Boolean) } : {}),
     }));
   }
   if (Array.isArray(s.install)) {
