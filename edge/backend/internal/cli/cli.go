@@ -412,6 +412,8 @@ func recoverPanic(h http.Handler) http.Handler {
 //     never materialises as a 4 GiB allocation — the cap only bounds
 //     runaway uploads (a hostile body that never ends) so the connection
 //     terminates instead of consuming edge CPU + disk indefinitely.
+//   - /api/edge/hostfiles: 4 GiB, same rationale — the node Files tab
+//     uploads instance data through the identical streaming write path.
 //   - /api/edge/host-exec: 8 MiB. The JSON RPC carries the command plus an
 //     optional inline script-file payload (application runs stage their
 //     files through it), so it needs headroom above the plain-RPC tier;
@@ -440,7 +442,7 @@ func edgeBodyLimit(h http.Handler) http.Handler {
 		}
 		limit := smallLimit
 		switch r.URL.Path {
-		case "/api/edge/files":
+		case "/api/edge/files", "/api/edge/hostfiles":
 			limit = filesLimit
 		case "/api/edge/host-exec", "/api/edge/exec-rpc":
 			limit = hostExecLim

@@ -1,8 +1,12 @@
-// Package files: HostFilesHandler exposes a read-only browser for the
-// daemon's own instance-files directory (instances_dir, default
+// Package files: HostFilesHandler exposes a browser for the daemon's own
+// instance-files directory (instances_dir, default
 // /var/lib/kspanel/instances) with that directory as the filesystem root.
+// Reads (list / stat / download) plus operator writes (mkdir / create /
+// upload / git-clone) — every path is jailed, so nothing outside the
+// root is addressable.
 //
-// Wire format (all JSON, all under /api/edge/hostfiles, GET only):
+// Wire format (all under /api/edge/hostfiles, token-gated like every
+// other panel→edge RPC):
 //
 //	GET  ?op=list&path=/&token=…
 //	    -> { "entries": [ {name, size, mode, is_dir, mod_time} ... ], "path": "/", "root": "/var/lib/kspanel/instances" }
@@ -10,6 +14,15 @@
 //	    -> { "name", "size", "mode", "is_dir", "mod_time" }
 //	GET  ?op=read&path=/mc-1/server.jar&token=…
 //	    -> raw bytes (application/octet-stream) — suitable for download
+//	POST ?op=mkdir&path=/mc-1/newdir&token=…
+//	    -> { "ok": true, "path": "/mc-1/newdir" }
+//	POST ?op=write&path=/mc-1/notes.txt&token=…      (body = file bytes)
+//	    -> { "ok": true, "path": "/mc-1/notes.txt" }
+//	POST ?op=upload&path=/mc-1/mod.jar&token=…       (body = file bytes)
+//	    -> same shape as write (distinct op so callers can toast
+//	       "uploaded" vs "saved", mirroring /api/edge/files)
+//	POST ?op=clone&token=…  JSON body (or query) { "path": "/mc-1", "url": "https://github.com/…/repo.git" }
+//	    -> { "ok": true, "path": "/mc-1/repo", "url": "…" }
 //
 // `path` is always interpreted RELATIVE to the instances root: "/" is the
 // root itself, "/mc-1/world" is <root>/mc-1/world. There is deliberately no
@@ -22,21 +35,41 @@
 package files
 
 import (
+	"context"
 	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 )
 
 // maxHostListEntries caps a single directory listing so a runaway folder
 // (tens of thousands of chunk files) can't pin edge memory. The response
 // carries truncated:true when the cap bites.
 const maxHostListEntries = 5000
+
+// maxHostWriteBytes caps a single write/upload body. Mirrors the panel's
+// URL-fetch cap so a file that fits the panel-side limit reaches the edge
+// intact instead of being truncated mid-stream.
+const maxHostWriteBytes = 512 << 20 // 512 MiB
+
+// hostWriteOps is the set of mutating ops. They require POST — unlike
+// /api/edge/files (which accepts GET for writes as a legacy convenience),
+// this endpoint stays strict so a prefetch/crawler GET can never mutate
+// the instances directory.
+var hostWriteOps = map[string]bool{
+	"mkdir":  true,
+	"write":  true,
+	"upload": true,
+	"clone":  true,
+}
 
 // hostJail is a resolved instances-dir root plus its symlink-resolved form.
 // Both are needed: the lexical check runs against root (what the operator
@@ -142,14 +175,10 @@ func displayRel(rel string) string {
 
 // HostFilesHandler returns an http.Handler authenticated by the given edge
 // token (same shared secret + constant-time comparison as every other
-// panel→edge RPC). Read-only: list / stat / read. Any other op or any
-// non-GET method is rejected.
+// panel→edge RPC). Reads (list / stat / read) use GET; mutations (mkdir /
+// write / upload / clone) require POST.
 func HostFilesHandler(token, instancesDir string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "method not allowed (host files are read-only, use GET)", http.StatusMethodNotAllowed)
-			return
-		}
 		tok := r.URL.Query().Get("token")
 		// Same empty-token guard as Handler: never let length-0 vs
 		// length-0 compare "pass" during the localnode boot window.
@@ -167,6 +196,14 @@ func HostFilesHandler(token, instancesDir string) http.Handler {
 		if op == "" {
 			op = "list"
 		}
+		if hostWriteOps[op] && r.Method != http.MethodPost {
+			http.Error(w, "method not allowed (use POST for "+op+")", http.StatusMethodNotAllowed)
+			return
+		}
+		if !hostWriteOps[op] && r.Method != http.MethodGet {
+			http.Error(w, "method not allowed (use GET for "+op+")", http.StatusMethodNotAllowed)
+			return
+		}
 		rel := q.Get("path")
 		abs, err := jail.resolve(rel)
 		if err != nil {
@@ -181,6 +218,12 @@ func HostFilesHandler(token, instancesDir string) http.Handler {
 			statHostRootPath(w, abs)
 		case "read":
 			readHostRootFile(w, abs)
+		case "mkdir":
+			mkdirHostRoot(w, jail, abs, disp)
+		case "write", "upload":
+			writeHostRoot(w, r, jail, abs, disp)
+		case "clone":
+			cloneHostRoot(w, r, jail, abs, disp, q.Get("url"))
 		default:
 			writeErr(w, http.StatusBadRequest, "unknown op: "+op)
 		}
@@ -299,4 +342,150 @@ func readHostRootFile(w http.ResponseWriter, abs string) {
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filepath.Base(abs)))
 	_, _ = io.Copy(w, f)
+}
+
+// mkdirHostRoot creates the jailed directory abs (plus any missing
+// parents). -p semantics: an existing directory is not an error, matching
+// the SPA's create-folder UX.
+func mkdirHostRoot(w http.ResponseWriter, jail hostJail, abs, disp string) {
+	_ = jail
+	if err := os.MkdirAll(abs, 0o755); err != nil {
+		writeErr(w, http.StatusBadGateway, fmt.Sprintf("mkdir: %v", err))
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "path": disp})
+}
+
+// writeHostRoot replaces the jailed file abs with the request body,
+// creating missing parents. Used for both `op=write` (create/overwrite,
+// e.g. an empty file from the Create dialog) and `op=upload` (browser or
+// URL uploads). The body streams straight to disk and is capped at
+// maxHostWriteBytes.
+func writeHostRoot(w http.ResponseWriter, r *http.Request, jail hostJail, abs, disp string) {
+	_ = jail
+	if st, err := os.Stat(abs); err == nil && st.IsDir() {
+		writeErr(w, http.StatusBadRequest, "cannot overwrite a directory")
+		return
+	}
+	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
+		writeErr(w, http.StatusBadGateway, fmt.Sprintf("mkdir parent: %v", err))
+		return
+	}
+	f, err := os.OpenFile(abs, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	if err != nil {
+		writeErr(w, http.StatusBadGateway, fmt.Sprintf("open: %v", err))
+		return
+	}
+	defer f.Close()
+	n, err := io.Copy(f, io.LimitReader(r.Body, maxHostWriteBytes+1))
+	if err != nil {
+		_ = os.Remove(abs)
+		writeErr(w, http.StatusBadGateway, fmt.Sprintf("write: %v", err))
+		return
+	}
+	if n > maxHostWriteBytes {
+		_ = os.Remove(abs)
+		writeErr(w, http.StatusRequestEntityTooLarge, fmt.Sprintf("file exceeded %d bytes", maxHostWriteBytes))
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "path": disp})
+}
+
+// cloneRepoName derives a safe destination directory name from a git URL:
+// the URL path's basename with a trailing ".git" stripped, restricted to
+// [A-Za-z0-9._-] and never "." / "..". Anything else is rejected so the
+// name can be joined under the jail without re-validation.
+func cloneRepoName(raw string) (string, error) {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return "", fmt.Errorf("invalid URL: %v", err)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return "", fmt.Errorf("URL must use http or https")
+	}
+	if u.Hostname() == "" {
+		return "", fmt.Errorf("URL is missing a host")
+	}
+	base := strings.TrimSuffix(filepath.Base(strings.TrimSuffix(u.Path, "/")), ".git")
+	if base == "" || base == "." || base == ".." || base == "/" {
+		return "", fmt.Errorf("cannot derive a repository name from %q", raw)
+	}
+	for _, c := range base {
+		if !(c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '.' || c == '_' || c == '-') {
+			return "", fmt.Errorf("cannot derive a repository name from %q", raw)
+		}
+	}
+	if base[0] == '.' || base[0] == '-' {
+		return "", fmt.Errorf("cannot derive a repository name from %q", raw)
+	}
+	return base, nil
+}
+
+// cloneHostRoot runs `git clone --depth 1 <url>` into the jailed directory
+// abs (which names the PARENT the repo lands in). The panel pre-validates
+// the URL's host; the edge re-checks the scheme, derives a sanitised
+// directory name, refuses to overwrite, and runs git with no shell,
+// no terminal prompts and a hard timeout.
+func cloneHostRoot(w http.ResponseWriter, r *http.Request, jail hostJail, abs, disp string, urlQ string) {
+	rawURL := urlQ
+	if rawURL == "" {
+		var body struct {
+			URL string `json:"url"`
+		}
+		_ = json.NewDecoder(io.LimitReader(r.Body, 64<<10)).Decode(&body)
+		rawURL = body.URL
+	}
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL == "" {
+		writeErr(w, http.StatusBadRequest, "clone requires a 'url' parameter")
+		return
+	}
+	name, err := cloneRepoName(rawURL)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	st, err := os.Stat(abs)
+	if err != nil || !st.IsDir() {
+		writeErr(w, http.StatusBadRequest, "clone destination parent is not a directory")
+		return
+	}
+	dest := filepath.Join(abs, name)
+	if !within(jail.root, dest) {
+		writeErr(w, http.StatusBadRequest, "invalid path")
+		return
+	}
+	if _, err := os.Stat(dest); err == nil {
+		writeErr(w, http.StatusConflict, fmt.Sprintf("%q already exists", name))
+		return
+	}
+	if _, err := exec.LookPath("git"); err != nil {
+		writeErr(w, http.StatusBadGateway, "git is not installed on this edge")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Minute)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", "clone", "--depth", "1", "--", rawURL, dest)
+	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		_ = os.RemoveAll(dest)
+		msg := strings.TrimSpace(string(out))
+		if len(msg) > 2048 {
+			msg = msg[:2048] + "…"
+		}
+		if msg == "" {
+			msg = err.Error()
+		}
+		writeErr(w, http.StatusBadGateway, fmt.Sprintf("git clone failed: %s", msg))
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"ok":   true,
+		"path": strings.TrimSuffix(disp, "/") + "/" + name,
+		"url":  rawURL,
+	})
 }
