@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { startInstance, stopInstance, restartInstance, killInstance } from '@/shared/api/admin';
 import { invokeInstanceAction, stopInstanceAction } from '@/features/instances/api/instanceAdvanced';
 import { useInstance, parseConfig } from '@/shared/hooks/useInstance';
 import { resolveInstanceControls } from '../utils/instanceControls';
+import { isPageAllowed } from '@/shared/utils/instancePages';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { useConfirm } from '@/shared/stores/confirmStore';
@@ -67,6 +68,8 @@ function actionPhase(isActive: boolean, outcome: 'ok' | 'err' | undefined): Acti
 const InstancePowerMenu: React.FC = () => {
   const { id } = useParams();
   const instanceId = Number(id);
+  const navigate = useNavigate();
+  const location = useLocation();
   const { instance, loading, reload } = useInstance(instanceId);
 
   const [busy, setBusy] = useState<'start' | 'stop' | 'restart' | 'kill' | null>(null);
@@ -136,6 +139,26 @@ const InstancePowerMenu: React.FC = () => {
     PermissionKey.MANAGE_INSTANCES,
     PermissionKey.INSTANCES_ALL,
     PermissionKey.INSTANCES_EDIT,
+  );
+
+  // Quick shortcuts (Files / Terminal / Ports) — same routes as the
+  // InstanceToolsDock cards, surfaced inside the floating menu directly
+  // above the template Actions so operators can jump without closing it.
+  // Availability mirrors the dock: Files / Terminal need their spec page,
+  // Ports needs instance edit permission (its editor is permission-gated).
+  const toolSpec = useMemo(() => {
+    try {
+      return instance?.config ? parseConfig(instance.config) : null;
+    } catch {
+      return null;
+    }
+  }, [instance?.config]);
+  const filesOk = isPageAllowed('files', toolSpec as any);
+  const terminalOk = isPageAllowed('terminal', toolSpec as any);
+  const canEditPorts = hasPermissionAny(
+    permissions,
+    PermissionKey.INSTANCES_EDIT,
+    PermissionKey.MANAGE_INSTANCES,
   );
 
   if (!canControl || !Number.isFinite(instanceId)) return null;
