@@ -22,6 +22,8 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"sort"
 	"strconv"
 	"strings"
@@ -1778,4 +1780,80 @@ func yamlQuoteString(s string) string {
 		return s
 	}
 	return `"` + strings.NewReplacer("\\", `\\`, `"`, `\"`, "\n", `\n`, "\r", `\r`, "\t", `\t`).Replace(s) + `"`
+}
+
+// ---------------------------------------------------------------------------
+// Preview endpoint: POST /api/templates/config-preview
+// Body: {parser, content, find, env?} — env applies {{VAR}} substitution first.
+// Returns {content, changed} so the builder tester shows the result live.
+// ---------------------------------------------------------------------------
+
+// ConfigPreviewHandler renders a parser apply without touching any instance.
+func ConfigPreviewHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Body == nil {
+		http.Error(w, "empty body", http.StatusBadRequest)
+		return
+	}
+	var req struct {
+		Parser  string         `json:"parser"`
+		Content string         `json:"content"`
+		Find    map[string]any `json:"find"`
+		Env     map[string]string `json:"env,omitempty"`
+	}
+	dec := json.NewDecoder(io.LimitReader(r.Body, 1<<20))
+	if err := dec.Decode(&req); err != nil {
+		http.Error(w, "invalid payload: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	p := strings.ToLower(strings.TrimSpace(req.Parser))
+	if p == "" {
+		http.Error(w, "parser is required", http.StatusBadRequest)
+		return
+	}
+	if p == "yml" {
+		p = "yaml"
+	}
+	if !validConfigParsers[p] {
+		http.Error(w, "unknown parser "+strconv.Quote(req.Parser), http.StatusBadRequest)
+		return
+	}
+	if len(req.Find) == 0 {
+		http.Error(w, "find must not be empty", http.StatusBadRequest)
+		return
+	}
+	if len(req.Content) > 1<<20 {
+		http.Error(w, "content too large (max 1 MiB)", http.StatusRequestEntityTooLarge)
+		return
+	}
+	// Substitute {{VAR}}/${VAR} with the supplied env (builder tester).
+	find := make(map[string]any, len(req.Find))
+	if len(req.Env) > 0 {
+		allowed := req.Env
+		var subVal func(v any) any
+		subVal = func(v any) any {
+			switch t := v.(type) {
+			case string:
+				return substituteOne(t, allowed)
+			case map[string]any:
+				out := make(map[string]any, len(t))
+				for k2, v2 := range t {
+					out[k2] = subVal(v2)
+				}
+				return out
+			default:
+				return v
+			}
+		}
+		for k, v := range req.Find {
+			find[substituteOne(k, allowed)] = subVal(v)
+		}
+	} else {
+		find = req.Find
+	}
+	out, changed, err := ApplyConfigContent(p, req.Content, find)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	writeJSON(w, map[string]any{"content": out, "changed": changed})
 }
