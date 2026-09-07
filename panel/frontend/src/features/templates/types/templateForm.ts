@@ -115,6 +115,8 @@ export interface ActionStep {
   ignore_errors: boolean;
 }
 
+export type TerminalAllowInput = 'all' | 'allowlist' | 'disabled';
+
 export interface TemplateAction {
   id: string;
   name: string;
@@ -138,6 +140,30 @@ export interface TemplateAction {
   max_runtime_s: string;
   stop_command: string;
   stop_mode: 'same' | 'different';
+  // Terminal binding: which instance-control terminal pane(s) this action
+  // attaches to. Empty = no dedicated terminal (legacy behaviour). When a
+  // terminal pane's ID matches this value (case-insensitive, trimmed), that
+  // pane streams this action's logs and routes gated input to it while the
+  // action runs (e.g. Minecraft console: /tps /op /ban).
+  terminal_id: string;
+  // Stop the bound terminal pane when the action's command ends: the pane
+  // flips to a closed state and refuses further input (e.g. `stop` in
+  // Minecraft kills java → the console locks instead of accepting dead input).
+  terminal_stop_on_exit: boolean;
+  // Input gate for the bound terminal: 'all' = free stdin, 'allowlist' =
+  // only lines matching terminal_allowed_commands (and not blocked),
+  // 'disabled' = read-only log view.
+  terminal_allow_input: TerminalAllowInput;
+  // Allowed input lines for the bound terminal (regex, one per line; empty =
+  // all lines when mode is 'all'). Same syntax as console_session's
+  // allowed_commands so RCON verbs like ^tps$ pass and apt/reboot never do.
+  terminal_allowed_commands: string;
+  // Blocked input tokens (comma-separated, defence-in-depth, checked before
+  // the allowlist).
+  terminal_blocked_commands: string;
+  // Idle/attach budget in seconds for the bound terminal (empty/0 = no
+  // limit). The pane auto-locks when the budget elapses.
+  terminal_timeout_s: string;
   steps: ActionStep[];
 }
 
