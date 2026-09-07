@@ -2080,13 +2080,14 @@ func SeedCore(d Dialect, db *sql.DB) error {
 // MySQL quoting: KEY is a reserved word, so the (key, description) column
 // list and the p.key WHERE/IN filters are backtick-quoted for the MySQL
 // verb only. The prefix is a closed mapping from insertIgnorePrefix
-// ("INSERT IGNORE" ⟺ mysql/mariadb, "INSERT OR IGNORE" ⟺ sqlite,
-// "INSERT INTO" ⟺ postgres), so branching on it is exact, not heuristic.
-// A future dialect with a new prefix gets no quoting and fails loudly
-// (1064) instead of silently — the mapping above must then be extended.
+// ("INSERT IGNORE INTO" ⟺ mysql/mariadb, "INSERT OR IGNORE INTO" ⟺
+// sqlite, "INSERT INTO" ⟺ postgres), so branching on it is exact, not
+// heuristic. A future dialect with a new prefix gets no quoting and fails
+// loudly (1064) instead of silently — the mapping above must then be
+// extended.
 func translateSeedInsert(prefix, pgConflict, body, table string) string {
 	q := prefix + " " + table + " " + body + pgConflict + ";"
-	if prefix == "INSERT IGNORE" {
+	if prefix == "INSERT IGNORE INTO" {
 		q = quoteMySQLReservedIdents(q)
 	}
 	return q

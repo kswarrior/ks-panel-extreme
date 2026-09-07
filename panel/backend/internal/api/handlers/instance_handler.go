@@ -3317,7 +3317,7 @@ func ActionStdinHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "owner node not found", http.StatusNotFound)
 		return
 	}
-	ec := edge.NewClient(node.Address, token, node.UseTLS, node.ID, node.ConnectionMode)
+	ec := edge.NewWithTimeout(*node, token, 60*time.Second)
 	name := inst.ExternalID
 	if name == "" {
 		name = inst.Name
