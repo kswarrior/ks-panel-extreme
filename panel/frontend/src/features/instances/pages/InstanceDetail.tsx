@@ -417,16 +417,6 @@ export const InstanceDynamicPage: React.FC = () => {
     );
   }
 
-  // Files editor sub-page: always the bundled editor (pure builtin, like
-  // the manager above).
-  if (effectiveSlug === `${filesSlug}/edit` && FILES_EDITOR_CONTENT) {
-    return (
-      <ErrorBoundary resetKey={`files-edit-${instanceId}`} label="instance-page">
-        <CustomPageView content={FILES_EDITOR_CONTENT} title="Editor" instanceContext={instanceContext} pageSlug={effectiveSlug} />
-      </ErrorBoundary>
-    );
-  }
-
   if (!isPageAllowed(effectiveSlug, spec)) {
     // The index route on a page-less instance gets the guidance empty state;
     // every other unknown slug gets the classic not-in-template card.
