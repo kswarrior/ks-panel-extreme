@@ -215,29 +215,28 @@ const TemplateDetail: React.FC = () => {
   const actions: any[] = Array.isArray(spec.actions) ? spec.actions : [];
   // Multi-image map: native images[] plus the Ptero-compatible
   // docker_images{} map (merged, names win on collision like the backend).
-  const detailImages: Array<{ name: string; image: string; description: string; isDefault: boolean; envCount: number }> = (() => {
-    const rows: Array<{ name: string; image: string; description: string; isDefault: boolean; envCount: number }> = [];
+  const detailImages: Array<{ name: string; image: string; description: string; isDefault: boolean }> = (() => {
+    const rows: Array<{ name: string; image: string; description: string; isDefault: boolean }> = [];
     const seen = new Set<string>();
-    const push = (name: string, image: string, description: string, isDefault: boolean, envCount: number) => {
+    const push = (name: string, image: string, description: string, isDefault: boolean) => {
       const n = String(name || '').trim();
       const im = String(image || '').trim();
       if (n === '' || im === '') return;
       const lower = n.toLowerCase();
       if (seen.has(lower)) return;
       seen.add(lower);
-      rows.push({ name: n, image: im, description: String(description || '').trim(), isDefault: !!isDefault, envCount });
+      rows.push({ name: n, image: im, description: String(description || '').trim(), isDefault: !!isDefault });
     };
     if (Array.isArray(spec.images)) {
       for (const e of spec.images) {
         if (!e || typeof e !== 'object') continue;
-        push(String(e.name ?? ''), String(e.image ?? ''), String(e.description ?? ''), !!e.default,
-          e.env && typeof e.env === 'object' ? Object.keys(e.env).length : 0);
+        push(String(e.name ?? ''), String(e.image ?? ''), String(e.description ?? ''), !!e.default);
       }
     }
     if (spec.docker_images && typeof spec.docker_images === 'object' && !Array.isArray(spec.docker_images)) {
       for (const k of Object.keys(spec.docker_images).sort()) {
         const v = (spec.docker_images as Record<string, unknown>)[k];
-        if (typeof v === 'string') push(k, v, '', false, 0);
+        if (typeof v === 'string') push(k, v, '', false);
       }
     }
     const named = typeof spec.default_image === 'string' ? spec.default_image.trim().toLowerCase() : '';
@@ -377,9 +376,6 @@ const TemplateDetail: React.FC = () => {
                     <code className="block text-[11px] text-gray-500 font-mono truncate" title={r.image}>{r.image}</code>
                     {r.description && <span className="block text-[11px] text-gray-500 truncate">{r.description}</span>}
                   </span>
-                  {r.envCount > 0 && (
-                    <span className="shrink-0 text-[10px] text-gray-500" title="Per-runtime env overrides">+{r.envCount} env</span>
-                  )}
                 </li>
               ))}
             </ul>
@@ -440,6 +436,8 @@ const TemplateDetail: React.FC = () => {
                   <span className="font-mono text-sky-200 truncate">{e.key || e.name || `VAR_${i}`}</span>
                   <span className="text-gray-500 shrink-0">=</span>
                   <span className="font-mono text-gray-300 truncate" title={e.value ?? e.default ?? ''}>{e.value ?? e.default ?? <span className="text-gray-500 italic">no default</span>}</span>
+                  {e.behavior === 'auto' && <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-sky-900/40 border border-sky-700/30 text-sky-200 shrink-0" title="Hidden auto-set">auto</span>}
+                  {Array.isArray(e.images) && e.images.length > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded border border-white/10 text-gray-400 shrink-0" title={`Only for: ${e.images.join(', ')}`}>{e.images.length === 1 ? String(e.images[0]) : `${e.images.length} images`}</span>}
                   {e.required && <span className="ml-auto text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-900/40 border border-amber-700/30 text-amber-200 shrink-0">required</span>}
                 </li>
               ))}
