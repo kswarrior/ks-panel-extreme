@@ -1109,7 +1109,7 @@ func setPathRec(cur any, segs []pathSeg, v any) (bool, error) {
 			return false, fmt.Errorf("wildcard * needs a map")
 		}
 		anyDid := false
-		for _, kv := range sortedKeys(m) {
+		for _, kv := range configSortedKeys(m) {
 			did, err := setPathRec(m[kv], segs[1:], v)
 			if err != nil {
 				continue
@@ -1271,7 +1271,7 @@ func isNumericToken(s string) bool {
 	return err == nil
 }
 
-func sortedKeys(m map[string]any) []string {
+func configSortedKeys(m map[string]any) []string {
 	ks := make([]string, 0, len(m))
 	for k := range m {
 		ks = append(ks, k)
@@ -1628,7 +1628,7 @@ func dumpYAMLNode(b *strings.Builder, v any, indent int) {
 	pad := strings.Repeat("  ", indent)
 	switch t := v.(type) {
 	case map[string]any:
-		ks := sortedKeys(t)
+		ks := configSortedKeys(t)
 		if len(ks) == 0 {
 			b.WriteString(pad + "{}\n")
 			return
@@ -1664,7 +1664,7 @@ func dumpYAMLNode(b *strings.Builder, v any, indent int) {
 		for _, item := range t {
 			switch c := item.(type) {
 			case map[string]any:
-				ks := sortedKeys(c)
+				ks := configSortedKeys(c)
 				if len(ks) == 0 {
 					b.WriteString(pad + "- {}\n")
 					continue
@@ -1750,15 +1750,14 @@ func yamlQuoteString(s string) string {
 	if s == "" {
 		return `""`
 	}
-	// Bare when simple.
+	// Bare when simple: alnum + _ - . / only. Anything else forces quoting
+	// (covers spaces, colons, hashes, brackets, quotes, backslash, etc.).
 	simple := true
 	for _, c := range s {
-		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '_' || c == '-' || c == '.' || c == '/' || c == ':' && false) {
-			// Allow ':' only when not followed by space (else YAML splits).
-			if c == ' ' || c == '\t' || c == '\n' || c == ':' || c == '#' || c == '"' || c == '\'' || c == '[' || c == ']' || c == '{' || c == '}' || c == ',' || c == '&' || c == '*' || c == '?' || c == '|' || c == '<' || c == '>' || c == '=' || c == '!' || c == '%' || c == '@' || c == '\\') {
-				simple = false
-				break
-			}
+		isBare := (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-' || c == '.' || c == '/'
+		if !isBare {
+			simple = false
+			break
 		}
 	}
 	// Leading/trailing space or colon-space forces quoting.
