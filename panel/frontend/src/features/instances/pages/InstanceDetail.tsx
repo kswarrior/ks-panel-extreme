@@ -1,14 +1,20 @@
 // InstanceDetail.tsx — instance panel shell + dynamic page resolver.
 //
-// Every instance sub-page is now a CUSTOM page (html / markdown / blocks)
+// Most instance sub-pages are CUSTOM pages (html / markdown / blocks)
 // imported from the Instance Pages library into the instance's spec.pages.
-// The legacy built-in React sub-pages were removed; this module keeps only:
+// This module keeps:
 //
 //   • InstancePanel       — the shell that syncs the instance's own config
 //                           snapshot into the global sidebar nav context;
 //   • InstanceDynamicPage — resolves the URL slug against the INSTANCE's
 //                           deploy-time spec and renders CustomPageView.
 //
+// Files / Terminal / Ports are self-sufficient BUILTINS: they render natively
+// with zero library imports (Files falls back to the bundled library starter
+// when the instance has no files row; Terminal is the native xterm bridge;
+// Ports is the native editor). Their backend bridges skip the page whitelist
+// (auth + permission gates still apply). Tool navigation lives in the
+// floating instance menu's shortcut row — there is no Tools card on the page.
 // A slug is allowed when the instance's own config lists it in `pages`
 // (empty-by-default: no rows → no pages). Home uses slug "." and renders at
 // the index route when its page row was imported.
@@ -17,7 +23,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, Outlet, useNavigate, useParams } from 'react-router-dom';
 import { useInstance, parseConfig } from '@/shared/hooks/useInstance';
 import { useInstanceNavSync } from '@/shared/components/layout/InstanceNavContext';
-import { getPageContent, getPageLabel, isPageAllowed, resolveRedirectTarget } from '@/shared/utils/instancePages';
+import { getPageContent, getPageLabel, isPageAllowed, resolveRedirectTarget, type PageContent } from '@/shared/utils/instancePages';
 import { pageNavigateTarget } from '@/shared/lib/customPageSdk';
 import CustomPageView from '@/shared/components/ui/CustomPageView';
 import ErrorBoundary from '@/shared/components/ui/ErrorBoundary';
@@ -25,7 +31,7 @@ import Terminal, { type TerminalHandle } from '@/shared/components/ui/Terminal';
 import type { Terminal as XTerm } from '@xterm/xterm';
 import InstancePortsEditor from '@/features/instances/pages/InstancePortsEditor';
 import InstanceOverview from '@/features/instances/pages/InstanceOverview';
-import { InstanceToolsDock } from '@/features/instances/components/InstanceTabs';
+import { PAGE_STARTERS } from '@/features/instance-pages/templates/pageStarters';
 import { resolveInstanceControls, shortcutLabel, shortcutSlug } from '@/features/instances/utils/instanceControls';
 import InstanceSftpCard from '@/features/instances/components/InstanceSftpCard';
 import InstanceSnapshotsTab from '@/features/instances/components/InstanceSnapshotsTab';
@@ -81,11 +87,6 @@ export const InstancePanel: React.FC = () => {
         </div>
       )}
 
-      {/* Quick tools (Files / Terminal / Ports) — icon cards above the
-          page content, never tabs. Hidden until the instance loads so the
-          allow-list gates resolve against the real spec. */}
-      {!loading && <InstanceToolsDock instanceId={instanceId} spec={spec} />}
-
       <ErrorBoundary resetKey={instanceId} label="instance-panel">
         <Outlet />
       </ErrorBoundary>
@@ -100,11 +101,35 @@ const NoPagesState: React.FC<{ slug: string }> = ({ slug }) => (
   <div className="glass-card rounded-xl text-center text-gray-400 space-y-2">
     <p className="text-sm pt-2">This instance has no pages yet.</p>
     <p className="text-xs text-gray-500 pb-3">
-      Import pages (Home, Files, Terminal, Metrics, …) from the Instance Pages library in the template or deploy editor.
+      Import pages (Home, Metrics, …) from the Instance Pages library in the template or deploy editor. Files, Terminal and Ports always work — they live in the floating instance menu.
     </p>
     <code className="text-[11px] text-gray-600 block pb-3">resolved route: /{slug}</code>
   </div>
 );
+
+// hasRenderableContent reports whether a page payload carries anything
+// CustomPageView can render.
+function hasRenderableContent(c: PageContent | null): boolean {
+  return !!c && (!!c.html || !!c.markdown || !!c.blocks);
+}
+
+// filesStarterContent returns the bundled Files library starter as fallback
+// PageContent so the Files page is self-sufficient with zero library imports:
+// `subPath` null → the file manager, 'edit' → the editor sub-page. Returns
+// null when the starter itself carries no content (never expected).
+function filesStarterContent(subPath: string | null): PageContent | null {
+  const starter = PAGE_STARTERS.find((s) => s.slug === 'files');
+  if (!starter) return null;
+  if (subPath) {
+    const sub = (starter.subPages ?? []).find((sp) => String(sp.path).trim() === subPath);
+    const html = typeof sub?.content_html === 'string' ? sub.content_html : '';
+    if (html.trim() === '') return null;
+    return { type: 'html', html };
+  }
+  const html = typeof starter.html === 'string' ? starter.html : '';
+  if (html.trim() === '') return null;
+  return { type: 'html', html };
+}
 
 // TerminalRealPage — native xterm terminal for the terminal shortcut slug
 // (default `terminal`, customizable in Instance Controls). Replaces the
@@ -297,6 +322,91 @@ export const InstanceDynamicPage: React.FC = () => {
     const home = resolveRedirectTarget((spec as any)?.home_page, spec);
     if (home) {
       return <Navigate to={`/instances/${instanceId}/${home}`} replace />;
+    }
+  }
+
+  // Build instance context for the custom page SDK. install_* fields ride
+  // along so overview-style pages can surface install-workflow progress.
+  const instanceContext = {
+    id: instance.id,
+    name: instance.name,
+    kind: instance.kind,
+    status: instance.status,
+    template_id: instance.template_id,
+    template_name: instance.template_name ?? null,
+    node_id: instance.node_id,
+    node_name: instance.node_name ?? null,
+    owner_id: instance.owner_id ?? null,
+    owner_name: instance.owner_name ?? null,
+    config: instance.config ? parseConfig(instance.config) : {},
+    external_id: instance.external_id ?? '',
+    created_at: instance.created_at ?? '',
+    updated_at: instance.updated_at ?? '',
+    install_state: instance.install_state ?? '',
+    install_kind: instance.install_kind ?? '',
+    install_step: typeof instance.install_step === 'number' ? instance.install_step : -1,
+    install_error: instance.install_error ?? '',
+    install_steps_json: instance.install_steps_json ?? '',
+    install_action_id: instance.install_action_id ?? '',
+    display_name: instance.display_name ?? '',
+    icon: instance.icon ?? '',
+    color: instance.color ?? '',
+  };
+
+  // Terminal is a self-sufficient builtin: the native xterm bridge renders
+  // with zero library imports (its backend bridge skips the page whitelist;
+  // route auth + VIEW permission still apply). The canonical /terminal URL
+  // keeps working when the slug is customized.
+  if (effectiveSlug === terminalSlug || (effectiveSlug === 'terminal' && isPageAllowed('terminal', spec))) {
+    return (
+      <ErrorBoundary resetKey={`terminal-${instanceId}`} label="instance-terminal">
+        <TerminalRealPage
+          instance={instance}
+          title={shortcutLabel(controls, 'terminal')}
+          showHeader={controls.shortcuts.terminal.show_header}
+        />
+      </ErrorBoundary>
+    );
+  }
+
+  // Files is a self-sufficient builtin: an imported files row renders when
+  // present, otherwise the bundled library starter renders, so the page
+  // works with zero imports. The SFTP card rides above the manager unless
+  // the Files shortcut's "Show SFTP card" page option is off.
+  if (effectiveSlug === filesSlug || (effectiveSlug === 'files' && isPageAllowed('files', spec))) {
+    const rowContent = getPageContent(effectiveSlug, spec);
+    const content = hasRenderableContent(rowContent) ? rowContent : filesStarterContent(null);
+    if (content) {
+      return (
+        <ErrorBoundary resetKey={`files-${instanceId}`} label="instance-page">
+          <div className="space-y-4">
+            {controls.shortcuts.files.show_sftp && <InstanceSftpCard instanceId={instanceId} />}
+            <CustomPageView
+              content={content}
+              title={getPageLabel(effectiveSlug, spec) ?? shortcutLabel(controls, 'files')}
+              instanceContext={instanceContext}
+              pageSlug={effectiveSlug}
+            />
+          </div>
+        </ErrorBoundary>
+      );
+    }
+    // No row and no starter (never expected) — fall through to the
+    // whitelist path below, which renders the standard guidance cards.
+  }
+
+  // Files editor sub-page fallback: when the instance has no files row of
+  // its own, `<filesSlug>/edit` renders the bundled starter editor instead
+  // of the not-in-template card. Instances WITH a files row resolve their
+  // own edit sub-page through the whitelist path below (unchanged).
+  if (effectiveSlug === `${filesSlug}/edit` && !hasRenderableContent(getPageContent(effectiveSlug, spec))) {
+    const editContent = filesStarterContent('edit');
+    if (editContent) {
+      return (
+        <ErrorBoundary resetKey={`files-edit-${instanceId}`} label="instance-page">
+          <CustomPageView content={editContent} title="Editor" instanceContext={instanceContext} pageSlug={effectiveSlug} />
+        </ErrorBoundary>
+      );
     }
   }
 
