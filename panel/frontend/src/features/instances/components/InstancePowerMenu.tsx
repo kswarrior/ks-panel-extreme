@@ -3,7 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { startInstance, stopInstance, restartInstance, killInstance } from '@/shared/api/admin';
 import { invokeInstanceAction, stopInstanceAction } from '@/features/instances/api/instanceAdvanced';
 import { useInstance, parseConfig } from '@/shared/hooks/useInstance';
-import { resolveInstanceControls } from '../utils/instanceControls';
+import { resolveInstanceControls, shortcutLabel, shortcutSlug } from '../utils/instanceControls';
 import { isPageAllowed } from '@/shared/utils/instancePages';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 import { useAuthStore } from '@/shared/stores/authStore';
@@ -141,11 +141,13 @@ const InstancePowerMenu: React.FC = () => {
     PermissionKey.INSTANCES_EDIT,
   );
 
-  // Quick shortcuts (Files / Terminal / Ports) — same routes as the
+  // Quick shortcuts (Files / Terminal / Ports) — same destinations as the
   // InstanceToolsDock cards, surfaced inside the floating menu directly
   // above the template Actions so operators can jump without closing it.
-  // Availability mirrors the dock: Files / Terminal need their spec page,
-  // Ports needs instance edit permission (its editor is permission-gated).
+  // Slug / label / icon come from instance_controls.shortcuts (template
+  // author or per-instance override); availability mirrors the dock: Files
+  // / Terminal need their (possibly custom-slug) spec page, Ports needs
+  // instance edit permission (its editor is permission-gated).
   const toolSpec = useMemo(() => {
     try {
       return instance?.config ? parseConfig(instance.config) : null;
@@ -153,8 +155,11 @@ const InstancePowerMenu: React.FC = () => {
       return null;
     }
   }, [instance?.config]);
-  const filesOk = isPageAllowed('files', toolSpec as any);
-  const terminalOk = isPageAllowed('terminal', toolSpec as any);
+  const filesSlug = shortcutSlug(controls, 'files');
+  const terminalSlug = shortcutSlug(controls, 'terminal');
+  const portsSlug = shortcutSlug(controls, 'ports');
+  const filesOk = isPageAllowed(filesSlug, toolSpec as any);
+  const terminalOk = isPageAllowed(terminalSlug, toolSpec as any);
   const canEditPorts = hasPermissionAny(
     permissions,
     PermissionKey.INSTANCES_EDIT,
