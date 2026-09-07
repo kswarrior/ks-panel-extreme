@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { listNodes, nodeHeartbeats, probeNode, listInstances, rotateNodeToken, deleteNode, purgeLocalNode, getNodeUpdateInfo } from '@/shared/api/admin';
 import type { Node, NodeHeartbeat } from '@/features/nodes/types/node';
@@ -542,7 +542,11 @@ const NodeDetail: React.FC = () => {
         <h4 className="text-xs uppercase tracking-wide text-gray-500 mb-3">Edge Update & Reinstall</h4>
         <NodeUpdateTab nodeId={node.id} nodeName={node.name} />
       </GlassCard>
+      </div>
+      )}
 
+      {tab === 'timeline' && (
+      <div role="tabpanel" id="rail-panel-timeline" aria-labelledby="rail-tab-timeline">
       <GlassCard className="p-3">
         <h4 className="text-xs uppercase tracking-wide text-gray-500 mb-2">Timeline</h4>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
@@ -567,6 +571,8 @@ const NodeDetail: React.FC = () => {
           <button onClick={back} className="px-4 py-2 text-xs rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-gray-300">Back to nodes</button>
         </div>
       </GlassCard>
+      </div>
+      )}
     </div>
   );
 };
