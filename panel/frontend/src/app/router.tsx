@@ -47,7 +47,6 @@ import AdminStacks from '@/features/stacks/pages/Stacks';
 import StackDetail from '@/features/stacks/pages/StackDetail';
 import StackFiles from '@/features/stacks/pages/StackFiles';
 import StackView from '@/features/stacks/pages/StackView';
-import StackStudio from '@/features/stacks/pages/StackStudio';
 import StackStats from '@/features/stacks/pages/StackStats';
 import StackSchedules from '@/features/stacks/pages/StackSchedules';
 import ModStudio from '@/features/mods/pages/ModStudio';
