@@ -634,16 +634,6 @@ const Router: React.FC = () => (
         }
       />
       <Route
-        path="/stacks/studio"
-        element={
-          <RequireAuth>
-            <RequirePermission permission={PermissionKey.MANAGE_STACKS}>
-              <StackStudio />
-            </RequirePermission>
-          </RequireAuth>
-        }
-      />
-      <Route
         path="/stacks/stats"
         element={
           <RequireAuth>
