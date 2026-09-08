@@ -482,7 +482,7 @@ const InstanceFileEditor: React.FC<{ instanceId: number; filesSlug: string }> = 
           <button
             type="button"
             onClick={() => void save()}
-            disabled={loading || saving || !dirty || !targetPath}
+            disabled={loading || saving || !dirty || !targetPath || jailedOut}
             title={saving ? 'Saving…' : 'Write the file (Ctrl+S)'}
             aria-label={saving ? 'Saving' : 'Save file'}
             className="ks-btn-header ks-icon-btn disabled:opacity-40"

@@ -223,10 +223,12 @@ const InstanceFiles: React.FC<{ instanceId: number; filesSlug: string }> = ({ in
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
-  // Seed the path at the home folder once it is known.
+  // Seed the path at the home folder once it is known; re-clamp into home
+  // if the controls snapshot arrives/changes underneath an open directory.
   useEffect(() => {
     if (path === null && instance) setPath(home);
-  }, [instance, home, path]);
+    else if (path !== null && jail && !isPathWithinHome(home, path)) setPath(home);
+  }, [instance, home, path, jail]);
 
   const load = useCallback(
     async (dir: string, silent = false) => {
