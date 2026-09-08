@@ -424,6 +424,7 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
       term.dispose();
       termRef.current = null;
       fitRef.current = null;
+      sendLineRef.current = null;
       onTermRef?.(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

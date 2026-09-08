@@ -34,7 +34,7 @@ import InstanceOverview from '@/features/instances/pages/InstanceOverview';
 import InstanceFiles from '@/features/instances/pages/InstanceFiles';
 import InstanceFileEditor from '@/features/instances/pages/InstanceFileEditor';
 import { resolveInstanceControls, shortcutLabel, shortcutSlug, MAX_DEFAULT_TERMINALS } from '@/features/instances/utils/instanceControls';
-import type { TerminalDefaultDef } from '@/features/instances/utils/instanceControls';
+import type { TerminalDefaultDef, TerminalInputMode } from '@/features/instances/utils/instanceControls';
 import { sendActionStdin, sendInstallStdin } from '@/features/instances/api/instanceAdvanced';
 import InstanceSftpCard from '@/features/instances/components/InstanceSftpCard';
 import InstanceSnapshotsTab from '@/features/instances/components/InstanceSnapshotsTab';
@@ -154,14 +154,13 @@ const TerminalPane: React.FC<{
   installKind: string;
   installTerminalId: string;
   startupTerminalId: string;
-  canRemove: boolean;
-  onRemove: (key: number) => void;
+  inputMode: TerminalInputMode;
   onConnState?: (key: number, s: PaneConnState, msg?: string) => void;
-}> = ({ instanceId, pane, actions, runningActionId, installState, installKind, installTerminalId, startupTerminalId, canRemove, onRemove, onConnState }) => {
+}> = ({ instanceId, pane, actions, runningActionId, installState, installKind, installTerminalId, startupTerminalId, inputMode, onConnState }) => {
   const handleRef = useRef<TerminalHandle>(null);
   const [connState, setConnState] = useState<PaneConnState>('connecting');
   const [connMsg, setConnMsg] = useState('');
-  const [cwd, setCwd] = useState('~');
+  const [box, setBox] = useState('');
   const [stdinError, setStdinError] = useState('');
 
   const tid = normTid(pane.terminalId);
@@ -220,46 +219,27 @@ const TerminalPane: React.FC<{
   };
 
   const title = pane.name.trim() !== '' ? pane.name.trim() : (tid !== '' ? tid : 'shell');
-  const statusSuffix = isWorkflowActive
-    ? ' · running'
-    : (isStartupBound || isWorkflowPane) && connState === 'connected'
-      ? ' · attached'
-      : isBound && !isStartupBound
-        ? ' · idle'
-        : '';
+
+  // Box input method: the xterm below is output-only (readOnly) — the
+  // operator types here and Send submits the line through the exact same
+  // pipeline as pressing Enter in the terminal (TerminalHandle.sendLine).
+  const boxMode = inputMode === 'box';
+  const sendBox = () => {
+    if (box.trim() === '') return;
+    try { handleRef.current?.sendLine(box); } catch { /* noop */ }
+    setBox('');
+  };
 
   return (
     <div className="rounded-xl border border-white/10 bg-black/20 overflow-hidden">
-      <div className="flex items-center gap-2 px-3 pt-2.5 pb-2">
-        <div className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium text-white" title={tid ? `${title} · ${tid}` : title}>{title}</span>
-          {tid !== '' && (
-            <span className="block truncate font-mono text-[11px] text-gray-500" title={`Terminal ID: ${tid}`}>{tid}{statusSuffix}</span>
-          )}
-          {tid === '' && (
-            <span className="block truncate font-mono text-[11px] text-gray-500">shell · {connState}</span>
-          )}
-        </div>
-        <div className="flex items-center gap-1 shrink-0">
-          {connState !== 'connected' && (
-            <button type="button" onClick={() => handleRef.current?.reconnect()} className="ks-btn" title="Reconnect the live shell now">⟳</button>
-          )}
-          {canRemove && (
-            <button type="button" onClick={() => onRemove(pane.key)} className="p-1.5 rounded-md text-red-400 hover:text-red-300 hover:bg-white/5" title="Remove this terminal" aria-label="Remove terminal">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
-            </button>
-          )}
-        </div>
-      </div>
-
       {stdinError && (
-        <div className="mx-3 mb-2 flex items-start gap-2 rounded-md border border-red-900/40 bg-red-950/90 px-2.5 py-1.5 text-[11px] text-red-200">
+        <div className="mx-3 mt-3 flex items-start gap-2 rounded-md border border-red-900/40 bg-red-950/90 px-2.5 py-1.5 text-[11px] text-red-200">
           <span className="flex-1 break-words">{stdinError}</span>
           <button type="button" onClick={() => setStdinError('')} aria-label="Dismiss" className="shrink-0 text-red-300/70 hover:text-white">✕</button>
         </div>
       )}
 
-      <div className="px-3 pb-3">
+      <div className="p-3">
         <div
           style={{
             borderRadius: 10,
@@ -269,48 +249,31 @@ const TerminalPane: React.FC<{
             boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
           }}
         >
-          <div
-            className="ks-mono"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '6px 10px',
-              background: 'var(--ks-card-bg, #1e1e1e)',
-              borderBottom: '1px solid var(--ks-card-border)',
-              fontSize: 11,
-              color: 'var(--ks-muted)',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}
-          >
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{tid ? `console:${tid}` : 'shell'}:{cwd}$</span>
-            <span style={{ marginLeft: 'auto', flexShrink: 0 }}>{connState}{connMsg ? ` — ${connMsg}` : ''}</span>
-          </div>
           <Terminal
             ref={handleRef}
             instanceId={instanceId}
             terminalId={tid}
             endpoint={isStartupBound ? 'console' : isWorkflowPane && isWorkflowActive ? 'workflow' : undefined}
             onLine={isStartupBound ? undefined : handleLine}
+            readOnly={boxMode}
             onStateChange={(s, m) => { setConnState(s); setConnMsg(m ?? ''); }}
-            onTitleChange={(t) => {
-              if (!t) return;
-              try {
-                const mm = String(t).match(/file:\/\/[^/]*(\/.*)/);
-                if (mm) { setCwd(mm[1]); return; }
-                const pm = String(t).match(/([~/][^\s]*)\s*$/);
-                if (pm) {
-                  const pp = pm[1].split(' — ')[0].split(' - ')[0];
-                  if (pp) setCwd(pp);
-                  return;
-                }
-                if (t.indexOf('/') >= 0) setCwd(t);
-              } catch { /* noop */ }
-            }}
           />
         </div>
+        {boxMode && (
+          <div className="flex items-center gap-2 mt-2 min-w-0">
+            <input
+              value={box}
+              onChange={(e) => setBox(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') sendBox(); }}
+              placeholder="Type a command…"
+              aria-label={`Command input for ${title}`}
+              className="ks-input w-full min-w-0 flex-1"
+            />
+            <button type="button" onClick={sendBox} className="ks-btn-primary ks-btn shrink-0">
+              Send
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
