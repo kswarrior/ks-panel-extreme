@@ -14,9 +14,9 @@ FILES=(
 )
 found=0
 for f in "${FILES[@]}"; do
-  hits=$(grep -c "ON CONFLICT" "$ROOT/$f" || true)
-  echo "$f: ON CONFLICT hits=$hits"
-  grep -n "ON CONFLICT" "$ROOT/$f" || true
+  hits=$(grep -n "ON CONFLICT" "$ROOT/$f" | grep -vE "^[0-9]+:[[:space:]]*(//|\*)" | grep -c "" || true)
+  echo "$f: ON CONFLICT code hits=$hits"
+  grep -n "ON CONFLICT" "$ROOT/$f" | grep -vE "^[0-9]+:[[:space:]]*(//|\*)" || true
   found=$((found + hits))
 done
 if [ "$found" -gt 0 ]; then

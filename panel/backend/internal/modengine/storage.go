@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -90,13 +91,34 @@ func (StorageRepository) Set(slug, key string, value any) error {
 	}
 	defer con.Close()
 	now := time.Now().UTC().Format("2006-01-02 15:04:05")
-	_, err = con.Exec(
-		`INSERT INTO mod_storage (mod_slug, key, value, updated_at)
-		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT(mod_slug, key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
-		slug, key, string(raw), now,
+	// Portable UPDATE-then-INSERT (mirrors
+	// NodeRepository.upsertHeartbeatBucket): ON CONFLICT is a MySQL syntax
+	// error. A lost insert race converges via follow-up UPDATE.
+	res, cerr := con.Exec(
+		`UPDATE mod_storage SET value = ?, updated_at = ? WHERE mod_slug = ? AND key = ?`,
+		string(raw), now, slug, key,
 	)
-	return err
+	if cerr != nil {
+		return cerr
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		return nil
+	}
+	if _, cerr = con.Exec(
+		`INSERT INTO mod_storage (mod_slug, key, value, updated_at)
+		 VALUES (?, ?, ?, ?)`,
+		slug, key, string(raw), now,
+	); cerr != nil {
+		if isDupKeyErr(cerr) {
+			_, _ = con.Exec(
+				`UPDATE mod_storage SET value = ?, updated_at = ? WHERE mod_slug = ? AND key = ?`,
+				string(raw), now, slug, key,
+			)
+			return nil
+		}
+		return cerr
+	}
+	return nil
 }
 
 // Delete removes a single key. Missing keys are a no-op (not an error) so the
@@ -174,6 +196,15 @@ var parseSQLiteTime = func(s string) (time.Time, error) {
 		}
 	}
 	return time.Time{}, errors.New("unrecognised time format")
+}
+
+// isDupKeyErr reports a duplicate-key violation across SQLite
+// ("UNIQUE constraint failed"), MySQL ("Duplicate entry") and Postgres
+// ("duplicate key value violates unique constraint"). Local copy of the
+// repository helper (same package rule keeps it unexported there).
+func isDupKeyErr(err error) bool {
+	low := strings.ToLower(err.Error())
+	return strings.Contains(low, "duplicate") || strings.Contains(low, "unique")
 }
 
 // storageBinding is the namespaced storage handle a Goja VM receives under
