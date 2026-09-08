@@ -310,14 +310,7 @@ func (r *InstanceRepository) Get(id int64) (*models.Instance, error) {
 	if installActionID.Valid {
 		inst.InstallActionID = installActionID.String
 	}
-	if startedAt.Valid && startedAt.String != "" {
-		t, _ := time.Parse("2006-01-02 15:04:05", startedAt.String)
-		if !t.IsZero() {
-			inst.StartedAt = &t
-		}
-	}
-	inst.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created.String)
-	inst.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updated.String)
+	scanInstanceTimes(&inst, startedAt, created, updated)
 	return &inst, nil
 }
 
