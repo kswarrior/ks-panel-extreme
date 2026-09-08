@@ -188,7 +188,8 @@ const ShortcutAskFields: React.FC<{
   vars: string[];
   askVals: Record<string, string>;
   onAsk: (name: string, value: string) => void;
-}> = ({ vars, askVals, onAsk }) => (
+  wide?: boolean;
+}> = ({ vars, askVals, onAsk, wide }) => (
   <>
     {vars.map((v) => (
       <input
@@ -198,7 +199,7 @@ const ShortcutAskFields: React.FC<{
         placeholder={v}
         aria-label={`Value for ${v}`}
         title={`Value for ${v}`}
-        className="ks-input w-28 min-w-0 shrink-0"
+        className={wide ? 'ks-input w-full min-w-0' : 'ks-input w-28 min-w-0 shrink-0'}
       />
     ))}
   </>
@@ -474,7 +475,7 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
     seededKey.current = key;
     if (!sameInstance) {
       // Never leak another instance's shortcut/box drafts into this one.
-      setSel(null);
+      setAskFor(null);
       setAskVals({});
       setBoxTexts({});
     }
@@ -692,19 +693,42 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
             inputMode={termCfg.terminal_input_mode || 'direct'}
             shortcutsOn={shortcutsOn}
             shortcuts={shortcuts}
-            sel={selSafe}
-            onSel={(i) => pickShortcut(i)}
-            askVals={askVals}
-            onAsk={onAsk}
+            onShortcutPick={(i) => runShortcut(i, 'box')}
             boxText={boxTexts[p.key] ?? ''}
-            onBoxText={handleBoxText}
-            askVars={selVars}
-            askBlocked={askBlocked}
+            onBoxText={(v) => setBoxTexts((m) => ({ ...m, [activeKey]: v }))}
             onRegisterSend={onRegisterSend}
             onConnState={handleConnState}
           />
         </div>
       ))}
+
+      {/* Shortcut ask dialog — parameterized pick lists every variable
+          (any count, scrollable) and stays strict: Send enables only when
+          all values are filled. Confirm fills the bottom input (box mode)
+          or transmits to the active tab at once (direct mode). */}
+      {askFor !== null && shortcuts[askFor.i] && (
+        <Modal
+          open
+          onClose={closeAsk}
+          title={shortcuts[askFor.i].label.trim() !== '' ? shortcuts[askFor.i].label : 'Shortcut'}
+          maxWidth="max-w-md"
+          footer={
+            <>
+              <button type="button" onClick={closeAsk} className="ks-btn">
+                Cancel
+              </button>
+              <SendGlyphButton onSend={confirmAsk} disabled={askBlocked} />
+            </>
+          }
+        >
+          <div className="space-y-3">
+            <p className="text-[11px] text-gray-500 font-mono break-all">{askCmd}</p>
+            <div className="space-y-2 max-h-64 overflow-y-auto pr-0.5">
+              <ShortcutAskFields vars={askVars} askVals={askVals} onAsk={onAsk} wide />
+            </div>
+          </div>
+        </Modal>
+      )}
 
       <Modal
         open={showAdd}
