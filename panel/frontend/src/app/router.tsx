@@ -48,6 +48,7 @@ import StackDetail from '@/features/stacks/pages/StackDetail';
 import StackFiles from '@/features/stacks/pages/StackFiles';
 import StackView from '@/features/stacks/pages/StackView';
 import StackStudio from '@/features/stacks/pages/StackStudio';
+import StackForm from '@/features/stacks/pages/StackForm';
 import StackStats from '@/features/stacks/pages/StackStats';
 import StackSchedules from '@/features/stacks/pages/StackSchedules';
 import ModStudio from '@/features/mods/pages/ModStudio';
@@ -640,6 +641,16 @@ const Router: React.FC = () => (
           <RequireAuth>
             <RequirePermission permission={PermissionKey.MANAGE_STACKS}>
               <StackStudio />
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/stacks/new"
+        element={
+          <RequireAuth>
+            <RequirePermission permission={PermissionKey.MANAGE_STACKS}>
+              <StackForm />
             </RequirePermission>
           </RequireAuth>
         }

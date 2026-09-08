@@ -172,6 +172,10 @@ const Stacks: React.FC = () => {
       } else if (installTab === 'url') {
         if (!urlInput.trim()) throw new Error('Enter a URL first.');
         await installStackFromUrl(urlInput.trim());
+      } else if (installTab === 'create') {
+        setInstallOpen(false);
+        navigate('/stacks/new');
+        return;
       } else {
         setInstallOpen(false);
         navigate('/stacks/studio');
@@ -443,11 +447,11 @@ const Stacks: React.FC = () => {
         <button
           onClick={openInstall}
           aria-label="Install Stack"
-          className="ks-tab inline-flex items-center justify-center"
+          className="ks-tab ks-tab-active inline-flex items-center justify-center"
           style={PILL_TAB_STYLE}
           title="Install Stack"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
             <line x1="12" y1="5" x2="12" y2="19" />
             <line x1="5" y1="12" x2="19" y2="12" />
           </svg>
@@ -613,7 +617,14 @@ const Stacks: React.FC = () => {
         title="Install Stack"
         maxWidth="max-w-lg"
         footer={
-          installTab === 'studio' ? (
+          installTab === 'create' ? (
+            <>
+              <button onClick={() => setInstallOpen(false)} className="ks-btn-cancel ks-btn-ghost">Cancel</button>
+              <button onClick={() => { setInstallOpen(false); navigate('/stacks/new'); }} className="ks-btn-form ks-btn-primary">
+                Create Stack
+              </button>
+            </>
+          ) : installTab === 'studio' ? (
             <>
               <button onClick={() => setInstallOpen(false)} className="ks-btn-cancel ks-btn-ghost">Cancel</button>
               <button onClick={() => { setInstallOpen(false); navigate('/stacks/studio'); }} className="ks-btn-form ks-btn-primary">
@@ -631,13 +642,13 @@ const Stacks: React.FC = () => {
         }
       >
         <div className="flex gap-1 mb-3 bg-black/30 border border-white/10 rounded-md p-1">
-          {(['file', 'url', 'studio'] as const).map((t) => (
+          {(['file', 'url', 'create', 'studio'] as const).map((t) => (
             <button
               key={t}
               onClick={() => setInstallTab(t)}
               className={`ks-tab flex-1 px-3 py-1.5 rounded text-sm flex items-center justify-center gap-1.5 ${installTab === t ? 'ks-tab-active' : ''}`}
             >
-              {t === 'file' ? '.ksps file' : t === 'url' ? 'From URL' : 'Studio'}
+              {t === 'file' ? '.ksps file' : t === 'url' ? 'From URL' : t === 'create' ? 'Create' : 'Studio'}
             </button>
           ))}
         </div>
@@ -661,6 +672,31 @@ const Stacks: React.FC = () => {
               <span className="text-amber-300">inactive</span>.
             </p>
             <input value={urlInput} onChange={(e) => setUrlInput(e.target.value)} placeholder="https://example.com/my-stack.ksps" className="block w-full mt-2 bg-black/30 border border-white/10 rounded-md text-sm text-white px-3 py-1.5 font-mono focus:outline-none focus:border-white/40" />
+          </>
+        )}
+
+        {installTab === 'create' && (
+          <>
+            <p className="text-xs text-gray-400">
+              Create a new stack from scratch using the visual form.
+            </p>
+            <GlassCard className="space-y-3 text-center py-6">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-12 h-12 mx-auto text-gray-400">
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
+              </svg>
+              <h4 className="text-white font-medium">Create Stack</h4>
+              <p className="text-gray-400 text-sm">Build a stack visually — define meta, theme, frontend, permissions, backend script and spec.</p>
+              <div className="flex items-center justify-center gap-2 flex-wrap">
+                <span className="text-xs text-gray-500">Features:</span>
+                <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Meta</span>
+                <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Theme</span>
+                <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Frontend</span>
+                <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Permissions</span>
+                <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Backend</span>
+                <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Spec</span>
+              </div>
+            </GlassCard>
           </>
         )}
 
