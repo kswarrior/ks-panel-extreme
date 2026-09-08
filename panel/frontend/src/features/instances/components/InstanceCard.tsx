@@ -183,6 +183,22 @@ function truncateOneLine(s: string, max: number): string {
   return t.slice(0, max).trimEnd() + '…';
 }
 
+// MIN_SANE_TIME_MS floors out corrupt row timestamps: the backend used to
+// emit Go zero time ("0001-01-01T00:00:00Z") for unparseable datetimes, which
+// renders as ~739866d of phantom uptime on a just-started instance. No real
+// instance predates 2000, so anything older is treated as missing and the
+// chain falls through to the next candidate (or '—' when none is sane).
+const MIN_SANE_TIME_MS = Date.UTC(2000, 0, 1);
+
+function pickSince(...vals: Array<string | undefined | null>): string | null {
+  for (const v of vals) {
+    if (!v) continue;
+    const t = new Date(v).getTime();
+    if (Number.isFinite(t) && t >= MIN_SANE_TIME_MS) return v;
+  }
+  return null;
+}
+
 // Uptime since the instance last entered "running" (started_at).
 // Falls back to updated_at / created_at for rows that pre-date the
 // started_at column (migration 051). Updated every second while mounted.
