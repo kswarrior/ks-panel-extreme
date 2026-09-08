@@ -174,7 +174,6 @@ const TerminalPane: React.FC<{
   // Startup console: bound when the pane ID equals the template's
   // advanced.startup_terminal_id. I/O rides the /console WS natively.
   const isStartupBound = tid !== '' && normTid(startupTerminalId) !== '' && tid === normTid(startupTerminalId);
-  const isBound = !!matchedAction || isInstallBound || isStartupBound;
   // Workflow panes (bound action/install IDs) dial /workflow for the live
   // console — never the side shell — so typed lines reach only the MC
   // server (via POST relay) and output is the server console itself.
@@ -476,21 +475,6 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
           </button>
         </div>
       )}
-      {(() => {
-        const consoles: string[] = [
-          ...actions.filter((a: any) => normTid(a?.terminal_id) !== '').map((a: any) => `${a.name || a.id} (${normTid(a.terminal_id)})`),
-        ];
-        if (installTerminalId !== '') consoles.push(`Installation (${installTerminalId})`);
-        if (startupTerminalId !== '') consoles.push(`Startup (${startupTerminalId})`);
-        return consoles.length > 0 ? (
-          <p className="text-[11px] text-gray-500">
-            Consoles: {consoles.join(' · ')} — press + and enter the ID for a live console (tps / op / stop … work while it runs).
-          </p>
-        ) : (
-          <p className="text-[11px] text-gray-500">No console bound yet — set a Terminal ID on an action, the Installation workflow, or the Startup command (e.g. <code className="font-mono">mc-console</code>) to attach consoles here.</p>
-        );
-      })()}
-
       {/* Tabs bar — directly below the Terminal header text + add button,
           above the active terminal. Horizontally scrollable; inactive panes
           stay mounted hidden so their WS sessions survive tab switches. */}
@@ -544,8 +528,7 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
             installKind={installKind}
             installTerminalId={installTerminalId}
             startupTerminalId={startupTerminalId}
-            canRemove={panes.length > 1}
-            onRemove={removePane}
+            inputMode={termCfg.terminal_input_mode || 'direct'}
             onConnState={handleConnState}
           />
         </div>
