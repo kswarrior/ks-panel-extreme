@@ -16,10 +16,11 @@ import (
 )
 
 // Handler returns an http.Handler that exposes the install workflow RPC.
-// Two methods share one path /api/edge/install:
+// Three paths share one store:
 //
-//	POST /api/edge/install     → kick off an install workflow (async)
-//	GET  /api/edge/install     → poll an in-progress workflow's state
+//	POST /api/edge/install        → kick off an install workflow (async)
+//	GET  /api/edge/install        → poll an in-progress workflow's state
+//	GET  /api/edge/install/stream → live workflow console (WebSocket)
 //
 // Auth is the same shared-token pattern used by /api/edge/lifecycle: the
 // panel presents the edge's own heartbeat token in the body (POST) or in

@@ -262,9 +262,10 @@ func runHealthServer(cfg config.Config, ctx context.Context, sftpPort int) error
 	mux.Handle("/api/edge/inspect", inspect.Handler(cfg.Token))
 	// The install handler is itself a *ServeMux registering /api/edge/install
 	// (POST start / GET poll), /api/edge/install/stop (POST cancel +
-	// stop_command) AND /api/edge/install/stdin (POST one console line to
+	// stop_command), /api/edge/install/stdin (POST one console line to
 	// the running workflow — the terminal pane → action/install console
-	// path). To make the sub-paths actually reachable through the ROOT
+	// path) AND /api/edge/install/stream (GET WebSocket live workflow
+	// console). To make the sub-paths actually reachable through the ROOT
 	// mux without a trailing-slash redirect (which would convert the POST
 	// into a stripped GET and silently drop the request body the panel
 	// sent) we mount the SAME handler at every literal path. Missing the
@@ -273,6 +274,7 @@ func runHealthServer(cfg config.Config, ctx context.Context, sftpPort int) error
 	mux.Handle("/api/edge/install", installHandler)
 	mux.Handle("/api/edge/install/stop", installHandler)
 	mux.Handle("/api/edge/install/stdin", installHandler)
+	mux.Handle("/api/edge/install/stream", installHandler)
 	// Startup-console attach bridge (panel → browser WS onto the
 	// instance's main-process stdio). Same shared-token gate as exec.
 	mux.Handle("/api/edge/attach", attach.Handler(cfg.Token))
