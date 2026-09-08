@@ -114,13 +114,20 @@ func newHostJail(instancesDir string) (hostJail, error) {
 // isHostJailDangerous mirrors files.isDangerousPath so the instances root
 // can never be a system directory. Kept local because that helper is
 // unexported; the list is duplicated verbatim so the two surfaces cannot
-// drift.
+// drift. NOTE: /var, /opt, /srv, /home and /run are intentionally NOT in
+// this list even though snapshot's isDangerousLocation blocks them —
+// instance data legitimately lives under /var/lib/kspanel/instances
+// (the documented default) and portable installs resolve ./instances
+// under /opt, /srv or /home. Blocking those prefixes turned the default
+// config into a permanent 500 ("instance file directory must not be a
+// system path"). The core OS directories below are never valid instance
+// roots, so they stay blocked.
 func isHostJailDangerous(p string) bool {
 	p = filepath.Clean(p)
 	if p == "/" {
 		return true
 	}
-	for _, d := range []string{"/bin", "/sbin", "/usr", "/etc", "/proc", "/sys", "/dev", "/boot", "/lib", "/lib64", "/root", "/var", "/opt", "/srv", "/home", "/run"} {
+	for _, d := range []string{"/bin", "/sbin", "/usr", "/etc", "/proc", "/sys", "/dev", "/boot", "/lib", "/lib64", "/root"} {
 		if p == d || strings.HasPrefix(p, d+"/") {
 			return true
 		}
