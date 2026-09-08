@@ -308,6 +308,12 @@ func listHostRootDir(w http.ResponseWriter, abs, disp, root string) {
 	}
 	truncated := false
 	for _, nm := range names {
+		// Hide in-flight delete staging: a directory renamed to trash is
+		// already reported {ok:true} and must read as gone, not linger as
+		// a mysterious dotdir while the disk reclaims in the background.
+		if strings.HasPrefix(nm, trashPrefix) {
+			continue
+		}
 		if len(entries) >= maxHostListEntries {
 			truncated = true
 			break
