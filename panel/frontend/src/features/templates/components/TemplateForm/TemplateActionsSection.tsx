@@ -93,7 +93,7 @@ export const TemplateActionsSection: React.FC<ActionsSectionProps> = ({
           {actions.map((a, i) => {
             const isEditing = editingIdx === i;
             return (
-              <div key={i} className="ks-card ks-form-card rounded-md overflow-hidden">
+              <div key={i} className="ks-card ks-form-card rounded-md overflow-hidden min-w-0 max-w-full">
                 <div className="p-3 flex items-center gap-3 flex-wrap">
                   <div className="flex flex-col gap-0.5 shrink-0">
                     <button type="button" aria-label="Move up" onClick={() => move(i, -1)} disabled={i === 0} className="p-1 rounded text-gray-400 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed">
@@ -120,7 +120,7 @@ export const TemplateActionsSection: React.FC<ActionsSectionProps> = ({
                   </div>
                 </div>
                 {isEditing && (
-                  <div className="px-3 pb-3 pt-1 border-t border-white/5 space-y-3 bg-black/20">
+                  <div className="px-3 pb-3 pt-1 border-t border-white/5 space-y-3 bg-black/20 min-w-0 max-w-full overflow-x-clip">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div>
                         <label className="block text-[11px] text-gray-500 mb-0.5">Action ID * (lowercase, snake_case)</label>
@@ -137,7 +137,7 @@ export const TemplateActionsSection: React.FC<ActionsSectionProps> = ({
                     </div>
                     <div className="pt-1">
                       <label className="block text-[11px] text-gray-500 mb-0.5">Icon & colour (shown on action tiles and menus)</label>
-                      <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center gap-2 flex-wrap min-w-0 max-w-full">
                         <span
                           className="w-9 h-9 shrink-0 rounded-md flex items-center justify-center border bg-white/[0.05] border-white/10 [&>svg]:w-5 [&>svg]:h-5 [&>svg]:block"
                           style={a.icon_color ? { color: a.icon_color } : undefined}
@@ -245,7 +245,7 @@ export const TemplateActionsSection: React.FC<ActionsSectionProps> = ({
                       </label>
                     </div>
                     <div className="grid grid-cols-2 gap-2 pt-1">
-                      <div>
+                      <div className="min-w-0">
                         <label className="block text-[11px] text-gray-500 mb-0.5">Session type</label>
                         <select value={a.session} onChange={(e) => onActionUpdate(i, { session: e.target.value as TemplateActionInput['session'] })} className={glassFieldClass}>
                           <option value="long_running">long_running — bot/server keeps the instance alive (auto start+stop)</option>
@@ -253,7 +253,7 @@ export const TemplateActionsSection: React.FC<ActionsSectionProps> = ({
                           <option value="vm_full">vm_full — pass straight to VM/shell (full VPS access)</option>
                         </select>
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <label className="block text-[11px] text-gray-500 mb-0.5">Max runtime (s, optional)</label>
                         <input type="number" min="0" value={a.max_runtime_s} onChange={(e) => onActionUpdate(i, { max_runtime_s: e.target.value })} placeholder="no limit" className={monoCls} />
                       </div>
@@ -360,9 +360,9 @@ export const TemplateActionsSection: React.FC<ActionsSectionProps> = ({
                       </div>
                       {a.steps.map((s, j) => (
                         <div key={j} className="ks-card ks-form-card rounded-md space-y-2">
-                          <div className="flex gap-2 items-center">
-                            <span className="text-xs text-gray-500 w-12">#{j + 1}</span>
-                             <select value={s.action} onChange={(e) => onActionStepUpdate(i, j, { action: e.target.value as InstallAction })} className={glassFieldClass + ' w-44'}>
+                          <div className="flex gap-2 items-center flex-wrap min-w-0">
+                            <span className="text-xs text-gray-500 w-12 shrink-0">#{j + 1}</span>
+                             <select value={s.action} onChange={(e) => onActionStepUpdate(i, j, { action: e.target.value as InstallAction })} className={glassFieldClass + ' w-44 max-w-full min-w-0'}>
                                <option value="shell">Shell Command</option>
                                <option value="download">Download File</option>
                                <option value="extract">Extract Archive</option>
@@ -434,7 +434,7 @@ export const TemplateActionsSection: React.FC<ActionsSectionProps> = ({
                       ))}
                       {a.steps.length === 0 && <p className="text-xs text-gray-500">No steps. The action will be a no-op until you add one.</p>}
                     </div>
-                    <p className="text-[11px] text-gray-500 font-mono">Triggered via <span className="text-emerald-300">POST /api/instances/{'{id}'}/actions/{a.id || '<id>'}/invoke</span></p>
+                    <p className="text-[11px] text-gray-500 font-mono break-all">Triggered via <span className="text-emerald-300">POST /api/instances/{'{id}'}/actions/{a.id || '<id>'}/invoke</span></p>
                   </div>
                 )}
               </div>

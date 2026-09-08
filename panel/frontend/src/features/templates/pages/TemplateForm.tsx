@@ -558,9 +558,9 @@ const TemplateForm: React.FC = () => {
       maxWidth="max-w-4xl"
       hideHeader
     >
-      <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)] gap-4">
         <TemplateTabs tab={tab} onChange={setTab} />
-        <div className="space-y-4">
+        <div className="space-y-4 min-w-0 max-w-full">
 
         {tab === 'general' && (
           <div className={sectionCls}>
