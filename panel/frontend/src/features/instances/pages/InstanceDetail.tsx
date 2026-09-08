@@ -398,9 +398,9 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
   const [activeKey, setActiveKey] = useState<number>(0);
   const [connMap, setConnMap] = useState<Record<number, PaneConnState>>({});
   // Command shortcuts (template Controls → Terminal shortcut). Off/empty =
-  // no shortcut UI anywhere. Direct mode: dropdown top-right, plain picks
-  // send at once, parameterized picks open the ask bar. Box mode: dropdown
-  // + ask row live in the bottom input row and fill the command input.
+  // no shortcut UI anywhere. Both modes share one icon-menu trigger (page
+  // header top-right in direct mode, bottom input row in box mode): plain
+  // picks act at once, parameterized picks open the ask dialog.
   const boxMode = (termCfg.terminal_input_mode || 'direct') === 'box';
   const shortcuts = useMemo(() => {
     if (!termCfg.terminal_shortcuts_enabled || !Array.isArray(termCfg.terminal_shortcuts)) return [];
