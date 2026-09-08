@@ -18,6 +18,26 @@ export const SHORTCUT_KEYS: ShortcutKey[] = ['files', 'terminal', 'ports'];
 // defaults and action settings speak the same three values.
 export type TerminalAllowInput = 'all' | 'allowlist' | 'disabled';
 
+// TerminalDefaultDef — one pre-opened pane on the instance Terminal page
+// (template Controls → Terminal shortcut → "Default terminals"). `name` is
+// the tab label, `id` the terminal ID it attaches with (empty = plain
+// shell, otherwise matched against action/install/startup terminal IDs
+// exactly like a manually added pane).
+export interface TerminalDefaultDef {
+  name: string;
+  id: string;
+}
+
+// Cap on configured default terminals (template form + resolver). Bounds
+// the initial xterm count so a hostile/bloated template can't force the
+// Terminal page to mount hundreds of live consoles at once.
+export const MAX_DEFAULT_TERMINALS = 10;
+
+// Display suggestion shown in the template form when no default terminal
+// is configured yet. Writing anything back persists it for real; removing
+// it keeps the legacy single-blank-shell behaviour.
+export const SUGGESTED_DEFAULT_TERMINAL: TerminalDefaultDef = { name: 'Main', id: 'main' };
+
 // InstanceShortcutConfig — per-tool config for the floating menu's quick
 // shortcuts (Files / Terminal / Ports) + the page they open. Stored inside
 // `instance_controls.shortcuts` so it snapshots per template/instance like
@@ -53,6 +73,9 @@ export interface InstanceShortcutConfig {
   terminal_default_stop_on_exit: boolean;
   terminal_default_allow_input: TerminalAllowInput;
   terminal_default_timeout_s: string;
+  // Terminal page: panes opened automatically (first tab preselected).
+  // Empty = legacy behaviour (single blank shell pane).
+  default_terminals: TerminalDefaultDef[];
 }
 
 export interface InstanceShortcuts {
@@ -106,6 +129,7 @@ const DEFAULT_SHORTCUT_BASE = {
   terminal_default_stop_on_exit: true,
   terminal_default_allow_input: 'all' as TerminalAllowInput,
   terminal_default_timeout_s: '',
+  default_terminals: [],
 };
 
 export const DEFAULT_SHORTCUTS: InstanceShortcuts = {
@@ -160,6 +184,30 @@ function slugOr(v: unknown, fallback: string): string {
   return s !== '' ? s : fallback;
 }
 
+// normTerminalId matches the template form + terminal page matching on
+// every layer: lowercase, spaces → _, only [a-z0-9_-] survive. Empty stays
+// empty (a pane with no ID is a plain shell — valid, not garbage).
+function normTerminalId(v: unknown): string {
+  return String(v ?? '').trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, '');
+}
+
+// resolveDefaultTerminals normalises the configured pre-opened panes.
+// Absent → the fallback array BY REFERENCE so equality checks keep seeing
+// "not customised". Fully-empty rows are dropped; the rest keep their
+// trimmed name + normalised ID, capped at MAX_DEFAULT_TERMINALS.
+function resolveDefaultTerminals(raw: unknown, fallback: TerminalDefaultDef[]): TerminalDefaultDef[] {
+  if (raw === undefined) return fallback;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((x) => x && typeof x === 'object' && !Array.isArray(x))
+    .map((x) => ({
+      name: String((x as Record<string, any>).name ?? '').trim().slice(0, 64),
+      id: normTerminalId((x as Record<string, any>).id),
+    }))
+    .filter((x) => x.name !== '' || x.id !== '')
+    .slice(0, MAX_DEFAULT_TERMINALS);
+}
+
 // resolveShortcut normalises one shortcuts.<key> entry; absent/garbled
 // entries fall back field-by-field so old snapshots keep working.
 function resolveShortcut(raw: unknown, fallback: InstanceShortcutConfig): InstanceShortcutConfig {
@@ -187,6 +235,7 @@ function resolveShortcut(raw: unknown, fallback: InstanceShortcutConfig): Instan
     terminal_default_timeout_s: typeof r.terminal_default_timeout_s === 'string' || typeof r.terminal_default_timeout_s === 'number'
       ? String(r.terminal_default_timeout_s)
       : fallback.terminal_default_timeout_s,
+    default_terminals: resolveDefaultTerminals(r.default_terminals, fallback.default_terminals),
   };
 }
 
@@ -289,10 +338,15 @@ const SHORTCUT_FIELDS: (keyof InstanceShortcutConfig)[] = [
   'terminal_default_stop_on_exit',
   'terminal_default_allow_input',
   'terminal_default_timeout_s',
+  'default_terminals',
 ];
 
 export function isShortcutCustom(a: InstanceShortcutConfig, b: InstanceShortcutConfig): boolean {
-  return SHORTCUT_FIELDS.some((k) => a[k] !== b[k]);
+  // Arrays compare by reference — a configured list with identical content
+  // must still read as "not customised", so compare by value instead.
+  return SHORTCUT_FIELDS.some((k) => k === 'default_terminals'
+    ? JSON.stringify(a[k] ?? []) !== JSON.stringify(b[k] ?? [])
+    : a[k] !== b[k]);
 }
 
 // isControlsCustom reports whether the block carries any non-default value
