@@ -244,8 +244,9 @@ func (r *InstanceRepository) Get(id int64) (*models.Instance, error) {
 		inst.Suspended = int(suspended.Int64)
 	}
 	if suspendedUntil.Valid && suspendedUntil.String != "" {
-		t, _ := time.Parse("2006-01-02 15:04:05", suspendedUntil.String)
-		inst.SuspendedUntil = &t
+		if t, err := parseDBTime(suspendedUntil.String); err == nil && !t.IsZero() {
+			inst.SuspendedUntil = &t
+		}
 	}
 	if suspensionCount.Valid {
 		inst.SuspensionCount = int(suspensionCount.Int64)

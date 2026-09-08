@@ -27,6 +27,7 @@ import { getPageContent, getPageLabel, isPageAllowed, resolveRedirectTarget, typ
 import { pageNavigateTarget } from '@/shared/lib/customPageSdk';
 import CustomPageView from '@/shared/components/ui/CustomPageView';
 import ErrorBoundary from '@/shared/components/ui/ErrorBoundary';
+import PageTabsPill from '@/shared/components/ui/PageTabsPill';
 import Modal from '@/shared/components/ui/Modal';
 import Terminal, { type TerminalHandle } from '@/shared/components/ui/Terminal';
 import RichMenu from '@/shared/components/ui/RichMenu';
@@ -929,9 +930,10 @@ export const InstanceDynamicPage: React.FC = () => {
 
   // Files is a pure builtin, not an instance-pages system page: the native
   // file manager below always renders (spec.pages rows for these slugs, if
-  // any linger from older imports, are ignored by design). The bottom pill
-  // switches the Explorer and SFTP views; both stay mounted so switching
-  // never loses explorer state. The pill hides when the Files shortcut's
+  // any linger from older imports, are ignored by design). Explorer and SFTP
+  // switch via a desktop tab row plus the panel's PageTabsPill on phones
+  // (template-form pattern); both views stay mounted so switching never
+  // loses explorer state. The tabs hide when the Files shortcut's
   // "Show SFTP card" page option is off.
   if (effectiveSlug === filesSlug || effectiveSlug === 'files') {
     const showSftp = controls.shortcuts.files.show_sftp;
@@ -939,6 +941,32 @@ export const InstanceDynamicPage: React.FC = () => {
     return (
       <ErrorBoundary resetKey={`files-${instanceId}`} label="instance-page">
         <div className="space-y-4 pb-20">
+          {showSftp && (
+            <div className="hidden lg:flex items-center gap-1" role="tablist" aria-label="Files views">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={filesTab === 'explorer'}
+                onClick={() => setFilesTab('explorer')}
+                title="File explorer"
+                className={`ks-tab inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-sm transition${filesTab === 'explorer' ? ' ks-tab-active' : ''}`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2-2Z" /></svg>
+                <span>Explorer</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={filesTab === 'sftp'}
+                onClick={() => setFilesTab('sftp')}
+                title="SFTP access"
+                className={`ks-tab inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-sm transition${filesTab === 'sftp' ? ' ks-tab-active' : ''}`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+                <span>SFTP</span>
+              </button>
+            </div>
+          )}
           <div className={showExplorer ? '' : 'hidden'}>
             <InstanceFiles instanceId={instanceId} filesSlug={filesSlug} />
           </div>
@@ -949,39 +977,30 @@ export const InstanceDynamicPage: React.FC = () => {
           )}
         </div>
         {showSftp && (
-          <nav
-            aria-label="Files views"
-            className="fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 z-40"
-          >
-            <div
-              role="tablist"
-              aria-label="Files views"
-              className="ks-card rounded-full p-1 flex items-center gap-1 shadow-lg shadow-black/40"
+          <PageTabsPill ariaLabel="Files views" activeLabel={filesTab === 'explorer' ? 'Explorer' : 'SFTP'} spacer={false}>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={filesTab === 'explorer'}
+              onClick={() => setFilesTab('explorer')}
+              title="File explorer"
+              className={`ks-tab shrink-0 flex-none whitespace-nowrap px-3 py-1.5 rounded text-sm text-center transition flex items-center justify-center gap-1.5${filesTab === 'explorer' ? ' ks-tab-active' : ''}`}
             >
-              <button
-                type="button"
-                role="tab"
-                aria-selected={filesTab === 'explorer'}
-                onClick={() => setFilesTab('explorer')}
-                title="File explorer"
-                className={`ks-tab rounded-full inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium transition${filesTab === 'explorer' ? ' ks-tab-active' : ''}`}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1 2 2H5a2 2 0 0 1-2-2Z" /></svg>
-                <span>Explorer</span>
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={filesTab === 'sftp'}
-                onClick={() => setFilesTab('sftp')}
-                title="SFTP access"
-                className={`ks-tab rounded-full inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium transition${filesTab === 'sftp' ? ' ks-tab-active' : ''}`}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
-                <span>SFTP</span>
-              </button>
-            </div>
-          </nav>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2-2Z" /></svg>
+              <span className="whitespace-nowrap leading-none">Explorer</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={filesTab === 'sftp'}
+              onClick={() => setFilesTab('sftp')}
+              title="SFTP access"
+              className={`ks-tab shrink-0 flex-none whitespace-nowrap px-3 py-1.5 rounded text-sm text-center transition flex items-center justify-center gap-1.5${filesTab === 'sftp' ? ' ks-tab-active' : ''}`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+              <span className="whitespace-nowrap leading-none">SFTP</span>
+            </button>
+          </PageTabsPill>
         )}
       </ErrorBoundary>
     );

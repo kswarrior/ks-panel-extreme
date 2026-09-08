@@ -485,87 +485,91 @@ const InstanceFiles: React.FC<{ instanceId: number; filesSlug: string }> = ({ in
 
   return (
     <div className="space-y-3 animate-fade-in" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
-      {/* Toolbar: breadcrumbs + actions */}
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div
-          className="ks-mono flex items-center gap-1 min-h-6 overflow-x-auto max-w-full text-[13px]"
-          aria-label="Current directory"
+      {/* Breadcrumbs */}
+      <div
+        className="ks-mono flex items-center gap-1 min-h-6 overflow-x-auto max-w-full text-[13px]"
+        aria-label="Current directory"
+      >
+        <button
+          type="button"
+          onClick={() => setPath('/')}
+          title="Root"
+          className="shrink-0 text-gray-400 hover:text-white transition-colors"
         >
-          <button
-            type="button"
-            onClick={() => setPath('/')}
-            title="Root"
-            className="shrink-0 text-gray-400 hover:text-white transition-colors"
-          >
-            /
-          </button>
-          {crumbs.map((seg, i) => {
-            const tgt = `/${crumbs.slice(0, i + 1).join('/')}`;
-            const last = i === crumbs.length - 1;
-            return (
-              <span key={tgt} className="inline-flex items-center gap-1 shrink-0">
-                <span className="text-gray-600">/</span>
-                <button
-                  type="button"
-                  onClick={() => setPath(tgt)}
-                  title={`Open ${tgt}`}
-                  className={`truncate max-w-40 ${last ? 'text-white font-medium' : 'text-gray-400 hover:text-white transition-colors'}`}
-                >
-                  {seg}
-                </button>
-              </span>
-            );
-          })}
-        </div>
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <input
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            placeholder="Filter…"
-            aria-label="Filter files"
-            className="ks-input !w-32 !py-1.5 text-xs"
-          />
-          {selCount > 0 && (
-            <button
-              type="button"
-              onClick={() => void onDeleteSelected()}
-              title={`Delete ${selCount} selected`}
-              aria-label={`Delete ${selCount} selected`}
-              className="ks-btn-header ks-icon-btn !text-red-300"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
-              <span className="text-xs ml-1">{selCount}</span>
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => void load(path)}
-            title="Refresh"
-            aria-label="Refresh"
-            className="ks-btn-header ks-icon-btn"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><polyline points="1 4 1 10 7 10" /><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" /></svg>
-          </button>
-          <button
-            type="button"
-            onClick={() => setModal({ kind: 'upload', tab: 'local', busy: false, queueLen: 0, pct: 0, label: '', url: '' })}
-            title="Upload"
-            aria-label="Upload"
-            className="ks-btn-header ks-icon-btn"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
-          </button>
-          <button
-            type="button"
-            onClick={() => setModal({ kind: 'create', tab: 'file', name: '', busy: false })}
-            title="Create"
-            aria-label="Create"
-            className="ks-btn-header ks-icon-btn"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-          </button>
-        </div>
+          /
+        </button>
+        {crumbs.map((seg, i) => {
+          const tgt = `/${crumbs.slice(0, i + 1).join('/')}`;
+          const last = i === crumbs.length - 1;
+          return (
+            <span key={tgt} className="inline-flex items-center gap-1 shrink-0">
+              <span className="text-gray-600">/</span>
+              <button
+                type="button"
+                onClick={() => setPath(tgt)}
+                title={`Open ${tgt}`}
+                className={`truncate max-w-40 ${last ? 'text-white font-medium' : 'text-gray-400 hover:text-white transition-colors'}`}
+              >
+                {seg}
+              </button>
+            </span>
+          );
+        })}
       </div>
+
+      {/* Actions — fixed top-right pill (panel pattern, like Instances) */}
+      <PageActionsPill>
+        <input
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          placeholder="Filter…"
+          aria-label="Filter files"
+          className="ks-input !w-32 !py-1.5 text-xs"
+        />
+        {selCount > 0 && (
+          <button
+            type="button"
+            onClick={() => void onDeleteSelected()}
+            title={`Delete ${selCount} selected`}
+            aria-label={`Delete ${selCount} selected`}
+            style={PILL_TAB_STYLE}
+            className="ks-tab inline-flex items-center justify-center !text-red-300"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+            <span className="text-xs ml-1">{selCount}</span>
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => void load(path)}
+          title="Refresh"
+          aria-label="Refresh"
+          style={PILL_TAB_STYLE}
+          className="ks-tab inline-flex items-center justify-center"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><polyline points="1 4 1 10 7 10" /><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" /></svg>
+        </button>
+        <button
+          type="button"
+          onClick={() => setModal({ kind: 'upload', tab: 'local', busy: false, queueLen: 0, pct: 0, label: '', url: '' })}
+          title="Upload"
+          aria-label="Upload"
+          style={PILL_TAB_STYLE}
+          className="ks-tab inline-flex items-center justify-center"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
+        </button>
+        <button
+          type="button"
+          onClick={() => setModal({ kind: 'create', tab: 'file', name: '', busy: false })}
+          title="Create"
+          aria-label="Create"
+          style={PILL_TAB_STYLE}
+          className="ks-tab inline-flex items-center justify-center"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+        </button>
+      </PageActionsPill>
 
       {error && (
         <div className="ks-card text-[13px]" style={{ borderColor: 'var(--ks-bad-line)', color: 'var(--ks-bad)' }}>
