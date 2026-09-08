@@ -441,8 +441,12 @@ func compileStep(s Step, env map[string]string) (string, error) {
 		// Prefer curl; fall back to wget — the two cover every base image
 		// the operator realistically picks (alpine ships wget; debian has
 		// both). The `||` keeps the step succeeding on either.
+		// `mkdir -p $(dirname)` first: without it a missing target dir
+		// (e.g. /mc on a fresh container) fails as curl exit 23
+		// ("Failure writing output"), the same pattern move/write use.
 		return strings.Join([]string{
 			`set -e`,
+			`mkdir -p "$(dirname ` + shellQuote(sub(s.Filename)) + `)"`,
 			`if command -v curl >/dev/null 2>&1; then`,
 			`  curl -fsSL --retry 3 --retry-delay 1 --connect-timeout 10 -o ` + shellQuote(sub(s.Filename)) + ` ` + shellQuote(sub(s.URL)),
 			`else`,
