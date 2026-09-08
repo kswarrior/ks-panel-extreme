@@ -153,19 +153,38 @@ func (r *LiveStateRepository) Get(instanceID int64) (*models.InstanceLiveState, 
 	return &ls, nil
 }
 
-// Save updates the cached state.
+// Save updates the cached state. Portable UPDATE-then-INSERT so it works
+// on SQLite / Postgres / MySQL (ON CONFLICT is a MySQL syntax error;
+// mirrors NodeRepository.upsertHeartbeatBucket + settingsSet).
 func (r *LiveStateRepository) Save(ls models.InstanceLiveState) error {
 	ls.Metrics = defaultJSON(ls.Metrics, "{}")
 	ls.Processes = defaultJSON(ls.Processes, "[]")
 	ls.Ports = defaultJSON(ls.Ports, "[]")
 	ls.Info = defaultJSON(ls.Info, "{}")
-	_, err := r.db.Exec(`INSERT INTO instance_live_state (instance_id, updated_at, metrics, processes, ports, info)
-		VALUES (?, CURRENT_TIMESTAMP, ?, ?, ?, ?)
-		ON CONFLICT(instance_id) DO UPDATE SET updated_at = CURRENT_TIMESTAMP,
-			metrics = excluded.metrics, processes = excluded.processes,
-			ports = excluded.ports, info = excluded.info`,
+	res, err := r.db.Exec(`UPDATE instance_live_state SET updated_at = CURRENT_TIMESTAMP,
+		metrics = ?, processes = ?, ports = ?, info = ?
+		WHERE instance_id = ?`,
+		ls.Metrics, ls.Processes, ls.Ports, ls.Info, ls.InstanceID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		return nil
+	}
+	_, err = r.db.Exec(`INSERT INTO instance_live_state (instance_id, updated_at, metrics, processes, ports, info)
+		VALUES (?, CURRENT_TIMESTAMP, ?, ?, ?, ?)`,
 		ls.InstanceID, ls.Metrics, ls.Processes, ls.Ports, ls.Info)
-	return err
+	if err != nil {
+		if isDupKeyErr(err) {
+			_, _ = r.db.Exec(`UPDATE instance_live_state SET updated_at = CURRENT_TIMESTAMP,
+				metrics = ?, processes = ?, ports = ?, info = ?
+				WHERE instance_id = ?`,
+				ls.Metrics, ls.Processes, ls.Ports, ls.Info, ls.InstanceID)
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 func defaultJSON(v, def string) string {

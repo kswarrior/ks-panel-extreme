@@ -464,7 +464,7 @@ func runJob(ctx context.Context, job models.Automation, instRepo *repository.Ins
 	}
 	_, _ = automationRepo.RecordRun(repository.AutomationRunInput{
 		JobID: job.ID, InstanceID: job.InstanceID, Trigger: "schedule",
-		Stdout:     truncate(stdout, 64*1024),
+		Command: job.Command, Stdout: truncate(stdout, 64*1024),
 		Stderr:     truncate(stderr, 64*1024),
 		ExitCode:   exitCode,
 		DurationMS: finished.Sub(started).Milliseconds(),

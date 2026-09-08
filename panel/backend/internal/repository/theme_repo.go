@@ -356,16 +356,37 @@ func (r *ThemeRepository) ListAssignments() ([]models.ThemeAssignment, error) {
 
 // AssignTheme upserts a scope -> theme binding. Exactly one row per scope, so
 // assigning a different theme to the same scope is an in-place replacement.
+// Portable UPDATE-then-INSERT so it works on SQLite / Postgres / MySQL
+// (ON CONFLICT is a MySQL syntax error; mirrors settingsSet).
 func (r *ThemeRepository) AssignTheme(scope, themeID string) error {
 	if scope == "" || themeID == "" {
 		return fmt.Errorf("scope and theme_id are required")
 	}
-	_, err := r.db.Exec(
-		`INSERT INTO theme_assignments (scope, theme_id) VALUES (?, ?)
-		 ON CONFLICT(scope) DO UPDATE SET theme_id = excluded.theme_id`,
+	res, err := r.db.Exec(
+		`UPDATE theme_assignments SET theme_id = ? WHERE scope = ?`,
+		themeID, scope,
+	)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		return nil
+	}
+	_, err = r.db.Exec(
+		`INSERT INTO theme_assignments (scope, theme_id) VALUES (?, ?)`,
 		scope, themeID,
 	)
-	return err
+	if err != nil {
+		if isDupKeyErr(err) {
+			_, _ = r.db.Exec(
+				`UPDATE theme_assignments SET theme_id = ? WHERE scope = ?`,
+				themeID, scope,
+			)
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 // UnassignTheme removes a binding (scope reverts to its area default, then to

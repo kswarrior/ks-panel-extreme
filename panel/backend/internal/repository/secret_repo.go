@@ -115,7 +115,9 @@ func (r *SecretRepository) ListByInstance(instanceID int64) ([]SecretEntry, erro
 
 // Set upserts one (instance_id, key) row. isSecret toggles encryption (secrets
 // encrypted; plain env stored raw). Returns the row id (0 on the UPDATE path
-// since SQLite's LastInsertId is undefined for ON CONFLICT).
+// since SQLite's LastInsertId is undefined for the update branch).
+// Portable UPDATE-then-INSERT so it works on SQLite / Postgres / MySQL
+// (ON CONFLICT is a MySQL syntax error; mirrors SFTP Upsert + node heartbeats).
 func (r *SecretRepository) Set(instanceID int64, key, value string, isSecret bool, description string) (int64, error) {
 	if key == "" {
 		return 0, errors.New("secret: key is required")
@@ -134,15 +136,30 @@ func (r *SecretRepository) Set(instanceID int64, key, value string, isSecret boo
 	if isSecret {
 		secretFlag = 1
 	}
-	if _, err := r.db.Exec(
-		`INSERT INTO instance_secrets (instance_id, key, value_blob, is_secret, description)
-		 VALUES (?, ?, ?, ?, ?)
-		 ON CONFLICT(instance_id, key) DO UPDATE SET value_blob = excluded.value_blob,
-		     is_secret = excluded.is_secret, description = excluded.description,
-		     updated_at = CURRENT_TIMESTAMP`,
-		instanceID, key, blob, secretFlag, description,
-	); err != nil {
+	res, err := r.db.Exec(
+		`UPDATE instance_secrets SET value_blob = ?, is_secret = ?, description = ?,
+		     updated_at = CURRENT_TIMESTAMP WHERE instance_id = ? AND key = ?`,
+		blob, secretFlag, description, instanceID, key,
+	)
+	if err != nil {
 		return 0, err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		if _, err := r.db.Exec(
+			`INSERT INTO instance_secrets (instance_id, key, value_blob, is_secret, description)
+			 VALUES (?, ?, ?, ?, ?)`,
+			instanceID, key, blob, secretFlag, description,
+		); err != nil {
+			if isDupKeyErr(err) {
+				_, _ = r.db.Exec(
+					`UPDATE instance_secrets SET value_blob = ?, is_secret = ?, description = ?,
+					     updated_at = CURRENT_TIMESTAMP WHERE instance_id = ? AND key = ?`,
+					blob, secretFlag, description, instanceID, key,
+				)
+			} else {
+				return 0, err
+			}
+		}
 	}
 	// LastInsertId is unreliable on the ON CONFLICT UPDATE path, so fetch the
 	// row id explicitly. Callers use it for the 201 body but tolerate 0.

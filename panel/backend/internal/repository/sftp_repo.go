@@ -58,17 +58,39 @@ func (r *SFTPRepository) Get(instanceID int64) (*SFTPConfig, error) {
 	return &c, nil
 }
 
-// Upsert creates or replaces the SFTP row for an instance.
+// Upsert creates or replaces the SFTP row for an instance. Portable
+// UPDATE-then-INSERT so it works on SQLite / Postgres / MySQL
+// (ON CONFLICT is a MySQL syntax error; mirrors LiveState Save +
+// NodeRepository.upsertHeartbeatBucket).
 func (r *SFTPRepository) Upsert(c SFTPConfig) error {
-	_, err := r.db.Exec(
+	res, err := r.db.Exec(
+		`UPDATE instance_sftp SET enabled = ?, username = ?, port = ?,
+		     root = ?, updated_at = CURRENT_TIMESTAMP WHERE instance_id = ?`,
+		c.Enabled, c.Username, c.Port, c.Root, c.InstanceID,
+	)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		return nil
+	}
+	_, err = r.db.Exec(
 		`INSERT INTO instance_sftp (instance_id, enabled, username, port, root, updated_at)
-		 VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-		 ON CONFLICT(instance_id) DO UPDATE SET enabled = excluded.enabled,
-		     username = excluded.username, port = excluded.port,
-		     root = excluded.root, updated_at = CURRENT_TIMESTAMP`,
+		 VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
 		c.InstanceID, c.Enabled, c.Username, c.Port, c.Root,
 	)
-	return err
+	if err != nil {
+		if isDupKeyErr(err) {
+			_, _ = r.db.Exec(
+				`UPDATE instance_sftp SET enabled = ?, username = ?, port = ?,
+				     root = ?, updated_at = CURRENT_TIMESTAMP WHERE instance_id = ?`,
+				c.Enabled, c.Username, c.Port, c.Root, c.InstanceID,
+			)
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 // SetEnabled flips the enabled flag without touching the dial parameters.

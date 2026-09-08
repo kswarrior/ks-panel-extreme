@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter, useLocation } from 'react-router-dom';
 import { panelBasename } from '@/shared/utils/panelBase';
 import Router from '@/app/router';
 import { useAuthStore } from '@/shared/stores/authStore';
@@ -137,12 +137,25 @@ const App: React.FC = () => {
     loadGlobalThemes();
   }, [user?.id, loadGlobalThemes]);
 
+// AppResetBoundary lives inside <BrowserRouter> so it can key the app-level
+// ErrorBoundary on the route. Without a resetKey the app shell stays crashed
+// across navigations until a manual reload (Layout's page boundary already
+// resets on pathname; the app boundary never did).
+const AppResetBoundary: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const location = useLocation();
+  return (
+    <ErrorBoundary label="app" resetKey={location.pathname + location.search}>
+      {children}
+    </ErrorBoundary>
+  );
+};
+
   return (
     <BrowserRouter basename={panelBasename}>
       <InstanceNavProvider>
-        <ErrorBoundary label="app">
+        <AppResetBoundary>
           <Router />
-        </ErrorBoundary>
+        </AppResetBoundary>
         {bootFailed && (
           <div className="fixed bottom-4 left-1/2 z-[60] -translate-x-1/2 rounded-lg border border-red-500/40 bg-red-950/90 px-4 py-3 text-sm text-red-100 shadow-xl">
             Couldn&apos;t reach the panel server.{" "}

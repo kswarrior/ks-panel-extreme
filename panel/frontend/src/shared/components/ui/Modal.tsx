@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useThemeStore } from '@/shared/stores/themeStore';
 
 interface ModalProps {
@@ -43,6 +43,20 @@ const Modal: React.FC<ModalProps> = ({
     : glassStyle === 'solid'
       ? 'ks-card-glass-solid'
       : 'ks-card-glass-strong';
+  const closeRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    closeRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
 
   if (!open) return null;
   return (
@@ -52,6 +66,7 @@ const Modal: React.FC<ModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-label={title}
+      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       {/* ks-modal-panel lets the Theme Studio's Components section restyle
           the dialog surface (fill / border / shadow / radius / blur). The
@@ -61,9 +76,10 @@ const Modal: React.FC<ModalProps> = ({
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 sticky top-0 bg-white/[0.05] backdrop-blur-xl z-10">
           <h3 className="text-lg font-semibold text-white">{title}</h3>
           <button
+            ref={closeRef}
             onClick={onClose}
             type="button"
-            className="text-gray-400 hover:text-white transition-colors"
+            className="text-gray-400 hover:text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40 rounded"
             aria-label="Close"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
