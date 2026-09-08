@@ -168,6 +168,29 @@ const Header: React.FC<HeaderProps> = ({
   const effectiveNav = useEffectiveInstanceNav();
   const hasTabs = inInstancePanel && (navLoading || effectiveNav.length > 0);
 
+  // One-time hint pointing at the » tabs toggle. Persists dismissal
+  // per-browser; X hides it for this view, "Don't show again" hides forever.
+  const [tabsHintDismissed, setTabsHintDismissed] = React.useState<boolean>(() => {
+    try {
+      return window.localStorage.getItem('kspanel.instance-tabs.hint-dismissed') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const [tabsHintOpen, setTabsHintOpen] = React.useState(false);
+  React.useEffect(() => {
+    if (inInstancePanel && hasTabs && !tabsHintDismissed) setTabsHintOpen(true);
+    else setTabsHintOpen(false);
+  }, [inInstancePanel, navInstanceId, hasTabs, tabsHintDismissed]);
+  const dismissTabsHintForever = () => {
+    setTabsHintDismissed(true);
+    setTabsHintOpen(false);
+    try {
+      window.localStorage.setItem('kspanel.instance-tabs.hint-dismissed', '1');
+    } catch {
+      // Storage off: dismissal becomes session-only.
+    }
+  };
   // Instance crumb: [Icon] Instance #id / CurrentPage. Slug comes from the
   // URL after /instances/:id/ ("" = Home "."). Label prefers the resolved
   // nav entry, falls back to builtin/tool names (Files/Terminal/Ports never
@@ -699,6 +722,7 @@ const Header: React.FC<HeaderProps> = ({
         {/* Instance row-1 — single toggle pill: [Icon] Instance #id / Page + chevron.
             Click toggles Row 2 tabs. No back button. */}
         {inInstancePanel && (
+          <div className="relative min-w-0">
           <nav aria-label="Breadcrumb" className="flex items-center min-w-0 text-xs text-gray-400">
             {hasTabs ? (
               <button
@@ -753,6 +777,37 @@ const Header: React.FC<HeaderProps> = ({
               </span>
             )}
           </nav>
+          {/* Hint bubble pointing up at the » toggle. Shows on instance open
+              until dismissed; "Don't show again" persists per-browser. */}
+          {hasTabs && tabsHintOpen && !tabsHintDismissed && (
+            <div role="status" className="absolute left-0 top-full mt-2 z-30 w-64 max-w-[calc(100vw-2rem)]">
+              <span aria-hidden="true" className="absolute -top-1 right-8 w-2.5 h-2.5 rotate-45 bg-neutral-900 border-l border-t border-white/10" />
+              <div className="glass-dropdown rounded-xl p-3 shadow-xl border border-white/10 bg-neutral-900/95">
+                <div className="flex items-start gap-2">
+                  <p className="text-xs text-gray-200 leading-snug flex-1">
+                    Use <span className="font-semibold text-white">»</span> to show / hide the instance tabs below.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setTabsHintOpen(false)}
+                    aria-label="Dismiss hint"
+                    title="Dismiss"
+                    className="shrink-0 rounded-md p-1 text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={dismissTabsHintForever}
+                  className="mt-2 text-[11px] font-medium text-gray-400 hover:text-white underline underline-offset-2 transition-colors"
+                >
+                  Don&apos;t show again
+                </button>
+              </div>
+            </div>
+          )}
+          </div>
         )}
       </div>
 
