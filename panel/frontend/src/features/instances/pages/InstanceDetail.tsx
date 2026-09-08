@@ -220,8 +220,12 @@ const TerminalPane: React.FC<{
   // Workflow panes (bound action/install IDs) dial /workflow for the live
   // console — never the side shell — so typed lines reach only the MC
   // server (via POST relay) and output is the server console itself.
+  // Dial it only while THIS pane's workflow actually runs: dialling while
+  // idle 404s on the edge (no record yet, or lost on edge restart) and
+  // the WS then loops reconnect errors instead of showing idle.
   const isWorkflowPane = !!matchedAction || isInstallBound;
-  const isWorkflowLive = isWorkflowPane && connState === 'connected';
+  const isWorkflowActive = (!!matchedAction && isRunning) || isInstalling;
+  const isWorkflowLive = isWorkflowPane && isWorkflowActive && connState === 'connected';
   // DB mirror is a fallback while the /workflow WS is not live. Mirroring
   // the shared install_steps_json while the WS streams the same bytes
   // would duplicate every line, and mirroring while idle paints
@@ -326,8 +330,7 @@ const TerminalPane: React.FC<{
   };
 
   const title = pane.name.trim() !== '' ? pane.name.trim() : (tid !== '' ? tid : 'shell');
-  const isWorkflowRunning = (!!matchedAction && isRunning) || isInstalling;
-  const statusSuffix = isWorkflowRunning
+  const statusSuffix = isWorkflowActive
     ? ' · running'
     : (isStartupBound || isWorkflowPane) && connState === 'connected'
       ? ' · attached'
@@ -399,7 +402,7 @@ const TerminalPane: React.FC<{
             ref={handleRef}
             instanceId={instanceId}
             terminalId={tid}
-            endpoint={isStartupBound ? 'console' : isWorkflowPane ? 'workflow' : undefined}
+            endpoint={isStartupBound ? 'console' : isWorkflowPane && isWorkflowActive ? 'workflow' : undefined}
             onLine={isStartupBound ? undefined : handleLine}
             onStateChange={(s, m) => { setConnState(s); setConnMsg(m ?? ''); }}
             onTermRef={(t) => (termRef.current = t)}

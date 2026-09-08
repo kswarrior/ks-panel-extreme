@@ -306,10 +306,12 @@ func WorkflowHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
-	name := inst.ExternalID
-	if name == "" {
-		name = inst.Name
-	}
+	// Workflow key: the logical instances.name (see edgeWorkflowName).
+	// Unlike the exec/attach bridges above — which route by container
+	// identity and correctly prefer ExternalID — the edge keys workflows
+	// by "<kind>:<name>" from InstallStart (always the logical name), so
+	// ExternalID (docker container ID) would miss ("no workflow for …").
+	name := edgeWorkflowName(inst)
 	node, err := repository.NewNodeRepository(con).GetNode(inst.NodeID)
 	if err != nil {
 		http.Error(w, "owner node not found", http.StatusNotFound)
