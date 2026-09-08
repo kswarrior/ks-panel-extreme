@@ -33,6 +33,22 @@ const STATUS_META: Record<string, { dot: string; label: string; ping?: boolean }
   destroyed: { dot: 'bg-gray-600', label: 'Destroyed' },
 };
 
+// MIN_SANE_TIME_MS floors out corrupt row timestamps: the backend used to
+// emit Go zero time ("0001-01-01T00:00:00Z") for unparseable datetimes, which
+// renders as ~739866d of phantom uptime on a just-started instance. No real
+// instance predates 2000, so anything older is treated as missing and the
+// chain falls through to the next candidate (or '—' when none is sane).
+const MIN_SANE_TIME_MS = Date.UTC(2000, 0, 1);
+
+function pickSince(...vals: Array<string | undefined | null>): string | null {
+  for (const v of vals) {
+    if (!v) continue;
+    const t = new Date(v).getTime();
+    if (Number.isFinite(t) && t >= MIN_SANE_TIME_MS) return v;
+  }
+  return null;
+}
+
 // Live uptime since the instance last entered "running" (started_at).
 // Same shape as InstanceCard's useUptime: ticks every second while running,
 // '—' otherwise (stopped rows, missing/invalid timestamps).
@@ -116,7 +132,7 @@ const InstanceInfoRow: React.FC = () => {
   const { instance, loading } = useInstance(instanceId);
 
   const uptime = useUptime(
-    instance?.started_at || instance?.updated_at || instance?.created_at,
+    pickSince(instance?.started_at, instance?.updated_at, instance?.created_at),
     instance?.status ?? '',
   );
   const isRunning = instance?.status === 'running';

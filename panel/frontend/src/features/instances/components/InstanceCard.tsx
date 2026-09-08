@@ -285,7 +285,7 @@ const InstanceCard: React.FC<InstanceCardProps> = ({ instance, actions, showOwne
     console.error('Error parsing config:', e);
   }
   const res = parseLimits(parseConfig(instance.config), cached);
-  const uptime = useUptime(instance.started_at || instance.updated_at || instance.created_at, instance.status);
+  const uptime = useUptime(pickSince(instance.started_at, instance.updated_at, instance.created_at), instance.status);
   const glassModifier = useThemeStore((s) => {
     const g = s.active().card.glass_style;
     if (!g || g === 'frosted') return '';
