@@ -31,6 +31,7 @@ import {
   type StackEngineStatus,
 } from '@/shared/types/stack';
 import { useConfirm } from '@/shared/stores/confirmStore';
+import { formatCardDate } from '@/shared/utils/cardDate';
 
 const capLabel = (capability: string): string =>
   stackCapabilityMeta(capability)?.label || capability;
@@ -556,7 +557,10 @@ const Stacks: React.FC = () => {
 
                 <footer className="mt-auto pt-2 border-t border-white/[0.06] flex items-center justify-between gap-2">
                   <span className="text-[11px] text-gray-500 truncate">
-                    {s.created_at ? <>Uploaded {new Date(s.created_at).toLocaleDateString()}</> : <>id {s.id}</>}
+                    {(() => {
+                      const label = formatCardDate(s.created_at);
+                      return label ? <>Uploaded {label}</> : <>id {s.id}</>;
+                    })()}
                   </span>
                   <div className="flex items-center gap-1">
                     {s.active ? (

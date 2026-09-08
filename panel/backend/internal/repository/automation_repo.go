@@ -42,17 +42,17 @@ func scanAutomation(rows *sql.Rows, s *models.Automation) error {
 		s.SecretRefs = []string{}
 	}
 	if lastRun.Valid {
-		if t, err := time.Parse("2006-01-02 15:04:05", lastRun.String); err == nil {
+		if t, err := parseDBTime(lastRun.String); err == nil && !t.IsZero() {
 			s.LastRunAt = &t
 		}
 	}
 	if nextRun.Valid {
-		if t, err := time.Parse("2006-01-02 15:04:05", nextRun.String); err == nil {
+		if t, err := parseDBTime(nextRun.String); err == nil && !t.IsZero() {
 			s.NextRunAt = &t
 		}
 	}
-	s.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created)
-	s.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updated)
+	s.CreatedAt, _ = parseDBTime(created)
+	s.UpdatedAt, _ = parseDBTime(updated)
 	return nil
 }
 
@@ -335,11 +335,11 @@ func scanRuns(rows *sql.Rows) ([]models.AutomationRun, error) {
 		run.ExitCode = int(exitCode.Int64)
 		run.DurationMS = durationMS.Int64
 		run.Error = errStr.String
-		if t, perr := time.Parse("2006-01-02 15:04:05", started.String); perr == nil {
+		if t, perr := parseDBTime(started.String); perr == nil && !t.IsZero() {
 			run.StartedAt = t
 		}
 		if finished.Valid && finished.String != "" {
-			if t, perr := time.Parse("2006-01-02 15:04:05", finished.String); perr == nil {
+			if t, perr := parseDBTime(finished.String); perr == nil && !t.IsZero() {
 				run.FinishedAt = &t
 			}
 		}
