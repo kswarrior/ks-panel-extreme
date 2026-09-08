@@ -16,10 +16,11 @@ import (
 )
 
 // Handler returns an http.Handler that exposes the install workflow RPC.
-// Two methods share one path /api/edge/install:
+// Three paths share one store:
 //
-//	POST /api/edge/install     → kick off an install workflow (async)
-//	GET  /api/edge/install     → poll an in-progress workflow's state
+//	POST /api/edge/install        → kick off an install workflow (async)
+//	GET  /api/edge/install        → poll an in-progress workflow's state
+//	GET  /api/edge/install/stream → live workflow console (WebSocket)
 //
 // Auth is the same shared-token pattern used by /api/edge/lifecycle: the
 // panel presents the edge's own heartbeat token in the body (POST) or in
@@ -76,6 +77,15 @@ func Handler(token string) http.Handler {
 			return
 		}
 		handleInstallStdin(w, r, token, store)
+	})
+	// /api/edge/install/stream is the live workflow console (WebSocket):
+	// history replay + 250ms tail of the running workflow's transcript for
+	// kind:name (the terminal pane → action/install console live path).
+	// Output-only: browser stdin frames are ignored here; console input
+	// still rides POST /api/edge/install/stdin so the panel's terminal
+	// input policy stays enforced.
+	mux.HandleFunc("/api/edge/install/stream", func(w http.ResponseWriter, r *http.Request) {
+		handleInstallStream(w, r, token, store)
 	})
 	return mux
 }

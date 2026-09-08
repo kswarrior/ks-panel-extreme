@@ -818,6 +818,14 @@ func NewRouter() http.Handler {
 		// the page it backs (the "Terminal" tab in /instances/:id) is
 		// already exposed under that permission.
 		r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Get("/api/instances/{id}/terminal", handlers.TerminalHandler)
+		// Live workflow-console bridge. Same shape and same VIEW_INSTANCES
+		// gate as the terminal bridge, but the browser streams the RUNNING
+		// workflow's transcript (template action or install) through ksedge
+		// /api/edge/install/stream instead of a side shell. The SPA only
+		// dials it from panes whose ID matches a template action's
+		// terminal_id or install_terminal_id; console input still rides the
+		// POST …/stdin paths so the terminal input policy stays enforced.
+		r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Get("/api/instances/{id}/workflow", handlers.WorkflowHandler)
 		// Startup-console bridge. Same shape and same VIEW_INSTANCES gate
 		// as the terminal bridge, but the browser attaches to the
 		// instance's MAIN process stdio (template startup command)
