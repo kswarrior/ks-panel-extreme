@@ -34,7 +34,8 @@ import InstanceOverview from '@/features/instances/pages/InstanceOverview';
 import InstanceFiles from '@/features/instances/pages/InstanceFiles';
 import InstanceFileEditor from '@/features/instances/pages/InstanceFileEditor';
 import { resolveInstanceControls, shortcutLabel, shortcutSlug, MAX_DEFAULT_TERMINALS } from '@/features/instances/utils/instanceControls';
-import type { TerminalDefaultDef, TerminalInputMode } from '@/features/instances/utils/instanceControls';
+import type { TerminalDefaultDef, TerminalInputMode, TerminalShortcutDef } from '@/features/instances/utils/instanceControls';
+import { extractShortcutVars, resolveShortcutCommand } from '@/features/instances/utils/instanceControls';
 import { sendActionStdin, sendInstallStdin } from '@/features/instances/api/instanceAdvanced';
 import InstanceSftpCard from '@/features/instances/components/InstanceSftpCard';
 import InstanceSnapshotsTab from '@/features/instances/components/InstanceSnapshotsTab';
@@ -125,6 +126,29 @@ interface TerminalPaneState {
   // Set once via the Add-terminal dialog — no inline editing.
   terminalId: string;
 }
+
+// ShortcutAskFields — one compact input per {{VAR}} / ${VAR} / $(VAR)
+// placeholder (env-'ask' behaviour for shortcuts). Shared by the direct
+// ask bar and the box-mode ask row.
+const ShortcutAskFields: React.FC<{
+  vars: string[];
+  askVals: Record<string, string>;
+  onAsk: (name: string, value: string) => void;
+}> = ({ vars, askVals, onAsk }) => (
+  <>
+    {vars.map((v) => (
+      <input
+        key={v}
+        value={askVals[v] ?? ''}
+        onChange={(e) => onAsk(v, e.target.value.slice(0, 200))}
+        placeholder={v}
+        aria-label={`Value for ${v}`}
+        title={`Value for ${v}`}
+        className="ks-input w-28 min-w-0 shrink-0"
+      />
+    ))}
+  </>
+);
 
 // TerminalPane — one live console. The xterm dials one of three bridges:
 //  - action terminal_id / install_terminal_id while its workflow RUNS →
