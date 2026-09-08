@@ -146,6 +146,28 @@ const Header: React.FC<HeaderProps> = ({
   const location = useLocation();
   const [loggingOut, setLoggingOut] = React.useState<boolean>(false);
 
+  // Sub-header tab row (instance only): collapsed persists per-browser so
+  // phones can hide the tab strip and keep row-1 (bell + profile) free.
+  const [tabsCollapsed, setTabsCollapsed] = React.useState<boolean>(() => {
+    try {
+      return window.localStorage.getItem('kspanel.instance-tabs.collapsed') === '1';
+    } catch {
+      return false;
+    }
+  });
+  React.useEffect(() => {
+    try {
+      window.localStorage.setItem('kspanel.instance-tabs.collapsed', tabsCollapsed ? '1' : '0');
+    } catch {
+      // Storage off: collapse becomes session-only.
+    }
+  }, [tabsCollapsed]);
+  // hasTabs drives both row-1 toggle visibility and row-2 rendering, so a
+  // tab-less instance never shows an empty strip or a dead chevron.
+  const { instanceId: navInstanceId, loading: navLoading } = useInstanceNav();
+  const effectiveNav = useEffectiveInstanceNav();
+  const hasTabs = inInstancePanel && (navLoading || effectiveNav.length > 0);
+
   // Page-switch loader — white hairline that sweeps left → right ONLY while
   // a new page is opening (null = hidden/idle, number = visible width %).
   // Trigger is the route key so it fires when any page opens, including the
@@ -505,8 +527,11 @@ const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="glass-chrome ks-header-bg w-full sticky top-0 z-20 relative flex flex-col justify-center px-[5px]">
-      <div className="w-full flex items-center justify-between min-h-[var(--ks-header-height,56px)]">
-      <div className="flex items-center gap-2 min-w-0">
+      {/* Row 1 — always a single free row: nav left, bell + profile right.
+          Instance tabs live in Row 2 below, so this row never squeezes the
+          right cluster even on phones. */}
+      <div className="w-full flex items-center justify-between gap-2 min-h-[var(--ks-header-height,56px)]">
+      <div className="flex items-center gap-2 min-w-0 flex-1">
         {/* Sidebar toggle — mobile only. Modern three-line icon with
             smooth pill-style bars that compress on hover and reveal a
             subtle accent stripe. */}
@@ -633,15 +658,42 @@ const Header: React.FC<HeaderProps> = ({
           );
         })()}
 
-        {/* Instance tabs — visible when inside an instance panel.
-            Horizontal scroll with gradient fade indicator. */}
-        {inInstancePanel && <InstanceTabs />}
+        {/* Instance row-1 — compact back + label + up/down toggle only.
+            Tabs live in Row 2 so bell + profile stay free on phones. */}
+        {inInstancePanel && (
+          <div className="flex items-center gap-1.5 min-w-0">
+            <button
+              type="button"
+              onClick={() => navigate('/instances')}
+              aria-label="Back to instances"
+              title="Back to instances"
+              className="ks-btn-header ks-icon-btn shrink-0"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><path d="M15 18l-6-6 6-6" /></svg>
+            </button>
+            <span className="text-sm font-medium text-gray-200 truncate">
+              {navInstanceId != null ? `Instance #${navInstanceId}` : 'Instance'}
+            </span>
+            {hasTabs && (
+              <button
+                type="button"
+                onClick={() => setTabsCollapsed((v) => !v)}
+                aria-expanded={!tabsCollapsed}
+                aria-label={tabsCollapsed ? 'Show instance tabs' : 'Hide instance tabs'}
+                title={tabsCollapsed ? 'Show tabs' : 'Hide tabs'}
+                className="ks-btn-header ks-icon-btn shrink-0"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className={`w-4 h-4 transition-transform duration-200 ${tabsCollapsed ? '' : 'rotate-180'}`} aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Right cluster: notification bell + profile. Always visible so the
        * header stays a normal single row on every page (the main thing of
        * an instance lives in the floating instance menu). */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 shrink-0">
           <NotificationBell />
           <RichMenu
             items={items}
@@ -694,6 +746,14 @@ const Header: React.FC<HeaderProps> = ({
           />
         </div>
       </div>
+      {/* Row 2 — instance tabs below header, full width. Collapsible via the
+          row-1 up/down toggle; hidden state persists per-browser. Keeps Row 1
+          (bell + profile) free on phones. No empty strip when tab-less. */}
+      {hasTabs && !tabsCollapsed && (
+        <div className="w-full border-t border-white/10 mt-1 pt-1">
+          <InstanceTabs />
+        </div>
+      )}
       {/* Page-load bar — Google-style sweep shown ONLY while a page opens
           (Header mounts once in Layout, so the route-key effect above
           re-fires on every navigation). Hidden when idle, when the theme
