@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -48,13 +49,34 @@ func (d *docker) Deploy(ctx context.Context, name string, cfg map[string]any) (R
 	// attached. (No -t: a PID-1 TTY would change process behaviour.)
 	args := []string{"run", "--name", name, "-i"}
 	for _, p := range asPorts(cfg["ports"]) {
-		proto := p.Protocol
+		// Fail closed on malformed port rows: a 0 host/container means
+		// firstPortNumber found nothing parseable (e.g. form strings
+		// that never decoded). Emitting `-p 0:0/tcp` makes docker
+		// reject the whole deploy with a confusing daemon error, so
+		// skip the row instead of forwarding it.
+		if p.Host < 1 || p.Host > 65535 || p.Container < 1 || p.Container > 65535 {
+			continue
+		}
+		proto := strings.ToLower(strings.TrimSpace(p.Protocol))
 		if proto == "" {
 			proto = "tcp"
 		}
+		if proto != "tcp" && proto != "udp" {
+			continue
+		}
+		ip := strings.TrimSpace(p.IP)
+		if ip != "" {
+			bare := ip
+			if i := strings.IndexByte(bare, '%'); i >= 0 {
+				bare = bare[:i]
+			}
+			if net.ParseIP(bare) == nil {
+				continue
+			}
+		}
 		spec := fmt.Sprintf("%d:%d/%s", p.Host, p.Container, proto)
-		if strings.TrimSpace(p.IP) != "" {
-			spec = fmt.Sprintf("%s:%d:%d/%s", strings.TrimSpace(p.IP), p.Host, p.Container, proto)
+		if ip != "" {
+			spec = fmt.Sprintf("%s:%d:%d/%s", ip, p.Host, p.Container, proto)
 		}
 		args = append(args, "-p", spec)
 	}
@@ -678,10 +700,14 @@ func (d *docker) Runner(ctx context.Context, name string) (metrics, processes, p
 	// This shows how much the container has actually written to its writable
 	// layer, rather than the host filesystem usage seen by df inside the
 	// container (which is misleading for storage drivers like overlay2).
-	diskUsedStr, ierr := asExec(ctx, "", "docker", "inspect", name, "--format", "{{.SizeRw}}")
+	// SizeRw is only populated with `inspect -s`; without it the template
+	// renders "<no value>"/0 and must not clobber the df-derived value.
+	// A zero SizeRw is also skipped so a fresh/stopped container keeps its
+	// df measurement instead of being blanked to 0.
+	diskUsedStr, ierr := asExec(ctx, "", "docker", "inspect", "-s", name, "--format", "{{.SizeRw}}")
 	if ierr == nil {
 		diskUsedStr = strings.TrimSpace(diskUsedStr)
-		if diskUsedStr != "" && diskUsedStr != "<nil>" {
+		if diskUsedStr != "" && diskUsedStr != "<nil>" && diskUsedStr != "<no value>" {
 			// Extract digits in case the output includes unexpected characters (e.g., units)
 			var digits strings.Builder
 			for _, r := range diskUsedStr {
@@ -691,7 +717,7 @@ func (d *docker) Runner(ctx context.Context, name string) (metrics, processes, p
 			}
 			digitStr := digits.String()
 			if digitStr != "" {
-				if diskUsedBytes, err := strconv.ParseInt(digitStr, 10, 64); err == nil {
+				if diskUsedBytes, err := strconv.ParseInt(digitStr, 10, 64); err == nil && diskUsedBytes > 0 {
 					var m map[string]any
 					if json.Unmarshal([]byte(metrics), &m) == nil {
 						m["disk_used"] = diskUsedBytes
@@ -774,13 +800,29 @@ func (d *docker) UpdatePorts(ctx context.Context, name string, allocs []PortAllo
 	}
 	args := []string{"run", "--name", containerName, "-i"} // -i: keep stdin open for the startup console (see Deploy)
 	for _, p := range allocs {
-		proto := p.Protocol
+		if p.Host < 1 || p.Host > 65535 || p.Container < 1 || p.Container > 65535 {
+			continue
+		}
+		proto := strings.ToLower(strings.TrimSpace(p.Protocol))
 		if proto == "" {
 			proto = "tcp"
 		}
+		if proto != "tcp" && proto != "udp" {
+			continue
+		}
+		ip := strings.TrimSpace(p.IP)
+		if ip != "" {
+			bare := ip
+			if i := strings.IndexByte(bare, '%'); i >= 0 {
+				bare = bare[:i]
+			}
+			if net.ParseIP(bare) == nil {
+				continue
+			}
+		}
 		spec := fmt.Sprintf("%d:%d/%s", p.Host, p.Container, proto)
-		if strings.TrimSpace(p.IP) != "" {
-			spec = fmt.Sprintf("%s:%d:%d/%s", strings.TrimSpace(p.IP), p.Host, p.Container, proto)
+		if ip != "" {
+			spec = fmt.Sprintf("%s:%d:%d/%s", ip, p.Host, p.Container, proto)
 		}
 		args = append(args, "-p", spec)
 	}

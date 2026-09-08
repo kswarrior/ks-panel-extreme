@@ -272,6 +272,10 @@ export interface AISendOptions {
   // Per-request model override (admins only — the server ignores it for
   // everyone else).
   model?: string;
+  // Explicit cancellation: the store creates one AbortController per turn
+  // and passes its signal to both the SSE stream and the JSON fallback so
+  // Stop aborts the in-flight provider round(s) server-side via r.Context.
+  signal?: AbortSignal;
 }
 
 export async function sendAIChat(messages: AIChatMessage[], opts?: AISendOptions): Promise<AIChatResponse> {
@@ -283,7 +287,7 @@ export async function sendAIChat(messages: AIChatMessage[], opts?: AISendOptions
         thread_id: opts?.threadId ?? undefined,
         model: opts?.model || undefined,
       },
-      { timeout: CHAT_TIMEOUT },
+      { timeout: CHAT_TIMEOUT, signal: opts?.signal },
     );
     return res.data;
   } catch (e) {

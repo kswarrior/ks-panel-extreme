@@ -69,6 +69,7 @@ interface AIChatState {
   removeThread: (id: number) => Promise<void>;
   send: (text: string) => Promise<void>;
   retry: () => Promise<void>;
+  cancel: () => void;
   approveTicket: () => Promise<void>;
   denyTicket: () => void;
   clearError: () => void;
@@ -127,6 +128,20 @@ function errText(e: unknown, fallback: string): string {
   }
   if (e instanceof Error && e.message) return e.message;
   return fallback;
+}
+
+// Explicit per-turn cancellation: one AbortController per assistant turn.
+// Created in runPrompt, aborted via cancel() (Stop button). The signal is
+// passed to both the SSE stream and the JSON fallback so abort cancels the
+// in-flight fetch and, server-side, the provider round via r.Context.
+let currentAbort: AbortController | null = null;
+
+function isAbort(e: unknown): boolean {
+  if (e instanceof DOMException && e.name === 'AbortError') return true;
+  const err = e as { code?: unknown; message?: unknown; name?: unknown };
+  if (err?.code === 20 || err?.name === 'CanceledError' || err?.name === 'AbortError') return true;
+  const msg = typeof err?.message === 'string' ? err.message : '';
+  return /aborted|canceled|cancelled|AbortError/i.test(msg);
 }
 
 export const useAIChatStore = create<AIChatState>((set, get) => ({
@@ -360,6 +375,17 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
   },
 
   clearError: () => set({ error: '', canRetry: false, lastPrompt: '', retrying: false, retryAttempt: 0, retryMax: 0 }),
+
+  cancel: () => {
+    // Explicit user cancellation (Stop button): aborts the in-flight SSE /
+    // JSON fetch. runPrompt observes the abort and settles the turn as
+    // cancelled (keeps lastPrompt so Retry can re-send).
+    try {
+      currentAbort?.abort();
+    } catch {
+      // Abort never throws usefully — runPrompt owns the state transition.
+    }
+  },
 }));
 
 function sleep(ms: number): Promise<void> {

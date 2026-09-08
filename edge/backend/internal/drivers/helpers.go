@@ -85,8 +85,9 @@ func asPorts(v any) []portMapping {
 }
 
 // firstPortNumber returns the first valid port number found under any of the
-// given keys. Accepts JSON numbers (float64/int/int64) and numeric strings
-// (the panel form serialises ports as strings). Returns 0 when none parses.
+// given keys. Accepts JSON numbers (float64/int/int64 plus the other Go int
+// widths YAML/decoders can produce) and numeric strings (the panel form
+// serialises ports as strings). Returns 0 when none parses.
 func firstPortNumber(m map[string]any, keys ...string) int {
 	for _, k := range keys {
 		v, ok := m[k]
@@ -106,7 +107,39 @@ func firstPortNumber(m map[string]any, keys ...string) int {
 			if n >= 1 && n <= 65535 {
 				return n
 			}
+		case int8:
+			if n >= 1 && n <= 65535 {
+				return int(n)
+			}
+		case int16:
+			if n >= 1 && n <= 65535 {
+				return int(n)
+			}
+		case int32:
+			if n >= 1 && n <= 65535 {
+				return int(n)
+			}
 		case int64:
+			if n >= 1 && n <= 65535 {
+				return int(n)
+			}
+		case uint:
+			if n >= 1 && n <= 65535 {
+				return int(n)
+			}
+		case uint8:
+			if n >= 1 && n <= 65535 {
+				return int(n)
+			}
+		case uint16:
+			if n >= 1 && n <= 65535 {
+				return int(n)
+			}
+		case uint32:
+			if n >= 1 && n <= 65535 {
+				return int(n)
+			}
+		case uint64:
 			if n >= 1 && n <= 65535 {
 				return int(n)
 			}
@@ -117,6 +150,15 @@ func firstPortNumber(m map[string]any, keys ...string) int {
 			}
 			if p, err := strconv.Atoi(s); err == nil && p >= 1 && p <= 65535 {
 				return p
+			}
+		default:
+			// Last resort for exotic numerics (e.g. json.Number when the
+			// panel decodes with UseNumber): coerce via anyToString so a
+			// "25565" spelling still decodes instead of becoming 0:0.
+			if s := strings.TrimSpace(anyToString(v)); s != "" {
+				if p, err := strconv.Atoi(s); err == nil && p >= 1 && p <= 65535 {
+					return p
+				}
 			}
 		}
 	}
