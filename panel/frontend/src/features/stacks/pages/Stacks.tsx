@@ -66,7 +66,7 @@ const Stacks: React.FC = () => {
   const filterRef = useRef<HTMLDivElement>(null);
 
   const [installOpen, setInstallOpen] = useState(false);
-  const [installTab, setInstallTab] = useState<'file' | 'url' | 'studio'>('file');
+  const [installTab, setInstallTab] = useState<'file' | 'url' | 'create' | 'studio'>('file');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [urlInput, setUrlInput] = useState('');
   const [installBusy, setInstallBusy] = useState(false);
