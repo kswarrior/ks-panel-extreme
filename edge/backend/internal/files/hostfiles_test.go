@@ -2,12 +2,14 @@ package files
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestHostJailResolveKeepsPathsInsideRoot covers the security contract of
@@ -212,5 +214,116 @@ func TestNewHostJailRejectsBadRoots(t *testing.T) {
 	}
 	if _, err := newHostJail(t.TempDir()); err != nil {
 		t.Errorf("newHostJail(tempdir): %v", err)
+	}
+}
+
+// TestHostFilesDeleteDirIsInstant is the regression test for the "0 of 1
+// deleted … Gateway error (502)" report: deleting a big world-like tree
+// must answer 200 near-instantly (rename-away) instead of holding the
+// request open for the whole recursive unlink, which outlived the proxies
+// in front of the panel. The name must be gone from the very next listing,
+// and the staged trash must drain in the background.
+func TestHostFilesDeleteDirIsInstant(t *testing.T) {
+	root := t.TempDir()
+	for d := 0; d < 200; d++ {
+		dir := filepath.Join(root, "mc", "world", fmt.Sprintf("region-%03d", d))
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		for f := 0; f < 150; f++ {
+			if err := os.WriteFile(filepath.Join(dir, fmt.Sprintf("r.%03d.mca", f)), make([]byte, 4096), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	h := HostFilesHandler("sekrit", root)
+
+	start := time.Now()
+	req := httptest.NewRequest(http.MethodPost, "/api/edge/hostfiles?op=delete&path=/mc&token=sekrit", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	el := time.Since(start)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("delete dir: got %d (%s), want 200", rec.Code, rec.Body.String())
+	}
+	// 30k files must not hold the request: generous 10s budget so slow CI
+	// never flakes (the synchronous walk this replaced took ~0.3s here and
+	// minutes on loaded spinning disks).
+	if el > 10*time.Second {
+		t.Errorf("delete dir held the request for %v, want near-instant rename-away", el)
+	}
+	// The name is gone from the very next listing, even while the disk
+	// is still reclaiming in the background.
+	lreq := httptest.NewRequest(http.MethodGet, "/api/edge/hostfiles?op=list&path=/&token=sekrit", nil)
+	lrec := httptest.NewRecorder()
+	h.ServeHTTP(lrec, lreq)
+	if lrec.Code != http.StatusOK {
+		t.Fatalf("list after delete: got %d", lrec.Code)
+	}
+	var listed struct {
+		Entries []Entry `json:"entries"`
+	}
+	if err := json.Unmarshal(lrec.Body.Bytes(), &listed); err != nil {
+		t.Fatalf("list decode: %v", err)
+	}
+	for _, e := range listed.Entries {
+		if e.Name == "mc" {
+			t.Fatalf("mc still listed right after delete")
+		}
+		if strings.HasPrefix(e.Name, trashPrefix) {
+			t.Fatalf("trash %q visible in listing", e.Name)
+		}
+	}
+	// The staged trash must drain on its own (background RemoveAll).
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		leftovers, _ := filepath.Glob(filepath.Join(root, trashPrefix+"*"))
+		if len(leftovers) == 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("trash never drained: %v", leftovers)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+// TestSweepStaleTrashKeepsOperatorData proves the lazy GC only finishes our
+// own orphaned trash: fresh trash is left for its live background removal,
+// and operator files/dirs — even dotfiles, even ones starting with a
+// similar prefix — are never touched.
+func TestSweepStaleTrashKeepsOperatorData(t *testing.T) {
+	root := t.TempDir()
+	old := time.Now().Add(-25 * time.Hour)
+	mk := func(name string, backdate bool) {
+		p := filepath.Join(root, name)
+		if strings.HasSuffix(name, ".txt") {
+			if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		} else if err := os.MkdirAll(p, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if backdate {
+			if err := os.Chtimes(p, old, old); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	mk(trashPrefix+"old-1", true)   // orphaned: must go
+	mk(trashPrefix+"fresh-1", false) // live removal: must stay
+	mk(".mydot", true)               // operator dotdir, old: must stay
+	mk(trashPrefix+"note.txt", true) // trash-prefixed FILE, old: must stay (dirs only)
+	mk("mc", false)                  // ordinary dir: must stay
+
+	sweepStaleTrash(root)
+
+	if _, err := os.Stat(filepath.Join(root, trashPrefix+"old-1")); !os.IsNotExist(err) {
+		t.Errorf("stale trash not swept")
+	}
+	for _, keep := range []string{trashPrefix + "fresh-1", ".mydot", trashPrefix + "note.txt", "mc"} {
+		if _, err := os.Stat(filepath.Join(root, keep)); err != nil {
+			t.Errorf("%s should survive the sweep, stat: %v", keep, err)
+		}
 	}
 }
