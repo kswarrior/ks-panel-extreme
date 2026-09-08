@@ -54,11 +54,39 @@ func (r *TemplateRepository) List() ([]models.Template, error) {
 			t.OwnerID = ownerID.Int64
 			t.OwnerName = ownerName.String
 		}
-		t.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created)
-		t.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updated)
+		t.CreatedAt, _ = parseTemplateTime(created)
+		t.UpdatedAt, _ = parseTemplateTime(updated)
 		out = append(out, t)
 	}
 	return out, rows.Err()
+}
+
+// parseTemplateTime accepts both the layout SQLite writes and RFC3339 so it
+// works regardless of whether the row was written by modernc's
+// CURRENT_TIMESTAMP default or an explicit UTC timestamp. modernc.org/sqlite
+// returns DATETIME columns as time.Time, which database/sql formats to
+// RFC3339Nano when scanned into a string — parsing only "2006-01-02 15:04:05"
+// silently collapsed every timestamp to the zero time (frontend showed
+// "Updated Jan 1, 1"). It also accepts the Postgres / MySQL text forms so the
+// same rows read back with honest times on every engine (mirrors
+// theme_repo.parseSQLiteTime).
+func parseTemplateTime(s string) (time.Time, error) {
+	if t, err := time.Parse("2006-01-02 15:04:05", s); err == nil {
+		return t, nil
+	}
+	if t, err := time.Parse("2006-01-02 15:04:05.999999999", s); err == nil {
+		return t, nil
+	}
+	if t, err := time.Parse("2006-01-02 15:04:05.999999999Z07:00", s); err == nil {
+		return t, nil
+	}
+	if t, err := time.Parse("2006-01-02 15:04:05Z07:00", s); err == nil {
+		return t, nil
+	}
+	if t, err := time.Parse("2006-01-02 15:04:05 -0700 MST", s); err == nil {
+		return t, nil
+	}
+	return time.Parse(time.RFC3339Nano, s)
 }
 
 // ListByOwner returns the subset of templates owned by ownerID. Migration
@@ -111,8 +139,8 @@ func (r *TemplateRepository) Get(id int64) (*models.Template, error) {
 		t.OwnerID = ownerID.Int64
 		t.OwnerName = ownerName.String
 	}
-	t.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created.String)
-	t.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updated.String)
+	t.CreatedAt, _ = parseTemplateTime(created.String)
+	t.UpdatedAt, _ = parseTemplateTime(updated.String)
 	return &t, nil
 }
 
@@ -147,8 +175,8 @@ func (r *TemplateRepository) GetByName(name string) (*models.Template, error) {
 		t.OwnerID = ownerID.Int64
 		t.OwnerName = ownerName.String
 	}
-	t.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created.String)
-	t.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updated.String)
+	t.CreatedAt, _ = parseTemplateTime(created.String)
+	t.UpdatedAt, _ = parseTemplateTime(updated.String)
 	return &t, nil
 }
 

@@ -38,6 +38,21 @@ function parseSpec(raw: string): Record<string, any> {
   try { return JSON.parse(raw) as Record<string, any>; } catch { return {}; }
 }
 
+// Zero time from the API (Go's 0001-01-01T00:00:00Z) parses as a valid Date
+// with year 1 — guard it so the card never renders "Updated Jan 1, 1".
+function templateTimeMs(iso?: string): number {
+  if (!iso) return 0;
+  const d = new Date(iso);
+  if (isNaN(d.getTime()) || d.getFullYear() <= 1) return 0;
+  return d.getTime();
+}
+
+function templateUpdatedLabel(iso?: string): string | null {
+  const ms = templateTimeMs(iso);
+  if (!ms) return null;
+  return new Date(iso as string).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
 function KindIcon({ kind, className = '' }: { kind: KindKey; className?: string }) {
   const common = { xmlns: 'http://www.w3.org/2000/svg', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, className };
   switch (kind) {
@@ -215,8 +230,8 @@ const Templates: React.FC = () => {
       env,
       installs,
       mounts,
-      updated: t.updated_at ? new Date(t.updated_at).getTime() : 0,
-      created: t.created_at ? new Date(t.created_at).getTime() : 0,
+      updated: templateTimeMs(t.updated_at),
+      created: templateTimeMs(t.created_at),
     };
   }), [templates]);
 
