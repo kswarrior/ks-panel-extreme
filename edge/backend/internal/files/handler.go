@@ -699,8 +699,10 @@ func uploadDockerFile(ctx context.Context, w http.ResponseWriter, r *http.Reques
 // matches the SPA's "create folder" UX where double-clicking an existing
 // folder shouldn't surface a confusing error.
 func mkdirDocker(ctx context.Context, w http.ResponseWriter, name, path string) {
+	// `--` stops flag parsing so a path starting with `-` (e.g. "-evil")
+	// cannot be misparsed as a mkdir flag (fail closed on hostile input).
 	cmd := exec.CommandContext(ctx, "docker", "exec", name,
-		"mkdir", "-p", path)
+		"mkdir", "-p", "--", path)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		writeErr(w, http.StatusBadGateway, fmt.Sprintf("mkdir %s: %v: %s", path, err, string(out)))
 		return
@@ -727,7 +729,7 @@ func renameDocker(ctx context.Context, w http.ResponseWriter, r *http.Request, n
 		return
 	}
 	cmd := exec.CommandContext(ctx, "docker", "exec", name,
-		"mv", path, to)
+		"mv", "--", path, to)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		writeErr(w, http.StatusBadGateway, fmt.Sprintf("rename %s -> %s: %v: %s", path, to, err, string(out)))
 		return

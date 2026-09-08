@@ -127,8 +127,11 @@ func newStore() *store { return &store{m: make(map[string]*record)} }
 // check-then-act race where two concurrent POST /api/edge/install calls for
 // the same instance could both observe "not running" and both launch
 // workflows against the same container (the second setCancel silently
-// clobbering the first's).
-func (s *store) begin(key string, steps []StepStatus) (*record, bool) {
+// clobbering the first's). cancel is stored in the same critical section
+// so a concurrent Stop between begin and setCancel cannot miss it — the
+// previous split left a window where Stop saw state==running but
+// cancel==nil and returned without cancelling, leaking the workflow.
+func (s *store) begin(key string, steps []StepStatus, cancel context.CancelFunc) (*record, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	rec, ok := s.m[key]
@@ -149,12 +152,14 @@ func (s *store) begin(key string, steps []StepStatus) (*record, bool) {
 	rec.err = ""
 	rec.start = time.Now()
 	rec.end = time.Time{}
-	// Clear the previous run's cancel + stdin writer: the old context is
-	// already cancelled (workflow goroutine defers cancel) and its stdin
-	// pipe closed via sess.Close, so reusing them would let Stop fire a
-	// dead cancel or write a stop_command into a closed pipe from the
-	// prior run (KeepStdin=false runs never overwrite stdinWriter).
-	rec.cancel = nil
+	// Clear the previous run's stdin writer: the old context is already
+	// cancelled (workflow goroutine defers cancel) and its stdin pipe
+	// closed via sess.Close, so reusing it would let Stop write a
+	// stop_command into a closed pipe from the prior run
+	// (KeepStdin=false runs never overwrite stdinWriter). The new run's
+	// cancel is stored atomically here (not via a later setCancel) so a
+	// Stop racing the start cannot observe a nil cancel.
+	rec.cancel = cancel
 	rec.stdinWriter = nil
 	return rec, true
 }
@@ -362,22 +367,6 @@ func handleInstallStart(w http.ResponseWriter, r *http.Request, token string, st
 	for i, s := range in.Steps {
 		seed[i] = StepStatus{Index: i, Action: s.Action, Status: stepPending}
 	}
-	rec, ok := store.begin(key, seed)
-	if !ok {
-		writeInstallErr(w, http.StatusConflict, "install already running for "+key)
-		return
-	}
-
-	// Publish LIVE per-step state into the record while the workflow runs:
-	// the engine calls OnProgress on every step transition, and mid-run polls
-	// of GET /api/edge/install then return the real running/failed/done step
-	// instead of an all-"pending" transcript (the panel's install poller maps
-	// that onto instance.install_step for the UI progress display).
-	in.OnProgress = func(ss []StepStatus) {
-		rec.mu.Lock()
-		rec.steps = ss
-		rec.mu.Unlock()
-	}
 
 	// Run asynchronously so the RPC returns immediately. The workflow budget
 	// is chosen from Input.TimeoutSec (sent by the panel):
@@ -392,6 +381,9 @@ func handleInstallStart(w http.ResponseWriter, r *http.Request, token string, st
 	// We hand the panel a per-instance install_id and let it poll, exactly
 	// like the deploy→install split the codebase comment block warns about
 	// for the Cloudflare 15s window.
+	// The context is created BEFORE begin so begin can store the cancel
+	// atomically — otherwise a Stop racing the start would see a nil
+	// cancel and miss (see store.begin).
 	var ctx context.Context
 	var cancel context.CancelFunc
 	if in.TimeoutSec < 0 {
@@ -401,7 +393,23 @@ func handleInstallStart(w http.ResponseWriter, r *http.Request, token string, st
 	} else {
 		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Minute)
 	}
-	store.setCancel(key, cancel)
+	rec, ok := store.begin(key, seed, cancel)
+	if !ok {
+		cancel()
+		writeInstallErr(w, http.StatusConflict, "install already running for "+key)
+		return
+	}
+
+	// Publish LIVE per-step state into the record while the workflow runs:
+	// the engine calls OnProgress on every step transition, and mid-run polls
+	// of GET /api/edge/install then return the real running/failed/done step
+	// instead of an all-"pending" transcript (the panel's install poller maps
+	// that onto instance.install_step for the UI progress display).
+	in.OnProgress = func(ss []StepStatus) {
+		rec.mu.Lock()
+		rec.steps = ss
+		rec.mu.Unlock()
+	}
 
 	// If KeepStdin is requested, we need a SessionExecFn that returns the
 	// driver's ExecSession so the engine can keep stdin open.
