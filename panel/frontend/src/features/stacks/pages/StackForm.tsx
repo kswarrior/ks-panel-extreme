@@ -96,7 +96,7 @@ const StackForm: React.FC = () => {
     setError('');
     setSpecError('');
     try {
-      const manifest = emitStackStudioManifest({ ...draft, spec: (draft.spec ?? {}) });
+      const manifest = emitStackStudioManifest({ ...draft, spec });
       const stack = await createStackFromManifest(manifest, 'studio');
       const jobs: Array<{ path: string; content: string }> = [];
       if (draft.pageStyle === 'spa' && draft.frontendHtml.trim()) {
@@ -116,8 +116,8 @@ const StackForm: React.FC = () => {
         const entry = draft.entrypoint.trim() || (draft.runtime === 'python' ? 'backend/app.py' : 'backend/server.js');
         jobs.push({ path: entry, content: draft.backendScript });
       }
-      if (draft.spec && Object.keys(draft.spec).length) {
-        jobs.push({ path: 'spec.json', content: JSON.stringify(draft.spec, null, 2) });
+      if (spec && Object.keys(spec).length) {
+        jobs.push({ path: 'spec.json', content: JSON.stringify(spec, null, 2) });
       }
       for (const j of jobs) {
         try {
