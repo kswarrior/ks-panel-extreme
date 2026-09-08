@@ -103,17 +103,17 @@ func handleInstallStream(w http.ResponseWriter, r *http.Request, token string, s
 
 	gw.write(map[string]any{"type": "ready"})
 
-	// History replay: current transcript snapshot, capped, so a freshly
-	// attached pane is not blank (mirrors docker Attach's logs-tail replay).
-	lastSent := ""
-	if hist := snapshotTranscript(rec); hist != "" {
-		tail := hist
-		if len(tail) > streamHistoryCap {
-			tail = tail[len(tail)-streamHistoryCap:]
-		}
-		gw.writeStdout(tail)
-		lastSent = hist
+	// History replay: what the transcript holds right now, newest-first
+	// body budget so a spammy server can't blow the WS frame budget on
+	// connect (mirrors docker Attach's logs-tail replay). Live deltas
+	// after it are exact and unbounded.
+	var pos []streamCursor
+	for _, f := range streamReplay(snapshotSteps(rec), streamHistoryCap) {
+		gw.writeStream(f.kind, f.data)
 	}
+	// Prime the live cursor past the replayed bytes so the first poll
+	// sends only truly new output (replay may have trimmed old bodies).
+	_ = streamNext(&pos, snapshotSteps(rec))
 
 	ticker := time.NewTicker(streamPollInterval)
 	defer ticker.Stop()
@@ -125,16 +125,11 @@ func handleInstallStream(w http.ResponseWriter, r *http.Request, token string, s
 		case <-r.Context().Done():
 			return
 		case <-ticker.C:
-			cur := snapshotTranscript(rec)
-			state := snapshotState(rec)
-			if cur != lastSent {
-				delta := diffTranscript(lastSent, cur)
-				if delta != "" {
-					gw.writeStdout(delta)
-				}
-				lastSent = cur
+			steps := snapshotSteps(rec)
+			for _, f := range streamNext(&pos, steps) {
+				gw.writeStream(f.kind, f.data)
 			}
-			if state != StateRunning {
+			if state := snapshotState(rec); state != StateRunning {
 				code := -1
 				if state == StateDone {
 					code = 0
@@ -149,34 +144,121 @@ func handleInstallStream(w http.ResponseWriter, r *http.Request, token string, s
 	}
 }
 
-// snapshotTranscript folds the workflow record's step transcript into one
-// string (every step's stdout + stderr, oldest first) for streaming. It
-// mirrors the panel frontend's actionLogText shape (step headers + 8k tail
-// is applied panel-side; here we keep the full capped per-stream buffers
-// the engine maintains and let the stream cap the replay).
-func snapshotTranscript(rec *record) string {
+// snapshotSteps copies the workflow record's step transcript under RLock.
+// Strings are immutable, so the shallow copy is safe to diff outside the
+// lock while the engine keeps appending to its own buffers.
+func snapshotSteps(rec *record) []StepStatus {
 	rec.mu.RLock()
 	defer rec.mu.RUnlock()
-	if len(rec.steps) == 0 {
-		return ""
-	}
-	var b strings.Builder
-	for _, s := range rec.steps {
-		out := ""
-		if s.Stdout != "" && s.Stderr != "" {
-			out = s.Stdout + "\n" + s.Stderr
-		} else {
-			out = s.Stdout + s.Stderr
+	out := make([]StepStatus, len(rec.steps))
+	copy(out, rec.steps)
+	return out
+}
+
+// streamFrame is one chunk of workflow output: kind is "stdout" or
+// "stderr" (same wire types as the exec/attach bridges) and data the raw
+// bytes to write to the pane.
+type streamFrame struct {
+	kind string
+	data string
+}
+
+// streamCursor tracks per-step delivery offsets for ONE stream connection.
+// Headers are re-emitted only when the step's header text itself changes
+// (status transition); body offsets move forward append-only, so a step
+// transition with no new bytes sends nothing — never a full resend.
+type streamCursor struct {
+	header string
+	out    int
+	err    int
+}
+
+// streamSlideResend bounds the bytes re-sent when a body shrinks under the
+// cursor (engine 64 KiB cap window slid, or a fresh run overwrote the
+// record): only the last 8 KiB go out, never the whole transcript.
+const streamSlideResend = 8 * 1024
+
+// streamStepHeader formats one step's header line. The text matches the
+// long-standing transcript shape so panes render exactly what they did.
+func streamStepHeader(s StepStatus) string {
+	return fmt.Sprintf("— step %d (%s · %s · exit %d) —\n", s.Index, s.Action, s.Status, s.ExitCode)
+}
+
+// streamBodyDelta returns the unsent suffix of cur given sent bytes
+// already delivered, honouring the engine's sliding cap window.
+func streamBodyDelta(sent int, cur string) (chunk string, next int) {
+	if len(cur) < sent {
+		// Slid (or reset): re-anchor on the last 8 KiB only.
+		if len(cur) > streamSlideResend {
+			return cur[len(cur)-streamSlideResend:], len(cur)
 		}
-		if out == "" {
+		return cur, len(cur)
+	}
+	return cur[sent:], len(cur)
+}
+
+// streamNext computes the new frames for the current step snapshot,
+// advancing pos. Steps are emitted in order; stdout and stderr ride
+// SEPARATE frames in poll order, so an stderr line that arrives between
+// two stdout writes renders where it arrived — never pinned after the
+// whole stdout backlog.
+func streamNext(pos *[]streamCursor, steps []StepStatus) []streamFrame {
+	for len(*pos) < len(steps) {
+		*pos = append(*pos, streamCursor{})
+	}
+	var frames []streamFrame
+	for i, s := range steps {
+		p := &(*pos)[i]
+		if h := streamStepHeader(s); h != p.header {
+			frames = append(frames, streamFrame{kind: "stdout", data: h})
+			p.header = h
+		}
+		if chunk, next := streamBodyDelta(p.out, s.Stdout); chunk != "" {
+			frames = append(frames, streamFrame{kind: "stdout", data: chunk})
+			p.out = next
+		} else {
+			p.out = next
+		}
+		if chunk, next := streamBodyDelta(p.err, s.Stderr); chunk != "" {
+			frames = append(frames, streamFrame{kind: "stderr", data: chunk})
+			p.err = next
+		} else {
+			p.err = next
+		}
+	}
+	return frames
+}
+
+// streamReplay renders the backlog for a freshly-attached pane: headers
+// plus bodies, newest steps first against the byte budget (whole steps or
+// nothing, so no half lines), emitted oldest-first. Bodies over budget are
+// dropped from the oldest steps; empty steps emit nothing (as before).
+func streamReplay(steps []StepStatus, budget int) []streamFrame {
+	incl := make([]bool, len(steps))
+	left := budget
+	for i := len(steps) - 1; i >= 0; i-- {
+		if n := len(steps[i].Stdout) + len(steps[i].Stderr); n <= left {
+			incl[i] = true
+			left -= n
+		}
+	}
+	var frames []streamFrame
+	for i, s := range steps {
+		if s.Stdout == "" && s.Stderr == "" {
 			continue
 		}
-		fmt.Fprintf(&b, "— step %d (%s · %s · exit %d) —\n%s", s.Index, s.Action, s.Status, s.ExitCode, out)
-		if !strings.HasSuffix(out, "\n") {
-			b.WriteString("\n")
+		if !incl[i] {
+			continue
+		}
+		frames = append(frames, streamFrame{kind: "stdout", data: streamStepHeader(s)})
+		if s.Stdout != "" {
+			frames = append(frames, streamFrame{kind: "stdout", data: s.Stdout})
+		}
+		if s.Stderr != "" {
+			frames = append(frames, streamFrame{kind: "stderr", data: s.Stderr})
 		}
 	}
-	return b.String()
+	return frames
 }
 
 // snapshotState returns the workflow record's current state under RLock.
