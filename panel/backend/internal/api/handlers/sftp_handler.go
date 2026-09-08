@@ -538,11 +538,11 @@ func DisableSFTPHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"ok": true})
 }
 
-// provisionSFTPForInstance is the shared Deploy/Start/Unsuspend helper: it
+// ProvisionSFTPForInstance is the shared Deploy/Start/Unsuspend/install-done helper: it
 // reads the vaulted password + stored dial params and pushes them to the
 // edge. Best-effort by contract — callers log but never fail the lifecycle
 // action when the edge is down (the credential can be re-pushed via rotate).
-func provisionSFTPForInstance(con sqlDB, inst *models.Instance) error {
+func ProvisionSFTPForInstance(con sqlDB, inst *models.Instance) error {
 	cfg, err := repository.NewSFTPRepository(con).Get(inst.ID)
 	if err != nil || cfg == nil || cfg.Enabled != 1 {
 		return nil

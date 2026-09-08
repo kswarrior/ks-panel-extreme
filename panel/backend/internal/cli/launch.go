@@ -927,6 +927,19 @@ func installSweepLoop(interval time.Duration) {
 			}
 			nextStatus = "stopped"
 			log.Printf("install poll: instance %d done (container stopped)", inst.id)
+			// Heal a deploy/reinstall-time SFTP push that raced the
+			// workload's first start: autoProvisionSFTPOnDeploy pushes
+			// before the volume dir necessarily exists (unprivileged
+			// edge → mkdir EACCES), and previously only start/unsuspend
+			// ever re-pushed — reinstall never did, so SFTP stayed
+			// broken until a manual rotate. The workload just ran, so
+			// the dir exists now: re-push best-effort from the vaulted
+			// password (nil when no SFTP row, same contract as start).
+			if fresh, gerr := instRepo2.Get(inst.id); gerr == nil && fresh != nil {
+				if perr := handlers.ProvisionSFTPForInstance(con2, fresh); perr != nil {
+					log.Printf("install poll: instance %d done, sftp re-push failed: %v", inst.id, perr)
+				}
+			}
 		} else if !autoStop {
 			// action that opted out of auto-stop → leave running.
 			nextStatus = "running"

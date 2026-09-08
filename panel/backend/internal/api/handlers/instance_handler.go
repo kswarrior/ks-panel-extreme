@@ -2427,7 +2427,7 @@ func instanceAction(w http.ResponseWriter, r *http.Request, action string) {
 		// re-push best-effort without failing the start).
 		if action == "start" {
 			if fresh, gerr := instRepo.Get(id); gerr == nil && fresh != nil {
-				_ = provisionSFTPForInstance(con, fresh)
+				_ = ProvisionSFTPForInstance(con, fresh)
 			}
 		}
 		emitInstancePost(action, id, inst)
@@ -2727,7 +2727,7 @@ func UnsuspendInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	if cfg, _ := repository.NewSFTPRepository(con).Get(id); cfg != nil {
 		_ = repository.NewSFTPRepository(con).SetEnabled(id, 1)
 		if fresh, gerr := instRepo.Get(id); gerr == nil && fresh != nil {
-			_ = provisionSFTPForInstance(con, fresh)
+			_ = ProvisionSFTPForInstance(con, fresh)
 		}
 		auditInst(r, id, "sftp.unsuspend", "restored SFTP access after unsuspend")
 	}

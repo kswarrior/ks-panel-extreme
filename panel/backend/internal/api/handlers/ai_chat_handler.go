@@ -3543,7 +3543,7 @@ func aiExecUnsuspendInstance(a *aiCallCtx, args map[string]any) (string, error) 
 	if cfg, _ := repository.NewSFTPRepository(a.con).Get(inst.ID); cfg != nil {
 		_ = repository.NewSFTPRepository(a.con).SetEnabled(inst.ID, 1)
 		if fresh, gerr := instRepo.Get(inst.ID); gerr == nil && fresh != nil {
-			_ = provisionSFTPForInstance(a.con, fresh)
+			_ = ProvisionSFTPForInstance(a.con, fresh)
 		}
 	}
 	id := inst.ID
