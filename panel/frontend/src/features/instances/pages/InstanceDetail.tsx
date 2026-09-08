@@ -179,13 +179,30 @@ const TerminalPane: React.FC<{
   installTerminalId: string;
   startupTerminalId: string;
   inputMode: TerminalInputMode;
+  // Command shortcuts (page-level state, rendered here in box mode):
+  shortcutsOn: boolean;
+  shortcuts: TerminalShortcutDef[];
+  sel: number | null;
+  onSel: (i: number | null) => void;
+  askVals: Record<string, string>;
+  onAsk: (name: string, value: string) => void;
+  boxText: string;
+  onBoxText: (v: string) => void;
+  askVars: string[];
+  askBlocked: boolean;
+  onRegisterSend: (key: number, fn: ((line: string) => void) | null) => void;
   onConnState?: (key: number, s: PaneConnState, msg?: string) => void;
-}> = ({ instanceId, pane, actions, runningActionId, installState, installKind, installTerminalId, startupTerminalId, inputMode, onConnState }) => {
+}> = ({ instanceId, pane, actions, runningActionId, installState, installKind, installTerminalId, startupTerminalId, inputMode, shortcutsOn, shortcuts, sel, onSel, askVals, onAsk, boxText, onBoxText, askVars, askBlocked, onRegisterSend, onConnState }) => {
   const handleRef = useRef<TerminalHandle>(null);
   const [connState, setConnState] = useState<PaneConnState>('connecting');
   const [connMsg, setConnMsg] = useState('');
-  const [box, setBox] = useState('');
   const [stdinError, setStdinError] = useState('');
+  // Expose this pane's sendLine to the page (direct-mode header dropdown
+  // sends to the active tab through it).
+  useEffect(() => {
+    onRegisterSend(pane.key, (ln: string) => { try { handleRef.current?.sendLine(ln); } catch { /* noop */ } });
+    return () => onRegisterSend(pane.key, null);
+  }, [pane.key, onRegisterSend]);
 
   const tid = normTid(pane.terminalId);
   const matchedAction = tid !== '' ? actions.find((a: any) => normTid(a?.terminal_id) === tid) : undefined;
@@ -246,11 +263,15 @@ const TerminalPane: React.FC<{
   // Box input method: the xterm below is output-only (readOnly) — the
   // operator types here and Send submits the line through the exact same
   // pipeline as pressing Enter in the terminal (TerminalHandle.sendLine).
+  // With a shortcut picked, Send transmits the resolved command; editing
+  // the text frees it (selection clears) and sends raw text instead.
   const boxMode = inputMode === 'box';
   const sendBox = () => {
-    if (box.trim() === '') return;
-    try { handleRef.current?.sendLine(box); } catch { /* noop */ }
-    setBox('');
+    if (boxMode && askBlocked) return;
+    const text = boxMode && sel !== null ? resolveShortcutCommand(boxText, askVals) : boxText;
+    if (text.trim() === '') return;
+    try { handleRef.current?.sendLine(text); } catch { /* noop */ }
+    onBoxText('');
   };
 
   return (
@@ -283,19 +304,40 @@ const TerminalPane: React.FC<{
           />
         </div>
         {boxMode && (
-          <div className="flex items-center gap-2 mt-2 min-w-0">
-            <input
-              value={box}
-              onChange={(e) => setBox(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') sendBox(); }}
-              placeholder="Type a command…"
-              aria-label={`Command input for ${title}`}
-              className="ks-input w-full min-w-0 flex-1"
-            />
-            <button type="button" onClick={sendBox} className="ks-btn-primary ks-btn shrink-0">
-              Send
-            </button>
-          </div>
+          <>
+            {shortcutsOn && askVars.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 mt-2" aria-label="Shortcut values">
+                <ShortcutAskFields vars={askVars} askVals={askVals} onAsk={onAsk} />
+              </div>
+            )}
+            <div className="flex items-center gap-2 mt-2 min-w-0">
+              {shortcutsOn && (
+                <select
+                  value={sel ?? ''}
+                  onChange={(e) => onSel(e.target.value === '' ? null : Number(e.target.value))}
+                  aria-label="Shortcut"
+                  title="Pick a shortcut to fill the input"
+                  className="ks-input shrink-0 w-32 min-w-0"
+                >
+                  <option value="">Shortcut…</option>
+                  {shortcuts.map((sc, i) => (
+                    <option key={i} value={i} title={sc.command}>{sc.label.trim() !== '' ? sc.label : sc.command}</option>
+                  ))}
+                </select>
+              )}
+              <input
+                value={boxText}
+                onChange={(e) => onBoxText(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') sendBox(); }}
+                placeholder="Type a command…"
+                aria-label={`Command input for ${title}`}
+                className="ks-input w-full min-w-0 flex-1"
+              />
+              <button type="button" onClick={sendBox} disabled={askBlocked} className="ks-btn-primary ks-btn shrink-0 disabled:opacity-40">
+                Send
+              </button>
+            </div>
+          </>
         )}
       </div>
     </div>
@@ -341,6 +383,75 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
   const [panes, setPanes] = useState<TerminalPaneState[]>(() => toSeedPanes(seedList));
   const [activeKey, setActiveKey] = useState<number>(0);
   const [connMap, setConnMap] = useState<Record<number, PaneConnState>>({});
+  // Command shortcuts (template Controls → Terminal shortcut). Off/empty =
+  // no shortcut UI anywhere. Direct mode: dropdown top-right, plain picks
+  // send at once, parameterized picks open the ask bar. Box mode: dropdown
+  // + ask row live in the bottom input row and fill the command input.
+  const boxMode = (termCfg.terminal_input_mode || 'direct') === 'box';
+  const shortcuts = useMemo(() => {
+    if (!termCfg.terminal_shortcuts_enabled || !Array.isArray(termCfg.terminal_shortcuts)) return [];
+    return termCfg.terminal_shortcuts.filter((s) => s && (String(s.label ?? '').trim() !== '' || String(s.command ?? '').trim() !== ''));
+  }, [termCfg]);
+  const shortcutsOn = shortcuts.length > 0;
+  const [sel, setSel] = useState<number | null>(null);
+  const [askVals, setAskVals] = useState<Record<string, string>>({});
+  const [boxTexts, setBoxTexts] = useState<Record<number, string>>({});
+  const selSafe = sel !== null && shortcuts[sel] ? sel : null;
+  const selCmd = selSafe !== null ? shortcuts[selSafe].command : '';
+  const selVars = useMemo(() => extractShortcutVars(selCmd), [selCmd]);
+  const askBlocked = selVars.some((v) => !(askVals[v] ?? '').trim());
+  const onAsk = useCallback((name: string, value: string) => {
+    setAskVals((m) => ({ ...m, [name]: value.slice(0, 200) }));
+  }, []);
+  // Active pane's sendLine, registered by each TerminalPane (direct-mode
+  // header/ask sends route through it).
+  const sendRegistry = useRef<Map<number, (ln: string) => void>>();
+  if (!sendRegistry.current) sendRegistry.current = new Map();
+  const onRegisterSend = useCallback((key: number, fn: ((ln: string) => void) | null) => {
+    const m = sendRegistry.current;
+    if (!m) return;
+    if (fn) m.set(key, fn); else m.delete(key);
+  }, []);
+  const sendToActive = (text: string) => {
+    if (text.trim() === '') return;
+    try { sendRegistry.current?.get(activeKey)?.(text); } catch { /* noop */ }
+  };
+  // Box-mode pick fills the active pane's input (still editable — editing
+  // frees it back to raw text). Direct-mode pick sends plain commands at
+  // once and opens the ask bar for parameterized ones.
+  const pickShortcut = (i: number | null) => {
+    setSel(i);
+    if (i !== null) {
+      const cmd = shortcuts[i]?.command ?? '';
+      setBoxTexts((m) => ({ ...m, [activeKey]: cmd }));
+    }
+  };
+  const handleBoxText = (v: string) => {
+    setBoxTexts((m) => ({ ...m, [activeKey]: v }));
+    if (selSafe !== null && v !== selCmd) setSel(null);
+  };
+  const pickDirect = (v: string) => {
+    if (v === '') { setSel(null); return; }
+    const i = Number(v);
+    const sc = shortcuts[i];
+    if (!sc) { setSel(null); return; }
+    if (extractShortcutVars(sc.command).length === 0) { sendToActive(sc.command); setSel(null); }
+    else setSel(i);
+  };
+  const directSelect = shortcutsOn && !boxMode ? (
+    <select
+      value={selSafe ?? ''}
+      onChange={(e) => pickDirect(e.target.value)}
+      aria-label="Shortcut"
+      title="Run a shortcut on the active terminal"
+      className="ks-input shrink-0 w-36 min-w-0"
+    >
+      <option value="">Shortcut…</option>
+      {shortcuts.map((sc, i) => (
+        <option key={i} value={i} title={sc.command}>{sc.label.trim() !== '' ? sc.label : sc.command}</option>
+      ))}
+    </select>
+  ) : null;
   // Reseed guard: "<instance-id>|<defaults signature>" already reflected in
   // `panes`. Covers mount-with-late-config (snapshot arrives after first
   // render) and navigating the Terminal page across instances (never show
@@ -376,6 +487,12 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
       return next;
     });
     setConnMap((m) => {
+      const n = { ...m };
+      delete n[key];
+      return n;
+    });
+    setBoxTexts((m) => {
+      if (!(key in m)) return m;
       const n = { ...m };
       delete n[key];
       return n;
