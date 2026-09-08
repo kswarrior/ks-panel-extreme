@@ -18,6 +18,12 @@ export const SHORTCUT_KEYS: ShortcutKey[] = ['files', 'terminal', 'ports'];
 // defaults and action settings speak the same three values.
 export type TerminalAllowInput = 'all' | 'allowlist' | 'disabled';
 
+// TerminalInputMode — how operators type into terminal panes. 'direct' =
+// type straight into the xterm (linux-terminal-like); 'box' = the xterm is
+// output-only with an input + Send row below it (same bytes on the wire,
+// friendlier on phones).
+export type TerminalInputMode = 'direct' | 'box';
+
 // TerminalDefaultDef — one pre-opened pane on the instance Terminal page
 // (template Controls → Terminal shortcut → "Default terminals"). `name` is
 // the tab label, `id` the terminal ID it attaches with (empty = plain
@@ -73,6 +79,8 @@ export interface InstanceShortcutConfig {
   terminal_default_stop_on_exit: boolean;
   terminal_default_allow_input: TerminalAllowInput;
   terminal_default_timeout_s: string;
+  // Terminal page: input method for every pane (template default).
+  terminal_input_mode: TerminalInputMode;
   // Terminal page: panes opened automatically (first tab preselected).
   // Empty = legacy behaviour (single blank shell pane).
   default_terminals: TerminalDefaultDef[];
@@ -129,6 +137,7 @@ const DEFAULT_SHORTCUT_BASE = {
   terminal_default_stop_on_exit: true,
   terminal_default_allow_input: 'all' as TerminalAllowInput,
   terminal_default_timeout_s: '',
+  terminal_input_mode: 'direct' as TerminalInputMode,
   default_terminals: [],
 };
 
@@ -217,6 +226,9 @@ function resolveShortcut(raw: unknown, fallback: InstanceShortcutConfig): Instan
     ['all', 'allowlist', 'disabled'].includes(r.terminal_default_allow_input)
     ? (r.terminal_default_allow_input as TerminalAllowInput)
     : fallback.terminal_default_allow_input;
+  const inputMode = r.terminal_input_mode === 'box' || r.terminal_input_mode === 'direct'
+    ? (r.terminal_input_mode as TerminalInputMode)
+    : fallback.terminal_input_mode;
   return {
     show: boolOr(r.show, fallback.show),
     slug: slugOr(r.slug, fallback.slug),
@@ -235,6 +247,7 @@ function resolveShortcut(raw: unknown, fallback: InstanceShortcutConfig): Instan
     terminal_default_timeout_s: typeof r.terminal_default_timeout_s === 'string' || typeof r.terminal_default_timeout_s === 'number'
       ? String(r.terminal_default_timeout_s)
       : fallback.terminal_default_timeout_s,
+    terminal_input_mode: inputMode,
     default_terminals: resolveDefaultTerminals(r.default_terminals, fallback.default_terminals),
   };
 }
@@ -338,6 +351,7 @@ const SHORTCUT_FIELDS: (keyof InstanceShortcutConfig)[] = [
   'terminal_default_stop_on_exit',
   'terminal_default_allow_input',
   'terminal_default_timeout_s',
+  'terminal_input_mode',
   'default_terminals',
 ];
 
