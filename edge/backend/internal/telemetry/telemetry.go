@@ -85,8 +85,12 @@ func Collect() Snapshot {
 
 // detectDrivers probes the host for the four workload drivers ksedge supports.
 // We use exec.LookPath so a missing tool is simply reported as false — no
-// dependency on a shell-out that could hang. KVM additionally checks /dev/kvm
-// because a minimal install may have the CLI tools but no usable accelerator.
+// dependency on a shell-out that could hang. KVM requires BOTH virsh
+// (start/stop/destroy) AND virt-install (deploy): reporting true on virsh
+// alone lit the card green while every deploy failed with "virt-install:
+// command not installed". /dev/kvm presence is not consulted — it signals
+// accelerator availability, not CLI availability, and a box without the
+// device can still emulate via qemu once the CLIs exist.
 //
 // The returned ok is false only if the host filesystem itself is broken in a
 // way exec.LookPath can't tolerate (e.g. PATH unset and a stat returns an
@@ -96,7 +100,7 @@ func Collect() Snapshot {
 func detectDrivers() (Drivers, bool) {
 	return Drivers{
 		Docker:    lookPath("docker", "dockerd", "podman"),
-		KVM:       hasFile("/dev/kvm") || lookPath("virsh", "qemu-system-x86_64"),
+		KVM:       lookPath("virsh") && lookPath("virt-install"),
 		Multipass: lookPath("multipass"),
 		LXD:       lookPath("lxd", "lxc"),
 	}, true
