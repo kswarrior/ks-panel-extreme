@@ -61,10 +61,7 @@ func scanExpiry(v sql.NullString) *time.Time {
 	if !v.Valid || v.String == "" {
 		return nil
 	}
-	if t, err := time.Parse("2006-01-02 15:04:05", v.String); err == nil {
-		return &t
-	}
-	if t, err := time.Parse(time.RFC3339Nano, v.String); err == nil {
+	if t, err := parseDBTime(v.String); err == nil && !t.IsZero() {
 		return &t
 	}
 	return nil
