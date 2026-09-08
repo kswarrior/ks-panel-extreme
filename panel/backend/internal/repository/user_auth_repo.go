@@ -90,12 +90,33 @@ func (r *UserAuthorityRepository) Update(userID int64, cfg *models.UserAuthority
 	// same authority don't double-count at the login gate.
 	cfg.EnabledAuthorities = normalizeAuthorityIDs(cfg.EnabledAuthorities)
 	blob, _ = json.Marshal(cfg)
-	_, err = r.db.Exec(
-		`INSERT INTO settings (key, value) VALUES (?, ?)
-		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-		userAuthorityKey(userID), string(blob),
+	// Portable UPDATE-then-INSERT (mirrors
+	// NodeRepository.upsertHeartbeatBucket): ON CONFLICT is a MySQL
+	// syntax error. A lost insert race converges via follow-up UPDATE.
+	res, uerr := r.db.Exec(
+		`UPDATE settings SET value = ? WHERE key = ?`,
+		string(blob), userAuthorityKey(userID),
 	)
-	return err
+	if uerr != nil {
+		return uerr
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		return nil
+	}
+	if _, uerr = r.db.Exec(
+		`INSERT INTO settings (key, value) VALUES (?, ?)`,
+		userAuthorityKey(userID), string(blob),
+	); uerr != nil {
+		if isDupKeyErr(uerr) {
+			_, _ = r.db.Exec(
+				`UPDATE settings SET value = ? WHERE key = ?`,
+				string(blob), userAuthorityKey(userID),
+			)
+			return nil
+		}
+		return uerr
+	}
+	return nil
 }
 
 // AvailableAuthorities returns the provider ids a user is ALLOWED to

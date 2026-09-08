@@ -158,17 +158,36 @@ func (r *SettingsRepository) GetPanelName() (string, error) {
 }
 
 // SetPanelName updates the panel name. Empty values are ignored so the
-// default never gets wiped.
+// default never gets wiped. Portable UPDATE-then-INSERT (mirrors
+// NodeRepository.upsertHeartbeatBucket): ON CONFLICT is a MySQL syntax error.
 func (r *SettingsRepository) SetPanelName(name string) error {
 	if name == "" {
 		return fmt.Errorf("panel name cannot be empty")
 	}
-	_, err := r.db.Exec(
-		`INSERT INTO settings (key, value) VALUES (?, ?)
-		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-		PanelNameKey, name,
+	res, err := r.db.Exec(
+		`UPDATE settings SET value = ? WHERE key = ?`,
+		name, PanelNameKey,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		return nil
+	}
+	if _, err := r.db.Exec(
+		`INSERT INTO settings (key, value) VALUES (?, ?)`,
+		PanelNameKey, name,
+	); err != nil {
+		if isDupKeyErr(err) {
+			_, _ = r.db.Exec(
+				`UPDATE settings SET value = ? WHERE key = ?`,
+				name, PanelNameKey,
+			)
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 // PanelLogo describes the configured panel logo, if any. Both fields are
@@ -682,13 +701,33 @@ func (r *SettingsRepository) getString(key, fallback string) string {
 }
 
 // setString upserts a single key/value pair in the settings table.
+// Portable UPDATE-then-INSERT (mirrors NodeRepository.upsertHeartbeatBucket):
+// ON CONFLICT is a MySQL syntax error.
 func (r *SettingsRepository) setString(key, value string) error {
-	_, err := r.db.Exec(
-		`INSERT INTO settings (key, value) VALUES (?, ?)
-		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-		key, value,
+	res, err := r.db.Exec(
+		`UPDATE settings SET value = ? WHERE key = ?`,
+		value, key,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		return nil
+	}
+	if _, err := r.db.Exec(
+		`INSERT INTO settings (key, value) VALUES (?, ?)`,
+		key, value,
+	); err != nil {
+		if isDupKeyErr(err) {
+			_, _ = r.db.Exec(
+				`UPDATE settings SET value = ? WHERE key = ?`,
+				value, key,
+			)
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 // Update applies the supplied settings to the database. Empty fields are

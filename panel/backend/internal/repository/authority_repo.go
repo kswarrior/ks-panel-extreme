@@ -359,12 +359,33 @@ func maskSecrets(cfg *models.AuthorityConfig) *models.AuthorityConfig {
 }
 
 func (r *AuthorityRepository) setString(key, value string) error {
-	_, err := r.db.Exec(
-		`INSERT INTO settings (key, value) VALUES (?, ?)
-		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-		key, value,
+	// Portable UPDATE-then-INSERT (mirrors
+	// NodeRepository.upsertHeartbeatBucket): ON CONFLICT is a MySQL
+	// syntax error. A lost insert race converges via follow-up UPDATE.
+	res, err := r.db.Exec(
+		`UPDATE settings SET value = ? WHERE key = ?`,
+		value, key,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		return nil
+	}
+	if _, err := r.db.Exec(
+		`INSERT INTO settings (key, value) VALUES (?, ?)`,
+		key, value,
+	); err != nil {
+		if isDupKeyErr(err) {
+			_, _ = r.db.Exec(
+				`UPDATE settings SET value = ? WHERE key = ?`,
+				value, key,
+			)
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 func clampInt(v, min int) int {

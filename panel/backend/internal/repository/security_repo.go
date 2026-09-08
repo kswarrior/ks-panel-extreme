@@ -248,12 +248,31 @@ func (r *SecurityRepository) UpdateConfig(c models.SecurityConfig) error {
 		{SecuritySessionMaxPerUserKey, strconvI64(c.SessionMaxPerUser)},
 	}
 	for _, w := range writes {
-		if _, err := r.db.Exec(
-			`INSERT INTO settings (key, value) VALUES (?, ?)
-			 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+		// Portable UPDATE-then-INSERT (mirrors
+		// NodeRepository.upsertHeartbeatBucket): ON CONFLICT is a MySQL
+		// syntax error. A lost insert race converges via follow-up UPDATE.
+		res, uerr := r.db.Exec(
+			`UPDATE settings SET value = ? WHERE key = ?`,
+			w.val, w.key,
+		)
+		if uerr != nil {
+			return fmt.Errorf("security config upsert %s: %w", w.key, uerr)
+		}
+		if n, _ := res.RowsAffected(); n > 0 {
+			continue
+		}
+		if _, uerr = r.db.Exec(
+			`INSERT INTO settings (key, value) VALUES (?, ?)`,
 			w.key, w.val,
-		); err != nil {
-			return fmt.Errorf("security config upsert %s: %w", w.key, err)
+		); uerr != nil {
+			if isDupKeyErr(uerr) {
+				_, _ = r.db.Exec(
+					`UPDATE settings SET value = ? WHERE key = ?`,
+					w.val, w.key,
+				)
+				continue
+			}
+			return fmt.Errorf("security config upsert %s: %w", w.key, uerr)
 		}
 	}
 	return nil
@@ -295,14 +314,34 @@ func (r *SecurityRepository) getString(key string, def string) string {
 	return v
 }
 
-// setString writes a string value to settings.
+// setString writes a string value to settings. Portable UPDATE-then-INSERT
+// (mirrors NodeRepository.upsertHeartbeatBucket): ON CONFLICT is a MySQL
+// syntax error.
 func (r *SecurityRepository) setString(key, val string) error {
-	_, err := r.db.Exec(
-		`INSERT INTO settings (key, value) VALUES (?, ?)
-		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-		key, val,
+	res, err := r.db.Exec(
+		`UPDATE settings SET value = ? WHERE key = ?`,
+		val, key,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		return nil
+	}
+	if _, err := r.db.Exec(
+		`INSERT INTO settings (key, value) VALUES (?, ?)`,
+		key, val,
+	); err != nil {
+		if isDupKeyErr(err) {
+			_, _ = r.db.Exec(
+				`UPDATE settings SET value = ? WHERE key = ?`,
+				val, key,
+			)
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 // SecurityRequestInput is the per-request record the security middleware
