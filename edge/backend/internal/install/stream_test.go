@@ -54,9 +54,10 @@ func TestDiffTranscript(t *testing.T) {
 	if got := diffTranscript("hello ", "hello world"); got != "world" {
 		t.Fatalf("prefix append = %q, want world", got)
 	}
-	// Slid window: prev tail anchors inside cur, only truly new bytes sent.
-	prev := strings.Repeat("A", 3000) + "TAIL123"
-	cur := "TAIL123" + "NEWBYTES"
+	// Slid window: prev head dropped by the cap, tail anchors inside cur —
+	// only truly new bytes are sent.
+	prev := "HEAD-DROPPED" + strings.Repeat("X", 2000)
+	cur := strings.Repeat("X", 2000) + "NEWBYTES"
 	if got := diffTranscript(prev, cur); got != "NEWBYTES" {
 		t.Fatalf("anchored diff = %q, want NEWBYTES", got)
 	}

@@ -169,7 +169,3 @@ export interface StackFileContent {
   content: string;
   size: number;
 }
-
-// ---- Workdir file manager ----------------------------------------------
-
-export interface StackFileEntry {
