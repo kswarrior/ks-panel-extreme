@@ -17,8 +17,8 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-// stack_files.go — workdir file manager for Stacks (the Detail page's
-// Files section).
+// stack_files.go — workdir file manager for Stacks (the Studio's Files tab
+// and the Detail page's Files section).
 //
 //   GET  /api/stacks/{id}/files?path=<rel>  — list directory (VIEW)
 //   GET  /api/stacks/{id}/files/read?path=<file> — read file JSON (VIEW)

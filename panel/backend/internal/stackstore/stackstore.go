@@ -147,8 +147,8 @@ func PackageExists(slug string) bool {
 }
 
 // EnsureWorkDir guarantees the extracted workdir is present and up to date
-// (idempotent via the .ksextracted marker). With no package file (URL /
-// JSON installs) it creates an empty workdir.
+// (idempotent via the .ksextracted marker). With no package file (studio /
+// URL / JSON installs) it creates an empty workdir.
 func EnsureWorkDir(slug string) (string, error) {
 	wd, err := WorkDir(slug)
 	if err != nil {
@@ -290,7 +290,7 @@ func EnsureWorkDirLocked(slug string) (string, error) {
 }
 
 // BuildPackageZip synthesises a .ksps from manifest + spec (+ optional
-// extra entries). Used for URL/JSON installs and the download path
+// extra entries). Used for studio/URL/JSON installs and the download path
 // when no on-disk package exists.
 func BuildPackageZip(manifest, spec []byte, extra map[string][]byte) ([]byte, error) {
 	var buf bytes.Buffer
@@ -415,7 +415,7 @@ func IsZipBytes(b []byte) bool {
 }
 
 // ---- Workdir file manager -----------------------------------------------
-// The file manager edits the extracted workdir directly (manifest,
+// The Studio file manager edits the extracted workdir directly (manifest,
 // pages, theme.css, backend entry, …). Every helper below is traversal
 // guarded (same policy as ReadAsset) and serialised per slug through the
 // extract lock so a concurrent activation re-extract can't interleave with
@@ -485,7 +485,7 @@ func resolveWorkPath(slug, rel string) (string, string, error) {
 
 // ListWorkDir returns the sorted entries of one workdir directory (dirs
 // first, then alphabetical). Missing dirs read as empty (a fresh
-// URL/JSON install has an empty workdir until the admin adds files).
+// studio/JSON install has an empty workdir until the admin adds files).
 func ListWorkDir(slug, rel string) ([]WorkEntry, error) {
 	mu := extractLock(slug)
 	mu.Lock()

@@ -169,7 +169,7 @@ type stackBackendBlock struct {
 
 // ParseStackManifest decodes a raw manifest blob into StackManifestInput,
 // validating slug, runtime, theme mode, page style and capability codes.
-// Shared by every install path (file/URL/JSON/sample) so hostile
+// Shared by every install path (file/URL/studio/JSON/sample) so hostile
 // manifests fail identically everywhere.
 func ParseStackManifest(raw []byte) (StackManifestInput, error) {
 	var in StackManifestInput

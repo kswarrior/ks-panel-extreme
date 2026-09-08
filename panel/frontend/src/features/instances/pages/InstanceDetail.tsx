@@ -431,12 +431,12 @@ const TerminalPane: React.FC<{
 // bar sits directly below the Terminal header text + add button, clicking a
 // tab activates that pane (inactive panes stay mounted hidden so their WS
 // stays alive). A pane whose ID matches a template action's
-// terminal_id streams that action's live console via the /workflow bridge
-// (history replay + live tail) and relays typed lines to the running action
-// (Minecraft tps/op/stop, node stdin, …); the install_terminal_id does the
-// same for the Installation workflow; the startup_terminal_id attaches
-// directly to the container main-process stdio via the /console bridge —
-// all with no pane-side gating, real functional consoles, not log views.
+// terminal_id mirrors that action's live console into its xterm and relays
+// typed lines to the running action (Minecraft tps/op/stop, node stdin, …);
+// the install_terminal_id does the same for the Installation workflow;
+// the startup_terminal_id attaches directly to the container main-process
+// stdio via the /console bridge — all with no pane-side gating, real
+// functional consoles, not log views.
 const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: boolean }> = ({ instance, title, showHeader = true }) => {
   const controls = useMemo(() => resolveInstanceControls(instance?.config), [instance?.config]);
   const termCfg = controls.shortcuts.terminal;

@@ -41,7 +41,7 @@ export interface Stack {
   updated_at: string;
 }
 
-export type StackSource = 'file' | 'url' | 'json' | 'sample';
+export type StackSource = 'file' | 'url' | 'studio' | 'json' | 'sample';
 
 export interface StackSourceMeta {
   key: StackSource;
@@ -53,6 +53,7 @@ export interface StackSourceMeta {
 export const STACK_SOURCES: StackSourceMeta[] = [
   { key: 'file', label: 'Uploaded file', dot: 'bg-sky-400', badge: 'bg-sky-900/40 text-sky-200 border-sky-700/50' },
   { key: 'url', label: 'Installed from URL', dot: 'bg-violet-400', badge: 'bg-violet-900/40 text-violet-200 border-violet-700/50' },
+  { key: 'studio', label: 'Built in Studio', dot: 'bg-emerald-400', badge: 'bg-emerald-900/40 text-emerald-200 border-emerald-700/50' },
   { key: 'json', label: 'Posted as JSON', dot: 'bg-amber-400', badge: 'bg-amber-900/40 text-amber-200 border-amber-700/50' },
   { key: 'sample', label: 'Built-in sample', dot: 'bg-teal-400', badge: 'bg-teal-900/40 text-teal-200 border-teal-700/50' },
 ];
@@ -168,4 +169,84 @@ export interface StackFileContent {
   path: string;
   content: string;
   size: number;
+}
+
+// ---- Stack Studio --------------------------------------------------------
+// Visual + code manifest builder (mirrors ModStudio's draft contract): the
+// admin edits structured tabs or raw JSON, previews the emitted manifest
+// live, and installs through POST /api/stacks/ (X-KS-Source: studio) so the
+// backend validates capabilities + seeds pending grants like any upload.
+
+export interface StackStudioDraft {
+  name: string;
+  slug: string;
+  version: string;
+  description: string;
+  icon: string;
+  color: string;
+  category: string;
+  runtime: string;
+  entrypoint: string;
+  themeMode: StackThemeMode;
+  pageStyle: StackPageStyle;
+  permissionsRequested: StackPermissionRequest[];
+  backendScript: string;
+  frontendHtml: string;
+  frontendCss: string;
+  simplePage: string;
+  spec: Record<string, any>;
+}
+
+export const blankStackStudioDraft = (): StackStudioDraft => ({
+  name: '',
+  slug: '',
+  version: '1.0.0',
+  description: '',
+  icon: '',
+  color: '',
+  category: 'dashboard',
+  runtime: 'static',
+  entrypoint: '',
+  themeMode: 'panel',
+  pageStyle: 'spa',
+  permissionsRequested: [],
+  backendScript: '',
+  frontendHtml: '',
+  frontendCss: '',
+  simplePage: '# Hello\n\nStarter simple page. Edit it on the Pages tab.',
+  spec: {},
+});
+
+// emitStackStudioManifest turns a draft into the exact JSON the backend's
+// POST /api/stacks/ (ParseStackManifest) expects. Flat keys stay canonical;
+// the nested frontend/backend blocks ride along for readability.
+export function emitStackStudioManifest(draft: StackStudioDraft): Record<string, any> {
+  const out: Record<string, any> = {
+    name: draft.name,
+    slug: draft.slug,
+    version: draft.version || '1.0.0',
+    description: draft.description,
+    icon: draft.icon,
+    color: draft.color,
+    category: draft.category || 'dashboard',
+    runtime: draft.runtime || 'static',
+    entrypoint: draft.entrypoint,
+    themeMode: draft.themeMode,
+    pageStyle: draft.pageStyle,
+    permissionsRequested: draft.permissionsRequested,
+    frontend: {
+      page_style: draft.pageStyle,
+      theme: { mode: draft.themeMode },
+    },
+    backend: {
+      runtime: draft.runtime || 'static',
+      entrypoint: draft.entrypoint,
+    },
+  };
+  if (draft.backendScript.trim()) out.backendScriptSource = draft.backendScript;
+  if (draft.frontendHtml.trim()) out.frontendHtml = draft.frontendHtml;
+  if (draft.frontendCss.trim()) out.frontendCss = draft.frontendCss;
+  if (draft.pageStyle === 'simple' && draft.simplePage.trim()) out.simplePage = draft.simplePage;
+  if (Object.keys(draft.spec).length) out.spec = draft.spec;
+  return out;
 }

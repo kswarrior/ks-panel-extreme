@@ -48,9 +48,10 @@ export async function getStack(id: number): Promise<Stack> {
 
 export async function createStackFromManifest(
   manifest: Record<string, any>,
+  source: 'studio' | 'json' = 'json',
 ): Promise<Stack> {
   const res = await client.post<Stack>('/api/stacks/', manifest, {
-    headers: { 'Content-Type': 'application/json', 'X-KS-Source': 'json' },
+    headers: { 'Content-Type': 'application/json', 'X-KS-Source': source },
   });
   return res.data;
 }
@@ -157,7 +158,7 @@ export function stackUiUrl(slug: string, subPath = ''): string {
 
 export const STACK_SDK_URL = '/api/stacks/v1/ks-stack-sdk.js';
 
-// ---- Workdir file manager (Detail Files section) --------
+// ---- Workdir file manager (Studio Files tab + Detail Files section) --------
 
 export async function listStackFiles(id: number, dir: string): Promise<StackFileEntry[]> {
   const res = await client.get<{ path: string; entries: StackFileEntry[] }>(

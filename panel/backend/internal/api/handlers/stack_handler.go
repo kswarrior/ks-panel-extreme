@@ -229,9 +229,9 @@ type stackUpsertDTO struct {
 const stackPackageMaxBytes = 64 << 20
 
 // CreateStackHandler installs a .ksps zip (multipart `package` part) or a
-// bare manifest (application/json). Either way the manifest runs through
-// ParseStackManifest, permission rows seed pending, and a .ksps is
-// persisted on disk.
+// bare manifest (application/json, incl. the Studio path tagged via
+// X-KS-Source). Either way the manifest runs through ParseStackManifest,
+// permission rows seed pending, and a .ksps is persisted on disk.
 func CreateStackHandler(w http.ResponseWriter, r *http.Request) {
 	uid, err := UserIDFromContext(r)
 	if err != nil {
@@ -245,7 +245,7 @@ func CreateStackHandler(w http.ResponseWriter, r *http.Request) {
 	source := models.StackSourceJSON
 	if hs := strings.TrimSpace(r.Header.Get("X-KS-Source")); hs != "" {
 		switch strings.ToLower(hs) {
-		case models.StackSourceFile, models.StackSourceURL, models.StackSourceJSON:
+		case models.StackSourceFile, models.StackSourceURL, models.StackSourceStudio, models.StackSourceJSON:
 			source = strings.ToLower(hs)
 		}
 	}
