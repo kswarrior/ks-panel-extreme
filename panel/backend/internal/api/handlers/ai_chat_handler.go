@@ -453,13 +453,14 @@ func aiModelOverride(checker *permissions.Checker, uid int64, raw string) string
 }
 
 // aiThreadTitle derives a thread title from the first user turn.
+// Rune-aware (not byte slicing) so multi-byte titles never split UTF-8.
 func aiThreadTitle(s string) string {
 	s = strings.Join(strings.Fields(strings.TrimSpace(s)), " ")
 	if s == "" {
 		return "New chat"
 	}
-	if len(s) > 60 {
-		s = s[:60] + "…"
+	if r := []rune(s); len(r) > 60 {
+		s = string(r[:60]) + "…"
 	}
 	return s
 }
@@ -1122,10 +1123,12 @@ func aiToolDefs() []aiToolDef {
 }
 
 func aiCap(s string, n int) string {
-	if len(s) <= n {
+	// Rune-aware cap so multi-byte content is never split mid-UTF-8.
+	// Callers pass rune budgets (prompts, tool output, audit fields).
+	if len([]rune(s)) <= n {
 		return s
 	}
-	return s[:n] + "…"
+	return string([]rune(s)[:n]) + "…"
 }
 
 // aiUsage carries per-round token counts for the usage/cost audit log.

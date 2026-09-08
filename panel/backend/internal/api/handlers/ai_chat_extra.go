@@ -505,7 +505,8 @@ func AIChatStreamHandler(w http.ResponseWriter, r *http.Request) {
 		// same rationale as aiRunChatLoop: one slow round must not starve
 		// the rest, and the outer 110s budget still cancels an in-flight
 		// round. Client disconnect cancels both (outer derives from it).
-		roundCtx, roundCancel := context.WithTimeout(ctx, 55*time.Second)
+		// Kept at 50s to match aiRunChatLoop so JSON + SSE share one budget.
+		roundCtx, roundCancel := context.WithTimeout(ctx, 50*time.Second)
 		text, calls, usage, serr := aiStreamWithFallback(roundCtx, cfg, model, msgs, defs, onToken)
 		roundCancel()
 		acc.add(usage)
