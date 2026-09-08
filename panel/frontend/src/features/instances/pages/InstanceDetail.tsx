@@ -604,11 +604,12 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
   };
 
   return (
-    <div className="animate-fade-in space-y-3">
+    <div className="animate-fade-in space-y-3 pb-16 lg:pb-0">
       {/* Top-right actions pill (template-form pattern): shortcut menu +
           add-terminal button. Page-level chrome — always mounted so the
-          actions stay reachable even when the header bar is hidden. */}
-      <PageActionsPill>
+          actions stay reachable. Pushed below the two-row instance header
+          (breadcrumb + tab strip) so it never covers the tabs. */}
+      <PageActionsPill outerClassName="fixed top-[max(7rem,env(safe-area-inset-top))] right-4 sm:right-6 z-40">
         {shortcutsOn && (
           <ShortcutMenuButton shortcuts={shortcuts} onPick={(i) => runShortcut(i, boxMode ? 'box' : 'direct')} />
         )}
@@ -684,7 +685,7 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
             startupTerminalId={startupTerminalId}
             inputMode={termCfg.terminal_input_mode || 'direct'}
             boxText={boxTexts[p.key] ?? ''}
-            onBoxText={(v) => setBoxTexts((m) => ({ ...m, [activeKey]: v }))}
+            onBoxText={(v) => setBoxTexts((m) => ({ ...m, [p.key]: v }))}
             onRegisterSend={onRegisterSend}
             onConnState={handleConnState}
           />
@@ -693,9 +694,12 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
 
       {/* Phone tabs pill — bottom terminal switcher (template-form
           pattern). Desktop keeps the strip above; this pill is phones
-          only (lg:hidden, owned by the component). */}
+          only (lg:hidden, owned by the component). spacer={false}: the
+          root pb-16 above already clears the fixed pill, so no extra
+          96px dead space at the bottom on phones. */}
       <PageTabsPill
         ariaLabel="Terminals"
+        spacer={false}
         activeLabel={(() => {
           const ap = panes.find((p) => p.key === activeKey) ?? panes[0];
           if (!ap) return 'Terminal';

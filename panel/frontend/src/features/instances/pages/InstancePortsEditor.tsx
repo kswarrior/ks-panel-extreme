@@ -150,8 +150,9 @@ const InstancePortsEditor: React.FC<{ readOnly?: boolean }> = ({ readOnly = fals
     <div className="animate-fade-in space-y-3">
       {/* Top-right actions pill (terminal pattern): limit + add-port button.
           Page-level chrome — no title heading (the header breadcrumb already
-          shows the page name). */}
-      <PageActionsPill>
+          shows the page name). Pushed below the two-row instance header so
+          it never covers the tab strip. */}
+      <PageActionsPill outerClassName="fixed top-[max(7rem,env(safe-area-inset-top))] right-4 sm:right-6 z-40">
         <LimitSelect value={limit} onChange={(n) => { setLimit(n); setPage(1); }} />
         {canEdit && (
           <button
