@@ -1,0 +1,20 @@
+2026/09/08 01:43:53 tunnel: disabled (connection_mode="local_port" not a tunnel mode)
+2026/09/08 01:43:53 ksedge listening on http://localhost:4040/health
+2026/09/08 01:43:53 sftp server stopped: sftp: listen :2222: listen tcp :2222: bind: address already in use
+2026/09/08 01:43:53 heartbeat: POST http://127.0.0.1:8080 failed: Post "http://127.0.0.1:8080/api/nodes/heartbeat": context canceled
+Error: listen tcp :4040: bind: address already in use
+Usage:
+  ksedge launch [flags]
+
+Flags:
+  -c, --config string       Path to the edge config file (default "config.json")
+  -h, --help                help for launch
+      --interval duration   Override heartbeat interval (e.g. 30s)
+      --once                Send a single heartbeat and exit thereafter
+      --panel string        Override panel_url from config
+  -p, --port int            Override the edge HTTP listen port (default 4040, or config.json)
+      --sftp-port int       Listen port for the chrooted SFTP server (default 2222) (default 2222)
+      --skip-verify         Skip upstream TLS verification (self-signed panels)
+      --token string        Override the panel-issued edge token from config
+
+listen tcp :4040: bind: address already in use
