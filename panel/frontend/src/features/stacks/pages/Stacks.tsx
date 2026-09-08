@@ -629,13 +629,13 @@ const Stacks: React.FC = () => {
         }
       >
         <div className="flex gap-1 mb-3 bg-black/30 border border-white/10 rounded-md p-1">
-          {(['file', 'url', 'create', 'studio'] as const).map((t) => (
+          {(['file', 'url', 'create'] as const).map((t) => (
             <button
               key={t}
               onClick={() => setInstallTab(t)}
               className={`ks-tab flex-1 px-3 py-1.5 rounded text-sm flex items-center justify-center gap-1.5 ${installTab === t ? 'ks-tab-active' : ''}`}
             >
-              {t === 'file' ? '.ksps file' : t === 'url' ? 'From URL' : t === 'create' ? 'Create' : 'Studio'}
+              {t === 'file' ? '.ksps file' : t === 'url' ? 'From URL' : 'Create'}
             </button>
           ))}
         </div>
@@ -682,27 +682,6 @@ const Stacks: React.FC = () => {
                 <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Permissions</span>
                 <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Backend</span>
                 <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Spec</span>
-              </div>
-            </GlassCard>
-          </>
-        )}
-
-        {installTab === 'studio' && (
-          <>
-            <p className="text-xs text-gray-400">
-              Build a stack visually — meta, theme, frontend, permissions and backend script.
-              The Studio emits a standard manifest that installs through the same validated pipeline.
-            </p>
-            <GlassCard className="space-y-3 text-center py-6">
-              <h4 className="text-white font-medium">Stack Studio</h4>
-              <p className="text-gray-400 text-sm">Manifest builder with theme, frontend and backend editors.</p>
-              <div className="flex items-center justify-center gap-2 flex-wrap">
-                <span className="text-xs text-gray-500">Features:</span>
-                <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Meta</span>
-                <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Theme</span>
-                <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Frontend</span>
-                <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Permissions</span>
-                <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Backend</span>
               </div>
             </GlassCard>
           </>
