@@ -333,17 +333,52 @@ const TerminalPane: React.FC<{
 const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: boolean }> = ({ instance, title, showHeader = true }) => {
   const controls = useMemo(() => resolveInstanceControls(instance?.config), [instance?.config]);
   const termCfg = controls.shortcuts.terminal;
-  const keySeq = useRef(1);
   const makePane = (key: number, name = '', terminalId = ''): TerminalPaneState => ({
     key,
     name,
     terminalId,
   });
-  const [panes, setPanes] = useState<TerminalPaneState[]>(() => [makePane(0)]);
+  // seedList — the template's configured default terminals, normalised and
+  // capped (honours the template's own multi/max caps). Empty = legacy
+  // single blank shell.
+  const seedList: TerminalDefaultDef[] = useMemo(() => {
+    const rows = (Array.isArray(termCfg.default_terminals) ? termCfg.default_terminals : []).slice(0, MAX_DEFAULT_TERMINALS);
+    const single = !termCfg.terminal_allow_multi ? rows.slice(0, 1) : rows;
+    const maxN = parseInt(String(termCfg.terminal_max || '').trim(), 10);
+    const limited = Number.isFinite(maxN) && maxN > 0 ? single.slice(0, maxN) : single;
+    return limited.map((t) => ({ name: String(t?.name ?? '').trim().slice(0, 64), id: normTid(t?.id) }));
+  }, [termCfg]);
+  const seedSig = JSON.stringify(seedList);
+  const toSeedPanes = (list: TerminalDefaultDef[]): TerminalPaneState[] =>
+    list.length > 0 ? list.map((t, i) => makePane(i, t.name, t.id)) : [makePane(0)];
+  const keySeq = useRef(Math.max(seedList.length, 1));
+  const [panes, setPanes] = useState<TerminalPaneState[]>(() => toSeedPanes(seedList));
   const [activeKey, setActiveKey] = useState<number>(0);
   const [connMap, setConnMap] = useState<Record<number, PaneConnState>>({});
+  // Reseed guard: "<instance-id>|<defaults signature>" already reflected in
+  // `panes`. Covers mount-with-late-config (snapshot arrives after first
+  // render) and navigating the Terminal page across instances (never show
+  // another instance's panes). `touched` flips on any operator add/remove
+  // so a live config refresh never wipes hand-built panes.
+  const seededKey = useRef<string>(`${instance?.id ?? ''}|${seedSig}`);
+  const touched = useRef(false);
+  useEffect(() => {
+    const key = `${instance?.id ?? ''}|${seedSig}`;
+    if (seededKey.current === key) return;
+    const sameInstance = seededKey.current.split('|')[0] === String(instance?.id ?? '');
+    const pristine = panes.length <= 1 && panes.every((p) => p.name.trim() === '' && normTid(p.terminalId) === '');
+    seededKey.current = key;
+    if (!sameInstance || (!touched.current && pristine && seedList.length > 0)) {
+      const next = toSeedPanes(seedList);
+      keySeq.current = Math.max(next.length, 1);
+      setPanes(next);
+      setActiveKey(next[0].key);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [instance?.id, seedSig]);
 
   const removePane = (key: number) => {
+    touched.current = true;
     setPanes((ps) => {
       if (ps.length <= 1) return ps;
       const idx = ps.findIndex((p) => p.key === key);
@@ -428,6 +463,7 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
   const draftInvalid = draftId.trim() !== '' && draftNorm === '';
   const confirmAdd = () => {
     if (draftInvalid) return;
+    touched.current = true;
     const v = draftNorm;
     const k = keySeq.current++;
     setPanes((ps) => [...ps, makePane(k, draftName.trim(), v)]);
