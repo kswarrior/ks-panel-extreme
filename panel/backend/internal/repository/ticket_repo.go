@@ -37,10 +37,7 @@ func parseTicketTime(s string) time.Time {
 	if s == "" {
 		return time.Time{}
 	}
-	if t, err := time.Parse("2006-01-02 15:04:05", s); err == nil {
-		return t
-	}
-	if t, err := time.Parse(time.RFC3339, s); err == nil {
+	if t, err := parseDBTime(s); err == nil && !t.IsZero() {
 		return t
 	}
 	return time.Time{}
