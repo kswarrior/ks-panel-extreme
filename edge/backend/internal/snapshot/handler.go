@@ -56,8 +56,8 @@ func Handler(token string) http.Handler {
 			writeErr(w, http.StatusBadRequest, fmt.Sprintf("unknown driver kind: %s", req.Kind))
 			return
 		}
-		if req.Name == "" {
-			writeErr(w, http.StatusBadRequest, "instance name is required")
+		if req.Name == "" || len(req.Name) > 128 || containsPathSep(req.Name) {
+			writeErr(w, http.StatusBadRequest, "invalid instance name (must be 1-128 chars without path separators)")
 			return
 		}
 		// Validate the snapshot action BEFORE we look up the driver. The

@@ -90,16 +90,42 @@ type hostJail struct {
 // newHostJail validates the daemon's instances directory as a jail root.
 // An empty or relative directory is a configuration error — the caller
 // (cli wiring) always passes cfg.InstancesDirOr(""), which is absolute.
+// System paths are rejected fail-closed: an instances_dir of /etc (typo
+// or malicious config push) must never turn /api/edge/hostfiles into a
+// host-filesystem oracle. Mirrors files.isDangerousPath.
 func newHostJail(instancesDir string) (hostJail, error) {
 	clean := filepath.Clean(strings.TrimSpace(instancesDir))
 	if clean == "" || clean == "." || !filepath.IsAbs(clean) {
 		return hostJail{}, fmt.Errorf("instance file directory is not configured")
 	}
+	if isHostJailDangerous(clean) {
+		return hostJail{}, fmt.Errorf("instance file directory must not be a system path")
+	}
 	real := clean
 	if rp, err := filepath.EvalSymlinks(clean); err == nil {
 		real = filepath.Clean(rp)
+		if isHostJailDangerous(real) {
+			return hostJail{}, fmt.Errorf("instance file directory must not be a system path")
+		}
 	}
 	return hostJail{root: clean, realRoot: real}, nil
+}
+
+// isHostJailDangerous mirrors files.isDangerousPath so the instances root
+// can never be a system directory. Kept local because that helper is
+// unexported; the list is duplicated verbatim so the two surfaces cannot
+// drift.
+func isHostJailDangerous(p string) bool {
+	p = filepath.Clean(p)
+	if p == "/" {
+		return true
+	}
+	for _, d := range []string{"/bin", "/sbin", "/usr", "/etc", "/proc", "/sys", "/dev", "/boot", "/lib", "/lib64", "/root", "/var", "/opt", "/srv", "/home", "/run"} {
+		if p == d || strings.HasPrefix(p, d+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 // within reports whether abs equals root or lives underneath it.

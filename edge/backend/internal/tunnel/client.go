@@ -160,6 +160,10 @@ func (c *Client) connectAndServe(ctx context.Context) error {
 	}
 	defer conn.Close()
 	log.Printf("tunnel: connected to panel via WSS")
+	// Bound inbound messages like the panel side does (8 MiB): without a
+	// limit a compromised panel (or a middlebox injecting frames) can OOM
+	// the edge by streaming an unbounded JSON body into ReadJSON.
+	conn.SetReadLimit(8 << 20)
 	// Note: backoff reset lives in Run (based on session length), not here,
 	// so immediate dial-then-drop loops still back off while stable
 	// long-lived sessions reset to 1s on the next retry.
@@ -200,6 +204,27 @@ func (c *Client) handleRequest(ws *websocket.Conn, req tunnelRequest) {
 }
 
 func (c *Client) forwardToLocal(method, p string, body json.RawMessage) (int, json.RawMessage, string) {
+	// Fail closed on paths outside the edge API: the panel must only ever
+	// ask for /api/edge/* (or /health). Without the prefix check a
+	// compromised panel token could probe any loopback path the edge
+	// happens to expose. Query strings stay attached (GET polls need them).
+	if p == "" || p[0] != '/' {
+		return 400, nil, "invalid tunnel path"
+	}
+	pathOnly := p
+	if i := strings.IndexByte(pathOnly, '?'); i >= 0 {
+		pathOnly = pathOnly[:i]
+	}
+	if pathOnly != "/health" && !strings.HasPrefix(pathOnly, "/api/edge/") {
+		return 400, nil, "invalid tunnel path"
+	}
+	// Only the methods the edge mux serves. CONNECT/TRACE/etc have no
+	// handler and must not be forwarded as generic loopback requests.
+	switch method {
+	case http.MethodGet, http.MethodPost, http.MethodDelete, http.MethodPut, http.MethodPatch, http.MethodHead, http.MethodOptions:
+	default:
+		return 400, nil, "invalid tunnel method"
+	}
 	// Build local URL. p may contain query string for GET.
 	localURL := fmt.Sprintf("http://127.0.0.1:%d%s", c.listenPort, p)
 	var bodyReader io.Reader
@@ -228,9 +253,17 @@ func (c *Client) forwardToLocal(method, p string, body json.RawMessage) (int, js
 		return 502, nil, msg
 	}
 	defer resp.Body.Close()
-	respBody, err := io.ReadAll(resp.Body)
+	// Cap the buffered response at the panel's 8 MiB tunnel frame budget
+	// (+1 to detect overflow): file downloads bypass the tunnel via the
+	// panel's isLocalWSSBinary guard, so anything larger here is either a
+	// runaway handler or a binary smuggled through JSON — fail fast
+	// instead of buffering gigabytes for a frame the panel will drop.
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, (8<<20)+1))
 	if err != nil {
 		return 500, nil, err.Error()
+	}
+	if len(respBody) > 8<<20 {
+		return 502, nil, "tunnel response exceeds 8 MiB frame budget (use direct HTTP for file downloads)"
 	}
 	// Preserve raw JSON body if any.
 	var raw json.RawMessage
