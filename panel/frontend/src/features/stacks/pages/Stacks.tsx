@@ -66,7 +66,7 @@ const Stacks: React.FC = () => {
   const filterRef = useRef<HTMLDivElement>(null);
 
   const [installOpen, setInstallOpen] = useState(false);
-  const [installTab, setInstallTab] = useState<'file' | 'url' | 'create' | 'studio'>('file');
+  const [installTab, setInstallTab] = useState<'file' | 'url' | 'create'>('file');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [urlInput, setUrlInput] = useState('');
   const [installBusy, setInstallBusy] = useState(false);
@@ -175,10 +175,6 @@ const Stacks: React.FC = () => {
       } else if (installTab === 'create') {
         setInstallOpen(false);
         navigate('/stacks/new');
-        return;
-      } else {
-        setInstallOpen(false);
-        navigate('/stacks/studio');
         return;
       }
       setInstallOpen(false);
@@ -486,7 +482,7 @@ const Stacks: React.FC = () => {
               <line x1="12" y1="22.08" x2="12" y2="12" />
             </svg>
             <p className="text-lg font-medium text-gray-300">No stacks yet</p>
-            <p className="text-sm text-gray-500">Install a <code className="font-mono">.ksps</code> package, paste a manifest, or build one in the Studio.</p>
+            <p className="text-sm text-gray-500">Install a <code className="font-mono">.ksps</code> package, paste a manifest, or create one from scratch.</p>
           </div>
         </div>
       ) : (
@@ -589,14 +585,12 @@ const Stacks: React.FC = () => {
                       ariaLabel={`Actions for stack ${s.name}`}
                       items={[
                         { key: 'open', label: 'Open', tone: 'default' },
-                        { key: 'studio', label: 'Open in Studio', tone: 'default' },
                         { key: 'edit', label: 'Edit', tone: 'default' },
                         { key: 'download', label: 'Download .ksps', tone: 'default' },
                         { key: 'delete', label: deletingId === s.id ? 'Deleting…' : 'Delete', tone: 'danger', disabled: deletingId === s.id },
                       ]}
                       onSelect={(key) => {
                         if (key === 'open') navigate(`/stacks/${s.slug}/`);
-                        else if (key === 'studio') navigate('/stacks/studio');
                         else if (key === 'edit') openEdit(s);
                         else if (key === 'download') void doDownload(s);
                         else if (key === 'delete') void doDelete(s);
@@ -622,13 +616,6 @@ const Stacks: React.FC = () => {
               <button onClick={() => setInstallOpen(false)} className="ks-btn-cancel ks-btn-ghost">Cancel</button>
               <button onClick={() => { setInstallOpen(false); navigate('/stacks/new'); }} className="ks-btn-form ks-btn-primary">
                 Create Stack
-              </button>
-            </>
-          ) : installTab === 'studio' ? (
-            <>
-              <button onClick={() => setInstallOpen(false)} className="ks-btn-cancel ks-btn-ghost">Cancel</button>
-              <button onClick={() => { setInstallOpen(false); navigate('/stacks/studio'); }} className="ks-btn-form ks-btn-primary">
-                Open Stack Studio
               </button>
             </>
           ) : (
