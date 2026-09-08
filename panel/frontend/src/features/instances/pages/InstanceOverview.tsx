@@ -290,7 +290,36 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
     );
   }
   if (!instance || error) {
-    return <div className="glass-card rounded-xl text-red-400 text-sm">{error || 'Instance not found'}</div>;
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[40vh] px-4 animate-fade-in">
+        <div className="flex flex-col items-center gap-4">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="w-20 h-20 text-gray-400"
+            aria-hidden="true"
+          >
+            <rect x="3" y="6" width="11" height="9" rx="1.2" />
+            <path d="M3 10h11" opacity="0.5" />
+            <circle cx="5.5" cy="8" r="0.7" fill="currentColor" />
+            <circle cx="7.5" cy="8" r="0.7" fill="currentColor" opacity="0.5" />
+            <rect x="8" y="11" width="11" height="9" rx="1.2" />
+            <path d="M8 15h11" opacity="0.5" />
+            <circle cx="10.5" cy="13" r="0.7" fill="currentColor" />
+            <circle cx="12.5" cy="13" r="0.7" fill="currentColor" opacity="0.5" />
+          </svg>
+          <p className="text-lg font-medium text-gray-300">Instance not found</p>
+          {error && error !== 'Instance not found' && error !== 'Instance not found.' && (
+            <p className="text-sm text-red-400/80 max-w-md text-center break-words">{error}</p>
+          )}
+        </div>
+      </div>
+    );
   }
 
   // Floating menu "More" link target: when the overview was opened via More,

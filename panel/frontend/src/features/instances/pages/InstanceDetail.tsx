@@ -835,7 +835,36 @@ export const InstanceDynamicPage: React.FC = () => {
   const [filesTab, setFilesTab] = useState<'explorer' | 'sftp'>('explorer');
 
   if (loading) return <div className="glass-card rounded-xl flex items-center gap-4 animate-pulse"><div className="w-9 h-9 rounded-lg bg-neutral-800 shrink-0" /><div className="h-5 w-1/3 bg-neutral-800 rounded" /></div>;
-  if (!instance || error) return <div className="glass-card rounded-xl text-red-400 text-sm">{error || 'Instance not found'}</div>;
+  if (!instance || error) return (
+    <div className="flex flex-col items-center justify-center min-h-[40vh] px-4 animate-fade-in">
+      <div className="flex flex-col items-center gap-4">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="w-20 h-20 text-gray-400"
+          aria-hidden="true"
+        >
+          <rect x="3" y="6" width="11" height="9" rx="1.2" />
+          <path d="M3 10h11" opacity="0.5" />
+          <circle cx="5.5" cy="8" r="0.7" fill="currentColor" />
+          <circle cx="7.5" cy="8" r="0.7" fill="currentColor" opacity="0.5" />
+          <rect x="8" y="11" width="11" height="9" rx="1.2" />
+          <path d="M8 15h11" opacity="0.5" />
+          <circle cx="10.5" cy="13" r="0.7" fill="currentColor" />
+          <circle cx="12.5" cy="13" r="0.7" fill="currentColor" opacity="0.5" />
+        </svg>
+        <p className="text-lg font-medium text-gray-300">Instance not found</p>
+        {error && error !== 'Instance not found' && error !== 'Instance not found.' && (
+          <p className="text-sm text-red-400/80 max-w-md text-center break-words">{error}</p>
+        )}
+      </div>
+    </div>
+  );
 
   // Resolve the spec from the instance's OWN stored config (the deploy-time
   // snapshot that already includes the instance-form's page overrides) — NOT
