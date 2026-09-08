@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/example/ksedge/internal/drivers"
+	"github.com/example/ksedge/internal/execstage"
 )
 
 // ActionType represents the type of action to execute
@@ -138,7 +139,19 @@ func Handler(token string) http.Handler {
 }
 
 func executeShell(ctx context.Context, drv drivers.Driver, name, command string, args []string, env map[string]string) Output {
-	cmd := []string{"/bin/sh", "-lc", command}
+	if strings.TrimSpace(command) == "" {
+		return Output{OK: false, Error: "command is required"}
+	}
+	// Honor Env via the shared staging builder (env exports + command,
+	// no files): the previous code accepted Env from the panel and then
+	// silently dropped it, so automation relying on vaulted secrets saw
+	// empty vars with no error. execstage validates names (POSIX
+	// identifiers) and single-quote-escapes values.
+	script, serr := execstage.Script(env, nil, command)
+	if serr != nil {
+		return Output{OK: false, Error: serr.Error()}
+	}
+	cmd := []string{"/bin/sh", "-lc", script}
 	if len(args) > 0 {
 		cmd = append(cmd, args...)
 	}
