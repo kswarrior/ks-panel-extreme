@@ -145,14 +145,7 @@ func (r *InstanceRepository) List() ([]models.Instance, error) {
 		if suspensionHistory.Valid {
 			inst.SuspensionHistory = suspensionHistory.String
 		}
-		if startedAt.Valid && startedAt.String != "" {
-			t, _ := time.Parse("2006-01-02 15:04:05", startedAt.String)
-			if !t.IsZero() {
-				inst.StartedAt = &t
-			}
-		}
-		inst.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created.String)
-		inst.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updated.String)
+		scanInstanceTimes(&inst, startedAt, created, updated)
 		out = append(out, inst)
 	}
 	return out, rows.Err()
@@ -223,14 +216,7 @@ func (r *InstanceRepository) ListByOwner(ownerID int64) ([]models.Instance, erro
 		if suspensionHistory.Valid {
 			inst.SuspensionHistory = suspensionHistory.String
 		}
-		if startedAt.Valid && startedAt.String != "" {
-			t, _ := time.Parse("2006-01-02 15:04:05", startedAt.String)
-			if !t.IsZero() {
-				inst.StartedAt = &t
-			}
-		}
-		inst.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created.String)
-		inst.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updated.String)
+		scanInstanceTimes(&inst, startedAt, created, updated)
 		out = append(out, inst)
 	}
 	return out, rows.Err()
