@@ -597,6 +597,7 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <h2 style={{ fontSize: 20, fontWeight: 600, color: 'var(--ks-heading)', margin: 0 }}>{title || 'Terminal'}</h2>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {directSelect}
           {canAdd ? (
             <button type="button" onClick={openAdd} title={Number.isFinite(maxN) && maxN > 0 ? `Add terminal (${panes.length}/${maxN})` : 'Add terminal'} aria-label="Add terminal" className="ks-btn-header ks-icon-btn">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
@@ -609,17 +610,19 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
         </div>
       </div>
       )}
-      {!showHeader && canAdd && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+      {!showHeader && (canAdd || directSelect) && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8 }}>
+          {directSelect}
+          {canAdd && (
           <button type="button" onClick={openAdd} title="Add terminal" aria-label="Add terminal" className="ks-btn-header ks-icon-btn">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
           </button>
+          )}
         </div>
       )}
       {/* Tabs bar — directly below the Terminal header text + add button,
           above the active terminal. Horizontally scrollable; inactive panes
-          stay mounted hidden so their WS sessions survive tab switches. */}
-      <div role="tablist" aria-label="Terminals" className="flex items-center gap-1.5 overflow-x-auto pb-1 -mb-1">
+          stay mounted hidden so their WS sessions survive tab switches. */}      <div role="tablist" aria-label="Terminals" className="flex items-center gap-1.5 overflow-x-auto pb-1 -mb-1">
         {panes.map((p, idx) => {
           const tid = normTid(p.terminalId);
           const label = p.name.trim() !== '' ? p.name.trim() : (tid !== '' ? tid : `shell ${idx + 1}`);
@@ -658,6 +661,28 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
         })}
       </div>
 
+      {/* Direct-mode ask bar — parameterized shortcut picked from the
+          top-right dropdown asks for each variable here (strict: Send
+          stays disabled until every value is filled), then sends the
+          resolved command to the active tab. */}
+      {!boxMode && selSafe !== null && selVars.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-white/10 bg-black/20 px-2.5 py-2" aria-label="Shortcut values">
+          <span className="text-[11px] text-gray-500 shrink-0">{shortcuts[selSafe].label.trim() !== '' ? shortcuts[selSafe].label : 'Shortcut'}:</span>
+          <ShortcutAskFields vars={selVars} askVals={askVals} onAsk={onAsk} />
+          <button
+            type="button"
+            onClick={() => { sendToActive(resolveShortcutCommand(selCmd, askVals)); setSel(null); }}
+            disabled={askBlocked}
+            className="ks-btn-primary ks-btn shrink-0 disabled:opacity-40"
+          >
+            Send
+          </button>
+          <button type="button" onClick={() => setSel(null)} className="ks-btn shrink-0" aria-label="Cancel shortcut">
+            Cancel
+          </button>
+        </div>
+      )}
+
       {panes.map((p) => (
         <div key={p.key} style={{ display: p.key === activeKey ? '' : 'none' }}>
           <TerminalPane
@@ -670,6 +695,17 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
             installTerminalId={installTerminalId}
             startupTerminalId={startupTerminalId}
             inputMode={termCfg.terminal_input_mode || 'direct'}
+            shortcutsOn={shortcutsOn}
+            shortcuts={shortcuts}
+            sel={selSafe}
+            onSel={(i) => pickShortcut(i)}
+            askVals={askVals}
+            onAsk={onAsk}
+            boxText={boxTexts[p.key] ?? ''}
+            onBoxText={handleBoxText}
+            askVars={selVars}
+            askBlocked={askBlocked}
+            onRegisterSend={onRegisterSend}
             onConnState={handleConnState}
           />
         </div>
