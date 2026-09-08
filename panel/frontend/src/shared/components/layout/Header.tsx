@@ -727,8 +727,8 @@ const Header: React.FC<HeaderProps> = ({
                     <span className="text-gray-200 truncate text-sm">{instanceCrumb.label}</span>
                   </>
                 )}
-                <span aria-hidden="true" className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-md bg-transparent">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`w-3.5 h-3.5 block text-gray-500 group-hover:text-gray-100 group-focus-visible:text-gray-100 transition-all duration-200 ${tabsCollapsed ? 'opacity-70 group-hover:opacity-100' : 'rotate-180 opacity-100'}`}><path d="M6 9l6 6 6-6" /></svg>
+                <span aria-hidden="true" className="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-md bg-transparent">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" className={`w-5 h-5 block text-gray-200 group-hover:text-white group-focus-visible:text-white transition-all duration-200 ${tabsCollapsed ? 'opacity-80 group-hover:opacity-100' : 'rotate-180 opacity-100'}`}><path d="M6 9l6 6 6-6" /><path d="M6 14l6 6 6-6" /></svg>
                 </span>
               </button>
             ) : (
