@@ -61,8 +61,8 @@ func (r *InstancePageRepository) List() ([]models.InstancePage, error) {
 			p.OwnerID = ownerID.Int64
 			p.OwnerName = ownerName.String
 		}
-		p.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created)
-		p.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updated)
+		p.CreatedAt, _ = parseDBTime(created)
+		p.UpdatedAt, _ = parseDBTime(updated)
 		out = append(out, p)
 	}
 	return out, rows.Err()
@@ -108,8 +108,8 @@ func (r *InstancePageRepository) Get(id int64) (*models.InstancePage, error) {
 	p.Source = source.String
 	p.MarketID = marketID.String
 	p.MarketVersion = marketVersion.String
-	p.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created.String)
-	p.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updated.String)
+	p.CreatedAt, _ = parseDBTime(created.String)
+	p.UpdatedAt, _ = parseDBTime(updated.String)
 	return &p, nil
 }
 
