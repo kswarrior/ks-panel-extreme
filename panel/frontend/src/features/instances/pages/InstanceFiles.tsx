@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useInstance, parseConfig } from '@/shared/hooks/useInstance';
+import { resolveInstanceControls, normalizeFilesPath, isPathWithinHome } from '@/features/instances/utils/instanceControls';
 import Modal from '@/shared/components/ui/Modal';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
@@ -190,6 +191,23 @@ const InstanceFiles: React.FC<{ instanceId: number; filesSlug: string }> = ({ in
   const { instance } = useInstance(instanceId);
 
   const root = useMemo(() => computeRoot(instance), [instance?.config, instance?.kind]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Files home + jail from Instance Controls (template shortcut config,
+  // snapshotted per instance). Empty home = legacy mount-root behaviour.
+  const filesCfg = useMemo(() => resolveInstanceControls(instance?.config).shortcuts.files, [instance?.config]); // eslint-disable-line react-hooks/exhaustive-deps
+  const home = useMemo(
+    () => (filesCfg.files_home ? normalizeFilesPath(filesCfg.files_home) : root),
+    [filesCfg.files_home, root],
+  );
+  const jail = filesCfg.files_jail && home !== '/';
+  // goPath is the only way to change directory: under jail anything above
+  // home clamps back to home, while everything inside stays reachable.
+  const goPath = useCallback(
+    (next: string) => {
+      const target = normalizeFilesPath(next);
+      setPath(jail && !isPathWithinHome(home, target) ? home : target);
+    },
+    [jail, home],
+  );
   const [path, setPath] = useState<string | null>(null);
   const [entries, setEntries] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -205,10 +223,10 @@ const InstanceFiles: React.FC<{ instanceId: number; filesSlug: string }> = ({ in
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
-  // Seed the path at the instance root once it is known.
+  // Seed the path at the home folder once it is known.
   useEffect(() => {
-    if (path === null && instance) setPath(root);
-  }, [instance, root, path]);
+    if (path === null && instance) setPath(home);
+  }, [instance, home, path]);
 
   const load = useCallback(
     async (dir: string, silent = false) => {
@@ -271,7 +289,14 @@ const InstanceFiles: React.FC<{ instanceId: number; filesSlug: string }> = ({ in
     return entries.filter((e) => e.name.toLowerCase().includes(q));
   }, [entries, filter]);
 
-  const crumbs = useMemo(() => (path ?? '').split('/').filter(Boolean), [path]);
+  // Under jail the crumbs show only the home-relative tail; the leading
+  // button jumps to home instead of the filesystem root.
+  const homeSegs = useMemo(() => home.split('/').filter(Boolean), [home]);
+  const crumbs = useMemo(() => {
+    const segs = (path ?? '').split('/').filter(Boolean);
+    if (!jail) return segs;
+    return segs.slice(homeSegs.length);
+  }, [path, jail, homeSegs]);
   const openEditor = useCallback(
     (fullPath: string) => {
       navigate(`/instances/${instanceId}/${filesSlug}/edit?path=${encodeURIComponent(fullPath)}`);
@@ -282,7 +307,7 @@ const InstanceFiles: React.FC<{ instanceId: number; filesSlug: string }> = ({ in
   const onRowOpen = (e: FileEntry) => {
     if (!path) return;
     if (e.is_dir) {
-      setPath(joinPath(path, e.name));
+      goPath(joinPath(path, e.name));
       return;
     }
     const kind = classifyEntry(e);
