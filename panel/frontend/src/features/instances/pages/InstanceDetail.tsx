@@ -264,7 +264,7 @@ const TerminalPane: React.FC<{
             borderRadius: 10,
             overflow: 'hidden',
             border: '1px solid var(--ks-card-border)',
-            background: 'var(--ks-term-bg,#1e1e1e)',
+            background: 'var(--ks-card-bg, #1e1e1e)',
             boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
           }}
         >
@@ -275,7 +275,7 @@ const TerminalPane: React.FC<{
               alignItems: 'center',
               gap: 6,
               padding: '6px 10px',
-              background: 'var(--ks-term-bg,#1e1e1e)',
+              background: 'var(--ks-card-bg, #1e1e1e)',
               borderBottom: '1px solid var(--ks-card-border)',
               fontSize: 11,
               color: 'var(--ks-muted)',
@@ -322,7 +322,8 @@ const TerminalPane: React.FC<{
 // bar sits directly below the Terminal header text + add button, clicking a
 // tab activates that pane (inactive panes stay mounted hidden so their WS
 // stays alive). A pane whose ID matches a template action's
-// terminal_id mirrors that action's live console into its xterm and relays
+// terminal_id streams that action's live console via the /workflow bridge
+// (history replay + exact live deltas, local echo on input) and relays
 // typed lines to the running action (Minecraft tps/op/stop, node stdin, …);
 // the install_terminal_id does the same for the Installation workflow;
 // the startup_terminal_id attaches directly to the container main-process

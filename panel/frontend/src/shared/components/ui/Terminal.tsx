@@ -6,7 +6,7 @@ import '@xterm/xterm/css/xterm.css';
 import { useThemeStore } from '@/shared/stores/themeStore';
 import { DEFAULT_THEME } from '@/theme/defaults';
 import type { Theme } from '@/features/themes/types/theme';
-import { isHexColor, rgbaAt } from '@/theme/colorUtils';
+import { isHexColor, parseColor, rgbaAt } from '@/theme/colorUtils';
 
 // Wire-protocol message shapes exchange with the panel's
 // /api/instances/:id/terminal bridge. See kspanel/internal/api/handlers/
@@ -41,9 +41,10 @@ function wsUrlFor(instanceId: number, terminalId?: string, timeoutS?: string, en
 }
 
 // terminalThemeFor derives the xterm palette from the ACTIVE theme so the
-// terminal follows the Theme Studio like every other surface. Tokens that
-// are still at their default (or unparseable) fall back to the stock
-// VS-Code-ish palette, so the Default theme keeps today's look exactly.
+// terminal follows the Theme Studio like every other surface. The canvas
+// background is always the card background (translucent fills render fine
+// on canvas — the page behind shows through, exactly like the cards);
+// unparseable values fall back to the stock VS-Code-ish palette.
 const STOCK_TERM = {
   background: '#1e1e1e',
   foreground: '#d4d4d4',
