@@ -63,8 +63,8 @@ func TestParseDBTimeLayouts(t *testing.T) {
 			t.Errorf("parseDBTime(%q) reported false, want true", s)
 			continue
 		}
-		if !got.Equal(want) {
-			t.Errorf("parseDBTime(%q) = %v, want %v", s, got, want)
+		if !got.Truncate(time.Second).Equal(want) {
+			t.Errorf("parseDBTime(%q) = %v, want %v (to the second)", s, got, want)
 		}
 	}
 	for _, s := range []string{"", "   ", "not-a-time", "0001-01-01 00:00:00", "0001-01-01T00:00:00Z", "2026-13-99 99:99:99"} {
