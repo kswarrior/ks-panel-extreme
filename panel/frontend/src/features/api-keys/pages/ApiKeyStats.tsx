@@ -14,6 +14,7 @@ import {
   StatCard,
 } from '@/shared/components/ui/StatDashboard';
 import GlassCard from '@/shared/components/ui/Card';
+import { cardTimeMs } from '@/shared/utils/cardDate';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 
@@ -73,17 +74,24 @@ const ApiKeyStats: React.FC = () => {
         userName(k.user_id).toLowerCase().includes(q)
       );
     }
-    if (statusFilter === 'active') out = out.filter((k) => k.active && !(k.expires_at && new Date(k.expires_at) < new Date()));
+    const isExpired = (k: ApiKey): boolean => {
+      const ms = cardTimeMs(k.expires_at);
+      return ms > 0 && ms < Date.now();
+    };
+    if (statusFilter === 'active') out = out.filter((k) => k.active && !isExpired(k));
     if (statusFilter === 'inactive') out = out.filter((k) => !k.active);
-    if (statusFilter === 'expired') out = out.filter((k) => k.expires_at && new Date(k.expires_at) < new Date());
+    if (statusFilter === 'expired') out = out.filter((k) => isExpired(k));
     return out;
   }, [keys, search, statusFilter, users]);
 
   const stats = useMemo(() => {
     const active = filteredKeys.filter((k) => k.active).length;
-    const expired = filteredKeys.filter((k) => k.expires_at && new Date(k.expires_at) < new Date()).length;
+    const expired = filteredKeys.filter((k) => {
+      const ms = cardTimeMs(k.expires_at);
+      return ms > 0 && ms < Date.now();
+    }).length;
     const withRateLimit = filteredKeys.filter((k) => k.rate_limit && k.rate_limit > 0).length;
-    const withExpiry = filteredKeys.filter((k) => k.expires_at).length;
+    const withExpiry = filteredKeys.filter((k) => cardTimeMs(k.expires_at) > 0).length;
     return { total: filteredKeys.length, active, inactive: filteredKeys.length - active, expired, withRateLimit, withExpiry };
   }, [filteredKeys]);
 
@@ -105,8 +113,8 @@ const ApiKeyStats: React.FC = () => {
 
   const topKeysByUsage = useMemo(() =>
     [...filteredKeys]
-      .filter((k) => k.last_used_at)
-      .sort((a, b) => new Date(b.last_used_at!).getTime() - new Date(a.last_used_at!).getTime())
+      .filter((k) => cardTimeMs(k.last_used_at) > 0)
+      .sort((a, b) => cardTimeMs(b.last_used_at) - cardTimeMs(a.last_used_at))
       .slice(0, 10),
   [filteredKeys]);
 

@@ -3,13 +3,16 @@ import { Link } from 'react-router-dom';
 import { listAdminApiKeys } from '@/shared/api/admin';
 import type { ApiKey } from '@/shared/types/apiKey';
 import GlassCard from '@/shared/components/ui/Card';
+import { cardTimeMs, formatCardDate } from '@/shared/utils/cardDate';
 import { StatCard } from '@/shared/components/ui/StatDashboard';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 
 const DAY_MS = 86_400_000;
 
-function daysLeft(expiresAt: string): number {
-  return Math.ceil((new Date(expiresAt).getTime() - Date.now()) / DAY_MS);
+function daysLeft(expiresAt?: string | null): number {
+  const ms = cardTimeMs(expiresAt);
+  if (!ms) return NaN;
+  return Math.ceil((ms - Date.now()) / DAY_MS);
 }
 
 // API keys don't run on cron — but every key has an expiry, which IS a
@@ -43,8 +46,9 @@ const ApiKeySchedules: React.FC = () => {
     const month: ApiKey[] = [];
     let never = 0;
     for (const k of keys) {
-      if (!k.expires_at) { never += 1; continue; }
+      if (!cardTimeMs(k.expires_at)) { never += 1; continue; }
       const d = daysLeft(k.expires_at);
+      if (Number.isNaN(d)) { never += 1; continue; }
       if (d < 0) expired.push(k);
       else if (d <= 7) week.push(k);
       else if (d <= 30) month.push(k);
@@ -105,7 +109,7 @@ const ApiKeySchedules: React.FC = () => {
                           {k.display_name || k.name}
                         </Link>
                       </td>
-                      <td className="py-1.5 pr-3 text-gray-300">{new Date(k.expires_at!).toLocaleDateString()}</td>
+                      <td className="py-1.5 pr-3 text-gray-300">{formatCardDate(k.expires_at) ?? '—'}</td>
                       <td className={`py-1.5 font-mono text-xs ${d < 0 ? 'text-red-400' : d <= 7 ? 'text-amber-300' : 'text-gray-300'}`}>
                         {d < 0 ? `expired ${-d}d ago` : `${d}d`}
                       </td>
