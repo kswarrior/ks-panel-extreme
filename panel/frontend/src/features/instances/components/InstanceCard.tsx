@@ -6,7 +6,6 @@ import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
 import { useThemeStore } from '@/shared/stores/themeStore';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 import { listCachedResources, type CachedResource } from '@/features/instances/api/instanceAdvanced';
-import { formatCardDate } from '@/shared/utils/cardDate';
 import CardMenu, { type RichMenuItem } from '@/shared/components/ui/CardMenu/CardMenu';
 
 // ---- helpers --------------------------------------------------------------
@@ -456,10 +455,11 @@ const InstanceCard: React.FC<InstanceCardProps> = ({ instance, actions, showOwne
         {/* ── Footer: uptime/created + action buttons ───────────────── */}
         <footer className="mt-auto pt-2 border-t border-white/[0.06] flex items-center justify-between gap-2 flex-wrap">
           <span className="text-[11px] text-gray-500 truncate">
-            {(() => {
-              const label = formatCardDate(instance.created_at);
-              return label ? <>Created {label}</> : <>id {instance.id}</>;
-            })()}
+            {instance.created_at ? (
+              <>Created {new Date(instance.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</>
+            ) : (
+              <>id {instance.id}</>
+            )}
           </span>
           <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
             {actions && actions.length > 0 ? (

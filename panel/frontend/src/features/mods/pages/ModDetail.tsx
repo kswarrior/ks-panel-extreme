@@ -6,7 +6,6 @@ import GlassCard from '@/shared/components/ui/Card';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import { PageActionsPill } from '@/shared/components/ui/PageActionsPill';
 import { useConfirm } from '@/shared/stores/confirmStore';
-import { cardTimeMs } from '@/shared/utils/cardDate';
 
 function getErrorMessage(e: any, fallback: string): string {
   const data = e?.response?.data;
@@ -23,7 +22,7 @@ function getErrorMessage(e: any, fallback: string): string {
 function relativeTime(iso: string | null | undefined): string {
   if (!iso) return '';
   const d = new Date(iso as string);
-  if (isNaN(d.getTime()) || d.getFullYear() <= 1) return '';
+  if (isNaN(d.getTime())) return '';
   const s = Math.floor((Date.now() - d.getTime()) / 1000);
   if (s < 60) return `${s}s ago`;
   if (s < 3600) return `${Math.floor(s / 60)}m ago`;
@@ -193,7 +192,7 @@ const ModDetail: React.FC = () => {
             {src ? <span className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded-md border ${src.badge}`}>{src.label}</span> : mod.source ? <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded-md border bg-white/5 border-white/10 text-gray-300">{mod.source}</span> : null}
             {pending > 0 ? <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded-md border bg-amber-900/30 border-amber-700/30 text-amber-200">{pending} pending</span> : null}
           </h2>
-          <p className="text-xs text-gray-500 truncate mt-1">ID {mod.id} · {mod.slug}{cardTimeMs(mod.created_at) ? <> · {relativeTime(mod.created_at)}</> : null}</p>
+          <p className="text-xs text-gray-500 truncate mt-1">ID {mod.id} · {mod.slug} · {relativeTime(mod.created_at)}</p>
           {mod.description && <p className="text-sm text-gray-300 mt-1">{mod.description}</p>}
         </div>
       </GlassCard>
@@ -220,8 +219,8 @@ const ModDetail: React.FC = () => {
         <GlassCard className="p-3">
           <h4 className="text-xs uppercase tracking-wide text-gray-500">Timeline</h4>
           <div className="mt-2 space-y-1.5 text-sm">
-            <div className="flex justify-between gap-2"><span className="text-gray-400">Created</span><span className="text-white text-xs" title={mod.created_at}>{relativeTime(mod.created_at) || '—'}</span></div>
-            <div className="flex justify-between gap-2"><span className="text-gray-400">Updated</span><span className="text-white text-xs" title={mod.updated_at}>{relativeTime(mod.updated_at) || '—'}</span></div>
+            <div className="flex justify-between gap-2"><span className="text-gray-400">Created</span><span className="text-white text-xs" title={mod.created_at}>{relativeTime(mod.created_at)}</span></div>
+            <div className="flex justify-between gap-2"><span className="text-gray-400">Updated</span><span className="text-white text-xs" title={mod.updated_at}>{relativeTime(mod.updated_at)}</span></div>
             <div className="pt-1 flex gap-2">
               <button onClick={handleToggle} disabled={toggling} className="flex-1 px-3 py-1.5 text-xs rounded-md bg-white text-black hover:bg-gray-200 disabled:opacity-50">{mod.active ? 'Deactivate' : 'Activate'}</button>
               <button onClick={() => navigate('/mods/studio')} className="px-3 py-1.5 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white">Studio</button>

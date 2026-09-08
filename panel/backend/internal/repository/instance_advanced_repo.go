@@ -3,6 +3,7 @@ package repository
 import (
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/example/kspanel/internal/models"
 )
@@ -38,7 +39,7 @@ func (r *SnapshotRepository) List(instanceID int64) ([]models.InstanceSnapshot, 
 		if err := rows.Scan(&s.ID, &s.InstanceID, &s.Name, &s.ExternalRef, &s.SizeBytes, &s.Note, &created); err != nil {
 			return nil, err
 		}
-		s.CreatedAt, _ = parseDBTime(created)
+		s.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created)
 		out = append(out, s)
 	}
 	return out, rows.Err()
@@ -118,7 +119,7 @@ func (r *InstanceAuditRepository) List(instanceID int64, limit int) ([]models.In
 		if err := rows.Scan(&a.ID, &a.InstanceID, &a.Actor, &a.Action, &a.Detail, &created); err != nil {
 			return nil, err
 		}
-		a.CreatedAt, _ = parseDBTime(created)
+		a.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created)
 		out = append(out, a)
 	}
 	return out, rows.Err()
@@ -148,7 +149,7 @@ func (r *LiveStateRepository) Get(instanceID int64) (*models.InstanceLiveState, 
 	if err != nil {
 		return nil, err
 	}
-	ls.UpdatedAt, _ = parseDBTime(updated)
+	ls.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updated)
 	return &ls, nil
 }
 

@@ -82,12 +82,12 @@ export const TicketIcon: React.FC<{ status?: TicketStatus; className?: string }>
 export function formatTicketDate(s?: string | null): string {
   if (!s) return '—';
   const d = new Date(s);
-  if (Number.isNaN(d.getTime()) || d.getFullYear() <= 1) return '—';
+  if (Number.isNaN(d.getTime())) return s;
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 export function formatTicketDateTime(s?: string | null): string {
   if (!s) return '—';
   const d = new Date(s);
-  if (Number.isNaN(d.getTime()) || d.getFullYear() <= 1) return '—';
+  if (Number.isNaN(d.getTime())) return s;
   return d.toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }

@@ -394,21 +394,5 @@ func (r *NotificationRepository) Stats(userID int64) (NotificationStats, error) 
 }
 
 func parseNotifTime(s string) (time.Time, error) {
-	if s == "" {
-		return time.Time{}, fmt.Errorf("empty")
-	}
-	if t, err := time.Parse("2006-01-02 15:04:05", s); err == nil {
-		return t, nil
-	}
-	if t, err := time.Parse(time.RFC3339, s); err == nil {
-		return t, nil
-	}
-	if t, err := time.Parse("2006-01-02T15:04:05Z", s); err == nil {
-		return t, nil
-	}
-	// SQLite may store with nanos or without T.
-	if t, err := time.Parse("2006-01-02 15:04:05.999999999", s); err == nil {
-		return t, nil
-	}
-	return time.Parse(time.RFC3339Nano, s)
+	return parseDBTime(s)
 }

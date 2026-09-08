@@ -116,10 +116,7 @@ func scanPanelPage(row interface {
 // parsePanelPageTime accepts both the layout SQLite writes and RFC3339 so it
 // works regardless of which engine (or default) wrote the row.
 func parsePanelPageTime(s string) (time.Time, error) {
-	if t, err := time.Parse("2006-01-02 15:04:05", s); err == nil {
-		return t, nil
-	}
-	return time.Parse(time.RFC3339Nano, s)
+	return parseDBTime(s)
 }
 
 const panelPageColumns = `id, slug, name, icon_svg, content_type, content, enabled, roles, sort_order, created_at, updated_at`

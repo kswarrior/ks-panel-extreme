@@ -28,8 +28,6 @@ import { pageNavigateTarget } from '@/shared/lib/customPageSdk';
 import CustomPageView from '@/shared/components/ui/CustomPageView';
 import ErrorBoundary from '@/shared/components/ui/ErrorBoundary';
 import Modal from '@/shared/components/ui/Modal';
-import PageActionsPill, { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
-import PageTabsPill from '@/shared/components/ui/PageTabsPill';
 import Terminal, { type TerminalHandle } from '@/shared/components/ui/Terminal';
 import RichMenu from '@/shared/components/ui/RichMenu';
 import InstancePortsEditor from '@/features/instances/pages/InstancePortsEditor';
@@ -604,39 +602,40 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
 
   return (
     <div className="animate-fade-in space-y-3">
-      {/* Top-right actions pill (template-form pattern): shortcut menu +
-          add-terminal button. Page-level chrome — always mounted so the
-          actions stay reachable even when the header bar is hidden. */}
-      <PageActionsPill>
-        {shortcutsOn && (
-          <ShortcutMenuButton shortcuts={shortcuts} onPick={(i) => runShortcut(i, boxMode ? 'box' : 'direct')} />
-        )}
-        {canAdd ? (
-          <button type="button" onClick={openAdd} title={Number.isFinite(maxN) && maxN > 0 ? `Add terminal (${panes.length}/${maxN})` : 'Add terminal'} aria-label="Add terminal" className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition" style={PILL_TAB_STYLE}>
-            <span className="inline-flex items-center gap-1.5">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-              Add
-            </span>
-          </button>
-        ) : (
-          <button type="button" disabled title={atMax ? `Template caps terminals at ${maxN}` : 'Template allows a single terminal pane'} aria-label={atMax ? `Max ${maxN} terminals` : 'Multi-terminal disabled by template'} className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-40" style={PILL_TAB_STYLE}>
-            <span className="inline-flex items-center gap-1.5">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-              Add
-            </span>
-          </button>
-        )}
-      </PageActionsPill>
       {showHeader && (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <h2 style={{ fontSize: 20, fontWeight: 600, color: 'var(--ks-heading)', margin: 0 }}>{title || 'Terminal'}</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {shortcutsOn && !boxMode && (
+            <ShortcutMenuButton shortcuts={shortcuts} onPick={(i) => runShortcut(i, 'direct')} />
+          )}
+          {canAdd ? (
+            <button type="button" onClick={openAdd} title={Number.isFinite(maxN) && maxN > 0 ? `Add terminal (${panes.length}/${maxN})` : 'Add terminal'} aria-label="Add terminal" className="ks-btn-header ks-icon-btn">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+            </button>
+          ) : (
+            <span className="text-[11px] text-gray-500" title={atMax ? `Template caps terminals at ${maxN}` : 'Template allows a single terminal pane'}>
+              {atMax ? `Max ${maxN} terminals` : 'Multi-terminal disabled by template'}
+            </span>
+          )}
+        </div>
       </div>
+      )}
+      {!showHeader && (canAdd || (shortcutsOn && !boxMode)) && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8 }}>
+          {shortcutsOn && !boxMode && (
+            <ShortcutMenuButton shortcuts={shortcuts} onPick={(i) => runShortcut(i, 'direct')} />
+          )}
+          {canAdd && (
+          <button type="button" onClick={openAdd} title="Add terminal" aria-label="Add terminal" className="ks-btn-header ks-icon-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+          </button>
+          )}
+        </div>
       )}
       {/* Tabs bar — directly below the Terminal header text + add button,
           above the active terminal. Horizontally scrollable; inactive panes
-          stay mounted hidden so their WS sessions survive tab switches. Phones
-          use the bottom tabs pill instead (template-form pattern). */}
-      <div role="tablist" aria-label="Terminals" className="hidden lg:flex items-center gap-1.5 overflow-x-auto pb-1 -mb-1">
+          stay mounted hidden so their WS sessions survive tab switches. */}      <div role="tablist" aria-label="Terminals" className="flex items-center gap-1.5 overflow-x-auto pb-1 -mb-1">
         {panes.map((p, idx) => {
           const tid = normTid(p.terminalId);
           const label = p.name.trim() !== '' ? p.name.trim() : (tid !== '' ? tid : `shell ${idx + 1}`);
@@ -687,6 +686,9 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
             installTerminalId={installTerminalId}
             startupTerminalId={startupTerminalId}
             inputMode={termCfg.terminal_input_mode || 'direct'}
+            shortcutsOn={shortcutsOn}
+            shortcuts={shortcuts}
+            onShortcutPick={(i) => runShortcut(i, 'box')}
             boxText={boxTexts[p.key] ?? ''}
             onBoxText={(v) => setBoxTexts((m) => ({ ...m, [activeKey]: v }))}
             onRegisterSend={onRegisterSend}
@@ -694,40 +696,6 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
           />
         </div>
       ))}
-
-      {/* Phone tabs pill — bottom terminal switcher (template-form
-          pattern). Desktop keeps the strip above; this pill is phones
-          only (lg:hidden, owned by the component). */}
-      <PageTabsPill
-        ariaLabel="Terminals"
-        activeLabel={(() => {
-          const ap = panes.find((p) => p.key === activeKey) ?? panes[0];
-          if (!ap) return 'Terminal';
-          const tid = normTid(ap.terminalId);
-          return ap.name.trim() !== '' ? ap.name.trim() : (tid !== '' ? tid : 'shell');
-        })()}
-      >
-        {panes.map((p, idx) => {
-          const tid = normTid(p.terminalId);
-          const label = p.name.trim() !== '' ? p.name.trim() : (tid !== '' ? tid : `shell ${idx + 1}`);
-          const st = tabStatusFor(p);
-          const active = p.key === activeKey;
-          return (
-            <button
-              key={p.key}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              aria-label={`${label}${tid ? ` (${tid})` : ''}`}
-              onClick={() => setActiveKey(p.key)}
-              className={`ks-tab shrink-0 flex-none whitespace-nowrap px-3 py-1.5 rounded text-sm text-center transition flex items-center justify-center gap-1.5 ${active ? 'ks-tab-active' : ''}`}
-            >
-              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${st.dot}`} aria-hidden="true" />
-              <span className="whitespace-nowrap leading-none">{label}</span>
-            </button>
-          );
-        })}
-      </PageTabsPill>
 
       {/* Shortcut ask dialog — parameterized pick lists every variable
           (any count, scrollable) and stays strict: Send enables only when

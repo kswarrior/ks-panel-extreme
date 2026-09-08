@@ -34,7 +34,6 @@ import {
   modSourceMeta,
 } from '@/shared/types/mod';
 import { useConfirm } from '@/shared/stores/confirmStore';
-import { formatCardDate } from '@/shared/utils/cardDate';
 
 // resolve the human-facing label for a capability code on a card chip / the
 // approval checklist. Falls back to the raw code when the manifest shipped an
@@ -619,10 +618,7 @@ return (
 
                 <footer className="mt-auto pt-2 border-t border-white/[0.06] flex items-center justify-between gap-2">
                   <span className="text-[11px] text-gray-500 truncate">
-                    {(() => {
-                      const label = formatCardDate(m.created_at);
-                      return label ? <>Uploaded {label}</> : <>id {m.id}</>;
-                    })()}
+                    {m.created_at ? <>Uploaded {new Date(m.created_at).toLocaleDateString()}</> : <>id {m.id}</>}
                   </span>
                   <div className="flex items-center gap-1">
                     {m.active ? (

@@ -134,8 +134,8 @@ const ThemeStats: React.FC = () => {
     const counts = new Array(buckets).fill(0);
 
     allThemes.forEach(({ theme: t }) => {
-      const created = cardTimeMs(t.created_at);
-      if (created) {
+      if (t.created_at) {
+        const created = new Date(t.created_at).getTime();
         const hoursAgo = Math.floor((now - created) / bucketSize);
         if (hoursAgo >= 0 && hoursAgo < buckets) {
           counts[buckets - 1 - hoursAgo]++;
@@ -157,8 +157,8 @@ const ThemeStats: React.FC = () => {
     const counts = new Array(buckets).fill(0);
 
     allThemes.forEach(({ theme: t }) => {
-      const updated = cardTimeMs(t.updated_at);
-      if (updated) {
+      if (t.updated_at) {
+        const updated = new Date(t.updated_at).getTime();
         const hoursAgo = Math.floor((now - updated) / bucketSize);
         if (hoursAgo >= 0 && hoursAgo < buckets) {
           counts[buckets - 1 - hoursAgo]++;

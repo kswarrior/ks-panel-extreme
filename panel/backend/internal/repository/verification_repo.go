@@ -91,7 +91,7 @@ func (r *UserRepository) ConsumeVerificationCode(email, code string) (bool, erro
 		if consumedAtStr.Valid && consumedAtStr.String != "" {
 			continue
 		}
-		expiresAt, _ := parseDBTime(expiresAtStr.String)
+		expiresAt, _ := time.Parse("2006-01-02 15:04:05", expiresAtStr.String)
 		if expiresAt.IsZero() || now.After(expiresAt) {
 			continue
 		}

@@ -99,9 +99,11 @@ func parseBackupTime(ns sql.NullString) *time.Time {
 	if !ns.Valid || strings.TrimSpace(ns.String) == "" {
 		return nil
 	}
-	if t, err := parseDBTime(ns.String); err == nil && !t.IsZero() {
-		utc := t.UTC()
-		return &utc
+	for _, layout := range []string{"2006-01-02 15:04:05", time.RFC3339, "2006-01-02T15:04:05Z07:00"} {
+		if t, err := time.Parse(layout, ns.String); err == nil {
+			utc := t.UTC()
+			return &utc
+		}
 	}
 	return nil
 }
@@ -387,7 +389,7 @@ func (r *InstanceFileBackupRepository) List(instanceID int64) ([]InstanceFileBac
 		}
 		b.Compressed = compressed != 0
 		b.S3Pushed = s3pushed != 0
-		b.CreatedAt, _ = parseDBTime(created)
+		b.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created)
 		out = append(out, b)
 	}
 	return out, rows.Err()
@@ -413,7 +415,7 @@ func (r *InstanceFileBackupRepository) Get(id, instanceID int64) (InstanceFileBa
 	}
 	b.Compressed = compressed != 0
 	b.S3Pushed = s3pushed != 0
-	b.CreatedAt, _ = parseDBTime(created)
+	b.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created)
 	return b, nil
 }
 

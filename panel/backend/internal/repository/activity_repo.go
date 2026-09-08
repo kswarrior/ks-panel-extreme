@@ -3,6 +3,7 @@ package repository
 import (
 	"database/sql"
 	"strings"
+	"time"
 
 	"github.com/example/kspanel/internal/models"
 )
@@ -179,7 +180,9 @@ func (r *ActivityRepository) List(f ListFilter) ([]models.ActivityLog, error) {
 		l.Message = message.String
 		l.IPAddress = ip.String
 		l.UserAgent = ua.String
-		if t, perr := parseDBTime(createdAt.String); perr == nil && !t.IsZero() {
+		if t, perr := time.Parse("2006-01-02 15:04:05", createdAt.String); perr == nil {
+			l.CreatedAt = t
+		} else if t, perr := time.Parse(time.RFC3339, createdAt.String); perr == nil {
 			l.CreatedAt = t
 		}
 		out = append(out, l)

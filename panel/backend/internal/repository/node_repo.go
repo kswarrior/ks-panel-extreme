@@ -468,7 +468,7 @@ func (r *NodeRepository) getNodeLegacy(id int64) (*models.Node, error) {
 		return nil, err
 	}
 	nd.UseTLS = useTLS == 1
-	nd.CreatedAt, _ = parseDBTime(created)
+	nd.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created)
 	nd.LastSeenAt = parseTime(lastSeen)
 	nd.State = DeriveState(nd.Status, nd.LastSeenAt, true, false, false, nil)
 	return &nd, nil
@@ -637,7 +637,7 @@ func scanLegacyNode(rows *sql.Rows, nd *models.Node) error {
 // sync with the master path.
 func applyScannedFields(nd *models.Node, useTLS int, created string, lastSeen sql.NullString) {
 	nd.UseTLS = useTLS == 1
-	nd.CreatedAt, _ = parseDBTime(created)
+	nd.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created)
 	nd.LastSeenAt = parseTime(lastSeen)
 }
 
