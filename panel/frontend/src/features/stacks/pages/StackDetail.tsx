@@ -171,13 +171,11 @@ const StackDetail: React.FC = () => {
           ariaLabel={`Actions for stack ${stack.name}`}
           items={[
             { key: 'open', label: 'Open', tone: 'default' },
-            { key: 'studio', label: 'Open in Studio', tone: 'default' },
             { key: 'toggle', label: toggling ? '…' : stack.active ? 'Deactivate' : 'Activate', tone: stack.active ? 'danger' : 'default' },
             { key: 'delete', label: 'Delete', tone: 'danger' },
           ]}
           onSelect={(k) => {
             if (k === 'open') navigate(`/stacks/${stack.slug}/`);
-            if (k === 'studio') navigate('/stacks/studio');
             if (k === 'toggle') void toggle();
             if (k === 'delete') void remove(false);
           }}
@@ -237,7 +235,6 @@ const StackDetail: React.FC = () => {
               {toggling ? '…' : 'Activate'}
             </button>
           )}
-          <button type="button" onClick={() => navigate('/stacks/studio')} className="px-3 py-1.5 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white">Studio</button>
         </div>
       </GlassCard>
 

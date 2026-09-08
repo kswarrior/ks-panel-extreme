@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import GlassCard from '@/shared/components/ui/Card';
 import GlassModal from '@/shared/components/ui/Modal';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
@@ -646,27 +645,6 @@ const Stacks: React.FC = () => {
               <span className="text-amber-300">inactive</span>.
             </p>
             <input value={urlInput} onChange={(e) => setUrlInput(e.target.value)} placeholder="https://example.com/my-stack.ksps" className="block w-full mt-2 bg-black/30 border border-white/10 rounded-md text-sm text-white px-3 py-1.5 font-mono focus:outline-none focus:border-white/40" />
-          </>
-        )}
-
-        {installTab === 'studio' && (
-          <>
-            <p className="text-xs text-gray-400">
-              Build a stack visually — meta, theme, frontend, permissions and backend script.
-              The Studio emits a standard manifest that installs through the same validated pipeline.
-            </p>
-            <GlassCard className="space-y-3 text-center py-6">
-              <h4 className="text-white font-medium">Stack Studio</h4>
-              <p className="text-gray-400 text-sm">Manifest builder with theme, frontend and backend editors.</p>
-              <div className="flex items-center justify-center gap-2 flex-wrap">
-                <span className="text-xs text-gray-500">Features:</span>
-                <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Meta</span>
-                <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Theme</span>
-                <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Frontend</span>
-                <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Permissions</span>
-                <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Backend</span>
-              </div>
-            </GlassCard>
           </>
         )}
 
