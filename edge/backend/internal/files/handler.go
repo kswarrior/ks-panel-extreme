@@ -420,6 +420,12 @@ openFile:
 // passwordless sudo (common in dev/test where the edge runs as an unprivileged
 // user but host bind-mounts are root-owned). Returns true when the fix
 // succeeded and the caller should retry the original operation.
+//
+// Non-recursive by design: the previous `chown -R dir` on a file like
+// /tmp/a would recursively chown the whole parent (/tmp) when the parent
+// itself was the permission failure — an unbounded blast radius from one
+// file-manager write. We chown only the target + its immediate parent
+// (no -R) and refuse broad roots (/ /tmp /var/tmp) outright.
 func tryFixPermission(path string) bool {
 	cleanPath := filepath.Clean(path)
 	cleanDir := filepath.Clean(filepath.Dir(path))
@@ -432,17 +438,28 @@ func tryFixPermission(path string) bool {
 	if !filepath.IsAbs(cleanPath) {
 		return false
 	}
+	dir := filepath.Dir(path)
+	cleanDir2 := filepath.Clean(dir)
+	for _, broad := range []string{"/", "/tmp", "/var/tmp", "/var"} {
+		if cleanDir2 == broad {
+			return false
+		}
+	}
 	uid := os.Getuid()
 	gid := os.Getgid()
-	dir := filepath.Dir(path)
 	// Try to chown the directory/file to the current user. Use -n (non-interactive)
 	// so we fail fast when sudo is not available or requires a password.
-	if err := exec.Command("sudo", "-n", "chown", "-R", fmt.Sprintf("%d:%d", uid, gid), dir).Run(); err != nil {
+	// No -R: only the immediate paths, never a recursive tree.
+	if err := exec.Command("sudo", "-n", "chown", fmt.Sprintf("%d:%d", uid, gid), dir).Run(); err != nil {
 		// Fallback: try chowning just the file if dir failed
+		_ = exec.Command("sudo", "-n", "chown", fmt.Sprintf("%d:%d", uid, gid), path).Run()
+	} else {
+		// Dir chown succeeded: also try the file itself when it exists.
 		_ = exec.Command("sudo", "-n", "chown", fmt.Sprintf("%d:%d", uid, gid), path).Run()
 	}
 	// Ensure the directory is at least u+rwX so we can create files inside.
-	_ = exec.Command("sudo", "-n", "chmod", "-R", "u+rwX", dir).Run()
+	// No -R for the same blast-radius reason.
+	_ = exec.Command("sudo", "-n", "chmod", "u+rwX", dir).Run()
 	// Verify we can now stat the directory.
 	if _, err := os.Stat(dir); err == nil {
 		return true
@@ -560,7 +577,9 @@ func deleteHost(w http.ResponseWriter, hostPath string, info os.FileInfo) {
 
 // chmodHost updates hostPath's permission bits. The mode arrives as a
 // decimal/octal string from the SPA (the OS file mode format the user
-// picked in the permissions dialog).
+// picked in the permissions dialog). Only 000-777 is accepted: setuid /
+// setgid / sticky bits are rejected fail-closed so a compromised panel
+// token cannot plant a setuid binary on the edge host.
 func chmodHost(w http.ResponseWriter, r *http.Request, hostPath string) {
 	modeStr := r.URL.Query().Get("mode")
 	if modeStr == "" {
@@ -570,6 +589,10 @@ func chmodHost(w http.ResponseWriter, r *http.Request, hostPath string) {
 	mode, err := strconv.ParseUint(modeStr, 8, 32)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, fmt.Sprintf("invalid mode %q: %v", modeStr, err))
+		return
+	}
+	if mode > 0o777 {
+		writeErr(w, http.StatusBadRequest, fmt.Sprintf("invalid mode %q (must be 000-777)", modeStr))
 		return
 	}
 	if err := os.Chmod(hostPath, os.FileMode(mode)); err != nil {
@@ -756,6 +779,9 @@ func deleteDocker(ctx context.Context, w http.ResponseWriter, name, path string)
 
 // chmodDocker applies the octal mode to `path` inside the container via
 // `chmod`. Mode arrives as an octal string from the SPA's permissions UI.
+// Only the low 9 permission bits (0777) are honoured: setuid/setgid/sticky
+// bits are rejected fail-closed so a compromised panel token cannot turn a
+// container file into a setuid host-escape vector.
 func chmodDocker(ctx context.Context, w http.ResponseWriter, name, path, modeStr string) {
 	if modeStr == "" {
 		writeErr(w, http.StatusBadRequest, "chmod requires a 'mode' parameter")
@@ -766,8 +792,12 @@ func chmodDocker(ctx context.Context, w http.ResponseWriter, name, path, modeStr
 		writeErr(w, http.StatusBadRequest, fmt.Sprintf("invalid mode %q: %v", modeStr, err))
 		return
 	}
+	if mode > 0o777 {
+		writeErr(w, http.StatusBadRequest, fmt.Sprintf("invalid mode %q (must be 000-777)", modeStr))
+		return
+	}
 	cmd := exec.CommandContext(ctx, "docker", "exec", name,
-		"chmod", fmt.Sprintf("%o", mode), path)
+		"chmod", fmt.Sprintf("%o", mode), "--", path)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		writeErr(w, http.StatusBadGateway, fmt.Sprintf("chmod %s: %v: %s", path, err, string(out)))
 		return
