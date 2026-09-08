@@ -329,60 +329,28 @@ const TerminalPane: React.FC<{
       )}
 
       <div className="p-3">
-        <div
-          style={{
-            borderRadius: 10,
-            overflow: 'hidden',
-            border: '1px solid var(--ks-card-border)',
-            background: 'var(--ks-card-bg, #1e1e1e)',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-          }}
-        >
-          <Terminal
-            ref={handleRef}
-            instanceId={instanceId}
-            terminalId={tid}
-            endpoint={isStartupBound ? 'console' : isWorkflowPane && isWorkflowActive ? 'workflow' : undefined}
-            onLine={isStartupBound ? undefined : handleLine}
-            readOnly={boxMode}
-            onStateChange={(s, m) => { setConnState(s); setConnMsg(m ?? ''); }}
-          />
-        </div>
+        <Terminal
+          ref={handleRef}
+          instanceId={instanceId}
+          terminalId={tid}
+          endpoint={isStartupBound ? 'console' : isWorkflowPane && isWorkflowActive ? 'workflow' : undefined}
+          onLine={isStartupBound ? undefined : handleLine}
+          readOnly={boxMode}
+          onStateChange={(s, m) => { setConnState(s); setConnMsg(m ?? ''); }}
+        />
         {boxMode && (
-          <>
-            {shortcutsOn && askVars.length > 0 && (
-              <div className="flex flex-wrap items-center gap-1.5 mt-2" aria-label="Shortcut values">
-                <ShortcutAskFields vars={askVars} askVals={askVals} onAsk={onAsk} />
-              </div>
-            )}
-            <div className="flex items-center gap-2 mt-2 min-w-0">
-              {shortcutsOn && (
-                <select
-                  value={sel ?? ''}
-                  onChange={(e) => onSel(e.target.value === '' ? null : Number(e.target.value))}
-                  aria-label="Shortcut"
-                  title="Pick a shortcut to fill the input"
-                  className="ks-input shrink-0 w-32 min-w-0"
-                >
-                  <option value="">Shortcut…</option>
-                  {shortcuts.map((sc, i) => (
-                    <option key={i} value={i} title={sc.command}>{sc.label.trim() !== '' ? sc.label : sc.command}</option>
-                  ))}
-                </select>
-              )}
-              <input
-                value={boxText}
-                onChange={(e) => onBoxText(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') sendBox(); }}
-                placeholder="Type a command…"
-                aria-label={`Command input for ${title}`}
-                className="ks-input w-full min-w-0 flex-1"
-              />
-              <button type="button" onClick={sendBox} disabled={askBlocked} className="ks-btn-primary ks-btn shrink-0 disabled:opacity-40">
-                Send
-              </button>
-            </div>
-          </>
+          <div className="flex items-center gap-2 mt-2 min-w-0">
+            {shortcutsOn && <ShortcutMenuButton shortcuts={shortcuts} onPick={onShortcutPick} />}
+            <input
+              value={boxText}
+              onChange={(e) => onBoxText(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') sendBox(); }}
+              placeholder="Type a command…"
+              aria-label={`Command input for ${title}`}
+              className="ks-input w-full min-w-0 flex-1"
+            />
+            <SendGlyphButton onSend={sendBox} />
+          </div>
         )}
       </div>
     </div>
@@ -438,16 +406,30 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
     return termCfg.terminal_shortcuts.filter((s) => s && (String(s.label ?? '').trim() !== '' || String(s.command ?? '').trim() !== ''));
   }, [termCfg]);
   const shortcutsOn = shortcuts.length > 0;
-  const [sel, setSel] = useState<number | null>(null);
   const [askVals, setAskVals] = useState<Record<string, string>>({});
   const [boxTexts, setBoxTexts] = useState<Record<number, string>>({});
-  const selSafe = sel !== null && shortcuts[sel] ? sel : null;
-  const selCmd = selSafe !== null ? shortcuts[selSafe].command : '';
-  const selVars = useMemo(() => extractShortcutVars(selCmd), [selCmd]);
-  const askBlocked = selVars.some((v) => !(askVals[v] ?? '').trim());
+  // askFor — parameterized shortcut awaiting its variables in the ask
+  // dialog (sub-page popup listing every placeholder). `target` decides
+  // the confirm action: box fills the bottom input, direct transmits to
+  // the active tab at once.
+  const [askFor, setAskFor] = useState<{ i: number; target: 'box' | 'direct' } | null>(null);
+  const askCmd = askFor !== null ? (shortcuts[askFor.i]?.command ?? '') : '';
+  const askVars = useMemo(() => extractShortcutVars(askCmd), [askCmd]);
+  const askBlocked = askVars.some((v) => !(askVals[v] ?? '').trim());
   const onAsk = useCallback((name: string, value: string) => {
     setAskVals((m) => ({ ...m, [name]: value.slice(0, 200) }));
   }, []);
+  const closeAsk = () => setAskFor(null);
+  const confirmAsk = () => {
+    if (askFor === null || askBlocked) return;
+    const text = resolveShortcutCommand(askCmd, askVals);
+    if (askFor.target === 'box') {
+      setBoxTexts((m) => ({ ...m, [activeKey]: text }));
+    } else {
+      sendToActive(text);
+    }
+    setAskFor(null);
+  };
   // Active pane's sendLine, registered by each TerminalPane (direct-mode
   // header/ask sends route through it).
   const sendRegistry = useRef<Map<number, (ln: string) => void>>();
@@ -461,42 +443,22 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
     if (text.trim() === '') return;
     try { sendRegistry.current?.get(activeKey)?.(text); } catch { /* noop */ }
   };
-  // Box-mode pick fills the active pane's input (still editable — editing
-  // frees it back to raw text). Direct-mode pick sends plain commands at
-  // once and opens the ask bar for parameterized ones.
-  const pickShortcut = (i: number | null) => {
-    setSel(i);
-    if (i !== null) {
-      const cmd = shortcuts[i]?.command ?? '';
-      setBoxTexts((m) => ({ ...m, [activeKey]: cmd }));
+  // Shortcut pick from either trigger: plain commands act at once
+  // (box fills the bottom input, direct transmits to the active tab);
+  // parameterized ones open the ask dialog for their variables.
+  const runShortcut = (i: number, target: 'box' | 'direct') => {
+    const sc = shortcuts[i];
+    if (!sc) return;
+    if (extractShortcutVars(sc.command).length === 0) {
+      if (target === 'box') {
+        setBoxTexts((m) => ({ ...m, [activeKey]: sc.command }));
+      } else {
+        sendToActive(sc.command);
+      }
+    } else {
+      setAskFor({ i, target });
     }
   };
-  const handleBoxText = (v: string) => {
-    setBoxTexts((m) => ({ ...m, [activeKey]: v }));
-    if (selSafe !== null && v !== selCmd) setSel(null);
-  };
-  const pickDirect = (v: string) => {
-    if (v === '') { setSel(null); return; }
-    const i = Number(v);
-    const sc = shortcuts[i];
-    if (!sc) { setSel(null); return; }
-    if (extractShortcutVars(sc.command).length === 0) { sendToActive(sc.command); setSel(null); }
-    else setSel(i);
-  };
-  const directSelect = shortcutsOn && !boxMode ? (
-    <select
-      value={selSafe ?? ''}
-      onChange={(e) => pickDirect(e.target.value)}
-      aria-label="Shortcut"
-      title="Run a shortcut on the active terminal"
-      className="ks-input shrink-0 w-36 min-w-0"
-    >
-      <option value="">Shortcut…</option>
-      {shortcuts.map((sc, i) => (
-        <option key={i} value={i} title={sc.command}>{sc.label.trim() !== '' ? sc.label : sc.command}</option>
-      ))}
-    </select>
-  ) : null;
   // Reseed guard: "<instance-id>|<defaults signature>" already reflected in
   // `panes`. Covers mount-with-late-config (snapshot arrives after first
   // render) and navigating the Terminal page across instances (never show
@@ -648,7 +610,9 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <h2 style={{ fontSize: 20, fontWeight: 600, color: 'var(--ks-heading)', margin: 0 }}>{title || 'Terminal'}</h2>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {directSelect}
+          {shortcutsOn && !boxMode && (
+            <ShortcutMenuButton shortcuts={shortcuts} onPick={(i) => runShortcut(i, 'direct')} />
+          )}
           {canAdd ? (
             <button type="button" onClick={openAdd} title={Number.isFinite(maxN) && maxN > 0 ? `Add terminal (${panes.length}/${maxN})` : 'Add terminal'} aria-label="Add terminal" className="ks-btn-header ks-icon-btn">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
@@ -661,9 +625,11 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
         </div>
       </div>
       )}
-      {!showHeader && (canAdd || directSelect) && (
+      {!showHeader && (canAdd || (shortcutsOn && !boxMode)) && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8 }}>
-          {directSelect}
+          {shortcutsOn && !boxMode && (
+            <ShortcutMenuButton shortcuts={shortcuts} onPick={(i) => runShortcut(i, 'direct')} />
+          )}
           {canAdd && (
           <button type="button" onClick={openAdd} title="Add terminal" aria-label="Add terminal" className="ks-btn-header ks-icon-btn">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
@@ -711,28 +677,6 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
           );
         })}
       </div>
-
-      {/* Direct-mode ask bar — parameterized shortcut picked from the
-          top-right dropdown asks for each variable here (strict: Send
-          stays disabled until every value is filled), then sends the
-          resolved command to the active tab. */}
-      {!boxMode && selSafe !== null && selVars.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-white/10 bg-black/20 px-2.5 py-2" aria-label="Shortcut values">
-          <span className="text-[11px] text-gray-500 shrink-0">{shortcuts[selSafe].label.trim() !== '' ? shortcuts[selSafe].label : 'Shortcut'}:</span>
-          <ShortcutAskFields vars={selVars} askVals={askVals} onAsk={onAsk} />
-          <button
-            type="button"
-            onClick={() => { sendToActive(resolveShortcutCommand(selCmd, askVals)); setSel(null); }}
-            disabled={askBlocked}
-            className="ks-btn-primary ks-btn shrink-0 disabled:opacity-40"
-          >
-            Send
-          </button>
-          <button type="button" onClick={() => setSel(null)} className="ks-btn shrink-0" aria-label="Cancel shortcut">
-            Cancel
-          </button>
-        </div>
-      )}
 
       {panes.map((p) => (
         <div key={p.key} style={{ display: p.key === activeKey ? '' : 'none' }}>
