@@ -2083,6 +2083,12 @@ func keepStdinForInstall(spec map[string]any) bool {
 // and the live workflow stream. Exec/attach bridges are the opposite:
 // drivers route by container identity, so they correctly prefer
 // ExternalID — do not "unify" the two directions.
+func edgeWorkflowName(inst *models.Instance) string {
+	if inst == nil {
+		return ""
+	}
+	return inst.Name
+}
 
 // validInstanceName checks the instance name against docker-compatible rules.
 // 1-63 chars, [a-zA-Z0-9_-], must start with [a-zA-Z0-9], no leading hyphen.
@@ -3764,10 +3770,8 @@ func ActionStdinHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ec := edge.NewWithTimeout(*node, token, 60*time.Second)
-	name := inst.ExternalID
-	if name == "" {
-		name = inst.Name
-	}
+	// Workflow key: logical name (see edgeWorkflowName) — never ExternalID.
+	name := edgeWorkflowName(inst)
 	stresp, sterr := ec.InstallStdin(edge.InstallStdinRequest{
 		Kind: inst.Kind,
 		Name: name,
@@ -3912,10 +3916,8 @@ func InstallStdinHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ec := edge.NewWithTimeout(*node, token, 60*time.Second)
-	name := inst.ExternalID
-	if name == "" {
-		name = inst.Name
-	}
+	// Workflow key: logical name (see edgeWorkflowName) — never ExternalID.
+	name := edgeWorkflowName(inst)
 	stresp, sterr := ec.InstallStdin(edge.InstallStdinRequest{
 		Kind: inst.Kind,
 		Name: name,
