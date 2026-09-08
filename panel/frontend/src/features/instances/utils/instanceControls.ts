@@ -101,7 +101,6 @@ export interface InstanceShortcutConfig {
   // = legacy behaviour (no shortcut UI at all).
   terminal_shortcuts_enabled: boolean;
   terminal_shortcuts: TerminalShortcutDef[];
-}
   // Terminal page: panes opened automatically (first tab preselected).
   // Empty = legacy behaviour (single blank shell pane).
   default_terminals: TerminalDefaultDef[];
@@ -161,7 +160,6 @@ const DEFAULT_SHORTCUT_BASE = {
   terminal_input_mode: 'direct' as TerminalInputMode,
   terminal_shortcuts_enabled: false,
   terminal_shortcuts: [],
-};
   default_terminals: [],
 };
 
