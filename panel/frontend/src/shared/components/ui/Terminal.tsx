@@ -471,8 +471,10 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
             // Action-bound panes keep their scrollback: the parent streams
             // the running action's log lines into the same buffer, and a
             // reset here would wipe the matched-action history on every
-            // reconnect.
-            if (!terminalId || String(terminalId).trim() === '') {
+            // reconnect. Workflow panes DO reset: the /workflow bridge
+            // replays the transcript history itself on every (re)connect,
+            // so keeping scrollback would duplicate it.
+            if ((!terminalId || String(terminalId).trim() === '') || endpoint === 'workflow') {
               term.reset();
             }
             const cols = Number(msg.cols) || term.cols;

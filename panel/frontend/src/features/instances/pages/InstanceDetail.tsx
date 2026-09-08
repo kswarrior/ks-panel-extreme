@@ -168,17 +168,21 @@ interface TerminalPaneState {
   terminalId: string;
 }
 
-// TerminalPane — one live console. The xterm below is the instance shell;
-// a pane whose ID matches a template terminal ID becomes that console:
-//  - action terminal_id → mirrors the action's live transcript into the
-//    xterm and relays typed lines to the RUNNING action's stdin
-//    (POST …/actions/:id/stdin) — e.g. Minecraft tps / op / stop;
-//  - install_terminal_id → mirrors the Installation transcript and
-//    relays typed lines to the running install (POST …/install/stdin);
+// TerminalPane — one live console. The xterm dials one of three bridges:
+//  - action terminal_id / install_terminal_id → dials the /workflow bridge
+//    instead (live stream of the RUNNING workflow's transcript with history
+//    replay, no side shell) and relays typed lines to the RUNNING
+//    workflow's stdin (POST …/actions/:id/stdin) — e.g. Minecraft tps /
+//    op / stop; input policy stays server-enforced, the stream is
+//    output-only;
 //  - startup_terminal_id → dials the /console bridge instead, attaching
 //    directly to the container main-process stdio (fully interactive,
 //    no mirror/relay needed).
-// No separate log box, no per-pane options.
+//  - empty/unknown ID → plain side shell (/terminal → /bin/sh).
+// A DB-poll mirror of install_steps_json remains as a fallback while the
+// /workflow WS is not connected (so panes still show something when the
+// edge is unreachable); once the WS is live the mirror stops to avoid
+// duplicating the streamed bytes. No separate log box, no per-pane options.
 type PaneConnState = 'connecting' | 'connected' | 'reconnecting' | 'closed' | 'error';
 const TerminalPane: React.FC<{
   instanceId: number;
