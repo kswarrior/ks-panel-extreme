@@ -44,6 +44,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -583,8 +584,33 @@ func renameHostRoot(w http.ResponseWriter, r *http.Request, jail hostJail, abs, 
 	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "from": disp, "to": destDisp})
 }
 
-// deleteHostRoot removes the jailed path abs. Directories go recursively
-// (rm -rf semantics) — the SPA confirms before invoking this on a folder.
+// trashPrefix names the staging directories deleteHostRoot renames doomed
+// folders to before unlinking them in the background (see below). The prefix
+// is deliberately distinctive so the stale-trash sweep below never touches
+// operator data: only entries starting with this exact prefix are eligible,
+// and only once they are older than trashMaxAge.
+const trashPrefix = ".kspanel-trash-"
+
+// trashMaxAge is how long a staged trash directory may linger before the
+// lazy sweep treats it as orphaned (edge restarted mid-removal) and finishes
+// the job. Generous on purpose: a huge world can take many minutes to unlink
+// on a slow disk, and the sweep must never race a live background removal
+// into redundant double walks of the same tree.
+const trashMaxAge = 24 * time.Hour
+
+// deleteHostRoot removes the jailed path abs. Files go synchronously (an
+// unlink is instant). Directories are renamed to a hidden trash sibling
+// first — an atomic, near-instant metadata operation even for trees with
+// hundreds of thousands of files — the success response is sent
+// immediately, and the recursive unlink happens in the background.
+// Rationale: a synchronous os.RemoveAll holds the HTTP request open for the
+// whole walk, and any proxy in front of the panel (Cloudflare, nginx,
+// tunnels answer 502 past their own origin-response window, typically
+// 30–100s, far below the panel's 5-minute proxy budget) kills the
+// client-visible request while the server keeps deleting. The SPA then
+// reports "0 of 1 deleted" for an operation that actually succeeded.
+// Rename-away makes the name disappear instantly, so the refreshed listing
+// already shows the item gone.
 // The root itself can never be deleted.
 func deleteHostRoot(w http.ResponseWriter, jail hostJail, abs, disp string) {
 	if abs == jail.root {
@@ -600,15 +626,61 @@ func deleteHostRoot(w http.ResponseWriter, jail hostJail, abs, disp string) {
 		writeErr(w, http.StatusBadGateway, fmt.Sprintf("stat: %v", err))
 		return
 	}
-	if info.IsDir() {
-		err = os.RemoveAll(abs)
-	} else {
-		err = os.Remove(abs)
+	if !info.IsDir() {
+		if err := os.Remove(abs); err != nil {
+			writeErr(w, http.StatusBadGateway, fmt.Sprintf("delete: %v", err))
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "path": disp})
+		return
 	}
-	if err != nil {
+	// Directory: opportunistically finish orphaned trash from an earlier
+	// delete whose background removal never completed (edge restart/crash),
+	// then stage this one. The sweep is best-effort and never fails the
+	// request.
+	sweepStaleTrash(filepath.Dir(abs))
+	trash := filepath.Join(filepath.Dir(abs), fmt.Sprintf("%s%d-%d", trashPrefix, os.Getpid(), time.Now().UnixNano()))
+	if err := os.Rename(abs, trash); err != nil {
 		writeErr(w, http.StatusBadGateway, fmt.Sprintf("delete: %v", err))
 		return
 	}
+	// Stamp the trash fresh: rename preserves the source directory's mtime
+	// (often months old), which would otherwise look immediately stale to
+	// the next sweep. Best-effort — worst case a later sweep simply helps
+	// finish a removal that is already doomed, which still converges.
+	now := time.Now()
+	_ = os.Chtimes(trash, now, now)
+	go func() {
+		if err := os.RemoveAll(trash); err != nil {
+			log.Printf("hostfiles: background delete of %q failed: %v", trash, err)
+		}
+	}()
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "path": disp})
+}
+
+// sweepStaleTrash removes our own staged trash directories older than
+// trashMaxAge inside dir. It only ever touches names carrying trashPrefix;
+// anything else — including operator dotfiles — is left strictly alone.
+func sweepStaleTrash(dir string) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	now := time.Now()
+	for _, e := range entries {
+		if !e.IsDir() || !strings.HasPrefix(e.Name(), trashPrefix) {
+			continue
+		}
+		full := filepath.Join(dir, e.Name())
+		fi, err := e.Info()
+		if err != nil {
+			continue
+		}
+		if now.Sub(fi.ModTime()) < trashMaxAge {
+			continue
+		}
+		_ = os.RemoveAll(full)
+	}
 }
