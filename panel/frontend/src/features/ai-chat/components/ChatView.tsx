@@ -22,6 +22,7 @@ const ChatView: React.FC = () => {
   const error = useAIChatStore((s) => s.error);
   const send = useAIChatStore((s) => s.send);
   const retry = useAIChatStore((s) => s.retry);
+  const cancel = useAIChatStore((s) => s.cancel);
   const canRetry = useAIChatStore((s) => s.canRetry);
   const retrying = useAIChatStore((s) => s.retrying);
   const approveTicket = useAIChatStore((s) => s.approveTicket);
@@ -475,13 +476,25 @@ const ChatView: React.FC = () => {
           aria-label="Message the assistant"
           className="flex-1 bg-black/30 text-white border border-white/10 placeholder-gray-500 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-white/60 focus:border-white/40 transition-colors disabled:opacity-60"
         />
-        <button
-          type="submit"
-          disabled={!draft.trim() || loading || !!ticket}
-          className="shrink-0 inline-flex items-center gap-1 bg-white text-black px-3 py-2 rounded-md hover:bg-gray-200 text-sm font-medium disabled:opacity-60"
-        >
-          Send
-        </button>
+        {loading ? (
+          <button
+            type="button"
+            onClick={cancel}
+            aria-label="Stop the assistant"
+            title="Stop the assistant"
+            className="shrink-0 inline-flex items-center gap-1 bg-red-500/20 border border-red-400/40 text-red-200 px-3 py-2 rounded-md hover:bg-red-500/30 hover:text-white text-sm font-medium transition-colors"
+          >
+            Stop
+          </button>
+        ) : (
+          <button
+            type="submit"
+            disabled={!draft.trim() || loading || !!ticket}
+            className="shrink-0 inline-flex items-center gap-1 bg-white text-black px-3 py-2 rounded-md hover:bg-gray-200 text-sm font-medium disabled:opacity-60"
+          >
+            Send
+          </button>
+        )}
       </form>
       </>
       )}

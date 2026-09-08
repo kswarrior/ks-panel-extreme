@@ -240,8 +240,13 @@ func asMounts(mounts any, volumes any) []string {
 					add(strings.Join(parts, ":"))
 				}
 			} else if mp, ok := it.(map[string]any); ok {
-				h, _ := mp["host"].(string)
-				c, _ := mp["container"].(string)
+				// Tolerate the same alias spellings the `mounts`
+				// block accepts (host/source, container/target)
+				// and coerce non-string scalars via anyToString
+				// so numeric-ish values don't silently drop the
+				// bind the way a plain `.(string)` assertion did.
+				h := firstOf(mp, "host", "source")
+				c := firstOf(mp, "container", "target", "destination")
 				if h != "" && c != "" {
 					add(h + ":" + c)
 				}

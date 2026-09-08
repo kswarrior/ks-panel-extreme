@@ -65,8 +65,14 @@ func (d *multipass) Stop(ctx context.Context, name string) (Result, error) {
 	if err := binMissing("multipass"); err != nil {
 		return Result{}, err
 	}
+	// Idempotent like the other drivers: stopping a stopped/missing
+	// instance reports stopped so a panel retry doesn't 502. multipass
+	// phrases it as "not running"/"stopped"/"does not exist" depending
+	// on version; reuse the shared matchers.
 	if _, err := asExec(ctx, "", "multipass", "stop", name); err != nil {
-		return Result{}, err
+		if !isAlreadyStoppedErr(err) && !isNotFoundErr(err) {
+			return Result{}, err
+		}
 	}
 	return Result{ExternalID: name, Status: "stopped"}, nil
 }

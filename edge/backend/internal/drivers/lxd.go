@@ -171,13 +171,40 @@ func isAlreadyStoppedErr(err error) bool {
 		strings.Contains(msg, "not running")
 }
 
+// isNotFoundErr reports whether the CLI rejected the call because the
+// workload doesn't exist. Destroy's contract mirrors Stop's idempotency:
+// destroying an already-destroyed instance must succeed so a panel retry
+// after a manual delete doesn't surface a bogus failure. Matches LXD's
+// "Instance not found", libvirt's "domain not found"/"failed to get
+// domain", multipass's "does not exist", and docker's "no such …"
+// phrasings (the docker helper covers the docker spellings; this one
+// covers the VM/container spellings the other three drivers emit).
+func isNotFoundErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "not found") ||
+		strings.Contains(msg, "does not exist") ||
+		strings.Contains(msg, "doesn't exist") ||
+		strings.Contains(msg, "no such") ||
+		strings.Contains(msg, "failed to get domain") ||
+		strings.Contains(msg, "unknown instance")
+}
+
 func (d *lxd) Destroy(ctx context.Context, name string) (Result, error) {
 	if err := binMissing("lxc"); err != nil {
 		return Result{}, err
 	}
 	// --force so a running instance is shut down before removal.
+	// Idempotent like docker.Destroy: deleting an already-deleted
+	// instance reports destroyed so a panel retry after a manual
+	// `lxc delete` doesn't surface a bogus failure for the requested
+	// end-state.
 	if _, err := asExec(ctx, "", "lxc", "delete", "--force", name); err != nil {
-		return Result{}, err
+		if !isNotFoundErr(err) {
+			return Result{}, err
+		}
 	}
 	return Result{ExternalID: name, Status: "destroyed"}, nil
 }

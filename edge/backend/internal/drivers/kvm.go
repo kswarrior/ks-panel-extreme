@@ -177,8 +177,13 @@ func (d *kvm) Destroy(ctx context.Context, name string) (Result, error) {
 	if _, err := asExec(ctx, "", "virsh", "destroy", name); err != nil {
 		// Destroy fails if the domain isn't running; that's fine.
 	}
+	// Idempotent like docker.Destroy: undefining an already-undefined
+	// domain reports destroyed so a panel retry after a manual
+	// `virsh undefine` doesn't surface a bogus failure.
 	if _, err := asExec(ctx, "", "virsh", "undefine", "--remove-all-storage", name); err != nil {
-		return Result{}, err
+		if !isNotFoundErr(err) {
+			return Result{}, err
+		}
 	}
 	return Result{ExternalID: name, Status: "destroyed"}, nil
 }
@@ -190,6 +195,15 @@ func (d *kvm) Destroy(ctx context.Context, name string) (Result, error) {
 func (d *kvm) Exec(ctx context.Context, name string, tty bool, cols, rows int, command []string) (*ExecSession, error) {
 	if err := binMissing("virsh"); err != nil {
 		return nil, err
+	}
+	// The serial console is interactive-only: it cannot run a captured
+	// one-shot command. Fail closed on the non-TTY path (execrpc /
+	// install / page-action automation) so those callers surface a clear
+	// error instead of hanging on a console that never runs their script.
+	// The TTY path (terminal bridge) keeps the console, where ignoring
+	// the requested shell is correct — the console IS the terminal.
+	if !tty {
+		return nil, fmt.Errorf("command execution is not supported for kvm instances (serial console is interactive only)")
 	}
 	_ = command
 

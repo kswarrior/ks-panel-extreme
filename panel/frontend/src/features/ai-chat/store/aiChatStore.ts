@@ -397,7 +397,9 @@ function sleep(ms: number): Promise<void> {
 // (429) failures auto-retry with backoff when the Reliability prefs allow
 // it; the final failure keeps lastPrompt so the error card's Retry button
 // can re-send. The assistant bubble is created once and reused across
-// attempts so retries never stack duplicate bubbles.
+// attempts so retries never stack duplicate bubbles. Cancellation is
+// explicit: Stop aborts the controller, both fetches observe the signal,
+// and the turn settles as cancelled (no auto-retry, Retry stays available).
 async function runPrompt(
   get: () => AIChatState,
   set: (p: Partial<AIChatState> | ((s: AIChatState) => Partial<AIChatState>)) => void,
@@ -416,17 +418,41 @@ async function runPrompt(
     streaming: true,
   }));
 
+  const ctl = new AbortController();
+  currentAbort = ctl;
+  const signal = ctl.signal;
+  const settleCancel = () => {
+    currentAbort = null;
+    set((s) => ({
+      messages: s.messages.filter((m) => m.id !== streamId || m.content.trim() !== ''),
+      loading: false,
+      streaming: false,
+      retrying: false,
+      retryAttempt: 0,
+      retryMax: 0,
+      error: 'Cancelled — the assistant was stopped. Nothing may have completed; Retry to try again.',
+      canRetry: true,
+      lastPrompt: prompt,
+    }));
+  };
+
   let attempt = 0;
   for (;;) {
+    if (signal.aborted) {
+      settleCancel();
+      return;
+    }
     try {
       const res = await streamAIChat(history, {
         threadId,
         model,
+        signal,
         onToken: (tok) =>
           set((s) => ({
             messages: s.messages.map((m) => (m.id === streamId ? { ...m, content: m.content + tok } : m)),
           })),
       });
+      currentAbort = null;
       const reply = res.reply || 'The assistant returned an empty reply.';
       set((s) => ({
         messages: s.messages.map((m) =>
@@ -449,6 +475,13 @@ async function runPrompt(
       void get().refreshThreads();
       return;
     } catch (streamErr) {
+      // Explicit cancellation wins over every fallback/retry: a stopped
+      // turn must not spend a second provider call on the JSON endpoint
+      // and must not auto-retry on 429.
+      if (signal.aborted || isAbort(streamErr)) {
+        settleCancel();
+        return;
+      }
       // JSON fallback for non-rate-limit SSE failures (and as the second
       // chance inside every attempt).
       try {
@@ -456,7 +489,7 @@ async function runPrompt(
         // second provider call on the JSON endpoint (same quota/bill).
         // Re-throw into the shared handler so this attempt counts once.
         if (rateLimitInfo(streamErr).limited) throw streamErr;
-        const res = await sendAIChat(history, { threadId, model });
+        const res = await sendAIChat(history, { threadId, model, signal });
         const reply = res.reply || 'The assistant returned an empty reply.';
         set((s) => ({
           messages: s.messages.map((m) =>
@@ -477,8 +510,13 @@ async function runPrompt(
           set({ activeThreadId: res.thread_id });
         }
         void get().refreshThreads();
+        currentAbort = null;
         return;
       } catch (e) {
+        if (signal.aborted || isAbort(e)) {
+          settleCancel();
+          return;
+        }
         const info = rateLimitInfo(e);
         if (!info.limited) {
           const streamInfo = rateLimitInfo(streamErr);
@@ -488,7 +526,7 @@ async function runPrompt(
             (info as { limited: boolean; retryAfter: number }).retryAfter = info.retryAfter || streamInfo.retryAfter;
           }
         }
-        if (info.limited && prefs.autoRetry && attempt < prefs.maxRetries) {
+        if (info.limited && prefs.autoRetry && attempt < prefs.maxRetries && !signal.aborted) {
           attempt++;
           const backoff = Math.max(1, Math.min(info.retryAfter || prefs.baseDelaySec * 2 ** (attempt - 1), 120));
           set({
@@ -503,9 +541,14 @@ async function runPrompt(
             messages: s.messages.map((m) => (m.id === streamId ? { ...m, content: '' } : m)),
           }));
           await sleep(backoff * 1000);
+          if (signal.aborted) {
+            settleCancel();
+            return;
+          }
           set({ streaming: true, error: '' });
           continue;
         }
+        currentAbort = null;
         set((s) => ({
           // Drop the placeholder bubble when nothing ever streamed into
           // it — otherwise its empty content renders as a stuck
