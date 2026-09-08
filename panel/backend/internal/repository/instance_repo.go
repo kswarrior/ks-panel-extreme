@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/example/kspanel/internal/models"
@@ -22,40 +21,6 @@ func NewInstanceRepository(db *sql.DB) *InstanceRepository {
 	return &InstanceRepository{db: db}
 }
 
-// dbTimeLayouts lists every timestamp spelling the instances table has been
-// observed to carry. SQLite stores CURRENT_TIMESTAMP as "2006-01-02 15:04:05"
-// (UTC, no zone); MySQL/PostgreSQL drivers may hand back RFC3339, a
-// space-separated datetime with a numeric zone, or fractional seconds.
-// Trying them in order keeps the readers working on every engine without
-// touching the schema.
-var dbTimeLayouts = []string{
-	"2006-01-02 15:04:05",
-	"2006-01-02 15:04:05.999999999",
-	"2006-01-02T15:04:05",
-	"2006-01-02T15:04:05.999999999",
-	time.RFC3339Nano,
-	"2006-01-02 15:04:05Z07:00",
-	"2006-01-02 15:04:05.999999999Z07:00",
-}
-
-// parseDBTime parses one instances-table timestamp, reporting false when the
-// value is empty or matches no known layout — including the literal year-1
-// rendering ("0001-01-01 ...") of a Go zero time, which parses fine but must
-// never flow into the API: the card computes uptime as now-minus-timestamp,
-// and year 1 renders as ~739866d ("739866d 16h" on a just-started instance).
-func parseDBTime(s string) (time.Time, bool) {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return time.Time{}, false
-	}
-	for _, layout := range dbTimeLayouts {
-		if t, err := time.Parse(layout, s); err == nil && !t.IsZero() {
-			return t, true
-		}
-	}
-	return time.Time{}, false
-}
-
 // scanInstanceTimes resolves the three uptime-chain timestamps from one row.
 // StartedAt stays nil when absent/unparseable (omitted from JSON, so the card
 // falls through to updated_at). CreatedAt/UpdatedAt can never be nil in the
@@ -63,20 +28,20 @@ func parseDBTime(s string) (time.Time, bool) {
 // finally to now — never to year 1, which poisons every downstream duration.
 func scanInstanceTimes(inst *models.Instance, startedAt, created, updated sql.NullString) {
 	if startedAt.Valid {
-		if t, ok := parseDBTime(startedAt.String); ok {
+		if t, err := parseDBTime(startedAt.String); err == nil && !t.IsZero() {
 			inst.StartedAt = &t
 		}
 	}
-	if t, ok := parseDBTime(created.String); ok {
+	if t, err := parseDBTime(created.String); err == nil && !t.IsZero() {
 		inst.CreatedAt = t
-	} else if u, ok := parseDBTime(updated.String); ok {
+	} else if u, err := parseDBTime(updated.String); err == nil && !u.IsZero() {
 		inst.CreatedAt = u
 	} else {
 		inst.CreatedAt = time.Now().UTC()
 	}
-	if t, ok := parseDBTime(updated.String); ok {
+	if t, err := parseDBTime(updated.String); err == nil && !t.IsZero() {
 		inst.UpdatedAt = t
-	} else if c, ok := parseDBTime(created.String); ok {
+	} else if c, err := parseDBTime(created.String); err == nil && !c.IsZero() {
 		inst.UpdatedAt = c
 	} else {
 		inst.UpdatedAt = time.Now().UTC()

@@ -18,6 +18,7 @@ import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActi
 import Modal from '@/shared/components/ui/Modal';
 import { useConfirm } from '@/shared/stores/confirmStore';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
+import { cardTimeMs, formatCardDate } from '@/shared/utils/cardDate';
 import { CardIconTile } from '@/shared/components/ui/IconColorPicker';
 
 type SortKey = 'name' | 'kind' | 'category' | 'updated' | 'newest';
@@ -275,8 +276,8 @@ const InstancePages: React.FC = () => {
     kind: kindKey(p.kind),
     source: pageSourceOf(p),
     category: p.category || '',
-    updated: p.updated_at ? new Date(p.updated_at).getTime() : 0,
-    created: p.created_at ? new Date(p.created_at).getTime() : 0,
+    updated: cardTimeMs(p.updated_at),
+    created: cardTimeMs(p.created_at),
   })), [pages]);
 
   const filtered = useMemo(() => {
@@ -517,11 +518,10 @@ const InstancePages: React.FC = () => {
 
                   <footer className="mt-auto pt-2 border-t border-white/[0.06] flex items-center justify-between gap-2">
                     <span className="text-[11px] text-gray-500 truncate">
-                      {p.updated_at ? (
-                        <>Updated {new Date(p.updated_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</>
-                      ) : (
-                        <>id {p.id}</>
-                      )}
+                      {(() => {
+                        const label = formatCardDate(p.updated_at);
+                        return label ? <>Updated {label}</> : <>id {p.id}</>;
+                      })()}
                     </span>
                     <Link to={`/instance-pages/${p.id}`} className="text-[11px] text-sky-300 hover:text-sky-200 hover:underline">View details →</Link>
                   </footer>

@@ -5,6 +5,7 @@ import {
   StatCard,
 } from '@/shared/components/ui/StatDashboard';
 import GlassCard from '@/shared/components/ui/Card';
+import { cardTimeMs } from '@/shared/utils/cardDate';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 
@@ -77,8 +78,8 @@ const InstancePageStats: React.FC = () => {
     page: p,
     kind: kindKey(p.kind),
     category: p.category || '',
-    updated: p.updated_at ? new Date(p.updated_at).getTime() : 0,
-    created: p.created_at ? new Date(p.created_at).getTime() : 0,
+    updated: cardTimeMs(p.updated_at),
+    created: cardTimeMs(p.created_at),
     hasContent: !!(p.content_html || p.content_markdown || p.content_blocks),
     hasIcon: !!p.icon_svg,
   })).filter((e) => {

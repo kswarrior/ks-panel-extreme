@@ -24,21 +24,21 @@ function getErrorMessage(e: any, fallback: string): string {
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—';
   const d = new Date(iso);
-  if (isNaN(d.getTime())) return '—';
+  if (isNaN(d.getTime()) || d.getFullYear() <= 1) return '—';
   return d.toLocaleString();
 }
 
 function formatDateShort(iso: string | null | undefined): string {
   if (!iso) return '—';
   const d = new Date(iso);
-  if (isNaN(d.getTime())) return '—';
+  if (isNaN(d.getTime()) || d.getFullYear() <= 1) return '—';
   return d.toLocaleDateString();
 }
 
 function relativeTime(iso: string | null | undefined): string {
   if (!iso) return '';
   const d = new Date(iso as string);
-  if (isNaN(d.getTime())) return '';
+  if (isNaN(d.getTime()) || d.getFullYear() <= 1) return '';
   const diff = Date.now() - d.getTime();
   const abs = Math.abs(diff);
   const s = Math.floor(abs / 1000);
@@ -54,10 +54,11 @@ function relativeTime(iso: string | null | undefined): string {
 }
 
 function expiryStats(key: ApiKey) {
-  if (!key.expires_at) return null;
-  const exp = new Date(key.expires_at);
+  if (!cardTimeMs(key.expires_at)) return null;
+  const exp = new Date(key.expires_at as string);
   const created = new Date(key.created_at);
-  if (isNaN(exp.getTime()) || isNaN(created.getTime())) return null;
+  if (isNaN(exp.getTime()) || exp.getFullYear() <= 1) return null;
+  if (isNaN(created.getTime()) || created.getFullYear() <= 1) return null;
   const total = exp.getTime() - created.getTime();
   const remaining = exp.getTime() - Date.now();
   const expired = remaining <= 0;
@@ -296,8 +297,8 @@ const ApiKeyDetail: React.FC = () => {
           <h4 className="text-xs uppercase tracking-wide text-gray-500">Timeline</h4>
           <div className="mt-2 space-y-1.5 text-sm">
             <div className="flex justify-between gap-2"><span className="text-gray-400">Created</span><span className="text-white text-xs" title={formatDate(key.created_at)}>{formatDateShort(key.created_at)} <span className="text-gray-500">· {relativeTime(key.created_at)}</span></span></div>
-            <div className="flex justify-between gap-2"><span className="text-gray-400">Last used</span><span className="text-white text-xs inline-flex items-center gap-1.5">{key.last_used_at ? <span title={formatDate(key.last_used_at)}>{formatDateShort(key.last_used_at)} · {relativeTime(key.last_used_at)}</span> : <><span className="text-gray-500">never</span><span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-900/30 border border-amber-700/30 text-amber-200">unused</span></>}</span></div>
-            <div className="flex justify-between gap-2"><span className="text-gray-400">Expires</span><span className={isExpired ? 'text-red-300 text-xs' : 'text-white text-xs'}>{key.expires_at ? <span title={formatDate(key.expires_at)}>{formatDateShort(key.expires_at)} · {relativeTime(key.expires_at)}</span> : 'Never'}</span></div>
+            <div className="flex justify-between gap-2"><span className="text-gray-400">Last used</span><span className="text-white text-xs inline-flex items-center gap-1.5">{cardTimeMs(key.last_used_at) ? <span title={formatDate(key.last_used_at)}>{formatDateShort(key.last_used_at)} · {relativeTime(key.last_used_at)}</span> : <><span className="text-gray-500">never</span><span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-900/30 border border-amber-700/30 text-amber-200">unused</span></>}</span></div>
+            <div className="flex justify-between gap-2"><span className="text-gray-400">Expires</span><span className={isExpired ? 'text-red-300 text-xs' : 'text-white text-xs'}>{cardTimeMs(key.expires_at) ? <span title={formatDate(key.expires_at)}>{formatDateShort(key.expires_at)} · {relativeTime(key.expires_at)}</span> : 'Never'}</span></div>
             <div className="pt-1 flex gap-2">
               <button onClick={() => navigate(`/api-keys/${key.id}/edit`)} className="flex-1 px-3 py-1.5 text-xs rounded-md bg-white text-black hover:bg-gray-200">Edit</button>
               <button onClick={toggleActive} disabled={toggling} className="px-3 py-1.5 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white disabled:opacity-50">{isActive ? 'Revoke' : 'Activate'}</button>
@@ -309,7 +310,7 @@ const ApiKeyDetail: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <GlassCard className="p-3">
           <h4 className="text-xs uppercase tracking-wide text-gray-500 mb-2">Expiry</h4>
-          {key.expires_at && stats ? (
+          {cardTimeMs(key.expires_at) && stats ? (
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
                 <span className={isExpired ? 'text-red-300' : 'text-gray-300'}>
@@ -361,8 +362,8 @@ const ApiKeyDetail: React.FC = () => {
             <span className={`text-[10px] uppercase tracking-wide px-2 py-1 rounded-md border ${isUnlimited ? 'bg-emerald-900/30 border-emerald-700/30 text-emerald-200' : 'bg-sky-900/30 border-sky-700/30 text-sky-200'}`}>
               {isUnlimited ? 'Unlimited' : `${rateLimit} req / ${rateWindow}s`}
             </span>
-            <span className={`text-[10px] uppercase tracking-wide px-2 py-1 rounded-md border ${isExpired ? 'bg-red-900/40 border-red-700/40 text-red-200' : key.expires_at ? 'bg-amber-900/30 border-amber-700/30 text-amber-200' : 'bg-emerald-900/30 border-emerald-700/30 text-emerald-200'}`}>
-              {key.expires_at ? (isExpired ? `Expired ${formatDateShort(key.expires_at)}` : `Expires ${formatDateShort(key.expires_at)}`) : 'No expiry'}
+            <span className={`text-[10px] uppercase tracking-wide px-2 py-1 rounded-md border ${isExpired ? 'bg-red-900/40 border-red-700/40 text-red-200' : cardTimeMs(key.expires_at) ? 'bg-amber-900/30 border-amber-700/30 text-amber-200' : 'bg-emerald-900/30 border-emerald-700/30 text-emerald-200'}`}>
+              {cardTimeMs(key.expires_at) ? (isExpired ? `Expired ${formatDateShort(key.expires_at)}` : `Expires ${formatDateShort(key.expires_at)}`) : 'No expiry'}
             </span>
             <span className={`text-[10px] uppercase tracking-wide px-2 py-1 rounded-md border ${isActive ? 'bg-emerald-900/30 border-emerald-700/30 text-emerald-200' : 'bg-red-900/30 border-red-700/30 text-red-200'}`}>
               {isActive ? 'Active' : 'Revoked'}
