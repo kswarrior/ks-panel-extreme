@@ -604,7 +604,7 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
   };
 
   return (
-    <div className="animate-fade-in space-y-3 pb-16 lg:pb-0">
+    <div className="animate-fade-in space-y-3">
       {/* Top-right actions pill (template-form pattern): shortcut menu +
           add-terminal button. Page-level chrome — always mounted so the
           actions stay reachable. Pushed below the two-row instance header
@@ -673,7 +673,7 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
       </div>
 
       {panes.map((p) => (
-        <div key={p.key} style={{ display: p.key === activeKey ? '' : 'none' }}>
+        <div key={p.key} className={p.key === activeKey ? '' : 'hidden'}>
           <TerminalPane
             instanceId={instance.id}
             pane={p}
@@ -692,14 +692,14 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
         </div>
       ))}
 
-      {/* Phone tabs pill — bottom terminal switcher (template-form
-          pattern). Desktop keeps the strip above; this pill is phones
-          only (lg:hidden, owned by the component). spacer={false}: the
-          root pb-16 above already clears the fixed pill, so no extra
-          96px dead space at the bottom on phones. */}
+      {/* Phone tabs — terminal switcher docked in-flow directly below the
+          active terminal (NOT fixed): phones only (lg:hidden). In-flow
+          means no overlay, so no clearance padding and no dead space at
+          the bottom. Desktop keeps the strip above. */}
       <PageTabsPill
         ariaLabel="Terminals"
         spacer={false}
+        outerClassName="lg:hidden"
         activeLabel={(() => {
           const ap = panes.find((p) => p.key === activeKey) ?? panes[0];
           if (!ap) return 'Terminal';
