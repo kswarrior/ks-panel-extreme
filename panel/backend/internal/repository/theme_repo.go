@@ -401,9 +401,24 @@ func (r *ThemeRepository) UnassignTheme(scope string) error {
 
 // parseSQLiteTime accepts both the layout SQLite writes and RFC3339 so it works
 // regardless of whether the row was written by modernc's CURRENT_TIMESTAMP
-// default or an explicit UTC timestamp.
+// default or an explicit UTC timestamp. It also accepts the Postgres / MySQL
+// text forms (fractional seconds, space-separated offset, Go String form) so
+// the same rows read back with honest times on every engine instead of
+// silently collapsing to the zero time (mirrors node_repo.parseTime).
 func parseSQLiteTime(s string) (time.Time, error) {
 	if t, err := time.Parse("2006-01-02 15:04:05", s); err == nil {
+		return t, nil
+	}
+	if t, err := time.Parse("2006-01-02 15:04:05.999999999", s); err == nil {
+		return t, nil
+	}
+	if t, err := time.Parse("2006-01-02 15:04:05.999999999Z07:00", s); err == nil {
+		return t, nil
+	}
+	if t, err := time.Parse("2006-01-02 15:04:05Z07:00", s); err == nil {
+		return t, nil
+	}
+	if t, err := time.Parse("2006-01-02 15:04:05 -0700 MST", s); err == nil {
 		return t, nil
 	}
 	return time.Parse(time.RFC3339Nano, s)

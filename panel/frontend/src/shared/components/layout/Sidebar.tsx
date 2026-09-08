@@ -277,8 +277,6 @@ const adminSubItems: SubItem[] = [
   { to: '/instances', label: 'All Instances', permission: PermissionKey.MANAGE_INSTANCES, icon: 'Instances' },
 ];
 
-const instanceSubItems: SubItem[] = [];
-
 const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapsed }) => {
   const { permissions } = useAuthStore();
   const initialized = useAuthStore((s) => s.initialized);
@@ -289,7 +287,7 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
   const footerText = useSettingsStore((s) => s.footerText);
   const panelPagesNav = usePanelPagesStore((s) => s.nav);
   const loadPanelPages = usePanelPagesStore((s) => s.load);
-  const isCollapsed = collapsed !== undefined ? collapsed : false;
+  const isCollapsed = collapsed;
 
   // Custom pages (Settings > Pages) for the sidebar. Server-filtered by the
   // caller's role; loaded once a session exists and refreshed whenever the

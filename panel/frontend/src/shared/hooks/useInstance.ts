@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { listInstances } from '@/shared/api/admin';
 import { listMyInstances } from '@/features/auth/api/me';
 import { useAuthStore } from '@/shared/stores/authStore';
-import { PermissionKey } from '@/shared/types/permissions';
+import { PERMISSION_AREAS, hasPermissionAny } from '@/shared/types/permissions';
 import type { Instance } from '@/features/instances/types/instance';
 
 // Parse a template/instance "spec"/"config" JSON blob into a plain map. The
@@ -138,7 +138,17 @@ export function extractConfig(cfg: Record<string, any>): ParsedConfig {
 // have access to.
 export function useInstance(id: number) {
   const permissions = useAuthStore((s) => s.permissions);
-  const canManage = permissions.includes(PermissionKey.MANAGE_INSTANCES);
+  // Area-aware fleet check (mirrors RequirePermission/Sidebar): the admin
+  // list endpoint admits VIEW_INSTANCES + any Instances-area key (umbrella,
+  // INSTANCES_VIEW/OWN/ALL), not just MANAGE_INSTANCES. A strict includes()
+  // here sent granular viewers down the self-service path even though the
+  // backend + route gate already admit them to the fleet list.
+  const canManage = (() => {
+    const area = PERMISSION_AREAS.find((a) => a.label === 'Instances');
+    if (!area) return permissions.includes('MANAGE_INSTANCES');
+    const keys = [area.umbrella, ...Object.values(area.keys), ...(area.extraKeys ?? []), area.ownKey, area.allKey].filter(Boolean) as string[];
+    return hasPermissionAny(permissions, ...keys);
+  })();
   const [instance, setInstance] = useState<Instance | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
