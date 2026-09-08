@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useInstance, parseConfig } from '@/shared/hooks/useInstance';
 import Modal from '@/shared/components/ui/Modal';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
+import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import { useConfirm } from '@/shared/stores/confirmStore';
 import {
   classifyEntry,
