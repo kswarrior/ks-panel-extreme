@@ -483,11 +483,10 @@ const Templates: React.FC = () => {
 
                 <footer className="mt-auto pt-2 border-t border-white/[0.06] flex items-center justify-between gap-2">
                   <span className="text-[11px] text-gray-500 truncate">
-                    {t.updated_at ? (
-                      <>Updated {new Date(t.updated_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</>
-                    ) : (
-                      <>id {t.id}</>
-                    )}
+                    {(() => {
+                      const label = templateUpdatedLabel(t.updated_at);
+                      return label ? <>Updated {label}</> : <>id {t.id}</>;
+                    })()}
                   </span>
                   <Link to={`/template/${t.id}`} className="text-[11px] text-sky-300 hover:text-sky-200 hover:underline">View details →</Link>
                 </footer>

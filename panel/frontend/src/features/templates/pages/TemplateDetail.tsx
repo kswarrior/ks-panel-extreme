@@ -20,14 +20,17 @@ function getErrorMessage(e: any, fallback: string): string {
 }
 
 function formatDate(iso: string): string {
+  if (!iso) return '—';
   const d = new Date(iso);
-  if (isNaN(d.getTime())) return '—';
+  // Go zero time (0001-01-01) is a valid Date with year 1 — treat as missing.
+  if (isNaN(d.getTime()) || d.getFullYear() <= 1) return '—';
   return d.toLocaleString();
 }
 
 function relativeTime(iso: string): string {
+  if (!iso) return '';
   const d = new Date(iso);
-  if (isNaN(d.getTime())) return '';
+  if (isNaN(d.getTime()) || d.getFullYear() <= 1) return '';
   const diff = Date.now() - d.getTime();
   const s = Math.floor(diff / 1000);
   if (s < 60) return `${s}s ago`;
