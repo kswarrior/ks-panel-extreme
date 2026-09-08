@@ -34,10 +34,26 @@ export interface TerminalDefaultDef {
   id: string;
 }
 
+// TerminalShortcutDef — one pre-made command button on the instance
+// Terminal page (template Controls → Terminal shortcut → "Shortcuts").
+// `label` is the dropdown text, `command` the bytes sent on run. The
+// command may carry {{VAR}} / ${VAR} / $(VAR) placeholders: picking the
+// shortcut asks the operator for each variable (strict — Send stays
+// disabled until every value is filled), exactly like env 'ask' vars.
+export interface TerminalShortcutDef {
+  label: string;
+  command: string;
+}
+
 // Cap on configured default terminals (template form + resolver). Bounds
 // the initial xterm count so a hostile/bloated template can't force the
 // Terminal page to mount hundreds of live consoles at once.
 export const MAX_DEFAULT_TERMINALS = 10;
+
+// Cap on configured command shortcuts (template form + resolver). Bounds
+// the dropdown, not execution — each run still goes through the normal
+// stdin path + server policy.
+export const MAX_TERMINAL_SHORTCUTS = 20;
 
 // Display suggestion shown in the template form when no default terminal
 // is configured yet. Writing anything back persists it for real; removing
@@ -81,6 +97,11 @@ export interface InstanceShortcutConfig {
   terminal_default_timeout_s: string;
   // Terminal page: input method for every pane (template default).
   terminal_input_mode: TerminalInputMode;
+  // Terminal page: command shortcuts master switch + list. Off (or empty)
+  // = legacy behaviour (no shortcut UI at all).
+  terminal_shortcuts_enabled: boolean;
+  terminal_shortcuts: TerminalShortcutDef[];
+}
   // Terminal page: panes opened automatically (first tab preselected).
   // Empty = legacy behaviour (single blank shell pane).
   default_terminals: TerminalDefaultDef[];
@@ -138,6 +159,9 @@ const DEFAULT_SHORTCUT_BASE = {
   terminal_default_allow_input: 'all' as TerminalAllowInput,
   terminal_default_timeout_s: '',
   terminal_input_mode: 'direct' as TerminalInputMode,
+  terminal_shortcuts_enabled: false,
+  terminal_shortcuts: [],
+};
   default_terminals: [],
 };
 
@@ -217,6 +241,50 @@ function resolveDefaultTerminals(raw: unknown, fallback: TerminalDefaultDef[]): 
     .slice(0, MAX_DEFAULT_TERMINALS);
 }
 
+// resolveTerminalShortcuts normalises the configured command shortcuts.
+// Absent → the fallback array BY REFERENCE (same "not customised" rule as
+// default terminals). Fully-empty rows are dropped, the rest capped.
+function resolveTerminalShortcuts(raw: unknown, fallback: TerminalShortcutDef[]): TerminalShortcutDef[] {
+  if (raw === undefined) return fallback;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((x) => x && typeof x === 'object' && !Array.isArray(x))
+    .map((x) => ({
+      label: String((x as Record<string, any>).label ?? '').trim().slice(0, 64),
+      command: String((x as Record<string, any>).command ?? '').slice(0, 500),
+    }))
+    .filter((x) => x.label !== '' || x.command.trim() !== '')
+    .slice(0, MAX_TERMINAL_SHORTCUTS);
+}
+
+// SHORTCUT_VAR_RE matches the three placeholder forms shared with deploy
+// env substitution ({{VAR}}, ${VAR}, $(VAR)). Bare $VAR is deliberately
+// NOT a placeholder (the backend leaves it literal too), so free typing
+// like `echo $HOME` never spawns ask-fields.
+const SHORTCUT_VAR_RE = /\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}|\$\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}|\$\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)/g;
+
+// extractShortcutVars lists placeholder names in first-seen order.
+export function extractShortcutVars(command: string): string[] {
+  const out: string[] = [];
+  SHORTCUT_VAR_RE.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = SHORTCUT_VAR_RE.exec(String(command ?? ''))) !== null) {
+    const name = m[1] ?? m[2] ?? m[3];
+    if (name && !out.includes(name)) out.push(name);
+  }
+  return out;
+}
+
+// resolveShortcutCommand fills placeholders from values. Names without a
+// value stay literal (visible), matching backend substitution semantics.
+export function resolveShortcutCommand(command: string, values: Record<string, string>): string {
+  SHORTCUT_VAR_RE.lastIndex = 0;
+  return String(command ?? '').replace(SHORTCUT_VAR_RE, (match, a, b, c) => {
+    const v = values[a ?? b ?? c];
+    return typeof v === 'string' && v !== '' ? v : match;
+  });
+}
+
 // resolveShortcut normalises one shortcuts.<key> entry; absent/garbled
 // entries fall back field-by-field so old snapshots keep working.
 function resolveShortcut(raw: unknown, fallback: InstanceShortcutConfig): InstanceShortcutConfig {
@@ -248,6 +316,8 @@ function resolveShortcut(raw: unknown, fallback: InstanceShortcutConfig): Instan
       ? String(r.terminal_default_timeout_s)
       : fallback.terminal_default_timeout_s,
     terminal_input_mode: inputMode,
+    terminal_shortcuts_enabled: boolOr(r.terminal_shortcuts_enabled, fallback.terminal_shortcuts_enabled),
+    terminal_shortcuts: resolveTerminalShortcuts(r.terminal_shortcuts, fallback.terminal_shortcuts),
     default_terminals: resolveDefaultTerminals(r.default_terminals, fallback.default_terminals),
   };
 }
