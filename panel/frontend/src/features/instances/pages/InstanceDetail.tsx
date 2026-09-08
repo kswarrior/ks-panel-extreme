@@ -33,7 +33,8 @@ import InstancePortsEditor from '@/features/instances/pages/InstancePortsEditor'
 import InstanceOverview from '@/features/instances/pages/InstanceOverview';
 import InstanceFiles from '@/features/instances/pages/InstanceFiles';
 import InstanceFileEditor from '@/features/instances/pages/InstanceFileEditor';
-import { resolveInstanceControls, shortcutLabel, shortcutSlug } from '@/features/instances/utils/instanceControls';
+import { resolveInstanceControls, shortcutLabel, shortcutSlug, MAX_DEFAULT_TERMINALS } from '@/features/instances/utils/instanceControls';
+import type { TerminalDefaultDef } from '@/features/instances/utils/instanceControls';
 import { sendActionStdin, sendInstallStdin } from '@/features/instances/api/instanceAdvanced';
 import InstanceSftpCard from '@/features/instances/components/InstanceSftpCard';
 import InstanceSnapshotsTab from '@/features/instances/components/InstanceSnapshotsTab';

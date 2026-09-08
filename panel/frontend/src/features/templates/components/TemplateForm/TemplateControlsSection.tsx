@@ -498,6 +498,7 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
                         );
                       })()}
                     </div>
+                    <p className="text-[11px] text-gray-500">Each pane stays fully customizable (ID, input mode, timeout, stop-on-exit) without editing the template. Enter an action's Terminal ID to stream its full log + gated input.</p>
                     </>
                   )}
                   {key === 'ports' && (
