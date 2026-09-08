@@ -55,16 +55,13 @@ func JoinPermissions(s string) []string {
 }
 
 // scanExpiry reads the nullable expires_at SQLite value into a *time.Time. It
-// tolerates both the "2006-01-02 15:04:05" and RFC3339Nano layouts because
-// SQLite stores DATETIMEs either as text or ISO depending on the writer.
+// tries every known DATETIME spelling via parseDBTime because SQLite stores
+// DATETIMEs either as text or ISO depending on the writer.
 func scanExpiry(v sql.NullString) *time.Time {
 	if !v.Valid || v.String == "" {
 		return nil
 	}
-	if t, err := time.Parse("2006-01-02 15:04:05", v.String); err == nil {
-		return &t
-	}
-	if t, err := time.Parse(time.RFC3339Nano, v.String); err == nil {
+	if t, err := parseDBTime(v.String); err == nil && !t.IsZero() {
 		return &t
 	}
 	return nil
@@ -144,11 +141,9 @@ func (r *ApiKeyRepository) ListApiKeys(userID int64) ([]models.ApiKey, error) {
 		if err := rows.Scan(&k.ID, &k.UserID, &k.Name, &k.Prefix, &created, &lastUsed, &perms, &expiry, &rate, &k.RateWindowSeconds, &active); err != nil {
 			return nil, err
 		}
-		k.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created)
+		k.CreatedAt, _ = parseDBTime(created)
 		if lastUsed.Valid {
-			if t, err := time.Parse("2006-01-02 15:04:05", lastUsed.String); err == nil {
-				k.LastUsedAt = &t
-			} else if t, err := time.Parse(time.RFC3339Nano, lastUsed.String); err == nil {
+			if t, err := parseDBTime(lastUsed.String); err == nil && !t.IsZero() {
 				k.LastUsedAt = &t
 			}
 		}
@@ -322,11 +317,9 @@ func (r *ApiKeyRepository) ListAllApiKeys() ([]models.ApiKey, error) {
 		if err := rows.Scan(&k.ID, &k.UserID, &k.OwnerName, &k.Name, &k.Prefix, &created, &lastUsed, &perms, &expiry, &rate, &k.RateWindowSeconds, &active); err != nil {
 			return nil, err
 		}
-		k.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created)
+		k.CreatedAt, _ = parseDBTime(created)
 		if lastUsed.Valid {
-			if t, err := time.Parse("2006-01-02 15:04:05", lastUsed.String); err == nil {
-				k.LastUsedAt = &t
-			} else if t, err := time.Parse(time.RFC3339Nano, lastUsed.String); err == nil {
+			if t, err := parseDBTime(lastUsed.String); err == nil && !t.IsZero() {
 				k.LastUsedAt = &t
 			}
 		}
@@ -368,7 +361,7 @@ func (r *ApiKeyRepository) FindByToken(token string) (*models.ApiKey, error) {
 	k.UserID = uid.Int64
 	k.Name = name.String
 	k.Prefix = prefix.String
-	k.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created.String)
+	k.CreatedAt, _ = parseDBTime(created.String)
 	k.Permissions = JoinPermissions(perms.String)
 	k.ExpiresAt = scanExpiry(expiry)
 	k.RateLimit = scanRateLimit(rate)
@@ -394,7 +387,7 @@ func (r *ApiKeyRepository) GetApiKey(id int64) (*models.ApiKey, error) {
 	k.UserID = uid.Int64
 	k.Name = name.String
 	k.Prefix = prefix.String
-	k.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created.String)
+	k.CreatedAt, _ = parseDBTime(created.String)
 	k.Permissions = JoinPermissions(perms.String)
 	k.ExpiresAt = scanExpiry(expiry)
 	k.RateLimit = scanRateLimit(rate)

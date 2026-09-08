@@ -157,8 +157,8 @@ const ThemeStats: React.FC = () => {
     const counts = new Array(buckets).fill(0);
 
     allThemes.forEach(({ theme: t }) => {
-      if (t.updated_at) {
-        const updated = new Date(t.updated_at).getTime();
+      const updated = cardTimeMs(t.updated_at);
+      if (updated) {
         const hoursAgo = Math.floor((now - updated) / bucketSize);
         if (hoursAgo >= 0 && hoursAgo < buckets) {
           counts[buckets - 1 - hoursAgo]++;
