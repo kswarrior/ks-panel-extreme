@@ -382,27 +382,42 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
     });
     ro.observe(containerRef.current);
 
-    // Mobile: tapping anywhere inside the xterm container must synchronously
-    // focus the hidden textarea so the OS virtual keyboard appears. Without
-    // this, phones show no keyboard because the container div itself is not
-    // an editable element. xterm's own click handler is async in some
-    // versions and breaks the user-gesture requirement on iOS/Android.
+    // Mobile: tapping the xterm must synchronously focus the hidden
+    // textarea so the OS virtual keyboard appears (xterm's own click
+    // handler is async in some versions and breaks the user-gesture
+    // requirement on iOS/Android). Only real TAPS steal focus: touchstart
+    // just records the position (passive, never blocks page scroll);
+    // touchend focuses only when the finger barely moved, so swipes that
+    // start inside the terminal still scroll the page instead of popping
+    // the keyboard.
     const el = containerRef.current;
     const focusTerm = () => {
       try { term.focus(); } catch { /* noop */ }
     };
+    const touchPos = { x: 0, y: 0 };
+    let touchActive = false;
     const handleTouchStart = (e: TouchEvent) => {
+      const t = e.touches[0];
+      if (t) {
+        touchPos.x = t.clientX;
+        touchPos.y = t.clientY;
+        touchActive = true;
+      }
+    };
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (!touchActive) return;
+      touchActive = false;
+      const t = e.changedTouches[0];
+      if (t && Math.hypot(t.clientX - touchPos.x, t.clientY - touchPos.y) > 10) return;
       // Prevent the synthetic mouse event that would blur the textarea again
       if (e.cancelable) e.preventDefault();
       focusTerm();
     };
-    const handleTouchEnd = (e: TouchEvent) => {
-      if (e.cancelable) e.preventDefault();
-      focusTerm();
-    };
+    const handleTouchCancel = () => { touchActive = false; };
     el.addEventListener('click', focusTerm);
-    el.addEventListener('touchstart', handleTouchStart as EventListener, { passive: false });
+    el.addEventListener('touchstart', handleTouchStart as EventListener, { passive: true });
     el.addEventListener('touchend', handleTouchEnd as EventListener, { passive: false });
+    el.addEventListener('touchcancel', handleTouchCancel);
 
     // Initial size to the bridge so the edge spawns at the right geometry.
     // Tracked so unmount within the window doesn't touch a disposed term.
@@ -417,6 +432,7 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
       el.removeEventListener('click', focusTerm);
       el.removeEventListener('touchstart', handleTouchStart as EventListener);
       el.removeEventListener('touchend', handleTouchEnd as EventListener);
+      el.removeEventListener('touchcancel', handleTouchCancel);
       dataSub.dispose();
       resizeSub.dispose();
       titleSub?.dispose();
