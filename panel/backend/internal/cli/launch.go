@@ -1095,7 +1095,6 @@ func fireDelayedStop(id int64, p pendingStop) {
 	_ = instRepo.SetStatus(id, "stopped", "", "")
 	log.Printf("install poll: instance %d delayed auto-stop fired (container stopped)", id)
 }
-}
 
 // metricsSweepLoop polls /api/edge/inspect for every RUNNING instance and
 // refreshes its row in instance_live_state on a steady cadence. The SPA's
