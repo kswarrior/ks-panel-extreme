@@ -19,7 +19,7 @@
 // (empty-by-default: no rows → no pages). Home uses slug "." and renders at
 // the index route when its page row was imported.
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, Outlet, useNavigate, useParams } from 'react-router-dom';
 import { useInstance, parseConfig } from '@/shared/hooks/useInstance';
 import { useInstanceNavSync } from '@/shared/components/layout/InstanceNavContext';
