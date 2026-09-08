@@ -217,10 +217,16 @@ const TerminalPane: React.FC<{
   // advanced.startup_terminal_id. I/O rides the /console WS natively.
   const isStartupBound = tid !== '' && normTid(startupTerminalId) !== '' && tid === normTid(startupTerminalId);
   const isBound = !!matchedAction || isInstallBound || isStartupBound;
-  // Live mirror is only valid while THIS pane's workflow is actually in
-  // flight. Mirroring the shared install_steps_json while idle is what used
-  // to paint stale/wrong-action logs into every bound pane.
-  const shouldMirror = ( !!matchedAction && isRunning ) || isInstalling;
+  // Workflow panes (bound action/install IDs) dial /workflow for the live
+  // console — never the side shell — so typed lines reach only the MC
+  // server (via POST relay) and output is the server console itself.
+  const isWorkflowPane = !!matchedAction || isInstallBound;
+  const isWorkflowLive = isWorkflowPane && connState === 'connected';
+  // DB mirror is a fallback while the /workflow WS is not live. Mirroring
+  // the shared install_steps_json while the WS streams the same bytes
+  // would duplicate every line, and mirroring while idle paints
+  // stale/wrong-action logs into every bound pane.
+  const shouldMirror = !isWorkflowLive && (( !!matchedAction && isRunning ) || isInstalling);
   const streamLabel = matchedAction ? (matchedAction.name || matchedAction.id) : 'installation';
   const logText = shouldMirror ? actionLogText(stepsJson) : '';
   // Mirror the bound action's transcript INTO the xterm so the running
@@ -320,9 +326,10 @@ const TerminalPane: React.FC<{
   };
 
   const title = pane.name.trim() !== '' ? pane.name.trim() : (tid !== '' ? tid : 'shell');
-  const statusSuffix = shouldMirror
+  const isWorkflowRunning = (!!matchedAction && isRunning) || isInstalling;
+  const statusSuffix = isWorkflowRunning
     ? ' · running'
-    : isStartupBound && connState === 'connected'
+    : (isStartupBound || isWorkflowPane) && connState === 'connected'
       ? ' · attached'
       : isBound && !isStartupBound
         ? ' · idle'
@@ -392,7 +399,7 @@ const TerminalPane: React.FC<{
             ref={handleRef}
             instanceId={instanceId}
             terminalId={tid}
-            endpoint={isStartupBound ? 'console' : undefined}
+            endpoint={isStartupBound ? 'console' : isWorkflowPane ? 'workflow' : undefined}
             onLine={isStartupBound ? undefined : handleLine}
             onStateChange={(s, m) => { setConnState(s); setConnMsg(m ?? ''); }}
             onTermRef={(t) => (termRef.current = t)}
@@ -424,12 +431,12 @@ const TerminalPane: React.FC<{
 // bar sits directly below the Terminal header text + add button, clicking a
 // tab activates that pane (inactive panes stay mounted hidden so their WS
 // stays alive). A pane whose ID matches a template action's
-// terminal_id mirrors that action's live console into its xterm and relays
-// typed lines to the running action (Minecraft tps/op/stop, node stdin, …);
-// the install_terminal_id does the same for the Installation workflow;
-// the startup_terminal_id attaches directly to the container main-process
-// stdio via the /console bridge — all with no pane-side gating, real
-// functional consoles, not log views.
+// terminal_id streams that action's live console via the /workflow bridge
+// (history replay + live tail) and relays typed lines to the running action
+// (Minecraft tps/op/stop, node stdin, …); the install_terminal_id does the
+// same for the Installation workflow; the startup_terminal_id attaches
+// directly to the container main-process stdio via the /console bridge —
+// all with no pane-side gating, real functional consoles, not log views.
 const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: boolean }> = ({ instance, title, showHeader = true }) => {
   const controls = useMemo(() => resolveInstanceControls(instance?.config), [instance?.config]);
   const termCfg = controls.shortcuts.terminal;
