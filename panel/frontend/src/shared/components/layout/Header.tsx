@@ -696,51 +696,58 @@ const Header: React.FC<HeaderProps> = ({
           );
         })()}
 
-        {/* Instance row-1 — [Icon] Instance #id / CurrentPage breadcrumb.
-            Tabs live in Row 2 so bell + profile stay free on phones. */}
+        {/* Instance row-1 — single toggle pill: [Icon] Instance #id / Page + chevron.
+            Click toggles Row 2 tabs. No back button. */}
         {inInstancePanel && (
-          <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 min-w-0 text-xs text-gray-400">
-            <button
-              type="button"
-              onClick={() => navigate('/instances')}
-              aria-label="Back to instances"
-              title="Back to instances"
-              className="ks-btn-header ks-icon-btn shrink-0"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><path d="M15 18l-6-6 6-6" /></svg>
-            </button>
-            <span aria-hidden="true" className="shrink-0 inline-flex items-center text-gray-300">
-              {(() => {
-                const rawIcon = SidebarIcons['Instances'];
-                return React.isValidElement(rawIcon)
-                  ? React.cloneElement(rawIcon as React.ReactElement<{ className?: string }>, { className: 'w-5 h-5' })
-                  : rawIcon;
-              })()}
-            </span>
-            <button
-              type="button"
-              onClick={() => navigate(instanceCrumb && navInstanceId != null ? `/instances/${navInstanceId}` : '/instances')}
-              className="hover:text-white transition-colors shrink-0 text-sm font-medium text-gray-200"
-            >
-              {navInstanceId != null ? `Instance #${navInstanceId}` : 'Instance'}
-            </button>
-            {instanceCrumb && instanceCrumb.slug !== '.' && (
-              <>
-                <span className="text-gray-600 shrink-0">/</span>
-                <span className="text-gray-200 truncate text-sm">{instanceCrumb.label}</span>
-              </>
-            )}
-            {hasTabs && (
+          <nav aria-label="Breadcrumb" className="flex items-center min-w-0 text-xs text-gray-400">
+            {hasTabs ? (
               <button
                 type="button"
                 onClick={() => setTabsCollapsed((v) => !v)}
                 aria-expanded={!tabsCollapsed}
                 aria-label={tabsCollapsed ? 'Show instance tabs' : 'Hide instance tabs'}
                 title={tabsCollapsed ? 'Show tabs' : 'Hide tabs'}
-                className="ks-btn-header ks-icon-btn shrink-0"
+                className="flex items-center gap-1.5 min-w-0 rounded-md px-1 py-1 hover:bg-white/5 transition-colors"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className={`w-4 h-4 transition-transform duration-200 ${tabsCollapsed ? '' : 'rotate-180'}`} aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+                <span aria-hidden="true" className="shrink-0 inline-flex items-center text-gray-300">
+                  {(() => {
+                    const rawIcon = SidebarIcons['Instances'];
+                    return React.isValidElement(rawIcon)
+                      ? React.cloneElement(rawIcon as React.ReactElement<{ className?: string }>, { className: 'w-5 h-5' })
+                      : rawIcon;
+                  })()}
+                </span>
+                <span className="shrink-0 text-sm font-medium text-gray-200">
+                  {navInstanceId != null ? `Instance #${navInstanceId}` : 'Instance'}
+                </span>
+                {instanceCrumb && instanceCrumb.slug !== '.' && (
+                  <>
+                    <span className="text-gray-600 shrink-0">/</span>
+                    <span className="text-gray-200 truncate text-sm">{instanceCrumb.label}</span>
+                  </>
+                )}
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className={`w-4 h-4 shrink-0 text-gray-400 transition-transform duration-200 ${tabsCollapsed ? '' : 'rotate-180'}`} aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
               </button>
+            ) : (
+              <span className="flex items-center gap-1.5 min-w-0 px-1 py-1">
+                <span aria-hidden="true" className="shrink-0 inline-flex items-center text-gray-300">
+                  {(() => {
+                    const rawIcon = SidebarIcons['Instances'];
+                    return React.isValidElement(rawIcon)
+                      ? React.cloneElement(rawIcon as React.ReactElement<{ className?: string }>, { className: 'w-5 h-5' })
+                      : rawIcon;
+                  })()}
+                </span>
+                <span className="shrink-0 text-sm font-medium text-gray-200">
+                  {navInstanceId != null ? `Instance #${navInstanceId}` : 'Instance'}
+                </span>
+                {instanceCrumb && instanceCrumb.slug !== '.' && (
+                  <>
+                    <span className="text-gray-600 shrink-0">/</span>
+                    <span className="text-gray-200 truncate text-sm">{instanceCrumb.label}</span>
+                  </>
+                )}
+              </span>
             )}
           </nav>
         )}
