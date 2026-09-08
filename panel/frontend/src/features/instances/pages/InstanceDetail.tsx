@@ -379,9 +379,10 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
     }
   }, [instance?.config]);
 
-  // Live workflow status for the console mirror. The routed snapshot goes
-  // stale the moment an action starts, so poll silently while any pane is
-  // bound to an ID (same 3s cadence as the actions menu).
+  // Live workflow status for pane routing (which bridge each bound pane
+  // dials) and tab dots. The routed snapshot goes stale the moment an
+  // action starts, so poll silently while any pane is bound to an ID
+  // (same 3s cadence as the actions menu).
   const { instance: live, reload } = useInstance(Number(instance?.id));
   const hasBound = panes.some((p) => normTid(p.terminalId) !== '');
   useEffect(() => {
@@ -393,7 +394,6 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
   const installState: string = src?.install_state ?? '';
   const installKind: string = src?.install_kind ?? '';
   const runningActionId: string = installState === 'running' && installKind === 'action' ? (src?.install_action_id || '') : '';
-  const stepsJson: string = src?.install_steps_json ?? '';
 
   // Installation + startup console IDs ride on the instance config
   // (deploy-time snapshot of the template spec).
@@ -543,7 +543,6 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
             installKind={installKind}
             installTerminalId={installTerminalId}
             startupTerminalId={startupTerminalId}
-            stepsJson={stepsJson}
             canRemove={panes.length > 1}
             onRemove={removePane}
             onConnState={handleConnState}
