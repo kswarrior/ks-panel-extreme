@@ -3,9 +3,10 @@
 Bottom-right FAB opens panel-wide AI assistant. SHIPPED (was plan-only).
 
 ## UX
-- `features/ai-chat/`: `ChatFab.tsx`, `ChatPanel.tsx`, `ConfirmCard.tsx`, `api/aiChat.ts`, `store/aiChatStore.ts`.
+- `features/ai-chat/`: `ChatFab.tsx`, `ChatPanel.tsx`, `ChatView.tsx`, `ChatSettings.tsx`, `ConfirmCard.tsx`, `api/aiChat.ts`, `store/aiChatStore.ts`.
 - Mount once in `src/app/App.tsx` beside `ConfirmDialog`, hidden on `/auth`.
 - `fixed bottom-5 right-5`, theme-aware, mobile full-width, header shows `{panel_name} Assistant`.
+- Composer has explicit Stop (AbortController cancels the SSE + JSON fallback; server round cancels via `r.Context`).
 
 ## Backend
 - `handlers/ai_chat_handler.go` + `handlers/ai_chat_extra.go`, routes in `server.go` (protected group):
@@ -20,12 +21,12 @@ Bottom-right FAB opens panel-wide AI assistant. SHIPPED (was plan-only).
 - Migrations `064_ai_config.sql` (base KV) + `066_ai_persistence.sql` (all 3 DBs; numbered 066 because 065 is taken by tickets_attachments_sla_notify): `ai_confirmation_tickets`, `ai_chat_threads`, `ai_chat_messages`, `ai_fallback_*` / `ai_cost_*` settings.
 
 ## Agent tools + safety
-- Read (no confirm): `list_instances, get_instance, list_nodes, get_node, list_templates, get_template (sections summary/steps/description), list_instance_pages, get_instance_page, list_users, get_user, list_roles, list_themes, list_tickets, get_ticket, check_panel_update, get_docs, get_system_status`.
-- Write (confirm required): `instance_action, edit_instance, reinstall_instance, delete_instance, suspend_instance, unsuspend_instance, update_settings, create_theme, edit_theme, delete_theme, create_template, edit_template, delete_template, edit_template_steps (remove/add/move), set_template_command, remove_template_action, create_node, edit_node, delete_node, create_instance_page, edit_instance_page, delete_instance_page, create_user, edit_user, delete_user, create_ticket, reply_ticket, update_ticket, broadcast_notification, deploy_instance, reinstall_panel`.
+- Read (no confirm): `list_instances, get_instance, list_nodes, get_node, list_templates, get_template (sections all/summary/steps/runtime/ports/spec/description), list_instance_pages, get_instance_page, list_users, get_user, list_roles, list_themes, list_tickets, get_ticket, check_panel_update, get_docs, get_system_status`.
+- Write (confirm required): `instance_action, edit_instance, reinstall_instance, delete_instance, suspend_instance, unsuspend_instance, update_settings, create_theme, edit_theme, delete_theme, create_template, edit_template, delete_template, edit_template_steps (remove/add/move), set_template_command, remove_template_action, edit_template_ports (remove/add), create_node, edit_node, delete_node, create_instance_page, edit_instance_page, delete_instance_page, create_user, edit_user, delete_user, create_ticket, reply_ticket, update_ticket, broadcast_notification, deploy_instance, reinstall_panel`.
 - Deliberately unoffered: API keys (would persist secrets in chat history), shell/terminal + file writes (RCE surface), role permission editing (lockout risk), mod/application uploads (needs file bytes), backup execution + datamove (long, destructive ops stay in UI).
 - Each tool re-checks existing permission engine (e.g. `create_theme` needs `MANAGE_THEMES`). Denied -> LLM explains.
 - Write flow: LLM -> `confirmation_ticket {id, summary, diff}` (DB-backed, 10-min user-bound, survives restarts) -> `ConfirmCard` Approve/Deny -> execute on approve. All writes go to `activity_logs`.
-- Guards: per-user rate limit 20/min, max 5 tool loops, 60s timeout, redact `password/token/secret` from tool output.
+- Guards: per-user rate limit 20/min, max 5 tool loops, 110s outer timeout (50s per-round child deadline, JSON + SSE share one budget), redact `password/token/secret` from tool output. Truncation is rune-aware so UTF-8 is never split.
 - Per-request model override honoured for admins (`SETTINGS_EDIT`) only; everyone else's value is ignored.
 - Every chat/stream request logs one `activity_logs` row (category `ai`, action `chat`, `model/provider/in/out/cost`) feeding the admin usage dashboard in `AIConfigCard`.
 

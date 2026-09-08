@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -80,7 +81,7 @@ func Handler(token string) http.Handler {
 			return
 		}
 		var req Request
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
 			writeErr(w, http.StatusBadRequest, "invalid payload: "+err.Error())
 			return
 		}
@@ -164,13 +165,16 @@ func Handler(token string) http.Handler {
 		stderrRes := <-stderrCh
 		exitCode := 0
 		if code, werr := sess.Wait(); werr != nil {
-			// A non-zero exit is a normal script outcome, not an edge error;
-			// surface the code and append any wait-time error to stderr so the
-			// panel's run row shows both the program's output and the fact the
-			// process didn't exit cleanly.
+			// A non-zero exit is a normal script outcome, not an edge
+			// error: surface the code without polluting stderr with
+			// Go's "exit status N" string (the panel already renders
+			// ExitCode). Only append wait-time errors that carry real
+			// signal (context kill, I/O failure) — mirroring hostexec.
 			exitCode = code
-			if stderrRes.err == nil && werr != io.EOF {
-				stderrRes.b = append(stderrRes.b, []byte("\n"+werr.Error())...)
+			if _, ok := werr.(*exec.ExitError); !ok {
+				if stderrRes.err == nil && werr != io.EOF {
+					stderrRes.b = append(stderrRes.b, []byte("\n"+werr.Error())...)
+				}
 			}
 		}
 

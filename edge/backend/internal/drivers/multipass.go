@@ -90,8 +90,12 @@ func (d *multipass) Destroy(ctx context.Context, name string) (Result, error) {
 	// multipass offers `delete --purge` which both stops and removes the
 	// instance + disk image in one shot. Passing --purge avoids leaving a
 	// dangling volume that would block migrating resources later.
+	// Idempotent like docker.Destroy: deleting an already-deleted
+	// instance reports destroyed.
 	if _, err := asExec(ctx, "", "multipass", "delete", "--purge", name); err != nil {
-		return Result{}, err
+		if !isNotFoundErr(err) {
+			return Result{}, err
+		}
 	}
 	return Result{ExternalID: name, Status: "destroyed"}, nil
 }
