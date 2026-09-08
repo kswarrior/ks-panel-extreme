@@ -115,6 +115,18 @@ const InstanceMenuFab: React.FC = () => {
     typeof window === 'undefined' ? { x: 0, y: 0 } : (loadPos() ?? defaultPos()),
   );
   const [open, setOpen] = useState(false);
+  // Phones skip the fullscreen backdrop blur (a full-screen blur over the
+  // xterm canvas drops frames on mobile GPUs — plain dim is enough).
+  const [isCoarse] = useState<boolean>(() =>
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(pointer: coarse)').matches,
+  );
+  // rAF-throttled drag writes: touch pointermove fires faster than React
+  // can paint on phones, so coalesce moves into one setPos per frame
+  // instead of a render per event.
+  const rafRef = useRef<number | null>(null);
+  const pendingRef = useRef<{ x: number; y: number } | null>(null);
   // `shown` keeps the popover mounted through its exit animation; `leaving`
   // picks the exit keyframes. `open` is the intent, `shown` is what's painted.
   const [shown, setShown] = useState(false);
@@ -148,6 +160,7 @@ const InstanceMenuFab: React.FC = () => {
   useEffect(
     () => () => {
       if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
+      if (rafRef.current !== null) window.cancelAnimationFrame(rafRef.current);
     },
     [],
   );
@@ -199,7 +212,15 @@ const InstanceMenuFab: React.FC = () => {
       d.moved = true;
       setDragging(true);
     }
-    if (d.moved) setPos(clampPos(d.origX + dx, d.origY + dy));
+    if (!d.moved) return;
+    pendingRef.current = { x: d.origX + dx, y: d.origY + dy };
+    if (rafRef.current !== null) return;
+    rafRef.current = window.requestAnimationFrame(() => {
+      rafRef.current = null;
+      const p = pendingRef.current;
+      pendingRef.current = null;
+      if (p) setPos(clampPos(p.x, p.y));
+    });
   };
 
   const onPointerUp = () => {
@@ -210,8 +231,18 @@ const InstanceMenuFab: React.FC = () => {
     // non-primary button) → do nothing. A cancel must never toggle.
     if (!d) return;
     if (d.moved) {
+      // Flush the last coalesced frame so the persisted spot is exactly
+      // where the finger lifted, not one frame behind.
+      if (rafRef.current !== null) {
+        window.cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      const p = pendingRef.current;
+      pendingRef.current = null;
+      const finalPos = p ? clampPos(p.x, p.y) : posRef.current;
+      setPos(finalPos);
       try {
-        window.localStorage.setItem(LS_KEY, JSON.stringify(posRef.current));
+        window.localStorage.setItem(LS_KEY, JSON.stringify(finalPos));
       } catch {}
     } else {
       setOpen((v) => !v);
@@ -374,8 +405,14 @@ const InstanceMenuFab: React.FC = () => {
               inset: 0,
               zIndex: 2147483639,
               background: 'rgba(0,0,0,0.35)',
-              backdropFilter: 'blur(2px)',
-              WebkitBackdropFilter: 'blur(2px)',
+              // No blur on touch phones (see isCoarse above) — a
+              // full-screen blur over the terminal canvas janks.
+              ...(!isCoarse
+                ? {
+                    backdropFilter: 'blur(2px)',
+                    WebkitBackdropFilter: 'blur(2px)',
+                  }
+                : {}),
             }}
           />
           <div

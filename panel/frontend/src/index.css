@@ -1029,6 +1029,29 @@ nav.overflow-x-auto::-webkit-scrollbar-thumb:hover {
   transform-origin: top center;
 }
 
+/* Phones: the instance-menu toggle must stay at 60fps on weak mobile
+   GPUs. Kill the infinite idle box-shadow pulse (a permanent repaint,
+   worst over the live xterm canvas), drop the stagger delays, and
+   shorten the one-shot open animations. Desktop keeps the full motion. */
+@media (hover: none), (max-width: 768px) {
+  .ks-card.ks-fab-toggle.is-idle {
+    animation: none;
+  }
+  .ks-fab-stagger > * {
+    animation-duration: 140ms;
+  }
+  .ks-fab-stagger > *:nth-child(n) {
+    animation-delay: 0ms;
+  }
+  .ks-fab-menu-enter-down,
+  .ks-fab-menu-enter-up {
+    animation-duration: 150ms;
+  }
+  .ks-fab-backdrop-enter {
+    animation-duration: 120ms;
+  }
+}
+
 /* ------------------------------------------------------------------ *
  *  System scope tabs (System page only — unique style)
  * ------------------------------------------------------------------ *
