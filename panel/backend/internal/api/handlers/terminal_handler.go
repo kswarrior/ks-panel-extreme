@@ -272,6 +272,157 @@ func TerminalHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// WorkflowHandler is the chi handler bound at
+// /api/instances/{id}/workflow. It bridges the browser to the instance's
+// RUNNING workflow transcript (template action or install workflow) through
+// ksedge /api/edge/install/stream — the live-console twin of TerminalHandler
+// (side shell via /api/edge/exec) and ConsoleHandler (main process via
+// /api/edge/attach).
+//
+// Auth + permission middleware run BEFORE this is invoked (same
+// VIEW_INSTANCES gate as the terminal bridge). The terminal-ID binding
+// itself stays SPA-side (the pane only dials this endpoint when its ID
+// matches a template action's terminal_id or install_terminal_id); the
+// bridge dials only the instance's own edge. Console input still rides the
+// existing POST …/actions/:id/stdin and …/install/stdin paths so the
+// action's terminal input policy stays enforced — the stream is
+// output-only (browser stdin frames reach the edge but are ignored there).
+func WorkflowHandler(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil || id <= 0 {
+		http.Error(w, "invalid instance id", http.StatusBadRequest)
+		return
+	}
+
+	con, err := repository.OpenDB()
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	defer con.Close()
+	inst, err := repository.NewInstanceRepository(con).Get(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	name := inst.ExternalID
+	if name == "" {
+		name = inst.Name
+	}
+	node, err := repository.NewNodeRepository(con).GetNode(inst.NodeID)
+	if err != nil {
+		http.Error(w, "owner node not found", http.StatusNotFound)
+		return
+	}
+	token, err := repository.NewNodeRepository(con).PlainToken(inst.NodeID)
+	if err != nil || token == "" {
+		writeJSONStatus(w, http.StatusBadGateway, map[string]any{
+			"error": "node has no usable edge token (rotate it first)",
+		})
+		return
+	}
+
+	scheme := "ws"
+	if node.UseTLS {
+		scheme = "wss"
+	}
+
+	// Same tunnel guards as the terminal bridge: reverse_tunnel edges have
+	// no dialable address, so fail closed with a structured HTTP error
+	// BEFORE upgrading (see TerminalHandler for the full rationale).
+	mode := strings.ToLower(strings.TrimSpace(node.ConnectionMode))
+	if strings.TrimSpace(node.Address) == "tunnel" || node.Address == "" {
+		if mode == "" || mode == "direct" {
+			mode = "reverse_tunnel"
+		}
+	}
+	if mode == "reverse_tunnel" {
+		if !tunnel.Global().IsConnected(node.ID) {
+			http.Error(w, "edge not connected via WSS tunnel (reverse_tunnel workflow requires edge to be online)", http.StatusBadGateway)
+			return
+		}
+		http.Error(w, "workflow console over WSS tunnel not yet implemented for reverse_tunnel; use direct or local_port mode for console access", http.StatusNotImplemented)
+		return
+	}
+	if mode == "both" || mode == "local_both" {
+		if !tunnel.Global().IsConnected(node.ID) {
+			route := edge.DecideRoute(mode, edge.TaskInstance, edge.LoadChannels(node.ID), false)
+			if route.Strict && route.Transport == edge.TransportWSS {
+				http.Error(w, "edge not connected via WSS tunnel (workflow task prefers WSS with fallback disabled)", http.StatusBadGateway)
+				return
+			}
+		}
+	}
+
+	// Bound-terminal panes pass ?terminal=<id> (matched against the
+	// instance's template actions' terminal_id by the SPA). Sanitized here
+	// fail-closed like the terminal bridge and forwarded to the edge stream
+	// (which currently ignores it — scoping stays panel/SPA-side — but
+	// forwarding keeps the contract stable for future edge filtering).
+	// ?timeout= is intentionally ignored: the workflow owns its own budget
+	// (action max_runtime_s / install timeout), not the pane attach budget.
+	terminalID := ""
+	if rawTerm := strings.TrimSpace(r.URL.Query().Get("terminal")); rawTerm != "" {
+		norm := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(rawTerm), " ", "_"))
+		valid := norm != "" && len(norm) <= 64
+		if valid {
+			for _, ch := range norm {
+				if !(ch >= 'a' && ch <= 'z' || ch >= '0' && ch <= '9' || ch == '_' || ch == '-') {
+					valid = false
+					break
+				}
+			}
+		}
+		if !valid {
+			http.Error(w, "invalid terminal id (use [a-z0-9_-], max 64 chars)", http.StatusBadRequest)
+			return
+		}
+		terminalID = norm
+	}
+
+	target := fmt.Sprintf("%s://%s/api/edge/install/stream?kind=%s&name=%s&token=%s",
+		scheme, node.Address, url.QueryEscape(inst.Kind), url.QueryEscape(name), url.QueryEscape(token))
+	if terminalID != "" {
+		target += "&terminal=" + url.QueryEscape(terminalID)
+	}
+
+	clientConn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return
+	}
+	defer clientConn.Close()
+
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+
+	dialer := dialerForNode(node)
+	edgeConn, _, err := dialer.DialContext(ctx, target, nil)
+	if err != nil {
+		safeMsg := strings.ReplaceAll(err.Error(), token, "[redacted]")
+		_ = clientConn.WriteJSON(map[string]any{
+			"type":    "error",
+			"message": fmt.Sprintf("could not dial edge: %v", safeMsg),
+		})
+		time.Sleep(50 * time.Millisecond)
+		return
+	}
+	defer edgeConn.Close()
+
+	errCh := make(chan error, 2)
+
+	go pumpBoth(clientConn, edgeConn, errCh)
+	go pumpBoth(edgeConn, clientConn, errCh)
+
+	<-errCh
+	_ = clientConn.Close()
+	_ = edgeConn.Close()
+	select {
+	case <-errCh:
+	case <-time.After(5 * time.Second):
+	}
+}
+
 // pumpBoth copies frames read from src to dst until either side closes,
 // preserving the original frame type (text vs binary) so the JSON wire
 // format (e.g. resize{"cols":N}) passes through untouched.
