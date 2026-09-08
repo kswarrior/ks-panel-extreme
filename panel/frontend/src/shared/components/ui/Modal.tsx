@@ -44,19 +44,29 @@ const Modal: React.FC<ModalProps> = ({
       ? 'ks-card-glass-solid'
       : 'ks-card-glass-strong';
   const closeRef = useRef<HTMLButtonElement>(null);
+  // Stable onClose for the Escape listener. Callers pass inline closures
+  // (new identity every render) — depending on it below would re-run the
+  // effect, and re-steal focus, on every parent keystroke.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; });
 
+  // Focus the Close button exactly once per opening. (The previous
+  // [open, onClose] deps re-focused on EVERY render while open, yanking
+  // the keyboard out of dialog inputs after a single character.)
+  const wasOpen = useRef(false);
   useEffect(() => {
+    if (open && !wasOpen.current) closeRef.current?.focus();
+    wasOpen.current = open;
     if (!open) return;
-    closeRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopPropagation();
-        onClose();
+        onCloseRef.current();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
   return (
