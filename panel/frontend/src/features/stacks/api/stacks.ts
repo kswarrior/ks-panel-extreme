@@ -48,10 +48,9 @@ export async function getStack(id: number): Promise<Stack> {
 
 export async function createStackFromManifest(
   manifest: Record<string, any>,
-  source: 'studio' | 'json' = 'json',
 ): Promise<Stack> {
   const res = await client.post<Stack>('/api/stacks/', manifest, {
-    headers: { 'Content-Type': 'application/json', 'X-KS-Source': source },
+    headers: { 'Content-Type': 'application/json', 'X-KS-Source': 'json' },
   });
   return res.data;
 }
