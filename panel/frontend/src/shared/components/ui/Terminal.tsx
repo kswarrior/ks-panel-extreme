@@ -169,6 +169,11 @@ interface TerminalProps {
 // and dials immediately.
 export interface TerminalHandle {
   reconnect: () => void;
+  // sendLine submits one input line exactly as if the operator typed it
+  // into the xterm and pressed Enter: local echo (workflow bridges),
+  // raw stdin bytes on the WS, validateInput gating, then onLine. Used
+  // by the "input box" input method, whose xterm is readOnly.
+  sendLine: (line: string) => void;
 }
 
 const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStateChange, onTermRef, onTitleChange, terminalId, endpoint, timeoutS, readOnly, validateInput, onExit, onLine }, ref) => {
@@ -181,6 +186,9 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
   // `useImperativeHandle` so the toolbar's Reconnect button can dial now
   // instead of waiting on the exponential backoff timer.
   const reconnectRef = useRef<(() => void) | null>(null);
+  // Holds the live `sendLine` pipeline (set inside the mount effect where
+  // sendStdin/echo/validate live). Same pattern as reconnectRef.
+  const sendLineRef = useRef<((line: string) => void) | null>(null);
   const [state, setStateRaw] = useState<ConnState>('connecting');
   const [errMsg, setErrMsg] = useState('');
   const onTitleChangeRef = useRef(onTitleChange);
@@ -217,6 +225,7 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
   // re-runs for a new `instanceId`.
   useImperativeHandle(ref, () => ({
     reconnect: () => reconnectRef.current?.(),
+    sendLine: (line: string) => sendLineRef.current?.(line),
   }));
 
   const setState = (s: ConnState, msg?: string) => {
@@ -341,6 +350,27 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
       }
     });
     const resizeSub = term.onResize(({ cols, rows }) => sendResize(cols, rows));
+    // Programmatic twin of typing a line + Enter (powers the "input box"
+    // input method): same echo, same raw stdin bytes, same validation,
+    // same onLine relay — including the rule that blocked lines still
+    // reach the PTY but never the relay.
+    sendLineRef.current = (line: string) => {
+      const t = termRef.current;
+      if (!t) return;
+      if (line.trim() === '') return;
+      const d = `${line}\r`;
+      echoWorkflow(d);
+      sendStdin(d);
+      const validate = validateRef.current;
+      if (validate) {
+        const reason = validate(line);
+        if (reason) {
+          t.write(`\r\n\x1b[31m● blocked: ${reason}\x1b[0m\r\n`);
+          return;
+        }
+      }
+      try { onLineRef.current?.(line); } catch { /* noop */ }
+    };
     const titleSub = term.onTitleChange((t) => onTitleChangeRef.current?.(t));
 
     const ro = new ResizeObserver(() => {

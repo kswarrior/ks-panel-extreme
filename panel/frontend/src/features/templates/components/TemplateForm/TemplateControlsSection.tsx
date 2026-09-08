@@ -438,6 +438,18 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
                       </div>
                     </div>
                     <div className="pt-1 min-w-0 max-w-full">
+                      <label className="block text-[11px] text-gray-500 mb-0.5">Input method</label>
+                      <select
+                        value={s.terminal_input_mode || 'direct'}
+                        onChange={(e) => updateShortcut(key, { terminal_input_mode: e.target.value as typeof s.terminal_input_mode })}
+                        aria-label="Terminal input method"
+                        className="glass-field w-full"
+                      >
+                        <option value="direct">Direct — type straight into the terminal (linux-like)</option>
+                        <option value="box">Input box — output-only terminal with an input + Send row below</option>
+                      </select>
+                    </div>
+                    <div className="pt-1 min-w-0 max-w-full">
                       <label className="block text-[11px] text-gray-500 mb-0.5">Default terminals (open automatically on the Terminal page)</label>
                       {(() => {
                         const configured = s.default_terminals.length > 0;
