@@ -105,6 +105,7 @@ func TestCloneRepoNameDerivesSafeNames(t *testing.T) {
 		}
 	}
 }
+
 // TestHostFilesWriteOpsRoundtrip drives mkdir → write → rename → delete
 // through the real HTTP handler against a temp root, proving the ops work
 // and stay jailed end to end.
@@ -310,7 +311,7 @@ func TestSweepStaleTrashKeepsOperatorData(t *testing.T) {
 			}
 		}
 	}
-	mk(trashPrefix+"old-1", true)   // orphaned: must go
+	mk(trashPrefix+"old-1", true)    // orphaned: must go
 	mk(trashPrefix+"fresh-1", false) // live removal: must stay
 	mk(".mydot", true)               // operator dotdir, old: must stay
 	mk(trashPrefix+"note.txt", true) // trash-prefixed FILE, old: must stay (dirs only)
