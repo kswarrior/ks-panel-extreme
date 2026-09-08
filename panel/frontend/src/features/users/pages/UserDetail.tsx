@@ -24,13 +24,16 @@ function getErrorMessage(e: any, fallback: string): string {
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
-  if (isNaN(d.getTime())) return '—';
+  // Guard the old backend zero-time rendering ("0001-01-01T00:00:00Z"):
+  // no real user predates 2000, so anything older is corrupt data, not a
+  // date worth showing (same rule as the users-page cards).
+  if (isNaN(d.getTime()) || d.getTime() < Date.UTC(2000, 0, 1)) return '—';
   return d.toLocaleString();
 }
 
 function relativeTime(iso: string): string {
   const d = new Date(iso);
-  if (isNaN(d.getTime())) return '';
+  if (isNaN(d.getTime()) || d.getTime() < Date.UTC(2000, 0, 1)) return '';
   const diff = Date.now() - d.getTime();
   const s = Math.floor(diff / 1000);
   if (s < 60) return `${s}s ago`;

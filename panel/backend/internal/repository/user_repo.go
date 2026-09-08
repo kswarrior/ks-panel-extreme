@@ -54,8 +54,14 @@ func (r *UserRepository) ListUsers() ([]models.User, error) {
 		if err := scanUserProfile(rows, &u, &createdAt); err != nil {
 			return nil, err
 		}
-		if createdAt.Valid {
-			u.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAt.String)
+		// CreatedAt can never be nil in the model, so an empty/unparseable
+		// value (engine timestamp skew, legacy NULL) degrades to now rather
+		// than Go zero time: zero serializes as year 1, which the users
+		// page renders as "Created 1/1/1". Same rule as scanInstanceTimes.
+		if t, ok := parseDBTime(createdAt.String); ok {
+			u.CreatedAt = t
+		} else {
+			u.CreatedAt = time.Now().UTC()
 		}
 		users = append(users, u)
 	}
@@ -569,6 +575,12 @@ func scanUserProfileRow(row *sql.Row) (*models.User, error) {
 	if !createdAtStr.Valid {
 		return nil, fmt.Errorf("user not found")
 	}
-	u.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAtStr.String)
+	// Same never-year-1 rule as ListUsers: an unparseable value degrades to
+	// now so login/profile/detail surfaces never render "Created 1/1/1".
+	if t, ok := parseDBTime(createdAtStr.String); ok {
+		u.CreatedAt = t
+	} else {
+		u.CreatedAt = time.Now().UTC()
+	}
 	return &u, nil
 }

@@ -39,9 +39,22 @@ function userAvatarURL(id: number, max: number) {
 }
 function userBannerURL(id: number, max: number) {
    if (max < 0) return undefined;
-   let url = `/api/users/${id}/banner`;
+   let url = `/api/users/${id}/avatar`;
    if (max > 0) url += `?max=${max}`;
    return url;
+}
+
+// MIN_SANE_TIME_MS floors out corrupt row timestamps: the backend used to
+// emit Go zero time ("0001-01-01T00:00:00Z") for unparseable datetimes,
+// which toLocaleDateString renders as "Created 1/1/1". No real user
+// predates 2000, so anything older renders as '—' instead.
+const MIN_SANE_TIME_MS = Date.UTC(2000, 0, 1);
+
+function formatCreatedAt(iso: string | undefined | null): string {
+  if (!iso) return '—';
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t) || t < MIN_SANE_TIME_MS) return '—';
+  return new Date(iso).toLocaleDateString();
 }
 
 const UsersPage: React.FC = () => {
@@ -428,7 +441,7 @@ const UsersPage: React.FC = () => {
 
                   <div className="min-w-0">
                     <p className="text-xs text-gray-400 leading-snug">
-                      Created {new Date(u.created_at).toLocaleDateString()}
+                      Created {formatCreatedAt(u.created_at)}
                     </p>
                   </div>
 
