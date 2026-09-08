@@ -180,10 +180,12 @@ interface TerminalPaneState {
 //    directly to the container main-process stdio (fully interactive,
 //    no mirror/relay needed).
 //  - empty/unknown ID → plain side shell (/terminal → /bin/sh).
-// A DB-poll mirror of install_steps_json remains as a fallback while the
-// /workflow WS is not connected (so panes still show something when the
-// edge is unreachable); once the WS is live the mirror stops to avoid
-// duplicating the streamed bytes. No separate log box, no per-pane options.
+// The /workflow WS is the pane's ONLY log source (history replay on
+// connect, exact live deltas after): there is deliberately no DB-poll
+// mirror — a second writer into the same xterm is what used to duplicate
+// lines and scramble their order. Typed input gets a local echo (the
+// piped console has no PTY echo) and rides the POST relay to the server.
+// No separate log box, no per-pane options.
 type PaneConnState = 'connecting' | 'connected' | 'reconnecting' | 'closed' | 'error';
 const TerminalPane: React.FC<{
   instanceId: number;
