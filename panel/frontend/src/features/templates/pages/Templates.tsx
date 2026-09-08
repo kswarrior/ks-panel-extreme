@@ -16,6 +16,7 @@ import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import { CardIconTile } from '@/shared/components/ui/IconColorPicker';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
+import { cardTimeMs, formatCardDate } from '@/shared/utils/cardDate';
 import { useConfirm } from '@/shared/stores/confirmStore';
 
 type KindKey = 'docker' | 'lxd' | 'kvm' | 'multipass' | 'unknown';
@@ -40,17 +41,13 @@ function parseSpec(raw: string): Record<string, any> {
 
 // Zero time from the API (Go's 0001-01-01T00:00:00Z) parses as a valid Date
 // with year 1 — guard it so the card never renders "Updated Jan 1, 1".
-function templateTimeMs(iso?: string): number {
-  if (!iso) return 0;
-  const d = new Date(iso);
-  if (isNaN(d.getTime()) || d.getFullYear() <= 1) return 0;
-  return d.getTime();
+// Delegates to the shared cardDate util so all card grids share one guard.
+function templateTimeMs(iso?: string | null): number {
+  return cardTimeMs(iso);
 }
 
-function templateUpdatedLabel(iso?: string): string | null {
-  const ms = templateTimeMs(iso);
-  if (!ms) return null;
-  return new Date(iso as string).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+function templateUpdatedLabel(iso?: string | null): string | null {
+  return formatCardDate(iso);
 }
 
 function KindIcon({ kind, className = '' }: { kind: KindKey; className?: string }) {

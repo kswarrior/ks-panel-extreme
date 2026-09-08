@@ -9,6 +9,7 @@ import {
 } from '@/shared/api/admin';
 import type { ApiKey } from '@/shared/types/apiKey';
 import type { User, Permission } from '@/shared/types/user';
+import { cardTimeMs, formatCardDate } from '@/shared/utils/cardDate';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import GlassCard from '@/shared/components/ui/Card';
@@ -121,11 +122,13 @@ const AdminApiKeys: React.FC = () => {
 
   // badgeFor returns a small pill describing the key's configured limits, or
   // null when nothing was set (the historical "no expiry / no limit" case).
+  // Go zero time ("0001-01-01T00:00:00Z") is truthy but must count as no expiry.
   const badgeFor = (k: ApiKey) => {
     const badges: { text: string; cls: string }[] = [];
-    if (k.expires_at) {
-      const exp = new Date(k.expires_at);
-      const expired = !isNaN(exp.getTime()) && exp.getTime() < Date.now();
+    const expMs = cardTimeMs(k.expires_at);
+    if (expMs) {
+      const exp = new Date(k.expires_at as string);
+      const expired = expMs < Date.now();
       const label = expired
         ? `Expired ${exp.toLocaleDateString()}`
         : `Expires ${exp.toLocaleDateString()}`;
@@ -181,7 +184,10 @@ const AdminApiKeys: React.FC = () => {
 
   const keyStats = useMemo(() => {
     const active = keys.filter((k) => k.active).length;
-    const expired = keys.filter((k) => k.expires_at && new Date(k.expires_at) < new Date()).length;
+    const expired = keys.filter((k) => {
+      const ms = cardTimeMs(k.expires_at);
+      return ms > 0 && ms < Date.now();
+    }).length;
     return { total: keys.length, active, inactive: keys.length - active, expired };
   }, [keys]);
 
@@ -346,10 +352,12 @@ const AdminApiKeys: React.FC = () => {
 
                 <footer className="mt-auto pt-2 border-t border-white/[0.06] flex items-center justify-between gap-2">
                   <span className="text-[11px] text-gray-500 truncate">
-                    Created {new Date(k.created_at).toLocaleDateString()}
-                    {k.last_used_at && (
-                      <> · Last used {new Date(k.last_used_at).toLocaleDateString()}</>
-                    )}
+                    {(() => {
+                      const created = formatCardDate(k.created_at);
+                      if (!created) return <>id {k.id}</>;
+                      const lastUsed = formatCardDate(k.last_used_at);
+                      return <>Created {created}{lastUsed ? <> · Last used {lastUsed}</> : null}</>;
+                    })()}
                   </span>
                   <Link to={`/api-key/${k.id}`} className="text-[11px] text-sky-300 hover:text-sky-200 hover:underline">View details →</Link>
                 </footer>
