@@ -465,6 +465,12 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
     const sameInstance = seededKey.current.split('|')[0] === String(instance?.id ?? '');
     const pristine = panes.length <= 1 && panes.every((p) => p.name.trim() === '' && normTid(p.terminalId) === '');
     seededKey.current = key;
+    if (!sameInstance) {
+      // Never leak another instance's shortcut/box drafts into this one.
+      setSel(null);
+      setAskVals({});
+      setBoxTexts({});
+    }
     if (!sameInstance || (!touched.current && pristine && seedList.length > 0)) {
       const next = toSeedPanes(seedList);
       keySeq.current = Math.max(next.length, 1);
