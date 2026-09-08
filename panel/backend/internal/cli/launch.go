@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -647,6 +648,108 @@ func localNonLoopback() []string {
 	return out
 }
 
+// maxAutoStopDelaySec caps an action's auto-stop delay at 24h. The pending
+// stop lives in panel memory (see pendingStops) and would not survive a
+// panel restart, so hour-scale is the sane envelope; the template
+// validation enforces the same bound at save time.
+const maxAutoStopDelaySec = 86400
+
+// parseAutoStopDelay normalises an operator-authored auto-stop delay (the
+// action's auto_stop_delay_s string, or a JSON number from a hand-written
+// spec) into whole seconds. ""/0/invalid = immediate (0), matching the
+// pre-delay behaviour exactly.
+func parseAutoStopDelay(v any) int {
+	n := 0
+	switch t := v.(type) {
+	case float64:
+		if t >= 1 {
+			n = int(t)
+		}
+	case string:
+		if p, err := strconv.Atoi(strings.TrimSpace(t)); err == nil && p > 0 {
+			n = p
+		}
+	case int:
+		if t > 0 {
+			n = t
+		}
+	}
+	if n > maxAutoStopDelaySec {
+		n = maxAutoStopDelaySec
+	}
+	return n
+}
+
+// findActionDelay reads an action's auto_stop_delay_s out of a template
+// spec JSON blob. Unknown action, bad JSON or missing/invalid field = 0
+// (immediate), so a template edited mid-run can never wedge the teardown.
+func findActionDelay(specJSON, actionID string) int {
+	var spec struct {
+		Actions []struct {
+			ID             string `json:"id"`
+			AutoStopDelayS any    `json:"auto_stop_delay_s"`
+		} `json:"actions"`
+	}
+	if err := json.Unmarshal([]byte(specJSON), &spec); err != nil {
+		return 0
+	}
+	for _, a := range spec.Actions {
+		if a.ID == actionID {
+			return parseAutoStopDelay(a.AutoStopDelayS)
+		}
+	}
+	return 0
+}
+
+// pendingStop is a scheduled auto-stop teardown: stop instance id once now
+// passes at, but only if the row still carries installID in a non-running
+// install_state (a re-invoke or power action in the window wins and the
+// entry is dropped).
+type pendingStop struct {
+	installID string
+	at        time.Time
+}
+
+var pendingStopsMu sync.Mutex
+var pendingStops = map[int64]pendingStop{}
+
+// scheduleDelayedStop records (or replaces) instance id's teardown
+// deadline delaySec seconds from now. A second completion for the same
+// instance overwrites the first — the newest workflow owns the lifecycle.
+func scheduleDelayedStop(id int64, installID string, delaySec int) {
+	pendingStopsMu.Lock()
+	defer pendingStopsMu.Unlock()
+	pendingStops[id] = pendingStop{installID: installID, at: time.Now().Add(time.Duration(delaySec) * time.Second)}
+}
+
+// takeDueStops removes and returns every entry whose deadline has passed.
+func takeDueStops(now time.Time) map[int64]pendingStop {
+	pendingStopsMu.Lock()
+	defer pendingStopsMu.Unlock()
+	due := map[int64]pendingStop{}
+	for id, p := range pendingStops {
+		if !now.Before(p.at) {
+			due[id] = p
+			delete(pendingStops, id)
+		}
+	}
+	return due
+}
+
+// lookupActionStopDelay resolves the live template's auto-stop delay for
+// one completion. Any failure (template deleted, action removed mid-run,
+// bad value) falls back to 0 = immediate, i.e. exactly today's behaviour.
+func lookupActionStopDelay(con2 *sql.DB, templateID int64, actionID string) int {
+	if templateID == 0 || actionID == "" {
+		return 0
+	}
+	tmpl, err := repository.NewTemplateRepository(con2).Get(templateID)
+	if err != nil || tmpl == nil {
+		return 0
+	}
+	return findActionDelay(tmpl.Spec, actionID)
+}
+
 // installSweepLoop polls the edge for install workflow progress on all
 // instances currently in "installing" state. It runs every `interval`
 // (default ~2s) and:
@@ -810,25 +913,43 @@ func installSweepLoop(interval time.Duration) {
 			// still mark the instal as "done" so the banner resolves — the
 			// container will be cleaned up by the next start/stop action
 			// the operator issues, or by destroy.
-			shouldStop := inst.installKind != "action" || inst.installAutoStop != 0
-			var nextStatus string
-			if shouldStop {
-				_, stopErr := ec.Lifecycle(edge.LifecycleRequest{
-					Action: "stop",
-					Kind:   inst.kind,
-					Name:   inst.name,
-				})
-				if stopErr != nil {
-					log.Printf("install poll: instance %d done, but stop RPC failed: %v", inst.id, stopErr)
-				}
-				nextStatus = "stopped"
-				log.Printf("install poll: instance %d done (container stopped)", inst.id)
-			} else {
-				// action that opted out of auto-stop → leave running.
-				nextStatus = "running"
-				log.Printf("install poll: instance %d action done (container kept running)", inst.id)
+		autoStop := inst.installKind == "action" && inst.installAutoStop != 0
+		var nextStatus string
+		if inst.installKind != "action" {
+			// Template install workflow: always stop immediately (unchanged).
+			_, stopErr := ec.Lifecycle(edge.LifecycleRequest{
+				Action: "stop",
+				Kind:   inst.kind,
+				Name:   inst.name,
+			})
+			if stopErr != nil {
+				log.Printf("install poll: instance %d done, but stop RPC failed: %v", inst.id, stopErr)
 			}
-			_ = instRepo2.SetStatus(inst.id, nextStatus, "", "")
+			nextStatus = "stopped"
+			log.Printf("install poll: instance %d done (container stopped)", inst.id)
+		} else if !autoStop {
+			// action that opted out of auto-stop → leave running.
+			nextStatus = "running"
+			log.Printf("install poll: instance %d action done (container kept running)", inst.id)
+		} else if delay := lookupActionStopDelay(con2, inst.templateID, inst.installActionID); delay > 0 {
+			// action with auto-stop + grace period → stop after the delay.
+			// The row stays "running" until the deadline fires.
+			scheduleDelayedStop(inst.id, inst.installID, delay)
+			nextStatus = "running"
+			log.Printf("install poll: instance %d action done (container stops in %ds)", inst.id, delay)
+		} else {
+			_, stopErr := ec.Lifecycle(edge.LifecycleRequest{
+				Action: "stop",
+				Kind:   inst.kind,
+				Name:   inst.name,
+			})
+			if stopErr != nil {
+				log.Printf("install poll: instance %d done, but stop RPC failed: %v", inst.id, stopErr)
+			}
+			nextStatus = "stopped"
+			log.Printf("install poll: instance %d done (container stopped)", inst.id)
+		}
+		_ = instRepo2.SetStatus(inst.id, nextStatus, "", "")
 		case "failed":
 			// Find the failing step's index for install_step.
 			stepIdx := -1
@@ -852,12 +973,32 @@ func installSweepLoop(interval time.Duration) {
 			// engine but is NOT an install — stamping it "install_failed"
 			// made the card claim an install the operator never started.
 			// Actions surface as "errored" with the edge's reason instead.
-			nextStatus := "install_failed"
-			if inst.installKind == "action" {
-				nextStatus = "errored"
+		nextStatus := "install_failed"
+		if inst.installKind == "action" {
+			nextStatus = "errored"
+		}
+		_ = instRepo2.SetStatus(inst.id, nextStatus, "", resp.Error)
+		log.Printf("install poll: instance %d failed (kind=%s): %s", inst.id, inst.installKind, resp.Error)
+		// Auto-stop covers failures too: an action that declared
+		// auto_stop_on_exit tears the container down when its process
+		// dies, not only on clean exit. The "errored" status above is
+		// kept so the failure stays visible; only the workload stops.
+		if inst.installKind == "action" && inst.installAutoStop != 0 {
+			if delay := lookupActionStopDelay(con2, inst.templateID, inst.installActionID); delay > 0 {
+				scheduleDelayedStop(inst.id, inst.installID, delay)
+				log.Printf("install poll: instance %d action failed (container stops in %ds)", inst.id, delay)
+			} else {
+				if _, stopErr := ec.Lifecycle(edge.LifecycleRequest{
+					Action: "stop",
+					Kind:   inst.kind,
+					Name:   inst.name,
+				}); stopErr != nil {
+					log.Printf("install poll: instance %d failed, but stop RPC failed: %v", inst.id, stopErr)
+				} else {
+					log.Printf("install poll: instance %d failed (container stopped)", inst.id)
+				}
 			}
-			_ = instRepo2.SetStatus(inst.id, nextStatus, "", resp.Error)
-			log.Printf("install poll: instance %d failed (kind=%s): %s", inst.id, inst.installKind, resp.Error)
+		}
 		case "unknown":
 			// Edge lost the record (restarted mid-install). Mark failed.
 			// Flip install_state first for the same race-window rationale
@@ -885,6 +1026,74 @@ func installSweepLoop(interval time.Duration) {
 		}
 	}(ir)
 	}
+
+		// Fire due delayed auto-stops scheduled by the done/failed branches
+		// above. Each fires once (taken out of the map here); the guard
+		// inside re-reads the row and drops the entry when a re-invoke,
+		// power action or destroy already owns the lifecycle again.
+		for id, p := range takeDueStops(time.Now()) {
+			if !markInflight(installInflight, id) {
+				// A poll for this instance is in flight right now — put
+				// the deadline back (overdue still fires next tick) and
+				// let the poll finish first so the two never race.
+				scheduleDelayedStop(id, p.installID, 0)
+				continue
+			}
+			if !sweepTryAcquire(installPollSem) {
+				unmarkInflight(installInflight, id)
+				scheduleDelayedStop(id, p.installID, 0)
+				continue
+			}
+			go func(id int64, p pendingStop) {
+				defer sweepRelease(installPollSem)
+				defer unmarkInflight(installInflight, id)
+				fireDelayedStop(id, p)
+			}(id, p)
+		}
+	}
+}
+
+// fireDelayedStop executes one due auto-stop teardown. Best-effort like
+// the inline stop above: on any doubt (row gone, workflow running again
+// under a new or the same install_id, container already stopped) it drops
+// the entry without touching the workload.
+func fireDelayedStop(id int64, p pendingStop) {
+	con, err := repository.OpenDB()
+	if err != nil {
+		return
+	}
+	defer con.Close()
+	instRepo := repository.NewInstanceRepository(con)
+	nodeRepo := repository.NewNodeRepository(con)
+	inst, err := instRepo.Get(id)
+	if err != nil {
+		return
+	}
+	if inst.InstallID != p.installID || inst.InstallState == "running" {
+		return
+	}
+	if inst.Status == "stopped" || inst.Status == "destroyed" {
+		return
+	}
+	node, err := nodeRepo.GetNode(inst.NodeID)
+	if err != nil {
+		return
+	}
+	token, err := nodeRepo.PlainToken(inst.NodeID)
+	if err != nil || token == "" {
+		return
+	}
+	ec := edge.NewWithTimeout(*node, token, 60*time.Second)
+	if _, stopErr := ec.Lifecycle(edge.LifecycleRequest{
+		Action: "stop",
+		Kind:   inst.Kind,
+		Name:   inst.Name,
+	}); stopErr != nil {
+		log.Printf("install poll: instance %d delayed stop RPC failed: %v", id, stopErr)
+		return
+	}
+	_ = instRepo.SetStatus(id, "stopped", "", "")
+	log.Printf("install poll: instance %d delayed auto-stop fired (container stopped)", id)
 }
 }
 
