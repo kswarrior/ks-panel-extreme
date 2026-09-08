@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import type { InstanceControls, InstanceShortcutConfig, OverviewDefaultTab, ShortcutKey } from '@/features/instances/utils/instanceControls';
-import { DEFAULT_INSTANCE_CONTROLS, DEFAULT_SHORTCUTS, SHORTCUT_KEYS, isShortcutCustom } from '@/features/instances/utils/instanceControls';
+import type { InstanceControls, InstanceShortcutConfig, OverviewDefaultTab, ShortcutKey, TerminalDefaultDef } from '@/features/instances/utils/instanceControls';
+import { DEFAULT_INSTANCE_CONTROLS, DEFAULT_SHORTCUTS, SHORTCUT_KEYS, isShortcutCustom, MAX_DEFAULT_TERMINALS, SUGGESTED_DEFAULT_TERMINAL } from '@/features/instances/utils/instanceControls';
 import { BUILTIN_PAGE_SLUGS, normalizePageSlug } from '@/shared/utils/instancePages';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 import { COLOR_SWATCHES, ICON_PRESETS } from '@/features/instances/types/instanceForm';
@@ -189,6 +189,10 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
   const [openShortcut, setOpenShortcut] = useState<ShortcutKey | null>(null);
   const toggleShortcut = (key: ShortcutKey) =>
     setOpenShortcut((prev) => (prev === key ? null : key));
+  // Dismissal of the suggested Main/main default-terminal row (shown while
+  // nothing is configured). Dismissing writes nothing — empty stays empty
+  // (legacy blank shell); any edit/add persists the rows for real.
+  const [seedDismissed, setSeedDismissed] = useState(false);
   const updateShortcut = (key: ShortcutKey, patch: Partial<InstanceShortcutConfig>) =>
     onUpdate({ shortcuts: { ...c.shortcuts, [key]: { ...c.shortcuts[key], ...patch } } });
   const resetShortcut = (key: ShortcutKey) =>
@@ -433,7 +437,67 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
                         />
                       </div>
                     </div>
-                    <p className="text-[11px] text-gray-500">Each pane stays fully customizable (ID, input mode, timeout, stop-on-exit) without editing the template. Enter an action's Terminal ID to stream its full log + gated input.</p>
+                    <div className="pt-1 min-w-0 max-w-full">
+                      <label className="block text-[11px] text-gray-500 mb-0.5">Default terminals (open automatically on the Terminal page)</label>
+                      {(() => {
+                        const configured = s.default_terminals.length > 0;
+                        const rows: TerminalDefaultDef[] = configured
+                          ? s.default_terminals
+                          : (seedDismissed ? [] : [{ ...SUGGESTED_DEFAULT_TERMINAL }]);
+                        const commit = (next: TerminalDefaultDef[]) => updateShortcut(key, { default_terminals: next });
+                        return (
+                          <div className="space-y-1.5">
+                            {rows.map((t, ti) => (
+                              <div key={ti} className="flex items-center gap-2 min-w-0">
+                                <input
+                                  value={t.name}
+                                  onChange={(e) => commit(rows.map((x, j) => (j === ti ? { ...x, name: e.target.value.slice(0, 64) } : x)))}
+                                  placeholder="Main"
+                                  aria-label={`Default terminal ${ti + 1} name`}
+                                  title="Tab label on the Terminal page"
+                                  className="glass-field w-full min-w-0 flex-1"
+                                />
+                                <input
+                                  value={t.id}
+                                  onChange={(e) => commit(rows.map((x, j) => (j === ti ? { ...x, id: e.target.value.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, '') } : x)))}
+                                  placeholder="main"
+                                  aria-label={`Default terminal ${ti + 1} ID`}
+                                  title="Terminal ID — empty = plain shell, otherwise must match an action/install/startup terminal ID for its live console"
+                                  className="glass-field font-mono w-full min-w-0 flex-1"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => { if (configured) commit(rows.filter((_, j) => j !== ti)); else setSeedDismissed(true); }}
+                                  className="shrink-0 p-1.5 rounded-md text-gray-500 hover:text-red-300 hover:bg-white/5"
+                                  title="Remove default terminal"
+                                  aria-label={`Remove default terminal ${ti + 1}`}
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+                                </button>
+                              </div>
+                            ))}
+                            {rows.length === 0 && (
+                              <p className="text-[11px] text-gray-500">No default terminals — the Terminal page opens a single blank shell. Add one below (e.g. Main / main).</p>
+                            )}
+                            {rows.length < MAX_DEFAULT_TERMINALS ? (
+                              <button
+                                type="button"
+                                onClick={() => commit([...rows, { name: '', id: '' }])}
+                                className="text-xs text-sky-300 hover:text-sky-200 underline"
+                                title="Add another default terminal"
+                              >
+                                + Add terminal
+                              </button>
+                            ) : (
+                              <p className="text-[11px] text-gray-500">Max {MAX_DEFAULT_TERMINALS} default terminals.</p>
+                            )}
+                            {!configured && rows.length > 0 && (
+                              <p className="text-[11px] text-gray-500">Suggestion — edit or add to keep it (saved with the template), or remove it to stay with a blank shell.</p>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
                     </>
                   )}
                   {key === 'ports' && (
