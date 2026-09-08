@@ -257,9 +257,15 @@ func CSRFTokenHandler(ctm *CSRFTokenManager) http.HandlerFunc {
 // safe-method skip without needing an exemption. Keeping "/api/themes" in
 // the exempt list would wrongly exempt the admin POST.
 func isCSRFExemptPath(path string) bool {
+	// Logout carries a live session cookie, so it must require the token
+	// like any other authenticated mutation; exempting it allows forced-
+	// logout CSRF. Checked first so the /api/auth/ prefix below never
+	// re-exempts it.
+	if path == "/api/auth/logout" {
+		return false
+	}
 	exemptPaths := []string{
 		"/api/auth/login",
-		"/api/auth/logout",
 		"/api/auth/register",
 		"/api/auth/send-verify",
 		"/api/auth/verify-email",

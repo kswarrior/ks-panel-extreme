@@ -123,9 +123,10 @@ export interface AIUsage {
   recent: AIUsageRecent[];
 }
 
-// Chat calls can take up to the server's 60s tool-loop budget, well above
-// the shared client's 15s default — override per request.
-const CHAT_TIMEOUT = 65000;
+// Chat calls can take up to the server's 110s tool-loop budget (5 rounds,
+// 50s per-round child deadline), well above the shared client's 15s
+// default — override per request with headroom for the 110s server budget.
+const CHAT_TIMEOUT = 115000;
 
 // ---------------------------------------------------------------------------
 // Retry preferences (client-side, per browser). The chat store reads these
@@ -420,13 +421,33 @@ export async function streamAIChat(
       while ((idx = buf.indexOf('\n\n')) >= 0) {
         const frame = buf.slice(0, idx);
         buf = buf.slice(idx + 2);
-        for (const line of frame.split('\n')) handleFrame(line);
+        try {
+          for (const line of frame.split('\n')) handleFrame(line);
+        } catch (e) {
+          // An error frame must not leave the fetch body open: cancel the
+          // reader so the socket closes instead of leaking until GC.
+          try {
+            await reader.cancel();
+          } catch {
+            // Already closed/aborted — the original error is what matters.
+          }
+          throw e;
+        }
       }
     }
     if (done) break;
   }
   // Flush any trailing frame without a blank-line terminator.
-  if (buf.trim()) for (const line of buf.split('\n')) handleFrame(line);
+  try {
+    if (buf.trim()) for (const line of buf.split('\n')) handleFrame(line);
+  } catch (e) {
+    try {
+      await reader.cancel();
+    } catch {
+      // Ignore cancel failure, rethrow the frame error.
+    }
+    throw e;
+  }
   return { reply: reply || 'The assistant returned an empty reply.', ticket, threadId };
 }
 

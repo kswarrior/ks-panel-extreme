@@ -110,8 +110,13 @@ func ValidatePassword(password string, policy *PasswordPolicy, userInfo ...strin
 
 	// Check against personal info if enabled
 	if policy.NoPersonalInfo && len(userInfo) > 0 {
+		lowerPw := strings.ToLower(password)
 		for _, info := range userInfo {
-			if strings.Contains(strings.ToLower(password), strings.ToLower(info)) {
+			info = strings.TrimSpace(info)
+			if info == "" {
+				continue
+			}
+			if strings.Contains(lowerPw, strings.ToLower(info)) {
 				return errors.New("password cannot contain personal information")
 			}
 		}

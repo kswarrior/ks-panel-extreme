@@ -78,9 +78,14 @@ func Script(env map[string]string, files []File, command string) (string, error)
 	var b strings.Builder
 
 	// Environment exports (identical rules to the original execrpc
-	// buildScript: POSIX-name keys, single-quoted values).
+	// buildScript: POSIX-name keys, single-quoted values). STAGE is
+	// reserved for the staging dir below and never exported from env
+	// so a caller cannot pre-seed it to redirect the EXIT cleanup.
 	for k, v := range env {
 		if !IsEnvName(k) {
+			continue
+		}
+		if k == "STAGE" {
 			continue
 		}
 		b.WriteString("export ")
@@ -98,6 +103,11 @@ func Script(env map[string]string, files []File, command string) (string, error)
 		}
 		b.WriteString("STAGE=$(mktemp -d 2>/dev/null || printf '/tmp/ksapp-%s' \"$$$(date +%s)\")\n")
 		b.WriteString("mkdir -p \"$STAGE\"\n")
+		// Lock STAGE so the staged command cannot overwrite it (e.g.
+		// `STAGE=/`) and turn the EXIT trap's `rm -rf "$STAGE"` into a
+		// host/workload wipe. readonly makes a later assignment fail
+		// without changing the value the trap sees at EXIT time.
+		b.WriteString("readonly STAGE\n")
 		for _, f := range files {
 			clean := filepath.ToSlash(filepath.Clean(f.Path))
 			if strings.Contains(f.Content, "\n"+marker+"\n") ||
