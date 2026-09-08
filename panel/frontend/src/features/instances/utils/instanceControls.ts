@@ -80,6 +80,13 @@ export interface InstanceShortcutConfig {
   // Page-context options (only the relevant one applies per tool):
   // Files page shows the SFTP card above the file manager.
   show_sftp: boolean;
+  // Files page home folder (e.g. "/mc"). The file manager opens here by
+  // default; empty = legacy behaviour (first volume mount's container
+  // path, /mc for docker+minecraft, else /).
+  files_home: string;
+  // Files page jail: when true the operator can't navigate above
+  // files_home (or its fallback), but sees everything inside it.
+  files_jail: boolean;
   // Terminal page shows the title + Reconnect/Clear header bar.
   show_header: boolean;
   // Ports page allows Add / Remove (false = read-only table).
@@ -150,6 +157,8 @@ const DEFAULT_SHORTCUT_BASE = {
   show: true,
   icon_svg: '',
   show_sftp: true,
+  files_home: '',
+  files_jail: false,
   show_header: true,
   allow_edit: true,
   terminal_allow_multi: true,
@@ -283,6 +292,36 @@ export function resolveShortcutCommand(command: string, values: Record<string, s
   });
 }
 
+// normalizeFilesPath collapses a container path to absolute form without
+// a trailing slash (except "/"). Dot segments resolve lexically; ".."
+// segments are dropped so a configured home can never escape the root.
+export function normalizeFilesPath(p: unknown): string {
+  let s = String(p ?? '').trim().replace(/\\/g, '/');
+  if (s === '') return '/';
+  if (!s.startsWith('/')) s = `/${s}`;
+  s = s.replace(/\/+/g, '/');
+  const out: string[] = [];
+  for (const seg of s.split('/')) {
+    if (seg === '' || seg === '.') continue;
+    if (seg === '..') {
+      out.pop();
+      continue;
+    }
+    out.push(seg);
+  }
+  return `/${out.join('/')}`;
+}
+
+// isPathWithinHome reports whether p equals home or lives underneath it
+// (same coordinate space: absolute container paths). Used by the Files page
+// jail so operators stay at or below the configured home folder.
+export function isPathWithinHome(home: string, p: unknown): boolean {
+  const h = normalizeFilesPath(home);
+  const n = normalizeFilesPath(p);
+  if (h === '/') return true;
+  return n === h || n.startsWith(`${h}/`);
+}
+
 // resolveShortcut normalises one shortcuts.<key> entry; absent/garbled
 // entries fall back field-by-field so old snapshots keep working.
 function resolveShortcut(raw: unknown, fallback: InstanceShortcutConfig): InstanceShortcutConfig {
@@ -302,6 +341,12 @@ function resolveShortcut(raw: unknown, fallback: InstanceShortcutConfig): Instan
     icon_svg: typeof r.icon_svg === 'string' ? r.icon_svg : fallback.icon_svg,
     icon_color: typeof r.icon_color === 'string' ? r.icon_color.trim() : fallback.icon_color,
     show_sftp: boolOr(r.show_sftp, fallback.show_sftp),
+    files_home: (() => {
+      const raw = typeof r.files_home === 'string' ? r.files_home.trim() : '';
+      if (raw === '') return fallback.files_home;
+      return normalizeFilesPath(raw);
+    })(),
+    files_jail: boolOr(r.files_jail, fallback.files_jail),
     show_header: boolOr(r.show_header, fallback.show_header),
     allow_edit: boolOr(r.allow_edit, fallback.allow_edit),
     terminal_allow_multi: boolOr(r.terminal_allow_multi, fallback.terminal_allow_multi),
@@ -412,6 +457,8 @@ const SHORTCUT_FIELDS: (keyof InstanceShortcutConfig)[] = [
   'icon_svg',
   'icon_color',
   'show_sftp',
+  'files_home',
+  'files_jail',
   'show_header',
   'allow_edit',
   'terminal_allow_multi',

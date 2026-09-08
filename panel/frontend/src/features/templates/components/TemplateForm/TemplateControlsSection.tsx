@@ -369,12 +369,37 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
                     </div>
                   </div>
                   {key === 'files' && (
-                    <MiniToggle
-                      checked={s.show_sftp}
-                      onChange={(v) => updateShortcut(key, { show_sftp: v })}
-                      label="Show SFTP card"
-                      hint="SFTP connection card above the file manager on the Files page"
-                    />
+                    <>
+                      <MiniToggle
+                        checked={s.show_sftp}
+                        onChange={(v) => updateShortcut(key, { show_sftp: v })}
+                        label="Show SFTP card"
+                        hint="SFTP connection card above the file manager on the Files page"
+                      />
+                      <div className="pt-1">
+                        <label className="block text-[11px] text-gray-500 mb-0.5" htmlFor={`shortcut-${key}-home`}>
+                          Home path (default folder)
+                        </label>
+                        <input
+                          id={`shortcut-${key}-home`}
+                          value={s.files_home}
+                          onChange={(e) => updateShortcut(key, { files_home: e.target.value })}
+                          placeholder="/mc"
+                          aria-label="Files home path"
+                          title="Folder the Files page opens by default, e.g. /mc. Empty = volume mount root."
+                          className="glass-field font-mono w-full"
+                        />
+                        <p className="text-[11px] text-gray-500 mt-1">
+                          Files opens here by default. Empty = volume mount root (current behaviour).
+                        </p>
+                      </div>
+                      <MiniToggle
+                        checked={s.files_jail}
+                        onChange={(v) => updateShortcut(key, { files_jail: v })}
+                        label="Lock to home folder"
+                        hint="Operators can't navigate above the home path, but see everything inside it"
+                      />
+                    </>
                   )}
                   {key === 'terminal' && (
                     <>
