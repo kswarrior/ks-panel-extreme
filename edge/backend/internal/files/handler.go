@@ -492,7 +492,7 @@ func renameHost(w http.ResponseWriter, r *http.Request, hostPath string) {
 		var body struct {
 			To string `json:"to"`
 		}
-		_ = json.NewDecoder(r.Body).Decode(&body)
+		_ = json.NewDecoder(io.LimitReader(r.Body, 64<<10)).Decode(&body)
 		to = body.To
 	}
 	if to == "" {
@@ -744,7 +744,7 @@ func renameDocker(ctx context.Context, w http.ResponseWriter, r *http.Request, n
 		var body struct {
 			To string `json:"to"`
 		}
-		_ = json.NewDecoder(r.Body).Decode(&body)
+		_ = json.NewDecoder(io.LimitReader(r.Body, 64<<10)).Decode(&body)
 		to = body.To
 	}
 	if to == "" {

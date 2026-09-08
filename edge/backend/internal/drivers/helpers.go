@@ -108,11 +108,11 @@ func firstPortNumber(m map[string]any, keys ...string) int {
 				return n
 			}
 		case int8:
-			if n >= 1 && n <= 65535 {
+			if n >= 1 {
 				return int(n)
 			}
 		case int16:
-			if n >= 1 && n <= 65535 {
+			if n >= 1 {
 				return int(n)
 			}
 		case int32:
@@ -128,11 +128,11 @@ func firstPortNumber(m map[string]any, keys ...string) int {
 				return int(n)
 			}
 		case uint8:
-			if n >= 1 && n <= 65535 {
+			if n >= 1 {
 				return int(n)
 			}
 		case uint16:
-			if n >= 1 && n <= 65535 {
+			if n >= 1 {
 				return int(n)
 			}
 		case uint32:
