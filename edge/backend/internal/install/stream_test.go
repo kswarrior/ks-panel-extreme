@@ -194,3 +194,21 @@ func TestStreamHappyPath(t *testing.T) {
 	}
 	t.Fatal("no exit frame within 20 messages after done")
 }
+
+// A step status transition (running → done) with ZERO new output bytes
+// must stream nothing. The transcript header embeds the live status, so
+// whole-transcript diffing sees a "changed" transcript at step completion
+// and resends the entire log — top-of-log lines (server banner) re-appear
+// at the bottom and chatty logs show many times over.
+func TestTranscriptStableAcrossStepTransition(t *testing.T) {
+	mk := func(status string) string {
+		rec := &record{state: StateRunning, steps: []StepStatus{
+			{Index: 0, Action: "shell", Status: status, ExitCode: 0, Stdout: "Starting minecraft server version 1.21\nDone (1.2s)!\n"},
+		}}
+		return snapshotTranscript(rec)
+	}
+	before, after := mk(stepRunning), mk(stepDone)
+	if d := diffTranscript(before, after); d != "" {
+		t.Fatalf("step transition with no new bytes must send nothing, resent %q", d)
+	}
+}
