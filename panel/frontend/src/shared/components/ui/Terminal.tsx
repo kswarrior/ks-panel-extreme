@@ -28,8 +28,9 @@ type ConnState = 'connecting' | 'connected' | 'reconnecting' | 'closed' | 'error
 function wsUrlFor(instanceId: number, terminalId?: string, timeoutS?: string, endpoint?: string): string {
   const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
   // Startup consoles attach to the main-process bridge (/console);
-  // everything else uses the shell bridge (/terminal).
-  const route = endpoint === 'console' ? 'console' : 'terminal';
+  // workflow consoles stream the running action/install transcript
+  // (/workflow); everything else uses the shell bridge (/terminal).
+  const route = endpoint === 'console' ? 'console' : endpoint === 'workflow' ? 'workflow' : 'terminal';
   const base = `${proto}://${window.location.host}/api/instances/${instanceId}/${route}`;
   const q: string[] = [];
   const tid = (terminalId || '').trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, '');
@@ -125,13 +126,15 @@ interface TerminalProps {
   // Bound-pane identity: forwarded as ?terminal= so the panel/edge can
   // scope the session (and the parent can match it against a template
   // action/install terminal_id). Empty = plain shell (legacy behaviour).
-  // Startup-console panes dial endpoint='console' instead; the id is
-  // then only a display/match key.
+  // Startup-console panes dial endpoint='console' instead; workflow panes
+  // (bound action/install consoles) dial endpoint='workflow' instead; the
+  // id is then only a display/match key.
   terminalId?: string;
-  // Which panel bridge to dial: 'terminal' (side shell, default) or
-  // 'console' (instance main-process stdio for startup-console panes).
-  // Same JSON wire protocol on both, so the xterm side is unchanged.
-  endpoint?: 'terminal' | 'console';
+  // Which panel bridge to dial: 'terminal' (side shell, default),
+  // 'console' (instance main-process stdio for startup-console panes) or
+  // 'workflow' (running action/install transcript for bound panes).
+  // Same JSON wire protocol on all three, so the xterm side is unchanged.
+  endpoint?: 'terminal' | 'console' | 'workflow';
   // Attach budget in seconds, forwarded as ?timeout= (empty = no limit).
   timeoutS?: string;
   // When true the pane is read-only: keystrokes are swallowed locally and
@@ -468,8 +471,10 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
             // Action-bound panes keep their scrollback: the parent streams
             // the running action's log lines into the same buffer, and a
             // reset here would wipe the matched-action history on every
-            // reconnect.
-            if (!terminalId || String(terminalId).trim() === '') {
+            // reconnect. Workflow panes DO reset: the /workflow bridge
+            // replays the transcript history itself on every (re)connect,
+            // so keeping scrollback would duplicate it.
+            if ((!terminalId || String(terminalId).trim() === '') || endpoint === 'workflow') {
               term.reset();
             }
             const cols = Number(msg.cols) || term.cols;
