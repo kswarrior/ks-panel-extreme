@@ -29,7 +29,6 @@ import CustomPageView from '@/shared/components/ui/CustomPageView';
 import ErrorBoundary from '@/shared/components/ui/ErrorBoundary';
 import Modal from '@/shared/components/ui/Modal';
 import Terminal, { type TerminalHandle } from '@/shared/components/ui/Terminal';
-import type { Terminal as XTerm } from '@xterm/xterm';
 import InstancePortsEditor from '@/features/instances/pages/InstancePortsEditor';
 import InstanceOverview from '@/features/instances/pages/InstanceOverview';
 import InstanceFiles from '@/features/instances/pages/InstanceFiles';
@@ -117,48 +116,6 @@ function normTid(v: unknown): string {
   return String(v ?? '').trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, '');
 }
 
-// actionLogText folds an instance's install_steps_json transcript into one
-// tail string (every step's stdout + stderr + output fallback, oldest first,
-// last ~8k chars) so a bound pane can mirror the action's live console
-// directly inside its xterm (no separate log box). Headers carry step
-// index/action/status/exit so the log reads properly (not a raw blob).
-function actionLogText(stepsJson: unknown): string {
-  try {
-    const raw = typeof stepsJson === 'string' ? stepsJson : JSON.stringify(stepsJson ?? '');
-    if (!raw || !raw.trim()) return '';
-    let steps: unknown = JSON.parse(raw);
-    // Some callers nest under { steps: [...] } — unwrap once.
-    if (steps && typeof steps === 'object' && !Array.isArray(steps) && Array.isArray((steps as any).steps)) {
-      steps = (steps as any).steps;
-    }
-    if (!Array.isArray(steps)) return '';
-    const parts: string[] = [];
-    for (const s of steps) {
-      if (s && typeof s === 'object') {
-        const rec = s as Record<string, unknown>;
-        const stdout = typeof rec.stdout === 'string' ? rec.stdout : '';
-        const stderr = typeof rec.stderr === 'string' ? rec.stderr : '';
-        const output = typeof rec.output === 'string' ? rec.output : '';
-        const out = [stdout, stderr, output].filter((x) => x !== '').join('\n');
-        if (!out) continue;
-        const idx = (rec.index ?? '?') as unknown;
-        const act = (rec.action ?? 'shell') as unknown;
-        const status = typeof rec.status === 'string' && rec.status !== '' ? ` · ${rec.status}` : '';
-        const code = typeof rec.exit_code === 'number' ? ` · exit ${rec.exit_code}` : '';
-        parts.push(`— step ${String(idx)} (${String(act)}${status}${code}) —\n${out}`);
-      } else if (typeof s === 'string' && s !== '') {
-        parts.push(s);
-      }
-    }
-    if (parts.length === 0) return '';
-    const full = parts.join('\n').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-    const withNl = !full.endsWith('\n') ? full + '\n' : full;
-    return withNl.length > 8000 ? '…(earlier output truncated)…\n' + withNl.slice(-8000) : withNl;
-  } catch {
-    return '';
-  }
-}
-
 interface TerminalPaneState {
   key: number;
   // Display name shown in the pane header (from the Add-terminal dialog).
@@ -196,12 +153,10 @@ const TerminalPane: React.FC<{
   installKind: string;
   installTerminalId: string;
   startupTerminalId: string;
-  stepsJson: string;
   canRemove: boolean;
   onRemove: (key: number) => void;
   onConnState?: (key: number, s: PaneConnState, msg?: string) => void;
-}> = ({ instanceId, pane, actions, runningActionId, installState, installKind, installTerminalId, startupTerminalId, stepsJson, canRemove, onRemove, onConnState }) => {
-  const termRef = useRef<XTerm | null>(null);
+}> = ({ instanceId, pane, actions, runningActionId, installState, installKind, installTerminalId, startupTerminalId, canRemove, onRemove, onConnState }) => {
   const handleRef = useRef<TerminalHandle>(null);
   const [connState, setConnState] = useState<PaneConnState>('connecting');
   const [connMsg, setConnMsg] = useState('');
@@ -228,79 +183,10 @@ const TerminalPane: React.FC<{
   // the WS then loops reconnect errors instead of showing idle.
   const isWorkflowPane = !!matchedAction || isInstallBound;
   const isWorkflowActive = (!!matchedAction && isRunning) || isInstalling;
-  const isWorkflowLive = isWorkflowPane && isWorkflowActive && connState === 'connected';
-  // DB mirror is a fallback while the /workflow WS is not live. Mirroring
-  // the shared install_steps_json while the WS streams the same bytes
-  // would duplicate every line, and mirroring while idle paints
-  // stale/wrong-action logs into every bound pane.
-  const shouldMirror = !isWorkflowLive && (( !!matchedAction && isRunning ) || isInstalling);
-  const streamLabel = matchedAction ? (matchedAction.name || matchedAction.id) : 'installation';
-  const logText = shouldMirror ? actionLogText(stepsJson) : '';
-  // Mirror the bound action's transcript INTO the xterm so the running
-  // console (java banner, player joins, node output, …) appears directly
-  // in this terminal — there is no separate log box. Deltas are computed against
-  // the last mirrored text: exact-prefix appends are written directly,
-  // while a slid 8 KiB tail window re-anchors on the previous tail so
-  // only truly new bytes are mirrored and polls never spam duplicates.
-  // A new workflow run (runKey change) starts with a separator so the old
-  // scrollback stays readable; when the run ends an ended marker is written
-  // once and mirroring stops (no stale cross-action logs).
-  const lastMirroredRef = useRef('');
-  const lastRunRef = useRef('');
-  const wasMirroringRef = useRef(false);
-  const runKey = shouldMirror ? `${installKind}:${runningActionId}:${tid}` : '';
-  useEffect(() => { lastMirroredRef.current = ''; lastRunRef.current = ''; wasMirroringRef.current = false; }, [tid]);
   useEffect(() => {
     if (onConnState) onConnState(pane.key, connState, connMsg);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connState, connMsg]);
-  useEffect(() => {
-    const term = termRef.current;
-    // Run ended: stamp the marker once, keep scrollback, stop mirroring.
-    if (!shouldMirror) {
-      if (wasMirroringRef.current && term && isBound && !isStartupBound) {
-        term.write(`\r\n\x1b[90m— ${streamLabel} console ended —\x1b[0m\r\n`);
-      }
-      wasMirroringRef.current = false;
-      return;
-    }
-    if (!term || logText === '') {
-      wasMirroringRef.current = true;
-      return;
-    }
-    // New run started (different workflow key): separator + full tail.
-    if (lastRunRef.current !== '' && lastRunRef.current !== runKey) {
-      lastMirroredRef.current = '';
-      term.write(`\r\n\x1b[90m— streaming ${streamLabel} console —\x1b[0m\r\n`);
-      const tail = logText.length > 16384 ? logText.slice(-16384) : logText;
-      term.write(tail);
-      lastMirroredRef.current = logText;
-      lastRunRef.current = runKey;
-      wasMirroringRef.current = true;
-      return;
-    }
-    const prev = lastMirroredRef.current;
-    if (logText === prev && lastRunRef.current === runKey) return;
-    let delta: string | null = null;
-    if (prev === '') {
-      delta = logText;
-    } else if (logText.startsWith(prev)) {
-      delta = logText.slice(prev.length);
-    } else {
-      const anchor = prev.slice(-2000);
-      const idx = anchor !== '' ? logText.lastIndexOf(anchor) : -1;
-      if (idx >= 0) delta = logText.slice(idx + anchor.length);
-      else delta = logText.length > 8000 ? logText.slice(-8000) : logText;
-    }
-    lastMirroredRef.current = logText;
-    lastRunRef.current = runKey;
-    wasMirroringRef.current = true;
-    if (delta === null || delta === '') return;
-    if (prev === '') term.write(`\r\n\x1b[90m— streaming ${streamLabel} console —\x1b[0m\r\n`);
-    // Cap a single mirror burst so a step transition can't flood scrollback.
-    term.write(delta.length > 16384 ? delta.slice(-16384) : delta);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [logText, shouldMirror, runKey, streamLabel, tid, isBound, isStartupBound]);
 
   const handleLine = (line: string) => {
     // Fully functional console: every typed line goes straight to the
@@ -408,7 +294,6 @@ const TerminalPane: React.FC<{
             endpoint={isStartupBound ? 'console' : isWorkflowPane && isWorkflowActive ? 'workflow' : undefined}
             onLine={isStartupBound ? undefined : handleLine}
             onStateChange={(s, m) => { setConnState(s); setConnMsg(m ?? ''); }}
-            onTermRef={(t) => (termRef.current = t)}
             onTitleChange={(t) => {
               if (!t) return;
               try {
