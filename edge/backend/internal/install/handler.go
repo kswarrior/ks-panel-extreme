@@ -77,6 +77,15 @@ func Handler(token string) http.Handler {
 		}
 		handleInstallStdin(w, r, token, store)
 	})
+	// /api/edge/install/stream is the live workflow console (WebSocket):
+	// history replay + 250ms tail of the running workflow's transcript for
+	// kind:name (the terminal pane → action/install console live path).
+	// Output-only: browser stdin frames are ignored here; console input
+	// still rides POST /api/edge/install/stdin so the panel's terminal
+	// input policy stays enforced.
+	mux.HandleFunc("/api/edge/install/stream", func(w http.ResponseWriter, r *http.Request) {
+		handleInstallStream(w, r, token, store)
+	})
 	return mux
 }
 
