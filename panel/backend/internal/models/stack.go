@@ -39,7 +39,8 @@ type Stack struct {
 	OwnerID int64 `json:"owner_id,omitempty"`
 	// OwnerName is the denormalised username joined from users.
 	OwnerName string `json:"owner_name,omitempty"`
-	// Source is file|url|studio|json|sample (install provenance).
+	// Source is file|url|json|sample (install provenance; legacy rows may
+	// still carry studio).
 	Source    string `json:"source"`
 	SourceURL string `json:"source_url,omitempty"`
 	// PackageSize is the .ksps byte size (0 = synthesize on download).
@@ -55,6 +56,8 @@ type Stack struct {
 }
 
 // Stack install provenance codes. Matches the `stacks.source` default.
+// StackSourceStudio is legacy (Studio removed): kept so old rows still
+// decode, never stamped on new installs.
 const (
 	StackSourceFile   = "file"
 	StackSourceURL    = "url"
