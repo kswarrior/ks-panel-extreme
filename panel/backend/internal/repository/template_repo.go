@@ -69,24 +69,9 @@ func (r *TemplateRepository) List() ([]models.Template, error) {
 // silently collapsed every timestamp to the zero time (frontend showed
 // "Updated Jan 1, 1"). It also accepts the Postgres / MySQL text forms so the
 // same rows read back with honest times on every engine (mirrors
-// theme_repo.parseSQLiteTime).
+// theme_repo.parseSQLiteTime). Delegates to the shared parseDBTime helper.
 func parseTemplateTime(s string) (time.Time, error) {
-	if t, err := time.Parse("2006-01-02 15:04:05", s); err == nil {
-		return t, nil
-	}
-	if t, err := time.Parse("2006-01-02 15:04:05.999999999", s); err == nil {
-		return t, nil
-	}
-	if t, err := time.Parse("2006-01-02 15:04:05.999999999Z07:00", s); err == nil {
-		return t, nil
-	}
-	if t, err := time.Parse("2006-01-02 15:04:05Z07:00", s); err == nil {
-		return t, nil
-	}
-	if t, err := time.Parse("2006-01-02 15:04:05 -0700 MST", s); err == nil {
-		return t, nil
-	}
-	return time.Parse(time.RFC3339Nano, s)
+	return parseDBTime(s)
 }
 
 // ListByOwner returns the subset of templates owned by ownerID. Migration
