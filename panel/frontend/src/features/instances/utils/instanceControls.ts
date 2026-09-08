@@ -422,13 +422,15 @@ const SHORTCUT_FIELDS: (keyof InstanceShortcutConfig)[] = [
   'terminal_default_allow_input',
   'terminal_default_timeout_s',
   'terminal_input_mode',
+  'terminal_shortcuts_enabled',
+  'terminal_shortcuts',
   'default_terminals',
 ];
 
 export function isShortcutCustom(a: InstanceShortcutConfig, b: InstanceShortcutConfig): boolean {
   // Arrays compare by reference — a configured list with identical content
   // must still read as "not customised", so compare by value instead.
-  return SHORTCUT_FIELDS.some((k) => k === 'default_terminals'
+  return SHORTCUT_FIELDS.some((k) => Array.isArray(a[k]) || Array.isArray(b[k])
     ? JSON.stringify(a[k] ?? []) !== JSON.stringify(b[k] ?? [])
     : a[k] !== b[k]);
 }

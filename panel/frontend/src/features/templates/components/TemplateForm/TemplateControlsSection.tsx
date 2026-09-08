@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import type { InstanceControls, InstanceShortcutConfig, OverviewDefaultTab, ShortcutKey, TerminalDefaultDef } from '@/features/instances/utils/instanceControls';
-import { DEFAULT_INSTANCE_CONTROLS, DEFAULT_SHORTCUTS, SHORTCUT_KEYS, isShortcutCustom, MAX_DEFAULT_TERMINALS, SUGGESTED_DEFAULT_TERMINAL } from '@/features/instances/utils/instanceControls';
+import type { InstanceControls, InstanceShortcutConfig, OverviewDefaultTab, ShortcutKey, TerminalDefaultDef, TerminalShortcutDef } from '@/features/instances/utils/instanceControls';
+import { DEFAULT_INSTANCE_CONTROLS, DEFAULT_SHORTCUTS, SHORTCUT_KEYS, isShortcutCustom, MAX_DEFAULT_TERMINALS, SUGGESTED_DEFAULT_TERMINAL, MAX_TERMINAL_SHORTCUTS } from '@/features/instances/utils/instanceControls';
 import { BUILTIN_PAGE_SLUGS, normalizePageSlug } from '@/shared/utils/instancePages';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 import { COLOR_SWATCHES, ICON_PRESETS } from '@/features/instances/types/instanceForm';
@@ -449,9 +449,65 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
                         <option value="box">Input box — output-only terminal with an input + Send row below</option>
                       </select>
                     </div>
+                    <MiniToggle
+                      checked={!!s.terminal_shortcuts_enabled}
+                      onChange={(v) => updateShortcut(key, { terminal_shortcuts_enabled: v })}
+                      label="Shortcuts"
+                      hint="Pre-made command buttons on the Terminal page (tps, apt install …, op ${username_mc} with ask-fields)"
+                    />
+                    {s.terminal_shortcuts_enabled && (
+                      <div className="pt-1 min-w-0 max-w-full">
+                        <label className="block text-[11px] text-gray-500 mb-0.5">Shortcuts (label + command — {'{{VAR}}'} / {'${VAR}'} / {'$(VAR)'} asks the operator)</label>
+                        <div className="space-y-1.5">
+                          {(s.terminal_shortcuts || []).map((sc, si) => (
+                            <div key={si} className="flex items-center gap-2 min-w-0">
+                              <input
+                                value={sc.label}
+                                onChange={(e) => updateShortcut(key, { terminal_shortcuts: (s.terminal_shortcuts || []).map((x, j) => (j === si ? { ...x, label: e.target.value.slice(0, 64) } : x)) })}
+                                placeholder="TPS"
+                                aria-label={`Shortcut ${si + 1} label`}
+                                title="Button text on the Terminal page"
+                                className="glass-field w-full min-w-0 flex-1"
+                              />
+                              <input
+                                value={sc.command}
+                                onChange={(e) => updateShortcut(key, { terminal_shortcuts: (s.terminal_shortcuts || []).map((x, j) => (j === si ? { ...x, command: e.target.value.slice(0, 500) } : x)) })}
+                                placeholder="tps"
+                                aria-label={`Shortcut ${si + 1} command`}
+                                title="Command sent on run — {{VAR}} / ${VAR} / $(VAR) asks the operator for a value"
+                                className="glass-field font-mono w-full min-w-0 flex-[2]"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => updateShortcut(key, { terminal_shortcuts: (s.terminal_shortcuts || []).filter((_, j) => j !== si) })}
+                                className="shrink-0 p-1.5 rounded-md text-gray-500 hover:text-red-300 hover:bg-white/5"
+                                title="Remove shortcut"
+                                aria-label={`Remove shortcut ${si + 1}`}
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+                              </button>
+                            </div>
+                          ))}
+                          {(s.terminal_shortcuts || []).length === 0 && (
+                            <p className="text-[11px] text-gray-500">No shortcuts yet — add one below (e.g. TPS / tps, or Give OP / {'op ${username_mc}'}).</p>
+                          )}
+                          {(s.terminal_shortcuts || []).length < MAX_TERMINAL_SHORTCUTS ? (
+                            <button
+                              type="button"
+                              onClick={() => updateShortcut(key, { terminal_shortcuts: [...(s.terminal_shortcuts || []), { label: '', command: '' }] })}
+                              className="text-xs text-sky-300 hover:text-sky-200 underline"
+                              title="Add another shortcut"
+                            >
+                              + Add shortcut
+                            </button>
+                          ) : (
+                            <p className="text-[11px] text-gray-500">Max {MAX_TERMINAL_SHORTCUTS} shortcuts.</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
                     <div className="pt-1 min-w-0 max-w-full">
-                      <label className="block text-[11px] text-gray-500 mb-0.5">Default terminals (open automatically on the Terminal page)</label>
-                      {(() => {
+                      <label className="block text-[11px] text-gray-500 mb-0.5">Default terminals (open automatically on the Terminal page)</label>                      {(() => {
                         const configured = s.default_terminals.length > 0;
                         const rows: TerminalDefaultDef[] = configured
                           ? s.default_terminals
