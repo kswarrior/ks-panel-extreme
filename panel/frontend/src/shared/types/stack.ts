@@ -171,11 +171,11 @@ export interface StackFileContent {
   size: number;
 }
 
-// ---- Stack Studio --------------------------------------------------------
-// Visual + code manifest builder (mirrors ModStudio's draft contract): the
-// admin edits structured tabs or raw JSON, previews the emitted manifest
-// live, and installs through POST /api/stacks/ (X-KS-Source: studio) so the
-// backend validates capabilities + seeds pending grants like any upload.
+// ---- Stack create-form draft -----------------------------------------------
+// Structured manifest builder (mirrors ModStudio's draft contract): the
+// create form edits structured tabs and installs through POST /api/stacks/
+// (X-KS-Source: studio) so the backend validates capabilities + seeds
+// pending grants like any upload.
 
 export interface StackStudioDraft {
   name: string;

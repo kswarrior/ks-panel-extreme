@@ -158,7 +158,7 @@ export function stackUiUrl(slug: string, subPath = ''): string {
 
 export const STACK_SDK_URL = '/api/stacks/v1/ks-stack-sdk.js';
 
-// ---- Workdir file manager (Studio Files tab + Detail Files section) --------
+// ---- Workdir file manager (Detail Files section + full-page file manager) --------
 
 export async function listStackFiles(id: number, dir: string): Promise<StackFileEntry[]> {
   const res = await client.get<{ path: string; entries: StackFileEntry[] }>(
