@@ -169,12 +169,13 @@ interface TerminalPaneState {
 }
 
 // TerminalPane — one live console. The xterm dials one of three bridges:
-//  - action terminal_id / install_terminal_id → dials the /workflow bridge
-//    instead (live stream of the RUNNING workflow's transcript with history
-//    replay, no side shell) and relays typed lines to the RUNNING
+//  - action terminal_id / install_terminal_id while its workflow RUNS →
+//    dials the /workflow bridge (live stream of the running transcript
+//    with history replay) and relays typed lines to the running
 //    workflow's stdin (POST …/actions/:id/stdin) — e.g. Minecraft tps /
 //    op / stop; input policy stays server-enforced, the stream is
-//    output-only;
+//    output-only. While idle the pane stays a plain side shell (the edge
+//    keeps no record to stream until the workflow starts);
 //  - startup_terminal_id → dials the /console bridge instead, attaching
 //    directly to the container main-process stdio (fully interactive,
 //    no mirror/relay needed).

@@ -1,6 +1,10 @@
 package handlers
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/example/kspanel/internal/models"
+)
 
 // install_terminal_id / advanced.startup_terminal_id are the attach-by-ID
 // handles for the Installation and Startup consoles. The deploy-time
@@ -53,5 +57,24 @@ func TestInstallConsoleIDFromConfig(t *testing.T) {
 	got := installConsoleIDFromConfig(`{"install_terminal_id":"install-console","actions":[]}`)
 	if got != "install-console" {
 		t.Fatalf("config id = %q, want install-console", got)
+	}
+}
+
+// edgeWorkflowName must always return the logical instance name, even when a
+// docker container ID sits in ExternalID. The edge keys workflows by
+// "<kind>:<name>" from InstallStart (logical name); addressing by
+// ExternalID misses the record ("no workflow for docker:<container-id>")
+// and breaks console input + the live workflow stream. Regression test.
+func TestEdgeWorkflowName(t *testing.T) {
+	if got := edgeWorkflowName(nil); got != "" {
+		t.Fatalf("nil instance = %q, want empty", got)
+	}
+	inst := &models.Instance{Name: "my-mc", ExternalID: "6a7e8ef1a61731436232caccc61a7781a8d0538eb808e1327c2731f737f12081"}
+	if got := edgeWorkflowName(inst); got != "my-mc" {
+		t.Fatalf("edgeWorkflowName = %q, want logical name %q", got, "my-mc")
+	}
+	inst.ExternalID = ""
+	if got := edgeWorkflowName(inst); got != "my-mc" {
+		t.Fatalf("edgeWorkflowName without external id = %q, want %q", got, "my-mc")
 	}
 }
