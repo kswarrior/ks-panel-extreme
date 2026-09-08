@@ -1,0 +1,40 @@
+
+ ██╗  ██╗███████╗    ██████╗  █████╗  ███╗   ██╗███████╗██╗
+ ██║ ██╔╝██╔════╝    ██╔══██╗██╔══██╗████╗  ██║██╔════╝██║
+ █████╔╝ ███████╗    ██████╔╝███████║██╔██╗ ██║█████╗  ██║
+ ██╔═██╗ ╚════██║    ██╔═══╝ ██╔══██║██║╚██╗██║██╔══╝  ██║
+ ██║  ██╗███████║    ██║      ██║  ██║██║ ╚████║███████╗███████╗
+ ╚═╝  ╚═╝╚══════╝    ╚═╝      ╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝
+→ database     sqlite — /home/runner/work/ks-panel-extreme/ks-panel-extreme/tmp/kspanel-retest/kspanel.db
+✓ database     sqlite ready
+→ ui           embedded bundle
+✓ ui           served from api/handlers
+
+panel pid:    49473
+engine:       sqlite
+dsn:          /home/runner/work/ks-panel-extreme/ks-panel-extreme/tmp/kspanel-retest/kspanel.db
+listen:       :8080
+open:         http://10.1.0.169:8080
+bind ifs:     10.1.0.169, 172.17.0.1
+go:           1.26.7
+goos:         linux/amd64
+cpus:         4
+
+✓ panel ready  running
+✗ duplicate    pid 2325: ./kspanel launch --port 8080 — stop the old instance so DDoS port switching can free ports cleanly
+✗ listen       listen tcp :8080: bind: address already in use
+Error: failed to bind port 8080: listen tcp :8080: bind: address already in use
+Usage:
+  kspanel launch [flags]
+
+Flags:
+      --database string   Database name — paired with --url for postgres/mysql (defaults to kspanel)
+      --dsn string        Full database DSN (overrides --url); file path for sqlite, conn string for postgres/mysql
+  -h, --help              help for launch
+      --password string   Database password — paired with --url for postgres/mysql
+  -p, --port int          Port to listen on (default 5050)
+      --type string       Database engine: sqlite (default), postgres, mysql/mariadb — or "ddos" to start on a temporary port that is NOT saved as the last port
+      --url string        Database host:port (e.g. localhost:5432) — friendlier alternative to --dsn for postgres/mysql
+      --user string       Database username — paired with --url for postgres/mysql
+
+Error: failed to bind port 8080: listen tcp :8080: bind: address already in use
