@@ -10,6 +10,7 @@ import { SearchableSelect } from '@/shared/components/ui/SearchableSelect';
 import TextInput from '@/shared/components/ui/TextInput';
 import LimitSelect from '@/shared/components/ui/LimitSelect';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
+import PageActionsPill, { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import { useConfirm } from '@/shared/stores/confirmStore';
 
 function toast(msg: string, type: 'success' | 'error' | 'info' = 'info') {
@@ -146,23 +147,29 @@ const InstancePortsEditor: React.FC<{ readOnly?: boolean }> = ({ readOnly = fals
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-4">
-        <h2 className="text-xl font-semibold" style={{ color: 'var(--ks-heading)' }}>Ports</h2>
-        <div className="flex items-center gap-2">
-          <LimitSelect value={limit} onChange={(n) => { setLimit(n); setPage(1); }} />
-          {canEdit && (
-            <button
-              type="button"
-              onClick={() => setModalOpen(true)}
-              disabled={saving}
-              className="px-3 py-1.5 rounded-md text-sm bg-white text-black hover:bg-gray-200 disabled:opacity-50"
-            >
+    <div className="animate-fade-in space-y-3">
+      {/* Top-right actions pill (terminal pattern): limit + add-port button.
+          Page-level chrome — no title heading (the header breadcrumb already
+          shows the page name). */}
+      <PageActionsPill>
+        <LimitSelect value={limit} onChange={(n) => { setLimit(n); setPage(1); }} />
+        {canEdit && (
+          <button
+            type="button"
+            onClick={() => setModalOpen(true)}
+            disabled={saving}
+            title="Add port"
+            aria-label="Add port"
+            className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-40"
+            style={PILL_TAB_STYLE}
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
               Add port
-            </button>
-          )}
-        </div>
-      </div>
+            </span>
+          </button>
+        )}
+      </PageActionsPill>
 
       {error && (
         <div className="ks-card" style={{ borderColor: 'var(--ks-bad-line)', color: 'var(--ks-bad)', fontSize: 12 }}>{typeof error === 'string' ? error : JSON.stringify(error)}</div>
