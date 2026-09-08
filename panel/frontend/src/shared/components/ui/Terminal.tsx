@@ -83,16 +83,19 @@ function terminalThemeFor(theme: Theme): {
 } {
   const D = DEFAULT_THEME;
   const cardBg = String(theme.card?.background || '');
+  // Card background wins whenever it parses (hex or rgb/rgba) — including
+  // the stock default, so the terminal always sits on the card fill.
+  const cardBgUsable = cardBg !== '' && parseColor(cardBg) !== null ? cardBg : null;
   const customized = (v: unknown, d: unknown): string | null =>
     isHexColor(v) && v !== d ? v : null;
 
   return {
     // Translucent card fills render fine on canvas — the page background
     // behind the terminal container shows through.
-    background: cardBg && cardBg !== D.card.background ? cardBg : STOCK_TERM.background,
+    background: cardBgUsable || STOCK_TERM.background,
     foreground: isHexColor(theme.card?.text_color) ? theme.card.text_color : STOCK_TERM.foreground,
     cursor: customized(theme.accent?.primary, D.accent.primary) || STOCK_TERM.cursor,
-    cursorAccent: cardBg && cardBg !== D.card.background ? cardBg : STOCK_TERM.background,
+    cursorAccent: cardBgUsable || STOCK_TERM.background,
     selectionBackground:
       isHexColor(theme.accent?.primary)
         ? rgbaAt(theme.accent.primary, 0.35, STOCK_TERM.selectionBackground)
@@ -200,6 +203,13 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
   useEffect(() => {
     onLineRef.current = onLine;
   }, [onLine]);
+  // Which bridge the xterm is speaking to. The mount effect below only
+  // re-runs per instanceId, so onData reads the live value through this
+  // ref (same pattern as readOnlyRef) to decide the local echo.
+  const endpointRef = useRef(endpoint);
+  useEffect(() => {
+    endpointRef.current = endpoint;
+  }, [endpoint]);
 
   // Bridge the imperative `reconnect()` to the parent's ref. We resolve it
   // lazily (no static dependency array) so the parent always picks up the
@@ -276,11 +286,27 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
     // is the same shell anyway) — but the relay must see every line,
     // including lines inside a paste chunk ("cmd1\rcmd2\r"), so the
     // server can allow/deny each one.
+    //
+    // Workflow consoles (/workflow) are piped, not PTYs: the far end never
+    // echoes, so the pane echoes locally — printable chars verbatim,
+    // Enter as a newline, backspace as an erase — exactly where the user
+    // typed them, ahead of the server's response. Side shells and startup
+    // consoles keep their existing behaviour (PTY echo / blind attach).
     const lineBuf = { current: '' };
+    const echoWorkflow = (d: string) => {
+      const term = termRef.current;
+      if (!term || endpointRef.current !== 'workflow') return;
+      for (let i = 0; i < d.length; i++) {
+        const ch = d[i];
+        if (ch === '\r' || ch === '\n') term.write('\r\n');
+        else if (ch === '\u007f' || ch === '\b') term.write('\b \b');
+        else if (ch >= ' ' || ch === '\t') term.write(ch);
+      }
+    };
     const dataSub = term.onData((d) => {
       if (readOnlyRef.current) return;
       // Control sequences (arrows, etc.) ride through untouched and never
-      // touch the line buffer or the relay.
+      // touch the line buffer, the relay — or the local echo.
       if (d.charCodeAt(0) === 27) {
         sendStdin(d);
         return;
@@ -300,6 +326,7 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
         }
       }
       lineBuf.current = cur;
+      echoWorkflow(d);
       sendStdin(d);
       for (const ln of lines) {
         if (ln.trim() === '') continue;
