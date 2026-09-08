@@ -50,7 +50,7 @@ var builtinTemplates = []builtinTemplate{
   ],
   "restart": "no",
   "limits": {
-    "memory": "2048M",
+    "memory": "4096M",
     "cpus": "2",
     "disk": "10240M",
     "memory-swap": ""
@@ -92,7 +92,18 @@ var builtinTemplates = []builtinTemplate{
     },
     {
       "action": "shell",
-      "command": "touch /mc/.install-complete"
+      "command": "touch /mc/.install-complete",
+      "url": "",
+      "filename": "",
+      "archive": "",
+      "dest": "",
+      "from": "",
+      "to": "",
+      "path": "",
+      "content": "",
+      "branch": "",
+      "retries": "",
+      "ignore_errors": false
     }
   ],
   "instance_controls": {
@@ -133,6 +144,9 @@ var builtinTemplates = []builtinTemplate{
         "terminal_default_stop_on_exit": true,
         "terminal_default_allow_input": "all",
         "terminal_default_timeout_s": "",
+        "terminal_input_mode": "direct",
+        "terminal_shortcuts_enabled": false,
+        "terminal_shortcuts": [],
         "default_terminals": []
       },
       "terminal": {
@@ -149,6 +163,12 @@ var builtinTemplates = []builtinTemplate{
         "terminal_default_stop_on_exit": true,
         "terminal_default_allow_input": "all",
         "terminal_default_timeout_s": "",
+        "terminal_input_mode": "direct",
+        "terminal_shortcuts_enabled": true,
+        "terminal_shortcuts": [
+          { "label": "TPS", "command": "tps" },
+          { "label": "op", "command": "op ${MC_USERNAME}" }
+        ],
         "default_terminals": [
           { "name": "Main", "id": "mc-console" }
         ]
@@ -167,6 +187,9 @@ var builtinTemplates = []builtinTemplate{
         "terminal_default_stop_on_exit": true,
         "terminal_default_allow_input": "all",
         "terminal_default_timeout_s": "",
+        "terminal_input_mode": "direct",
+        "terminal_shortcuts_enabled": false,
+        "terminal_shortcuts": [],
         "default_terminals": []
       }
     }
