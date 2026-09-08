@@ -168,6 +168,44 @@ const Header: React.FC<HeaderProps> = ({
   const effectiveNav = useEffectiveInstanceNav();
   const hasTabs = inInstancePanel && (navLoading || effectiveNav.length > 0);
 
+  // Instance crumb: [Icon] Instance #id / CurrentPage. Slug comes from the
+  // URL after /instances/:id/ ("" = Home "."). Label prefers the resolved
+  // nav entry, falls back to builtin/tool names (Files/Terminal/Ports never
+  // render as tabs but still open as pages).
+  const instanceCrumb = React.useMemo(() => {
+    if (!inInstancePanel) return null;
+    const m = location.pathname.match(/^\/instances\/(\d+)(?:\/(.*))?$/);
+    if (!m) return null;
+    const id = m[1];
+    const raw = (m[2] ?? '').replace(/\/+$/, '');
+    const slug = raw === '' ? '.' : raw;
+    const builtin: Record<string, string> = {
+      '.': 'Home',
+      overview: 'Overview',
+      files: 'Files',
+      terminal: 'Terminal',
+      ports: 'Ports',
+      sftp: 'SFTP',
+      snapshots: 'Snapshots',
+      backups: 'Backups',
+    };
+    let label: string | null = null;
+    const direct = effectiveNav.find((n) => n.to === slug);
+    if (direct) label = direct.label;
+    if (!label && slug.includes('/')) {
+      const parent = slug.split('/')[0];
+      const parentNav = effectiveNav.find((n) => n.to === parent);
+      if (parentNav) label = parentNav.label;
+      else if (builtin[parent]) label = builtin[parent];
+    }
+    if (!label && builtin[slug]) label = builtin[slug];
+    if (!label) {
+      const last = slug.split('/').pop() ?? slug;
+      label = last.charAt(0).toUpperCase() + last.slice(1);
+    }
+    return { id, slug, label };
+  }, [inInstancePanel, location.pathname, effectiveNav]);
+
   // Page-switch loader — white hairline that sweeps left → right ONLY while
   // a new page is opening (null = hidden/idle, number = visible width %).
   // Trigger is the route key so it fires when any page opens, including the
@@ -658,10 +696,10 @@ const Header: React.FC<HeaderProps> = ({
           );
         })()}
 
-        {/* Instance row-1 — compact back + label + up/down toggle only.
+        {/* Instance row-1 — [Icon] Instance #id / CurrentPage breadcrumb.
             Tabs live in Row 2 so bell + profile stay free on phones. */}
         {inInstancePanel && (
-          <div className="flex items-center gap-1.5 min-w-0">
+          <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 min-w-0 text-xs text-gray-400">
             <button
               type="button"
               onClick={() => navigate('/instances')}
@@ -671,9 +709,27 @@ const Header: React.FC<HeaderProps> = ({
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><path d="M15 18l-6-6 6-6" /></svg>
             </button>
-            <span className="text-sm font-medium text-gray-200 truncate">
-              {navInstanceId != null ? `Instance #${navInstanceId}` : 'Instance'}
+            <span aria-hidden="true" className="shrink-0 inline-flex items-center text-gray-300">
+              {(() => {
+                const rawIcon = SidebarIcons['Instances'];
+                return React.isValidElement(rawIcon)
+                  ? React.cloneElement(rawIcon as React.ReactElement<{ className?: string }>, { className: 'w-5 h-5' })
+                  : rawIcon;
+              })()}
             </span>
+            <button
+              type="button"
+              onClick={() => navigate(instanceCrumb && navInstanceId != null ? `/instances/${navInstanceId}` : '/instances')}
+              className="hover:text-white transition-colors shrink-0 text-sm font-medium text-gray-200"
+            >
+              {navInstanceId != null ? `Instance #${navInstanceId}` : 'Instance'}
+            </button>
+            {instanceCrumb && instanceCrumb.slug !== '.' && (
+              <>
+                <span className="text-gray-600 shrink-0">/</span>
+                <span className="text-gray-200 truncate text-sm">{instanceCrumb.label}</span>
+              </>
+            )}
             {hasTabs && (
               <button
                 type="button"
@@ -686,7 +742,7 @@ const Header: React.FC<HeaderProps> = ({
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className={`w-4 h-4 transition-transform duration-200 ${tabsCollapsed ? '' : 'rotate-180'}`} aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
               </button>
             )}
-          </div>
+          </nav>
         )}
       </div>
 
