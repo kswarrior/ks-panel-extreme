@@ -58,9 +58,9 @@ func TestParseDBTimeLayouts(t *testing.T) {
 		"2026-09-08 18:04:05+02:00",
 	}
 	for _, s := range spellings {
-		got, ok := parseDBTime(s)
-		if !ok {
-			t.Errorf("parseDBTime(%q) reported false, want true", s)
+		got, err := parseDBTime(s)
+		if err != nil || got.IsZero() {
+			t.Errorf("parseDBTime(%q) reported error/zero, want true", s)
 			continue
 		}
 		if !got.Truncate(time.Second).Equal(want) {
@@ -68,7 +68,7 @@ func TestParseDBTimeLayouts(t *testing.T) {
 		}
 	}
 	for _, s := range []string{"", "   ", "not-a-time", "0001-01-01 00:00:00", "0001-01-01T00:00:00Z", "2026-13-99 99:99:99"} {
-		if _, ok := parseDBTime(s); ok {
+		if got, err := parseDBTime(s); err == nil && !got.IsZero() {
 			t.Errorf("parseDBTime(%q) reported true, want false (must never yield year-1)", s)
 		}
 	}

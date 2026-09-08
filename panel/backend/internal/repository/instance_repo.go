@@ -101,8 +101,9 @@ func (r *InstanceRepository) List() ([]models.Instance, error) {
 			inst.Suspended = int(suspended.Int64)
 		}
 		if suspendedUntil.Valid && suspendedUntil.String != "" {
-			t, _ := time.Parse("2006-01-02 15:04:05", suspendedUntil.String)
-			inst.SuspendedUntil = &t
+			if t, err := parseDBTime(suspendedUntil.String); err == nil && !t.IsZero() {
+				inst.SuspendedUntil = &t
+			}
 		}
 		if suspensionCount.Valid {
 			inst.SuspensionCount = int(suspensionCount.Int64)
@@ -172,8 +173,9 @@ func (r *InstanceRepository) ListByOwner(ownerID int64) ([]models.Instance, erro
 			inst.Suspended = int(suspended.Int64)
 		}
 		if suspendedUntil.Valid && suspendedUntil.String != "" {
-			t, _ := time.Parse("2006-01-02 15:04:05", suspendedUntil.String)
-			inst.SuspendedUntil = &t
+			if t, err := parseDBTime(suspendedUntil.String); err == nil && !t.IsZero() {
+				inst.SuspendedUntil = &t
+			}
 		}
 		if suspensionCount.Valid {
 			inst.SuspensionCount = int(suspensionCount.Int64)
@@ -532,8 +534,8 @@ func (r *InstanceRepository) IsInstanceSuspended(id int64) (bool, *time.Time, er
 	}
 
 	if suspendedUntil.Valid && suspendedUntil.String != "" {
-		t, err := time.Parse("2006-01-02 15:04:05", suspendedUntil.String)
-		if err != nil {
+		t, err := parseDBTime(suspendedUntil.String)
+		if err != nil || t.IsZero() {
 			return true, nil, nil
 		}
 		// Check if suspension has expired

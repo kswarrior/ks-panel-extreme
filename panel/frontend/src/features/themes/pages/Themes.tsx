@@ -13,6 +13,7 @@ import { AREAS, STANDALONE_PAGES } from '@/features/instance-pages/types/pagereg
 import type { Theme } from '@/features/themes/types/theme';
 import { downloadTheme, installThemeFromUrl, uploadThemeFile } from '@/features/themes/api/themes';
 import { useConfirm } from '@/shared/stores/confirmStore';
+import { formatCardDate } from '@/shared/utils/cardDate';
 import { CardIconTile } from '@/shared/components/ui/IconColorPicker';
 
 // ApplyToRichMenu is the "Apply to…" dropdown for a single theme card.
@@ -479,7 +480,10 @@ const Themes: React.FC = () => {
 
               <footer className="mt-auto pt-2 border-t border-white/[0.06] flex items-center justify-between gap-2">
                 <span className="text-[11px] text-gray-500 truncate">
-                  {t.updated_at ? <>Updated {new Date(t.updated_at).toLocaleDateString()}</> : <>id {t.id}</>}
+                  {(() => {
+                    const label = formatCardDate(t.updated_at);
+                    return label ? <>Updated {label}</> : <>id {t.id}</>;
+                  })()}
                 </span>
                 <div className="flex items-center gap-1">
                   {/* Edit / Delete are ALWAYS rendered so the card layout is

@@ -4,6 +4,7 @@ import { getInstancePage, deleteInstancePage } from '@/shared/api/admin';
 import type { InstancePage } from '@/shared/types/instancePage';
 import { parseSubPages, parsePageActions, parsePageComponents, parsePageConfigure, pageSourceOf } from '@/features/instance-pages/types/instancePage';
 import GlassCard from '@/shared/components/ui/Card';
+import { cardTimeMs, formatCardDate } from '@/shared/utils/cardDate';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import { CardIconTile } from '@/shared/components/ui/IconColorPicker';
 import { useConfirm } from '@/shared/stores/confirmStore';
@@ -29,10 +30,10 @@ function getErrorMessage(e: any, fallback: string): string {
   return fallback;
 }
 
-function relativeTime(iso: string): string {
+function relativeTime(iso?: string | null): string {
   if (!iso) return '';
   const d = new Date(iso);
-  if (isNaN(d.getTime())) return '';
+  if (isNaN(d.getTime()) || d.getFullYear() <= 1) return '';
   const diff = Date.now() - d.getTime();
   const abs = Math.abs(diff);
   const s = Math.floor(abs / 1000);
@@ -138,7 +139,7 @@ const InstancePageDetail: React.FC = () => {
         </button>
         <div className="flex-1 min-w-0">
           <h2 className="text-xl font-semibold text-white truncate">Instance Page Detail</h2>
-          <p className="text-xs text-gray-500 truncate">ID {page.id} · /{page.slug} · {relativeTime(page.updated_at)}</p>
+          <p className="text-xs text-gray-500 truncate">ID {page.id} · /{page.slug}{cardTimeMs(page.updated_at) ? <> · {relativeTime(page.updated_at)}</> : null}</p>
         </div>
         <CardMenu
           ariaLabel={`Actions for instance page ${page.name}`}
@@ -223,11 +224,11 @@ const InstancePageDetail: React.FC = () => {
           </div>
           <div className="rounded-lg border border-white/5 bg-white/[0.02] p-2.5">
             <h4 className="text-[10px] uppercase tracking-wide text-gray-500">Created</h4>
-            <p className="text-xs text-white mt-1">{new Date(page.created_at).toLocaleDateString()}</p>
+            <p className="text-xs text-white mt-1">{formatCardDate(page.created_at) ?? '—'}</p>
           </div>
           <div className="rounded-lg border border-white/5 bg-white/[0.02] p-2.5">
             <h4 className="text-[10px] uppercase tracking-wide text-gray-500">Updated</h4>
-            <p className="text-xs text-white mt-1">{new Date(page.updated_at).toLocaleDateString()}</p>
+            <p className="text-xs text-white mt-1">{formatCardDate(page.updated_at) ?? '—'}</p>
           </div>
         </div>
 

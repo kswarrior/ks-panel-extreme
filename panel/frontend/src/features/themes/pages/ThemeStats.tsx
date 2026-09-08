@@ -12,6 +12,7 @@ import {
   StatCard,
 } from '@/shared/components/ui/StatDashboard';
 import GlassCard from '@/shared/components/ui/Card';
+import { cardTimeMs } from '@/shared/utils/cardDate';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 
@@ -133,8 +134,8 @@ const ThemeStats: React.FC = () => {
     const counts = new Array(buckets).fill(0);
 
     allThemes.forEach(({ theme: t }) => {
-      if (t.created_at) {
-        const created = new Date(t.created_at).getTime();
+      const created = cardTimeMs(t.created_at);
+      if (created) {
         const hoursAgo = Math.floor((now - created) / bucketSize);
         if (hoursAgo >= 0 && hoursAgo < buckets) {
           counts[buckets - 1 - hoursAgo]++;

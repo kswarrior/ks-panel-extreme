@@ -58,7 +58,7 @@ func (r *UserRepository) ListUsers() ([]models.User, error) {
 		// value (engine timestamp skew, legacy NULL) degrades to now rather
 		// than Go zero time: zero serializes as year 1, which the users
 		// page renders as "Created 1/1/1". Same rule as scanInstanceTimes.
-		if t, ok := parseDBTime(createdAt.String); ok {
+		if t, err := parseDBTime(createdAt.String); err == nil && !t.IsZero() {
 			u.CreatedAt = t
 		} else {
 			u.CreatedAt = time.Now().UTC()
@@ -475,8 +475,8 @@ func (r *UserRepository) IsUserSuspended(id int64) (bool, *time.Time, error) {
 	}
 
 	if suspendedUntil.Valid && suspendedUntil.String != "" {
-		t, err := time.Parse("2006-01-02 15:04:05", suspendedUntil.String)
-		if err != nil {
+		t, err := parseDBTime(suspendedUntil.String)
+		if err != nil || t.IsZero() {
 			return true, nil, nil
 		}
 		// Check if suspension has expired
@@ -525,8 +525,9 @@ func scanUserProfile(src interface{ Scan(dest ...any) error }, u *models.User, c
 		u.Suspended = int(suspended.Int64)
 	}
 	if suspendedUntil.Valid && suspendedUntil.String != "" {
-		t, _ := time.Parse("2006-01-02 15:04:05", suspendedUntil.String)
-		u.SuspendedUntil = &t
+		if t, err := parseDBTime(suspendedUntil.String); err == nil && !t.IsZero() {
+			u.SuspendedUntil = &t
+		}
 	}
 	if suspensionCount.Valid {
 		u.SuspensionCount = int(suspensionCount.Int64)
@@ -577,7 +578,7 @@ func scanUserProfileRow(row *sql.Row) (*models.User, error) {
 	}
 	// Same never-year-1 rule as ListUsers: an unparseable value degrades to
 	// now so login/profile/detail surfaces never render "Created 1/1/1".
-	if t, ok := parseDBTime(createdAtStr.String); ok {
+	if t, err := parseDBTime(createdAtStr.String); err == nil && !t.IsZero() {
 		u.CreatedAt = t
 	} else {
 		u.CreatedAt = time.Now().UTC()

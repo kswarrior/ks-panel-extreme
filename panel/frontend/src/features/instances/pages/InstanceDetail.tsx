@@ -234,15 +234,11 @@ const TerminalPane: React.FC<{
   installTerminalId: string;
   startupTerminalId: string;
   inputMode: TerminalInputMode;
-  // Command shortcuts (page-level state, rendered here in box mode):
-  shortcutsOn: boolean;
-  shortcuts: TerminalShortcutDef[];
-  onShortcutPick: (i: number) => void;
   boxText: string;
   onBoxText: (v: string) => void;
   onRegisterSend: (key: number, fn: ((line: string) => void) | null) => void;
   onConnState?: (key: number, s: PaneConnState, msg?: string) => void;
-}> = ({ instanceId, pane, actions, runningActionId, installState, installKind, installTerminalId, startupTerminalId, inputMode, shortcutsOn, shortcuts, onShortcutPick, boxText, onBoxText, onRegisterSend, onConnState }) => {
+}> = ({ instanceId, pane, actions, runningActionId, installState, installKind, installTerminalId, startupTerminalId, inputMode, boxText, onBoxText, onRegisterSend, onConnState }) => {
   const handleRef = useRef<TerminalHandle>(null);
   const [connState, setConnState] = useState<PaneConnState>('connecting');
   const [connMsg, setConnMsg] = useState('');
@@ -341,7 +337,6 @@ const TerminalPane: React.FC<{
         />
         {boxMode && (
           <div className="flex items-center gap-2 mt-2 min-w-0">
-            {shortcutsOn && <ShortcutMenuButton shortcuts={shortcuts} onPick={onShortcutPick} />}
             <input
               value={boxText}
               onChange={(e) => onBoxText(e.target.value)}
