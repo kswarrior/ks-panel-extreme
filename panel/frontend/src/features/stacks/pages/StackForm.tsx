@@ -6,49 +6,52 @@ import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
 import GlassField from '@/shared/components/ui/Field';
 import IconColorPicker from '@/shared/components/ui/IconColorPicker';
 import {
-  STACK_CAPABILITIES,
   STACK_CATEGORIES,
-  STACK_PAGE_STYLES,
-  STACK_RUNTIMES,
-  STACK_THEME_MODES,
   blankStackStudioDraft,
   emitStackStudioManifest,
   slugify,
 } from '@/shared/types/stack';
 import {
   createStackFromManifest,
-  writeStackFile,
   extractStackApiError,
 } from '@/features/stacks/api/stacks';
 
-type Tab = 'meta' | 'theme' | 'frontend' | 'permissions' | 'backend' | 'spec';
+type Tab = 'meta' | 'install' | 'launch' | 'permission';
 
 const TABS: Array<{ key: Tab; label: string }> = [
   { key: 'meta', label: 'General' },
-  { key: 'theme', label: 'Theme' },
-  { key: 'frontend', label: 'Frontend' },
-  { key: 'permissions', label: 'Permissions' },
-  { key: 'backend', label: 'Backend' },
-  { key: 'spec', label: 'Spec' },
+  { key: 'install', label: 'Install' },
+  { key: 'launch', label: 'Launch' },
+  { key: 'permission', label: 'Permission' },
 ];
 
 const sectionCls = 'ks-card ks-form-card rounded-lg space-y-4';
 
+// ComingSoon — placeholder body for form sections that are not built yet.
+// Keeps the tab chrome identical to real sections so wiring real content in
+// later is a straight swap of the section body.
+const ComingSoon: React.FC<{ heading: string }> = ({ heading }) => (
+  <div className={sectionCls}>
+    <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">{heading}</h4>
+    <div className="text-center py-10">
+      <p className="text-sm text-gray-300">Coming soon</p>
+      <p className="text-xs text-gray-500 mt-1">This section is not available yet.</p>
+    </div>
+  </div>
+);
+
 // StackForm — routed create form at /stacks/new, mirroring TemplateForm's
 // chrome (FormPage + bottom-right PageFormActionsPill with Cancel/Create).
-// It edits a StackStudioDraft and installs through POST /api/stacks/
-// (X-KS-Source: studio) so capabilities stay validated and permissions seed
-// pending — the same pipeline the Studio and .ksps uploads use. Seed content
-// (spa bundle, theme.css, simple pages, backend entry, spec.json) is written
-// through the workdir file endpoints right after install.
+// Only the General section edits fields today; Install / Launch /
+// Permission are coming-soon placeholders. Submit installs through
+// POST /api/stacks/ (X-KS-Source: studio) so the backend validates the
+// manifest like any upload.
 const StackForm: React.FC = () => {
   const navigate = useNavigate();
   const [draft, setDraft] = useState(blankStackStudioDraft);
   const [tab, setTab] = useState<Tab>('meta');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [specText, setSpecText] = useState('{}');
-  const [specError, setSpecError] = useState('');
 
   const patch = (partial: Partial<typeof draft>) => {
     setDraft((d) => ({ ...d, ...partial }));
@@ -62,70 +65,17 @@ const StackForm: React.FC = () => {
     return issues;
   }, [draft]);
 
-  const togglePerm = (cap: string) => {
-    const has = draft.permissionsRequested.some((p) => p.capability === cap);
-    if (has) {
-      patch({ permissionsRequested: draft.permissionsRequested.filter((p) => p.capability !== cap) });
-    } else {
-      patch({ permissionsRequested: [...draft.permissionsRequested, { capability: cap, access_level: '' }] });
-    }
-  };
-
   const submit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!draft.name.trim()) { setError('Name is required'); setTab('meta'); return; }
     if (!draft.slug.trim()) { setError('Slug is required'); setTab('meta'); return; }
     if (validation.length > 0) { setError(validation[0]); setTab('meta'); return; }
     if (draft.color && !/^#[0-9a-fA-F]{6}$/.test(draft.color.trim())) { setError('Colour must be a #rrggbb hex value (or empty for default)'); setTab('meta'); return; }
-    let spec: Record<string, any> = {};
-    try {
-      const parsed = JSON.parse(specText || '{}');
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        spec = parsed;
-      } else {
-        setSpecError('Spec must be a JSON object.');
-        setTab('spec');
-        return;
-      }
-    } catch (err: any) {
-      setSpecError('Spec is not valid JSON: ' + (err?.message || String(err)));
-      setTab('spec');
-      return;
-    }
     setSaving(true);
     setError('');
-    setSpecError('');
     try {
-      const manifest = emitStackStudioManifest({ ...draft, spec });
-      const stack = await createStackFromManifest(manifest, 'studio');
-      const jobs: Array<{ path: string; content: string }> = [];
-      if (draft.pageStyle === 'spa' && draft.frontendHtml.trim()) {
-        jobs.push({ path: 'frontend/dist/index.html', content: draft.frontendHtml });
-      }
-      if (draft.themeMode === 'custom' && draft.frontendCss.trim()) {
-        jobs.push({ path: 'frontend/theme.css', content: draft.frontendCss });
-      }
-      if (draft.pageStyle === 'simple' && draft.simplePage.trim()) {
-        jobs.push({ path: 'frontend/pages/overview.md', content: draft.simplePage });
-        jobs.push({
-          path: 'frontend/pages/pages.json',
-          content: JSON.stringify([{ slug: 'overview', title: 'Overview', file: 'overview.md' }], null, 2),
-        });
-      }
-      if (draft.backendScript.trim() && draft.runtime !== 'static') {
-        const entry = draft.entrypoint.trim() || (draft.runtime === 'python' ? 'backend/app.py' : 'backend/server.js');
-        jobs.push({ path: entry, content: draft.backendScript });
-      }
-      if (spec && Object.keys(spec).length) {
-        jobs.push({ path: 'spec.json', content: JSON.stringify(spec, null, 2) });
-      }
-      for (const j of jobs) {
-        try {
-          await writeStackFile(stack.id, j.path, j.content);
-        } catch {
-          /* best-effort: seed never fails the install */
-        }
-      }
+      const manifest = emitStackStudioManifest(draft);
+      await createStackFromManifest(manifest, 'studio');
       navigate('/stacks');
     } catch (err: any) {
       setError(extractStackApiError(err, 'Failed to create stack'));
@@ -252,161 +202,16 @@ const StackForm: React.FC = () => {
               </div>
             )}
 
-            {tab === 'theme' && (
-              <div className={sectionCls}>
-                <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">Section B · Theme</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <GlassField label="Theme mode" htmlFor="stack-theme">
-                    <select
-                      id="stack-theme"
-                      value={draft.themeMode}
-                      onChange={(e) => patch({ themeMode: e.target.value as typeof draft.themeMode })}
-                    >
-                      {STACK_THEME_MODES.map((m) => <option key={m.value} value={m.value}>{m.label} — {m.hint}</option>)}
-                    </select>
-                  </GlassField>
-                  <GlassField label="Page style" htmlFor="stack-pagestyle">
-                    <select
-                      id="stack-pagestyle"
-                      value={draft.pageStyle}
-                      onChange={(e) => patch({ pageStyle: e.target.value as typeof draft.pageStyle })}
-                    >
-                      {STACK_PAGE_STYLES.map((m) => <option key={m.value} value={m.value}>{m.label} — {m.hint}</option>)}
-                    </select>
-                  </GlassField>
-                </div>
-                <GlassField label="Custom theme.css (used when theme mode = custom → frontend/theme.css)" htmlFor="stack-css">
-                  <textarea
-                    id="stack-css"
-                    rows={10}
-                    value={draft.frontendCss}
-                    onChange={(e) => patch({ frontendCss: e.target.value })}
-                    placeholder={':root {\n  --ks-accent: #38bdf8;\n}'}
-                  />
-                </GlassField>
-              </div>
+            {tab === 'install' && (
+              <ComingSoon heading="Section B · Install" />
             )}
 
-            {tab === 'frontend' && (
-              <div className={sectionCls}>
-                <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">Section C · Frontend</h4>
-                {draft.pageStyle === 'spa' ? (
-                  <GlassField label="SPA index.html (seeded to frontend/dist/index.html on install)" htmlFor="stack-html">
-                    <textarea
-                      id="stack-html"
-                      rows={18}
-                      value={draft.frontendHtml}
-                      onChange={(e) => patch({ frontendHtml: e.target.value })}
-                      placeholder={'<!doctype html><html><body><h1>My stack</h1></body></html>'}
-                    />
-                  </GlassField>
-                ) : (
-                  <GlassField label="Simple page markdown (seeded to frontend/pages/overview.md on install)" htmlFor="stack-md">
-                    <textarea
-                      id="stack-md"
-                      rows={18}
-                      value={draft.simplePage}
-                      onChange={(e) => patch({ simplePage: e.target.value })}
-                    />
-                  </GlassField>
-                )}
-              </div>
+            {tab === 'launch' && (
+              <ComingSoon heading="Section C · Launch" />
             )}
 
-            {tab === 'permissions' && (
-              <div className={sectionCls}>
-                <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">Section D · Permissions</h4>
-                <p className="text-xs text-gray-400">
-                  Requested capabilities seed pending grant rows — the admin approves them before activation, exactly like an uploaded .ksps.
-                </p>
-                <div className="space-y-2">
-                  {STACK_CAPABILITIES.map((cap) => {
-                    const on = draft.permissionsRequested.some((p) => p.capability === cap.key);
-                    return (
-                      <label key={cap.key} className={`ks-card flex items-start gap-3 p-3 rounded-lg cursor-pointer transition ${on ? 'border-emerald-700/40' : ''}`}>
-                        <input
-                          type="checkbox"
-                          checked={on}
-                          onChange={() => togglePerm(cap.key)}
-                          className="mt-1 w-4 h-4 accent-emerald-500"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm text-white flex items-center gap-1.5">
-                            <span className={`w-2 h-2 rounded-full ${cap.dot}`} />
-                            {cap.label}
-                          </p>
-                          <p className="text-xs text-gray-400 mt-0.5">{cap.description}</p>
-                        </div>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {tab === 'backend' && (
-              <div className={sectionCls}>
-                <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">Section E · Backend</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <GlassField label="Runtime" htmlFor="stack-runtime">
-                    <select
-                      id="stack-runtime"
-                      value={draft.runtime}
-                      onChange={(e) => patch({ runtime: e.target.value })}
-                    >
-                      {STACK_RUNTIMES.map((r) => <option key={r} value={r}>{r}</option>)}
-                    </select>
-                  </GlassField>
-                  <GlassField label="Entrypoint" htmlFor="stack-entrypoint" hint="Empty = static stack (no sidecar).">
-                    <input
-                      id="stack-entrypoint"
-                      value={draft.entrypoint}
-                      onChange={(e) => patch({ entrypoint: e.target.value })}
-                      placeholder={draft.runtime === 'python' ? 'backend/app.py' : 'backend/server.js'}
-                    />
-                  </GlassField>
-                </div>
-                <GlassField label="Backend script (seeded to the entrypoint on install when runtime ≠ static)" htmlFor="stack-backend">
-                  <textarea
-                    id="stack-backend"
-                    rows={14}
-                    value={draft.backendScript}
-                    onChange={(e) => patch({ backendScript: e.target.value })}
-                    placeholder={draft.runtime === 'python' ? 'print("hello from stack")' : 'console.log("hello from stack");'}
-                  />
-                </GlassField>
-              </div>
-            )}
-
-            {tab === 'spec' && (
-              <div className={sectionCls}>
-                <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">Section F · Spec</h4>
-                <GlassField label="Spec (JSON, stored verbatim)" htmlFor="stack-spec">
-                  <textarea
-                    id="stack-spec"
-                    rows={16}
-                    value={specText}
-                    onChange={(e) => {
-                      setSpecText(e.target.value);
-                      try {
-                        const parsed = JSON.parse(e.target.value || '{}');
-                        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-                          setDraft((d) => ({ ...d, spec: parsed }));
-                          setSpecError('');
-                        } else {
-                          setSpecError('Spec must be a JSON object.');
-                        }
-                      } catch {
-                        /* keep editing */
-                      }
-                    }}
-                  />
-                </GlassField>
-                {specError && <p className="text-red-400 text-xs">{specError}</p>}
-                <p className="text-[11px] text-gray-500">
-                  Freeform config blob stored with the stack. Seeded to <code className="font-mono">spec.json</code> on install when non-empty.
-                </p>
-              </div>
+            {tab === 'permission' && (
+              <ComingSoon heading="Section D · Permission" />
             )}
           </div>
         </div>
