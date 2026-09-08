@@ -567,6 +567,17 @@ func deleteHost(w http.ResponseWriter, hostPath string, info os.FileInfo) {
 	} else {
 		err = os.Remove(hostPath)
 	}
+	// Permission-denied deletes self-heal exactly like writeHostFile:
+	// container-created files/dirs are often root-owned while the edge
+	// runs unprivileged, so the first delete 502'd until any edit chown'd
+	// the parent via tryFixPermission. Retry once after the same fix.
+	if err != nil && os.IsPermission(err) && tryFixPermission(hostPath) {
+		if info.IsDir() {
+			err = os.RemoveAll(hostPath)
+		} else {
+			err = os.Remove(hostPath)
+		}
+	}
 	if err != nil {
 		writeErr(w, http.StatusBadGateway, fmt.Sprintf("delete %s: %v", hostPath, err))
 		return
