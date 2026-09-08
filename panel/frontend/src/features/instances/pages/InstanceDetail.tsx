@@ -29,6 +29,7 @@ import CustomPageView from '@/shared/components/ui/CustomPageView';
 import ErrorBoundary from '@/shared/components/ui/ErrorBoundary';
 import Modal from '@/shared/components/ui/Modal';
 import Terminal, { type TerminalHandle } from '@/shared/components/ui/Terminal';
+import RichMenu from '@/shared/components/ui/RichMenu';
 import InstancePortsEditor from '@/features/instances/pages/InstancePortsEditor';
 import InstanceOverview from '@/features/instances/pages/InstanceOverview';
 import InstanceFiles from '@/features/instances/pages/InstanceFiles';
@@ -127,9 +128,62 @@ interface TerminalPaneState {
   terminalId: string;
 }
 
+// ShortcutMenuButton — SVG-only trigger (same chrome as the terminal +
+// button) opening the template's command shortcuts. Plain picks act at
+// once; parameterized picks open the ask dialog (handled by onPick).
+const ShortcutMenuButton: React.FC<{
+  shortcuts: TerminalShortcutDef[];
+  onPick: (i: number) => void;
+}> = ({ shortcuts, onPick }) => (
+  <RichMenu
+    items={shortcuts.map((sc, i) => ({
+      key: String(i),
+      label: sc.label.trim() !== '' ? sc.label : sc.command,
+    }))}
+    onSelect={(key) => {
+      const i = Number(key);
+      if (Number.isInteger(i) && shortcuts[i]) onPick(i);
+    }}
+    ariaLabel="Shortcuts"
+    placement="bottom-right"
+    width={220}
+    trigger={({ open, toggle }) => (
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        aria-label="Shortcuts"
+        title="Shortcuts"
+        className="ks-btn-header ks-icon-btn shrink-0"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>
+      </button>
+    )}
+  />
+);
+
+// SendGlyphButton — Send control in the same icon-button chrome, showing
+// the ⌯⌲ glyphs instead of SVG art or the word "Send".
+const SendGlyphButton: React.FC<{
+  onSend: () => void;
+  disabled?: boolean;
+}> = ({ onSend, disabled }) => (
+  <button
+    type="button"
+    onClick={onSend}
+    disabled={disabled}
+    aria-label="Send"
+    title="Send"
+    className="ks-btn-header ks-icon-btn shrink-0 disabled:opacity-40"
+  >
+    <span aria-hidden="true" className="text-sm leading-none">⌯⌲</span>
+  </button>
+);
+
 // ShortcutAskFields — one compact input per {{VAR}} / ${VAR} / $(VAR)
-// placeholder (env-'ask' behaviour for shortcuts). Shared by the direct
-// ask bar and the box-mode ask row.
+// placeholder (env-'ask' behaviour for shortcuts). Rendered inside the
+// ask dialog, which fits any number of variables.
 const ShortcutAskFields: React.FC<{
   vars: string[];
   askVals: Record<string, string>;
@@ -182,17 +236,12 @@ const TerminalPane: React.FC<{
   // Command shortcuts (page-level state, rendered here in box mode):
   shortcutsOn: boolean;
   shortcuts: TerminalShortcutDef[];
-  sel: number | null;
-  onSel: (i: number | null) => void;
-  askVals: Record<string, string>;
-  onAsk: (name: string, value: string) => void;
+  onShortcutPick: (i: number) => void;
   boxText: string;
   onBoxText: (v: string) => void;
-  askVars: string[];
-  askBlocked: boolean;
   onRegisterSend: (key: number, fn: ((line: string) => void) | null) => void;
   onConnState?: (key: number, s: PaneConnState, msg?: string) => void;
-}> = ({ instanceId, pane, actions, runningActionId, installState, installKind, installTerminalId, startupTerminalId, inputMode, shortcutsOn, shortcuts, sel, onSel, askVals, onAsk, boxText, onBoxText, askVars, askBlocked, onRegisterSend, onConnState }) => {
+}> = ({ instanceId, pane, actions, runningActionId, installState, installKind, installTerminalId, startupTerminalId, inputMode, shortcutsOn, shortcuts, onShortcutPick, boxText, onBoxText, onRegisterSend, onConnState }) => {
   const handleRef = useRef<TerminalHandle>(null);
   const [connState, setConnState] = useState<PaneConnState>('connecting');
   const [connMsg, setConnMsg] = useState('');
@@ -263,14 +312,10 @@ const TerminalPane: React.FC<{
   // Box input method: the xterm below is output-only (readOnly) — the
   // operator types here and Send submits the line through the exact same
   // pipeline as pressing Enter in the terminal (TerminalHandle.sendLine).
-  // With a shortcut picked, Send transmits the resolved command; editing
-  // the text frees it (selection clears) and sends raw text instead.
   const boxMode = inputMode === 'box';
   const sendBox = () => {
-    if (boxMode && askBlocked) return;
-    const text = boxMode && sel !== null ? resolveShortcutCommand(boxText, askVals) : boxText;
-    if (text.trim() === '') return;
-    try { handleRef.current?.sendLine(text); } catch { /* noop */ }
+    if (boxText.trim() === '') return;
+    try { handleRef.current?.sendLine(boxText); } catch { /* noop */ }
     onBoxText('');
   };
 
