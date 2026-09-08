@@ -2074,6 +2074,16 @@ func keepStdinForInstall(spec map[string]any) bool {
 	return installConsoleIDFromSpec(spec) != ""
 }
 
+// edgeWorkflowName reports the instance name to address edge install/*
+// RPCs (start/stop/stdin/status/stream) with: the logical instances.name.
+// The edge keys workflows by "<kind>:<name>" taken from InstallStart,
+// which every kickoff site sends as the logical name — never ExternalID
+// (the docker container ID). Addressing by ExternalID misses the record
+// ("no workflow for docker:<container-id>") and breaks both console input
+// and the live workflow stream. Exec/attach bridges are the opposite:
+// drivers route by container identity, so they correctly prefer
+// ExternalID — do not "unify" the two directions.
+
 // validInstanceName checks the instance name against docker-compatible rules.
 // 1-63 chars, [a-zA-Z0-9_-], must start with [a-zA-Z0-9], no leading hyphen.
 // The check is intentionally strict: a name that passes here is valid on
