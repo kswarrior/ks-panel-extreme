@@ -31,80 +31,221 @@ var builtinTemplates = []builtinTemplate{
 	{
 		Key:         "minecraft",
 		Name:        "Minecraft",
-		Description: "Vanilla Minecraft server on the Eclipse Temurin 21 JRE. The install workflow downloads the official server.jar into the /mc bind-mount and writes eula.txt; once install completes the panel stops the container, so the operator must explicitly click the 'Start Java' action button on the instance home page to launch `java -jar server.jar`. Auto-start-instance is enabled on the action so a stopped container is started first, then the action runs java inside; auto-stop-on-exit ensures the container is torn down again when the java process exits (so a crashed server doesn't leave a half-idle container). The /mc world directory is bind-mounted to a host path so the File Manager can browse it and server.jar + the world survive container restarts. Ships two named runtimes (Java 21 default, Java 17 for older plugins) — pick one at deploy time.",
+		Description: "Paper Minecraft 1.21.10 on Eclipse Temurin 21 JRE with autostart. Install downloads server.jar into the /mc bind-mount and writes eula.txt; the container command waits for install to complete then runs `java -Xmx1500M -jar server.jar --nogui` directly (no manual action button). The /mc world directory is bind-mounted to a host path so the File Manager can browse it and server.jar + the world survive container restarts. Ships two named runtimes (Java 21 default, Java 17 for older plugins) — pick one at deploy time.",
 		Kind:        "docker",
 		Image:       "eclipse-temurin:21-jre",
 		Spec: `{
   "category": "game",
   "type": "minecraft",
-  "images": [
-    { "name": "Java 21", "image": "eclipse-temurin:21-jre", "description": "Eclipse Temurin 21 JRE (LTS, default)", "default": true },
-    { "name": "Java 17", "image": "eclipse-temurin:17-jre", "description": "Eclipse Temurin 17 JRE (older plugins)" }
-  ],
   "ports": [
-    { "host": 25565, "container": 25565, "protocol": "tcp" }
+    { "host": "25565", "container": "25565", "protocol": "tcp" }
   ],
-  "limits": {
-    "cpus": "2",
-    "memory": "2g",
-    "disk": "10g"
-  },
   "mounts": [
-    { "host": "/var/lib/kspanel/instances/%INSTANCE_NAME%/mc", "container": "/mc", "mode": "rw" }
+    { "source": "/var/lib/kspanel/instances/%INSTANCE_NAME%/mc", "target": "/mc", "mode": "rw" }
   ],
   "command": [
     "sh",
     "-c",
-    "while [ ! -f /mc/.install-complete ]; do sleep 1; done; sleep infinity"
+    "while [ ! -f /mc/.install-complete ]; do sleep 1; done; cd /mc && exec java -Xmx1500M -jar server.jar --nogui"
   ],
   "restart": "no",
+  "limits": {
+    "memory": "2048M",
+    "cpus": "2",
+    "disk": "10240M",
+    "memory-swap": ""
+  },
+  "images": [
+    { "name": "Java 21", "image": "eclipse-temurin:21-jre", "description": "Eclipse Temurin 21 JRE (LTS, default)", "default": true },
+    { "name": "Java 17", "image": "eclipse-temurin:17-jre", "description": "Eclipse Temurin 17 JRE (older plugins)" }
+  ],
   "install": [
     {
       "action": "download",
+      "command": "",
       "url": "https://fill-data.papermc.io/v1/objects/158703f75a26f842ea656b3dc6d75bf3d1ec176b97a2c36384d0b80b3871af53/paper-1.21.10-130.jar",
-      "filename": "/mc/server.jar"
+      "filename": "/mc/server.jar",
+      "archive": "",
+      "dest": "",
+      "from": "",
+      "to": "",
+      "path": "",
+      "content": "",
+      "branch": "",
+      "retries": "",
+      "ignore_errors": false
     },
     {
       "action": "write",
+      "command": "",
+      "url": "",
+      "filename": "",
+      "archive": "",
+      "dest": "",
+      "from": "",
+      "to": "",
       "path": "/mc/eula.txt",
-      "content": "eula=true"
+      "content": "eula=true",
+      "branch": "",
+      "retries": "",
+      "ignore_errors": false
     },
     {
       "action": "shell",
       "command": "touch /mc/.install-complete"
     }
   ],
-  "actions": [
-    {
-      "id": "start_java",
-      "name": "Start Java",
-      "description": "Launch java -Xmx1500M -jar server.jar --nogui inside the container. If the container is stopped, the panel starts it first; once java exits the container is stopped automatically.",
-      "session": "long_running",
-      "auto_start_instance": true,
-      "auto_stop_on_exit": true,
-      "restart_on_failure": true,
-      "user_invokable": true,
-      "allowed_states": "",
-      "requires_online": false,
-      "async_run": false,
-      "run_on_create": false,
-      "cooldown_s": "0",
-      "allowed_commands": [],
-      "blocked_commands": [],
-"max_runtime_s": "",
-       "stop_command": "stop",
-       "stop_mode": "same",
-       "terminal_id": "mc-console",
-       "terminal_stop_on_exit": true,
-       "terminal_allow_input": "all",
-       "terminal_allowed_commands": [],
-       "terminal_blocked_commands": [],
-       "terminal_timeout_s": "",
-       "steps": [
-        { "action": "shell", "command": "cd /mc && exec java -Xmx1500M -jar server.jar --nogui" }
-      ]
+  "instance_controls": {
+    "show_info_row": true,
+    "show_cpu": true,
+    "show_ram": true,
+    "show_disk": true,
+    "allow_start": true,
+    "allow_stop": true,
+    "allow_restart": true,
+    "allow_kill": true,
+    "allow_template_actions": true,
+    "show_details_tab": true,
+    "show_monitoring_tab": true,
+    "show_manage_tab": true,
+    "show_activity_tab": true,
+    "default_tab": "details",
+    "more_page": "overview",
+    "allow_rename": true,
+    "allow_edit_advanced": true,
+    "allow_reinstall": true,
+    "allow_destroy": true,
+    "allow_external_id_copy": true,
+    "allow_node_link": true,
+    "allow_template_link": true,
+    "shortcuts": {
+      "files": {
+        "show": true,
+        "slug": "files",
+        "label": "Files",
+        "icon_svg": "",
+        "icon_color": "#fbbf24",
+        "show_sftp": true,
+        "show_header": true,
+        "allow_edit": true,
+        "terminal_allow_multi": true,
+        "terminal_max": "4",
+        "terminal_default_stop_on_exit": true,
+        "terminal_default_allow_input": "all",
+        "terminal_default_timeout_s": "",
+        "default_terminals": []
+      },
+      "terminal": {
+        "show": true,
+        "slug": "terminal",
+        "label": "Terminal",
+        "icon_svg": "",
+        "icon_color": "#34d399",
+        "show_sftp": true,
+        "show_header": true,
+        "allow_edit": true,
+        "terminal_allow_multi": true,
+        "terminal_max": "4",
+        "terminal_default_stop_on_exit": true,
+        "terminal_default_allow_input": "all",
+        "terminal_default_timeout_s": "",
+        "default_terminals": [
+          { "name": "Main", "id": "mc-console" }
+        ]
+      },
+      "ports": {
+        "show": true,
+        "slug": "ports",
+        "label": "Ports",
+        "icon_svg": "",
+        "icon_color": "#38bdf8",
+        "show_sftp": true,
+        "show_header": true,
+        "allow_edit": true,
+        "terminal_allow_multi": true,
+        "terminal_max": "4",
+        "terminal_default_stop_on_exit": true,
+        "terminal_default_allow_input": "all",
+        "terminal_default_timeout_s": "",
+        "default_terminals": []
+      }
     }
-  ]
+  },
+  "home_page": "overview",
+  "advanced": {
+    "startup_command": "while [ ! -f /mc/.install-complete ]; do sleep 1; done; cd /mc && exec java -Xmx1500M -jar server.jar --nogui",
+    "startup_terminal_id": "mc-console",
+    "stop_command": "",
+    "stop_signal": "",
+    "working_dir": "",
+    "user": "",
+    "hostname": "",
+    "privileged": false,
+    "readonly_rootfs": false,
+    "enable_tty": false,
+    "dns": [],
+    "extra_hosts": [],
+    "network_mode": "bridge",
+    "restart_policy": "no",
+    "shm_size": "",
+    "pids_limit": "",
+    "ulimits": { "nofiles": "", "nproc": "" },
+    "logging": { "driver": "json-file", "max_size": "", "max_files": "", "level": "info" },
+    "oom_kill_disable": false,
+    "cpu_quota_period": "",
+    "io_weight": "",
+    "environment_template": "",
+    "kvm": {
+      "vcpus": "2",
+      "cpu_model": "host-passthrough",
+      "machine": "q35",
+      "uefi": true,
+      "secure_boot": false,
+      "tpm": false,
+      "vga": "virtio",
+      "video_memory": "16",
+      "boot_order": "hd",
+      "kernel_args": "",
+      "extra_args": "",
+      "vnc_port": "",
+      "vnc_password": "",
+      "spice_port": "",
+      "install_iso": "",
+      "disk_bus": "virtio",
+      "disk_cache": "writeback",
+      "io_thread": true,
+      "discard": true,
+      "numa": false,
+      "hugepages": false,
+      "rdm_reservation": false
+    },
+    "multipass": {
+      "cpus": "2",
+      "disk": "10240M",
+      "memory": "1024M",
+      "cloud_init_userdata": "",
+      "cloud_init_metadata": "",
+      "image_alias": "",
+      "bridges": [],
+      "bridged": "",
+      "launch_argument": "",
+      "autorecovery": true
+    },
+    "lxd": {
+      "profiles": ["default"],
+      "storage_pool": "default",
+      "storage_volume_size": "",
+      "config": {},
+      "devices": {},
+      "limits_cpu_allowance": "",
+      "limits_cpu_priority": "0",
+      "security_protection": true,
+      "security_privileged": false,
+      "raw_idmap": "",
+      "boot_autostart": true,
+      "snapshot_pattern": ""
+    }
+  }
 }`,
 	},
 	{
