@@ -1,11 +1,11 @@
 {
-  "version": "1.0.57",
-  "commit": "ca721e34",
-  "build_date": "2026-09-08T16:03:44Z",
+  "version": "1.0.58",
+  "commit": "c1f7843f",
+  "build_date": "2026-09-08T16:06:18Z",
   "notes": "",
   "size_bytes": 28965272,
-  "sha256": "0cedf1604a334095b7e5f2888e485f6c5cdd1c84593f0ea334eefe378b44d346",
-  "sha256_edge": "67fd7c6bef5f64b82a1f4410d4dbf10e4b9babcc1b031613a7abb7f4ca098115",
+  "sha256": "c477fe316cdb0b1b6f89d1bbd914cc94844f117b3bb605621fc2f0d710d28bc2",
+  "sha256_edge": "381706a2cae88ff49899877cef6d63340906a13856d57bd9ae23fc2bfee2f167",
   "signature": "",
   "signature_edge": ""
 }
