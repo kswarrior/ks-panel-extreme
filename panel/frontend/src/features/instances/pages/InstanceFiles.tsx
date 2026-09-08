@@ -517,21 +517,21 @@ const InstanceFiles: React.FC<{ instanceId: number; filesSlug: string }> = ({ in
       >
         <button
           type="button"
-          onClick={() => setPath('/')}
-          title="Root"
+          onClick={() => goPath(jail ? home : '/')}
+          title={jail ? `Home (${home})` : 'Root'}
           className="shrink-0 text-gray-400 hover:text-white transition-colors"
         >
-          /
+          {jail ? home : '/'}
         </button>
         {crumbs.map((seg, i) => {
-          const tgt = `/${crumbs.slice(0, i + 1).join('/')}`;
+          const tgt = jail ? `${home}/${crumbs.slice(0, i + 1).join('/')}` : `/${crumbs.slice(0, i + 1).join('/')}`;
           const last = i === crumbs.length - 1;
           return (
             <span key={tgt} className="inline-flex items-center gap-1 shrink-0">
               <span className="text-gray-600">/</span>
               <button
                 type="button"
-                onClick={() => setPath(tgt)}
+                onClick={() => goPath(tgt)}
                 title={`Open ${tgt}`}
                 className={`truncate max-w-40 ${last ? 'text-white font-medium' : 'text-gray-400 hover:text-white transition-colors'}`}
               >

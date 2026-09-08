@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useConfirm } from '@/shared/stores/confirmStore';
+import { useInstance } from '@/shared/hooks/useInstance';
+import { resolveInstanceControls, normalizeFilesPath, isPathWithinHome } from '@/features/instances/utils/instanceControls';
 import { downloadFile, readFileText, statPath, writeFile } from '../api/instanceFiles';
 
 function toast(msg: string, type: 'success' | 'error' | 'info' = 'info') {
@@ -295,6 +297,16 @@ const InstanceFileEditor: React.FC<{ instanceId: number; filesSlug: string }> = 
   const confirm = useConfirm();
   const [searchParams] = useSearchParams();
   const targetPath = searchParams.get('path') || '';
+  // Jail guard: a hand-crafted ?path= outside the locked home folder must
+  // not render (the Files list itself can't navigate there).
+  const { instance, loading: instanceLoading } = useInstance(instanceId);
+  const filesCfg = useMemo(() => resolveInstanceControls(instance?.config).shortcuts.files, [instance?.config]); // eslint-disable-line react-hooks/exhaustive-deps
+  const jailedOut = useMemo(() => {
+    if (!filesCfg.files_jail || !filesCfg.files_home || !targetPath) return false;
+    const home = normalizeFilesPath(filesCfg.files_home);
+    return home !== '/' && !isPathWithinHome(home, targetPath);
+  }, [filesCfg.files_jail, filesCfg.files_home, targetPath]);
+  const jailHome = useMemo(() => normalizeFilesPath(filesCfg.files_home || '/'), [filesCfg.files_home]);
 
   const [text, setText] = useState('');
   const [savedText, setSavedText] = useState('');
@@ -334,8 +346,14 @@ const InstanceFileEditor: React.FC<{ instanceId: number; filesSlug: string }> = 
   );
 
   const load = useCallback(async () => {
+    if (instanceLoading) return;
     if (!targetPath) {
       setError('No file path given — open a file from the Files page.');
+      setLoading(false);
+      return;
+    }
+    if (jailedOut) {
+      setError(`Outside the allowed home folder (${jailHome}).`);
       setLoading(false);
       return;
     }
@@ -363,14 +381,14 @@ const InstanceFileEditor: React.FC<{ instanceId: number; filesSlug: string }> = 
     } finally {
       setLoading(false);
     }
-  }, [instanceId, targetPath]);
+  }, [instanceId, targetPath, instanceLoading, jailedOut, jailHome]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
   const save = useCallback(async () => {
-    if (!targetPath || saving) return;
+    if (!targetPath || saving || jailedOut) return;
     setSaving(true);
     try {
       await writeFile(instanceId, targetPath, text);
@@ -381,7 +399,7 @@ const InstanceFileEditor: React.FC<{ instanceId: number; filesSlug: string }> = 
     } finally {
       setSaving(false);
     }
-  }, [instanceId, targetPath, text, saving]);
+  }, [instanceId, targetPath, text, saving, jailedOut]);
 
   const goBack = useCallback(async () => {
     if (dirty) {
