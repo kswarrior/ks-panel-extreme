@@ -376,7 +376,7 @@ const ApiKeyForm: React.FC = () => {
         maxWidth="max-w-4xl"
         hideHeader
       >
-      <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)] gap-4">
         {/* Desktop tabs — vertical on the left (node pattern). */}
         <GlassCard className="hidden lg:block lg:sticky lg:top-4 self-start">
           <nav aria-label="API key form sections" className="flex lg:flex-col gap-1">

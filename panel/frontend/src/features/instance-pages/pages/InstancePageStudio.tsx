@@ -566,7 +566,7 @@ const InstancePageStudio: React.FC = () => {
       hideHeader
       disabled={isBuiltin}
     >
-      <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)] gap-4">
         <PageStudioTabs tab={activeTab} onChange={setActiveTab} isBuiltin={isBuiltin} />
 
         <div className="space-y-4 min-w-0">

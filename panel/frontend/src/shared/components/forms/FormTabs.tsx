@@ -18,7 +18,9 @@ interface FormTabsProps {
 }
 
 // FormTabsDesktop renders only the desktop left rail (hidden on phones).
-// Use inside the form grid: grid-cols-1 lg:grid-cols-[220px_1fr].
+// Use inside the form grid: grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)]
+// (minmax keeps the content column shrinkable so wide expanders can't push
+// the page off the right edge on desktop).
 export const FormTabsDesktop: React.FC<FormTabsProps> = ({ tabs, value, onChange, ariaLabel }) => {
   return (
     <GlassCard className="hidden lg:block lg:sticky lg:top-4 self-start">

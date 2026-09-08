@@ -119,7 +119,7 @@ const StackForm: React.FC = () => {
             {error}
           </div>
         )}
-        <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)] gap-4">
           <div className="ks-card rounded-lg p-2 lg:sticky lg:top-4 self-start">
             <nav className="flex lg:flex-col gap-1 overflow-x-auto" aria-label="Stack form sections">
               {TABS.map((t) => (
@@ -134,7 +134,7 @@ const StackForm: React.FC = () => {
               ))}
             </nav>
           </div>
-          <div className="space-y-4">
+          <div className="space-y-4 min-w-0 max-w-full">
             {tab === 'meta' && (
               <div className={sectionCls}>
                 <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">Section A · General Information</h4>

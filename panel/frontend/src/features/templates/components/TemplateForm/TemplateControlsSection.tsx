@@ -122,8 +122,8 @@ const TabRow: React.FC<{  checked: boolean;
   configLabel,
   children,
 }) => (
-  <div className="py-1 border-b border-white/5 last:border-0">
-    <div className="flex items-start gap-2">
+  <div className="py-1 border-b border-white/5 last:border-0 min-w-0">
+    <div className="flex items-start gap-2 min-w-0">
       <label className="flex items-start gap-2.5 py-1.5 cursor-pointer flex-1 min-w-0" title={hint}>
         <input
           type="checkbox"
@@ -145,7 +145,7 @@ const TabRow: React.FC<{  checked: boolean;
       )}
     </div>
     {checked && hasConfig && configOpen && (
-      <div className="ml-6 mt-1 mb-1.5 rounded-md border border-white/10 bg-black/30 px-3 py-1 divide-y divide-white/5">
+      <div className="ml-6 mt-1 mb-1.5 rounded-md border border-white/10 bg-black/30 px-3 py-1 divide-y divide-white/5 min-w-0 max-w-full overflow-x-clip">
         {children}
       </div>
     )}
@@ -277,7 +277,7 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
                 onToggleConfig={() => toggleShortcut(key)}
                 configLabel={`Configure ${d.label} shortcut — slug, name, SVG icon and page options`}
               >
-                <div className="py-1 space-y-2">
+                <div className="py-1 space-y-2 min-w-0 max-w-full">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div>
                       <label className="block text-[11px] text-gray-500 mb-0.5">URL slug</label>
@@ -307,7 +307,7 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
                   </div>
                   <div>
                     <label className="block text-[11px] text-gray-500 mb-0.5">SVG icon + colour</label>
-                    <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-2 flex-wrap min-w-0 max-w-full">
                       <span
                         className="w-9 h-9 shrink-0 rounded-md flex items-center justify-center border bg-white/[0.05] border-white/10 [&>svg]:w-5 [&>svg]:h-5 [&>svg]:block"
                         style={s.icon_color ? { color: s.icon_color } : { color: d.icon_color }}
@@ -341,7 +341,7 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
                         onChange={(e) => updateShortcut(key, { icon_svg: e.target.value })}
                         placeholder="…or paste custom SVG markup"
                         aria-label={`${d.label} shortcut custom SVG`}
-                        className="glass-field font-mono"
+                        className="glass-field font-mono w-full min-w-0"
                       />
                       <div className="flex items-center gap-1.5 flex-wrap">
                         {COLOR_SWATCHES.map((sw) => (
@@ -536,15 +536,15 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
       <div className={sectionCls}>
         <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">More page · More link</h4>
         <p className="text-xs text-gray-500">Which page the floating menu's More button opens. Enter its slug — the URL it is accessible at. Env variables work here too (<code className="font-mono text-gray-400">{'{{HOME_PAGE}}'}</code> / <code className="font-mono text-gray-400">{'${HOME_PAGE}'}</code>).</p>
-        <div className="flex items-center gap-1.5 mt-2">
-          <span className="text-gray-500 text-sm font-mono">/</span>
+        <div className="flex items-center gap-1.5 mt-2 min-w-0">
+          <span className="text-gray-500 text-sm font-mono shrink-0">/</span>
           <input
             value={c.more_page}
             onChange={(e) => onUpdate({ more_page: e.target.value })}
             placeholder="overview"
             aria-label="More link target slug"
             title="Slug of the page the More button opens, e.g. overview or files"
-            className="glass-field font-mono flex-1"
+            className="glass-field font-mono flex-1 min-w-0"
           />
           {c.more_page !== DEFAULT_INSTANCE_CONTROLS.more_page && (
             <button
