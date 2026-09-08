@@ -404,12 +404,6 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
                   {key === 'terminal' && (
                     <>
                     <MiniToggle
-                      checked={s.show_header}
-                      onChange={(v) => updateShortcut(key, { show_header: v })}
-                      label="Show header bar"
-                      hint="Title + Reconnect / Clear buttons above the terminal"
-                    />
-                    <MiniToggle
                       checked={s.terminal_allow_multi}
                       onChange={(v) => updateShortcut(key, { terminal_allow_multi: v })}
                       label="Allow multiple terminals"

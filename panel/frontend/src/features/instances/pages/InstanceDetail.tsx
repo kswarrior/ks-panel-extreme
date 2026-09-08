@@ -357,9 +357,10 @@ const TerminalPane: React.FC<{
 
 // TerminalRealPage — native xterm terminal(s) for the terminal shortcut slug
 // (default `terminal`, customizable in Instance Controls). Terminals are
-// added via the header + button, which opens a small dialog asking only for
-// Name + terminal ID (empty ID = plain shell). Panes render as TABS: the tab
-// bar sits directly below the Terminal header text + add button, clicking a
+// added via the actions-pill + button, which opens a small dialog asking only
+// for Name + terminal ID (empty ID = plain shell). No title heading is
+// rendered (the header breadcrumb already shows the page name). Panes render as TABS: the tab
+// bar sits below the actions pill, clicking a
 // tab activates that pane (inactive panes stay mounted hidden so their WS
 // stays alive). A pane whose ID matches a template action's
 // terminal_id streams that action's live console via the /workflow bridge
@@ -627,12 +628,7 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
           </button>
         )}
       </PageActionsPill>
-      {showHeader && (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-        <h2 style={{ fontSize: 20, fontWeight: 600, color: 'var(--ks-heading)', margin: 0 }}>{title || 'Terminal'}</h2>
-      </div>
-      )}
-      {/* Tabs bar — desktop (lg+) strip below the header, above the
+      {/* Tabs bar — desktop (lg+) strip above the active terminal.
           active terminal. Horizontally scrollable; inactive panes stay
           mounted hidden so their WS sessions survive tab switches. Phones
           use the bottom tabs pill below instead (template-form pattern). */}
