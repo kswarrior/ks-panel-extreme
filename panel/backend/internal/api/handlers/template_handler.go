@@ -388,6 +388,29 @@ func validateTemplateSpec(spec map[string]any) error {
 					return fmt.Errorf("spec.actions[%d]: terminal_timeout_s must be 0..2592000 seconds", i)
 				}
 			}
+			// auto_stop_delay_s: grace period between the action's process
+			// exit (or failure) and the auto-stop container teardown.
+			// "" = immediate. Bounded at 24h: the pending stop lives in
+			// panel memory and would not survive a panel restart.
+			if rawDelay, ok := m["auto_stop_delay_s"]; ok && rawDelay != nil {
+				validDelay := false
+				switch t := rawDelay.(type) {
+				case string:
+					s := strings.TrimSpace(t)
+					if s == "" {
+						validDelay = true
+					} else if p, err := strconv.Atoi(s); err == nil && p >= 0 && p <= 86400 {
+						validDelay = true
+					}
+				case float64:
+					if t == 0 || (t > 0 && t <= 86400) {
+						validDelay = true
+					}
+				}
+				if !validDelay {
+					return fmt.Errorf("spec.actions[%d]: auto_stop_delay_s must be 0..86400 seconds", i)
+				}
+			}
 			// terminal_allowed_commands: array of regex (or ""/multiline
 			// string for hand-written specs). Every non-empty entry must
 			// compile so a typo fails fast at save time, not at console

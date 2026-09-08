@@ -155,6 +155,11 @@ type templateActionSpec struct {
 	Name           string `json:"name"`
 	AutoStart      bool   `json:"auto_start_instance"`
 	AutoStopOnExit bool   `json:"auto_stop_on_exit"`
+	// AutoStopDelayS delays the auto-stop teardown after the action's
+	// foreground process exits (seconds, ""/0 = immediate). Only read
+	// when AutoStopOnExit is true; the sweep loop schedules the delayed
+	// container stop.
+	AutoStopDelayS flexString `json:"auto_stop_delay_s,omitempty"`
 	// StopCommand is the optional shell command the operator edited into the
 	// template action; StopActionHandler forwards it to the edge so the edge
 	// runs it once INSIDE the container after cancelling the in-flight

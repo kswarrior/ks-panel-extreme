@@ -676,7 +676,7 @@ func installSweepLoop(interval time.Duration) {
 		// using the canonical columns keeps the poll logic immune to any
 		// future change in the install_id format (e.g. names that contain
 		// a colon, which would break a SplitN).
-		rows, err := con.Query(`SELECT id, node_id, kind, name, install_id, install_kind, install_auto_stop, install_action_id FROM instances WHERE install_state = 'running'`)
+		rows, err := con.Query(`SELECT id, node_id, kind, name, install_id, install_kind, install_auto_stop, install_action_id, template_id FROM instances WHERE install_state = 'running'`)
 		if err != nil {
 			con.Close()
 			continue
@@ -690,11 +690,12 @@ func installSweepLoop(interval time.Duration) {
 			installKind   string
 			installAutoStop int
 			installActionID string
+			templateID    int64
 		}
 		var toPoll []instRow
 		for rows.Next() {
 			var r instRow
-			if err := rows.Scan(&r.id, &r.nodeID, &r.kind, &r.name, &r.installID, &r.installKind, &r.installAutoStop, &r.installActionID); err == nil && r.installID != "" {
+			if err := rows.Scan(&r.id, &r.nodeID, &r.kind, &r.name, &r.installID, &r.installKind, &r.installAutoStop, &r.installActionID, &r.templateID); err == nil && r.installID != "" {
 				toPoll = append(toPoll, r)
 			}
 		}
