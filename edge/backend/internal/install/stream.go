@@ -268,36 +268,6 @@ func snapshotState(rec *record) string {
 	return rec.state
 }
 
-// diffTranscript computes the new bytes to stream given the last sent full
-// transcript and the current full transcript. Exact-prefix appends (the
-// common live case) send only the suffix; a slid cap window re-anchors on
-// the previous tail so polls never spam duplicates; otherwise the last 8k
-// are resent as a safe fallback.
-func diffTranscript(prev, cur string) string {
-	if cur == "" || cur == prev {
-		return ""
-	}
-	if prev == "" {
-		return cur
-	}
-	if strings.HasPrefix(cur, prev) {
-		return cur[len(prev):]
-	}
-	anchor := prev
-	if len(anchor) > 2000 {
-		anchor = anchor[len(anchor)-2000:]
-	}
-	if anchor != "" {
-		if idx := strings.LastIndex(cur, anchor); idx >= 0 {
-			return cur[idx+len(anchor):]
-		}
-	}
-	if len(cur) > 8000 {
-		return cur[len(cur)-8000:]
-	}
-	return cur
-}
-
 // streamGuardedConn serialises WS writes (gorilla forbids concurrent
 // WriteMessage). The stream has a single writer goroutine today, but the
 // guard keeps the pattern identical to the exec/attach bridges.
@@ -316,13 +286,13 @@ func (g *streamGuardedConn) write(v any) {
 	_ = g.conn.WriteMessage(websocket.TextMessage, b)
 }
 
-// writeStdout sends one base64 stdout text frame.
-func (g *streamGuardedConn) writeStdout(s string) {
-	if s == "" {
+// writeStream sends one base64 stdout/stderr text frame.
+func (g *streamGuardedConn) writeStream(kind, data string) {
+	if data == "" || (kind != "stdout" && kind != "stderr") {
 		return
 	}
-	enc := base64.StdEncoding.EncodeToString([]byte(s))
-	g.write(map[string]any{"type": "stdout", "data": enc})
+	enc := base64.StdEncoding.EncodeToString([]byte(data))
+	g.write(map[string]any{"type": kind, "data": enc})
 }
 
 type streamSimpleErr string
