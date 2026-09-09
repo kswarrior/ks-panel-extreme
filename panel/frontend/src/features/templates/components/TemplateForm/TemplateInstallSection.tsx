@@ -68,18 +68,20 @@ export const TemplateInstallSection: React.FC<InstallSectionProps> = ({
             <p className="text-[11px] text-gray-500 mt-1">Hard deadline for the whole install workflow (all steps + retries). A big apt/pip install that outlives the default should raise this.</p>
           </div>
         )}
+        {onInstallTerminalIdUpdate && (
         <div className="mt-2 mb-3 rounded-md border border-sky-700/30 bg-sky-950/20 p-2 space-y-2">
           <div>
             <label className="block text-[11px] text-gray-400 mb-0.5">Terminal ID (optional — binds the installation console to terminal panes)</label>
             <input
               value={installTerminalId ?? ''}
-              onChange={(e) => onInstallTerminalIdUpdate?.(e.target.value.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, ''))}
+              onChange={(e) => onInstallTerminalIdUpdate(e.target.value.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, ''))}
               placeholder="e.g. install-console (empty = no dedicated install console)"
               className={monoCls + ' border-sky-700/40 focus:border-sky-400'}
             />
             <p className="text-[11px] text-gray-500 mt-1">On the instance Terminal page, add a terminal and enter this ID — that pane streams the install transcript and relays input while the workflow runs. Must be unique across this template's action + startup terminal IDs.</p>
           </div>
         </div>
+        )}
         <div className="space-y-3">
           {install.map((s, i) => {
             const isEditing = editingIdx === i;

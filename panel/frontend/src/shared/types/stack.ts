@@ -222,13 +222,11 @@ export interface StackStudioDraft {
   installImage: string;
   installSteps: StackInstallStep[];
   installTimeoutS: string;
-  installTerminalId: string;
   // Launch section: workflow steps that run every time the stack launches
   // (same step shape as the install workflow so the UI shares
   // TemplateInstallSection; only the run moment differs).
   launchSteps: StackInstallStep[];
   launchTimeoutS: string;
-  launchTerminalId: string;
   // Ask-at-launch tokens: values prompted for at launch time and exported
   // as environment variables (token NAME is the ENV key, e.g. API_TOKEN
   // becomes $API_TOKEN). Mirrors the template env-var "ask" behaviour.
@@ -345,10 +343,8 @@ export const blankStackStudioDraft = (): StackStudioDraft => ({
   installImage: '',
   installSteps: [],
   installTimeoutS: '',
-  installTerminalId: '',
   launchSteps: [],
   launchTimeoutS: '',
-  launchTerminalId: '',
   launchTokens: [],
   locationType: 'host',
   remoteUrl: '',
@@ -383,13 +379,11 @@ export function emitStackStudioManifest(draft: StackStudioDraft): Record<string,
     install: draft.installSteps || [],
     installSteps: draft.installSteps || [],
     install_timeout_sec: (draft.installTimeoutS || '').replace(/[^0-9]/g, '') || undefined,
-    install_terminal_id: (draft.installTerminalId || '').trim() || undefined,
     // Launch workflow: same step vocabulary as install, but executed at
     // launch time instead of install time (raw-manifest pass-through).
     launch: draft.launchSteps || [],
     launchSteps: draft.launchSteps || [],
     launch_timeout_sec: (draft.launchTimeoutS || '').replace(/[^0-9]/g, '') || undefined,
-    launch_terminal_id: (draft.launchTerminalId || '').trim() || undefined,
     // Ask-at-launch tokens (prompted at launch, exported as ENV).
     launchTokens: draft.launchTokens || [],
     // Location type (raw-manifest pass-through until the backend models it).
