@@ -13,6 +13,8 @@ import {
   STACK_CAPABILITIES,
   STACK_CATEGORIES,
   STACK_INSTALL_TYPES,
+  STACK_LOCATION_TYPES,
+  STACK_REMOTE_PROTOCOLS,
   STACK_RUNTIMES,
   blankStackInstallStep,
   blankStackLaunchToken,
@@ -176,6 +178,12 @@ const StackForm: React.FC = () => {
     if (validation.length > 0) { setError(validation[0]); setTab('meta'); return; }
     if (draft.color && !/^#[0-9a-fA-F]{6}$/.test(draft.color.trim())) { setError('Colour must be a #rrggbb hex value (or empty for default)'); setTab('meta'); return; }
     if (draft.installType === 'docker' && !draft.installImage.trim()) { setError('Docker image is required for Type Docker'); setTab('install'); return; }
+    if (draft.locationType === 'outside') {
+      const url = draft.remoteUrl.trim();
+      if (!url) { setError('Remote URL is required for Type Outside'); setTab('meta'); return; }
+      if (draft.remoteProtocol === 'wss' && !/^wss?:\/\//i.test(url)) { setError('Remote URL must start with ws:// or wss:// for WSS'); setTab('meta'); return; }
+      if (draft.remoteProtocol === 'post' && !/^https?:\/\//i.test(url)) { setError('Remote URL must start with http:// or https:// for POST'); setTab('meta'); return; }
+    }
     {
       const seen = new Set<string>();
       for (const t of draft.launchTokens) {
@@ -320,6 +328,105 @@ const StackForm: React.FC = () => {
                     placeholder="Brief description of this stack"
                   />
                 </GlassField>
+                {/* Location type — Host (stack on this same host) vs Outside
+                    (stack elsewhere, reached via WSS or POST). */}
+                <div className="space-y-3">
+                  <span className="block text-sm font-medium text-gray-300 ks-label">Type · Location</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" role="radiogroup" aria-label="Location type">
+                    {STACK_LOCATION_TYPES.map((t) => {
+                      const active = draft.locationType === t.value;
+                      return (
+                        <button
+                          key={t.value}
+                          type="button"
+                          role="radio"
+                          aria-checked={active}
+                          onClick={() => patch({ locationType: t.value })}
+                          className={`ks-card flex items-start gap-3 p-3 rounded-lg text-left transition cursor-pointer ${
+                            active ? 'border-sky-600/60 bg-sky-950/20' : 'hover:border-white/20'
+                          }`}
+                        >
+                          <span
+                            className={`mt-1 w-3.5 h-3.5 rounded-full border-2 shrink-0 flex items-center justify-center ${
+                              active ? 'border-sky-400' : 'border-white/20'
+                            }`}
+                            aria-hidden="true"
+                          >
+                            {active && <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />}
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block text-sm font-semibold text-white">{t.label}</span>
+                            <span className="block text-xs text-gray-400 mt-0.5">{t.hint}</span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {draft.locationType === 'host' ? (
+                    <p className="text-xs text-gray-500">
+                      Host — the stack lives on this same host. Nothing extra to configure here.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" role="radiogroup" aria-label="Remote protocol">
+                        {STACK_REMOTE_PROTOCOLS.map((p) => {
+                          const active = draft.remoteProtocol === p.value;
+                          return (
+                            <button
+                              key={p.value}
+                              type="button"
+                              role="radio"
+                              aria-checked={active}
+                              onClick={() => patch({ remoteProtocol: p.value })}
+                              title={p.hint}
+                              className={`ks-card flex items-start gap-3 p-3 rounded-lg text-left transition cursor-pointer ${
+                                active ? 'border-emerald-600/60 bg-emerald-950/20' : 'hover:border-white/20'
+                              }`}
+                            >
+                              <span
+                                className={`mt-1 w-3.5 h-3.5 rounded-full border-2 shrink-0 flex items-center justify-center ${
+                                  active ? 'border-emerald-400' : 'border-white/20'
+                                }`}
+                                aria-hidden="true"
+                              >
+                                {active && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
+                              </span>
+                              <span className="min-w-0">
+                                <span className="block text-sm font-semibold text-white font-mono">{p.label}</span>
+                                <span className="block text-xs text-gray-400 mt-0.5">{p.hint}</span>
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <GlassField
+                        label="Remote URL"
+                        htmlFor="stack-remote-url"
+                        hint={draft.remoteProtocol === 'wss' ? 'Where the outside stack listens, e.g. wss://stack.example.com:7443/ws.' : 'Where the outside stack receives calls, e.g. https://stack.example.com:8443/hooks/stack.'}
+                      >
+                        <input
+                          id="stack-remote-url"
+                          value={draft.remoteUrl}
+                          onChange={(e) => patch({ remoteUrl: e.target.value })}
+                          placeholder={draft.remoteProtocol === 'wss' ? 'wss://stack.example.com:7443/ws' : 'https://stack.example.com:8443/hooks/stack'}
+                          spellCheck={false}
+                          autoComplete="off"
+                          required
+                        />
+                      </GlassField>
+                      <GlassField label="Shared secret (optional)" htmlFor="stack-remote-secret" hint="Sent with every WSS/POST call so the outside stack can verify the panel.">
+                        <input
+                          id="stack-remote-secret"
+                          type="password"
+                          value={draft.remoteSecret}
+                          onChange={(e) => patch({ remoteSecret: e.target.value })}
+                          placeholder="leave empty for none"
+                          autoComplete="new-password"
+                        />
+                      </GlassField>
+                    </div>
+                  )}
+                </div>
                 <div>
                   <span className="block text-sm font-medium text-gray-300 mb-1 ks-label">Icon & colour</span>
                   <IconColorPicker
