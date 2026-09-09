@@ -37,22 +37,31 @@ function fmtTime(iso?: string | null): string {
 interface JobDraft {
   editing: Automation | null;
   name: string;
+  kind: 'shell' | 'power' | 'action';
+  payload: string;
   schedule: string;
   command: string;
+  actionId: string;
   secretRefs: string;
   timeoutSec: number;
   enabled: boolean;
 }
 
-const emptyDraft = (editing: Automation | null = null): JobDraft => ({
-  editing,
-  name: editing?.name ?? '',
-  schedule: editing?.schedule ?? '',
-  command: editing?.command ?? '',
-  secretRefs: (editing?.secret_refs ?? []).join(', '),
-  timeoutSec: editing?.timeout_sec && editing.timeout_sec > 0 ? editing.timeout_sec : 300,
-  enabled: editing?.enabled ?? true,
-});
+const emptyDraft = (editing: Automation | null = null): JobDraft => {
+  const k = (editing?.kind ?? 'shell') as 'shell' | 'power' | 'action';
+  return {
+    editing,
+    name: editing?.name ?? '',
+    kind: k,
+    payload: editing?.payload ?? '',
+    schedule: editing?.schedule ?? '',
+    command: editing?.command ?? '',
+    actionId: k === 'action' ? (editing?.payload ?? '') : '',
+    secretRefs: (editing?.secret_refs ?? []).join(', '),
+    timeoutSec: editing?.timeout_sec && editing.timeout_sec > 0 ? editing.timeout_sec : 300,
+    enabled: editing?.enabled ?? true,
+  };
+};
 
 // InstanceAutomation — native automation jobs + runs page for the automation
 // shortcut slug (default `automation`, customizable in Instance Controls).
