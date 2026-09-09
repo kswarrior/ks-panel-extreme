@@ -721,6 +721,7 @@ func (d *docker) Runner(ctx context.Context, name string) (metrics, processes, p
 					var m map[string]any
 					if json.Unmarshal([]byte(metrics), &m) == nil {
 						m["disk_used"] = diskUsedBytes
+						m["disk"] = diskUsedBytes
 						if b, err := json.Marshal(m); err == nil {
 							metrics = string(b)
 						}
@@ -729,7 +730,87 @@ func (d *docker) Runner(ctx context.Context, name string) (metrics, processes, p
 			}
 		}
 	}
+	// Add host bind-mount usage (e.g. Minecraft /mc) to disk_used.
+	// SizeRw covers only the container's writable layer; the template's real
+	// data lives in host bind-mounts invisible to SizeRw, so a fresh
+	// Minecraft container reports ~125KB while server.jar + world already
+	// occupy tens of MB on the host. `docker inspect --format '{{json
+	// .Mounts}}'` gives the resolved host Sources; du -sb each (best-effort,
+	// non-fatal) and add to disk_used so the Overview shows the true
+	// footprint. disk_total stays as df (host FS) here — the panel owns the
+	// quota override (limits.disk → disk_total) because the edge never sees
+	// the template spec.
+	if extra := dockerBindMountBytes(ctx, name); extra > 0 {
+		var m map[string]any
+		if json.Unmarshal([]byte(metrics), &m) == nil {
+			var cur int64
+			switch v := m["disk_used"].(type) {
+			case float64:
+				cur = int64(v)
+			case int64:
+				cur = v
+			case int:
+				cur = int64(v)
+			}
+			if cur < 0 {
+				cur = 0
+			}
+			total := cur + extra
+			m["disk_used"] = total
+			m["disk"] = total
+			if b, err := json.Marshal(m); err == nil {
+				metrics = string(b)
+			}
+		}
+	}
 	return metrics, processes, ports, info, err
+}
+
+// dockerBindMountBytes sums du -sb over the container's host bind-mount
+// Sources. Best-effort, never errors: any failure (no docker, no mounts,
+// missing du, skipped path) returns 0 so the caller keeps the SizeRw value.
+func dockerBindMountBytes(ctx context.Context, name string) int64 {
+	mountsJSON, merr := asExec(ctx, "", "docker", "inspect", name, "--format", "{{json .Mounts}}")
+	if merr != nil {
+		return 0
+	}
+	mountsJSON = strings.TrimSpace(mountsJSON)
+	if mountsJSON == "" || mountsJSON == "null" || mountsJSON == "[]" {
+		return 0
+	}
+	var mounts []struct {
+		Type   string `json:"Type"`
+		Source string `json:"Source"`
+	}
+	if err := json.Unmarshal([]byte(mountsJSON), &mounts); err != nil || len(mounts) == 0 {
+		return 0
+	}
+	var sum int64
+	for _, mt := range mounts {
+		src := strings.TrimSpace(mt.Source)
+		if src == "" || src == "/" || !strings.HasPrefix(src, "/") {
+			continue
+		}
+		if strings.ContainsRune(src, '\n') {
+			continue
+		}
+		// Bound each du so one huge mount (or a hostile "/"-adjacent source
+		// from an operator-authored spec) can't wedge the 12s inspect budget.
+		dctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		out, derr := asExec(dctx, "", "du", "-sb", src)
+		cancel()
+		if derr != nil {
+			continue
+		}
+		fields := strings.Fields(strings.TrimSpace(out))
+		if len(fields) == 0 {
+			continue
+		}
+		if n, perr := strconv.ParseInt(fields[0], 10, 64); perr == nil && n > 0 {
+			sum += n
+		}
+	}
+	return sum
 }
 
 // UpdatePorts reconciles the desired host->container port allocations.
