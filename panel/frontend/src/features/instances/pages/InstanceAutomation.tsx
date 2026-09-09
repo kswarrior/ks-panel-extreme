@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   listAutomation,
@@ -20,6 +20,8 @@ import ErrorState from '@/shared/components/ui/ErrorState';
 import PageActionsPill, { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import PageTabsPill from '@/shared/components/ui/PageTabsPill';
 import { useConfirm } from '@/shared/stores/confirmStore';
+import { SearchableSelect } from '@/shared/components/ui/SearchableSelect';
+import { useInstance, parseConfig } from '@/shared/hooks/useInstance';
 
 function toast(msg: string, type: 'success' | 'error' | 'info' = 'info') {
   window.dispatchEvent(new CustomEvent('ks-toast', { detail: { message: msg, type } }));
