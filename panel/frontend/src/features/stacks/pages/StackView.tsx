@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import CustomPageView, { type PageContent } from '@/shared/components/ui/CustomPageView';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import SkeletonCard from '@/shared/components/ui/SkeletonCard';
 import {
   listStacks,

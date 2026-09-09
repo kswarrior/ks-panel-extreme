@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import GlassCard from '@/shared/components/ui/Card';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import GlassModal from '@/shared/components/ui/Modal';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import { PageActionsPill } from '@/shared/components/ui/PageActionsPill';
@@ -217,13 +218,15 @@ const StackDetail: React.FC = () => {
           </button>
           <h2 className="text-xl font-semibold text-white">Stack Detail</h2>
         </div>
-        <GlassCard className="p-6 border border-red-900/40">
-          <p className="text-red-400 text-sm">{error}</p>
-          <div className="mt-3 flex gap-2">
-            <button onClick={() => void load()} className="px-3 py-1.5 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white">Retry</button>
-            <button onClick={back} className="px-3 py-1.5 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-gray-300">Back</button>
-          </div>
-        </GlassCard>
+        <ErrorState
+          variant="error"
+          title="Failed to load stack"
+          description={error}
+          retryLabel="Retry"
+          onRetry={() => void load()}
+          backLabel="Back"
+          onBack={back}
+        />
       </div>
     );
   }
@@ -237,10 +240,12 @@ const StackDetail: React.FC = () => {
           </button>
           <h2 className="text-xl font-semibold text-white">Stack Detail</h2>
         </div>
-        <GlassCard className="p-6">
-          <p className="text-gray-400">Stack not found</p>
-          <button onClick={back} className="mt-3 px-3 py-1.5 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white">Back to stacks</button>
-        </GlassCard>
+        <ErrorState
+          variant="not-found"
+          title="Stack not found"
+          backLabel="Back to stacks"
+          onBack={back}
+        />
       </div>
     );
   }
