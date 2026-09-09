@@ -468,6 +468,22 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
                         <option value="box">Input box — output-only terminal with an input + Send row below</option>
                       </select>
                     </div>
+                    {(s.terminal_input_mode || 'direct') === 'direct' && (
+                      <div className="pt-1 min-w-0 max-w-full">
+                        <label className="block text-[11px] text-gray-500 mb-0.5">Prompt line (direct mode)</label>
+                        <select
+                          value={s.terminal_prompt || 'none'}
+                          onChange={(e) => updateShortcut(key, { terminal_prompt: e.target.value as typeof s.terminal_prompt })}
+                          aria-label="Terminal prompt line style"
+                          className="glass-field w-full"
+                        >
+                          <option value="none">None — no prompt line</option>
+                          <option value="host_path">Host + path — instance@node:~$</option>
+                          <option value="host">Host only — instance@node$</option>
+                          <option value="path">Path only — ~$</option>
+                        </select>
+                      </div>
+                    )}
                     <MiniToggle
                       checked={!!s.terminal_shortcuts_enabled}
                       onChange={(v) => updateShortcut(key, { terminal_shortcuts_enabled: v })}

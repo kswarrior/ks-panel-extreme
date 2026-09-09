@@ -38,7 +38,7 @@ import InstanceOverview from '@/features/instances/pages/InstanceOverview';
 import InstanceFiles from '@/features/instances/pages/InstanceFiles';
 import InstanceFileEditor from '@/features/instances/pages/InstanceFileEditor';
 import { resolveInstanceControls, shortcutLabel, shortcutSlug, MAX_DEFAULT_TERMINALS } from '@/features/instances/utils/instanceControls';
-import type { TerminalDefaultDef, TerminalInputMode, TerminalShortcutDef } from '@/features/instances/utils/instanceControls';
+import type { TerminalDefaultDef, TerminalInputMode, TerminalPromptStyle, TerminalShortcutDef } from '@/features/instances/utils/instanceControls';
 import { extractShortcutVars, resolveShortcutCommand } from '@/features/instances/utils/instanceControls';
 import { sendActionStdin, sendInstallStdin } from '@/features/instances/api/instanceAdvanced';
 import InstanceSftpCard from '@/features/instances/components/InstanceSftpCard';
@@ -235,11 +235,15 @@ const TerminalPane: React.FC<{
   installTerminalId: string;
   startupTerminalId: string;
   inputMode: TerminalInputMode;
+  // Linux-like prompt line above the xterm in direct mode
+  // (`instance@node:~$`). 'none' hides it. Display-only.
+  promptStyle: TerminalPromptStyle;
+  promptHost: string;
   boxText: string;
   onBoxText: (v: string) => void;
   onRegisterSend: (key: number, fn: ((line: string) => void) | null) => void;
   onRegisterHandle: (key: number, h: TerminalHandle | null) => void;
-}> = ({ instanceId, pane, actions, runningActionId, installState, installKind, installTerminalId, startupTerminalId, inputMode, boxText, onBoxText, onRegisterSend, onRegisterHandle }) => {
+}> = ({ instanceId, pane, actions, runningActionId, installState, installKind, installTerminalId, startupTerminalId, inputMode, promptStyle, promptHost, boxText, onBoxText, onRegisterSend, onRegisterHandle }) => {
   const handleRef = useRef<TerminalHandle | null>(null);
   // Callback ref: keeps the local handle for the box-mode Send path and
   // registers it with the page so the actions-pill Copy / Download buttons
@@ -329,6 +333,14 @@ const TerminalPane: React.FC<{
       )}
 
       <div className="p-3">
+        {!boxMode && promptStyle !== 'none' && (
+          <div className="font-mono text-xs mb-2 select-none truncate" aria-hidden="true" title={`${promptHost}:~`}>
+            {promptStyle !== 'path' && <span className="text-emerald-300">{promptHost}</span>}
+            {promptStyle === 'host_path' && <span className="text-gray-500">:</span>}
+            {promptStyle !== 'host' && <span className="text-sky-300">~</span>}
+            <span className="text-gray-200">$</span>
+          </div>
+        )}
         <Terminal
           ref={setHandle}
           instanceId={instanceId}

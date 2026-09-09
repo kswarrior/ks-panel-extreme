@@ -24,6 +24,13 @@ export type TerminalAllowInput = 'all' | 'allowlist' | 'disabled';
 // friendlier on phones).
 export type TerminalInputMode = 'direct' | 'box';
 
+// TerminalPromptStyle — linux-like prompt line shown above each terminal
+// pane in direct mode (`host:path$`, green host, blue path). 'none' =
+// no prompt line (legacy behaviour); 'host_path' = `instance@node:~$`;
+// 'host' = `instance@node$`; 'path' = `~$`. Display-only: it never
+// reaches the PTY, so scrollback copy/download stay clean.
+export type TerminalPromptStyle = 'none' | 'host_path' | 'host' | 'path';
+
 // TerminalDefaultDef — one pre-opened pane on the instance Terminal page
 // (template Controls → Terminal shortcut → "Default terminals"). `name` is
 // the tab label, `id` the terminal ID it attaches with (empty = plain
@@ -104,6 +111,9 @@ export interface InstanceShortcutConfig {
   terminal_default_timeout_s: string;
   // Terminal page: input method for every pane (template default).
   terminal_input_mode: TerminalInputMode;
+  // Terminal page: prompt line style for direct-mode panes (template
+  // default). Only applies when terminal_input_mode is 'direct'.
+  terminal_prompt: TerminalPromptStyle;
   // Terminal page: command shortcuts master switch + list. Off (or empty)
   // = legacy behaviour (no shortcut UI at all).
   terminal_shortcuts_enabled: boolean;
@@ -167,6 +177,7 @@ const DEFAULT_SHORTCUT_BASE = {
   terminal_default_allow_input: 'all' as TerminalAllowInput,
   terminal_default_timeout_s: '',
   terminal_input_mode: 'direct' as TerminalInputMode,
+  terminal_prompt: 'none' as TerminalPromptStyle,
   terminal_shortcuts_enabled: false,
   terminal_shortcuts: [],
   default_terminals: [],
@@ -334,6 +345,9 @@ function resolveShortcut(raw: unknown, fallback: InstanceShortcutConfig): Instan
   const inputMode = r.terminal_input_mode === 'box' || r.terminal_input_mode === 'direct'
     ? (r.terminal_input_mode as TerminalInputMode)
     : fallback.terminal_input_mode;
+  const promptStyle = r.terminal_prompt === 'host_path' || r.terminal_prompt === 'host' || r.terminal_prompt === 'path' || r.terminal_prompt === 'none'
+    ? (r.terminal_prompt as TerminalPromptStyle)
+    : fallback.terminal_prompt;
   return {
     show: boolOr(r.show, fallback.show),
     slug: slugOr(r.slug, fallback.slug),
@@ -359,6 +373,7 @@ function resolveShortcut(raw: unknown, fallback: InstanceShortcutConfig): Instan
       ? String(r.terminal_default_timeout_s)
       : fallback.terminal_default_timeout_s,
     terminal_input_mode: inputMode,
+    terminal_prompt: promptStyle,
     terminal_shortcuts_enabled: boolOr(r.terminal_shortcuts_enabled, fallback.terminal_shortcuts_enabled),
     terminal_shortcuts: resolveTerminalShortcuts(r.terminal_shortcuts, fallback.terminal_shortcuts),
     default_terminals: resolveDefaultTerminals(r.default_terminals, fallback.default_terminals),
@@ -467,6 +482,7 @@ const SHORTCUT_FIELDS: (keyof InstanceShortcutConfig)[] = [
   'terminal_default_allow_input',
   'terminal_default_timeout_s',
   'terminal_input_mode',
+  'terminal_prompt',
   'terminal_shortcuts_enabled',
   'terminal_shortcuts',
   'default_terminals',

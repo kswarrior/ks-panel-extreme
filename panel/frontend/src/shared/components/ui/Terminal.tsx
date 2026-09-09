@@ -429,7 +429,7 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
         }
       }
       lineBuf.current = cur;
-      echoWorkflow(d);
+      echoPiped(d);
       sendStdin(d);
       for (const ln of lines) {
         if (ln.trim() === '') continue;
@@ -467,7 +467,7 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
       if (!t) return;
       if (line.trim() === '') return;
       const d = `${line}\r`;
-      echoWorkflow(d);
+      echoPiped(d);
       sendStdin(d);
       const validate = validateRef.current;
       if (validate) {
