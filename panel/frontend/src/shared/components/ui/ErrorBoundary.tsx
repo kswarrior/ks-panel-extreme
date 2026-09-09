@@ -41,16 +41,33 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
     if (this.state.error) {
       const msg = this.state.error.message || 'Unknown error';
       return (
-        <div className="glass-card rounded-xl p-6 text-center space-y-3" role="alert">
-          <p className="text-sm font-semibold text-red-300">This page crashed instead of loading.</p>
-          <p className="text-xs text-gray-400 font-mono break-all">{msg}</p>
-          <div className="flex items-center justify-center gap-2 pt-1">
-            <button type="button" onClick={this.handleRetry} className="ks-btn text-xs">
-              Try again
-            </button>
-            <button type="button" onClick={() => window.location.reload()} className="ks-btn text-xs">
-              Reload page
-            </button>
+        <div className="flex flex-col items-center justify-center min-h-[40vh] px-4 py-10 text-center animate-fade-in" role="alert">
+          <div className="flex flex-col items-center gap-4 max-w-md w-full">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="w-20 h-20 text-red-400/80"
+              aria-hidden="true"
+            >
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+            <p className="text-lg font-medium text-gray-300">This page crashed instead of loading.</p>
+            <p className="text-sm text-gray-500 font-mono break-all">{msg}</p>
+            <div className="flex items-center justify-center gap-2 mt-1 flex-wrap">
+              <button type="button" onClick={this.handleRetry} className="px-4 py-2 text-sm rounded-lg bg-white text-black hover:bg-gray-200">
+                Try again
+              </button>
+              <button type="button" onClick={() => window.location.reload()} className="px-4 py-2 text-sm rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-gray-300">
+                Reload page
+              </button>
+            </div>
           </div>
         </div>
       );

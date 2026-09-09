@@ -4,6 +4,7 @@ import { getInstance, updateInstance } from '@/shared/api/admin';
 import { parseConfig } from '@/shared/hooks/useInstance';
 import { resolveInstanceControls } from '../utils/instanceControls';
 import FormPage from '@/shared/components/forms/FormPage';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import GlassCard from '@/shared/components/ui/Card';
 import type { DriverKind } from '../types/instance';
 import { DeployFormProvider, useDeployForm } from '../stores/deployFormStore';
@@ -131,15 +132,22 @@ const InstanceEditAdvancedInner: React.FC = () => {
   }
 
   if (loadError || !validId) {
+    const isNotFound = !validId || /not found/i.test(loadError);
     return (
       <FormPage
         crumbs={[{ label: 'Instances', to: '/instances' }, { label: 'Edit Instance' }]}
         saving={false}
         maxWidth="max-w-4xl"
       >
-        <GlassCard className="text-sm text-red-300 border border-red-700/40">
-          {loadError || 'Instance not found.'}
-        </GlassCard>
+        <ErrorState
+          variant={isNotFound ? 'not-found' : 'error'}
+          title={isNotFound ? 'Instance not found' : 'Failed to load instance'}
+          description={isNotFound ? undefined : (loadError || undefined)}
+          retryLabel={isNotFound ? undefined : 'Retry'}
+          onRetry={isNotFound ? undefined : () => window.location.reload()}
+          backLabel="Back to instances"
+          onBack={() => navigate('/instances')}
+        />
       </FormPage>
     );
   }

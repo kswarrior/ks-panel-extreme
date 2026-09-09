@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { securitySnapshot, securityToggleAttack, securityGetConfig } from '@/shared/api/admin';
 import type { SecuritySnapshot as SecuritySnapshotT, SecurityConfig } from '@/features/security/types/security';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import SectionRailTabs from '@/shared/components/ui/SectionRailTabs';
 import Firewall from '@/features/security/components/Firewall';
 import DDoS from '@/features/security/components/DDoS';
@@ -126,16 +127,13 @@ const Security: React.FC = () => {
 
   if (!snap && !loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[40vh] text-center p-8">
-        <p className="text-red-400 mb-3 text-sm">{error || 'Failed to load security snapshot'}</p>
-        <button
-          type="button"
-          onClick={() => { load(); loadFirewallConfig(); }}
-          className="px-4 py-2 text-sm rounded border border-white/10 bg-white/5 text-gray-200 hover:bg-white/10"
-        >
-          Retry
-        </button>
-      </div>
+      <ErrorState
+        variant="error"
+        title="Failed to load security snapshot"
+        description={error || undefined}
+        retryLabel="Retry"
+        onRetry={() => { load(); loadFirewallConfig(); }}
+      />
     );
   }
 

@@ -7,6 +7,7 @@ import {
   type ApplicationConfigField,
 } from '@/features/applications/api/applications';
 import FormPage from '@/shared/components/forms/FormPage';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
 import GlassField from '@/shared/components/ui/Field';
@@ -150,6 +151,7 @@ const ApplicationConfigure: React.FC = () => {
   }
 
   if (!app) {
+    const isNotFound = !error || /not found/i.test(error);
     return (
       <FormPage
         crumbs={[
@@ -159,9 +161,15 @@ const ApplicationConfigure: React.FC = () => {
         hideHeader
         maxWidth="max-w-3xl"
       >
-        <div className="bg-red-900/30 border border-red-700/50 text-red-300 text-sm px-3 py-2 rounded">
-          {error || 'Application not found'}
-        </div>
+        <ErrorState
+          variant={isNotFound ? 'not-found' : 'error'}
+          title={isNotFound ? 'Application not found' : 'Failed to load application'}
+          description={isNotFound ? undefined : (error || undefined)}
+          retryLabel={isNotFound ? undefined : 'Retry'}
+          onRetry={isNotFound ? undefined : () => window.location.reload()}
+          backLabel="Back to applications"
+          onBack={() => navigate('/applications')}
+        />
       </FormPage>
     );
   }
