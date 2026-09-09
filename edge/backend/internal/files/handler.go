@@ -1606,7 +1606,12 @@ func archiveDocker(ctx context.Context, w http.ResponseWriter, r *http.Request, 
 		script = "set -e; if [ -e " + shellQuote(to) + " ]; then echo ARCH_EXISTS; exit 10; fi; " +
 			"command -v zip >/dev/null 2>&1 || { echo NO_ZIP; exit 11; }; "
 		if len(quoted) == 0 {
-			script += "cd " + shellQuote(src) + " && zip -qr " + shellQuote(to) + " . 2>&1"
+			// Whole-path archive: a directory archives its contents, a
+			// single file archives just itself (from its parent so the
+			// archive root holds the file, not a nested absolute path).
+			script += "if [ -f " + shellQuote(src) + " ] && [ ! -d " + shellQuote(src) + " ]; then " +
+				"cd " + shellQuote(path.Dir(src)) + " && zip -qr " + shellQuote(to) + " " + shellQuote(path.Base(src)) + " 2>&1; " +
+				"else cd " + shellQuote(src) + " && zip -qr " + shellQuote(to) + " . 2>&1; fi"
 		} else {
 			script += "cd " + shellQuote(src) + " && zip -qr " + shellQuote(to) + " " + strings.Join(quoted, " ") + " 2>&1"
 		}
@@ -1614,7 +1619,9 @@ func archiveDocker(ctx context.Context, w http.ResponseWriter, r *http.Request, 
 		script = "set -e; if [ -e " + shellQuote(to) + " ]; then echo ARCH_EXISTS; exit 10; fi; " +
 			"command -v tar >/dev/null 2>&1 || { echo NO_TAR; exit 11; }; "
 		if len(quoted) == 0 {
-			script += "tar -czf " + shellQuote(to) + " -C " + shellQuote(src) + " . 2>&1"
+			script += "if [ -f " + shellQuote(src) + " ] && [ ! -d " + shellQuote(src) + " ]; then " +
+				"tar -czf " + shellQuote(to) + " -C " + shellQuote(path.Dir(src)) + " " + shellQuote(path.Base(src)) + " 2>&1; " +
+				"else tar -czf " + shellQuote(to) + " -C " + shellQuote(src) + " . 2>&1; fi"
 		} else {
 			script += "tar -czf " + shellQuote(to) + " -C " + shellQuote(src) + " " + strings.Join(quoted, " ") + " 2>&1"
 		}

@@ -213,7 +213,8 @@ function duplicateName(name: string): string {
   return `${name}-copy`;
 }
 
-// modeToTriples("755") → [7,5,5]; garbage → [6,4,4].
+// modeToTriples("755") → [7,5,5]; unparseable → [0,0,0] (fail-closed,
+// the confirm step re-validates octal anyway).
 function modeToTriples(mode: string): [number, number, number] {
   const m = String(mode || '').trim().replace(/^0+/, '') || '0';
   const digits = m.slice(-3).split('').map((c) => {
@@ -342,15 +343,15 @@ const InstanceFiles: React.FC<{ instanceId: number; filesSlug: string }> = ({ in
   const selCount = useMemo(() => Object.values(selected).filter(Boolean).length, [selected]);
   const selNames = useMemo(() => Object.keys(selected).filter((k) => selected[k]), [selected]);
   const toggleSort = useCallback((key: SortKey) => {
-    setSortKey((prev) => {
-      if (prev !== key) {
-        setSortAsc(key !== 'size');
-        return key;
-      }
+    // NOTE: no setState-inside-updater here — updaters must stay pure or
+    // StrictMode double-invocation toggles twice and nets no change.
+    if (key === sortKey) {
       setSortAsc((a) => !a);
-      return prev;
-    });
-  }, []);
+    } else {
+      setSortKey(key);
+      setSortAsc(key !== 'size');
+    }
+  }, [sortKey]);
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase();
     let rows = entries;
@@ -646,7 +647,13 @@ const InstanceFiles: React.FC<{ instanceId: number; filesSlug: string }> = ({ in
     async (e: FileEntry) => {
       if (!path) return;
       const fullPath = joinPath(path, e.name);
-      setPreviewUrl(null);
+      // Revoke the previous object URL before replacing it: opening preview
+      // B straight from preview A never flips modal.kind, so the cleanup
+      // effect below wouldn't run and the old blob would leak.
+      setPreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
       setPreviewText(null);
       setModal({ kind: 'preview', entry: e, fullPath });
       try {
@@ -692,8 +699,7 @@ const InstanceFiles: React.FC<{ instanceId: number; filesSlug: string }> = ({ in
         toast(err?.message || 'Download failed', 'error');
       } finally {
         try {
-          const { deletePath: del } = await import('../api/instanceFiles');
-          await del(instanceId, joinPath(dir, tmp));
+          await deletePath(instanceId, joinPath(dir, tmp));
         } catch {
           /* temp cleanup is best-effort */
         }
@@ -835,10 +841,16 @@ const InstanceFiles: React.FC<{ instanceId: number; filesSlug: string }> = ({ in
         <input
           value={filter}
           onChange={(e) => { setFilter(e.target.value); if (searchHits) setSearchHits(null); }}
-          onKeyDown={(e) => { if (e.key === 'Enter') void runSearch(filter); }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') void runSearch(filter);
+            else if (e.key === 'Escape') {
+              if (searchHits) clearSearch();
+              else setFilter('');
+            }
+          }}
           placeholder="Filter or search…"
           aria-label="Filter files"
-          title="Type to filter this folder · Enter for recursive search"
+          title="Type to filter this folder · Enter for recursive search · Esc clears"
           className="ks-input !w-36 !py-1.5 text-xs"
         />
         <button
@@ -1730,9 +1742,8 @@ const ChmodBody: React.FC<{
         {rows.map((r) => (
           <div key={r.label} className="rounded-lg border border-white/10 bg-black/30 p-2">
             <p className="text-[11px] uppercase tracking-wide text-gray-500 mb-1">{r.label}</p>
-            {(['r', 'w', 'x'] as const).map((b, i) => {
+            {(['r', 'w', 'x'] as const).map((b) => {
               const bit = b === 'r' ? 4 : b === 'w' ? 2 : 1;
-              void i;
               return (
                 <label key={b} className="flex items-center gap-1.5 text-xs text-gray-300 py-0.5 cursor-pointer">
                   <input
