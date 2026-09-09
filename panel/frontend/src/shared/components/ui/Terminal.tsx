@@ -27,9 +27,10 @@ type ConnState = 'connecting' | 'connected' | 'reconnecting' | 'closed' | 'error
 
 function wsUrlFor(instanceId: number, terminalId?: string, timeoutS?: string, endpoint?: string): string {
   const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  // Workflow terminals stream the running action/install transcript
+  // Startup terminals attach to the main-process bridge (/startup);
+  // workflow terminals stream the running action/install transcript
   // (/workflow); everything else uses the shell bridge (/terminal).
-  const route = endpoint === 'workflow' ? 'workflow' : 'terminal';
+  const route = endpoint === 'startup' ? 'startup' : endpoint === 'workflow' ? 'workflow' : 'terminal';
   const base = `${proto}://${window.location.host}/api/instances/${instanceId}/${route}`;
   const q: string[] = [];
   const tid = (terminalId || '').trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, '');
@@ -129,13 +130,15 @@ interface TerminalProps {
   // Bound-pane identity: forwarded as ?terminal= so the panel/edge can
   // scope the session (and the parent can match it against a template
   // action/install terminal_id). Empty = plain shell (legacy behaviour).
-  // Workflow panes dial endpoint='workflow' instead; the
+  // Startup-terminal panes dial endpoint='startup' instead; workflow panes
+  // (bound action/install terminals) dial endpoint='workflow' instead; the
   // id is then only a display/match key.
   terminalId?: string;
-  // Which panel bridge to dial: 'terminal' (side shell, default) or
+  // Which panel bridge to dial: 'terminal' (side shell, default),
+  // 'startup' (instance main-process stdio for startup-terminal panes) or
   // 'workflow' (running action/install transcript for bound panes).
-  // Same JSON wire protocol on both, so the xterm side is unchanged.
-  endpoint?: 'terminal' | 'workflow';
+  // Same JSON wire protocol on all three, so the xterm side is unchanged.
+  endpoint?: 'terminal' | 'startup' | 'workflow';
   // Attach budget in seconds, forwarded as ?timeout= (empty = no limit).
   timeoutS?: string;
   // When true the pane is read-only: keystrokes are swallowed locally and
@@ -387,8 +390,8 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
     // Workflow terminals (/workflow) are piped, not PTYs: the far end never
     // echoes, so the pane echoes locally — printable chars verbatim,
     // Enter as a newline, backspace as an erase — exactly where the user
-    // typed them, ahead of the server's response. Side shells keep their
-    // existing behaviour (PTY echo).
+    // typed them, ahead of the server's response. Side shells and startup
+    // terminals keep their existing behaviour (PTY echo / blind attach).
     const lineBuf = { current: '' };
     const echoWorkflow = (d: string) => {
       const term = termRef.current;
