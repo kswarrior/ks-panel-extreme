@@ -24,10 +24,11 @@ func NewAutomationRepository(db *sql.DB) *AutomationRepository {
 func scanAutomation(rows *sql.Rows, s *models.Automation) error {
 	var id, instanceID sql.NullInt64
 	var refsJSON string
+	var kind, payload sql.NullString
 	var enabled int
 	var created, updated string
 	var lastRun, nextRun sql.NullString
-	if err := rows.Scan(&id, &instanceID, &s.Name, &s.Command, &s.Schedule,
+	if err := rows.Scan(&id, &instanceID, &s.Name, &s.Command, &kind, &payload, &s.Schedule,
 		&enabled, &refsJSON, &s.TimeoutSec, &lastRun, &nextRun, &created, &updated); err != nil {
 		return err
 	}
@@ -37,6 +38,10 @@ func scanAutomation(rows *sql.Rows, s *models.Automation) error {
 	s.ID = id.Int64
 	s.InstanceID = instanceID.Int64
 	s.Enabled = enabled == 1
+	// kind/payload are NOT NULL with defaults since migration 073, but
+	// NullString keeps the scan honest on any legacy read path.
+	s.Kind = models.NormalizeAutomationKind(kind.String)
+	s.Payload = payload.String
 	_ = json.Unmarshal([]byte(refsJSON), &s.SecretRefs)
 	if s.SecretRefs == nil {
 		s.SecretRefs = []string{}
@@ -101,11 +106,15 @@ func (r *AutomationRepository) Get(id int64) (*models.Automation, error) {
 	return &s, rows.Err()
 }
 
-// UpsertInput is the write payload for Create/Update.
+// UpsertInput is the write payload for Create/Update. Kind selects the
+// execution path (shell|power|action); Payload carries the power op or the
+// template action ID (empty for shell jobs, whose script stays in Command).
 type AutomationUpsertInput struct {
 	InstanceID int64
 	Name       string
 	Command    string
+	Kind       string
+	Payload    string
 	Schedule   string
 	Enabled    bool
 	SecretRefs []string

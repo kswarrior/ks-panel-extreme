@@ -30,15 +30,27 @@ type Secret struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
-// Automation is one scheduled (or on-demand) command attached to an
+// Automation is one scheduled (or on-demand) task attached to an
 // instance. The scheduler (internal/scheduler) selects enabled jobs whose
-// next_run_at has passed, resolves their secret refs, and fires them on the
-// owning edge; runs are recorded as AutomationRun rows for the audit strip.
+// next_run_at has passed and fires them on the owning edge; runs are
+// recorded as AutomationRun rows for the audit strip.
+//
+// Kind selects what a fire does:
+//   - KindShell  runs Command inside the instance via /bin/sh -c (the
+//     original behaviour; Payload stays empty).
+//   - KindPower  issues a lifecycle op on the instance itself; Payload is
+//     one of start|stop|restart|kill and Command stays empty.
+//   - KindAction invokes a template action by ID; Payload is the action ID
+//     and Command stays empty.
+// destroy/reinstall are deliberately NOT power ops: an unattended scheduler
+// firing either would be a data-loss footgun.
 type Automation struct {
 	ID         int64      `json:"id"`
 	InstanceID int64      `json:"instance_id"`
 	Name       string     `json:"name"`
 	Command    string     `json:"command"`
+	Kind       string     `json:"kind"`
+	Payload    string     `json:"payload,omitempty"`
 	Schedule   string     `json:"schedule"`
 	Enabled    bool       `json:"enabled"`
 	SecretRefs []string   `json:"secret_refs"`
@@ -47,6 +59,41 @@ type Automation struct {
 	NextRunAt  *time.Time `json:"next_run_at,omitempty"`
 	CreatedAt  time.Time  `json:"created_at"`
 	UpdatedAt  time.Time  `json:"updated_at"`
+}
+
+// Automation job kinds (instance_automation.kind).
+const (
+	// AutomationKindShell runs the job's command via /bin/sh -c.
+	AutomationKindShell = "shell"
+	// AutomationKindPower issues a lifecycle op (payload start|stop|restart|kill).
+	AutomationKindPower = "power"
+	// AutomationKindAction invokes a template action (payload = action ID).
+	AutomationKindAction = "action"
+)
+
+// AutomationPowerOps is the allow-list for power-job payloads. destroy and
+// reinstall are excluded on purpose (see Automation).
+var AutomationPowerOps = []string{"start", "stop", "restart", "kill"}
+
+// NormalizeAutomationKind folds any unknown/empty kind to shell so old rows
+// and old clients keep working.
+func NormalizeAutomationKind(k string) string {
+	switch k {
+	case AutomationKindPower, AutomationKindAction:
+		return k
+	default:
+		return AutomationKindShell
+	}
+}
+
+// IsAutomationPowerOp reports whether op is a valid power-job payload.
+func IsAutomationPowerOp(op string) bool {
+	for _, o := range AutomationPowerOps {
+		if o == op {
+			return true
+		}
+	}
+	return false
 }
 
 // AutomationTrigger is the categorical reason a run was launched. The
