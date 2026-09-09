@@ -379,6 +379,17 @@ func toFloat(v any) (float64, bool) {
 	return 0, false
 }
 
+// DiskQuotaBytesWithFallback returns the instance config quota when present,
+// else the owning template spec quota (old instance rows pre-date
+// limits.disk while the builtin Minecraft template declares 10240M).
+// Returns 0 when neither carries a quota.
+func DiskQuotaBytesWithFallback(configJSON, templateSpecJSON string) int64 {
+	if q := DiskQuotaBytes(configJSON); q > 0 {
+		return q
+	}
+	return DiskQuotaBytes(templateSpecJSON)
+}
+
 // EnrichMetricsWithDiskQuota injects the configured disk quota into a live
 // metrics blob as disk_total so the Overview shows limits.disk (e.g. 10240M)
 // instead of the host filesystem size df reports inside a docker container
@@ -387,6 +398,30 @@ func toFloat(v any) (float64, bool) {
 // unparsable inputs return the original blob verbatim.
 func EnrichMetricsWithDiskQuota(metricsJSON, configJSON string) string {
 	quota := DiskQuotaBytes(configJSON)
+	if quota <= 0 {
+		return metricsJSON
+	}
+	trimmed := strings.TrimSpace(metricsJSON)
+	if trimmed == "" || trimmed == "{}" {
+		return metricsJSON
+	}
+	var m map[string]any
+	if err := json.Unmarshal([]byte(metricsJSON), &m); err != nil || m == nil {
+		return metricsJSON
+	}
+	m["disk_total"] = quota
+	if b, err := json.Marshal(m); err == nil {
+		return string(b)
+	}
+	return metricsJSON
+}
+
+// EnrichMetricsWithDiskQuotaFallback is EnrichMetricsWithDiskQuota plus a
+// template-spec fallback for instance rows that pre-date limits.disk.
+// Prefer it on every read path (Metrics, cached-resources, sweep) so old
+// Minecraft rows still show the template's 10240M instead of host 144GB.
+func EnrichMetricsWithDiskQuotaFallback(metricsJSON, configJSON, templateSpecJSON string) string {
+	quota := DiskQuotaBytesWithFallback(configJSON, templateSpecJSON)
 	if quota <= 0 {
 		return metricsJSON
 	}

@@ -63,7 +63,28 @@ func refreshLiveState(inst *models.Instance, ec *edge.Client) *models.InstanceLi
 	// surfaces as an error). Serving the cache keeps the page painting the
 	// last-known metrics instead of blanking every tile to "—".
 	prev, _ := liveRepo.Get(inst.ID)
+	// Template-spec fallback for rows that pre-date limits.disk: the builtin
+	// Minecraft template declares 10240M while old instance rows carry no
+	// quota. Best-effort, never fails the read.
+	templateSpec := ""
+	if inst != nil && inst.TemplateID != 0 {
+		if tmpl, terr := repository.NewTemplateRepository(con).Get(inst.TemplateID); terr == nil && tmpl != nil {
+			templateSpec = tmpl.Spec
+		}
+	}
+	enrich := func(blob string) string {
+		if inst == nil {
+			return blob
+		}
+		return models.EnrichMetricsWithDiskQuotaFallback(blob, inst.Config, templateSpec)
+	}
 	if err != nil {
+		// Edge failed: still enrich the stale cache so a pre-fix 144GB row
+		// paints the quota immediately instead of waiting for the next
+		// successful poll.
+		if prev != nil && prev.Metrics != "" {
+			prev.Metrics = enrich(prev.Metrics)
+		}
 		return prev
 	}
 	// Build the fresh live state. Only overwrite each blob when the edge
@@ -85,9 +106,7 @@ func refreshLiveState(inst *models.Instance, ec *edge.Client) *models.InstanceLi
 		// (e.g. Minecraft limits.disk=10240M). Prefer the quota so the
 		// Overview shows the reservation the operator configured. disk_used
 		// stays edge-owned (SizeRw + bind-mounts). No quota → unchanged.
-		if inst != nil && inst.Config != "" {
-			ls.Metrics = models.EnrichMetricsWithDiskQuota(ls.Metrics, inst.Config)
-		}
+		ls.Metrics = enrich(ls.Metrics)
 	}
 	if len(resp.Processes) > 0 {
 		ls.Processes = string(resp.Processes)
@@ -402,8 +421,27 @@ func MetricsHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{})
 		return
 	}
+	// Defense in depth: enrich on read too, so a raw 144GB row written by an
+	// old sweep binary (or a race between sweep save and this response)
+	// still paints the quota. Falls back to the template spec for pre-quota rows.
+	metricsOut := ls.Metrics
+	{
+		con2, derr := repository.OpenDB()
+		if derr == nil {
+			func() {
+				defer con2.Close()
+				tmplSpec := ""
+				if inst.TemplateID != 0 {
+					if tmpl, terr := repository.NewTemplateRepository(con2).Get(inst.TemplateID); terr == nil && tmpl != nil {
+						tmplSpec = tmpl.Spec
+					}
+				}
+				metricsOut = models.EnrichMetricsWithDiskQuotaFallback(metricsOut, inst.Config, tmplSpec)
+			}()
+		}
+	}
 	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(ls.Metrics))
+	w.Write([]byte(metricsOut))
 }
 
 // ----- Ports moved to instance_port_handler.go (ListPortsHandler now merges DB allocs) -----
@@ -595,7 +633,11 @@ func ListCachedResourcesHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	rows, err := con.Query(`SELECT instance_id, updated_at, metrics FROM instance_live_state`)
+	rows, err := con.Query(`SELECT live.instance_id, live.updated_at, live.metrics,
+		COALESCE(inst.config, ''), COALESCE(tmpl.spec, '')
+		FROM instance_live_state live
+		LEFT JOIN instances inst ON inst.id = live.instance_id
+		LEFT JOIN templates tmpl ON tmpl.id = inst.template_id`)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
@@ -607,12 +649,17 @@ func ListCachedResourcesHandler(w http.ResponseWriter, r *http.Request) {
 		var id int64
 		var updated string
 		var metricsBlob string
-		if err := rows.Scan(&id, &updated, &metricsBlob); err != nil {
+		var instCfg string
+		var tmplSpec string
+		if err := rows.Scan(&id, &updated, &metricsBlob, &instCfg, &tmplSpec); err != nil {
 			continue
 		}
 		if allowed != nil && !allowed[id] {
 			continue
 		}
+		// Same quota rule as /metrics: prefer instance quota, fall back to
+		// the template spec so pre-quota rows show 10240M, not host 144GB.
+		metricsBlob = models.EnrichMetricsWithDiskQuotaFallback(metricsBlob, instCfg, tmplSpec)
 		item := CachedResourcesItem{ID: id, UpdatedAt: updated}
 		var m map[string]any
 		if json.Unmarshal([]byte(metricsBlob), &m) == nil {
