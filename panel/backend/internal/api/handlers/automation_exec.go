@@ -38,7 +38,7 @@ type AutomationFireCtx struct {
 
 // AutomationFireResult is the outcome of one job fire. Error is empty on
 // success; a non-empty Error still yields a recorded run row (only
-// automationDenied skips recording).
+// AutomationDenied skips recording).
 type AutomationFireResult struct {
 	RunCommand string
 	Stdout     string

@@ -413,69 +413,38 @@ func runJob(ctx context.Context, job models.Automation, instRepo *repository.Ins
 		return
 	}
 
-	// Resolve named secrets to env pairs.
-	keys, vals, _ := secretRepo.ResolvedEnv(job.InstanceID, job.SecretRefs)
-	env := map[string]string{}
-	for i := range keys {
-		env[keys[i]] = vals[i]
-	}
-
-	name := inst.ExternalID
-	if name == "" {
-		name = inst.Name
-	}
-
+	// Dispatch per job kind through the shared executor (shell runs to
+	// completion; power issues a lifecycle op; action invokes the template
+	// workflow and the run row is the invocation receipt).
 	started := time.Now()
-	// Check cancellation before dialing edge (edge may be down and the dial would block).
-	select {
-	case <-ctx.Done():
-		return
-	default:
-	}
-	timeout := job.TimeoutSec
-	if timeout <= 0 {
-		timeout = 300
-	}
-	// Bound the edge call by both the job timeout and the scheduler's context
-	// so a panel shutdown cancels the in-flight RPC promptly instead of
-	// waiting for the full 5-minute dial timeout.
-	callCtx, cancel := context.WithTimeout(ctx, time.Duration(timeout+10)*time.Second)
-	defer cancel()
-	ec := edge.NewWithTimeout(*node, token, time.Duration(timeout+10)*time.Second)
-	resp, execErr := ec.ExecCtx(callCtx, edge.ExecRequest{
-		Kind:       inst.Kind,
-		Name:       name,
-		Command:    job.Command,
-		Env:        env,
-		TimeoutSec: job.TimeoutSec,
+	res, derr := handlers.FireAutomationJob(handlers.AutomationFireCtx{
+		Ctx: ctx, Con: con, Inst: inst, Node: node, Token: token, Job: job, Actor: "system",
 	})
 	finished := time.Now()
+	if derr != nil {
+		// Template controls refuse (kind toggle or op/action gate): skip
+		// silently like a suspended instance, but re-arm so the job does
+		// not hot-loop every tick.
+		log.Printf("automation scheduler: skipping job #%d for instance #%d (%v)", job.ID, job.InstanceID, derr)
+		_ = automationRepo.MarkRan(job.ID, nextRun(job.Schedule, time.Now()))
+		return
+	}
 
 	// Record run row.
-	exitCode := 0
-	stdout := resp.Stdout
-	stderr := resp.Stderr
-	errMsg := ""
-	if execErr != nil {
-		errMsg = execErr.Error()
-		exitCode = -1
-	} else {
-		exitCode = resp.ExitCode
-	}
 	_, _ = automationRepo.RecordRun(repository.AutomationRunInput{
 		JobID: job.ID, InstanceID: job.InstanceID, Trigger: "schedule",
-		Command: job.Command, Stdout: truncate(stdout, 64*1024),
-		Stderr:     truncate(stderr, 64*1024),
-		ExitCode:   exitCode,
+		Command: res.RunCommand, Stdout: truncate(res.Stdout, 64*1024),
+		Stderr:     truncate(res.Stderr, 64*1024),
+		ExitCode:   res.ExitCode,
 		DurationMS: finished.Sub(started).Milliseconds(),
-		Error:      errMsg,
+		Error:      res.Error,
 		StartedAt:  started, FinishedAt: finished,
 	})
 
 	_, _ = auditRepo.Append(repository.AuditInput{
 		InstanceID: job.InstanceID, Actor: "system",
 		Action: "automation.run",
-		Detail: fmt.Sprintf("scheduled job %q fired (exit=%d, %dms)", job.Name, exitCode, finished.Sub(started).Milliseconds()),
+		Detail: fmt.Sprintf("scheduled job %q fired (exit=%d, %dms)", job.Name, res.ExitCode, finished.Sub(started).Milliseconds()),
 	})
 
 	// Re-arm next_run_at from the cron expression.
