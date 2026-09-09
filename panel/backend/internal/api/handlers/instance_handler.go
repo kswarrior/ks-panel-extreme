@@ -850,7 +850,7 @@ func UpdateInstanceHandler(w http.ResponseWriter, r *http.Request) {
 				Steps:      edgeSteps,
 				EnvVars:    envVars,
 				TimeoutSec: timeoutSecFromSpec(merged["install_timeout_sec"]),
-				// Installation console: keep stdin only when the template
+				// Installation terminal: keep stdin only when the template
 				// binds install_terminal_id (see keepStdinForInstall).
 				KeepStdin: keepStdinForInstall(merged),
 			}); err != nil {
@@ -1193,7 +1193,7 @@ func reinstallAsync(instID, nodeID int64, kind, name string, cfg map[string]any)
 			Steps:      edgeSteps,
 			EnvVars:    envVars,
 			TimeoutSec: timeoutSecFromSpec(cfg["install_timeout_sec"]),
-			// Installation console: keep stdin only when the template
+			// Installation terminal: keep stdin only when the template
 			// binds install_terminal_id (see keepStdinForInstall).
 			KeepStdin: keepStdinForInstall(cfg),
 		}); err != nil {
@@ -1887,7 +1887,7 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 				// 0 = unset → the edge applies its own 30-minute default, so
 				// templates that never set the field behave exactly as before.
 				TimeoutSec: timeoutSecFromSpec(tmplSpec["install_timeout_sec"]),
-				// Installation console: keep stdin only when the template
+				// Installation terminal: keep stdin only when the template
 				// binds install_terminal_id (see keepStdinForInstall).
 				KeepStdin: keepStdinForInstall(tmplSpec),
 			})
@@ -2049,7 +2049,7 @@ func timeoutSecFromSpec(v any) int {
 }
 
 // installTerminalIDFromSpec reports the template spec's install_terminal_id
-// (the attach-by-ID handle for the Installation workflow console, sibling
+// (the attach-by-ID handle for the Installation workflow terminal, sibling
 // of install_timeout_sec), normalised exactly like action terminal_ids.
 // Empty = the install runs non-interactive (legacy behaviour, no stdin
 // pipe kept). Non-empty = kickoff sites pass KeepStdin so a terminal pane
@@ -2072,9 +2072,9 @@ func installTerminalIDFromSpec(spec map[string]any) string {
 
 // keepStdinForInstall reports whether a deploy-time install workflow must
 // keep its current step's stdin open: only when the template binds an
-// Installation console (install_terminal_id). Keeping the pipe changes
+// Installation terminal (install_terminal_id). Keeping the pipe changes
 // step stdio semantics (a step reading stdin blocks instead of seeing
-// EOF), so workflows without a console keep the legacy closed-stdin path.
+// EOF), so workflows without a terminal keep the legacy closed-stdin path.
 func keepStdinForInstall(spec map[string]any) bool {
 	return installTerminalIDFromSpec(spec) != ""
 }
@@ -2084,7 +2084,7 @@ func keepStdinForInstall(spec map[string]any) bool {
 // The edge keys workflows by "<kind>:<name>" taken from InstallStart,
 // which every kickoff site sends as the logical name — never ExternalID
 // (the docker container ID). Addressing by ExternalID misses the record
-// ("no workflow for docker:<container-id>") and breaks both console input
+// ("no workflow for docker:<container-id>") and breaks both terminal input
 // and the live workflow stream. Exec/attach bridges are the opposite:
 // drivers route by container identity, so they correctly prefer
 // ExternalID — do not "unify" the two directions.
@@ -3300,7 +3300,7 @@ func InvokeActionHandler(w http.ResponseWriter, r *http.Request) {
 			EnvVars: actionEnvVars,
 			// Keep the running step's stdin open when the stop path needs
 			// it (same-terminal stop) OR when terminal panes may attach:
-			// any action with a terminal_id can receive gated console
+			// any action with a terminal_id can receive gated terminal
 			// input (Minecraft /tps, /op, …) via ActionStdinHandler.
 			KeepStdin:  action.StopMode == "same" || strings.TrimSpace(action.TerminalID) != "",
 			TimeoutSec: timeoutSec,
@@ -3604,13 +3604,13 @@ func StopActionHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ActionStdinHandler forwards one console line from a bound terminal pane to
+// ActionStdinHandler forwards one terminal line from a bound terminal pane to
 // the running action's stdin (e.g. Minecraft `/tps`, `/op <player>`).
 // URL: POST /api/instances/{id}/actions/{actionId}/stdin, body {"data": "<line>"}.
 //
 // Enforcement is fail-closed and server-side (the frontend's allowlist is UX
 // only and never trusted):
-//  1. The action must define a terminal_id (unbound actions have no console).
+//  1. The action must define a terminal_id (unbound actions have no terminal).
 //  2. install_state must be 'running' with install_action_id == actionId —
 //     input to a dead action is rejected (409), which is also what makes
 //     "stop terminal after end" real: the pane locks because the server
@@ -3687,7 +3687,7 @@ func ActionStdinHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The console only exists while THIS action is the running workflow.
+	// The terminal only exists while THIS action is the running workflow.
 	if inst.InstallState != "running" || inst.InstallKind != "action" || inst.InstallActionID != actionID {
 		http.Error(w, "action is not running (terminal stopped)", http.StatusConflict)
 		return
@@ -3784,7 +3784,7 @@ func ActionStdinHandler(w http.ResponseWriter, r *http.Request) {
 	})
 	if sterr != nil {
 		writeJSONStatus(w, http.StatusBadGateway, map[string]any{
-			"error": "edge rejected console input: " + sterr.Error(),
+			"error": "edge rejected terminal input: " + sterr.Error(),
 		})
 		return
 	}
@@ -3803,8 +3803,8 @@ func ActionStdinHandler(w http.ResponseWriter, r *http.Request) {
 
 // installTerminalIDFromConfig reads the instance's deploy-time config
 // snapshot for the template's install_terminal_id (the attach-by-ID
-// handle for the Installation workflow console). Empty = this instance
-// has no installation console bound.
+// handle for the Installation workflow terminal). Empty = this instance
+// has no installation terminal bound.
 func installTerminalIDFromConfig(configJSON string) string {
 	s := strings.TrimSpace(configJSON)
 	if s == "" {
@@ -3817,7 +3817,7 @@ func installTerminalIDFromConfig(configJSON string) string {
 	return installTerminalIDFromSpec(spec)
 }
 
-// InstallStdinHandler forwards one console line from a terminal pane
+// InstallStdinHandler forwards one terminal line from a terminal pane
 // bound to the Installation workflow (pane ID == the template's
 // install_terminal_id) into the running install workflow's kept stdin
 // pipe. URL: POST /api/instances/{id}/install/stdin, body
@@ -3828,10 +3828,10 @@ func installTerminalIDFromConfig(configJSON string) string {
 //     input to a finished install, or to a running ACTION workflow (which
 //     has its own per-action stdin endpoint), is rejected (409).
 //  2. The instance's config must bind install_terminal_id — unbound
-//     installs have no console (403).
+//     installs have no terminal (403).
 //  3. There is no per-install allowlist policy (unlike actions): any
 //     line is relayed while the install runs. The gate is the binding +
-//     the same VIEW/own-scope/controls checks as action consoles.
+//     the same VIEW/own-scope/controls checks as action terminals.
 // The payload is capped at 4 KiB; the edge appends "\n" and writes it to
 // the workflow's kept stdin pipe (deploy/reinstall/recreate kickoffs set
 // KeepStdin exactly when install_terminal_id is bound).
@@ -3891,14 +3891,14 @@ func InstallStdinHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if forbidByInstanceControls(w, inst.Config, "allow_template_actions", "installation console input") {
+	if forbidByInstanceControls(w, inst.Config, "allow_template_actions", "installation terminal input") {
 		return
 	}
 
-	// The console only exists while a NON-action workflow (deploy /
+	// The terminal only exists while a NON-action workflow (deploy /
 	// reinstall / recreate install) is the running workflow. A running
 	// action owns the same edge key and has its own stdin endpoint, so
-	// refuse here rather than injecting a line into the wrong console.
+	// refuse here rather than injecting a line into the wrong terminal.
 	if inst.InstallState != "running" || inst.InstallKind == "action" {
 		http.Error(w, "installation is not running (terminal stopped)", http.StatusConflict)
 		return
@@ -3930,7 +3930,7 @@ func InstallStdinHandler(w http.ResponseWriter, r *http.Request) {
 	})
 	if sterr != nil {
 		writeJSONStatus(w, http.StatusBadGateway, map[string]any{
-			"error": "edge rejected console input: " + sterr.Error(),
+			"error": "edge rejected terminal input: " + sterr.Error(),
 		})
 		return
 	}

@@ -343,7 +343,7 @@ func WorkflowHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "edge not connected via WSS tunnel (reverse_tunnel workflow requires edge to be online)", http.StatusBadGateway)
 			return
 		}
-		http.Error(w, "workflow console over WSS tunnel not yet implemented for reverse_tunnel; use direct or local_port mode for console access", http.StatusNotImplemented)
+		http.Error(w, "workflow terminal over WSS tunnel not yet implemented for reverse_tunnel; use direct or local_port mode for terminal access", http.StatusNotImplemented)
 		return
 	}
 	if mode == "both" || mode == "local_both" {
