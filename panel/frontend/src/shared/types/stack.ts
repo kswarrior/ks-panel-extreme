@@ -146,6 +146,23 @@ export const STACK_CATEGORIES = ['dashboard', 'tool', 'tracker', 'status', 'crud
 
 export const STACK_RUNTIMES = ['static', 'nodejs', 'python'] as const;
 
+// Location type — where the stack lives: on this same Host, or Outside
+// (elsewhere, reached over the network via WSS or POST).
+export type StackLocationType = 'host' | 'outside';
+
+export const STACK_LOCATION_TYPES: Array<{ value: StackLocationType; label: string; hint: string }> = [
+  { value: 'host', label: 'Host', hint: 'Stack runs on this same host (local sidecar / embedded UI)' },
+  { value: 'outside', label: 'Outside', hint: 'Stack runs elsewhere — panel reaches it via WSS or POST' },
+];
+
+// How the panel talks to an outside stack.
+export type StackRemoteProtocol = 'wss' | 'post';
+
+export const STACK_REMOTE_PROTOCOLS: Array<{ value: StackRemoteProtocol; label: string; hint: string }> = [
+  { value: 'wss', label: 'WSS', hint: 'Persistent websocket channel to the outside stack' },
+  { value: 'post', label: 'POST', hint: 'Plain HTTPS POST callbacks to the outside stack' },
+];
+
 export function slugify(input: string): string {
   return input
     .toLowerCase()
@@ -216,6 +233,13 @@ export interface StackStudioDraft {
   // as environment variables (token NAME is the ENV key, e.g. API_TOKEN
   // becomes $API_TOKEN). Mirrors the template env-var "ask" behaviour.
   launchTokens: StackLaunchToken[];
+  // Location type (General tab): 'host' = stack on this same host,
+  // 'outside' = stack elsewhere, reached via remoteProtocol (wss/post) at
+  // remoteUrl with an optional shared secret.
+  locationType: StackLocationType;
+  remoteUrl: string;
+  remoteProtocol: StackRemoteProtocol;
+  remoteSecret: string;
   backendScript: string;
   frontendHtml: string;
   frontendCss: string;
@@ -326,6 +350,10 @@ export const blankStackStudioDraft = (): StackStudioDraft => ({
   launchTimeoutS: '',
   launchTerminalId: '',
   launchTokens: [],
+  locationType: 'host',
+  remoteUrl: '',
+  remoteProtocol: 'wss',
+  remoteSecret: '',
   backendScript: '',
   frontendHtml: '',
   frontendCss: '',
@@ -364,6 +392,11 @@ export function emitStackStudioManifest(draft: StackStudioDraft): Record<string,
     launch_terminal_id: (draft.launchTerminalId || '').trim() || undefined,
     // Ask-at-launch tokens (prompted at launch, exported as ENV).
     launchTokens: draft.launchTokens || [],
+    // Location type (raw-manifest pass-through until the backend models it).
+    locationType: draft.locationType || 'host',
+    remoteUrl: (draft.remoteUrl || '').trim(),
+    remoteProtocol: draft.remoteProtocol || 'wss',
+    ...(draft.remoteSecret.trim() ? { remoteSecret: draft.remoteSecret.trim() } : {}),
     // Docker target image (only meaningful when installType is docker;
     // harmless pass-through otherwise).
     ...(draft.installType === 'docker' && draft.installImage.trim()
