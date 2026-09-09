@@ -337,6 +337,8 @@ const Sessions: React.FC<SessionsProps> = ({ initialConfig, onConfigChange }) =>
             </tbody>
           </table>
         )}
+          </>
+        )}
       </GlassCard>
     </div>
   );

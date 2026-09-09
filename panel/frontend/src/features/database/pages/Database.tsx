@@ -9,6 +9,7 @@ import {
 import type { DatabaseEngineInfo, DatabaseEngineSwitchResponse } from '@/shared/api/admin';
 import type { DatabaseInfo, DatabaseTable } from '@/features/system/types/system';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import SectionRailTabs from '@/shared/components/ui/SectionRailTabs';
 import { MetaRow, StatTile, DeltaPill, Meter, Sparkline, PragmaTile, ChangeDatabaseCard, VerifyStatusCard } from '../components/DatabaseComponents';
@@ -113,7 +114,16 @@ const DatabasePage: React.FC = () => {
 
   return (
     <div>
-      {error && <p className="text-red-400 mb-3 text-sm">{error}</p>}
+      {error && info && <p className="text-red-400 mb-3 text-sm">{error}</p>}
+      {error && !info && !loading && (
+        <ErrorState
+          variant="error"
+          title="Failed to load database info"
+          description={error}
+          retryLabel="Retry"
+          onRetry={() => void load()}
+        />
+      )}
 
       {loading && !info && <SkeletonGrid count={4} />}
 

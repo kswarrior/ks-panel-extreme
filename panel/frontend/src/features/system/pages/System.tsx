@@ -13,6 +13,7 @@ import type {
   ReinstallBackgroundResponse,
 } from '@/features/system/types/system';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import GlassModal from '@/shared/components/ui/Modal';
 import SystemTabs from '../components/SystemTabs';
 import { useUpdateInfo } from '../hooks/useUpdateInfo';
@@ -77,7 +78,15 @@ const System: React.FC = () => {
   }
 
   if (error) {
-    return <p className="text-red-400 text-sm">{error}</p>;
+    return (
+      <ErrorState
+        variant="error"
+        title="Failed to load system snapshot"
+        description={error}
+        retryLabel="Retry"
+        onRetry={() => void load()}
+      />
+    );
   }
 
   if (!snap) {

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { listActivity } from '@/shared/api/admin';
 import type { ActivityLog, ActivityCategory } from '@/features/activity/types/activity';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import ActivityCards from '../components/ActivityCards';
 
@@ -135,7 +136,16 @@ const ActivityPage: React.FC = () => {
         </div>
       )}
 
-      {error && <p className="text-red-400 mb-3 text-sm">{error}</p>}
+      {error && rows.length > 0 && <p className="text-red-400 mb-3 text-sm">{error}</p>}
+      {!loading && error && rows.length === 0 && (
+        <ErrorState
+          variant="error"
+          title="Failed to load activity"
+          description={error}
+          retryLabel="Retry"
+          onRetry={() => void load()}
+        />
+      )}
 
       {/* Loading */}
       {loading && <SkeletonGrid count={6} />}
