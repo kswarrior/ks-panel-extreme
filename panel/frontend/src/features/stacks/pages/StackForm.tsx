@@ -246,20 +246,27 @@ const StackForm: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)] gap-4">
           <div className="ks-card rounded-lg p-2 lg:sticky lg:top-4 self-start">
             <nav className="flex lg:flex-col gap-1 overflow-x-auto" aria-label="Stack form sections">
-              {TABS.map((t) => (
+              {TABS.map((t) => {
+                // Outside stacks run elsewhere (reached via WSS/POST), so the
+                // panel never installs or launches them — those tabs stay
+                // disabled while location is outside.
+                const disabled = draft.locationType === 'outside' && (t.key === 'install' || t.key === 'launch');
+                return (
                 <button
                   key={t.key}
                   type="button"
+                  disabled={disabled}
+                  title={disabled ? 'Disabled for Type Outside — the stack runs elsewhere' : t.label}
                   onClick={() => setTab(t.key)}
-                  className={`ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-left transition flex items-center justify-between gap-2 ${tab === t.key ? 'ks-tab-active' : ''}`}
+                  className={`ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-left transition flex items-center justify-between gap-2 ${tab === t.key ? 'ks-tab-active' : ''} ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
                 >
                   <span>{t.label}</span>
-                  {t.key === 'install' && installStepCount > 0 && (
+                  {!disabled && t.key === 'install' && installStepCount > 0 && (
                     <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-white/10 border border-white/10 text-gray-200">
                       {installStepCount}
                     </span>
                   )}
-                  {t.key === 'launch' && launchStepCount > 0 && (
+                  {!disabled && t.key === 'launch' && launchStepCount > 0 && (
                     <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-white/10 border border-white/10 text-gray-200">
                       {launchStepCount}
                     </span>
