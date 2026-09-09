@@ -38,19 +38,6 @@ const labelCls = 'block text-sm font-medium text-gray-300 mb-1 ks-label';
 const monoCls = glassFieldClass + ' font-mono ks-input-mono';
 const addBtn = 'text-xs text-sky-300 hover:text-sky-200 underline';
 
-// ComingSoon — placeholder body for form sections that are not built yet.
-// Keeps the tab chrome identical to real sections so wiring real content in
-// later is a straight swap of the section body.
-const ComingSoon: React.FC<{ heading: string }> = ({ heading }) => (
-  <div className={sectionCls}>
-    <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">{heading}</h4>
-    <div className="text-center py-10">
-      <p className="text-sm text-gray-300">Coming soon</p>
-      <p className="text-xs text-gray-500 mt-1">This section is not available yet.</p>
-    </div>
-  </div>
-);
-
 // Default access_level per stack capability. The backend treats access_level
 // as an opaque string (only the capability code is validated), so these are
 // sensible display defaults that match the capability name.
@@ -156,6 +143,18 @@ const StackForm: React.FC = () => {
     });
   };
 
+  // ---- launch helpers (same step vocabulary as install, run at launch) ----
+  const launchStepCount = draft.launchSteps.length;
+  const moveLaunchStep = (i: number, dir: -1 | 1) => {
+    setDraft((d) => {
+      const j = i + dir;
+      if (j < 0 || j >= d.launchSteps.length) return d;
+      const steps = [...d.launchSteps];
+      [steps[i], steps[j]] = [steps[j], steps[i]];
+      return { ...d, launchSteps: steps };
+    });
+  };
+
   const submit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!draft.name.trim()) { setError('Name is required'); setTab('meta'); return; }
@@ -225,6 +224,11 @@ const StackForm: React.FC = () => {
                   {t.key === 'install' && installStepCount > 0 && (
                     <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-white/10 border border-white/10 text-gray-200">
                       {installStepCount}
+                    </span>
+                  )}
+                  {t.key === 'launch' && launchStepCount > 0 && (
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-white/10 border border-white/10 text-gray-200">
+                      {launchStepCount}
                     </span>
                   )}
                   {t.key === 'permission' && permissionCount > 0 && (
@@ -377,6 +381,7 @@ const StackForm: React.FC = () => {
                     workflow editor (shell/download/extract/... + timeout +
                     terminal id), bound to the stack draft. */}
                 <TemplateInstallSection
+                  heading="Section B · Installation Workflow"
                   install={draft.installSteps as any}
                   installTimeoutS={draft.installTimeoutS}
                   onInstallTimeoutUpdate={(v) => patch({ installTimeoutS: v.replace(/[^0-9]/g, '') })}
@@ -399,7 +404,40 @@ const StackForm: React.FC = () => {
             )}
 
             {tab === 'launch' && (
-              <ComingSoon heading="Section C · Launch" />
+              <div className="space-y-4">
+                <div className={sectionCls}>
+                  <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">Section C · Launch</h4>
+                  <p className="text-xs text-gray-400">
+                    Same step vocabulary as the Install workflow (shell / download / extract / …),
+                    but these steps run every time the stack launches — not once at install.
+                    Leave empty to launch with no pre-steps.
+                  </p>
+                </div>
+
+                {/* Launch workflow — reuses the exact template install step
+                    editor; only the run moment (launch vs install) and the
+                    manifest keys (launch* vs install*) differ. */}
+                <TemplateInstallSection
+                  heading="Section C · Launch Workflow"
+                  install={draft.launchSteps as any}
+                  installTimeoutS={draft.launchTimeoutS}
+                  onInstallTimeoutUpdate={(v) => patch({ launchTimeoutS: v.replace(/[^0-9]/g, '') })}
+                  installTerminalId={draft.launchTerminalId}
+                  onInstallTerminalIdUpdate={(v) => patch({ launchTerminalId: v })}
+                  onInstallUpdate={(i, stepPatch) => setDraft((d) => {
+                    const steps = [...d.launchSteps];
+                    steps[i] = { ...steps[i], ...stepPatch } as typeof steps[number];
+                    return { ...d, launchSteps: steps };
+                  })}
+                  onInstallAdd={() => setDraft((d) => ({ ...d, launchSteps: [...d.launchSteps, blankStackInstallStep()] }))}
+                  onInstallDelete={(i) => setDraft((d) => ({ ...d, launchSteps: d.launchSteps.filter((_, j) => j !== i) }))}
+                  onInstallMove={moveLaunchStep}
+                  sectionCls={sectionCls}
+                  labelCls={labelCls}
+                  monoCls={monoCls}
+                  addBtn={addBtn}
+                />
+              </div>
             )}
 
             {tab === 'permission' && (

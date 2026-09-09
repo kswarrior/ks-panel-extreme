@@ -20,6 +20,9 @@ export interface InstallSectionProps {
   labelCls: string;
   monoCls: string;
   addBtn: string;
+  /** Heading override so other forms (e.g. stack launch) can reuse the same
+   *  step editor with their own section title. Defaults to the template one. */
+  heading?: string;
 }
 
 export const TemplateInstallSection: React.FC<InstallSectionProps> = ({
@@ -36,6 +39,7 @@ export const TemplateInstallSection: React.FC<InstallSectionProps> = ({
   labelCls,
   monoCls,
   addBtn,
+  heading,
 }) => {
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const move = (i: number, dir: -1 | 1) => { onInstallMove?.(i, dir); };
@@ -44,7 +48,7 @@ export const TemplateInstallSection: React.FC<InstallSectionProps> = ({
     <>
       <div className={sectionCls}>
         <div className="flex items-center justify-between mb-1">
-          <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">Section E · Installation Workflow</h4>
+          <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">{heading || 'Section E · Installation Workflow'}</h4>
           <button type="button" onClick={onInstallAdd} className={addBtn} aria-label="Add step">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           </button>
