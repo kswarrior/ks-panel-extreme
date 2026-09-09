@@ -20,6 +20,7 @@ import (
 	"github.com/example/kspanel/internal/permissions"
 	"github.com/example/kspanel/internal/repository"
 	"github.com/go-chi/chi/v5"
+	"gopkg.in/yaml.v3"
 )
 
 // ============================== TEMPLATES ==============================
@@ -945,6 +946,38 @@ func CreateTemplateHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"id": id})
 }
 
+// decodeTemplateManifest parses a template manifest in either supported
+// format: JSON (canonical) or YAML (authoring-friendly, same keys). JSON is
+// tried first so every previously-accepted file parses byte-identically;
+// YAML is the fallback. The YAML result is normalised through a JSON
+// round-trip so downstream code only ever sees JSON types (object keys are
+// strings, numbers are float64) regardless of which syntax the author used.
+// YAML notes: quote version-like strings ("3.10" parses as 3.1 otherwise)
+// and keep `on`/`off`-style names quoted; the spec validator still rejects
+// wrongly-typed values with a field-specific 400.
+func decodeTemplateManifest(raw []byte) (map[string]any, error) {
+	var manifest map[string]any
+	if err := json.Unmarshal(raw, &manifest); err == nil {
+		return manifest, nil
+	}
+	manifest = nil
+	var yamlDoc map[string]any
+	if err := yaml.Unmarshal(raw, &yamlDoc); err != nil {
+		return nil, fmt.Errorf("manifest is neither valid JSON nor valid YAML: %s", err.Error())
+	}
+	if yamlDoc == nil {
+		return nil, fmt.Errorf("manifest is neither valid JSON nor valid YAML: empty document")
+	}
+	normalised, err := json.Marshal(yamlDoc)
+	if err != nil {
+		return nil, fmt.Errorf("manifest is neither valid JSON nor valid YAML: %s", err.Error())
+	}
+	if err := json.Unmarshal(normalised, &manifest); err != nil {
+		return nil, fmt.Errorf("manifest is neither valid JSON nor valid YAML: %s", err.Error())
+	}
+	return manifest, nil
+}
+
 func handleTemplateFileUpload(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseMultipartForm(8 << 20); err != nil {
 		http.Error(w, "invalid multipart payload: "+err.Error(), http.StatusBadRequest)
@@ -967,8 +1000,9 @@ func handleTemplateFileUpload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var manifest map[string]any
-	if err := json.Unmarshal(rawManifest, &manifest); err != nil {
-		http.Error(w, "manifest file is not valid JSON: "+err.Error(), http.StatusBadRequest)
+	manifest, err = decodeTemplateManifest(rawManifest)
+	if err != nil {
+		http.Error(w, "manifest file "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -1095,8 +1129,9 @@ func InstallTemplateFromURLHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var manifest map[string]any
-	if err := json.Unmarshal(rawManifest, &manifest); err != nil {
-		http.Error(w, "manifest from URL is invalid JSON: "+err.Error(), http.StatusBadRequest)
+	manifest, ferr = decodeTemplateManifest(rawManifest)
+	if ferr != nil {
+		http.Error(w, "manifest from URL "+ferr.Error(), http.StatusBadRequest)
 		return
 	}
 
