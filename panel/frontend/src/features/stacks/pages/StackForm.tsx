@@ -3,14 +3,18 @@ import { useNavigate } from 'react-router-dom';
 import FormPage from '@/shared/components/forms/FormPage';
 import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
-import GlassField from '@/shared/components/ui/Field';
+import GlassField, { glassFieldClass } from '@/shared/components/ui/Field';
 import IconColorPicker from '@/shared/components/ui/IconColorPicker';
 import RolePermissions from '@/features/roles/components/RolePermissions';
+import { TemplateInstallSection } from '@/features/templates/components/TemplateForm/TemplateInstallSection';
 import { listPermissions } from '@/shared/api/admin';
 import type { Permission } from '@/shared/types/user';
 import {
   STACK_CAPABILITIES,
   STACK_CATEGORIES,
+  STACK_INSTALL_TYPES,
+  STACK_RUNTIMES,
+  blankStackInstallStep,
   blankStackStudioDraft,
   emitStackStudioManifest,
   slugify,
@@ -30,6 +34,9 @@ const TABS: Array<{ key: Tab; label: string }> = [
 ];
 
 const sectionCls = 'ks-card ks-form-card rounded-lg space-y-4';
+const labelCls = 'block text-sm font-medium text-gray-300 mb-1 ks-label';
+const monoCls = glassFieldClass + ' font-mono ks-input-mono';
+const addBtn = 'text-xs text-sky-300 hover:text-sky-200 underline';
 
 // ComingSoon — placeholder body for form sections that are not built yet.
 // Keeps the tab chrome identical to real sections so wiring real content in
@@ -137,12 +144,25 @@ const StackForm: React.FC = () => {
 
   const permissionCount = draft.permissionsRequested.length + panelPermissions.length;
 
+  // ---- install helpers (Type + workflow, mirrors template install) ----
+  const installStepCount = draft.installSteps.length;
+  const moveInstallStep = (i: number, dir: -1 | 1) => {
+    setDraft((d) => {
+      const j = i + dir;
+      if (j < 0 || j >= d.installSteps.length) return d;
+      const steps = [...d.installSteps];
+      [steps[i], steps[j]] = [steps[j], steps[i]];
+      return { ...d, installSteps: steps };
+    });
+  };
+
   const submit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!draft.name.trim()) { setError('Name is required'); setTab('meta'); return; }
     if (!draft.slug.trim()) { setError('Slug is required'); setTab('meta'); return; }
     if (validation.length > 0) { setError(validation[0]); setTab('meta'); return; }
     if (draft.color && !/^#[0-9a-fA-F]{6}$/.test(draft.color.trim())) { setError('Colour must be a #rrggbb hex value (or empty for default)'); setTab('meta'); return; }
+    if (draft.installType === 'docker' && !draft.installImage.trim()) { setError('Docker image is required for Type Docker'); setTab('install'); return; }
     setSaving(true);
     setError('');
     try {
@@ -202,6 +222,11 @@ const StackForm: React.FC = () => {
                   className={`ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-left transition flex items-center justify-between gap-2 ${tab === t.key ? 'ks-tab-active' : ''}`}
                 >
                   <span>{t.label}</span>
+                  {t.key === 'install' && installStepCount > 0 && (
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-white/10 border border-white/10 text-gray-200">
+                      {installStepCount}
+                    </span>
+                  )}
                   {t.key === 'permission' && permissionCount > 0 && (
                     <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-white/10 border border-white/10 text-gray-200">
                       {permissionCount}
@@ -280,7 +305,97 @@ const StackForm: React.FC = () => {
             )}
 
             {tab === 'install' && (
-              <ComingSoon heading="Section B · Install" />
+              <div className="space-y-4">
+                {/* Type — Docker container vs Host process. Docker needs an
+                    image; Host runs via the sidecar runtime + entrypoint. */}
+                <div className={sectionCls}>
+                  <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">Section B · Install Type</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" role="radiogroup" aria-label="Install type">
+                    {STACK_INSTALL_TYPES.map((t) => {
+                      const active = draft.installType === t.value;
+                      return (
+                        <button
+                          key={t.value}
+                          type="button"
+                          role="radio"
+                          aria-checked={active}
+                          onClick={() => patch({ installType: t.value })}
+                          className={`ks-card flex items-start gap-3 p-3 rounded-lg text-left transition cursor-pointer ${
+                            active ? 'border-sky-600/60 bg-sky-950/20' : 'hover:border-white/20'
+                          }`}
+                        >
+                          <span
+                            className={`mt-1 w-3.5 h-3.5 rounded-full border-2 shrink-0 flex items-center justify-center ${
+                              active ? 'border-sky-400' : 'border-white/20'
+                            }`}
+                            aria-hidden="true"
+                          >
+                            {active && <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />}
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block text-sm font-semibold text-white">{t.label}</span>
+                            <span className="block text-xs text-gray-400 mt-0.5">{t.hint}</span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {draft.installType === 'docker' ? (
+                    <GlassField label="Docker image" htmlFor="stack-image" hint="Container image for the stack (e.g. nginx:latest). Required for Type Docker.">
+                      <input
+                        id="stack-image"
+                        value={draft.installImage}
+                        onChange={(e) => patch({ installImage: e.target.value })}
+                        placeholder="e.g. nginx:latest"
+                        required
+                      />
+                    </GlassField>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <GlassField label="Runtime" htmlFor="stack-runtime" hint="Host sidecar runtime.">
+                        <select
+                          id="stack-runtime"
+                          value={draft.runtime}
+                          onChange={(e) => patch({ runtime: e.target.value })}
+                        >
+                          {STACK_RUNTIMES.map((r) => <option key={r} value={r}>{r}</option>)}
+                        </select>
+                      </GlassField>
+                      <GlassField label="Entrypoint" htmlFor="stack-entrypoint" hint="Command or file the host runtime executes.">
+                        <input
+                          id="stack-entrypoint"
+                          value={draft.entrypoint}
+                          onChange={(e) => patch({ entrypoint: e.target.value })}
+                          placeholder={draft.runtime === 'static' ? 'index.html' : draft.runtime === 'nodejs' ? 'server.js' : 'app.py'}
+                        />
+                      </GlassField>
+                    </div>
+                  )}
+                </div>
+
+                {/* Installation workflow — the exact template install
+                    workflow editor (shell/download/extract/... + timeout +
+                    terminal id), bound to the stack draft. */}
+                <TemplateInstallSection
+                  install={draft.installSteps as any}
+                  installTimeoutS={draft.installTimeoutS}
+                  onInstallTimeoutUpdate={(v) => patch({ installTimeoutS: v.replace(/[^0-9]/g, '') })}
+                  installTerminalId={draft.installTerminalId}
+                  onInstallTerminalIdUpdate={(v) => patch({ installTerminalId: v })}
+                  onInstallUpdate={(i, stepPatch) => setDraft((d) => {
+                    const steps = [...d.installSteps];
+                    steps[i] = { ...steps[i], ...stepPatch } as typeof steps[number];
+                    return { ...d, installSteps: steps };
+                  })}
+                  onInstallAdd={() => setDraft((d) => ({ ...d, installSteps: [...d.installSteps, blankStackInstallStep()] }))}
+                  onInstallDelete={(i) => setDraft((d) => ({ ...d, installSteps: d.installSteps.filter((_, j) => j !== i) }))}
+                  onInstallMove={moveInstallStep}
+                  sectionCls={sectionCls}
+                  labelCls={labelCls}
+                  monoCls={monoCls}
+                  addBtn={addBtn}
+                />
+              </div>
             )}
 
             {tab === 'launch' && (

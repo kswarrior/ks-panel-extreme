@@ -315,6 +315,16 @@ export function emitStackStudioManifest(draft: StackStudioDraft): Record<string,
     pageStyle: draft.pageStyle,
     permissionsRequested: draft.permissionsRequested,
     panelPermissions: draft.panelPermissions || [],
+    installType: draft.installType || 'docker',
+    install: draft.installSteps || [],
+    installSteps: draft.installSteps || [],
+    install_timeout_sec: (draft.installTimeoutS || '').replace(/[^0-9]/g, '') || undefined,
+    install_terminal_id: (draft.installTerminalId || '').trim() || undefined,
+    // Docker target image (only meaningful when installType is docker;
+    // harmless pass-through otherwise).
+    ...(draft.installType === 'docker' && draft.installImage.trim()
+      ? { image: draft.installImage.trim() }
+      : {}),
     frontend: {
       page_style: draft.pageStyle,
       theme: { mode: draft.themeMode },
