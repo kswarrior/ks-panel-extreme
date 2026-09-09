@@ -78,13 +78,22 @@ requires written proof of exactly what is blocked and why.
      Backend/Edge: go build ./... && go test ./...
      Frontend:     build + typecheck + lint
      Migration:    verify MySQL / PostgreSQL / SQLite compatibility
+     Sync first:   before ANY test run → bash /home/runner/work/
+                   ks-panel-extreme/ks-panel-extreme/update.sh (so tests
+                   exercise the latest binaries). If `git status` shows any
+                   changes, run update.sh FIRST, then test.
      Runtime:      ANY check needing the panel RUNNING (endpoints, login,
-                   seed data, edge wiring) → bash /home/runner/work/
-                   ks-panel-extreme/ks-panel-extreme/retest.sh
+                   seed data, edge wiring) → FIRST probe whether the panel
+                   already answers (e.g. curl :8080). Panel UP → test
+                   against it directly. Panel DOWN → only then bash
+                   /home/runner/work/ks-panel-extreme/ks-panel-extreme/retest.sh
                    (auto-runs rebuild.sh if release/kspanel missing; stops old
                    instances; launches panel on :8080, custom port as arg 1;
                    logs: /tmp/kspanel-retest/kspanel.log; stop: kill $(cat
-                   /tmp/kspanel-retest/kspanel.pid)). Read output + tail the log.
+                   /tmp/kspanel-retest/kspanel.pid)). NEVER run retest.sh
+                   while the panel is already running unless the user
+                   explicitly says so (it kills the running instance).
+                   Read output + tail the log.
 - V8 READ the REAL command output. Exit code + output or it didn't pass.
      A green assumption is a red failure.
 - V9 Security pass on touched surfaces: injection, authz gaps, secret exposure,
@@ -122,7 +131,9 @@ Iteration ladder:
 Only after all required passes:
 bash /home/runner/work/ks-panel-extreme/ks-panel-extreme/rebuild.sh
 Read the ACTUAL output. Failure → root cause → THE LOOP → PASS 1 again.
-If any verification needs a live panel → bash retest.sh (see V7 Runtime).
+If any verification needs a live panel → probe :8080 first; bash retest.sh
+only when the panel is DOWN and never over a running panel unless the user
+explicitly says so (see V7 Runtime). Run update.sh before testing.
 
 ## 8. Report (short, honest)
 Task type | Part(s) | Files changed | Root cause (for Fix) |
