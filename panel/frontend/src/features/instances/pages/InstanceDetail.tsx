@@ -614,15 +614,23 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
   // Live workflow status for pane routing (which bridge each bound pane
   // dials) and tab dots. The routed snapshot goes stale the moment an
   // action starts, so poll silently while any pane is bound to an ID
-  // (same 3s cadence as the actions menu).
+  // (same 3s cadence as the actions menu). Otherwise still poll at a
+  // slower cadence so start/stop flips between the terminal and the
+  // "Instance Stopped" state without a manual reload — and so a plain
+  // shell (no bound ID) also notices the stop instead of looping
+  // reconnecting errors against a gone container.
   const { instance: live, reload } = useInstance(Number(instance?.id));
   const hasBound = panes.some((p) => normTid(p.terminalId) !== '');
   useEffect(() => {
-    if (!hasBound) return;
-    const t = window.setInterval(() => { void reload(true); }, 3000);
+    const t = window.setInterval(() => { void reload(true); }, hasBound ? 3000 : 5000);
     return () => window.clearInterval(t);
   }, [hasBound, reload]);
   const src: any = live ?? instance;
+  // Stopped instances have no container to attach to — the edge exec /
+  // attach / workflow bridges would just fail and the xterm would loop
+  // "reconnecting …" + error banners forever. Show a clean stopped
+  // state instead and don't mount any Terminal (no WS dial at all).
+  const isStopped = String(src?.status ?? '') === 'stopped';
   const installState: string = src?.install_state ?? '';
   const installKind: string = src?.install_kind ?? '';
   const runningActionId: string = installState === 'running' && installKind === 'action' ? (src?.install_action_id || '') : '';
@@ -682,6 +690,20 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
     }
     return { dot: 'bg-gray-500', label: tid };
   };
+
+  if (isStopped) {
+    return (
+      <div className="animate-fade-in space-y-3">
+        <div className="ks-card rounded-xl text-center py-12 px-6">
+          <div className="mx-auto mb-4 w-12 h-12 rounded-xl flex items-center justify-center border border-white/10 bg-white/[0.03] text-gray-400">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
+          </div>
+          <h3 className="text-base font-semibold text-white">Instance Stopped</h3>
+          <p className="text-[13px] text-gray-500 mt-1">Start the instance to use the terminal.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in space-y-3">
