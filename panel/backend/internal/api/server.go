@@ -866,10 +866,15 @@ func NewRouter() http.Handler {
 		})
 
 		// Automation jobs + runs. Trigger is the manual "Run now" hit.
+		// Transfer routes (/import, /import/url, /{job_id}/download) sit
+		// before the {job_id} param routes so the literals win.
 		r.Route("/api/instances/{id}/automation", func(r chi.Router) {
 			r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Get("/", handlers.ListAutomationHandler)
 			r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Post("/", handlers.CreateAutomationHandler)
+			r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Post("/import", handlers.ImportAutomationHandler)
+			r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Post("/import/url", handlers.ImportAutomationFromURLHandler)
 			r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Get("/runs", handlers.ListAutomationRunsHandler)
+			r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Get("/{job_id}/download", handlers.DownloadAutomationHandler)
 			r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Put("/{job_id}", handlers.UpdateAutomationHandler)
 			r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Delete("/{job_id}", handlers.DeleteAutomationHandler)
 			r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Post("/{job_id}/run", handlers.TriggerRunHandler)
