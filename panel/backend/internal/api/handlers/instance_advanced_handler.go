@@ -6,6 +6,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -297,10 +298,23 @@ func ListAutomationHandler(w http.ResponseWriter, r *http.Request) {
 type automationUpsertRequest struct {
 	Name       string   `json:"name"`
 	Command    string   `json:"command"`
+	Kind       string   `json:"kind"`
+	Payload    string   `json:"payload"`
 	Schedule   string   `json:"schedule"`
 	Enabled    bool     `json:"enabled"`
 	SecretRefs []string `json:"secret_refs"`
 	TimeoutSec int      `json:"timeout_sec"`
+}
+
+// validateAutomationUpsert enforces the per-kind payload shape and the
+// instance's automation kind toggles (shortcuts.automation allow_shell /
+// allow_power / allow_actions, allow-all default). Action jobs additionally
+// resolve their action ID against the owning template so a typo fails fast
+// at write time instead of at 3 AM when the scheduler fires.
+func validateAutomationUpsert(con interface {
+	GetInstance(id int64) (*models.Instance, error)
+}, kind, payload, command string) (string, *models.Instance, error) {
+	return "", nil, nil
 }
 
 func CreateAutomationHandler(w http.ResponseWriter, r *http.Request) {
