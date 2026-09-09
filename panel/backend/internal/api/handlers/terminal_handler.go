@@ -275,15 +275,14 @@ func TerminalHandler(w http.ResponseWriter, r *http.Request) {
 // WorkflowHandler is the chi handler bound at
 // /api/instances/{id}/workflow. It bridges the browser to the instance's
 // RUNNING workflow transcript (template action or install workflow) through
-// ksedge /api/edge/install/stream — the live-console twin of TerminalHandler
-// (side shell via /api/edge/exec) and ConsoleHandler (main process via
-// /api/edge/attach).
+// ksedge /api/edge/install/stream — the live-terminal twin of TerminalHandler
+// (side shell via /api/edge/exec).
 //
 // Auth + permission middleware run BEFORE this is invoked (same
 // VIEW_INSTANCES gate as the terminal bridge). The terminal-ID binding
 // itself stays SPA-side (the pane only dials this endpoint when its ID
 // matches a template action's terminal_id or install_terminal_id); the
-// bridge dials only the instance's own edge. Console input still rides the
+// bridge dials only the instance's own edge. Terminal input still rides the
 // existing POST …/actions/:id/stdin and …/install/stdin paths so the
 // action's terminal input policy stays enforced — the stream is
 // output-only (browser stdin frames reach the edge but are ignored there).

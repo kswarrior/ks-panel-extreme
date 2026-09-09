@@ -530,15 +530,12 @@ func validateTemplateSpec(spec map[string]any) error {
 		}
 	}
 
-	// Installation + startup console bindings: install_terminal_id
-	// (top-level, next to install_timeout_sec) and
-	// advanced.startup_terminal_id (next to startup_command) give the
-	// install workflow and the container main process the same
+	// Installation terminal binding: install_terminal_id (top-level, next
+	// to install_timeout_sec) gives the install workflow the same
 	// attach-by-ID UX actions already have via actions[].terminal_id.
 	// Same normalisation ([a-z0-9_-], max 64) and the same uniqueness
-	// rule: an ID used twice (action/action, action/install,
-	// action/startup, install/startup) would attach panes ambiguously,
-	// so duplicates fail fast at save time.
+	// rule: an ID used twice (action/action, action/install) would
+	// attach panes ambiguously, so duplicates fail fast at save time.
 	normConsoleTid := func(raw any) (string, error) {
 		s, ok := raw.(string)
 		if !ok {
@@ -582,22 +579,6 @@ func validateTemplateSpec(spec map[string]any) error {
 				return fmt.Errorf("spec.install_terminal_id %q is already used by %s — each bound terminal must be unique or panes attach ambiguously", tid, prev)
 			}
 			usedTids[tid] = "install_terminal_id"
-		}
-	}
-	if rawAdv, present := spec["advanced"]; present && rawAdv != nil {
-		if adv, ok := rawAdv.(map[string]any); ok {
-			if raw, present := adv["startup_terminal_id"]; present && raw != nil {
-				tid, err := normConsoleTid(raw)
-				if err != nil {
-					return fmt.Errorf("spec.advanced.startup_terminal_id %s", err.Error())
-				}
-				if tid != "" {
-					if prev, dup := usedTids[tid]; dup {
-						return fmt.Errorf("spec.advanced.startup_terminal_id %q is already used by %s — each bound terminal must be unique or panes attach ambiguously", tid, prev)
-					}
-					usedTids[tid] = "advanced.startup_terminal_id"
-				}
-			}
 		}
 	}
 
