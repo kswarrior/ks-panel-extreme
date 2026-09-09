@@ -11,6 +11,7 @@ import {
   deactivateStack,
   deleteStack,
   updateStack,
+  downloadStack,
   stackAppUrl,
   extractStackApiError,
 } from '@/features/stacks/api/stacks';
@@ -18,8 +19,50 @@ import { Stack, stackCapabilityMeta, stackSourceMeta } from '@/shared/types/stac
 import StackFileManager from '@/features/stacks/components/StackFileManager';
 import { useConfirm } from '@/shared/stores/confirmStore';
 
-// StackDetail — one stack: themed header (icon tile + theme/page badges),
-// capability checklist, workdir file manager, danger zone.
+function formatDate(iso: string): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  // Go zero time (0001-01-01) is a valid Date with year 1 — treat as missing.
+  if (isNaN(d.getTime()) || d.getFullYear() <= 1) return '—';
+  return d.toLocaleString();
+}
+
+function relativeTime(iso: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime()) || d.getFullYear() <= 1) return '';
+  const diff = Date.now() - d.getTime();
+  const s = Math.floor(diff / 1000);
+  if (s < 60) return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const days = Math.floor(h / 24);
+  if (days < 30) return `${days}d ago`;
+  return `${Math.floor(days / 30)}mo ago`;
+}
+
+// manifestObj reads the stack's stored manifest (raw pass-through JSON the
+// Studio form wrote: location, install/launch workflows, tokens, panel
+// permissions). Tolerates stringified payloads from hand-posted manifests.
+function manifestObj(s: Stack): Record<string, any> {
+  const m = s.manifest as any;
+  if (!m) return {};
+  if (typeof m === 'string') {
+    try { return JSON.parse(m) as Record<string, any>; } catch { return {}; }
+  }
+  return m as Record<string, any>;
+}
+
+function stepLabel(s: any, i: number): string {
+  if (!s || typeof s !== 'object') return `step ${i + 1}`;
+  return s.action || s.command || s.url || s.path || (typeof s.content === 'string' && s.content.slice(0, 30)) || `step ${i + 1}`;
+}
+
+// StackDetail — one stack, laid out like the template detail page: themed
+// header + stat grid, info sections (location / workflows / permissions),
+// the interactive capability-grant + proxy editors, files, raw manifest.
 const StackDetail: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -30,6 +73,9 @@ const StackDetail: React.FC = () => {
   const [grants, setGrants] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
   const [toggling, setToggling] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [manifestOpen, setManifestOpen] = useState(false);
+  const [copied, setCopied] = useState('');
   // App proxy (externally-run Go app floated at /<root>).
   const [proxyPort, setProxyPort] = useState('');
   const [proxyRoot, setProxyRoot] = useState('');
@@ -57,24 +103,110 @@ const StackDetail: React.FC = () => {
     void load();
   }, [load]);
 
+  const back = () => navigate('/stacks');
+
+  const copy = async (text: string, key: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(key);
+      setTimeout(() => setCopied(''), 1500);
+    } catch {}
+  };
+
+  const handleDownload = async () => {
+    if (!stack) return;
+    setDownloading(true);
+    try {
+      const blob = await downloadStack(stack.id);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${stack.slug || `stack-${stack.id}`}.ksps`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e: any) {
+      setError(extractStackApiError(e, 'Download failed.'));
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="space-y-4 animate-pulse">
         <div className="h-8 w-40 bg-white/5 rounded" />
-        <div className="h-32 bg-white/5 rounded-xl" />
-      </div>
-    );
-  }
-  if (error || !stack) {
-    return (
-      <div className="space-y-4">
-        <Link to="/stacks" className="text-xs text-sky-300 hover:text-sky-200">← Stacks</Link>
-        <GlassCard><p className="text-sm text-red-300">{error || 'Not found.'}</p></GlassCard>
+        <div className="h-40 bg-white/5 rounded-xl" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[1, 2, 3, 4].map((i) => <div key={i} className="h-20 bg-white/5 rounded-xl" />)}
+        </div>
       </div>
     );
   }
 
+  if (error) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <button onClick={back} className="ks-btn-header ks-icon-btn" aria-label="Back to Stacks list">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><polyline points="15 18 9 12 15 6" /></svg>
+          </button>
+          <h2 className="text-xl font-semibold text-white">Stack Detail</h2>
+        </div>
+        <GlassCard className="p-6 border border-red-900/40">
+          <p className="text-red-400 text-sm">{error}</p>
+          <div className="mt-3 flex gap-2">
+            <button onClick={() => void load()} className="px-3 py-1.5 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white">Retry</button>
+            <button onClick={back} className="px-3 py-1.5 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-gray-300">Back</button>
+          </div>
+        </GlassCard>
+      </div>
+    );
+  }
+
+  if (!stack) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <button onClick={back} className="ks-btn-header ks-icon-btn" aria-label="Back">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><polyline points="15 18 9 12 15 6" /></svg>
+          </button>
+          <h2 className="text-xl font-semibold text-white">Stack Detail</h2>
+        </div>
+        <GlassCard className="p-6">
+          <p className="text-gray-400">Stack not found</p>
+          <button onClick={back} className="mt-3 px-3 py-1.5 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white">Back to stacks</button>
+        </GlassCard>
+      </div>
+    );
+  }
+
+  const m = manifestObj(stack);
   const src = stackSourceMeta(stack.source);
+  const locationType: string = m.locationType || 'host';
+  const installType: string = m.installType || 'docker';
+  const installImage: string = String(m.installImage || m.image || '');
+  const installSteps: any[] = Array.isArray(m.installSteps) ? m.installSteps : Array.isArray(m.install) ? m.install : [];
+  const launchSteps: any[] = Array.isArray(m.launchSteps) ? m.launchSteps : Array.isArray(m.launch) ? m.launch : [];
+  const launchTokens: any[] = Array.isArray(m.launchTokens) ? m.launchTokens : [];
+  const panelPermissions: string[] = Array.isArray(m.panelPermissions) ? m.panelPermissions : [];
+  const remoteProtocol: string = m.remoteProtocol || 'wss';
+  const remoteHost: string = String(m.remoteHost || '');
+  const remotePort: string = String(m.remotePort || '');
+  const remoteUrl: string = String(m.remoteUrl || '');
+  const prettyManifest = (() => {
+    try { return JSON.stringify(m, null, 2); } catch { return '{}'; }
+  })();
+
+  const locationSummary = locationType === 'outside'
+    ? remoteProtocol === 'wss'
+      ? `${remoteHost || '—'}${remotePort ? `:${remotePort}` : ''}`
+      : (remoteUrl || '—')
+    : installType === 'docker'
+      ? (installImage || stack.runtime || 'docker')
+      : `${stack.runtime || 'host'}${stack.entrypoint ? ` · ${stack.entrypoint}` : ''}`;
+
   const save = async () => {
     setSaving(true);
     try {
@@ -164,25 +296,37 @@ const StackDetail: React.FC = () => {
     }
   };
 
+  const appUrl = stackAppUrl(stack);
+
   return (
     <div className="space-y-4">
+      {/* Fixed top-right actions pill — back + title live in the app header
+          ("Stacks / Detail"). The menu portals its dropdown, so it is safe
+          inside the fixed container. */}
       <PageActionsPill>
         <CardMenu
           ariaLabel={`Actions for stack ${stack.name}`}
           items={[
-            { key: 'open', label: 'Open', tone: 'default' },
-            { key: 'toggle', label: toggling ? '…' : stack.active ? 'Deactivate' : 'Activate', tone: stack.active ? 'danger' : 'default' },
-            { key: 'delete', label: 'Delete', tone: 'danger' },
+            ...(appUrl ? [{ key: 'open', label: 'Open', tone: 'default' as const }] : []),
+            { key: 'toggle', label: toggling ? '…' : stack.active ? 'Deactivate' : 'Activate', tone: stack.active ? 'danger' as const : 'default' as const },
+            { key: 'download', label: downloading ? 'Downloading…' : 'Download .ksps', tone: 'default' as const },
+            { key: 'copyId', label: copied === 'id' ? 'Copied!' : 'Copy ID', tone: 'default' as const },
+            { key: 'copyManifest', label: copied === 'manifest' ? 'Copied!' : 'Copy manifest', tone: 'default' as const },
+            { key: 'delete', label: 'Delete', tone: 'danger' as const },
           ]}
           onSelect={(k) => {
             if (k === 'open') navigate(`/stacks/${stack.slug}/`);
             if (k === 'toggle') void toggle();
+            if (k === 'download') void handleDownload();
+            if (k === 'copyId') void copy(String(stack.id), 'id');
+            if (k === 'copyManifest') void copy(prettyManifest, 'manifest');
             if (k === 'delete') void remove(false);
           }}
         />
       </PageActionsPill>
+      <p className="text-xs text-gray-500 truncate">ID {stack.id} · {stack.source || 'file'} · {relativeTime(stack.created_at)}</p>
 
-      <GlassCard className="p-4">
+      <GlassCard className="ks-stat-card p-4">
         <div className="flex items-start gap-3 min-w-0">
           <CardIconTile
             icon={stack.icon || ''}
@@ -199,10 +343,10 @@ const StackDetail: React.FC = () => {
                 : <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded-md border bg-white/5 border-white/10 text-gray-300">Inactive</span>}
               {src && src.key !== 'file' ? <span className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded-md border ${src.badge}`}>{src.label}</span> : null}
             </h2>
-            <p className="text-[11px] text-gray-500 font-mono mt-1">
-              {stack.slug} · {stack.category} · {stack.runtime}{stack.entrypoint ? ` · ${stack.entrypoint}` : ''}
+            <p className="text-[11px] text-gray-500 font-mono mt-1 truncate">
+              {stack.slug} · {stack.category} · {locationType === 'outside' ? `outside · ${remoteProtocol}` : installType === 'docker' ? 'host · docker' : `host · ${stack.runtime || 'process'}`}
             </p>
-            {stack.description && <p className="text-sm text-gray-300 mt-1">{stack.description}</p>}
+            {stack.description && <p className="text-sm text-gray-300 mt-1 leading-relaxed whitespace-pre-wrap break-words">{stack.description}</p>}
             <div className="flex flex-wrap gap-1.5 mt-2">
               <span className="text-[10px] px-2 py-0.5 rounded-md border border-gray-700/60 text-gray-300" title="spa = full bundle in iframe, simple = panel-rendered markdown/html/blocks">
                 pages: {stack.page_style}
@@ -219,6 +363,33 @@ const StackDetail: React.FC = () => {
             </div>
           </div>
         </div>
+
+        <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="rounded-lg border border-white/5 bg-white/[0.02] p-2.5">
+            <h4 className="text-[10px] uppercase tracking-wide text-gray-500">Created</h4>
+            <p className="text-xs text-white mt-1" title={formatDate(stack.created_at)}>{formatDate(stack.created_at)}</p>
+            <p className="text-[11px] text-gray-500">{relativeTime(stack.created_at)}</p>
+          </div>
+          <div className="rounded-lg border border-white/5 bg-white/[0.02] p-2.5">
+            <h4 className="text-[10px] uppercase tracking-wide text-gray-500">Updated</h4>
+            <p className="text-xs text-white mt-1" title={formatDate(stack.updated_at)}>{formatDate(stack.updated_at)}</p>
+            <p className="text-[11px] text-gray-500">{relativeTime(stack.updated_at)}</p>
+          </div>
+          <div className="rounded-lg border border-white/5 bg-white/[0.02] p-2.5">
+            <h4 className="text-[10px] uppercase tracking-wide text-gray-500">Permissions</h4>
+            <p className="text-lg font-semibold text-white leading-none mt-1">{stack.permissions.length}</p>
+            <p className="text-[11px] text-gray-500">
+              {stack.pending > 0 ? <span className="text-amber-300">{stack.pending} pending approval</span> : 'all granted'}
+              {panelPermissions.length > 0 && ` · ${panelPermissions.length} panel keys`}
+            </p>
+          </div>
+          <div className="rounded-lg border border-white/5 bg-white/[0.02] p-2.5">
+            <h4 className="text-[10px] uppercase tracking-wide text-gray-500">Workflows</h4>
+            <p className="text-xs text-white mt-1 truncate">{installSteps.length} install · {launchSteps.length} launch</p>
+            <p className="text-[11px] text-gray-500">{launchTokens.length} ask-at-launch token{launchTokens.length === 1 ? '' : 's'}</p>
+          </div>
+        </div>
+
         <div className="mt-3 flex gap-2 flex-wrap">
           {stack.active ? (
             <>
@@ -235,8 +406,121 @@ const StackDetail: React.FC = () => {
               {toggling ? '…' : 'Activate'}
             </button>
           )}
+          <button type="button" onClick={() => void handleDownload()} disabled={downloading} className="px-3 py-1.5 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white disabled:opacity-50">
+            {downloading ? 'Downloading…' : 'Download .ksps'}
+          </button>
         </div>
       </GlassCard>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <GlassCard className="p-3">
+          <h4 className="text-xs uppercase tracking-wide text-gray-500 mb-2">Location</h4>
+          <div className="space-y-1.5 text-sm">
+            <div className="flex justify-between gap-2">
+              <span className="text-gray-400">Type</span>
+              <span className="text-white font-mono text-xs">
+                {locationType === 'outside'
+                  ? <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-violet-900/40 border border-violet-700/40 text-violet-200">outside</span>
+                  : <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-sky-900/40 border border-sky-700/40 text-sky-200">host</span>}
+              </span>
+            </div>
+            {locationType === 'outside' ? (
+              <>
+                <div className="flex justify-between gap-2"><span className="text-gray-400">Protocol</span><span className="text-white font-mono text-xs uppercase">{remoteProtocol}</span></div>
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-gray-500">{remoteProtocol === 'wss' ? 'Remote host' : 'Remote URL'}</p>
+                  <p className="text-xs text-gray-200 font-mono break-all rounded-lg border border-white/5 bg-black/20 px-3 py-2 mt-1">{locationSummary}</p>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex justify-between gap-2"><span className="text-gray-400">Runs as</span><span className="text-white font-mono text-xs">{installType === 'docker' ? 'docker' : `host · ${stack.runtime || '—'}`}</span></div>
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-gray-500">{installType === 'docker' ? 'Image' : 'Entrypoint'}</p>
+                  <p className="text-xs text-gray-200 font-mono break-all rounded-lg border border-white/5 bg-black/20 px-3 py-2 mt-1">{locationSummary}</p>
+                </div>
+              </>
+            )}
+            {stack.owner_name && (
+              <div className="flex justify-between gap-2"><span className="text-gray-400">Owner</span><span className="text-white text-xs">{stack.owner_name}</span></div>
+            )}
+          </div>
+        </GlassCard>
+
+        <GlassCard className="p-3">
+          <h4 className="text-xs uppercase tracking-wide text-gray-500 mb-2">Install & Launch</h4>
+          <div className="space-y-2 text-sm">
+            <div>
+              <p className="text-[11px] uppercase tracking-wide text-gray-500">Install steps · {installSteps.length}</p>
+              {installSteps.length === 0 ? <p className="text-xs text-gray-500">No install workflow</p> : (
+                <ol className="mt-1 space-y-1 max-h-24 overflow-auto pr-1">
+                  {installSteps.map((s: any, i: number) => (
+                    <li key={i} className="text-xs text-gray-300 truncate"><span className="text-gray-500 mr-1">{i + 1}.</span>{stepLabel(s, i)}</li>
+                  ))}
+                </ol>
+              )}
+            </div>
+            <div>
+              <p className="text-[11px] uppercase tracking-wide text-gray-500">Launch steps · {launchSteps.length}</p>
+              {launchSteps.length === 0 ? <p className="text-xs text-gray-500">No launch workflow</p> : (
+                <ol className="mt-1 space-y-1 max-h-24 overflow-auto pr-1">
+                  {launchSteps.map((s: any, i: number) => (
+                    <li key={i} className="text-xs text-gray-300 truncate"><span className="text-gray-500 mr-1">{i + 1}.</span>{stepLabel(s, i)}</li>
+                  ))}
+                </ol>
+              )}
+            </div>
+            <div>
+              <p className="text-[11px] uppercase tracking-wide text-gray-500">Ask-at-launch tokens · {launchTokens.length}</p>
+              {launchTokens.length === 0 ? <p className="text-xs text-gray-500">Nothing asked at launch</p> : (
+                <ul className="mt-1 space-y-1 max-h-24 overflow-auto pr-1">
+                  {launchTokens.map((t: any, i: number) => (
+                    <li key={i} className="flex items-center gap-2 text-xs">
+                      <code className="font-mono text-sky-200 truncate">${t.name || `TOKEN_${i}`}</code>
+                      {t.required && <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-red-900/40 border border-red-700/30 text-red-200 shrink-0">required</span>}
+                      {t.secret && <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-900/40 border border-amber-700/30 text-amber-200 shrink-0">secret</span>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </GlassCard>
+
+        <GlassCard className="p-3">
+          <h4 className="text-xs uppercase tracking-wide text-gray-500 mb-2">Capabilities · {stack.permissions.length}</h4>
+          {stack.permissions.length === 0 ? <p className="text-xs text-gray-500">No capabilities requested</p> : (
+            <ul className="space-y-1 max-h-40 overflow-auto pr-1">
+              {stack.permissions.map((p) => (
+                <li key={p.capability} className="flex items-start gap-2 text-xs rounded border border-white/5 bg-white/[0.02] px-2 py-1.5">
+                  <span className={`mt-1 w-2 h-2 rounded-full shrink-0 ${p.granted ? 'bg-emerald-400' : 'bg-amber-400'}`} title={p.granted ? 'granted' : 'pending'} />
+                  <span className="min-w-0">
+                    <span className="block text-gray-100">{stackCapabilityMeta(p.capability)?.label || p.capability}</span>
+                    <code className="block text-[11px] text-gray-500 font-mono truncate">{p.capability} · {p.access_level}</code>
+                  </span>
+                  <span className={`ml-auto text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border shrink-0 ${p.granted ? 'border-emerald-700/40 bg-emerald-950/40 text-emerald-200' : 'border-amber-700/40 bg-amber-950/40 text-amber-200'}`}>
+                    {p.granted ? 'granted' : 'pending'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </GlassCard>
+
+        <GlassCard className="p-3">
+          <h4 className="text-xs uppercase tracking-wide text-gray-500 mb-2">Panel permissions · {panelPermissions.length}</h4>
+          {panelPermissions.length === 0 ? <p className="text-xs text-gray-500">No panel permission keys requested</p> : (
+            <ul className="mt-1 flex flex-wrap gap-1 max-h-40 overflow-auto pr-1">
+              {panelPermissions.slice(0, 24).map((k) => (
+                <li key={k} className="text-[10px] px-1.5 py-0.5 rounded border border-white/10 bg-white/5 text-gray-300 font-mono">{k}</li>
+              ))}
+              {panelPermissions.length > 24 && (
+                <li className="text-[10px] px-1.5 py-0.5 rounded border border-white/10 text-gray-500">+{panelPermissions.length - 24} more</li>
+              )}
+            </ul>
+          )}
+        </GlassCard>
+      </div>
 
       <GlassCard>
         <h2 className="text-sm font-medium text-gray-200 mb-2">Capability grants</h2>
@@ -296,14 +580,11 @@ const StackDetail: React.FC = () => {
           <button type="button" onClick={() => void saveProxy()} disabled={proxySaving} className="text-xs px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white disabled:opacity-50">
             {proxySaving ? 'Saving…' : 'Save proxy'}
           </button>
-          {(() => {
-            const url = stackAppUrl(stack);
-            return url ? (
-              <a href={url} className="text-xs px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white">
-                Open app at {url}
-              </a>
-            ) : null;
-          })()}
+          {appUrl ? (
+            <a href={appUrl} className="text-xs px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white">
+              Open app at {appUrl}
+            </a>
+          ) : null}
         </div>
       </GlassCard>
 
@@ -320,6 +601,26 @@ const StackDetail: React.FC = () => {
         </button>
       </GlassCard>
 
+      <GlassCard className="p-0 overflow-hidden">
+        <button onClick={() => setManifestOpen((v) => !v)} className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/[0.03] transition-colors">
+          <span className="text-xs uppercase tracking-wide text-gray-400">Raw manifest JSON</span>
+          <span className="flex items-center gap-2">
+            <span className="text-[11px] text-gray-500">{manifestOpen ? 'Hide' : 'Show'} · {prettyManifest.length} chars</span>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`w-4 h-4 text-gray-500 transition-transform ${manifestOpen ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9" /></svg>
+          </span>
+        </button>
+        {manifestOpen && (
+          <div className="border-t border-white/5 p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <button onClick={() => void copy(prettyManifest, 'manifest2')} className="px-2.5 py-1 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white">{copied === 'manifest2' ? 'Copied!' : 'Copy JSON'}</button>
+              <button onClick={() => void handleDownload()} disabled={downloading} className="px-2.5 py-1 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white disabled:opacity-50">{downloading ? 'Downloading…' : 'Download .ksps'}</button>
+              <span className="text-[11px] text-gray-500 ml-auto">Source: {stack.source || 'file'}</span>
+            </div>
+            <pre className="max-h-80 overflow-auto rounded-lg border border-white/5 bg-black/30 p-3 text-[11px] font-mono text-gray-200 whitespace-pre-wrap break-all">{prettyManifest}</pre>
+          </div>
+        )}
+      </GlassCard>
+
       <GlassCard>
         <h2 className="text-sm font-medium text-red-200 mb-2">Danger zone</h2>
         <div className="flex gap-1.5 flex-wrap">
@@ -328,6 +629,16 @@ const StackDetail: React.FC = () => {
           <button type="button" onClick={() => navigate('/stacks')} className="ml-auto text-xs px-3 py-1.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-gray-300">Back to stacks</button>
         </div>
       </GlassCard>
+
+      <div className="flex gap-2">
+        {stack.active && appUrl ? (
+          <Link to={`/stacks/${stack.slug}/`} className="px-4 py-2 text-sm rounded-lg bg-emerald-600 text-white hover:bg-emerald-500">Open stack</Link>
+        ) : (
+          <button onClick={() => void toggle()} disabled={toggling} className="px-4 py-2 text-sm rounded-lg bg-white text-black hover:bg-gray-200 disabled:opacity-50">{toggling ? '…' : stack.active ? 'Stop' : 'Activate'}</button>
+        )}
+        <button onClick={() => void handleDownload()} disabled={downloading} className="px-4 py-2 text-sm rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-white disabled:opacity-50">{downloading ? 'Downloading…' : 'Download .ksps'}</button>
+        <button onClick={back} className="ml-auto px-4 py-2 text-sm rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-gray-300">Back to stacks</button>
+      </div>
     </div>
   );
 };
