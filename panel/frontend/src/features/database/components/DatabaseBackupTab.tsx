@@ -25,6 +25,7 @@ import {
 import type { BackupSchedule, DatabaseBackup, S3ConfigView } from '../types/database';
 import { formatBytes } from '../utils/databaseUtils';
 import { glassFieldClass } from '@/shared/components/ui/Field';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import GlassModal from '@/shared/components/ui/Modal';
 
 function fmtDate(iso: string): string {
@@ -331,7 +332,16 @@ export const DatabaseBackupTab: React.FC = () => {
             {msg.text}
           </div>
         )}
-        {error && <p className="text-red-400 text-sm">{error}</p>}
+        {error && backups.length > 0 && <p className="text-red-400 text-sm">{error}</p>}
+        {!loading && error && backups.length === 0 && (
+          <ErrorState
+            variant="error"
+            title="Failed to load backups"
+            description={error}
+            retryLabel="Retry"
+            onRetry={() => void load()}
+          />
+        )}
       </div>
 
       {/* Create sub-page modal */}

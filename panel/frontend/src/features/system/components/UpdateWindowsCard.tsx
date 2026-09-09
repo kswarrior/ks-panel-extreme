@@ -10,6 +10,7 @@ import {
   deleteFleetUpdateWindow,
 } from '@/shared/api/admin';
 import type { UpdateWindow, UpdateWindowTarget, UpdateWindowUpsert } from '@/features/nodes/types/node';
+import ErrorState from '@/shared/components/ui/ErrorState';
 
 interface UpdateWindowsCardProps {
   target: UpdateWindowTarget;
@@ -139,7 +140,15 @@ const UpdateWindowsCard: React.FC<UpdateWindowsCardProps> = ({ target, title, de
       <p className="text-xs text-gray-500">{description}</p>
 
       {loading && <div className="glass-card rounded-xl animate-pulse h-16" />}
-      {!loading && err && <p className="text-red-400 text-sm">{err}</p>}
+      {!loading && err && (
+        <ErrorState
+          variant="error"
+          title="Failed to load update windows"
+          description={err}
+          retryLabel="Retry"
+          onRetry={() => void reload()}
+        />
+      )}
       {!loading && !err && windows.length === 0 && (
         <p className="text-sm text-gray-500">
           No schedules yet — updates only run when you trigger them manually.

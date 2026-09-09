@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   DEFAULT_RETRY_PREFS,
   getAIConfig,
@@ -9,6 +9,7 @@ import {
   type AIConfigView,
   type AIRetryPrefs,
 } from '../api/aiChat';
+import ErrorState from '@/shared/components/ui/ErrorState';
 
 // Chat settings: only Provider (single, primary) + Retry.
 // Access (who can chat / propose writes) is controlled via Roles →
@@ -71,18 +72,21 @@ const ChatSettings: React.FC = () => {
     });
   };
 
-  useEffect(() => {
-    (async () => {
-      try {
-        setCfg(await getAIConfig());
-      } catch (e: unknown) {
-        const r = (e as { response?: { data?: unknown } })?.response;
-        setError(typeof r?.data === 'string' ? r.data : 'Failed to load provider settings');
-      } finally {
-        setLoading(false);
-      }
-    })();
+  const reload = useCallback(async () => {
+    setLoading(true);
+    try {
+      setCfg(await getAIConfig());
+    } catch (e: unknown) {
+      const r = (e as { response?: { data?: unknown } })?.response;
+      setError(typeof r?.data === 'string' ? r.data : 'Failed to load provider settings');
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
 
   if (loading) {
     return (
@@ -118,7 +122,15 @@ const ChatSettings: React.FC = () => {
   }
 
   if (!cfg) {
-    return <p className="px-4 py-6 text-xs text-red-400">{error || 'Provider settings unavailable.'}</p>;
+    return (
+      <ErrorState
+        variant="error"
+        title="Provider settings unavailable"
+        description={error || undefined}
+        retryLabel="Retry"
+        onRetry={() => void reload()}
+      />
+    );
   }
 
   const set = (patch: Partial<AIConfigView>) => {

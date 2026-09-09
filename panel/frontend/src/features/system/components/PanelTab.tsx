@@ -16,6 +16,7 @@ import type {
 import GlassModal from '@/shared/components/ui/Modal';
 import UpdateWindowsCard from './UpdateWindowsCard';
 import { Donut, Gauge, fmtPct, fmtMB, fmtUptime, fmtGB } from './SystemCharts';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import { AreaChart, type MetricSample } from '@/shared/components/ui/MetricsChart';
 
 interface PanelTabProps {
@@ -151,7 +152,15 @@ const PanelTab: React.FC<PanelTabProps> = ({ snap, info, infoErr, infoLoading, r
   }
 
   if (infoErr && !info) {
-    return <p className="text-red-400 text-sm">{infoErr}</p>;
+    return (
+      <ErrorState
+        variant="error"
+        title="Failed to load update info"
+        description={infoErr}
+        retryLabel="Retry"
+        onRetry={() => void reload()}
+      />
+    );
   }
   if (!info) {
     return (
