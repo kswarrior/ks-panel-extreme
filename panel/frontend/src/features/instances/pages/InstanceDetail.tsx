@@ -698,6 +698,9 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
     );
   }
 
+  // Linux-like prompt host for direct-mode panes (`instance@node`).
+  const promptHost = `${instance.display_name || instance.name}@${instance.node_name || 'node'}`;
+
   return (
     <div className="animate-fade-in space-y-3">
       {/* Top-right actions pill (template-form pattern): shortcut menu +
@@ -800,6 +803,8 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
             installTerminalId={installTerminalId}
             startupTerminalId={startupTerminalId}
             inputMode={termCfg.terminal_input_mode || 'direct'}
+            promptStyle={termCfg.terminal_prompt || 'none'}
+            promptHost={promptHost}
             boxText={boxTexts[p.key] ?? ''}
             onBoxText={(v) => setBoxTexts((m) => ({ ...m, [p.key]: v }))}
             onRegisterSend={onRegisterSend}
