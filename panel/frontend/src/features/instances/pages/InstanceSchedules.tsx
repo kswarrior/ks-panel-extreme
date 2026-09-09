@@ -13,7 +13,7 @@ interface ScheduleRow extends SnapshotSchedule {
 
 // Snapshot cron schedules live per instance. This page fans out over the
 // fleet (capped to avoid a request storm) and aggregates every schedule
-// into one table. Manage a schedule from its instance's snapshots tab.
+// into one table.
 const MAX_INSTANCES = 25;
 
 const InstanceSchedules: React.FC = () => {
@@ -80,7 +80,7 @@ const InstanceSchedules: React.FC = () => {
         {loading && <div className="rounded-xl animate-pulse h-16 bg-white/5" />}
         {!loading && err && <p className="text-red-400 text-sm">{err}</p>}
         {!loading && !err && rows.length === 0 && (
-          <p className="text-sm text-gray-500">No snapshot schedules yet — create one from an instance&apos;s snapshots tab.</p>
+          <p className="text-sm text-gray-500">No snapshot schedules yet.</p>
         )}
         {!loading && !err && rows.length > 0 && (
           <div className="overflow-x-auto">

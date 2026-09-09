@@ -144,12 +144,6 @@ export const AREAS: AreaEntry[] = [
         match: defaultInstanceMatcher('sftp'),
       },
       {
-        id: 'instance.panel.snapshots',
-        label: 'Instance · Snapshots',
-        path: '/instances/:id/snapshots',
-        match: defaultInstanceMatcher('snapshots'),
-      },
-      {
         id: 'instance.panel.overview',
         label: 'Instance · Overview',
         path: '/instances/:id/overview',

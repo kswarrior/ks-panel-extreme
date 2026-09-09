@@ -710,7 +710,7 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
           )}
         </div>
         <p className="text-[11px] text-gray-500 mt-1">
-          More opens <code className="font-mono text-sky-300 break-all">/{(c.more_page.trim().replace(/^\/+|\/+$/g, '') || DEFAULT_INSTANCE_CONTROLS.more_page)}</code>. Use a page Path or a built-in (overview, ports, sftp, snapshots, files, terminal). Unknown slugs fall back to Overview.
+          More opens <code className="font-mono text-sky-300 break-all">/{(c.more_page.trim().replace(/^\/+|\/+$/g, '') || DEFAULT_INSTANCE_CONTROLS.more_page)}</code>. Use a page Path or a built-in (overview, ports, sftp, files, terminal). Unknown slugs fall back to Overview.
         </p>
         {!moreKnown && (
           <p className="text-[11px] text-amber-300 bg-amber-950/30 border border-amber-700/30 rounded-md px-2.5 py-1.5 mt-1.5">

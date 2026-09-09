@@ -1,6 +1,6 @@
 // InstanceOverview.tsx — full instance page behind the floating menu's
-// "More" link (route slug `overview`, a native built-in like Ports / SFTP /
-// Snapshots — not a custom spec.pages entry).
+// "More" link (route slug `overview`, a native built-in like Ports / SFTP —
+// not a custom spec.pages entry).
 //
 // It gathers everything the floating menu holds plus full-page extras:
 //   • header with name + status / kind badges (no top-right action pill),

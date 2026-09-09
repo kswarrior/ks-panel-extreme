@@ -41,7 +41,6 @@ import type { TerminalDefaultDef, TerminalInputMode, TerminalShortcutDef } from 
 import { extractShortcutVars, resolveShortcutCommand } from '@/features/instances/utils/instanceControls';
 import { sendActionStdin, sendInstallStdin } from '@/features/instances/api/instanceAdvanced';
 import InstanceSftpCard from '@/features/instances/components/InstanceSftpCard';
-import InstanceSnapshotsTab from '@/features/instances/components/InstanceSnapshotsTab';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { PermissionKey } from '@/shared/types/permissions';
 import { hasPermissionAny } from '@/shared/types/permissions';
@@ -917,15 +916,7 @@ export const InstanceDynamicPage: React.FC = () => {
     return <InstanceSftpCard instanceId={instanceId} />;
   }
 
-  // Snapshots tab is a native built-in like Ports/SFTP (not a custom
-  // spec.pages entry). The legacy backups.json library page keeps working
-  // via the custom-page path below; this native tab is the first-class UI
-  // with schedules + file-level tar backups.
-  if (effectiveSlug === 'snapshots') {
-    return <InstanceSnapshotsTab instanceId={instanceId} />;
-  }
-
-  // Overview is a native built-in like Ports/SFTP/Snapshots (not a custom
+  // Overview is a native built-in like Ports/SFTP (not a custom
   // spec.pages entry): the full-page target of the floating instance
   // menu's "More" link — the menu's own status row + power controls +
   // actions, plus live CPU / RAM / disk graphs and manage options

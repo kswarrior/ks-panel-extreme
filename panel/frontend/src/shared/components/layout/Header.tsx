@@ -209,7 +209,6 @@ const Header: React.FC<HeaderProps> = ({
       terminal: 'Terminal',
       ports: 'Ports',
       sftp: 'SFTP',
-      snapshots: 'Snapshots',
       backups: 'Backups',
     };
     let label: string | null = null;
