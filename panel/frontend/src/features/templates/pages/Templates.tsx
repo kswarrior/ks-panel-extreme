@@ -130,9 +130,19 @@ const Templates: React.FC = () => {
     file.text().then((txt) => {
       let parsed: Record<string, any> | null = null;
       try { parsed = JSON.parse(txt) as Record<string, any>; } catch { /* */ }
+      if (!parsed && /\.ya?ml$/i.test(file.name || '')) {
+        // YAML manifests are validated server-side; sniff top-level
+        // key: value lines for the preview card only.
+        const sniff: Record<string, any> = {};
+        for (const line of txt.split('\n')) {
+          const m = line.match(/^(name|kind|image|description)\s*:\s*["']?([^"'#\n]+?)["']?\s*(?:#.*)?$/);
+          if (m) sniff[m[1]] = m[2].trim();
+        }
+        if (sniff.name || sniff.kind) parsed = sniff;
+      }
       if (!parsed) {
         setUploadParsed(null);
-        setUploadError('File is not valid JSON. A template manifest must be JSON.');
+        setUploadError('File is not valid JSON or YAML. A template manifest must be .json or .yaml/.yml.');
         return;
       }
       setUploadParsed(parsed);

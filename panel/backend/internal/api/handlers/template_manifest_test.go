@@ -121,10 +121,12 @@ func templateUploadTestDB(t *testing.T) {
 	if _, err := db.Exec(string(ddl)); err != nil {
 		t.Fatalf("create templates table: %v", err)
 	}
-	// Migration 059 widened the row (upload path writes icon/color).
+	// Migration 059 widened the row (upload path writes icon/color) and 054
+	// added owner_id (Get selects it, so the column must exist).
 	for _, alter := range []string{
 		`ALTER TABLE templates ADD COLUMN icon TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE templates ADD COLUMN color TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE templates ADD COLUMN owner_id INTEGER REFERENCES users(id) ON DELETE SET NULL`,
 	} {
 		if _, err := db.Exec(alter); err != nil {
 			t.Fatalf("alter templates table: %v", err)
