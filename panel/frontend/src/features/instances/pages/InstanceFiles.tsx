@@ -1429,6 +1429,335 @@ const InstanceFiles: React.FC<{ instanceId: number; filesSlug: string }> = ({ in
           </div>
         )}
       </Modal>
+
+      {/* Chmod modal */}
+      <Modal
+        open={modal?.kind === 'chmod'}
+        onClose={() => setModal(null)}
+        title={`Permissions${modal?.kind === 'chmod' && modal.targets.length > 1 ? ` (${modal.targets.length} items)` : ''}`}
+        footer={
+          <>
+            <button type="button" onClick={() => setModal(null)} className="ks-btn">
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => void onChmodConfirm()}
+              disabled={modal?.kind !== 'chmod' || modal.busy}
+              className="ks-btn-primary ks-btn disabled:opacity-40"
+            >
+              {modal?.kind === 'chmod' && modal.busy ? 'Applying…' : 'Apply'}
+            </button>
+          </>
+        }
+      >
+        {modal?.kind === 'chmod' && (
+          <ChmodBody
+            mode={modal.mode}
+            targets={modal.targets}
+            isDir={modal.isDir}
+            recursive={modal.recursive}
+            onChange={(patch) => setModal({ ...modal, ...patch })}
+          />
+        )}
+      </Modal>
+
+      {/* Copy / Move modal */}
+      <Modal
+        open={modal?.kind === 'copy' || modal?.kind === 'move'}
+        onClose={() => setModal(null)}
+        title={modal?.kind === 'move' ? `Move ${modal.names.length} item${modal.names.length === 1 ? '' : 's'}` : `Copy ${modal?.kind === 'copy' ? modal.names.length : 0} item${modal?.kind === 'copy' && modal.names.length === 1 ? '' : 's'}`}
+        footer={
+          <>
+            <button type="button" onClick={() => setModal(null)} className="ks-btn">
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => void onCopyMoveConfirm()}
+              disabled={(modal?.kind !== 'copy' && modal?.kind !== 'move') || modal.busy || !modal.dest.trim()}
+              className="ks-btn-primary ks-btn disabled:opacity-40"
+            >
+              {modal?.kind === 'move' ? (modal.busy ? 'Moving…' : 'Move') : modal?.kind === 'copy' && modal.busy ? 'Copying…' : 'Copy'}
+            </button>
+          </>
+        }
+      >
+        {(modal?.kind === 'copy' || modal?.kind === 'move') && (
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs text-gray-400 mb-1" htmlFor="files-dest">
+                Destination folder (absolute path)
+              </label>
+              <input
+                id="files-dest"
+                value={modal.dest}
+                autoFocus
+                onChange={(e) => setModal({ ...modal, dest: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void onCopyMoveConfirm();
+                }}
+                placeholder={path}
+                className="ks-input w-full ks-mono"
+              />
+              <div className="flex gap-2 mt-2 flex-wrap">
+                <button type="button" onClick={() => setModal({ ...modal, dest: path })} className="ks-btn !py-1 !px-2 text-xs">This folder</button>
+                <button
+                  type="button"
+                  onClick={() => setModal({ ...modal, dest: path.split('/').slice(0, -1).join('/') || '/' })}
+                  className="ks-btn !py-1 !px-2 text-xs"
+                >
+                  Parent
+                </button>
+                <button type="button" onClick={() => setModal({ ...modal, dest: jail ? home : '/' })} className="ks-btn !py-1 !px-2 text-xs">
+                  {jail ? 'Home' : 'Root'}
+                </button>
+              </div>
+            </div>
+            <p className="text-[11px] text-gray-500 break-all">
+              {modal.names.length <= 5 ? modal.names.join(', ') : `${modal.names.length} items`} → <code className="ks-mono">{modal.dest.trim() || path}/</code>
+            </p>
+          </div>
+        )}
+      </Modal>
+
+      {/* Archive modal */}
+      <Modal
+        open={modal?.kind === 'archive'}
+        onClose={() => setModal(null)}
+        title={`Compress ${modal?.kind === 'archive' ? modal.names.length : 0} item${modal?.kind === 'archive' && modal.names.length === 1 ? '' : 's'}`}
+        footer={
+          <>
+            <button type="button" onClick={() => setModal(null)} className="ks-btn">
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => void onArchiveConfirm()}
+              disabled={modal?.kind !== 'archive' || !modal.file.trim() || modal.busy}
+              className="ks-btn-primary ks-btn disabled:opacity-40"
+            >
+              {modal?.kind === 'archive' && modal.busy ? 'Compressing…' : 'Compress'}
+            </button>
+          </>
+        }
+      >
+        {modal?.kind === 'archive' && (
+          <div className="space-y-3">
+            <div className="flex gap-1 rounded-lg border border-white/10 bg-black/30 p-1" role="tablist" aria-label="Archive format">
+              {(['zip', 'targz'] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  role="tab"
+                  aria-selected={modal.format === t}
+                  onClick={() => {
+                    const base = modal.file.replace(/\.(zip|tar\.gz|tgz)$/i, '');
+                    setModal({ ...modal, format: t, file: `${base}${t === 'zip' ? '.zip' : '.tar.gz'}` });
+                  }}
+                  className={`flex-1 rounded-md px-3 py-1.5 text-[13px] font-medium transition ${modal.format === t ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'}`}
+                >
+                  {t === 'zip' ? '.zip' : '.tar.gz'}
+                </button>
+              ))}
+            </div>
+            <div>
+              <label className="block text-xs text-gray-400 mb-1" htmlFor="files-archive-name">
+                Archive name
+              </label>
+              <input
+                id="files-archive-name"
+                value={modal.file}
+                autoFocus
+                onChange={(e) => setModal({ ...modal, file: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void onArchiveConfirm();
+                }}
+                className="ks-input w-full ks-mono"
+              />
+              <p className="text-[11px] text-gray-500 mt-1.5">
+                Created inside <code className="ks-mono">{path}</code> from {modal.names.length} item{modal.names.length === 1 ? '' : 's'}.
+              </p>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Extract modal */}
+      <Modal
+        open={modal?.kind === 'extract'}
+        onClose={() => setModal(null)}
+        title={`Extract ${modal?.kind === 'extract' ? modal.archive : ''}`}
+        footer={
+          <>
+            <button type="button" onClick={() => setModal(null)} className="ks-btn">
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => void onExtractConfirm()}
+              disabled={modal?.kind !== 'extract' || modal.busy}
+              className="ks-btn-primary ks-btn disabled:opacity-40"
+            >
+              {modal?.kind === 'extract' && modal.busy ? 'Extracting…' : 'Extract'}
+            </button>
+          </>
+        }
+      >
+        {modal?.kind === 'extract' && (
+          <div>
+            <label className="block text-xs text-gray-400 mb-1" htmlFor="files-extract-dest">
+              Destination folder (empty = same folder)
+            </label>
+            <input
+              id="files-extract-dest"
+              value={modal.dest}
+              autoFocus
+              onChange={(e) => setModal({ ...modal, dest: e.target.value })}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void onExtractConfirm();
+              }}
+              placeholder={path}
+              className="ks-input w-full ks-mono"
+            />
+          </div>
+        )}
+      </Modal>
+
+      {/* Preview modal */}
+      <Modal
+        open={modal?.kind === 'preview'}
+        onClose={() => setModal(null)}
+        title={modal?.kind === 'preview' ? modal.entry.name : 'Preview'}
+        footer={
+          <>
+            {modal?.kind === 'preview' && (
+              <button
+                type="button"
+                onClick={() => {
+                  openEditor(modal.fullPath);
+                  setModal(null);
+                }}
+                className="ks-btn"
+              >
+                Open in editor
+              </button>
+            )}
+            <button type="button" onClick={() => setModal(null)} className="ks-btn">
+              Close
+            </button>
+            {modal?.kind === 'preview' && !modal.entry.is_dir && (
+              <button
+                type="button"
+                onClick={() => void onDownload(modal.entry)}
+                className="ks-btn-primary ks-btn"
+              >
+                Download
+              </button>
+            )}
+          </>
+        }
+      >
+        {modal?.kind === 'preview' && (
+          <div className="space-y-2">
+            <p className="ks-mono text-[11px] text-gray-500 break-all">
+              {modal.fullPath} · {modal.entry.is_dir ? 'folder' : formatBytes(modal.entry.size)}
+              {modal.entry.mode ? ` · perms ${modal.entry.mode}` : ''}
+            </p>
+            {classifyEntry(modal.entry) === 'image' ? (
+              previewUrl ? (
+                <img src={previewUrl} alt={modal.entry.name} className="max-h-[60vh] w-auto mx-auto rounded-lg border border-white/10" />
+              ) : modal.entry.size > 8 * 1024 * 1024 ? (
+                <p className="text-sm text-gray-400">Image too large to preview — download to view.</p>
+              ) : (
+                <p className="text-sm text-gray-400 animate-pulse">Loading preview…</p>
+              )
+            ) : previewText !== null ? (
+              <pre className="ks-mono text-xs text-gray-200 bg-black/40 border border-white/10 rounded-lg p-3 overflow-auto max-h-[60vh] whitespace-pre-wrap break-all">{previewText || '(empty file)'}</pre>
+            ) : modal.entry.size > 8 * 1024 * 1024 ? (
+              <p className="text-sm text-gray-400">File too large to preview — download to view.</p>
+            ) : (
+              <p className="text-sm text-gray-400 animate-pulse">Loading preview…</p>
+            )}
+          </div>
+        )}
+      </Modal>
+    </div>
+  );
+};
+
+const ChmodBody: React.FC<{
+  mode: string;
+  targets: string[];
+  isDir: boolean;
+  recursive: boolean;
+  onChange: (patch: { mode?: string; recursive?: boolean }) => void;
+}> = ({ mode, targets, isDir, recursive, onChange }) => {
+  const t = modeToTriples(mode);
+  const setBit = (who: 0 | 1 | 2, bit: number) => {
+    const next: [number, number, number] = [t[0], t[1], t[2]];
+    next[who] = next[who] & bit ? next[who] & ~bit : next[who] | bit;
+    onChange({ mode: triplesToMode(next) });
+  };
+  const rows: { who: 0 | 1 | 2; label: string }[] = [
+    { who: 0, label: 'Owner' },
+    { who: 1, label: 'Group' },
+    { who: 2, label: 'Other' },
+  ];
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <label className="block text-xs text-gray-400" htmlFor="files-chmod-mode">
+          Octal mode
+        </label>
+        <input
+          id="files-chmod-mode"
+          value={mode}
+          onChange={(e) => onChange({ mode: e.target.value.replace(/[^0-7]/g, '').slice(0, 3) })}
+          placeholder="644"
+          inputMode="numeric"
+          className="ks-input ks-mono !w-20"
+        />
+        <code className="ks-mono text-xs text-gray-400">
+          {rwx(t[0])} {rwx(t[1])} {rwx(t[2])}
+        </code>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {rows.map((r) => (
+          <div key={r.label} className="rounded-lg border border-white/10 bg-black/30 p-2">
+            <p className="text-[11px] uppercase tracking-wide text-gray-500 mb-1">{r.label}</p>
+            {(['r', 'w', 'x'] as const).map((b, i) => {
+              const bit = b === 'r' ? 4 : b === 'w' ? 2 : 1;
+              void i;
+              return (
+                <label key={b} className="flex items-center gap-1.5 text-xs text-gray-300 py-0.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={!!(t[r.who] & bit)}
+                    onChange={() => setBit(r.who, bit)}
+                    className="h-3.5 w-3.5 accent-emerald-500"
+                  />
+                  {b === 'r' ? 'Read' : b === 'w' ? 'Write' : 'Execute'}
+                </label>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+      {isDir && (
+        <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={recursive}
+            onChange={(e) => onChange({ recursive: e.target.checked })}
+            className="h-3.5 w-3.5 accent-emerald-500"
+          />
+          Apply to direct contents too
+        </label>
+      )}
+      <p className="text-[11px] text-gray-500 break-all">
+        {targets.length <= 3 ? targets.join(', ') : `${targets.length} items`} · e.g. 755 = folders/executables, 644 = files, 600 = secrets
+      </p>
     </div>
   );
 };
