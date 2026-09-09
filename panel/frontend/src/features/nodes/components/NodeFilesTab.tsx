@@ -12,6 +12,7 @@ import {
   type NodeFileEntry,
 } from '@/shared/api/admin';
 import GlassModal from '@/shared/components/ui/Modal';
+import ErrorState from '@/shared/components/ui/ErrorState';
 
 interface NodeFilesTabProps {
   nodeId: number;
@@ -635,20 +636,14 @@ const NodeFilesTab: React.FC<NodeFilesTabProps> = ({ nodeId }) => {
 
   if (error && entries.length === 0) {
     return (
-      <div className="space-y-2">
-        <p className="text-red-400 text-sm">{error}</p>
-        <p className="text-[11px] text-gray-500">
-          The edge must run a build with the host-files endpoint
-          (`/api/edge/hostfiles`). Older ksedge binaries answer 404 here —
-          reinstall the edge, then this tab lights up.
-        </p>
-        <button
-          onClick={() => load(relPath)}
-          className="px-3 py-1.5 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white"
-        >
-          Retry
-        </button>
-      </div>
+      <ErrorState
+        compact
+        variant="error"
+        title="Could not read this directory"
+        description={`${error} — the edge must run a build with the host-files endpoint (/api/edge/hostfiles). Older ksedge binaries answer 404 here; reinstall the edge, then this tab lights up.`}
+        retryLabel="Retry"
+        onRetry={() => load(relPath)}
+      />
     );
   }
 

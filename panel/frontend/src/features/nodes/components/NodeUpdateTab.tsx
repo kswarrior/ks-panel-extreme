@@ -12,6 +12,7 @@ import type {
   NodeReinstallBackgroundResponse,
 } from '@/features/nodes/types/node';
 import GlassModal from '@/shared/components/ui/Modal';
+import ErrorState from '@/shared/components/ui/ErrorState';
 
 interface NodeUpdateTabProps {
   nodeId: number;
@@ -176,23 +177,17 @@ const NodeUpdateTab: React.FC<NodeUpdateTabProps> = ({ nodeId, nodeName }) => {
 
   if (infoErr && !info) {
     return (
-      <div className="space-y-2">
-        <p className="text-red-400 text-sm">{infoErr}</p>
-        <p className="text-[11px] text-gray-500">
-          The edge must run a build with the self-update endpoint
-          (`/api/edge/update-info`). Older ksedge binaries answer 404 here —
-          reinstall the edge manually once, then this tab lights up.
-        </p>
-        <button
-          onClick={() => { setInfoLoading(true); setInfoErr(''); reload().catch((e: any) => {
-            const data = e?.response?.data;
-            setInfoErr(typeof data === 'string' && data.trim() ? data : (e?.message || 'Failed to load edge update info'));
-          }).finally(() => setInfoLoading(false)); }}
-          className="px-3 py-1.5 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white"
-        >
-          Retry
-        </button>
-      </div>
+      <ErrorState
+        compact
+        variant="error"
+        title="Could not load edge update info"
+        description={`${infoErr} — the edge must run a build with the self-update endpoint (/api/edge/update-info). Older ksedge binaries answer 404 here; reinstall the edge manually once, then this tab lights up.`}
+        retryLabel="Retry"
+        onRetry={() => { setInfoLoading(true); setInfoErr(''); reload().catch((e: any) => {
+          const data = e?.response?.data;
+          setInfoErr(typeof data === 'string' && data.trim() ? data : (e?.message || 'Failed to load edge update info'));
+        }).finally(() => setInfoLoading(false)); }}
+      />
     );
   }
   if (!info) {

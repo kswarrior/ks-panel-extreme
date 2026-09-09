@@ -17,9 +17,11 @@ interface ErrorStateProps {
   retryLabel?: string;
   onRetry?: () => void;
   className?: string;
+  /** Compact mode for embedded surfaces (tabs, cards): smaller art, no full-page min-height. */
+  compact?: boolean;
 }
 
-const NotFoundArt: React.FC = () => (
+const NotFoundArt: React.FC<{ compact?: boolean }> = ({ compact }) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     viewBox="0 0 24 24"
@@ -28,7 +30,7 @@ const NotFoundArt: React.FC = () => (
     strokeWidth="1.8"
     strokeLinecap="round"
     strokeLinejoin="round"
-    className="w-20 h-20 text-gray-400"
+    className={compact ? 'w-12 h-12 text-gray-400' : 'w-20 h-20 text-gray-400'}
     aria-hidden="true"
   >
     <rect x="3" y="6" width="11" height="9" rx="1.2" />
@@ -42,7 +44,7 @@ const NotFoundArt: React.FC = () => (
   </svg>
 );
 
-const ErrorArt: React.FC = () => (
+const ErrorArt: React.FC<{ compact?: boolean }> = ({ compact }) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     viewBox="0 0 24 24"
@@ -51,7 +53,7 @@ const ErrorArt: React.FC = () => (
     strokeWidth="1.8"
     strokeLinecap="round"
     strokeLinejoin="round"
-    className="w-20 h-20 text-red-400/80"
+    className={compact ? 'w-12 h-12 text-red-400/80' : 'w-20 h-20 text-red-400/80'}
     aria-hidden="true"
   >
     <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
@@ -69,10 +71,13 @@ const ErrorState: React.FC<ErrorStateProps> = ({
   retryLabel,
   onRetry,
   className = '',
+  compact = false,
 }) => (
-  <div className={`flex flex-col items-center justify-center min-h-[40vh] px-4 py-10 text-center animate-fade-in ${className}`}>
+  <div className={compact
+    ? `flex flex-col items-center justify-center px-4 py-6 text-center animate-fade-in ${className}`
+    : `flex flex-col items-center justify-center min-h-[40vh] px-4 py-10 text-center animate-fade-in ${className}`}>
     <div className="flex flex-col items-center gap-4 max-w-md w-full">
-      {variant === 'error' ? <ErrorArt /> : <NotFoundArt />}
+      {variant === 'error' ? <ErrorArt compact={compact} /> : <NotFoundArt compact={compact} />}
       <p className="text-lg font-medium text-gray-300">{title}</p>
       {description ? (
         <p className="text-sm text-gray-500 break-words">{description}</p>
