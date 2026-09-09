@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/example/kspanel/internal/api/handlers"
 	"github.com/example/kspanel/internal/backup"
 	"github.com/example/kspanel/internal/cron"
 	"github.com/example/kspanel/internal/edge"
@@ -99,7 +100,6 @@ func sweep(ctx context.Context) {
 	defer con.Close()
 
 	automationRepo := repository.NewAutomationRepository(con)
-	secretRepo := repository.NewSecretRepository(con)
 	instRepo := repository.NewInstanceRepository(con)
 	nodeRepo := repository.NewNodeRepository(con)
 	auditRepo := repository.NewInstanceAuditRepository(con)
@@ -136,7 +136,7 @@ func sweep(ctx context.Context) {
 		go func(job models.Automation) {
 			defer wg.Done()
 			defer sem.release()
-			runJob(ctx, job, instRepo, nodeRepo, secretRepo, automationRepo, auditRepo)
+			runJob(ctx, job, con, instRepo, nodeRepo, automationRepo, auditRepo)
 		}(due[i])
 	}
 
@@ -365,11 +365,12 @@ func pruneSnapshots(dbCon *sql.DB, ec *edge.Client, inst *models.Instance, keepL
 }
 
 // runJob executes a single automation job. It resolves the instance + node
-// + token, calls the edge RPC, and records the run's stdout/stderr/exit-code
-// into automation_runs. Honest errors are logged but never propagate — a
-// transient DB blip must not crash the scheduler.
-func runJob(ctx context.Context, job models.Automation, instRepo *repository.InstanceRepository,
-	nodeRepo *repository.NodeRepository, secretRepo *repository.SecretRepository,
+// + token, dispatches per kind through the shared handlers executor, and
+// records the run's stdout/stderr/exit-code into automation_runs. Honest
+// errors are logged but never propagate — a transient DB blip must not
+// crash the scheduler.
+func runJob(ctx context.Context, job models.Automation, dbCon *sql.DB,
+	instRepo *repository.InstanceRepository, nodeRepo *repository.NodeRepository,
 	automationRepo *repository.AutomationRepository, auditRepo *repository.InstanceAuditRepository,
 ) {
 	// Respect cancellation before touching DB or dialing edge.
