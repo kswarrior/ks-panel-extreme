@@ -8,19 +8,26 @@ import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import { useConfirm } from '@/shared/stores/confirmStore';
 import {
+  archivePaths,
+  chmodPath,
   classifyEntry,
+  copyPath,
   deletePath,
   downloadFile,
   entryNameError,
+  extractArchive,
+  fetchFileBlob,
   formatBytes,
   joinPath,
   listFiles,
   makeDir,
   renamePath,
+  searchFiles,
   uploadFile,
   uploadFromUrl,
   writeFile,
   type FileEntry,
+  type SearchHit,
 } from '../api/instanceFiles';
 
 function toast(msg: string, type: 'success' | 'error' | 'info' = 'info') {

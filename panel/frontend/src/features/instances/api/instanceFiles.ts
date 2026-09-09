@@ -157,6 +157,117 @@ export async function renamePath(instanceId: number, from: string, to: string): 
   }
 }
 
+export async function copyPath(instanceId: number, from: string, to: string): Promise<void> {
+  try {
+    await client.post(
+      `/api/instances/${instanceId}/files?op=copy&path=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+    );
+  } catch (e) {
+    throw filesError(e, 'Failed to copy');
+  }
+}
+
+export async function chmodPath(instanceId: number, path: string, mode: string): Promise<void> {
+  try {
+    await client.post(
+      `/api/instances/${instanceId}/files?op=chmod&path=${encodeURIComponent(path)}&mode=${encodeURIComponent(mode)}`,
+    );
+  } catch (e) {
+    throw filesError(e, 'Failed to change permissions');
+  }
+}
+
+export interface ArchiveResult {
+  ok: boolean;
+  path: string;
+  count: number;
+}
+
+// archivePaths compresses `names` (basenames relative to `dir`) into the
+// archive at `destArchive` (must end with .zip or .tar.gz). Pass an empty
+// names list to archive the whole directory.
+export async function archivePaths(
+  instanceId: number,
+  dir: string,
+  names: string[],
+  destArchive: string,
+): Promise<ArchiveResult> {
+  try {
+    const res = await client.post(
+      `/api/instances/${instanceId}/files?op=archive&path=${encodeURIComponent(dir)}&to=${encodeURIComponent(destArchive)}`,
+      { names },
+      { timeout: 600000 },
+    );
+    const d: any = res.data;
+    return { ok: true, path: String(d?.path ?? destArchive), count: Number(d?.count ?? names.length) || 0 };
+  } catch (e) {
+    throw filesError(e, 'Failed to create archive');
+  }
+}
+
+export async function extractArchive(instanceId: number, archivePath: string, destDir?: string): Promise<void> {
+  try {
+    const qs =
+      `/api/instances/${instanceId}/files?op=extract&path=${encodeURIComponent(archivePath)}` +
+      (destDir ? `&to=${encodeURIComponent(destDir)}` : '');
+    await client.post(qs, null, { timeout: 600000 });
+  } catch (e) {
+    throw filesError(e, 'Failed to extract archive');
+  }
+}
+
+export interface SearchHit {
+  path: string; // rel path from the search root, e.g. "world/level.dat"
+  name: string;
+  is_dir: boolean;
+  size: number;
+  mod_time: number;
+}
+
+export async function searchFiles(
+  instanceId: number,
+  dir: string,
+  query: string,
+  limit = 100,
+): Promise<{ entries: SearchHit[]; truncated: boolean }> {
+  try {
+    const res = await client.get(
+      `/api/instances/${instanceId}/files?op=search&path=${encodeURIComponent(dir)}&q=${encodeURIComponent(query)}&limit=${limit}`,
+      { timeout: 60000 },
+    );
+    const data: any = res.data;
+    const raw = Array.isArray(data?.entries) ? data.entries : [];
+    return {
+      entries: raw
+        .filter((e: any) => e && typeof e.name === 'string')
+        .map((e: any) => ({
+          path: String(e.path ?? e.name),
+          name: String(e.name),
+          is_dir: !!e.is_dir,
+          size: Number(e.size) || 0,
+          mod_time: Number(e.mod_time) || 0,
+        })),
+      truncated: !!data?.truncated,
+    };
+  } catch (e) {
+    throw filesError(e, 'Search failed');
+  }
+}
+
+// fetchFileBlob returns raw bytes for previews (images, text snippets).
+// Unlike readFileText it never reinterprets binary as UTF-8.
+export async function fetchFileBlob(instanceId: number, path: string): Promise<Blob> {
+  try {
+    const res = await client.get(
+      `/api/instances/${instanceId}/files/read?path=${encodeURIComponent(path)}`,
+      { responseType: 'blob', timeout: 600000 },
+    );
+    return res.data as Blob;
+  } catch (e) {
+    throw filesError(e, 'Failed to fetch file');
+  }
+}
+
 // uploadFile streams raw bytes; targetPath is the FULL destination file
 // path (that is what the edge writes). Long timeout for large files.
 export async function uploadFile(
