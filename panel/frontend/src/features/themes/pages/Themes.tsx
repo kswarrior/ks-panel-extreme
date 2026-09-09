@@ -12,6 +12,7 @@ import { useAuthStore } from '@/shared/stores/authStore';
 import { AREAS, STANDALONE_PAGES } from '@/features/instance-pages/types/pageregistry';
 import type { Theme } from '@/features/themes/types/theme';
 import { downloadTheme, installThemeFromUrl, uploadThemeFile } from '@/features/themes/api/themes';
+import { themeManifestToToml } from '@/features/themes/toml';
 import { useConfirm } from '@/shared/stores/confirmStore';
 import { formatCardDate } from '@/shared/utils/cardDate';
 import { CardIconTile } from '@/shared/components/ui/IconColorPicker';
@@ -244,19 +245,19 @@ const Themes: React.FC = () => {
       if (origin === 'global') {
         blob = await downloadTheme(t.id);
       } else {
-        const manifest = {
+        const manifest = themeManifestToToml({
           id: t.id,
           name: t.name,
           description: t.description,
           builtin: t.builtin,
           spec: t,
-        };
-        blob = new Blob([JSON.stringify(manifest, null, 2)], { type: 'application/json' });
+        });
+        blob = new Blob([manifest], { type: 'application/toml' });
       }
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${t.name}.json`;
+      a.download = `${t.name}.toml`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -540,7 +541,7 @@ const Themes: React.FC = () => {
                     type="button"
                     onClick={() => handleDownload(t, origin)}
                     aria-label={`Download theme ${t.name}`}
-                    title="Download manifest JSON"
+                    title="Download manifest TOML"
                     className="ks-icon-btn rounded-lg"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>

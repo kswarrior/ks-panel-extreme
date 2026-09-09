@@ -90,7 +90,7 @@ const ThemeDetail: React.FC = () => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${theme.id}.json`;
+      a.download = `${theme.id}.toml`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (e: any) {
