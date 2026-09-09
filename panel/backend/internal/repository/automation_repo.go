@@ -25,11 +25,12 @@ func scanAutomation(rows *sql.Rows, s *models.Automation) error {
 	var id, instanceID sql.NullInt64
 	var refsJSON string
 	var kind, payload sql.NullString
+	var stepsJSON sql.NullString
 	var enabled int
 	var created, updated string
 	var lastRun, nextRun sql.NullString
 	if err := rows.Scan(&id, &instanceID, &s.Name, &s.Command, &kind, &payload, &s.Schedule,
-		&enabled, &refsJSON, &s.TimeoutSec, &lastRun, &nextRun, &created, &updated); err != nil {
+		&enabled, &refsJSON, &s.TimeoutSec, &stepsJSON, &lastRun, &nextRun, &created, &updated); err != nil {
 		return err
 	}
 	if !id.Valid || !instanceID.Valid {

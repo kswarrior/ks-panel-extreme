@@ -45,20 +45,38 @@ type Secret struct {
 // destroy/reinstall are deliberately NOT power ops: an unattended scheduler
 // firing either would be a data-loss footgun.
 type Automation struct {
-	ID         int64      `json:"id"`
-	InstanceID int64      `json:"instance_id"`
-	Name       string     `json:"name"`
-	Command    string     `json:"command"`
-	Kind       string     `json:"kind"`
-	Payload    string     `json:"payload,omitempty"`
-	Schedule   string     `json:"schedule"`
-	Enabled    bool       `json:"enabled"`
-	SecretRefs []string   `json:"secret_refs"`
-	TimeoutSec int        `json:"timeout_sec"`
-	LastRunAt  *time.Time `json:"last_run_at,omitempty"`
-	NextRunAt  *time.Time `json:"next_run_at,omitempty"`
-	CreatedAt  time.Time  `json:"created_at"`
-	UpdatedAt  time.Time  `json:"updated_at"`
+	ID         int64           `json:"id"`
+	InstanceID int64           `json:"instance_id"`
+	Name       string          `json:"name"`
+	Command    string          `json:"command"`
+	Kind       string          `json:"kind"`
+	Payload    string          `json:"payload,omitempty"`
+	Schedule   string          `json:"schedule"`
+	Enabled    bool            `json:"enabled"`
+	SecretRefs []string        `json:"secret_refs"`
+	TimeoutSec int             `json:"timeout_sec"`
+	Steps      []AutomationStep `json:"steps,omitempty"`
+	LastRunAt  *time.Time      `json:"last_run_at,omitempty"`
+	NextRunAt  *time.Time      `json:"next_run_at,omitempty"`
+	CreatedAt  time.Time       `json:"created_at"`
+	UpdatedAt  time.Time       `json:"updated_at"`
+}
+
+// AutomationStep is one ordered unit inside a multi-step automation job.
+// Kind reuses the job kinds (shell runs Command via /bin/sh -c; power
+// issues start|stop|restart|kill from Payload; action invokes a template
+// action ID from Payload). If gates execution GitHub-Actions style:
+// "success" (default: run only when every previous step succeeded),
+// "failure" (run only when a previous step failed), "always" (run
+// regardless). Empty Steps on a job means legacy single-shot mode (the
+// top-level kind/payload/command fire once).
+type AutomationStep struct {
+	Name       string `json:"name"`
+	Kind       string `json:"kind,omitempty"`
+	Command    string `json:"command,omitempty"`
+	Payload    string `json:"payload,omitempty"`
+	If         string `json:"if,omitempty"`
+	TimeoutSec int    `json:"timeout_sec,omitempty"`
 }
 
 // Automation job kinds (instance_automation.kind).
@@ -94,6 +112,31 @@ func IsAutomationPowerOp(op string) bool {
 		}
 	}
 	return false
+}
+
+// Automation step conditions (job.steps[].if), GitHub-Actions style.
+const (
+	// AutomationIfSuccess runs the step only when every previous step
+	// succeeded (also the default when if is empty/unknown).
+	AutomationIfSuccess = "success"
+	// AutomationIfFailure runs the step only when a previous step failed.
+	AutomationIfFailure = "failure"
+	// AutomationIfAlways runs the step regardless of previous outcome.
+	AutomationIfAlways = "always"
+)
+
+// NormalizeAutomationIf folds aliases/typos to the canonical condition.
+// Accepts success/succeed/succeeded, failure/failed/fail, always/alway;
+// anything else (including empty) becomes success.
+func NormalizeAutomationIf(v string) string {
+	switch v {
+	case AutomationIfFailure, "failed", "fail", "on-failure", "on_failure":
+		return AutomationIfFailure
+	case AutomationIfAlways, "alway", "alwys", "always()":
+		return AutomationIfAlways
+	default:
+		return AutomationIfSuccess
+	}
 }
 
 // AutomationTrigger is the categorical reason a run was launched. The
