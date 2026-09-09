@@ -192,7 +192,7 @@ type ModalState =
   | { kind: 'create'; tab: 'file' | 'folder'; name: string; busy: boolean }
   | { kind: 'upload'; tab: 'local' | 'url'; busy: boolean; queueLen: number; pct: number; label: string; url: string }
   | { kind: 'rename'; from: string; name: string; busy: boolean }
-  | { kind: 'chmod'; target: string; isDir: boolean; mode: string; recursive: boolean; busy: boolean }
+  | { kind: 'chmod'; targets: string[]; isDir: boolean; mode: string; recursive: boolean; busy: boolean }
   | { kind: 'copy'; names: string[]; dest: string; busy: boolean }
   | { kind: 'move'; names: string[]; dest: string; busy: boolean }
   | { kind: 'archive'; names: string[]; file: string; format: 'zip' | 'targz'; busy: boolean }
@@ -547,23 +547,19 @@ const InstanceFiles: React.FC<{ instanceId: number; filesSlug: string }> = ({ in
     const norm = m.padStart(3, '0');
     setModal({ ...modal, busy: true });
     try {
-      if (modal.recursive && modal.isDir) {
-        // Recursive = chmod the dir, then every direct child the listing
-        // knows about (deep trees converge on repeat runs; keeps one slow
-        // request from timing out on 100k-file worlds).
-        const target = joinPath(path, modal.target);
+      for (const t of modal.targets) {
+        const target = joinPath(path, t);
         await chmodPath(instanceId, target, norm);
-        const kids = entries.filter((e) => e.name === modal.target).length ? [] : [];
-        void kids;
-        const rows = await listFiles(instanceId, target).catch(() => []);
-        await Promise.all(
-          rows.map((r) => chmodPath(instanceId, `${target}/${r.name}`, norm).catch(() => {})),
-        );
-      } else {
-        await chmodPath(instanceId, joinPath(path, modal.target), norm);
+        if (modal.recursive) {
+          const rows = await listFiles(instanceId, target).catch(() => []);
+          await Promise.all(
+            rows.map((r) => chmodPath(instanceId, `${target}/${r.name}`, norm).catch(() => {})),
+          );
+        }
       }
       setModal(null);
-      toast(`Permissions → ${norm}`, 'success');
+      setSelected({});
+      toast(`Permissions → ${norm} (${modal.targets.length} item${modal.targets.length === 1 ? '' : 's'})`, 'success');
       void load(path);
     } catch (err: any) {
       toast(err?.message || 'chmod failed', 'error');
@@ -705,10 +701,8 @@ const InstanceFiles: React.FC<{ instanceId: number; filesSlug: string }> = ({ in
 
   const onBulkChmod = () => {
     if (!selNames.length) return;
-    // Bulk chmod applies one mode to every selected entry (dirs non-recursive).
     const first = entries.find((e) => e.name === selNames[0]);
-    setModal({ kind: 'chmod', target: selNames[0], isDir: !!first?.is_dir, mode: String(first?.mode || '644'), recursive: false, busy: false });
-    toast('Bulk chmod: apply per file from its row, or select one to start', 'info');
+    setModal({ kind: 'chmod', targets: selNames, isDir: selNames.some((n) => entries.find((e) => e.name === n)?.is_dir), mode: String(first?.mode || '644'), recursive: false, busy: false });
   };
 
   const runUploadQueue = useCallback(
@@ -836,23 +830,100 @@ const InstanceFiles: React.FC<{ instanceId: number; filesSlug: string }> = ({ in
       <PageActionsPill>
         <input
           value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          placeholder="Filter…"
+          onChange={(e) => { setFilter(e.target.value); if (searchHits) setSearchHits(null); }}
+          onKeyDown={(e) => { if (e.key === 'Enter') void runSearch(filter); }}
+          placeholder="Filter or search…"
           aria-label="Filter files"
-          className="ks-input !w-32 !py-1.5 text-xs"
+          title="Type to filter this folder · Enter for recursive search"
+          className="ks-input !w-36 !py-1.5 text-xs"
         />
+        <button
+          type="button"
+          onClick={() => void runSearch(filter)}
+          disabled={searching || !filter.trim()}
+          title="Recursive search from this folder"
+          aria-label="Search recursively"
+          style={PILL_TAB_STYLE}
+          className="ks-tab inline-flex items-center justify-center disabled:opacity-40"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowHidden((v) => !v)}
+          title={showHidden ? 'Hide dotfiles' : 'Show dotfiles'}
+          aria-label={showHidden ? 'Hide dotfiles' : 'Show dotfiles'}
+          aria-pressed={showHidden}
+          style={PILL_TAB_STYLE}
+          className={`ks-tab inline-flex items-center justify-center ${showHidden ? '' : 'opacity-50'}`}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>
+        </button>
         {selCount > 0 && (
-          <button
-            type="button"
-            onClick={() => void onDeleteSelected()}
-            title={`Delete ${selCount} selected`}
-            aria-label={`Delete ${selCount} selected`}
-            style={PILL_TAB_STYLE}
-            className="ks-tab inline-flex items-center justify-center !text-red-300"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
-            <span className="text-xs ml-1">{selCount}</span>
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={() => void downloadAsZip(selNames, `${selCount} selected`)}
+              title={`Download ${selCount} selected as .zip`}
+              aria-label={`Download ${selCount} selected as zip`}
+              style={PILL_TAB_STYLE}
+              className="ks-tab inline-flex items-center justify-center"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+              <span className="text-xs ml-1">{selCount}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setModal({ kind: 'archive', names: selNames, file: `backup-${new Date().toISOString().slice(0, 10)}.zip`, format: 'zip', busy: false })}
+              title={`Archive ${selCount} selected`}
+              aria-label={`Archive ${selCount} selected`}
+              style={PILL_TAB_STYLE}
+              className="ks-tab inline-flex items-center justify-center"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M12 7v3" /><path d="M12 13v3" /></svg>
+            </button>
+            <button
+              type="button"
+              onClick={() => setModal({ kind: 'move', names: selNames, dest: path, busy: false })}
+              title={`Move ${selCount} selected`}
+              aria-label={`Move ${selCount} selected`}
+              style={PILL_TAB_STYLE}
+              className="ks-tab inline-flex items-center justify-center"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><path d="M5 9l-3 3 3 3" /><path d="M9 5l3-3 3 3" /><path d="M15 19l-3 3-3-3" /><path d="M19 9l3 3-3 3" /><path d="M2 12h20" /><path d="M12 2v20" /></svg>
+            </button>
+            <button
+              type="button"
+              onClick={() => setModal({ kind: 'copy', names: selNames, dest: path, busy: false })}
+              title={`Copy ${selCount} selected`}
+              aria-label={`Copy ${selCount} selected`}
+              style={PILL_TAB_STYLE}
+              className="ks-tab inline-flex items-center justify-center"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+            </button>
+            <button
+              type="button"
+              onClick={onBulkChmod}
+              title={`Permissions for ${selCount} selected`}
+              aria-label={`Permissions for ${selCount} selected`}
+              style={PILL_TAB_STYLE}
+              className="ks-tab inline-flex items-center justify-center"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><circle cx="8" cy="15" r="4" /><path d="m10.9 12.7 8.6-8.6" /><path d="m18 5 2 2" /><path d="m15 8 2 2" /></svg>
+            </button>
+            <button
+              type="button"
+              onClick={() => void onDeleteSelected()}
+              title={`Delete ${selCount} selected`}
+              aria-label={`Delete ${selCount} selected`}
+              style={PILL_TAB_STYLE}
+              className="ks-tab inline-flex items-center justify-center !text-red-300"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+              <span className="text-xs ml-1">{selCount}</span>
+            </button>
+          </>
         )}
         <button
           type="button"
@@ -885,6 +956,18 @@ const InstanceFiles: React.FC<{ instanceId: number; filesSlug: string }> = ({ in
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
         </button>
       </PageActionsPill>
+
+      {searchHits !== null && (
+        <div className="ks-card flex items-center justify-between gap-3 text-[13px]">
+          <span className="truncate">
+            Search <code className="ks-mono">“{filter}”</code> · {searchHits.length} hit{searchHits.length === 1 ? '' : 's'}
+            {searchTruncated ? ' (capped at 100)' : ''}{searching ? ' — searching…' : ''}
+          </span>
+          <button type="button" onClick={clearSearch} className="ks-btn !py-1 !px-2 text-xs shrink-0">
+            Back to folder
+          </button>
+        </div>
+      )}
 
       {error && entries.length > 0 && (
         <div className="ks-card text-[13px]" style={{ borderColor: 'var(--ks-bad-line)', color: 'var(--ks-bad)' }}>
