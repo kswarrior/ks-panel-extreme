@@ -71,7 +71,7 @@ func TerminalHandler(w http.ResponseWriter, r *http.Request) {
 	// Terminal is a self-sufficient builtin: no spec.pages whitelist gate.
 	// Auth + VIEW permission already ran in middleware (see server.go), and
 	// the bridge dials only the instance's own edge. The page whitelist
-	// remains enforced for library custom pages (env/automation/…).
+	// remains enforced for library custom pages (env/…).
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
