@@ -310,11 +310,54 @@ type automationUpsertRequest struct {
 // instance's automation kind toggles (shortcuts.automation allow_shell /
 // allow_power / allow_actions, allow-all default). Action jobs additionally
 // resolve their action ID against the owning template so a typo fails fast
-// at write time instead of at 3 AM when the scheduler fires.
-func validateAutomationUpsert(con interface {
-	GetInstance(id int64) (*models.Instance, error)
-}, kind, payload, command string) (string, *models.Instance, error) {
-	return "", nil, nil
+// at write time instead of when the scheduler fires. Returns the normalized
+// kind + instance row, or an HTTP status + message for the caller to write.
+func validateAutomationUpsert(con *sql.DB, instanceID int64, req automationUpsertRequest) (string, int, string) {
+	kind := models.NormalizeAutomationKind(req.Kind)
+	switch kind {
+	case models.AutomationKindPower:
+		if !models.IsAutomationPowerOp(req.Payload) {
+			return "", http.StatusBadRequest, "invalid power op (want start|stop|restart|kill)"
+		}
+	case models.AutomationKindAction:
+		if req.Payload == "" {
+			return "", http.StatusBadRequest, "action id is required for action jobs"
+		}
+	default:
+		if req.Command == "" {
+			return "", http.StatusBadRequest, "command is required for shell jobs"
+		}
+	}
+	inst, err := repository.NewInstanceRepository(con).Get(instanceID)
+	if err != nil {
+		return "", http.StatusNotFound, "instance not found"
+	}
+	if !automationKindAllowed(inst.Config, kind) {
+		return "", http.StatusForbidden, "template disallows automation " + kind + " jobs for this instance"
+	}
+	if kind == models.AutomationKindAction {
+		tmpl, err := repository.NewTemplateRepository(con).Get(inst.TemplateID)
+		if err != nil {
+			return "", http.StatusBadRequest, "owning template not found (deleted?)"
+		}
+		var spec struct {
+			Actions []templateActionSpec `json:"actions"`
+		}
+		if err := json.Unmarshal([]byte(tmpl.Spec), &spec); err != nil {
+			return "", http.StatusInternalServerError, "template spec is not valid JSON"
+		}
+		found := false
+		for i := range spec.Actions {
+			if spec.Actions[i].ID == req.Payload {
+				found = len(spec.Actions[i].Steps) > 0
+				break
+			}
+		}
+		if !found {
+			return "", http.StatusBadRequest, "action not found in template: " + req.Payload
+		}
+	}
+	return kind, 0, ""
 }
 
 func CreateAutomationHandler(w http.ResponseWriter, r *http.Request) {
@@ -329,8 +372,8 @@ func CreateAutomationHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid payload", http.StatusBadRequest)
 		return
 	}
-	if req.Name == "" || req.Command == "" {
-		http.Error(w, "name and command are required", http.StatusBadRequest)
+	if req.Name == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
 		return
 	}
 	// Validate cron expression up front — a bad schedule would silently never
@@ -347,10 +390,17 @@ func CreateAutomationHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer con.Close()
+	// Per-kind payload shape + automation kind toggles (+ template action
+	// resolution for action jobs).
+	kind, st, msg := validateAutomationUpsert(con, id, req)
+	if st != 0 {
+		http.Error(w, msg, st)
+		return
+	}
 	repo := repository.NewAutomationRepository(con)
 	jobID, err := repo.Create(repository.AutomationUpsertInput{
-		InstanceID: id, Name: req.Name, Command: req.Command, Schedule: req.Schedule,
-		Enabled: req.Enabled, SecretRefs: req.SecretRefs, TimeoutSec: req.TimeoutSec,
+		InstanceID: id, Name: req.Name, Command: req.Command, Kind: kind, Payload: req.Payload,
+		Schedule: req.Schedule, Enabled: req.Enabled, SecretRefs: req.SecretRefs, TimeoutSec: req.TimeoutSec,
 	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -361,7 +411,7 @@ func CreateAutomationHandler(w http.ResponseWriter, r *http.Request) {
 		next := cronNext(req.Schedule, time.Now())
 		_ = repo.ScheduleNext(jobID, next)
 	}
-	auditInst(r, id, "automation.create", fmt.Sprintf("created job %q (%s)", req.Name, scheduleLabel(req.Schedule)))
+	auditInst(r, id, "automation.create", fmt.Sprintf("created %s job %q (%s)", kind, req.Name, scheduleLabel(req.Schedule)))
 	writeJSONStatus(w, http.StatusCreated, map[string]any{"id": jobID})
 }
 
@@ -382,8 +432,8 @@ func UpdateAutomationHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid payload", http.StatusBadRequest)
 		return
 	}
-	if req.Name == "" || req.Command == "" {
-		http.Error(w, "name and command are required", http.StatusBadRequest)
+	if req.Name == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
 		return
 	}
 	if req.Schedule != "" {
@@ -407,9 +457,16 @@ func UpdateAutomationHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "automation not found", http.StatusNotFound)
 		return
 	}
+	// Per-kind payload shape + automation kind toggles (+ template action
+	// resolution for action jobs).
+	kind, st, msg := validateAutomationUpsert(con, id, req)
+	if st != 0 {
+		http.Error(w, msg, st)
+		return
+	}
 	if err := repo.Update(jobID, repository.AutomationUpsertInput{
-		InstanceID: id, Name: req.Name, Command: req.Command, Schedule: req.Schedule,
-		Enabled: req.Enabled, SecretRefs: req.SecretRefs, TimeoutSec: req.TimeoutSec,
+		InstanceID: id, Name: req.Name, Command: req.Command, Kind: kind, Payload: req.Payload,
+		Schedule: req.Schedule, Enabled: req.Enabled, SecretRefs: req.SecretRefs, TimeoutSec: req.TimeoutSec,
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -417,7 +474,7 @@ func UpdateAutomationHandler(w http.ResponseWriter, r *http.Request) {
 	if req.Schedule != "" && req.Enabled {
 		_ = repo.ScheduleNext(jobID, cronNext(req.Schedule, time.Now()))
 	}
-	auditInst(r, id, "automation.update", fmt.Sprintf("updated job %q", req.Name))
+	auditInst(r, id, "automation.update", fmt.Sprintf("updated %s job %q", kind, req.Name))
 	w.WriteHeader(http.StatusNoContent)
 }
 
