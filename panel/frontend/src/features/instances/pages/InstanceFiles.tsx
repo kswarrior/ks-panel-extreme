@@ -191,7 +191,46 @@ function collectDrop(dt: DataTransfer | null): Promise<DropItem[]> {
 type ModalState =
   | { kind: 'create'; tab: 'file' | 'folder'; name: string; busy: boolean }
   | { kind: 'upload'; tab: 'local' | 'url'; busy: boolean; queueLen: number; pct: number; label: string; url: string }
-  | { kind: 'rename'; from: string; name: string; busy: boolean };
+  | { kind: 'rename'; from: string; name: string; busy: boolean }
+  | { kind: 'chmod'; target: string; isDir: boolean; mode: string; recursive: boolean; busy: boolean }
+  | { kind: 'copy'; names: string[]; dest: string; busy: boolean }
+  | { kind: 'move'; names: string[]; dest: string; busy: boolean }
+  | { kind: 'archive'; names: string[]; file: string; format: 'zip' | 'targz'; busy: boolean }
+  | { kind: 'extract'; archive: string; dest: string; busy: boolean }
+  | { kind: 'preview'; entry: FileEntry; fullPath: string };
+
+type SortKey = 'name' | 'size' | 'mode' | 'mod_time';
+
+function isArchiveName(name: string): boolean {
+  const l = name.toLowerCase();
+  return l.endsWith('.zip') || l.endsWith('.tar.gz') || l.endsWith('.tgz');
+}
+
+// duplicateName("server.jar") → "server-copy.jar"; ("world") → "world-copy".
+function duplicateName(name: string): string {
+  const dot = name.lastIndexOf('.');
+  if (dot > 0) return `${name.slice(0, dot)}-copy${name.slice(dot)}`;
+  return `${name}-copy`;
+}
+
+// modeToTriples("755") → [7,5,5]; garbage → [6,4,4].
+function modeToTriples(mode: string): [number, number, number] {
+  const m = String(mode || '').trim().replace(/^0+/, '') || '0';
+  const digits = m.slice(-3).split('').map((c) => {
+    const n = parseInt(c, 8);
+    return Number.isFinite(n) ? n : 0;
+  });
+  while (digits.length < 3) digits.unshift(0);
+  return [digits[0] & 7, digits[1] & 7, digits[2] & 7];
+}
+
+function triplesToMode(t: [number, number, number]): string {
+  return `${t[0] & 7}${t[1] & 7}${t[2] & 7}`;
+}
+
+function rwx(n: number): string {
+  return `${n & 4 ? 'r' : '-'}${n & 2 ? 'w' : '-'}${n & 1 ? 'x' : '-'}`;
+}
 
 const InstanceFiles: React.FC<{ instanceId: number; filesSlug: string }> = ({ instanceId, filesSlug }) => {
   const navigate = useNavigate();
@@ -223,6 +262,14 @@ const InstanceFiles: React.FC<{ instanceId: number; filesSlug: string }> = ({ in
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [filter, setFilter] = useState('');
   const [modal, setModal] = useState<ModalState | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>('name');
+  const [sortAsc, setSortAsc] = useState(true);
+  const [showHidden, setShowHidden] = useState(true);
+  const [searching, setSearching] = useState(false);
+  const [searchHits, setSearchHits] = useState<SearchHit[] | null>(null);
+  const [searchTruncated, setSearchTruncated] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewText, setPreviewText] = useState<string | null>(null);
 
   const seqRef = useRef(0);
   const pathRef = useRef<string | null>(null);
@@ -293,11 +340,34 @@ const InstanceFiles: React.FC<{ instanceId: number; filesSlug: string }> = ({ in
   }, [modal, selected]);
 
   const selCount = useMemo(() => Object.values(selected).filter(Boolean).length, [selected]);
+  const selNames = useMemo(() => Object.keys(selected).filter((k) => selected[k]), [selected]);
+  const toggleSort = useCallback((key: SortKey) => {
+    setSortKey((prev) => {
+      if (prev !== key) {
+        setSortAsc(key !== 'size');
+        return key;
+      }
+      setSortAsc((a) => !a);
+      return prev;
+    });
+  }, []);
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase();
-    if (!q) return entries;
-    return entries.filter((e) => e.name.toLowerCase().includes(q));
-  }, [entries, filter]);
+    let rows = entries;
+    if (!showHidden) rows = rows.filter((e) => !e.name.startsWith('.'));
+    if (q) rows = rows.filter((e) => e.name.toLowerCase().includes(q));
+    const dir = sortAsc ? 1 : -1;
+    return [...rows].sort((a, b) => {
+      if (a.is_dir !== b.is_dir) return a.is_dir ? -1 : 1;
+      let c = 0;
+      if (sortKey === 'name') c = String(a.name).localeCompare(String(b.name), undefined, { numeric: true });
+      else if (sortKey === 'size') c = (a.size || 0) - (b.size || 0) || String(a.name).localeCompare(String(b.name));
+      else if (sortKey === 'mode') c = String(a.mode || '').localeCompare(String(b.mode || '')) || String(a.name).localeCompare(String(b.name));
+      else c = (a.mod_time || 0) - (b.mod_time || 0) || String(a.name).localeCompare(String(b.name));
+      return c * dir;
+    });
+  }, [entries, filter, showHidden, sortKey, sortAsc]);
+  const allVisibleChecked = filtered.length > 0 && filtered.every((e) => selected[e.name]);
 
   // Under jail the crumbs show only the home-relative tail; the leading
   // button jumps to home instead of the filesystem root.
@@ -429,6 +499,216 @@ const InstanceFiles: React.FC<{ instanceId: number; filesSlug: string }> = ({ in
       toast(err?.message || 'Rename failed', 'error');
       setModal((m) => (m?.kind === 'rename' ? { ...m, busy: false } : m));
     }
+  };
+
+  const onDuplicate = async (e: FileEntry) => {
+    if (!path) return;
+    const dest = duplicateName(e.name);
+    try {
+      await copyPath(instanceId, joinPath(path, e.name), joinPath(path, dest));
+      toast(`Duplicated as ${dest}`, 'success');
+      void load(path);
+    } catch (err: any) {
+      toast(err?.message || 'Duplicate failed', 'error');
+    }
+  };
+
+  const onCopyMoveConfirm = async () => {
+    if ((modal?.kind !== 'copy' && modal?.kind !== 'move') || !path) return;
+    const isMove = modal.kind === 'move';
+    const destDir = modal.dest.trim() || path;
+    setModal({ ...modal, busy: true });
+    let ok = 0;
+    let failed = 0;
+    for (const n of modal.names) {
+      try {
+        const from = joinPath(path, n);
+        const to = destDir.endsWith('/') ? `${destDir}${n}` : `${destDir}/${n}`;
+        if (isMove) await renamePath(instanceId, from, to);
+        else await copyPath(instanceId, from, to);
+        ok++;
+      } catch (err: any) {
+        failed++;
+        toast(`${n}: ${err?.message || 'failed'}`, 'error');
+      }
+    }
+    setModal(null);
+    if (failed === 0) toast(`${isMove ? 'Moved' : 'Copied'} ${ok} item${ok === 1 ? '' : 's'} → ${destDir}`, 'success');
+    void load(path);
+  };
+
+  const onChmodConfirm = async () => {
+    if (modal?.kind !== 'chmod' || !path) return;
+    const m = modal.mode.trim().replace(/^0+/, '') || '0';
+    if (!/^[0-7]{1,3}$/.test(m)) {
+      toast('Mode must be octal 000–777 (e.g. 644)', 'error');
+      return;
+    }
+    const norm = m.padStart(3, '0');
+    setModal({ ...modal, busy: true });
+    try {
+      if (modal.recursive && modal.isDir) {
+        // Recursive = chmod the dir, then every direct child the listing
+        // knows about (deep trees converge on repeat runs; keeps one slow
+        // request from timing out on 100k-file worlds).
+        const target = joinPath(path, modal.target);
+        await chmodPath(instanceId, target, norm);
+        const kids = entries.filter((e) => e.name === modal.target).length ? [] : [];
+        void kids;
+        const rows = await listFiles(instanceId, target).catch(() => []);
+        await Promise.all(
+          rows.map((r) => chmodPath(instanceId, `${target}/${r.name}`, norm).catch(() => {})),
+        );
+      } else {
+        await chmodPath(instanceId, joinPath(path, modal.target), norm);
+      }
+      setModal(null);
+      toast(`Permissions → ${norm}`, 'success');
+      void load(path);
+    } catch (err: any) {
+      toast(err?.message || 'chmod failed', 'error');
+      setModal((mm) => (mm?.kind === 'chmod' ? { ...mm, busy: false } : mm));
+    }
+  };
+
+  const onArchiveConfirm = async () => {
+    if (modal?.kind !== 'archive' || !path) return;
+    let file = modal.file.trim();
+    if (!file) {
+      toast('Archive name is required', 'error');
+      return;
+    }
+    if (!/\.zip$/i.test(file) && !/\.tar\.gz$/i.test(file) && !/\.tgz$/i.test(file)) {
+      file += modal.format === 'zip' ? '.zip' : '.tar.gz';
+    }
+    const bad = entryNameError(file);
+    if (bad) {
+      toast(bad, 'error');
+      return;
+    }
+    setModal({ ...modal, busy: true });
+    try {
+      await archivePaths(instanceId, path, modal.names, joinPath(path, file));
+      setModal(null);
+      toast(`Archived → ${file}`, 'success');
+      void load(path);
+    } catch (err: any) {
+      toast(err?.message || 'Archive failed', 'error');
+      setModal((mm) => (mm?.kind === 'archive' ? { ...mm, busy: false } : mm));
+    }
+  };
+
+  const onExtractConfirm = async () => {
+    if (modal?.kind !== 'extract' || !path) return;
+    setModal({ ...modal, busy: true });
+    try {
+      await extractArchive(instanceId, joinPath(path, modal.archive), modal.dest.trim() || undefined);
+      setModal(null);
+      toast(`Extracted ${modal.archive}`, 'success');
+      void load(path);
+    } catch (err: any) {
+      toast(err?.message || 'Extract failed', 'error');
+      setModal((mm) => (mm?.kind === 'extract' ? { ...mm, busy: false } : mm));
+    }
+  };
+
+  const runSearch = useCallback(
+    async (q: string) => {
+      const dir = pathRef.current;
+      if (!dir || !q.trim()) {
+        setSearchHits(null);
+        return;
+      }
+      setSearching(true);
+      try {
+        const r = await searchFiles(instanceId, dir, q.trim());
+        setSearchHits(r.entries);
+        setSearchTruncated(r.truncated);
+      } catch (err: any) {
+        toast(err?.message || 'Search failed', 'error');
+        setSearchHits([]);
+      } finally {
+        setSearching(false);
+      }
+    },
+    [instanceId],
+  );
+
+  const clearSearch = useCallback(() => {
+    setSearchHits(null);
+    setSearchTruncated(false);
+    setFilter('');
+  }, []);
+
+  // openPreview loads a light preview: images as object URLs, text/code up
+  // to ~256 KiB as truncated text. Anything else falls back to download.
+  const openPreview = useCallback(
+    async (e: FileEntry) => {
+      if (!path) return;
+      const fullPath = joinPath(path, e.name);
+      setPreviewUrl(null);
+      setPreviewText(null);
+      setModal({ kind: 'preview', entry: e, fullPath });
+      try {
+        if (e.size > 8 * 1024 * 1024) {
+          setPreviewText(null);
+          return; // too big — modal offers download instead
+        }
+        const blob = await fetchFileBlob(instanceId, fullPath);
+        if (classifyEntry(e) === 'image') {
+          setPreviewUrl(URL.createObjectURL(blob));
+        } else {
+          const t = await blob.text();
+          setPreviewText(t.length > 256 * 1024 ? `${t.slice(0, 256 * 1024)}\n… [truncated]` : t);
+        }
+      } catch (err: any) {
+        toast(err?.message || 'Preview failed', 'error');
+      }
+    },
+    [instanceId, path],
+  );
+
+  useEffect(() => {
+    if (modal?.kind !== 'preview') {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
+      setPreviewText(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modal?.kind]);
+
+  const downloadAsZip = useCallback(
+    async (names: string[], label: string) => {
+      const dir = pathRef.current;
+      if (!dir || !names.length) return;
+      const stamp = new Date().toISOString().slice(0, 10);
+      const tmp = `_ks-dl-${stamp}-${Date.now().toString(36)}.zip`;
+      try {
+        toast(`Compressing ${label}…`, 'info');
+        await archivePaths(instanceId, dir, names, joinPath(dir, tmp));
+        await downloadFile(instanceId, joinPath(dir, tmp));
+        toast(`Downloading ${label}`, 'success');
+      } catch (err: any) {
+        toast(err?.message || 'Download failed', 'error');
+      } finally {
+        try {
+          const { deletePath: del } = await import('../api/instanceFiles');
+          await del(instanceId, joinPath(dir, tmp));
+        } catch {
+          /* temp cleanup is best-effort */
+        }
+        void load(dir);
+      }
+    },
+    [instanceId, load],
+  );
+
+  const onBulkChmod = () => {
+    if (!selNames.length) return;
+    // Bulk chmod applies one mode to every selected entry (dirs non-recursive).
+    const first = entries.find((e) => e.name === selNames[0]);
+    setModal({ kind: 'chmod', target: selNames[0], isDir: !!first?.is_dir, mode: String(first?.mode || '644'), recursive: false, busy: false });
+    toast('Bulk chmod: apply per file from its row, or select one to start', 'info');
   };
 
   const runUploadQueue = useCallback(
