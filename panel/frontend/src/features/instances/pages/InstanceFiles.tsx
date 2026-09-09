@@ -988,8 +988,105 @@ const InstanceFiles: React.FC<{ instanceId: number; filesSlug: string }> = ({ in
       <div className="glass-card rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-white/10 text-left text-[11px] uppercase tracking-wide text-gray-500">
+                <th className="pl-3 pr-1 py-2 w-8">
+                  <input
+                    type="checkbox"
+                    checked={allVisibleChecked}
+                    onChange={() =>
+                      setSelected((prev) => {
+                        if (allVisibleChecked) {
+                          const next = { ...prev };
+                          for (const e of filtered) delete next[e.name];
+                          return next;
+                        }
+                        const next = { ...prev };
+                        for (const e of filtered) next[e.name] = true;
+                        return next;
+                      })
+                    }
+                    aria-label="Select all in this folder"
+                    title="Select all in this folder"
+                    className="h-3.5 w-3.5 accent-emerald-500 align-middle"
+                  />
+                </th>
+                <th className="px-1 py-2 w-8" aria-label="Type" />
+                <th className="px-2 py-2 min-w-0">
+                  <button type="button" onClick={() => toggleSort('name')} title="Sort by name" className="uppercase tracking-wide text-[11px] text-gray-500 hover:text-white">
+                    Name {sortKey === 'name' ? (sortAsc ? '▲' : '▼') : ''}
+                  </button>
+                </th>
+                <th className="px-2 py-2 text-right">
+                  <button type="button" onClick={() => toggleSort('size')} title="Sort by size" className="uppercase tracking-wide text-[11px] text-gray-500 hover:text-white">
+                    Size {sortKey === 'size' ? (sortAsc ? '▲' : '▼') : ''}
+                  </button>
+                </th>
+                <th className="hidden md:table-cell px-2 py-2 text-right">
+                  <button type="button" onClick={() => toggleSort('mode')} title="Sort by permissions" className="uppercase tracking-wide text-[11px] text-gray-500 hover:text-white">
+                    Perms {sortKey === 'mode' ? (sortAsc ? '▲' : '▼') : ''}
+                  </button>
+                </th>
+                <th className="hidden lg:table-cell px-2 py-2 text-right">
+                  <button type="button" onClick={() => toggleSort('mod_time')} title="Sort by modified" className="uppercase tracking-wide text-[11px] text-gray-500 hover:text-white">
+                    Modified {sortKey === 'mod_time' ? (sortAsc ? '▲' : '▼') : ''}
+                  </button>
+                </th>
+                <th className="pr-2 pl-1 py-2 text-right w-10" aria-label="Actions" />
+              </tr>
+            </thead>
             <tbody>
-              {loading && filtered.length === 0 ? (
+              {searchHits !== null ? (
+                searchHits.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-8 text-center text-gray-500 text-sm">
+                      {searching ? 'Searching…' : `No matches for “${filter}” under ${path}.`}
+                    </td>
+                  </tr>
+                ) : (
+                  searchHits.map((h) => (
+                    <tr key={h.path} className="border-b border-white/5 hover:bg-white/[0.03]">
+                      <td className="pl-3 pr-1 py-2 w-8" />
+                      <td className="px-1 py-2 w-8" style={{ color: KIND_TONE[h.is_dir ? 'folder' : classifyEntry({ name: h.name, is_dir: false })] }}>
+                        <FileGlyph kind={h.is_dir ? 'folder' : classifyEntry({ name: h.name, is_dir: false })} />
+                      </td>
+                      <td className="px-2 py-2 min-w-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (h.is_dir) {
+                              goPath(joinPath(path, h.path));
+                              clearSearch();
+                            } else {
+                              const slash = h.path.lastIndexOf('/');
+                              if (slash > 0) {
+                                goPath(joinPath(path, h.path.slice(0, slash)));
+                                clearSearch();
+                              } else {
+                                const row = entries.find((e) => e.name === h.name);
+                                if (row) void openPreview(row);
+                              }
+                            }
+                          }}
+                          title={h.path}
+                          className="block max-w-72 truncate text-left text-[13px] text-gray-200 hover:underline"
+                        >
+                          <span className="ks-mono text-gray-500">{h.path.includes('/') ? `${h.path.slice(0, h.path.lastIndexOf('/') + 1)}` : ''}</span>
+                          <span className={h.is_dir ? 'text-white font-medium' : ''}>{h.name}</span>
+                        </button>
+                      </td>
+                      <td className="px-2 py-2 text-right text-xs tabular-nums text-gray-400 whitespace-nowrap">
+                        {h.is_dir ? '—' : formatBytes(h.size)}
+                      </td>
+                      <td className="hidden md:table-cell px-2 py-2 text-right text-xs font-mono text-gray-500">—</td>
+                      <td className="hidden lg:table-cell px-2 py-2 text-right text-xs text-gray-500 whitespace-nowrap">
+                        {h.mod_time ? new Date(h.mod_time * 1000).toLocaleString() : ''}
+                      </td>
+                      <td className="pr-2 pl-1 py-2 text-right w-10" />
+                    </tr>
+                  ))
+                )
+              ) : loading && filtered.length === 0 ? (
                 [0, 1, 2, 3, 4, 5].map((i) => (
                   <tr key={i} className="border-b border-white/5 animate-pulse" aria-hidden="true">
                     <td className="px-3 py-2.5"><div className="h-3.5 w-3.5 rounded bg-neutral-800" /></td>
@@ -1000,7 +1097,7 @@ const InstanceFiles: React.FC<{ instanceId: number; filesSlug: string }> = ({ in
                 ))
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-gray-500 text-sm">
+                  <td colSpan={7} className="px-4 py-8 text-center text-gray-500 text-sm">
                     {error ? 'Could not read this directory.' : 'This directory is empty.'}
                   </td>
                 </tr>
@@ -1042,8 +1139,15 @@ const InstanceFiles: React.FC<{ instanceId: number; filesSlug: string }> = ({ in
                       <td className="px-2 py-2 text-right text-xs tabular-nums text-gray-400 whitespace-nowrap">
                         {e.is_dir ? '—' : formatBytes(e.size)}
                       </td>
-                      <td className="hidden md:table-cell px-2 py-2 text-right text-xs font-mono text-gray-500">
-                        {e.mode || ''}
+                      <td className="hidden md:table-cell px-2 py-2 text-right">
+                        <button
+                          type="button"
+                          onClick={() => setModal({ kind: 'chmod', targets: [e.name], isDir: e.is_dir, mode: String(e.mode || (e.is_dir ? '755' : '644')), recursive: false, busy: false })}
+                          title={`Permissions ${e.mode || ''} — click to change`}
+                          className="text-xs font-mono text-gray-500 hover:text-white hover:underline"
+                        >
+                          {e.mode || '—'}
+                        </button>
                       </td>
                       <td className="hidden lg:table-cell px-2 py-2 text-right text-xs text-gray-500 whitespace-nowrap">
                         {e.mod_time ? new Date(e.mod_time * 1000).toLocaleString() : ''}
@@ -1053,14 +1157,30 @@ const InstanceFiles: React.FC<{ instanceId: number; filesSlug: string }> = ({ in
                           ariaLabel={`Actions for ${e.name}`}
                           items={[
                             { key: e.is_dir ? 'open' : 'edit', label: e.is_dir ? 'Open' : 'Edit' },
+                            ...(!e.is_dir && classifyEntry(e) !== 'binary' ? [{ key: 'preview', label: 'Preview' }] : []),
                             ...(e.is_dir ? [] : [{ key: 'download', label: 'Download' }]),
+                            ...(e.is_dir ? [{ key: 'dlzip', label: 'Download as .zip' }] : []),
+                            ...(isArchiveName(e.name) && !e.is_dir ? [{ key: 'extract', label: 'Extract…' }] : []),
+                            ...(!e.is_dir && !isArchiveName(e.name) ? [{ key: 'archive1', label: 'Compress…' }] : []),
+                            { key: 'duplicate', label: 'Duplicate' },
+                            { key: 'copy', label: 'Copy to…' },
+                            { key: 'move', label: 'Move to…' },
                             { key: 'rename', label: 'Rename' },
+                            { key: 'chmod', label: 'Permissions…' },
                             { key: 'delete', label: 'Remove', tone: 'danger' },
                           ]}
                           onSelect={(k) => {
                             if (k === 'open' || k === 'edit') onRowOpen(e);
+                            else if (k === 'preview') void openPreview(e);
                             else if (k === 'download') void onDownload(e);
+                            else if (k === 'dlzip') void downloadAsZip([e.name], e.name);
+                            else if (k === 'extract') setModal({ kind: 'extract', archive: e.name, dest: path, busy: false });
+                            else if (k === 'archive1') setModal({ kind: 'archive', names: [e.name], file: `${e.name}.zip`, format: 'zip', busy: false });
+                            else if (k === 'duplicate') void onDuplicate(e);
+                            else if (k === 'copy') setModal({ kind: 'copy', names: [e.name], dest: path, busy: false });
+                            else if (k === 'move') setModal({ kind: 'move', names: [e.name], dest: path, busy: false });
                             else if (k === 'rename') setModal({ kind: 'rename', from: e.name, name: e.name, busy: false });
+                            else if (k === 'chmod') setModal({ kind: 'chmod', targets: [e.name], isDir: e.is_dir, mode: String(e.mode || (e.is_dir ? '755' : '644')), recursive: false, busy: false });
                             else if (k === 'delete') void onDeleteOne(e);
                           }}
                         />
@@ -1075,7 +1195,9 @@ const InstanceFiles: React.FC<{ instanceId: number; filesSlug: string }> = ({ in
       </div>
 
       <p className="text-[11px] text-gray-600">
-        {filtered.length} item{filtered.length === 1 ? '' : 's'} · drag &amp; drop files or folders anywhere to upload
+        {searchHits !== null
+          ? `${searchHits.length} search result${searchHits.length === 1 ? '' : 's'}${searchTruncated ? ' (capped)' : ''} · Enter in the box to re-search · Esc clears`
+          : `${filtered.length} item${filtered.length === 1 ? '' : 's'}${selCount ? ` · ${selCount} selected` : ''} · drag & drop files or folders anywhere to upload`}
       </p>
 
       {/* Hidden pickers */}
