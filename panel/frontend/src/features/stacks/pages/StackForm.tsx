@@ -15,6 +15,7 @@ import {
   STACK_INSTALL_TYPES,
   STACK_RUNTIMES,
   blankStackInstallStep,
+  blankStackLaunchToken,
   blankStackStudioDraft,
   emitStackStudioManifest,
   slugify,
@@ -155,6 +156,19 @@ const StackForm: React.FC = () => {
     });
   };
 
+  // ---- ask-at-launch tokens (prompted at launch, exported as ENV) ----
+  const [editingTokenIdx, setEditingTokenIdx] = useState<number | null>(null);
+  const moveLaunchToken = (i: number, dir: -1 | 1) => {
+    setDraft((d) => {
+      const j = i + dir;
+      if (j < 0 || j >= d.launchTokens.length) return d;
+      const tokens = [...d.launchTokens];
+      [tokens[i], tokens[j]] = [tokens[j], tokens[i]];
+      return { ...d, launchTokens: tokens };
+    });
+    setEditingTokenIdx((cur) => (cur === i ? i + dir : cur));
+  };
+
   const submit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!draft.name.trim()) { setError('Name is required'); setTab('meta'); return; }
@@ -162,6 +176,17 @@ const StackForm: React.FC = () => {
     if (validation.length > 0) { setError(validation[0]); setTab('meta'); return; }
     if (draft.color && !/^#[0-9a-fA-F]{6}$/.test(draft.color.trim())) { setError('Colour must be a #rrggbb hex value (or empty for default)'); setTab('meta'); return; }
     if (draft.installType === 'docker' && !draft.installImage.trim()) { setError('Docker image is required for Type Docker'); setTab('install'); return; }
+    {
+      const seen = new Set<string>();
+      for (const t of draft.launchTokens) {
+        const name = t.name.trim();
+        if (!name) { setError('Every launch token needs an ENV name'); setTab('launch'); return; }
+        if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) { setError(`Invalid token name "${name}": use letters, digits and underscores, starting with a letter or underscore`); setTab('launch'); return; }
+        const upper = name.toUpperCase();
+        if (seen.has(upper)) { setError(`Duplicate launch token "${name}"`); setTab('launch'); return; }
+        seen.add(upper);
+      }
+    }
     setSaving(true);
     setError('');
     try {
@@ -410,8 +435,169 @@ const StackForm: React.FC = () => {
                   <p className="text-xs text-gray-400">
                     Same step vocabulary as the Install workflow (shell / download / extract / …),
                     but these steps run every time the stack launches — not once at install.
+                    Tokens below are asked at launch and exported as environment variables.
                     Leave empty to launch with no pre-steps.
                   </p>
+                </div>
+
+                {/* Ask at launch — tokens prompted at launch time, placed
+                    into ENV (token NAME is the ENV key, e.g. API_TOKEN is
+                    usable as {{API_TOKEN}} / ${API_TOKEN} / $(API_TOKEN)). */}
+                <div className={sectionCls}>
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div>
+                      <h4 className="text-sm font-semibold text-white tracking-tight">Ask at launch · Tokens → ENV</h4>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {draft.launchTokens.length === 0
+                          ? 'No tokens yet — add one to prompt for a value (e.g. API token) at launch.'
+                          : `${draft.launchTokens.length} token${draft.launchTokens.length > 1 ? 's' : ''} asked at launch, each exported as $NAME.`}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDraft((d) => ({ ...d, launchTokens: [...d.launchTokens, blankStackLaunchToken()] }));
+                        setEditingTokenIdx(draft.launchTokens.length);
+                      }}
+                      className={addBtn}
+                      aria-label="Add launch token"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                    </button>
+                  </div>
+                  {draft.launchTokens.length === 0 ? (
+                    <p className="text-xs text-gray-500">Nothing is asked at launch — the workflow below runs with defaults only.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {draft.launchTokens.map((t, i) => {
+                        const isEditing = editingTokenIdx === i;
+                        return (
+                          <div key={i} className="ks-card ks-form-card rounded-md overflow-hidden">
+                            <div className="p-3 flex items-center gap-3 flex-wrap">
+                              <div className="flex flex-col gap-0.5 shrink-0">
+                                <button type="button" aria-label="Move token up" onClick={() => moveLaunchToken(i, -1)} disabled={i === 0} className="p-1 rounded text-gray-400 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed">
+                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M18 15l-6-6-6 6" /></svg>
+                                </button>
+                                <button type="button" aria-label="Move token down" onClick={() => moveLaunchToken(i, 1)} disabled={i === draft.launchTokens.length - 1} className="p-1 rounded text-gray-400 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed">
+                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M6 9l6 6 6-6" /></svg>
+                                </button>
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-sm font-semibold text-white truncate">{t.label.trim() || t.name.trim() || `Token ${i + 1}`}</span>
+                                  {t.name.trim() && <code className="text-[11px] text-gray-500 font-mono">${t.name.trim()}</code>}
+                                  {t.required && (
+                                    <span className="text-[10px] uppercase tracking-wide border px-1.5 py-0.5 rounded bg-red-900/30 text-red-300 border-red-700/40">required</span>
+                                  )}
+                                  {t.secret && (
+                                    <span className="text-[10px] uppercase tracking-wide border px-1.5 py-0.5 rounded bg-amber-900/30 text-amber-300 border-amber-700/40">secret</span>
+                                  )}
+                                </div>
+                                {t.description.trim() && <p className="text-[11px] text-gray-500 truncate mt-0.5">{t.description}</p>}
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (editingTokenIdx === i) setEditingTokenIdx(null);
+                                    setDraft((d) => ({ ...d, launchTokens: d.launchTokens.filter((_, j) => j !== i) }));
+                                  }}
+                                  className="p-2 rounded hover:bg-white/5 text-red-400 hover:text-red-300"
+                                  aria-label="Remove token"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+                                </button>
+                                <button type="button" onClick={() => setEditingTokenIdx(isEditing ? null : i)} className="p-2 rounded hover:bg-white/5 text-gray-400 hover:text-white" aria-label="Options">
+                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><polyline points="6 9 12 15 18 9" /></svg>
+                                </button>
+                              </div>
+                            </div>
+                            {isEditing && (
+                              <div className="px-3 pb-3 pt-1 border-t border-white/5 space-y-2 bg-black/20">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                  <input
+                                    value={t.name}
+                                    onChange={(e) => setDraft((d) => {
+                                      const tokens = [...d.launchTokens];
+                                      tokens[i] = { ...tokens[i], name: e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, '') };
+                                      return { ...d, launchTokens: tokens };
+                                    })}
+                                    placeholder="ENV name (e.g. API_TOKEN)"
+                                    className={monoCls}
+                                  />
+                                  <input
+                                    value={t.label}
+                                    onChange={(e) => setDraft((d) => {
+                                      const tokens = [...d.launchTokens];
+                                      tokens[i] = { ...tokens[i], label: e.target.value };
+                                      return { ...d, launchTokens: tokens };
+                                    })}
+                                    placeholder="Prompt label (e.g. API token)"
+                                    className={glassFieldClass}
+                                  />
+                                </div>
+                                <input
+                                  value={t.description}
+                                  onChange={(e) => setDraft((d) => {
+                                    const tokens = [...d.launchTokens];
+                                    tokens[i] = { ...tokens[i], description: e.target.value };
+                                    return { ...d, launchTokens: tokens };
+                                  })}
+                                  placeholder="Help text shown under the launch prompt"
+                                  className={glassFieldClass}
+                                />
+                                <input
+                                  value={t.default}
+                                  onChange={(e) => setDraft((d) => {
+                                    const tokens = [...d.launchTokens];
+                                    tokens[i] = { ...tokens[i], default: e.target.value };
+                                    return { ...d, launchTokens: tokens };
+                                  })}
+                                  placeholder="Default value (empty = must type at launch when required)"
+                                  className={monoCls}
+                                />
+                                <div className="flex flex-wrap gap-4 items-center">
+                                  <label className="inline-flex items-center gap-2 cursor-pointer">
+                                    <button
+                                      type="button"
+                                      onClick={() => setDraft((d) => {
+                                        const tokens = [...d.launchTokens];
+                                        tokens[i] = { ...tokens[i], required: !tokens[i].required };
+                                        return { ...d, launchTokens: tokens };
+                                      })}
+                                      className={`relative w-9 h-5 rounded-full transition ${t.required ? 'bg-green-600' : 'bg-neutral-700'}`}
+                                      aria-pressed={t.required}
+                                    >
+                                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition ${t.required ? 'translate-x-4' : ''}`} />
+                                    </button>
+                                    <span className="text-sm text-gray-300">Required</span>
+                                  </label>
+                                  <label className="inline-flex items-center gap-2 cursor-pointer">
+                                    <button
+                                      type="button"
+                                      onClick={() => setDraft((d) => {
+                                        const tokens = [...d.launchTokens];
+                                        tokens[i] = { ...tokens[i], secret: !tokens[i].secret };
+                                        return { ...d, launchTokens: tokens };
+                                      })}
+                                      className={`relative w-9 h-5 rounded-full transition ${t.secret ? 'bg-green-600' : 'bg-neutral-700'}`}
+                                      aria-pressed={t.secret}
+                                    >
+                                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition ${t.secret ? 'translate-x-4' : ''}`} />
+                                    </button>
+                                    <span className="text-sm text-gray-300">Secret (mask at prompt)</span>
+                                  </label>
+                                </div>
+                                <p className="text-[11px] text-gray-500">
+                                  Placed into ENV as <code className="font-mono text-gray-400">{t.name.trim() ? `$${t.name.trim()}` : '$NAME'}</code> — reference it in workflow steps as <code className="font-mono text-gray-400">{t.name.trim() ? `{{${t.name.trim()}}} / $${t.name.trim()} / $(${t.name.trim()})` : '{{NAME}} / ${NAME} / $(NAME)'}</code>.
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 {/* Launch workflow — reuses the exact template install step

@@ -325,6 +325,7 @@ export const blankStackStudioDraft = (): StackStudioDraft => ({
   launchSteps: [],
   launchTimeoutS: '',
   launchTerminalId: '',
+  launchTokens: [],
   backendScript: '',
   frontendHtml: '',
   frontendCss: '',
@@ -361,6 +362,8 @@ export function emitStackStudioManifest(draft: StackStudioDraft): Record<string,
     launchSteps: draft.launchSteps || [],
     launch_timeout_sec: (draft.launchTimeoutS || '').replace(/[^0-9]/g, '') || undefined,
     launch_terminal_id: (draft.launchTerminalId || '').trim() || undefined,
+    // Ask-at-launch tokens (prompted at launch, exported as ENV).
+    launchTokens: draft.launchTokens || [],
     // Docker target image (only meaningful when installType is docker;
     // harmless pass-through otherwise).
     ...(draft.installType === 'docker' && draft.installImage.trim()
