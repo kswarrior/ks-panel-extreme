@@ -832,6 +832,13 @@ func NewRouter() http.Handler {
 		// terminal_id or install_terminal_id; terminal input still rides the
 		// POST …/stdin paths so the terminal input policy stays enforced.
 		r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Get("/api/instances/{id}/workflow", handlers.WorkflowHandler)
+		// Startup-terminal bridge. Same shape and same VIEW_INSTANCES gate
+		// as the terminal bridge, but the browser attaches to the
+		// instance's MAIN process stdio (template startup command, e.g. a
+		// Minecraft server) through ksedge /api/edge/attach instead of a
+		// side shell. The SPA only dials it from panes whose ID matches
+		// the template's advanced.startup_terminal_id.
+		r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Get("/api/instances/{id}/startup", handlers.StartupHandler)
 
 		// Instance-scoped File Manager. The browser dials these JSON/stream
 		// routes; the panel authenticates the session cookie, looks up the

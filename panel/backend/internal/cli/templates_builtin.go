@@ -197,6 +197,7 @@ var builtinTemplates = []builtinTemplate{
   "home_page": "overview",
   "advanced": {
     "startup_command": "while [ ! -f /mc/.install-complete ]; do sleep 1; done; cd /mc && exec java -Xmx1500M -jar server.jar --nogui",
+    "startup_terminal_id": "mc-console",
     "stop_command": "",
     "stop_signal": "",
     "working_dir": "",
