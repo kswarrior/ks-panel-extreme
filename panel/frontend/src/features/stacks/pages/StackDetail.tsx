@@ -75,6 +75,9 @@ const StackDetail: React.FC = () => {
   const [grants, setGrants] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
   const [toggling, setToggling] = useState(false);
+  const [installing, setInstalling] = useState(false);
+  const [reinstalling, setReinstalling] = useState(false);
+  const [notice, setNotice] = useState('');
   const [downloading, setDownloading] = useState(false);
   const [manifestOpen, setManifestOpen] = useState(false);
   const [copied, setCopied] = useState('');
@@ -224,6 +227,15 @@ const StackDetail: React.FC = () => {
     }
   };
 
+  const flashNotice = (msg: string) => {
+    setNotice(msg);
+    window.setTimeout(() => setNotice((cur) => (cur === msg ? '' : cur)), 6000);
+  };
+
+  const scrollToGrants = () => {
+    requestAnimationFrame(() => document.getElementById('stack-grants')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  };
+
   const toggle = async () => {
     setToggling(true);
     try {
@@ -241,6 +253,70 @@ const StackDetail: React.FC = () => {
       setError(extractStackApiError(e, 'Toggle failed.'));
     } finally {
       setToggling(false);
+    }
+  };
+
+  // Launch activates the stack; when grants are pending it surfaces the
+  // checklist message and jumps to the grants editor instead.
+  const launch = async () => {
+    if (!stack || stack.active) return;
+    setToggling(true);
+    setError('');
+    try {
+      const res = await activateStack(stack.id) as any;
+      if (res?.pending) {
+        setError(res.message || `${res.pending} grants still pending — approve them below, then launch again.`);
+        scrollToGrants();
+        return;
+      }
+      flashNotice(`Launched ${stack.name}.`);
+      await load();
+    } catch (e) {
+      setError(extractStackApiError(e, 'Launch failed.'));
+    } finally {
+      setToggling(false);
+    }
+  };
+
+  // Install re-materializes the package + data dir from the stored
+  // manifest. Non-destructive: grants and active state are kept.
+  const doInstall = async () => {
+    if (!stack) return;
+    setInstalling(true);
+    setError('');
+    try {
+      await installStack(stack.id);
+      flashNotice(`Installed ${stack.name} — package rebuilt from manifest.`);
+      await load();
+    } catch (e) {
+      setError(extractStackApiError(e, 'Install failed.'));
+    } finally {
+      setInstalling(false);
+    }
+  };
+
+  // Reinstall resets to a fresh install: deactivates, resets every grant
+  // to pending, rebuilds the package. Files and data are kept.
+  const doReinstall = async () => {
+    if (!stack) return;
+    const ok = await confirm({
+      title: `Reinstall ${stack.name}?`,
+      message: 'Deactivates the stack, resets all capability grants to pending, and rebuilds the package. Files and data are kept.',
+      confirmLabel: 'Reinstall',
+      tone: 'warning',
+    });
+    if (!ok) return;
+    setReinstalling(true);
+    setError('');
+    try {
+      await reinstallStack(stack.id);
+      flashNotice(`Reinstalled ${stack.name} — approve the pending grants, then launch.`);
+      await load();
+      scrollToGrants();
+    } catch (e) {
+      setError(extractStackApiError(e, 'Reinstall failed.'));
+    } finally {
+      setReinstalling(false);
     }
   };
 
@@ -310,7 +386,9 @@ const StackDetail: React.FC = () => {
           ariaLabel={`Actions for stack ${stack.name}`}
           items={[
             ...(appUrl ? [{ key: 'open', label: 'Open', tone: 'default' as const }] : []),
-            { key: 'toggle', label: toggling ? '…' : stack.active ? 'Deactivate' : 'Activate', tone: stack.active ? 'danger' as const : 'default' as const },
+            { key: 'launch', label: toggling ? '…' : stack.active ? 'Stop' : 'Launch', tone: stack.active ? 'danger' as const : 'default' as const },
+            { key: 'install', label: installing ? 'Installing…' : 'Install', tone: 'default' as const },
+            { key: 'reinstall', label: reinstalling ? 'Reinstalling…' : 'Reinstall', tone: 'default' as const },
             { key: 'download', label: downloading ? 'Downloading…' : 'Download .ksps', tone: 'default' as const },
             { key: 'copyId', label: copied === 'id' ? 'Copied!' : 'Copy ID', tone: 'default' as const },
             { key: 'copyManifest', label: copied === 'manifest' ? 'Copied!' : 'Copy manifest', tone: 'default' as const },
@@ -318,7 +396,9 @@ const StackDetail: React.FC = () => {
           ]}
           onSelect={(k) => {
             if (k === 'open') navigate(`/stacks/${stack.slug}/`);
-            if (k === 'toggle') void toggle();
+            if (k === 'launch') void (stack.active ? toggle() : launch());
+            if (k === 'install') void doInstall();
+            if (k === 'reinstall') void doReinstall();
             if (k === 'download') void handleDownload();
             if (k === 'copyId') void copy(String(stack.id), 'id');
             if (k === 'copyManifest') void copy(prettyManifest, 'manifest');
@@ -327,6 +407,17 @@ const StackDetail: React.FC = () => {
         />
       </PageActionsPill>
       <p className="text-xs text-gray-500 truncate">ID {stack.id} · {stack.source || 'file'} · {relativeTime(stack.created_at)}</p>
+
+      {error && (
+        <div className="text-xs text-red-300 border border-red-700/40 rounded px-3 py-2 bg-red-900/20">
+          {error}
+        </div>
+      )}
+      {notice && (
+        <div className="text-xs text-emerald-300 border border-emerald-700/40 rounded px-3 py-2 bg-emerald-900/20">
+          {notice}
+        </div>
+      )}
 
       <GlassCard className="ks-stat-card p-4">
         <div className="flex items-start gap-3 min-w-0">
@@ -401,13 +492,19 @@ const StackDetail: React.FC = () => {
           ) : (
             <button
               type="button"
-              onClick={() => void toggle()}
+              onClick={() => void launch()}
               disabled={toggling}
               className="px-3 py-1.5 text-xs rounded-md bg-white text-black hover:bg-gray-200 disabled:opacity-50"
             >
-              {toggling ? '…' : 'Activate'}
+              {toggling ? 'Launching…' : 'Launch'}
             </button>
           )}
+          <button type="button" onClick={() => void doInstall()} disabled={installing} className="px-3 py-1.5 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white disabled:opacity-50">
+            {installing ? 'Installing…' : 'Install'}
+          </button>
+          <button type="button" onClick={() => void doReinstall()} disabled={reinstalling} className="px-3 py-1.5 text-xs rounded-md border border-amber-700/40 bg-amber-900/20 hover:bg-amber-900/40 text-amber-200 disabled:opacity-50">
+            {reinstalling ? 'Reinstalling…' : 'Reinstall'}
+          </button>
           <button type="button" onClick={() => void handleDownload()} disabled={downloading} className="px-3 py-1.5 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white disabled:opacity-50">
             {downloading ? 'Downloading…' : 'Download .ksps'}
           </button>
