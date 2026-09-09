@@ -212,6 +212,10 @@ export interface StackStudioDraft {
   launchSteps: StackInstallStep[];
   launchTimeoutS: string;
   launchTerminalId: string;
+  // Ask-at-launch tokens: values prompted for at launch time and exported
+  // as environment variables (token NAME is the ENV key, e.g. API_TOKEN
+  // becomes $API_TOKEN). Mirrors the template env-var "ask" behaviour.
+  launchTokens: StackLaunchToken[];
   backendScript: string;
   frontendHtml: string;
   frontendCss: string;
@@ -275,6 +279,28 @@ export const blankStackInstallStep = (): StackInstallStep => ({
   branch: 'main',
   retries: '0',
   ignore_errors: false,
+});
+
+// One ask-at-launch token. The launcher prompts for a value (unless a
+// default covers it and the token isn't required) and exports the answer
+// as the environment variable NAME — usable in workflow steps as
+// {{NAME}} / ${NAME} / $(NAME), exactly like template env vars.
+export interface StackLaunchToken {
+  name: string;
+  label: string;
+  description: string;
+  default: string;
+  required: boolean;
+  secret: boolean;
+}
+
+export const blankStackLaunchToken = (): StackLaunchToken => ({
+  name: '',
+  label: '',
+  description: '',
+  default: '',
+  required: false,
+  secret: true,
 });
 
 export const blankStackStudioDraft = (): StackStudioDraft => ({
