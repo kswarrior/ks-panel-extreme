@@ -3,6 +3,7 @@ module github.com/example/kspanel
 go 1.25.0
 
 require (
+	github.com/BurntSushi/toml v1.4.0
 	github.com/dop251/goja v0.0.0-20260723142020-b4aef50fa347
 	github.com/go-chi/chi/v5 v5.0.12
 	github.com/go-chi/cors v1.2.0

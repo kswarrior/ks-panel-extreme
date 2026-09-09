@@ -123,17 +123,45 @@ export async function deactivateStack(id: number): Promise<void> {
   await client.post(`/api/stacks/${id}/deactivate`);
 }
 
-// Install re-materializes the stack's package + data dir from its stored
-// manifest without touching grants or active state. Returns the stack.
-export async function installStack(id: number): Promise<Stack> {
-  const res = await client.post<Stack>(`/api/stacks/${id}/install`);
+// ---- Async operation console ------------------------------------------------
+// Install / launch / reinstall run as server-side jobs with step progress +
+// live logs. Closing the console only dismisses the view (the job keeps
+// running); Stop cancels it. Poll getStackOp while status is "running".
+
+export type StackOpName = 'install' | 'launch' | 'reinstall';
+export type StackOpStatus = 'running' | 'done' | 'error' | 'cancelled';
+export type StackOpStepState = 'pending' | 'running' | 'done' | 'error' | 'skipped';
+
+export interface StackOpStep {
+  name: string;
+  state: StackOpStepState;
+  detail?: string;
+}
+
+export interface StackOpJob {
+  job_id: string;
+  stack_id: number;
+  op: StackOpName;
+  status: StackOpStatus;
+  steps: StackOpStep[];
+  logs: string[];
+  error?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function startStackOp(id: number, op: StackOpName): Promise<StackOpJob> {
+  const res = await client.post<StackOpJob>(`/api/stacks/${id}/op/${op}`);
   return res.data;
 }
 
-// Reinstall resets the stack to a fresh install: deactivates it, flips all
-// grants back to pending, and rebuilds the package. Returns the stack.
-export async function reinstallStack(id: number): Promise<Stack> {
-  const res = await client.post<Stack>(`/api/stacks/${id}/reinstall`);
+export async function getStackOp(id: number, jobId: string): Promise<StackOpJob> {
+  const res = await client.get<StackOpJob>(`/api/stacks/${id}/op/${encodeURIComponent(jobId)}`);
+  return res.data;
+}
+
+export async function stopStackOp(id: number, jobId: string): Promise<StackOpJob> {
+  const res = await client.post<StackOpJob>(`/api/stacks/${id}/op/${encodeURIComponent(jobId)}/stop`);
   return res.data;
 }
 

@@ -640,6 +640,10 @@ func NewRouter() http.Handler {
 			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionEdit)).Post("/{id}/deactivate", handlers.DeactivateStackHandler)
 			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionEdit)).Post("/{id}/install", handlers.InstallStackHandler)
 			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionEdit)).Post("/{id}/reinstall", handlers.ReinstallStackHandler)
+			// Async operation console: start a job, poll it, stop it.
+			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionEdit)).Post("/{id}/op/{op}", handlers.StartStackOpHandler)
+			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionEdit)).Get("/{id}/op/{job}", handlers.GetStackOpHandler)
+			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionEdit)).Post("/{id}/op/{job}/stop", handlers.StopStackOpHandler)
 			// Workdir file manager (Studio Files tab + Detail Files section).
 			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionView)).Get("/{id}/files", handlers.ListStackFilesHandler)
 			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionView)).Get("/{id}/files/read", handlers.ReadStackFileHandler)

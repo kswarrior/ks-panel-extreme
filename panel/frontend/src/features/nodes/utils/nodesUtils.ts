@@ -112,19 +112,22 @@ export function buildEdgeConfig(
   }
   const upstreamTls = origin.trim().toLowerCase().startsWith('https');
   void useTls;
-  const cfg: Record<string, any> = {
-    uuid: 'auto-generated-by-panel',
-    name,
-    panel_url: origin,
-    token,
-    listen_port: listenPort,
-    heartbeat_interval: 60,
-    use_tls_upstream: upstreamTls,
-    skip_verify: Boolean(opts?.skipVerify),
-    connection_mode: (opts?.connectionMode || 'direct') as string,
-  };
+  // Flat scalar schema only — emit TOML directly (no dep): integers/booleans
+  // raw, strings via JSON.stringify (its escapes are valid TOML basic-string
+  // escapes for this value domain). Key order matches the edge's config.Load.
+  const lines: string[] = ['# ksedge edge config (TOML) — place next to the ksedge binary'];
+  const str = (v: unknown): string => JSON.stringify(String(v ?? ''));
+  lines.push(`uuid = ${str('auto-generated-by-panel')}`);
+  lines.push(`name = ${str(name)}`);
+  lines.push(`panel_url = ${str(origin)}`);
+  lines.push(`token = ${str(token)}`);
+  lines.push(`listen_port = ${listenPort}`);
+  lines.push(`heartbeat_interval = 60`);
+  lines.push(`use_tls_upstream = ${upstreamTls ? 'true' : 'false'}`);
+  lines.push(`skip_verify = ${Boolean(opts?.skipVerify) ? 'true' : 'false'}`);
   if (opts?.instancesDir && String(opts.instancesDir).trim()) {
-    cfg.instances_dir = String(opts.instancesDir).trim();
+    lines.push(`instances_dir = ${str(String(opts.instancesDir).trim())}`);
   }
-  return JSON.stringify(cfg, null, 2);
+  lines.push(`connection_mode = ${str((opts?.connectionMode || 'direct') as string)}`);
+  return lines.join('\n') + '\n';
 }

@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/BurntSushi/toml"
 	"github.com/example/kspanel/internal/models"
 	"github.com/example/kspanel/internal/permissions"
 	"github.com/example/kspanel/internal/repository"
@@ -511,8 +512,9 @@ func handleThemeFileUpload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var manifest map[string]any
-	if err := json.Unmarshal(rawManifest, &manifest); err != nil {
-		http.Error(w, "manifest file is not valid JSON: "+err.Error(), http.StatusBadRequest)
+	manifest, err = decodeThemeManifest(rawManifest)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -590,8 +592,9 @@ func InstallThemeFromURLHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var manifest map[string]any
-	if err := json.Unmarshal(rawManifest, &manifest); err != nil {
-		http.Error(w, "manifest from URL is invalid JSON: "+err.Error(), http.StatusBadRequest)
+	manifest, ferr = decodeThemeManifest(rawManifest)
+	if ferr != nil {
+		http.Error(w, "manifest from URL "+ferr.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -726,6 +729,7 @@ func fetchThemeManifestFromURL(ctx context.Context, raw string) ([]byte, error) 
 	}
 	ct := resp.Header.Get("Content-Type")
 	if ct != "" && !strings.HasPrefix(ct, "application/json") &&
+		!strings.HasPrefix(ct, "application/toml") &&
 		!strings.HasPrefix(ct, "text/") && !strings.HasPrefix(ct, "application/octet-stream") {
 		return nil, &themeAllowedURLError{
 			http.StatusUnsupportedMediaType,
@@ -936,14 +940,32 @@ func GetThemeMarketHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, catalog)
 }
 
+// decodeThemeManifest parses a theme manifest in either supported format:
+// JSON (canonical) or TOML (authoring-friendly, same keys). JSON is tried
+// first so every previously-accepted file parses byte-identically; TOML is
+// the fallback. TOML type notes: integers decode as int64 and bare datetime
+// values as time.Time (re-encoded to RFC3339 in the stored spec) — quote
+// date-like strings to keep them literal.
+func decodeThemeManifest(raw []byte) (map[string]any, error) {
+	var manifest map[string]any
+	if err := json.Unmarshal(raw, &manifest); err == nil {
+		return manifest, nil
+	}
+	manifest = nil
+	if err := toml.Unmarshal(raw, &manifest); err != nil {
+		return nil, fmt.Errorf("manifest is neither valid JSON nor valid TOML: %s", err.Error())
+	}
+	return manifest, nil
+}
+
 // parseThemeManifest validates raw manifest bytes into an upsert input.
 // The manifest shape is the same one POST /themes (file + URL) accepts:
 // {id, name, description?, spec}. Shared by the market installer so every
 // install path enforces identical rules.
 func parseThemeManifest(raw []byte) (id, name, description string, spec json.RawMessage, verr error) {
-	var manifest map[string]any
-	if err := json.Unmarshal(raw, &manifest); err != nil {
-		return "", "", "", nil, fmt.Errorf("manifest is not valid JSON: %s", err.Error())
+	manifest, err := decodeThemeManifest(raw)
+	if err != nil {
+		return "", "", "", nil, err
 	}
 	id = getString(manifest, "id")
 	name = getString(manifest, "name")

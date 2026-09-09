@@ -11,16 +11,19 @@ import {
   setStackGrants,
   activateStack,
   deactivateStack,
-  installStack,
-  reinstallStack,
+  startStackOp,
+  getStackOp,
+  stopStackOp,
   deleteStack,
   updateStack,
   downloadStack,
   stackAppUrl,
   extractStackApiError,
 } from '@/features/stacks/api/stacks';
+import type { StackOpJob, StackOpName } from '@/features/stacks/api/stacks';
 import { Stack, stackCapabilityMeta, stackSourceMeta, STACK_CATEGORIES } from '@/shared/types/stack';
 import StackFileManager from '@/features/stacks/components/StackFileManager';
+import StackOpModal from '@/features/stacks/components/StackOpModal';
 import { useConfirm } from '@/shared/stores/confirmStore';
 
 function formatDate(iso: string): string {
@@ -77,10 +80,14 @@ const StackDetail: React.FC = () => {
   const [grants, setGrants] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
   const [toggling, setToggling] = useState(false);
-  const [installing, setInstalling] = useState(false);
-  const [reinstalling, setReinstalling] = useState(false);
   const [notice, setNotice] = useState('');
   const [downloading, setDownloading] = useState(false);
+  // Operation console: the running/finished job + modal visibility. Closing
+  // the modal only hides it — polling continues until the job terminates.
+  const [opJob, setOpJob] = useState<StackOpJob | null>(null);
+  const [opOpen, setOpOpen] = useState(false);
+  const [opStopping, setOpStopping] = useState(false);
+  const opBusy = opJob?.status === 'running';
   const [manifestOpen, setManifestOpen] = useState(false);
   const [copied, setCopied] = useState('');
   // App proxy (externally-run Go app floated at /<root>).
@@ -119,6 +126,45 @@ const StackDetail: React.FC = () => {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Poll a running operation job; on terminal state reload the stack and
+  // surface the outcome. Keeps running while the console is dismissed.
+  const opJobId = opJob?.job_id;
+  const opRunning = opJob?.status === 'running';
+  useEffect(() => {
+    if (!opJobId || !opRunning || !opJob) return;
+    let cancelled = false;
+    const op = opJob.op;
+    const finishDoneMessage =
+      op === 'launch'
+        ? `Launched.`
+        : op === 'install'
+          ? `Installed — package rebuilt from manifest.`
+          : `Reinstalled — approve the pending grants, then launch.`;
+    const t = window.setInterval(async () => {
+      try {
+        const fresh = await getStackOp(opJob.stack_id, opJobId);
+        if (cancelled) return;
+        setOpJob(fresh);
+        if (fresh.status !== 'running') {
+          await load();
+          if (cancelled) return;
+          if (fresh.status === 'done') flashNotice(finishDoneMessage);
+          else if (fresh.status === 'cancelled') flashNotice(`${op} stopped — partial effects stand.`);
+          else {
+            setError(fresh.error || `${op} failed.`);
+            if (op === 'launch') scrollToGrants();
+          }
+        }
+      } catch {
+        if (cancelled) return;
+        // Job vanished (e.g. panel restarted and dropped the registry).
+        setOpJob((prev) => (prev && prev.status === 'running' ? { ...prev, status: 'error' as const, error: 'Lost track of the job.' } : prev));
+      }
+    }, 600);
+    return () => { cancelled = true; window.clearInterval(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opJobId, opRunning, load]);
 
   const back = () => navigate('/stacks');
 
@@ -268,43 +314,53 @@ const StackDetail: React.FC = () => {
     }
   };
 
-  // Launch activates the stack; when grants are pending it surfaces the
-  // checklist message and jumps to the grants editor instead.
-  const launch = async () => {
-    if (!stack || stack.active) return;
-    setToggling(true);
+  // startOp launches an install/launch/reinstall job and opens the
+  // operation console. A 409 means one is already running — attach to it.
+  const startOp = async (op: StackOpName) => {
+    if (!stack) return;
+    if (opJob && opJob.status === 'running') {
+      setOpOpen(true);
+      return;
+    }
     setError('');
     try {
-      const res = await activateStack(stack.id) as any;
-      if (res?.pending) {
-        setError(res.message || `${res.pending} grants still pending — approve them below, then launch again.`);
-        scrollToGrants();
+      const job = await startStackOp(stack.id, op);
+      setOpJob(job);
+      setOpOpen(true);
+    } catch (e: any) {
+      const data = e?.response?.data;
+      if (e?.response?.status === 409 && data?.job) {
+        setOpJob(data.job as StackOpJob);
+        setOpOpen(true);
+        flashNotice('An operation is already running — attached to it.');
         return;
       }
-      flashNotice(`Launched ${stack.name}.`);
-      await load();
-    } catch (e) {
-      setError(extractStackApiError(e, 'Launch failed.'));
-    } finally {
-      setToggling(false);
+      setError(extractStackApiError(e, `Failed to start ${op}.`));
     }
+  };
+
+  const stopOp = async () => {
+    if (!opJob || !stack) return;
+    setOpStopping(true);
+    try {
+      const updated = await stopStackOp(stack.id, opJob.job_id);
+      setOpJob(updated);
+    } catch (e) {
+      setError(extractStackApiError(e, 'Failed to stop operation.'));
+    } finally {
+      setOpStopping(false);
+    }
+  };
+
+  const launch = () => {
+    if (!stack || stack.active) return;
+    void startOp('launch');
   };
 
   // Install re-materializes the package + data dir from the stored
   // manifest. Non-destructive: grants and active state are kept.
-  const doInstall = async () => {
-    if (!stack) return;
-    setInstalling(true);
-    setError('');
-    try {
-      await installStack(stack.id);
-      flashNotice(`Installed ${stack.name} — package rebuilt from manifest.`);
-      await load();
-    } catch (e) {
-      setError(extractStackApiError(e, 'Install failed.'));
-    } finally {
-      setInstalling(false);
-    }
+  const doInstall = () => {
+    void startOp('install');
   };
 
   // Reinstall resets to a fresh install: deactivates, resets every grant
@@ -318,18 +374,7 @@ const StackDetail: React.FC = () => {
       tone: 'warning',
     });
     if (!ok) return;
-    setReinstalling(true);
-    setError('');
-    try {
-      await reinstallStack(stack.id);
-      flashNotice(`Reinstalled ${stack.name} — approve the pending grants, then launch.`);
-      await load();
-      scrollToGrants();
-    } catch (e) {
-      setError(extractStackApiError(e, 'Reinstall failed.'));
-    } finally {
-      setReinstalling(false);
-    }
+    void startOp('reinstall');
   };
 
   const saveProxy = async () => {
@@ -433,10 +478,10 @@ const StackDetail: React.FC = () => {
           ariaLabel={`Actions for stack ${stack.name}`}
           items={[
             ...(appUrl ? [{ key: 'open', label: 'Open', tone: 'default' as const }] : []),
-            { key: 'launch', label: toggling ? '…' : stack.active ? 'Stop' : 'Launch', tone: stack.active ? 'danger' as const : 'default' as const },
+            { key: 'launch', label: opBusy ? 'Operation running…' : toggling ? '…' : stack.active ? 'Stop' : 'Launch', tone: stack.active ? 'danger' as const : 'default' as const },
             { key: 'edit', label: 'Edit', tone: 'default' as const },
-            { key: 'install', label: installing ? 'Installing…' : 'Install', tone: 'default' as const },
-            { key: 'reinstall', label: reinstalling ? 'Reinstalling…' : 'Reinstall', tone: 'default' as const },
+            { key: 'install', label: opBusy && opJob?.op === 'install' ? 'Installing…' : 'Install', tone: 'default' as const },
+            { key: 'reinstall', label: opBusy && opJob?.op === 'reinstall' ? 'Reinstalling…' : 'Reinstall', tone: 'default' as const },
             { key: 'download', label: downloading ? 'Downloading…' : 'Download .ksps', tone: 'default' as const },
             { key: 'copyId', label: copied === 'id' ? 'Copied!' : 'Copy ID', tone: 'default' as const },
             { key: 'copyManifest', label: copied === 'manifest' ? 'Copied!' : 'Copy manifest', tone: 'default' as const },
@@ -444,7 +489,10 @@ const StackDetail: React.FC = () => {
           ]}
           onSelect={(k) => {
             if (k === 'open') navigate(`/stacks/${stack.slug}/`);
-            if (k === 'launch') void (stack.active ? toggle() : launch());
+            if (k === 'launch') {
+              if (opBusy) { setOpOpen(true); return; }
+              void (stack.active ? toggle() : launch());
+            }
             if (k === 'edit') openEdit();
             if (k === 'install') void doInstall();
             if (k === 'reinstall') void doReinstall();
@@ -466,6 +514,20 @@ const StackDetail: React.FC = () => {
         <div className="text-xs text-emerald-300 border border-emerald-700/40 rounded px-3 py-2 bg-emerald-900/20">
           {notice}
         </div>
+      )}
+      {opJob && !opOpen && (
+        <button
+          type="button"
+          onClick={() => setOpOpen(true)}
+          className="flex items-center gap-2 text-xs text-sky-200 border border-sky-700/40 rounded px-3 py-2 bg-sky-900/20 hover:bg-sky-900/40 text-left"
+        >
+          {opJob.status === 'running' && (
+            <span className="w-3 h-3 rounded-full border-2 border-sky-400 border-t-transparent animate-spin shrink-0" aria-hidden="true" />
+          )}
+          <span className="truncate">
+            {opJob.op} {opJob.status} — view console →
+          </span>
+        </button>
       )}
 
       <GlassCard className="ks-stat-card p-4">
@@ -536,23 +598,23 @@ const StackDetail: React.FC = () => {
           {stack.active ? (
             <>
               <Link to={`/stacks/${stack.slug}/`} className="px-3 py-1.5 text-xs rounded-md bg-emerald-600 text-white hover:bg-emerald-500">Open</Link>
-              <button type="button" onClick={() => void toggle()} disabled={toggling} className="px-3 py-1.5 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white disabled:opacity-50">Stop</button>
+              <button type="button" onClick={() => void toggle()} disabled={toggling || opBusy} className="px-3 py-1.5 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white disabled:opacity-50">Stop</button>
             </>
           ) : (
             <button
               type="button"
               onClick={() => void launch()}
-              disabled={toggling}
+              disabled={toggling || opBusy}
               className="px-3 py-1.5 text-xs rounded-md bg-white text-black hover:bg-gray-200 disabled:opacity-50"
             >
-              {toggling ? 'Launching…' : 'Launch'}
+              {opBusy && opJob?.op === 'launch' ? 'Launching…' : toggling ? 'Launching…' : 'Launch'}
             </button>
           )}
-          <button type="button" onClick={() => void doInstall()} disabled={installing} className="px-3 py-1.5 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white disabled:opacity-50">
-            {installing ? 'Installing…' : 'Install'}
+          <button type="button" onClick={() => void doInstall()} disabled={opBusy} className="px-3 py-1.5 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white disabled:opacity-50">
+            {opBusy && opJob?.op === 'install' ? 'Installing…' : 'Install'}
           </button>
-          <button type="button" onClick={() => void doReinstall()} disabled={reinstalling} className="px-3 py-1.5 text-xs rounded-md border border-amber-700/40 bg-amber-900/20 hover:bg-amber-900/40 text-amber-200 disabled:opacity-50">
-            {reinstalling ? 'Reinstalling…' : 'Reinstall'}
+          <button type="button" onClick={() => void doReinstall()} disabled={opBusy} className="px-3 py-1.5 text-xs rounded-md border border-amber-700/40 bg-amber-900/20 hover:bg-amber-900/40 text-amber-200 disabled:opacity-50">
+            {opBusy && opJob?.op === 'reinstall' ? 'Reinstalling…' : 'Reinstall'}
           </button>
           <button type="button" onClick={() => void handleDownload()} disabled={downloading} className="px-3 py-1.5 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white disabled:opacity-50">
             {downloading ? 'Downloading…' : 'Download .ksps'}
@@ -828,11 +890,21 @@ const StackDetail: React.FC = () => {
         ) : (
           <button onClick={() => void (stack.active ? toggle() : launch())} disabled={toggling} className="px-4 py-2 text-sm rounded-lg bg-white text-black hover:bg-gray-200 disabled:opacity-50">{toggling ? '…' : stack.active ? 'Stop' : 'Launch'}</button>
         )}
-        <button onClick={() => void doInstall()} disabled={installing} className="px-4 py-2 text-sm rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-white disabled:opacity-50">{installing ? 'Installing…' : 'Install'}</button>
-        <button onClick={() => void doReinstall()} disabled={reinstalling} className="px-4 py-2 text-sm rounded-lg border border-amber-700/40 bg-amber-900/20 hover:bg-amber-900/40 text-amber-200 disabled:opacity-50">{reinstalling ? 'Reinstalling…' : 'Reinstall'}</button>
+        <button onClick={() => void doInstall()} disabled={opBusy} className="px-4 py-2 text-sm rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-white disabled:opacity-50">{opBusy && opJob?.op === 'install' ? 'Installing…' : 'Install'}</button>
+        <button onClick={() => void doReinstall()} disabled={opBusy} className="px-4 py-2 text-sm rounded-lg border border-amber-700/40 bg-amber-900/20 hover:bg-amber-900/40 text-amber-200 disabled:opacity-50">{opBusy && opJob?.op === 'reinstall' ? 'Reinstalling…' : 'Reinstall'}</button>
         <button onClick={() => void handleDownload()} disabled={downloading} className="px-4 py-2 text-sm rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-white disabled:opacity-50">{downloading ? 'Downloading…' : 'Download .ksps'}</button>
         <button onClick={back} className="ml-auto px-4 py-2 text-sm rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-gray-300">Back to stacks</button>
       </div>
+
+      {opOpen && opJob && (
+        <StackOpModal
+          job={opJob}
+          stackName={stack.name}
+          stopping={opStopping}
+          onStop={() => void stopOp()}
+          onDismiss={() => setOpOpen(false)}
+        />
+      )}
     </div>
   );
 };

@@ -280,9 +280,19 @@ const Themes: React.FC = () => {
     file.text().then((txt) => {
       let parsed: Record<string, any> | null = null;
       try { parsed = JSON.parse(txt) as Record<string, any>; } catch { /* */ }
+      if (!parsed && /\.toml$/i.test(file.name || '')) {
+        // TOML manifests are validated server-side; sniff top-level
+        // key = "value" lines for the preview card only.
+        const sniff: Record<string, any> = {};
+        for (const line of txt.split('\n')) {
+          const m = line.match(/^\s*(id|name|description)\s*=\s*"((?:[^"\\]|\\.)*)"\s*(?:#.*)?$/);
+          if (m) sniff[m[1]] = m[2];
+        }
+        if (sniff.name || sniff.id) parsed = sniff;
+      }
       if (!parsed) {
         setUploadParsed(null);
-        setUploadError('File is not valid JSON. A theme manifest must be JSON.');
+        setUploadError('File is not valid JSON or TOML. A theme manifest must be .json or .toml.');
         return;
       }
       setUploadParsed(parsed);
@@ -622,14 +632,14 @@ const Themes: React.FC = () => {
         {installTab === 'file' && (
           <>
             <p className="text-xs text-gray-400">
-              Choose a theme manifest file (<code className="text-gray-300">.json</code>). The panel parses it, validates the spec,
+              Choose a theme manifest file (<code className="text-gray-300">.json</code> or <code className="text-gray-300">.toml</code>). The panel parses it, validates the spec,
               and creates the theme.
             </p>
             <label className="block">
               <span className="text-xs text-gray-400">Manifest file</span>
               <input
                 type="file"
-                accept=".json,application/json"
+                accept=".json,.toml,application/json,application/toml"
                 onChange={(e) => { const f = e.target.files?.[0] || null; if (f) onPickUpload(f); }}
                 className="block w-full mt-1 text-sm text-gray-300 file:mr-3 file:px-3 file:py-1.5 file:rounded file:border-0 file:bg-white file:text-black file:text-sm hover:file:bg-gray-200"
               />

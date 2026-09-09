@@ -38,6 +38,7 @@ import (
 	"time"
 
 	"github.com/example/ksedge/internal/version"
+	"github.com/BurntSushi/toml"
 )
 
 const (
@@ -459,7 +460,7 @@ func downloadFile(url, dest string) error {
 
 // relaunchEdge spawns the freshly placed binary as `launch` with its working
 // directory set to the binary's own dir so it picks up the co-located
-// config.json (mirrors SetupLocalNodeHandler's launch). The child is
+// config.toml (mirrors SetupLocalNodeHandler's launch). The child is
 // detached into its own session so the current process's exit doesn't
 // propagate signals. We wait up to 30s for /health to answer before letting
 // the old process exit — otherwise the new edge becomes an orphan and
@@ -510,19 +511,19 @@ func edgeReachable(edgeURL string) bool {
 }
 
 // effectiveEdgePort resolves the port the self-update / reinstall flows
-// should health-check against. It reads listen_port from the config.json
+// should health-check against. It reads listen_port from the config.toml
 // next to the binary (the file `launch` itself loads), falling back to
 // 4040 when the file is missing or unparsable.
 func effectiveEdgePort(exeDir string) string {
-	cfgPath := filepath.Join(exeDir, "config.json")
+	cfgPath := filepath.Join(exeDir, "config.toml")
 	raw, err := os.ReadFile(cfgPath)
 	if err != nil {
 		return "4040"
 	}
 	var cfg struct {
-		ListenPort int `json:"listen_port"`
+		ListenPort int `toml:"listen_port"`
 	}
-	if err := json.Unmarshal(raw, &cfg); err != nil {
+	if err := toml.Unmarshal(raw, &cfg); err != nil {
 		return "4040"
 	}
 	if cfg.ListenPort > 0 && cfg.ListenPort <= 65535 {

@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -15,6 +14,7 @@ import (
 	"time"
 
 	"github.com/example/kspanel/internal/cli/print"
+	"github.com/example/kspanel/internal/edgeconfig"
 	"github.com/example/kspanel/internal/config"
 	"github.com/example/kspanel/internal/db"
 	"github.com/example/kspanel/internal/models"
@@ -27,7 +27,7 @@ import (
 //
 // One-shot installer that adds a localhost node to the database, downloads
 // the ksedge binary into ./localnode/ksedge/ next to this kspanel binary,
-// writes the matching config.json (panel URL + edge token + listen port),
+// writes the matching config.toml (panel URL + edge token + listen port),
 // and launches `./localnode/ksedge/ksedge launch` detached so the edge
 // survives the CLI exit. The resulting edge then heartbeats the panel and
 // flips its card green on the Nodes admin page.
@@ -47,7 +47,7 @@ var setupLocalnodeCmd = &cobra.Command{
 This is the CLI equivalent of the admin "Create & setup" button — it
 registers a localhost node, downloads ksedge from the ks-panel-edge release into
 ./localnode/ksedge/ (next to this binary), writes the panel-generated
-config.json, and launches "./ksedge launch" detached.
+config.toml, and launches "./ksedge launch" detached.
 
 Re-running the command is idempotent: the matching (name, port) row is
 reused so a re-run won't mint a new token, and an existing on-disk ksedge
@@ -129,14 +129,14 @@ func runSetupLocalnode(cmd *cobra.Command, args []string) error {
 
 	// Working dir sits NEXT to the ksedge binary, not under the panel data
 	// dir, so it's discoverable on the same folder the operator cloned.
-	// Layout: <cwd>/localnode/ksedge/{ksedge, config.json, ksedge.log}.
+	// Layout: <cwd>/localnode/ksedge/{ksedge, config.toml, ksedge.log}.
 	dir := filepath.Join("localnode", "ksedge")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		print.Fail("setup:localnode", fmt.Sprintf("mkdir %s: %v", dir, err))
 		return fmt.Errorf("mkdir: %w", err)
 	}
 	ksedgePath := filepath.Join(dir, "ksedge")
-	configPath := filepath.Join(dir, "config.json")
+	configPath := filepath.Join(dir, "config.toml")
 	logPath := filepath.Join(dir, "ksedge.log")
 
 	// 1) Download ksedge if not already on disk. Prefer a local binary next
@@ -198,7 +198,11 @@ func runSetupLocalnode(cmd *cobra.Command, args []string) error {
 		"skip_verify":        false,
 		"connection_mode":    "local_port",
 	}
-	cfgBytes, _ := json.MarshalIndent(edgeCfg, "", "  ")
+	cfgBytes, err := edgeconfig.Encode(edgeCfg)
+	if err != nil {
+		print.Fail("setup:localnode", fmt.Sprintf("encode config: %v", err))
+		return fmt.Errorf("encode config: %w", err)
+	}
 	if err := os.WriteFile(configPath, cfgBytes, 0o644); err != nil {
 		print.Fail("setup:localnode", fmt.Sprintf("write config: %v", err))
 		return fmt.Errorf("write config: %w", err)
@@ -398,12 +402,11 @@ func ensurePanelUp(panelURL, port string) error {
 				newURL := "http://127.0.0.1:" + newPortStr
 				print.Step("panel", fmt.Sprintf("port %s was in use — auto-selected :%s for panel launch", port, newPortStr))
 				// Rewrite edge config that was just written with the old URL.
-				if data, rerr := os.ReadFile(filepath.Join("localnode", "ksedge", "config.json")); rerr == nil {
-					var cfg map[string]any
-					if jerr := json.Unmarshal(data, &cfg); jerr == nil {
+				if data, rerr := os.ReadFile(filepath.Join("localnode", "ksedge", "config.toml")); rerr == nil {
+					if cfg, derr := edgeconfig.Decode(data); derr == nil {
 						cfg["panel_url"] = newURL
-						if out, merr := json.MarshalIndent(cfg, "", "  "); merr == nil {
-							_ = os.WriteFile(filepath.Join("localnode", "ksedge", "config.json"), out, 0o644)
+						if out, eerr := edgeconfig.Encode(cfg); eerr == nil {
+							_ = os.WriteFile(filepath.Join("localnode", "ksedge", "config.toml"), out, 0o644)
 							print.Step("config", fmt.Sprintf("rewrote panel_url to %s (free port)", newURL))
 						}
 					}

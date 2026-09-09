@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/example/kspanel/internal/config"
+	"github.com/example/kspanel/internal/edgeconfig"
 	"github.com/example/kspanel/internal/models"
 	"github.com/example/kspanel/internal/permissions"
 	"github.com/example/kspanel/internal/probe"
@@ -1077,7 +1078,7 @@ type setupLocalResponse struct {
 // SetupLocalNodeHandler installs and launches a ksedge edge directly on the
 // panel host for a localhost-mode node. It is the one-click equivalent of the
 // bootstrap snippet the manual flow prints: download ksedge into a per-node
-// directory, write the panel-generated config.json, and start `./ksedge
+// directory, write the panel-generated config.toml, and start `./ksedge
 // launch` detached so the edge survives the HTTP request. The freshly started
 // edge then pushes heartbeats to the panel with the node token, which flips
 // the card green on its own.
@@ -1161,7 +1162,7 @@ func SetupLocalNodeHandler(w http.ResponseWriter, r *http.Request) {
 
 	logLines := []string{}
 	ksedgePath := filepath.Join(dir, "ksedge")
-	configPath := filepath.Join(dir, "config.json")
+	configPath := filepath.Join(dir, "config.toml")
 	logPath := filepath.Join(dir, "ksedge.log")
 
 	// 1) Acquire ksedge if the binary isn't already on disk. We skip the
@@ -1218,7 +1219,7 @@ func SetupLocalNodeHandler(w http.ResponseWriter, r *http.Request) {
 		logLines = append(logLines, "ksedge already present, skipping download")
 	}
 
-	// 2) Write the panel-generated config.json. The token is the raw edge
+	// 2) Write the panel-generated config.toml. The token is the raw edge
 	//    token stored on the node row, identical to what the manual snippet
 	//    embeds. use_tls_upstream describes edge→panel TLS (panel_url
 	//    scheme), not the panel→edge node.UseTLS flag — deriving it from the
@@ -1244,12 +1245,17 @@ func SetupLocalNodeHandler(w http.ResponseWriter, r *http.Request) {
 	if dir := strings.TrimSpace(node.InstancesDir); dir != "" {
 		cfg["instances_dir"] = dir
 	}
-	cfgBytes, _ := json.MarshalIndent(cfg, "", "  ")
+	var cfgBytes []byte
+	cfgBytes, err = edgeconfig.Encode(cfg)
+	if err != nil {
+		http.Error(w, "could not encode config: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
 	if err := os.WriteFile(configPath, cfgBytes, 0o644); err != nil {
 		http.Error(w, "could not write config: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	logLines = append(logLines, "wrote config.json")
+	logLines = append(logLines, "wrote config.toml")
 
 	// 3) Launch `./ksedge launch` detached so the HTTP handler returning
 	//    does NOT take the edge down with it. We redirect stdout/stderr to a
@@ -1575,7 +1581,7 @@ func PurgeLocalNodeHandler(w http.ResponseWriter, r *http.Request) {
 		logLines = append(logLines, "no running ksedge found for this node")
 	}
 
-	// 2) Remove the on-disk edge (binary, config.json, ksedge.log). Missing
+	// 2) Remove the on-disk edge (binary, config.toml, ksedge.log). Missing
 	//    dir is fine — purge must be idempotent so a half-deleted node can be
 	//    cleared with a second click.
 	if _, statErr := os.Stat(dir); statErr == nil {
