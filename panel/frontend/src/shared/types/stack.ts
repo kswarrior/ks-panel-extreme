@@ -190,6 +190,12 @@ export interface StackStudioDraft {
   themeMode: StackThemeMode;
   pageStyle: StackPageStyle;
   permissionsRequested: StackPermissionRequest[];
+  // Panel permission keys requested for the stack (same vocabulary as the
+  // API key / role forms: MANAGE_USERS, STACKS_VIEW, ...). Surfaced through
+  // the Permission tab's RolePermissions section so the stack form matches
+  // the API key form. Emitted into the manifest as `panelPermissions`;
+  // the backend keeps it as raw-manifest pass-through (forward-compatible).
+  panelPermissions: string[];
   backendScript: string;
   frontendHtml: string;
   frontendCss: string;
@@ -210,6 +216,7 @@ export const blankStackStudioDraft = (): StackStudioDraft => ({
   themeMode: 'panel',
   pageStyle: 'spa',
   permissionsRequested: [],
+  panelPermissions: [],
   backendScript: '',
   frontendHtml: '',
   frontendCss: '',
@@ -234,6 +241,7 @@ export function emitStackStudioManifest(draft: StackStudioDraft): Record<string,
     themeMode: draft.themeMode,
     pageStyle: draft.pageStyle,
     permissionsRequested: draft.permissionsRequested,
+    panelPermissions: draft.panelPermissions || [],
     frontend: {
       page_style: draft.pageStyle,
       theme: { mode: draft.themeMode },
