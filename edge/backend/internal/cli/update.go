@@ -23,7 +23,7 @@ import (
 // running, so the strings live here too — update both when the hosting
 // moves).
 const (
-	cliUpdateManifestURL = "https://huggingface.co/buckets/kswarrior/opencode-storage/resolve/ks-panel/release/version.json?download=true"
+	cliUpdateManifestURL = "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/release/version.json"
 	cliUpdateBinaryURL   = "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/release/ksedge"
 	cliUpdateSidecarURL  = "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/release/ksedge.sha256"
 )
