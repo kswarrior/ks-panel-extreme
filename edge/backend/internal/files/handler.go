@@ -20,7 +20,10 @@
 package files
 
 import (
+	"archive/tar"
+	"archive/zip"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/subtle"
 	"encoding/json"
@@ -29,7 +32,9 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -39,12 +44,15 @@ import (
 // in Handler rejects POST/DELETE for ops not in this set so a typo doesn't
 // silently no-op.
 var writeOps = map[string]bool{
-	"write":  true,
-	"upload": true,
-	"mkdir":  true,
-	"rename": true,
-	"delete": true,
-	"chmod":  true,
+	"write":   true,
+	"upload":  true,
+	"mkdir":   true,
+	"rename":  true,
+	"delete":  true,
+	"chmod":   true,
+	"copy":    true,
+	"archive": true,
+	"extract": true,
 }
 
 // Handler returns an http.Handler authenticated by the given edge token.
@@ -111,11 +119,15 @@ func Handler(token string) http.Handler {
 
 		// Reads + small writes get the standard 30s timeout; uploads use
 		// the request context so the panel can stream a 500 MiB server.jar
-		// without us cutting it off mid-flight.
+		// without us cutting it off mid-flight. Archive/extract/copy walk
+		// whole trees (worlds are routinely 1 GiB+) so they get a generous
+		// budget too; search stays on the fast path.
 		var ctx context.Context
 		var cancel context.CancelFunc
 		if op == "upload" || op == "write" {
 			ctx, cancel = context.WithTimeout(r.Context(), 30*time.Minute)
+		} else if op == "archive" || op == "extract" || op == "copy" {
+			ctx, cancel = context.WithTimeout(r.Context(), 10*time.Minute)
 		} else {
 			ctx, cancel = context.WithTimeout(r.Context(), 30*time.Second)
 		}
@@ -140,6 +152,8 @@ func Handler(token string) http.Handler {
 			readDockerFile(ctx, w, name, path)
 		case "stat":
 			statDockerPath(ctx, w, name, path)
+		case "search":
+			searchDocker(ctx, w, name, path, searchQuery(r))
 		case "write":
 			writeDockerFile(ctx, w, r, name, path)
 		case "upload":
@@ -148,6 +162,12 @@ func Handler(token string) http.Handler {
 			mkdirDocker(ctx, w, name, path)
 		case "rename":
 			renameDocker(ctx, w, r, name, path, q.Get("to"))
+		case "copy":
+			copyDocker(ctx, w, r, name, path, q.Get("to"))
+		case "archive":
+			archiveDocker(ctx, w, r, name, path, q.Get("to"))
+		case "extract":
+			extractDocker(ctx, w, r, name, path, q.Get("to"))
 		case "delete":
 			deleteDocker(ctx, w, name, path)
 		case "chmod":
