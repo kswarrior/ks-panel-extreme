@@ -46,7 +46,7 @@ var builtinTemplates = []builtinTemplate{
   "command": [
     "sh",
     "-c",
-    "while [ ! -f /mc/.install-complete ]; do sleep 1; done; cd /mc && exec java -Xmx1500M -jar server.jar --nogui"
+    "while [ ! -f /mc/.install-complete ]; do sleep 1; done; cd /mc && exec java -Xmx1500M -Dterminal.jline=false -Dterminal.ansi=true -jar server.jar --nogui"
   ],
   "restart": "no",
   "limits": {
@@ -196,7 +196,7 @@ var builtinTemplates = []builtinTemplate{
   },
   "home_page": "overview",
   "advanced": {
-    "startup_command": "while [ ! -f /mc/.install-complete ]; do sleep 1; done; cd /mc && exec java -Xmx1500M -jar server.jar --nogui",
+    "startup_command": "while [ ! -f /mc/.install-complete ]; do sleep 1; done; cd /mc && exec java -Xmx1500M -Dterminal.jline=false -Dterminal.ansi=true -jar server.jar --nogui",
     "startup_terminal_id": "mc-console",
     "stop_command": "",
     "stop_signal": "",
