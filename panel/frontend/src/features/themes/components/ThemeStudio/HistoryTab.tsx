@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import GlassCard from '@/shared/components/ui/Card';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import ThemePreview from '@/features/themes/components/ThemePreview';
 import { fetchThemeRevisions, rollbackTheme, type ThemeRevision } from '@/features/themes/api/themes';
 import { useThemeStore } from '@/shared/stores/themeStore';
@@ -121,7 +122,17 @@ export const HistoryTab: React.FC = () => {
       </label>
 
       {loading && <p className="text-sm text-gray-400">Loading revisions…</p>}
-      {error && <p className="text-sm text-red-300">{error}</p>}
+      {!loading && error && revisions.length === 0 && (
+        <ErrorState
+          compact
+          variant="error"
+          title="Failed to load revisions"
+          description={error}
+          retryLabel="Retry"
+          onRetry={() => void reload()}
+        />
+      )}
+      {!loading && error && revisions.length > 0 && <p className="text-sm text-red-300">{error}</p>}
       {!loading && !error && revisions.length === 0 && (
         <p className="text-sm text-gray-400">
           No revisions yet — edit and save this theme once and the previous version appears here.
