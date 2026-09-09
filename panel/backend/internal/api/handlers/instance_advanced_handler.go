@@ -323,10 +323,13 @@ type automationUpsertRequest struct {
 // at write time instead of when the scheduler fires. The template timeout
 // ceiling (shortcuts.automation.max_timeout_sec, default 1800) caps both
 // the job timeout and every step timeout: config >= user passes, config <
-// user is rejected. Steps are validated with the same per-kind rules.
+// user is rejected. Enabling a job counts against the template's
+// max_active_jobs cap (0 = unlimited). Steps are validated with the same
+// per-kind rules. excludeJobID skips one job in the active count (the row
+// being updated, so re-saving an enabled job at the cap still passes).
 // Returns the normalized kind + instance row, or an HTTP status + message
 // for the caller to write.
-func validateAutomationUpsert(con *sql.DB, instanceID int64, req automationUpsertRequest) (string, int, string) {
+func validateAutomationUpsert(con *sql.DB, instanceID int64, req automationUpsertRequest, excludeJobID int64) (string, int, string) {
 	kind := models.NormalizeAutomationKind(req.Kind)
 	hasSteps := len(req.Steps) > 0
 	switch kind {

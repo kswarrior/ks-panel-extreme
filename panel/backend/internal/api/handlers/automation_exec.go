@@ -131,6 +131,72 @@ func automationMaxTimeoutSec(configJSON string) int {
 	return n
 }
 
+// automationNumberField reads one numeric key from
+// shortcuts.automation in the instance's controls snapshot. Missing,
+// garbled or <=0 yields 0 (caller decides the default); positive values
+// are clamped to 1..cap so a hostile template can't force absurd budgets.
+func automationNumberField(configJSON, key string, cap int) int {
+	var root map[string]any
+	if err := json.Unmarshal([]byte(configJSON), &root); err != nil {
+		return 0
+	}
+	ic, _ := root["instance_controls"].(map[string]any)
+	shortcuts, _ := ic["shortcuts"].(map[string]any)
+	auto, _ := shortcuts["automation"].(map[string]any)
+	if auto == nil {
+		return 0
+	}
+	raw, ok := auto[key]
+	if !ok {
+		return 0
+	}
+	n := 0
+	switch t := raw.(type) {
+	case float64:
+		n = int(t)
+	case int:
+		n = t
+	case int64:
+		n = int(t)
+	case string:
+		var p int
+		if _, err := fmt.Sscanf(t, "%d", &p); err == nil {
+			n = p
+		}
+	}
+	if n <= 0 {
+		return 0
+	}
+	if n > cap {
+		return cap
+	}
+	return n
+}
+
+// MaxAutomationConcurrentRuns bounds the run-together gate so one
+// instance's burst can't park an unbounded number of edge RPCs.
+const MaxAutomationConcurrentRuns = 64
+
+// AutomationConcurrentLimit reads shortcuts.automation.max_concurrent_runs
+// (how many of this instance's jobs may run at the same time). 0 means no
+// extra cap beyond the scheduler's global limit (allow-all default for
+// pre-cap snapshots). Exported for the scheduler sweep.
+func AutomationConcurrentLimit(configJSON string) int {
+	return automationNumberField(configJSON, "max_concurrent_runs", MaxAutomationConcurrentRuns)
+}
+
+// MaxAutomationActiveJobs bounds the active-jobs gate (count check only,
+// never a semaphore size).
+const MaxAutomationActiveJobs = 1000
+
+// AutomationMaxActiveJobs reads shortcuts.automation.max_active_jobs (how
+// many jobs of this instance may be enabled at once — an enabled job owns
+// its schedule timer and fires). 0 means unlimited (allow-all default).
+// Exported for the write-path gate.
+func AutomationMaxActiveJobs(configJSON string) int {
+	return automationNumberField(configJSON, "max_active_jobs", MaxAutomationActiveJobs)
+}
+
 // effectiveAutomationTimeout caps the operator's per-job timeout by the
 // template ceiling: effective = min(jobTimeout or 300 default, configMax).
 // A user value above the ceiling never reaches the edge — the write path
