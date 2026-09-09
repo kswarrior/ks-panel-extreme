@@ -2048,14 +2048,14 @@ func timeoutSecFromSpec(v any) int {
 	return n
 }
 
-// installConsoleIDFromSpec reports the template spec's install_terminal_id
+// installTerminalIDFromSpec reports the template spec's install_terminal_id
 // (the attach-by-ID handle for the Installation workflow console, sibling
 // of install_timeout_sec), normalised exactly like action terminal_ids.
 // Empty = the install runs non-interactive (legacy behaviour, no stdin
 // pipe kept). Non-empty = kickoff sites pass KeepStdin so a terminal pane
 // bound to this ID can stream the transcript AND send input while the
 // workflow runs.
-func installConsoleIDFromSpec(spec map[string]any) string {
+func installTerminalIDFromSpec(spec map[string]any) string {
 	if spec == nil {
 		return ""
 	}
@@ -2076,7 +2076,7 @@ func installConsoleIDFromSpec(spec map[string]any) string {
 // step stdio semantics (a step reading stdin blocks instead of seeing
 // EOF), so workflows without a console keep the legacy closed-stdin path.
 func keepStdinForInstall(spec map[string]any) bool {
-	return installConsoleIDFromSpec(spec) != ""
+	return installTerminalIDFromSpec(spec) != ""
 }
 
 // edgeWorkflowName reports the instance name to address edge install/*
@@ -3801,11 +3801,11 @@ func ActionStdinHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// installConsoleIDFromConfig reads the instance's deploy-time config
+// installTerminalIDFromConfig reads the instance's deploy-time config
 // snapshot for the template's install_terminal_id (the attach-by-ID
 // handle for the Installation workflow console). Empty = this instance
 // has no installation console bound.
-func installConsoleIDFromConfig(configJSON string) string {
+func installTerminalIDFromConfig(configJSON string) string {
 	s := strings.TrimSpace(configJSON)
 	if s == "" {
 		return ""
@@ -3814,7 +3814,7 @@ func installConsoleIDFromConfig(configJSON string) string {
 	if err := json.Unmarshal([]byte(s), &spec); err != nil {
 		return ""
 	}
-	return installConsoleIDFromSpec(spec)
+	return installTerminalIDFromSpec(spec)
 }
 
 // InstallStdinHandler forwards one console line from a terminal pane
@@ -3903,7 +3903,7 @@ func InstallStdinHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "installation is not running (terminal stopped)", http.StatusConflict)
 		return
 	}
-	if installConsoleIDFromConfig(inst.Config) == "" {
+	if installTerminalIDFromConfig(inst.Config) == "" {
 		http.Error(w, "installation has no terminal (install_terminal_id is empty)", http.StatusForbidden)
 		return
 	}

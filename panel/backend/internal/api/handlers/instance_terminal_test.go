@@ -6,12 +6,12 @@ import (
 	"github.com/example/kspanel/internal/models"
 )
 
-// install_terminal_id / advanced.startup_terminal_id are the attach-by-ID
-// handles for the Installation and Startup consoles. The deploy-time
-// kickoffs keep the install stdin pipe open exactly when an install
-// console is bound, so these pure helpers gate that decision (and the
-// InstallStdinHandler's binding check) without touching the DB.
-func TestInstallConsoleIDFromSpec(t *testing.T) {
+// install_terminal_id is the attach-by-ID handle for the Installation
+// terminal. The deploy-time kickoffs keep the install stdin pipe open
+// exactly when an install terminal is bound, so these pure helpers gate
+// that decision (and the InstallStdinHandler's binding check) without
+// touching the DB.
+func TestInstallTerminalIDFromSpec(t *testing.T) {
 	cases := []struct {
 		name string
 		spec map[string]any
@@ -28,8 +28,8 @@ func TestInstallConsoleIDFromSpec(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := installConsoleIDFromSpec(tc.spec); got != tc.want {
-				t.Fatalf("installConsoleIDFromSpec(%v) = %q, want %q", tc.spec, got, tc.want)
+			if got := installTerminalIDFromSpec(tc.spec); got != tc.want {
+				t.Fatalf("installTerminalIDFromSpec(%v) = %q, want %q", tc.spec, got, tc.want)
 			}
 		})
 	}
@@ -43,18 +43,18 @@ func TestKeepStdinForInstall(t *testing.T) {
 		t.Fatal("unbound install must not keep stdin (legacy closed-stdin path)")
 	}
 	if !keepStdinForInstall(map[string]any{"install_terminal_id": "install-console"}) {
-		t.Fatal("bound install console must keep stdin")
+		t.Fatal("bound install terminal must keep stdin")
 	}
 }
 
-func TestInstallConsoleIDFromConfig(t *testing.T) {
-	if got := installConsoleIDFromConfig(""); got != "" {
+func TestInstallTerminalIDFromConfig(t *testing.T) {
+	if got := installTerminalIDFromConfig(""); got != "" {
 		t.Fatalf("empty config = %q, want empty", got)
 	}
-	if got := installConsoleIDFromConfig("{not json"); got != "" {
+	if got := installTerminalIDFromConfig("{not json"); got != "" {
 		t.Fatalf("bad json = %q, want empty", got)
 	}
-	got := installConsoleIDFromConfig(`{"install_terminal_id":"install-console","actions":[]}`)
+	got := installTerminalIDFromConfig(`{"install_terminal_id":"install-console","actions":[]}`)
 	if got != "install-console" {
 		t.Fatalf("config id = %q, want install-console", got)
 	}
@@ -64,7 +64,7 @@ func TestInstallConsoleIDFromConfig(t *testing.T) {
 // docker container ID sits in ExternalID. The edge keys workflows by
 // "<kind>:<name>" from InstallStart (logical name); addressing by
 // ExternalID misses the record ("no workflow for docker:<container-id>")
-// and breaks console input + the live workflow stream. Regression test.
+// and breaks terminal input + the live workflow stream. Regression test.
 func TestEdgeWorkflowName(t *testing.T) {
 	if got := edgeWorkflowName(nil); got != "" {
 		t.Fatalf("nil instance = %q, want empty", got)
