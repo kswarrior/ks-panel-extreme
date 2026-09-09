@@ -862,7 +862,7 @@ const StackForm: React.FC = () => {
                   />
                 )}
               </div>
-            )}
+            </div>
           </div>
         </div>
       </FormPage>
