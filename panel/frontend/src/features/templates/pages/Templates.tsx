@@ -611,14 +611,14 @@ const Templates: React.FC = () => {
         {installTab === 'file' && (
           <>
             <p className="text-xs text-gray-400">
-              Choose a template manifest file (<code className="text-gray-300">.json</code>). The panel parses it, validates the spec,
+              Choose a template manifest file (<code className="text-gray-300">.json</code> or <code className="text-gray-300">.yaml</code>/<code className="text-gray-300">.yml</code>). The panel parses it, validates the spec,
               and creates the template.
             </p>
             <label className="block">
               <span className="text-xs text-gray-400">Manifest file</span>
               <input
                 type="file"
-                accept=".json,application/json"
+                accept=".json,.yaml,.yml,application/json,application/yaml"
                 onChange={(e) => { const f = e.target.files?.[0] || null; if (f) onPickUpload(f); }}
                 className="block w-full mt-1 text-sm text-gray-300 file:mr-3 file:px-3 file:py-1.5 file:rounded file:border-0 file:bg-white file:text-black file:text-sm hover:file:bg-gray-200"
               />
@@ -653,7 +653,7 @@ const Templates: React.FC = () => {
               />
             </label>
             <p className="text-[11px] text-gray-500">
-              The response must be valid JSON. The fetched URL is recorded for audit trail.
+              The response must be valid JSON or YAML. The fetched URL is recorded for audit trail.
             </p>
             {urlError && <p className="text-red-400 text-xs">{urlError}</p>}
           </>
