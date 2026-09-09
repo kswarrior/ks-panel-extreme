@@ -1301,7 +1301,7 @@ func fetchTemplateManifestFromURL(ctx context.Context, raw string) ([]byte, erro
 		return nil, &templateAllowedURLError{http.StatusBadRequest, "invalid URL: " + err.Error()}
 	}
 	req.Header.Set("User-Agent", "kspanel-template-installer/1.0")
-	req.Header.Set("Accept", "application/json, text/plain;q=0.9, */*;q=0.1")
+	req.Header.Set("Accept", "application/json, application/yaml, application/x-yaml, text/plain;q=0.9, */*;q=0.1")
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, &templateAllowedURLError{http.StatusBadGateway, "fetch failed: " + err.Error()}
@@ -1315,6 +1315,8 @@ func fetchTemplateManifestFromURL(ctx context.Context, raw string) ([]byte, erro
 	}
 	ct := resp.Header.Get("Content-Type")
 	if ct != "" && !strings.HasPrefix(ct, "application/json") &&
+		!strings.HasPrefix(ct, "application/yaml") &&
+		!strings.HasPrefix(ct, "application/x-yaml") &&
 		!strings.HasPrefix(ct, "text/") && !strings.HasPrefix(ct, "application/octet-stream") {
 		return nil, &templateAllowedURLError{
 			http.StatusUnsupportedMediaType,
