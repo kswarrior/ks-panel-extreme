@@ -10,9 +10,9 @@
 
 export type OverviewDefaultTab = 'details' | 'monitoring' | 'manage' | 'activity';
 
-export type ShortcutKey = 'files' | 'terminal' | 'ports';
+export type ShortcutKey = 'files' | 'terminal' | 'ports' | 'automation';
 
-export const SHORTCUT_KEYS: ShortcutKey[] = ['files', 'terminal', 'ports'];
+export const SHORTCUT_KEYS: ShortcutKey[] = ['files', 'terminal', 'ports', 'automation'];
 
 // TerminalAllowInput mirrors the template action's per-action gate so pane
 // defaults and action settings speak the same three values.
@@ -68,7 +68,7 @@ export const MAX_TERMINAL_SHORTCUTS = 20;
 export const SUGGESTED_DEFAULT_TERMINAL: TerminalDefaultDef = { name: 'Main', id: 'main' };
 
 // InstanceShortcutConfig — per-tool config for the floating menu's quick
-// shortcuts (Files / Terminal / Ports) + the page they open. Stored inside
+// shortcuts (Files / Terminal / Ports / Automation) + the page they open. Stored inside
 // `instance_controls.shortcuts` so it snapshots per template/instance like
 // the rest of the block; missing keys fall back to the defaults below.
 export interface InstanceShortcutConfig {
@@ -96,7 +96,7 @@ export interface InstanceShortcutConfig {
   files_jail: boolean;
   // Terminal page shows the title + Reconnect/Clear header bar.
   show_header: boolean;
-  // Ports page allows Add / Remove (false = read-only table).
+  // Ports / Automation page allows Add / Remove (false = read-only table).
   allow_edit: boolean;
   // Terminal page: allow adding more terminal panes side-by-side ("add more
   // terminal together"). Each pane gets its own ID box; an ID matching a
@@ -127,6 +127,7 @@ export interface InstanceShortcuts {
   files: InstanceShortcutConfig;
   terminal: InstanceShortcutConfig;
   ports: InstanceShortcutConfig;
+  automation: InstanceShortcutConfig;
 }
 
 export interface InstanceControls {
@@ -159,7 +160,7 @@ export interface InstanceControls {
   allow_external_id_copy: boolean;
   allow_node_link: boolean;
   allow_template_link: boolean;
-  // Floating menu — quick shortcuts (Files / Terminal / Ports) above Actions.
+  // Floating menu — quick shortcuts (Files / Terminal / Ports / Automation) above Actions.
   shortcuts: InstanceShortcuts;
 }
 
@@ -187,6 +188,7 @@ export const DEFAULT_SHORTCUTS: InstanceShortcuts = {
   files: { ...DEFAULT_SHORTCUT_BASE, slug: 'files', label: 'Files', icon_color: '#fbbf24' },
   terminal: { ...DEFAULT_SHORTCUT_BASE, slug: 'terminal', label: 'Terminal', icon_color: '#34d399' },
   ports: { ...DEFAULT_SHORTCUT_BASE, slug: 'ports', label: 'Ports', icon_color: '#38bdf8' },
+  automation: { ...DEFAULT_SHORTCUT_BASE, slug: 'automation', label: 'Automation', icon_color: '#a78bfa' },
 };
 
 export const DEFAULT_INSTANCE_CONTROLS: InstanceControls = {
@@ -216,6 +218,7 @@ export const DEFAULT_INSTANCE_CONTROLS: InstanceControls = {
     files: { ...DEFAULT_SHORTCUTS.files },
     terminal: { ...DEFAULT_SHORTCUTS.terminal },
     ports: { ...DEFAULT_SHORTCUTS.ports },
+    automation: { ...DEFAULT_SHORTCUTS.automation },
   },
 };
 
@@ -387,6 +390,7 @@ function resolveShortcuts(raw: unknown): InstanceShortcuts {
     files: resolveShortcut(r.files, DEFAULT_SHORTCUTS.files),
     terminal: resolveShortcut(r.terminal, DEFAULT_SHORTCUTS.terminal),
     ports: resolveShortcut(r.ports, DEFAULT_SHORTCUTS.ports),
+    automation: resolveShortcut(r.automation, DEFAULT_SHORTCUTS.automation),
   };
 }
 

@@ -165,6 +165,11 @@ const ShortcutDefaultGlyph: React.FC<{ shortcutKey: ShortcutKey }> = ({ shortcut
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" aria-hidden="true"><polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" /></svg>
     );
   }
+  if (shortcutKey === 'automation') {
+    return (
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1" /></svg>
+    );
+  }
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" aria-hidden="true"><rect x="2" y="7" width="20" height="8" rx="2" /><path d="M6 7v-2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2" /><path d="M6 15v2a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-2" /></svg>
   );
@@ -184,7 +189,7 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
   const [openTabConfig, setOpenTabConfig] = useState<'details' | 'manage' | null>(null);
   const toggleTabConfig = (tab: 'details' | 'manage') =>
     setOpenTabConfig((prev) => (prev === tab ? null : tab));
-  // Shortcut editor: which of Files / Terminal / Ports shows its slug +
+  // Shortcut editor: which of Files / Terminal / Ports / Automation shows its slug +
   // name + SVG + page-option config panel.
   const [openShortcut, setOpenShortcut] = useState<ShortcutKey | null>(null);
   const toggleShortcut = (key: ShortcutKey) =>
@@ -257,12 +262,12 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
       <div className={sectionCls}>
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div>
-            <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">Menu shortcuts · Files / Terminal / Ports</h4>
+            <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">Menu shortcuts · Files / Terminal / Ports / Automation</h4>
             <p className="text-xs text-gray-500">Quick buttons above Actions in the floating menu. Per shortcut: visibility, URL slug, name, SVG icon + colour, and one page option.</p>
           </div>
         </div>
         <div className="rounded-md border border-white/10 bg-black/20 px-3 py-1 mt-2">
-          <p className={labelCls}>Shortcuts (checkboxes · {shortcutCount} of 3 shown)</p>
+          <p className={labelCls}>Shortcuts (checkboxes · {shortcutCount} of 4 shown)</p>
           {SHORTCUT_KEYS.map((key) => {
             const s = c.shortcuts[key];
             const d = DEFAULT_SHORTCUTS[key];

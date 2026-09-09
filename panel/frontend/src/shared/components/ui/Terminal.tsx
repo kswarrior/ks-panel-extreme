@@ -294,6 +294,54 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
     return btoa(bin);
   };
 
+  // Startup-terminal display tinting: the main process (e.g. PaperMC)
+  // strips its own colors on a non-TTY pipe, and its earliest bootstrap
+  // lines never carried any — so plain log lines would all render white.
+  // Like a real server console, tint UNCOLORED lines by severity here
+  // (display-only; wire bytes stay untouched): warnings yellow, errors
+  // red. Lines the app already colored (contain ESC) are left alone, and
+  // side shells / workflow panes are never tinted (byte-faithful).
+  const TINT_ERROR_RE = /error|exception|failed|severe|fatal|unable to|could not|crash/i;
+  const TINT_WARN_RE = /warn(ing)?|\*\*\*/;
+  const tintDecRef = useRef<TextDecoder | null>(null);
+  const tintBufRef = useRef('');
+  const tintLine = (line: string): string => {
+    if (line.includes('\x1b')) return line;
+    if (TINT_ERROR_RE.test(line)) return `\x1b[31;1m${line}\x1b[0m`;
+    if (TINT_WARN_RE.test(line)) return `\x1b[33;1m${line}\x1b[0m`;
+    return line;
+  };
+  // writeTinted streams one stdout/stderr chunk through the line tinter.
+  // A streaming TextDecoder + carry buffer reassembles lines split across
+  // WS frames; completed lines are tinted, the tail waits for more bytes.
+  const writeTinted = (term: XTerm, bytes: Uint8Array) => {
+    try {
+      if (!tintDecRef.current) {
+        try {
+          tintDecRef.current = new TextDecoder('utf-8');
+        } catch {
+          term.write(bytes);
+          return;
+        }
+      }
+      tintBufRef.current += tintDecRef.current.decode(bytes, { stream: true });
+      const parts = tintBufRef.current.split('\n');
+      tintBufRef.current = parts.pop() ?? '';
+      for (const ln of parts) {
+        term.write(`${tintLine(ln.endsWith('\r') ? ln.slice(0, -1) : ln)}\n`);
+      }
+    } catch {
+      try { term.write(bytes); } catch { /* noop */ }
+    }
+  };
+  const flushTint = (term: XTerm) => {
+    const tail = tintBufRef.current;
+    tintBufRef.current = '';
+    if (tail) {
+      try { term.write(`${tintLine(tail)}\n`); } catch { /* noop */ }
+    }
+  };
+
   // Bootleg-friendly: many dev environments need a moment after the
   // layout settles before xterm can measure the container. Re-fit on a
   // short timeout in addition to the ResizeObserver.
@@ -685,6 +733,11 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
             // of resuming wherever the previous failure had climbed to.
             attempt = 0;
             setState('connected');
+            // Fresh attach, fresh tint state: a partial line left over
+            // from the previous session must never merge into the new
+            // stream's first line.
+            tintBufRef.current = '';
+            tintDecRef.current = null;
             // Reset scrollback so the freshly-attached shell starts blank.
             // Action-bound panes keep their scrollback: the parent streams
             // the running action's log lines into the same buffer, and a
@@ -706,13 +759,19 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
           case 'stderr': {
             if (typeof msg.data === 'string') {
               const bytes = base64ToBytes(msg.data);
-              if (bytes.length) term.write(bytes);
+              if (bytes.length) {
+                // Startup panes render the MC-style tinted view; every
+                // other bridge stays byte-faithful.
+                if (endpointRef.current === 'startup') writeTinted(term, bytes);
+                else term.write(bytes);
+              }
             }
             break;
           }
           case 'exit': {
             const code = Number(msg.code);
             setState('closed');
+            flushTint(term);
             if (Number.isFinite(code)) {
               term.write(`\r\n\x1b[90m● process exited with code ${code}\x1b[0m\r\n`);
             } else {
