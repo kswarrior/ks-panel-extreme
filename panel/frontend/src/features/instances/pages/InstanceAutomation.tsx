@@ -1,9 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   listAutomation,
-  createAutomation,
-  updateAutomation,
   deleteAutomation,
   listAutomationRuns,
   runAutomationNow,
@@ -11,21 +9,15 @@ import {
   importAutomationFile,
   importAutomationURL,
 } from '@/features/instances/api/instanceAdvanced';
-import type { Automation, AutomationKind, AutomationRun, AutomationStep } from '@/features/instances/types/instanceAdvanced';
+import type { Automation, AutomationRun } from '@/features/instances/types/instanceAdvanced';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { PermissionKey } from '@/shared/types/permissions';
 import { hasPermissionAny } from '@/shared/types/permissions';
-import Modal from '@/shared/components/ui/Modal';
-import NumberInput from '@/shared/components/ui/NumberInput';
-import TextInput from '@/shared/components/ui/TextInput';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import ErrorState from '@/shared/components/ui/ErrorState';
 import PageActionsPill, { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import PageTabsPill from '@/shared/components/ui/PageTabsPill';
 import { useConfirm } from '@/shared/stores/confirmStore';
-import { SearchableSelect } from '@/shared/components/ui/SearchableSelect';
-import { useInstance, parseConfig } from '@/shared/hooks/useInstance';
-import { resolveInstanceControls, automationTimeoutCeiling } from '@/features/instances/utils/instanceControls';
 
 function toast(msg: string, type: 'success' | 'error' | 'info' = 'info') {
   window.dispatchEvent(new CustomEvent('ks-toast', { detail: { message: msg, type } }));
@@ -38,82 +30,33 @@ function fmtTime(iso?: string | null): string {
   return new Date(iso).toLocaleString();
 }
 
-interface JobDraft {
-  editing: Automation | null;
-  name: string;
-  kind: AutomationKind;
-  payload: string;
-  schedule: string;
-  command: string;
-  actionId: string;
-  powerOp: string;
-  secretRefs: string;
-  timeoutSec: number;
-  enabled: boolean;
-  steps: AutomationStep[];
-}
-
-const POWER_OPS = ['start', 'stop', 'restart', 'kill'] as const;
-
-const STEP_IFS = ['success', 'failure', 'always'] as const;
-
-const emptyStep = (): AutomationStep => ({ name: '', kind: 'shell', command: '', payload: '', if: 'success' });
-
-const emptyDraft = (editing: Automation | null = null): JobDraft => {
-  const k = (editing?.kind ?? 'shell') as AutomationKind;
-  const payload = editing?.payload ?? '';
-  return {
-    editing,
-    name: editing?.name ?? '',
-    kind: k,
-    payload,
-    schedule: editing?.schedule ?? '',
-    command: editing?.command ?? '',
-    actionId: k === 'action' ? payload : '',
-    powerOp: k === 'power' && (POWER_OPS as readonly string[]).includes(payload) ? payload : 'restart',
-    secretRefs: (editing?.secret_refs ?? []).join(', '),
-    timeoutSec: editing?.timeout_sec && editing.timeout_sec > 0 ? editing.timeout_sec : 300,
-    enabled: editing?.enabled ?? true,
-    steps: Array.isArray(editing?.steps) ? editing.steps.map((s) => ({ ...s })) : [],
-  };
-};
-
 // InstanceAutomation — native automation jobs + runs page for the automation
 // shortcut slug (default `automation`, customizable in Instance Controls).
 // Self-sufficient builtin like Files / Terminal / Ports: always renders, no
 // library import needed. Reads are open to any instance viewer; create /
 // edit / delete / Run now hide behind the shortcut's "Allow Add / Edit /
 // Delete" page option plus INSTANCES_EDIT|MANAGE_INSTANCES (same split as
-// the Ports editor's readOnly + canEdit).
-const InstanceAutomation: React.FC<{ readOnly?: boolean }> = ({ readOnly = false }) => {
+// the Ports editor's readOnly + canEdit). New job / Edit are complete
+// sub-pages (`<slug>/new`, `<slug>/<id>/edit`, file-editor pattern) hosted
+// by InstanceAutomationEditor — this page only lists, runs and transfers.
+const InstanceAutomation: React.FC<{ readOnly?: boolean; automationSlug?: string }> = ({ readOnly = false, automationSlug = 'automation' }) => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const instanceId = Number(id);
   const permissions = useAuthStore((s) => s.permissions);
   const canEdit = !readOnly && hasPermissionAny(permissions, PermissionKey.INSTANCES_EDIT, PermissionKey.MANAGE_INSTANCES);
   const confirm = useConfirm();
+  const editorBase = `/instances/${instanceId}/${automationSlug}`;
 
   const [jobs, setJobs] = useState<Automation[]>([]);
   const [runs, setRuns] = useState<AutomationRun[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
   const [runBusyId, setRunBusyId] = useState<number | null>(null);
   const [tab, setTab] = useState<'tasks' | 'runs'>('tasks');
-  const [draft, setDraft] = useState<JobDraft | null>(null);
-  const [formError, setFormError] = useState('');
   const [importUrl, setImportUrl] = useState('');
   const [importBusy, setImportBusy] = useState(false);
   const [showImportUrl, setShowImportUrl] = useState(false);
-
-  // Template ceiling + kind toggles for this instance (snapshotted config).
-  // Missing/garbled = allow-all with the 1800s default ceiling.
-  const { instance } = useInstance(instanceId);
-  const controls = useMemo(() => resolveInstanceControls(instance?.config), [instance?.config]);
-  const ceiling = automationTimeoutCeiling(controls);
-  const autoCfg = controls.shortcuts.automation;
-  const allowedKinds = (['shell', 'power', 'action'] as AutomationKind[]).filter((k) =>
-    k === 'shell' ? autoCfg.allow_shell : k === 'power' ? autoCfg.allow_power : autoCfg.allow_actions,
-  );
 
   const load = useCallback(async () => {
     if (!instanceId) return;
