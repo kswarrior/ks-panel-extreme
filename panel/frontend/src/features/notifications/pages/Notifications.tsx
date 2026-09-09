@@ -5,6 +5,7 @@ import type { Notification, NotificationStats, NotificationMode } from '../types
 import { CATEGORY_META, PRIORITY_META } from '../types/notification';
 import NotificationCard from '../components/NotificationCard';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import client from '@/shared/api/client';
@@ -321,7 +322,16 @@ const NotificationsPage: React.FC = () => {
         {prefMsg && <span className="text-xs text-gray-400">{prefMsg}</span>}
       </div>
 
-      {error && <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 text-red-300 px-3 py-2 text-sm">{error}</div>}
+      {error && rows.length > 0 && <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 text-red-300 px-3 py-2 text-sm">{error}</div>}
+      {!loading && error && rows.length === 0 && (
+        <ErrorState
+          variant="error"
+          title="Failed to load notifications"
+          description={error}
+          retryLabel="Retry"
+          onRetry={() => void load()}
+        />
+      )}
 
       {loading && <SkeletonGrid count={6} />}
 

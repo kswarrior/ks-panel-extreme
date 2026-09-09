@@ -500,7 +500,16 @@ return (
           </button>
       </PageActionsPill>
 
-      {!loading && error && (
+      {!loading && error && apps.length === 0 && (
+        <ErrorState
+          variant="error"
+          title="Failed to load applications"
+          description={error}
+          retryLabel="Retry"
+          onRetry={() => void load()}
+        />
+      )}
+      {!loading && error && apps.length > 0 && (
         <GlassCard className="text-sm text-red-300 border border-red-700/40 mb-4">{error}</GlassCard>
       )}
 

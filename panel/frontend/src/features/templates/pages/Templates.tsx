@@ -9,6 +9,7 @@ import {
 } from '@/shared/api/admin';
 import type { Template } from '@/shared/types/instance';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import GlassCard from '@/shared/components/ui/Card';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import GlassModal from '@/shared/components/ui/Modal';
@@ -410,7 +411,16 @@ const Templates: React.FC = () => {
         <p className="text-xs text-gray-500">{filtered.length} of {templates.length} shown</p>
       </div>
 
-      {error && <p className="text-red-400 mb-3">{error}</p>}
+      {error && templates.length > 0 && <p className="text-red-400 mb-3">{error}</p>}
+      {!loading && error && templates.length === 0 && (
+        <ErrorState
+          variant="error"
+          title="Failed to load templates"
+          description={error}
+          retryLabel="Retry"
+          onRetry={() => void load()}
+        />
+      )}
       {loading && <SkeletonGrid count={6} />}
 
       {!loading && filtered.length > 0 && (

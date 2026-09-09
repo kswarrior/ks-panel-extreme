@@ -12,6 +12,7 @@ import type { MarketplaceCatalog, MarketplacePage } from '@/shared/api/admin';
 import type { InstancePage } from '@/shared/types/instancePage';
 import { pageSourceOf } from '@/features/instance-pages/types/instancePage';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import GlassCard from '@/shared/components/ui/Card';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
@@ -466,6 +467,15 @@ const InstancePages: React.FC = () => {
       )}
       <div className="space-y-3">
         {loading && <SkeletonGrid count={6} />}
+        {!loading && error && pages.length === 0 && (
+          <ErrorState
+            variant="error"
+            title="Failed to load instance pages"
+            description={error}
+            retryLabel="Retry"
+            onRetry={() => void load()}
+          />
+        )}
         {!loading && filtered.length > 0 && (
           <div className="ks-card-grid grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3" id="ks-instancepages-grid">
             {filtered.map((e) => {

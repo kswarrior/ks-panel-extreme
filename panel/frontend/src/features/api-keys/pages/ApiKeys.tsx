@@ -280,7 +280,16 @@ const AdminApiKeys: React.FC = () => {
           </button>
       </PageActionsPill>
 
-       {error && <p className="text-red-400 mb-3">{error}</p>}
+       {error && keys.length > 0 && <p className="text-red-400 mb-3">{error}</p>}
+       {!loading && error && keys.length === 0 && (
+         <ErrorState
+           variant="error"
+           title="Failed to load API keys"
+           description={error}
+           retryLabel="Retry"
+           onRetry={() => void load()}
+         />
+       )}
 
       {loading && <SkeletonGrid count={6} />}
 
