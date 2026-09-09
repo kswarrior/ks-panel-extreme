@@ -112,7 +112,7 @@ export const isDualMode = (m: ConnectionMode): boolean => m === 'both' || m === 
 export const usesDirect = (m: ConnectionMode): boolean => m === 'direct' || m === 'local_port' || m === 'both' || m === 'local_both';
 
 export const KSEDGE_URL =
-  'https://github.com/kswarrior/ks-panel-extreme/releases/download/ks-panel-edge/ksedge';
+  'https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/release/ksedge';
 
 export const ALL_KINDS: { key: string; label: string; color: string }[] = [
   { key: 'docker', label: 'Docker', color: '#60a5fa' },
