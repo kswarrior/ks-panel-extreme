@@ -295,36 +295,51 @@ func ListAutomationHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, jobs)
 }
 
+type automationStepRequest struct {
+	Name       string `json:"name"`
+	Kind       string `json:"kind"`
+	Command    string `json:"command"`
+	Payload    string `json:"payload"`
+	If         string `json:"if"`
+	TimeoutSec int    `json:"timeout_sec"`
+}
+
 type automationUpsertRequest struct {
-	Name       string   `json:"name"`
-	Command    string   `json:"command"`
-	Kind       string   `json:"kind"`
-	Payload    string   `json:"payload"`
-	Schedule   string   `json:"schedule"`
-	Enabled    bool     `json:"enabled"`
-	SecretRefs []string `json:"secret_refs"`
-	TimeoutSec int      `json:"timeout_sec"`
+	Name       string                 `json:"name"`
+	Command    string                 `json:"command"`
+	Kind       string                 `json:"kind"`
+	Payload    string                 `json:"payload"`
+	Schedule   string                 `json:"schedule"`
+	Enabled    bool                   `json:"enabled"`
+	SecretRefs []string               `json:"secret_refs"`
+	TimeoutSec int                    `json:"timeout_sec"`
+	Steps      []automationStepRequest `json:"steps"`
 }
 
 // validateAutomationUpsert enforces the per-kind payload shape and the
 // instance's automation kind toggles (shortcuts.automation allow_shell /
 // allow_power / allow_actions, allow-all default). Action jobs additionally
 // resolve their action ID against the owning template so a typo fails fast
-// at write time instead of when the scheduler fires. Returns the normalized
-// kind + instance row, or an HTTP status + message for the caller to write.
+// at write time instead of when the scheduler fires. The template timeout
+// ceiling (shortcuts.automation.max_timeout_sec, default 1800) caps both
+// the job timeout and every step timeout: config >= user passes, config <
+// user is rejected. Steps are validated with the same per-kind rules.
+// Returns the normalized kind + instance row, or an HTTP status + message
+// for the caller to write.
 func validateAutomationUpsert(con *sql.DB, instanceID int64, req automationUpsertRequest) (string, int, string) {
 	kind := models.NormalizeAutomationKind(req.Kind)
+	hasSteps := len(req.Steps) > 0
 	switch kind {
 	case models.AutomationKindPower:
 		if !models.IsAutomationPowerOp(req.Payload) {
 			return "", http.StatusBadRequest, "invalid power op (want start|stop|restart|kill)"
 		}
 	case models.AutomationKindAction:
-		if req.Payload == "" {
+		if req.Payload == "" && !hasSteps {
 			return "", http.StatusBadRequest, "action id is required for action jobs"
 		}
 	default:
-		if req.Command == "" {
+		if req.Command == "" && !hasSteps {
 			return "", http.StatusBadRequest, "command is required for shell jobs"
 		}
 	}
@@ -335,7 +350,46 @@ func validateAutomationUpsert(con *sql.DB, instanceID int64, req automationUpser
 	if !automationKindAllowed(inst.Config, kind) {
 		return "", http.StatusForbidden, "template disallows automation " + kind + " jobs for this instance"
 	}
-	if kind == models.AutomationKindAction {
+	maxTimeout := automationMaxTimeoutSec(inst.Config)
+	if req.TimeoutSec > maxTimeout {
+		return "", http.StatusBadRequest, fmt.Sprintf("timeout %ds exceeds template maximum %ds", req.TimeoutSec, maxTimeout)
+	}
+	// Steps: normalise + per-step kind/toggle/timeout/shape checks.
+	if len(req.Steps) > repository.MaxAutomationSteps {
+		return "", http.StatusBadRequest, fmt.Sprintf("too many steps (max %d)", repository.MaxAutomationSteps)
+	}
+	var actionIDs []string
+	if kind == models.AutomationKindAction && req.Payload != "" {
+		actionIDs = append(actionIDs, req.Payload)
+	}
+	for i := range req.Steps {
+		st := &req.Steps[i]
+		sk := models.NormalizeAutomationKind(st.Kind)
+		st.Kind = sk
+		st.If = models.NormalizeAutomationIf(st.If)
+		if !automationKindAllowed(inst.Config, sk) {
+			return "", http.StatusForbidden, fmt.Sprintf("template disallows automation %s jobs for this instance (step %d)", sk, i+1)
+		}
+		switch sk {
+		case models.AutomationKindPower:
+			if !models.IsAutomationPowerOp(st.Payload) {
+				return "", http.StatusBadRequest, fmt.Sprintf("step %d: invalid power op (want start|stop|restart|kill)", i+1)
+			}
+		case models.AutomationKindAction:
+			if st.Payload == "" {
+				return "", http.StatusBadRequest, fmt.Sprintf("step %d: action id is required for action steps", i+1)
+			}
+			actionIDs = append(actionIDs, st.Payload)
+		default:
+			if st.Command == "" {
+				return "", http.StatusBadRequest, fmt.Sprintf("step %d: command is required for shell steps", i+1)
+			}
+		}
+		if st.TimeoutSec > maxTimeout {
+			return "", http.StatusBadRequest, fmt.Sprintf("step %d: timeout %ds exceeds template maximum %ds", i+1, st.TimeoutSec, maxTimeout)
+		}
+	}
+	if kind == models.AutomationKindAction || len(actionIDs) > 0 {
 		tmpl, err := repository.NewTemplateRepository(con).Get(inst.TemplateID)
 		if err != nil {
 			return "", http.StatusBadRequest, "owning template not found (deleted?)"
@@ -346,18 +400,43 @@ func validateAutomationUpsert(con *sql.DB, instanceID int64, req automationUpser
 		if err := json.Unmarshal([]byte(tmpl.Spec), &spec); err != nil {
 			return "", http.StatusInternalServerError, "template spec is not valid JSON"
 		}
-		found := false
+		valid := map[string]bool{}
 		for i := range spec.Actions {
-			if spec.Actions[i].ID == req.Payload {
-				found = len(spec.Actions[i].Steps) > 0
-				break
+			if len(spec.Actions[i].Steps) > 0 {
+				valid[spec.Actions[i].ID] = true
 			}
 		}
-		if !found {
+		if kind == models.AutomationKindAction && req.Payload != "" && !valid[req.Payload] {
 			return "", http.StatusBadRequest, "action not found in template: " + req.Payload
+		}
+		for _, aid := range actionIDs {
+			if kind == models.AutomationKindAction && aid == req.Payload {
+				continue
+			}
+			if !valid[aid] {
+				return "", http.StatusBadRequest, "action not found in template: " + aid
+			}
 		}
 	}
 	return kind, 0, ""
+}
+
+func automationStepsToModel(in []automationStepRequest) []models.AutomationStep {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]models.AutomationStep, 0, len(in))
+	for _, st := range in {
+		out = append(out, models.AutomationStep{
+			Name:       st.Name,
+			Kind:       models.NormalizeAutomationKind(st.Kind),
+			Command:    st.Command,
+			Payload:    st.Payload,
+			If:         models.NormalizeAutomationIf(st.If),
+			TimeoutSec: st.TimeoutSec,
+		})
+	}
+	return out
 }
 
 func CreateAutomationHandler(w http.ResponseWriter, r *http.Request) {
@@ -401,6 +480,7 @@ func CreateAutomationHandler(w http.ResponseWriter, r *http.Request) {
 	jobID, err := repo.Create(repository.AutomationUpsertInput{
 		InstanceID: id, Name: req.Name, Command: req.Command, Kind: kind, Payload: req.Payload,
 		Schedule: req.Schedule, Enabled: req.Enabled, SecretRefs: req.SecretRefs, TimeoutSec: req.TimeoutSec,
+		Steps: automationStepsToModel(req.Steps),
 	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -467,6 +547,7 @@ func UpdateAutomationHandler(w http.ResponseWriter, r *http.Request) {
 	if err := repo.Update(jobID, repository.AutomationUpsertInput{
 		InstanceID: id, Name: req.Name, Command: req.Command, Kind: kind, Payload: req.Payload,
 		Schedule: req.Schedule, Enabled: req.Enabled, SecretRefs: req.SecretRefs, TimeoutSec: req.TimeoutSec,
+		Steps: automationStepsToModel(req.Steps),
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

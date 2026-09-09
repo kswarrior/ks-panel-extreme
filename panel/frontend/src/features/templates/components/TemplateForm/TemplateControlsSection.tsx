@@ -267,12 +267,12 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
       <div className={sectionCls}>
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div>
-            <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">Menu shortcuts · Files / Terminal / Ports / Automation</h4>
+            <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">Menu shortcuts · Files / Terminal / Ports / Automation / Env</h4>
             <p className="text-xs text-gray-500">Quick buttons above Actions in the floating menu. Per shortcut: visibility, URL slug, name, SVG icon + colour, and one page option.</p>
           </div>
         </div>
         <div className="rounded-md border border-white/10 bg-black/20 px-3 py-1 mt-2">
-          <p className={labelCls}>Shortcuts (checkboxes · {shortcutCount} of 4 shown)</p>
+          <p className={labelCls}>Shortcuts (checkboxes · {shortcutCount} of 5 shown)</p>
           {SHORTCUT_KEYS.map((key) => {
             const s = c.shortcuts[key];
             const d = DEFAULT_SHORTCUTS[key];
@@ -650,6 +650,14 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
                       />
                     </>
                   )}
+                  {key === 'env' && (
+                    <MiniToggle
+                      checked={s.allow_edit}
+                      onChange={(v) => updateShortcut(key, { allow_edit: v })}
+                      label="Allow Add / Edit / Delete"
+                      hint="Off = read-only env table (no add, edit, delete or save). Saving recreates the workload."
+                    />
+                  )}
                   {custom && (
                     <div className="pt-1">
                       <button
@@ -764,7 +772,7 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
           )}
         </div>
         <p className="text-[11px] text-gray-500 mt-1">
-          More opens <code className="font-mono text-sky-300 break-all">/{(c.more_page.trim().replace(/^\/+|\/+$/g, '') || DEFAULT_INSTANCE_CONTROLS.more_page)}</code>. Use a page Path or a built-in (overview, ports, sftp, files, terminal). Unknown slugs fall back to Overview.
+          More opens <code className="font-mono text-sky-300 break-all">/{(c.more_page.trim().replace(/^\/+|\/+$/g, '') || DEFAULT_INSTANCE_CONTROLS.more_page)}</code>. Use a page Path or a built-in (overview, ports, sftp, files, terminal, automation, env). Unknown slugs fall back to Overview.
         </p>
         {!moreKnown && (
           <p className="text-[11px] text-amber-300 bg-amber-950/30 border border-amber-700/30 rounded-md px-2.5 py-1.5 mt-1.5">

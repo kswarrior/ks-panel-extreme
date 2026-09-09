@@ -55,7 +55,7 @@ function actionPhase(isActive: boolean, outcome: 'ok' | 'err' | undefined): Acti
 // (no pill chrome). Rendered at the TOP of the floating instance menu:
 // a Start / Stop / Restart / Kill button row first (with a divider line
 // below it, mirroring the line below Actions), then the self-sufficient
-// Files / Terminal / Ports / Automation shortcut row (horizontally scrollable, always
+// Files / Terminal / Ports / Automation / Env shortcut row (horizontally scrollable, always
 // clickable — no library import needed), then the template Actions
 // selector below it: a bordered `name | chevron` row where clicking the
 // name runs/stops the shown action and clicking the SVG chevron (resting
@@ -142,7 +142,7 @@ const InstancePowerMenu: React.FC = () => {
     PermissionKey.INSTANCES_EDIT,
   );
 
-  // Quick shortcuts (Files / Terminal / Ports / Automation) — pure builtins surfaced
+  // Quick shortcuts (Files / Terminal / Ports / Automation / Env) — pure builtins surfaced
   // directly above the template Actions so operators can jump without
   // closing the menu. Slug / label / icon come from
   // instance_controls.shortcuts (template author or per-instance override).
@@ -152,6 +152,7 @@ const InstancePowerMenu: React.FC = () => {
   const terminalSlug = shortcutSlug(controls, 'terminal');
   const portsSlug = shortcutSlug(controls, 'ports');
   const automationSlug = shortcutSlug(controls, 'automation');
+  const envSlug = shortcutSlug(controls, 'env');
   const canEditPorts = hasPermissionAny(
     permissions,
     PermissionKey.INSTANCES_EDIT,
@@ -288,7 +289,7 @@ const InstancePowerMenu: React.FC = () => {
 
   const menuBtn = (tone: string) =>
     `flex-1 inline-flex items-center justify-center gap-1.5 rounded-md px-2 py-2 text-[13px] font-medium transition-all duration-150 active:scale-[0.94] hover:bg-white/10 hover:shadow-[0_2px_12px_rgba(0,0,0,0.35)] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:active:scale-100 ${tone}`;
-  // Aligned shortcut buttons (Files / Terminal / Ports / Automation): equal-width cells
+  // Aligned shortcut buttons (Files / Terminal / Ports / Automation / Env): equal-width cells
   // in one horizontally scrollable row — active route glows, unavailable
   // pages render dimmed + disabled with an explanatory tooltip.
   const shortcutBtn = (active: boolean, enabled: boolean) =>
@@ -339,6 +340,16 @@ const InstancePowerMenu: React.FC = () => {
         fallbackTone: 'text-violet-300',
         defaultIcon: (
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1" /></svg>
+        ),
+      },
+      {
+        key: 'env' as const,
+        slug: envSlug,
+        enabled: true,
+        hint: 'Environment variables',
+        fallbackTone: 'text-rose-300',
+        defaultIcon: (
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><path d="M8 3H7a2 2 0 0 0-2 2v4a2 2 0 0 1-2 2 2 2 0 0 1 2 2v4a2 2 0 0 0 2 2h1" /><path d="M16 3h1a2 2 0 0 1 2 2v4a2 2 0 0 0 2 2 2 2 0 0 0-2 2v4a2 2 0 0 1-2 2h-1" /></svg>
         ),
       },
     ]
@@ -439,7 +450,7 @@ const InstancePowerMenu: React.FC = () => {
       {showPowerRow && (shortcuts.length > 0 || error || templateActions.length > 0) && (
         <div className="mx-3 mt-3 border-t border-white/10" aria-hidden="true" />
       )}
-      {/* Quick shortcuts — Files / Terminal / Ports / Automation, aligned in one
+      {/* Quick shortcuts — Files / Terminal / Ports / Automation / Env, aligned in one
           horizontally scrollable row directly above Actions. Hidden
           shortcuts (show toggle off in Instance Controls) leave the row;
           the row hides entirely when all are off. */}

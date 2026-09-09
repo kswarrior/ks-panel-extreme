@@ -300,17 +300,26 @@ func fireStepsJob(fctx AutomationFireCtx) (AutomationFireResult, error) {
 }
 
 // fireShellJob is the original automation behaviour: exec Command on the
-// owning edge with the job's secret env.
+// owning edge with the job's secret env. The timeout is the effective
+// budget (job value capped by the template ceiling) so config < user is
+// cut to config at fire time even if a row predates the write-path check.
 func fireShellJob(fctx AutomationFireCtx) (AutomationFireResult, error) {
+	job := fctx.Job
+	timeout := effectiveAutomationTimeout(job.TimeoutSec, fctx.Inst.Config)
+	return fireShellCommand(fctx, job.Command, timeout)
+}
+
+// fireShellCommand execs an arbitrary command with an explicit timeout.
+// Shared by the single-shot shell path and every shell step.
+func fireShellCommand(fctx AutomationFireCtx, command string, timeout int) (AutomationFireResult, error) {
 	job, inst := fctx.Job, fctx.Inst
 	keys, vals, _ := repository.NewSecretRepository(fctx.Con).ResolvedEnv(job.InstanceID, job.SecretRefs)
 	env := map[string]string{}
 	for i := range keys {
 		env[keys[i]] = vals[i]
 	}
-	timeout := job.TimeoutSec
 	if timeout <= 0 {
-		timeout = 300
+		timeout = effectiveAutomationTimeout(job.TimeoutSec, fctx.Inst.Config)
 	}
 	ec := edge.NewWithTimeout(*fctx.Node, fctx.Token, time.Duration(timeout+10)*time.Second)
 	name := inst.ExternalID
@@ -321,11 +330,11 @@ func fireShellJob(fctx AutomationFireCtx) (AutomationFireResult, error) {
 	callCtx, cancel := context.WithTimeout(fctx.Ctx, time.Duration(timeout+10)*time.Second)
 	defer cancel()
 	resp, execErr := ec.ExecCtx(callCtx, edge.ExecRequest{
-		Kind: inst.Kind, Name: name, Command: job.Command, Env: env, TimeoutSec: job.TimeoutSec,
+		Kind: inst.Kind, Name: name, Command: command, Env: env, TimeoutSec: timeout,
 	})
 	finished := time.Now()
 	res := AutomationFireResult{
-		RunCommand: job.Command,
+		RunCommand: command,
 		Stdout:     resp.Stdout,
 		Stderr:     resp.Stderr,
 		ExitCode:   resp.ExitCode,
