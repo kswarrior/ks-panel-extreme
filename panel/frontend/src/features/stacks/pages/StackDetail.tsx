@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import GlassCard from '@/shared/components/ui/Card';
+import GlassModal from '@/shared/components/ui/Modal';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import { PageActionsPill } from '@/shared/components/ui/PageActionsPill';
 import { CardIconTile } from '@/shared/components/ui/IconColorPicker';
+import IconColorPicker from '@/shared/components/ui/IconColorPicker';
 import {
   getStack,
   setStackGrants,
@@ -17,7 +19,7 @@ import {
   stackAppUrl,
   extractStackApiError,
 } from '@/features/stacks/api/stacks';
-import { Stack, stackCapabilityMeta, stackSourceMeta } from '@/shared/types/stack';
+import { Stack, stackCapabilityMeta, stackSourceMeta, STACK_CATEGORIES } from '@/shared/types/stack';
 import StackFileManager from '@/features/stacks/components/StackFileManager';
 import { useConfirm } from '@/shared/stores/confirmStore';
 
@@ -85,6 +87,16 @@ const StackDetail: React.FC = () => {
   const [proxyPort, setProxyPort] = useState('');
   const [proxyRoot, setProxyRoot] = useState('');
   const [proxySaving, setProxySaving] = useState(false);
+  // Edit modal (name/version/category/description + icon/colour theme).
+  const [editOpen, setEditOpen] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editVersion, setEditVersion] = useState('');
+  const [editCategory, setEditCategory] = useState('dashboard');
+  const [editDesc, setEditDesc] = useState('');
+  const [editIcon, setEditIcon] = useState('');
+  const [editColor, setEditColor] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -356,6 +368,41 @@ const StackDetail: React.FC = () => {
       setError(extractStackApiError(e, 'Failed to save proxy.'));
     } finally {
       setProxySaving(false);
+    }
+  };
+
+  const openEdit = () => {
+    if (!stack) return;
+    setEditName(stack.name);
+    setEditVersion(stack.version);
+    setEditCategory(stack.category || 'dashboard');
+    setEditDesc(stack.description || '');
+    setEditIcon(stack.icon || '');
+    setEditColor(stack.color || '');
+    setEditError('');
+    setEditOpen(true);
+  };
+
+  const saveEdit = async () => {
+    if (!stack) return;
+    if (!editName.trim()) { setEditError('Name is required.'); return; }
+    setEditSaving(true);
+    setEditError('');
+    try {
+      await updateStack(stack.id, {
+        name: editName.trim(),
+        category: editCategory,
+        version: editVersion,
+        description: editDesc,
+        icon: editIcon,
+        color: editColor,
+      });
+      setEditOpen(false);
+      await load();
+    } catch (e) {
+      setEditError(extractStackApiError(e, 'Failed to save.'));
+    } finally {
+      setEditSaving(false);
     }
   };
 
