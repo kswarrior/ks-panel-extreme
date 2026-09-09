@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useInstance, parseConfig } from '@/shared/hooks/useInstance';
 import { resolveInstanceControls, normalizeFilesPath, isPathWithinHome } from '@/features/instances/utils/instanceControls';
 import Modal from '@/shared/components/ui/Modal';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import { useConfirm } from '@/shared/stores/confirmStore';
@@ -598,10 +599,19 @@ const InstanceFiles: React.FC<{ instanceId: number; filesSlug: string }> = ({ in
         </button>
       </PageActionsPill>
 
-      {error && (
+      {error && entries.length > 0 && (
         <div className="ks-card text-[13px]" style={{ borderColor: 'var(--ks-bad-line)', color: 'var(--ks-bad)' }}>
           {error}
         </div>
+      )}
+      {!loading && error && entries.length === 0 && (
+        <ErrorState
+          variant="error"
+          title="Failed to list files"
+          description={error}
+          retryLabel="Retry"
+          onRetry={() => { if (path !== null) void load(path); }}
+        />
       )}
 
       {/* Listing */}

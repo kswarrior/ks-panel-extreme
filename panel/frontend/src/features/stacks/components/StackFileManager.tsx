@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import Modal from '@/shared/components/ui/Modal';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import { markdownToHtml } from '@/shared/components/ui/CustomPageView';
@@ -361,10 +362,19 @@ const StackFileManager: React.FC<{ stackId: number; slug: string; initialDir?: s
         </button>
       )}
 
-      {error && (
+      {error && entries.length > 0 && (
         <div className="ks-card text-[13px]" style={{ borderColor: 'var(--ks-bad-line)', color: 'var(--ks-bad)' }}>
           {error}
         </div>
+      )}
+      {!loading && error && entries.length === 0 && (
+        <ErrorState
+          variant="error"
+          title="Failed to list files"
+          description={error}
+          retryLabel="Retry"
+          onRetry={() => void load(dir)}
+        />
       )}
 
       <div className="glass-card rounded-xl overflow-hidden">

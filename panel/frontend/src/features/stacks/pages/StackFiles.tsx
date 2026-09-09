@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import GlassCard from '@/shared/components/ui/Card';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import {
   getStack,
@@ -92,10 +93,19 @@ const StackFiles: React.FC = () => {
     );
   }
   if (error || !stack) {
+    const isNotFound = !error || /not found/i.test(error);
     return (
       <div className="space-y-4">
         <Link to="/stacks" className="text-xs text-sky-300 hover:text-sky-200">← Stacks</Link>
-        <GlassCard><p className="text-sm text-red-300">{error || 'Not found.'}</p></GlassCard>
+        <ErrorState
+          variant={isNotFound ? 'not-found' : 'error'}
+          title={isNotFound ? 'Stack not found' : 'Failed to load stack'}
+          description={isNotFound ? undefined : (error || undefined)}
+          retryLabel={isNotFound ? undefined : 'Retry'}
+          onRetry={isNotFound ? undefined : () => void load()}
+          backLabel="Back to stacks"
+          onBack={() => navigate('/stacks')}
+        />
       </div>
     );
   }
