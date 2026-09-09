@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { listNodes, nodeHeartbeats, probeNode, listInstances, rotateNodeToken, deleteNode, purgeLocalNode, getNodeUpdateInfo } from '@/shared/api/admin';
 import type { Node, NodeHeartbeat } from '@/features/nodes/types/node';
 import GlassCard from '@/shared/components/ui/Card';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import { PageActionsPill } from '@/shared/components/ui/PageActionsPill';
 import SectionRailTabs from '@/shared/components/ui/SectionRailTabs';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
@@ -306,13 +307,15 @@ const NodeDetail: React.FC = () => {
           </button>
           <h2 className="text-xl font-semibold text-white">Node Detail</h2>
         </div>
-        <GlassCard className="p-6 border border-red-900/40">
-          <p className="text-red-400 text-sm">{error}</p>
-          <div className="mt-3 flex gap-2">
-            <button onClick={() => window.location.reload()} className="px-3 py-1.5 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white">Retry</button>
-            <button onClick={back} className="px-3 py-1.5 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-gray-300">Back</button>
-          </div>
-        </GlassCard>
+        <ErrorState
+          variant="error"
+          title="Failed to load node"
+          description={error}
+          retryLabel="Retry"
+          onRetry={() => window.location.reload()}
+          backLabel="Back"
+          onBack={back}
+        />
       </div>
     );
   }
@@ -325,7 +328,7 @@ const NodeDetail: React.FC = () => {
           </button>
           <h2 className="text-xl font-semibold text-white">Node Detail</h2>
         </div>
-        <GlassCard className="p-6"><p className="text-gray-400">Node not found</p><button onClick={back} className="mt-3 px-3 py-1.5 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white">Back to nodes</button></GlassCard>
+        <ErrorState variant="not-found" title="Node not found" backLabel="Back to nodes" onBack={back} />
       </div>
     );
   }

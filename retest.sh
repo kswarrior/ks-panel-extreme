@@ -193,16 +193,16 @@ if pgrep -x kspanel >/dev/null 2>&1; then
     # If setup:localnode had to auto-bump 5050 to an ephemeral port (busy box),
     # its edge config now points at that ephemeral port but the final panel
     # will be on $LAUNCH_PORT — patch the edge config so heartbeats land.
-    if [[ -f "localnode/ksedge/config.toml" ]] && command -v python3 >/dev/null 2>&1; then
+    if [[ -f "localnode/ksedge/config.yaml" ]] && command -v python3 >/dev/null 2>&1; then
         python3 - "$LAUNCH_PORT" <<'PY' 2>/dev/null || true
 import re, sys
 port = sys.argv[1] if len(sys.argv)>1 else "8080"
-cfg_path = "localnode/ksedge/config.toml"
+cfg_path = "localnode/ksedge/config.yaml"
 try:
     with open(cfg_path) as f:
         text = f.read()
-    want = f'panel_url = "http://127.0.0.1:{port}"'
-    new_text, n = re.subn(r'(?m)^panel_url\s*=.*$', want, text)
+    want = f'panel_url: "http://127.0.0.1:{port}"'
+    new_text, n = re.subn(r'(?m)^panel_url\s*:.*$', want, text)
     if n == 0:
         new_text = text.rstrip("\n") + "\n" + want + "\n"
     if new_text != text:

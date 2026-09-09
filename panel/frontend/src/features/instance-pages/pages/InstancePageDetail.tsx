@@ -4,6 +4,7 @@ import { getInstancePage, deleteInstancePage } from '@/shared/api/admin';
 import type { InstancePage } from '@/shared/types/instancePage';
 import { parseSubPages, parsePageActions, parsePageComponents, parsePageConfigure, pageSourceOf } from '@/features/instance-pages/types/instancePage';
 import GlassCard from '@/shared/components/ui/Card';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import { cardTimeMs, formatCardDate } from '@/shared/utils/cardDate';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import { CardIconTile } from '@/shared/components/ui/IconColorPicker';
@@ -111,6 +112,7 @@ const InstancePageDetail: React.FC = () => {
   }
 
   if (error || !page) {
+    const isNotFound = !error || error === 'Page not found' || /not found/i.test(error);
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-3">
@@ -119,7 +121,15 @@ const InstancePageDetail: React.FC = () => {
           </button>
           <h2 className="text-xl font-semibold text-white">Instance Page Detail</h2>
         </div>
-        <GlassCard className="p-6"><p className="text-gray-400">{error || 'Page not found'}</p><button onClick={back} className="mt-3 px-3 py-1.5 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white">Back</button></GlassCard>
+        <ErrorState
+          variant={isNotFound ? 'not-found' : 'error'}
+          title={isNotFound ? 'Page not found' : 'Failed to load page'}
+          description={isNotFound ? undefined : error}
+          retryLabel={isNotFound ? undefined : 'Retry'}
+          onRetry={isNotFound ? undefined : () => window.location.reload()}
+          backLabel="Back"
+          onBack={back}
+        />
       </div>
     );
   }

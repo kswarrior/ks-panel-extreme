@@ -1177,7 +1177,7 @@ const NodeForm: React.FC = () => {
                 />
               </GlassField>
             </div>
-            <GlassField label="Daemon Instance File Directory" htmlFor="instances_dir" hint="Where the daemon keeps per-instance working files (logs, mounts, sockets). Forwarded to ksedge via config.toml. Default /var/lib/kspanel/instances. Use ./instances for a path relative to the edge binary directory (./ = edge location).">
+            <GlassField label="Daemon Instance File Directory" htmlFor="instances_dir" hint="Where the daemon keeps per-instance working files (logs, mounts, sockets). Forwarded to ksedge via config.yaml. Default /var/lib/kspanel/instances. Use ./instances for a path relative to the edge binary directory (./ = edge location).">
               <input
                 id="instances_dir"
                 value={form.instances_dir}
@@ -1338,7 +1338,7 @@ const NodeForm: React.FC = () => {
                 </p>
               </div>
               <div className="mt-3">
-                <p className="text-sm text-gray-300 mb-1">{tokenInfo.isDual ? 'Config TOML for ksedge (port + WSS tunnel):' : 'Config TOML for ksedge (WSS tunnel):'}</p>
+                <p className="text-sm text-gray-300 mb-1">{tokenInfo.isDual ? 'Config YAML for ksedge (port + WSS tunnel):' : 'Config YAML for ksedge (WSS tunnel):'}</p>
                 <pre className="bg-black border border-white/10 rounded-md px-3 py-2 text-xs text-gray-200 overflow-x-auto max-h-60">
                   {tokenInfo.configJson}
                 </pre>
@@ -1380,7 +1380,7 @@ const NodeForm: React.FC = () => {
               </pre>
               {tokenInfo.configJson && (
                 <div className="mt-3">
-                    <p className="text-sm text-gray-300 mb-1">Config TOML (also via WSS tunnel if local_wss / local_both):</p>
+                    <p className="text-sm text-gray-300 mb-1">Config YAML (also via WSS tunnel if local_wss / local_both):</p>
                   <pre className="bg-black border border-white/10 rounded-md px-3 py-2 text-xs text-gray-200 overflow-x-auto max-h-60">
                     {tokenInfo.configJson}
                   </pre>
@@ -1391,7 +1391,7 @@ const NodeForm: React.FC = () => {
 
           {tokenInfo.configJson && !tokenInfo.isLocalhost && !tokenInfo.isTunnel && (
             <div className="mt-3">
-              <p className="text-sm text-gray-300 mb-1">Config TOML for ksedge:</p>
+              <p className="text-sm text-gray-300 mb-1">Config YAML for ksedge:</p>
               <pre className="bg-black border border-white/10 rounded-md px-3 py-2 text-xs text-gray-200 overflow-x-auto max-h-60">
                 {tokenInfo.configJson}
               </pre>

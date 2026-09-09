@@ -4,6 +4,7 @@ import { deleteNotification, getNotification, markRead } from '../api/notificati
 import type { Notification } from '../types/notification';
 import { CATEGORY_META, PRIORITY_META } from '../types/notification';
 import GlassCard from '@/shared/components/ui/Card';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import { PageActionsPill } from '@/shared/components/ui/PageActionsPill';
 import { useConfirm } from '@/shared/stores/confirmStore';
