@@ -222,7 +222,6 @@ const ShortcutAskFields: React.FC<{
 // lines and scramble their order. Typed input gets a local echo (the
 // piped terminal has no PTY echo) and rides the POST relay to the server.
 // No separate log box, no per-pane options.
-type PaneConnState = 'connecting' | 'connected' | 'reconnecting' | 'closed' | 'error';
 const TerminalPane: React.FC<{
   instanceId: number;
   pane: TerminalPaneState;
@@ -236,8 +235,7 @@ const TerminalPane: React.FC<{
   onBoxText: (v: string) => void;
   onRegisterSend: (key: number, fn: ((line: string) => void) | null) => void;
   onRegisterHandle: (key: number, h: TerminalHandle | null) => void;
-  onConnState?: (key: number, s: PaneConnState, msg?: string) => void;
-}> = ({ instanceId, pane, actions, runningActionId, installState, installKind, installTerminalId, inputMode, boxText, onBoxText, onRegisterSend, onRegisterHandle, onConnState }) => {
+}> = ({ instanceId, pane, actions, runningActionId, installState, installKind, installTerminalId, inputMode, boxText, onBoxText, onRegisterSend, onRegisterHandle }) => {
   const handleRef = useRef<TerminalHandle | null>(null);
   // Callback ref: keeps the local handle for the box-mode Send path and
   // registers it with the page so the actions-pill Copy / Download buttons
@@ -247,8 +245,6 @@ const TerminalPane: React.FC<{
     handleRef.current = h;
     onRegisterHandle(pane.key, h);
   }, [pane.key, onRegisterHandle]);
-  const [connState, setConnState] = useState<PaneConnState>('connecting');
-  const [connMsg, setConnMsg] = useState('');
   const [stdinError, setStdinError] = useState('');
   // Expose this pane's sendLine to the page (direct-mode header dropdown
   // sends to the active tab through it).
@@ -273,10 +269,6 @@ const TerminalPane: React.FC<{
   // the WS then loops reconnect errors instead of showing idle.
   const isWorkflowPane = !!matchedAction || isInstallBound;
   const isWorkflowActive = (!!matchedAction && isRunning) || isInstalling;
-  useEffect(() => {
-    if (onConnState) onConnState(pane.key, connState, connMsg);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connState, connMsg]);
 
   const handleLine = (line: string) => {
     // Fully functional terminal: every typed line goes straight to the
@@ -336,7 +328,6 @@ const TerminalPane: React.FC<{
           endpoint={isWorkflowPane && isWorkflowActive ? 'workflow' : undefined}
           onLine={handleLine}
           readOnly={boxMode}
-          onStateChange={(s, m) => { setConnState(s); setConnMsg(m ?? ''); }}
         />
         {boxMode && (
           <div className="flex items-center gap-2 mt-2 min-w-0">
@@ -393,7 +384,6 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
   const keySeq = useRef(Math.max(seedList.length, 1));
   const [panes, setPanes] = useState<TerminalPaneState[]>(() => toSeedPanes(seedList));
   const [activeKey, setActiveKey] = useState<number>(0);
-  const [connMap, setConnMap] = useState<Record<number, PaneConnState>>({});
   // Command shortcuts (template Controls → Terminal shortcut). Off/empty =
   // no shortcut UI anywhere. Both modes share one icon-menu trigger (page
   // header top-right in direct mode, bottom input row in box mode): plain
@@ -568,11 +558,6 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
       }
       return next;
     });
-    setConnMap((m) => {
-      const n = { ...m };
-      delete n[key];
-      return n;
-    });
     setBoxTexts((m) => {
       if (!(key in m)) return m;
       const n = { ...m };
@@ -586,9 +571,6 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
       setActiveKey(panes[0].key);
     }
   }, [panes, activeKey]);
-  const handleConnState = (key: number, s: PaneConnState) => {
-    setConnMap((m) => (m[key] === s ? m : { ...m, [key]: s }));
-  };
 
   // Template actions ride on the instance config (deploy-time snapshot).
   const actions: any[] = useMemo(() => {
@@ -617,7 +599,7 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
   }, [hasBound, reload]);
   const src: any = live ?? instance;
   // Stopped instances have no container to attach to — the edge exec /
-  // attach / workflow bridges would just fail and the xterm would loop
+  // workflow bridges would just fail and the xterm would loop
   // "reconnecting …" + error banners forever. Show a clean stopped
   // state instead and don't mount any Terminal (no WS dial at all).
   const isStopped = String(src?.status ?? '') === 'stopped';
@@ -790,7 +772,6 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
             onBoxText={(v) => setBoxTexts((m) => ({ ...m, [p.key]: v }))}
             onRegisterSend={onRegisterSend}
             onRegisterHandle={onRegisterHandle}
-            onConnState={handleConnState}
           />
         </div>
       ))}

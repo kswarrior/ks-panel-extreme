@@ -258,7 +258,6 @@ export function specToEditor(spec: string): EditorState {
     const log = (a.logging ?? {}) as Record<string, any>;
     out.advanced = {
       startup_command: String(a.startup_command ?? ''), stop_command: String(a.stop_command ?? ''),
-      startup_terminal_id: String(a.startup_terminal_id ?? '').trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, ''),
       stop_signal: String(a.stop_signal ?? ''), working_dir: String(a.working_dir ?? ''),
       user: String(a.user ?? ''), hostname: String(a.hostname ?? ''),
       privileged: !!a.privileged, readonly_rootfs: !!a.readonly_rootfs, enable_tty: !!a.enable_tty,
@@ -434,7 +433,6 @@ export function serializeEditor(f: EditorState): Record<string, unknown> {
     home_page: (f.home_page || '').trim().replace(/^\/+|\/+$/g, ''),
     advanced: {
       startup_command: f.advanced.startup_command, stop_command: f.advanced.stop_command,
-      startup_terminal_id: (f.advanced.startup_terminal_id || '').trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, ''),
       stop_signal: f.advanced.stop_signal, working_dir: f.advanced.working_dir,
       user: f.advanced.user, hostname: f.advanced.hostname,
       privileged: f.advanced.privileged, readonly_rootfs: f.advanced.readonly_rootfs,

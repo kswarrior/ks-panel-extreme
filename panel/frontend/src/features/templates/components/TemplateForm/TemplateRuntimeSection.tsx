@@ -56,13 +56,6 @@ export const TemplateRuntimeSection: React.FC<RuntimeSectionProps> = ({
                 <input value={advanced.stop_command} onChange={(e) => onAdvancedUpdate({ stop_command: e.target.value })} placeholder="stop" className={glassFieldClass} />
               </div>
             </div>
-            <div className="mt-3 rounded-md border border-sky-700/30 bg-sky-950/20 p-2 space-y-2">
-              <div>
-                <label className="block text-[11px] text-gray-400 mb-0.5">Terminal ID (optional — binds the startup console to terminal panes)</label>
-                <input value={advanced.startup_terminal_id} onChange={(e) => { const v = e.target.value.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, ''); onAdvancedUpdate({ startup_terminal_id: v }); }} placeholder="e.g. main-console (empty = no dedicated startup console)" className={monoCls + ' border-sky-700/40 focus:border-sky-400'} />
-                <p className="text-[11px] text-gray-500 mt-1">On the instance Terminal page, add a terminal and enter this ID — that pane attaches to the container's main process stdio (tps / op / stop …). Docker only; must be unique across this template's action + install terminal IDs.</p>
-              </div>
-            </div>
             <div className="grid grid-cols-2 gap-3 mt-3">
               <div>
                 <label className={labelCls}>Stop signal</label>
