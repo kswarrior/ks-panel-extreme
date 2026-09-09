@@ -86,6 +86,14 @@ if [[ ! -f "$RELEASE_DIR/kspanel" ]]; then
 fi
 [[ -x "$RELEASE_DIR/kspanel" ]] || die "release/kspanel is not executable."
 
+# Opt-in self-update of the release binaries before testing. Default off so
+# retest stays offline-capable and never swaps binaries by surprise:
+#   UPDATE_BEFORE_RETEST=1 ./retest.sh
+if [[ "${UPDATE_BEFORE_RETEST:-0}" == "1" ]]; then
+    log_step "Updating release binaries first (UPDATE_BEFORE_RETEST=1)..."
+    bash "$ROOT_DIR/update.sh" || die "update.sh failed. Aborting."
+fi
+
 # ============================================================================
 # Stop any previously running sandbox instances
 # ============================================================================

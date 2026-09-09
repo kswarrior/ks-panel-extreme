@@ -57,6 +57,7 @@ func init() {
 	superviseCmd.Flags().String("dsn", "", "Full database DSN (forwarded to launch)")
 	superviseCmd.Flags().String("url", "", "Database host:port (forwarded to launch)")
 	superviseCmd.Flags().String("user", "", "Database username (forwarded to launch)")
+	superviseCmd.Flags().String("password", "", "Database password (forwarded to launch)")
 	superviseCmd.Flags().String("database", "", "Database name (forwarded to launch)")
 	superviseCmd.Flags().Duration("restart-delay", superviseBaseDelay, "Base delay between crash restarts (doubles per fast crash)")
 	superviseCmd.Flags().Duration("max-backoff", superviseMaxDelay, "Cap for the exponential restart backoff")
