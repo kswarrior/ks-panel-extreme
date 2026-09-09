@@ -23,11 +23,19 @@ export interface SecretUpsert {
   description?: string;
 }
 
+export type AutomationKind = 'shell' | 'power' | 'action';
+
 export interface Automation {
   id: number;
   instance_id: number;
   name: string;
   command: string;
+  /** Job kind: shell runs command via /bin/sh -c; power issues a lifecycle
+   * op (payload start|stop|restart|kill); action invokes a template action
+   * (payload = action ID). Absent on old rows = shell. */
+  kind: AutomationKind;
+  /** Power op or template action ID; '' for shell jobs. */
+  payload: string;
   /** 5-field cron expression, or '' for on-demand-only jobs. */
   schedule: string;
   enabled: boolean;
@@ -42,6 +50,8 @@ export interface Automation {
 export interface AutomationUpsert {
   name: string;
   command: string;
+  kind?: AutomationKind;
+  payload?: string;
   schedule: string;
   enabled: boolean;
   secret_refs?: string[];
