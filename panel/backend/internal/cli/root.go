@@ -50,6 +50,7 @@ func init() {
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(seedCmd)
 	rootCmd.AddCommand(launchCmd)
+	rootCmd.AddCommand(superviseCmd)
 	rootCmd.AddCommand(stopCmd)
 	rootCmd.AddCommand(createUserCmd)
 	rootCmd.AddCommand(importTemplateCmd)
