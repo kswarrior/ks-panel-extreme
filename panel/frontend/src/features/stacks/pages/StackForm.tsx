@@ -177,7 +177,7 @@ const StackForm: React.FC = () => {
     if (!draft.slug.trim()) { setError('Slug is required'); setTab('meta'); return; }
     if (validation.length > 0) { setError(validation[0]); setTab('meta'); return; }
     if (draft.color && !/^#[0-9a-fA-F]{6}$/.test(draft.color.trim())) { setError('Colour must be a #rrggbb hex value (or empty for default)'); setTab('meta'); return; }
-    if (draft.installType === 'docker' && !draft.installImage.trim()) { setError('Docker image is required for Type Docker'); setTab('install'); return; }
+    if (draft.locationType === 'host' && draft.installType === 'docker' && !draft.installImage.trim()) { setError('Docker image is required for Docker'); setTab('meta'); return; }
     if (draft.locationType === 'outside') {
       const url = draft.remoteUrl.trim();
       if (!url) { setError('Remote URL is required for Type Outside'); setTab('meta'); return; }
@@ -363,9 +363,70 @@ const StackForm: React.FC = () => {
                     })}
                   </div>
                   {draft.locationType === 'host' ? (
-                    <p className="text-xs text-gray-500">
-                      Host — the stack lives on this same host. Nothing extra to configure here.
-                    </p>
+                    <div className="space-y-3">
+                      <span className="block text-xs font-medium text-gray-400">Runs as — Docker container or Host process</span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" role="radiogroup" aria-label="Host runtime type">
+                        {STACK_INSTALL_TYPES.map((t) => {
+                          const active = draft.installType === t.value;
+                          return (
+                            <button
+                              key={t.value}
+                              type="button"
+                              role="radio"
+                              aria-checked={active}
+                              onClick={() => patch({ installType: t.value })}
+                              className={`ks-card flex items-start gap-3 p-3 rounded-lg text-left transition cursor-pointer ${
+                                active ? 'border-sky-600/60 bg-sky-950/20' : 'hover:border-white/20'
+                              }`}
+                            >
+                              <span
+                                className={`mt-1 w-3.5 h-3.5 rounded-full border-2 shrink-0 flex items-center justify-center ${
+                                  active ? 'border-sky-400' : 'border-white/20'
+                                }`}
+                                aria-hidden="true"
+                              >
+                                {active && <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />}
+                              </span>
+                              <span className="min-w-0">
+                                <span className="block text-sm font-semibold text-white">{t.label}</span>
+                                <span className="block text-xs text-gray-400 mt-0.5">{t.hint}</span>
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {draft.installType === 'docker' ? (
+                        <GlassField label="Docker image" htmlFor="stack-image" hint="Container image for the stack (e.g. nginx:latest). Required for Docker.">
+                          <input
+                            id="stack-image"
+                            value={draft.installImage}
+                            onChange={(e) => patch({ installImage: e.target.value })}
+                            placeholder="e.g. nginx:latest"
+                            required
+                          />
+                        </GlassField>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <GlassField label="Runtime" htmlFor="stack-runtime" hint="Host sidecar runtime.">
+                            <select
+                              id="stack-runtime"
+                              value={draft.runtime}
+                              onChange={(e) => patch({ runtime: e.target.value })}
+                            >
+                              {STACK_RUNTIMES.map((r) => <option key={r} value={r}>{r}</option>)}
+                            </select>
+                          </GlassField>
+                          <GlassField label="Entrypoint" htmlFor="stack-entrypoint" hint="Command or file the host runtime executes.">
+                            <input
+                              id="stack-entrypoint"
+                              value={draft.entrypoint}
+                              onChange={(e) => patch({ entrypoint: e.target.value })}
+                              placeholder={draft.runtime === 'static' ? 'index.html' : draft.runtime === 'nodejs' ? 'server.js' : 'app.py'}
+                            />
+                          </GlassField>
+                        </div>
+                      )}
+                    </div>
                   ) : (
                     <div className="space-y-3">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" role="radiogroup" aria-label="Remote protocol">
@@ -442,83 +503,15 @@ const StackForm: React.FC = () => {
 
             {tab === 'install' && (
               <div className="space-y-4">
-                {/* Type — Docker container vs Host process. Docker needs an
-                    image; Host runs via the sidecar runtime + entrypoint. */}
-                <div className={sectionCls}>
-                  <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">Section B · Install Type</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" role="radiogroup" aria-label="Install type">
-                    {STACK_INSTALL_TYPES.map((t) => {
-                      const active = draft.installType === t.value;
-                      return (
-                        <button
-                          key={t.value}
-                          type="button"
-                          role="radio"
-                          aria-checked={active}
-                          onClick={() => patch({ installType: t.value })}
-                          className={`ks-card flex items-start gap-3 p-3 rounded-lg text-left transition cursor-pointer ${
-                            active ? 'border-sky-600/60 bg-sky-950/20' : 'hover:border-white/20'
-                          }`}
-                        >
-                          <span
-                            className={`mt-1 w-3.5 h-3.5 rounded-full border-2 shrink-0 flex items-center justify-center ${
-                              active ? 'border-sky-400' : 'border-white/20'
-                            }`}
-                            aria-hidden="true"
-                          >
-                            {active && <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />}
-                          </span>
-                          <span className="min-w-0">
-                            <span className="block text-sm font-semibold text-white">{t.label}</span>
-                            <span className="block text-xs text-gray-400 mt-0.5">{t.hint}</span>
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {draft.installType === 'docker' ? (
-                    <GlassField label="Docker image" htmlFor="stack-image" hint="Container image for the stack (e.g. nginx:latest). Required for Type Docker.">
-                      <input
-                        id="stack-image"
-                        value={draft.installImage}
-                        onChange={(e) => patch({ installImage: e.target.value })}
-                        placeholder="e.g. nginx:latest"
-                        required
-                      />
-                    </GlassField>
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <GlassField label="Runtime" htmlFor="stack-runtime" hint="Host sidecar runtime.">
-                        <select
-                          id="stack-runtime"
-                          value={draft.runtime}
-                          onChange={(e) => patch({ runtime: e.target.value })}
-                        >
-                          {STACK_RUNTIMES.map((r) => <option key={r} value={r}>{r}</option>)}
-                        </select>
-                      </GlassField>
-                      <GlassField label="Entrypoint" htmlFor="stack-entrypoint" hint="Command or file the host runtime executes.">
-                        <input
-                          id="stack-entrypoint"
-                          value={draft.entrypoint}
-                          onChange={(e) => patch({ entrypoint: e.target.value })}
-                          placeholder={draft.runtime === 'static' ? 'index.html' : draft.runtime === 'nodejs' ? 'server.js' : 'app.py'}
-                        />
-                      </GlassField>
-                    </div>
-                  )}
-                </div>
-
-                {/* Installation workflow — the exact template install
-                    workflow editor (shell/download/extract/... + timeout +
-                    terminal id), bound to the stack draft. */}
+                {/* Installation workflow — the exact template install step
+                    editor (shell/download/extract/... + timeout), bound to
+                    the stack draft. Runtime choice (Docker vs Host process)
+                    lives in General under Type Host. */}
                 <TemplateInstallSection
                   heading="Section B · Installation Workflow"
                   install={draft.installSteps as any}
                   installTimeoutS={draft.installTimeoutS}
                   onInstallTimeoutUpdate={(v) => patch({ installTimeoutS: v.replace(/[^0-9]/g, '') })}
-                  installTerminalId={draft.installTerminalId}
-                  onInstallTerminalIdUpdate={(v) => patch({ installTerminalId: v })}
                   onInstallUpdate={(i, stepPatch) => setDraft((d) => {
                     const steps = [...d.installSteps];
                     steps[i] = { ...steps[i], ...stepPatch } as typeof steps[number];
@@ -715,8 +708,6 @@ const StackForm: React.FC = () => {
                   install={draft.launchSteps as any}
                   installTimeoutS={draft.launchTimeoutS}
                   onInstallTimeoutUpdate={(v) => patch({ launchTimeoutS: v.replace(/[^0-9]/g, '') })}
-                  installTerminalId={draft.launchTerminalId}
-                  onInstallTerminalIdUpdate={(v) => patch({ launchTerminalId: v })}
                   onInstallUpdate={(i, stepPatch) => setDraft((d) => {
                     const steps = [...d.launchSteps];
                     steps[i] = { ...steps[i], ...stepPatch } as typeof steps[number];
