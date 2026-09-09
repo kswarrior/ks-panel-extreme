@@ -247,6 +247,9 @@ export function serializeSpec(f: TemplateFormState): string {
       : {}),
     advanced: {
       startup_command: f.advanced.startup_command,
+      // Startup terminal binding (attach-by-ID handle for the container
+      // main process). Always emitted like actions[].terminal_id.
+      startup_terminal_id: (f.advanced.startup_terminal_id || '').trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, ''),
       stop_command: f.advanced.stop_command,
       stop_signal: f.advanced.stop_signal,
       working_dir: f.advanced.working_dir,
@@ -509,6 +512,12 @@ export function parseSpec(raw: string): Partial<TemplateFormState> {
     if (typeof s.install_terminal_id === 'string' && s.install_terminal_id.trim() !== '') {
       out.install_terminal_id = s.install_terminal_id.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, '');
     }
+    if (s.advanced && typeof s.advanced === 'object' && typeof (s.advanced as Record<string, any>).startup_terminal_id === 'string' && ((s.advanced as Record<string, any>).startup_terminal_id as string).trim() !== '') {
+      out.advanced = {
+        ...(out.advanced ?? emptyForm.advanced),
+        startup_terminal_id: ((s.advanced as Record<string, any>).startup_terminal_id as string).trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, ''),
+      };
+    }
     if (Array.isArray(s.actions)) {
       out.actions = s.actions.map((a: any) => {
         const baseSession: TemplateAction['session'] = (['long_running', 'console_session', 'vm_full'].includes(a.session) ? a.session : 'long_running');
@@ -693,6 +702,7 @@ export function parseSpec(raw: string): Partial<TemplateFormState> {
       const log = (a.logging ?? {}) as Record<string, any>;
       const outA: Advanced = {
         startup_command: String(a.startup_command ?? ''),
+        startup_terminal_id: String(a.startup_terminal_id ?? '').trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, ''),
         stop_command: String(a.stop_command ?? ''),
         stop_signal: String(a.stop_signal ?? ''),
         working_dir: String(a.working_dir ?? ''),
