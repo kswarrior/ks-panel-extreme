@@ -80,138 +80,14 @@ const InstanceAutomation: React.FC<{ readOnly?: boolean; automationSlug?: string
     void load();
   }, [load]);
 
+  // New job / Edit are complete sub-pages (`<slug>/new`, `<slug>/<id>/edit`,
+  // file-editor pattern) hosted by InstanceAutomationEditor.
   const openCreate = () => {
-    setFormError('');
-    const d = emptyDraft();
-    // Default to the first kind the template allows (usually shell).
-    if (!(allowedKinds.includes(d.kind))) {
-      d.kind = allowedKinds[0] ?? 'shell';
-    }
-    if (d.kind === 'power' && !(POWER_OPS as readonly string[]).includes(d.powerOp)) d.powerOp = 'restart';
-    setDraft(d);
+    navigate(`${editorBase}/new`);
   };
 
   const openEdit = (job: Automation) => {
-    setFormError('');
-    setDraft(emptyDraft(job));
-  };
-
-  const submitDraft = async () => {
-    if (!draft || busy) return;
-    const name = draft.name.trim();
-    if (name === '') {
-      setFormError('Name is required.');
-      return;
-    }
-    if (!allowedKinds.includes(draft.kind)) {
-      setFormError('This job kind is disabled by the template.');
-      return;
-    }
-    // Per-kind shape (mirrors the backend): shell needs a command unless
-    // steps carry the plan; power needs an op; action needs an action ID.
-    // With steps the plan carries the targets (top fields are display
-    // fallback), so presence checks relax the same way.
-    const hasSteps = draft.steps.length > 0;
-    let kindPayload = '';
-    if (draft.kind === 'power') {
-      if (draft.powerOp !== '' && !(POWER_OPS as readonly string[]).includes(draft.powerOp)) {
-        setFormError('Pick a power op (start / stop / restart / kill).');
-        return;
-      }
-      if (draft.powerOp === '' && !hasSteps) {
-        setFormError('Pick a power op (start / stop / restart / kill).');
-        return;
-      }
-      kindPayload = draft.powerOp;
-    } else if (draft.kind === 'action') {
-      kindPayload = draft.actionId.trim();
-      if (kindPayload === '' && !hasSteps) {
-        setFormError('Action ID is required for action jobs (or add steps carrying the plan).');
-        return;
-      }
-    }
-    const command = draft.kind === 'shell' ? draft.command : draft.kind === 'action' ? '' : '';
-    if (draft.kind === 'shell' && command.trim() === '' && !hasSteps) {
-      setFormError('Command is required (or add steps carrying the plan).');
-      return;
-    }
-    // Timeout: operator's own value, capped by the template ceiling
-    // (config >= user passes, config < user is rejected here and 400s server-side).
-    const timeout = draft.timeoutSec > 0 ? Math.floor(draft.timeoutSec) : 300;
-    if (timeout > ceiling) {
-      setFormError(`Timeout ${timeout}s exceeds the template maximum of ${ceiling}s.`);
-      return;
-    }
-    // Steps: same per-kind rules per step + step timeouts capped too.
-    for (let i = 0; i < draft.steps.length; i++) {
-      const st = draft.steps[i];
-      if (st.name.trim() === '') {
-        setFormError(`Step ${i + 1}: name is required.`);
-        return;
-      }
-      const sk = (st.kind ?? 'shell') as AutomationKind;
-      if (!allowedKinds.includes(sk)) {
-        setFormError(`Step ${i + 1}: kind "${sk}" is disabled by the template.`);
-        return;
-      }
-      if (sk === 'power' && !(POWER_OPS as readonly string[]).includes(st.payload ?? '')) {
-        setFormError(`Step ${i + 1}: pick a power op.`);
-        return;
-      }
-      if (sk === 'action' && (st.payload ?? '').trim() === '') {
-        setFormError(`Step ${i + 1}: action ID is required.`);
-        return;
-      }
-      if (sk === 'shell' && (st.command ?? '').trim() === '') {
-        setFormError(`Step ${i + 1}: command is required.`);
-        return;
-      }
-      if (st.timeout_sec != null && st.timeout_sec > ceiling) {
-        setFormError(`Step ${i + 1}: timeout exceeds the template maximum of ${ceiling}s.`);
-        return;
-      }
-    }
-    if (draft.steps.length > 32) {
-      setFormError('Too many steps (max 32).');
-      return;
-    }
-    const secretRefs = draft.secretRefs.split(',').map((s) => s.trim()).filter(Boolean);
-    setBusy(true);
-    setFormError('');
-    try {
-      const payload = {
-        name,
-        command,
-        kind: draft.kind,
-        payload: kindPayload,
-        schedule: draft.schedule.trim(),
-        enabled: draft.enabled,
-        secret_refs: secretRefs,
-        timeout_sec: Math.max(1, Math.min(ceiling, timeout)),
-        steps: draft.steps.map((s) => ({
-          name: s.name.trim().slice(0, 100),
-          kind: (s.kind ?? 'shell') as AutomationKind,
-          command: s.kind === 'shell' ? (s.command ?? '') : '',
-          payload: s.kind === 'shell' ? '' : (s.payload ?? '').trim(),
-          if: (s.if ?? 'success') as AutomationStep['if'],
-          ...(s.timeout_sec != null && s.timeout_sec > 0 ? { timeout_sec: Math.max(1, Math.min(ceiling, Math.floor(s.timeout_sec))) } : {}),
-        })),
-      };
-      if (draft.editing) {
-        await updateAutomation(instanceId, draft.editing.id, payload);
-        toast('Job updated', 'success');
-      } else {
-        await createAutomation(instanceId, payload);
-        toast('Job created', 'success');
-      }
-      setDraft(null);
-      await load();
-    } catch (e: any) {
-      const msg = e?.response?.data || e?.message || 'Failed to save job';
-      setFormError(typeof msg === 'string' ? msg : JSON.stringify(msg));
-    } finally {
-      setBusy(false);
-    }
+    navigate(`${editorBase}/${job.id}/edit`);
   };
 
   const handleDelete = async (job: Automation) => {
@@ -330,7 +206,6 @@ const InstanceAutomation: React.FC<{ readOnly?: boolean; automationSlug?: string
           <button
             type="button"
             onClick={openCreate}
-            disabled={busy}
             title="Create task"
             aria-label="Create task"
             className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-40"
