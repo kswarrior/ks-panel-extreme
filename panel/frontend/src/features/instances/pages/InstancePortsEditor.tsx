@@ -10,6 +10,7 @@ import { SearchableSelect } from '@/shared/components/ui/SearchableSelect';
 import TextInput from '@/shared/components/ui/TextInput';
 import LimitSelect from '@/shared/components/ui/LimitSelect';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import PageActionsPill, { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import { useConfirm } from '@/shared/stores/confirmStore';
 
@@ -172,8 +173,17 @@ const InstancePortsEditor: React.FC<{ readOnly?: boolean }> = ({ readOnly = fals
         )}
       </PageActionsPill>
 
-      {error && (
+      {error && ports.length > 0 && (
         <div className="ks-card" style={{ borderColor: 'var(--ks-bad-line)', color: 'var(--ks-bad)', fontSize: 12 }}>{typeof error === 'string' ? error : JSON.stringify(error)}</div>
+      )}
+      {!loading && error && ports.length === 0 && (
+        <ErrorState
+          variant="error"
+          title="Failed to load ports"
+          description={typeof error === 'string' ? error : JSON.stringify(error)}
+          retryLabel="Retry"
+          onRetry={() => void load()}
+        />
       )}
 
       <div className="glass-card rounded-xl overflow-hidden">

@@ -4,6 +4,7 @@ import { useConfirm } from '@/shared/stores/confirmStore';
 import { useInstance } from '@/shared/hooks/useInstance';
 import { resolveInstanceControls, normalizeFilesPath, isPathWithinHome } from '@/features/instances/utils/instanceControls';
 import { downloadFile, readFileText, statPath, writeFile } from '../api/instanceFiles';
+import ErrorState from '@/shared/components/ui/ErrorState';
 
 function toast(msg: string, type: 'success' | 'error' | 'info' = 'info') {
   window.dispatchEvent(new CustomEvent('ks-toast', { detail: { message: msg, type } }));
@@ -498,9 +499,15 @@ const InstanceFileEditor: React.FC<{ instanceId: number; filesSlug: string }> = 
           <div className="h-4 w-1/2 bg-neutral-800 rounded" />
         </div>
       ) : error ? (
-        <div className="ks-card text-sm" style={{ borderColor: 'var(--ks-bad-line)', color: 'var(--ks-bad)' }}>
-          {error}
-        </div>
+        <ErrorState
+          variant="error"
+          title="Failed to read file"
+          description={error}
+          retryLabel="Retry"
+          onRetry={() => void load()}
+          backLabel="Back to files"
+          onBack={() => void goBack()}
+        />
       ) : tooLarge ? (
         <div className="ks-card text-center space-y-2">
           <p className="text-sm text-gray-200">This file is too large to edit in the browser.</p>
