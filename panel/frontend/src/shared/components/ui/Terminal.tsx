@@ -419,12 +419,22 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
     };
     const titleSub = term.onTitleChange((t) => onTitleChangeRef.current?.(t));
 
+    // Coalesce bursts (rotation, virtual-keyboard slide, split-view drag)
+    // into one fit per frame: without this every RO tick re-fits, each fit
+    // fires onResize, and the bridge gets a storm of resize frames while
+    // the rows visibly jump. The 2s interval below stays as the safety net
+    // for resizes RO never sees (font/theme loads).
+    let fitRaf = 0;
     const ro = new ResizeObserver(() => {
-      try {
-        fit.fit();
-      } catch {
-        // ignore — fit sometimes throws if the container is briefly hidden
-      }
+      if (fitRaf) return;
+      fitRaf = window.requestAnimationFrame(() => {
+        fitRaf = 0;
+        try {
+          fit.fit();
+        } catch {
+          // ignore — fit sometimes throws if the container is briefly hidden
+        }
+      });
     });
     ro.observe(containerRef.current);
 
@@ -475,6 +485,7 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
 
     return () => {
       window.clearTimeout(resizeTimer);
+      if (fitRaf) window.cancelAnimationFrame(fitRaf);
       el.removeEventListener('click', focusTerm);
       el.removeEventListener('touchstart', handleTouchStart as EventListener);
       el.removeEventListener('touchend', handleTouchEnd as EventListener);
