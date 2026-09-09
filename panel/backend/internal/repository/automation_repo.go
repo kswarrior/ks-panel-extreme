@@ -47,6 +47,19 @@ func scanAutomation(rows *sql.Rows, s *models.Automation) error {
 	if s.SecretRefs == nil {
 		s.SecretRefs = []string{}
 	}
+	if stepsJSON.Valid && stepsJSON.String != "" {
+		var steps []models.AutomationStep
+		if err := json.Unmarshal([]byte(stepsJSON.String), &steps); err == nil && steps != nil {
+			// Normalise on read so old/hand-written rows behave like
+			// freshly-validated ones (kind + if folding only; payloads
+			// stay byte-identical).
+			for i := range steps {
+				steps[i].Kind = models.NormalizeAutomationKind(steps[i].Kind)
+				steps[i].If = models.NormalizeAutomationIf(steps[i].If)
+			}
+			s.Steps = steps
+		}
+	}
 	if lastRun.Valid {
 		if t, err := parseDBTime(lastRun.String); err == nil && !t.IsZero() {
 			s.LastRunAt = &t
@@ -73,7 +86,7 @@ func (r *AutomationRepository) ListByInstance(instanceID int64) ([]models.Automa
 		return out, nil
 	}
 	rows, err := r.db.Query(`SELECT id, instance_id, name, command, kind, payload, schedule, enabled, secret_refs,
-		timeout_sec, last_run_at, next_run_at, created_at, updated_at
+		timeout_sec, steps, last_run_at, next_run_at, created_at, updated_at
 		FROM instance_automation WHERE instance_id = ? ORDER BY id ASC`, instanceID)
 	if err != nil {
 		return nil, err
@@ -92,7 +105,7 @@ func (r *AutomationRepository) ListByInstance(instanceID int64) ([]models.Automa
 // Get returns one job by id.
 func (r *AutomationRepository) Get(id int64) (*models.Automation, error) {
 	rows, err := r.db.Query(`SELECT id, instance_id, name, command, kind, payload, schedule, enabled, secret_refs,
-		timeout_sec, last_run_at, next_run_at, created_at, updated_at FROM instance_automation WHERE id = ?`, id)
+		timeout_sec, steps, last_run_at, next_run_at, created_at, updated_at FROM instance_automation WHERE id = ?`, id)
 	if err != nil {
 		return nil, err
 	}
@@ -110,6 +123,9 @@ func (r *AutomationRepository) Get(id int64) (*models.Automation, error) {
 // UpsertInput is the write payload for Create/Update. Kind selects the
 // execution path (shell|power|action); Payload carries the power op or the
 // template action ID (empty for shell jobs, whose script stays in Command).
+// Steps carries the optional multi-step plan (empty = legacy single-shot:
+// the top-level kind/payload/command fire once). Each step reuses the same
+// kind/payload/command shapes; If is success|failure|always.
 type AutomationUpsertInput struct {
 	InstanceID int64
 	Name       string
@@ -120,6 +136,7 @@ type AutomationUpsertInput struct {
 	Enabled    bool
 	SecretRefs []string
 	TimeoutSec int
+	Steps      []models.AutomationStep
 }
 
 func (in AutomationUpsertInput) refsJSON() string {
@@ -130,9 +147,79 @@ func (in AutomationUpsertInput) refsJSON() string {
 	return string(b)
 }
 
+// MaxAutomationSteps caps the steps array so a hostile/bloated payload
+// can't force the executor to run hundreds of edge RPCs per fire.
+const MaxAutomationSteps = 32
+
+func (in AutomationUpsertInput) stepsJSON() string {
+	if len(in.Steps) == 0 {
+		return ""
+	}
+	steps := make([]models.AutomationStep, 0, len(in.Steps))
+	for _, st := range in.Steps {
+		steps = append(steps, models.AutomationStep{
+			Name:       st.Name,
+			Kind:       models.NormalizeAutomationKind(st.Kind),
+			Command:    st.Command,
+			Payload:    st.Payload,
+			If:         models.NormalizeAutomationIf(st.If),
+			TimeoutSec: st.TimeoutSec,
+		})
+	}
+	b, _ := json.Marshal(steps)
+	return string(b)
+}
+
+// ValidateSteps enforces the per-step shape: name required, kind-folded,
+// power op allow-list, action-ID presence, shell command presence, timeout
+// sanity, count cap. Mirrors the top-level per-kind rules in Create/Update
+// so a multi-step job can never smuggle what a single-shot job forbids.
+func ValidateSteps(steps []models.AutomationStep) error {
+	if len(steps) > MaxAutomationSteps {
+		return fmt.Errorf("too many steps (max %d)", MaxAutomationSteps)
+	}
+	for i := range steps {
+		st := steps[i]
+		if st.Name == "" {
+			return fmt.Errorf("step %d: name is required", i+1)
+		}
+		if len(st.Name) > 100 {
+			return fmt.Errorf("step %d: name too long (max 100)", i+1)
+		}
+		kind := models.NormalizeAutomationKind(st.Kind)
+		switch kind {
+		case models.AutomationKindPower:
+			if !models.IsAutomationPowerOp(st.Payload) {
+				return fmt.Errorf("step %d: invalid power op %q (want start|stop|restart|kill)", i+1, st.Payload)
+			}
+		case models.AutomationKindAction:
+			if st.Payload == "" {
+				return fmt.Errorf("step %d: action id is required for action steps", i+1)
+			}
+			if len(st.Payload) > 128 {
+				return fmt.Errorf("step %d: action id too long", i+1)
+			}
+		default:
+			if st.Command == "" {
+				return fmt.Errorf("step %d: command is required for shell steps", i+1)
+			}
+			if len(st.Command) > 8000 {
+				return fmt.Errorf("step %d: command too long (max 8000)", i+1)
+			}
+		}
+		if st.TimeoutSec < 0 || st.TimeoutSec > 1800 {
+			return fmt.Errorf("step %d: timeout must be 0-1800s (0 = inherit job timeout)", i+1)
+		}
+	}
+	return nil
+}
+
 // Create inserts a new job and returns its id. Command is required for
 // shell jobs; power jobs need a valid op payload and action jobs a
-// non-empty action-ID payload instead.
+// non-empty action-ID payload instead. Non-empty Steps switch the job to
+// multi-step mode (each step validated the same way); the top-level
+// kind/payload/command stay as the fallback display + legacy single-shot
+// when Steps is empty.
 func (r *AutomationRepository) Create(in AutomationUpsertInput) (int64, error) {
 	kind := models.NormalizeAutomationKind(in.Kind)
 	if in.Name == "" {
@@ -148,9 +235,12 @@ func (r *AutomationRepository) Create(in AutomationUpsertInput) (int64, error) {
 			return 0, fmt.Errorf("action id is required for action jobs")
 		}
 	default:
-		if in.Command == "" {
+		if in.Command == "" && len(in.Steps) == 0 {
 			return 0, fmt.Errorf("command is required for shell jobs")
 		}
+	}
+	if err := ValidateSteps(in.Steps); err != nil {
+		return 0, err
 	}
 	enabled := 0
 	if in.Enabled {
@@ -160,9 +250,16 @@ func (r *AutomationRepository) Create(in AutomationUpsertInput) (int64, error) {
 	if to <= 0 {
 		to = 300
 	}
-	res, err := r.db.Exec(`INSERT INTO instance_automation (instance_id, name, command, kind, payload, schedule, enabled, secret_refs, timeout_sec)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		in.InstanceID, in.Name, in.Command, kind, in.Payload, in.Schedule, enabled, in.refsJSON(), to)
+	stepsArg := in.stepsJSON()
+	var stepsVal interface{}
+	if stepsArg == "" {
+		stepsVal = nil
+	} else {
+		stepsVal = stepsArg
+	}
+	res, err := r.db.Exec(`INSERT INTO instance_automation (instance_id, name, command, kind, payload, schedule, enabled, secret_refs, timeout_sec, steps)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		in.InstanceID, in.Name, in.Command, kind, in.Payload, in.Schedule, enabled, in.refsJSON(), to, stepsVal)
 	if err != nil {
 		return 0, err
 	}
@@ -186,9 +283,12 @@ func (r *AutomationRepository) Update(id int64, in AutomationUpsertInput) error 
 			return fmt.Errorf("action id is required for action jobs")
 		}
 	default:
-		if in.Command == "" {
+		if in.Command == "" && len(in.Steps) == 0 {
 			return fmt.Errorf("command is required for shell jobs")
 		}
+	}
+	if err := ValidateSteps(in.Steps); err != nil {
+		return err
 	}
 	enabled := 0
 	if in.Enabled {
@@ -198,9 +298,16 @@ func (r *AutomationRepository) Update(id int64, in AutomationUpsertInput) error 
 	if to <= 0 {
 		to = 300
 	}
+	stepsArg := in.stepsJSON()
+	var stepsVal interface{}
+	if stepsArg == "" {
+		stepsVal = nil
+	} else {
+		stepsVal = stepsArg
+	}
 	_, err := r.db.Exec(`UPDATE instance_automation SET name = ?, command = ?, kind = ?, payload = ?, schedule = ?, enabled = ?,
-		secret_refs = ?, timeout_sec = ?, next_run_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-		in.Name, in.Command, kind, in.Payload, in.Schedule, enabled, in.refsJSON(), to, id)
+		secret_refs = ?, timeout_sec = ?, steps = ?, next_run_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+		in.Name, in.Command, kind, in.Payload, in.Schedule, enabled, in.refsJSON(), to, stepsVal, id)
 	return err
 }
 
@@ -227,7 +334,7 @@ func (r *AutomationRepository) MarkRan(id int64, next time.Time) error {
 // a schedule. On-demand jobs (empty schedule) are never auto-fired.
 func (r *AutomationRepository) Due(now time.Time) ([]models.Automation, error) {
 	rows, err := r.db.Query(`SELECT id, instance_id, name, command, kind, payload, schedule, enabled, secret_refs,
-		timeout_sec, last_run_at, next_run_at, created_at, updated_at FROM instance_automation
+		timeout_sec, steps, last_run_at, next_run_at, created_at, updated_at FROM instance_automation
 		WHERE enabled = 1 AND schedule != '' AND next_run_at IS NOT NULL AND next_run_at <= ?`,
 		now.UTC().Format("2006-01-02 15:04:05"))
 	if err != nil {
