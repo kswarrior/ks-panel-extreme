@@ -190,8 +190,31 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
   // Holds the live `sendLine` pipeline (set inside the mount effect where
   // sendStdin/echo/validate live). Same pattern as reconnectRef.
   const sendLineRef = useRef<((line: string) => void) | null>(null);
+  // Holds the live selection-copy pipeline so the floating Copy chip
+  // (rendered outside the mount effect) can copy the xterm selection.
+  const copySelRef = useRef<(() => Promise<boolean>) | null>(null);
   const [state, setStateRaw] = useState<ConnState>('connecting');
   const [errMsg, setErrMsg] = useState('');
+  // True while the xterm holds a text selection — drives the floating
+  // Copy chip (the phone-friendly copy path: canvas has no native
+  // selectable text, so the OS copy menu can't see it).
+  const [hasSel, setHasSel] = useState(false);
+  // Transient "Copied" feedback on the chip after a successful copy.
+  const [copiedTick, setCopiedTick] = useState(false);
+  const copiedTimer = useRef<number | null>(null);
+  useEffect(() => () => {
+    if (copiedTimer.current !== null) window.clearTimeout(copiedTimer.current);
+  }, []);
+  const onCopyChip = () => {
+    void copySelRef.current?.().then((ok) => {
+      if (!ok) return;
+      try { termRef.current?.clearSelection(); } catch { /* noop */ }
+      setHasSel(false);
+      setCopiedTick(true);
+      if (copiedTimer.current !== null) window.clearTimeout(copiedTimer.current);
+      copiedTimer.current = window.setTimeout(() => setCopiedTick(false), 1200);
+    });
+  };
   const onTitleChangeRef = useRef(onTitleChange);
   useEffect(() => {
     onTitleChangeRef.current = onTitleChange;
@@ -318,6 +341,40 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
       wsRef.current?.send(JSON.stringify({ type: 'resize', cols, rows }));
     };
 
+    // Selection copy: the xterm canvas holds no natively-selectable text,
+    // so clipboard access always goes through getSelection() explicitly —
+    // desktop Ctrl/Cmd+C, the floating Copy chip (phones), and the
+    // system `copy`-event path below all funnel through here. Clipboard
+    // API with a textarea+execCommand fallback for non-secure contexts.
+    const copySelection = async (): Promise<boolean> => {
+      const t = termRef.current;
+      if (!t) return false;
+      let text = '';
+      try {
+        if (!t.hasSelection()) return false;
+        text = t.getSelection();
+      } catch { /* noop */ }
+      if (!text) return false;
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(text);
+        } else {
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+        }
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    copySelRef.current = copySelection;
+
     // Gated input: read-only panes swallow everything. Otherwise the PTY
     // always receives the chunk verbatim while every COMPLETED line is
     // offered to onLine (the action-terminal relay, which no-ops unless the
@@ -381,14 +438,16 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
       }
     });
     const resizeSub = term.onResize(({ cols, rows }) => sendResize(cols, rows));
-    // Real-terminal clipboard: Ctrl/Cmd+Shift+C with an active selection
-    // copies through the browser (return false = let the default happen)
-    // instead of sending bytes to the PTY — so plain Ctrl+C still
-    // interrupts the foreground process, while the Shift variant copies
-    // like every desktop terminal. Paste (Ctrl/Cmd+V, Shift+Insert) keeps
-    // its native textarea path, which already flows through onData above.
+    // Real-terminal clipboard: ANY Ctrl/Cmd+C with an active selection
+    // copies (desktop Ctrl+C, macOS Cmd+C, classic Ctrl+Shift+C) instead
+    // of sending bytes to the PTY — return false swallows the keystroke
+    // so the foreground process never sees it. A selection-less Ctrl+C
+    // still falls through and interrupts, like every desktop terminal.
+    // Paste (Ctrl/Cmd+V, Shift+Insert) keeps its native textarea path,
+    // which already flows through onData above.
     term.attachCustomKeyEventHandler((e) => {
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.code === 'KeyC' && term.hasSelection()) {
+      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyC' && term.hasSelection()) {
+        void copySelection();
         return false;
       }
       return true;
