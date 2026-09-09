@@ -55,3 +55,74 @@
 | 8        | Crafty 4   | 920 / 2,400| 38     |
 | 9        | MineOS     | 740 / 2,400| 31     |
 | 10       | JTG Panel  | 605 / 2,400  | 25     |
+
+## AMP in depth — why it ranks #2 (72/100) and where KS Panel wins
+
+AMP = CubeCoders Application Management Panel (commercial, 10y+, McMyAdmin successor).
+Stack: C#/.NET 8 + Kestrel (ADS). Install: `getamp` wizard + `ampinstmgr`
+(create/start/stop/logs/upgrade/upgradeall). Base images: `cubecoders/ampbase`
+(Debian Slim, `java/wine/xvfb/python3/node` tags). Runs on Windows + Linux,
+host processes + Docker/Podman rootless (per-instance recommendation whether to
+containerize). Data: SQLite / MySQL (`ampinstmgr`, file+DB). Public repo
+(`CubeCoders/AMP`, ~245★) is issue-tracking + scripts/docs only — core is
+closed-source. Version: 2.x → 3 beta.
+
+Licensing (one-time lifetime licence, tiered by instance count, stackable;
+Enterprise is a separate subscription): Standard ~5 / Professional ~15 /
+Advanced 50 app instances. Licence counts configured game instances, not
+machines; movable between systems. Try-before-buy (install unlicensed to check
+compatibility). Monetising your own game servers is allowed and is not counted
+as commercial use of AMP itself.
+
+Architecture: ADS controller + targets. One ADS instance is the management
+entry point; targets attach to the controller; each game/app is an instance
+under a target. Multi-node works (case 1: 90) but has known rough edges
+(e.g. controller → target → game-instance management path, open issue #472 —
+workaround is managing instances directly from the controller).
+
+Where AMP wins (honest — this is why it is the only panel above 70 besides KS):
+- Minecraft-specific tooling (case 18: **95**, best in matrix): turn-key Java +
+  Bedrock setups, one-click mod/plugin store (Modrinth, CurseForge, Hangar,
+  Steam Workshop — AMP 2.7 'Deimos'), graphical settings editor (no hand-edit),
+  complete state tracking (knows what happens *inside* the server, not just
+  on/off).
+- Automation (case 9: 90): scheduler runs on interval **and** on in-game events
+  (join/leave/actions) — unique to AMP — plus webhooks, Stream Deck
+  integration, Discord messages on first join, nightly backups.
+- Breadth: dozens of supported games out of the box (Minecraft, Hytale,
+  Palworld, Rust, ARK, Valheim, Terraria/tModLoader, GMod, Factorio, NodeJS /
+  Python bots, …), community-addable; file manager (syntax-highlight editor) +
+  web upload + integrated SFTP; analytics / play-time + geo-filtering
+  (Advanced); OIDC SSO + custom branding (Advanced); themes/plugins/addons +
+  API/plugin API (file manager and backups themselves ship as plugins).
+- Ops maturity: lifecycle 95, console 95, file manager 90, backups 90,
+  self-update 80 (`getamp update` + `ampinstmgr upgradeall`), security 80.
+
+Where KS Panel wins vs AMP (matrix deltas, same scoring):
+- No licence cap or fee: KS is self-hosted OSS, unlimited instances/nodes;
+  AMP caps instances per tier and core is closed-source.
+- Virtualization breadth: KS has 4 drivers (Docker, KVM/QEMU, LXD, Multipass);
+  AMP has host + Docker/Podman only — no KVM/LXD/Multipass.
+- Platform depth: secrets/env 97 vs 70, permissions 96 vs 70, audit 92 vs 75,
+  auth hardening 97 vs 75, account lifecycle 92 vs 65, DB support 97 vs 60
+  (KS: SQLite/PG/MySQL transparent + `datamove`; AMP: SQLite/MySQL file+DB),
+  data robustness 96 vs 70, theming 100 vs 30, extensibility 100 vs 75,
+  self-update/reinstall 100 vs 80, metrics 88 vs 85, ports 92 vs 85.
+- Exclusive KS cases (AMP scores 0): tickets & notifications (23), AI
+  assistant (24). AMP covers parts via webhooks/Discord but has no built-in
+  ticket system or assistant.
+- AMP's only outright win over KS is case 18 (Minecraft tooling 95 vs 78).
+  Closest gaps: lifecycle 92 vs 95, console 92 vs 95, multi-node 93 vs 90,
+  backups 96 vs 90, automation 92 vs 90 — all within 5 points.
+
+Verdict: pick AMP if you want the fastest turn-key commercial game-server
+panel (best Minecraft/modpack UX, event-driven scheduler, Windows support) and
+accept per-instance licensing + closed core + host/Docker-only scope. Pick KS
+Panel if you need unlimited multi-driver hosting (Docker/KVM/LXD/Multipass),
+finer permissions/audit/secrets, transparent multi-DB, full self-update,
+theming/extensibility, tickets/notifications, and AI assistance.
+
+Sources: `cubecoders.com/AMP` (feature overview, scheduler/state-tracking,
+mod store, ADS), `cubecoders.com/AMPTermsOfSale` (May 2026 — instance-based
+tiers, stackable, movable), `CubeCoders/AMP` GitHub (`Scripts/getamp.sh`,
+issue #472), `hub.docker.com/r/cubecoders/ampbase` (Debian Slim + tags).
