@@ -2,8 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { NavLink } from 'react-router-dom';
 import { useInstanceNav } from '@/shared/components/layout/InstanceNavContext';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
-import { useAuthStore } from '@/shared/stores/authStore';
-import { PermissionKey, hasPermissionAny } from '@/shared/types/permissions';
 
 // InstanceTabs — inline instance page tabs in the header. The main thing
 // of an instance (power, actions, status) lives in the floating draggable
@@ -16,32 +14,14 @@ import { PermissionKey, hasPermissionAny } from '@/shared/types/permissions';
 // route guards.
 export const INSTANCE_TOOL_SLUGS = ['files', 'terminal', 'ports'];
 
-// useEffectiveInstanceNav — instance content pages plus the synthetic
-// built-in tabs (Snapshots), permission-gated. Tool slugs (Files /
+// useEffectiveInstanceNav — instance content pages. Tool slugs (Files /
 // Terminal / Ports) are excluded here — they render in the floating menu.
 export function useEffectiveInstanceNav() {
-  const { nav, instanceId } = useInstanceNav();
-  const permissions = useAuthStore((s) => s.permissions);
-  const canViewSnapshots = hasPermissionAny(permissions, PermissionKey.INSTANCES_EDIT, PermissionKey.MANAGE_INSTANCES, PermissionKey.VIEW_INSTANCES);
+  const { nav } = useInstanceNav();
   return useMemo(() => {
     // Content tabs only — tools live in the floating menu, never the tab row.
-    let out = nav.filter((n) => !INSTANCE_TOOL_SLUGS.includes(n.to));
-    if (instanceId && canViewSnapshots && !out.some((n) => n.to === 'snapshots')) {
-      // Native Snapshots tab (built-in, like SFTP). The legacy
-      // backups.json custom page keeps working under slug 'backups'.
-      out = [
-        ...out,
-        {
-          to: 'snapshots',
-          label: 'Snapshots',
-          iconSvg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v5h-5"/></svg>',
-          iconKind: 'svg' as const,
-          end: false,
-        },
-      ];
-    }
-    return out;
-  }, [nav, instanceId, canViewSnapshots]);
+    return nav.filter((n) => !INSTANCE_TOOL_SLUGS.includes(n.to));
+  }, [nav]);
 }
 
 const InstanceTabs: React.FC = () => {
