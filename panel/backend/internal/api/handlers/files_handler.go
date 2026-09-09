@@ -94,9 +94,10 @@ func httpClientForNode(node *models.Node) *http.Client {
 // to the edge. Anything outside this set returns 400 — keeps the SPA from
 // silently doing nothing on a typo.
 var supportedFileOps = map[string]bool{
-	"list": true, "stat": true, "read": true,
+	"list": true, "stat": true, "read": true, "search": true,
 	"write": true, "upload": true, "mkdir": true,
 	"rename": true, "delete": true, "chmod": true,
+	"copy": true, "archive": true, "extract": true,
 }
 
 // InstanceFilesHandler proxies ?op=… queries to the edge. Bound at

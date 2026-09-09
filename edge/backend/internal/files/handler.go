@@ -857,6 +857,932 @@ func chmodDocker(ctx context.Context, w http.ResponseWriter, name, path, modeStr
 	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "path": path, "mode": mode})
 }
 
+// searchQuery extracts the free-text query for op=search from ?q= (or
+// ?query= for curl ergonomics). Empty means "list everything" is NOT
+// intended — callers get a 400 so a missing param can't walk the tree.
+func searchQuery(r *http.Request) string {
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	if q == "" {
+		q = strings.TrimSpace(r.URL.Query().Get("query"))
+	}
+	return q
+}
+
+// searchLimit caps result rows. Generous enough for a world folder, small
+// enough the JSON stays snappy.
+func searchLimit(r *http.Request) int {
+	n, err := strconv.Atoi(strings.TrimSpace(r.URL.Query().Get("limit")))
+	if err != nil || n <= 0 {
+		return 100
+	}
+	if n > 200 {
+		return 200
+	}
+	return n
+}
+
+// parseToParam reads the `to` destination from the query string first,
+// falling back to a small JSON body {"to":"…"}. The query form is what the
+// panel sends (it translates container → host coordinates there); the body
+// form keeps curl one-liners working.
+func parseToParam(r *http.Request, queryTo string) string {
+	if strings.TrimSpace(queryTo) != "" {
+		return strings.TrimSpace(queryTo)
+	}
+	var body struct {
+		To string `json:"to"`
+	}
+	_ = json.NewDecoder(io.LimitReader(r.Body, 64<<10)).Decode(&body)
+	return strings.TrimSpace(body.To)
+}
+
+// archiveRequest is the JSON body for op=archive. Names are basenames
+// relative to `path` (the source directory); To mirrors the ?to= query
+// param and wins when both are set via the query.
+type archiveRequest struct {
+	Names []string `json:"names"`
+	To    string   `json:"to"`
+}
+
+func parseArchiveBody(r *http.Request) (names []string, bodyTo string) {
+	var body archiveRequest
+	_ = json.NewDecoder(io.LimitReader(r.Body, 512<<10)).Decode(&body)
+	for _, n := range body.Names {
+		n = strings.TrimSpace(n)
+		if n == "" || n == "." || n == "/" {
+			continue
+		}
+		// Reject traversal inside the names list — every name must stay
+		// inside the source dir.
+		c := path.Clean("/" + n)
+		if c == "/" {
+			continue
+		}
+		rel := strings.TrimPrefix(c, "/")
+		if rel == "" || strings.HasPrefix(rel, "../") || rel == ".." {
+			continue
+		}
+		names = append(names, rel)
+		if len(names) >= 1000 {
+			break
+		}
+	}
+	return names, strings.TrimSpace(body.To)
+}
+
+// validateHostDest jails an absolute host destination exactly like
+// renameHost: absolute, not a system path (destBlocked), symlink-resolved
+// parent chain re-checked. Returns the cleaned destination.
+func validateHostDest(to string) (string, error) {
+	cleanTo := filepath.Clean(strings.TrimSpace(to))
+	if cleanTo == "" || cleanTo == "." || !filepath.IsAbs(cleanTo) || destBlocked(cleanTo) {
+		return "", fmt.Errorf("invalid destination path %q", to)
+	}
+	parent := filepath.Dir(cleanTo)
+	resolvedTo := cleanTo
+	if rp, err := filepath.EvalSymlinks(parent); err == nil {
+		resolvedTo = filepath.Join(rp, filepath.Base(cleanTo))
+	} else {
+		rel := []string{filepath.Base(cleanTo)}
+		cur := parent
+		resolved := ""
+		for {
+			if rp2, err2 := filepath.EvalSymlinks(cur); err2 == nil {
+				resolved = rp2
+				break
+			}
+			np := filepath.Dir(cur)
+			if np == cur {
+				break
+			}
+			rel = append([]string{filepath.Base(cur)}, rel...)
+			cur = np
+		}
+		if resolved == "" {
+			return "", fmt.Errorf("invalid destination path %q", to)
+		}
+		resolvedTo = resolved
+		for _, seg := range rel {
+			resolvedTo = filepath.Join(resolvedTo, seg)
+		}
+	}
+	resolvedTo = filepath.Clean(resolvedTo)
+	if !filepath.IsAbs(resolvedTo) || destBlocked(resolvedTo) {
+		return "", fmt.Errorf("invalid destination path %q", to)
+	}
+	return cleanTo, nil
+}
+
+func isZipName(n string) bool { return strings.HasSuffix(strings.ToLower(n), ".zip") }
+func isTarGzName(n string) bool {
+	l := strings.ToLower(n)
+	return strings.HasSuffix(l, ".tar.gz") || strings.HasSuffix(l, ".tgz")
+}
+
+// copyRecursive duplicates src at dst. The destination must NOT exist (the
+// caller checks → 409). Symlinks are recreated, not followed, so a link
+// planted inside the instance can never pull host content into the copy.
+func copyRecursive(src, dst string) error {
+	st, err := os.Lstat(src)
+	if err != nil {
+		return err
+	}
+	if st.Mode()&os.ModeSymlink != 0 {
+		target, err := os.Readlink(src)
+		if err != nil {
+			return err
+		}
+		return os.Symlink(target, dst)
+	}
+	if !st.IsDir() {
+		return copyFile(src, dst, st.Mode())
+	}
+	if err := os.MkdirAll(dst, st.Mode().Perm()); err != nil {
+		return err
+	}
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		if err := copyRecursive(filepath.Join(src, e.Name()), filepath.Join(dst, e.Name())); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func copyFile(src, dst string, mode os.FileMode) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode.Perm())
+	if err != nil {
+		return err
+	}
+	_, cpyErr := io.Copy(out, in)
+	closeErr := out.Close()
+	if cpyErr != nil {
+		_ = os.Remove(dst)
+		return cpyErr
+	}
+	return closeErr
+}
+
+// copyHost implements op=copy on the host filesystem: ?path=<src host>
+// & ?to=<dst host>. Overwrites are refused (409): copy is for copying,
+// not replacing — the SPA deletes first when the user confirms overwrite.
+func copyHost(w http.ResponseWriter, r *http.Request, src string) {
+	to := parseToParam(r, r.URL.Query().Get("to"))
+	if to == "" {
+		writeErr(w, http.StatusBadRequest, "copy requires a 'to' parameter")
+		return
+	}
+	dst, err := validateHostDest(to)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if dst == src {
+		writeErr(w, http.StatusBadRequest, "source and destination are the same")
+		return
+	}
+	if _, err := os.Lstat(src); err != nil {
+		if os.IsNotExist(err) {
+			writeErr(w, http.StatusNotFound, "no such file or directory")
+			return
+		}
+		writeErr(w, http.StatusBadGateway, fmt.Sprintf("stat: %v", err))
+		return
+	}
+	if _, err := os.Lstat(dst); err == nil {
+		writeErr(w, http.StatusConflict, fmt.Sprintf("%q already exists", filepath.Base(dst)))
+		return
+	}
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		writeErr(w, http.StatusBadGateway, fmt.Sprintf("mkdir parent: %v", err))
+		return
+	}
+	if err := copyRecursive(src, dst); err != nil {
+		writeErr(w, http.StatusBadGateway, fmt.Sprintf("copy: %v", err))
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "from": src, "to": dst})
+}
+
+// archiveHost implements op=archive on the host filesystem in pure Go (no
+// zip/tar binaries needed on the edge). The format comes from the `to`
+// extension: .zip → ZIP, .tar.gz/.tgz → tar+gzip.
+func archiveHost(w http.ResponseWriter, r *http.Request, src string) {
+	names, bodyTo := parseArchiveBody(r)
+	to := strings.TrimSpace(r.URL.Query().Get("to"))
+	if to == "" {
+		to = bodyTo
+	}
+	if to == "" {
+		writeErr(w, http.StatusBadRequest, "archive requires a 'to' parameter (destination archive path)")
+		return
+	}
+	dst, err := validateHostDest(to)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if !isZipName(dst) && !isTarGzName(dst) {
+		writeErr(w, http.StatusBadRequest, "destination must end with .zip or .tar.gz")
+		return
+	}
+	st, err := os.Stat(src)
+	if err != nil {
+		if os.IsNotExist(err) {
+			writeErr(w, http.StatusNotFound, "no such file or directory")
+			return
+		}
+		writeErr(w, http.StatusBadGateway, fmt.Sprintf("stat: %v", err))
+		return
+	}
+	srcDir := src
+	picks := names
+	if !st.IsDir() {
+		if len(names) > 0 {
+			writeErr(w, http.StatusBadRequest, "cannot archive a file with a names list")
+			return
+		}
+		srcDir = filepath.Dir(src)
+		picks = []string{filepath.Base(src)}
+	} else if len(picks) == 0 {
+		// Whole-directory archive: enumerate children so the archive root
+		// holds the files themselves (not a nested ./ prefix).
+		entries, err := os.ReadDir(src)
+		if err != nil {
+			writeErr(w, http.StatusBadGateway, fmt.Sprintf("readdir: %v", err))
+			return
+		}
+		for _, e := range entries {
+			if strings.HasPrefix(e.Name(), trashPrefix) {
+				continue
+			}
+			picks = append(picks, e.Name())
+		}
+		if len(picks) == 0 {
+			writeErr(w, http.StatusBadRequest, "directory is empty — nothing to archive")
+			return
+		}
+	}
+	// Validate every pick stays inside srcDir.
+	for _, n := range picks {
+		if strings.Contains(n, "..") && path.Clean(n) != n {
+			writeErr(w, http.StatusBadRequest, fmt.Sprintf("invalid entry %q", n))
+			return
+		}
+		abs := filepath.Join(srcDir, filepath.FromSlash(n))
+		if abs != srcDir && !within(srcDir, abs) {
+			writeErr(w, http.StatusBadRequest, fmt.Sprintf("invalid entry %q", n))
+			return
+		}
+	}
+	if _, err := os.Lstat(dst); err == nil {
+		writeErr(w, http.StatusConflict, fmt.Sprintf("%q already exists", filepath.Base(dst)))
+		return
+	}
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		writeErr(w, http.StatusBadGateway, fmt.Sprintf("mkdir parent: %v", err))
+		return
+	}
+	if isZipName(dst) {
+		if err := createZip(srcDir, picks, dst); err != nil {
+			_ = os.Remove(dst)
+			writeErr(w, http.StatusBadGateway, fmt.Sprintf("archive: %v", err))
+			return
+		}
+	} else {
+		if err := createTarGz(srcDir, picks, dst); err != nil {
+			_ = os.Remove(dst)
+			writeErr(w, http.StatusBadGateway, fmt.Sprintf("archive: %v", err))
+			return
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "path": dst, "count": len(picks)})
+}
+
+func createZip(srcDir string, picks []string, dst string) error {
+	f, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
+		return err
+	}
+	zw := zip.NewWriter(f)
+	count := 0
+	addErr := func() error {
+		for _, rel := range picks {
+			abs := filepath.Join(srcDir, filepath.FromSlash(rel))
+			if err := filepath.WalkDir(abs, func(p string, d os.DirEntry, err error) error {
+				if err != nil {
+					return nil // skip unreadable, like ls does
+				}
+				if count >= 10000 {
+					return fmt.Errorf("too many files (max 10000)")
+				}
+				relPath, err := filepath.Rel(srcDir, p)
+				if err != nil {
+					return nil
+				}
+				name := filepath.ToSlash(relPath)
+				fi, err := d.Info()
+				if err != nil {
+					return nil
+				}
+				if fi.IsDir() {
+					if name == "." {
+						return nil
+					}
+					_, err := zw.Create(name + "/")
+					count++
+					return err
+				}
+				if fi.Mode()&os.ModeSymlink != 0 {
+					return nil // skip symlinks in archives
+				}
+				hdr, err := zip.FileInfoHeader(fi)
+				if err != nil {
+					return nil
+				}
+				hdr.Name = name
+				hdr.Method = zip.Deflate
+				wr, err := zw.CreateHeader(hdr)
+				if err != nil {
+					return err
+				}
+				in, err := os.Open(p)
+				if err != nil {
+					return nil
+				}
+				_, err = io.Copy(wr, in)
+				_ = in.Close()
+				count++
+				return err
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}()
+	if addErr != nil {
+		_ = zw.Close()
+		_ = f.Close()
+		return addErr
+	}
+	if err := zw.Close(); err != nil {
+		_ = f.Close()
+		return err
+	}
+	return f.Close()
+}
+
+func createTarGz(srcDir string, picks []string, dst string) error {
+	f, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
+		return err
+	}
+	gz := gzip.NewWriter(f)
+	tw := tar.NewWriter(gz)
+	count := 0
+	walkErr := func() error {
+		for _, rel := range picks {
+			abs := filepath.Join(srcDir, filepath.FromSlash(rel))
+			if err := filepath.WalkDir(abs, func(p string, d os.DirEntry, err error) error {
+				if err != nil {
+					return nil
+				}
+				if count >= 10000 {
+					return fmt.Errorf("too many files (max 10000)")
+				}
+				relPath, err := filepath.Rel(srcDir, p)
+				if err != nil {
+					return nil
+				}
+				name := filepath.ToSlash(relPath)
+				if name == "." {
+					return nil
+				}
+				fi, err := d.Info()
+				if err != nil {
+					return nil
+				}
+				if fi.Mode()&os.ModeSymlink != 0 {
+					return nil
+				}
+				hdr, err := tar.FileInfoHeader(fi, "")
+				if err != nil {
+					return nil
+				}
+				hdr.Name = name
+				if err := tw.WriteHeader(hdr); err != nil {
+					return err
+				}
+				count++
+				if fi.IsDir() {
+					return nil
+				}
+				in, err := os.Open(p)
+				if err != nil {
+					return nil
+				}
+				_, err = io.Copy(tw, in)
+				_ = in.Close()
+				return err
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}()
+	if walkErr != nil {
+		_ = tw.Close()
+		_ = gz.Close()
+		_ = f.Close()
+		return walkErr
+	}
+	if err := tw.Close(); err != nil {
+		_ = gz.Close()
+		_ = f.Close()
+		return err
+	}
+	if err := gz.Close(); err != nil {
+		_ = f.Close()
+		return err
+	}
+	return f.Close()
+}
+
+// extractHost implements op=extract on the host filesystem. `to` is the
+// optional destination directory (defaults to the archive's own dir).
+// ZipSlip-protected: entries escaping the destination are skipped, never
+// written.
+func extractHost(w http.ResponseWriter, r *http.Request, src string) {
+	to := parseToParam(r, r.URL.Query().Get("to"))
+	st, err := os.Stat(src)
+	if err != nil {
+		if os.IsNotExist(err) {
+			writeErr(w, http.StatusNotFound, "no such file or directory")
+			return
+		}
+		writeErr(w, http.StatusBadGateway, fmt.Sprintf("stat: %v", err))
+		return
+	}
+	if st.IsDir() {
+		writeErr(w, http.StatusBadRequest, "cannot extract a directory")
+		return
+	}
+	dest := filepath.Dir(src)
+	if to != "" {
+		d, err := validateHostDest(to)
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		dest = d
+	}
+	if err := os.MkdirAll(dest, 0o755); err != nil {
+		writeErr(w, http.StatusBadGateway, fmt.Sprintf("mkdir dest: %v", err))
+		return
+	}
+	var n int
+	if isZipName(src) {
+		n, err = extractZip(src, dest)
+	} else if isTarGzName(src) {
+		n, err = extractTarGz(src, dest)
+	} else {
+		writeErr(w, http.StatusBadRequest, "unsupported archive (use .zip or .tar.gz)")
+		return
+	}
+	if err != nil {
+		writeErr(w, http.StatusBadGateway, fmt.Sprintf("extract: %v", err))
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "path": dest, "count": n})
+}
+
+func safeJoinDest(dest, name string) (string, bool) {
+	name = filepath.FromSlash(name)
+	if filepath.IsAbs(name) {
+		return "", false
+	}
+	c := filepath.Clean(name)
+	if c == "." {
+		return "", false
+	}
+	if c == ".." || strings.HasPrefix(c, ".."+string(os.PathSeparator)) {
+		return "", false
+	}
+	abs := filepath.Join(dest, c)
+	if abs != dest && !within(dest, abs) {
+		return "", false
+	}
+	return abs, true
+}
+
+func extractZip(src, dest string) (int, error) {
+	zr, err := zip.OpenReader(src)
+	if err != nil {
+		return 0, err
+	}
+	defer zr.Close()
+	n := 0
+	for _, f := range zr.File {
+		if n >= 10000 {
+			break
+		}
+		abs, ok := safeJoinDest(dest, f.Name)
+		if !ok {
+			continue
+		}
+		if f.FileInfo().IsDir() {
+			_ = os.MkdirAll(abs, 0o755)
+			continue
+		}
+		_ = os.MkdirAll(filepath.Dir(abs), 0o755)
+		rc, err := f.Open()
+		if err != nil {
+			continue
+		}
+		out, err := os.OpenFile(abs, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode().Perm())
+		if err != nil {
+			_ = rc.Close()
+			continue
+		}
+		_, err = io.Copy(out, io.LimitReader(rc, 512<<20))
+		_ = rc.Close()
+		_ = out.Close()
+		if err == nil {
+			n++
+		}
+	}
+	return n, nil
+}
+
+func extractTarGz(src, dest string) (int, error) {
+	f, err := os.Open(src)
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+	gz, err := gzip.NewReader(f)
+	if err != nil {
+		return 0, err
+	}
+	defer gz.Close()
+	tr := tar.NewReader(gz)
+	n := 0
+	for {
+		if n >= 10000 {
+			break
+		}
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return n, err
+		}
+		abs, ok := safeJoinDest(dest, hdr.Name)
+		if !ok {
+			continue
+		}
+		switch hdr.Typeflag {
+		case tar.TypeDir:
+			_ = os.MkdirAll(abs, 0o755)
+		case tar.TypeReg, tar.TypeRegA:
+			_ = os.MkdirAll(filepath.Dir(abs), 0o755)
+			out, err := os.OpenFile(abs, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, os.FileMode(hdr.Mode).Perm())
+			if err != nil {
+				continue
+			}
+			_, err = io.Copy(out, io.LimitReader(tr, 512<<20))
+			_ = out.Close()
+			if err == nil {
+				n++
+			}
+		default:
+			continue // skip symlinks/hardlinks/devices
+		}
+	}
+	return n, nil
+}
+
+// searchHost implements op=search on the host filesystem: case-insensitive
+// substring match on the file name, walked recursively from the search root.
+func searchHost(w http.ResponseWriter, root, query string) {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		writeErr(w, http.StatusBadRequest, "search requires a 'q' parameter")
+		return
+	}
+	limit := 100
+	lower := strings.ToLower(query)
+	type hit struct {
+		Rel     string `json:"path"`
+		Name    string `json:"name"`
+		IsDir   bool   `json:"is_dir"`
+		Size    int64  `json:"size"`
+		ModTime int64  `json:"mod_time"`
+	}
+	out := []hit{}
+	visited := 0
+	truncated := false
+	_ = filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if p == root {
+			return nil
+		}
+		visited++
+		if visited > 20000 {
+			truncated = true
+			return filepath.SkipAll
+		}
+		if strings.HasPrefix(d.Name(), trashPrefix) {
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		// Depth cap: keep the walk out of absurdly nested trees.
+		rel, err := filepath.Rel(root, p)
+		if err != nil {
+			return nil
+		}
+		if strings.Count(rel, string(os.PathSeparator)) > 8 {
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.Contains(strings.ToLower(d.Name()), lower) {
+			return nil
+		}
+		if len(out) >= limit {
+			truncated = true
+			return filepath.SkipAll
+		}
+		fi, err := d.Info()
+		if err != nil {
+			return nil
+		}
+		out = append(out, hit{
+			Rel:     filepath.ToSlash(rel),
+			Name:    d.Name(),
+			IsDir:   d.IsDir(),
+			Size:    fi.Size(),
+			ModTime: fi.ModTime().Unix(),
+		})
+		return nil
+	})
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].IsDir != out[j].IsDir {
+			return out[i].IsDir
+		}
+		return strings.ToLower(out[i].Rel) < strings.ToLower(out[j].Rel)
+	})
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"entries": out, "path": root, "truncated": truncated})
+}
+
+// copyDocker duplicates path → to inside the container via cp -r. The
+// destination must not exist (409), mirroring copyHost.
+func copyDocker(ctx context.Context, w http.ResponseWriter, r *http.Request, name, src, toQ string) {
+	to := parseToParam(r, toQ)
+	if to == "" {
+		writeErr(w, http.StatusBadRequest, "copy requires a 'to' parameter")
+		return
+	}
+	script := "set -e; if [ -e " + shellQuote(to) + " ]; then echo COPY_EXISTS; exit 10; fi; " +
+		"mkdir -p " + shellQuote(path.Dir(to)) + "; cp -r -- " + shellQuote(src) + " " + shellQuote(to)
+	cmd := exec.CommandContext(ctx, "docker", "exec", name, "sh", "-c", script)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		if strings.Contains(string(out), "COPY_EXISTS") {
+			writeErr(w, http.StatusConflict, fmt.Sprintf("%q already exists", path.Base(to)))
+			return
+		}
+		writeErr(w, http.StatusBadGateway, fmt.Sprintf("copy %s -> %s: %v: %s", src, to, err, string(out)))
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "from": src, "to": to})
+}
+
+// archiveDocker creates a .zip or .tar.gz inside the container. Names come
+// from the JSON body {names:[...]} and are interpreted relative to path
+// (which must be a directory when names are given).
+func archiveDocker(ctx context.Context, w http.ResponseWriter, r *http.Request, name, src, toQ string) {
+	names, bodyTo := parseArchiveBody(r)
+	to := strings.TrimSpace(toQ)
+	if to == "" {
+		to = bodyTo
+	}
+	if to == "" {
+		writeErr(w, http.StatusBadRequest, "archive requires a 'to' parameter (destination archive path)")
+		return
+	}
+	wantZip := isZipName(to)
+	wantTar := isTarGzName(to)
+	if !wantZip && !wantTar {
+		writeErr(w, http.StatusBadRequest, "destination must end with .zip or .tar.gz")
+		return
+	}
+	// Quote every name for the shell; names were already sanitised by
+	// parseArchiveBody (no absolute paths, no .. escapes).
+	quoted := make([]string, 0, len(names))
+	for _, n := range names {
+		quoted = append(quoted, shellQuote(n))
+	}
+	var script string
+	if wantZip {
+		script = "set -e; if [ -e " + shellQuote(to) + " ]; then echo ARCH_EXISTS; exit 10; fi; " +
+			"command -v zip >/dev/null 2>&1 || { echo NO_ZIP; exit 11; }; "
+		if len(quoted) == 0 {
+			script += "cd " + shellQuote(src) + " && zip -qr " + shellQuote(to) + " . 2>&1"
+		} else {
+			script += "cd " + shellQuote(src) + " && zip -qr " + shellQuote(to) + " " + strings.Join(quoted, " ") + " 2>&1"
+		}
+	} else {
+		script = "set -e; if [ -e " + shellQuote(to) + " ]; then echo ARCH_EXISTS; exit 10; fi; " +
+			"command -v tar >/dev/null 2>&1 || { echo NO_TAR; exit 11; }; "
+		if len(quoted) == 0 {
+			script += "tar -czf " + shellQuote(to) + " -C " + shellQuote(src) + " . 2>&1"
+		} else {
+			script += "tar -czf " + shellQuote(to) + " -C " + shellQuote(src) + " " + strings.Join(quoted, " ") + " 2>&1"
+		}
+	}
+	cmd := exec.CommandContext(ctx, "docker", "exec", name, "sh", "-c", script)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		s := string(out)
+		switch {
+		case strings.Contains(s, "ARCH_EXISTS"):
+			writeErr(w, http.StatusConflict, fmt.Sprintf("%q already exists", path.Base(to)))
+		case strings.Contains(s, "NO_ZIP"):
+			writeErr(w, http.StatusBadGateway, "zip is not installed in this container (use .tar.gz instead)")
+		case strings.Contains(s, "NO_TAR"):
+			writeErr(w, http.StatusBadGateway, "tar is not installed in this container")
+		default:
+			writeErr(w, http.StatusBadGateway, fmt.Sprintf("archive: %v: %s", err, s))
+		}
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "path": to, "count": len(names)})
+}
+
+// extractDocker unpacks a .zip or .tar.gz inside the container into `to`
+// (default: the archive's own directory).
+func extractDocker(ctx context.Context, w http.ResponseWriter, r *http.Request, name, src, toQ string) {
+	to := parseToParam(r, toQ)
+	dest := to
+	if dest == "" {
+		dest = path.Dir(src)
+	}
+	var script string
+	switch {
+	case isZipName(src):
+		script = "set -e; command -v unzip >/dev/null 2>&1 || { echo NO_UNZIP; exit 11; }; " +
+			"mkdir -p " + shellQuote(dest) + "; unzip -qq -o " + shellQuote(src) + " -d " + shellQuote(dest) + " 2>&1"
+	case isTarGzName(src):
+		script = "set -e; command -v tar >/dev/null 2>&1 || { echo NO_TAR; exit 11; }; " +
+			"mkdir -p " + shellQuote(dest) + "; tar -xzf " + shellQuote(src) + " -C " + shellQuote(dest) + " 2>&1"
+	default:
+		writeErr(w, http.StatusBadRequest, "unsupported archive (use .zip or .tar.gz)")
+		return
+	}
+	cmd := exec.CommandContext(ctx, "docker", "exec", name, "sh", "-c", script)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		s := string(out)
+		if strings.Contains(s, "NO_UNZIP") {
+			writeErr(w, http.StatusBadGateway, "unzip is not installed in this container")
+			return
+		}
+		if strings.Contains(s, "NO_TAR") {
+			writeErr(w, http.StatusBadGateway, "tar is not installed in this container")
+			return
+		}
+		writeErr(w, http.StatusBadGateway, fmt.Sprintf("extract: %v: %s", err, s))
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "path": dest})
+}
+
+// searchDocker implements op=search inside the container: one `find` to
+// enumerate (capped), substring filter in Go (no shell-injected globs),
+// then a single batched `stat` for the surviving hits so sizes/dates render.
+func searchDocker(ctx context.Context, w http.ResponseWriter, name, dir, query string) {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		writeErr(w, http.StatusBadRequest, "search requires a 'q' parameter")
+		return
+	}
+	limit := 100
+	findCmd := exec.CommandContext(ctx, "docker", "exec", name,
+		"sh", "-c", "find "+shellQuote(dir)+" -maxdepth 6 -print 2>/dev/null | head -n 5000")
+	raw, err := findCmd.Output()
+	if err != nil {
+		writeErr(w, http.StatusBadGateway, fmt.Sprintf("search in %s: %v", name, err))
+		return
+	}
+	lower := strings.ToLower(query)
+	type hit struct {
+		Rel     string `json:"path"`
+		Name    string `json:"name"`
+		IsDir   bool   `json:"is_dir"`
+		Size    int64  `json:"size"`
+		ModTime int64  `json:"mod_time"`
+	}
+	candidates := []string{}
+	for _, ln := range strings.Split(string(raw), "\n") {
+		ln = strings.TrimRight(ln, "\r")
+		if ln == "" || ln == dir {
+			continue
+		}
+		base := ln
+		if i := strings.LastIndex(ln, "/"); i >= 0 {
+			base = ln[i+1:]
+		}
+		if base == "" {
+			continue
+		}
+		if !strings.Contains(strings.ToLower(base), lower) {
+			continue
+		}
+		candidates = append(candidates, ln)
+		if len(candidates) >= limit {
+			break
+		}
+	}
+	out := []hit{}
+	if len(candidates) > 0 {
+		args := append([]string{"exec", name, "stat", "-c", "%n|%s|%F|%Y", "--"}, candidates...)
+		statCmd := exec.CommandContext(ctx, "docker", args...)
+		statOut, _ := statCmd.Output()
+		for _, ln := range strings.Split(strings.TrimSpace(string(statOut)), "\n") {
+			ln = strings.TrimRight(ln, "\r")
+			if ln == "" {
+				continue
+			}
+			parts := strings.Split(ln, "|")
+			if len(parts) < 4 {
+				continue
+			}
+			full := parts[0]
+			size, _ := strconv.ParseInt(parts[1], 10, 64)
+			ts, _ := strconv.ParseInt(parts[3], 10, 64)
+			rel := strings.TrimPrefix(full, strings.TrimSuffix(dir, "/"))
+			rel = strings.TrimPrefix(rel, "/")
+			if rel == "" {
+				continue
+			}
+			base := rel
+			if i := strings.LastIndex(rel, "/"); i >= 0 {
+				base = rel[i+1:]
+			}
+			out = append(out, hit{
+				Rel:     rel,
+				Name:    base,
+				IsDir:   strings.HasPrefix(parts[2], "directory"),
+				Size:    size,
+				ModTime: ts,
+			})
+		}
+		// stat may miss entries that vanished mid-search; fall back to the
+		// raw candidate list so results never come back inexplicably empty.
+		if len(out) == 0 {
+			for _, full := range candidates {
+				rel := strings.TrimPrefix(full, strings.TrimSuffix(dir, "/"))
+				rel = strings.TrimPrefix(rel, "/")
+				if rel == "" {
+					continue
+				}
+				base := rel
+				if i := strings.LastIndex(rel, "/"); i >= 0 {
+					base = rel[i+1:]
+				}
+				out = append(out, hit{Rel: rel, Name: base})
+			}
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].IsDir != out[j].IsDir {
+			return out[i].IsDir
+		}
+		return strings.ToLower(out[i].Rel) < strings.ToLower(out[j].Rel)
+	})
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"entries": out, "path": dir, "truncated": len(candidates) >= limit})
+}
+
 // writeErr is a tiny helper so error responses stay JSON-shaped and the
 // frontend can render them in the file browser surface.
 func writeErr(w http.ResponseWriter, code int, msg string) {
