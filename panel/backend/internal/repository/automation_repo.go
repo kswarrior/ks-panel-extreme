@@ -71,7 +71,7 @@ func (r *AutomationRepository) ListByInstance(instanceID int64) ([]models.Automa
 	if n == 0 {
 		return out, nil
 	}
-	rows, err := r.db.Query(`SELECT id, instance_id, name, command, schedule, enabled, secret_refs,
+	rows, err := r.db.Query(`SELECT id, instance_id, name, command, kind, payload, schedule, enabled, secret_refs,
 		timeout_sec, last_run_at, next_run_at, created_at, updated_at
 		FROM instance_automation WHERE instance_id = ? ORDER BY id ASC`, instanceID)
 	if err != nil {
@@ -90,7 +90,7 @@ func (r *AutomationRepository) ListByInstance(instanceID int64) ([]models.Automa
 
 // Get returns one job by id.
 func (r *AutomationRepository) Get(id int64) (*models.Automation, error) {
-	rows, err := r.db.Query(`SELECT id, instance_id, name, command, schedule, enabled, secret_refs,
+	rows, err := r.db.Query(`SELECT id, instance_id, name, command, kind, payload, schedule, enabled, secret_refs,
 		timeout_sec, last_run_at, next_run_at, created_at, updated_at FROM instance_automation WHERE id = ?`, id)
 	if err != nil {
 		return nil, err
@@ -129,10 +129,27 @@ func (in AutomationUpsertInput) refsJSON() string {
 	return string(b)
 }
 
-// Create inserts a new job and returns its id.
+// Create inserts a new job and returns its id. Command is required for
+// shell jobs; power jobs need a valid op payload and action jobs a
+// non-empty action-ID payload instead.
 func (r *AutomationRepository) Create(in AutomationUpsertInput) (int64, error) {
-	if in.Name == "" || in.Command == "" {
-		return 0, fmt.Errorf("name and command are required")
+	kind := models.NormalizeAutomationKind(in.Kind)
+	if in.Name == "" {
+		return 0, fmt.Errorf("name is required")
+	}
+	switch kind {
+	case models.AutomationKindPower:
+		if !models.IsAutomationPowerOp(in.Payload) {
+			return 0, fmt.Errorf("invalid power op %q (want start|stop|restart|kill)", in.Payload)
+		}
+	case models.AutomationKindAction:
+		if in.Payload == "" {
+			return 0, fmt.Errorf("action id is required for action jobs")
+		}
+	default:
+		if in.Command == "" {
+			return 0, fmt.Errorf("command is required for shell jobs")
+		}
 	}
 	enabled := 0
 	if in.Enabled {
@@ -142,19 +159,35 @@ func (r *AutomationRepository) Create(in AutomationUpsertInput) (int64, error) {
 	if to <= 0 {
 		to = 300
 	}
-	res, err := r.db.Exec(`INSERT INTO instance_automation (instance_id, name, command, schedule, enabled, secret_refs, timeout_sec)
-		VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		in.InstanceID, in.Name, in.Command, in.Schedule, enabled, in.refsJSON(), to)
+	res, err := r.db.Exec(`INSERT INTO instance_automation (instance_id, name, command, kind, payload, schedule, enabled, secret_refs, timeout_sec)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		in.InstanceID, in.Name, in.Command, kind, in.Payload, in.Schedule, enabled, in.refsJSON(), to)
 	if err != nil {
 		return 0, err
 	}
 	return res.LastInsertId()
 }
 
-// Update replaces an existing job's mutable fields.
+// Update replaces an existing job's mutable fields (same per-kind rules as
+// Create).
 func (r *AutomationRepository) Update(id int64, in AutomationUpsertInput) error {
-	if in.Name == "" || in.Command == "" {
-		return fmt.Errorf("name and command are required")
+	kind := models.NormalizeAutomationKind(in.Kind)
+	if in.Name == "" {
+		return fmt.Errorf("name is required")
+	}
+	switch kind {
+	case models.AutomationKindPower:
+		if !models.IsAutomationPowerOp(in.Payload) {
+			return fmt.Errorf("invalid power op %q (want start|stop|restart|kill)", in.Payload)
+		}
+	case models.AutomationKindAction:
+		if in.Payload == "" {
+			return fmt.Errorf("action id is required for action jobs")
+		}
+	default:
+		if in.Command == "" {
+			return fmt.Errorf("command is required for shell jobs")
+		}
 	}
 	enabled := 0
 	if in.Enabled {
@@ -164,9 +197,9 @@ func (r *AutomationRepository) Update(id int64, in AutomationUpsertInput) error 
 	if to <= 0 {
 		to = 300
 	}
-	_, err := r.db.Exec(`UPDATE instance_automation SET name = ?, command = ?, schedule = ?, enabled = ?,
+	_, err := r.db.Exec(`UPDATE instance_automation SET name = ?, command = ?, kind = ?, payload = ?, schedule = ?, enabled = ?,
 		secret_refs = ?, timeout_sec = ?, next_run_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-		in.Name, in.Command, in.Schedule, enabled, in.refsJSON(), to, id)
+		in.Name, in.Command, kind, in.Payload, in.Schedule, enabled, in.refsJSON(), to, id)
 	return err
 }
 
@@ -192,7 +225,7 @@ func (r *AutomationRepository) MarkRan(id int64, next time.Time) error {
 // Due returns jobs whose next_run_at has passed AND that are enabled AND have
 // a schedule. On-demand jobs (empty schedule) are never auto-fired.
 func (r *AutomationRepository) Due(now time.Time) ([]models.Automation, error) {
-	rows, err := r.db.Query(`SELECT id, instance_id, name, command, schedule, enabled, secret_refs,
+	rows, err := r.db.Query(`SELECT id, instance_id, name, command, kind, payload, schedule, enabled, secret_refs,
 		timeout_sec, last_run_at, next_run_at, created_at, updated_at FROM instance_automation
 		WHERE enabled = 1 AND schedule != '' AND next_run_at IS NOT NULL AND next_run_at <= ?`,
 		now.UTC().Format("2006-01-02 15:04:05"))
