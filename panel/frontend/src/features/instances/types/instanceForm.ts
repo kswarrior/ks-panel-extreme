@@ -207,9 +207,6 @@ export interface LxdRuntime {
 
 export interface Advanced {
   startup_command: string;
-  // Terminal binding for the Startup command's main-process console
-  // (attach-by-ID, like actions[].terminal_id). Empty = no console.
-  startup_terminal_id: string;
   stop_command: string;
   stop_signal: string;
   working_dir: string;
@@ -439,7 +436,6 @@ export function emptyEditor(): EditorState {
     healthcheck: { enabled: false, test_command: '', interval_s: '30', timeout_s: '5', retries: '3', start_period_s: '10' },
     advanced: {
       startup_command: '',
-      startup_terminal_id: '',
       stop_command: '',
       stop_signal: '',
       working_dir: '',

@@ -361,11 +361,6 @@ export type LogDriver = 'json-file' | 'syslog' | 'journald' | 'none';
 
 export interface Advanced {
   startup_command: string;
-  // Terminal binding for the Startup command's main-process console
-  // (same attach-by-ID UX as actions[].terminal_id): a terminal pane
-  // whose ID matches this value attaches to the container's main stdio.
-  // Empty = no dedicated startup console.
-  startup_terminal_id: string;
   stop_command: string;
   stop_signal: string;
   working_dir: string;
@@ -614,7 +609,6 @@ export const emptyForm: TemplateFormState = {
   },
   advanced: {
     startup_command: '',
-    startup_terminal_id: '',
     stop_command: '',
     stop_signal: '',
     working_dir: '',

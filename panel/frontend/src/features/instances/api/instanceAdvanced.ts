@@ -329,8 +329,8 @@ export async function stopInstanceAction(
   return res.data;
 }
 
-// Send one console line from a bound terminal pane to the running action's
-// stdin (e.g. `/tps` to a Minecraft console whose pane ID matches the
+// Send one terminal line from a bound terminal pane to the running action's
+// stdin (e.g. `/tps` to a Minecraft server whose pane ID matches the
 // action's terminal_id). The server enforces the action's terminal input
 // policy (disabled/allowlist/blocked) and requires the action to be the
 // currently-running workflow — a 409 means the process ended and the pane
@@ -352,7 +352,7 @@ export async function sendActionStdin(
   );
   return res.data;
 }
-// Send one console line from a terminal pane bound to the Installation
+// Send one terminal line from a terminal pane bound to the Installation
 // workflow (pane ID == the template's install_terminal_id) to the running
 // install's stdin. The server requires a running non-action workflow plus
 // a bound install_terminal_id — a 409 means the install finished and the
