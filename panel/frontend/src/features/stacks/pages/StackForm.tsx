@@ -277,7 +277,8 @@ const StackForm: React.FC = () => {
                     </span>
                   )}
                 </button>
-              ))}
+                );
+              })}
             </nav>
           </div>
           <div className="space-y-4 min-w-0 max-w-full">
@@ -348,7 +349,14 @@ const StackForm: React.FC = () => {
                           type="button"
                           role="radio"
                           aria-checked={active}
-                          onClick={() => patch({ locationType: t.value })}
+                          onClick={() => {
+                            patch({ locationType: t.value });
+                            // Outside stacks have no Install/Launch tabs —
+                            // bounce back to General if sitting on one.
+                            if (t.value === 'outside' && (tab === 'install' || tab === 'launch')) {
+                              setTab('meta');
+                            }
+                          }}
                           className={`ks-card flex items-start gap-3 p-3 rounded-lg text-left transition cursor-pointer ${
                             active ? 'border-sky-600/60 bg-sky-950/20' : 'hover:border-white/20'
                           }`}
@@ -492,6 +500,9 @@ const StackForm: React.FC = () => {
                           autoComplete="new-password"
                         />
                       </GlassField>
+                      <p className="text-xs text-gray-500">
+                        Outside stacks run elsewhere — the Install and Launch tabs are disabled while Type is Outside.
+                      </p>
                     </div>
                   )}
                 </div>
