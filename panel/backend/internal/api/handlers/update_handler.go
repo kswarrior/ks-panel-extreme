@@ -22,19 +22,19 @@ import (
 )
 
 // kspanelDownloadURL + kspanelVersionURL are the public artefacts the
-// "Updates" tab pulls. Mirrored from the ksedge pair in node_handler /
-// setup_localnode so the panel's self-update flow uses the same hosting
-// (Hugging Face bucket) and the same query convention. `version.json` is
-// the manifest the update-check endpoint fetches before deciding whether
-// to bother the admin with "An update is available".
+// "Updates" tab pulls. The manifest lives on the main branch
+// (raw.githubusercontent) so every rebuild.sh auto-sync commit publishes
+// it next to the release binaries; no separate bucket upload step.
+// `version.json` is the manifest the update-check endpoint fetches before
+// deciding whether to bother the admin with "An update is available".
 //
-// The bucket layout (Hugging Face resolve convention) is:
+// The release layout (GitHub raw convention) is:
 //
-//	<base>/release/kspanel      – the binary itself
-//	<base>/release/version.json – the manifest, schema below
+//	<base>/kspanel      – the binary itself
+//	<base>/version.json – the manifest, schema below
 //
-// version.json schema (kept minimal so the same shape works whether we
-// later switch the host to GitHub releases or any plain HTTPS origin):
+// version.json schema (kept minimal so the same shape works on any plain
+// HTTPS origin):
 //
 //	{
 //	  "version":    "0.1.1",                  // semver, MUST be present
@@ -53,8 +53,8 @@ import (
 // sha256_edge (never the bare sha256 — different bytes). Stamp it from
 // the build artifacts with tools/stamp-version-manifest.sh.
 const (
-	kspanelBaseURL    = "https://huggingface.co/buckets/kswarrior/opencode-storage/resolve/ks-panel/release"
-	kspanelVersionURL = kspanelBaseURL + "/version.json?download=true"
+	kspanelBaseURL    = "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/release"
+	kspanelVersionURL = kspanelBaseURL + "/version.json"
 	// kspanelBinaryURL is the reinstall / update binary source.
 	// Panel reinstall (System → Panel tab) now uses the dedicated ks-panel-edge
 	// GitHub release per user request.
