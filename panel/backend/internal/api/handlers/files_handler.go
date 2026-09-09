@@ -128,7 +128,7 @@ func InstanceFilesHandler(w http.ResponseWriter, r *http.Request) {
 	// plain-text files (e.g. eula.txt) come back labelled JSON, which the SPA
 	// then tried to res.json() into a SyntaxError.
 	ct := ""
-	if op == "list" || op == "stat" {
+	if op == "list" || op == "stat" || op == "search" {
 		ct = "application/json"
 	}
 	proxyToEdge(w, r, id, op, qs.Get("path"), ct)
@@ -201,9 +201,10 @@ func proxyToEdge(w http.ResponseWriter, r *http.Request, id int64, op, path, con
 	q.Set("name", name)
 	q.Set("path", path)
 	q.Set("token", token)
-	// Forward query params the edge cares about (rename's `to`, chmod's
-	// `mode`). Anything else falls through as part of the request body.
-	for _, k := range []string{"to", "mode"} {
+	// Forward query params the edge cares about (rename/copy's `to`,
+	// chmod's `mode`, search's `q`/`query`/`limit`). Anything else falls
+	// through as part of the request body (archive's {names} list).
+	for _, k := range []string{"to", "mode", "q", "query", "limit"} {
 		if v := r.URL.Query().Get(k); v != "" {
 			q.Set(k, v)
 		}
@@ -215,14 +216,14 @@ func proxyToEdge(w http.ResponseWriter, r *http.Request, id int64, op, path, con
 	// is stopped — both real regressions operators hit with the default
 	// Minecraft template before this was wired.
 	//
-	// Rename needs PAIR consistency: the SPA sends `to` as a container
-	// path (same coordinate space as `path`). If only the source were
-	// translated to host_path, the edge would os.Rename the file onto a
-	// literal "/mc/…" path on its own filesystem. So translate the
+	// Rename/copy/archive/extract need PAIR consistency: the SPA sends `to`
+	// as a container path (same coordinate space as `path`). If only the
+	// source were translated to host_path, the edge would os.Rename the file
+	// onto a literal "/mc/…" path on its own filesystem. So translate the
 	// destination too, and when EITHER side falls outside the mounts,
 	// drop host_path entirely so the edge handles both paths inside the
-	// container via `mv` (where they are both valid).
-	if op == "rename" {
+	// container via shell (where they are both valid).
+	if op == "rename" || op == "copy" || op == "archive" || op == "extract" {
 		to := r.URL.Query().Get("to")
 		hpFrom := hostPathForInstance(con, inst, path)
 		if to != "" && hpFrom != "" {
@@ -230,7 +231,14 @@ func proxyToEdge(w http.ResponseWriter, r *http.Request, id int64, op, path, con
 				q.Set("host_path", hpFrom)
 				q.Set("to", hpTo)
 			}
+		} else if to == "" {
+			if hp := hostPathForInstance(con, inst, path); hp != "" {
+				q.Set("host_path", hp)
+			}
 		}
+		// to == "" for archive-with-body-names or extract-to-default: the
+		// source-only host_path above still lets the edge serve off the
+		// bind mount; destinations derived server-side stay in-jail.
 	} else if hp := hostPathForInstance(con, inst, path); hp != "" {
 		q.Set("host_path", hp)
 	}
