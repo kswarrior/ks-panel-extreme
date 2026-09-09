@@ -653,7 +653,14 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
   return (
     <div
       ref={containerRef}
-      className="w-full h-[24rem] sm:h-[26rem] md:h-[28rem] rounded-lg overflow-hidden"
+      // Phone-first viewport fill: the fixed 24rem card left a tall dead
+      // gap below the terminal on phones (narrow screens show fewer cols,
+      // so the short card felt cramped while the page below sat empty).
+      // max() keeps the old floor and grows to fill the viewport minus the
+      // header/tab/pill chrome (~15rem); sm keeps its 26rem floor the same
+      // way. Desktop keeps the fixed 28rem that already looks right.
+      // Height changes flow through the ResizeObserver below into fit().
+      className="w-full h-[max(24rem,calc(100dvh-15rem))] sm:h-[max(26rem,calc(100dvh-15rem))] md:h-[28rem] rounded-lg overflow-hidden"
     />
   );
 });
