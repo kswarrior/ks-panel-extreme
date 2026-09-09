@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { getTicketSLAConfig, updateTicketSLAConfig } from '../api/tickets';
 import type { TicketSLAConfig } from '../types/ticket';
 import GlassCard from '@/shared/components/ui/Card';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 
 function getErrorMessage(e: any, fallback: string): string {
@@ -26,15 +27,17 @@ const TicketSchedules: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState('');
   const [saved, setSaved] = useState('');
 
   const reload = useCallback(async () => {
     setLoading(true);
     setError('');
+    setLoadError('');
     try {
       setDraft(await getTicketSLAConfig());
     } catch (e: any) {
-      setError(getErrorMessage(e, 'Failed to load SLA config'));
+      setLoadError(getErrorMessage(e, 'Failed to load SLA config'));
     } finally {
       setLoading(false);
     }
@@ -65,6 +68,18 @@ const TicketSchedules: React.FC = () => {
 
   if (loading) {
     return <div className="glass-card rounded-xl animate-pulse h-24" />;
+  }
+
+  if (loadError) {
+    return (
+      <ErrorState
+        variant="error"
+        title="Failed to load SLA config"
+        description={loadError}
+        retryLabel="Retry"
+        onRetry={() => void reload()}
+      />
+    );
   }
 
   const rows = Object.entries(draft).sort(([a], [b]) => a.localeCompare(b));

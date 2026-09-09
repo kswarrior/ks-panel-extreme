@@ -43,7 +43,12 @@ const RoleSchedules: React.FC = () => {
           effect on the next request without any scheduled job
           {total !== null && <> — <span className="text-gray-200 font-medium">{total}</span> role{total === 1 ? '' : 's'} defined</>}.
         </p>
-        {err && <p className="text-red-400 text-sm">{err}</p>}
+        {err && (
+          <p className="text-red-400 text-sm">
+            {err}{' '}
+            <button onClick={() => window.location.reload()} className="underline hover:text-red-300">Retry</button>
+          </p>
+        )}
         <div className="flex items-center justify-center gap-2 pt-1">
           <Link to="/roles" className="ks-primary-btn px-3 py-1.5 rounded text-sm">
             Manage roles

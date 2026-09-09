@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { listApplications, listApplicationRuns } from '@/features/applications/api/applications';
 import type { ApplicationRun } from '@/features/applications/api/applications';
 import GlassCard from '@/shared/components/ui/Card';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import { StatCard } from '@/shared/components/ui/StatDashboard';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 
@@ -26,43 +27,54 @@ const ApplicationSchedules: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
 
-  useEffect(() => {
-    let live = true;
-    (async () => {
-      setLoading(true);
-      setErr('');
-      try {
-        const apps = await listApplications();
-        const names = new Map(apps.map((a) => [a.id, a.name]));
-        const slice = apps.slice(0, MAX_APPS);
-        const settled = await Promise.allSettled(
-          slice.map((a) => listApplicationRuns(a.id, RUNS_PER_APP)),
-        );
-        if (!live) return;
-        const all: RunRow[] = [];
-        settled.forEach((r, idx) => {
-          if (r.status !== 'fulfilled') return;
-          const app = slice[idx];
-          for (const run of r.value) {
-            all.push({ ...run, appName: names.get(app.id) || `#${app.id}` });
-          }
-        });
-        all.sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
-        setRows(all);
-      } catch (e: any) {
-        if (live) setErr(e?.response?.data || e?.message || 'Failed to load application runs');
-      } finally {
-        if (live) setLoading(false);
-      }
-    })();
-    return () => { live = false; };
+  const reload = useCallback(async () => {
+    setLoading(true);
+    setErr('');
+    try {
+      const apps = await listApplications();
+      const names = new Map(apps.map((a) => [a.id, a.name]));
+      const slice = apps.slice(0, MAX_APPS);
+      const settled = await Promise.allSettled(
+        slice.map((a) => listApplicationRuns(a.id, RUNS_PER_APP)),
+      );
+      const all: RunRow[] = [];
+      settled.forEach((r, idx) => {
+        if (r.status !== 'fulfilled') return;
+        const app = slice[idx];
+        for (const run of r.value) {
+          all.push({ ...run, appName: names.get(app.id) || `#${app.id}` });
+        }
+      });
+      all.sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
+      setRows(all);
+    } catch (e: any) {
+      setErr(e?.response?.data || e?.message || 'Failed to load application runs');
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
 
   const stats = useMemo(() => ({
     total: rows.length,
     failed: rows.filter(isFailed).length,
     system: rows.filter((r) => r.triggered_by == null).length,
   }), [rows]);
+
+  if (!loading && err) {
+    return (
+      <ErrorState
+        variant="error"
+        title="Failed to load application runs"
+        description={err}
+        retryLabel="Retry"
+        onRetry={() => void reload()}
+      />
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -84,7 +96,6 @@ const ApplicationSchedules: React.FC = () => {
       <GlassCard className="p-4">
         <h3 className="text-sm font-semibold text-white mb-3">Recent runs</h3>
         {loading && <div className="rounded-xl animate-pulse h-16 bg-white/5" />}
-        {!loading && err && <p className="text-red-400 text-sm">{err}</p>}
         {!loading && !err && rows.length === 0 && (
           <p className="text-sm text-gray-500">No application runs recorded yet — run an app to populate its history.</p>
         )}

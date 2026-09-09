@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { listInstances } from '@/shared/api/admin';
 import { listSnapshotSchedules } from '@/features/instances/api/instanceAdvanced';
 import type { SnapshotSchedule } from '@/features/instances/api/instanceAdvanced';
 import GlassCard from '@/shared/components/ui/Card';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import { StatCard } from '@/shared/components/ui/StatDashboard';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 
@@ -21,42 +22,53 @@ const InstanceSchedules: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
 
-  useEffect(() => {
-    let live = true;
-    (async () => {
-      setLoading(true);
-      setErr('');
-      try {
-        const instances = await listInstances();
-        const names = new Map(instances.map((i) => [i.id, i.display_name || i.name]));
-        const slice = instances.slice(0, MAX_INSTANCES);
-        const settled = await Promise.allSettled(
-          slice.map((i) => listSnapshotSchedules(i.id)),
-        );
-        if (!live) return;
-        const all: ScheduleRow[] = [];
-        settled.forEach((r, idx) => {
-          if (r.status !== 'fulfilled') return;
-          const inst = slice[idx];
-          for (const s of r.value) {
-            all.push({ ...s, instance_id: s.instance_id ?? inst.id, instanceName: names.get(inst.id) || `#${inst.id}` });
-          }
-        });
-        setRows(all);
-      } catch (e: any) {
-        if (live) setErr(e?.response?.data || e?.message || 'Failed to load snapshot schedules');
-      } finally {
-        if (live) setLoading(false);
-      }
-    })();
-    return () => { live = false; };
+  const reload = useCallback(async () => {
+    setLoading(true);
+    setErr('');
+    try {
+      const instances = await listInstances();
+      const names = new Map(instances.map((i) => [i.id, i.display_name || i.name]));
+      const slice = instances.slice(0, MAX_INSTANCES);
+      const settled = await Promise.allSettled(
+        slice.map((i) => listSnapshotSchedules(i.id)),
+      );
+      const all: ScheduleRow[] = [];
+      settled.forEach((r, idx) => {
+        if (r.status !== 'fulfilled') return;
+        const inst = slice[idx];
+        for (const s of r.value) {
+          all.push({ ...s, instance_id: s.instance_id ?? inst.id, instanceName: names.get(inst.id) || `#${inst.id}` });
+        }
+      });
+      setRows(all);
+    } catch (e: any) {
+      setErr(e?.response?.data || e?.message || 'Failed to load snapshot schedules');
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
 
   const stats = useMemo(() => ({
     total: rows.length,
     enabled: rows.filter((r) => r.enabled).length,
     covered: new Set(rows.map((r) => r.instance_id)).size,
   }), [rows]);
+
+  if (!loading && err) {
+    return (
+      <ErrorState
+        variant="error"
+        title="Failed to load snapshot schedules"
+        description={err}
+        retryLabel="Retry"
+        onRetry={() => void reload()}
+      />
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -78,7 +90,6 @@ const InstanceSchedules: React.FC = () => {
       <GlassCard className="p-4">
         <h3 className="text-sm font-semibold text-white mb-3">All snapshot schedules</h3>
         {loading && <div className="rounded-xl animate-pulse h-16 bg-white/5" />}
-        {!loading && err && <p className="text-red-400 text-sm">{err}</p>}
         {!loading && !err && rows.length === 0 && (
           <p className="text-sm text-gray-500">No snapshot schedules yet.</p>
         )}

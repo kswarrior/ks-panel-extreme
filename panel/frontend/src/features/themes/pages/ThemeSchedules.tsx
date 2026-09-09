@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useThemeStore } from '@/shared/stores/themeStore';
 import { StatCard } from '@/shared/components/ui/StatDashboard';
 import GlassCard from '@/shared/components/ui/Card';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 
 // ThemeSchedules — themes have no cron. Themes apply instantly on
@@ -40,6 +41,18 @@ const ThemeSchedules: React.FC = () => {
     return { total: ids.size, assigned: scopes.size };
   }, [themes, globalThemes, assignments, globalAssignments]);
 
+  if (error && counts.total === 0) {
+    return (
+      <ErrorState
+        variant="error"
+        title="Failed to load theme data"
+        description={error}
+        retryLabel="Retry"
+        onRetry={() => window.location.reload()}
+      />
+    );
+  }
+
   return (
     <div className="space-y-4">
       <PageActionsPill>
@@ -56,7 +69,12 @@ const ThemeSchedules: React.FC = () => {
         <StatCard label="Assigned Scopes" value={counts.assigned} color="text-violet-300" dotColor="bg-violet-400" />
       </div>
 
-      {error && <p className="text-red-400 text-sm">{error}</p>}
+      {error && counts.total > 0 && (
+        <p className="text-red-400 text-sm">
+          {error}{' '}
+          <button onClick={() => window.location.reload()} className="underline hover:text-red-300">Retry</button>
+        </p>
+      )}
 
       <GlassCard>
         <h3 className="text-sm font-semibold text-white mb-1">No schedules</h3>
