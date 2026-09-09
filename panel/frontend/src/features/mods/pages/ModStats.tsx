@@ -5,6 +5,7 @@ import {
   StatCard,
 } from '@/shared/components/ui/StatDashboard';
 import GlassCard from '@/shared/components/ui/Card';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 
@@ -79,6 +80,18 @@ const ModStats: React.FC = () => {
           <div className="h-64 bg-white/5 rounded" />
         </div>
       </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <ErrorState
+        variant="error"
+        title="Failed to load mod stats"
+        description={error}
+        retryLabel="Retry"
+        onRetry={() => void load()}
+      />
     );
   }
 

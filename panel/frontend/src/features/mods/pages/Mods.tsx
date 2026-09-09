@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import GlassCard from '@/shared/components/ui/Card';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import GlassModal from '@/shared/components/ui/Modal';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
@@ -544,6 +545,15 @@ return (
           </button>
       </PageActionsPill>
 
+      {!loading && error && mods.length === 0 && (
+        <ErrorState
+          variant="error"
+          title="Failed to load mods"
+          description={error}
+          retryLabel="Retry"
+          onRetry={() => void load()}
+        />
+      )}
       {!loading && filtered.length > 0 && (
          <div className="ks-card-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" id="ks-mods-grid">
            {filtered.map((m) => {
