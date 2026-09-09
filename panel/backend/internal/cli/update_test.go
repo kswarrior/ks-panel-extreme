@@ -13,6 +13,18 @@ func testSidecarServer(t *testing.T, body string) *httptest.Server {
 	}))
 }
 
+func TestUpdateCmdRegistered(t *testing.T) {
+	found := false
+	for _, c := range rootCmd.Commands() {
+		if c.Name() == "update" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("update command must be registered on rootCmd")
+	}
+}
+
 func TestSemverNewer(t *testing.T) {
 	cases := []struct {
 		remote, local string

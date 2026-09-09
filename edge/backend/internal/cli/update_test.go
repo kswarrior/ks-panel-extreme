@@ -4,6 +4,19 @@ import (
 	"testing"
 )
 
+func TestEdgeUpdateCmdRegistered(t *testing.T) {
+	root := New()
+	found := false
+	for _, c := range root.Commands() {
+		if c.Name() == "update" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("update command must be registered on ksedge root")
+	}
+}
+
 func TestSemverNewer(t *testing.T) {
 	cases := []struct {
 		remote, local string
