@@ -174,6 +174,10 @@ export interface TerminalHandle {
   // raw stdin bytes on the WS, validateInput gating, then onLine. Used
   // by the "input box" input method, whose xterm is readOnly.
   sendLine: (line: string) => void;
+  // getContent snapshots the whole scrollback buffer as plain text
+  // (trimmed of leading/trailing blank rows). Powers the Copy / Download
+  // buttons in the host page's actions pill.
+  getContent: () => string;
 }
 
 const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStateChange, onTermRef, onTitleChange, terminalId, endpoint, timeoutS, readOnly, validateInput, onExit, onLine }, ref) => {
@@ -226,6 +230,22 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
   useImperativeHandle(ref, () => ({
     reconnect: () => reconnectRef.current?.(),
     sendLine: (line: string) => sendLineRef.current?.(line),
+    getContent: () => {
+      const term = termRef.current;
+      if (!term) return '';
+      try {
+        const buf = term.buffer.active;
+        const lines: string[] = [];
+        for (let i = 0; i < buf.length; i++) {
+          lines.push(buf.getLine(i)?.translateToString(true) ?? '');
+        }
+        while (lines.length > 0 && lines[0].trim() === '') lines.shift();
+        while (lines.length > 0 && lines[lines.length - 1].trim() === '') lines.pop();
+        return lines.join('\n');
+      } catch {
+        return '';
+      }
+    },
   }));
 
   const setState = (s: ConnState, msg?: string) => {

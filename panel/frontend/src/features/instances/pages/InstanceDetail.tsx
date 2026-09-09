@@ -238,9 +238,18 @@ const TerminalPane: React.FC<{
   boxText: string;
   onBoxText: (v: string) => void;
   onRegisterSend: (key: number, fn: ((line: string) => void) | null) => void;
+  onRegisterHandle: (key: number, h: TerminalHandle | null) => void;
   onConnState?: (key: number, s: PaneConnState, msg?: string) => void;
-}> = ({ instanceId, pane, actions, runningActionId, installState, installKind, installTerminalId, startupTerminalId, inputMode, boxText, onBoxText, onRegisterSend, onConnState }) => {
-  const handleRef = useRef<TerminalHandle>(null);
+}> = ({ instanceId, pane, actions, runningActionId, installState, installKind, installTerminalId, startupTerminalId, inputMode, boxText, onBoxText, onRegisterSend, onRegisterHandle, onConnState }) => {
+  const handleRef = useRef<TerminalHandle | null>(null);
+  // Callback ref: keeps the local handle for the box-mode Send path and
+  // registers it with the page so the actions-pill Copy / Download buttons
+  // can snapshot the ACTIVE pane's buffer. React calls it with null on
+  // unmount, which unregisters the pane.
+  const setHandle = useCallback((h: TerminalHandle | null) => {
+    handleRef.current = h;
+    onRegisterHandle(pane.key, h);
+  }, [pane.key, onRegisterHandle]);
   const [connState, setConnState] = useState<PaneConnState>('connecting');
   const [connMsg, setConnMsg] = useState('');
   const [stdinError, setStdinError] = useState('');
@@ -328,7 +337,7 @@ const TerminalPane: React.FC<{
 
       <div className="p-3">
         <Terminal
-          ref={handleRef}
+          ref={setHandle}
           instanceId={instanceId}
           terminalId={tid}
           endpoint={isStartupBound ? 'console' : isWorkflowPane && isWorkflowActive ? 'workflow' : undefined}
