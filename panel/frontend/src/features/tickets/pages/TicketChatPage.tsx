@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { getTicket, addTicketComment, deleteTicketComment } from '../api/tickets';
 import type { Ticket, TicketComment, TicketAttachment } from '../types/ticket';
 import TicketChat from '../components/TicketChat';
 import TicketChatSkeleton from '../components/TicketChatSkeleton';
 import TicketAttachments from '../components/TicketAttachments';
 import { useAuthStore } from '@/shared/stores/authStore';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import { useConfirm } from '@/shared/stores/confirmStore';
 
 // TicketChatPage — individual TSX for chat (separate from details).
@@ -14,6 +15,7 @@ import { useConfirm } from '@/shared/stores/confirmStore';
 // the live chat lifecycle and shows its own loading skeleton.
 const TicketChatPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const confirm = useConfirm();
   const user = useAuthStore((s) => s.user);
   const permissions = useAuthStore((s) => s.permissions);
@@ -108,30 +110,29 @@ const TicketChatPage: React.FC = () => {
   if (error) {
     return (
       <div className="w-full max-w-none mx-0 p-4">
-        <div
-          className="glass-card rounded-xl p-6 text-center border"
-          style={{
-            borderColor: 'color-mix(in srgb, var(--ks-accent-danger) 35%, transparent)',
-            background: 'color-mix(in srgb, var(--ks-accent-danger) 10%, var(--ks-card-bg))',
-          }}
-        >
-          <p className="text-sm font-medium" style={{ color: 'var(--ks-accent-danger)' }}>
-            {typeof error === 'string' ? error : JSON.stringify(error)}
-          </p>
-          <div className="mt-3 flex items-center justify-center gap-2">
-            <Link to={`/tickets/${id}`} className="ks-btn-ghost inline-flex text-xs px-3 py-1.5 rounded-full border" style={{ borderColor: 'var(--ks-card-border)' }}>
-              Back to details
-            </Link>
-            <button onClick={() => load(true)} className="ks-btn-ghost inline-flex text-xs px-3 py-1.5 rounded-full border" style={{ borderColor: 'var(--ks-card-border)' }}>
-              Retry
-            </button>
-          </div>
-        </div>
+        <ErrorState
+          variant="error"
+          title="Failed to load chat"
+          description={typeof error === 'string' ? error : JSON.stringify(error)}
+          retryLabel="Retry"
+          onRetry={() => load(true)}
+          backLabel="Back to details"
+          onBack={() => navigate(`/tickets/${id}`)}
+        />
       </div>
     );
   }
 
-  if (!ticket) return <div className="p-8" style={{ color: 'var(--ks-text-body)' }}>Ticket not found.</div>;
+  if (!ticket) return (
+    <div className="w-full max-w-none mx-0 p-4">
+      <ErrorState
+        variant="not-found"
+        title="Ticket not found"
+        backLabel="Back to tickets"
+        onBack={() => navigate('/tickets')}
+      />
+    </div>
+  );
 
   const isClosed = ticket.status === 'closed';
   const canSeeInternal = permissions.includes('MANAGE_TICKETS') || permissions.includes('TICKETS_EDIT');

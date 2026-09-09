@@ -13,6 +13,7 @@ import { useConfirm } from '@/shared/stores/confirmStore';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { TicketStatusBadge, TicketPriorityBadge, CategoryIcon, formatTicketDateTime } from '../components/TicketComponents';
 import TicketDetailSkeleton from '../components/TicketDetailSkeleton';
+import ErrorState from '@/shared/components/ui/ErrorState';
 
 const STATUS_ORDER: Ticket['status'][] = ['open', 'pending', 'in_progress', 'resolved', 'closed'];
 
@@ -137,14 +138,28 @@ const TicketDetail: React.FC = () => {
   if (error) {
     return (
       <div className="max-w-[1280px] mx-auto p-4">
-        <div className="glass-card rounded-xl p-6 text-center border" style={{ borderColor: 'color-mix(in srgb, var(--ks-accent-danger) 35%, transparent)', background: 'color-mix(in srgb, var(--ks-accent-danger) 10%, var(--ks-card-bg))' }}>
-          <p className="text-sm font-medium" style={{ color: 'var(--ks-accent-danger)' }}>{typeof error === 'string' ? error : JSON.stringify(error)}</p>
-          <Link to="/tickets" className="ks-btn-ghost inline-flex mt-3 text-xs px-3 py-1.5 rounded-full border" style={{ borderColor: 'var(--ks-card-border)' }}>Back to tickets</Link>
-        </div>
+        <ErrorState
+          variant="error"
+          title="Failed to load ticket"
+          description={typeof error === 'string' ? error : JSON.stringify(error)}
+          retryLabel="Retry"
+          onRetry={() => void load()}
+          backLabel="Back to tickets"
+          onBack={() => navigate('/tickets')}
+        />
       </div>
     );
   }
-  if (!ticket) return <div className="p-8" style={{ color: 'var(--ks-text-body)' }}>Ticket not found.</div>;
+  if (!ticket) return (
+    <div className="max-w-[1280px] mx-auto p-4">
+      <ErrorState
+        variant="not-found"
+        title="Ticket not found"
+        backLabel="Back to tickets"
+        onBack={() => navigate('/tickets')}
+      />
+    </div>
+  );
 
   let tags: string[] = [];
   try { const p = JSON.parse(ticket.tags); if (Array.isArray(p)) tags = p; } catch {}

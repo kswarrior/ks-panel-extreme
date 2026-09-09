@@ -4,6 +4,7 @@ import { listAdminApiKeys, listUsers, listRoles, deleteAdminApiKey, updateAdminA
 import type { ApiKey } from '@/shared/types/apiKey';
 import type { User, Role } from '@/shared/types/user';
 import GlassCard from '@/shared/components/ui/Card';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import { cardTimeMs } from '@/shared/utils/cardDate';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import { PERMISSION_AREAS } from '@/shared/types/permissions';
@@ -189,13 +190,15 @@ const ApiKeyDetail: React.FC = () => {
           </button>
           <h2 className="text-xl font-semibold text-white">API Key Detail</h2>
         </div>
-        <GlassCard className="p-6 border border-red-900/40">
-          <p className="text-red-400 text-sm">{error}</p>
-          <div className="mt-3 flex gap-2">
-            <button onClick={() => window.location.reload()} className="px-3 py-1.5 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white">Retry</button>
-            <button onClick={back} className="px-3 py-1.5 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-gray-300">Back</button>
-          </div>
-        </GlassCard>
+        <ErrorState
+          variant="error"
+          title="Failed to load API key"
+          description={error}
+          retryLabel="Retry"
+          onRetry={() => window.location.reload()}
+          backLabel="Back"
+          onBack={back}
+        />
       </div>
     );
   }
@@ -208,7 +211,7 @@ const ApiKeyDetail: React.FC = () => {
           </button>
           <h2 className="text-xl font-semibold text-white">API Key Detail</h2>
         </div>
-        <GlassCard className="p-6"><p className="text-gray-400">API key not found</p><button onClick={back} className="mt-3 px-3 py-1.5 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white">Back</button></GlassCard>
+        <ErrorState variant="not-found" title="API key not found" backLabel="Back" onBack={back} />
       </div>
     );
   }
