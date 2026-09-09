@@ -675,6 +675,60 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
                           Operators pick their own timeout per job, capped here: below the ceiling passes, above it is rejected.
                         </p>
                       </div>
+                      <div className="pt-1">
+                        <label className="block text-[11px] text-gray-500 mb-0.5" htmlFor={`shortcut-${key}-max-together`}>
+                          Max jobs run together (empty = panel limit)
+                        </label>
+                        <input
+                          id={`shortcut-${key}-max-together`}
+                          type="number"
+                          min="0"
+                          max="64"
+                          value={s.max_concurrent_runs > 0 ? String(s.max_concurrent_runs) : ''}
+                          onChange={(e) => {
+                            const digits = e.target.value.replace(/[^0-9]/g, '');
+                            if (digits === '') {
+                              updateShortcut(key, { max_concurrent_runs: 0 });
+                              return;
+                            }
+                            updateShortcut(key, { max_concurrent_runs: Math.max(1, Math.min(64, parseInt(digits, 10) || 0)) });
+                          }}
+                          placeholder="unlimited"
+                          aria-label="Automation max jobs run together"
+                          title="How many jobs of one instance may run at the same time (empty = panel-wide limit only)"
+                          className="glass-field font-mono w-full"
+                        />
+                        <p className="text-[11px] text-gray-500 mt-1">
+                          Same-time cap per instance — extra due jobs wait for a slot instead of crowding other instances out.
+                        </p>
+                      </div>
+                      <div className="pt-1">
+                        <label className="block text-[11px] text-gray-500 mb-0.5" htmlFor={`shortcut-${key}-max-active`}>
+                          Max jobs active (empty = unlimited)
+                        </label>
+                        <input
+                          id={`shortcut-${key}-max-active`}
+                          type="number"
+                          min="0"
+                          max="1000"
+                          value={s.max_active_jobs > 0 ? String(s.max_active_jobs) : ''}
+                          onChange={(e) => {
+                            const digits = e.target.value.replace(/[^0-9]/g, '');
+                            if (digits === '') {
+                              updateShortcut(key, { max_active_jobs: 0 });
+                              return;
+                            }
+                            updateShortcut(key, { max_active_jobs: Math.max(1, Math.min(1000, parseInt(digits, 10) || 0)) });
+                          }}
+                          placeholder="unlimited"
+                          aria-label="Automation max active jobs"
+                          title="How many jobs may be enabled at once — an enabled job owns its schedule timer (empty = unlimited)"
+                          className="glass-field font-mono w-full"
+                        />
+                        <p className="text-[11px] text-gray-500 mt-1">
+                          Enabling past this is rejected — an active job owns its schedule timer and fires on it.
+                        </p>
+                      </div>
                     </>
                   )}
                   {key === 'env' && (

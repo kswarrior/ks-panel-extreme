@@ -11,7 +11,7 @@ import TextInput from '@/shared/components/ui/TextInput';
 import ErrorState from '@/shared/components/ui/ErrorState';
 import { useConfirm } from '@/shared/stores/confirmStore';
 import { useInstance } from '@/shared/hooks/useInstance';
-import { resolveInstanceControls, automationTimeoutCeiling } from '@/features/instances/utils/instanceControls';
+import { resolveInstanceControls, automationTimeoutCeiling, automationRunLimits } from '@/features/instances/utils/instanceControls';
 
 function toast(msg: string, type: 'success' | 'error' | 'info' = 'info') {
   window.dispatchEvent(new CustomEvent('ks-toast', { detail: { message: msg, type } }));
@@ -76,6 +76,7 @@ const InstanceAutomationEditor: React.FC<{
 
   const [draft, setDraft] = useState<JobDraft | null>(null);
   const [savedSnapshot, setSavedSnapshot] = useState('');
+  const [activeOthers, setActiveOthers] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -87,6 +88,7 @@ const InstanceAutomationEditor: React.FC<{
   const controls = useMemo(() => resolveInstanceControls(instance?.config), [instance?.config]);
   const ceiling = automationTimeoutCeiling(controls);
   const autoCfg = controls.shortcuts.automation;
+  const limits = automationRunLimits(controls);
   const allowedKinds = (['shell', 'power', 'action'] as AutomationKind[]).filter((k) =>
     k === 'shell' ? autoCfg.allow_shell : k === 'power' ? autoCfg.allow_power : autoCfg.allow_actions,
   );
@@ -96,6 +98,11 @@ const InstanceAutomationEditor: React.FC<{
     setLoading(true);
     setError('');
     try {
+      // The list serves edit-find AND the active-jobs count (enabled jobs
+      // besides the one being edited) for the template's max_active_jobs
+      // gate — same count the backend enforces at write time.
+      const jobs = await listAutomation(instanceId);
+      const list = Array.isArray(jobs) ? jobs : [];
       if (jobId === null) {
         const d = emptyDraft();
         if (!(allowedKinds.includes(d.kind))) {
@@ -104,10 +111,10 @@ const InstanceAutomationEditor: React.FC<{
         if (d.kind === 'power' && !(POWER_OPS as readonly string[]).includes(d.powerOp)) d.powerOp = 'restart';
         setDraft(d);
         setSavedSnapshot(JSON.stringify(d));
+        setActiveOthers(list.filter((j) => j.enabled).length);
         return;
       }
-      const jobs = await listAutomation(instanceId);
-      const found = (Array.isArray(jobs) ? jobs : []).find((j) => j.id === jobId);
+      const found = list.find((j) => j.id === jobId);
       if (!found) {
         setError(`Job #${jobId} not found on this instance.`);
         return;
@@ -115,6 +122,7 @@ const InstanceAutomationEditor: React.FC<{
       const d = emptyDraft(found);
       setDraft(d);
       setSavedSnapshot(JSON.stringify(d));
+      setActiveOthers(list.filter((j) => j.enabled && j.id !== jobId).length);
     } catch (e: any) {
       setError(e?.response?.data || e?.message || 'Failed to load job');
     } finally {
@@ -222,6 +230,14 @@ const InstanceAutomationEditor: React.FC<{
     }
     if (draft.steps.length > 32) {
       setFormError('Too many steps (max 32).');
+      return;
+    }
+    // Active-jobs gate (mirrors the backend 400): enabling past the
+    // template's max_active_jobs cap is rejected — an enabled job owns its
+    // schedule timer. Re-saving an enabled job never trips it (the count
+    // excludes the job being edited).
+    if (draft.enabled && limits.active > 0 && activeOthers >= limits.active) {
+      setFormError(`Too many active jobs (template maximum ${limits.active}). Disable another job first.`);
       return;
     }
     const secretRefs = draft.secretRefs.split(',').map((s) => s.trim()).filter(Boolean);
@@ -471,6 +487,11 @@ const InstanceAutomationEditor: React.FC<{
             />
             Enabled
           </label>
+          {limits.active > 0 && (
+            <p className="text-[11px] text-gray-500 -mt-2">
+              {activeOthers + (draft.enabled ? 1 : 0)} of {limits.active} active jobs{activeOthers + (draft.enabled ? 1 : 0) >= limits.active ? ' — at the template maximum' : ''}.
+            </p>
+          )}
         </div>
       )}
     </div>
