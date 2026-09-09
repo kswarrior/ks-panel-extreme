@@ -394,25 +394,9 @@ const StackForm: React.FC = () => {
                           />
                         </GlassField>
                       ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <GlassField label="Runtime" htmlFor="stack-runtime" hint="Host sidecar runtime.">
-                            <select
-                              id="stack-runtime"
-                              value={draft.runtime}
-                              onChange={(e) => patch({ runtime: e.target.value })}
-                            >
-                              {STACK_RUNTIMES.map((r) => <option key={r} value={r}>{r}</option>)}
-                            </select>
-                          </GlassField>
-                          <GlassField label="Entrypoint" htmlFor="stack-entrypoint" hint="Command or file the host runtime executes.">
-                            <input
-                              id="stack-entrypoint"
-                              value={draft.entrypoint}
-                              onChange={(e) => patch({ entrypoint: e.target.value })}
-                              placeholder={draft.runtime === 'static' ? 'index.html' : draft.runtime === 'nodejs' ? 'server.js' : 'app.py'}
-                            />
-                          </GlassField>
-                        </div>
+                        <p className="text-xs text-gray-500">
+                          Host process — runs on this host via the default runtime.
+                        </p>
                       )}
                     </div>
                   ) : (

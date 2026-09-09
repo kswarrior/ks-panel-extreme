@@ -232,9 +232,12 @@ export interface StackStudioDraft {
   // becomes $API_TOKEN). Mirrors the template env-var "ask" behaviour.
   launchTokens: StackLaunchToken[];
   // Location type (General tab): 'host' = stack on this same host,
-  // 'outside' = stack elsewhere, reached via remoteProtocol (wss/post) at
-  // remoteUrl with an optional shared secret.
+  // 'outside' = stack elsewhere. Outside/WSS uses node-form style
+  // remoteHost + remotePort (bare host, no scheme); Outside/POST uses a
+  // full remoteUrl. remoteSecret is an optional shared secret for either.
   locationType: StackLocationType;
+  remoteHost: string;
+  remotePort: string;
   remoteUrl: string;
   remoteProtocol: StackRemoteProtocol;
   remoteSecret: string;
@@ -347,6 +350,8 @@ export const blankStackStudioDraft = (): StackStudioDraft => ({
   launchTimeoutS: '',
   launchTokens: [],
   locationType: 'host',
+  remoteHost: '',
+  remotePort: '',
   remoteUrl: '',
   remoteProtocol: 'wss',
   remoteSecret: '',
@@ -387,9 +392,17 @@ export function emitStackStudioManifest(draft: StackStudioDraft): Record<string,
     // Ask-at-launch tokens (prompted at launch, exported as ENV).
     launchTokens: draft.launchTokens || [],
     // Location type (raw-manifest pass-through until the backend models it).
+    // Outside/WSS composes remoteUrl from the node-style host + port pair.
     locationType: draft.locationType || 'host',
-    remoteUrl: (draft.remoteUrl || '').trim(),
     remoteProtocol: draft.remoteProtocol || 'wss',
+    remoteHost: (draft.remoteHost || '').trim(),
+    remotePort: (draft.remotePort || '').replace(/[^0-9]/g, ''),
+    remoteUrl:
+      (draft.locationType || 'host') === 'outside' &&
+      (draft.remoteProtocol || 'wss') === 'wss' &&
+      (draft.remoteHost || '').trim()
+        ? `wss://${(draft.remoteHost || '').trim()}:${(draft.remotePort || '').replace(/[^0-9]/g, '') || '443'}`
+        : (draft.remoteUrl || '').trim(),
     ...(draft.remoteSecret.trim() ? { remoteSecret: draft.remoteSecret.trim() } : {}),
     // Docker target image (only meaningful when installType is docker;
     // harmless pass-through otherwise).
