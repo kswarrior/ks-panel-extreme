@@ -11,7 +11,6 @@ import { listPermissions } from '@/shared/api/admin';
 import type { Permission } from '@/shared/types/user';
 import {
   STACK_CAPABILITIES,
-  STACK_CATEGORIES,
   STACK_INSTALL_TYPES,
   STACK_LOCATION_TYPES,
   STACK_REMOTE_PROTOCOLS,
@@ -316,24 +315,7 @@ const StackForm: React.FC = () => {
                     />
                   </GlassField>
                 </div>
-                <GlassField label="Category" htmlFor="stack-category">
-                  <select
-                    id="stack-category"
-                    value={draft.category}
-                    onChange={(e) => patch({ category: e.target.value })}
-                  >
-                    {STACK_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </GlassField>
-                <GlassField label="Description" htmlFor="stack-description">
-                  <textarea
-                    id="stack-description"
-                    rows={3}
-                    value={draft.description}
-                    onChange={(e) => patch({ description: e.target.value })}
-                    placeholder="Brief description of this stack"
-                  />
-                </GlassField>
+
                 {/* Location type — Host (stack on this same host) vs Outside
                     (stack elsewhere, reached via WSS or POST). */}
                 <div className="space-y-3">
