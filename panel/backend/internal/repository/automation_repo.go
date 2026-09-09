@@ -277,13 +277,17 @@ func (r *AutomationRepository) Update(id int64, in AutomationUpsertInput) error 
 	if in.Name == "" {
 		return fmt.Errorf("name is required")
 	}
+	hasSteps := len(in.Steps) > 0
 	switch kind {
 	case models.AutomationKindPower:
-		if !models.IsAutomationPowerOp(in.Payload) {
+		if in.Payload == "" && !hasSteps {
+			return fmt.Errorf("invalid power op %q (want start|stop|restart|kill)", in.Payload)
+		}
+		if in.Payload != "" && !models.IsAutomationPowerOp(in.Payload) {
 			return fmt.Errorf("invalid power op %q (want start|stop|restart|kill)", in.Payload)
 		}
 	case models.AutomationKindAction:
-		if in.Payload == "" {
+		if in.Payload == "" && !hasSteps {
 			return fmt.Errorf("action id is required for action jobs")
 		}
 	default:

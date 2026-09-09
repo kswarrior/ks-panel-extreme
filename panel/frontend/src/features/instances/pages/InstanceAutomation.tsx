@@ -166,21 +166,27 @@ const InstanceAutomation: React.FC<{ readOnly?: boolean }> = ({ readOnly = false
     }
     // Per-kind shape (mirrors the backend): shell needs a command unless
     // steps carry the plan; power needs an op; action needs an action ID.
+    // With steps the plan carries the targets (top fields are display
+    // fallback), so presence checks relax the same way.
+    const hasSteps = draft.steps.length > 0;
     let kindPayload = '';
     if (draft.kind === 'power') {
-      if (!(POWER_OPS as readonly string[]).includes(draft.powerOp)) {
+      if (draft.powerOp !== '' && !(POWER_OPS as readonly string[]).includes(draft.powerOp)) {
+        setFormError('Pick a power op (start / stop / restart / kill).');
+        return;
+      }
+      if (draft.powerOp === '' && !hasSteps) {
         setFormError('Pick a power op (start / stop / restart / kill).');
         return;
       }
       kindPayload = draft.powerOp;
     } else if (draft.kind === 'action') {
       kindPayload = draft.actionId.trim();
-      if (kindPayload === '') {
-        setFormError('Action ID is required for action jobs.');
+      if (kindPayload === '' && !hasSteps) {
+        setFormError('Action ID is required for action jobs (or add steps carrying the plan).');
         return;
       }
     }
-    const hasSteps = draft.steps.length > 0;
     const command = draft.kind === 'shell' ? draft.command : draft.kind === 'action' ? '' : '';
     if (draft.kind === 'shell' && command.trim() === '' && !hasSteps) {
       setFormError('Command is required (or add steps carrying the plan).');
