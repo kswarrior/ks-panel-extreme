@@ -475,6 +475,26 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
     };
     const titleSub = term.onTitleChange((t) => onTitleChangeRef.current?.(t));
 
+    // Selection tracking for the floating Copy chip (phone path): the
+    // chip appears whenever the xterm holds a selection and copies it
+    // on tap. `copy` events (phone long-press Copy menu, webview menu,
+    // desktop right-click Copy) are fed the xterm selection explicitly —
+    // without this the clipboard would come up empty since the canvas
+    // exposes no native selectable text.
+    const selSub = term.onSelectionChange(() => {
+      try { setHasSel(term.hasSelection()); } catch { /* noop */ }
+    });
+    const handleCopyEvent = (e: ClipboardEvent) => {
+      try {
+        const t = termRef.current;
+        if (!t || !t.hasSelection()) return;
+        const text = t.getSelection();
+        if (!text || !e.clipboardData) return;
+        e.clipboardData.setData('text/plain', text);
+        e.preventDefault();
+      } catch { /* noop */ }
+    };
+
     // Coalesce bursts (rotation, virtual-keyboard slide, split-view drag)
     // into one fit per frame: without this every RO tick re-fits, each fit
     // fires onResize, and the bridge gets a storm of resize frames while
@@ -530,6 +550,7 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
     el.addEventListener('touchstart', handleTouchStart as EventListener, { passive: true });
     el.addEventListener('touchend', handleTouchEnd as EventListener, { passive: false });
     el.addEventListener('touchcancel', handleTouchCancel);
+    el.addEventListener('copy', handleCopyEvent as EventListener);
 
     // Initial size to the bridge so the edge spawns at the right geometry.
     // Tracked so unmount within the window doesn't touch a disposed term.
@@ -546,14 +567,17 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
       el.removeEventListener('touchstart', handleTouchStart as EventListener);
       el.removeEventListener('touchend', handleTouchEnd as EventListener);
       el.removeEventListener('touchcancel', handleTouchCancel);
+      el.removeEventListener('copy', handleCopyEvent as EventListener);
       dataSub.dispose();
       resizeSub.dispose();
       titleSub?.dispose();
+      selSub?.dispose();
       ro.disconnect();
       term.dispose();
       termRef.current = null;
       fitRef.current = null;
       sendLineRef.current = null;
+      copySelRef.current = null;
       onTermRef?.(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -764,17 +788,31 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
   }, []);
 
   return (
-    <div
-      ref={containerRef}
-      // Phone-first viewport fill: the fixed 24rem card left a tall dead
-      // gap below the terminal on phones (narrow screens show fewer cols,
-      // so the short card felt cramped while the page below sat empty).
-      // max() keeps the old floor and grows to fill the viewport minus the
-      // header/tab/pill chrome (~15rem); sm keeps its 26rem floor the same
-      // way. Desktop keeps the fixed 28rem that already looks right.
-      // Height changes flow through the ResizeObserver below into fit().
-      className="w-full h-[max(24rem,calc(100dvh-15rem))] sm:h-[max(26rem,calc(100dvh-15rem))] md:h-[28rem] rounded-lg overflow-hidden"
-    />
+    <div className="relative">
+      <div
+        ref={containerRef}
+        // Phone-first viewport fill: the fixed 24rem card left a tall dead
+        // gap below the terminal on phones (narrow screens show fewer cols,
+        // so the short card felt cramped while the page below sat empty).
+        // max() keeps the old floor and grows to fill the viewport minus the
+        // header/tab/pill chrome (~15rem); sm keeps its 26rem floor the same
+        // way. Desktop keeps the fixed 28rem that already looks right.
+        // Height changes flow through the ResizeObserver below into fit().
+        className="w-full h-[max(24rem,calc(100dvh-15rem))] sm:h-[max(26rem,calc(100dvh-15rem))] md:h-[28rem] rounded-lg overflow-hidden"
+      />
+      {hasSel && (
+        <button
+          type="button"
+          onClick={onCopyChip}
+          title="Copy selected text"
+          aria-label="Copy selected text"
+          className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-md border border-white/20 bg-black/70 backdrop-blur px-3 py-1.5 text-xs font-medium text-white shadow-lg hover:bg-black/85 active:scale-95 transition"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+          {copiedTick ? 'Copied' : 'Copy'}
+        </button>
+      )}
+    </div>
   );
 });
 
