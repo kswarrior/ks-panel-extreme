@@ -648,6 +648,33 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
                         label="Template-action jobs"
                         hint="Operators may create jobs that run any template action of this instance"
                       />
+                      <div className="pt-1">
+                        <label className="block text-[11px] text-gray-500 mb-0.5" htmlFor={`shortcut-${key}-max-timeout`}>
+                          Max job timeout (sec, empty = 1800)
+                        </label>
+                        <input
+                          id={`shortcut-${key}-max-timeout`}
+                          type="number"
+                          min="0"
+                          max="1800"
+                          value={s.max_timeout_sec > 0 ? String(s.max_timeout_sec) : ''}
+                          onChange={(e) => {
+                            const digits = e.target.value.replace(/[^0-9]/g, '');
+                            if (digits === '') {
+                              updateShortcut(key, { max_timeout_sec: 0 });
+                              return;
+                            }
+                            updateShortcut(key, { max_timeout_sec: Math.max(1, Math.min(1800, parseInt(digits, 10) || 0)) });
+                          }}
+                          placeholder="1800"
+                          aria-label="Automation max job timeout seconds"
+                          title="Ceiling for the per-job timeout operators may set (job timeouts above this are rejected; empty = 1800s)"
+                          className="glass-field font-mono w-full"
+                        />
+                        <p className="text-[11px] text-gray-500 mt-1">
+                          Operators pick their own timeout per job, capped here: below the ceiling passes, above it is rejected.
+                        </p>
+                      </div>
                     </>
                   )}
                   {key === 'env' && (

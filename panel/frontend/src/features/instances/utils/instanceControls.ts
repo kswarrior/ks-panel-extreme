@@ -104,6 +104,12 @@ export interface InstanceShortcutConfig {
   allow_shell: boolean;
   allow_power: boolean;
   allow_actions: boolean;
+  // Automation page: ceiling (seconds) for the per-job timeout operators
+  // may set in the New-job form. Effective timeout = min(job timeout,
+  // this ceiling). 0/empty = default ceiling (1800s, same as the picker
+  // cap); the resolver clamps to 1..1800 so a hostile template can't force
+  // a zero/negative budget.
+  max_timeout_sec: number;
   // Terminal page: allow adding more terminal panes side-by-side ("add more
   // terminal together"). Each pane gets its own ID box; an ID matching a
   // template action's terminal_id streams that action's log + gated input.
@@ -182,6 +188,7 @@ const DEFAULT_SHORTCUT_BASE = {
   allow_shell: true,
   allow_power: true,
   allow_actions: true,
+  max_timeout_sec: 0,
   terminal_allow_multi: true,
   terminal_max: '4',
   terminal_default_stop_on_exit: true,
@@ -381,6 +388,13 @@ function resolveShortcut(raw: unknown, fallback: InstanceShortcutConfig): Instan
     allow_shell: boolOr(r.allow_shell, fallback.allow_shell),
     allow_power: boolOr(r.allow_power, fallback.allow_power),
     allow_actions: boolOr(r.allow_actions, fallback.allow_actions),
+    max_timeout_sec: (() => {
+      const v = r.max_timeout_sec;
+      if (v === undefined || v === null || v === '') return fallback.max_timeout_sec;
+      const n = typeof v === 'number' ? Math.floor(v) : parseInt(String(v), 10);
+      if (!Number.isFinite(n) || n <= 0) return fallback.max_timeout_sec;
+      return Math.max(1, Math.min(1800, n));
+    })(),
     terminal_allow_multi: boolOr(r.terminal_allow_multi, fallback.terminal_allow_multi),
     terminal_max: typeof r.terminal_max === 'string' || typeof r.terminal_max === 'number'
       ? String(r.terminal_max)
@@ -499,6 +513,7 @@ const SHORTCUT_FIELDS: (keyof InstanceShortcutConfig)[] = [
   'allow_shell',
   'allow_power',
   'allow_actions',
+  'max_timeout_sec',
   'terminal_allow_multi',
   'terminal_max',
   'terminal_default_stop_on_exit',
@@ -517,6 +532,19 @@ export function isShortcutCustom(a: InstanceShortcutConfig, b: InstanceShortcutC
   return SHORTCUT_FIELDS.some((k) => Array.isArray(a[k]) || Array.isArray(b[k])
     ? JSON.stringify(a[k] ?? []) !== JSON.stringify(b[k] ?? [])
     : a[k] !== b[k]);
+}
+
+// automationTimeoutCeiling resolves the template ceiling for per-job
+// timeouts: the configured max_timeout_sec, or 1800 when unset (0).
+// Mirrors the backend automationMaxTimeoutSec default.
+export const DEFAULT_AUTOMATION_MAX_TIMEOUT_SEC = 1800;
+
+export function automationTimeoutCeiling(controls: InstanceControls): number {
+  const v = controls?.shortcuts?.automation?.max_timeout_sec;
+  if (typeof v === 'number' && Number.isFinite(v) && v > 0) {
+    return Math.max(1, Math.min(DEFAULT_AUTOMATION_MAX_TIMEOUT_SEC, Math.floor(v)));
+  }
+  return DEFAULT_AUTOMATION_MAX_TIMEOUT_SEC;
 }
 
 // isControlsCustom reports whether the block carries any non-default value

@@ -25,6 +25,20 @@ export interface SecretUpsert {
 
 export type AutomationKind = 'shell' | 'power' | 'action';
 
+/** Step condition, GitHub-Actions style: success = run only when every
+ * previous step succeeded (default); failure = run only when a previous
+ * step failed; always = run regardless. */
+export type AutomationStepIf = 'success' | 'failure' | 'always';
+
+export interface AutomationStep {
+  name: string;
+  kind?: AutomationKind;
+  command?: string;
+  payload?: string;
+  if?: AutomationStepIf;
+  timeout_sec?: number;
+}
+
 export interface Automation {
   id: number;
   instance_id: number;
@@ -41,6 +55,9 @@ export interface Automation {
   enabled: boolean;
   secret_refs: string[];
   timeout_sec: number;
+  /** Ordered multi-step plan (empty = legacy single-shot: the top-level
+   * kind/payload/command fire once). */
+  steps?: AutomationStep[];
   last_run_at?: string;
   next_run_at?: string;
   created_at: string;
@@ -56,6 +73,7 @@ export interface AutomationUpsert {
   enabled: boolean;
   secret_refs?: string[];
   timeout_sec?: number;
+  steps?: AutomationStep[];
 }
 
 export interface AutomationRun {
