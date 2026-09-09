@@ -13,6 +13,7 @@ import type {
   SecurityStatusResponse,
 } from '@/features/security/types/security';
 import GlassCard from '@/shared/components/ui/Card';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import NumberInput from '@/shared/components/ui/NumberInput';
 import { useConfirm } from '@/shared/stores/confirmStore';
@@ -281,8 +282,18 @@ const Sessions: React.FC<SessionsProps> = ({ initialConfig, onConfigChange }) =>
             {busyId === '__all__' ? 'Revoking…' : 'Revoke all'}
           </button>
         </div>
-        {listError && <p className="text-red-400 text-sm mb-2">{listError}</p>}
-        {sessions === null ? (
+        {listError && (sessions === null || sessions.length === 0) ? (
+          <ErrorState
+            variant="error"
+            title="Failed to load sessions"
+            description={listError}
+            retryLabel="Retry"
+            onRetry={() => void loadSessions()}
+          />
+        ) : (
+          <>
+            {listError && <p className="text-red-400 text-sm mb-2">{listError}</p>}
+            {sessions === null ? (
           <SkeletonGrid count={2} />
         ) : sessions.length === 0 ? (
           <p className="text-sm text-gray-400">No active tracked sessions.</p>
