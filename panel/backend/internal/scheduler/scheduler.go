@@ -419,7 +419,7 @@ func runJob(ctx context.Context, job models.Automation, dbCon *sql.DB,
 	// workflow and the run row is the invocation receipt).
 	started := time.Now()
 	res, derr := handlers.FireAutomationJob(handlers.AutomationFireCtx{
-		Ctx: ctx, Con: con, Inst: inst, Node: node, Token: token, Job: job, Actor: "system",
+		Ctx: ctx, Con: dbCon, Inst: inst, Node: node, Token: token, Job: job, Actor: "system",
 	})
 	finished := time.Now()
 	if derr != nil {

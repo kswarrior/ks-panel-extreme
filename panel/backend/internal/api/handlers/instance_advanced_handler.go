@@ -494,21 +494,9 @@ func TriggerRunHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSONStatus(w, http.StatusForbidden, map[string]any{"error": msg})
 		return
 	}
-	inst, _, name, ok := loadInstNode(w, r)
+	inst, _, _, ok := loadInstNode(w, r)
 	if !ok {
 		return
-	}
-	// Resolve secrets.
-	keys, vals, _ := repository.NewSecretRepository(con).ResolvedEnv(id, job.SecretRefs)
-	env := map[string]string{}
-	for i := range keys {
-		env[keys[i]] = vals[i]
-	}
-	// Use a timeout-aware client so long-running jobs (up to 30 min) don't get
-	// cut off by the default 30 s panel dial timeout.
-	timeout := job.TimeoutSec
-	if timeout <= 0 {
-		timeout = 300
 	}
 	nodeRepo := repository.NewNodeRepository(con)
 	node, nerr := nodeRepo.GetNode(inst.NodeID)
@@ -521,34 +509,30 @@ func TriggerRunHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "node has no usable edge token", http.StatusBadGateway)
 		return
 	}
-	ec2 := edge.NewWithTimeout(*node, token, time.Duration(timeout+10)*time.Second)
-	started := time.Now()
-	resp, execErr := ec2.Exec(edge.ExecRequest{
-		Kind: inst.Kind, Name: name, Command: job.Command, Env: env, TimeoutSec: job.TimeoutSec,
+	// Dispatch per job kind through the shared executor (same semantics as
+	// the scheduler sweep: shell runs to completion, power issues a
+	// lifecycle op, action invokes the template workflow).
+	res, derr := FireAutomationJob(AutomationFireCtx{
+		Ctx: r.Context(), Con: con, Inst: inst, Node: node, Token: token, Job: *job, Actor: auditActor(r),
 	})
-	finished := time.Now()
-	exitCode := resp.ExitCode
-	errMsg := ""
-	stdout := resp.Stdout
-	stderr := resp.Stderr
-	if execErr != nil {
-		errMsg = execErr.Error()
-		exitCode = -1
+	if derr != nil {
+		writeJSONStatus(w, http.StatusForbidden, map[string]any{"error": derr.Error()})
+		return
 	}
 	runID, _ := repo.RecordRun(repository.AutomationRunInput{
 		JobID: job.ID, InstanceID: id, Trigger: string(models.AutomationTriggerManual),
-		Command: job.Command, Stdout: stdout, Stderr: stderr, ExitCode: exitCode,
-		DurationMS: finished.Sub(started).Milliseconds(), Error: errMsg,
-		StartedAt: started, FinishedAt: finished,
+		Command: res.RunCommand, Stdout: res.Stdout, Stderr: res.Stderr, ExitCode: res.ExitCode,
+		DurationMS: res.DurationMS, Error: res.Error,
+		StartedAt: time.Now(), FinishedAt: time.Now(),
 	})
-	auditInst(r, id, "automation.run", fmt.Sprintf("manually fired %q (exit=%d)", job.Name, exitCode))
+	auditInst(r, id, "automation.run", fmt.Sprintf("manually fired %q (exit=%d)", job.Name, res.ExitCode))
 	writeJSON(w, map[string]any{
 		"run_id":      runID,
-		"exit_code":   exitCode,
-		"duration_ms": finished.Sub(started).Milliseconds(),
-		"stdout":      stdout,
-		"stderr":      stderr,
-		"error":       errMsg,
+		"exit_code":   res.ExitCode,
+		"duration_ms": res.DurationMS,
+		"stdout":      res.Stdout,
+		"stderr":      res.Stderr,
+		"error":       res.Error,
 	})
 }
 
