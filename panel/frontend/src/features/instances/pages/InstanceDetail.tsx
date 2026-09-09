@@ -37,6 +37,7 @@ import Terminal, { type TerminalHandle } from '@/shared/components/ui/Terminal';
 import RichMenu from '@/shared/components/ui/RichMenu';
 import InstancePortsEditor from '@/features/instances/pages/InstancePortsEditor';
 import InstanceAutomation from '@/features/instances/pages/InstanceAutomation';
+import InstanceAutomationEditor from '@/features/instances/pages/InstanceAutomationEditor';
 import InstanceEnv from '@/features/instances/pages/InstanceEnv';
 import InstanceOverview from '@/features/instances/pages/InstanceOverview';
 import InstanceFiles from '@/features/instances/pages/InstanceFiles';
@@ -1024,9 +1025,31 @@ export const InstanceDynamicPage: React.FC = () => {
   if (effectiveSlug === 'automation' || effectiveSlug === automationSlug) {
     return (
       <ErrorBoundary resetKey={`automation-${instanceId}`} label="instance-page">
-        <InstanceAutomation readOnly={!controls.shortcuts.automation.allow_edit} />
+        <InstanceAutomation readOnly={!controls.shortcuts.automation.allow_edit} automationSlug={automationSlug} />
       </ErrorBoundary>
     );
+  }
+
+  // Automation editor sub-pages: full-page New job / Edit job forms
+  // (`<slug>/new`, `<slug>/<id>/edit`, same pattern as the Files
+  // `<slug>/edit` editor). Rendered before the whitelist check so the
+  // routes work even when the spec has no such rows.
+  if (effectiveSlug === `${automationSlug}/new`) {
+    return (
+      <ErrorBoundary resetKey={`automation-new-${instanceId}`} label="instance-page">
+        <InstanceAutomationEditor instanceId={instanceId} automationSlug={automationSlug} jobId={null} readOnly={!controls.shortcuts.automation.allow_edit} />
+      </ErrorBoundary>
+    );
+  }
+  {
+    const editMatch = effectiveSlug.match(/^(.*)\/(\d+)\/edit$/);
+    if (editMatch && editMatch[1] === automationSlug) {
+      return (
+        <ErrorBoundary resetKey={`automation-edit-${instanceId}-${editMatch[2]}`} label="instance-page">
+          <InstanceAutomationEditor instanceId={instanceId} automationSlug={automationSlug} jobId={Number(editMatch[2])} readOnly={!controls.shortcuts.automation.allow_edit} />
+        </ErrorBoundary>
+      );
+    }
   }
 
   // Env is a pure builtin like Ports/Automation (not a custom spec.pages entry):
