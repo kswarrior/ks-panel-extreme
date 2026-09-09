@@ -14,7 +14,6 @@ import {
   STACK_INSTALL_TYPES,
   STACK_LOCATION_TYPES,
   STACK_REMOTE_PROTOCOLS,
-  STACK_RUNTIMES,
   blankStackInstallStep,
   blankStackLaunchToken,
   blankStackStudioDraft,
@@ -186,10 +185,15 @@ const StackForm: React.FC = () => {
     if (draft.color && !/^#[0-9a-fA-F]{6}$/.test(draft.color.trim())) { setError('Colour must be a #rrggbb hex value (or empty for default)'); setTab('meta'); return; }
     if (draft.locationType === 'host' && draft.installType === 'docker' && !draft.installImage.trim()) { setError('Docker image is required for Docker'); setTab('meta'); return; }
     if (draft.locationType === 'outside') {
-      const url = draft.remoteUrl.trim();
-      if (!url) { setError('Remote URL is required for Type Outside'); setTab('meta'); return; }
-      if (draft.remoteProtocol === 'wss' && !/^wss?:\/\//i.test(url)) { setError('Remote URL must start with ws:// or wss:// for WSS'); setTab('meta'); return; }
-      if (draft.remoteProtocol === 'post' && !/^https?:\/\//i.test(url)) { setError('Remote URL must start with http:// or https:// for POST'); setTab('meta'); return; }
+      if (draft.remoteProtocol === 'wss') {
+        if (!draft.remoteHost.trim()) { setError('Remote host is required for Type Outside'); setTab('meta'); return; }
+        const port = Number(draft.remotePort);
+        if (!Number.isInteger(port) || port < 1 || port > 65535) { setError('Port must be a number between 1 and 65535'); setTab('meta'); return; }
+      } else {
+        const url = draft.remoteUrl.trim();
+        if (!url) { setError('Remote URL is required for Type Outside'); setTab('meta'); return; }
+        if (!/^https?:\/\//i.test(url)) { setError('Remote URL must start with http:// or https:// for POST'); setTab('meta'); return; }
+      }
     }
     {
       const seen = new Set<string>();
@@ -432,21 +436,61 @@ const StackForm: React.FC = () => {
                           );
                         })}
                       </div>
-                      <GlassField
-                        label="Remote URL"
-                        htmlFor="stack-remote-url"
-                        hint={draft.remoteProtocol === 'wss' ? 'Where the outside stack listens, e.g. wss://stack.example.com:7443/ws.' : 'Where the outside stack receives calls, e.g. https://stack.example.com:8443/hooks/stack.'}
-                      >
-                        <input
-                          id="stack-remote-url"
-                          value={draft.remoteUrl}
-                          onChange={(e) => patch({ remoteUrl: e.target.value })}
-                          placeholder={draft.remoteProtocol === 'wss' ? 'wss://stack.example.com:7443/ws' : 'https://stack.example.com:8443/hooks/stack'}
-                          spellCheck={false}
-                          autoComplete="off"
-                          required
-                        />
-                      </GlassField>
+                      {draft.remoteProtocol === 'wss' ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-[1fr_9rem] gap-3">
+                          <GlassField
+                            label="Remote host"
+                            htmlFor="stack-remote-host"
+                            hint="Bare host, no scheme — like the node address (e.g. stack.example.com). A pasted host:port is split automatically."
+                          >
+                            <input
+                              id="stack-remote-host"
+                              value={draft.remoteHost}
+                              onChange={(e) => {
+                                const v = e.target.value.trim().replace(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//, '');
+                                const m = v.match(/^(.*?):(\d{1,5})$/);
+                                if (m) {
+                                  patch({ remoteHost: m[1].replace(/\/.*$/, '').replace(/\s+/g, ''), remotePort: m[2] });
+                                } else {
+                                  patch({ remoteHost: v.replace(/\/.*$/, '').replace(/\s+/g, '') });
+                                }
+                              }}
+                              placeholder="stack.example.com"
+                              spellCheck={false}
+                              autoComplete="off"
+                              required
+                            />
+                          </GlassField>
+                          <GlassField label="Port" htmlFor="stack-remote-port" hint="WSS listen port.">
+                            <input
+                              id="stack-remote-port"
+                              type="number"
+                              min="1"
+                              max="65535"
+                              value={draft.remotePort}
+                              onChange={(e) => patch({ remotePort: e.target.value.replace(/[^0-9]/g, '').slice(0, 5) })}
+                              placeholder="7443"
+                              required
+                            />
+                          </GlassField>
+                        </div>
+                      ) : (
+                        <GlassField
+                          label="Remote URL"
+                          htmlFor="stack-remote-url"
+                          hint="Where the outside stack receives calls, e.g. https://stack.example.com:8443/hooks/stack."
+                        >
+                          <input
+                            id="stack-remote-url"
+                            value={draft.remoteUrl}
+                            onChange={(e) => patch({ remoteUrl: e.target.value })}
+                            placeholder="https://stack.example.com:8443/hooks/stack"
+                            spellCheck={false}
+                            autoComplete="off"
+                            required
+                          />
+                        </GlassField>
+                      )}
                       <GlassField label="Shared secret (optional)" htmlFor="stack-remote-secret" hint="Sent with every WSS/POST call so the outside stack can verify the panel.">
                         <input
                           id="stack-remote-secret"
