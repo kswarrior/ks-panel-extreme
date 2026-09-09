@@ -206,6 +206,12 @@ export interface StackStudioDraft {
   installSteps: StackInstallStep[];
   installTimeoutS: string;
   installTerminalId: string;
+  // Launch section: workflow steps that run every time the stack launches
+  // (same step shape as the install workflow so the UI shares
+  // TemplateInstallSection; only the run moment differs).
+  launchSteps: StackInstallStep[];
+  launchTimeoutS: string;
+  launchTerminalId: string;
   backendScript: string;
   frontendHtml: string;
   frontendCss: string;
@@ -290,6 +296,9 @@ export const blankStackStudioDraft = (): StackStudioDraft => ({
   installSteps: [],
   installTimeoutS: '',
   installTerminalId: '',
+  launchSteps: [],
+  launchTimeoutS: '',
+  launchTerminalId: '',
   backendScript: '',
   frontendHtml: '',
   frontendCss: '',
@@ -320,6 +329,12 @@ export function emitStackStudioManifest(draft: StackStudioDraft): Record<string,
     installSteps: draft.installSteps || [],
     install_timeout_sec: (draft.installTimeoutS || '').replace(/[^0-9]/g, '') || undefined,
     install_terminal_id: (draft.installTerminalId || '').trim() || undefined,
+    // Launch workflow: same step vocabulary as install, but executed at
+    // launch time instead of install time (raw-manifest pass-through).
+    launch: draft.launchSteps || [],
+    launchSteps: draft.launchSteps || [],
+    launch_timeout_sec: (draft.launchTimeoutS || '').replace(/[^0-9]/g, '') || undefined,
+    launch_terminal_id: (draft.launchTerminalId || '').trim() || undefined,
     // Docker target image (only meaningful when installType is docker;
     // harmless pass-through otherwise).
     ...(draft.installType === 'docker' && draft.installImage.trim()
