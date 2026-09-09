@@ -2,32 +2,21 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom';
 import GlassCard from '@/shared/components/ui/Card';
 import GlassModal from '@/shared/components/ui/Modal';
-import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import { CardIconTile } from '@/shared/components/ui/IconColorPicker';
-import IconColorPicker from '@/shared/components/ui/IconColorPicker';
 import {
   listStacks,
-  deleteStack,
   uploadStackPackage,
-  downloadStack,
   installStackFromUrl,
-  updateStack,
-  activateStack,
-  deactivateStack,
-  setStackGrants,
   extractStackApiError,
   getStackEngine,
   setStackEngine,
-  stackAppUrl,
 } from '@/features/stacks/api/stacks';
 import {
   Stack,
-  STACK_CAPABILITIES,
   stackCapabilityMeta,
   stackSourceMeta,
-  STACK_CATEGORIES,
   type StackEngineStatus,
 } from '@/shared/types/stack';
 import { useConfirm } from '@/shared/stores/confirmStore';
