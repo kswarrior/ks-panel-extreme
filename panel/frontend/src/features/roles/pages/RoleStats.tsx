@@ -10,7 +10,7 @@ import {
   DashboardGrid,
   StatCard,
 } from '@/shared/components/ui/StatDashboard';
-import GlassCard from '@/shared/components/ui/Card';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 
@@ -133,6 +133,18 @@ const RoleStats: React.FC = () => {
     );
   }
 
+  if (error) {
+    return (
+      <ErrorState
+        variant="error"
+        title="Failed to load role stats"
+        description={error}
+        retryLabel="Retry"
+        onRetry={() => void load()}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Fixed top-right pill — "Statistics" title lives in the app header. */}
@@ -216,12 +228,6 @@ const RoleStats: React.FC = () => {
           dotColor="bg-white"
         />
       </DashboardGrid>
-
-      {error && (
-        <GlassCard className="text-sm text-red-300 border border-red-700/40">
-          {error}
-        </GlassCard>
-      )}
     </div>
   );
 };

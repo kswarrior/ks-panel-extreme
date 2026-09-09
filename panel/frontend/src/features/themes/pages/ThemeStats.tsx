@@ -12,6 +12,7 @@ import {
   StatCard,
 } from '@/shared/components/ui/StatDashboard';
 import GlassCard from '@/shared/components/ui/Card';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import { cardTimeMs } from '@/shared/utils/cardDate';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
@@ -183,6 +184,18 @@ const ThemeStats: React.FC = () => {
           <div className="h-64 bg-white/10 rounded" />
         </div>
       </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <ErrorState
+        variant="error"
+        title="Failed to load theme stats"
+        description={error}
+        retryLabel="Retry"
+        onRetry={() => window.location.reload()}
+      />
     );
   }
 
@@ -463,12 +476,6 @@ const ThemeStats: React.FC = () => {
           </GlassCard>
         )}
       </DashboardSection>
-
-      {error && (
-        <GlassCard className="text-sm text-red-300 border border-red-700/40">
-          {error}
-        </GlassCard>
-      )}
     </div>
   );
 };

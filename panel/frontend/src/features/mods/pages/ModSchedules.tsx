@@ -5,6 +5,7 @@ import type { Mod } from '@/shared/types/mod';
 import type { ModEngineDiagnostics } from '@/shared/types/mod';
 import { StatCard } from '@/shared/components/ui/StatDashboard';
 import GlassCard from '@/shared/components/ui/Card';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 
 // ModSchedules — mods have no cron. They run event-driven; the only
@@ -44,6 +45,18 @@ const ModSchedules: React.FC = () => {
     return <div className="glass-card rounded-xl animate-pulse h-24" />;
   }
 
+  if (error) {
+    return (
+      <ErrorState
+        variant="error"
+        title="Failed to load mod engine state"
+        description={error}
+        retryLabel="Retry"
+        onRetry={() => void reload()}
+      />
+    );
+  }
+
   return (
     <div className="space-y-4">
       <PageActionsPill>
@@ -54,8 +67,6 @@ const ModSchedules: React.FC = () => {
           Stats
         </Link>
       </PageActionsPill>
-
-      {error && <p className="text-red-400 text-sm">{error}</p>}
 
       <GlassCard className="flex items-center gap-3">
         <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${engine?.enabled ? 'bg-emerald-400' : 'bg-red-400'}`} />
