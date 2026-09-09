@@ -27,10 +27,9 @@ type ConnState = 'connecting' | 'connected' | 'reconnecting' | 'closed' | 'error
 
 function wsUrlFor(instanceId: number, terminalId?: string, timeoutS?: string, endpoint?: string): string {
   const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  // Startup consoles attach to the main-process bridge (/console);
-  // workflow consoles stream the running action/install transcript
+  // Workflow terminals stream the running action/install transcript
   // (/workflow); everything else uses the shell bridge (/terminal).
-  const route = endpoint === 'console' ? 'console' : endpoint === 'workflow' ? 'workflow' : 'terminal';
+  const route = endpoint === 'workflow' ? 'workflow' : 'terminal';
   const base = `${proto}://${window.location.host}/api/instances/${instanceId}/${route}`;
   const q: string[] = [];
   const tid = (terminalId || '').trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, '');
@@ -130,15 +129,13 @@ interface TerminalProps {
   // Bound-pane identity: forwarded as ?terminal= so the panel/edge can
   // scope the session (and the parent can match it against a template
   // action/install terminal_id). Empty = plain shell (legacy behaviour).
-  // Startup-console panes dial endpoint='console' instead; workflow panes
-  // (bound action/install consoles) dial endpoint='workflow' instead; the
+  // Workflow panes dial endpoint='workflow' instead; the
   // id is then only a display/match key.
   terminalId?: string;
-  // Which panel bridge to dial: 'terminal' (side shell, default),
-  // 'console' (instance main-process stdio for startup-console panes) or
+  // Which panel bridge to dial: 'terminal' (side shell, default) or
   // 'workflow' (running action/install transcript for bound panes).
-  // Same JSON wire protocol on all three, so the xterm side is unchanged.
-  endpoint?: 'terminal' | 'console' | 'workflow';
+  // Same JSON wire protocol on both, so the xterm side is unchanged.
+  endpoint?: 'terminal' | 'workflow';
   // Attach budget in seconds, forwarded as ?timeout= (empty = no limit).
   timeoutS?: string;
   // When true the pane is read-only: keystrokes are swallowed locally and
@@ -155,7 +152,7 @@ interface TerminalProps {
   onExit?: (code: number) => void;
   // Fired with each validated input line (without the trailing newline)
   // when the user presses Enter. Bound terminal panes use it to relay the
-  // line to the running action's console (POST …/actions/:id/stdin) in
+  // line to the running action's terminal (POST …/actions/:id/stdin) in
   // addition to the PTY stdin below. Lines blocked by validateInput never
   // reach here.
   onLine?: (line: string) => void;
@@ -323,18 +320,18 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
 
     // Gated input: read-only panes swallow everything. Otherwise the PTY
     // always receives the chunk verbatim while every COMPLETED line is
-    // offered to onLine (the action-console relay, which no-ops unless the
+    // offered to onLine (the action-terminal relay, which no-ops unless the
     // pane is bound + running). Keystroke gating is a guardrail — the
     // server-side stdin policy is the enforced boundary (an unbound pane
     // is the same shell anyway) — but the relay must see every line,
     // including lines inside a paste chunk ("cmd1\rcmd2\r"), so the
     // server can allow/deny each one.
     //
-    // Workflow consoles (/workflow) are piped, not PTYs: the far end never
+    // Workflow terminals (/workflow) are piped, not PTYs: the far end never
     // echoes, so the pane echoes locally — printable chars verbatim,
     // Enter as a newline, backspace as an erase — exactly where the user
-    // typed them, ahead of the server's response. Side shells and startup
-    // consoles keep their existing behaviour (PTY echo / blind attach).
+    // typed them, ahead of the server's response. Side shells keep their
+    // existing behaviour (PTY echo).
     const lineBuf = { current: '' };
     const echoWorkflow = (d: string) => {
       const term = termRef.current;
