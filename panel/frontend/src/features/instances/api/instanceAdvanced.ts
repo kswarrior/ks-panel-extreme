@@ -91,6 +91,27 @@ export async function runAutomationNow(
   return res.data;
 }
 
+// ---- Automation transfer (YAML share path) -------------------------------
+// Download returns the raw YAML file bytes (one job per document,
+// GitHub-Actions-style steps). Upload posts a local file; import-by-URL
+// has the server fetch a public URL (SSRF-guarded, like templates).
+export async function downloadAutomation(instanceId: number, jobId: number): Promise<Blob> {
+  const res = await client.get(`${base(instanceId)}/automation/${jobId}/download`, { responseType: 'blob' });
+  return res.data as Blob;
+}
+
+export async function importAutomationFile(instanceId: number, file: File): Promise<{ id: number }> {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await client.post<{ id: number }>(`${base(instanceId)}/automation/import`, form);
+  return res.data;
+}
+
+export async function importAutomationURL(instanceId: number, url: string): Promise<{ id: number }> {
+  const res = await client.post<{ id: number }>(`${base(instanceId)}/automation/import/url`, { url });
+  return res.data;
+}
+
 // ---- Processes / Metrics / Ports ----------------------------------------
 
 export async function listProcesses(instanceId: number): Promise<ProcessRow[]> {

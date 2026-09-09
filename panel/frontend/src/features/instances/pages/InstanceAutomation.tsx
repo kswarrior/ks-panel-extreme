@@ -7,8 +7,11 @@ import {
   deleteAutomation,
   listAutomationRuns,
   runAutomationNow,
+  downloadAutomation,
+  importAutomationFile,
+  importAutomationURL,
 } from '@/features/instances/api/instanceAdvanced';
-import type { Automation, AutomationRun } from '@/features/instances/types/instanceAdvanced';
+import type { Automation, AutomationKind, AutomationRun, AutomationStep } from '@/features/instances/types/instanceAdvanced';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { PermissionKey } from '@/shared/types/permissions';
 import { hasPermissionAny } from '@/shared/types/permissions';
@@ -22,6 +25,7 @@ import PageTabsPill from '@/shared/components/ui/PageTabsPill';
 import { useConfirm } from '@/shared/stores/confirmStore';
 import { SearchableSelect } from '@/shared/components/ui/SearchableSelect';
 import { useInstance, parseConfig } from '@/shared/hooks/useInstance';
+import { resolveInstanceControls, automationTimeoutCeiling } from '@/features/instances/utils/instanceControls';
 
 function toast(msg: string, type: 'success' | 'error' | 'info' = 'info') {
   window.dispatchEvent(new CustomEvent('ks-toast', { detail: { message: msg, type } }));
@@ -37,29 +41,40 @@ function fmtTime(iso?: string | null): string {
 interface JobDraft {
   editing: Automation | null;
   name: string;
-  kind: 'shell' | 'power' | 'action';
+  kind: AutomationKind;
   payload: string;
   schedule: string;
   command: string;
   actionId: string;
+  powerOp: string;
   secretRefs: string;
   timeoutSec: number;
   enabled: boolean;
+  steps: AutomationStep[];
 }
 
+const POWER_OPS = ['start', 'stop', 'restart', 'kill'] as const;
+
+const STEP_IFS = ['success', 'failure', 'always'] as const;
+
+const emptyStep = (): AutomationStep => ({ name: '', kind: 'shell', command: '', payload: '', if: 'success' });
+
 const emptyDraft = (editing: Automation | null = null): JobDraft => {
-  const k = (editing?.kind ?? 'shell') as 'shell' | 'power' | 'action';
+  const k = (editing?.kind ?? 'shell') as AutomationKind;
+  const payload = editing?.payload ?? '';
   return {
     editing,
     name: editing?.name ?? '',
     kind: k,
-    payload: editing?.payload ?? '',
+    payload,
     schedule: editing?.schedule ?? '',
     command: editing?.command ?? '',
-    actionId: k === 'action' ? (editing?.payload ?? '') : '',
+    actionId: k === 'action' ? payload : '',
+    powerOp: k === 'power' && (POWER_OPS as readonly string[]).includes(payload) ? payload : 'restart',
     secretRefs: (editing?.secret_refs ?? []).join(', '),
     timeoutSec: editing?.timeout_sec && editing.timeout_sec > 0 ? editing.timeout_sec : 300,
     enabled: editing?.enabled ?? true,
+    steps: Array.isArray(editing?.steps) ? editing.steps.map((s) => ({ ...s })) : [],
   };
 };
 
@@ -86,6 +101,19 @@ const InstanceAutomation: React.FC<{ readOnly?: boolean }> = ({ readOnly = false
   const [tab, setTab] = useState<'tasks' | 'runs'>('tasks');
   const [draft, setDraft] = useState<JobDraft | null>(null);
   const [formError, setFormError] = useState('');
+  const [importUrl, setImportUrl] = useState('');
+  const [importBusy, setImportBusy] = useState(false);
+  const [showImportUrl, setShowImportUrl] = useState(false);
+
+  // Template ceiling + kind toggles for this instance (snapshotted config).
+  // Missing/garbled = allow-all with the 1800s default ceiling.
+  const { instance } = useInstance(instanceId);
+  const controls = useMemo(() => resolveInstanceControls(instance?.config), [instance?.config]);
+  const ceiling = automationTimeoutCeiling(controls);
+  const autoCfg = controls.shortcuts.automation;
+  const allowedKinds = (['shell', 'power', 'action'] as AutomationKind[]).filter((k) =>
+    k === 'shell' ? autoCfg.allow_shell : k === 'power' ? autoCfg.allow_power : autoCfg.allow_actions,
+  );
 
   const load = useCallback(async () => {
     if (!instanceId) return;
@@ -111,7 +139,13 @@ const InstanceAutomation: React.FC<{ readOnly?: boolean }> = ({ readOnly = false
 
   const openCreate = () => {
     setFormError('');
-    setDraft(emptyDraft());
+    const d = emptyDraft();
+    // Default to the first kind the template allows (usually shell).
+    if (!(allowedKinds.includes(d.kind))) {
+      d.kind = allowedKinds[0] ?? 'shell';
+    }
+    if (d.kind === 'power' && !(POWER_OPS as readonly string[]).includes(d.powerOp)) d.powerOp = 'restart';
+    setDraft(d);
   };
 
   const openEdit = (job: Automation) => {
@@ -122,9 +156,74 @@ const InstanceAutomation: React.FC<{ readOnly?: boolean }> = ({ readOnly = false
   const submitDraft = async () => {
     if (!draft || busy) return;
     const name = draft.name.trim();
-    const command = draft.command;
-    if (name === '' || command.trim() === '') {
-      setFormError('Name and command are required.');
+    if (name === '') {
+      setFormError('Name is required.');
+      return;
+    }
+    if (!allowedKinds.includes(draft.kind)) {
+      setFormError('This job kind is disabled by the template.');
+      return;
+    }
+    // Per-kind shape (mirrors the backend): shell needs a command unless
+    // steps carry the plan; power needs an op; action needs an action ID.
+    let kindPayload = '';
+    if (draft.kind === 'power') {
+      if (!(POWER_OPS as readonly string[]).includes(draft.powerOp)) {
+        setFormError('Pick a power op (start / stop / restart / kill).');
+        return;
+      }
+      kindPayload = draft.powerOp;
+    } else if (draft.kind === 'action') {
+      kindPayload = draft.actionId.trim();
+      if (kindPayload === '') {
+        setFormError('Action ID is required for action jobs.');
+        return;
+      }
+    }
+    const hasSteps = draft.steps.length > 0;
+    const command = draft.kind === 'shell' ? draft.command : draft.kind === 'action' ? '' : '';
+    if (draft.kind === 'shell' && command.trim() === '' && !hasSteps) {
+      setFormError('Command is required (or add steps carrying the plan).');
+      return;
+    }
+    // Timeout: operator's own value, capped by the template ceiling
+    // (config >= user passes, config < user is rejected here and 400s server-side).
+    const timeout = draft.timeoutSec > 0 ? Math.floor(draft.timeoutSec) : 300;
+    if (timeout > ceiling) {
+      setFormError(`Timeout ${timeout}s exceeds the template maximum of ${ceiling}s.`);
+      return;
+    }
+    // Steps: same per-kind rules per step + step timeouts capped too.
+    for (let i = 0; i < draft.steps.length; i++) {
+      const st = draft.steps[i];
+      if (st.name.trim() === '') {
+        setFormError(`Step ${i + 1}: name is required.`);
+        return;
+      }
+      const sk = (st.kind ?? 'shell') as AutomationKind;
+      if (!allowedKinds.includes(sk)) {
+        setFormError(`Step ${i + 1}: kind "${sk}" is disabled by the template.`);
+        return;
+      }
+      if (sk === 'power' && !(POWER_OPS as readonly string[]).includes(st.payload ?? '')) {
+        setFormError(`Step ${i + 1}: pick a power op.`);
+        return;
+      }
+      if (sk === 'action' && (st.payload ?? '').trim() === '') {
+        setFormError(`Step ${i + 1}: action ID is required.`);
+        return;
+      }
+      if (sk === 'shell' && (st.command ?? '').trim() === '') {
+        setFormError(`Step ${i + 1}: command is required.`);
+        return;
+      }
+      if (st.timeout_sec != null && st.timeout_sec > ceiling) {
+        setFormError(`Step ${i + 1}: timeout exceeds the template maximum of ${ceiling}s.`);
+        return;
+      }
+    }
+    if (draft.steps.length > 32) {
+      setFormError('Too many steps (max 32).');
       return;
     }
     const secretRefs = draft.secretRefs.split(',').map((s) => s.trim()).filter(Boolean);
@@ -134,10 +233,20 @@ const InstanceAutomation: React.FC<{ readOnly?: boolean }> = ({ readOnly = false
       const payload = {
         name,
         command,
+        kind: draft.kind,
+        payload: kindPayload,
         schedule: draft.schedule.trim(),
         enabled: draft.enabled,
         secret_refs: secretRefs,
-        timeout_sec: draft.timeoutSec > 0 ? draft.timeoutSec : 300,
+        timeout_sec: Math.max(1, Math.min(ceiling, timeout)),
+        steps: draft.steps.map((s) => ({
+          name: s.name.trim().slice(0, 100),
+          kind: (s.kind ?? 'shell') as AutomationKind,
+          command: s.kind === 'shell' ? (s.command ?? '') : '',
+          payload: s.kind === 'shell' ? '' : (s.payload ?? '').trim(),
+          if: (s.if ?? 'success') as AutomationStep['if'],
+          ...(s.timeout_sec != null && s.timeout_sec > 0 ? { timeout_sec: Math.max(1, Math.min(ceiling, Math.floor(s.timeout_sec))) } : {}),
+        })),
       };
       if (draft.editing) {
         await updateAutomation(instanceId, draft.editing.id, payload);
