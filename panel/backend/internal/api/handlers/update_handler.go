@@ -56,9 +56,10 @@ const (
 	kspanelBaseURL    = "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/release"
 	kspanelVersionURL = kspanelBaseURL + "/version.json"
 	// kspanelBinaryURL is the reinstall / update binary source.
-	// Panel reinstall (System → Panel tab) now uses the dedicated ks-panel-edge
-	// GitHub release per user request.
-	kspanelBinaryURL = "https://github.com/kswarrior/ks-panel-extreme/releases/download/ks-panel-edge/kspanel"
+	// Panel reinstall (System → Panel tab) pulls the binary from the main
+	// branch (raw.githubusercontent) so it is published by the same
+	// auto-sync commit as the manifest — no separate release-asset step.
+	kspanelBinaryURL = "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/release/kspanel"
 )
 
 // updateVersionManifest mirrors the JSON shape served at kspanelVersionURL.
