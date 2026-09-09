@@ -305,14 +305,14 @@ type automationStepRequest struct {
 }
 
 type automationUpsertRequest struct {
-	Name       string                 `json:"name"`
-	Command    string                 `json:"command"`
-	Kind       string                 `json:"kind"`
-	Payload    string                 `json:"payload"`
-	Schedule   string                 `json:"schedule"`
-	Enabled    bool                   `json:"enabled"`
-	SecretRefs []string               `json:"secret_refs"`
-	TimeoutSec int                    `json:"timeout_sec"`
+	Name       string                  `json:"name"`
+	Command    string                  `json:"command"`
+	Kind       string                  `json:"kind"`
+	Payload    string                  `json:"payload"`
+	Schedule   string                  `json:"schedule"`
+	Enabled    bool                    `json:"enabled"`
+	SecretRefs []string                `json:"secret_refs"`
+	TimeoutSec int                     `json:"timeout_sec"`
 	Steps      []automationStepRequest `json:"steps"`
 }
 

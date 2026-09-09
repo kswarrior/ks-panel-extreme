@@ -42,24 +42,25 @@ type Secret struct {
 //     one of start|stop|restart|kill and Command stays empty.
 //   - KindAction invokes a template action by ID; Payload is the action ID
 //     and Command stays empty.
+//
 // destroy/reinstall are deliberately NOT power ops: an unattended scheduler
 // firing either would be a data-loss footgun.
 type Automation struct {
-	ID         int64           `json:"id"`
-	InstanceID int64           `json:"instance_id"`
-	Name       string          `json:"name"`
-	Command    string          `json:"command"`
-	Kind       string          `json:"kind"`
-	Payload    string          `json:"payload,omitempty"`
-	Schedule   string          `json:"schedule"`
-	Enabled    bool            `json:"enabled"`
-	SecretRefs []string        `json:"secret_refs"`
-	TimeoutSec int             `json:"timeout_sec"`
+	ID         int64            `json:"id"`
+	InstanceID int64            `json:"instance_id"`
+	Name       string           `json:"name"`
+	Command    string           `json:"command"`
+	Kind       string           `json:"kind"`
+	Payload    string           `json:"payload,omitempty"`
+	Schedule   string           `json:"schedule"`
+	Enabled    bool             `json:"enabled"`
+	SecretRefs []string         `json:"secret_refs"`
+	TimeoutSec int              `json:"timeout_sec"`
 	Steps      []AutomationStep `json:"steps,omitempty"`
-	LastRunAt  *time.Time      `json:"last_run_at,omitempty"`
-	NextRunAt  *time.Time      `json:"next_run_at,omitempty"`
-	CreatedAt  time.Time       `json:"created_at"`
-	UpdatedAt  time.Time       `json:"updated_at"`
+	LastRunAt  *time.Time       `json:"last_run_at,omitempty"`
+	NextRunAt  *time.Time       `json:"next_run_at,omitempty"`
+	CreatedAt  time.Time        `json:"created_at"`
+	UpdatedAt  time.Time        `json:"updated_at"`
 }
 
 // AutomationStep is one ordered unit inside a multi-step automation job.
