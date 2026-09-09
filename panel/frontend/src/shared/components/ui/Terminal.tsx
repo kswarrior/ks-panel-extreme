@@ -285,6 +285,20 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
       lineHeight: 1.25,
       convertEol: true,
       allowProposedApi: true,
+      // Real-terminal behaviour:
+      // - scrollback keeps 5000 rows (default 1000 drops history fast);
+      // - allowTransparency lets themed translucent card fills show through
+      //   the canvas instead of rendering as opaque black;
+      // - altClickMovesCursor emits the cursor-position sequence readline/
+      //   editors understand, like iTerm/GNOME Terminal;
+      // - rightClickSelectsWord selects the word under the cursor on
+      //   right-click before the browser menu opens.
+      // Full ANSI colour (16 / 256 / truecolor), SGR styles and alt-screen
+      // apps (vim/tmux/htop) work out of the box — no flags needed.
+      scrollback: 5000,
+      allowTransparency: true,
+      altClickMovesCursor: true,
+      rightClickSelectsWord: true,
       theme: terminalThemeFor(useThemeStore.getState().active()),
     });
     const fit = new FitAddon();
@@ -370,6 +384,18 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
       }
     });
     const resizeSub = term.onResize(({ cols, rows }) => sendResize(cols, rows));
+    // Real-terminal clipboard: Ctrl/Cmd+Shift+C with an active selection
+    // copies through the browser (return false = let the default happen)
+    // instead of sending bytes to the PTY — so plain Ctrl+C still
+    // interrupts the foreground process, while the Shift variant copies
+    // like every desktop terminal. Paste (Ctrl/Cmd+V, Shift+Insert) keeps
+    // its native textarea path, which already flows through onData above.
+    term.attachCustomKeyEventHandler((e) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.code === 'KeyC' && term.hasSelection()) {
+        return false;
+      }
+      return true;
+    });
     // Programmatic twin of typing a line + Enter (powers the "input box"
     // input method): same echo, same raw stdin bytes, same validation,
     // same onLine relay — including the rule that blocked lines still
