@@ -9,7 +9,7 @@ import {
   DashboardGrid,
   StatCard,
 } from '@/shared/components/ui/StatDashboard';
-import GlassCard from '@/shared/components/ui/Card';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import { appCategoryMeta, appRuntimeMeta, appCapabilityMeta } from '@/features/applications/types/application';
@@ -144,6 +144,18 @@ const ApplicationStats: React.FC = () => {
     );
   }
 
+  if (error) {
+    return (
+      <ErrorState
+        variant="error"
+        title="Failed to load application stats"
+        description={error}
+        retryLabel="Retry"
+        onRetry={() => void load()}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Fixed top-right pill — "Statistics" title lives in the app header. */}
@@ -262,12 +274,6 @@ const ApplicationStats: React.FC = () => {
           dotColor="bg-sky-400"
         />
       </div>
-
-      {error && (
-        <GlassCard className="text-sm text-red-300 border border-red-700/40">
-          {error}
-        </GlassCard>
-      )}
     </div>
   );
 };

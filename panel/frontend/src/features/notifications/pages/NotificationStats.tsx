@@ -8,6 +8,7 @@ import {
 } from '@/shared/components/ui/StatDashboard';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import GlassCard from '@/shared/components/ui/Card';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import client from '@/shared/api/client';
 import type { Notification } from '../types/notification';
@@ -139,6 +140,18 @@ const NotificationStats: React.FC = () => {
     );
   }
 
+  if (error) {
+    return (
+      <ErrorState
+        variant="error"
+        title="Failed to load notification stats"
+        description={error}
+        retryLabel="Retry"
+        onRetry={() => void load()}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Fixed top-right pill — "Statistics" title lives in the app header
@@ -258,12 +271,6 @@ const NotificationStats: React.FC = () => {
           dotColor="bg-fuchsia-400"
         />
       </div>
-
-      {error && (
-        <GlassCard className="text-sm text-red-300 border border-red-700/40">
-          {error}
-        </GlassCard>
-      )}
 
       {!error && stats && (
         <div className="grid gap-4 grid-cols-1 lg:grid-cols-3">
