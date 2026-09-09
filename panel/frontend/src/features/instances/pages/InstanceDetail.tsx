@@ -35,6 +35,7 @@ import PageActionsPill, { PILL_TAB_STYLE } from '@/shared/components/ui/PageActi
 import Terminal, { type TerminalHandle } from '@/shared/components/ui/Terminal';
 import RichMenu from '@/shared/components/ui/RichMenu';
 import InstancePortsEditor from '@/features/instances/pages/InstancePortsEditor';
+import InstanceAutomation from '@/features/instances/pages/InstanceAutomation';
 import InstanceOverview from '@/features/instances/pages/InstanceOverview';
 import InstanceFiles from '@/features/instances/pages/InstanceFiles';
 import InstanceFileEditor from '@/features/instances/pages/InstanceFileEditor';
@@ -109,7 +110,7 @@ const NoPagesState: React.FC<{ slug: string }> = ({ slug }) => (
   <div className="glass-card rounded-xl text-center text-gray-400 space-y-2">
     <p className="text-sm pt-2">This instance has no pages yet.</p>
     <p className="text-xs text-gray-500 pb-3">
-      Import pages (Home, Metrics, …) from the Instance Pages library in the template or deploy editor. Files, Terminal and Ports always work — they live in the floating instance menu.
+      Import pages (Home, Metrics, …) from the Instance Pages library in the template or deploy editor. Files, Terminal, Ports and Automation always work — they live in the floating instance menu.
     </p>
     <code className="text-[11px] text-gray-600 block pb-3">resolved route: /{slug}</code>
   </div>
@@ -985,12 +986,13 @@ export const InstanceDynamicPage: React.FC = () => {
 
   // Shortcut slugs + page options from the instance's own controls snapshot
   // (Instance Controls section, per-template default overridable per
-  // instance). Files / Terminal navigate to their custom slug; Ports keeps
-  // its canonical route working and additionally answers its custom slug.
+  // instance). Files / Terminal / Automation navigate to their custom slug;
+  // Ports keeps its canonical route working and additionally answers its custom slug.
   const controls = resolveInstanceControls(instance.config);
   const filesSlug = shortcutSlug(controls, 'files');
   const terminalSlug = shortcutSlug(controls, 'terminal');
   const portsSlug = shortcutSlug(controls, 'ports');
+  const automationSlug = shortcutSlug(controls, 'automation');
 
   // Ports editor is a built-in page permission-gated on INSTANCES_EDIT|MANAGE_INSTANCES,
   // not a custom spec.pages entry. Render it before the whitelist check so
@@ -1006,6 +1008,22 @@ export const InstanceDynamicPage: React.FC = () => {
       );
     }
     return <InstancePortsEditor readOnly={!controls.shortcuts.ports.allow_edit} />;
+  }
+
+  // Automation is a pure builtin like Ports (not a custom spec.pages entry):
+  // the native jobs + runs manager below always renders (spec.pages rows for
+  // this slug, if any linger from older imports, are ignored by design).
+  // Reads stay open to any instance viewer; create / edit / delete / Run now
+  // gate inside the page on the shortcut's allow_edit + edit permission.
+  // Rendered before the whitelist check so the route works even when the
+  // spec has no "automation" row. The canonical /automation URL keeps
+  // working when the slug is customized.
+  if (effectiveSlug === 'automation' || effectiveSlug === automationSlug) {
+    return (
+      <ErrorBoundary resetKey={`automation-${instanceId}`} label="instance-page">
+        <InstanceAutomation readOnly={!controls.shortcuts.automation.allow_edit} />
+      </ErrorBoundary>
+    );
   }
 
   // SFTP card is a built-in page like Ports (not a custom spec.pages entry).
