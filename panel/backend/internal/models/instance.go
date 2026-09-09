@@ -1,6 +1,11 @@
 package models
 
-import "time"
+import (
+	"encoding/json"
+	"strconv"
+	"strings"
+	"time"
+)
 
 // Template is a reusable deploy blueprint (PufferPanel-style). The panel
 // only stores the spec; ksedge interprets it through the matching driver.
@@ -175,4 +180,238 @@ type Instance struct {
 	StartedAt *time.Time `json:"started_at,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// parseQuotaBytes parses "10240M", "20G", "512m", "2GB", "1024" to bytes
+// (1024-based, case-insensitive, optional trailing B). Mirrors the frontend
+// parseBytes in InstanceCard.tsx so the panel and SPA agree on quota math.
+// Returns 0 on any unparsable input.
+func parseQuotaBytes(raw any) int64 {
+	if raw == nil {
+		return 0
+	}
+	var s string
+	switch v := raw.(type) {
+	case string:
+		s = strings.TrimSpace(v)
+	case float64:
+		if v > 0 && v == float64(int64(v)) {
+			return int64(v)
+		}
+		if v > 0 {
+			return int64(v)
+		}
+		return 0
+	case float32:
+		if v > 0 {
+			return int64(v)
+		}
+		return 0
+	case int:
+		if v > 0 {
+			return int64(v)
+		}
+		return 0
+	case int64:
+		if v > 0 {
+			return v
+		}
+		return 0
+	default:
+		s = strings.TrimSpace(strings.ToLower(strings.TrimSpace(anyToStr(v))))
+	}
+	s = strings.TrimSpace(strings.ToLower(s))
+	if s == "" {
+		return 0
+	}
+	// Split numeric prefix from unit suffix.
+	i := 0
+	for i < len(s) && ((s[i] >= '0' && s[i] <= '9') || s[i] == '.') {
+		i++
+	}
+	if i == 0 {
+		return 0
+	}
+	num, err := strconv.ParseFloat(s[:i], 64)
+	if err != nil || num <= 0 {
+		return 0
+	}
+	unit := strings.TrimSpace(s[i:])
+	// Strip a single trailing "b" ("mb" → "m", "gb" → "g") and an optional
+	// "ib" ("mib" → "m") so every spelling maps to its k/m/g/t prefix.
+	unit = strings.TrimSuffix(unit, "b")
+	unit = strings.TrimSuffix(unit, "i")
+	var mul float64 = 1
+	if len(unit) > 0 {
+		switch unit[0] {
+		case 'k':
+			mul = 1024
+		case 'm':
+			mul = 1024 * 1024
+		case 'g':
+			mul = 1024 * 1024 * 1024
+		case 't':
+			mul = 1024 * 1024 * 1024 * 1024
+		case 'b', '\x00':
+			mul = 1
+		default:
+			return 0
+		}
+	}
+	return int64(num * mul)
+}
+
+func anyToStr(v any) string {
+	switch x := v.(type) {
+	case string:
+		return x
+	default:
+		return strings.TrimSpace(strings.ToLower(strings.TrimSpace(jsonStr(v))))
+	}
+}
+
+func jsonStr(v any) string {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return ""
+	}
+	var s string
+	if err := json.Unmarshal(b, &s); err == nil {
+		return s
+	}
+	return strings.Trim(string(b), `"`)
+}
+
+// DiskQuotaBytes extracts the configured disk quota in bytes from an
+// instance.Config / template Spec JSON blob. It mirrors the frontend
+// parseLimits key order (limits → top-level → advanced.multipass/kvm/lxd)
+// so the Overview shows the same 10240M the template declares. Keys ending
+// in _mb are interpreted as mebibytes. Returns 0 when no quota is set.
+func DiskQuotaBytes(configJSON string) int64 {
+	configJSON = strings.TrimSpace(configJSON)
+	if configJSON == "" {
+		return 0
+	}
+	var cfg map[string]any
+	if err := json.Unmarshal([]byte(configJSON), &cfg); err != nil || cfg == nil {
+		return 0
+	}
+	limits, _ := cfg["limits"].(map[string]any)
+	adv, _ := cfg["advanced"].(map[string]any)
+	var mpAdv, kvmAdv, lxdAdv map[string]any
+	if adv != nil {
+		mpAdv, _ = adv["multipass"].(map[string]any)
+		kvmAdv, _ = adv["kvm"].(map[string]any)
+		lxdAdv, _ = adv["lxd"].(map[string]any)
+	}
+	// Candidate sources in priority order. Each entry notes whether its key
+	// is an _mb number (mebibytes) rather than a size string.
+	type cand struct {
+		m    map[string]any
+		key  string
+		isMB bool
+	}
+	cands := []cand{}
+	for _, k := range []string{"disk", "disk_size", "disk-size", "storage"} {
+		if limits != nil {
+			cands = append(cands, cand{limits, k, false})
+		}
+	}
+	if limits != nil {
+		cands = append(cands, cand{limits, "disk_mb", true})
+	}
+	for _, k := range []string{"disk", "disk_size", "storage"} {
+		cands = append(cands, cand{cfg, k, false})
+	}
+	cands = append(cands, cand{cfg, "disk_mb", true})
+	if mpAdv != nil {
+		cands = append(cands, cand{mpAdv, "disk", false}, cand{mpAdv, "disk_mb", true})
+	}
+	if kvmAdv != nil {
+		cands = append(cands, cand{kvmAdv, "disk", false}, cand{kvmAdv, "disk_size", false})
+	}
+	if lxdAdv != nil {
+		cands = append(cands, cand{lxdAdv, "storage_volume_size", false})
+	}
+	for _, c := range cands {
+		if c.m == nil {
+			continue
+		}
+		raw, ok := c.m[c.key]
+		if !ok || raw == nil {
+			continue
+		}
+		if s, ok := raw.(string); ok && strings.TrimSpace(s) == "" {
+			continue
+		}
+		var b int64
+		if c.isMB {
+			// _mb keys are plain numbers in mebibytes ("10240" or 10240).
+			// A size string with a unit ("10G") still parses via the
+			// generic path so hand-written specs don't silently drop.
+			if s, ok := raw.(string); ok {
+				ts := strings.TrimSpace(strings.ToLower(s))
+				hasUnit := strings.ContainsAny(ts, "kmgtb")
+				if !hasUnit {
+					if f, err := strconv.ParseFloat(strings.TrimSpace(s), 64); err == nil && f > 0 {
+						b = int64(f * 1024 * 1024)
+					}
+				} else {
+					b = parseQuotaBytes(raw)
+				}
+			} else if f, ok := toFloat(raw); ok && f > 0 {
+				b = int64(f * 1024 * 1024)
+			}
+		} else {
+			b = parseQuotaBytes(raw)
+		}
+		if b > 0 {
+			return b
+		}
+	}
+	return 0
+}
+
+func toFloat(v any) (float64, bool) {
+	switch n := v.(type) {
+	case float64:
+		return n, true
+	case float32:
+		return float64(n), true
+	case int:
+		return float64(n), true
+	case int64:
+		return float64(n), true
+	case json.Number:
+		if f, err := n.Float64(); err == nil {
+			return f, true
+		}
+	}
+	return 0, false
+}
+
+// EnrichMetricsWithDiskQuota injects the configured disk quota into a live
+// metrics blob as disk_total so the Overview shows limits.disk (e.g. 10240M)
+// instead of the host filesystem size df reports inside a docker container
+// (e.g. 144GB). disk_used is left untouched (the edge owns accounting,
+// including bind-mounts). No quota → blob returned unchanged. Never fails:
+// unparsable inputs return the original blob verbatim.
+func EnrichMetricsWithDiskQuota(metricsJSON, configJSON string) string {
+	quota := DiskQuotaBytes(configJSON)
+	if quota <= 0 {
+		return metricsJSON
+	}
+	trimmed := strings.TrimSpace(metricsJSON)
+	if trimmed == "" || trimmed == "{}" {
+		return metricsJSON
+	}
+	var m map[string]any
+	if err := json.Unmarshal([]byte(metricsJSON), &m); err != nil || m == nil {
+		return metricsJSON
+	}
+	m["disk_total"] = quota
+	if b, err := json.Marshal(m); err == nil {
+		return string(b)
+	}
+	return metricsJSON
 }
