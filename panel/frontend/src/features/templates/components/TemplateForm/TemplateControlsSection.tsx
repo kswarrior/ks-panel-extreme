@@ -618,12 +618,32 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
                     />
                   )}
                   {key === 'automation' && (
-                    <MiniToggle
-                      checked={s.allow_edit}
-                      onChange={(v) => updateShortcut(key, { allow_edit: v })}
-                      label="Allow Add / Edit / Delete"
-                      hint="Off = read-only automation jobs + runs (no create, edit, delete or Run now)"
-                    />
+                    <>
+                      <MiniToggle
+                        checked={s.allow_edit}
+                        onChange={(v) => updateShortcut(key, { allow_edit: v })}
+                        label="Allow Add / Edit / Delete"
+                        hint="Off = read-only automation jobs + runs (no create, edit, delete or Run now)"
+                      />
+                      <MiniToggle
+                        checked={s.allow_shell}
+                        onChange={(v) => updateShortcut(key, { allow_shell: v })}
+                        label="Shell command jobs"
+                        hint="Operators may create jobs that run their own shell command inside the instance"
+                      />
+                      <MiniToggle
+                        checked={s.allow_power}
+                        onChange={(v) => updateShortcut(key, { allow_power: v })}
+                        label="Power jobs (start / stop / restart / kill)"
+                        hint="Operators may create jobs that power the instance itself"
+                      />
+                      <MiniToggle
+                        checked={s.allow_actions}
+                        onChange={(v) => updateShortcut(key, { allow_actions: v })}
+                        label="Template-action jobs"
+                        hint="Operators may create jobs that run any template action of this instance"
+                      />
+                    </>
                   )}
                   {custom && (
                     <div className="pt-1">

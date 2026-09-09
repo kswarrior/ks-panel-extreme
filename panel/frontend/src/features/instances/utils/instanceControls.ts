@@ -98,6 +98,12 @@ export interface InstanceShortcutConfig {
   show_header: boolean;
   // Ports / Automation page allows Add / Remove (false = read-only table).
   allow_edit: boolean;
+  // Automation page: which job kinds operators may create (false hides the
+  // kind in the New-job picker and the backend refuses it at write + fire
+  // time). All default true (backward compatible with pre-toggle snapshots).
+  allow_shell: boolean;
+  allow_power: boolean;
+  allow_actions: boolean;
   // Terminal page: allow adding more terminal panes side-by-side ("add more
   // terminal together"). Each pane gets its own ID box; an ID matching a
   // template action's terminal_id streams that action's log + gated input.
@@ -172,6 +178,9 @@ const DEFAULT_SHORTCUT_BASE = {
   files_jail: false,
   show_header: true,
   allow_edit: true,
+  allow_shell: true,
+  allow_power: true,
+  allow_actions: true,
   terminal_allow_multi: true,
   terminal_max: '4',
   terminal_default_stop_on_exit: true,
@@ -366,6 +375,9 @@ function resolveShortcut(raw: unknown, fallback: InstanceShortcutConfig): Instan
     files_jail: boolOr(r.files_jail, fallback.files_jail),
     show_header: boolOr(r.show_header, fallback.show_header),
     allow_edit: boolOr(r.allow_edit, fallback.allow_edit),
+    allow_shell: boolOr(r.allow_shell, fallback.allow_shell),
+    allow_power: boolOr(r.allow_power, fallback.allow_power),
+    allow_actions: boolOr(r.allow_actions, fallback.allow_actions),
     terminal_allow_multi: boolOr(r.terminal_allow_multi, fallback.terminal_allow_multi),
     terminal_max: typeof r.terminal_max === 'string' || typeof r.terminal_max === 'number'
       ? String(r.terminal_max)
@@ -480,6 +492,9 @@ const SHORTCUT_FIELDS: (keyof InstanceShortcutConfig)[] = [
   'files_jail',
   'show_header',
   'allow_edit',
+  'allow_shell',
+  'allow_power',
+  'allow_actions',
   'terminal_allow_multi',
   'terminal_max',
   'terminal_default_stop_on_exit',
