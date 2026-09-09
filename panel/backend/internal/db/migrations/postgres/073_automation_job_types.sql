@@ -21,5 +21,5 @@
 -- no ADD COLUMN IF NOT EXISTS — so one ALTER per column keeps a
 -- partially-applied migration convergent (mirrors 072_stack_proxy).
 
-ALTER TABLE instance_automation ADD COLUMN kind VARCHAR(16) NOT NULL DEFAULT 'shell';
-ALTER TABLE instance_automation ADD COLUMN payload VARCHAR(128) NOT NULL DEFAULT '';
+ALTER TABLE instance_automation ADD COLUMN IF NOT EXISTS kind VARCHAR(16) NOT NULL DEFAULT 'shell';
+ALTER TABLE instance_automation ADD COLUMN IF NOT EXISTS payload VARCHAR(128) NOT NULL DEFAULT '';
