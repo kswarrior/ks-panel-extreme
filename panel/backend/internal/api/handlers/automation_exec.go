@@ -165,7 +165,7 @@ func fireShellJob(fctx automationFireCtx) (AutomationFireResult, error) {
 // skipped: there is no request to veto with on the scheduler path, and the
 // manual path goes through the same executor.
 func firePowerJob(fctx automationFireCtx, op string) (AutomationFireResult, error) {
-	job, inst := fctx.Job, fctx.Inst
+	inst := fctx.Inst
 	instRepo := repository.NewInstanceRepository(fctx.Con)
 	if !models.IsAutomationPowerOp(op) {
 		return AutomationFireResult{}, automationDenied{fmt.Sprintf("forbidden: unknown power op %q", op)}
@@ -263,7 +263,7 @@ func firePowerJob(fctx automationFireCtx, op string) (AutomationFireResult, erro
 // after InstallStart returns, so the run row is the invocation receipt
 // (progress is tracked via install_state, not by polling here).
 func fireActionJob(fctx automationFireCtx, actionID string) (AutomationFireResult, error) {
-	job, inst := fctx.Job, fctx.Inst
+	inst := fctx.Inst
 	if !instanceControlsAllow(inst.Config, "allow_template_actions") {
 		return AutomationFireResult{}, automationDenied{"forbidden: template disallows template actions for this instance"}
 	}
