@@ -3052,12 +3052,15 @@ func substituteEnvVars(cfg map[string]any, envVars map[string]string, scopes map
 // (the install handler's wait-on-Wait blocks until the exec exits), so the
 // panel can return 200 to the SPA the moment the edge accepts the workflow.
 // actionStartError carries the HTTP status InvokeActionHandler must answer
-// with when startTemplateAction fails. The status/message mapping below is
-// the handler's historical contract — automation (which records a failed
-// run row instead) only reads the message.
+// with when startTemplateAction fails. The status/message/plain mapping
+// below is the handler's historical contract — automation (which records a
+// failed run row instead) only reads the message.
 type actionStartError struct {
 	status int
 	msg    string
+	// plain selects http.Error (text) over writeJSONStatus (JSON), matching
+	// exactly which writer the inlined code used before extraction.
+	plain bool
 }
 
 func (e actionStartError) Error() string { return e.msg }
@@ -3077,7 +3080,7 @@ func startTemplateAction(con *sql.DB, inst *models.Instance, actionID string) (s
 
 	tmpl, err := tmplRepo.Get(inst.TemplateID)
 	if err != nil {
-		return "", actionStartError{http.StatusBadRequest, "owning template not found (deleted?)"}
+		return "", actionStartError{http.StatusBadRequest, "owning template not found (deleted?)", true}
 	}
 
 	// Parse instance config to extract env vars for action step substitution.
@@ -3125,7 +3128,7 @@ func startTemplateAction(con *sql.DB, inst *models.Instance, actionID string) (s
 		Actions []templateActionSpec `json:"actions"`
 	}
 	if err := json.Unmarshal([]byte(tmpl.Spec), &spec); err != nil {
-		return "", actionStartError{http.StatusInternalServerError, "template spec is not valid JSON"}
+		return "", actionStartError{http.StatusInternalServerError, "template spec is not valid JSON", true}
 	}
 
 	var action *templateActionSpec
@@ -3136,20 +3139,20 @@ func startTemplateAction(con *sql.DB, inst *models.Instance, actionID string) (s
 		}
 	}
 	if action == nil {
-		return "", actionStartError{http.StatusNotFound, "action not found in template: " + actionID}
+		return "", actionStartError{http.StatusNotFound, "action not found in template: " + actionID, true}
 	}
 	if len(action.Steps) == 0 {
-		return "", actionStartError{http.StatusBadRequest, "action has no steps to run"}
+		return "", actionStartError{http.StatusBadRequest, "action has no steps to run", true}
 	}
 
 	// Edge connection setup (mirrors instanceAction's pattern).
 	node, err := nodeRepo.GetNode(inst.NodeID)
 	if err != nil {
-		return "", actionStartError{http.StatusBadRequest, "owning node not found"}
+		return "", actionStartError{http.StatusBadRequest, "owning node not found", true}
 	}
 	token, err := nodeRepo.PlainToken(inst.NodeID)
 	if err != nil || token == "" {
-		return "", actionStartError{http.StatusBadRequest, "node has no usable edge token (rotate it first)"}
+		return "", actionStartError{http.StatusBadRequest, "node has no usable edge token (rotate it first)", true}
 	}
 	ec := edge.NewWithTimeout(*node, token, 60*time.Second)
 
@@ -3343,9 +3346,17 @@ func InvokeActionHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tmpl, err := tmplRepo.Get(inst.TemplateID)
-	if err != nil {
-		http.Error(w, "owning template not found (deleted?)", http.StatusBadRequest)
+	actionName, serr := startTemplateAction(con, inst, actionID)
+	if serr != nil {
+		if ase, ok := serr.(actionStartError); ok {
+			if ase.plain {
+				http.Error(w, ase.msg, ase.status)
+			} else {
+				writeJSONStatus(w, ase.status, map[string]any{"error": ase.msg})
+			}
+			return
+		}
+		http.Error(w, serr.Error(), http.StatusInternalServerError)
 		return
 	}
 
