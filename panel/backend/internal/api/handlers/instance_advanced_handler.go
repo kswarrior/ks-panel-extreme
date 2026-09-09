@@ -331,7 +331,12 @@ func validateAutomationUpsert(con *sql.DB, instanceID int64, req automationUpser
 	hasSteps := len(req.Steps) > 0
 	switch kind {
 	case models.AutomationKindPower:
-		if !models.IsAutomationPowerOp(req.Payload) {
+		// With steps the plan carries the ops (top payload is display
+		// fallback); without steps a valid op is required.
+		if req.Payload == "" && !hasSteps {
+			return "", http.StatusBadRequest, "invalid power op (want start|stop|restart|kill)"
+		}
+		if req.Payload != "" && !models.IsAutomationPowerOp(req.Payload) {
 			return "", http.StatusBadRequest, "invalid power op (want start|stop|restart|kill)"
 		}
 	case models.AutomationKindAction:
