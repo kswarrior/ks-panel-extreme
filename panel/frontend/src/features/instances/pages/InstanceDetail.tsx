@@ -207,7 +207,7 @@ const ShortcutAskFields: React.FC<{
   </>
 );
 
-// TerminalPane — one live console. The xterm dials one of three bridges:
+// TerminalPane — one live terminal. The xterm dials one of two bridges:
 //  - action terminal_id / install_terminal_id while its workflow RUNS →
 //    dials the /workflow bridge (live stream of the running transcript
 //    with history replay) and relays typed lines to the running
@@ -215,15 +215,12 @@ const ShortcutAskFields: React.FC<{
 //    op / stop; input policy stays server-enforced, the stream is
 //    output-only. While idle the pane stays a plain side shell (the edge
 //    keeps no record to stream until the workflow starts);
-//  - startup_terminal_id → dials the /console bridge instead, attaching
-//    directly to the container main-process stdio (fully interactive,
-//    no mirror/relay needed).
 //  - empty/unknown ID → plain side shell (/terminal → /bin/sh).
 // The /workflow WS is the pane's ONLY log source (history replay on
 // connect, exact live deltas after): there is deliberately no DB-poll
 // mirror — a second writer into the same xterm is what used to duplicate
 // lines and scramble their order. Typed input gets a local echo (the
-// piped console has no PTY echo) and rides the POST relay to the server.
+// piped terminal has no PTY echo) and rides the POST relay to the server.
 // No separate log box, no per-pane options.
 type PaneConnState = 'connecting' | 'connected' | 'reconnecting' | 'closed' | 'error';
 const TerminalPane: React.FC<{
@@ -234,14 +231,13 @@ const TerminalPane: React.FC<{
   installState: string;
   installKind: string;
   installTerminalId: string;
-  startupTerminalId: string;
   inputMode: TerminalInputMode;
   boxText: string;
   onBoxText: (v: string) => void;
   onRegisterSend: (key: number, fn: ((line: string) => void) | null) => void;
   onRegisterHandle: (key: number, h: TerminalHandle | null) => void;
   onConnState?: (key: number, s: PaneConnState, msg?: string) => void;
-}> = ({ instanceId, pane, actions, runningActionId, installState, installKind, installTerminalId, startupTerminalId, inputMode, boxText, onBoxText, onRegisterSend, onRegisterHandle, onConnState }) => {
+}> = ({ instanceId, pane, actions, runningActionId, installState, installKind, installTerminalId, inputMode, boxText, onBoxText, onRegisterSend, onRegisterHandle, onConnState }) => {
   const handleRef = useRef<TerminalHandle | null>(null);
   // Callback ref: keeps the local handle for the box-mode Send path and
   // registers it with the page so the actions-pill Copy / Download buttons
@@ -264,17 +260,14 @@ const TerminalPane: React.FC<{
   const tid = normTid(pane.terminalId);
   const matchedAction = tid !== '' ? actions.find((a: any) => normTid(a?.terminal_id) === tid) : undefined;
   const isRunning = !!matchedAction && installState === 'running' && runningActionId === matchedAction.id;
-  // Installation console: bound when the pane ID equals the template's
+  // Installation terminal: bound when the pane ID equals the template's
   // install_terminal_id; live while a NON-action workflow runs (a running
   // action owns the same edge key and has its own stdin endpoint).
   const isInstallBound = tid !== '' && normTid(installTerminalId) !== '' && tid === normTid(installTerminalId);
   const isInstalling = isInstallBound && installState === 'running' && installKind !== 'action';
-  // Startup console: bound when the pane ID equals the template's
-  // advanced.startup_terminal_id. I/O rides the /console WS natively.
-  const isStartupBound = tid !== '' && normTid(startupTerminalId) !== '' && tid === normTid(startupTerminalId);
   // Workflow panes (bound action/install IDs) dial /workflow for the live
-  // console — never the side shell — so typed lines reach only the MC
-  // server (via POST relay) and output is the server console itself.
+  // terminal — never the side shell — so typed lines reach only the MC
+  // server (via POST relay) and output is the server terminal itself.
   // Dial it only while THIS pane's workflow actually runs: dialling while
   // idle 404s on the edge (no record yet, or lost on edge restart) and
   // the WS then loops reconnect errors instead of showing idle.
@@ -286,13 +279,12 @@ const TerminalPane: React.FC<{
   }, [connState, connMsg]);
 
   const handleLine = (line: string) => {
-    // Fully functional console: every typed line goes straight to the
+    // Fully functional terminal: every typed line goes straight to the
     // RUNNING workflow's stdin — the bound action
     // (POST …/actions/:id/stdin: tps / op / stop / say … for Minecraft,
     // stdin for `node index.js`, …) or the running install
     // (POST …/install/stdin). No pane-side allow/block gating — the
-    // server still enforces the action's own policy. Startup consoles
-    // need no relay: input rides the /console WS natively.
+    // server still enforces the action's own policy.
     if (line.trim() === '') return;
     if (matchedAction && isRunning) {
       void sendActionStdin(instanceId, matchedAction.id, line).then(
@@ -341,8 +333,8 @@ const TerminalPane: React.FC<{
           ref={setHandle}
           instanceId={instanceId}
           terminalId={tid}
-          endpoint={isStartupBound ? 'console' : isWorkflowPane && isWorkflowActive ? 'workflow' : undefined}
-          onLine={isStartupBound ? undefined : handleLine}
+          endpoint={isWorkflowPane && isWorkflowActive ? 'workflow' : undefined}
+          onLine={handleLine}
           readOnly={boxMode}
           onStateChange={(s, m) => { setConnState(s); setConnMsg(m ?? ''); }}
         />
@@ -372,13 +364,11 @@ const TerminalPane: React.FC<{
 // bar sits below the actions pill, clicking a
 // tab activates that pane (inactive panes stay mounted hidden so their WS
 // stays alive). A pane whose ID matches a template action's
-// terminal_id streams that action's live console via the /workflow bridge
+// terminal_id streams that action's live terminal via the /workflow bridge
 // (history replay + exact live deltas, local echo on input) and relays
 // typed lines to the running action (Minecraft tps/op/stop, node stdin, …);
-// the install_terminal_id does the same for the Installation workflow;
-// the startup_terminal_id attaches directly to the container main-process
-// stdio via the /console bridge — all with no pane-side gating, real
-// functional consoles, not log views.
+// the install_terminal_id does the same for the Installation workflow —
+// all with no pane-side gating, real functional terminals, not log views.
 const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: boolean }> = ({ instance, title, showHeader = true }) => {
   const controls = useMemo(() => resolveInstanceControls(instance?.config), [instance?.config]);
   const termCfg = controls.shortcuts.terminal;
@@ -635,20 +625,15 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
   const installKind: string = src?.install_kind ?? '';
   const runningActionId: string = installState === 'running' && installKind === 'action' ? (src?.install_action_id || '') : '';
 
-  // Installation + startup console IDs ride on the instance config
+  // Installation terminal ID rides on the instance config
   // (deploy-time snapshot of the template spec).
-  const { installTerminalId, startupTerminalId } = useMemo(() => {
-    const empty = { installTerminalId: '', startupTerminalId: '' };
+  const installTerminalId = useMemo(() => {
     try {
       const cfg = instance?.config ? parseConfig(instance.config) : null;
-      if (!cfg) return empty;
-      const adv = (cfg as any)?.advanced;
-      return {
-        installTerminalId: normTid((cfg as any)?.install_terminal_id),
-        startupTerminalId: adv && typeof adv === 'object' ? normTid(adv.startup_terminal_id) : '',
-      };
+      if (!cfg) return '';
+      return normTid((cfg as any)?.install_terminal_id);
     } catch {
-      return empty;
+      return '';
     }
   }, [instance?.config]);
 
@@ -680,11 +665,6 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
     const running = !!matched && installState === 'running' && runningActionId === matched.id;
     const installing = tid === normTid(installTerminalId) && installTerminalId !== '' && installState === 'running' && installKind !== 'action';
     if (running || installing) return { dot: 'bg-green-400', label: 'running' };
-    const startup = tid === normTid(startupTerminalId) && startupTerminalId !== '';
-    if (startup) {
-      const cs = connMap[p.key];
-      return { dot: cs === 'connected' ? 'bg-sky-400' : 'bg-gray-500', label: cs === 'connected' ? 'attached' : 'startup' };
-    }
     if (matched || (tid === normTid(installTerminalId) && installTerminalId !== '')) {
       return { dot: 'bg-amber-400', label: 'idle' };
     }
@@ -805,7 +785,6 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
             installState={installState}
             installKind={installKind}
             installTerminalId={installTerminalId}
-            startupTerminalId={startupTerminalId}
             inputMode={termCfg.terminal_input_mode || 'direct'}
             boxText={boxTexts[p.key] ?? ''}
             onBoxText={(v) => setBoxTexts((m) => ({ ...m, [p.key]: v }))}
