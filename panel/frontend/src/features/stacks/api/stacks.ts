@@ -123,6 +123,20 @@ export async function deactivateStack(id: number): Promise<void> {
   await client.post(`/api/stacks/${id}/deactivate`);
 }
 
+// Install re-materializes the stack's package + data dir from its stored
+// manifest without touching grants or active state. Returns the stack.
+export async function installStack(id: number): Promise<Stack> {
+  const res = await client.post<Stack>(`/api/stacks/${id}/install`);
+  return res.data;
+}
+
+// Reinstall resets the stack to a fresh install: deactivates it, flips all
+// grants back to pending, and rebuilds the package. Returns the stack.
+export async function reinstallStack(id: number): Promise<Stack> {
+  const res = await client.post<Stack>(`/api/stacks/${id}/reinstall`);
+  return res.data;
+}
+
 export async function getStackNav(): Promise<StackNavEntry[]> {
   const res = await client.get<StackNavEntry[]>('/api/stacks/nav');
   return res.data;

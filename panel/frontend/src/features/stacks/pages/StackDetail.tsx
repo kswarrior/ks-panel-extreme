@@ -9,6 +9,8 @@ import {
   setStackGrants,
   activateStack,
   deactivateStack,
+  installStack,
+  reinstallStack,
   deleteStack,
   updateStack,
   downloadStack,
