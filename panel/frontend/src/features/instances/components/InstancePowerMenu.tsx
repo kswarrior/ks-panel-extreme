@@ -55,7 +55,7 @@ function actionPhase(isActive: boolean, outcome: 'ok' | 'err' | undefined): Acti
 // (no pill chrome). Rendered at the TOP of the floating instance menu:
 // a Start / Stop / Restart / Kill button row first (with a divider line
 // below it, mirroring the line below Actions), then the self-sufficient
-// Files / Terminal / Ports shortcut row (horizontally scrollable, always
+// Files / Terminal / Ports / Automation shortcut row (horizontally scrollable, always
 // clickable — no library import needed), then the template Actions
 // selector below it: a bordered `name | chevron` row where clicking the
 // name runs/stops the shown action and clicking the SVG chevron (resting
@@ -142,7 +142,7 @@ const InstancePowerMenu: React.FC = () => {
     PermissionKey.INSTANCES_EDIT,
   );
 
-  // Quick shortcuts (Files / Terminal / Ports) — pure builtins surfaced
+  // Quick shortcuts (Files / Terminal / Ports / Automation) — pure builtins surfaced
   // directly above the template Actions so operators can jump without
   // closing the menu. Slug / label / icon come from
   // instance_controls.shortcuts (template author or per-instance override).
@@ -151,6 +151,7 @@ const InstancePowerMenu: React.FC = () => {
   const filesSlug = shortcutSlug(controls, 'files');
   const terminalSlug = shortcutSlug(controls, 'terminal');
   const portsSlug = shortcutSlug(controls, 'ports');
+  const automationSlug = shortcutSlug(controls, 'automation');
   const canEditPorts = hasPermissionAny(
     permissions,
     PermissionKey.INSTANCES_EDIT,
@@ -330,6 +331,16 @@ const InstancePowerMenu: React.FC = () => {
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><rect x="2" y="7" width="20" height="8" rx="2" /><path d="M6 7v-2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2" /><path d="M6 15v2a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-2" /></svg>
         ),
       },
+      {
+        key: 'automation' as const,
+        slug: automationSlug,
+        enabled: true,
+        hint: 'Scheduled jobs + runs',
+        fallbackTone: 'text-violet-300',
+        defaultIcon: (
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1" /></svg>
+        ),
+      },
     ]
   )
     // Hidden shortcuts (show toggle off in Instance Controls) leave the row.
@@ -428,7 +439,7 @@ const InstancePowerMenu: React.FC = () => {
       {showPowerRow && (shortcuts.length > 0 || error || templateActions.length > 0) && (
         <div className="mx-3 mt-3 border-t border-white/10" aria-hidden="true" />
       )}
-      {/* Quick shortcuts — Files / Terminal / Ports, aligned in one
+      {/* Quick shortcuts — Files / Terminal / Ports / Automation, aligned in one
           horizontally scrollable row directly above Actions. Hidden
           shortcuts (show toggle off in Instance Controls) leave the row;
           the row hides entirely when all three are off. */}

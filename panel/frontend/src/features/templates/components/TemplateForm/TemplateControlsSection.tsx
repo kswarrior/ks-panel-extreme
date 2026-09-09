@@ -617,6 +617,14 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
                       hint="Off = read-only port table on the Ports page"
                     />
                   )}
+                  {key === 'automation' && (
+                    <MiniToggle
+                      checked={s.allow_edit}
+                      onChange={(v) => updateShortcut(key, { allow_edit: v })}
+                      label="Allow Add / Edit / Delete"
+                      hint="Off = read-only automation jobs + runs (no create, edit, delete or Run now)"
+                    />
+                  )}
                   {custom && (
                     <div className="pt-1">
                       <button
