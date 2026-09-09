@@ -688,6 +688,32 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				return err
 			}
 			continue
+		case name == "073_automation_job_types.sql":
+			// Typed automation jobs (kind + payload on
+			// instance_automation, migration 073). The sqlite/mysql files
+			// carry bare ADD COLUMN (no IF NOT EXISTS — only the postgres
+			// file has it via regen.sh), so each column is added via the
+			// runtime guard; reruns then converge instead of failing with
+			// "duplicate column name: kind" — mirrors 072_stack_proxy.
+			if err := guardedAddColumns(d, db, name, "instance_automation", []columnSpec{
+				{"kind", "VARCHAR(16) NOT NULL DEFAULT 'shell'"},
+				{"payload", "VARCHAR(128) NOT NULL DEFAULT ''"},
+			}); err != nil {
+				return err
+			}
+			continue
+		case name == "074_automation_steps.sql":
+			// Multi-step automation plans (steps JSON on
+			// instance_automation, migration 074). Nullable TEXT with no
+			// DEFAULT (MySQL-safe up front); guarded so reruns converge
+			// on sqlite/mysql (postgres uses IF NOT EXISTS natively) —
+			// mirrors 073 above.
+			if err := guardedAddColumns(d, db, name, "instance_automation", []columnSpec{
+				{"steps", "TEXT"},
+			}); err != nil {
+				return err
+			}
+			continue
 		case name == "065_tickets_attachments_sla_notify.sql":
 			// Ticket attachments + SLA sidecar + notification prefs. The
 			// CREATE TABLEs are IF NOT EXISTS on every dialect, but the

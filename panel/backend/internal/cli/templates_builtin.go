@@ -191,6 +191,25 @@ var builtinTemplates = []builtinTemplate{
         "terminal_shortcuts_enabled": false,
         "terminal_shortcuts": [],
         "default_terminals": []
+      },
+      "env": {
+        "show": true,
+        "slug": "env",
+        "label": "Env",
+        "icon_svg": "",
+        "icon_color": "#fb7185",
+        "show_sftp": true,
+        "show_header": true,
+        "allow_edit": true,
+        "terminal_allow_multi": true,
+        "terminal_max": "4",
+        "terminal_default_stop_on_exit": true,
+        "terminal_default_allow_input": "all",
+        "terminal_default_timeout_s": "",
+        "terminal_input_mode": "direct",
+        "terminal_shortcuts_enabled": false,
+        "terminal_shortcuts": [],
+        "default_terminals": []
       }
     }
   },
