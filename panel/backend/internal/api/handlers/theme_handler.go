@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -419,7 +420,21 @@ func AssignThemeHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// DownloadThemeHandler returns a theme as a downloadable JSON file.
+// themeTOMLExport is the downloadable manifest shape. A struct (not a map)
+// keeps the top-level key order stable (id/name/description/builtin/spec)
+// and lets BurntSushi/toml encode Spec's nested maps as [spec.*] tables.
+type themeTOMLExport struct {
+	ID          string `toml:"id"`
+	Name        string `toml:"name"`
+	Description string `toml:"description"`
+	Builtin     bool   `toml:"builtin"`
+	Spec        any    `toml:"spec"`
+}
+
+// DownloadThemeHandler returns a theme as a downloadable TOML manifest file.
+// TOML is the canonical download format: every ingest path (file upload,
+// URL install, marketplace install) already accepts TOML via
+// decodeThemeManifest, so a downloaded file re-uploads byte-parsably.
 func DownloadThemeHandler(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
@@ -455,23 +470,35 @@ func DownloadThemeHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	exportData := map[string]any{
-		"id":          t.ID,
-		"name":        t.Name,
-		"description": t.Description,
-		"builtin":     t.Builtin,
-		"spec":        t.Spec,
+	exportData := themeTOMLExport{
+		ID:          t.ID,
+		Name:        t.Name,
+		Description: t.Description,
+		Builtin:     t.Builtin,
+	}
+	// The spec column stores JSON; decode it into a generic value so the
+	// TOML encoder emits real tables (not one escaped JSON string). An
+	// empty/missing spec degrades to an empty table, never a failure.
+	if len(t.Spec) > 0 {
+		var specAny any
+		if err := json.Unmarshal(t.Spec, &specAny); err != nil {
+			http.Error(w, "failed to serialize theme", http.StatusInternalServerError)
+			return
+		}
+		exportData.Spec = specAny
+	} else {
+		exportData.Spec = map[string]any{}
 	}
 
-	jsonData, err := json.MarshalIndent(exportData, "", "  ")
-	if err != nil {
+	var buf bytes.Buffer
+	if err := toml.NewEncoder(&buf).Encode(exportData); err != nil {
 		http.Error(w, "failed to serialize theme", http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.json\"", sanitizeDownloadFilename(t.Name)))
-	w.Write(jsonData)
+	w.Header().Set("Content-Type", "application/toml")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.toml\"", sanitizeDownloadFilename(t.Name)))
+	w.Write(buf.Bytes())
 }
 
 // CreateThemeHandler handles both JSON and multipart/form-data for theme creation.
