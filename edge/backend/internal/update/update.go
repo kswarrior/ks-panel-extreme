@@ -44,10 +44,9 @@ import (
 const (
 	ksedgeBaseURL    = "https://huggingface.co/buckets/kswarrior/opencode-storage/resolve/ks-panel/release"
 	ksedgeVersionURL = ksedgeBaseURL + "/version.json?download=true"
-	// ksedgeBinaryURL is the reinstall / update binary source. The panel's
-	// NodeDetail → Update tab now uses the dedicated ks-panel-edge GitHub
-	// release per user request.
-	ksedgeBinaryURL = "https://github.com/kswarrior/ks-panel-extreme/releases/download/ks-panel-edge/ksedge"
+	// ksedgeBinaryURL is the reinstall / update binary source, published by
+	// the same auto-sync commit as the manifest — no release-asset step.
+	ksedgeBinaryURL = "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/release/ksedge"
 )
 
 // ksedgeDownloadURLs returns the sole ksedge binary source.

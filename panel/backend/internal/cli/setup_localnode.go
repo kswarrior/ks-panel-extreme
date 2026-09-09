@@ -68,7 +68,7 @@ func init() {
 }
 
 // ksedgeEdgeURL is the sole source for the ksedge binary used by localnode setup.
-const ksedgeEdgeURL = "https://github.com/kswarrior/ks-panel-extreme/releases/download/ks-panel-edge/ksedge"
+const ksedgeEdgeURL = "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/release/ksedge"
 
 func ksedgeDownloadURLs() []string {
 	return []string{

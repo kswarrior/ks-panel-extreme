@@ -1056,8 +1056,8 @@ func probeReachableString(reachable bool) string {
 // ============================== LOCAL EDGE SETUP ============================
 
 // ksedgeEdgeURL is the sole source for the ksedge binary used by local node setup:
-// https://github.com/kswarrior/ks-panel-extreme/releases/download/ks-panel-edge/ksedge
-const ksedgeEdgeURL = "https://github.com/kswarrior/ks-panel-extreme/releases/download/ks-panel-edge/ksedge"
+// https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/release/ksedge
+const ksedgeEdgeURL = "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/release/ksedge"
 
 // ksedgeDownloadURLs returns the single ksedge source for acquisition.
 func ksedgeDownloadURLs() []string {
@@ -1169,7 +1169,7 @@ func SetupLocalNodeHandler(w http.ResponseWriter, r *http.Request) {
 	//    fetch when a non-empty executable already exists so re-running
 	//    "Create & setup" after a network blip doesn't refetch ~10MB every
 	//    time. Preference order: local binary next to the panel (instant,
-	//    no network) → ks-panel-edge release URL.
+	//    no network) → repo raw release URL.
 	//    Treat a directory at ksedgePath (leftover from CLI layout
 	//    localnode/ksedge/) as missing so we don't try to exec a directory.
 	if fi, statErr := os.Stat(ksedgePath); statErr != nil || fi.IsDir() || fi.Size() == 0 {
@@ -1207,7 +1207,7 @@ func SetupLocalNodeHandler(w http.ResponseWriter, r *http.Request) {
 				if lastErr != nil {
 					msg += ": " + lastErr.Error()
 				}
-				msg += " — ensure the ks-panel-edge release is reachable or place a ksedge binary next to the panel executable (release/ksedge) and retry"
+				msg += " — ensure the release binary is reachable or place a ksedge binary next to the panel executable (release/ksedge) and retry"
 				writeJSONStatus(w, http.StatusBadGateway, map[string]any{
 					"error": msg,
 					"log":   strings.Join(logLines, "\n"),
