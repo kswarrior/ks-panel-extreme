@@ -17,6 +17,7 @@ import {
   MetricSample,
 } from '@/shared/components/ui/StatDashboard';
 import GlassCard from '@/shared/components/ui/Card';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 
@@ -299,6 +300,18 @@ const NodeStats: React.FC = () => {
     );
   }
 
+  if (error) {
+    return (
+      <ErrorState
+        variant="error"
+        title="Failed to load node stats"
+        description={error}
+        retryLabel="Retry"
+        onRetry={() => void load()}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Fixed top-right pill — "Statistics" title lives in the app header. */}
@@ -476,12 +489,6 @@ const NodeStats: React.FC = () => {
           color={graphTab === 'location' ? '#38bdf8' : '#a78bfa'} 
         />
       </DashboardSection>
-
-      {error && (
-        <GlassCard className="text-sm text-red-300 border border-red-700/40">
-          {error}
-        </GlassCard>
-      )}
     </div>
   );
 };

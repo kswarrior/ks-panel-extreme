@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ticketStats } from '../api/tickets';
 import type { TicketStats } from '../types/ticket';
 import GlassCard from '@/shared/components/ui/Card';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
@@ -107,7 +108,17 @@ const TicketStatsPage: React.FC = () => {
       </div>
     );
   }
-  if (error) return <div className="p-8 text-red-400">{error}</div>;
+  if (error) {
+    return (
+      <ErrorState
+        variant="error"
+        title="Failed to load ticket stats"
+        description={error}
+        retryLabel="Retry"
+        onRetry={() => window.location.reload()}
+      />
+    );
+  }
   if (!stats) return <div className="p-8 text-gray-400">No stats.</div>;
 
   const total = stats.total || 1;
