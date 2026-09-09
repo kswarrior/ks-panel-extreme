@@ -301,11 +301,9 @@ const RolePermissions: React.FC<RolePermissionsProps> = ({ formPermissions, setF
   };
 
   const handlePerKeyScopeChange = (area: PermissionArea, key: string, scope: 'OWN' | 'ALL') => {
-    setKeyScopes((prev) => {
-      const n = { ...prev, [key]: scope };
-      syncAreaScopesToPermissions(area, n);
-      return n;
-    });
+    const n = { ...keyScopes, [key]: scope };
+    setKeyScopes(n);
+    syncAreaScopesToPermissions(area, n);
   };
 
   const handleBulkScope = (area: PermissionArea, scope: 'OWN' | 'ALL') => {
@@ -315,12 +313,10 @@ const RolePermissions: React.FC<RolePermissionsProps> = ({ formPermissions, setF
       ...Object.values(area.keys).filter(Boolean) as string[],
       ...(area.extraKeys ?? []),
     ].filter((k) => permByKey.has(k) && formPermissions.includes(k));
-    setKeyScopes((prev) => {
-      const n = { ...prev };
-      for (const k of keys) n[k] = scope;
-      syncAreaScopesToPermissions(area, n);
-      return n;
-    });
+    const n = { ...keyScopes };
+    for (const k of keys) n[k] = scope;
+    setKeyScopes(n);
+    syncAreaScopesToPermissions(area, n);
     // also ensure formPermissions has correct global scope immediately (optimistic)
     setFormPermissions((f) => {
       let next = f.filter((k) => k !== area.ownKey && k !== area.allKey);

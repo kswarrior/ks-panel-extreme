@@ -743,7 +743,9 @@ const StackForm: React.FC = () => {
               </div>
             )}
 
-            {tab === 'permission' && (
+            {/* Kept mounted (hidden when inactive) so the RolePermissions
+                drill-in + per-key Own/All scopes survive tab switches. */}
+            <div className={tab === 'permission' ? 'space-y-4' : 'hidden'} aria-hidden={tab !== 'permission'}>
               <div className="space-y-4">
                 {/* Capabilities — every stack capability the backend knows.
                     Requesting one seeds a stack_permissions row that the admin
