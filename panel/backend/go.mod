@@ -12,6 +12,7 @@ require (
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/spf13/cobra v1.8.0
 	golang.org/x/crypto v0.22.0
+	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.39.0
 )
 
@@ -26,9 +27,11 @@ require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
+	github.com/kr/text v0.2.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/ncruces/go-strftime v0.1.9 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
+	github.com/rogpeppe/go-internal v1.16.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b // indirect
 	golang.org/x/sync v0.17.0 // indirect

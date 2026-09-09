@@ -5,6 +5,7 @@ import ThemePreview from '@/features/themes/components/ThemePreview';
 import { useThemeStore } from '@/shared/stores/themeStore';
 import { useConfirm } from '@/shared/stores/confirmStore';
 import GlassCard from '@/shared/components/ui/Card';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import { PageActionsPill } from '@/shared/components/ui/PageActionsPill';
 
@@ -120,7 +121,7 @@ const ThemeDetail: React.FC = () => {
           </button>
           <h2 className="text-xl font-semibold text-white">Theme Detail</h2>
         </div>
-        <GlassCard className="p-6 border border-red-900/40"><p className="text-red-400 text-sm">Invalid theme ID</p></GlassCard>
+        <ErrorState variant="error" title="Invalid theme ID" backLabel="Back" onBack={back} />
       </div>
     );
   }
@@ -133,7 +134,7 @@ const ThemeDetail: React.FC = () => {
           </button>
           <h2 className="text-xl font-semibold text-white">Theme Detail</h2>
         </div>
-        <GlassCard className="p-6"><p className="text-gray-400">Theme not found</p><button onClick={back} className="mt-3 px-3 py-1.5 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white">Back</button></GlassCard>
+        <ErrorState variant="not-found" title="Theme not found" backLabel="Back" onBack={back} />
       </div>
     );
   }

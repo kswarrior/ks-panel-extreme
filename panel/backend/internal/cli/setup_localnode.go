@@ -27,7 +27,7 @@ import (
 //
 // One-shot installer that adds a localhost node to the database, downloads
 // the ksedge binary into ./localnode/ksedge/ next to this kspanel binary,
-// writes the matching config.toml (panel URL + edge token + listen port),
+// writes the matching config.yaml (panel URL + edge token + listen port),
 // and launches `./localnode/ksedge/ksedge launch` detached so the edge
 // survives the CLI exit. The resulting edge then heartbeats the panel and
 // flips its card green on the Nodes admin page.
@@ -47,7 +47,7 @@ var setupLocalnodeCmd = &cobra.Command{
 This is the CLI equivalent of the admin "Create & setup" button — it
 registers a localhost node, downloads ksedge from the ks-panel-edge release into
 ./localnode/ksedge/ (next to this binary), writes the panel-generated
-config.toml, and launches "./ksedge launch" detached.
+config.yaml, and launches "./ksedge launch" detached.
 
 Re-running the command is idempotent: the matching (name, port) row is
 reused so a re-run won't mint a new token, and an existing on-disk ksedge
@@ -129,14 +129,14 @@ func runSetupLocalnode(cmd *cobra.Command, args []string) error {
 
 	// Working dir sits NEXT to the ksedge binary, not under the panel data
 	// dir, so it's discoverable on the same folder the operator cloned.
-	// Layout: <cwd>/localnode/ksedge/{ksedge, config.toml, ksedge.log}.
+	// Layout: <cwd>/localnode/ksedge/{ksedge, config.yaml, ksedge.log}.
 	dir := filepath.Join("localnode", "ksedge")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		print.Fail("setup:localnode", fmt.Sprintf("mkdir %s: %v", dir, err))
 		return fmt.Errorf("mkdir: %w", err)
 	}
 	ksedgePath := filepath.Join(dir, "ksedge")
-	configPath := filepath.Join(dir, "config.toml")
+	configPath := filepath.Join(dir, "config.yaml")
 	logPath := filepath.Join(dir, "ksedge.log")
 
 	// 1) Download ksedge if not already on disk. Prefer a local binary next
@@ -402,11 +402,11 @@ func ensurePanelUp(panelURL, port string) error {
 				newURL := "http://127.0.0.1:" + newPortStr
 				print.Step("panel", fmt.Sprintf("port %s was in use — auto-selected :%s for panel launch", port, newPortStr))
 				// Rewrite edge config that was just written with the old URL.
-				if data, rerr := os.ReadFile(filepath.Join("localnode", "ksedge", "config.toml")); rerr == nil {
+				if data, rerr := os.ReadFile(filepath.Join("localnode", "ksedge", "config.yaml")); rerr == nil {
 					if cfg, derr := edgeconfig.Decode(data); derr == nil {
 						cfg["panel_url"] = newURL
 						if out, eerr := edgeconfig.Encode(cfg); eerr == nil {
-							_ = os.WriteFile(filepath.Join("localnode", "ksedge", "config.toml"), out, 0o644)
+							_ = os.WriteFile(filepath.Join("localnode", "ksedge", "config.yaml"), out, 0o644)
 							print.Step("config", fmt.Sprintf("rewrote panel_url to %s (free port)", newURL))
 						}
 					}
