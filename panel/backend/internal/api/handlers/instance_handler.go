@@ -3182,7 +3182,7 @@ func startTemplateAction(con *sql.DB, inst *models.Instance, actionID string) (s
 		}
 		if startErr != nil {
 			_ = instRepo.SetStatus(id, "errored", inst.ExternalID, "auto-start failed: "+startErr.Error())
-			return "", actionStartError{http.StatusBadGateway, "edge rejected auto-start: " + startErr.Error()}
+			return "", actionStartError{status: http.StatusBadGateway, msg: "edge rejected auto-start: " + startErr.Error()}
 		}
 		st := startResp.Status
 		if st == "" {
@@ -3277,7 +3277,7 @@ func startTemplateAction(con *sql.DB, inst *models.Instance, actionID string) (s
 		_ = instRepo.SetInstallKind(id, "", 0)
 		_ = instRepo.SetInstallActionID(id, "")
 		_ = instRepo.SetStatus(id, "errored", inst.ExternalID, "action invoke failed: "+loopErr.Error())
-		return "", actionStartError{http.StatusBadGateway, "edge rejected action invoke: " + loopErr.Error()}
+		return "", actionStartError{status: http.StatusBadGateway, msg: "edge rejected action invoke: " + loopErr.Error()}
 	}
 	// InstallStartResponse carries install_id; we already built our own.
 	return action.Name, nil
@@ -3303,8 +3303,6 @@ func InvokeActionHandler(w http.ResponseWriter, r *http.Request) {
 	defer con.Close()
 
 	instRepo := repository.NewInstanceRepository(con)
-	tmplRepo := repository.NewTemplateRepository(con)
-	nodeRepo := repository.NewNodeRepository(con)
 
 	inst, err := instRepo.Get(id)
 	if err != nil {
@@ -3360,104 +3358,6 @@ func InvokeActionHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Build edge.InstallStep slice from the action's steps and POST to the
-	// edge's install workflow engine. The edge will exec each step in order
-	// inside the container; stdout/stderr are captured by the per-step
-	// transcript that the panel polls via /api/edge/install GET.
-	edgeSteps := make([]edge.InstallStep, len(action.Steps))
-	for i, s := range action.Steps {
-		edgeSteps[i] = edge.InstallStep{
-			Action:       s.Action,
-			Command:      s.Command,
-			URL:          s.URL,
-			Filename:     s.Filename,
-			Archive:      s.Archive,
-			Dest:         s.Dest,
-			From:         s.From,
-			To:           s.To,
-			Path:         s.Path,
-			Content:      s.Content,
-			Branch:       s.Branch,
-			Retries:      s.Retries,
-			IgnoreErrors: s.IgnoreErrors,
-		}
-	}
-
-	// Persist install_state + steps_json BEFORE the InstallStart call so
-	// the InstallBanner on the home page paints progress the moment the
-	// poller sees the workflow's first step. Also persist install_kind=
-	// 'action' + install_auto_stop so the install sweep loop on "done"
-	// knows this was an action invocation, not the template's install
-	// workflow, and decides whether to stop the container based on the
-	// action's auto_stop_on_exit flag.
-	installID := inst.Kind + ":" + inst.Name
-	stepsJSON, _ := json.Marshal(edgeSteps)
-	_ = instRepo.UpdateInstallStatus(id, "running", installID, -1, "", string(stepsJSON))
-	autoStop := 0
-	if action.AutoStopOnExit {
-		autoStop = 1
-	}
-	_ = instRepo.SetInstallKind(id, "action", autoStop)
-	_ = instRepo.SetInstallActionID(id, actionID)
-
-	// Try to start the action with retries in case the edge is temporarily
-	// unresponsive.
-	//
-	// Workflow budget: the TemplateForm's per-action "Max runtime (s)"
-	// (max_runtime_s). Empty/"0" is documented in the form as NO limit — and
-	// long_running actions (e.g. booting a Minecraft server) are meant to
-	// keep the container alive for days until the operator clicks Stop — so
-	// we send -1 (edge: no deadline) unless a positive value is set. Before
-	// this field was wired, every action inherited the edge's hidden 30-minute
-	// cap and died with the panel mislabelling it "install_failed".
-	timeoutSec := timeoutSecFromSpec(action.MaxRuntimeS)
-	if timeoutSec == 0 {
-		timeoutSec = -1
-	}
-	var resp edge.InstallStartResponse
-	var loopErr error
-	for i := 0; i < 3; i++ {
-		resp, loopErr = ec.InstallStart(edge.InstallStartRequest{
-			Token:   token,
-			Kind:    inst.Kind,
-			Name:    inst.Name,
-			Steps:   edgeSteps,
-			EnvVars: actionEnvVars,
-			// Keep the running step's stdin open when the stop path needs
-			// it (same-terminal stop) OR when terminal panes may attach:
-			// any action with a terminal_id can receive gated terminal
-			// input (Minecraft /tps, /op, …) via ActionStdinHandler.
-			KeepStdin:  action.StopMode == "same" || strings.TrimSpace(action.TerminalID) != "",
-			TimeoutSec: timeoutSec,
-		})
-		if loopErr == nil {
-			if i > 0 {
-				log.Printf("InvokeActionHandler: edge install start succeeded on attempt %d for instance %d (actionID=%q stopMode=%q)", i+1, id, actionID, action.StopMode)
-			}
-			err = nil
-			break
-		}
-		log.Printf("InvokeActionHandler: edge install start failed on attempt %d for instance %d (actionID=%q stopMode=%q): %v", i+1, id, actionID, action.StopMode, loopErr)
-		// If this isn't the last attempt, wait a bit before retrying
-		if i < 2 {
-			time.Sleep(time.Second)
-		}
-	}
-	if loopErr != nil {
-		err = loopErr
-	}
-	if err != nil {
-		_ = instRepo.UpdateInstallStatus(id, "failed", installID, 0, "edge install start failed: "+err.Error(), string(stepsJSON))
-		_ = instRepo.SetInstallKind(id, "", 0)
-		_ = instRepo.SetInstallActionID(id, "")
-		_ = instRepo.SetStatus(id, "errored", inst.ExternalID, "action invoke failed: "+err.Error())
-		writeJSONStatus(w, http.StatusBadGateway, map[string]any{
-			"error": "edge rejected action invoke: " + err.Error(),
-		})
-		return
-	}
-	_ = resp // InstallStartResponse carries install_id; we already built our own.
-
 	RecordActivity(r, repository.ActivityInput{
 		Category:    models.ActivityCategoryInstance,
 		Action:      "invoke_action",
@@ -3469,7 +3369,7 @@ func InvokeActionHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{
 		"id":            id,
 		"action_id":     actionID,
-		"action_name":   action.Name,
+		"action_name":   actionName,
 		"install_state": "running",
 		"status":        "running",
 	})
