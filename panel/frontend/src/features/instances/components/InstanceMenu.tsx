@@ -6,7 +6,7 @@ import ErrorBoundary from '@/shared/components/ui/ErrorBoundary';
 
 // InstanceMenu — the main thing of an instance in a single menu panel,
 // ordered top to bottom: status / uptime / type row, then power controls
-// (Start / Stop / Restart), then the Files / Terminal / Ports shortcut row,
+// (Start / Stop / Restart), then the Files / Terminal / Ports / Automation shortcut row,
 // then template actions last. Rendered inside
 // the floating draggable square (InstanceMenuFab).
 const InstanceMenu: React.FC = () => {

@@ -288,7 +288,7 @@ const InstancePowerMenu: React.FC = () => {
 
   const menuBtn = (tone: string) =>
     `flex-1 inline-flex items-center justify-center gap-1.5 rounded-md px-2 py-2 text-[13px] font-medium transition-all duration-150 active:scale-[0.94] hover:bg-white/10 hover:shadow-[0_2px_12px_rgba(0,0,0,0.35)] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:active:scale-100 ${tone}`;
-  // Aligned shortcut buttons (Files / Terminal / Ports): equal-width cells
+  // Aligned shortcut buttons (Files / Terminal / Ports / Automation): equal-width cells
   // in one horizontally scrollable row — active route glows, unavailable
   // pages render dimmed + disabled with an explanatory tooltip.
   const shortcutBtn = (active: boolean, enabled: boolean) =>
@@ -442,7 +442,7 @@ const InstancePowerMenu: React.FC = () => {
       {/* Quick shortcuts — Files / Terminal / Ports / Automation, aligned in one
           horizontally scrollable row directly above Actions. Hidden
           shortcuts (show toggle off in Instance Controls) leave the row;
-          the row hides entirely when all three are off. */}
+          the row hides entirely when all are off. */}
       {shortcuts.length > 0 && (
       <div className="px-3 pt-2">
         <div
