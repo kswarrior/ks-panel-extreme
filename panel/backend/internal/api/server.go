@@ -638,6 +638,8 @@ func NewRouter() http.Handler {
 			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionEdit)).Put("/{id}/grants", handlers.SetStackGrantsHandler)
 			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionEdit)).Post("/{id}/activate", handlers.ActivateStackHandler)
 			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionEdit)).Post("/{id}/deactivate", handlers.DeactivateStackHandler)
+			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionEdit)).Post("/{id}/install", handlers.InstallStackHandler)
+			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionEdit)).Post("/{id}/reinstall", handlers.ReinstallStackHandler)
 			// Workdir file manager (Studio Files tab + Detail Files section).
 			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionView)).Get("/{id}/files", handlers.ListStackFilesHandler)
 			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionView)).Get("/{id}/files/read", handlers.ReadStackFileHandler)
