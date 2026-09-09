@@ -165,3 +165,44 @@ func TestUploadThemeFileJSONStillWorks(t *testing.T) {
 		t.Fatalf("status %d, body: %s", rr.Code, rr.Body.String())
 	}
 }
+
+// TestDownloadThemeAsTOML proves the download path emits TOML (not JSON)
+// that re-parses through the same decodeThemeManifest every ingest path
+// uses, with id and spec values intact.
+func TestDownloadThemeAsTOML(t *testing.T) {
+	themeUploadTestDB(t)
+	up := postThemeManifest(t, "ocean.toml", "id = \"ocean-dl\"\nname = \"Ocean DL\"\ndescription = \"dl theme\"\n\n[spec.card]\nbg = \"#001122\"\n")
+	if up.Code != http.StatusCreated {
+		t.Fatalf("upload status %d, body: %s", up.Code, up.Body.String())
+	}
+	req := httptest.NewRequest(http.MethodGet, "/api/themes/ocean-dl/download", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "ocean-dl")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	rr := httptest.NewRecorder()
+	DownloadThemeHandler(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("download status %d, body: %s", rr.Code, rr.Body.String())
+	}
+	if ct := rr.Header().Get("Content-Type"); ct != "application/toml" {
+		t.Fatalf("Content-Type = %q, want application/toml", ct)
+	}
+	if cd := rr.Header().Get("Content-Disposition"); !strings.Contains(cd, ".toml") {
+		t.Fatalf("Content-Disposition missing .toml filename: %q", cd)
+	}
+	m, err := decodeThemeManifest(rr.Body.Bytes())
+	if err != nil {
+		t.Fatalf("downloaded body does not re-parse: %v\n%s", err, rr.Body.String())
+	}
+	if m["id"] != "ocean-dl" || m["name"] != "Ocean DL" {
+		t.Fatalf("meta mismatch: %#v", m)
+	}
+	spec, ok := m["spec"].(map[string]any)
+	if !ok {
+		t.Fatalf("spec not a table: %#v", m["spec"])
+	}
+	card, ok := spec["card"].(map[string]any)
+	if !ok || card["bg"] != "#001122" {
+		t.Fatalf("spec.card.bg mismatch: %#v", spec["card"])
+	}
+}
