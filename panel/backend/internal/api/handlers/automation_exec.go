@@ -17,16 +17,16 @@ import (
 // jobs exec a command on the owning edge; power jobs issue lifecycle ops on
 // the instance itself; action jobs invoke a template action by ID. Both fire
 // paths — the scheduler sweep (trigger schedule) and TriggerRunHandler
-// (trigger manual) — dispatch through fireAutomationJob so the kind
+// (trigger manual) — dispatch through FireAutomationJob so the kind
 // semantics and the template-controls gating stay identical everywhere.
 //
 // Resolution (instance/node/token/suspension) and recording (run rows,
 // audit, next_run_at re-arm) stay with the callers, whose contracts do not
 // change here: only the execution itself is shared.
 
-// automationFireCtx bundles the resolved pieces fireAutomationJob needs.
+// AutomationFireCtx bundles the resolved pieces FireAutomationJob needs.
 // Inst must be the fresh row (status + install_state drive guards).
-type automationFireCtx struct {
+type AutomationFireCtx struct {
 	Ctx   context.Context
 	Con   *sql.DB
 	Inst  *models.Instance
@@ -48,13 +48,13 @@ type AutomationFireResult struct {
 	Error      string
 }
 
-// automationDenied means the fire was refused by the instance's template
+// AutomationDenied means the fire was refused by the instance's template
 // controls (kind toggle or op/action allow-list). Callers must NOT record a
 // run row: the scheduler re-arms silently (like a suspended instance) and
 // the manual endpoint answers 403.
-type automationDenied struct{ msg string }
+type AutomationDenied struct{ msg string }
 
-func (e automationDenied) Error() string { return e.msg }
+func (e AutomationDenied) Error() string { return e.msg }
 
 // automationKindAllowed reports whether the instance's controls snapshot
 // permits jobs of this kind. Absent/garbled blocks allow all (backward
@@ -100,14 +100,14 @@ func powerControlKey(op string) string {
 	}
 }
 
-// fireAutomationJob executes one job fire per its kind. Shell and power run
+// FireAutomationJob executes one job fire per its kind. Shell and power run
 // to completion; action jobs invoke the template workflow (async — the run
 // row is the invocation receipt, progress is tracked via install_state).
-func fireAutomationJob(fctx automationFireCtx) (AutomationFireResult, error) {
+func FireAutomationJob(fctx AutomationFireCtx) (AutomationFireResult, error) {
 	job := fctx.Job
 	kind := models.NormalizeAutomationKind(job.Kind)
 	if !automationKindAllowed(fctx.Inst.Config, kind) {
-		return AutomationFireResult{}, automationDenied{fmt.Sprintf("forbidden: template disallows automation %s jobs for this instance", kind)}
+		return AutomationFireResult{}, AutomationDenied{fmt.Sprintf("forbidden: template disallows automation %s jobs for this instance", kind)}
 	}
 	switch kind {
 	case models.AutomationKindPower:
@@ -121,7 +121,7 @@ func fireAutomationJob(fctx automationFireCtx) (AutomationFireResult, error) {
 
 // fireShellJob is the original automation behaviour: exec Command on the
 // owning edge with the job's secret env.
-func fireShellJob(fctx automationFireCtx) (AutomationFireResult, error) {
+func fireShellJob(fctx AutomationFireCtx) (AutomationFireResult, error) {
 	job, inst := fctx.Job, fctx.Inst
 	keys, vals, _ := repository.NewSecretRepository(fctx.Con).ResolvedEnv(job.InstanceID, job.SecretRefs)
 	env := map[string]string{}
@@ -164,16 +164,16 @@ func fireShellJob(fctx automationFireCtx) (AutomationFireResult, error) {
 // start; transitional creating/installing rows refuse). Pre-mod hooks are
 // skipped: there is no request to veto with on the scheduler path, and the
 // manual path goes through the same executor.
-func firePowerJob(fctx automationFireCtx, op string) (AutomationFireResult, error) {
+func firePowerJob(fctx AutomationFireCtx, op string) (AutomationFireResult, error) {
 	inst := fctx.Inst
 	instRepo := repository.NewInstanceRepository(fctx.Con)
 	if !models.IsAutomationPowerOp(op) {
-		return AutomationFireResult{}, automationDenied{fmt.Sprintf("forbidden: unknown power op %q", op)}
+		return AutomationFireResult{}, AutomationDenied{fmt.Sprintf("forbidden: unknown power op %q", op)}
 	}
 	// Template allow-list for the op itself (same keys the power buttons
 	// enforce, so a job can never do what its own menu forbids).
 	if key := powerControlKey(op); key != "" && !instanceControlsAllow(inst.Config, key) {
-		return AutomationFireResult{}, automationDenied{fmt.Sprintf("forbidden: template disallows %s for this instance", op)}
+		return AutomationFireResult{}, AutomationDenied{fmt.Sprintf("forbidden: template disallows %s for this instance", op)}
 	}
 	// A deploy in flight owns the row — power ops over creating/installing
 	// race it (same rule RestartInstanceHandler enforces for restart).
@@ -262,10 +262,10 @@ func firePowerJob(fctx automationFireCtx, op string) (AutomationFireResult, erro
 // Actions UI uses. Invocation is async: the edge workflow keeps running
 // after InstallStart returns, so the run row is the invocation receipt
 // (progress is tracked via install_state, not by polling here).
-func fireActionJob(fctx automationFireCtx, actionID string) (AutomationFireResult, error) {
+func fireActionJob(fctx AutomationFireCtx, actionID string) (AutomationFireResult, error) {
 	inst := fctx.Inst
 	if !instanceControlsAllow(inst.Config, "allow_template_actions") {
-		return AutomationFireResult{}, automationDenied{"forbidden: template disallows template actions for this instance"}
+		return AutomationFireResult{}, AutomationDenied{"forbidden: template disallows template actions for this instance"}
 	}
 	// Never overlap an in-flight install workflow (same rule
 	// InvokeActionHandler enforces with 409).
