@@ -110,6 +110,14 @@ export interface InstanceShortcutConfig {
   // cap); the resolver clamps to 1..1800 so a hostile template can't force
   // a zero/negative budget.
   max_timeout_sec: number;
+  // Automation page: how many of this instance's jobs may run at the same
+  // time (scheduler run-together gate). 0/empty = no extra cap beyond the
+  // panel-wide limit; the resolver clamps to 1..64.
+  max_concurrent_runs: number;
+  // Automation page: how many jobs of this instance may be enabled at once
+  // (an enabled job owns its schedule timer and fires). 0/empty =
+  // unlimited; the resolver clamps to 1..1000.
+  max_active_jobs: number;
   // Terminal page: allow adding more terminal panes side-by-side ("add more
   // terminal together"). Each pane gets its own ID box; an ID matching a
   // template action's terminal_id streams that action's log + gated input.
@@ -189,6 +197,8 @@ const DEFAULT_SHORTCUT_BASE = {
   allow_power: true,
   allow_actions: true,
   max_timeout_sec: 0,
+  max_concurrent_runs: 0,
+  max_active_jobs: 0,
   terminal_allow_multi: true,
   terminal_max: '4',
   terminal_default_stop_on_exit: true,
@@ -395,6 +405,8 @@ function resolveShortcut(raw: unknown, fallback: InstanceShortcutConfig): Instan
       if (!Number.isFinite(n) || n <= 0) return fallback.max_timeout_sec;
       return Math.max(1, Math.min(1800, n));
     })(),
+    max_concurrent_runs: resolveCappedCount(r.max_concurrent_runs, fallback.max_concurrent_runs, 64),
+    max_active_jobs: resolveCappedCount(r.max_active_jobs, fallback.max_active_jobs, 1000),
     terminal_allow_multi: boolOr(r.terminal_allow_multi, fallback.terminal_allow_multi),
     terminal_max: typeof r.terminal_max === 'string' || typeof r.terminal_max === 'number'
       ? String(r.terminal_max)
@@ -514,6 +526,8 @@ const SHORTCUT_FIELDS: (keyof InstanceShortcutConfig)[] = [
   'allow_power',
   'allow_actions',
   'max_timeout_sec',
+  'max_concurrent_runs',
+  'max_active_jobs',
   'terminal_allow_multi',
   'terminal_max',
   'terminal_default_stop_on_exit',
@@ -545,6 +559,27 @@ export function automationTimeoutCeiling(controls: InstanceControls): number {
     return Math.max(1, Math.min(DEFAULT_AUTOMATION_MAX_TIMEOUT_SEC, Math.floor(v)));
   }
   return DEFAULT_AUTOMATION_MAX_TIMEOUT_SEC;
+}
+
+// resolveCappedCount normalises one automation count cap (run-together /
+// active-jobs): unset/garbled/<=0 falls back (0 = uncapped), positives
+// clamp to 1..cap. Mirrors the backend automationNumberField.
+function resolveCappedCount(v: unknown, fallback: number, cap: number): number {
+  if (v === undefined || v === null || v === '') return fallback;
+  const n = typeof v === 'number' ? Math.floor(v) : parseInt(String(v), 10);
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return Math.max(1, Math.min(cap, n));
+}
+
+// automationRunLimits resolves the template's run-together + active-jobs
+// caps (0 = uncapped). Mirrors AutomationConcurrentLimit /
+// AutomationMaxActiveJobs on the backend.
+export function automationRunLimits(controls: InstanceControls): { concurrent: number; active: number } {
+  const auto = controls?.shortcuts?.automation;
+  return {
+    concurrent: typeof auto?.max_concurrent_runs === 'number' && auto.max_concurrent_runs > 0 ? auto.max_concurrent_runs : 0,
+    active: typeof auto?.max_active_jobs === 'number' && auto.max_active_jobs > 0 ? auto.max_active_jobs : 0,
+  };
 }
 
 // isControlsCustom reports whether the block carries any non-default value
