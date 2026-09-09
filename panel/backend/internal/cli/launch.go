@@ -1150,26 +1150,34 @@ func metricsSweepLoop(interval time.Duration) {
 		// (container is up, install workflow in flight — its real CPU/RAM
 		// usage is still useful for the operator to see whether the
 		// install workflow is hammering the container or quietly idling).
-		rows, err := con.Query(`SELECT id, node_id, kind, external_id, name, config FROM instances WHERE status IN ('running', 'installing')`)
+		rows, err := con.Query(`SELECT i.id, i.node_id, i.kind, i.external_id, i.name,
+			COALESCE(i.config, ''), COALESCE(t.spec, '')
+			FROM instances i LEFT JOIN templates t ON t.id = i.template_id
+			WHERE i.status IN ('running', 'installing')`)
 		if err != nil {
 			con.Close()
 			continue
 		}
 		type instRow struct {
-			id         int64
-			nodeID     int64
-			kind       string
-			externalID string
-			name       string
-			config     string
+			id           int64
+			nodeID       int64
+			kind         string
+			externalID   string
+			name         string
+			config       string
+			templateSpec string
 		}
 		var toPoll []instRow
 		for rows.Next() {
 			var r instRow
 			var cfg sql.NullString
-			if err := rows.Scan(&r.id, &r.nodeID, &r.kind, &r.externalID, &r.name, &cfg); err == nil {
+			var tspec sql.NullString
+			if err := rows.Scan(&r.id, &r.nodeID, &r.kind, &r.externalID, &r.name, &cfg, &tspec); err == nil {
 				if cfg.Valid {
 					r.config = cfg.String
+				}
+				if tspec.Valid {
+					r.templateSpec = tspec.String
 				}
 				toPoll = append(toPoll, r)
 			}
@@ -1236,12 +1244,12 @@ func metricsSweepLoop(interval time.Duration) {
 				}
 
 				metricsBlob := string(resp.Metrics)
-				// Prefer the template quota (limits.disk, e.g. Minecraft
-				// 10240M) over the host df total the docker edge reports,
-				// mirroring refreshLiveState so the sweep doesn't clobber
-				// the on-demand path with the raw 144GB host number.
-				if inst.config != "" && metricsBlob != "" && metricsBlob != "{}" {
-					metricsBlob = models.EnrichMetricsWithDiskQuota(metricsBlob, inst.config)
+				// Prefer the quota (instance limits.disk, else template spec
+				// e.g. Minecraft 10240M) over the host df total the docker
+				// edge reports, mirroring refreshLiveState so the sweep
+				// doesn't clobber the on-demand path with raw 144GB.
+				if metricsBlob != "" && metricsBlob != "{}" {
+					metricsBlob = models.EnrichMetricsWithDiskQuotaFallback(metricsBlob, inst.config, inst.templateSpec)
 				}
 				live := models.InstanceLiveState{
 					InstanceID: inst.id,
