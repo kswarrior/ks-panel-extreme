@@ -316,25 +316,15 @@ const StackForm: React.FC = () => {
                     />
                   </GlassField>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <GlassField label="Version" htmlFor="stack-version">
-                    <input
-                      id="stack-version"
-                      value={draft.version}
-                      onChange={(e) => patch({ version: e.target.value })}
-                      placeholder="1.0.0"
-                    />
-                  </GlassField>
-                  <GlassField label="Category" htmlFor="stack-category">
-                    <select
-                      id="stack-category"
-                      value={draft.category}
-                      onChange={(e) => patch({ category: e.target.value })}
-                    >
-                      {STACK_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  </GlassField>
-                </div>
+                <GlassField label="Category" htmlFor="stack-category">
+                  <select
+                    id="stack-category"
+                    value={draft.category}
+                    onChange={(e) => patch({ category: e.target.value })}
+                  >
+                    {STACK_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </GlassField>
                 <GlassField label="Description" htmlFor="stack-description">
                   <textarea
                     id="stack-description"
