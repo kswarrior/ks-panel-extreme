@@ -2,6 +2,7 @@ package models
 
 import (
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -266,20 +267,8 @@ func anyToStr(v any) string {
 	case string:
 		return x
 	default:
-		return strings.TrimSpace(strings.ToLower(strings.TrimSpace(jsonStr(v))))
+		return fmt.Sprintf("%v", v)
 	}
-}
-
-func jsonStr(v any) string {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return ""
-	}
-	var s string
-	if err := json.Unmarshal(b, &s); err == nil {
-		return s
-	}
-	return strings.Trim(string(b), `"`)
 }
 
 // DiskQuotaBytes extracts the configured disk quota in bytes from an

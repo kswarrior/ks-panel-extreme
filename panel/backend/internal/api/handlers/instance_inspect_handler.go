@@ -80,6 +80,14 @@ func refreshLiveState(inst *models.Instance, ec *edge.Client) *models.InstanceLi
 	}
 	if len(resp.Metrics) > 0 {
 		ls.Metrics = string(resp.Metrics)
+		// The edge reports host-filesystem disk_total for docker (df / inside
+		// the container, e.g. 144GB) while the template declares a quota
+		// (e.g. Minecraft limits.disk=10240M). Prefer the quota so the
+		// Overview shows the reservation the operator configured. disk_used
+		// stays edge-owned (SizeRw + bind-mounts). No quota → unchanged.
+		if inst != nil && inst.Config != "" {
+			ls.Metrics = models.EnrichMetricsWithDiskQuota(ls.Metrics, inst.Config)
+		}
 	}
 	if len(resp.Processes) > 0 {
 		ls.Processes = string(resp.Processes)

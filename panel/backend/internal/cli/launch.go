@@ -1150,7 +1150,7 @@ func metricsSweepLoop(interval time.Duration) {
 		// (container is up, install workflow in flight — its real CPU/RAM
 		// usage is still useful for the operator to see whether the
 		// install workflow is hammering the container or quietly idling).
-		rows, err := con.Query(`SELECT id, node_id, kind, external_id, name FROM instances WHERE status IN ('running', 'installing')`)
+		rows, err := con.Query(`SELECT id, node_id, kind, external_id, name, config FROM instances WHERE status IN ('running', 'installing')`)
 		if err != nil {
 			con.Close()
 			continue
@@ -1161,11 +1161,16 @@ func metricsSweepLoop(interval time.Duration) {
 			kind       string
 			externalID string
 			name       string
+			config     string
 		}
 		var toPoll []instRow
 		for rows.Next() {
 			var r instRow
-			if err := rows.Scan(&r.id, &r.nodeID, &r.kind, &r.externalID, &r.name); err == nil {
+			var cfg sql.NullString
+			if err := rows.Scan(&r.id, &r.nodeID, &r.kind, &r.externalID, &r.name, &cfg); err == nil {
+				if cfg.Valid {
+					r.config = cfg.String
+				}
 				toPoll = append(toPoll, r)
 			}
 		}
@@ -1230,9 +1235,17 @@ func metricsSweepLoop(interval time.Duration) {
 					return
 				}
 
+				metricsBlob := string(resp.Metrics)
+				// Prefer the template quota (limits.disk, e.g. Minecraft
+				// 10240M) over the host df total the docker edge reports,
+				// mirroring refreshLiveState so the sweep doesn't clobber
+				// the on-demand path with the raw 144GB host number.
+				if inst.config != "" && metricsBlob != "" && metricsBlob != "{}" {
+					metricsBlob = models.EnrichMetricsWithDiskQuota(metricsBlob, inst.config)
+				}
 				live := models.InstanceLiveState{
 					InstanceID: inst.id,
-					Metrics:    string(resp.Metrics),
+					Metrics:    metricsBlob,
 					Processes:  string(resp.Processes),
 					Ports:      string(resp.Ports),
 					Info:       string(resp.Info),
