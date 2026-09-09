@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { listInstancePages } from '@/shared/api/admin';
 import { StatCard } from '@/shared/components/ui/StatDashboard';
 import GlassCard from '@/shared/components/ui/Card';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 
 function getErrorMessage(e: any, fallback: string): string {
@@ -45,6 +46,18 @@ const InstancePageSchedules: React.FC = () => {
     return <div className="glass-card rounded-xl animate-pulse h-24" />;
   }
 
+  if (error) {
+    return (
+      <ErrorState
+        variant="error"
+        title="Failed to load instance pages"
+        description={error}
+        retryLabel="Retry"
+        onRetry={() => void reload()}
+      />
+    );
+  }
+
   return (
     <div className="space-y-4">
       <PageActionsPill>
@@ -60,8 +73,6 @@ const InstancePageSchedules: React.FC = () => {
         <StatCard label="Total Pages" value={total} color="text-white" dotColor="bg-white" />
         <StatCard label="Scheduled Jobs" value={0} color="text-gray-400" dotColor="bg-gray-600" subLabel="Pages render on demand" />
       </div>
-
-      {error && <p className="text-red-400 text-sm">{error}</p>}
 
       <GlassCard>
         <h3 className="text-sm font-semibold text-white mb-1">No schedules</h3>

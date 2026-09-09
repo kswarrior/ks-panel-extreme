@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { listAdminApiKeys } from '@/shared/api/admin';
 import type { ApiKey } from '@/shared/types/apiKey';
 import GlassCard from '@/shared/components/ui/Card';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import { cardTimeMs, formatCardDate } from '@/shared/utils/cardDate';
 import { StatCard } from '@/shared/components/ui/StatDashboard';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
@@ -23,22 +24,21 @@ const ApiKeySchedules: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
 
-  useEffect(() => {
-    let live = true;
-    (async () => {
-      setLoading(true);
-      setErr('');
-      try {
-        const rows = await listAdminApiKeys();
-        if (live) setKeys(rows);
-      } catch (e: any) {
-        if (live) setErr(e?.response?.data || e?.message || 'Failed to load API keys');
-      } finally {
-        if (live) setLoading(false);
-      }
-    })();
-    return () => { live = false; };
+  const reload = useCallback(async () => {
+    setLoading(true);
+    setErr('');
+    try {
+      setKeys(await listAdminApiKeys());
+    } catch (e: any) {
+      setErr(e?.response?.data || e?.message || 'Failed to load API keys');
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
 
   const buckets = useMemo(() => {
     const expired: ApiKey[] = [];
@@ -61,6 +61,18 @@ const ApiKeySchedules: React.FC = () => {
       .sort((a, b) => daysLeft(a.expires_at!) - daysLeft(b.expires_at!)),
     [buckets],
   );
+
+  if (!loading && err) {
+    return (
+      <ErrorState
+        variant="error"
+        title="Failed to load API keys"
+        description={err}
+        retryLabel="Retry"
+        onRetry={() => void reload()}
+      />
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -85,7 +97,6 @@ const ApiKeySchedules: React.FC = () => {
       <GlassCard className="p-4">
         <h3 className="text-sm font-semibold text-white mb-3">Keys needing rotation</h3>
         {loading && <div className="rounded-xl animate-pulse h-16 bg-white/5" />}
-        {!loading && err && <p className="text-red-400 text-sm">{err}</p>}
         {!loading && !err && expiring.length === 0 && (
           <p className="text-sm text-gray-500">Nothing expiring in the next 30 days — rotation schedule is clear.</p>
         )}

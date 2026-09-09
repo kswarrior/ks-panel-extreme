@@ -4,6 +4,7 @@ import { getNotificationPrefs, getNotificationStats } from '../api/notifications
 import type { NotificationPrefs, NotificationStats } from '../types/notification';
 import { StatCard } from '@/shared/components/ui/StatDashboard';
 import GlassCard from '@/shared/components/ui/Card';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 
 function getErrorMessage(e: any, fallback: string): string {
@@ -55,6 +56,18 @@ const NotificationSchedules: React.FC = () => {
     return <div className="glass-card rounded-xl animate-pulse h-24" />;
   }
 
+  if (error) {
+    return (
+      <ErrorState
+        variant="error"
+        title="Failed to load notification schedule state"
+        description={error}
+        retryLabel="Retry"
+        onRetry={() => void reload()}
+      />
+    );
+  }
+
   const meta = MODE_META[prefs?.mode || ''] || MODE_META.off;
 
   return (
@@ -70,8 +83,6 @@ const NotificationSchedules: React.FC = () => {
           Broadcast
         </Link>
       </PageActionsPill>
-
-      {error && <p className="text-red-400 text-sm">{error}</p>}
 
       <GlassCard className="flex items-center gap-3">
         <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${meta.dot}`} />
