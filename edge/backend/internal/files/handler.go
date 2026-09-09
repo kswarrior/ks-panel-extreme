@@ -269,11 +269,23 @@ func hostFSDispatcher(w http.ResponseWriter, r *http.Request, op, hostPath strin
 	info, err := os.Stat(clean)
 	if err != nil {
 		// A missing TARGET is expected for create-style ops (write/upload
-		// onto a brand-new file): previously this fell back to docker exec,
-		// which broke every first upload into a fresh directory whenever
-		// the container was stopped. Verify the deepest existing ancestor
-		// instead and let the host writers create the file.
-		if !os.IsNotExist(err) || (op != "write" && op != "upload") {
+		// onto a brand-new file, copy/archive/extract destinations):
+		// previously this fell back to docker exec, which broke every first
+		// upload into a fresh directory whenever the container was stopped.
+		// Verify the deepest existing ancestor instead and let the host
+		// writers create the file.
+		if !os.IsNotExist(err) || (op != "write" && op != "upload" && op != "copy" && op != "archive" && op != "extract") {
+			// Search/list/stat/read on a missing path fall back to docker
+			// exec (container may still have it); creators stay on host.
+			if op == "search" {
+				searchHost(w, clean, searchQuery(r))
+				return true
+			}
+			return false
+		}
+		if op == "copy" || op == "archive" || op == "extract" {
+			// Source missing on host but container may have it — fall back
+			// to docker exec rather than failing here.
 			return false
 		}
 		parent := filepath.Dir(clean)
@@ -289,6 +301,8 @@ func hostFSDispatcher(w http.ResponseWriter, r *http.Request, op, hostPath strin
 		statHostPath(w, clean, info)
 	case "read":
 		readHostFile(w, clean, info)
+	case "search":
+		searchHost(w, clean, searchQuery(r))
 	case "write":
 		if !writeHostFile(w, r, clean) {
 			return false
@@ -301,6 +315,12 @@ func hostFSDispatcher(w http.ResponseWriter, r *http.Request, op, hostPath strin
 		mkdirHost(w, clean)
 	case "rename":
 		renameHost(w, r, clean)
+	case "copy":
+		copyHost(w, r, clean)
+	case "archive":
+		archiveHost(w, r, clean)
+	case "extract":
+		extractHost(w, r, clean)
 	case "delete":
 		deleteHost(w, clean, info)
 	case "chmod":
