@@ -1,11 +1,15 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import FormPage from '@/shared/components/forms/FormPage';
 import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
 import GlassField from '@/shared/components/ui/Field';
 import IconColorPicker from '@/shared/components/ui/IconColorPicker';
+import RolePermissions from '@/features/roles/components/RolePermissions';
+import { listPermissions } from '@/shared/api/admin';
+import type { Permission } from '@/shared/types/user';
 import {
+  STACK_CAPABILITIES,
   STACK_CATEGORIES,
   blankStackStudioDraft,
   emitStackStudioManifest,
@@ -40,18 +44,47 @@ const ComingSoon: React.FC<{ heading: string }> = ({ heading }) => (
   </div>
 );
 
+// Default access_level per stack capability. The backend treats access_level
+// as an opaque string (only the capability code is validated), so these are
+// sensible display defaults that match the capability name.
+function defaultAccessLevel(capability: string): string {
+  if (capability.endsWith('.read')) return 'read';
+  if (capability.includes('read_write')) return 'read_write';
+  return 'allow';
+}
+
 // StackForm — routed create form at /stacks/new, mirroring TemplateForm's
 // chrome (FormPage + bottom-right PageFormActionsPill with Cancel/Create).
-// Only the General section edits fields today; Install / Launch /
-// Permission are coming-soon placeholders. Submit installs through
-// POST /api/stacks/ (X-KS-Source: studio) so the backend validates the
-// manifest like any upload.
+// The Permission tab mirrors the API key form's permission section: a stack
+// capability checklist (all 6 known caps) plus the shared RolePermissions
+// picker backed by GET /api/permissions so every panel permission group is
+// available. Submit installs through POST /api/stacks/ (X-KS-Source: studio)
+// so the backend validates the manifest like any upload.
 const StackForm: React.FC = () => {
   const navigate = useNavigate();
   const [draft, setDraft] = useState(blankStackStudioDraft);
   const [tab, setTab] = useState<Tab>('meta');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [allPerms, setAllPerms] = useState<Permission[]>([]);
+  const [permsLoading, setPermsLoading] = useState(true);
+
+  // Load the full permission catalogue once so the Permission tab can render
+  // the same RolePermissions section the API key form uses.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const perms = await listPermissions();
+        if (!cancelled) setAllPerms(Array.isArray(perms) ? perms : []);
+      } catch {
+        if (!cancelled) setAllPerms([]);
+      } finally {
+        if (!cancelled) setPermsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const patch = (partial: Partial<typeof draft>) => {
     setDraft((d) => ({ ...d, ...partial }));
@@ -64,6 +97,45 @@ const StackForm: React.FC = () => {
     if (draft.slug && !/^[a-z0-9][a-z0-9-]{0,63}$/.test(draft.slug)) issues.push('Slug must be lowercase letters, digits and hyphens (max 64).');
     return issues;
   }, [draft]);
+
+  // ---- stack capability helpers (permissionsRequested[]) ----
+  const hasCapability = (cap: string) =>
+    draft.permissionsRequested.some((p) => p.capability === cap);
+
+  const toggleCapability = (cap: string) => {
+    setDraft((d) => {
+      const exists = d.permissionsRequested.some((p) => p.capability === cap);
+      if (exists) {
+        return { ...d, permissionsRequested: d.permissionsRequested.filter((p) => p.capability !== cap) };
+      }
+      return {
+        ...d,
+        permissionsRequested: [...d.permissionsRequested, { capability: cap, access_level: defaultAccessLevel(cap) }],
+      };
+    });
+  };
+
+  const selectAllCapabilities = () => {
+    setDraft((d) => ({
+      ...d,
+      permissionsRequested: STACK_CAPABILITIES.map((c) => ({
+        capability: c.key,
+        access_level: d.permissionsRequested.find((p) => p.capability === c.key)?.access_level || defaultAccessLevel(c.key),
+      })),
+    }));
+  };
+
+  const clearCapabilities = () => patch({ permissionsRequested: [] });
+
+  // ---- panel permission helpers (same vocabulary as API key form) ----
+  const panelPermissions = draft.panelPermissions || [];
+  const selectAllPanelPermissions = () => {
+    const keys = allPerms.map((p) => p.key);
+    patch({ panelPermissions: Array.from(new Set(keys)) });
+  };
+  const clearPanelPermissions = () => patch({ panelPermissions: [] });
+
+  const permissionCount = draft.permissionsRequested.length + panelPermissions.length;
 
   const submit = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -127,9 +199,14 @@ const StackForm: React.FC = () => {
                   key={t.key}
                   type="button"
                   onClick={() => setTab(t.key)}
-                  className={`ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-left transition ${tab === t.key ? 'ks-tab-active' : ''}`}
+                  className={`ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-left transition flex items-center justify-between gap-2 ${tab === t.key ? 'ks-tab-active' : ''}`}
                 >
-                  {t.label}
+                  <span>{t.label}</span>
+                  {t.key === 'permission' && permissionCount > 0 && (
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-white/10 border border-white/10 text-gray-200">
+                      {permissionCount}
+                    </span>
+                  )}
                 </button>
               ))}
             </nav>
@@ -211,7 +288,122 @@ const StackForm: React.FC = () => {
             )}
 
             {tab === 'permission' && (
-              <ComingSoon heading="Section D · Permission" />
+              <div className="space-y-4">
+                {/* Capabilities — every stack capability the backend knows.
+                    Requesting one seeds a stack_permissions row that the admin
+                    must approve before activation (same gate as mods). */}
+                <div className={sectionCls}>
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div>
+                      <h4 className="text-sm font-semibold text-white tracking-tight">Stack capabilities</h4>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        All {STACK_CAPABILITIES.length} capabilities the panel knows — requesting one seeds a pending approval for activation.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[11px] text-gray-500 font-mono">
+                        {draft.permissionsRequested.length}/{STACK_CAPABILITIES.length} selected
+                      </span>
+                      <button
+                        type="button"
+                        onClick={selectAllCapabilities}
+                        className="text-[11px] px-2 py-1 rounded border border-white/10 bg-white/[0.04] text-gray-300 hover:bg-white/10 hover:text-white transition-colors"
+                      >
+                        Select all
+                      </button>
+                      <button
+                        type="button"
+                        onClick={clearCapabilities}
+                        className="text-[11px] px-2 py-1 rounded border border-white/10 bg-white/[0.04] text-gray-400 hover:bg-white/10 hover:text-white transition-colors"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    {STACK_CAPABILITIES.map((cap) => {
+                      const on = hasCapability(cap.key);
+                      const req = draft.permissionsRequested.find((p) => p.capability === cap.key);
+                      return (
+                        <label
+                          key={cap.key}
+                          className={`ks-card flex items-start gap-3 p-3 rounded-lg cursor-pointer transition ${
+                            on ? 'border-emerald-700/40' : ''
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={on}
+                            onChange={() => toggleCapability(cap.key)}
+                            className="mt-1 w-4 h-4 accent-emerald-500 shrink-0"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm text-white flex items-center gap-1.5 flex-wrap">
+                              <span className={`w-2 h-2 rounded-full shrink-0 ${cap.dot}`} />
+                              {cap.label}
+                              <code className="text-[10px] font-mono text-gray-500">{cap.key}</code>
+                              {on && req?.access_level && (
+                                <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-white/10 text-gray-300 border border-white/10">
+                                  {req.access_level}
+                                </span>
+                              )}
+                            </p>
+                            <p className="text-xs text-gray-400 mt-0.5">{cap.description}</p>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Panel permissions — identical section to the API key form:
+                    the shared RolePermissions picker (Import groups, then
+                    configure verbs + Own/All scope). */}
+                <div className="flex items-center justify-between gap-3 flex-wrap px-1">
+                  <p className="text-xs text-gray-500">
+                    Panel permissions below use the same picker as the API key form
+                    {permsLoading ? ' — loading catalogue…' : ` — ${allPerms.length} keys available`}.
+                  </p>
+                  {!permsLoading && allPerms.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={selectAllPanelPermissions}
+                        className="text-[11px] px-2 py-1 rounded border border-white/10 bg-white/[0.04] text-gray-300 hover:bg-white/10 hover:text-white transition-colors"
+                      >
+                        Select all {allPerms.length} keys
+                      </button>
+                      <button
+                        type="button"
+                        onClick={clearPanelPermissions}
+                        className="text-[11px] px-2 py-1 rounded border border-white/10 bg-white/[0.04] text-gray-400 hover:bg-white/10 hover:text-white transition-colors"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {permsLoading ? (
+                  <div className="ks-card ks-form-card rounded-md p-6 text-center text-sm text-gray-500">
+                    Loading permissions…
+                  </div>
+                ) : (
+                  <RolePermissions
+                    formPermissions={panelPermissions}
+                    setFormPermissions={(updater) =>
+                      setDraft((prev) => {
+                        const cur = prev.panelPermissions || [];
+                        const next =
+                          typeof updater === 'function'
+                            ? (updater as (v: string[]) => string[])(cur)
+                            : updater;
+                        return { ...prev, panelPermissions: next };
+                      })
+                    }
+                    permissions={allPerms}
+                  />
+                )}
+              </div>
             )}
           </div>
         </div>
