@@ -130,6 +130,10 @@ func templateUploadTestDB(t *testing.T) {
 			t.Fatalf("alter templates table: %v", err)
 		}
 	}
+	// Get() resolves the owner name with a users subquery.
+	if _, err := db.Exec(`CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT NOT NULL DEFAULT '')`); err != nil {
+		t.Fatalf("create users table: %v", err)
+	}
 	t.Setenv("KSPANEL_DB", p)
 	t.Setenv("KSPANEL_DB_DSN", "")
 }
