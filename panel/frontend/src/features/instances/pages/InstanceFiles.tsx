@@ -391,7 +391,11 @@ const InstanceFiles: React.FC<{ instanceId: number; filesSlug: string }> = ({ in
       return;
     }
     const kind = classifyEntry(e);
-    if (kind === 'binary' || kind === 'archive' || kind === 'image') {
+    if (kind === 'image') {
+      void openPreview(e);
+      return;
+    }
+    if (kind === 'binary' || kind === 'archive') {
       toast('Binary file — download to view', 'error');
       return;
     }
