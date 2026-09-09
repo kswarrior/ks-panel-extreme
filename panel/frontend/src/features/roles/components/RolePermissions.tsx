@@ -185,22 +185,19 @@ const RolePermissions: React.FC<RolePermissionsProps> = ({ formPermissions, setF
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formPermissions, configureArea, permByKey]);
 
-  // helper to sync area OWN/ALL keys in formPermissions from per-key map
-  const syncAreaScopesToPermissions = (area: PermissionArea, scopes: Record<string, 'OWN' | 'ALL'>) => {
-    const checkedKeys = [
-      ...(area.umbrella ? [area.umbrella] : []),
-      ...Object.values(area.keys).filter(Boolean) as string[],
-      ...(area.extraKeys ?? []),
-    ].filter((k) => permByKey.has(k) && formPermissions.includes(k) || scopes[k]); // actually use scopes to know checked
-    // But we need to consider currently checked keys (formPermissions) + scopes
-    // Simpler: look at scopes entries for this area's keys that are checked
+  // helper to sync area OWN/ALL keys in formPermissions from per-key map.
+  // `perms` must be the post-update permission list — callers that already
+  // queued a formPermissions change pass it explicitly instead of relying on
+  // the (stale) render closure, so rapid toggle/remove sequences resolve
+  // against the membership that will actually be committed.
+  const syncAreaScopesToPermissions = (area: PermissionArea, scopes: Record<string, 'OWN' | 'ALL'>, perms: string[] = formPermissions) => {
     const areaKeysSet = new Set([
       ...(area.umbrella ? [area.umbrella] : []),
       ...Object.values(area.keys).filter(Boolean) as string[],
       ...(area.extraKeys ?? []),
     ]);
     const values = Object.entries(scopes)
-      .filter(([k]) => areaKeysSet.has(k) && formPermissions.includes(k))
+      .filter(([k]) => areaKeysSet.has(k) && perms.includes(k))
       .map(([, v]) => v);
     // If no checked keys, keep existing scopes as is (don't auto-remove)
     // For bulk operations we will have at least one checked key, so values non-empty
@@ -229,30 +226,30 @@ const RolePermissions: React.FC<RolePermissionsProps> = ({ formPermissions, setF
   };
 
   // ---- permission mutators ----
+  // Note: updaters must stay pure (no setState / side effects inside) so
+  // StrictMode double-invocation can't double-apply them. Scope sync runs
+  // as a separate queued update against explicitly computed state.
   const togglePerm = (key: string) => {
     const area = findAreaForKey(key);
     const isRemoving = formPermissions.includes(key);
     if (isRemoving) {
-      setKeyScopes((prev) => {
-        const n = { ...prev };
-        delete n[key];
-        // after removal, sync scopes
-        if (area) {
-          // defer sync to next tick? we can sync after state update via effect, but do inline
-          // we need to compute new scopes without this key
-          setTimeout(() => syncAreaScopesToPermissions(area, n), 0);
-        }
-        return n;
-      });
+      const n = { ...keyScopes };
+      delete n[key];
+      setKeyScopes(n);
+      if (area) syncAreaScopesToPermissions(area, n, formPermissions.filter((p) => p !== key));
     } else {
       // adding
       const defaultScope: 'OWN' | 'ALL' =
         keyScopes[key] ?? (formPermissions.includes(area?.allKey!) ? 'ALL' : formPermissions.includes(area?.ownKey!) ? 'OWN' : 'ALL');
-      setKeyScopes((prev) => {
-        const n = { ...prev, [key]: defaultScope };
-        if (area) setTimeout(() => syncAreaScopesToPermissions(area, n), 0);
-        return n;
-      });
+      const n = { ...keyScopes, [key]: defaultScope };
+      setKeyScopes(n);
+      if (area) {
+        syncAreaScopesToPermissions(
+          area,
+          n,
+          formPermissions.includes(key) ? formPermissions : [...formPermissions, key],
+        );
+      }
     }
     setFormPermissions((f) => {
       const has = f.includes(key);
@@ -262,8 +259,6 @@ const RolePermissions: React.FC<RolePermissionsProps> = ({ formPermissions, setF
       // ensure a scope is present – default to ALL when first verb of area is enabled
       if (area?.ownKey && area?.allKey && !next.includes(area.ownKey) && !next.includes(area.allKey)) {
         next.push(area.allKey);
-        // also set per-key scope to ALL for this key if not set
-        setKeyScopes((prev) => ({ ...prev, [key]: prev[key] ?? 'ALL' }));
       }
       return next;
     });
