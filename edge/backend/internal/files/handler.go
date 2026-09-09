@@ -153,7 +153,7 @@ func Handler(token string) http.Handler {
 		case "stat":
 			statDockerPath(ctx, w, name, path)
 		case "search":
-			searchDocker(ctx, w, name, path, searchQuery(r))
+			searchDocker(ctx, w, name, path, searchQuery(r), searchLimit(r))
 		case "write":
 			writeDockerFile(ctx, w, r, name, path)
 		case "upload":
@@ -275,12 +275,10 @@ func hostFSDispatcher(w http.ResponseWriter, r *http.Request, op, hostPath strin
 		// Verify the deepest existing ancestor instead and let the host
 		// writers create the file.
 		if !os.IsNotExist(err) || (op != "write" && op != "upload" && op != "copy" && op != "archive" && op != "extract") {
-			// Search/list/stat/read on a missing path fall back to docker
-			// exec (container may still have it); creators stay on host.
-			if op == "search" {
-				searchHost(w, clean, searchQuery(r))
-				return true
-			}
+			// Search/list/stat/read on a missing host path fall back to
+			// docker exec (the container may still have it); creators stay
+			// on host. Serving an empty host search here would hide live
+			// container files behind a misleading "0 hits".
 			return false
 		}
 		if op == "copy" || op == "archive" || op == "extract" {
@@ -302,7 +300,7 @@ func hostFSDispatcher(w http.ResponseWriter, r *http.Request, op, hostPath strin
 	case "read":
 		readHostFile(w, clean, info)
 	case "search":
-		searchHost(w, clean, searchQuery(r))
+		searchHost(w, clean, searchQuery(r), searchLimit(r))
 	case "write":
 		if !writeHostFile(w, r, clean) {
 			return false
@@ -1476,13 +1474,15 @@ func extractTarGz(src, dest string) (int, error) {
 
 // searchHost implements op=search on the host filesystem: case-insensitive
 // substring match on the file name, walked recursively from the search root.
-func searchHost(w http.ResponseWriter, root, query string) {
+func searchHost(w http.ResponseWriter, root, query string, limit int) {
 	query = strings.TrimSpace(query)
 	if query == "" {
 		writeErr(w, http.StatusBadRequest, "search requires a 'q' parameter")
 		return
 	}
-	limit := 100
+	if limit <= 0 || limit > 200 {
+		limit = 100
+	}
 	lower := strings.ToLower(query)
 	type hit struct {
 		Rel     string `json:"path"`
@@ -1679,13 +1679,15 @@ func extractDocker(ctx context.Context, w http.ResponseWriter, r *http.Request, 
 // searchDocker implements op=search inside the container: one `find` to
 // enumerate (capped), substring filter in Go (no shell-injected globs),
 // then a single batched `stat` for the surviving hits so sizes/dates render.
-func searchDocker(ctx context.Context, w http.ResponseWriter, name, dir, query string) {
+func searchDocker(ctx context.Context, w http.ResponseWriter, name, dir, query string, limit int) {
 	query = strings.TrimSpace(query)
 	if query == "" {
 		writeErr(w, http.StatusBadRequest, "search requires a 'q' parameter")
 		return
 	}
-	limit := 100
+	if limit <= 0 || limit > 200 {
+		limit = 100
+	}
 	findCmd := exec.CommandContext(ctx, "docker", "exec", name,
 		"sh", "-c", "find "+shellQuote(dir)+" -maxdepth 6 -print 2>/dev/null | head -n 5000")
 	raw, err := findCmd.Output()
