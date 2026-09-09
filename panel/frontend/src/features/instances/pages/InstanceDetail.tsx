@@ -9,10 +9,11 @@
 //   • InstanceDynamicPage — resolves the URL slug against the INSTANCE's
 //                           deploy-time spec and renders CustomPageView.
 //
-// Files / Terminal / Ports are self-sufficient BUILTINS: they render natively
+// Files / Terminal / Ports / Automation are self-sufficient BUILTINS: they render natively
 // with zero library imports (Files falls back to the bundled library starter
 // when the instance has no files row; Terminal is the native xterm bridge;
-// Ports is the native editor). Their backend bridges skip the page whitelist
+// Ports is the native editor; Automation is the native jobs + runs manager).
+// Their backend bridges skip the page whitelist
 // (auth + permission gates still apply). Tool navigation lives in the
 // floating instance menu's shortcut row — there is no Tools card on the page.
 // A slug is allowed when the instance's own config lists it in `pages`

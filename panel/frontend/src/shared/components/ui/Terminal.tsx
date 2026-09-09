@@ -302,7 +302,7 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
   // red. Lines the app already colored (contain ESC) are left alone, and
   // side shells / workflow panes are never tinted (byte-faithful).
   const TINT_ERROR_RE = /error|exception|failed|severe|fatal|unable to|could not|crash/i;
-  const TINT_WARN_RE = /warn(ing)?|\*\*\*/;
+  const TINT_WARN_RE = /warn(ing)?|\*\*\*/i;
   const tintDecRef = useRef<TextDecoder | null>(null);
   const tintBufRef = useRef('');
   const tintLine = (line: string): string => {
