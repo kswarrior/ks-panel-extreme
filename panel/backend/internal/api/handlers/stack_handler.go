@@ -738,6 +738,128 @@ func DeactivateStackHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// InstallStackHandler re-materializes a stack's install artifacts — the
+// .ksps package rebuilt from the stored manifest+spec plus the data dir —
+// without touching grants or active state. Repairs a stack whose on-disk
+// package went missing or desynced from its manifest.
+func InstallStackHandler(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	repo, closeFn := openStackRepo()
+	if repo == nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	defer closeFn()
+	s, err := repo.GetStack(id)
+	if err != nil {
+		if errors.Is(err, repository.ErrStackNotFound) {
+			http.Error(w, "stack not found", http.StatusNotFound)
+			return
+		}
+		log.Println("InstallStack GetStack error:", err)
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	if stackOwnBlocked(r, s) {
+		http.Error(w, "forbidden: own-scope may only install stacks you uploaded", http.StatusForbidden)
+		return
+	}
+	pkg, err := stackstore.BuildPackageZip(s.Manifest, s.Spec, nil)
+	if err != nil {
+		log.Println("InstallStack build package error:", err)
+		http.Error(w, "build package: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := stackstore.SavePackage(s.Slug, pkg); err != nil {
+		log.Printf("InstallStack: save .ksps for %q: %v", s.Slug, err)
+		http.Error(w, "save package: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if _, derr := stackstore.EnsureDataDir(s.Slug); derr != nil {
+		log.Printf("InstallStack: data dir for %q: %v", s.Slug, derr)
+	}
+	RecordActivity(r, repository.ActivityInput{
+		Category: models.ActivityCategoryStack, Action: "install", TargetID: &id,
+		TargetLabel: s.Name,
+		Message:     fmt.Sprintf("installed stack %q (package rebuilt, %d bytes)", s.Name, len(pkg)),
+	})
+	writeJSON(w, toStackResponse(repo, s))
+}
+
+// ReinstallStackHandler resets a stack to a fresh install: deactivates it,
+// flips every capability grant back to pending, and re-materializes the
+// .ksps package + data dir from the stored manifest+spec. Workdir files and
+// data are kept; the stack must be re-granted and re-activated afterwards.
+func ReinstallStackHandler(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	repo, closeFn := openStackRepo()
+	if repo == nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	defer closeFn()
+	s, err := repo.GetStack(id)
+	if err != nil {
+		if errors.Is(err, repository.ErrStackNotFound) {
+			http.Error(w, "stack not found", http.StatusNotFound)
+			return
+		}
+		log.Println("ReinstallStack GetStack error:", err)
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	if stackOwnBlocked(r, s) {
+		http.Error(w, "forbidden: own-scope may only reinstall stacks you uploaded", http.StatusForbidden)
+		return
+	}
+	// Build the package first so a build failure aborts before any state
+	// mutation (deactivate + grant reset).
+	pkg, err := stackstore.BuildPackageZip(s.Manifest, s.Spec, nil)
+	if err != nil {
+		log.Println("ReinstallStack build package error:", err)
+		http.Error(w, "build package: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := repo.Deactivate(id); err != nil && !errors.Is(err, repository.ErrStackNotFound) {
+		log.Println("ReinstallStack deactivate error:", err)
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	if err := repo.ResetStackGrants(id); err != nil {
+		log.Println("ReinstallStack reset grants error:", err)
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	if err := stackstore.SavePackage(s.Slug, pkg); err != nil {
+		log.Printf("ReinstallStack: save .ksps for %q: %v", s.Slug, err)
+		http.Error(w, "save package: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if _, derr := stackstore.EnsureDataDir(s.Slug); derr != nil {
+		log.Printf("ReinstallStack: data dir for %q: %v", s.Slug, derr)
+	}
+	fresh, gerr := repo.GetStack(id)
+	if gerr != nil {
+		log.Println("ReinstallStack reload error:", gerr)
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	RecordActivity(r, repository.ActivityInput{
+		Category: models.ActivityCategoryStack, Action: "reinstall", TargetID: &id,
+		TargetLabel: s.Name,
+		Message:     fmt.Sprintf("reinstalled stack %q (deactivated, grants reset to pending)", s.Name),
+	})
+	writeJSON(w, toStackResponse(repo, fresh))
+}
+
 // StackNavEntry is one sidebar entry for an active stack.
 type StackNavEntry struct {
 	Slug  string `json:"slug"`

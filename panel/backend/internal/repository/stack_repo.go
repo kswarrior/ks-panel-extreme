@@ -621,6 +621,16 @@ func (r *StackRepository) SetGrants(stackID int64, decisions []StackGrantDecisio
 	return tx.Commit()
 }
 
+// ResetStackGrants flips every requested capability back to pending
+// (granted = 0) so a reinstall starts a fresh approval cycle. Zero rows is
+// a no-op, never an error.
+func (r *StackRepository) ResetStackGrants(stackID int64) error {
+	if _, err := r.db.Exec(`UPDATE stack_permissions SET granted = 0 WHERE stack_id = ?`, stackID); err != nil {
+		return err
+	}
+	return nil
+}
+
 // AllGranted reports whether every requested capability is approved. Zero
 // requested caps is trivially granted.
 func (r *StackRepository) AllGranted(stackID int64) (bool, error) {
