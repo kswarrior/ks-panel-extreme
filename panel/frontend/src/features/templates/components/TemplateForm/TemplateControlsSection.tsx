@@ -170,6 +170,11 @@ const ShortcutDefaultGlyph: React.FC<{ shortcutKey: ShortcutKey }> = ({ shortcut
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1" /></svg>
     );
   }
+  if (shortcutKey === 'env') {
+    return (
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" aria-hidden="true"><path d="M8 3H7a2 2 0 0 0-2 2v4a2 2 0 0 1-2 2 2 2 0 0 1 2 2v4a2 2 0 0 0 2 2h1" /><path d="M16 3h1a2 2 0 0 1 2 2v4a2 2 0 0 0 2 2 2 2 0 0 0-2 2v4a2 2 0 0 1-2 2h-1" /></svg>
+    );
+  }
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" aria-hidden="true"><rect x="2" y="7" width="20" height="8" rx="2" /><path d="M6 7v-2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2" /><path d="M6 15v2a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-2" /></svg>
   );
@@ -189,7 +194,7 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
   const [openTabConfig, setOpenTabConfig] = useState<'details' | 'manage' | null>(null);
   const toggleTabConfig = (tab: 'details' | 'manage') =>
     setOpenTabConfig((prev) => (prev === tab ? null : tab));
-  // Shortcut editor: which of Files / Terminal / Ports / Automation shows its slug +
+  // Shortcut editor: which of Files / Terminal / Ports / Automation / Env shows its slug +
   // name + SVG + page-option config panel.
   const [openShortcut, setOpenShortcut] = useState<ShortcutKey | null>(null);
   const toggleShortcut = (key: ShortcutKey) =>

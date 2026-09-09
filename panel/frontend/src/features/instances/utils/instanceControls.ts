@@ -10,9 +10,9 @@
 
 export type OverviewDefaultTab = 'details' | 'monitoring' | 'manage' | 'activity';
 
-export type ShortcutKey = 'files' | 'terminal' | 'ports' | 'automation';
+export type ShortcutKey = 'files' | 'terminal' | 'ports' | 'automation' | 'env';
 
-export const SHORTCUT_KEYS: ShortcutKey[] = ['files', 'terminal', 'ports', 'automation'];
+export const SHORTCUT_KEYS: ShortcutKey[] = ['files', 'terminal', 'ports', 'automation', 'env'];
 
 // TerminalAllowInput mirrors the template action's per-action gate so pane
 // defaults and action settings speak the same three values.
@@ -68,7 +68,7 @@ export const MAX_TERMINAL_SHORTCUTS = 20;
 export const SUGGESTED_DEFAULT_TERMINAL: TerminalDefaultDef = { name: 'Main', id: 'main' };
 
 // InstanceShortcutConfig — per-tool config for the floating menu's quick
-// shortcuts (Files / Terminal / Ports / Automation) + the page they open. Stored inside
+// shortcuts (Files / Terminal / Ports / Automation / Env) + the page they open. Stored inside
 // `instance_controls.shortcuts` so it snapshots per template/instance like
 // the rest of the block; missing keys fall back to the defaults below.
 export interface InstanceShortcutConfig {
@@ -134,6 +134,7 @@ export interface InstanceShortcuts {
   terminal: InstanceShortcutConfig;
   ports: InstanceShortcutConfig;
   automation: InstanceShortcutConfig;
+  env: InstanceShortcutConfig;
 }
 
 export interface InstanceControls {
@@ -166,7 +167,7 @@ export interface InstanceControls {
   allow_external_id_copy: boolean;
   allow_node_link: boolean;
   allow_template_link: boolean;
-  // Floating menu — quick shortcuts (Files / Terminal / Ports / Automation) above Actions.
+  // Floating menu — quick shortcuts (Files / Terminal / Ports / Automation / Env) above Actions.
   shortcuts: InstanceShortcuts;
 }
 
@@ -198,6 +199,7 @@ export const DEFAULT_SHORTCUTS: InstanceShortcuts = {
   terminal: { ...DEFAULT_SHORTCUT_BASE, slug: 'terminal', label: 'Terminal', icon_color: '#34d399' },
   ports: { ...DEFAULT_SHORTCUT_BASE, slug: 'ports', label: 'Ports', icon_color: '#38bdf8' },
   automation: { ...DEFAULT_SHORTCUT_BASE, slug: 'automation', label: 'Automation', icon_color: '#a78bfa' },
+  env: { ...DEFAULT_SHORTCUT_BASE, slug: 'env', label: 'Env', icon_color: '#fb7185' },
 };
 
 export const DEFAULT_INSTANCE_CONTROLS: InstanceControls = {
@@ -228,6 +230,7 @@ export const DEFAULT_INSTANCE_CONTROLS: InstanceControls = {
     terminal: { ...DEFAULT_SHORTCUTS.terminal },
     ports: { ...DEFAULT_SHORTCUTS.ports },
     automation: { ...DEFAULT_SHORTCUTS.automation },
+    env: { ...DEFAULT_SHORTCUTS.env },
   },
 };
 
@@ -403,6 +406,7 @@ function resolveShortcuts(raw: unknown): InstanceShortcuts {
     terminal: resolveShortcut(r.terminal, DEFAULT_SHORTCUTS.terminal),
     ports: resolveShortcut(r.ports, DEFAULT_SHORTCUTS.ports),
     automation: resolveShortcut(r.automation, DEFAULT_SHORTCUTS.automation),
+    env: resolveShortcut(r.env, DEFAULT_SHORTCUTS.env),
   };
 }
 

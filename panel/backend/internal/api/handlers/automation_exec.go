@@ -83,6 +83,74 @@ func automationKindAllowed(configJSON, kind string) bool {
 	return true
 }
 
+// DefaultAutomationMaxTimeoutSec is the ceiling applied when the
+// instance's controls snapshot carries no usable max (missing/garbled =
+// allow-all, mirroring automationKindAllowed). It matches the frontend
+// New-job picker cap (1800s).
+const DefaultAutomationMaxTimeoutSec = 1800
+
+// automationMaxTimeoutSec reads shortcuts.automation.max_timeout_sec from
+// the instance's controls snapshot. Missing/garbled/<=0 means the default
+// ceiling; the value is clamped to 1..1800 so a hostile template can't
+// force a zero/negative budget or an overflow-scale edge dial.
+func automationMaxTimeoutSec(configJSON string) int {
+	var root map[string]any
+	if err := json.Unmarshal([]byte(configJSON), &root); err != nil {
+		return DefaultAutomationMaxTimeoutSec
+	}
+	ic, _ := root["instance_controls"].(map[string]any)
+	shortcuts, _ := ic["shortcuts"].(map[string]any)
+	auto, _ := shortcuts["automation"].(map[string]any)
+	if auto == nil {
+		return DefaultAutomationMaxTimeoutSec
+	}
+	raw, ok := auto["max_timeout_sec"]
+	if !ok {
+		return DefaultAutomationMaxTimeoutSec
+	}
+	n := 0
+	switch t := raw.(type) {
+	case float64:
+		n = int(t)
+	case int:
+		n = t
+	case int64:
+		n = int(t)
+	case string:
+		var p int
+		if _, err := fmt.Sscanf(t, "%d", &p); err == nil {
+			n = p
+		}
+	}
+	if n <= 0 {
+		return DefaultAutomationMaxTimeoutSec
+	}
+	if n > DefaultAutomationMaxTimeoutSec {
+		return DefaultAutomationMaxTimeoutSec
+	}
+	return n
+}
+
+// effectiveAutomationTimeout caps the operator's per-job timeout by the
+// template ceiling: effective = min(jobTimeout or 300 default, configMax).
+// A user value above the ceiling never reaches the edge — the write path
+// rejects it (validateAutomationUpsert) and the fire path clamps it, so
+// config >= user passes through while config < user is cut to config.
+func effectiveAutomationTimeout(jobTimeoutSec int, configJSON string) int {
+	to := jobTimeoutSec
+	if to <= 0 {
+		to = 300
+	}
+	max := automationMaxTimeoutSec(configJSON)
+	if to > max {
+		to = max
+	}
+	if to < 1 {
+		to = 1
+	}
+	return to
+}
+
 // powerControlKey maps a power op to its instance-controls gate, mirroring
 // instanceAction (start/stop/kill) and RestartInstanceHandler (restart).
 func powerControlKey(op string) string {
@@ -103,11 +171,27 @@ func powerControlKey(op string) string {
 // FireAutomationJob executes one job fire per its kind. Shell and power run
 // to completion; action jobs invoke the template workflow (async — the run
 // row is the invocation receipt, progress is tracked via install_state).
+// Jobs with non-empty Steps run multi-step mode: each step fires in order
+// gated by its if condition (success|failure|always, GitHub-Actions
+// style); the aggregated result carries the combined output and the
+// failing exit (0 when no executed step failed). Skipped steps leave no
+// output but are named in stdout so the run reads honestly.
 func FireAutomationJob(fctx AutomationFireCtx) (AutomationFireResult, error) {
 	job := fctx.Job
 	kind := models.NormalizeAutomationKind(job.Kind)
 	if !automationKindAllowed(fctx.Inst.Config, kind) {
 		return AutomationFireResult{}, AutomationDenied{fmt.Sprintf("forbidden: template disallows automation %s jobs for this instance", kind)}
+	}
+	if len(job.Steps) > 0 {
+		// Pre-check every step kind before running any: a job can never
+		// partially run what its own template forbids.
+		for i := range job.Steps {
+			sk := models.NormalizeAutomationKind(job.Steps[i].Kind)
+			if !automationKindAllowed(fctx.Inst.Config, sk) {
+				return AutomationFireResult{}, AutomationDenied{fmt.Sprintf("forbidden: template disallows automation %s jobs for this instance (step %d)", sk, i+1)}
+			}
+		}
+		return fireStepsJob(fctx)
 	}
 	switch kind {
 	case models.AutomationKindPower:
@@ -117,6 +201,102 @@ func FireAutomationJob(fctx AutomationFireCtx) (AutomationFireResult, error) {
 	default:
 		return fireShellJob(fctx)
 	}
+}
+
+// fireStepsJob runs the job's Steps sequentially with if gating. hasFailed
+// tracks whether any executed step failed (non-zero exit or error); success
+// steps run only when !hasFailed, failure steps only when hasFailed, always
+// steps always run. A step failure does not abort the job — later
+// failure/always steps still fire (GitHub semantics); the job exit is the
+// last failure's exit (0 when clean).
+func fireStepsJob(fctx AutomationFireCtx) (AutomationFireResult, error) {
+	job := fctx.Job
+	jobTimeout := effectiveAutomationTimeout(job.TimeoutSec, fctx.Inst.Config)
+	var outStd, outErr, outErrs []string
+	runCmd := fmt.Sprintf("steps:%d", len(job.Steps))
+	exitCode := 0
+	hasFailed := false
+	started := time.Now()
+	for i := range job.Steps {
+		st := job.Steps[i]
+		cond := models.NormalizeAutomationIf(st.If)
+		if cond == models.AutomationIfSuccess && hasFailed {
+			outStd = append(outStd, fmt.Sprintf("== step %d: %s (skipped: previous step failed, if: success) ==", i+1, st.Name))
+			continue
+		}
+		if cond == models.AutomationIfFailure && !hasFailed {
+			outStd = append(outStd, fmt.Sprintf("== step %d: %s (skipped: no previous failure, if: failure) ==", i+1, st.Name))
+			continue
+		}
+		stepTimeout := st.TimeoutSec
+		if stepTimeout <= 0 {
+			stepTimeout = jobTimeout
+		}
+		if stepTimeout > jobTimeout {
+			stepTimeout = jobTimeout
+		}
+		var res AutomationFireResult
+		sk := models.NormalizeAutomationKind(st.Kind)
+		switch sk {
+		case models.AutomationKindPower:
+			res, _ = firePowerJob(fctx, st.Payload)
+		case models.AutomationKindAction:
+			res, _ = fireActionJob(fctx, st.Payload)
+		default:
+			res, _ = fireShellCommand(fctx, st.Command, stepTimeout)
+		}
+		// firePower/fireAction return Denied only for unknown op shapes
+		// (validated at write time); surface as a step failure, not a job
+		// refusal — the steps already passed the kind pre-check above.
+		header := fmt.Sprintf("== step %d: %s [%s, if: %s] ==", i+1, st.Name, sk, cond)
+		outStd = append(outStd, header)
+		if res.Stdout != "" {
+			outStd = append(outStd, res.Stdout)
+		}
+		if res.Stderr != "" {
+			outErr = append(outErr, fmt.Sprintf("[step %d] %s", i+1, res.Stderr))
+		}
+		stepFailed := res.ExitCode != 0 || res.Error != ""
+		if stepFailed {
+			hasFailed = true
+			exitCode = res.ExitCode
+			if exitCode == 0 {
+				exitCode = -1
+			}
+			msg := res.Error
+			if msg == "" {
+				msg = fmt.Sprintf("step %d %q failed (exit=%d)", i+1, st.Name, res.ExitCode)
+			}
+			outErrs = append(outErrs, fmt.Sprintf("[step %d %s] %s", i+1, st.Name, msg))
+		}
+		_ = res.RunCommand
+	}
+	finished := time.Now()
+	join := func(parts []string) string {
+		s := ""
+		for i, p := range parts {
+			if i > 0 {
+				s += "\n"
+			}
+			s += p
+		}
+		return s
+	}
+	errStr := ""
+	for i, e := range outErrs {
+		if i > 0 {
+			errStr += "; "
+		}
+		errStr += e
+	}
+	return AutomationFireResult{
+		RunCommand: runCmd,
+		Stdout:     join(outStd),
+		Stderr:     join(outErr),
+		ExitCode:   exitCode,
+		DurationMS: finished.Sub(started).Milliseconds(),
+		Error:      errStr,
+	}, nil
 }
 
 // fireShellJob is the original automation behaviour: exec Command on the
