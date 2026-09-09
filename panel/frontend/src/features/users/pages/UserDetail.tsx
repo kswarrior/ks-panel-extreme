@@ -4,6 +4,7 @@ import { getPublicProfile } from '@/features/account/api/profile';
 import { listRoles, listUsers, listInstances, listAdminApiKeys } from '@/shared/api/admin';
 import type { Profile, Role, User } from '@/shared/types/user';
 import GlassCard from '@/shared/components/ui/Card';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import Avatar from '@/shared/components/ui/Avatar';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import { PageActionsPill } from '@/shared/components/ui/PageActionsPill';
@@ -136,13 +137,15 @@ const UserDetail: React.FC = () => {
           </button>
           <h2 className="text-xl font-semibold text-white">User Detail</h2>
         </div>
-        <GlassCard className="p-6 border border-red-900/40">
-          <p className="text-red-400 text-sm">{error}</p>
-          <div className="mt-3 flex gap-2">
-            <button onClick={() => window.location.reload()} className="px-3 py-1.5 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white">Retry</button>
-            <button onClick={back} className="px-3 py-1.5 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-gray-300">Back to users</button>
-          </div>
-        </GlassCard>
+        <ErrorState
+          variant="error"
+          title="Failed to load user"
+          description={error}
+          retryLabel="Retry"
+          onRetry={() => window.location.reload()}
+          backLabel="Back to users"
+          onBack={back}
+        />
       </div>
     );
   }
@@ -156,7 +159,12 @@ const UserDetail: React.FC = () => {
           </button>
           <h2 className="text-xl font-semibold text-white">User Detail</h2>
         </div>
-        <p className="text-gray-400">User not found</p>
+        <ErrorState
+          variant="not-found"
+          title="User not found"
+          backLabel="Back to users"
+          onBack={back}
+        />
       </div>
     );
   }

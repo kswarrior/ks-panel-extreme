@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import CustomPageView, { type PageContent } from '@/shared/components/ui/CustomPageView';
 import ErrorState from '@/shared/components/ui/ErrorState';
 import SkeletonCard from '@/shared/components/ui/SkeletonCard';
@@ -47,6 +47,7 @@ function snapshotTheme(): Record<string, string> {
 // custom mode wraps in the stack theme.css).
 const StackView: React.FC = () => {
   const { slug = '' } = useParams<{ slug: string }>();
+  const navigate = useNavigate();
   const [stack, setStack] = useState<Stack | null>(null);
   const [missing, setMissing] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -160,10 +161,13 @@ const StackView: React.FC = () => {
   if (!loaded) return <SkeletonCard lines={4} />;
   if (missing || !stack) {
     return (
-      <div className="glass-card ks-form-card rounded-xl px-4 py-10 text-center">
-        <p className="text-sm text-gray-300 font-medium">Stack not found or inactive</p>
-        <p className="text-xs text-gray-500 mt-1">Activate it on the <Link to="/stacks" className="text-sky-300">Stacks</Link> page first.</p>
-      </div>
+      <ErrorState
+        variant="not-found"
+        title="Stack not found"
+        description="Activate it on the Stacks page first."
+        backLabel="Back to stacks"
+        onBack={() => navigate('/stacks')}
+      />
     );
   }
 

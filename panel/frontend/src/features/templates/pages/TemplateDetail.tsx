@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { listTemplates, downloadTemplate, listInstances, deleteTemplate } from '@/shared/api/admin';
 import type { Template } from '@/shared/types/instance';
 import GlassCard from '@/shared/components/ui/Card';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import { PageActionsPill } from '@/shared/components/ui/PageActionsPill';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import { useConfirm } from '@/shared/stores/confirmStore';
@@ -177,13 +178,15 @@ const TemplateDetail: React.FC = () => {
           </button>
           <h2 className="text-xl font-semibold text-white">Template Detail</h2>
         </div>
-        <GlassCard className="p-6 border border-red-900/40">
-          <p className="text-red-400 text-sm">{error}</p>
-          <div className="mt-3 flex gap-2">
-            <button onClick={() => window.location.reload()} className="px-3 py-1.5 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white">Retry</button>
-            <button onClick={back} className="px-3 py-1.5 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-gray-300">Back</button>
-          </div>
-        </GlassCard>
+        <ErrorState
+          variant="error"
+          title="Failed to load template"
+          description={error}
+          retryLabel="Retry"
+          onRetry={() => window.location.reload()}
+          backLabel="Back"
+          onBack={back}
+        />
       </div>
     );
   }
@@ -197,10 +200,12 @@ const TemplateDetail: React.FC = () => {
           </button>
           <h2 className="text-xl font-semibold text-white">Template Detail</h2>
         </div>
-        <GlassCard className="p-6">
-          <p className="text-gray-400">Template not found</p>
-          <button onClick={back} className="mt-3 px-3 py-1.5 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white">Back to templates</button>
-        </GlassCard>
+        <ErrorState
+          variant="not-found"
+          title="Template not found"
+          backLabel="Back to templates"
+          onBack={back}
+        />
       </div>
     );
   }

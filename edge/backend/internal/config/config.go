@@ -17,7 +17,9 @@ import (
 
 // Config is the full descent of config.yaml. Field names use snake_case YAML
 // keys so the file the operator edits matches the field labels they see in the
-// panel's "Node token" disclosure modal.
+// panel's "Node token" disclosure modal. Quote string values that could read
+// as YAML booleans/numbers (e.g. name: "on") — otherwise Load fails closed
+// on the type mismatch.
 type Config struct {
 	// Node identity. UUID is optional and only used for human-friendly logs;
 	// the panel already identifies the edge by its token hash.

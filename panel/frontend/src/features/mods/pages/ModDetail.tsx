@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { activateMod, deactivateMod, deleteMod, getMod, getModLogs } from '@/features/mods/api/mods';
 import { modCapabilityMeta, modSourceMeta, type Mod, type ModLogEntry } from '@/shared/types/mod';
 import GlassCard from '@/shared/components/ui/Card';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import { PageActionsPill } from '@/shared/components/ui/PageActionsPill';
 import { useConfirm } from '@/shared/stores/confirmStore';

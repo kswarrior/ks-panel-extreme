@@ -1,4 +1,4 @@
-// ksedge is the per-host agent for kspanel. It reads config.toml (handed to
+// ksedge is the per-host agent for kspanel. It reads config.yaml (handed to
 // the operator by the panel at node-create time, Pterodactyl-style), reports
 // telemetry to the panel on a fixed cadence, and exposes a /health endpoint
 // for liveness probes.

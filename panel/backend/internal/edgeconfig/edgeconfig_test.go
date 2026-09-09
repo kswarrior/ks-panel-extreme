@@ -26,7 +26,7 @@ func TestRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
-	// Generic-map decode widens numbers to int64 — compare by rendering.
+	// Generic-map decode widens numbers to int — compare by rendering.
 	for k, want := range in {
 		got, ok := out[k]
 		if !ok {
@@ -39,7 +39,7 @@ func TestRoundTrip(t *testing.T) {
 }
 
 func TestDecodeRejectsGarbage(t *testing.T) {
-	if _, err := Decode([]byte("panel_url = [unclosed\n")); err == nil {
-		t.Fatal("expected error for malformed TOML")
+	if _, err := Decode([]byte("panel_url: [unclosed\n")); err == nil {
+		t.Fatal("expected error for malformed YAML")
 	}
 }

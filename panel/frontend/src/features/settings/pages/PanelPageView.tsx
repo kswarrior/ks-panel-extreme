@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import CustomPageView from '@/shared/components/ui/CustomPageView';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import SkeletonCard from '@/shared/components/ui/SkeletonCard';
 import { fetchPanelPageBySlug, type PanelPage } from '@/features/settings/api/panelPages';
 import { usePanelPagesStore } from '@/features/settings/stores/panelPagesStore';
@@ -10,6 +11,7 @@ import { usePanelPagesStore } from '@/features/settings/stores/panelPagesStore';
 // allow-list); a hidden page answers 404 and lands here.
 const PanelPageView: React.FC = () => {
   const { slug = '' } = useParams<{ slug: string }>();
+  const navigate = useNavigate();
   const loadNav = usePanelPagesStore((s) => s.load);
   const [page, setPage] = useState<PanelPage | null>(null);
   const [loading, setLoading] = useState(true);
@@ -51,10 +53,13 @@ const PanelPageView: React.FC = () => {
 
   if (missing || !page) {
     return (
-      <div className="glass-card ks-form-card rounded-xl px-4 py-10 text-center">
-        <p className="text-sm text-gray-300 font-medium">Page not found</p>
-        <p className="text-xs text-gray-500 mt-1">It may be switched off or hidden from your role.</p>
-      </div>
+      <ErrorState
+        variant="not-found"
+        title="Page not found"
+        description="It may be switched off or hidden from your role."
+        backLabel="Back"
+        onBack={() => navigate(-1)}
+      />
     );
   }
 

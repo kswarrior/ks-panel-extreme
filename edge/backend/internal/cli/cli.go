@@ -43,7 +43,7 @@ func New() *cobra.Command {
 		Use:   "ksedge",
 		Short: "KS Edge – lightweight agent for kspanel",
 		Long: `ksedge is the per-host agent that reports telemetry back to a kspanel
-instance. Configure it by placing a config.toml next to the binary (or pass
+instance. Configure it by placing a config.yaml next to the binary (or pass
 --config <path>), then run:
 
   ./ksedge launch
@@ -59,7 +59,7 @@ verbatim onto the edge machine.`,
 // the local health/HTTP server.
 //
 // Flags are provided purely for ad-hoc overrides. The normal operator workflow
-// is to drop config.toml next to the binary and run `ksedge launch` with no
+// is to drop config.yaml next to the binary and run `ksedge launch` with no
 // flags — the panel-generated file already carries the token.
 func launchCmd() *cobra.Command {
 	var (
@@ -78,12 +78,12 @@ func launchCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load(configPath)
 		if err != nil {
-			// Missing config.toml is fine for the panel's localnode flow
+			// Missing config.yaml is fine for the panel's localnode flow
 			// where the operator only supplied a port. Fall back to the
 			// documented defaults so the health endpoint still starts;
-			// the panel can push a populated config.toml later.
+			// the panel can push a populated config.yaml later.
 			if errors.Is(err, os.ErrNotExist) {
-				log.Printf("config.toml not found at %s — starting with defaults (token + panel_url unset)", configPath)
+				log.Printf("config.yaml not found at %s — starting with defaults (token + panel_url unset)", configPath)
 					cfg = config.Default()
 				} else {
 					return err
@@ -158,8 +158,8 @@ func launchCmd() *cobra.Command {
 			return runHealthServer(cfg, rootCtx, sftpPort)
 		},
 	}
-	cmd.Flags().StringVarP(&configPath, "config", "c", "config.toml", "Path to the edge config file")
-	cmd.Flags().IntVarP(&port, "port", "p", 0, "Override the edge HTTP listen port (default 4040, or config.toml)")
+	cmd.Flags().StringVarP(&configPath, "config", "c", "config.yaml", "Path to the edge config file")
+	cmd.Flags().IntVarP(&port, "port", "p", 0, "Override the edge HTTP listen port (default 4040, or config.yaml)")
 	cmd.Flags().StringVar(&panelURL, "panel", "", "Override panel_url from config")
 	cmd.Flags().StringVar(&token, "token", "", "Override the panel-issued edge token from config")
 	cmd.Flags().DurationVar(&interval, "interval", 0, "Override heartbeat interval (e.g. 30s)")
@@ -176,7 +176,7 @@ func launchCmd() *cobra.Command {
 // to stderr so the operator sees it next to the "listening on …" line.
 func validateConfigFormat(cfg config.Config) string {
 	if cfg.Token == "" && cfg.PanelURL == "" {
-		return "token + panel_url are both empty — heartbeats are disabled until the panel pushes a real config.toml (localnode flow)"
+		return "token + panel_url are both empty — heartbeats are disabled until the panel pushes a real config.yaml (localnode flow)"
 	}
 	if cfg.Token == "" {
 		return "token is empty — the panel will reject every heartbeat"
