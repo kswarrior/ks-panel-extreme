@@ -117,6 +117,25 @@ func sweep(ctx context.Context) {
 	// exhaustion in large installations.
 	sem := newSemaphore(concurrencyLimit)
 
+	// Per-instance run-together gates
+	// (shortcuts.automation.max_concurrent_runs, 0 = no extra cap): one
+	// instance's burst must not crowd every other instance's jobs out of
+	// the global limit. Gates are built from the instances' own config
+	// snapshots (one Get per instance with due jobs, not per job).
+	gates := map[int64]*semaphore{}
+	for i := range due {
+		id := due[i].InstanceID
+		if _, ok := gates[id]; ok {
+			continue
+		}
+		gates[id] = nil // seen; nil stays nil when uncapped
+		if inst, gerr := instRepo.Get(id); gerr == nil && inst != nil {
+			if limit := handlers.AutomationConcurrentLimit(inst.Config); limit > 0 {
+				gates[id] = newSemaphore(limit)
+			}
+		}
+	}
+
 	var wg sync.WaitGroup
 	for i := range due {
 		// respect context cancellation
@@ -130,14 +149,23 @@ func sweep(ctx context.Context) {
 		// Acquire BEFORE spawning so both goroutines AND concurrent job
 		// executions stay bounded by the limit — a sweep that discovers
 		// thousands of due jobs must not spawn thousands of parked
-		// goroutines waiting for a token.
+		// goroutines waiting for a token. Global first, then the
+		// instance gate (fixed order, so no lock cycle); both return via
+		// defer in reverse order.
 		sem.acquire()
+		gate := gates[due[i].InstanceID]
+		if gate != nil {
+			gate.acquire()
+		}
 		wg.Add(1)
-		go func(job models.Automation) {
+		go func(job models.Automation, gate *semaphore) {
 			defer wg.Done()
 			defer sem.release()
+			if gate != nil {
+				defer gate.release()
+			}
 			runJob(ctx, job, con, instRepo, nodeRepo, automationRepo, auditRepo)
-		}(due[i])
+		}(due[i], gate)
 	}
 
 	wg.Wait()

@@ -388,7 +388,8 @@ func createAutomationFromImport(w http.ResponseWriter, r *http.Request, instance
 		return
 	}
 	defer con.Close()
-	kind, st, msg := validateAutomationUpsert(con, instanceID, req)
+	// Imports always create new rows (exclude nothing from the active count).
+	kind, st, msg := validateAutomationUpsert(con, instanceID, req, 0)
 	if st != 0 {
 		http.Error(w, msg, st)
 		return

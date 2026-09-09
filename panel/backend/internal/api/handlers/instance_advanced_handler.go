@@ -362,6 +362,26 @@ func validateAutomationUpsert(con *sql.DB, instanceID int64, req automationUpser
 	if req.TimeoutSec > maxTimeout {
 		return "", http.StatusBadRequest, fmt.Sprintf("timeout %ds exceeds template maximum %ds", req.TimeoutSec, maxTimeout)
 	}
+	// Active-jobs gate: an enabled job owns its schedule timer, so enabling
+	// past the template's max_active_jobs cap is rejected. Re-saving an
+	// already-enabled job (or saving disabled) never trips it.
+	if req.Enabled {
+		if maxActive := AutomationMaxActiveJobs(inst.Config); maxActive > 0 {
+			jobs, lerr := repository.NewAutomationRepository(con).ListByInstance(instanceID)
+			if lerr != nil {
+				return "", http.StatusInternalServerError, "server error"
+			}
+			active := 0
+			for i := range jobs {
+				if jobs[i].Enabled && jobs[i].ID != excludeJobID {
+					active++
+				}
+			}
+			if active >= maxActive {
+				return "", http.StatusBadRequest, fmt.Sprintf("too many active jobs (template maximum %d)", maxActive)
+			}
+		}
+	}
 	// Steps: normalise + per-step kind/toggle/timeout/shape checks.
 	if len(req.Steps) > repository.MaxAutomationSteps {
 		return "", http.StatusBadRequest, fmt.Sprintf("too many steps (max %d)", repository.MaxAutomationSteps)
@@ -478,8 +498,8 @@ func CreateAutomationHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer con.Close()
 	// Per-kind payload shape + automation kind toggles (+ template action
-	// resolution for action jobs).
-	kind, st, msg := validateAutomationUpsert(con, id, req)
+	// resolution for action jobs). New rows exclude nothing (0).
+	kind, st, msg := validateAutomationUpsert(con, id, req, 0)
 	if st != 0 {
 		http.Error(w, msg, st)
 		return
@@ -546,8 +566,9 @@ func UpdateAutomationHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Per-kind payload shape + automation kind toggles (+ template action
-	// resolution for action jobs).
-	kind, st, msg := validateAutomationUpsert(con, id, req)
+	// resolution for action jobs). The job itself is excluded from the
+	// active-jobs count so re-saving an enabled job at the cap passes.
+	kind, st, msg := validateAutomationUpsert(con, id, req, jobID)
 	if st != 0 {
 		http.Error(w, msg, st)
 		return
