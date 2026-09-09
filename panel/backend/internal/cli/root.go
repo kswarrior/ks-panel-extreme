@@ -54,4 +54,5 @@ func init() {
 	rootCmd.AddCommand(createUserCmd)
 	rootCmd.AddCommand(importTemplateCmd)
 	rootCmd.AddCommand(setupLocalnodeCmd)
+	rootCmd.AddCommand(updateCmd)
 }
