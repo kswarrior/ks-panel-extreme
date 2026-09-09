@@ -196,12 +196,80 @@ export interface StackStudioDraft {
   // the API key form. Emitted into the manifest as `panelPermissions`;
   // the backend keeps it as raw-manifest pass-through (forward-compatible).
   panelPermissions: string[];
+  // Install section: where the stack runs + how it gets installed.
+  // `installType` picks the backend target (docker container vs host
+  // process); `installImage` is the docker image when type is docker.
+  // `installSteps` is the installation workflow (same step shape as the
+  // template install workflow so the UI can share TemplateInstallSection).
+  installType: StackInstallType;
+  installImage: string;
+  installSteps: StackInstallStep[];
+  installTimeoutS: string;
+  installTerminalId: string;
   backendScript: string;
   frontendHtml: string;
   frontendCss: string;
   simplePage: string;
   spec: Record<string, any>;
 }
+
+// Install target — mirrors the template driver choice reduced to the two
+// stack targets: a Docker container, or a Host process (static/nodejs/python
+// sidecar via runtime+entrypoint).
+export type StackInstallType = 'docker' | 'host';
+
+export const STACK_INSTALL_TYPES: Array<{ value: StackInstallType; label: string; hint: string }> = [
+  { value: 'docker', label: 'Docker', hint: 'Run in a container from an image' },
+  { value: 'host', label: 'Host', hint: 'Run on the host via runtime + entrypoint' },
+];
+
+// One installation workflow step. Field-for-field compatible with the
+// template InstallStep so StackForm can reuse TemplateInstallSection
+// without conversion.
+export type StackInstallAction =
+  | 'shell'
+  | 'download'
+  | 'extract'
+  | 'move'
+  | 'write'
+  | 'chmod'
+  | 'mkdir'
+  | 'git_clone'
+  | 'pip_install'
+  | 'npm_install'
+  | 'http_check';
+
+export interface StackInstallStep {
+  action: StackInstallAction;
+  command: string;
+  url: string;
+  filename: string;
+  archive: string;
+  dest: string;
+  from: string;
+  to: string;
+  path: string;
+  content: string;
+  branch: string;
+  retries: string;
+  ignore_errors: boolean;
+}
+
+export const blankStackInstallStep = (): StackInstallStep => ({
+  action: 'shell',
+  command: '',
+  url: '',
+  filename: '',
+  archive: '',
+  dest: '',
+  from: '',
+  to: '',
+  path: '',
+  content: '',
+  branch: 'main',
+  retries: '0',
+  ignore_errors: false,
+});
 
 export const blankStackStudioDraft = (): StackStudioDraft => ({
   name: '',
@@ -217,6 +285,11 @@ export const blankStackStudioDraft = (): StackStudioDraft => ({
   pageStyle: 'spa',
   permissionsRequested: [],
   panelPermissions: [],
+  installType: 'docker',
+  installImage: '',
+  installSteps: [],
+  installTimeoutS: '',
+  installTerminalId: '',
   backendScript: '',
   frontendHtml: '',
   frontendCss: '',
