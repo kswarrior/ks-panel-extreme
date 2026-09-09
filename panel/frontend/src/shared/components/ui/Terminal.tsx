@@ -387,15 +387,18 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
     // including lines inside a paste chunk ("cmd1\rcmd2\r"), so the
     // server can allow/deny each one.
     //
-    // Workflow terminals (/workflow) are piped, not PTYs: the far end never
-    // echoes, so the pane echoes locally — printable chars verbatim,
-    // Enter as a newline, backspace as an erase — exactly where the user
-    // typed them, ahead of the server's response. Side shells and startup
-    // terminals keep their existing behaviour (PTY echo / blind attach).
+    // Piped terminals (/workflow + /startup) have no PTY: the far end
+    // never echoes, so the pane echoes locally — printable chars
+    // verbatim, Enter as a newline, backspace as an erase — exactly where
+    // the user typed them, ahead of the server's response. Side shells
+    // keep their existing behaviour (PTY echo). Without this, typing
+    // into a startup terminal (e.g. the MC server terminal) is invisible
+    // until Enter — the server never echoes piped stdin.
     const lineBuf = { current: '' };
-    const echoWorkflow = (d: string) => {
+    const echoPiped = (d: string) => {
       const term = termRef.current;
-      if (!term || endpointRef.current !== 'workflow') return;
+      const ep = endpointRef.current;
+      if (!term || (ep !== 'workflow' && ep !== 'startup')) return;
       for (let i = 0; i < d.length; i++) {
         const ch = d[i];
         if (ch === '\r' || ch === '\n') term.write('\r\n');
