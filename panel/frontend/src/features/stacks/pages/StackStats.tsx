@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { listStacks } from '@/features/stacks/api/stacks';
 import type { Stack } from '@/shared/types/stack';
 import { StatCard } from '@/shared/components/ui/StatDashboard';
-import GlassCard from '@/shared/components/ui/Card';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 
@@ -73,6 +73,18 @@ const StackStats: React.FC = () => {
           </div>
         </div>
       </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <ErrorState
+        variant="error"
+        title="Failed to load stack stats"
+        description={error}
+        retryLabel="Retry"
+        onRetry={() => void load()}
+      />
     );
   }
 
@@ -168,12 +180,6 @@ const StackStats: React.FC = () => {
           dotColor="bg-sky-400"
         />
       </div>
-
-      {error && (
-        <GlassCard className="text-sm text-red-300 border border-red-700/40">
-          {error}
-        </GlassCard>
-      )}
     </div>
   );
 };

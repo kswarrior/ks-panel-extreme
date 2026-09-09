@@ -4,7 +4,6 @@ import type { Mod } from '@/shared/types/mod';
 import {
   StatCard,
 } from '@/shared/components/ui/StatDashboard';
-import GlassCard from '@/shared/components/ui/Card';
 import ErrorState from '@/shared/components/ui/ErrorState';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
@@ -200,12 +199,6 @@ const ModStats: React.FC = () => {
           dotColor="bg-sky-400"
         />
       </div>
-
-      {error && (
-        <GlassCard className="text-sm text-red-300 border border-red-700/40">
-          {error}
-        </GlassCard>
-      )}
     </div>
   );
 };
