@@ -434,6 +434,7 @@ const StackDetail: React.FC = () => {
           items={[
             ...(appUrl ? [{ key: 'open', label: 'Open', tone: 'default' as const }] : []),
             { key: 'launch', label: toggling ? '…' : stack.active ? 'Stop' : 'Launch', tone: stack.active ? 'danger' as const : 'default' as const },
+            { key: 'edit', label: 'Edit', tone: 'default' as const },
             { key: 'install', label: installing ? 'Installing…' : 'Install', tone: 'default' as const },
             { key: 'reinstall', label: reinstalling ? 'Reinstalling…' : 'Reinstall', tone: 'default' as const },
             { key: 'download', label: downloading ? 'Downloading…' : 'Download .ksps', tone: 'default' as const },
@@ -444,6 +445,7 @@ const StackDetail: React.FC = () => {
           onSelect={(k) => {
             if (k === 'open') navigate(`/stacks/${stack.slug}/`);
             if (k === 'launch') void (stack.active ? toggle() : launch());
+            if (k === 'edit') openEdit();
             if (k === 'install') void doInstall();
             if (k === 'reinstall') void doReinstall();
             if (k === 'download') void handleDownload();
@@ -768,6 +770,48 @@ const StackDetail: React.FC = () => {
           </div>
         )}
       </GlassCard>
+
+      <GlassModal
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        title={`Edit — ${stack.name}`}
+        maxWidth="max-w-lg"
+        footer={
+          <>
+            <button onClick={() => setEditOpen(false)} className="px-3 py-1.5 rounded text-sm border border-white/10 text-gray-300 hover:bg-white/10">Cancel</button>
+            <button onClick={() => void saveEdit()} disabled={editSaving} className="ks-primary-btn px-3 py-1.5 rounded text-sm bg-white text-black hover:bg-gray-200 disabled:opacity-50">
+              {editSaving ? 'Saving…' : 'Save'}
+            </button>
+          </>
+        }
+      >
+        <label className="block">
+          <span className="text-xs text-gray-400">Name</span>
+          <input value={editName} onChange={(e) => setEditName(e.target.value)} className="block w-full mt-1 bg-black/30 border border-white/10 rounded-md text-sm text-white px-3 py-1.5 focus:outline-none focus:border-white/40" />
+        </label>
+        <div className="grid grid-cols-2 gap-2">
+          <label className="block">
+            <span className="text-xs text-gray-400">Version</span>
+            <input value={editVersion} onChange={(e) => setEditVersion(e.target.value)} className="block w-full mt-1 bg-black/30 border border-white/10 rounded-md text-sm text-white px-3 py-1.5 focus:outline-none focus:border-white/40" />
+          </label>
+          <label className="block">
+            <span className="text-xs text-gray-400">Category</span>
+            <select value={editCategory} onChange={(e) => setEditCategory(e.target.value)} className="block w-full mt-1 bg-black/30 border border-white/10 rounded-md text-sm text-gray-200 px-2 py-1.5 focus:outline-none focus:border-white/40">
+              {STACK_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </label>
+        </div>
+        <label className="block">
+          <span className="text-xs text-gray-400">Description</span>
+          <textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} rows={3} className="block w-full mt-1 bg-black/30 border border-white/10 rounded-md text-sm text-white px-3 py-1.5 focus:outline-none focus:border-white/40" />
+        </label>
+        <div>
+          <span className="block text-xs text-gray-400 mb-1">Icon & colour (card theme)</span>
+          <IconColorPicker icon={editIcon} color={editColor} onIconChange={setEditIcon} onColorChange={setEditColor} previewName={editName} />
+        </div>
+        {editError && <p className="text-red-400 text-xs">{editError}</p>}
+        <p className="text-[11px] text-gray-500">Theme mode / page style are set at install (manifest) — edit files or reinstall to change them.</p>
+      </GlassModal>
 
       <GlassCard>
         <h2 className="text-sm font-medium text-red-200 mb-2">Danger zone</h2>
