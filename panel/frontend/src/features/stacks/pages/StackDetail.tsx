@@ -621,6 +621,7 @@ const StackDetail: React.FC = () => {
         </GlassCard>
       </div>
 
+      <div id="stack-grants" className="scroll-mt-24">
       <GlassCard>
         <h2 className="text-sm font-medium text-gray-200 mb-2">Capability grants</h2>
         {stack.permissions.length === 0 ? (
@@ -640,6 +641,7 @@ const StackDetail: React.FC = () => {
           {saving ? 'Saving…' : 'Save grants'}
         </button>
       </GlassCard>
+      </div>
 
       <GlassCard>
         <h2 className="text-sm font-medium text-gray-200 mb-1">App proxy</h2>
@@ -729,12 +731,14 @@ const StackDetail: React.FC = () => {
         </div>
       </GlassCard>
 
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         {stack.active && appUrl ? (
           <Link to={`/stacks/${stack.slug}/`} className="px-4 py-2 text-sm rounded-lg bg-emerald-600 text-white hover:bg-emerald-500">Open stack</Link>
         ) : (
-          <button onClick={() => void toggle()} disabled={toggling} className="px-4 py-2 text-sm rounded-lg bg-white text-black hover:bg-gray-200 disabled:opacity-50">{toggling ? '…' : stack.active ? 'Stop' : 'Activate'}</button>
+          <button onClick={() => void (stack.active ? toggle() : launch())} disabled={toggling} className="px-4 py-2 text-sm rounded-lg bg-white text-black hover:bg-gray-200 disabled:opacity-50">{toggling ? '…' : stack.active ? 'Stop' : 'Launch'}</button>
         )}
+        <button onClick={() => void doInstall()} disabled={installing} className="px-4 py-2 text-sm rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-white disabled:opacity-50">{installing ? 'Installing…' : 'Install'}</button>
+        <button onClick={() => void doReinstall()} disabled={reinstalling} className="px-4 py-2 text-sm rounded-lg border border-amber-700/40 bg-amber-900/20 hover:bg-amber-900/40 text-amber-200 disabled:opacity-50">{reinstalling ? 'Reinstalling…' : 'Reinstall'}</button>
         <button onClick={() => void handleDownload()} disabled={downloading} className="px-4 py-2 text-sm rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-white disabled:opacity-50">{downloading ? 'Downloading…' : 'Download .ksps'}</button>
         <button onClick={back} className="ml-auto px-4 py-2 text-sm rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-gray-300">Back to stacks</button>
       </div>
