@@ -446,6 +446,77 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
     if (!m) return;
     if (fn) m.set(key, fn); else m.delete(key);
   }, []);
+  // Live TerminalHandles per pane — the actions-pill Copy / Download
+  // buttons snapshot the ACTIVE pane's scrollback through this map
+  // (registered by each TerminalPane's callback ref, unregistered on
+  // unmount with null).
+  const termHandles = useRef<Map<number, TerminalHandle>>();
+  if (!termHandles.current) termHandles.current = new Map();
+  const onRegisterHandle = useCallback((key: number, h: TerminalHandle | null) => {
+    const m = termHandles.current;
+    if (!m) return;
+    if (h) m.set(key, h); else m.delete(key);
+  }, []);
+  // Transient pill feedback ("Copied", "Saved", …) with a self-clearing
+  // timer so the pill never gets stuck showing a stale message.
+  const [pillFeedback, setPillFeedback] = useState('');
+  const pillFeedbackTimer = useRef<number | null>(null);
+  useEffect(() => () => {
+    if (pillFeedbackTimer.current !== null) window.clearTimeout(pillFeedbackTimer.current);
+  }, []);
+  const flashPill = (msg: string) => {
+    setPillFeedback(msg);
+    if (pillFeedbackTimer.current !== null) window.clearTimeout(pillFeedbackTimer.current);
+    pillFeedbackTimer.current = window.setTimeout(() => setPillFeedback(''), 1600);
+  };
+  const activePaneLabel = (): string => {
+    const idx = Math.max(0, panes.findIndex((p) => p.key === activeKey));
+    const ap = panes[idx];
+    if (!ap) return 'shell';
+    const tid = normTid(ap.terminalId);
+    return ap.name.trim() !== '' ? ap.name.trim() : (tid !== '' ? tid : `shell ${idx + 1}`);
+  };
+  const copyActiveTerminal = async () => {
+    const text = termHandles.current?.get(activeKey)?.getContent() ?? '';
+    if (text.trim() === '') { flashPill('Empty'); return; }
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      flashPill('Copied');
+    } catch {
+      flashPill('Copy failed');
+    }
+  };
+  const downloadActiveTerminal = () => {
+    const text = termHandles.current?.get(activeKey)?.getContent() ?? '';
+    if (text.trim() === '') { flashPill('Empty'); return; }
+    try {
+      const safeLabel = activePaneLabel().toLowerCase().replace(/[^a-z0-9_-]+/g, '_').slice(0, 32) || 'shell';
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const blob = new Blob([text + '\n'], { type: 'text/plain;charset=utf-8' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `terminal-${instance?.id ?? 'instance'}-${safeLabel}-${stamp}.log`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+      flashPill('Saved');
+    } catch {
+      flashPill('Save failed');
+    }
+  };
   const sendToActive = (text: string) => {
     if (text.trim() === '') return;
     try { sendRegistry.current?.get(activeKey)?.(text); } catch { /* noop */ }
@@ -636,6 +707,27 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
             </span>
           </button>
         )}
+        <button
+          type="button"
+          onClick={() => void copyActiveTerminal()}
+          title="Copy the active terminal's output to the clipboard"
+          aria-label="Copy terminal output"
+          className="ks-btn-header ks-icon-btn shrink-0"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+        </button>
+        <button
+          type="button"
+          onClick={downloadActiveTerminal}
+          title="Download the active terminal's output as a .log file"
+          aria-label="Download terminal output"
+          className="ks-btn-header ks-icon-btn shrink-0"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+        </button>
+        {pillFeedback !== '' && (
+          <span className="text-xs text-emerald-300 px-1 whitespace-nowrap" role="status" aria-live="polite">{pillFeedback}</span>
+        )}
       </PageActionsPill>
       {/* Tabs bar — desktop (lg+) strip above the active terminal.
           active terminal. Horizontally scrollable; inactive panes stay
@@ -695,19 +787,19 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
             boxText={boxTexts[p.key] ?? ''}
             onBoxText={(v) => setBoxTexts((m) => ({ ...m, [p.key]: v }))}
             onRegisterSend={onRegisterSend}
+            onRegisterHandle={onRegisterHandle}
             onConnState={handleConnState}
           />
         </div>
       ))}
 
-      {/* Phone tabs — terminal switcher docked in-flow directly below the
-          active terminal (NOT fixed): phones only (lg:hidden). In-flow
-          means no overlay, so no clearance padding and no dead space at
-          the bottom. Desktop keeps the strip above. */}
+      {/* Phone tabs — terminal switcher pinned bottom-left (phones only).
+          Uses the PageTabsPill default slot: a fixed bottom row that hugs
+          the left (justify-start + shrink-wrap shell) with the menu opening
+          UPWARD above the toggle, plus the spacer so the fixed pill never
+          covers trailing content. Desktop keeps the strip above. */}
       <PageTabsPill
         ariaLabel="Terminals"
-        spacer={false}
-        outerClassName="lg:hidden"
         activeLabel={(() => {
           const ap = panes.find((p) => p.key === activeKey) ?? panes[0];
           if (!ap) return 'Terminal';
