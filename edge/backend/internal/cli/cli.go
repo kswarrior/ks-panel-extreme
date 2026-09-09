@@ -52,6 +52,8 @@ The config file is produced by the panel when you register a node and copied
 verbatim onto the edge machine.`,
 	}
 	root.AddCommand(launchCmd())
+	root.AddCommand(superviseCmd())
+	root.AddCommand(updateCmd())
 	return root
 }
 

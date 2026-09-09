@@ -1,0 +1,45 @@
+# kspanel.service — systemd unit for the KS Panel with crash auto-restart.
+#
+# Two restart layers (complementary, not redundant):
+#   1. `kspanel supervise` (ExecStart below) restarts the child `launch`
+#      process in-process on any non-zero exit (panic, fatal, OOM 137,
+#      segfault) with exponential backoff 2s→60s + burst guard. Exit 0
+#      (clean stop via /api/system/stop or `kspanel stop`) is NOT restarted.
+#   2. systemd Restart=always below catches what in-process supervision
+#      cannot: supervise itself killed (SIGKILL, host reboot, OOM on the
+#      supervisor), failed ExecStart, or a poison loop that hit
+#      --max-restarts.
+#
+# Install:
+#   sudo cp deploy/systemd/kspanel.service /etc/systemd/system/kspanel.service
+#   sudo mkdir -p /opt/kspanel && sudo cp release/kspanel /opt/kspanel/kspanel
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now kspanel
+#   systemctl status kspanel --no-pager
+#   journalctl -u kspanel -f
+#
+# Adjust WorkingDirectory/ExecStart/User to your layout before enabling.
+[Unit]
+Description=KS Panel — game server management panel (auto-restart on crash)
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=120
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/kspanel
+ExecStart=/opt/kspanel/kspanel supervise --port 5050
+# KSPANEL_PORT wins over --port when both are set; keep them in sync.
+Environment=KSPANEL_PORT=5050
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+LimitNOFILE=65536
+NoNewPrivileges=true
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,40 @@
+# ksedge.service — systemd unit for the KS Edge agent with crash auto-restart.
+#
+# Same two-layer model as kspanel.service:
+#   1. `ksedge supervise` (ExecStart below) restarts the child `launch`
+#      process in-process on any non-zero exit with exponential backoff
+#      2s→60s + burst guard. Exit 0 (clean stop) is NOT restarted.
+#   2. systemd Restart=always catches supervisor death, host reboot, or
+#      --max-restarts exhaustion.
+#
+# Install (on each edge host):
+#   sudo cp deploy/systemd/ksedge.service /etc/systemd/system/ksedge.service
+#   sudo mkdir -p /opt/ksedge && sudo cp release/ksedge /opt/ksedge/ksedge
+#   # place the panel-generated config.yaml next to the binary:
+#   sudo cp config.yaml /opt/ksedge/config.yaml
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now ksedge
+#   systemctl status ksedge --no-pager
+#   journalctl -u ksedge -f
+[Unit]
+Description=KS Edge — lightweight agent for kspanel (auto-restart on crash)
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=120
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/ksedge
+ExecStart=/opt/ksedge/ksedge supervise --config /opt/ksedge/config.yaml
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+LimitNOFILE=65536
+NoNewPrivileges=true
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
