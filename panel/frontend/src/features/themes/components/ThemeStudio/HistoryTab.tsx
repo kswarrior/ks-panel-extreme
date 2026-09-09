@@ -49,32 +49,34 @@ export const HistoryTab: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [globalThemes]);
 
-  useEffect(() => {
+  const seqRef = useRef(0);
+
+  const reload = useCallback(async () => {
+    const seq = ++seqRef.current;
     if (!themeId) {
       setRevisions([]);
       return;
     }
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      setError('');
-      setPreviewRev(null);
-      try {
-        const revs = await fetchThemeRevisions(themeId);
-        if (!cancelled) setRevisions(revs || []);
-      } catch (e: any) {
-        if (cancelled) return;
-        const data = e?.response?.data;
-        setError(typeof data === 'string' && data ? data : 'Failed to load revisions.');
-        setRevisions([]);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    setLoading(true);
+    setError('');
+    setPreviewRev(null);
+    try {
+      const revs = await fetchThemeRevisions(themeId);
+      if (seqRef.current !== seq) return;
+      setRevisions(revs || []);
+    } catch (e: any) {
+      if (seqRef.current !== seq) return;
+      const data = e?.response?.data;
+      setError(typeof data === 'string' && data ? data : 'Failed to load revisions.');
+      setRevisions([]);
+    } finally {
+      if (seqRef.current === seq) setLoading(false);
+    }
   }, [themeId]);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
 
   const live = useMemo(() => {
     const t = globalThemes.find((x) => x.id === themeId);

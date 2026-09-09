@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import GlassCard from '@/shared/components/ui/Card';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import ThemePreview from '@/features/themes/components/ThemePreview';
 import { fetchThemeMarket, installThemeFromMarket, type ThemeMarketEntry } from '@/features/themes/api/themes';
 import { useThemeStore } from '@/shared/stores/themeStore';
@@ -25,28 +26,23 @@ export const MarketTab: React.FC = () => {
   const [installError, setInstallError] = useState('');
   const [installedPreview, setInstalledPreview] = useState<Theme | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      setError('');
-      try {
-        const catalog = await fetchThemeMarket();
-        if (cancelled) return;
-        setEntries(catalog.pages || []);
-        if (catalog.pages?.length && !selectedId) setSelectedId(catalog.pages[0].id);
-      } catch (e: any) {
-        if (cancelled) return;
-        setError(e?.response?.data || 'Failed to load the theme marketplace.');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  const reload = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const catalog = await fetchThemeMarket();
+      setEntries(catalog.pages || []);
+      if (catalog.pages?.length) setSelectedId((prev) => prev || catalog.pages[0].id);
+    } catch (e: any) {
+      setError(e?.response?.data || 'Failed to load the theme marketplace.');
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
 
   const selected = entries.find((e) => e.id === selectedId) || null;
   const installedTheme = selected ? globalThemes.find((t) => t.id === selected.id) || null : null;
@@ -78,7 +74,16 @@ export const MarketTab: React.FC = () => {
     return <p className="text-sm text-gray-400">Loading the theme marketplace…</p>;
   }
   if (error) {
-    return <p className="text-sm text-red-300">{error}</p>;
+    return (
+      <ErrorState
+        compact
+        variant="error"
+        title="Failed to load the theme marketplace"
+        description={error}
+        retryLabel="Retry"
+        onRetry={() => void reload()}
+      />
+    );
   }
   if (entries.length === 0) {
     return <p className="text-sm text-gray-400">The marketplace catalog is empty.</p>;
