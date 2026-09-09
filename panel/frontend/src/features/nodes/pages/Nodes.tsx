@@ -16,6 +16,7 @@ import {
 } from '@/shared/api/admin';
 import type { Node, CreateNodeResult, NodeHeartbeat } from '@/shared/types/node';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import GlassCard from '@/shared/components/ui/Card';
 import GlassModal from '@/shared/components/ui/Modal';
 import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
@@ -407,7 +408,16 @@ const AdminNodes: React.FC = () => {
           </button>
       </PageActionsPill>
 
-      {error && <p className="text-red-400 mb-3">{error}</p>}
+      {error && nodes.length > 0 && <p className="text-red-400 mb-3">{error}</p>}
+      {!loading && error && nodes.length === 0 && (
+        <ErrorState
+          variant="error"
+          title="Failed to load nodes"
+          description={error}
+          retryLabel="Retry"
+          onRetry={() => void load()}
+        />
+      )}
 
       {loading && <SkeletonGrid count={6} />}
 

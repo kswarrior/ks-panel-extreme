@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import GlassCard from '@/shared/components/ui/Card';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import GlassModal from '@/shared/components/ui/Modal';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
@@ -314,7 +315,16 @@ const Stacks: React.FC = () => {
         <p className="text-xs text-gray-500">{filtered.length} of {stacks.length} shown · {stats.active} active · {stats.pending} pending grants</p>
       </div>
 
-      {error && <p className="text-xs text-red-300 mb-2">{error}</p>}
+      {error && stacks.length > 0 && <p className="text-xs text-red-300 mb-2">{error}</p>}
+      {!loading && error && stacks.length === 0 && (
+        <ErrorState
+          variant="error"
+          title="Failed to load stacks"
+          description={error}
+          retryLabel="Retry"
+          onRetry={() => void load()}
+        />
+      )}
       {loading ? (
         <p className="text-sm text-gray-500">Loading…</p>
       ) : filtered.length === 0 && stacks.length > 0 ? (
