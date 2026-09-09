@@ -87,6 +87,14 @@ const StackForm: React.FC = () => {
     setDraft((d) => ({ ...d, ...partial }));
   };
 
+  // Outside stacks run elsewhere, so Install/Launch never apply — bounce
+  // back to General if the location flips while sitting on either tab.
+  useEffect(() => {
+    if (draft.locationType === 'outside' && (tab === 'install' || tab === 'launch')) {
+      setTab('meta');
+    }
+  }, [draft.locationType, tab]);
+
   const validation = useMemo(() => {
     const issues: string[] = [];
     if (!draft.name.trim()) issues.push('Name is required.');
@@ -349,14 +357,7 @@ const StackForm: React.FC = () => {
                           type="button"
                           role="radio"
                           aria-checked={active}
-                          onClick={() => {
-                            patch({ locationType: t.value });
-                            // Outside stacks have no Install/Launch tabs —
-                            // bounce back to General if sitting on one.
-                            if (t.value === 'outside' && (tab === 'install' || tab === 'launch')) {
-                              setTab('meta');
-                            }
-                          }}
+                          onClick={() => patch({ locationType: t.value })}
                           className={`ks-card flex items-start gap-3 p-3 rounded-lg text-left transition cursor-pointer ${
                             active ? 'border-sky-600/60 bg-sky-950/20' : 'hover:border-white/20'
                           }`}
