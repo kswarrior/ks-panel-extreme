@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { listUsers, listRoles, deleteUser, suspendUser, unsuspendUser } from '@/shared/api/admin';
 import type { User, Role } from '@/shared/types/user';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import Avatar from '@/shared/components/ui/Avatar';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
 import LimitSelect from '@/shared/components/ui/LimitSelect';
@@ -384,7 +385,16 @@ const UsersPage: React.FC = () => {
         </div>
       )}
 
-      {error && <p className="text-red-400 mb-3">{error}</p>}
+      {error && users.length > 0 && <p className="text-red-400 mb-3">{error}</p>}
+      {!loading && error && users.length === 0 && (
+        <ErrorState
+          variant="error"
+          title="Failed to load users"
+          description={error}
+          retryLabel="Retry"
+          onRetry={() => void load()}
+        />
+      )}
 
       {loading && <SkeletonGrid count={6} />}
 

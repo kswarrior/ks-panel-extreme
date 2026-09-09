@@ -3,6 +3,7 @@ import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { listTickets, deleteTicket, ticketStats } from '../api/tickets';
 import type { Ticket, TicketStats } from '../types/ticket';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
@@ -242,7 +243,16 @@ const Tickets: React.FC = () => {
         {stats && <p className="text-xs text-gray-500">{stats.total} total • {stats.unassigned} unassigned • {stats.mine} mine</p>}
       </div>
 
-      {error && <p className="text-red-400 mb-3">{typeof error === 'string' ? error : JSON.stringify(error)}</p>}
+      {error && tickets.length > 0 && <p className="text-red-400 mb-3">{typeof error === 'string' ? error : JSON.stringify(error)}</p>}
+      {!loading && error && tickets.length === 0 && (
+        <ErrorState
+          variant="error"
+          title="Failed to load tickets"
+          description={typeof error === 'string' ? error : JSON.stringify(error)}
+          retryLabel="Retry"
+          onRetry={() => void load()}
+        />
+      )}
       {loading && <SkeletonGrid count={6} />}
 
       {!loading && filtered.length > 0 && (

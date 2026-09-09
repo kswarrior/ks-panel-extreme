@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { listRoles, deleteRole } from '@/shared/api/admin';
 import type { Role } from '@/shared/types/user';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import LimitSelect from '@/shared/components/ui/LimitSelect';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
@@ -303,7 +304,16 @@ return (
         </div>
       </div>
 
-      {error && <p className="text-red-400 mb-3">{error}</p>}
+      {error && roles.length > 0 && <p className="text-red-400 mb-3">{error}</p>}
+      {!loading && error && roles.length === 0 && (
+        <ErrorState
+          variant="error"
+          title="Failed to load roles"
+          description={error}
+          retryLabel="Retry"
+          onRetry={() => void load()}
+        />
+      )}
 
       {loading && <SkeletonGrid count={4} />}
 

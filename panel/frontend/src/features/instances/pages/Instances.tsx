@@ -12,6 +12,7 @@ import {
 } from '@/shared/api/admin';
 import type { Instance } from '@/shared/types/instance';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
+import ErrorState from '@/shared/components/ui/ErrorState';
 import InstanceCard, { CardAction } from '@/features/instances/components/InstanceCard';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
@@ -429,7 +430,16 @@ const Instances: React.FC = () => {
         )}
       </PageActionsPill>
 
-      {error && <p className="text-red-400 mb-3 text-sm">{typeof error === 'string' ? error : JSON.stringify(error)}</p>}
+      {error && instances.length > 0 && <p className="text-red-400 mb-3 text-sm">{typeof error === 'string' ? error : JSON.stringify(error)}</p>}
+      {!loading && error && instances.length === 0 && (
+        <ErrorState
+          variant="error"
+          title="Failed to load instances"
+          description={typeof error === 'string' ? error : JSON.stringify(error)}
+          retryLabel="Retry"
+          onRetry={() => void load()}
+        />
+      )}
       {loading && <SkeletonGrid count={6} />}
 
       {!loading && filtered.length > 0 && (
