@@ -62,23 +62,6 @@ const Stacks: React.FC = () => {
   const [installBusy, setInstallBusy] = useState(false);
   const [installError, setInstallError] = useState('');
 
-  const [grantStack, setGrantStack] = useState<Stack | null>(null);
-  const [grants, setGrants] = useState<Record<string, boolean>>({});
-  const [grantBusy, setGrantBusy] = useState(false);
-  const [grantError, setGrantError] = useState('');
-
-  // edit modal — theme support: icon + colour picker plus meta fields.
-  const [editStack, setEditStack] = useState<Stack | null>(null);
-  const [editName, setEditName] = useState('');
-  const [editVersion, setEditVersion] = useState('');
-  const [editDesc, setEditDesc] = useState('');
-  const [editCategory, setEditCategory] = useState('dashboard');
-  const [editIcon, setEditIcon] = useState('');
-  const [editColor, setEditColor] = useState('');
-  const [editSaving, setEditSaving] = useState(false);
-
-  const [deletingId, setDeletingId] = useState<number | null>(null);
-
   const [engine, setEngineState] = useState<StackEngineStatus | null>(null);
   const [engineBusy, setEngineBusy] = useState(false);
 
@@ -175,123 +158,6 @@ const Stacks: React.FC = () => {
       setInstallError(extractStackApiError(e, 'Install failed.'));
     } finally {
       setInstallBusy(false);
-    }
-  };
-
-  const openGrants = (s: Stack) => {
-    const init: Record<string, boolean> = {};
-    for (const p of s.permissions) init[p.capability] = p.granted;
-    setGrants(init);
-    setGrantError('');
-    setGrantStack(s);
-  };
-
-  const saveGrants = async () => {
-    if (!grantStack) return;
-    setGrantBusy(true);
-    setGrantError('');
-    try {
-      await setStackGrants(
-        grantStack.id,
-        Object.entries(grants).map(([capability, granted]) => ({ capability, granted })),
-      );
-      setGrantStack(null);
-      await load();
-    } catch (e) {
-      setGrantError(extractStackApiError(e, 'Failed to save grants.'));
-    } finally {
-      setGrantBusy(false);
-    }
-  };
-
-  const approveAll = () => {
-    if (!grantStack) return;
-    const next: Record<string, boolean> = {};
-    for (const p of grantStack.permissions) next[p.capability] = true;
-    setGrants(next);
-  };
-
-  const doActivate = async (s: Stack) => {
-    try {
-      const conflict = await activateStack(s.id);
-      if (conflict && typeof conflict === 'object' && 'pending' in conflict) {
-        const fresh: Stack = { ...s, permissions: conflict.permissions, pending: conflict.pending };
-        openGrants(fresh);
-        return;
-      }
-      await load();
-    } catch (e) {
-      setError(extractStackApiError(e, 'Activation failed.'));
-    }
-  };
-
-  const doStop = async (s: Stack) => {
-    if (!(await confirm({ title: 'Deactivate stack', message: `Deactivate stack "${s.name}"? It stops rendering but stays installed.`, tone: 'warning', confirmLabel: 'Deactivate' }))) return;
-    try {
-      await deactivateStack(s.id);
-      await load();
-    } catch (e) {
-      setError(extractStackApiError(e, 'Deactivate failed.'));
-    }
-  };
-
-  const doDelete = async (s: Stack) => {
-    if (!(await confirm({ title: `Delete ${s.name}?`, message: 'The package and workdir are removed. Data dir is kept.', tone: 'danger', confirmLabel: 'Delete' }))) return;
-    setDeletingId(s.id);
-    try {
-      await deleteStack(s.id, false);
-      await load();
-    } catch (e) {
-      setError(extractStackApiError(e, 'Delete failed.'));
-    } finally {
-      setDeletingId(null);
-    }
-  };
-
-  const doDownload = async (s: Stack) => {
-    try {
-      const blob = await downloadStack(s.id);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${s.slug}.ksps`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      setError(extractStackApiError(e, 'Download failed.'));
-    }
-  };
-
-  const openEdit = (s: Stack) => {
-    setEditStack(s);
-    setEditName(s.name);
-    setEditVersion(s.version);
-    setEditDesc(s.description || '');
-    setEditCategory(s.category || 'dashboard');
-    setEditIcon(s.icon || '');
-    setEditColor(s.color || '');
-  };
-
-  const saveEdit = async () => {
-    if (!editStack) return;
-    setEditSaving(true);
-    try {
-      await updateStack(editStack.id, {
-        name: editName,
-        category: editCategory,
-        version: editVersion,
-        description: editDesc,
-        icon: editIcon,
-        color: editColor,
-      });
-      setEditStack(null);
-      await load();
-    } catch (e) {
-      setError(extractStackApiError(e, 'Failed to save'));
-    } finally {
-      setEditSaving(false);
     }
   };
 
@@ -544,52 +410,19 @@ const Stacks: React.FC = () => {
                   </p>
                 )}
 
-                <footer className="mt-auto pt-2 border-t border-white/[0.06] flex items-center justify-between gap-2">
+                <footer className="mt-auto pt-2 border-t border-white/[0.06] flex items-center justify-between gap-2 flex-wrap">
                   <span className="text-[11px] text-gray-500 truncate">
                     {(() => {
                       const label = formatCardDate(s.created_at);
                       return label ? <>Uploaded {label}</> : <>id {s.id}</>;
                     })()}
                   </span>
-                  <div className="flex items-center gap-1">
-                    {s.active ? (
-                      <>
-                        <Link to={`/stacks/${s.slug}/`} className="px-2 py-1 rounded text-xs border border-emerald-700/40 bg-emerald-900/30 text-emerald-200 hover:bg-emerald-900/50">Open</Link>
-                        {(() => {
-                          const appUrl = stackAppUrl(s);
-                          return appUrl ? (
-                            <a href={appUrl} className="px-2 py-1 rounded text-xs border border-sky-700/40 bg-sky-900/30 text-sky-200 hover:bg-sky-900/50">App</a>
-                          ) : null;
-                        })()}
-                        <button onClick={() => void doStop(s)} className="ks-ghost-btn px-2 py-1 rounded text-xs border border-white/10 bg-white/5 text-white hover:bg-white/10">Stop</button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          onClick={() => void doActivate(s)}
-                          className={`px-2 py-1 rounded text-xs border ${allSet ? 'border-emerald-700/40 bg-emerald-900/30 text-emerald-200 hover:bg-emerald-900/50' : 'border-amber-700/40 bg-amber-900/30 text-amber-200 hover:bg-amber-900/50'}`}
-                        >
-                          {allSet ? 'Activate' : `Activate (${s.pending} to approve)`}
-                        </button>
-                        <button onClick={() => openGrants(s)} className="ks-ghost-btn px-2 py-1 rounded text-xs border border-white/10 bg-white/5 text-white hover:bg-white/10">Grants</button>
-                      </>
-                    )}
-                    <CardMenu
-                      ariaLabel={`Actions for stack ${s.name}`}
-                      items={[
-                        { key: 'open', label: 'Open', tone: 'default' },
-                        { key: 'edit', label: 'Edit', tone: 'default' },
-                        { key: 'download', label: 'Download .ksps', tone: 'default' },
-                        { key: 'delete', label: deletingId === s.id ? 'Deleting…' : 'Delete', tone: 'danger', disabled: deletingId === s.id },
-                      ]}
-                      onSelect={(key) => {
-                        if (key === 'open') navigate(`/stacks/${s.slug}/`);
-                        else if (key === 'edit') openEdit(s);
-                        else if (key === 'download') void doDownload(s);
-                        else if (key === 'delete') void doDelete(s);
-                      }}
-                    />
-                  </div>
+                  <button
+                    onClick={() => navigate(`/stack/${s.id}`)}
+                    className="text-[11px] text-gray-400 hover:text-white transition-colors shrink-0"
+                  >
+                    View details →
+                  </button>
                 </footer>
               </article>
             );
@@ -683,102 +516,6 @@ const Stacks: React.FC = () => {
         {installError && <p className="text-xs text-red-300 mt-2">{installError}</p>}
       </GlassModal>
 
-      {/* ---- Edit modal (theme support: icon + colour) ---- */}
-      <GlassModal
-        open={editStack != null}
-        onClose={() => setEditStack(null)}
-        title={editStack ? `Edit — ${editStack.name}` : 'Edit'}
-        maxWidth="max-w-lg"
-        footer={
-          <>
-            <button onClick={() => setEditStack(null)} className="px-3 py-1.5 rounded text-sm border border-white/10 text-gray-300 hover:bg-white/10">Cancel</button>
-            <button onClick={() => void saveEdit()} disabled={editSaving} className="ks-primary-btn px-3 py-1.5 rounded text-sm bg-white text-black hover:bg-gray-200 disabled:opacity-50">
-              {editSaving ? 'Saving…' : 'Save'}
-            </button>
-          </>
-        }
-      >
-        <label className="block">
-          <span className="text-xs text-gray-400">Name</span>
-          <input value={editName} onChange={(e) => setEditName(e.target.value)} className="block w-full mt-1 bg-black/30 border border-white/10 rounded-md text-sm text-white px-3 py-1.5 focus:outline-none focus:border-white/40" />
-        </label>
-        <div className="grid grid-cols-2 gap-2">
-          <label className="block">
-            <span className="text-xs text-gray-400">Version</span>
-            <input value={editVersion} onChange={(e) => setEditVersion(e.target.value)} className="block w-full mt-1 bg-black/30 border border-white/10 rounded-md text-sm text-white px-3 py-1.5 focus:outline-none focus:border-white/40" />
-          </label>
-          <label className="block">
-            <span className="text-xs text-gray-400">Category</span>
-            <select value={editCategory} onChange={(e) => setEditCategory(e.target.value)} className="block w-full mt-1 bg-black/30 border border-white/10 rounded-md text-sm text-gray-200 px-2 py-1.5 focus:outline-none focus:border-white/40">
-              {STACK_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </label>
-        </div>
-        <label className="block">
-          <span className="text-xs text-gray-400">Description</span>
-          <textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} rows={3} className="block w-full mt-1 bg-black/30 border border-white/10 rounded-md text-sm text-white px-3 py-1.5 focus:outline-none focus:border-white/40" />
-        </label>
-        <div>
-          <span className="block text-xs text-gray-400 mb-1">Icon & colour (card theme)</span>
-          <IconColorPicker icon={editIcon} color={editColor} onIconChange={setEditIcon} onColorChange={setEditColor} previewName={editName} />
-        </div>
-        <p className="text-[11px] text-gray-500">Theme mode / page style are set at install (manifest) — edit files or reinstall to change them.</p>
-      </GlassModal>
-
-      {/* ---- Grant / Activate modal ---- */}
-      <GlassModal
-        open={!!grantStack}
-        onClose={() => setGrantStack(null)}
-        title={grantStack ? `Permissions — ${grantStack.name}` : 'Permissions'}
-        maxWidth="max-w-xl"
-        footer={
-          <>
-            <button onClick={() => setGrantStack(null)} className="px-3 py-1.5 rounded text-sm border border-white/10 text-gray-300 hover:bg-white/10">Close</button>
-            {grantStack && grantStack.permissions.length > 0 && (
-              <button onClick={approveAll} disabled={grantBusy} className="px-3 py-1.5 rounded text-sm border border-white/10 text-gray-200 hover:bg-white/10">Approve all</button>
-            )}
-            <button onClick={() => void saveGrants()} disabled={grantBusy} className="px-3 py-1.5 rounded text-sm border border-white/10 text-white hover:bg-white/10 disabled:opacity-50">
-              {grantBusy ? 'Saving…' : 'Save grants'}
-            </button>
-          </>
-        }
-      >
-        {grantStack && grantStack.permissions.length === 0 && (
-          <p className="text-sm text-gray-300">This stack requested no capabilities. You can activate it safely.</p>
-        )}
-        {grantStack && grantStack.permissions.length > 0 && (
-          <>
-            <p className="text-xs text-amber-300">
-              This stack needs {grantStack.permissions.length} capability(ies) to fully work. Review each one before approving.
-            </p>
-            <div className="space-y-2">
-              {grantStack.permissions.map((p) => {
-                const meta = STACK_CAPABILITIES.find((c) => c.key === p.capability);
-                const checked = !!grants[p.capability];
-                return (
-                  <label key={p.id} className="ks-card ks-form-card flex items-start gap-3 p-3 rounded-lg cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={(e) => setGrants((g) => ({ ...g, [p.capability]: e.target.checked }))}
-                      className="mt-1 w-4 h-4 accent-emerald-500"
-                    />
-                    <div className="min-w-0">
-                      <p className="text-sm text-white flex items-center gap-1.5">
-                        <CapDot capability={p.capability} />
-                        {meta ? meta.label : p.capability}
-                        {p.access_level && <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-white/10 text-gray-300 border border-white/10">{p.access_level}</span>}
-                      </p>
-                      <p className="text-xs text-gray-400 mt-0.5">{meta ? meta.description : 'This stack requested this capability.'}</p>
-                    </div>
-                  </label>
-                );
-              })}
-            </div>
-          </>
-        )}
-        {grantError && <p className="text-red-400 text-xs">{grantError}</p>}
-      </GlassModal>
     </div>
   );
 };
