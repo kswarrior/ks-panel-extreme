@@ -171,7 +171,8 @@ ManageStacksKey = "MANAGE_STACKS"
 
 	InstancesViewKey   = "INSTANCES_VIEW"
 	InstancesCreateKey = "INSTANCES_CREATE"
-	InstancesEditKey   = "INSTANCES_EDIT" // start / stop
+	InstancesEditKey   = "INSTANCES_EDIT"    // edit config (spec, identity, ports, env, SFTP)
+	InstancesControlKey = "INSTANCES_CONTROL" // power control (start / stop / restart / kill / reinstall / suspend)
 	InstancesDeleteKey = "INSTANCES_DELETE"
 
 	ApiKeysViewKey   = "API_KEYS_VIEW"
@@ -300,11 +301,12 @@ const (
 	ActionView   Action = "VIEW"
 	ActionCreate Action = "CREATE"
 	ActionEdit   Action = "EDIT"
+	ActionControl Action = "CONTROL"
 	ActionDelete Action = "DELETE"
 )
 
 // AllActions is the canonical order the Roles form renders sub-permissions in.
-var AllActions = []Action{ActionView, ActionCreate, ActionEdit, ActionDelete}
+var AllActions = []Action{ActionView, ActionCreate, ActionEdit, ActionControl, ActionDelete}
 
 // Group describes a regulatable area: its human label, the umbrella MANAGE_*
 // (or VIEW_*) key that grants every action on the area, and the granular
@@ -349,7 +351,7 @@ var AreaGroups = []Group{
 		ActionView: TemplatesViewKey, ActionCreate: TemplatesCreateKey, ActionEdit: TemplatesEditKey, ActionDelete: TemplatesDeleteKey,
 	}, OwnKey: TemplatesOwnKey, AllKey: TemplatesAllKey},
 	{Label: "Instances", Umbrella: ManageInstancesKey, Keys: map[Action]string{
-		ActionView: InstancesViewKey, ActionCreate: InstancesCreateKey, ActionEdit: InstancesEditKey, ActionDelete: InstancesDeleteKey,
+		ActionView: InstancesViewKey, ActionCreate: InstancesCreateKey, ActionEdit: InstancesEditKey, ActionControl: InstancesControlKey, ActionDelete: InstancesDeleteKey,
 	}, ExtraKeys: []string{ViewInstancesKey}, OwnKey: InstancesOwnKey, AllKey: InstancesAllKey},
 	{Label: "API Keys", Umbrella: ManageApiKeysKey, Keys: map[Action]string{
 		ActionView: ApiKeysViewKey, ActionCreate: ApiKeysCreateKey, ActionEdit: ApiKeysEditKey, ActionDelete: ApiKeysDeleteKey,
