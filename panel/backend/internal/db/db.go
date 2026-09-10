@@ -731,6 +731,34 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				return err
 			}
 			continue
+		case name == "076_stack_nodes.sql":
+			// Node-style remote pairing for stacks (remote_address +
+			// TLS flags + pairing token hash/prefix/plain + heartbeat
+			// status/last_seen on stacks, migration 076). The
+			// sqlite/mysql files carry bare ADD COLUMN (no IF NOT
+			// EXISTS — only the postgres file has it via regen.sh),
+			// so each column is added via the runtime guard; reruns
+			// then converge instead of failing with "duplicate column
+			// name: remote_address" — mirrors 072_stack_proxy.
+			if err := guardedAddColumns(d, db, name, "stacks", []columnSpec{
+				{"remote_address", "VARCHAR(255) NOT NULL DEFAULT ''"},
+				{"remote_use_tls", "INTEGER NOT NULL DEFAULT 0"},
+				{"remote_skip_verify", "INTEGER NOT NULL DEFAULT 0"},
+				{"token_hash", "VARCHAR(128) NOT NULL DEFAULT ''"},
+				{"token_prefix", "VARCHAR(16) NOT NULL DEFAULT ''"},
+				{"token_plain", "TEXT NOT NULL DEFAULT ''"},
+				{"status", "VARCHAR(16) NOT NULL DEFAULT 'down'"},
+				{"last_seen_at", "TEXT"},
+			}); err != nil {
+				return err
+			}
+			if err := guardedCreateIndex(d, db, name, "stacks", "idx_stacks_status", "status"); err != nil {
+				return err
+			}
+			if err := guardedCreateIndex(d, db, name, "stacks", "idx_stacks_token_hash", "token_hash"); err != nil {
+				return err
+			}
+			continue
 		case name == "065_tickets_attachments_sla_notify.sql":
 			// Ticket attachments + SLA sidecar + notification prefs. The
 			// CREATE TABLEs are IF NOT EXISTS on every dialect, but the
