@@ -652,12 +652,12 @@ const Templates: React.FC = () => {
               <input
                 value={urlInput}
                 onChange={(e) => setUrlInput(e.target.value)}
-                placeholder="https://example.com/templates/my-template.json"
+                placeholder="https://example.com/templates/my-template.yaml"
                 className="block w-full mt-1 bg-black/30 border border-white/10 rounded-md text-sm text-white px-3 py-1.5 font-mono focus:outline-none focus:border-white/40"
               />
             </label>
             <p className="text-[11px] text-gray-500">
-              The response must be valid JSON or YAML. The fetched URL is recorded for audit trail.
+              The response must be valid YAML (legacy JSON is accepted). The fetched URL is recorded for audit trail.
             </p>
             {urlError && <p className="text-red-400 text-xs">{urlError}</p>}
           </>

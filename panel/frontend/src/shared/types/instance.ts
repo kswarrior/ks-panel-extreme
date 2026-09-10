@@ -12,7 +12,7 @@ export interface Template {
   kind: DriverKind;
   /** Driver-specific base image, forwarded verbatim to ksedge. */
   image: string;
-  /** JSON blob of driver-specic config (env, ports, limits…). Opaque to UI. */
+  /** YAML document of driver-specific config (env, ports, limits…). Opaque to UI. */
   spec: string;
   /** Raw SVG markup for the template tile (migration 059). Empty = driver glyph. */
   icon?: string;

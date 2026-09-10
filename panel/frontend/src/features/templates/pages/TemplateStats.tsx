@@ -9,6 +9,7 @@ import {
 import ErrorState from '@/shared/components/ui/ErrorState';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import { parseSpecDocument } from '@/features/templates/utils/templateSpecYaml';
 
 type KindKey = 'docker' | 'lxd' | 'kvm' | 'multipass' | 'unknown';
 
@@ -25,8 +26,8 @@ function kindKey(k: string): KindKey {
 }
 
 function parseSpec(raw: string): Record<string, any> {
-  if (!raw) return {};
-  try { return JSON.parse(raw) as Record<string, any>; } catch { return {}; }
+  // Template specs are canonical YAML (legacy JSON parses identically).
+  return parseSpecDocument(raw);
 }
 
 const TemplateStats: React.FC = () => {
