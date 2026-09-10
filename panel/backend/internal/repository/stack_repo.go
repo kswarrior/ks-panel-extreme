@@ -506,6 +506,151 @@ func (r *StackRepository) IngestStackHeartbeat(token string) (*models.Stack, err
 	return r.GetStack(s.ID)
 }
 
+// AnnounceInput is what a paired stack app declares about itself via
+// POST /api/stacks/announce: display metadata plus the capabilities it
+// needs right now. The pairing token (not a session) authenticates the
+// caller, so this can only ever touch the token's own row — there is no
+// open self-registration.
+type AnnounceInput struct {
+	// Slug, when non-empty, must match the token's row (fail closed:
+	// surfaces app misconfiguration instead of silently landing elsewhere).
+	Slug        string
+	Name        string
+	Version     string
+	Description string
+	Icon        string
+	// Needs replaces the full requested-capability set: entries seed
+	// pending rows, dropped entries lose their rows (revoking prior
+	// grants for caps the app no longer wants), kept entries retain
+	// their granted state. Empty means "I need nothing".
+	Needs []StackPermissionReq
+}
+
+// ApplyAnnounce stores one app announcement transactionally: row metadata
+// + permission-set sync. It never touches slug, proxy/remote dial config,
+// token, active state, or manifest/spec — those stay operator-owned.
+// Returns the pending-approval count so the app can log what it waits for.
+func (r *StackRepository) ApplyAnnounce(stackID int64, in AnnounceInput) (pending int, err error) {
+	if stackID == 0 {
+		return 0, fmt.Errorf("stack id is required")
+	}
+	name := strings.TrimSpace(in.Name)
+	if name == "" {
+		return 0, fmt.Errorf("name is required")
+	}
+	if len(name) > 100 {
+		return 0, fmt.Errorf("name too long (max 100 chars)")
+	}
+	version := strings.TrimSpace(in.Version)
+	if version == "" {
+		version = "1.0.0"
+	}
+	if len(version) > 32 {
+		return 0, fmt.Errorf("version too long (max 32 chars)")
+	}
+	description := strings.TrimSpace(in.Description)
+	if len(description) > 2000 {
+		return 0, fmt.Errorf("description too long (max 2000 chars)")
+	}
+	icon := strings.TrimSpace(in.Icon)
+	if len(icon) > 64 {
+		return 0, fmt.Errorf("icon too long (max 64 chars)")
+	}
+	needs := in.Needs
+	if needs == nil {
+		needs = []StackPermissionReq{}
+	}
+	for _, p := range needs {
+		if len(p.AccessLevel) > 64 {
+			return 0, fmt.Errorf("access_level too long for capability %q (max 64 chars)", p.Capability)
+		}
+	}
+	if err := validateStackPermissionRequests(needs); err != nil {
+		return 0, err
+	}
+
+	tx, err := r.db.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+
+	now := time.Now().UTC().Format("2006-01-02 15:04:05")
+	res, err := tx.Exec(
+		`UPDATE stacks SET name = ?, version = ?, description = ?, icon = ?, updated_at = ? WHERE id = ?`,
+		name, version, description, icon, now, stackID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return 0, ErrStackNotFound
+	}
+	// Sync the requested set: insert missing as pending, refresh the
+	// access_level on kept rows (granted state untouched), delete rows
+	// the app no longer asks for.
+	keep := make(map[string]StackPermissionReq, len(needs))
+	for _, p := range needs {
+		keep[p.Capability] = p
+		var exists int
+		if err := tx.QueryRow(
+			`SELECT COUNT(*) FROM stack_permissions WHERE stack_id = ? AND capability = ?`,
+			stackID, p.Capability,
+		).Scan(&exists); err != nil {
+			return 0, err
+		}
+		if exists == 0 {
+			if _, err := tx.Exec(
+				`INSERT INTO stack_permissions (stack_id, capability, access_level, granted) VALUES (?, ?, ?, 0)`,
+				stackID, p.Capability, p.AccessLevel,
+			); err != nil {
+				return 0, err
+			}
+		} else if _, err := tx.Exec(
+			`UPDATE stack_permissions SET access_level = ? WHERE stack_id = ? AND capability = ?`,
+			p.AccessLevel, stackID, p.Capability,
+		); err != nil {
+			return 0, err
+		}
+	}
+	existing, err := r.ListStackPermissions(stackID)
+	if err != nil {
+		return 0, err
+	}
+	// ListStackPermissions opens its own queries on r.db — safe alongside
+	// the open tx since it only reads.
+	for _, p := range existing {
+		if _, ok := keep[p.Capability]; !ok {
+			if _, err := tx.Exec(
+				`DELETE FROM stack_permissions WHERE stack_id = ? AND capability = ?`,
+				stackID, p.Capability,
+			); err != nil {
+				return 0, err
+			}
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	ok, err := r.AllGranted(stackID)
+	if err != nil {
+		return 0, err
+	}
+	if ok {
+		return 0, nil
+	}
+	perms, err := r.ListStackPermissions(stackID)
+	if err != nil {
+		return 0, err
+	}
+	for _, p := range perms {
+		if !p.Granted {
+			pending++
+		}
+	}
+	return pending, nil
+}
+
 // UpdateStackInput is the editable overlay: human-facing fields + spec +
 // node-style remote pairing + proxy mount. Requested caps are NOT mutable
 // (re-declaring caps is a re-upload).

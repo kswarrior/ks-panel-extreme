@@ -94,6 +94,16 @@ func TestCSRFRejectsPostWithoutToken(t *testing.T) {
 	if rec4.Code == http.StatusForbidden && strings.Contains(strings.ToLower(rec4.Body.String()), "csrf") {
 		t.Fatalf("POST /api/nodes/heartbeat must stay CSRF-exempt, got 403 %q", rec4.Body.String())
 	}
+
+	// Public POST /api/stacks/announce stays exempt (stack token-in-body,
+	// same model as the stack heartbeat).
+	req5 := httptest.NewRequest(http.MethodPost, "/api/stacks/announce", strings.NewReader(`{}`))
+	req5.Header.Set("Content-Type", "application/json")
+	rec5 := httptest.NewRecorder()
+	h.ServeHTTP(rec5, req5)
+	if rec5.Code == http.StatusForbidden && strings.Contains(strings.ToLower(rec5.Body.String()), "csrf") {
+		t.Fatalf("POST /api/stacks/announce must stay CSRF-exempt, got 403 %q", rec5.Body.String())
+	}
 }
 
 // TestCSRFTokenMintAndReuse proves the SPA flow works: GET /api/csrf-token

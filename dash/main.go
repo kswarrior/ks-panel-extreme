@@ -17,6 +17,12 @@
 // Pairing: every --heartbeat-interval seconds it POSTs
 // {token} to <panel-url>/api/stacks/heartbeat, which flips the stack row
 // to up. Failures are logged, never fatal.
+//
+// Announce: on start (retried until first success) it POSTs
+// {token, slug, name, version, description, icon, needs[]} to
+// <panel-url>/api/stacks/announce — the panel stores who the app is and
+// holds the needed capabilities pending until the admin allows them and
+// activates. The app itself never touches grants.
 package main
 
 import (
@@ -33,33 +39,79 @@ import (
 )
 
 // config is the whole operator surface: flags win, PANEL_URL / STACK_TOKEN
-// / STACK_SLUG envs fill the gaps (the panel pairing snippet prints this
-// exact shape).
+// / STACK_SLUG / APP_* / STACK_NEEDS envs fill the gaps (the panel pairing
+// snippet prints the pairing half of this exact shape).
 type config struct {
 	port              int
 	panelURL          string
 	token             string
 	slug              string
+	name              string
+	version           string
+	description       string
+	icon              string
+	needs             []string
 	heartbeatInterval time.Duration
+}
+
+func getenv(keys ...string) string {
+	for _, k := range keys {
+		if v := strings.TrimSpace(os.Getenv(k)); v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func loadConfig() config {
 	var c config
+	var needsFlag string
 	flag.IntVar(&c.port, "port", 6600, "TCP port to listen on")
 	flag.StringVar(&c.panelURL, "panel-url", "", "panel origin, e.g. http://127.0.0.1:8080")
 	flag.StringVar(&c.token, "token", "", "pairing token (kss_…) minted by the panel")
 	flag.StringVar(&c.slug, "slug", "dash", "stack slug (must match the panel row)")
+	flag.StringVar(&c.name, "name", "", "display name announced to the panel")
+	flag.StringVar(&c.version, "version", "", "app version announced to the panel")
+	flag.StringVar(&c.description, "description", "", "short blurb announced to the panel")
+	flag.StringVar(&c.icon, "icon", "", "icon key announced to the panel")
+	flag.StringVar(&needsFlag, "need", "", "comma-separated capabilities the app needs, e.g. metrics.read,instances.read")
 	interval := flag.Int("heartbeat-interval", 60, "seconds between pairing heartbeats (0 disables)")
 	flag.Parse()
 	if c.panelURL == "" {
-		c.panelURL = strings.TrimSpace(os.Getenv("PANEL_URL"))
+		c.panelURL = getenv("PANEL_URL")
 	}
 	if c.token == "" {
-		c.token = strings.TrimSpace(os.Getenv("STACK_TOKEN"))
+		c.token = getenv("STACK_TOKEN")
 	}
 	if c.slug == "" || c.slug == "dash" {
-		if env := strings.TrimSpace(os.Getenv("STACK_SLUG")); env != "" {
+		if env := getenv("STACK_SLUG"); env != "" {
 			c.slug = env
+		}
+	}
+	if c.name == "" {
+		c.name = getenv("APP_NAME")
+	}
+	if c.name == "" {
+		c.name = c.slug
+	}
+	if c.version == "" {
+		c.version = getenv("APP_VERSION")
+	}
+	if c.version == "" {
+		c.version = "1.0.0"
+	}
+	if c.description == "" {
+		c.description = getenv("APP_DESCRIPTION")
+	}
+	if c.icon == "" {
+		c.icon = getenv("APP_ICON")
+	}
+	if needsFlag == "" {
+		needsFlag = getenv("STACK_NEEDS")
+	}
+	for _, n := range strings.Split(needsFlag, ",") {
+		if n = strings.TrimSpace(n); n != "" {
+			c.needs = append(c.needs, n)
 		}
 	}
 	if *interval <= 0 {
@@ -69,6 +121,81 @@ func loadConfig() config {
 	}
 	c.panelURL = strings.TrimRight(strings.TrimSpace(c.panelURL), "/")
 	return c
+}
+
+// announceOnce declares who the app is and what it needs. The panel
+// answers how many capability approvals are still pending — the admin
+// allows them in the stack detail page, then activates.
+func announceOnce(c config) (int, error) {
+	type need struct {
+		Capability  string `json:"capability"`
+		AccessLevel string `json:"access_level"`
+	}
+	needs := make([]need, 0, len(c.needs))
+	for _, n := range c.needs {
+		access := "read"
+		if strings.Contains(n, "read_write") {
+			access = "read_write"
+		} else if !strings.HasSuffix(n, ".read") {
+			access = "allow"
+		}
+		needs = append(needs, need{Capability: n, AccessLevel: access})
+	}
+	body, err := json.Marshal(map[string]any{
+		"token": c.token, "slug": c.slug,
+		"name": c.name, "version": c.version,
+		"description": c.description, "icon": c.icon,
+		"needs": needs,
+	})
+	if err != nil {
+		return 0, err
+	}
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Post(c.panelURL+"/api/stacks/announce", "application/json", bytes.NewReader(body))
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("panel answered HTTP %d", resp.StatusCode)
+	}
+	var out struct {
+		Pending int `json:"pending"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return 0, err
+	}
+	return out.Pending, nil
+}
+
+// announceUntilSuccess runs before the heartbeat loop: the panel must
+// exist and the token must be valid before anything else matters. It
+// retries on the heartbeat cadence so a panel that boots later still
+// gets the announcement. The token authenticates the call — it is sent
+// in the body and never written to logs.
+func announceUntilSuccess(c config) {
+	if c.token == "" || c.panelURL == "" {
+		log.Println("announce off (set -token + -panel-url so the panel learns name/version/needs)")
+		return
+	}
+	interval := c.heartbeatInterval
+	if interval <= 0 {
+		interval = 60 * time.Second
+	}
+	for {
+		pending, err := announceOnce(c)
+		if err != nil {
+			log.Printf("announce: %v", err)
+			time.Sleep(interval)
+			continue
+		}
+		if pending == 0 {
+			log.Printf("announce: ok (%q v%s, nothing pending)", c.name, c.version)
+		} else {
+			log.Printf("announce: ok (%q v%s, %d approval(s) pending — allow them in the stack detail page)", c.name, c.version, pending)
+		}
+		return
+	}
 }
 
 // heartbeatOnce pushes one pairing heartbeat. The token authenticates the

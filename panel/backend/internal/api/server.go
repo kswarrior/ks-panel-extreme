@@ -224,6 +224,10 @@ func NewRouter() http.Handler {
 		// with its pairing token (kss_…) in the body — no session cookie,
 		// no API key (mirrors the edge heartbeat above).
 		r.Post("/api/stacks/heartbeat", handlers.StackHeartbeatHandler)
+		// Public stack self-description. Same token-in-body model as the
+		// heartbeat: the app declares name/version/needs, the panel holds
+		// the caps pending until the admin allows them.
+		r.Post("/api/stacks/announce", handlers.StackAnnounceHandler)
 		// Paired-stack token API: the remote app calls back into the panel
 		// with its pairing token (Bearer). Each endpoint enforces the
 		// stack's granted caps itself, so these must NOT sit behind the

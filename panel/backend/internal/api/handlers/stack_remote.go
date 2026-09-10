@@ -30,11 +30,16 @@ import (
 //	3. The app pushes POST /api/stacks/heartbeat {token} on a loop — the
 //	   panel flips status up/down + stamps last_seen_at (mirrors the edge
 //	   heartbeat, minus telemetry: dashboards report liveness only).
-//	4. The admin Verify button (POST /api/stacks/{id}/probe) actively dials
+//	4. The app announces itself via POST /api/stacks/announce
+//	   {token, name, version, needs[]} — the panel stores the metadata
+//	   and seeds the requested capabilities as pending; the admin allows
+//	   each in the detail page and activates (existing AllGranted gate).
+//	5. The admin Verify button (POST /api/stacks/{id}/probe) actively dials
 //	   the app's /health like ProbeNodeHandler does for edges.
 //
-// The heartbeat route is public + CSRF-exempt (token-in-body, mirrors
-// POST /api/nodes/heartbeat). Everything else here is session-gated.
+// The heartbeat and announce routes are public + CSRF-exempt
+// (token-in-body, mirrors POST /api/nodes/heartbeat). Everything else
+// here is session-gated.
 
 // stackHeartbeatRequest is the public pairing heartbeat body. Token-only
 // by design: dashboards report liveness, not telemetry.
@@ -145,6 +150,86 @@ func ProbeStackHandler(w http.ResponseWriter, r *http.Request) {
 		Message:     fmt.Sprintf("verified stack app %q at %s (reachable=yes)", s.Name, addr),
 	})
 	writeJSON(w, stackProbeResultJSON{StackID: id, Reachable: "yes"})
+}
+
+// stackAnnounceNeed is one capability the app declares in its announce
+// body. Capability codes run through the same whitelist as manifests.
+type stackAnnounceNeed struct {
+	Capability  string `json:"capability"`
+	AccessLevel string `json:"access_level"`
+}
+
+// stackAnnounceRequest is the public self-description body a paired app
+// sends: who it is (name/version/…) and what it needs (needs). The token
+// authenticates it — this can only ever touch the token's own row.
+type stackAnnounceRequest struct {
+	Token       string              `json:"token"`
+	Slug        string              `json:"slug"`
+	Name        string              `json:"name"`
+	Version     string              `json:"version"`
+	Description string              `json:"description"`
+	Icon        string              `json:"icon"`
+	Needs       []stackAnnounceNeed `json:"needs"`
+}
+
+// StackAnnounceHandler is the public endpoint where a paired stack app
+// declares itself. The panel stores the metadata, syncs the requested
+// capability set to pending, and reports how many approvals are waiting —
+// the admin then allows each in the detail page and activates (the
+// existing AllGranted gate). Bad token → 401 without leaking anything;
+// validation failures → 400 with the reason.
+func StackAnnounceHandler(w http.ResponseWriter, r *http.Request) {
+	var req stackAnnounceRequest
+	if err := json.NewDecoder(io.LimitReader(r.Body, 64<<10)).Decode(&req); err != nil {
+		http.Error(w, "invalid payload", http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(req.Token) == "" {
+		http.Error(w, "token is required", http.StatusBadRequest)
+		return
+	}
+	repo, closeFn := openStackRepo()
+	if repo == nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	defer closeFn()
+	s, err := repo.GetStackByToken(req.Token)
+	if err != nil {
+		// Never log the token. Never distinguish "unknown" from
+		// "revoked" — both are just unauthorized.
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if slug := strings.TrimSpace(req.Slug); slug != "" && slug != s.Slug {
+		http.Error(w, "slug mismatch: this token belongs to another stack", http.StatusBadRequest)
+		return
+	}
+	needs := make([]repository.StackPermissionReq, 0, len(req.Needs))
+	for _, n := range req.Needs {
+		needs = append(needs, repository.StackPermissionReq{
+			Capability:  strings.TrimSpace(n.Capability),
+			AccessLevel: strings.TrimSpace(n.AccessLevel),
+		})
+	}
+	pending, err := repo.ApplyAnnounce(s.ID, repository.AnnounceInput{
+		Slug:        strings.TrimSpace(req.Slug),
+		Name:        req.Name,
+		Version:     req.Version,
+		Description: req.Description,
+		Icon:        req.Icon,
+		Needs:       needs,
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	writeJSON(w, map[string]any{
+		"stack_id": s.ID,
+		"slug":     s.Slug,
+		"pending":  pending,
+		"status":   "ok",
+	})
 }
 
 // RotateStackTokenHandler reissues the pairing token and returns the
