@@ -286,10 +286,10 @@ const InstancePages: React.FC = () => {
     let out = enriched;
     if (q) {
       out = out.filter((e) =>
-        e.page.name.toLowerCase().includes(q) ||
-        e.page.description.toLowerCase().includes(q) ||
-        e.category.toLowerCase().includes(q) ||
-        e.page.slug.toLowerCase().includes(q)
+        (e.page.name || '').toLowerCase().includes(q) ||
+        (e.page.description || '').toLowerCase().includes(q) ||
+        (e.category || '').toLowerCase().includes(q) ||
+        (e.page.slug || '').toLowerCase().includes(q)
       );
     }
     if (kindFilter !== 'all') out = out.filter((e) => e.source === kindFilter);
@@ -297,7 +297,7 @@ const InstancePages: React.FC = () => {
     const sorted = [...out];
     sorted.sort((a, b) => {
       switch (sort) {
-        case 'name': return a.page.name.localeCompare(b.page.name);
+        case 'name': return (a.page.name || '').localeCompare(b.page.name || '');
         case 'kind': return a.source.localeCompare(b.source) || b.updated - a.updated;
         case 'category': return a.category.localeCompare(b.category) || b.updated - a.updated;
         case 'newest': return b.created - a.created;
@@ -315,10 +315,10 @@ const InstancePages: React.FC = () => {
     const q = marketSearch.trim().toLowerCase();
     if (!q) return marketCatalog.pages;
     return marketCatalog.pages.filter((mp) =>
-      mp.name.toLowerCase().includes(q) ||
-      mp.id.toLowerCase().includes(q) ||
-      mp.category.toLowerCase().includes(q) ||
-      mp.description.toLowerCase().includes(q)
+      (mp.name || '').toLowerCase().includes(q) ||
+      (mp.id || '').toLowerCase().includes(q) ||
+      (mp.category || '').toLowerCase().includes(q) ||
+      (mp.description || '').toLowerCase().includes(q)
     );
   }, [marketCatalog, marketSearch]);
 

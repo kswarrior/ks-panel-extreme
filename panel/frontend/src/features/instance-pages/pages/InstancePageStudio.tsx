@@ -25,6 +25,8 @@ import type { PageContent } from '@/shared/components/ui/CustomPageView';
 import type { PageStudioTabId } from '@/features/instance-pages/types/pageStudio';
 import { sectionCls } from '@/features/instance-pages/types/pageStudio';
 import type { ActionRow, SubPageRow, ComponentRow, ConfigureRow } from '@/features/instance-pages/types/pageStudio';
+import type { PageStarter } from '@/features/instance-pages/templates/pageStarters';
+import { PAGE_STARTERS } from '@/features/instance-pages/templates/pageStarters';
 import {
   getErrorMessage,
   blankAction,
@@ -45,6 +47,7 @@ import {
 } from '@/features/instance-pages/utils/pageStudioUtils';
 import {
   PageStudioTabs,
+  PageStudioTemplatesSection,
   PageStudioContentSection,
   PageStudioReactSection,
   PageStudioSubPagesSection,
@@ -154,6 +157,9 @@ const InstancePageStudio: React.FC = () => {
   // Blocks visual editor state
   const [blocksMode, setBlocksMode] = useState<'visual' | 'json'>('visual');
 
+  // Starter gallery search (Templates tab).
+  const [templateSearch, setTemplateSearch] = useState('');
+
   // Preview / test target
   const [instances, setInstances] = useState<Instance[]>([]);
   const [previewInstanceId, setPreviewInstanceId] = useState<number | null>(null);
@@ -236,6 +242,45 @@ const InstancePageStudio: React.FC = () => {
     } finally {
       setBuilding(false);
     }
+  };
+
+  // ---- Starter gallery --------------------------------------------------
+  // Applies a PageStarter into the draft. Meta (name/slug/…) is only filled
+  // on create so applying a template while editing never breaks linked
+  // slugs; content + actions + sub-pages always apply (explicit user action).
+  const filteredStarters = useMemo(() => {
+    const q = templateSearch.trim().toLowerCase();
+    if (!q) return PAGE_STARTERS;
+    return PAGE_STARTERS.filter((s) =>
+      s.name.toLowerCase().includes(q) ||
+      s.slug.toLowerCase().includes(q) ||
+      s.category.toLowerCase().includes(q) ||
+      s.description.toLowerCase().includes(q),
+    );
+  }, [templateSearch]);
+
+  const applyStarter = (s: PageStarter) => {
+    const st = s.contentType ?? (s.blocks ? 'blocks' : s.markdown ? 'markdown' : 'html');
+    setPage((p) => ({
+      ...p,
+      // Meta only on create — editing keeps the stable slug linked templates use.
+      ...(!isEdit ? { name: s.name, slug: s.slug, category: s.category, description: s.description, icon_svg: s.iconSvg } : {}),
+      content_type: st,
+      content_html: st === 'html' ? (s.html ?? '') : p.content_html,
+      content_markdown: st === 'markdown' ? (s.markdown ?? '') : p.content_markdown,
+      content_blocks: st === 'blocks' ? (s.blocks ?? '') : p.content_blocks,
+    }));
+    setBlocksMode('visual');
+    if (Array.isArray(s.actions)) setActions(defsToActions(JSON.stringify(s.actions)));
+    if (Array.isArray(s.subPages)) {
+      const rows = subRowsFromJSON(JSON.stringify(s.subPages));
+      setSubs(rows);
+      setEditingSubId(null);
+      if (previewTarget !== 'main') setPreviewTarget('main');
+    }
+    setError('');
+    setNotice(`Template "${s.name}" applied — review and save.`);
+    setActiveTab('editor');
   };
 
   const addAction = () => setActions((a) => [...a, blankAction()]);
@@ -640,6 +685,18 @@ const InstancePageStudio: React.FC = () => {
             </div>
           )}
 
+          {/* ============================== TEMPLATES ============================== */}
+          {activeTab === 'templates' && !isBuiltin && (
+            <PageStudioTemplatesSection
+              search={templateSearch}
+              onSearchChange={setTemplateSearch}
+              starters={filteredStarters}
+              query={templateSearch}
+              onApply={applyStarter}
+              sectionCls={sectionCls}
+            />
+          )}
+
           {/* ============================== CONTENT ============================== */}
           {activeTab === 'editor' && !isBuiltin && contentType !== 'react' && (
             <PageStudioContentSection
@@ -666,9 +723,12 @@ const InstancePageStudio: React.FC = () => {
           {activeTab === 'editor' && !isBuiltin && contentType === 'react' && (
             <PageStudioReactSection
               source={(page as any).source_tsx ?? ''}
-              onSourceChange={(v) => setPage((p) => ({ ...p, source_tsx: v } as any))}
+              // Editing the source invalidates the stored bundle (build-owned
+              // columns): clear the status so the tab stops showing a stale
+              // "Built ✓" until the next Build.
+              onSourceChange={(v) => setPage((p) => ({ ...p, source_tsx: v, build_status: '', build_log: '' } as any))}
               css={(page as any).bundle_css ?? ''}
-              onCssChange={(v) => setPage((p) => ({ ...p, bundle_css: v } as any))}
+              onCssChange={(v) => setPage((p) => ({ ...p, bundle_css: v, build_status: '', build_log: '' } as any))}
               buildStatus={(page as any).build_status ?? ''}
               buildLog={(page as any).build_log ?? ''}
               onBuild={handleBuild}

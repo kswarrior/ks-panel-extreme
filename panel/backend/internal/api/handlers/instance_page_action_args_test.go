@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -137,5 +138,36 @@ func TestValidActionArgCharset(t *testing.T) {
 		if validActionArg(s) {
 			t.Errorf("%q should be INVALID", s)
 		}
+	}
+}
+
+// Native-array actions on import must round-trip every persisted field.
+// Regression: the importer used to decode through a narrow struct and drop
+// open_args/env/timeout/description.
+func TestImportActionsNativeArrayPreservesAllFields(t *testing.T) {
+	raw := `{"name":"P","slug":"p","kind":"custom","actions":[{"name":"logs","type":"shell","command":"docker logs {{args}}","args":[],"open_args":true,"env":{"A":"b"},"timeout":45,"description":"d"}]}`
+	var req ImportInstancePageRequest
+	if err := json.Unmarshal([]byte(raw), &req); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	var arr []map[string]any
+	if err := json.Unmarshal([]byte(req.Actions), &arr); err != nil {
+		t.Fatalf("actions not an array: %v", err)
+	}
+	if len(arr) != 1 {
+		t.Fatalf("want 1 action, got %d", len(arr))
+	}
+	got := arr[0]
+	if got["open_args"] != true {
+		t.Errorf("open_args lost: %v", got)
+	}
+	if env, _ := got["env"].(map[string]any); env["A"] != "b" {
+		t.Errorf("env lost: %v", got)
+	}
+	if got["timeout"] != float64(45) {
+		t.Errorf("timeout lost: %v", got)
+	}
+	if got["description"] != "d" {
+		t.Errorf("description lost: %v", got)
 	}
 }

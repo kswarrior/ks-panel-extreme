@@ -12,9 +12,10 @@ import type { InstancePageSubPage, PageActionDef } from './instancePage';
 // Tabs — same pattern as TEMPLATE_TABS in templates/types/templateForm.ts
 // ---------------------------------------------------------------------------
 
-export type PageStudioTabId = 'editor' | 'subpages' | 'actions' | 'preview' | 'settings' | 'components' | 'configure';
+export type PageStudioTabId = 'templates' | 'editor' | 'subpages' | 'actions' | 'preview' | 'settings' | 'components' | 'configure';
 
 export const PAGE_STUDIO_TABS: Array<{ id: PageStudioTabId; label: string }> = [
+  { id: 'templates', label: 'Templates' },
   { id: 'editor', label: 'Main page' },
   { id: 'subpages', label: 'Sub-pages' },
   { id: 'actions', label: 'Actions' },

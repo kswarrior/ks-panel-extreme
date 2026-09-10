@@ -46,6 +46,8 @@ const InstancePageStats: React.FC = () => {
   const [filterOpen, setFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
 
+  const rangeMs = timeRange === '1h' ? 3600_000 : timeRange === '6h' ? 6 * 3600_000 : timeRange === '24h' ? 24 * 3600_000 : 7 * 24 * 3600_000;
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
@@ -80,7 +82,9 @@ const InstancePageStats: React.FC = () => {
     category: p.category || '',
     updated: cardTimeMs(p.updated_at),
     created: cardTimeMs(p.created_at),
-    hasContent: !!(p.content_html || p.content_markdown || p.content_blocks),
+    // React pages carry their body in source_tsx/bundle_js, not the
+    // html/markdown/blocks columns — count those as content too.
+    hasContent: !!((p as any).content_html || (p as any).content_markdown || (p as any).content_blocks || (p as any).source_tsx || (p as any).bundle_js),
     hasIcon: !!p.icon_svg,
   })).filter((e) => {
     const q = search.trim().toLowerCase();
@@ -89,8 +93,12 @@ const InstancePageStats: React.FC = () => {
       if (!hay.includes(q)) return false;
     }
     if (kindFilter !== 'all' && e.kind !== kindFilter) return false;
+    // Time range applies to the latest activity stamp; rows without any
+    // timestamp are kept (their age is unknown, not necessarily stale).
+    const latest = Math.max(e.updated, e.created);
+    if (latest > 0 && Date.now() - latest > rangeMs) return false;
     return true;
-  }), [pages, search, kindFilter]);
+  }), [pages, search, kindFilter, rangeMs]);
 
   const stats = useMemo(() => {
     const byKind: Record<string, number> = {};

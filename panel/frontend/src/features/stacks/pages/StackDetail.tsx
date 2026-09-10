@@ -9,7 +9,6 @@ import { CardIconTile } from '@/shared/components/ui/IconColorPicker';
 import IconColorPicker from '@/shared/components/ui/IconColorPicker';
 import {
   getStack,
-  setStackGrants,
   activateStack,
   deactivateStack,
   startStackOp,
@@ -17,7 +16,6 @@ import {
   stopStackOp,
   deleteStack,
   updateStack,
-  downloadStack,
   stackAppUrl,
   rotateStackToken,
   probeStack,
@@ -26,8 +24,7 @@ import {
 } from '@/features/stacks/api/stacks';
 import type { StackOpJob, StackOpName } from '@/features/stacks/api/stacks';
 import type { StackPairing, StackProbeResult } from '@/shared/types/stack';
-import { Stack, stackCapabilityMeta, stackSourceMeta, STACK_CATEGORIES } from '@/shared/types/stack';
-import StackFileManager from '@/features/stacks/components/StackFileManager';
+import { Stack, stackSourceMeta, STACK_CATEGORIES } from '@/shared/types/stack';
 import StackOpModal from '@/features/stacks/components/StackOpModal';
 import { useConfirm } from '@/shared/stores/confirmStore';
 
@@ -74,7 +71,7 @@ function stepLabel(s: any, i: number): string {
 
 // StackDetail — one stack, laid out like the template detail page: themed
 // header + stat grid, info sections (location / workflows / permissions),
-// the interactive capability-grant + proxy editors, files, raw manifest.
+// the proxy + pairing editors.
 const StackDetail: React.FC = () => {
   const { id = '' } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -82,18 +79,14 @@ const StackDetail: React.FC = () => {
   const [stack, setStack] = useState<Stack | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [grants, setGrants] = useState<Record<string, boolean>>({});
-  const [saving, setSaving] = useState(false);
   const [toggling, setToggling] = useState(false);
   const [notice, setNotice] = useState('');
-  const [downloading, setDownloading] = useState(false);
   // Operation console: the running/finished job + modal visibility. Closing
   // the modal only hides it — polling continues until the job terminates.
   const [opJob, setOpJob] = useState<StackOpJob | null>(null);
   const [opOpen, setOpOpen] = useState(false);
   const [opStopping, setOpStopping] = useState(false);
   const opBusy = opJob?.status === 'running';
-  const [manifestOpen, setManifestOpen] = useState(false);
   const [copied, setCopied] = useState('');
   // App proxy (externally-run Go app floated at /<root>).
   const [proxyPort, setProxyPort] = useState('');
@@ -129,9 +122,6 @@ const StackDetail: React.FC = () => {
     try {
       const s = await getStack(Number(id));
       setStack(s);
-      const init: Record<string, boolean> = {};
-      for (const p of s.permissions) init[p.capability] = p.granted;
-      setGrants(init);
       setProxyPort(s.proxy_port ? String(s.proxy_port) : '');
       setProxyRoot(s.proxy_root_url || '');
       setRemoteAddress(s.remote_address || '');
@@ -177,7 +167,6 @@ const StackDetail: React.FC = () => {
           else if (fresh.status === 'cancelled') flashNotice(`${op} stopped — partial effects stand.`);
           else {
             setError(fresh.error || `${op} failed.`);
-            if (op === 'launch') scrollToGrants();
           }
         }
       } catch {
@@ -198,26 +187,6 @@ const StackDetail: React.FC = () => {
       setCopied(key);
       setTimeout(() => setCopied(''), 1500);
     } catch {}
-  };
-
-  const handleDownload = async () => {
-    if (!stack) return;
-    setDownloading(true);
-    try {
-      const blob = await downloadStack(stack.id);
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${stack.slug || `stack-${stack.id}`}.ksps`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (e: any) {
-      setError(extractStackApiError(e, 'Download failed.'));
-    } finally {
-      setDownloading(false);
-    }
   };
 
   if (loading) {
@@ -298,28 +267,9 @@ const StackDetail: React.FC = () => {
       ? (installImage || stack.runtime || 'docker')
       : `${stack.runtime || 'host'}${stack.entrypoint ? ` · ${stack.entrypoint}` : ''}`;
 
-  const save = async () => {
-    setSaving(true);
-    try {
-      await setStackGrants(
-        stack.id,
-        Object.entries(grants).map(([capability, granted]) => ({ capability, granted })),
-      );
-      await load();
-    } catch (e) {
-      setError(extractStackApiError(e, 'Failed to save grants.'));
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const flashNotice = (msg: string) => {
     setNotice(msg);
     window.setTimeout(() => setNotice((cur) => (cur === msg ? '' : cur)), 6000);
-  };
-
-  const scrollToGrants = () => {
-    requestAnimationFrame(() => document.getElementById('stack-grants')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   };
 
   const toggle = async () => {
@@ -594,7 +544,6 @@ const StackDetail: React.FC = () => {
             { key: 'edit', label: 'Edit', tone: 'default' as const },
             { key: 'install', label: opBusy && opJob?.op === 'install' ? 'Installing…' : 'Install', tone: 'default' as const },
             { key: 'reinstall', label: opBusy && opJob?.op === 'reinstall' ? 'Reinstalling…' : 'Reinstall', tone: 'default' as const },
-            { key: 'download', label: downloading ? 'Downloading…' : 'Download .ksps', tone: 'default' as const },
             { key: 'copyId', label: copied === 'id' ? 'Copied!' : 'Copy ID', tone: 'default' as const },
             { key: 'copyManifest', label: copied === 'manifest' ? 'Copied!' : 'Copy manifest', tone: 'default' as const },
             { key: 'delete', label: 'Delete', tone: 'danger' as const },
@@ -608,7 +557,6 @@ const StackDetail: React.FC = () => {
             if (k === 'edit') openEdit();
             if (k === 'install') void doInstall();
             if (k === 'reinstall') void doReinstall();
-            if (k === 'download') void handleDownload();
             if (k === 'copyId') void copy(String(stack.id), 'id');
             if (k === 'copyManifest') void copy(prettyManifest, 'manifest');
             if (k === 'delete') void remove(false);
@@ -728,9 +676,6 @@ const StackDetail: React.FC = () => {
           <button type="button" onClick={() => void doReinstall()} disabled={opBusy} className="px-3 py-1.5 text-xs rounded-md border border-amber-700/40 bg-amber-900/20 hover:bg-amber-900/40 text-amber-200 disabled:opacity-50">
             {opBusy && opJob?.op === 'reinstall' ? 'Reinstalling…' : 'Reinstall'}
           </button>
-          <button type="button" onClick={() => void handleDownload()} disabled={downloading} className="px-3 py-1.5 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white disabled:opacity-50">
-            {downloading ? 'Downloading…' : 'Download .ksps'}
-          </button>
         </div>
       </GlassCard>
 
@@ -810,26 +755,6 @@ const StackDetail: React.FC = () => {
         </GlassCard>
 
         <GlassCard className="p-3">
-          <h4 className="text-xs uppercase tracking-wide text-gray-500 mb-2">Capabilities · {stack.permissions.length}</h4>
-          {stack.permissions.length === 0 ? <p className="text-xs text-gray-500">No capabilities requested</p> : (
-            <ul className="space-y-1 max-h-40 overflow-auto pr-1">
-              {stack.permissions.map((p) => (
-                <li key={p.capability} className="flex items-start gap-2 text-xs rounded border border-white/5 bg-white/[0.02] px-2 py-1.5">
-                  <span className={`mt-1 w-2 h-2 rounded-full shrink-0 ${p.granted ? 'bg-emerald-400' : 'bg-amber-400'}`} title={p.granted ? 'granted' : 'pending'} />
-                  <span className="min-w-0">
-                    <span className="block text-gray-100">{stackCapabilityMeta(p.capability)?.label || p.capability}</span>
-                    <code className="block text-[11px] text-gray-500 font-mono truncate">{p.capability} · {p.access_level}</code>
-                  </span>
-                  <span className={`ml-auto text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border shrink-0 ${p.granted ? 'border-emerald-700/40 bg-emerald-950/40 text-emerald-200' : 'border-amber-700/40 bg-amber-950/40 text-amber-200'}`}>
-                    {p.granted ? 'granted' : 'pending'}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </GlassCard>
-
-        <GlassCard className="p-3">
           <h4 className="text-xs uppercase tracking-wide text-gray-500 mb-2">Panel permissions · {panelPermissions.length}</h4>
           {panelPermissions.length === 0 ? <p className="text-xs text-gray-500">No panel permission keys requested</p> : (
             <ul className="mt-1 flex flex-wrap gap-1 max-h-40 overflow-auto pr-1">
@@ -842,28 +767,6 @@ const StackDetail: React.FC = () => {
             </ul>
           )}
         </GlassCard>
-      </div>
-
-      <div id="stack-grants" className="scroll-mt-24">
-      <GlassCard>
-        <h2 className="text-sm font-medium text-gray-200 mb-2">Capability grants</h2>
-        {stack.permissions.length === 0 ? (
-          <p className="text-xs text-gray-500">No capabilities requested.</p>
-        ) : (
-          <div className="space-y-1.5">
-            {stack.permissions.map((p) => (
-              <label key={p.capability} className="flex items-center gap-2 text-sm text-gray-200">
-                <input type="checkbox" checked={!!grants[p.capability]} onChange={(e) => setGrants((g) => ({ ...g, [p.capability]: e.target.checked }))} className="w-4 h-4 accent-emerald-500" />
-                <span>{stackCapabilityMeta(p.capability)?.label || p.capability}</span>
-                <span className="text-[11px] text-gray-500 font-mono">{p.capability} · {p.access_level}</span>
-              </label>
-            ))}
-          </div>
-        )}
-        <button type="button" onClick={() => void save()} disabled={saving} className="mt-3 text-xs px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white disabled:opacity-50">
-          {saving ? 'Saving…' : 'Save grants'}
-        </button>
-      </GlassCard>
       </div>
 
       <GlassCard>
@@ -983,39 +886,6 @@ const StackDetail: React.FC = () => {
         ) : null}
       </GlassCard>
 
-      <GlassCard>
-        <h2 className="text-sm font-medium text-gray-200 mb-1">Files</h2>
-        <p className="text-xs text-gray-500 mb-3">Workdir of <code className="font-mono">{stack.slug}</code> — pages, theme.css, backend entry. Edits repackage the .ksps.</p>
-        <StackFileManager stackId={stack.id} slug={stack.slug} />
-        <button
-          type="button"
-          onClick={() => navigate(`/stack/${stack.id}/files`)}
-          className="mt-3 text-xs px-3 py-1.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-gray-200"
-        >
-          Open full-page file manager →
-        </button>
-      </GlassCard>
-
-      <GlassCard className="p-0 overflow-hidden">
-        <button onClick={() => setManifestOpen((v) => !v)} className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/[0.03] transition-colors">
-          <span className="text-xs uppercase tracking-wide text-gray-400">Raw manifest JSON</span>
-          <span className="flex items-center gap-2">
-            <span className="text-[11px] text-gray-500">{manifestOpen ? 'Hide' : 'Show'} · {prettyManifest.length} chars</span>
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`w-4 h-4 text-gray-500 transition-transform ${manifestOpen ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9" /></svg>
-          </span>
-        </button>
-        {manifestOpen && (
-          <div className="border-t border-white/5 p-3 space-y-2">
-            <div className="flex items-center gap-2">
-              <button onClick={() => void copy(prettyManifest, 'manifest2')} className="px-2.5 py-1 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white">{copied === 'manifest2' ? 'Copied!' : 'Copy JSON'}</button>
-              <button onClick={() => void handleDownload()} disabled={downloading} className="px-2.5 py-1 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white disabled:opacity-50">{downloading ? 'Downloading…' : 'Download .ksps'}</button>
-              <span className="text-[11px] text-gray-500 ml-auto">Source: {stack.source || 'file'}</span>
-            </div>
-            <pre className="max-h-80 overflow-auto rounded-lg border border-white/5 bg-black/30 p-3 text-[11px] font-mono text-gray-200 whitespace-pre-wrap break-all">{prettyManifest}</pre>
-          </div>
-        )}
-      </GlassCard>
-
       <GlassModal
         open={editOpen}
         onClose={() => setEditOpen(false)}
@@ -1075,7 +945,6 @@ const StackDetail: React.FC = () => {
         )}
         <button onClick={() => void doInstall()} disabled={opBusy} className="px-4 py-2 text-sm rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-white disabled:opacity-50">{opBusy && opJob?.op === 'install' ? 'Installing…' : 'Install'}</button>
         <button onClick={() => void doReinstall()} disabled={opBusy} className="px-4 py-2 text-sm rounded-lg border border-amber-700/40 bg-amber-900/20 hover:bg-amber-900/40 text-amber-200 disabled:opacity-50">{opBusy && opJob?.op === 'reinstall' ? 'Reinstalling…' : 'Reinstall'}</button>
-        <button onClick={() => void handleDownload()} disabled={downloading} className="px-4 py-2 text-sm rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-white disabled:opacity-50">{downloading ? 'Downloading…' : 'Download .ksps'}</button>
         <button onClick={back} className="ml-auto px-4 py-2 text-sm rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-gray-300">Back to stacks</button>
       </div>
 

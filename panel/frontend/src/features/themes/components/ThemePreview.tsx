@@ -8,7 +8,15 @@ import type { Theme } from '../types/theme';
 // straight from the passed theme object keeps every list card honest
 // about what it would look like if it were applied, including drafts.
 const ThemePreview: React.FC<{ theme: Theme; className?: string }> = ({ theme, className = '' }) => {
-  const halfHex = (h: string) => h.length === 7 ? h + '80' : h;
+  // Custom themes round-trip through the backend as an opaque spec blob with
+  // no shape validation, and sectionBackfill spreads raw over defaults — so a
+  // null/number color survives into the UI. Coerce defensively: one corrupt
+  // custom theme must never blank the Themes grid / Studio template preview.
+  const str = (v: unknown, fb: string): string => (typeof v === 'string' && v ? v : fb);
+  const halfHex = (h: unknown) => {
+    const s = str(h, '#ffffff');
+    return s.length === 7 ? s + '80' : s;
+  };
   // Scale the mini sidebar width from the themed sidebar.width (160–320)
   // so the width slider is visibly reflected in the preview. Default 225
   // maps to the original 28px; extremes map to ~20px / ~40px keeping the
@@ -101,7 +109,7 @@ const ThemePreview: React.FC<{ theme: Theme; className?: string }> = ({ theme, c
           padding: '1px 4px', borderRadius: 3,
           background: 'rgba(0,0,0,0.6)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)',
         }}>
-          {theme.background.type.toUpperCase()}
+          {str(theme.background.type, '').toUpperCase()}
         </span>
       )}
     </div>

@@ -53,6 +53,7 @@ const InstancePageDetail: React.FC = () => {
   const [error, setError] = useState('');
   const [copied, setCopied] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   const numericId = id ? Number(id) : NaN;
   const validId = Number.isFinite(numericId) && numericId > 0;
@@ -93,11 +94,12 @@ const InstancePageDetail: React.FC = () => {
     if (!page) return;
     if (!(await confirm({ title: 'Delete instance page', message: `Delete instance page "${page.name}"?`, tone: 'danger', confirmLabel: 'Delete' }))) return;
     setDeleting(true);
+    setDeleteError('');
     try {
       await deleteInstancePage(page.id);
       navigate('/instance-pages');
     } catch (e: any) {
-      alert(getErrorMessage(e, 'Failed to delete page'));
+      setDeleteError(getErrorMessage(e, 'Failed to delete page'));
       setDeleting(false);
     }
   };
@@ -139,7 +141,7 @@ const InstancePageDetail: React.FC = () => {
   const components = parsePageComponents((page as any).components);
   const configure = parsePageConfigure((page as any).configure);
   const source = pageSourceOf(page as any);
-  const contentLen = ((page as any).content_html?.length || 0) + ((page as any).content_markdown?.length || 0) + ((page as any).content_blocks?.length || 0);
+  const contentLen = ((page as any).content_html?.length || 0) + ((page as any).content_markdown?.length || 0) + ((page as any).content_blocks?.length || 0) + ((page as any).source_tsx?.length || 0) + ((page as any).bundle_js?.length || 0);
 
   return (
     <div className="space-y-4">
@@ -169,6 +171,12 @@ const InstancePageDetail: React.FC = () => {
       </div>
 
       <GlassCard className="ks-stat-card p-4">
+        {deleteError && (
+          <p className="text-red-400 flex items-start justify-between gap-2 border border-red-700/40 rounded px-3 py-2 bg-red-900/20 mb-4">
+            <span>{deleteError}</span>
+            <button type="button" onClick={() => setDeleteError('')} className="text-xs text-gray-400 hover:text-white">dismiss</button>
+          </p>
+        )}
         <div className="flex items-start gap-3">
           <CardIconTile
             icon={(page as any).icon_svg || ''}

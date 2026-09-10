@@ -41,9 +41,13 @@ function ComponentsIcon() {
 function ConfigureIcon() {
   return <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M12 8v8" /><path d="M8 12h8" /></svg>;
 }
+function TemplatesIcon() {
+  return <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4"><rect x="3" y="3" width="18" height="18" rx="2" /><line x1="3" y1="9" x2="21" y2="9" /><line x1="9" y1="21" x2="9" y2="9" /> </svg>;
+}
 
 export const PageStudioTabs: React.FC<PageStudioTabsProps> = ({ tab, onChange, isBuiltin, tabs }) => {
   const meta: Record<PageStudioTabId, { label: string; hint: string; icon: React.ReactNode }> = {
+    templates: { label: 'Templates', hint: 'Starter gallery', icon: <TemplatesIcon /> },
     editor: { label: 'Main page', hint: 'HTML · Markdown · Blocks', icon: <EditorIcon /> },
     subpages: { label: 'Sub-pages', hint: 'Extra routes (/files/edit…)', icon: <PagesIcon /> },
     actions: { label: 'Actions', hint: 'Saved executable actions', icon: <TerminalIcon /> },

@@ -162,7 +162,10 @@ func executeShell(ctx context.Context, drv drivers.Driver, name, command string,
 	}
 	defer sess.Close()
 
-	stdout, stderr, code := readSession(sess)
+	stdout, stderr, code, rerr := readSession(ctx, sess)
+	if rerr != nil {
+		return Output{OK: false, Error: rerr.Error()}
+	}
 	return Output{OK: code == 0, ExitCode: code, Stdout: stdout, Stderr: stderr}
 }
 
@@ -177,7 +180,10 @@ func executeReadFile(ctx context.Context, drv drivers.Driver, name, path string)
 	}
 	defer sess.Close()
 
-	stdout, stderr, code := readSession(sess)
+	stdout, stderr, code, rerr := readSession(ctx, sess)
+	if rerr != nil {
+		return Output{OK: false, Error: rerr.Error()}
+	}
 	if code != 0 {
 		return Output{OK: false, ExitCode: code, Error: stderr}
 	}
@@ -211,7 +217,10 @@ func executeWriteFile(ctx context.Context, drv drivers.Driver, name, path, conte
 	}
 	defer sess.Close()
 
-	stdout, stderr, code := readSession(sess)
+	stdout, stderr, code, rerr := readSession(ctx, sess)
+	if rerr != nil {
+		return Output{OK: false, Error: rerr.Error()}
+	}
 	if code != 0 {
 		return Output{OK: false, ExitCode: code, Error: stderr}
 	}
@@ -239,7 +248,10 @@ func executeListFiles(ctx context.Context, drv drivers.Driver, name, path string
 	}
 	defer sess.Close()
 
-	stdout, stderr, code := readSession(sess)
+	stdout, stderr, code, rerr := readSession(ctx, sess)
+	if rerr != nil {
+		return Output{OK: false, Error: rerr.Error()}
+	}
 	if code != 0 {
 		return Output{OK: false, ExitCode: code, Error: stderr}
 	}
@@ -259,7 +271,10 @@ func executeDockerCmd(ctx context.Context, drv drivers.Driver, name, command str
 	}
 	defer sess.Close()
 
-	stdout, stderr, code := readSession(sess)
+	stdout, stderr, code, rerr := readSession(ctx, sess)
+	if rerr != nil {
+		return Output{OK: false, Error: rerr.Error()}
+	}
 	return Output{OK: code == 0, ExitCode: code, Stdout: stdout, Stderr: stderr}
 }
 
@@ -274,7 +289,10 @@ func executeKVMCmd(ctx context.Context, drv drivers.Driver, name, command string
 	}
 	defer sess.Close()
 
-	stdout, stderr, code := readSession(sess)
+	stdout, stderr, code, rerr := readSession(ctx, sess)
+	if rerr != nil {
+		return Output{OK: false, Error: rerr.Error()}
+	}
 	return Output{OK: code == 0, ExitCode: code, Stdout: stdout, Stderr: stderr}
 }
 
@@ -289,28 +307,71 @@ func executeLXDCmd(ctx context.Context, drv drivers.Driver, name, command string
 	}
 	defer sess.Close()
 
-	stdout, stderr, code := readSession(sess)
+	stdout, stderr, code, rerr := readSession(ctx, sess)
+	if rerr != nil {
+		return Output{OK: false, Error: rerr.Error()}
+	}
 	return Output{OK: code == 0, ExitCode: code, Stdout: stdout, Stderr: stderr}
 }
 
-func readSession(sess *drivers.ExecSession) (string, string, int) {
+// maxActionOutputBytes caps each captured stream (stdout / stderr) so a
+// runaway command (e.g. `cat` of a multi-GB world file) cannot OOM the
+// edge daemon or the panel by materialising unbounded output into the JSON
+// response. Oversize output fails closed with an explicit error rather
+// than returning a silently truncated payload.
+const maxActionOutputBytes = 4 << 20 // 4 MiB per stream
+
+func readSession(ctx context.Context, sess *drivers.ExecSession) (string, string, int, error) {
 	stdoutCh := make(chan []byte, 1)
 	stderrCh := make(chan []byte, 1)
 
 	go func() {
-		b, _ := io.ReadAll(sess.Stdout)
+		b, _ := io.ReadAll(io.LimitReader(sess.Stdout, maxActionOutputBytes+1))
 		stdoutCh <- b
 	}()
 	go func() {
-		b, _ := io.ReadAll(sess.Stderr)
+		b, _ := io.ReadAll(io.LimitReader(sess.Stderr, maxActionOutputBytes+1))
 		stderrCh <- b
 	}()
 
-	stdout := <-stdoutCh
-	stderr := <-stderrCh
-	code, _ := sess.Wait()
+	// Wait for BOTH streams, but honour the action deadline: the previous
+	// code blocked on `<-stdoutCh` with no ctx select, so a driver whose
+	// pipes never reach EOF parked this handler goroutine past the edge
+	// timeout (and past the panel's HTTP deadline) forever.
+	var stdout, stderr []byte
+	for got := 0; got < 2; {
+		select {
+		case <-ctx.Done():
+			return "", "", -1, ctx.Err()
+		case b := <-stdoutCh:
+			stdout = b
+			got++
+		case b := <-stderrCh:
+			stderr = b
+			got++
+		}
+	}
+	if len(stdout) > maxActionOutputBytes {
+		return "", "", -1, fmt.Errorf("action stdout exceeds %d bytes", maxActionOutputBytes)
+	}
+	if len(stderr) > maxActionOutputBytes {
+		return "", "", -1, fmt.Errorf("action stderr exceeds %d bytes", maxActionOutputBytes)
+	}
 
-	return string(stdout), string(stderr), code
+	type waitRes struct{ code int }
+	waitCh := make(chan waitRes, 1)
+	go func() {
+		// A non-zero exit surfaces via code (the payload), not as a Go
+		// error — only a hung Wait past the deadline is an error here.
+		code, _ := sess.Wait()
+		waitCh <- waitRes{code}
+	}()
+	select {
+	case <-ctx.Done():
+		return "", "", -1, ctx.Err()
+	case w := <-waitCh:
+		return string(stdout), string(stderr), w.code, nil
+	}
 }
 
 func shellQuote(s string) string {

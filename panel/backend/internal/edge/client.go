@@ -1418,7 +1418,23 @@ func (c *Client) DeleteSFTP(req SFTPDeleteRequest) (SFTPResponse, error) {
 // local_both, same as Lifecycle, Inspect, etc.). This replaces the previous
 // direct-HTTP dial that bypassed the tunnel and always verified TLS
 // regardless of SkipTLSVerify.
+//
+// Proxy semantics (deliberately unlike Lifecycle/Exec): an edge logical
+// failure arrives as HTTP 200 with {ok:false, exit_code, stdout, stderr,
+// error} and is returned as a VALUE with a nil error so the panel proxies
+// the full payload to the SDK (the mc-properties page branches on
+// r.ok===false and renders r.error/r.stderr). Only transport errors and
+// HTTP >= 300 become Go errors.
 func (c *Client) PageAction(req PageActionRequest) (PageActionResponse, error) {
+	return c.PageActionCtx(context.Background(), req)
+}
+
+// PageActionCtx is PageAction with a caller-supplied context so the caller
+// can bound the call below its own response deadline or cancel it when the
+// browser disconnects (mirrors LifecycleCtx/ExecCtx). The edge-side action
+// deadline (req.Timeout) still applies; the context only bounds the
+// panel→edge round-trip.
+func (c *Client) PageActionCtx(ctx context.Context, req PageActionRequest) (PageActionResponse, error) {
 	req.Token = c.token
 	if handled, body, status, err := c.tryTunnel("POST", "/api/edge/page-action", req); handled {
 		if err != nil {
@@ -1441,16 +1457,33 @@ func (c *Client) PageAction(req PageActionRequest) (PageActionResponse, error) {
 		return PageActionResponse{}, fmt.Errorf("encode request: %w", err)
 	}
 	endpoint := c.baseURL + "/api/edge/page-action"
-	httpReq, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(body))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return PageActionResponse{}, fmt.Errorf("build request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	resp, err := c.http.Do(httpReq)
 	if err != nil {
-		var emOut PageActionResponse
-		if ok, err2 := c.tryEmergencyTunnel("POST", "/api/edge/page-action", req, &emOut); ok {
-			return emOut, err2
+		// Emergency WSS retry with the SAME proxy semantics as above: the
+		// shared tryEmergencyTunnel helper enforces an ok==false gate that
+		// would convert an edge logical failure into a bare Go error and
+		// drop exit_code/stdout/stderr, so handle the fallback inline and
+		// return the payload as a value (nil error) on status < 300.
+		if emBody, emStatus, emErr, attempted := c.emergencyViaTunnel("POST", "/api/edge/page-action", req); attempted {
+			if emErr != nil {
+				return PageActionResponse{}, emErr
+			}
+			var emOut PageActionResponse
+			if uerr := unmarshalTunnelResponse(emBody, emStatus, &emOut); uerr != nil {
+				return PageActionResponse{}, uerr
+			}
+			if emStatus >= 300 {
+				if emOut.Error != "" {
+					return emOut, fmt.Errorf("edge rejected: %s", emOut.Error)
+				}
+				return emOut, fmt.Errorf("edge returned HTTP %d", emStatus)
+			}
+			return emOut, nil
 		}
 		return PageActionResponse{}, fmt.Errorf("dial edge: %w", err)
 	}

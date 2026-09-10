@@ -819,6 +819,10 @@ func UpdateInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "slug already exists", http.StatusConflict)
 			return
 		}
+		if strings.Contains(err.Error(), "not found") {
+			http.Error(w, "instance page not found", http.StatusNotFound)
+			return
+		}
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -865,6 +869,10 @@ func DeleteInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err := repo.Delete(id); err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			http.Error(w, "instance page not found", http.StatusNotFound)
+			return
+		}
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -962,8 +970,9 @@ func BulkCreateInstancePagesHandler(w http.ResponseWriter, r *http.Request) {
 
 	imported := 0
 	skipped := 0
-	var errs []string
-	var ids []int64
+	// Non-nil so the response encodes [] (not null) when empty.
+	errs := []string{}
+	ids := []int64{}
 
 	for idx, raw := range req.Pages {
 		dto, verr := validateInstancePage(raw)
@@ -2209,11 +2218,16 @@ func (r *ImportInstancePageRequest) UnmarshalJSON(data []byte) error {
 	if len(actRaw) > 0 {
 		trim := strings.TrimSpace(string(actRaw))
 		if len(trim) > 0 && trim[0] == '[' {
-			// actions as native array → need to stringify
-			var arr []instancePageActionDef
-			if err := json.Unmarshal(actRaw, &arr); err == nil && len(arr) > 0 {
-				b, _ := json.Marshal(arr)
-				r.Actions = string(b)
+			// actions as native array → re-encode verbatim so no persisted
+			// field (open_args, env, timeout, description, …) is dropped.
+			// Decoding into a narrow struct here silently discarded them.
+			var arr []json.RawMessage
+			if err := json.Unmarshal(actRaw, &arr); err == nil {
+				if b, merr := json.Marshal(arr); merr == nil {
+					r.Actions = string(b)
+				} else {
+					r.Actions = string(actRaw)
+				}
 			} else {
 				r.Actions = string(actRaw)
 			}
@@ -2331,6 +2345,11 @@ func ImportInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer con.Close()
 
+	// Ownership (migration 054, mirrors CreateInstancePageHandler): attribute
+	// file imports to the caller so INSTANCE_PAGES_OWN callers keep seeing
+	// their own pages. 0 stays NULL/orphan.
+	ownerID, _ := UserIDFromContext(r)
+
 	id, err := repository.NewInstancePageRepository(con).Create(repository.InstancePageInput{
 		Name:            dto.Name,
 		Slug:            dto.Slug,
@@ -2350,6 +2369,7 @@ func ImportInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		SubPages:        dto.SubPages,
 		Components:      dto.Components,
 		Configure:       dto.Configure,
+		OwnerID:         ownerID,
 		Source:          pageSourceStudio,
 	})
 	if err != nil {
@@ -3023,6 +3043,9 @@ func ImportInstancePageFromURLHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer con.Close()
 
+	// Ownership (migration 054): attribute URL imports to the caller.
+	ownerID, _ := UserIDFromContext(r)
+
 	id, err := repository.NewInstancePageRepository(con).Create(repository.InstancePageInput{
 		Name:            dto.Name,
 		Slug:            dto.Slug,
@@ -3042,6 +3065,7 @@ func ImportInstancePageFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		SubPages:        dto.SubPages,
 		Components:      dto.Components,
 		Configure:       dto.Configure,
+		OwnerID:         ownerID,
 		Source:          pageSourceStudio,
 	})
 	if err != nil {
@@ -3397,8 +3421,9 @@ func ResyncMarketplacePagesHandler(w http.ResponseWriter, r *http.Request) {
 
 	updated := 0
 	skipped := 0
-	var errs []string
-	var ids []int64
+	// Non-nil so the response encodes [] (not null) when empty.
+	errs := []string{}
+	ids := []int64{}
 	for _, p := range pages {
 		src := normalizePageSource(p.Source)
 		if (src != pageSourceMarket && src != pageSourceEdited) || p.MarketID == "" {
@@ -3585,6 +3610,9 @@ func ImportLocalInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer con.Close()
 
+	// Ownership (migration 054): attribute local imports to the caller.
+	ownerID, _ := UserIDFromContext(r)
+
 	id, err := repository.NewInstancePageRepository(con).Create(repository.InstancePageInput{
 		Name:            dto.Name,
 		Slug:            dto.Slug,
@@ -3604,6 +3632,7 @@ func ImportLocalInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		SubPages:        dto.SubPages,
 		Components:      dto.Components,
 		Configure:       dto.Configure,
+		OwnerID:         ownerID,
 		Source:          pageSourceStudio,
 	})
 	if err != nil {

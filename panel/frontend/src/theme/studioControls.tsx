@@ -166,7 +166,11 @@ export const ColorSwatches: React.FC<ColorSwatchProps> = ({ label, value, preset
     <Label label={label} hint="Click a preset, or type a custom hex below." />
     <div className="grid grid-cols-4 gap-2 mb-2">
       {presets.map((p) => {
-        const active = value.toLowerCase() === p.toLowerCase();
+        // Custom themes round-trip as an opaque backend spec with no shape
+        // validation, so a null/number color survives backfill into the
+        // studio — coerce before comparing or one corrupt theme blanks it.
+        const cur = typeof value === 'string' ? value : '';
+        const active = cur.toLowerCase() === p.toLowerCase();
         return (
           <button
             key={p}

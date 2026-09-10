@@ -1507,29 +1507,42 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
       // Also publish on window for markdown/blocks/react pages rendered in-host.
       (window as any).KSPageSDK = hostSdk;
     }
+    // Clear the global on unmount when it still points at this page's SDK so
+    // a later non-page view (Terminal, Files, …) never observes a stale SDK
+    // bound to a dead instance page.
+    return () => {
+      if ((window as any).KSPageSDK === hostSdk) (window as any).KSPageSDK = null;
+    };
   }, [instanceContext, hostSdk]);
+
+  // Serialized once per render OUTSIDE the srcDoc memo: the string is equal
+  // while the values are equal, so the srcDoc memo below stays stable when
+  // InstanceDynamicPage hands us a fresh-but-equal context object on every
+  // render (including the 3s silent polls while creating/installing). Keying
+  // that memo on the object identity rebuilt + reloaded the sandboxed iframe
+  // on every poll, wiping page state mid-install.
+  // When no instance is bound (e.g. Studio static preview), embed a
+  // placeholder identity so pages render honestly ("no instance bound")
+  // instead of crashing on null; SDK calls still fail closed in the bridge.
+  const instanceContextJson = safeInlineJson(instanceContext ?? ({
+    id: 0,
+    name: '(no instance bound — bind one for live data)',
+    kind: '-',
+    status: '-',
+    template_id: 0,
+    template_name: null,
+    node_id: 0,
+    node_name: null,
+    owner_id: null,
+    owner_name: null,
+    config: {},
+    external_id: '',
+    created_at: '',
+    updated_at: '',
+  } as InstanceContext));
 
   const srcDoc = useMemo(() => {
     if (content.type !== 'html') return undefined;
-    // When no instance is bound (e.g. Studio static preview), embed a
-    // placeholder identity so pages render honestly ("no instance bound")
-    // instead of crashing on null; SDK calls still fail closed in the bridge.
-    const ctx = instanceContext ?? ({
-      id: 0,
-      name: '(no instance bound — bind one for live data)',
-      kind: '-',
-      status: '-',
-      template_id: 0,
-      template_name: null,
-      node_id: 0,
-      node_name: null,
-      owner_id: null,
-      owner_name: null,
-      config: {},
-      external_id: '',
-      created_at: '',
-      updated_at: '',
-    } as InstanceContext);
     // Resolve {{component:name}} + {{config:NAME}} tokens in HTML content.
     const resolvedHtml = resolveAllTokens(content.html ?? '', content.components ?? [], content.configure, content.config);
     // Bake the active theme + any admin Custom CSS scoped to instance pages so every
@@ -1538,16 +1551,22 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
     const themeCss = customPageThemeCss(activeTheme, pageSlug ?? location.pathname);
     return buildIframeDocument(
       resolvedHtml,
-      safeInlineJson(ctx),
+      instanceContextJson,
       safeInlineJson(Array.isArray(content.actions) ? content.actions : []),
       location.search,
       themeCss,
       safeInlineJson(pageConfigMap),
       safeInlineJson(pageSlug ?? ''),
     );
-  }, [content.type, content.html, content.components, content.configure, content.config, content.actions, instanceContext, location.search, activeTheme, pageSlug, pageConfigMap]);
+  }, [content.type, content.html, content.components, content.configure, content.config, content.actions, instanceContextJson, location.search, activeTheme, pageSlug, pageConfigMap]);
 
   // Bridge: parent-side handler for everything the iframe sends up.
+  // Keyed on the instance ID (not the context object): InstanceDynamicPage
+  // rebuilds the context object on every render, and re-running this effect
+  // tears down + re-registers the message listener AND closes every live
+  // proxied WebSocket. All live SDK calls go through sdkRef (kept current by
+  // the effect above); only the id is read here.
+  const bridgeInstanceId = instanceContext?.id ?? 0;
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       // Only accept messages from OUR iframe.
@@ -1591,7 +1610,7 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
               }
               case 'navigate': {
                 // Fail closed: only routes inside THIS instance are allowed.
-                const target = pageNavigateTarget(instanceContext?.id ?? 0, list[0]);
+                const target = pageNavigateTarget(bridgeInstanceId, list[0]);
                 if (!target) throw new Error('navigate: path outside this instance');
                 navigate(target);
                 return { ok: true };
@@ -1636,7 +1655,7 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
         // the host origin, so the iframe asks us to open the socket. ---
         case 'ks-ws-open': {
           const wsId = `ws${++wsSeq.current}`;
-          const url = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/instances/${instanceContext?.id ?? 0}/terminal`;
+          const url = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/instances/${bridgeInstanceId}/terminal`;
           try {
             const ws = new WebSocket(url, typeof data.protocols === 'string' ? [data.protocols] : undefined);
             wsRef.current.set(wsId, ws);
@@ -1681,7 +1700,7 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
       wsRef.current.forEach((ws) => { try { ws.close(); } catch { /* noop */ } });
       wsRef.current.clear();
     };
-  }, [instanceContext, navigate]);
+  }, [bridgeInstanceId, navigate]);
 
   // For HTML content, render in a hardened sandboxed iframe. Pure content:
   // no injected header or card chrome — only the pages-JSON payload shows.
