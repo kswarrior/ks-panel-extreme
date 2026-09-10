@@ -629,10 +629,11 @@ const ApiKeyForm: React.FC = () => {
                     aria-hidden="true"
                   />
                   <span className="font-mono">{form.accent_color}</span>
-               </div>
+                </div>
               )}
-           </div>
-         </div>
+            </div>
+            </GlassModal>
+          </div>
           </>
           )}
 
