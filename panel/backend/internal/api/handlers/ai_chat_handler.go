@@ -1933,8 +1933,8 @@ func aiTemplatePorts(t *models.Template) []string {
 	if t == nil || strings.TrimSpace(t.Spec) == "" {
 		return nil
 	}
-	var spec map[string]any
-	if err := json.Unmarshal([]byte(t.Spec), &spec); err != nil {
+	spec, err := specyaml.Parse(t.Spec)
+	if err != nil || spec == nil {
 		return nil
 	}
 	raw, ok := spec["ports"].([]any)
@@ -2082,8 +2082,8 @@ func aiTemplateInstallSteps(t *models.Template) []string {
 	if t == nil || strings.TrimSpace(t.Spec) == "" {
 		return nil
 	}
-	var spec map[string]any
-	if err := json.Unmarshal([]byte(t.Spec), &spec); err != nil {
+	spec, err := specyaml.Parse(t.Spec)
+	if err != nil || spec == nil {
 		return nil
 	}
 	raw, ok := spec["install"].([]any)
@@ -2807,12 +2807,11 @@ func aiProposeCreateTemplate(a *aiCallCtx, args map[string]any) (string, string,
 		return "", "", fmt.Errorf("kind must be one of: docker, lxd, kvm, multipass")
 	}
 	spec := aiStr(args, "spec")
-	if spec == "" {
-		spec = "{}"
+	if strings.TrimSpace(spec) == "" {
+		spec = "{}\n"
 	}
-	var js map[string]any
-	if err := json.Unmarshal([]byte(spec), &js); err != nil {
-		return "", "", fmt.Errorf("spec must be a valid JSON object string")
+	if _, err := specyaml.Parse(spec); err != nil {
+		return "", "", fmt.Errorf("spec must be a valid YAML/JSON object string")
 	}
 	summary := fmt.Sprintf("create %s template %q", kind, name)
 	diff := aiPretty(map[string]any{"tool": "create_template", "name": name, "kind": kind, "description": aiStr(args, "description"), "image": aiStr(args, "image")})
@@ -2821,8 +2820,12 @@ func aiProposeCreateTemplate(a *aiCallCtx, args map[string]any) (string, string,
 
 func aiExecCreateTemplate(a *aiCallCtx, args map[string]any) (string, error) {
 	spec := aiStr(args, "spec")
-	if spec == "" {
-		spec = "{}"
+	if strings.TrimSpace(spec) == "" {
+		spec = "{}\n"
+	}
+	// Canonical storage is YAML: normalize AI-provided JSON/YAML alike.
+	if normalised, err := specyaml.NormalizeToYAML(spec); err == nil {
+		spec = normalised
 	}
 	id, err := repository.NewTemplateRepository(a.con).Create(repository.TemplateInput{
 		Name: aiStr(args, "name"), Description: aiStr(args, "description"),
@@ -3043,7 +3046,7 @@ func aiPlanDeploy(a *aiCallCtx, args map[string]any) (*aiDeployPlan, error) {
 	}
 	var spec map[string]any
 	if tmpl.Spec != "" {
-		_ = json.Unmarshal([]byte(tmpl.Spec), &spec)
+		spec, _ = specyaml.Parse(tmpl.Spec)
 	}
 	if spec == nil {
 		spec = map[string]any{}
@@ -3078,7 +3081,7 @@ func aiPlanDeploy(a *aiCallCtx, args map[string]any) (*aiDeployPlan, error) {
 	}
 	var cfg map[string]any
 	if tmpl.Spec != "" {
-		_ = json.Unmarshal([]byte(tmpl.Spec), &cfg)
+		cfg, _ = specyaml.Parse(tmpl.Spec)
 	}
 	if cfg == nil {
 		cfg = map[string]any{}
