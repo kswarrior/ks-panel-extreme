@@ -369,6 +369,7 @@ const TerminalPane: React.FC<{
               placeholder="Type a command…"
               aria-label={`Command input for ${title}`}
               className="ks-input w-full min-w-0 flex-1"
+              style={{ fontSize }}
             />
             <SendGlyphButton onSend={sendBox} />
           </div>
@@ -935,6 +936,8 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
             onBoxText={(v) => setBoxTexts((m) => ({ ...m, [p.key]: v }))}
             onRegisterSend={onRegisterSend}
             onRegisterHandle={onRegisterHandle}
+            fontSize={fontSize}
+            showLogPrefix={showLogPrefix}
           />
         </div>
       ))}
