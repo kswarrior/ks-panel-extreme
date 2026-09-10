@@ -359,11 +359,14 @@ func validateSubPages(raw string) error {
 }
 
 // instancePageComponent mirrors one entry of the persisted components JSON.
+// Shared refs (type "shared") store only {name, shared} — no source copy —
+// and the panel frontend injects the registry HTML at render time.
 type instancePageComponent struct {
 	Name        string `json:"name"`
 	Type        string `json:"type"`
 	Description string `json:"description"`
 	Content     string `json:"content"`
+	Shared      string `json:"shared,omitempty"`
 }
 
 // validateComponentsJSON checks that non-empty components is a JSON array of
@@ -392,7 +395,10 @@ func validateComponentsJSON(raw string) error {
 		}
 		seen[c.Name] = true
 		if c.Type != "" && !validComponentTypes[c.Type] {
-			return newErrString("component type must be one of: html, markdown, block")
+			return newErrString("component type must be one of: html, markdown, block, shared")
+		}
+		if c.Type == "shared" && c.Shared != "" && !validComponentName(c.Shared) {
+			return newErrString("shared component reference must start with a letter, number or underscore and contain only letters, numbers, underscores or dashes (max 64 chars)")
 		}
 		if len(c.Content) > maxInstancePageContentBytes {
 			return newErrString("component content too large (max 1MB)")
