@@ -2572,8 +2572,8 @@ func aiPretty(v any) string {
 // instance_action
 
 func aiProposeInstanceAction(a *aiCallCtx, args map[string]any) (string, string, error) {
-	if err := a.checker.EnsureAny(a.uid, permissions.ManageInstancesKey, permissions.InstancesEditKey); err != nil {
-		return "", "", fmt.Errorf("denied: instance actions need MANAGE_INSTANCES or INSTANCES_EDIT — explain that the user lacks permission")
+	if err := a.checker.EnsureAny(a.uid, permissions.ManageInstancesKey, permissions.InstancesControlKey); err != nil {
+		return "", "", fmt.Errorf("denied: instance actions need MANAGE_INSTANCES or INSTANCES_CONTROL — explain that the user lacks permission")
 	}
 	id := aiInt(args, "instance_id")
 	action := aiStr(args, "action")
@@ -3302,8 +3302,8 @@ func aiExecEditInstance(a *aiCallCtx, args map[string]any) (string, error) {
 // reinstall_instance (wipe + redeploy from stored spec).
 
 func aiCheckReinstallable(a *aiCallCtx, id int64) (*models.Instance, map[string]any, error) {
-	if err := a.checker.EnsureAny(a.uid, permissions.ManageInstancesKey, permissions.InstancesEditKey); err != nil {
-		return nil, nil, fmt.Errorf("denied: reinstalling needs MANAGE_INSTANCES or INSTANCES_EDIT — explain that the user lacks permission")
+	if err := a.checker.EnsureAny(a.uid, permissions.ManageInstancesKey, permissions.InstancesControlKey); err != nil {
+		return nil, nil, fmt.Errorf("denied: reinstalling needs MANAGE_INSTANCES or INSTANCES_CONTROL — explain that the user lacks permission")
 	}
 	if id == 0 {
 		return nil, nil, fmt.Errorf("instance_id is required (use list_instances first — never guess)")
@@ -3461,8 +3461,8 @@ func aiExecDeleteInstance(a *aiCallCtx, args map[string]any) (string, error) {
 // suspend / unsuspend.
 
 func aiProposeSuspendInstance(a *aiCallCtx, args map[string]any) (string, string, error) {
-	if err := a.checker.EnsureAny(a.uid, permissions.ManageInstancesKey, permissions.InstancesEditKey); err != nil {
-		return "", "", fmt.Errorf("denied: suspending needs MANAGE_INSTANCES or INSTANCES_EDIT — explain that the user lacks permission")
+	if err := a.checker.EnsureAny(a.uid, permissions.ManageInstancesKey, permissions.InstancesControlKey); err != nil {
+		return "", "", fmt.Errorf("denied: suspending needs MANAGE_INSTANCES or INSTANCES_CONTROL — explain that the user lacks permission")
 	}
 	id := aiInt(args, "instance_id")
 	reason := aiStr(args, "reason")
@@ -3512,8 +3512,8 @@ func aiExecSuspendInstance(a *aiCallCtx, args map[string]any) (string, error) {
 }
 
 func aiProposeUnsuspendInstance(a *aiCallCtx, args map[string]any) (string, string, error) {
-	if err := a.checker.EnsureAny(a.uid, permissions.ManageInstancesKey, permissions.InstancesEditKey); err != nil {
-		return "", "", fmt.Errorf("denied: unsuspending needs MANAGE_INSTANCES or INSTANCES_EDIT — explain that the user lacks permission")
+	if err := a.checker.EnsureAny(a.uid, permissions.ManageInstancesKey, permissions.InstancesControlKey); err != nil {
+		return "", "", fmt.Errorf("denied: unsuspending needs MANAGE_INSTANCES or INSTANCES_CONTROL — explain that the user lacks permission")
 	}
 	id := aiInt(args, "instance_id")
 	if id == 0 {

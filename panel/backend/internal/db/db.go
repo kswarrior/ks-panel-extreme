@@ -2134,6 +2134,18 @@ func SeedCore(d Dialect, db *sql.DB) error {
 	if _, err := db.Exec(updateThemesDesc); err != nil {
 		return err
 	}
+	// Keep the INSTANCES_EDIT description current on legacy installs: EDIT
+	// used to mean "start / stop" before the CONTROL split. EDIT is now
+	// config-only; power operations moved to INSTANCES_CONTROL (seeded
+	// above via INSERT OR IGNORE so legacy rows gain the new key, and the
+	// admin role picks it up via the SELECT-all grant below).
+	updateInstancesEditDesc := `UPDATE permissions SET description = 'Edit instance config (spec, identity, ports, env, SFTP)' WHERE key = 'INSTANCES_EDIT'`
+	if d.Name() == "mysql" || d.Name() == "mariadb" {
+		updateInstancesEditDesc = quoteMySQLReservedIdents(updateInstancesEditDesc)
+	}
+	if _, err := db.Exec(updateInstancesEditDesc); err != nil {
+		return err
+	}
 	// Default roles, in deterministic INSERT order (preserves existing IDs).
 	if _, err := db.Exec(translateSeedInsert(prefix, pgConflict, `(name, description, display_name, color) VALUES
 		('admin',     'Administrator',     '𝑨𝒅𝒎𝒊𝒏𝒊𝒔𝒕𝒓𝒂𝒕𝒐𝒓', '#3b82f6'),

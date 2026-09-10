@@ -74,6 +74,7 @@ export const PermissionKey = {
   INSTANCES_VIEW: 'INSTANCES_VIEW',
   INSTANCES_CREATE: 'INSTANCES_CREATE',
   INSTANCES_EDIT: 'INSTANCES_EDIT',
+  INSTANCES_CONTROL: 'INSTANCES_CONTROL',
   INSTANCES_DELETE: 'INSTANCES_DELETE',
 
   API_KEYS_VIEW: 'API_KEYS_VIEW',
@@ -181,10 +182,10 @@ export type PermissionKey = (typeof PermissionKey)[keyof typeof PermissionKey];
 // contract stays consistent with the backend route gating.
 // --------------------------------------------------------------------------
 
-export type PermAction = 'VIEW' | 'CREATE' | 'EDIT' | 'DELETE';
+export type PermAction = 'VIEW' | 'CREATE' | 'EDIT' | 'CONTROL' | 'DELETE';
 
 /** Canonical order for sub-permission rendering in the Roles form. */
-export const ALL_ACTIONS: PermAction[] = ['VIEW', 'CREATE', 'EDIT', 'DELETE'];
+export const ALL_ACTIONS: PermAction[] = ['VIEW', 'CREATE', 'EDIT', 'CONTROL', 'DELETE'];
 
 /**
  * A regulatable area: its human label, the page-level umbrella key that grants
@@ -267,6 +268,7 @@ export const PERMISSION_AREAS: PermissionArea[] = [
       VIEW: PermissionKey.INSTANCES_VIEW,
       CREATE: PermissionKey.INSTANCES_CREATE,
       EDIT: PermissionKey.INSTANCES_EDIT,
+      CONTROL: PermissionKey.INSTANCES_CONTROL,
       DELETE: PermissionKey.INSTANCES_DELETE,
     },
     extraKeys: [PermissionKey.VIEW_INSTANCES],
