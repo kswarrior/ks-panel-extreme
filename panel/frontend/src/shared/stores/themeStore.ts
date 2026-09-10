@@ -1535,11 +1535,11 @@ function buildSectionVars(theme: Theme): { vars: string } {
   --ks-statcard-px: ${cd.stat_padding_x === D.cards.stat_padding_x ? 'var(--ks-card-padding)' : `${num(cd.stat_padding_x, 15)}px`};
   --ks-statcard-py: ${cd.stat_padding_y === D.cards.stat_padding_y ? 'var(--ks-card-padding)' : `${num(cd.stat_padding_y, 15)}px`};
 
-  --ks-formcard-bg: ${!cd.form_background ? 'var(--ks-card-bg)' : safeCssValue(cd.form_background, 'rgba(0,0,0,0.30)')};
-  --ks-formcard-border: ${!cd.form_border_color ? 'var(--ks-card-border)' : safeCssValue(cd.form_border_color, 'rgba(255,255,255,0.10)')};
-  --ks-formcard-shadow: ${!cd.form_shadow ? 'var(--ks-card-shadow)' : safeCssValue(cd.form_shadow, '0 8px 32px rgba(0,0,0,0.45)')};
-  --ks-formcard-radius: ${num(cd.form_border_radius, 5)}px;
-  --ks-formcard-padding: ${num(cd.form_padding, 12)}px;
+  --ks-formcard-bg: ${eqTok(cd.form_background, D.cards.form_background, 'var(--ks-card-bg)')};
+  --ks-formcard-border: ${eqTok(cd.form_border_color, D.cards.form_border_color, 'var(--ks-card-border)')};
+  --ks-formcard-shadow: ${eqTok(cd.form_shadow, D.cards.form_shadow, 'var(--ks-card-shadow)')};
+  --ks-formcard-radius: ${cd.form_border_radius === D.cards.form_border_radius ? 'var(--ks-card-radius)' : `${num(cd.form_border_radius, 5)}px`};
+  --ks-formcard-padding: ${cd.form_padding === D.cards.form_padding ? 'var(--ks-card-padding)' : `${num(cd.form_padding, 15)}px`};
 
   /* ---------------- Theme Studio: Pill (top-right actions) ---------------- */
   --ks-pill-bg: ${eqTok((theme as any).pill?.background, D.pill.background, 'var(--ks-card-bg)')};

@@ -261,12 +261,10 @@ export const DEFAULT_THEME: Theme = {
 
   // Forms / Components / Utilities / Cards seed values REPRODUCE the stock
   // Tailwind look exactly. Where a variant should keep following the base
-  // Card tab live (list/stat/glass-strong surfaces), its default equals
+  // Card tab live (list/stat/form/glass-strong surfaces), its default equals
   // the corresponding card default — buildVars treats equality-with-default
   // as "inherit the base token" so tweaking the Card tab still cascades
   // everywhere until an admin explicitly overrides a variant.
-  // Form cards intentionally diverge (black + tighter padding) with their
-  // own literals — clearing a form field falls back to the Card tab.
   forms: {
     input_background: 'rgba(0,0,0,0.30)',
     input_text_color: '#ffffff',
@@ -395,11 +393,11 @@ export const DEFAULT_THEME: Theme = {
     stat_border_radius: 5,
     stat_padding_x: 15,
     stat_padding_y: 15,
-    form_background: 'rgba(0,0,0,0.30)',
+    form_background: 'rgba(255,255,255,0.04)',
     form_border_color: 'rgba(255,255,255,0.10)',
     form_shadow: '0 8px 32px rgba(0,0,0,0.45)',
     form_border_radius: 5,
-    form_padding: 12,
+    form_padding: 15,
   },
 
   // Custom CSS — empty by default. The Theme Studio surfaces a "Custom
