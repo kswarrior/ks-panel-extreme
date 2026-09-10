@@ -152,6 +152,9 @@ func Read(name string) ([]byte, bool) {
 	if name == "" || strings.ContainsAny(name, "/\\") || strings.Contains(name, "..") || filepath.Base(name) != name {
 		return nil, false
 	}
+	if _, ok := pageStem(name); !ok {
+		return nil, false
+	}
 	if root := diskRoot(); root != "" {
 		for _, dir := range pagesDirs {
 			b, err := os.ReadFile(filepath.Join(root, dir, name))
