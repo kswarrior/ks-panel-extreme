@@ -1181,6 +1181,9 @@ func LinkInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 					"content_html":     s.ContentHTML,
 					"content_markdown": s.ContentMarkdown,
 					"content_blocks":   s.ContentBlocks,
+					"source_tsx":       s.SourceTSX,
+					"bundle_js":        s.BundleJS,
+					"bundle_css":       s.BundleCSS,
 				})
 			}
 			pageEntry["sub_pages"] = subsAny

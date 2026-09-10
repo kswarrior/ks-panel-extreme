@@ -70,20 +70,57 @@ func BuildInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		_ = repo.UpdateBuild(id, page.BundleJS, css, "error", msg)
 		http.Error(w, msg, http.StatusBadRequest)
 	}
-	if strings.TrimSpace(source) == "" {
+	mainIsReact := page.ContentType == "react"
+	if mainIsReact && strings.TrimSpace(source) == "" {
 		fail("source_tsx is required for react pages")
 		return
 	}
-	if err := validateReactSource(source); err != nil {
-		fail(err.Error())
-		return
+	if strings.TrimSpace(source) != "" {
+		if err := validateReactSource(source); err != nil {
+			fail(err.Error())
+			return
+		}
 	}
 	if len(css) > maxInstancePageContentBytes {
 		fail("bundle_css too large (max 1MB)")
 		return
 	}
+	// Sub-pages build with the family: validate every React sub source and
+	// stamp its bundle_js so link + render can use it without a second call.
+	subJSON := page.SubPages
+	builtSubs := 0
+	if strings.TrimSpace(page.SubPages) != "" {
+		var subs []instancePageSubPage
+		if jerr := json.Unmarshal([]byte(page.SubPages), &subs); jerr == nil {
+			changed := false
+			for i := range subs {
+				src := strings.TrimSpace(subs[i].SourceTSX)
+				if subs[i].ContentType != "react" && src == "" {
+					continue
+				}
+				if src == "" {
+					fail(fmt.Sprintf("sub-page %q: source_tsx is required for react pages", subs[i].Path))
+					return
+				}
+				if verr := validateReactSource(src); verr != nil {
+					fail(fmt.Sprintf("sub-page %q: %s", subs[i].Path, verr.Error()))
+					return
+				}
+				if subs[i].BundleJS != src {
+					subs[i].BundleJS = src
+					changed = true
+				}
+				builtSubs++
+			}
+			if changed {
+				if b, merr := json.Marshal(subs); merr == nil {
+					subJSON = string(b)
+				}
+			}
+		}
+	}
 	// Save-and-build in one round-trip when the Studio sends fresh source.
-	if source != page.SourceTSX || css != page.BundleCSS {
+	if source != page.SourceTSX || css != page.BundleCSS || subJSON != page.SubPages {
 		if uerr := repo.Update(id, repository.InstancePageInput{
 			Name:            page.Name,
 			Slug:            page.Slug,
@@ -100,7 +137,7 @@ func BuildInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 			IconSVG:         page.IconSVG,
 			IconColor:       page.IconColor,
 			Actions:         page.Actions,
-			SubPages:        page.SubPages,
+			SubPages:        subJSON,
 			Components:      page.Components,
 			Configure:       page.Configure,
 			Source:          page.Source,
@@ -113,11 +150,16 @@ func BuildInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	bundle := strings.TrimSpace(source)
+	// Leaving react clears the bundle so a converted page never executes
+	// stale output; non-react pages with no source keep an empty bundle.
+	if !mainIsReact {
+		bundle = ""
+	}
 	if len(bundle) > maxInstancePageBundleBytes {
 		fail("bundle too large (max 1MB)")
 		return
 	}
-	buildLog := fmt.Sprintf("ok: validated %d bytes, 0 errors", len(bundle))
+	buildLog := fmt.Sprintf("ok: main %d bytes + %d sub-page(s), 0 errors", len(bundle), builtSubs)
 	if uerr := repo.UpdateBuild(id, bundle, css, "ok", buildLog); uerr != nil {
 		log.Println("BuildInstancePage store bundle error:", uerr)
 		http.Error(w, "could not store bundle", http.StatusInternalServerError)

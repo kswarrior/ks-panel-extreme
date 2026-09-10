@@ -63,3 +63,30 @@ func TestValidateInstancePageAcceptsReactContentType(t *testing.T) {
 		t.Fatal("validContentTypes must include react")
 	}
 }
+
+// ---- sub-page react ---------------------------------------------------------
+
+func TestValidateSubPagesReactRequiresSource(t *testing.T) {
+	raw := `[{"path":"edit","name":"Editor","content_type":"react"}]`
+	if err := validateSubPages(raw); err == nil {
+		t.Fatal("expected react sub-page without source_tsx to fail")
+	}
+	raw = `[{"path":"edit","name":"Editor","content_type":"react","source_tsx":"function Page(){return React.createElement('div',null,'hi');} return Page;"}]`
+	if err := validateSubPages(raw); err != nil {
+		t.Fatalf("expected react sub-page with source to pass, got %v", err)
+	}
+}
+
+func TestValidateSubPagesReactRejectsHostEscapes(t *testing.T) {
+	raw := `[{"path":"edit","name":"Editor","content_type":"react","source_tsx":"fetch('/x')"}]`
+	if err := validateSubPages(raw); err == nil {
+		t.Fatal("expected react sub-page with fetch() to fail")
+	}
+}
+
+func TestValidateSubPagesStillAcceptsHTML(t *testing.T) {
+	raw := `[{"path":"edit","name":"Editor","content_type":"html","content_html":"<div>hi</div>"}]`
+	if err := validateSubPages(raw); err != nil {
+		t.Fatalf("expected html sub-page to pass, got %v", err)
+	}
+}
