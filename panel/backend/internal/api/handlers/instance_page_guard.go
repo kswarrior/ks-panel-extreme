@@ -138,6 +138,76 @@ func guardInstancePageAny(w http.ResponseWriter, r *http.Request, pageSlugs ...s
 	return false
 }
 
+// guardAutomationPage enforces the instance-page whitelist for the
+// Automation custom page (instance_pages/pages/automation.json). The
+// automation family slug is customizable per template/instance via
+// instance_controls.shortcuts.automation.slug (default "automation"), so a
+// renamed page (automation→jobs) keeps granting its backend routes: the
+// request is allowed when EITHER the canonical "automation" slug OR the
+// configured custom slug is enabled in the instance's deploy-time config
+// snapshot (same EMPTY-BY-DEFAULT / WHITELIST semantics as
+// guardInstancePageAny, including the original_slug branch for legacy
+// renamed rows).
+func guardAutomationPage(w http.ResponseWriter, r *http.Request) bool {
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil || id <= 0 {
+		writeJSONStatus(w, http.StatusBadRequest, map[string]any{"error": "invalid instance id"})
+		return false
+	}
+	con, err := repository.OpenDB()
+	if err != nil {
+		writeJSONStatus(w, http.StatusInternalServerError, map[string]any{"error": "server error"})
+		return false
+	}
+	defer con.Close()
+	inst, err := repository.NewInstanceRepository(con).Get(id)
+	if err != nil || inst == nil {
+		writeJSONStatus(w, http.StatusNotFound, map[string]any{"error": "instance not found"})
+		return false
+	}
+	custom := automationCustomSlug(inst.Config)
+	if custom == "" || custom == "automation" {
+		return guardInstancePageAny(w, r, "automation")
+	}
+	return guardInstancePageAny(w, r, "automation", custom)
+}
+
+// automationCustomSlug reads the configured automation family slug from the
+// instance's controls snapshot (instance_controls.shortcuts.automation.slug).
+// Empty/garbled values fall back to "automation" (mirroring the frontend
+// shortcutSlug resolver). The value is trimmed of slashes and cut at the
+// first slash so a nested value can never widen the whitelist.
+func automationCustomSlug(configJSON string) string {
+	configJSON = strings.TrimSpace(configJSON)
+	if configJSON == "" {
+		return "automation"
+	}
+	var root map[string]any
+	if err := json.Unmarshal([]byte(configJSON), &root); err != nil {
+		return "automation"
+	}
+	ic, _ := root["instance_controls"].(map[string]any)
+	shortcuts, _ := ic["shortcuts"].(map[string]any)
+	auto, _ := shortcuts["automation"].(map[string]any)
+	if auto == nil {
+		return "automation"
+	}
+	raw, _ := auto["slug"].(string)
+	s := strings.Trim(strings.TrimSpace(raw), "/")
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "automation"
+	}
+	if idx := strings.Index(s, "/"); idx >= 0 {
+		s = s[:idx]
+	}
+	if s == "" {
+		return "automation"
+	}
+	return s
+}
+
 // instancePageSpecEnabled reports whether `pageSlug` is enabled for the
 // given instance config JSON, applying the whitelist semantics documented on
 // guardInstancePage. This uses EMPTY-BY-DEFAULT semantics matching the

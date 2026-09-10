@@ -269,12 +269,17 @@ func secretType(isSecret bool) string {
 // ============================================================================
 // AUTOMATION
 // ============================================================================
-// Automation is a self-sufficient builtin like Files / Terminal / Ports: no
-// spec.pages whitelist gate (auth + permission gates at registration still
-// apply). Visibility + read-only mode are enforced by the SPA's Instance
-// Controls shortcut (floating menu + native page).
+// Automation is a full custom instance page
+// (instance_pages/pages/automation.json with an edit sub-page): every route
+// below requires the page to be linked to the instance (whitelist gate +
+// auth gates at registration). Visibility + read-only mode are enforced by
+// the page's own Configure vars (AND-gated with the template's Instance
+// Controls shortcut) in the SPA.
 
 func ListAutomationHandler(w http.ResponseWriter, r *http.Request) {
+	if !guardAutomationPage(w, r) {
+		return
+	}
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
@@ -468,6 +473,9 @@ func automationStepsToModel(in []automationStepRequest) []models.AutomationStep 
 }
 
 func CreateAutomationHandler(w http.ResponseWriter, r *http.Request) {
+	if !guardAutomationPage(w, r) {
+		return
+	}
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
@@ -524,6 +532,9 @@ func CreateAutomationHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func UpdateAutomationHandler(w http.ResponseWriter, r *http.Request) {
+	if !guardAutomationPage(w, r) {
+		return
+	}
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
@@ -589,6 +600,9 @@ func UpdateAutomationHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func DeleteAutomationHandler(w http.ResponseWriter, r *http.Request) {
+	if !guardAutomationPage(w, r) {
+		return
+	}
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
@@ -620,6 +634,9 @@ func DeleteAutomationHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func ListAutomationRunsHandler(w http.ResponseWriter, r *http.Request) {
+	if !guardAutomationPage(w, r) {
+		return
+	}
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
