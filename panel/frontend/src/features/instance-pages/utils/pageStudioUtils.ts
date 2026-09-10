@@ -102,7 +102,7 @@ export function defsToActions(json: string | undefined): ActionRow[] {
 let subSeq = 0;
 export function blankSub(): SubPageRow {
   subSeq += 1;
-  return { id: `s${Date.now()}-${subSeq}`, path: '', name: '', content_type: 'html', content_html: '', content_markdown: '', content_blocks: '' };
+  return { id: `s${Date.now()}-${subSeq}`, path: '', name: '', content_type: 'html', content_html: '', content_markdown: '', content_blocks: '', source_tsx: '', bundle_css: '' };
 }
 
 export function subRowsFromJSON(json: string | undefined | null): SubPageRow[] {
@@ -112,10 +112,12 @@ export function subRowsFromJSON(json: string | undefined | null): SubPageRow[] {
     id: `p${subSeq++}-${Math.random().toString(36).slice(2, 8)}`,
     path: d.path,
     name: d.name,
-    content_type: (['html', 'markdown', 'blocks'].includes(d.content_type) ? d.content_type : 'html') as SubPageRow['content_type'],
+    content_type: (['html', 'markdown', 'blocks', 'react'].includes(d.content_type) ? d.content_type : 'html') as SubPageRow['content_type'],
     content_html: typeof d.content_html === 'string' ? d.content_html : '',
     content_markdown: typeof d.content_markdown === 'string' ? d.content_markdown : '',
     content_blocks: typeof d.content_blocks === 'string' ? d.content_blocks : '',
+    source_tsx: typeof (d as any).source_tsx === 'string' ? (d as any).source_tsx : '',
+    bundle_css: typeof (d as any).bundle_css === 'string' ? (d as any).bundle_css : '',
   }));
 }
 
@@ -132,6 +134,8 @@ export function subsToJSON(rows: SubPageRow[]): string {
       content_html: r.content_html,
       content_markdown: r.content_markdown,
       content_blocks: r.content_blocks,
+      ...(r.source_tsx ? { source_tsx: r.source_tsx } : {}),
+      ...(r.bundle_css ? { bundle_css: r.bundle_css } : {}),
     }));
   if (defs.length === 0) return '';
   return JSON.stringify(defs);
@@ -149,6 +153,9 @@ export function validateSubRows(rows: SubPageRow[]): string {
     if (name === '') return `Sub-page "/${path}" needs a display name.`;
     if (seen.has(path)) return `Duplicate sub-page path "/${path}".`;
     seen.add(path);
+    if ((r.content_type as string) === 'react' && !r.source_tsx.trim()) {
+      return `Sub-page "/${path}" needs React source before saving.`;
+    }
   }
   return '';
 }

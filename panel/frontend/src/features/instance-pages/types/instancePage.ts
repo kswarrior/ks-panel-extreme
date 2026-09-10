@@ -113,10 +113,16 @@ export interface PageComponentDef {
 export interface InstancePageSubPage {
   path: string;
   name: string;
-  content_type: 'html' | 'markdown' | 'blocks';
+  content_type: 'html' | 'markdown' | 'blocks' | 'react';
   content_html?: string;
   content_markdown?: string;
   content_blocks?: string;
+  /** Author React JS source (content_type == 'react'). */
+  source_tsx?: string;
+  /** Validated React bundle, stamped by POST /:id/build. */
+  bundle_js?: string;
+  /** Optional React sub-page CSS. */
+  bundle_css?: string;
 }
 
 // parseSubPages decodes the persisted sub_pages JSON into typed entries.

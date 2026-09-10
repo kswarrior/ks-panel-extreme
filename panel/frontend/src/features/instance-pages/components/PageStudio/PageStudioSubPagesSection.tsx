@@ -54,10 +54,11 @@ export const PageStudioSubPagesSection: React.FC<PageStudioSubPagesSectionProps>
       <div className="space-y-4">
         {subs.map((sub, idx) => {
           const isEditing = editingSubId === sub.id;
-          const subContent = sub.content_type === 'html' ? sub.content_html : sub.content_type === 'markdown' ? sub.content_markdown : sub.content_blocks;
+          const subContent = sub.content_type === 'html' ? sub.content_html : sub.content_type === 'markdown' ? sub.content_markdown : sub.content_type === 'react' ? sub.source_tsx : sub.content_blocks;
           const updateSubContent = (value: string) => {
             if (sub.content_type === 'html') onUpdate(sub.id, { content_html: value });
             else if (sub.content_type === 'markdown') onUpdate(sub.id, { content_markdown: value });
+            else if (sub.content_type === 'react') onUpdate(sub.id, { source_tsx: value });
             else onUpdate(sub.id, { content_blocks: value });
           };
           return (
@@ -115,6 +116,7 @@ export const PageStudioSubPagesSection: React.FC<PageStudioSubPagesSectionProps>
                       <option value="html">HTML</option>
                       <option value="markdown">Markdown</option>
                       <option value="blocks">Visual Blocks</option>
+                      <option value="react">React (stateful)</option>
                     </select>
                   </div>
 
@@ -125,7 +127,7 @@ export const PageStudioSubPagesSection: React.FC<PageStudioSubPagesSectionProps>
                       className={`${glassFieldClass} font-mono text-sm`}
                       style={{ minHeight: '320px', width: '100%' }}
                       spellCheck={false}
-                      placeholder={sub.content_type === 'html' ? '<div class="ks-card">\n  <h3>Editor</h3>\n</div>' : '# Editor'}
+                      placeholder={sub.content_type === 'html' ? '<div class="ks-card">\n  <h3>Editor</h3>\n</div>' : sub.content_type === 'react' ? 'function Page() {\n  return React.createElement("div", null, "Editor");\n}\nreturn Page;' : '# Editor'}
                     />
                   ) : (
                     <textarea
@@ -136,6 +138,24 @@ export const PageStudioSubPagesSection: React.FC<PageStudioSubPagesSectionProps>
                       spellCheck={false}
                       placeholder={'[\n  { "type": "heading", "value": "Editor", "level": 2 }\n]'}
                     />
+                  )}
+                  {sub.content_type === 'react' && (
+                    <label className="block">
+                      <span className="text-xs text-gray-400">Sub-page CSS (optional)</span>
+                      <textarea
+                        value={sub.bundle_css}
+                        onChange={(e) => onUpdate(sub.id, { bundle_css: e.target.value })}
+                        className={`${glassFieldClass} font-mono text-sm`}
+                        style={{ minHeight: '90px', width: '100%' }}
+                        spellCheck={false}
+                        placeholder=".ks-react-page .ks-card { margin-bottom: 12px; }"
+                      />
+                    </label>
+                  )}
+                  {sub.content_type === 'react' && (
+                    <p className="text-[11px] text-gray-500">
+                      Built with the family — click Build on the Main page tab to validate this source.
+                    </p>
                   )}
                 </div>
               )}

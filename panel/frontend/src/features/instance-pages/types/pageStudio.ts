@@ -59,10 +59,14 @@ export interface SubPageRow {
   id: string;
   path: string;
   name: string;
-  content_type: 'html' | 'markdown' | 'blocks';
+  content_type: 'html' | 'markdown' | 'blocks' | 'react';
   content_html: string;
   content_markdown: string;
   content_blocks: string;
+  /** Author React JS source (content_type == 'react'). */
+  source_tsx: string;
+  /** Optional React sub-page CSS. */
+  bundle_css: string;
 }
 
 export interface ConfigureRow {

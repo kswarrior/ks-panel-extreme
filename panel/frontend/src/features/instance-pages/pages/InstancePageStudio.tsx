@@ -341,6 +341,10 @@ const InstancePageStudio: React.FC = () => {
         html: src.content_html,
         markdown: src.content_markdown,
         blocks: src.content_blocks,
+        // React sub-preview executes the draft source (build output equals
+        // source in v1) so authors see state without building first.
+        bundle: (src.content_type as string) === 'react' ? (src.source_tsx || undefined) : undefined,
+        bundleCss: (src.content_type as string) === 'react' ? (src.bundle_css || undefined) : undefined,
         // Components are defined at the page family level (React-like reusable
         // blocks). They must load on both main and sub-pages, so sub-page
         // preview shares the parent's components and actions.
@@ -351,7 +355,6 @@ const InstancePageStudio: React.FC = () => {
       };
     }
     return {
-      type: (page.content_type || 'html') as PageContent['type'],
       html: page.content_html,
       markdown: page.content_markdown,
       blocks: page.content_blocks,
