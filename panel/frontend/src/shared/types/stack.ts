@@ -38,6 +38,13 @@ export interface Stack {
   remote_address?: string;
   remote_use_tls: boolean;
   remote_skip_verify: boolean;
+  // Dedicated serve port (migration 077): TCP port the panel itself
+  // opened for this stack (0 = off). serve_auth gates that port behind
+  // the panel login; serve_listening reports whether the listener
+  // actually bound. Mirrors models.Stack.
+  serve_port: number;
+  serve_auth: boolean;
+  serve_listening: boolean;
   token_prefix?: string;
   token?: string;
   status: string;
