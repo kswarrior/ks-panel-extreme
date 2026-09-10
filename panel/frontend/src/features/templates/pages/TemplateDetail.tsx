@@ -6,6 +6,7 @@ import GlassCard from '@/shared/components/ui/Card';
 import ErrorState from '@/shared/components/ui/ErrorState';
 import { PageActionsPill } from '@/shared/components/ui/PageActionsPill';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
+import { parse as parseYaml } from 'yaml';
 import { parseSpecDocument, stringifySpecDocument } from '@/features/templates/utils/templateSpecYaml';
 import { useConfirm } from '@/shared/stores/confirmStore';
 
@@ -133,7 +134,7 @@ const TemplateDetail: React.FC = () => {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${template.name}.json`;
+      a.download = `${template.name}.yaml`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -212,9 +213,12 @@ const TemplateDetail: React.FC = () => {
   }
 
   const spec = parseSpec(template.spec);
-  // Surface invalid JSON instead of silently rendering empty sections.
+  // Surface an invalid spec instead of silently rendering empty sections.
   let specInvalid = false;
-  try { JSON.parse(template.spec || '{}'); } catch { specInvalid = true; }
+  try {
+    const doc: unknown = parseYaml(template.spec || '{}');
+    if (!doc || typeof doc !== 'object' || Array.isArray(doc)) specInvalid = true;
+  } catch { specInvalid = true; }
   const kind = kindMeta(template.kind);
   const limits = spec.limits || {};
   const ports: any[] = Array.isArray(spec.ports) ? spec.ports : [];
@@ -258,7 +262,7 @@ const TemplateDetail: React.FC = () => {
   const caps = spec.caps || {};
   const pages: any[] = Array.isArray(spec.pages) ? spec.pages : [];
   const prettySpec = (() => {
-    try { return JSON.stringify(spec, null, 2); } catch { return template.spec || '{}'; }
+    try { return stringifySpecDocument(spec); } catch { return template.spec || '{}\n'; }
   })();
 
   return (
@@ -271,7 +275,7 @@ const TemplateDetail: React.FC = () => {
           ariaLabel={`Actions for template ${template.name}`}
           items={[
             { key: 'edit', label: 'Edit template', tone: 'default' },
-            { key: 'download', label: downloading ? 'Downloading…' : 'Download JSON', tone: 'default' },
+            { key: 'download', label: downloading ? 'Downloading…' : 'Download YAML', tone: 'default' },
             { key: 'copyId', label: copied === 'id' ? 'Copied!' : 'Copy ID', tone: 'default' },
             { key: 'copySpec', label: copied === 'spec' ? 'Copied!' : 'Copy spec', tone: 'default' },
             { key: 'delete', label: deleting ? 'Deleting…' : 'Delete', tone: 'danger', disabled: deleting },
@@ -353,7 +357,7 @@ const TemplateDetail: React.FC = () => {
           <div className="mt-4 rounded-lg border border-amber-700/40 bg-amber-900/30 px-3 py-2 flex items-start gap-2">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4 text-amber-300 shrink-0 mt-0.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
             <div>
-              <p className="text-xs font-medium text-amber-200">Spec is not valid JSON</p>
+              <p className="text-xs font-medium text-amber-200">Spec is not valid YAML</p>
               <p className="text-[11px] text-amber-200/70 mt-0.5">The sections below may be incomplete. Fix the spec in the template editor.</p>
             </div>
           </div>
@@ -493,7 +497,7 @@ const TemplateDetail: React.FC = () => {
 
       <GlassCard className="p-0 overflow-hidden">
         <button onClick={() => setSpecOpen((v) => !v)} className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/[0.03] transition-colors">
-          <span className="text-xs uppercase tracking-wide text-gray-400">Raw spec JSON</span>
+          <span className="text-xs uppercase tracking-wide text-gray-400">Raw spec YAML</span>
           <span className="flex items-center gap-2">
             <span className="text-[11px] text-gray-500">{specOpen ? 'Hide' : 'Show'} · {prettySpec.length} chars</span>
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`w-4 h-4 text-gray-500 transition-transform ${specOpen ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9" /></svg>
@@ -502,7 +506,7 @@ const TemplateDetail: React.FC = () => {
         {specOpen && (
           <div className="border-t border-white/5 p-3 space-y-2">
             <div className="flex items-center gap-2">
-              <button onClick={() => copy(prettySpec, 'spec2')} className="px-2.5 py-1 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white">{copied === 'spec2' ? 'Copied!' : 'Copy JSON'}</button>
+              <button onClick={() => copy(prettySpec, 'spec2')} className="px-2.5 py-1 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white">{copied === 'spec2' ? 'Copied!' : 'Copy YAML'}</button>
               <button onClick={handleDownload} disabled={downloading} className="px-2.5 py-1 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white disabled:opacity-50">{downloading ? 'Downloading…' : 'Download'}</button>
               <span className="text-[11px] text-gray-500 ml-auto">Kind: {template.kind}</span>
             </div>
