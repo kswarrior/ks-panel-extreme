@@ -56,15 +56,15 @@ func SecurityStatusHandler(w http.ResponseWriter, r *http.Request) {
 			// NewRouter): cookie-only mutating requests without
 			// X-CSRF-Token get 403. Safe methods, WS upgrades, static
 			// assets, Bearer auth and public families (POST /api/auth/*,
-			// POST /api/nodes/heartbeat, /api/edge/tunnel,
-			// GET /api/csrf-token) are exempt by design.
+			// POST /api/nodes/heartbeat, POST /api/stacks/heartbeat,
+			// /api/edge/tunnel, GET /api/csrf-token) are exempt by design.
 			"token_middleware_enforced": true,
 			// Live CSRF mitigations:
 			"session_cookie_same_site": "Strict",
 			"origin_validation":        !dev,
 			"note": "X-CSRF-Token middleware enforced globally; exempt: safe " +
 				"methods, Upgrade: websocket, static assets, Bearer auth, " +
-				"POST /api/auth/*, POST /api/nodes/heartbeat, /api/edge/tunnel. " +
+				"POST /api/auth/*, POST /api/nodes/heartbeat, POST /api/stacks/heartbeat, /api/edge/tunnel. " +
 				"SPA mints tokens via GET /api/csrf-token. SameSite=Strict + " +
 				"origin validation remain as defense-in-depth.",
 		},

@@ -56,7 +56,7 @@ func SecurityStatusHandler(w http.ResponseWriter, r *http.Request) {
 			"origin_validation":        !dev,
 			"note": "X-CSRF-Token middleware enforced globally; exempt: safe " +
 				"methods, Upgrade: websocket, static assets, Bearer auth, " +
-				"POST /api/auth/*, POST /api/nodes/heartbeat, /api/edge/tunnel. " +
+				"POST /api/auth/*, POST /api/nodes/heartbeat, POST /api/stacks/heartbeat, /api/edge/tunnel. " +
 				"SPA mints tokens via GET /api/csrf-token.",
 		},
 		"security_headers": map[string]interface{}{
