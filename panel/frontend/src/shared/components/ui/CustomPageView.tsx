@@ -58,6 +58,15 @@ export interface PageContent {
   config?: Record<string, string>;
 }
 
+// bundleHash fingerprints bundle CONTENT (not length): two distinct rebuilds
+// with the same length must still reset the error boundary below, otherwise
+// a fixed page keeps showing the previous throw's message forever.
+function bundleHash(s: string): string {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = (((h << 5) + h + s.charCodeAt(i)) | 0);
+  return (h >>> 0).toString(36);
+}
+
 // ReactModuleErrorBoundary keeps one throwing React page from blanking the
 // whole instance panel (same role as the ErrorBoundary around CustomPageView
 // in InstanceDetail).
@@ -203,8 +212,12 @@ const ReactModuleView: React.FC<{
     // sdk intentionally flows via sdkKey: same key == equal values.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bundle, sdkKey]);
+  // Memoized on the bundle string: hashing 1MiB on every parent re-render
+  // (theme switches, install polls) would waste cycles; the digest only
+  // recomputes when the bundle itself changes.
+  const bundleDigest = useMemo(() => bundleHash(bundle), [bundle]);
   return (
-    <ReactModuleErrorBoundary resetKey={`${resetKey}:${bundle.length}`}>
+    <ReactModuleErrorBoundary resetKey={`${resetKey}:${bundle.length}:${bundleDigest}`}>
       <div className="ks-react-page animate-fade-in">
         {bundleCss && bundleCss.trim() !== '' ? <style>{`/* react page css (scope selectors under .ks-react-page) */\n${bundleCss}`}</style> : null}
         {execError ? (
@@ -1681,8 +1694,23 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
         case 'ks-ws-open': {
           const wsId = `ws${++wsSeq.current}`;
           const url = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/instances/${bridgeInstanceId}/terminal`;
+          // Subprotocols arrive from the sandboxed page via postMessage: accept
+          // a single string or an array (the iframe shim forwards whatever the
+          // author passed). Fail closed per entry — keep only non-empty RFC
+          // 6455 tokens (≤64 chars, ≤8 entries); anything else drops to no
+          // subprotocol instead of throwing the WebSocket constructor.
+          const wsProtocols = (() => {
+            const raw = (data as { protocols?: unknown }).protocols;
+            const list = typeof raw === 'string' ? [raw] : Array.isArray(raw) ? raw : [];
+            const clean = list
+              .filter((x): x is string => typeof x === 'string')
+              .map((s) => s.trim())
+              .filter((s) => s !== '' && s.length <= 64 && /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/.test(s))
+              .slice(0, 8);
+            return clean.length > 0 ? clean : undefined;
+          })();
           try {
-            const ws = new WebSocket(url, typeof data.protocols === 'string' ? [data.protocols] : undefined);
+            const ws = new WebSocket(url, wsProtocols);
             wsRef.current.set(wsId, ws);
             ws.onopen = () => iframeRef.current?.contentWindow?.postMessage({ type: 'ks-ws-event', wsId, event: 'open' }, '*');
             ws.onmessage = (ev) => {
