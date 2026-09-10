@@ -1498,6 +1498,10 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [instanceContext?.id, pageSlug, savedActionsKey, pageConfigMap],
   );
+  // Stable instance identity: InstanceDetail rebuilds instanceContext each
+  // render (incl. 3s polls), so keying effects on the object re-runs them
+  // constantly. The bridge effect below is already keyed this way.
+  const bridgeInstanceId = instanceContext?.id ?? 0;
   useEffect(() => {
     // pageSlug MUST ride along: the backend (ExecuteCustomPageActionHandler)
     // rejects execute-action calls without it, so every bridged shell/file
@@ -1513,7 +1517,7 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
     return () => {
       if ((window as any).KSPageSDK === hostSdk) (window as any).KSPageSDK = null;
     };
-  }, [instanceContext, hostSdk]);
+  }, [bridgeInstanceId, hostSdk]);
 
   // Serialized once per render OUTSIDE the srcDoc memo: the string is equal
   // while the values are equal, so the srcDoc memo below stays stable when
@@ -1566,7 +1570,6 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
   // tears down + re-registers the message listener AND closes every live
   // proxied WebSocket. All live SDK calls go through sdkRef (kept current by
   // the effect above); only the id is read here.
-  const bridgeInstanceId = instanceContext?.id ?? 0;
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       // Only accept messages from OUR iframe.

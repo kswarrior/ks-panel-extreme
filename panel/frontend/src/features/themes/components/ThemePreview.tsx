@@ -13,6 +13,18 @@ const ThemePreview: React.FC<{ theme: Theme; className?: string }> = ({ theme, c
   // null/number color survives into the UI. Coerce defensively: one corrupt
   // custom theme must never blank the Themes grid / Studio template preview.
   const str = (v: unknown, fb: string): string => (typeof v === 'string' && v ? v : fb);
+  const num = (v: unknown, fb: number): number =>
+    (typeof v === 'number' && Number.isFinite(v) ? v : fb);
+  // A corrupt custom theme can carry null / primitive sections (backend treats
+  // spec as opaque; sectionBackfill spreads raw over defaults), so coerce every
+  // section this tile reads — a null section must render a fallback, never throw.
+  const sec = (v: unknown): any => (v && typeof v === 'object' ? v : {});
+  const bg = sec((theme as any)?.background);
+  const sb = sec((theme as any)?.sidebar);
+  const hd = sec((theme as any)?.header);
+  const cd = sec((theme as any)?.card);
+  const ac = sec((theme as any)?.accent);
+  const bt = sec((theme as any)?.button);
   const halfHex = (h: unknown) => {
     const s = str(h, '#ffffff');
     return s.length === 7 ? s + '80' : s;
@@ -21,7 +33,7 @@ const ThemePreview: React.FC<{ theme: Theme; className?: string }> = ({ theme, c
   // so the width slider is visibly reflected in the preview. Default 225
   // maps to the original 28px; extremes map to ~20px / ~40px keeping the
   // diagram readable while still showing the delta.
-  const rawW = (theme.sidebar as any)?.width;
+  const rawW = sb?.width;
   const clampedW = Math.max(160, Math.min(320, typeof rawW === 'number' && Number.isFinite(rawW) ? rawW : 225));
   const sidebarW = Math.round(28 * clampedW / 225);
 
