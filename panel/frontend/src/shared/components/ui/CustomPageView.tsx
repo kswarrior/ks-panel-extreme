@@ -96,8 +96,12 @@ const ReactModuleView: React.FC<{
   bundle: string;
   bundleCss?: string;
   sdk: ReturnType<typeof createCustomPageSDK>;
+  /** Fingerprint of the sdk inputs (instance id/status, slug, actions, config).
+   *  The factory closes over the sdk of the render that produced this key;
+   *  an unchanged key means equal values, so the closure stays current. */
+  sdkKey: string;
   resetKey: string;
-}> = ({ bundle, bundleCss, sdk, resetKey }) => {
+}> = ({ bundle, bundleCss, sdk, sdkKey, resetKey }) => {
   const PageComp = useMemo(() => {
     const factory = new Function('sdk', 'React', `"use strict";\n${bundle}`);
     const out = factory(sdk, React);
@@ -105,8 +109,9 @@ const ReactModuleView: React.FC<{
     const el = out as React.ReactElement;
     const Static: React.FC = () => el;
     return Static;
+    // sdk intentionally flows via sdkKey: same key == equal values.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bundle]);
+  }, [bundle, sdkKey]);
   return (
     <ReactModuleErrorBoundary resetKey={`${resetKey}:${bundle.length}`}>
       <div className="ks-react-page animate-fade-in">
@@ -1590,6 +1595,39 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
         // NO allow-same-origin: the page runs on an opaque origin and can
         // only reach the panel through the gated postMessage bridge.
         sandbox="allow-scripts allow-forms allow-popups allow-modals allow-downloads"
+      />
+    );
+  }
+
+  // For React content, execute the validated bundle with the panel React
+  // runtime in the host origin (same trust as markdown/blocks). Component
+  // identity is memoized on the bundle + sdk fingerprint so hooks state
+  // survives unrelated parent re-renders (theme switches, tab state).
+  if (content.type === 'react') {
+    const code = (content.bundle ?? '').trim();
+    if (code === '') {
+      return (
+        <div className="glass-card rounded-xl text-center text-gray-400">
+          <p className="text-sm">This React page has no built bundle.</p>
+          <p className="text-xs text-gray-500 mt-1">Open it in the Instance Page Studio and click Build.</p>
+        </div>
+      );
+    }
+    if (!hostSdk) {
+      return (
+        <div className="glass-card rounded-xl text-center text-gray-400">
+          <p className="text-sm">Bind an instance to render this React page.</p>
+        </div>
+      );
+    }
+    const fingerprint = `${instanceContext?.id ?? 0}:${instanceContext?.status ?? ''}:${pageSlug ?? ''}:${savedActionsKey}:${JSON.stringify(pageConfigMap)}`;
+    return (
+      <ReactModuleView
+        bundle={code}
+        bundleCss={content.bundleCss}
+        sdk={hostSdk}
+        sdkKey={fingerprint}
+        resetKey={`${pageSlug ?? ''}`}
       />
     );
   }
