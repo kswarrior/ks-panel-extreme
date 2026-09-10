@@ -3,6 +3,8 @@ export { PageStudioTemplatesSection } from './PageStudioTemplatesSection';
 export type { PageStudioTemplatesSectionProps } from './PageStudioTemplatesSection';
 export { PageStudioContentSection } from './PageStudioContentSection';
 export type { PageStudioContentSectionProps } from './PageStudioContentSection';
+export { PageStudioReactSection } from './PageStudioReactSection';
+export type { PageStudioReactSectionProps } from './PageStudioReactSection';
 export { PageStudioSubPagesSection } from './PageStudioSubPagesSection';
 export type { PageStudioSubPagesSectionProps } from './PageStudioSubPagesSection';
 export { PageStudioActionsSection } from './PageStudioActionsSection';

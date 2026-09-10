@@ -12,8 +12,8 @@ import type { BlockRow } from '@/features/instance-pages/types/pageStudio';
 
 export interface PageStudioContentSectionProps {
   // Content state
-  contentType: 'html' | 'markdown' | 'blocks';
-  onContentTypeChange: (t: 'html' | 'markdown' | 'blocks') => void;
+  contentType: 'html' | 'markdown' | 'blocks' | 'react';
+  onContentTypeChange: (t: 'html' | 'markdown' | 'blocks' | 'react') => void;
   currentContent: string;
   onContentChange: (v: string) => void;
   contentBlocks: string;
@@ -71,6 +71,7 @@ export const PageStudioContentSection: React.FC<PageStudioContentSectionProps> =
             <option value="html">HTML</option>
             <option value="markdown">Markdown</option>
             <option value="blocks">Visual Blocks</option>
+            <option value="react">React (stateful)</option>
           </select>
         </div>
       </div>
