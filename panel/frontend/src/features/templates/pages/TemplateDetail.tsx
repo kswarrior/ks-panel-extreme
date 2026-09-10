@@ -6,6 +6,7 @@ import GlassCard from '@/shared/components/ui/Card';
 import ErrorState from '@/shared/components/ui/ErrorState';
 import { PageActionsPill } from '@/shared/components/ui/PageActionsPill';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
+import { parseSpecDocument, stringifySpecDocument } from '@/features/templates/utils/templateSpecYaml';
 import { useConfirm } from '@/shared/stores/confirmStore';
 
 function getErrorMessage(e: any, fallback: string): string {
@@ -45,8 +46,8 @@ function relativeTime(iso: string): string {
 }
 
 function parseSpec(raw: string): Record<string, any> {
-  if (!raw) return {};
-  try { return JSON.parse(raw) as Record<string, any>; } catch { return {}; }
+  // Template specs are canonical YAML (legacy JSON parses identically).
+  return parseSpecDocument(raw);
 }
 
 function kindMeta(kind: string) {

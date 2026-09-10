@@ -440,14 +440,15 @@ export function serializeSpec(f: TemplateFormState): string {
       delete spec[k];
     }
   });
-  return JSON.stringify(spec, null, 2);
+  // Canonical storage is YAML (legacy JSON rows auto-migrate on save).
+  return stringifySpecDocument(spec);
 }
 
 export function parseSpec(raw: string): Partial<TemplateFormState> {
   const out: Partial<TemplateFormState> = {};
   if (!raw) return out;
   try {
-    const s = JSON.parse(raw) as Record<string, any>;
+    const s = parseSpecDocument(raw);
     if (s.category) out.category = String(s.category);
     if (s.type) out.type = String(s.type);
     if (Array.isArray(s.command)) {
@@ -915,7 +916,7 @@ export function parseSpec(raw: string): Partial<TemplateFormState> {
   } catch (e) {
     // Never swallow a corrupt spec silently: the caller seeds the form from
     // the return value, so log the bad payload instead of blanking the form.
-    console.error('parseSpec: invalid template spec JSON', e);
+    console.error('parseSpec: invalid template spec YAML', e);
   }
   return out;
 }
