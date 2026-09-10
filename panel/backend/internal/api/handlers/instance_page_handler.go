@@ -264,6 +264,10 @@ var validComponentTypes = map[string]bool{
 	"html":     true,
 	"markdown": true,
 	"block":    true,
+	// "shared" is an import-by-reference: only {name, shared} is stored
+	// (no source copy); the panel frontend supplies the HTML from its
+	// shared registry at render time.
+	"shared": true,
 }
 
 // validComponentName reports whether s is a safe component name for

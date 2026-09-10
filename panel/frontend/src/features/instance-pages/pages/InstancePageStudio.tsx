@@ -295,6 +295,29 @@ const InstancePageStudio: React.FC = () => {
   const addComponent = () => setComponents((c) => [...c, blankComponent()]);
   const removeComponent = (id: string) => setComponents((c) => c.filter((x) => x.id !== id));
   const updateComponent = (id: string, patch: Partial<ComponentRow>) => setComponents((c) => c.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+  // Import a panel-shared component by reference (stores name only — the
+  // panel supplies the source at render time). Duplicate names are ignored
+  // so {{component:name}} tokens never become ambiguous.
+  const importSharedComponent = (s: { name: string; label: string; description: string }) => {
+    setComponents((prev) => {
+      const key = (s.name || '').trim();
+      if (!key) return prev;
+      if (prev.some((x) => (x.name || '').trim() === key)) {
+        setNotice(`"${key}" is already in Components.`);
+        return prev;
+      }
+      const row: ComponentRow = {
+        id: `c${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        name: key,
+        type: 'shared',
+        description: s.description || `Panel shared: ${s.label || key}`,
+        content: '',
+        shared: key,
+      };
+      setNotice(`Imported "${key}" — use {{component:${key}}} in content.`);
+      return [...prev, row];
+    });
+  };
 
   // ---- Configure row handlers ---------------------------------------------
   const addConfigure = () => setConfigure((c) => [...c, blankConfigure()]);
@@ -779,6 +802,7 @@ const InstancePageStudio: React.FC = () => {
               onAdd={addComponent}
               onRemove={removeComponent}
               onUpdate={updateComponent}
+              onImport={importSharedComponent}
               sectionCls={sectionCls}
             />
           )}
