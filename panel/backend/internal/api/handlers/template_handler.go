@@ -19,6 +19,7 @@ import (
 	"github.com/example/kspanel/internal/models"
 	"github.com/example/kspanel/internal/permissions"
 	"github.com/example/kspanel/internal/repository"
+	"github.com/example/kspanel/internal/specyaml"
 	"github.com/go-chi/chi/v5"
 	"gopkg.in/yaml.v3"
 )
@@ -872,17 +873,22 @@ func validateTemplate(req templateDTO) (string, error) {
 		return "", errString("color must be a #rrggbb hex value")
 	}
 	spec := req.Spec
-	if spec == "" {
-		spec = "{}"
+	if strings.TrimSpace(spec) == "" {
+		spec = "{}\n"
 	}
-	var specMap map[string]any
-	if err := json.Unmarshal([]byte(spec), &specMap); err != nil {
-		return "", errString("spec must be valid JSON: " + err.Error())
+	specMap, err := specyaml.Parse(spec)
+	if err != nil {
+		return "", errString("spec must be valid YAML/JSON: " + err.Error())
 	}
 	if err := validateTemplateSpec(specMap); err != nil {
 		return "", errString("spec validation failed: " + err.Error())
 	}
-	return spec, nil
+	// Canonical storage is YAML: old JSON inputs auto-migrate on save.
+	normalised, err := specyaml.Marshal(specMap)
+	if err != nil {
+		return "", errString("spec must be valid YAML/JSON: " + err.Error())
+	}
+	return normalised, nil
 }
 
 // ListTemplatesHandler returns every template for the admin UI.
@@ -1032,9 +1038,10 @@ func handleTemplateFileUpload(w http.ResponseWriter, r *http.Request) {
 	icon := strings.TrimSpace(getString(manifest, "icon"))
 	color := strings.ToUpper(strings.TrimSpace(getString(manifest, "color")))
 	// Spec arrives in two shapes: the download endpoint exports it as a
-	// JSON-encoded STRING, while hand-written manifests carry it as an
-	// OBJECT. Accept both so download → upload round-trips.
+	// YAML/JSON-encoded STRING (legacy), while hand-written manifests carry
+	// it as an OBJECT. Accept both so download → upload round-trips.
 	var spec string
+	var specMap map[string]any
 	if rawSpec, ok := manifest["spec"]; ok && rawSpec != nil {
 		if s, ok := rawSpec.(string); ok {
 			spec = s
@@ -1064,25 +1071,23 @@ func handleTemplateFileUpload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "color must be a #rrggbb hex value", http.StatusBadRequest)
 		return
 	}
-	if spec == "" {
-		spec = "{}"
+	if strings.TrimSpace(spec) == "" {
+		spec = "{}\n"
 	}
-	var specMap map[string]any
-	if err := json.Unmarshal([]byte(spec), &specMap); err != nil {
-		http.Error(w, "spec must be valid JSON: "+err.Error(), http.StatusBadRequest)
+	specMap, serr := specyaml.Parse(spec)
+	if serr != nil {
+		http.Error(w, "spec must be valid YAML/JSON: "+serr.Error(), http.StatusBadRequest)
 		return
 	}
 	// Ptero-egg compat: top-level images/docker_images/default_image ride
 	// into the spec so no runtime is dropped on import.
-	if mergeManifestImagesIntoSpec(specMap, manifest) {
-		if reb, merr := json.Marshal(specMap); merr == nil {
-			spec = string(reb)
-		}
-	}
+	mergeManifestImagesIntoSpec(specMap, manifest)
 	if err := validateTemplateSpec(specMap); err != nil {
 		http.Error(w, "spec validation failed: "+err.Error(), http.StatusBadRequest)
 		return
 	}
+	// Canonical storage is YAML.
+	spec = specyaml.MustMarshal(specMap)
 
 	con, err := repository.OpenDB()
 	if err != nil {
