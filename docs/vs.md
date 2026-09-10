@@ -131,7 +131,8 @@ panel (best Minecraft/modpack UX, event-driven scheduler, Windows support) and
 accept per-instance licensing + closed core + host/Docker-only scope. Pick KS
 Panel if you need unlimited multi-driver hosting (Docker/KVM/LXD/Multipass),
 finer permissions/audit/secrets, transparent multi-DB, full self-update,
-theming/extensibility, tickets/notifications, and AI assistance.
+theming/extensibility (mods + applications + instance pages + **stacks**),
+tickets/notifications, custom panel pages, and AI assistance.
 
 Sources: `cubecoders.com/AMP` (feature overview, scheduler/state-tracking,
 mod store, ADS), `cubecoders.com/AMPTermsOfSale` (May 2026 — instance-based
