@@ -643,7 +643,7 @@ node-style pairing: run anywhere, point a stack row at it, float at
 ```
 dash/
 ├── go.mod                  # Module definition (github.com/example/ksdash)
-├── main.go                 # /health + / welcome + pairing heartbeat loop
+├── main.go                 # /health + / welcome + announce-on-start + heartbeat loop
 └── README.md               # Run + pair steps
 ```
 

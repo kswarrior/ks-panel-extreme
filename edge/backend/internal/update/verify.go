@@ -44,6 +44,8 @@ import (
 // CDN edge cache (raw.githubusercontent serves version.json with
 // `Cache-Control: max-age=300`): without it a recheck inside the cache
 // window returns the previous manifest and the UI reports stale data.
+// `Cache-Control: no-cache` / `Pragma: no-cache` request headers ask any
+// intermediate cache to revalidate as a second layer.
 func fetchEdgeManifest() (versionManifest, error) {
 	var m versionManifest
 	client := &http.Client{Timeout: 15 * time.Second}
