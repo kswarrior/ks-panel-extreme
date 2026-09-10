@@ -553,7 +553,9 @@ return (
           ) : (
             <>
               <button onClick={() => setUploadOpen(false)} className="ks-btn-cancel ks-btn-ghost">Cancel</button>
-              <button className="ks-btn-form ks-btn-primary" onClick={handleStudioSave}>Save</button>
+              <button onClick={() => { setUploadOpen(false); navigate('/applications/studio'); }} className="ks-btn-form ks-btn-primary">
+                Open Application Studio
+              </button>
             </>
           )
         }
@@ -653,13 +655,27 @@ return (
 
         {uploadTab === 'studio' && (
           <>
-            <ApplicationStudioTab
-              studioTab={studioTab}
-              setStudioTab={setStudioTab}
-              studioForm={studioForm}
-              setStudioForm={setStudioForm}
-            />
-            {uploadError && <p className="text-red-400 text-xs mt-2">{uploadError}</p>}
+            <p className="text-xs text-gray-400">
+              Build an application visually — no code required. Define metadata, permissions, config schema,
+              saved env, and staged script files. The Studio emits a standard manifest that installs through the same
+              validated pipeline as uploaded files.
+            </p>
+            <GlassCard className="space-y-3 text-center py-6">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-12 h-12 mx-auto text-gray-400">
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
+              </svg>
+              <h4 className="text-white font-medium">Application Studio</h4>
+              <p className="text-gray-400 text-sm">A visual builder for creating applications without writing manifest JSON by hand.</p>
+              <div className="flex items-center justify-center gap-2 flex-wrap">
+                <span className="text-xs text-gray-500">Features:</span>
+                <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">General</span>
+                <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Permissions</span>
+                <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Configure</span>
+                <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Scripts</span>
+                <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Raw JSON</span>
+              </div>
+            </GlassCard>
           </>
         )}
       </GlassModal>
