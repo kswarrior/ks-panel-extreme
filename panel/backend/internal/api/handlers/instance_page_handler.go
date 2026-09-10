@@ -681,6 +681,8 @@ func CreateInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		ContentHTML:     req.ContentHTML,
 		ContentMarkdown: req.ContentMarkdown,
 		ContentBlocks:   req.ContentBlocks,
+		SourceTSX:       req.SourceTSX,
+		BundleCSS:       req.BundleCSS,
 		IconSVG:         req.IconSVG,
 		IconColor:       req.IconColor,
 		Actions:         req.Actions,
@@ -778,6 +780,8 @@ func UpdateInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		ContentHTML:     req.ContentHTML,
 		ContentMarkdown: req.ContentMarkdown,
 		ContentBlocks:   req.ContentBlocks,
+		SourceTSX:       req.SourceTSX,
+		BundleCSS:       req.BundleCSS,
 		IconSVG:         req.IconSVG,
 		IconColor:       req.IconColor,
 		Actions:         req.Actions,
@@ -1109,6 +1113,10 @@ func LinkInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 			"content_html":     page.ContentHTML,
 			"content_markdown": page.ContentMarkdown,
 			"content_blocks":   page.ContentBlocks,
+			"source_tsx":       page.SourceTSX,
+			"bundle_js":        page.BundleJS,
+			"bundle_css":       page.BundleCSS,
+			"build_status":     page.BuildStatus,
 		}
 		if page.Actions != "" {
 			var actionsAny []any
