@@ -24,7 +24,7 @@ func NewNodeRepository(db *sql.DB) *NodeRepository {
 }
 
 // EdgeTokenPrefix brands the edge token so it's distinguishable from an API
-// key (ksk_…). ksedge operators read this from their ksedge.toml.
+// key (ksk_…). ksedge operators read this from their config.toml.
 const EdgeTokenPrefix = "kse_"
 
 // GenerateEdgeToken returns a fresh node/edge token. Only the SHA-256 digest
