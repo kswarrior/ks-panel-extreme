@@ -223,18 +223,59 @@ const InstancePageStudio: React.FC = () => {
     else onChange('content_blocks', value);
   };
 
-  // Build the React bundle (validates Studio source server-side). Sends the
-  // draft source so authors can build without saving first.
+  // Build the React bundle (validates Studio source server-side). The build
+  // endpoint validates sub-pages from STORED sub_pages, so the draft (main
+  // source + sub rows) is persisted first — otherwise Build would validate
+  // stale subs and report ok on outdated sources.
+  const draftPayload = () => {
+    const iconColor = ((page as any).icon_color || '').trim();
+    return {
+      name: page.name!.trim(),
+      description: page.description ?? '',
+      slug: page.slug!.trim(),
+      kind: page.kind ?? 'custom',
+      category: page.category ?? '',
+      type: page.type ?? '',
+      content_type: page.content_type || 'html',
+      content_html: page.content_html ?? '',
+      content_markdown: page.content_markdown ?? '',
+      content_blocks: page.content_blocks ?? '',
+      source_tsx: (page as any).source_tsx ?? '',
+      bundle_css: (page as any).bundle_css ?? '',
+      icon_svg: page.icon_svg ?? '',
+      icon_color: iconColor.toUpperCase(),
+      actions: JSON.stringify(actionDefs),
+      sub_pages: subsToJSON(subs),
+      components: compsToJSON(components),
+      configure: configureToJSON(configure),
+    } as unknown as UpdateInstancePagePayload;
+  };
+
   const handleBuild = async () => {
     if (!isEdit || pageId == null) { setError('Save the page first to build it.'); return; }
+    const subErr = validateSubRows(subs);
+    if (subErr) { setError(subErr); return; }
+    if ((page.content_type as string) === 'react' && !((page as any).source_tsx ?? '').trim()) {
+      setError('React pages need source before building (React tab → Starter).');
+      return;
+    }
     setBuilding(true);
     setError('');
     try {
+      // Persist the draft first so the family build validates current sources.
+      await updateInstancePage(pageId, draftPayload());
       const res = await buildInstancePage(pageId, {
         source_tsx: (page as any).source_tsx ?? '',
         bundle_css: (page as any).bundle_css ?? '',
       });
       setPage((p) => ({ ...p, build_status: res.build_status, build_log: res.build_log } as any));
+      if (res.build_status === 'ok') {
+        // Mirror the server stamp (sub bundle_js = sub source_tsx) so the
+        // draft rows stay consistent without refetching over unsaved tabs.
+        setSubs((prev) => prev.map((s) =>
+          (s.content_type as string) === 'react' && s.source_tsx.trim() ? { ...s, bundle_js: s.source_tsx } : s,
+        ));
+      }
       setNotice(res.build_status === 'ok' ? 'Build ok — bundle stored. Re-link templates to ship it.' : `Build: ${res.build_log}`);
     } catch (e: any) {
       setPage((p) => ({ ...p, build_status: 'error' } as any));
@@ -409,9 +450,10 @@ const InstancePageStudio: React.FC = () => {
         html: src.content_html,
         markdown: src.content_markdown,
         blocks: src.content_blocks,
-        // React sub-preview executes the draft source (build output equals
-        // source in v1) so authors see state without building first.
-        bundle: (src.content_type as string) === 'react' ? (src.source_tsx || undefined) : undefined,
+        // React sub-preview prefers the built bundle (what the runtime
+        // executes) and falls back to draft source so authors see state
+        // without building first — same preference as the main page below.
+        bundle: (src.content_type as string) === 'react' ? (src.bundle_js || src.source_tsx || undefined) : undefined,
         bundleCss: (src.content_type as string) === 'react' ? (src.bundle_css || undefined) : undefined,
         // Components are defined at the page family level (React-like reusable
         // blocks). They must load on both main and sub-pages, so sub-page
@@ -481,26 +523,7 @@ const InstancePageStudio: React.FC = () => {
     setSaving(true);
     setError('');
     try {
-      const payload = {
-        name: page.name!.trim(),
-        description: page.description ?? '',
-        slug: page.slug!.trim(),
-        kind: page.kind ?? 'custom',
-        category: page.category ?? '',
-        type: page.type ?? '',
-        content_type: page.content_type || 'html',
-        content_html: page.content_html ?? '',
-        content_markdown: page.content_markdown ?? '',
-        content_blocks: page.content_blocks ?? '',
-        source_tsx: (page as any).source_tsx ?? '',
-        bundle_css: (page as any).bundle_css ?? '',
-        icon_svg: page.icon_svg ?? '',
-        icon_color: iconColor.toUpperCase(),
-        actions: JSON.stringify(actionDefs),
-        sub_pages: subsToJSON(subs),
-        components: compsToJSON(components),
-        configure: configureToJSON(configure),
-      } as unknown as UpdateInstancePagePayload;
+      const payload = draftPayload();
       if (isEdit && pageId != null) {
         await updateInstancePage(pageId, payload as UpdateInstancePagePayload);
       } else {
@@ -575,14 +598,22 @@ const InstancePageStudio: React.FC = () => {
         actions: Array.isArray(data.actions) ? JSON.stringify(data.actions) : p.actions,
       }));
       if (Array.isArray(data.actions)) setActions(defsToActions(JSON.stringify(data.actions)));
+      // Library files (instance_pages/pages/*.json, GUIDE.md §2.1) store
+      // sub-pages/components as JSON-encoded STRINGS; Studio exports use
+      // inline arrays. Accept both so library files import without dropping rows.
       if (Array.isArray(data.pages)) {
         const rows = subRowsFromJSON(JSON.stringify(data.pages));
         setSubs(rows);
+        setEditingSubId(null);
+      } else if (typeof data.sub_pages === 'string' && data.sub_pages.trim()) {
+        setSubs(subRowsFromJSON(data.sub_pages));
         setEditingSubId(null);
       }
       if (Array.isArray(data.components)) {
         const rows = compRowsFromJSON(JSON.stringify(data.components));
         setComponents(rows);
+      } else if (typeof data.components === 'string' && data.components.trim()) {
+        setComponents(compRowsFromJSON(data.components));
       }
       if (Array.isArray((data as any).configure)) {
         const rows = configureRowsFromJSON(JSON.stringify((data as any).configure));

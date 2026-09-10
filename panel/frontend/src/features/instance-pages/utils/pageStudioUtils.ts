@@ -103,7 +103,7 @@ export function defsToActions(json: string | undefined): ActionRow[] {
 let subSeq = 0;
 export function blankSub(): SubPageRow {
   subSeq += 1;
-  return { id: `s${Date.now()}-${subSeq}`, path: '', name: '', content_type: 'html', content_html: '', content_markdown: '', content_blocks: '', source_tsx: '', bundle_css: '' };
+  return { id: `s${Date.now()}-${subSeq}`, path: '', name: '', content_type: 'html', content_html: '', content_markdown: '', content_blocks: '', source_tsx: '', bundle_js: '', bundle_css: '' };
 }
 
 export function subRowsFromJSON(json: string | undefined | null): SubPageRow[] {
@@ -118,6 +118,10 @@ export function subRowsFromJSON(json: string | undefined | null): SubPageRow[] {
     content_markdown: typeof d.content_markdown === 'string' ? d.content_markdown : '',
     content_blocks: typeof d.content_blocks === 'string' ? d.content_blocks : '',
     source_tsx: typeof (d as any).source_tsx === 'string' ? (d as any).source_tsx : '',
+    // bundle_js is build-owned (stamped by POST /:id/build). It must survive
+    // the load → edit → save round-trip or the next save wipes the deployed
+    // bundle and React subs render "no built bundle".
+    bundle_js: typeof (d as any).bundle_js === 'string' ? (d as any).bundle_js : '',
     bundle_css: typeof (d as any).bundle_css === 'string' ? (d as any).bundle_css : '',
   }));
 }
@@ -136,6 +140,10 @@ export function subsToJSON(rows: SubPageRow[]): string {
       content_markdown: r.content_markdown,
       content_blocks: r.content_blocks,
       ...(r.source_tsx ? { source_tsx: r.source_tsx } : {}),
+      // Preserve the stamped sub bundle (build-owned). The backend's Update
+      // overwrites sub_pages wholesale, so omitting this key here would wipe
+      // a good build on the next plain save.
+      ...(r.bundle_js ? { bundle_js: r.bundle_js } : {}),
       ...(r.bundle_css ? { bundle_css: r.bundle_css } : {}),
     }));
   if (defs.length === 0) return '';

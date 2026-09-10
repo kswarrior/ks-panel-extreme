@@ -58,7 +58,11 @@ export const PageStudioSubPagesSection: React.FC<PageStudioSubPagesSectionProps>
           const updateSubContent = (value: string) => {
             if (sub.content_type === 'html') onUpdate(sub.id, { content_html: value });
             else if (sub.content_type === 'markdown') onUpdate(sub.id, { content_markdown: value });
-            else if (sub.content_type === 'react') onUpdate(sub.id, { source_tsx: value });
+            // Editing React source invalidates the stamped bundle (build-owned):
+            // clear it so preview/runtime fall back to draft source until the
+            // next family Build re-stamps it. Same pattern as the main page
+            // clearing build_status on source edits.
+            else if (sub.content_type === 'react') onUpdate(sub.id, { source_tsx: value, bundle_js: '' });
             else onUpdate(sub.id, { content_blocks: value });
           };
           return (

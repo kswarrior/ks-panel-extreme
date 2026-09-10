@@ -393,11 +393,11 @@ export const DEFAULT_THEME: Theme = {
     stat_border_radius: 5,
     stat_padding_x: 15,
     stat_padding_y: 15,
-    form_background: 'rgba(255,255,255,0.04)',
+    form_background: 'rgba(0,0,0,0.30)',
     form_border_color: 'rgba(255,255,255,0.10)',
     form_shadow: '0 8px 32px rgba(0,0,0,0.45)',
     form_border_radius: 5,
-    form_padding: 15,
+    form_padding: 12,
   },
 
   // Custom CSS — empty by default. The Theme Studio surfaces a "Custom

@@ -68,6 +68,9 @@ export interface SubPageRow {
   content_blocks: string;
   /** Author React JS source (content_type == 'react'). */
   source_tsx: string;
+  /** Validated React sub-page bundle, stamped by POST /:id/build. Must be
+   *  preserved across saves — dropping it unlinks the deployed bundle. */
+  bundle_js: string;
   /** Optional React sub-page CSS. */
   bundle_css: string;
 }
