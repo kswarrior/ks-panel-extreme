@@ -1,23 +1,49 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   checkUpdate,
   applyUpdate,
   reinstallBackground,
+  updateUpdateAutoConfig,
 } from '@/shared/api/admin';
 import type {
   SystemSnapshot,
   UpdateInfoResponse,
+  PanelUpdateAutoState,
   UpdateCheckResponse,
   UpdateApplyResponse,
   ReinstallBackgroundResponse,
   SeriesSample,
 } from '@/features/system/types/system';
 import GlassModal from '@/shared/components/ui/Modal';
+import ToggleRow from '@/shared/components/ui/ToggleRow';
 import UpdateWindowsCard from './UpdateWindowsCard';
 import { Donut, Gauge, fmtPct, fmtMB, fmtUptime, fmtGB } from './SystemCharts';
 import ErrorState from '@/shared/components/ui/ErrorState';
 import { AreaChart, type MetricSample } from '@/shared/components/ui/MetricsChart';
+
+const AUTO_MIN = 5;
+const AUTO_MAX = 43200;
+const AUTO_DEFAULT_INTERVAL = 360;
+const AUTO_PRESETS = [15, 60, 360, 720, 1440];
+
+// fmtAutoInterval renders "15m" / "6h" / "2d" for the recheck hint.
+function fmtAutoInterval(min: number): string {
+  if (!Number.isFinite(min) || min <= 0) return '—';
+  if (min < 60) return `${min}m`;
+  if (min % 1440 === 0) return `${min / 1440}d`;
+  if (min % 60 === 0) return `${min / 60}h`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return `${h}h ${m}m`;
+}
+
+function fmtDateTime(iso?: string | null): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleString();
+}
 
 interface PanelTabProps {
   snap: SystemSnapshot | null;
@@ -42,18 +68,62 @@ const PanelTab: React.FC<PanelTabProps> = ({ snap, info, infoErr, infoLoading, r
   const [reinstallBackgroundErr, setReinstallBackgroundErr] = useState('');
   const [reinstallBackgroundResult, setReinstallBackgroundResult] = useState<ReinstallBackgroundResponse | null>(null);
 
+  // Automatic background rechecks — toggle + interval backed by
+  // GET/PUT /api/system/update-auto (also embedded as info.auto so the tab
+  // paints in one round-trip). Local draft state syncs from info.auto and
+  // saves explicitly so a half-typed interval never fires a request.
+  const auto: PanelUpdateAutoState = info?.auto ?? { enabled: false, interval_min: AUTO_DEFAULT_INTERVAL };
+  const [autoEnabled, setAutoEnabled] = useState(auto.enabled);
+  const [autoInterval, setAutoInterval] = useState(String(auto.interval_min || AUTO_DEFAULT_INTERVAL));
+  const [autoSaving, setAutoSaving] = useState(false);
+  const [autoErr, setAutoErr] = useState('');
+  const [autoSavedAt, setAutoSavedAt] = useState<string | null>(null);
+
+  useEffect(() => {
+    setAutoEnabled(info?.auto?.enabled ?? false);
+    setAutoInterval(String(info?.auto?.interval_min || AUTO_DEFAULT_INTERVAL));
+  }, [info?.auto?.enabled, info?.auto?.interval_min]);
+
   const doCheck = useCallback(async () => {
     setCheckLoading(true);
     setCheckErr('');
     try {
       const r = await checkUpdate();
       setCheck(r);
+      // Manual checks persist server-side too — refresh info.auto so the
+      // "last checked" line under Automatic checks stays truthful.
+      try { await reload(); } catch { /* info refresh is best-effort */ }
     } catch (e: any) {
       setCheckErr(e?.response?.data || e?.message || 'Update check failed');
     } finally {
       setCheckLoading(false);
     }
-  }, []);
+  }, [reload]);
+
+  const saveAuto = useCallback(async (nextEnabled: boolean, nextIntervalRaw: string) => {
+    const parsed = Math.floor(Number(nextIntervalRaw));
+    if (!Number.isFinite(parsed) || parsed < AUTO_MIN || parsed > AUTO_MAX) {
+      setAutoErr(`Interval must be between ${AUTO_MIN} and ${AUTO_MAX} minutes.`);
+      return;
+    }
+    setAutoSaving(true);
+    setAutoErr('');
+    try {
+      await updateUpdateAutoConfig(nextEnabled, parsed);
+      setAutoSavedAt(new Date().toLocaleTimeString());
+      await reload();
+    } catch (e: any) {
+      const msg = typeof e?.response?.data === 'string' && e.response.data.trim()
+        ? e.response.data
+        : (e?.message || 'Failed to save automatic checks');
+      setAutoErr(msg);
+      // Roll the toggle back to the server truth on failure.
+      setAutoEnabled(auto.enabled);
+      setAutoInterval(String(auto.interval_min || AUTO_DEFAULT_INTERVAL));
+    } finally {
+      setAutoSaving(false);
+    }
+  }, [auto.enabled, auto.interval_min, reload]);
 
   const doApply = useCallback(async () => {
     setConfirmOpen(false);
@@ -392,6 +462,111 @@ const PanelTab: React.FC<PanelTabProps> = ({ snap, info, infoErr, infoLoading, r
             <pre className="text-[11px] text-gray-300 whitespace-pre-wrap font-mono">{applyResult.log}</pre>
           </div>
         )}
+      </section>
+
+      {/* Automatic update checks — background recheck, no visit required */}
+      <section className="space-y-3">
+        <div className="flex items-center gap-2">
+          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+            <span className="w-1 h-5 rounded bg-emerald-400" />
+            Automatic update checks
+          </h3>
+          <span className={`ml-1 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ${auto.enabled ? 'bg-emerald-400/10 text-emerald-300' : 'bg-white/5 text-gray-400'}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${auto.enabled ? 'bg-emerald-400' : 'bg-gray-500'}`} />
+            {auto.enabled ? 'On' : 'Off'}
+          </span>
+        </div>
+        <p className="text-xs text-gray-500">
+          When enabled, the panel re-checks the release manifest every interval in the
+          background — even if nobody opens this page. The last result is stored
+          server-side and shown below.
+        </p>
+
+        <div className="ks-card ks-form-card rounded-lg space-y-3">
+          <ToggleRow
+            id="panel-auto-update"
+            label="Auto-check for updates"
+            description={`Check every ${fmtAutoInterval(auto.enabled ? auto.interval_min : (Math.floor(Number(autoInterval)) || auto.interval_min))} without anyone visiting.`}
+            checked={autoEnabled}
+            onChange={(v) => {
+              setAutoEnabled(v);
+              void saveAuto(v, autoInterval);
+            }}
+          />
+
+          <div className="grid grid-cols-1 sm:grid-cols-[160px_1fr] gap-2 items-end">
+            <label className="block">
+              <span className="block text-[10px] uppercase tracking-wide text-gray-500 mb-1">Recheck interval (minutes)</span>
+              <input
+                type="number"
+                min={AUTO_MIN}
+                max={AUTO_MAX}
+                step={1}
+                value={autoInterval}
+                onChange={(e) => setAutoInterval(e.target.value)}
+                disabled={autoSaving}
+                className="w-full glass-field text-sm font-mono"
+              />
+            </label>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {AUTO_PRESETS.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setAutoInterval(String(p))}
+                  disabled={autoSaving}
+                  className={`px-2 py-1 text-[11px] rounded border font-mono disabled:opacity-50 ${String(p) === String(Math.floor(Number(autoInterval))) ? 'border-emerald-400/40 text-emerald-300 bg-emerald-400/10' : 'border-white/10 text-gray-300 hover:bg-white/10'}`}
+                >
+                  {fmtAutoInterval(p)}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => void saveAuto(autoEnabled, autoInterval)}
+                disabled={autoSaving}
+                className="ks-primary-btn px-3 py-1.5 rounded text-sm disabled:opacity-50"
+              >
+                {autoSaving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+          <p className="text-[11px] text-gray-500">
+            {AUTO_MIN}–{AUTO_MAX} minutes ({fmtAutoInterval(AUTO_MIN)} – {fmtAutoInterval(AUTO_MAX)}). Shorter intervals burn the GitHub API budget faster.
+          </p>
+
+          {autoErr && <p className="text-red-400 text-sm">{autoErr}</p>}
+          {autoSavedAt && !autoErr && (
+            <p className="text-emerald-300 text-xs">Saved at {autoSavedAt}.</p>
+          )}
+
+          <div className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs space-y-1">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-gray-500">Last checked</span>
+              <span className="text-gray-200 font-mono">{fmtDateTime(auto.last_check_at)}</span>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-gray-500">Next check</span>
+              <span className="text-gray-200 font-mono">{auto.enabled ? fmtDateTime(auto.next_check_at) : 'paused (toggle off)'}</span>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-gray-500">Last known remote</span>
+              <span className="text-gray-200 font-mono">
+                {auto.last_remote_version || '—'}
+                {auto.last_available != null && (
+                  <span className={`ml-2 ${auto.last_available ? 'text-emerald-300' : 'text-sky-300'}`}>
+                    {auto.last_available ? '· update available' : '· up to date'}
+                  </span>
+                )}
+              </span>
+            </div>
+            {auto.last_error && (
+              <div className="flex items-start justify-between gap-2">
+                <span className="text-gray-500 shrink-0">Last error</span>
+                <span className="text-amber-300 text-right break-all">{auto.last_error}</span>
+              </div>
+            )}
+          </div>
+        </div>
       </section>
 
       {/* Scheduled panel updates — cron + maintenance-window guard */}
