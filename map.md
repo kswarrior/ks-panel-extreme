@@ -12,7 +12,8 @@ Each part is a complete tree listing of all files with `├──` and `└─�
 map.md
 ├── Backend section   (lines 7–278)
 ├── Frontend section  (lines 282–507)
-└── Edge Backend section (lines 511–555)
+├── Edge Backend section (lines 511–555)
+└── Stack App section (`dash/`, see below)
 ```
 
 ---
@@ -21,7 +22,8 @@ map.md
 
 - **Tree format**: Indented `├──` / `└──` lines show hierarchical folder relationships
 - **File syntax**: `├── filename.go            # One-line description`
-- **3 parts only**: Backend, Frontend, Edge Backend — no other sections
+- **3 parts only**: Backend, Frontend, Edge Backend — plus the small
+  `dash/` Stack App sample below (4th leaf, not a full part)
 - **Verification**: All paths confirmed via `find /test/ks-panel/... -type f | sort`
 - **Maintenance**: Add any new file immediately per `loop.md` "Map Maintenance"
 
@@ -628,6 +630,21 @@ edge/backend/
     │   └── handler.go               # Snapshot functionality
     └── telemetry/
         └── telemetry.go             # Telemetry collection
+```
+
+---
+
+## Stack App (`dash/`)
+
+Sample external stack dashboard (one welcome page) for testing the
+node-style pairing: run anywhere, point a stack row at it, float at
+`/dash/` behind the panel session. Stdlib only, own `go.mod`.
+
+```
+dash/
+├── go.mod                  # Module definition (github.com/example/ksdash)
+├── main.go                 # /health + / welcome + pairing heartbeat loop
+└── README.md               # Run + pair steps
 ```
 
 ---
