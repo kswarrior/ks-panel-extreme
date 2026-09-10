@@ -3037,8 +3037,8 @@ func ImportInstancePageFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var pageReq ImportInstancePageRequest
-	if err := json.Unmarshal(body, &pageReq); err != nil {
-		http.Error(w, "invalid JSON from URL: "+err.Error(), http.StatusBadRequest)
+	if err := decodeInstancePageBytes(body, &pageReq); err != nil {
+		http.Error(w, "invalid page from URL (need JSON or YAML): "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -3277,8 +3277,8 @@ func ImportInstancePageFromMarketplaceHandler(w http.ResponseWriter, r *http.Req
 	}
 
 	var pageReq ImportInstancePageRequest
-	if err := json.Unmarshal(pageBytes, &pageReq); err != nil {
-		http.Error(w, "invalid JSON from marketplace: "+err.Error(), http.StatusBadRequest)
+	if err := decodeInstancePageBytes(pageBytes, &pageReq); err != nil {
+		http.Error(w, "invalid page from marketplace (need JSON or YAML): "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -3476,8 +3476,8 @@ func ResyncMarketplacePagesHandler(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		var pageReq ImportInstancePageRequest
-		if err := json.Unmarshal(pageBytes, &pageReq); err != nil {
-			errs = append(errs, fmt.Sprintf("%s: invalid JSON from marketplace: %s", p.Slug, err.Error()))
+		if err := decodeInstancePageBytes(pageBytes, &pageReq); err != nil {
+			errs = append(errs, fmt.Sprintf("%s: invalid page from marketplace (need JSON or YAML): %s", p.Slug, err.Error()))
 			continue
 		}
 		dto := instancePageDTO{
@@ -3570,7 +3570,7 @@ func ListLocalInstancePagesHandler(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		var pageReq ImportInstancePageRequest
-		if err := json.Unmarshal(data, &pageReq); err != nil {
+		if err := decodeInstancePageBytes(data, &pageReq); err != nil {
 			log.Printf("ListLocalInstancePages: skipping %s: %v", name, err)
 			continue
 		}
@@ -3604,8 +3604,8 @@ func ImportLocalInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var pageReq ImportInstancePageRequest
-	if err := json.Unmarshal(data, &pageReq); err != nil {
-		http.Error(w, "invalid JSON in file: "+err.Error(), http.StatusBadRequest)
+	if err := decodeInstancePageBytes(data, &pageReq); err != nil {
+		http.Error(w, "invalid page file (need JSON or YAML): "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
