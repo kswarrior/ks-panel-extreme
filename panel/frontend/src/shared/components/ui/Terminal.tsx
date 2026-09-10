@@ -340,13 +340,21 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
   // Minecraft-style log lines start with one or two [...] blocks, e.g.
   // "[02:41:03 INFO]: ...", "[02:41:03] [Server thread/INFO]: ...".
   // When the operator turns the prefix OFF we drop those leading blocks
-  // per line; lines carrying ANSI escapes are left untouched so
-  // interactive apps (vim/htop) never break.
+  // per line. Leading SGR COLOR codes (ESC[...m) are looked past and kept
+  // so colored server logs still strip; any OTHER escape (cursor moves,
+  // alt-screen, line-clear) means an interactive app owns the line and it
+  // is left untouched so vim/htop never break.
+  const SGR_LEAD_RE = /^((?:\x1b\[[0-9;]*m)*)/;
+  const hasComplexEscape = (line: string): boolean =>
+    line.replace(/\x1b\[[0-9;]*m/g, '').includes('\x1b');
   const LOG_TS_RE = /^\s*\[\d{1,2}:\d{2}:\d{2}(?:\.\d+)?\s*[A-Za-z]*\]\s*:?\s*/;
   const LOG_LVL_RE = /^\s*\[[^\]\n]*?(?:INFO|WARN(?:ING)?|ERROR|DEBUG|TRACE|FATAL|SEVERE)[^\]\n]*?\]\s*:?\s*/i;
   const stripLogPrefix = (line: string): string => {
-    if (!line || line.includes('\x1b')) return line;
-    let out = line;
+    if (!line) return line;
+    if (hasComplexEscape(line)) return line;
+    const lead = line.match(SGR_LEAD_RE)?.[1] ?? '';
+    const rest = lead ? line.slice(lead.length) : line;
+    let out = rest;
     for (let i = 0; i < 3; i++) {
       const before = out;
       if (LOG_TS_RE.test(out)) out = out.replace(LOG_TS_RE, '');
@@ -354,7 +362,7 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
       else break;
       if (out === before) break;
     }
-    return out;
+    return out === rest ? line : lead + out;
   };
   const displayLine = (line: string): string => {
     const noPrefix = showLogPrefixRef.current === false ? stripLogPrefix(line) : line;
