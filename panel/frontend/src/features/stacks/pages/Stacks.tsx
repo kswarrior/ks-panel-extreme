@@ -509,13 +509,12 @@ const Stacks: React.FC = () => {
                 <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
               </svg>
               <h4 className="text-white font-medium">Create Stack</h4>
-              <p className="text-gray-400 text-sm">Build a stack visually — define meta, theme, frontend, permissions, backend script and spec.</p>
+              <p className="text-gray-400 text-sm">Build a stack visually — define meta, theme, frontend, backend script and spec. The app itself declares what it needs when it announces; you allow it in the detail page.</p>
               <div className="flex items-center justify-center gap-2 flex-wrap">
                 <span className="text-xs text-gray-500">Features:</span>
                 <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Meta</span>
                 <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Theme</span>
                 <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Frontend</span>
-                <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Permissions</span>
                 <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Backend</span>
                 <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Spec</span>
               </div>

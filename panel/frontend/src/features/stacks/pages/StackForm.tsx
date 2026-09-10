@@ -68,45 +68,6 @@ const StackForm: React.FC = () => {
     return issues;
   }, [draft]);
 
-  // ---- stack capability helpers (permissionsRequested[]) ----
-  const hasCapability = (cap: string) =>
-    draft.permissionsRequested.some((p) => p.capability === cap);
-
-  const toggleCapability = (cap: string) => {
-    setDraft((d) => {
-      const exists = d.permissionsRequested.some((p) => p.capability === cap);
-      if (exists) {
-        return { ...d, permissionsRequested: d.permissionsRequested.filter((p) => p.capability !== cap) };
-      }
-      return {
-        ...d,
-        permissionsRequested: [...d.permissionsRequested, { capability: cap, access_level: defaultAccessLevel(cap) }],
-      };
-    });
-  };
-
-  const selectAllCapabilities = () => {
-    setDraft((d) => ({
-      ...d,
-      permissionsRequested: STACK_CAPABILITIES.map((c) => ({
-        capability: c.key,
-        access_level: d.permissionsRequested.find((p) => p.capability === c.key)?.access_level || defaultAccessLevel(c.key),
-      })),
-    }));
-  };
-
-  const clearCapabilities = () => patch({ permissionsRequested: [] });
-
-  // ---- panel permission helpers (same vocabulary as API key form) ----
-  const panelPermissions = draft.panelPermissions || [];
-  const selectAllPanelPermissions = () => {
-    const keys = allPerms.map((p) => p.key);
-    patch({ panelPermissions: Array.from(new Set(keys)) });
-  };
-  const clearPanelPermissions = () => patch({ panelPermissions: [] });
-
-  const permissionCount = draft.permissionsRequested.length + panelPermissions.length;
-
   // ---- install helpers (Type + workflow, mirrors template install) ----
   const installStepCount = draft.installSteps.length;
   const moveInstallStep = (i: number, dir: -1 | 1) => {
@@ -249,11 +210,7 @@ const StackForm: React.FC = () => {
                       {launchStepCount}
                     </span>
                   )}
-                  {t.key === 'permission' && permissionCount > 0 && (
-                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-white/10 border border-white/10 text-gray-200">
-                      {permissionCount}
-                    </span>
-                  )}
+
                 </button>
                 );
               })}
@@ -709,127 +666,6 @@ const StackForm: React.FC = () => {
                 />
               </div>
             )}
-
-            {/* Kept mounted (hidden when inactive) so the RolePermissions
-                drill-in + per-key Own/All scopes survive tab switches. */}
-            <div className={tab === 'permission' ? 'space-y-4' : 'hidden'} aria-hidden={tab !== 'permission'}>
-              <div className="space-y-4">
-                {/* Capabilities — every stack capability the backend knows.
-                    Requesting one seeds a stack_permissions row that the admin
-                    must approve before activation (same gate as mods). */}
-                <div className={sectionCls}>
-                  <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <div>
-                      <h4 className="text-sm font-semibold text-white tracking-tight">Stack capabilities</h4>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        All {STACK_CAPABILITIES.length} capabilities the panel knows — requesting one seeds a pending approval for activation.
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-[11px] text-gray-500 font-mono">
-                        {draft.permissionsRequested.length}/{STACK_CAPABILITIES.length} selected
-                      </span>
-                      <button
-                        type="button"
-                        onClick={selectAllCapabilities}
-                        className="text-[11px] px-2 py-1 rounded border border-white/10 bg-white/[0.04] text-gray-300 hover:bg-white/10 hover:text-white transition-colors"
-                      >
-                        Select all
-                      </button>
-                      <button
-                        type="button"
-                        onClick={clearCapabilities}
-                        className="text-[11px] px-2 py-1 rounded border border-white/10 bg-white/[0.04] text-gray-400 hover:bg-white/10 hover:text-white transition-colors"
-                      >
-                        Clear
-                      </button>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    {STACK_CAPABILITIES.map((cap) => {
-                      const on = hasCapability(cap.key);
-                      const req = draft.permissionsRequested.find((p) => p.capability === cap.key);
-                      return (
-                        <label
-                          key={cap.key}
-                          className={`ks-card flex items-start gap-3 p-3 rounded-lg cursor-pointer transition ${
-                            on ? 'border-emerald-700/40' : ''
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={on}
-                            onChange={() => toggleCapability(cap.key)}
-                            className="mt-1 w-4 h-4 accent-emerald-500 shrink-0"
-                          />
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm text-white flex items-center gap-1.5 flex-wrap">
-                              <span className={`w-2 h-2 rounded-full shrink-0 ${cap.dot}`} />
-                              {cap.label}
-                              <code className="text-[10px] font-mono text-gray-500">{cap.key}</code>
-                              {on && req?.access_level && (
-                                <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-white/10 text-gray-300 border border-white/10">
-                                  {req.access_level}
-                                </span>
-                              )}
-                            </p>
-                            <p className="text-xs text-gray-400 mt-0.5">{cap.description}</p>
-                          </div>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Panel permissions — identical section to the API key form:
-                    the shared RolePermissions picker (Import groups, then
-                    configure verbs + Own/All scope). */}
-                <div className="flex items-center justify-between gap-3 flex-wrap px-1">
-                  <p className="text-xs text-gray-500">
-                    Panel permissions below use the same picker as the API key form
-                    {permsLoading ? ' — loading catalogue…' : ` — ${allPerms.length} keys available`}.
-                  </p>
-                  {!permsLoading && allPerms.length > 0 && (
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={selectAllPanelPermissions}
-                        className="text-[11px] px-2 py-1 rounded border border-white/10 bg-white/[0.04] text-gray-300 hover:bg-white/10 hover:text-white transition-colors"
-                      >
-                        Select all {allPerms.length} keys
-                      </button>
-                      <button
-                        type="button"
-                        onClick={clearPanelPermissions}
-                        className="text-[11px] px-2 py-1 rounded border border-white/10 bg-white/[0.04] text-gray-400 hover:bg-white/10 hover:text-white transition-colors"
-                      >
-                        Clear
-                      </button>
-                    </div>
-                  )}
-                </div>
-                {permsLoading ? (
-                  <div className="ks-card ks-form-card rounded-md p-6 text-center text-sm text-gray-500">
-                    Loading permissions…
-                  </div>
-                ) : (
-                  <RolePermissions
-                    formPermissions={panelPermissions}
-                    setFormPermissions={(updater) =>
-                      setDraft((prev) => {
-                        const cur = prev.panelPermissions || [];
-                        const next =
-                          typeof updater === 'function'
-                            ? (updater as (v: string[]) => string[])(cur)
-                            : updater;
-                        return { ...prev, panelPermissions: next };
-                      })
-                    }
-                    permissions={allPerms}
-                  />
-                )}
-              </div>
-            </div>
           </div>
         </div>
       </FormPage>
