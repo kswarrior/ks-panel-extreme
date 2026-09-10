@@ -3,6 +3,21 @@
   "updated": "2026-09-10",
   "pages": [
     {
+      "id": "automation",
+      "name": "Automation",
+      "description": "Scheduled and manual jobs for this instance with run history, YAML transfer, and a full job editor. Fully theme-aware.",
+      "category": "automation",
+      "author": "kswarrior",
+      "version": "1.0",
+      "tags": [
+        "automation",
+        "jobs"
+      ],
+      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/automation.json",
+      "icon_svg": "<circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1\"/>",
+      "preview_image": ""
+    },
+    {
       "id": "ports",
       "name": "Ports",
       "description": "Port allocations for this instance: host to container mappings with add and remove. Fully theme-aware.",
