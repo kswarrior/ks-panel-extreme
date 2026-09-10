@@ -183,7 +183,11 @@ func automationToYAMLDoc(job *models.Automation) automationYAMLDoc {
 
 // DownloadAutomationHandler returns one job as a downloadable YAML file.
 // Secret VALUES never leave the vault — only secret_refs key names ship.
+// Requires the Automation custom page to be linked (whitelist gate).
 func DownloadAutomationHandler(w http.ResponseWriter, r *http.Request) {
+	if !guardAutomationPage(w, r) {
+		return
+	}
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil || id <= 0 {
 		http.Error(w, "invalid instance id", http.StatusBadRequest)
@@ -217,7 +221,11 @@ func DownloadAutomationHandler(w http.ResponseWriter, r *http.Request) {
 
 // ImportAutomationHandler accepts a local file body (YAML or JSON) and
 // creates one job on the instance. Same validation as manual create.
+// Requires the Automation custom page to be linked (whitelist gate).
 func ImportAutomationHandler(w http.ResponseWriter, r *http.Request) {
+	if !guardAutomationPage(w, r) {
+		return
+	}
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil || id <= 0 {
 		http.Error(w, "invalid instance id", http.StatusBadRequest)
@@ -286,7 +294,11 @@ func ImportAutomationHandler(w http.ResponseWriter, r *http.Request) {
 // ImportAutomationFromURLHandler fetches a YAML/JSON automation from the
 // supplied URL and creates one job. SSRF-guarded (public IPs only,
 // DNS-pinned, size/time capped) like the instance-page URL import.
+// Requires the Automation custom page to be linked (whitelist gate).
 func ImportAutomationFromURLHandler(w http.ResponseWriter, r *http.Request) {
+	if !guardAutomationPage(w, r) {
+		return
+	}
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil || id <= 0 {
 		http.Error(w, "invalid instance id", http.StatusBadRequest)

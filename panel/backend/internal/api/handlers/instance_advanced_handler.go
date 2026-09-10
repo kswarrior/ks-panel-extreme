@@ -661,6 +661,9 @@ func ListAutomationRunsHandler(w http.ResponseWriter, r *http.Request) {
 
 // TriggerRunHandler fires a job on demand and returns the captured run.
 func TriggerRunHandler(w http.ResponseWriter, r *http.Request) {
+	if !guardAutomationPage(w, r) {
+		return
+	}
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
