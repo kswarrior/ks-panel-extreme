@@ -3603,9 +3603,8 @@ func aiProposeEditTemplate(a *aiCallCtx, args map[string]any) (string, string, e
 		return "", "", fmt.Errorf("nothing to change: provide at least one of name, description, image, spec")
 	}
 	if spec, ok := changes["spec"]; ok {
-		var js map[string]any
-		if err := json.Unmarshal([]byte(spec.(string)), &js); err != nil {
-			return "", "", fmt.Errorf("spec must be a valid JSON object string")
+		if _, err := specyaml.Parse(spec.(string)); err != nil {
+			return "", "", fmt.Errorf("spec must be a valid YAML/JSON object string")
 		}
 	}
 	summary := fmt.Sprintf("edit template %q", tmpl.Name)
@@ -3630,7 +3629,12 @@ func aiExecEditTemplate(a *aiCallCtx, args map[string]any) (string, error) {
 		image = aiStr(map[string]any{"v": v}, "v")
 	}
 	if v := aiStr(args, "spec"); v != "" {
-		spec = v
+		// Canonical storage is YAML: normalize AI-provided JSON/YAML alike.
+		if normalised, nerr := specyaml.NormalizeToYAML(v); nerr == nil {
+			spec = normalised
+		} else {
+			spec = v
+		}
 	}
 	if err := repo.Update(tmpl.ID, repository.TemplateInput{
 		Name: name, Description: desc, Kind: tmpl.Kind, Image: image,
@@ -4071,7 +4075,9 @@ func aiPlanTemplateSteps(a *aiCallCtx, args map[string]any) (*aiTemplateStepsPla
 	}
 	var spec map[string]any
 	if strings.TrimSpace(tmpl.Spec) != "" {
-		if err := json.Unmarshal([]byte(tmpl.Spec), &spec); err != nil {
+		var serr error
+		spec, serr = specyaml.Parse(tmpl.Spec)
+		if serr != nil {
 			return nil, fmt.Errorf("stored spec is corrupt, cannot edit steps")
 		}
 	}
@@ -4112,11 +4118,11 @@ func aiPlanTemplateSteps(a *aiCallCtx, args map[string]any) (*aiTemplateStepsPla
 	case "add":
 		rawStep := aiStr(args, "step")
 		if rawStep == "" {
-			return nil, fmt.Errorf("step is required for add (a JSON object string like {\"action\":\"shell\",\"command\":\"...\"})")
+			return nil, fmt.Errorf("step is required for add (a YAML/JSON object string like {\"action\":\"shell\",\"command\":\"...\"})")
 		}
-		var step map[string]any
-		if err := json.Unmarshal([]byte(rawStep), &step); err != nil {
-			return nil, fmt.Errorf("step must be a valid JSON object: %s", aiCap(err.Error(), 200))
+		step, serr := specyaml.Parse(rawStep)
+		if serr != nil {
+			return nil, fmt.Errorf("step must be a valid YAML/JSON object: %s", aiCap(serr.Error(), 200))
 		}
 		idx := len(install)
 		if pos := aiInt(args, "position"); pos != 0 {
@@ -4179,14 +4185,14 @@ func aiExecEditTemplateSteps(a *aiCallCtx, args map[string]any) (string, error) 
 	if err != nil {
 		return "", err
 	}
-	specBytes, err := json.Marshal(plan.spec)
+	specYAML, err := specyaml.Marshal(plan.spec)
 	if err != nil {
 		return "", fmt.Errorf("server error")
 	}
 	tmpl := plan.tmpl
 	if err := repository.NewTemplateRepository(a.con).Update(tmpl.ID, repository.TemplateInput{
 		Name: tmpl.Name, Description: tmpl.Description, Kind: tmpl.Kind,
-		Image: tmpl.Image, Spec: string(specBytes), Icon: tmpl.Icon, Color: tmpl.Color,
+		Image: tmpl.Image, Spec: specYAML, Icon: tmpl.Icon, Color: tmpl.Color,
 	}); err != nil {
 		return "", fmt.Errorf("edit workflow failed: %s", aiCap(err.Error(), 300))
 	}
@@ -4224,7 +4230,9 @@ func aiLoadTemplateSpec(a *aiCallCtx, id int64) (*models.Template, map[string]an
 	}
 	var spec map[string]any
 	if strings.TrimSpace(tmpl.Spec) != "" {
-		if err := json.Unmarshal([]byte(tmpl.Spec), &spec); err != nil {
+		var serr error
+		spec, serr = specyaml.Parse(tmpl.Spec)
+		if serr != nil {
 			return nil, nil, fmt.Errorf("stored spec is corrupt, cannot edit")
 		}
 	}
