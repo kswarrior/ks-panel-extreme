@@ -292,6 +292,11 @@ type instancePageSubPage struct {
 	ContentHTML     string `json:"content_html"`
 	ContentMarkdown string `json:"content_markdown"`
 	ContentBlocks   string `json:"content_blocks"`
+	// SourceTSX/BundleJS/BundleCSS carry a React sub-page (content_type ==
+	// "react"): author source, validated build output, optional CSS.
+	SourceTSX string `json:"source_tsx"`
+	BundleJS  string `json:"bundle_js"`
+	BundleCSS string `json:"bundle_css"`
 }
 
 // validateSubPages checks the persisted sub_pages JSON shape: an array of at
@@ -323,11 +328,27 @@ func validateSubPages(raw string) error {
 		if s.Name == "" {
 			return newErrString("sub-page name is required")
 		}
-		if s.ContentType == "react" {
-			return newErrString("sub-pages do not support react in v1 (use html, markdown or blocks)")
-		}
 		if s.ContentType != "" && !validContentTypes[s.ContentType] {
-			return newErrString("sub-page content_type must be one of: html, markdown, blocks")
+			return newErrString("sub-page content_type must be one of: html, markdown, blocks, react")
+		}
+		if len(s.SourceTSX) > maxInstancePageReactSourceBytes {
+			return newErrString(fmt.Sprintf("sub-page %q source_tsx too large (max 512KB)", s.Path))
+		}
+		if s.SourceTSX != "" {
+			if err := validateReactSource(s.SourceTSX); err != nil {
+				return newErrString(fmt.Sprintf("sub-page %q: %s", s.Path, err.Error()))
+			}
+		}
+		if len(s.BundleCSS) > maxInstancePageContentBytes {
+			return newErrString(fmt.Sprintf("sub-page %q bundle_css too large (max 1MB)", s.Path))
+		}
+		// BundleJS is build-owned (stamped by POST /:id/build); imports may
+		// carry it but it stays capped like the main bundle.
+		if len(s.BundleJS) > maxInstancePageBundleBytes {
+			return newErrString(fmt.Sprintf("sub-page %q bundle too large (max 1MB)", s.Path))
+		}
+		if s.ContentType == "react" && strings.TrimSpace(s.SourceTSX) == "" {
+			return newErrString(fmt.Sprintf("sub-page %q: source_tsx is required for react pages", s.Path))
 		}
 	}
 	return nil
