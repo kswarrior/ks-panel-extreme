@@ -56,10 +56,24 @@ type InstancePage struct {
 	// the Category/Type pickers in the template editor. Free-form; "" == unset.
 	PageType        string `json:"type"`
 	Description     string `json:"description"`
-	ContentType     string `json:"content_type"` // "html" | "markdown" | "blocks"
+	ContentType     string `json:"content_type"` // "html" | "markdown" | "blocks" | "react"
 	ContentHTML     string `json:"content_html"`
 	ContentMarkdown string `json:"content_markdown"`
 	ContentBlocks   string `json:"content_blocks"`
+	// SourceTSX is the author-written React JS source (React.createElement,
+	// no JSX in v1) for content_type == "react". Empty == non-React page.
+	// Migration 075.
+	SourceTSX string `json:"source_tsx"`
+	// BundleJS/BundleCSS are the validated build outputs the renderer
+	// executes (POST /api/instance-pages/:id/build). Empty == not built.
+	// Migration 075.
+	BundleJS  string `json:"bundle_js"`
+	BundleCSS string `json:"bundle_css"`
+	// BuildStatus is "" | "building" | "ok" | "error". Migration 075.
+	BuildStatus string `json:"build_status"`
+	// BuildLog carries the last build output (capped 64KiB by handler).
+	// Migration 075.
+	BuildLog string `json:"build_log"`
 	// Actions is a JSON array of executable page actions (shell, file ops,
 	// docker/kvm/lxd) authored in the Instance Page Studio. Empty string ==
 	// no actions. Validated server-side to be a well-formed JSON array.

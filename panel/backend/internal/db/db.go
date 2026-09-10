@@ -714,6 +714,23 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				return err
 			}
 			continue
+		case name == "075_instance_pages_react.sql":
+			// React source + built bundle per instance page (source_tsx /
+			// bundle_js / bundle_css / build_status / build_log on
+			// instance_pages, migration 075). Nullable TEXT with no
+			// DEFAULT (MySQL-safe up front); guarded so reruns converge
+			// on sqlite/mysql (postgres uses IF NOT EXISTS natively) —
+			// mirrors 074 above.
+			if err := guardedAddColumns(d, db, name, "instance_pages", []columnSpec{
+				{"source_tsx", "TEXT"},
+				{"bundle_js", "TEXT"},
+				{"bundle_css", "TEXT"},
+				{"build_status", "VARCHAR(16) NOT NULL DEFAULT ''"},
+				{"build_log", "TEXT"},
+			}); err != nil {
+				return err
+			}
+			continue
 		case name == "065_tickets_attachments_sla_notify.sql":
 			// Ticket attachments + SLA sidecar + notification prefs. The
 			// CREATE TABLEs are IF NOT EXISTS on every dialect, but the
