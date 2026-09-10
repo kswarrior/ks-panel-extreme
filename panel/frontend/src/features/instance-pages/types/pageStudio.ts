@@ -51,9 +51,11 @@ export interface ActionRow {
 export interface ComponentRow {
   id: string;
   name: string;
-  type: 'html' | 'markdown' | 'block';
+  type: 'html' | 'markdown' | 'block' | 'shared';
   description: string;
   content: string;
+  /** Registry key for type "shared" (defaults to name when omitted). */
+  shared?: string;
 }
 
 export interface SubPageRow {

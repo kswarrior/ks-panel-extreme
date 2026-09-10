@@ -176,9 +176,10 @@ export function compRowsFromJSON(json: string | undefined | null): ComponentRow[
   return defs.map((d) => ({
     id: `c${compSeq++}-${Math.random().toString(36).slice(2, 8)}`,
     name: d.name,
-    type: (['html', 'markdown', 'block'].includes(d.type) ? d.type : 'html') as ComponentRow['type'],
+    type: (['html', 'markdown', 'block', 'shared'].includes(d.type) ? d.type : 'html') as ComponentRow['type'],
     description: d.description || '',
     content: d.content || '',
+    ...(d.type === 'shared' ? { shared: typeof (d as any).shared === 'string' && (d as any).shared ? (d as any).shared : d.name } : {}),
   }));
 }
 
@@ -189,7 +190,9 @@ export function compsToJSON(rows: ComponentRow[]): string {
       name: r.name.trim(),
       type: r.type,
       description: r.description,
-      content: r.content,
+      // Shared refs store no source — the panel supplies it at render time.
+      content: r.type === 'shared' ? '' : r.content,
+      ...(r.type === 'shared' ? { shared: (r.shared || r.name).trim() || r.name.trim() } : {}),
     }));
   if (defs.length === 0) return '';
   return JSON.stringify(defs);
@@ -203,7 +206,11 @@ export function validateCompRows(rows: ComponentRow[]): string {
     if (!/^[A-Za-z0-9_][A-Za-z0-9_-]*$/.test(name)) return `Component name "${name}" must start with a letter, number or underscore and contain only letters, numbers, underscores or dashes.`;
     if (seen.has(name)) return `Duplicate component name "${name}".`;
     seen.add(name);
-    if (r.type && !['html', 'markdown', 'block'].includes(r.type)) return `Component "${name}" type must be one of: html, markdown, block.`;
+    if (r.type && !['html', 'markdown', 'block', 'shared'].includes(r.type)) return `Component "${name}" type must be one of: html, markdown, block, shared.`;
+    if (r.type === 'shared') {
+      const ref = (r.shared || r.name).trim();
+      if (!/^[A-Za-z0-9_][A-Za-z0-9_-]*$/.test(ref)) return `Shared component "${name}" references an invalid panel component "${ref}".`;
+    }
   }
   return '';
 }

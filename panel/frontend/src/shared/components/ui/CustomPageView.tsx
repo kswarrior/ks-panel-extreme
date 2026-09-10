@@ -26,9 +26,11 @@ interface BlockRow {
 
 export interface PageComponentDef {
   name: string;
-  type: 'html' | 'markdown' | 'block';
+  type: 'html' | 'markdown' | 'block' | 'shared';
   description?: string;
   content: string;
+  /** Registry key for type "shared" (defaults to name when omitted). */
+  shared?: string;
 }
 
 export interface PageConfigureVar {
@@ -265,17 +267,34 @@ const CONFIG_TOKEN_RE = /\{\{\s*config:([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g;
 // are resolved iteratively (up to 5 passes, bounded to avoid infinite loops
 // from cyclic references). Runs on both main page and sub-pages via the
 // parent's shared component list.
+// Import-by-reference: a row with type "shared" carries no source — its
+// HTML comes from the panel's shared registry at render time. A token that
+// matches a registry key also resolves even without an explicit import row,
+// so panel components work the moment they are referenced.
 function resolveComponentTokens(text: string, components: PageComponentDef[]): string {
-  if (!components || components.length === 0) return text;
-  const compMap = new Map(components.map(c => [c.name, c]));
+  if (!text || text.indexOf('{{component:') === -1) return text;
+  const compMap = new Map((components || []).map(c => [c.name, c]));
   let cur = text;
   for (let iter = 0; iter < 5; iter++) {
     let changed = false;
     const next = cur.replace(COMPONENT_TOKEN_RE, (_match, name: string) => {
       const comp = compMap.get(name);
-      if (!comp) return _match; // leave unknown token as-is
-      changed = true;
-      return componentToHtml(comp);
+      if (comp) {
+        changed = true;
+        return componentToHtml(comp);
+      }
+      // Panel-shared fallback: no import row needed.
+      try {
+        // Lazy require avoids a hard import cycle (shared registry is
+        // frontend-only and never touches CustomPageView).
+        const mod = require('@/features/instance-pages/sharedPanelComponents') as typeof import('@/features/instance-pages/sharedPanelComponents');
+        const sharedHtml = mod.getSharedPanelComponentContent(name);
+        if (sharedHtml) {
+          changed = true;
+          return sharedHtml;
+        }
+      } catch { /* registry unavailable — leave literal */ }
+      return _match; // leave unknown token as-is
     });
     cur = next;
     if (!changed) break;

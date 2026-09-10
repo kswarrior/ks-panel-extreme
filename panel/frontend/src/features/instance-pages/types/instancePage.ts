@@ -101,11 +101,16 @@ export function pageSourceOf(p: Pick<InstancePage, 'source'> | undefined | null)
 // Studio's Components tab. The page content references it with
 // {{component:name}} — the runtime substitutes the token with the component's
 // rendered content (HTML/markdown/blocks converted to HTML as appropriate).
+// type "shared" is an import-by-reference: only {name, shared} is stored
+// (no source copy) and the panel supplies the HTML from the shared panel
+// component registry at render time.
 export interface PageComponentDef {
   name: string;
-  type: 'html' | 'markdown' | 'block';
+  type: 'html' | 'markdown' | 'block' | 'shared';
   description?: string;
   content: string;
+  /** Registry key for type "shared" (defaults to name when omitted). */
+  shared?: string;
 }
 
 // InstancePageSubPage is one extra page shipped inside a library page
