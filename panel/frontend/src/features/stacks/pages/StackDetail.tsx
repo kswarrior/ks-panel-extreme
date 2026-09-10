@@ -135,6 +135,8 @@ const StackDetail: React.FC = () => {
       setRemoteAddress(s.remote_address || '');
       setRemoteUseTls(!!s.remote_use_tls);
       setRemoteSkipVerify(!!s.remote_skip_verify);
+      setServePort(s.serve_port ? String(s.serve_port) : '');
+      setServeAuth(s.serve_auth !== false);
       setPairing(null);
       setPairingOpen(false);
       setProbeResult(null);
@@ -363,6 +365,105 @@ const StackDetail: React.FC = () => {
     void startOp('reinstall');
   };
 
+  // Connection overlay the backend overwrites as a whole: every save
+  // sends both servings (path mount + dedicated port), so editing one
+  // never silently clears the other.
+  const connectionFields = () => ({
+    proxyPort: proxyPort.trim() === '' ? 0 : Number(proxyPort),
+    proxyRootUrl: proxyRoot.trim().toLowerCase(),
+    remoteAddress: remoteAddress.trim(),
+    remoteUseTls: remoteUseTls,
+    remoteSkipVerify: remoteSkipVerify,
+    servePort: servePort.trim() === '' ? 0 : Number(servePort),
+    serveAuth: serveAuth,
+  });
+
+  const syncConnection = (s: Stack) => {
+    setStack(s);
+    setProxyPort(s.proxy_port ? String(s.proxy_port) : '');
+    setProxyRoot(s.proxy_root_url || '');
+    setRemoteAddress(s.remote_address || '');
+    setRemoteUseTls(!!s.remote_use_tls);
+    setRemoteSkipVerify(!!s.remote_skip_verify);
+    setServePort(s.serve_port ? String(s.serve_port) : '');
+    setServeAuth(s.serve_auth !== false);
+  };
+
+  const persistConnection = async (patch: Partial<ReturnType<typeof connectionFields>>, action: string) => {
+    if (!stack) return;
+    try {
+      const s = await updateStack(stack.id, {
+        name: stack.name,
+        category: stack.category,
+        version: stack.version,
+        description: stack.description || '',
+        icon: stack.icon || '',
+        color: stack.color || '',
+        spec: stack.spec || {},
+        ...connectionFields(),
+        ...patch,
+      });
+      syncConnection(s);
+      if (action === 'serve') {
+        flashNotice(!s.serve_port ? 'Serve port off.' : s.serve_listening ? `Serving on :${s.serve_port}/.` : 'Port saved but not listening (bind failed — panel log has the reason).');
+      } else {
+        flashNotice(action);
+      }
+    } catch (e) {
+      setError(extractStackApiError(e, 'Failed to save connection.'));
+    }
+  };
+
+  // Toggle state derives from the inputs: a root segment means the path
+  // mount is on, a port number means the dedicated port is on.
+  const pathOn = proxyRoot.trim() !== '';
+  const portOn = servePort.trim() !== '' && servePort.trim() !== '0';
+
+  const togglePath = async (on: boolean) => {
+    if (!stack) return;
+    if (on) {
+      // Reveal the options with a sensible default root; nothing is
+      // saved until Save connection.
+      if (!proxyRoot.trim() && stack.slug) setProxyRoot(stack.slug);
+      return;
+    }
+    // Off clears the mount now. The loopback port / remote address stay
+    // only as the serve port's upstream feed; with the port off too the
+    // whole dial config is wiped.
+    const keepUpstream = portOn;
+    setProxySaving(true);
+    setError('');
+    try {
+      await persistConnection({
+        proxyRootUrl: '',
+        proxyPort: keepUpstream ? connectionFields().proxyPort : 0,
+        remoteAddress: keepUpstream ? connectionFields().remoteAddress : '',
+      }, 'Path mount off — settings cleared.');
+    } finally {
+      setProxySaving(false);
+    }
+  };
+
+  const toggleServe = async (on: boolean) => {
+    if (!stack) return;
+    if (on) {
+      // Reveal the options with the conventional default port and the
+      // login gate on (fail closed); nothing binds until Save port.
+      if (!servePort.trim() || servePort.trim() === '0') setServePort('6901');
+      setServeAuth(true);
+      return;
+    }
+    // Off stops the listener now (serveAuth resets to the fail-closed
+    // default); the path mount is untouched.
+    setServeSaving(true);
+    setError('');
+    try {
+      await persistConnection({ servePort: 0, serveAuth: true }, 'serve');
+    } finally {
+      setServeSaving(false);
+    }
+  };
+
   const saveProxy = async () => {
     if (!stack) return;
     const port = proxyPort.trim() === '' ? 0 : Number(proxyPort);
@@ -381,42 +482,41 @@ const StackDetail: React.FC = () => {
         setError('Remote address must be host:port or bare host, without a scheme or spaces.');
         return;
       }
-      if (!root) {
-        setError('A remote stack needs a proxy root URL to float at /<root>/.');
+      if (!root && !portOn) {
+        setError('A remote stack needs a proxy root URL to float at /<root>/ (or a serve port to feed).');
         return;
       }
-    } else if ((root && port === 0) || (!root && port !== 0)) {
+    } else if ((root && port === 0) || (!root && port !== 0 && !portOn)) {
       setError('Proxy port and root URL must be set together (or both empty to disable).');
       return;
     }
     setProxySaving(true);
     setError('');
     try {
-      const s = await updateStack(stack.id, {
-        name: stack.name,
-        category: stack.category,
-        version: stack.version,
-        description: stack.description || '',
-        icon: stack.icon || '',
-        color: stack.color || '',
-        spec: stack.spec || {},
-        proxyPort: port,
-        proxyRootUrl: root,
-        remoteAddress: addr,
-        remoteUseTls: remoteUseTls,
-        remoteSkipVerify: remoteSkipVerify,
-      });
-      setStack(s);
-      setProxyPort(s.proxy_port ? String(s.proxy_port) : '');
-      setProxyRoot(s.proxy_root_url || '');
-      setRemoteAddress(s.remote_address || '');
-      setRemoteUseTls(!!s.remote_use_tls);
-      setRemoteSkipVerify(!!s.remote_skip_verify);
-      flashNotice('Connection saved.');
-    } catch (e) {
-      setError(extractStackApiError(e, 'Failed to save proxy.'));
+      await persistConnection({ proxyPort: port, proxyRootUrl: root, remoteAddress: addr }, 'Connection saved.');
     } finally {
       setProxySaving(false);
+    }
+  };
+
+  const saveServe = async () => {
+    if (!stack) return;
+    const port = servePort.trim() === '' ? 0 : Number(servePort);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      setError('Serve port must be 1-65535.');
+      return;
+    }
+    const hasUpstream = (proxyPort.trim() !== '' && proxyPort.trim() !== '0') || remoteAddress.trim() !== '';
+    if (!hasUpstream) {
+      setError('Serve port needs an app to serve: set a loopback port or a remote address first.');
+      return;
+    }
+    setServeSaving(true);
+    setError('');
+    try {
+      await persistConnection({ servePort: port, serveAuth: serveAuth }, 'serve');
+    } finally {
+      setServeSaving(false);
     }
   };
 
