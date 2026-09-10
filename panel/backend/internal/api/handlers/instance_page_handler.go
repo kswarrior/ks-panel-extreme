@@ -2237,6 +2237,14 @@ func (r *ImportInstancePageRequest) UnmarshalJSON(data []byte) error {
 	if len(compRaw) > 0 {
 		trim := strings.TrimSpace(string(compRaw))
 		if len(trim) > 0 && trim[0] == '[' {
+			// Intentionally narrow (unlike actions above, which re-encode
+			// verbatim): every field the runtime reads
+			// (name/type/description/content) is covered by
+			// instancePageComponent, and validateComponentsJSON enforces
+			// the same schema — so unknown future fields are dropped at
+			// import by design and import agrees with create. Do not
+			// mirror the verbatim treatment without a failing repro
+			// proving a dropped field changes runtime behaviour.
 			var arr []instancePageComponent
 			if err := json.Unmarshal(compRaw, &arr); err == nil && len(arr) > 0 {
 				b, _ := json.Marshal(arr)
@@ -2249,6 +2257,10 @@ func (r *ImportInstancePageRequest) UnmarshalJSON(data []byte) error {
 	if len(subRaw) > 0 {
 		trim := strings.TrimSpace(string(subRaw))
 		if len(trim) > 0 && trim[0] == '[' {
+			// Same intentional narrowing as components: instancePageSubPage
+			// covers every persisted sub-page field the runtime copies
+			// (path/name/content_*/source_tsx/bundle_js/bundle_css) and
+			// validateSubPages enforces the same schema.
 			var arr []instancePageSubPage
 			if err := json.Unmarshal(subRaw, &arr); err == nil && len(arr) > 0 {
 				b, _ := json.Marshal(arr)
@@ -2259,16 +2271,6 @@ func (r *ImportInstancePageRequest) UnmarshalJSON(data []byte) error {
 		}
 	}
 	return nil
-}
-
-// instancePageActionDef mirrors PageActionDef for import array handling.
-type instancePageActionDef struct {
-	Name    string `json:"name"`
-	Type    string `json:"type"`
-	Command string `json:"command"`
-	Path    string `json:"path"`
-	Content string `json:"content"`
-	Args    []string `json:"args"`
 }
 
 // subPagesJSON returns the persisted sub_pages payload for this request: an

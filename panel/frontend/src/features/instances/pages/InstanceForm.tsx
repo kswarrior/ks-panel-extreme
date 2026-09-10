@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { listNodes, listTemplates, listUsers, listRoles, deployInstance } from '@/shared/api/admin';
 import type { DeployRequest } from '@/shared/types/instance';
@@ -303,6 +303,10 @@ const InstanceForm: React.FC = () => {
     });
   }, [editor.env, effectiveImageKey, imageOptions.length]);
 
+  // Icon editor collapsed by default — header row shows the live preview +
+  // an "Icon" toggle that opens the sub-panel for SVG + colour editing.
+  const [showIconEditor, setShowIconEditor] = useState(false);
+
   if (loading) {
     return (
       <FormPage
@@ -379,9 +383,8 @@ const InstanceForm: React.FC = () => {
             </div>
 
             <div className="ks-card ks-form-card rounded-md p-3 space-y-3">
-              <p className="text-sm text-gray-200 font-medium">Icon &amp; colour</p>
-              <div className="flex items-start gap-3">
-                <div className="flex flex-col items-center gap-1 shrink-0" title="Card preview">
+              <div className="flex items-center gap-3">
+                <div className="flex flex-col items-center gap-1 shrink-0" title="Icon preview">
                   <span
                     className="w-12 h-12 rounded-lg flex items-center justify-center border bg-white/[0.05] border-white/10"
                     style={color ? { color } : undefined}
@@ -400,8 +403,32 @@ const InstanceForm: React.FC = () => {
                   </span>
                   <span className="text-[11px] text-gray-500 max-w-[4.5rem] truncate">{(displayName.trim() || name.trim()) || 'Instance'}</span>
                 </div>
-                <div className="flex-1 min-w-0 space-y-3">
-                  <div>
+                <button
+                  type="button"
+                  onClick={() => setShowIconEditor((v) => !v)}
+                  aria-expanded={showIconEditor}
+                  title={showIconEditor ? 'Hide icon editor' : 'Show icon editor'}
+                  className={`flex-1 min-w-0 flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-colors ${showIconEditor ? 'border-sky-400/60 bg-sky-500/10' : 'border-white/10 bg-white/5 hover:border-white/20'}`}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0 text-gray-200" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21" /></svg>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-medium text-gray-100">Icon</span>
+                    <span className="block text-[11px] text-gray-500 truncate">Edit SVG &amp; colour</span>
+                  </span>
+                  <span
+                    role="switch"
+                    aria-checked={showIconEditor}
+                    className={`ks-toggle shrink-0 ${showIconEditor ? 'is-on' : ''}`}
+                    aria-hidden="true"
+                  >
+                    <span className="ks-toggle__thumb" />
+                  </span>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`w-4 h-4 shrink-0 text-gray-400 transition-transform ${showIconEditor ? 'rotate-180' : ''}`} aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
+                </button>
+              </div>
+              {showIconEditor && (
+              <div className="ml-[3.75rem] space-y-3 border-l border-white/10 pl-3">
+              <div>
                     <span className="block text-sm font-medium text-gray-200 mb-1">Icon</span>
                     <div className="flex gap-2 overflow-x-auto ks-hscroll pb-2 -mx-0.5 px-0.5">
                       {ICON_PRESETS.map((p) => (
@@ -439,8 +466,6 @@ const InstanceForm: React.FC = () => {
                       ))}
                     </div>
                   </div>
-                </div>
-              </div>
               <input
                 value={icon}
                 onChange={(e) => setIcon(e.target.value)}
@@ -453,6 +478,8 @@ const InstanceForm: React.FC = () => {
                 onChange={(e) => setColor(e.target.value)}
                 className="w-full h-10 rounded-lg border border-white/10 cursor-pointer"
               />
+              </div>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -1430,10 +1430,12 @@ func (c *Client) PageAction(req PageActionRequest) (PageActionResponse, error) {
 }
 
 // PageActionCtx is PageAction with a caller-supplied context so the caller
-// can bound the call below its own response deadline or cancel it when the
-// browser disconnects (mirrors LifecycleCtx/ExecCtx). The edge-side action
-// deadline (req.Timeout) still applies; the context only bounds the
-// panel→edge round-trip.
+// can bound the direct-HTTP round-trip below its own response deadline or
+// cancel it when the browser disconnects (mirrors LifecycleCtx/ExecCtx).
+// Tunnel dispatch (tryTunnel / emergencyViaTunnel) does not observe ctx and
+// uses the client's timeout instead. The edge-side action deadline
+// (req.Timeout) still applies; the context only bounds the panel→edge
+// round-trip.
 func (c *Client) PageActionCtx(ctx context.Context, req PageActionRequest) (PageActionResponse, error) {
 	req.Token = c.token
 	if handled, body, status, err := c.tryTunnel("POST", "/api/edge/page-action", req); handled {
@@ -1490,7 +1492,7 @@ func (c *Client) PageActionCtx(ctx context.Context, req PageActionRequest) (Page
 	defer resp.Body.Close()
 	var out PageActionResponse
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return PageActionResponse{}, fmt.Errorf("edge returned HTTP %d", resp.StatusCode)
+		return PageActionResponse{}, fmt.Errorf("edge returned HTTP %d: %w", resp.StatusCode, err)
 	}
 	if resp.StatusCode >= 300 {
 		if out.Error != "" {
