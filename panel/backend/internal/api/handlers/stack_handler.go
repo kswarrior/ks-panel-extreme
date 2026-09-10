@@ -239,6 +239,11 @@ type stackUpsertDTO struct {
 	// externally-run stack app (0/"" = off).
 	ProxyPort            int                             `json:"proxyPort"`
 	ProxyRootURL         string                          `json:"proxyRootUrl"`
+	// RemoteAddress/RemoteUseTLS/RemoteSkipVerify pair the stack app
+	// node-style on another host ("" = same-host loopback via ProxyPort).
+	RemoteAddress        string                          `json:"remoteAddress"`
+	RemoteUseTLS         bool                            `json:"remoteUseTls"`
+	RemoteSkipVerify     bool                            `json:"remoteSkipVerify"`
 	Spec                 json.RawMessage                 `json:"spec"`
 	PermissionsRequested []repository.StackPermissionReq `json:"permissionsRequested"`
 }
@@ -374,13 +379,14 @@ func CreateStackHandler(w http.ResponseWriter, r *http.Request) {
 	})
 	// The pairing token is returned exactly once here (mirrors the node
 	// create flow) — the operator pastes it into the stack app's config
-	// so the app can heartbeat WITHOUT any manual API key.
+	// so the app can heartbeat WITHOUT any manual API key. The shape
+	// stays a flat stack object (extra "token" key) so existing clients
+	// reading res.data as a Stack keep working.
 	resp := toStackResponse(repo, s)
-	writeJSONStatus(w, http.StatusCreated, map[string]any{
-		"stack": resp,
-		"id":    resp.ID,
-		"token": token,
-	})
+	writeJSONStatus(w, http.StatusCreated, struct {
+		stackResponse
+		Token string `json:"token"`
+	}{stackResponse: resp, Token: token})
 }
 
 // installStackFromURLDTO is the POST /api/stacks/url body.
@@ -454,7 +460,7 @@ func InstallStackFromURLHandler(w http.ResponseWriter, r *http.Request) {
 	for _, p := range in.PermissionsRequested {
 		reqs = append(reqs, repository.StackPermissionReq{Capability: p.Capability, AccessLevel: p.AccessLevel})
 	}
-	s, err := repo.CreateStack(repository.CreateStackInput{
+	s, token, err := repo.CreateStack(repository.CreateStackInput{
 		Name: in.Name, Slug: in.Slug, Category: in.Category, Version: in.Version,
 		Description: in.Description, Icon: in.Icon, Color: in.Color,
 		Runtime: in.Runtime, Entrypoint: in.Entrypoint,
@@ -481,7 +487,11 @@ func InstallStackFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		TargetLabel: in.Name,
 		Message:     fmt.Sprintf("installed stack %q from URL %s (slug=%s)", in.Name, dto.URL, in.Slug),
 	})
-	writeJSONStatus(w, http.StatusCreated, toStackResponse(repo, s))
+	resp := toStackResponse(repo, s)
+	writeJSONStatus(w, http.StatusCreated, struct {
+		stackResponse
+		Token string `json:"token"`
+	}{stackResponse: resp, Token: token})
 }
 
 // UpdateStackHandler overwrites editable fields (never the permission set).
@@ -514,6 +524,7 @@ func UpdateStackHandler(w http.ResponseWriter, r *http.Request) {
 	// a clear message (the repo re-validates defensively; anything it
 	// rejects past these checks is an exact-race duplicate or DB failure).
 	proxyRoot := strings.TrimSpace(dto.ProxyRootURL)
+	remoteAddr := strings.TrimSpace(dto.RemoteAddress)
 	if !models.ValidStackProxyPort(dto.ProxyPort) {
 		http.Error(w, "invalid proxy port (want 0 or 1-65535)", http.StatusBadRequest)
 		return
@@ -526,12 +537,24 @@ func UpdateStackHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "proxy root URL is reserved by the panel", http.StatusBadRequest)
 		return
 	}
-	if proxyRoot != "" && dto.ProxyPort == 0 {
-		http.Error(w, "proxy root URL requires a proxy port (1-65535)", http.StatusBadRequest)
+	if !models.ValidStackRemoteAddress(remoteAddr) {
+		http.Error(w, "invalid remote address (want host:port or bare host, no scheme)", http.StatusBadRequest)
 		return
 	}
-	if dto.ProxyPort != 0 && proxyRoot == "" {
-		http.Error(w, "proxy port requires a proxy root URL", http.StatusBadRequest)
+	// Same-host stacks still need port+root together; remote stacks are
+	// dialled at their address so the loopback port is optional — but a
+	// remote stack still needs the root to float at /<root>/.
+	if remoteAddr == "" {
+		if proxyRoot != "" && dto.ProxyPort == 0 {
+			http.Error(w, "proxy root URL requires a proxy port (1-65535)", http.StatusBadRequest)
+			return
+		}
+		if dto.ProxyPort != 0 && proxyRoot == "" {
+			http.Error(w, "proxy port requires a proxy root URL", http.StatusBadRequest)
+			return
+		}
+	} else if proxyRoot == "" {
+		http.Error(w, "a remote stack needs a proxy root URL to float at /<root>/", http.StatusBadRequest)
 		return
 	}
 	if taken, terr := repo.ProxyRootTaken(proxyRoot, id); terr != nil {
@@ -557,14 +580,20 @@ func UpdateStackHandler(w http.ResponseWriter, r *http.Request) {
 		Name: dto.Name, Category: dto.Category, Version: dto.Version,
 		Description: dto.Description, Icon: dto.Icon, Color: dto.Color, Spec: dto.Spec,
 		ProxyPort: dto.ProxyPort, ProxyRootURL: proxyRoot,
+		RemoteAddress: remoteAddr, RemoteUseTLS: dto.RemoteUseTLS, RemoteSkipVerify: dto.RemoteSkipVerify,
 	})
 	if err != nil {
 		if errors.Is(err, repository.ErrStackNotFound) {
 			http.Error(w, "stack not found", http.StatusNotFound)
 			return
 		}
-		log.Println("UpdateStack error:", err)
-		http.Error(w, "server error", http.StatusInternalServerError)
+		// Repo validation failures (bad address, root clash) carry
+		// user-facing text — surface it instead of a blank 500.
+		if strings.Contains(err.Error(), "already used") {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	RecordActivity(r, repository.ActivityInput{
