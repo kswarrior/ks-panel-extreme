@@ -933,9 +933,9 @@ func aiToolDefs() []aiToolDef {
 		mk("get_node", "Get one edge node by id (name, address, status — tokens are never exposed).", obj(map[string]any{
 			"node_id": aiIntProp("node id from list_nodes — never guess"),
 		}, "node_id")),
-		mk("get_template", "Get one deployment template by id (fields, description, numbered install-workflow steps, startup command + action buttons, published ports, or the full spec JSON).", obj(map[string]any{
+		mk("get_template", "Get one deployment template by id (fields, description, numbered install-workflow steps, startup command + action buttons, published ports, or the full spec YAML).", obj(map[string]any{
 			"template_id": aiIntProp("template id from list_templates — never guess"),
-			"section":     aiStrProp("one of: all (default), summary, steps, runtime, ports, spec, description. Steps for workflow edits, runtime for startup-command/action-button edits, ports for port-mapping edits, spec for the full raw spec JSON when you need anything else, description for text edits."),
+			"section":     aiStrProp("one of: all (default), summary, steps, runtime, ports, spec, description. Steps for workflow edits, runtime for startup-command/action-button edits, ports for port-mapping edits, spec for the full raw spec YAML when you need anything else, description for text edits."),
 		}, "template_id")),
 		mk("list_instance_pages", "List reusable instance pages (id, name, slug, description).", obj(map[string]any{
 			"limit": aiIntProp("max rows, default 20, max 50"),
@@ -984,7 +984,7 @@ func aiToolDefs() []aiToolDef {
 			"kind":        aiStrProp("one of: docker, lxd, kvm, multipass (required)"),
 			"description": aiStrProp("short description"),
 			"image":       aiStrProp("container image / os image"),
-			"spec":        aiStrProp("template spec as a JSON object string; default {}"),
+			"spec":        aiStrProp("template spec as a YAML/JSON object string; default {}"),
 		}, "name", "kind")),
 		mk("create_instance_page", "APPROVAL REQUIRED: create a reusable instance page (docs/dashboard/config UI).", obj(map[string]any{
 			"name":             aiStrProp("page name (required)"),
@@ -1022,12 +1022,12 @@ func aiToolDefs() []aiToolDef {
 		mk("unsuspend_instance", "APPROVAL REQUIRED: lift a suspension so the instance can run again.", obj(map[string]any{
 			"instance_id": aiIntProp("instance id from list_instances — never guess"),
 		}, "instance_id")),
-		mk("edit_template", "APPROVAL REQUIRED: edit a deployment template (name, description, image and/or spec JSON).", obj(map[string]any{
+		mk("edit_template", "APPROVAL REQUIRED: edit a deployment template (name, description, image and/or spec YAML).", obj(map[string]any{
 			"template_id": aiIntProp("template id from list_templates — never guess"),
 			"name":        aiStrProp("new template name"),
 			"description": aiStrProp("new short description"),
 			"image":       aiStrProp("new container / os image"),
-			"spec":        aiStrProp("new template spec as a JSON object string"),
+			"spec":        aiStrProp("new template spec as a YAML/JSON object string"),
 		}, "template_id")),
 		mk("delete_template", "APPROVAL REQUIRED: delete a deployment template (running instances keep running, they just lose the back-link).", obj(map[string]any{
 			"template_id": aiIntProp("template id from list_templates — never guess"),
@@ -1856,12 +1856,12 @@ func aiToolGetTemplate(a *aiCallCtx, id int64, section string) (string, *aiTicke
 		}
 		return aiJSON(out), nil, nil
 	case "spec":
-		// Full raw spec JSON so the model can handle anything else
-		// (mounts, limits, env, …) without the operator pasting JSON.
+		// Full raw spec YAML so the model can handle anything else
+		// (mounts, limits, env, …) without the operator pasting YAML.
 		// Capped so a giant spec can't flood the transcript.
 		raw := strings.TrimSpace(t.Spec)
 		if raw == "" {
-			raw = "{}"
+			raw = "{}\n"
 		}
 		return aiJSON(map[string]any{
 			"id": t.ID, "name": t.Name, "kind": t.Kind,
@@ -1979,7 +1979,7 @@ func aiTemplatePorts(t *models.Template) []string {
 	return out
 }
 
-// aiPortNum coerces a spec port value (JSON number, int, or numeric string)
+// aiPortNum coerces a spec port value (YAML/JSON number, int, or numeric string)
 // to an int. Returns ok=false when the value is not a usable port number.
 func aiPortNum(v any) (int, bool) {
 	switch n := v.(type) {
