@@ -259,7 +259,7 @@ func healthHandler(slug string) http.HandlerFunc {
 // welcomeHandler renders the one test page. Identity comes ONLY from the
 // panel-asserted headers the reverse proxy stamps — this app has no login
 // of its own. Values are escaped: usernames are operator-controlled.
-func welcomeHandler(slug string) http.HandlerFunc {
+func welcomeHandler(c config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
 			http.NotFound(w, r)
@@ -272,7 +272,7 @@ func welcomeHandler(slug string) http.HandlerFunc {
 			user = "direct visitor (no panel headers — open me via /dash/)"
 		}
 		if stack == "" {
-			stack = html.EscapeString(slug)
+			stack = html.EscapeString(c.slug)
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		fmt.Fprintf(w, `<!doctype html>
@@ -284,12 +284,16 @@ func welcomeHandler(slug string) http.HandlerFunc {
 <h1 style="font-size:40px;margin:0 0 8px">👋 Welcome</h1>
 <p style="color:#9ca3af;margin:0 0 24px">This is the <b>%s</b> test dashboard, served by <code>ksdash</code> and floated here by the panel — no API key involved.</p>
 <table style="margin:0 auto;border-collapse:collapse;font-size:14px">
+<tr><td style="color:#9ca3af;text-align:right;padding:4px 12px">app</td><td style="text-align:left"><b>%s</b> <code>v%s</code></td></tr>
 <tr><td style="color:#9ca3af;text-align:right;padding:4px 12px">panel user</td><td style="text-align:left"><b>%s</b></td></tr>
 <tr><td style="color:#9ca3af;text-align:right;padding:4px 12px">panel user id</td><td style="text-align:left"><code>%s</code></td></tr>
 <tr><td style="color:#9ca3af;text-align:right;padding:4px 12px">stack</td><td style="text-align:left"><code>%s</code></td></tr>
 </table>
 <p style="margin-top:24px;font-size:12px;color:#6b7280">health: <a style="color:#93c5fd" href="health">/health</a> · pair me from the stack detail page (Verify + pairing snippet)</p>
-</main></body></html>`, html.EscapeString(slug), html.EscapeString(slug), user, uid, stack)
+</main></body></html>`,
+			html.EscapeString(c.slug), html.EscapeString(c.slug),
+			html.EscapeString(c.name), html.EscapeString(c.version),
+			user, uid, stack)
 	}
 }
 
@@ -297,7 +301,8 @@ func main() {
 	c := loadConfig()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", healthHandler(c.slug))
-	mux.HandleFunc("/", welcomeHandler(c.slug))
+	mux.HandleFunc("/", welcomeHandler(c))
+	go announceUntilSuccess(c)
 	go heartbeatLoop(c)
 	addr := fmt.Sprintf("127.0.0.1:%d", c.port)
 	log.Printf("ksdash %q listening on http://%s (panel %q)", c.slug, addr, c.panelURL)

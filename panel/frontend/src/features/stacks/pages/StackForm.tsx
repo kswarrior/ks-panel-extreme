@@ -5,12 +5,8 @@ import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
 import GlassField, { glassFieldClass } from '@/shared/components/ui/Field';
 import IconColorPicker from '@/shared/components/ui/IconColorPicker';
-import RolePermissions from '@/features/roles/components/RolePermissions';
 import { TemplateInstallSection } from '@/features/templates/components/TemplateForm/TemplateInstallSection';
-import { listPermissions } from '@/shared/api/admin';
-import type { Permission } from '@/shared/types/user';
 import {
-  STACK_CAPABILITIES,
   STACK_INSTALL_TYPES,
   STACK_LOCATION_TYPES,
   STACK_REMOTE_PROTOCOLS,
@@ -25,13 +21,12 @@ import {
   extractStackApiError,
 } from '@/features/stacks/api/stacks';
 
-type Tab = 'meta' | 'install' | 'launch' | 'permission';
+type Tab = 'meta' | 'install' | 'launch';
 
 const TABS: Array<{ key: Tab; label: string }> = [
   { key: 'meta', label: 'General' },
   { key: 'install', label: 'Install' },
   { key: 'launch', label: 'Launch' },
-  { key: 'permission', label: 'Permission' },
 ];
 
 const sectionCls = 'ks-card ks-form-card rounded-lg space-y-4';
@@ -39,47 +34,19 @@ const labelCls = 'block text-sm font-medium text-gray-300 mb-1 ks-label';
 const monoCls = glassFieldClass + ' font-mono ks-input-mono';
 const addBtn = 'text-xs text-sky-300 hover:text-sky-200 underline';
 
-// Default access_level per stack capability. The backend treats access_level
-// as an opaque string (only the capability code is validated), so these are
-// sensible display defaults that match the capability name.
-function defaultAccessLevel(capability: string): string {
-  if (capability.endsWith('.read')) return 'read';
-  if (capability.includes('read_write')) return 'read_write';
-  return 'allow';
-}
-
 // StackForm — routed create form at /stacks/new, mirroring TemplateForm's
 // chrome (FormPage + bottom-right PageFormActionsPill with Cancel/Create).
-// The Permission tab mirrors the API key form's permission section: a stack
-// capability checklist (all 6 known caps) plus the shared RolePermissions
-// picker backed by GET /api/permissions so every panel permission group is
-// available. Submit installs through POST /api/stacks/ (X-KS-Source: studio)
-// so the backend validates the manifest like any upload.
+// There is deliberately NO permission tab: the stack app itself declares
+// what it needs via POST /api/stacks/announce after pairing, and the admin
+// allows each capability in the detail page before activating. Submit
+// installs through POST /api/stacks/ (X-KS-Source: studio) so the backend
+// validates the manifest like any upload.
 const StackForm: React.FC = () => {
   const navigate = useNavigate();
   const [draft, setDraft] = useState(blankStackStudioDraft);
   const [tab, setTab] = useState<Tab>('meta');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [allPerms, setAllPerms] = useState<Permission[]>([]);
-  const [permsLoading, setPermsLoading] = useState(true);
-
-  // Load the full permission catalogue once so the Permission tab can render
-  // the same RolePermissions section the API key form uses.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const perms = await listPermissions();
-        if (!cancelled) setAllPerms(Array.isArray(perms) ? perms : []);
-      } catch {
-        if (!cancelled) setAllPerms([]);
-      } finally {
-        if (!cancelled) setPermsLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
 
   const patch = (partial: Partial<typeof draft>) => {
     setDraft((d) => ({ ...d, ...partial }));
