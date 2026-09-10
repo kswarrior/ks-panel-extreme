@@ -325,7 +325,7 @@ const InstanceForm: React.FC = () => {
       <FormPage
         crumbs={[{ label: 'Instances', to: '/instances' }, { label: 'Deploy Instance' }]}
         hideHeader
-        maxWidth="max-w-3xl"
+        maxWidth="max-w-4xl"
       >
         <FormSkeleton fields={5} />
       </FormPage>

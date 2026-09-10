@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { serializeEditor } from '../utils/instanceFormUtils';
 import { useDeployForm } from '../stores/deployFormStore';
@@ -14,7 +14,13 @@ import InstanceAdvancedOptionsFullScreen from './InstanceAdvancedOptionsFullScre
 // the back/forward navigation between Main and Advance.
 const AdvanceOptionPage: React.FC = () => {
   const navigate = useNavigate();
-  const { editor, templates, templateId } = useDeployForm();
+  const { editor, templates, templateId, tab, setTab } = useDeployForm();
+
+  // This page's tab strip excludes General (it lives in InstanceForm now),
+  // so never leave the shared tab on 'general' while mounted here.
+  useEffect(() => {
+    if (tab === 'general') setTab('environment');
+  }, [tab, setTab]);
 
   const specPreview = useMemo(() => JSON.stringify(serializeEditor(editor), null, 2), [editor]);
 

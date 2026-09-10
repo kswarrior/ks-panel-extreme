@@ -101,7 +101,7 @@ export const DeployFormProvider: React.FC<DeployFormProviderProps> = ({ template
   const baselineRef = useRef<EditorState>(emptyEditor());
   const [envValues, setEnvValues] = useState<Record<string, string>>({});
   const [imageKey, setImageKey] = useState<string>('');
-  const [tab, setTab] = useState<InstanceTabId>('environment');
+  const [tab, setTab] = useState<InstanceTabId>('general');
   const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
 
   const [nodes, setNodes] = useState<Node[]>([]);
