@@ -651,6 +651,14 @@ func NewRouter() http.Handler {
 			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionEdit)).Post("/{id}/deactivate", handlers.DeactivateStackHandler)
 			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionEdit)).Post("/{id}/install", handlers.InstallStackHandler)
 			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionEdit)).Post("/{id}/reinstall", handlers.ReinstallStackHandler)
+			// Node-style remote pairing: Verify dials the app's /health,
+			// rotate-token reissues the pairing token (once), pairing
+			// renders the app config snippet. Probe/rotate/pairing mutate
+			// or expose pairing state, so all three are edit-level like
+			// the node probe/rotate verbs.
+			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionEdit)).Post("/{id}/probe", handlers.ProbeStackHandler)
+			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionEdit)).Post("/{id}/rotate-token", handlers.RotateStackTokenHandler)
+			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionEdit)).Get("/{id}/pairing", handlers.StackPairingHandler)
 			// Async operation console: start a job, poll it, stop it.
 			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionEdit)).Post("/{id}/op/{op}", handlers.StartStackOpHandler)
 			r.With(requireUmbrellaOrAction(stacksG, permissions.ActionEdit)).Get("/{id}/op/{job}", handlers.GetStackOpHandler)

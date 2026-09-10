@@ -245,6 +245,7 @@ func CSRFTokenHandler(ctm *CSRFTokenManager) http.HandlerFunc {
 //     start/callback — the browser has no session yet, so there is
 //     nothing to forge);
 //   - POST /api/nodes/heartbeat (edge token-in-body, not session cookie);
+//   - POST /api/stacks/heartbeat (stack pairing token-in-body, same model);
 //   - GET /api/edge/tunnel (token query, WS upgrade — also covered by the
 //     Upgrade bypass, kept here for non-upgrade methods);
 //   - GET /api/csrf-token (the token mint itself).
@@ -275,6 +276,7 @@ func isCSRFExemptPath(path string) bool {
 		"/api/settings/panel-name",
 		"/api/settings/panel-logo",
 		"/api/nodes/heartbeat",
+		"/api/stacks/heartbeat",
 		"/health",
 		"/api/csrf-token",
 		"/api/authority/branding",
