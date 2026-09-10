@@ -89,6 +89,7 @@ export const IconColorPicker: React.FC<IconColorPickerProps> = ({
   fallback,
 }) => {
   const [customColorOpen, setCustomColorOpen] = useState(false);
+  const [open, setOpen] = useState(false);
   const trimmedColor = (color || '').trim();
   const colorOk = trimmedColor === '' || HEX_RE.test(trimmedColor);
   const presetMatch = useMemo(
@@ -99,135 +100,173 @@ export const IconColorPicker: React.FC<IconColorPickerProps> = ({
 
   const { isFullSvg, sanitized } = renderIconInner(icon);
 
-  return (
-    <div className="rounded-md border border-white/10 bg-black/20 p-3 space-y-3">
-      <div className="flex items-start gap-3">
-        {/* Live preview tile — same shape as node / instance cards */}
-        <div className="flex flex-col items-center gap-1 shrink-0" title="Card preview">
+  const previewTile = (
+    <span
+      className="w-12 h-12 rounded-lg flex items-center justify-center border bg-white/[0.05] border-white/10 overflow-hidden"
+      style={colorOk && trimmedColor ? { color: trimmedColor } : undefined}
+      aria-hidden="true"
+    >
+      {sanitized ? (
+        isFullSvg ? (
           <span
-            className="w-12 h-12 rounded-lg flex items-center justify-center border bg-white/[0.05] border-white/10 overflow-hidden"
-            style={colorOk && trimmedColor ? { color: trimmedColor } : undefined}
-            aria-hidden="true"
-          >
-            {sanitized ? (
-              isFullSvg ? (
-                <span
-                  className="w-6 h-6 block [&>svg]:w-6 [&>svg]:h-6 [&>svg]:block"
-                  dangerouslySetInnerHTML={{ __html: sanitized }}
-                />
-              ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
-                  <g dangerouslySetInnerHTML={{ __html: sanitized }} />
-                </svg>
-              )
-            ) : fallback ? (
-              <>{fallback}</>
-            ) : (
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-6 h-6 text-gray-500"><circle cx="12" cy="12" r="9" /><path d="M12 8v8" /><path d="M8 12h8" /></svg>
-            )}
-          </span>
-          {previewName !== undefined && (
-            <span className="text-[11px] text-gray-500 max-w-[4.5rem] truncate">{previewName.trim() || 'Preview'}</span>
-          )}
-        </div>
-
-        <div className="flex-1 min-w-0 space-y-3">
-          <div>
-            <span className="block text-xs text-gray-400 mb-1.5">Icon — pick a preset or paste SVG below</span>
-            <div className="flex flex-wrap gap-1.5">
-              <button
-                type="button"
-                onClick={() => onIconChange('')}
-                title="No icon (driver / kind default)"
-                className={`w-9 h-9 rounded-lg border bg-white/[0.04] text-gray-300 hover:text-white hover:border-white/25 inline-flex items-center justify-center ${!icon ? 'border-emerald-500' : 'border-white/10'}`}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-              </button>
-              {ICON_PRESETS.map((p) => (
-                <button
-                  key={p.label}
-                  type="button"
-                  title={p.label}
-                  onClick={() => onIconChange(p.svg)}
-                  className={`w-9 h-9 rounded-lg border bg-white/[0.04] text-gray-300 hover:text-white hover:border-white/25 inline-flex items-center justify-center ${icon === p.svg ? 'border-emerald-500' : 'border-white/10'}`}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-4 h-4"><g dangerouslySetInnerHTML={{ __html: p.svg }} /></svg>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <span className="block text-xs text-gray-400 mb-1.5">Colour — tints the icon on cards</span>
-            <div className="flex flex-wrap items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => { onColorChange(''); setCustomColorOpen(false); }}
-                title="Default (no tint)"
-                className={`px-2.5 h-8 rounded-lg border text-xs transition-colors ${trimmedColor === '' ? 'border-emerald-500 text-white bg-emerald-500/10' : 'border-white/10 bg-white/5 text-gray-300 hover:border-white/25'}`}
-              >
-                Default
-              </button>
-              {ICON_COLOR_SWATCHES.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => { onColorChange(c); setCustomColorOpen(false); }}
-                  title={`${ICON_COLOR_NAMES[c.toLowerCase()] ?? c} (${c.toUpperCase()})`}
-                  className={`w-8 h-8 rounded-lg border transition-transform ${presetMatch === c ? 'border-white scale-105' : 'border-white/10 hover:border-white/30'}`}
-                  style={{ backgroundColor: c }}
-                >
-                  {presetMatch === c && (
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" className="w-5 h-5 m-auto"><polyline points="20 6 9 17 4 12" /></svg>
-                  )}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => setCustomColorOpen((v) => !v)}
-                title="Custom colour"
-                className={`px-2.5 h-8 rounded-lg border text-xs transition-colors ${showCustomColor && trimmedColor !== '' ? 'border-emerald-500 text-white bg-emerald-500/10' : 'border-white/10 bg-white/5 text-gray-300 hover:border-white/25'}`}
-              >
-                Custom
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {showCustomColor && (
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            type="color"
-            value={HEX_RE.test(trimmedColor) ? trimmedColor : '#34d399'}
-            onChange={(e) => onColorChange(e.target.value.toUpperCase())}
-            className="h-9 w-12 cursor-pointer rounded border border-white/10 bg-transparent p-0.5"
-            aria-label="Custom colour picker"
+            className="w-6 h-6 block [&>svg]:w-6 [&>svg]:h-6 [&>svg]:block"
+            dangerouslySetInnerHTML={{ __html: sanitized }}
           />
-          <input
-            type="text"
-            value={color}
-            onChange={(e) => onColorChange(e.target.value)}
-            placeholder="#rrggbb"
-            spellCheck={false}
-            autoComplete="off"
-            className={`${glassFieldClass} flex-1 min-w-[8rem] font-mono text-xs`}
-          />
-        </div>
+        ) : (
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
+            <g dangerouslySetInnerHTML={{ __html: sanitized }} />
+          </svg>
+        )
+      ) : fallback ? (
+        <>{fallback}</>
+      ) : (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-6 h-6 text-gray-500"><circle cx="12" cy="12" r="9" /><path d="M12 8v8" /><path d="M8 12h8" /></svg>
       )}
-      {!colorOk && <p className="text-xs text-red-400">Colour must be a #rrggbb hex value (or empty for default)</p>}
+    </span>
+  );
 
-      <div>
-        <label className="block text-xs text-gray-400 mb-1">Custom icon SVG (inner markup or full &lt;svg&gt; block)</label>
-        <textarea
-          value={icon}
-          onChange={(e) => onIconChange(e.target.value)}
-          rows={2}
-          className={`${glassFieldClass} font-mono text-xs w-full`}
-          placeholder='<path d="M12 2L2 7l10 5 10-5-10-5z" />'
-        />
+  return (
+    <>
+      <div className="flex items-center gap-3">
+        <div className="relative shrink-0" title="Icon preview">
+          {previewTile}
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            title="Edit icon & colour"
+            aria-label="Edit icon & colour"
+            className="absolute -bottom-1.5 -right-1.5 w-6 h-6 rounded-full flex items-center justify-center border border-white/20 bg-neutral-800 hover:bg-neutral-700 text-gray-200 transition-colors"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+          </button>
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm text-gray-200 font-medium truncate">{(previewName || '').trim() || 'Icon & colour'}</p>
+          <p className="text-xs text-gray-500 truncate">Icon &amp; colour shown on cards</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          title="Edit icon & colour"
+          className="ks-ghost-btn shrink-0 px-2.5 py-1.5 rounded-md text-xs border border-white/10 bg-white/5 text-white hover:bg-white/10 inline-flex items-center gap-1.5"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21" /></svg>
+          Icon
+        </button>
       </div>
-    </div>
+
+      <GlassModal
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Icon & colour"
+        maxWidth="max-w-lg"
+        footer={
+          <>
+            <button onClick={() => setOpen(false)} className="ks-btn-cancel ks-btn-ghost">Cancel</button>
+            <button onClick={() => setOpen(false)} className="ks-btn-form ks-btn-primary">Done</button>
+          </>
+        }
+      >
+        <div className="flex items-center gap-3">
+          <span className="shrink-0">{previewTile}</span>
+          <p className="text-xs text-gray-500">Live preview — pick a preset or paste custom SVG below.</p>
+        </div>
+
+        <div>
+          <span className="block text-sm font-medium text-gray-200 mb-1">Icon</span>
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={() => onIconChange('')}
+              title="No icon (default)"
+              className={`w-9 h-9 rounded-lg border bg-white/[0.04] text-gray-300 hover:text-white hover:border-white/25 inline-flex items-center justify-center ${!icon ? 'border-emerald-500' : 'border-white/10'}`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+            </button>
+            {ICON_PRESETS.map((p) => (
+              <button
+                key={p.label}
+                type="button"
+                title={p.label}
+                onClick={() => onIconChange(p.svg)}
+                className={`w-9 h-9 rounded-lg border bg-white/[0.04] text-gray-300 hover:text-white hover:border-white/25 inline-flex items-center justify-center ${icon === p.svg ? 'border-emerald-500' : 'border-white/10'}`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-4 h-4"><g dangerouslySetInnerHTML={{ __html: p.svg }} /></svg>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <span className="block text-sm font-medium text-gray-200 mb-1">Colour</span>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => { onColorChange(''); setCustomColorOpen(false); }}
+              title="Default (no tint)"
+              className={`px-2.5 h-8 rounded-lg border text-xs transition-colors ${trimmedColor === '' ? 'border-emerald-500 text-white bg-emerald-500/10' : 'border-white/10 bg-white/5 text-gray-300 hover:border-white/25'}`}
+            >
+              Default
+            </button>
+            {ICON_COLOR_SWATCHES.map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => { onColorChange(c); setCustomColorOpen(false); }}
+                title={`${ICON_COLOR_NAMES[c.toLowerCase()] ?? c} (${c.toUpperCase()})`}
+                className={`w-8 h-8 rounded-lg border transition-transform ${presetMatch === c ? 'border-white scale-105' : 'border-white/10 hover:border-white/30'}`}
+                style={{ backgroundColor: c }}
+              >
+                {presetMatch === c && (
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" className="w-5 h-5 m-auto"><polyline points="20 6 9 17 4 12" /></svg>
+                )}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setCustomColorOpen((v) => !v)}
+              title="Custom colour"
+              className={`px-2.5 h-8 rounded-lg border text-xs transition-colors ${showCustomColor && trimmedColor !== '' ? 'border-emerald-500 text-white bg-emerald-500/10' : 'border-white/10 bg-white/5 text-gray-300 hover:border-white/25'}`}
+            >
+              Custom
+            </button>
+          </div>
+        </div>
+
+        {showCustomColor && (
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="color"
+              value={HEX_RE.test(trimmedColor) ? trimmedColor : '#34d399'}
+              onChange={(e) => onColorChange(e.target.value.toUpperCase())}
+              className="h-9 w-12 cursor-pointer rounded border border-white/10 bg-transparent p-0.5"
+              aria-label="Custom colour picker"
+            />
+            <input
+              type="text"
+              value={color}
+              onChange={(e) => onColorChange(e.target.value)}
+              placeholder="#rrggbb"
+              spellCheck={false}
+              autoComplete="off"
+              className={`${glassFieldClass} flex-1 min-w-[8rem] font-mono text-xs`}
+            />
+          </div>
+        )}
+        {!colorOk && <p className="text-xs text-red-400">Colour must be a #rrggbb hex value (or empty for default)</p>}
+
+        <div>
+          <label className="block text-xs text-gray-400 mb-1">Custom icon SVG (inner markup or full &lt;svg&gt; block)</label>
+          <textarea
+            value={icon}
+            onChange={(e) => onIconChange(e.target.value)}
+            rows={2}
+            className={`${glassFieldClass} font-mono text-xs w-full`}
+            placeholder='<path d="M12 2L2 7l10 5 10-5-10-5z" />'
+          />
+        </div>
+      </GlassModal>
+    </>
   );
 };
 
