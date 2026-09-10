@@ -92,23 +92,111 @@ class ReactModuleErrorBoundary extends React.Component<{ resetKey: string; child
 // the factory executes ONCE per bundle string, so component identity (and
 // hooks state) survives theme switches and panel refreshes that rebuild
 // iframe srcDoc from scratch.
+// Slot table for script-injected React bundles (see ReactModuleView).
+interface ReactBundleSlot {
+  sdk: unknown;
+  react: unknown;
+  done: (comp: unknown) => void;
+  fail: (message: string) => void;
+}
+const reactBundleSlots = new Map<string, ReactBundleSlot>();
+let reactSlotSeq = 0;
+
+function reactSlotHolder(): Record<string, ReactBundleSlot> {
+  const w = window as unknown as Record<string, unknown>;
+  let holder = w.__ksReactSlots as Record<string, ReactBundleSlot> | undefined;
+  if (!holder) {
+    holder = {};
+    w.__ksReactSlots = holder;
+  }
+  return holder;
+}
+
+// ReactModuleView renders a type == 'react' page in the HOST origin (like
+// markdown/blocks — authors hold MANAGE_INSTANCE_PAGES, same trust as
+// template actions; server validates the bundle at save + build).
+// Unlike sandboxed HTML iframes it keeps useState across parent re-renders:
+// the bundle executes ONCE per bundle string, so component identity (and
+// hooks state) survives theme switches and panel refreshes that rebuild
+// iframe srcDoc from scratch.
+//
+// Execution deliberately avoids new Function()/eval(): the panel CSP is
+// script-src 'self' 'unsafe-inline' with NO 'unsafe-eval' on purpose
+// (security_headers.go), so eval-style execution crashes with a CSP
+// violation instead of loading. The bundle runs as an inline <script>
+// element (covered by 'unsafe-inline'); the `return Page;` contract still
+// holds because the body runs inside the wrapper function below.
 const ReactModuleView: React.FC<{
   bundle: string;
   bundleCss?: string;
   sdk: ReturnType<typeof createCustomPageSDK>;
   /** Fingerprint of the sdk inputs (instance id/status, slug, actions, config).
-   *  The factory closes over the sdk of the render that produced this key;
+   *  The bundle closes over the sdk of the effect run that produced this key;
    *  an unchanged key means equal values, so the closure stays current. */
   sdkKey: string;
   resetKey: string;
 }> = ({ bundle, bundleCss, sdk, sdkKey, resetKey }) => {
-  const PageComp = useMemo(() => {
-    const factory = new Function('sdk', 'React', `"use strict";\n${bundle}`);
-    const out = factory(sdk, React);
-    if (typeof out === 'function') return out as React.ComponentType;
-    const el = out as React.ReactElement;
-    const Static: React.FC = () => el;
-    return Static;
+  const [comp, setComp] = useState<React.ComponentType | null>(null);
+  const [execError, setExecError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setComp(null);
+    setExecError(null);
+    const id = `r${++reactSlotSeq}_${Date.now().toString(36)}`;
+    const holder = reactSlotHolder();
+    let node: HTMLScriptElement | null = null;
+    const cleanup = () => {
+      window.removeEventListener('error', onScriptError);
+      delete holder[id];
+      reactBundleSlots.delete(id);
+      if (node && node.parentNode) node.parentNode.removeChild(node);
+      node = null;
+    };
+    const onScriptError = (ev: ErrorEvent) => {
+      // Parse/runtime failures of inline scripts surface here with an empty
+      // filename — ignore errors from every other script on the page.
+      if (ev.filename) return;
+      if (cancelled) return;
+      setExecError(ev.message || 'bundle failed to execute');
+      cleanup();
+    };
+    reactBundleSlots.set(id, {
+      sdk,
+      react: React,
+      done: (out: unknown) => {
+        if (cancelled) return;
+        if (typeof out === 'function') {
+          setComp(() => out as React.ComponentType);
+        } else if (out && typeof out === 'object' && (out as { $$typeof?: unknown }).$$typeof) {
+          const el = out as React.ReactElement;
+          setComp(() => () => el);
+        } else {
+          setExecError('bundle must return a component (end the source with `return Page;`)');
+        }
+        cleanup();
+      },
+      fail: (message: string) => {
+        if (cancelled) return;
+        setExecError(message);
+        cleanup();
+      },
+    });
+    holder[id] = reactBundleSlots.get(id)!;
+    window.addEventListener('error', onScriptError);
+    node = document.createElement('script');
+    // The wrapper keeps `return Page;` legal; sdk/React come from the slot
+    // so the bundle body itself stays exactly what the author wrote.
+    node.textContent =
+      `"use strict";(function(){\n` +
+      `var slot=window.__ksReactSlots[${JSON.stringify(id)}];\n` +
+      `try{var Page=(function(sdk,React){\n${bundle}\n})(slot.sdk,slot.react);slot.done(Page);}catch(e){slot.fail((e&&(e.message||e.stack))||String(e));}\n` +
+      `})();`;
+    document.head.appendChild(node);
+    return () => {
+      cancelled = true;
+      cleanup();
+    };
     // sdk intentionally flows via sdkKey: same key == equal values.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bundle, sdkKey]);
@@ -116,7 +204,20 @@ const ReactModuleView: React.FC<{
     <ReactModuleErrorBoundary resetKey={`${resetKey}:${bundle.length}`}>
       <div className="ks-react-page animate-fade-in">
         {bundleCss && bundleCss.trim() !== '' ? <style>{`/* react page css (scope selectors under .ks-react-page) */\n${bundleCss}`}</style> : null}
-        {React.createElement(PageComp as React.ComponentType)}
+        {execError ? (
+          <div className="ks-card ks-form-card rounded-xl text-center text-gray-400">
+            <p className="text-sm">This React page failed to load.</p>
+            <p className="text-xs text-gray-500 mt-1 font-mono break-words">{execError.slice(0, 300)}</p>
+            <p className="text-xs text-gray-500 mt-1">Fix the source in the Instance Page Studio and rebuild.</p>
+          </div>
+        ) : comp ? (
+          React.createElement(comp)
+        ) : (
+          <div className="glass-card rounded-xl flex items-center gap-4 animate-pulse">
+            <div className="w-9 h-9 rounded-lg bg-neutral-800 shrink-0" />
+            <div className="h-5 w-1/3 bg-neutral-800 rounded" />
+          </div>
+        )}
       </div>
     </ReactModuleErrorBoundary>
   );
