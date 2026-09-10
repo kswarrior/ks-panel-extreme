@@ -987,6 +987,11 @@ func NewRouter() http.Handler {
 		r.With(requirePermission("MANAGE_PANEL_UPDATE")).Get("/api/system/reinstall-script", handlers.ReinstallScriptHandler)
 		r.With(requirePermission("MANAGE_PANEL_UPDATE")).Post("/api/system/reinstall-background", handlers.ReinstallBackgroundHandler)
 		r.With(requirePermission("MANAGE_PANEL_UPDATE")).Post("/api/system/stop", handlers.SystemStopHandler)
+		// Background auto-update checks (toggle + recheck interval). When
+		// enabled the panel re-fetches version.json every interval even if
+		// nobody visits the System page. Same MANAGE_PANEL_UPDATE gate.
+		r.With(requirePermission("MANAGE_PANEL_UPDATE")).Get("/api/system/update-auto", handlers.GetPanelUpdateAutoHandler)
+		r.With(requirePermission("MANAGE_PANEL_UPDATE")).Put("/api/system/update-auto", handlers.UpdatePanelUpdateAutoHandler)
 		// Scheduled panel update windows (cron + maintenance-window guard,
 		// scheduler-driven). Same MANAGE_PANEL_UPDATE gate as the manual
 		// apply verbs above; every mutation is audit-logged.

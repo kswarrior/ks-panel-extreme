@@ -296,6 +296,13 @@ go nodeSweepLoop(90*time.Second, time.Minute)
 	// (it's append-only), but the Snapshot's window scans stay cheap.
 	go securityRetentionLoop(24*time.Hour, 10*time.Minute)
 
+	// Start the panel auto-update recheck loop. Once a minute it asks
+	// handlers.PanelAutoCheckTick whether a background version.json fetch
+	// is due (toggle on + interval elapsed). The tick persists its result
+	// to the settings KV, so the Panel tab shows "update available" even
+	// when nobody visited the System page for weeks.
+	go panelUpdateAutoLoop()
+
 	// Print a tidy block of static-looking panel information right before
 	// the listener kicks off. We want a single human-readable summary so
 	// someone ssh'd into the box can see "yep, the panel is up" without
@@ -615,6 +622,19 @@ func securityRetentionLoop(age, interval time.Duration) {
 		repo := repository.NewSecurityRepository(con)
 		_, _ = repo.PurgeBefore(age)
 		con.Close()
+	}
+}
+
+// panelUpdateAutoLoop drives background panel update rechecks. It ticks once
+// a minute and delegates the due-check (toggle on? interval elapsed?) plus
+// the version.json fetch to handlers.PanelAutoCheckTick, so the "update
+// available" state stays fresh even if nobody opens the System page. All
+// errors are swallowed inside the tick — this goroutine never dies.
+func panelUpdateAutoLoop() {
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		handlers.PanelAutoCheckTick()
 	}
 }
 

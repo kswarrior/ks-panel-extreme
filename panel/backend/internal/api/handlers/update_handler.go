@@ -16,6 +16,7 @@ import (
 
 	"github.com/example/kspanel/internal/cli/print"
 	"github.com/example/kspanel/internal/config"
+	"github.com/example/kspanel/internal/db"
 	"github.com/example/kspanel/internal/models"
 	"github.com/example/kspanel/internal/repository"
 	"github.com/example/kspanel/internal/version"
@@ -88,14 +89,16 @@ type updateVersionManifest struct {
 // updateInfoResponse is the GET /api/system/update-info payload. It
 // bundles the local build identity + the public update endpoint so the
 // "Updates" tab can render "You are running X" without a separate request
-// per field.
+// per field. The `auto` block carries the background recheck toggle +
+// interval + last result so the Panel tab paints in one round-trip.
 type updateInfoResponse struct {
-	Local       version.Info `json:"local"`
-	UpdateURL   string       `json:"update_url"`
-	VersionURL  string       `json:"version_url"`
-	BinaryPath  string       `json:"binary_path"`
-	LastCheckAt *string      `json:"last_check_at,omitempty"`
-	LastRemote  *string      `json:"last_remote_version,omitempty"`
+	Local       version.Info            `json:"local"`
+	UpdateURL   string                  `json:"update_url"`
+	VersionURL  string                  `json:"version_url"`
+	BinaryPath  string                  `json:"binary_path"`
+	LastCheckAt *string                 `json:"last_check_at,omitempty"`
+	LastRemote  *string                 `json:"last_remote_version,omitempty"`
+	Auto        panelUpdateAutoResponse `json:"auto"`
 }
 
 // updateCheckResponse is the GET /api/system/update-check payload.
@@ -127,19 +130,41 @@ type updateApplyResponse struct {
 
 // UpdateInfoHandler reports the local build identity + the public update
 // endpoints. Pure read — no network calls — so it's safe to call on every
-// render of the "Updates" tab.
+// render of the "Updates" tab. Also embeds the background auto-check state
+// (toggle + interval + last result) so the Panel tab needs no second fetch.
 func UpdateInfoHandler(w http.ResponseWriter, r *http.Request) {
 	local := version.Snapshot()
 	exe, _ := os.Executable()
 	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
 		exe = resolved
 	}
-	writeJSON(w, updateInfoResponse{
+	resp := updateInfoResponse{
 		Local:      local,
 		UpdateURL:  kspanelBinaryURL,
 		VersionURL: kspanelVersionURL,
 		BinaryPath: exe,
-	})
+	}
+	// Best-effort auto-check state: a settings-read failure must never 500
+	// the whole update-info payload — fall back to defaults (disabled).
+	if con, err := repository.OpenDB(); err == nil {
+		func() {
+			defer con.Close()
+			cfg := config.DatabaseConfig()
+			if d, derr := db.NewDialect(cfg.Engine); derr == nil {
+				st := repository.GetPanelUpdateAutoState(con, d)
+				resp.Auto = panelAutoStateResponse(st)
+				if st.LastCheckAt != nil {
+					s := st.LastCheckAt.UTC().Format(time.RFC3339)
+					resp.LastCheckAt = &s
+				}
+				if st.LastRemote != "" {
+					s := st.LastRemote
+					resp.LastRemote = &s
+				}
+			}
+		}()
+	}
+	writeJSON(w, resp)
 }
 
 // UpdateCheckHandler fetches the remote version.json manifest and compares
@@ -147,6 +172,8 @@ func UpdateInfoHandler(w http.ResponseWriter, r *http.Request) {
 // malformed JSON) surface as a non-nil `Error` so the SPA can show "could
 // not reach update server" instead of crashing on missing fields. The
 // response is marked no-store so browsers never serve a cached recheck.
+// Every outcome (success or failure) is persisted to the auto-check KV so
+// the Panel tab's "last checked …" line stays truthful for background ticks.
 func UpdateCheckHandler(w http.ResponseWriter, r *http.Request) {
 	local := version.Snapshot()
 	w.Header().Set("Cache-Control", "no-store")
@@ -160,11 +187,14 @@ func UpdateCheckHandler(w http.ResponseWriter, r *http.Request) {
 	manifest, err := fetchUpdateManifest()
 	if err != nil {
 		resp.Error = err.Error()
+		recordPanelUpdateCheckResult(local.Version, "", nil, err.Error())
 		writeJSON(w, resp)
 		return
 	}
 	resp.Remote = manifest
 	resp.Available = semverGreater(manifest.Version, local.Version)
+	avail := resp.Available
+	recordPanelUpdateCheckResult(local.Version, manifest.Version, &avail, "")
 	writeJSON(w, resp)
 }
 
