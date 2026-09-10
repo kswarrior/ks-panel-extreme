@@ -743,6 +743,24 @@ func (r *StackRepository) UpdateStack(id int64, in UpdateStackInput) (*models.St
 	if taken {
 		return nil, fmt.Errorf("proxy root URL %q is already used by another stack", in.ProxyRootURL)
 	}
+	// Dedicated serve port (migration 077): a non-zero port must be a
+	// usable TCP port, must not clash with another stack's serve port
+	// (409 on clash — a UNIQUE index would reject the shared 0 default
+	// on MySQL), and needs an app to serve (loopback port or remote
+	// address — the /<root> mount itself is independent and optional).
+	if !models.ValidStackServePort(in.ServePort) {
+		return nil, fmt.Errorf("invalid serve port %d (want 0 or 1-65535)", in.ServePort)
+	}
+	if in.ServePort != 0 {
+		if in.ProxyPort == 0 && remoteAddr == "" {
+			return nil, fmt.Errorf("serve port needs an app to serve: set a loopback port or a remote address")
+		}
+		if taken, terr := r.ServePortTaken(in.ServePort, id); terr != nil {
+			return nil, terr
+		} else if taken {
+			return nil, fmt.Errorf("serve port %d is already used by another stack", in.ServePort)
+		}
+	}
 	spec := string(in.Spec)
 	if spec == "" {
 		spec = "{}"
@@ -754,10 +772,14 @@ func (r *StackRepository) UpdateStack(id int64, in UpdateStackInput) (*models.St
 	if in.RemoteSkipVerify {
 		remoteSkip = 1
 	}
+	serveAuth := 0
+	if in.ServeAuth {
+		serveAuth = 1
+	}
 	now := time.Now().UTC().Format("2006-01-02 15:04:05")
 	res, err := r.db.Exec(
-		`UPDATE stacks SET name = ?, category = ?, version = ?, description = ?, icon = ?, color = ?, spec = ?, proxy_port = ?, proxy_root_url = ?, remote_address = ?, remote_use_tls = ?, remote_skip_verify = ?, updated_at = ? WHERE id = ?`,
-		in.Name, in.Category, in.Version, in.Description, in.Icon, in.Color, spec, in.ProxyPort, in.ProxyRootURL, remoteAddr, remoteTLS, remoteSkip, now, id,
+		`UPDATE stacks SET name = ?, category = ?, version = ?, description = ?, icon = ?, color = ?, spec = ?, proxy_port = ?, proxy_root_url = ?, remote_address = ?, remote_use_tls = ?, remote_skip_verify = ?, serve_port = ?, serve_auth = ?, updated_at = ? WHERE id = ?`,
+		in.Name, in.Category, in.Version, in.Description, in.Icon, in.Color, spec, in.ProxyPort, in.ProxyRootURL, remoteAddr, remoteTLS, remoteSkip, in.ServePort, serveAuth, now, id,
 	)
 	if err != nil {
 		return nil, err
@@ -785,6 +807,44 @@ func (r *StackRepository) ProxyRootTaken(root string, excludeID int64) (bool, er
 	return n > 0, nil
 }
 
+// ServePortTaken reports whether a non-zero serve port is already claimed
+// by another stack (excludeID skips the row being edited; 0 skips
+// nothing). Port 0 is never "taken" — every unconfigured stack shares it.
+func (r *StackRepository) ServePortTaken(port int, excludeID int64) (bool, error) {
+	if port == 0 {
+		return false, nil
+	}
+	var n int
+	if err := r.db.QueryRow(
+		`SELECT COUNT(*) FROM stacks WHERE serve_port = ? AND id != ?`, port, excludeID,
+	).Scan(&n); err != nil {
+		return false, err
+	}
+	return n > 0, nil
+}
+
+// ListActiveServeStacks returns every active stack with a dedicated serve
+// port configured. The serve-port reconciler syncs panel listeners from
+// this single query (inactive or unconfigured rows never listen).
+func (r *StackRepository) ListActiveServeStacks() ([]models.Stack, error) {
+	rows, err := r.db.Query(`SELECT `+stackColumns+` FROM stacks WHERE active = 1 AND serve_port > 0`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []models.Stack{}
+	for rows.Next() {
+		s, err := scanStack(rows)
+		if err != nil {
+			return nil, err
+		}
+		if s.ServePort == 0 {
+			continue
+		}
+		out = append(out, *s)
+	}
+	return out, rows.Err()
+}
 // GetActiveStackByProxyRoot returns the active, proxy-configured stack
 // mounted at root ("" never matches), or ErrStackNotFound. The panel's
 // reverse proxy resolves mounts through this single query.
