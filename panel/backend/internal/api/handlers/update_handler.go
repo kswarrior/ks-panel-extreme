@@ -143,6 +143,10 @@ func UpdateInfoHandler(w http.ResponseWriter, r *http.Request) {
 		UpdateURL:  kspanelBinaryURL,
 		VersionURL: kspanelVersionURL,
 		BinaryPath: exe,
+		Auto: panelUpdateAutoResponse{
+			Enabled:     false,
+			IntervalMin: repository.DefaultPanelUpdateAutoInterval,
+		},
 	}
 	// Best-effort auto-check state: a settings-read failure must never 500
 	// the whole update-info payload — fall back to defaults (disabled).
