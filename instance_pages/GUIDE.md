@@ -297,7 +297,7 @@ Rendered in an **opaque-origin sandboxed iframe** (`panel/frontend/src/shared/co
 </div>
 ```
 
-* For best results copy the theme header from any shipped `pages/*.json` `content_html` (e.g. `instance_pages/pages/docker-manager.json:8`, `html-dashboard.json:8`).
+* For best results copy the theme header from any shipped `pages/*.yaml` `content_html` (e.g. `instance_pages/pages/files.yaml`, `ports.yaml`).
 
 ### 5.2 `content_type: "markdown"` — Host-Rendered Docs
 
@@ -793,7 +793,7 @@ Also used for `HtmlBlockFrame` (`CustomPageView.tsx:380` `activePageThemeCss()`)
 
 * Studio file input (hidden) — `InstancePageStudio.tsx:424` merges arrays
 * Template form import modal — `TemplateForm.tsx:147` `parsePageActions`/`parseSubPages`/`parsePageComponents`
-* API: `POST /api/instance-pages/import` (multipart `file` 10 MiB) and `POST /api/instance-pages/import/url {url}` (10 s fetch) (`instance_page_handler.go:1501`)
+* API: `POST /api/instance-pages/import` (multipart `file` 10 MiB, YAML or JSON) and `POST /api/instance-pages/import/url {url}` (10 s fetch) (`instance_page_handler.go:1501`)
 * Marketplace: `GET /api/instance-pages/marketplace` (via `pagelib.ReadCatalog()`) + `POST /import/marketplace {page_id}`
 
 ---
@@ -859,8 +859,8 @@ Mounted at `panel/backend/internal/api/server.go:467`.
 | `POST` | `/api/instance-pages/:id/actions` | `EDIT` | `{instance_id,type,command,path,content,args,env,timeout}` | proxied edge response | `ExecutePageActionHandler:1013` (`getEnabledPages` guard) |
 | `POST` | `/api/instance-pages/execute-action` | `VIEW_INSTANCES` | `{instance_id, page_slug, type,command,path,content,args,env,timeout}` | proxied edge response | `ExecuteCustomPageActionHandler:1406` (allow-list + `findSpecPageRow`) |
 | `POST` | `/api/instance-pages/execute-module-action` | `VIEW_INSTANCES` | `{instance_id, module_id, type,…}` | proxied | `ExecuteModulePageActionHandler` (module `getEnabledModules` check) |
-| `POST` | `/api/instance-pages/import` | `CREATE` | multipart `file` (10 MiB) | `InstancePage` | `ImportInstancePageHandler:1501` |
-| `POST` | `/api/instance-pages/import/url` | `CREATE` | `{url}` | `InstancePage` | `ImportInstancePageFromURLHandler` (10 s fetch) |
+| `POST` | `/api/instance-pages/import` | `CREATE` | multipart `file` (10 MiB, YAML or JSON) | `InstancePage` | `ImportInstancePageHandler:1501` |
+| `POST` | `/api/instance-pages/import/url` | `CREATE` | `{url}` (YAML or JSON body) | `InstancePage` | `ImportInstancePageFromURLHandler` (10 s fetch) |
 | `GET` | `/api/instance-pages/marketplace` | `VIEW` | — | `MarketplaceCatalog` via `pagelib.ReadCatalog()` | `GetMarketplacePagesHandler:2216` |
 | `POST` | `/api/instance-pages/import/marketplace` | `CREATE` | `{page_id}` | `InstancePage` | `ImportInstancePageFromMarketplaceHandler` |
 | `GET` | `/api/instance-pages/local` | `VIEW` | — | local `ListNames` | `GetLocalPagesHandler` |
