@@ -145,9 +145,12 @@ func UpdateInfoHandler(w http.ResponseWriter, r *http.Request) {
 // UpdateCheckHandler fetches the remote version.json manifest and compares
 // it against the running build. Network errors (timeout, non-200,
 // malformed JSON) surface as a non-nil `Error` so the SPA can show "could
-// not reach update server" instead of crashing on missing fields.
+// not reach update server" instead of crashing on missing fields. The
+// response is marked no-store so browsers never serve a cached recheck.
 func UpdateCheckHandler(w http.ResponseWriter, r *http.Request) {
 	local := version.Snapshot()
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
 	resp := updateCheckResponse{
 		Local:     local,
 		CheckedAt: time.Now().UTC().Format(time.RFC3339),

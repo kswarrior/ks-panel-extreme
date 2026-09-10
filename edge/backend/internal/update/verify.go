@@ -40,11 +40,15 @@ import (
 // The bare manifest.sha256 is the PANEL digest and is NEVER accepted here.
 
 // fetchEdgeManifest re-fetches version.json with the same 15s client +
-// 1MiB cap discipline as handleCheck.
+// 1MiB cap discipline as handleCheck. The `?t=` cache-buster defeats the
+// CDN edge cache (raw.githubusercontent serves version.json with
+// `Cache-Control: max-age=300`): without it a recheck inside the cache
+// window returns the previous manifest and the UI reports stale data.
 func fetchEdgeManifest() (versionManifest, error) {
 	var m versionManifest
 	client := &http.Client{Timeout: 15 * time.Second}
-	httpResp, err := client.Get(ksedgeVersionURL)
+	url := fmt.Sprintf("%s?t=%d", ksedgeVersionURL, time.Now().Unix())
+	httpResp, err := client.Get(url)
 	if err != nil {
 		return m, fmt.Errorf("could not reach update server: %w", err)
 	}

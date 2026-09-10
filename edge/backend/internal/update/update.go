@@ -259,13 +259,18 @@ func handleInfo(w http.ResponseWriter) {
 
 func handleCheck(w http.ResponseWriter) {
 	local := version.Snapshot()
+	// no-store so browsers/proxies never serve a cached recheck; the `?t=`
+	// cache-buster below defeats the CDN edge cache on version.json itself.
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
 	resp := checkResponse{
 		Local:     local,
 		CheckedAt: time.Now().UTC().Format(time.RFC3339),
 		UpdateURL: ksedgeBinaryURL,
 	}
 	client := &http.Client{Timeout: 15 * time.Second}
-	httpResp, err := client.Get(ksedgeVersionURL)
+	url := fmt.Sprintf("%s?t=%d", ksedgeVersionURL, time.Now().Unix())
+	httpResp, err := client.Get(url)
 	if err != nil {
 		resp.Error = "could not reach update server: " + err.Error()
 		writeJSON(w, resp)
