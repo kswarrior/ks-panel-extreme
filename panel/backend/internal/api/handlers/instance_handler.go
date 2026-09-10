@@ -3128,12 +3128,12 @@ func startTemplateAction(con *sql.DB, inst *models.Instance, actionID string) (s
 		}
 	}
 
-	// Parse the spec JSON, find the action by id.
+	// Parse the spec (canonical YAML, legacy JSON accepted), find the action by id.
 	var spec struct {
 		Actions []templateActionSpec `json:"actions"`
 	}
-	if err := json.Unmarshal([]byte(tmpl.Spec), &spec); err != nil {
-		return "", actionStartError{http.StatusInternalServerError, "template spec is not valid JSON", true}
+	if err := specyaml.Unmarshal(tmpl.Spec, &spec); err != nil {
+		return "", actionStartError{http.StatusInternalServerError, "template spec is not valid YAML/JSON", true}
 	}
 
 	var action *templateActionSpec
@@ -3524,7 +3524,7 @@ func StopActionHandler(w http.ResponseWriter, r *http.Request) {
 		var spec struct {
 			Actions []templateActionSpec `json:"actions"`
 		}
-		if json.Unmarshal([]byte(tmpl.Spec), &spec) == nil {
+		if specyaml.Unmarshal(tmpl.Spec, &spec) == nil {
 			for i := range spec.Actions {
 				if spec.Actions[i].ID == clickedActionID {
 					stopCommand = spec.Actions[i].StopCommand
@@ -3731,8 +3731,8 @@ func ActionStdinHandler(w http.ResponseWriter, r *http.Request) {
 	var spec struct {
 		Actions []templateActionSpec `json:"actions"`
 	}
-	if err := json.Unmarshal([]byte(tmpl.Spec), &spec); err != nil {
-		http.Error(w, "template spec is not valid JSON", http.StatusInternalServerError)
+	if err := specyaml.Unmarshal(tmpl.Spec, &spec); err != nil {
+		http.Error(w, "template spec is not valid YAML/JSON", http.StatusInternalServerError)
 		return
 	}
 	var action *templateActionSpec
