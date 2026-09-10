@@ -1468,7 +1468,10 @@ input[type="search"] {
    terminal columns. */
 .ks-terminal-wrap .xterm-viewport {
   touch-action: pan-y !important;
-  overscroll-behavior: contain !important;
+  /* auto (not contain): when the scrollback has no overflow — or the
+     viewport sits at its edge — the swipe chains to the page so the page
+     never feels stuck under the tall phone terminal. */
+  overscroll-behavior: auto !important;
   -webkit-overflow-scrolling: touch !important;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.25) transparent;

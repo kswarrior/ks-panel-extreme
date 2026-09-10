@@ -561,8 +561,7 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
       const safeLabel = activePaneLabel().toLowerCase().replace(/[^a-z0-9_-]+/g, '_').slice(0, 32) || 'shell';
       const stamp = new Date().toISOString().replace(/[:.]/g, '-');
       const blob = new Blob([text + '\n'], { type: 'text/plain;charset=utf-8' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const url = window.URL.createObjectURL(blob);      const a = document.createElement('a');
       a.href = url;
       a.download = `terminal-${instance?.id ?? 'instance'}-${safeLabel}-${stamp}.log`;
       document.body.appendChild(a);
@@ -577,6 +576,19 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
   const sendToActive = (text: string) => {
     if (text.trim() === '') return;
     try { sendRegistry.current?.get(activeKey)?.(text); } catch { /* noop */ }
+  };
+  // Refresh (reconnect) the ACTIVE pane: re-dials the bridge now instead
+  // of waiting on the backoff timer. Workflow panes replay their running
+  // transcript from the top, so this is also how a changed display pref
+  // (e.g. the [02:41:03 INFO] stamp toggle) is applied to history — new
+  // lines already follow the toggle live.
+  const reconnectActiveTerminal = () => {
+    try {
+      termHandles.current?.get(activeKey)?.reconnect();
+      flashPill('Refreshing');
+    } catch {
+      flashPill('Refresh failed');
+    }
   };
   // Shortcut pick from either trigger: plain commands act at once
   // (box fills the bottom input, direct transmits to the active tab);
@@ -797,6 +809,15 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
           className="ks-btn-header ks-icon-btn shrink-0"
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+        </button>
+        <button
+          type="button"
+          onClick={reconnectActiveTerminal}
+          title="Refresh terminal — reconnect now and reload history (applies the INFO toggle to old lines)"
+          aria-label="Refresh terminal"
+          className="ks-btn-header ks-icon-btn shrink-0"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><polyline points="1 4 1 10 7 10" /><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" /></svg>
         </button>
         <div className="relative" ref={settingsRef}>
           <button

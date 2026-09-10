@@ -402,7 +402,9 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
   // for side-shell / workflow panes. Stripping works chunk-wise (no line
   // buffering) so interactive prompts without a trailing newline still
   // render instantly; a prefix split across two WS frames is simply kept
-  // (rare, harmless). Lines with ANSI escapes are never stripped.
+  // (rare, harmless). Leading SGR colors are preserved; sequences that are
+  // not SGR colors (cursor moves, alt-screen) never match so interactive
+  // apps pass through untouched.
   const stripDecRef = useRef<TextDecoder | null>(null);
   const writeFiltered = (term: XTerm, bytes: Uint8Array) => {
     if (showLogPrefixRef.current !== false) {
@@ -413,16 +415,15 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
       if (!stripDecRef.current) stripDecRef.current = new TextDecoder('utf-8');
       const text = stripDecRef.current.decode(bytes, { stream: true });
       // Strip a leading stamp at chunk start and after every newline.
-      // Two passes cover "[time] [level]" double stamps.
+      // Two passes cover "[time] [level]" double stamps. ((?:ESC\[[0-9;]*m)*)
+      // keeps leading colors while \s* absorbs \r after \n.
       let out = text;
       for (let i = 0; i < 2; i++) {
         const prev = out;
-        out = out.replace(/(^|\n)\s*\[\d{1,2}:\d{2}:\d{2}(?:\.\d+)?\s*[A-Za-z]*\]\s*:?\s*/g, '$1');
-        out = out.replace(/(^|\n)\s*\[[^\]\n]*?(?:INFO|WARN(?:ING)?|ERROR|DEBUG|TRACE|FATAL|SEVERE)[^\]\n]*?\]\s*:?\s*/gi, '$1');
+        out = out.replace(/(^|\n)((?:\x1b\[[0-9;]*m)*)\s*\[\d{1,2}:\d{2}:\d{2}(?:\.\d+)?\s*[A-Za-z]*\]\s*:?\s*/g, '$1$2');
+        out = out.replace(/(^|\n)((?:\x1b\[[0-9;]*m)*)\s*\[[^\]\n]*?(?:INFO|WARN(?:ING)?|ERROR|DEBUG|TRACE|FATAL|SEVERE)[^\]\n]*?\]\s*:?\s*/gi, '$1$2');
         if (out === prev) break;
       }
-      // If the chunk carried escapes, only the plain-text replacements
-      // above ran — escape sequences themselves pass through untouched.
       term.write(out);
     } catch {
       try { term.write(bytes); } catch { /* noop */ }
