@@ -248,7 +248,11 @@ const TerminalPane: React.FC<{
   onBoxText: (v: string) => void;
   onRegisterSend: (key: number, fn: ((line: string) => void) | null) => void;
   onRegisterHandle: (key: number, h: TerminalHandle | null) => void;
-}> = ({ instanceId, pane, actions, runningActionId, installState, installKind, installTerminalId, startupTerminalId, inputMode, promptStyle, promptHost, boxText, onBoxText, onRegisterSend, onRegisterHandle }) => {
+  // Operator display prefs from the actions-pill settings (persisted per
+  // browser): terminal text size + "[02:41:03 INFO]" stamp toggle.
+  fontSize: number;
+  showLogPrefix: boolean;
+}> = ({ instanceId, pane, actions, runningActionId, installState, installKind, installTerminalId, startupTerminalId, inputMode, promptStyle, promptHost, boxText, onBoxText, onRegisterSend, onRegisterHandle, fontSize, showLogPrefix }) => {
   const handleRef = useRef<TerminalHandle | null>(null);
   // Callback ref: keeps the local handle for the box-mode Send path and
   // registers it with the page so the actions-pill Copy / Download buttons
@@ -353,6 +357,8 @@ const TerminalPane: React.FC<{
           endpoint={isStartupBound ? 'startup' : isWorkflowPane && isWorkflowActive ? 'workflow' : undefined}
           onLine={isStartupBound ? undefined : handleLine}
           readOnly={boxMode}
+          fontSize={fontSize}
+          showLogPrefix={showLogPrefix}
         />
         {boxMode && (
           <div className="flex items-center gap-2 mt-2 min-w-0">
@@ -423,6 +429,48 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
   const shortcutsOn = shortcuts.length > 0;
   const [askVals, setAskVals] = useState<Record<string, string>>({});
   const [boxTexts, setBoxTexts] = useState<Record<number, string>>({});
+  // Display prefs (actions-pill settings, Users-page pattern, persisted
+  // per browser): terminal text size + "[02:41:03 INFO]" stamp toggle.
+  // Applied live to every pane via Terminal fontSize/showLogPrefix props
+  // (no reconnect needed — Terminal reads them through refs).
+  const FONT_SIZE_KEY = 'ks.terminal.fontSize';
+  const SHOW_PREFIX_KEY = 'ks.terminal.showLogPrefix';
+  const FONT_SIZE_OPTIONS = [11, 12, 13, 14, 15, 16, 18];
+  const readFontSize = (): number => {
+    if (typeof window === 'undefined') return 13;
+    const n = Number(window.localStorage.getItem(FONT_SIZE_KEY));
+    if (!Number.isFinite(n)) return 13;
+    return Math.max(11, Math.min(18, Math.floor(n)));
+  };
+  const readShowPrefix = (): boolean => {
+    if (typeof window === 'undefined') return true;
+    const raw = window.localStorage.getItem(SHOW_PREFIX_KEY);
+    if (raw === null) return true;
+    return raw !== '0' && raw.toLowerCase() !== 'false' && raw.toLowerCase() !== 'off';
+  };
+  const [fontSize, setFontSize] = useState<number>(readFontSize);
+  const [showLogPrefix, setShowLogPrefix] = useState<boolean>(readShowPrefix);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(FONT_SIZE_KEY, String(fontSize));
+  }, [fontSize]);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(SHOW_PREFIX_KEY, showLogPrefix ? '1' : '0');
+  }, [showLogPrefix]);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (settingsRef.current && !settingsRef.current.contains(event.target as Node)) {
+        setSettingsOpen(false);
+      }
+    }
+    if (settingsOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [settingsOpen]);
   // askFor — parameterized shortcut awaiting its variables in the ask
   // dialog (sub-page popup listing every placeholder). `target` decides
   // the confirm action: box fills the bottom input, direct transmits to
@@ -749,6 +797,79 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
         </button>
+        <div className="relative" ref={settingsRef}>
+          <button
+            type="button"
+            onClick={() => setSettingsOpen((prev) => !prev)}
+            className={`ks-tab inline-flex items-center justify-center transition-colors ${settingsOpen ? 'is-open' : ''}`}
+            style={PILL_TAB_STYLE}
+            aria-label="Display settings"
+            aria-expanded={settingsOpen}
+            aria-haspopup="true"
+            title="Display settings"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4" aria-hidden="true">
+              <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" />
+              <line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" />
+              <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
+              <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
+            </svg>
+            {!showLogPrefix && (
+              <span className="w-1.5 h-1.5 rounded-full bg-sky-400" aria-hidden="true" />
+            )}
+          </button>
+          {settingsOpen && (
+            <div className="absolute right-0 top-full mt-1 z-30 w-64">
+              <div className="ks-dropdown min-w-[260px] animate-in fade-in slide-in-from-to duration-150">
+                <div className="p-3 space-y-3">
+                  <div>
+                    <label className="block text-xs text-gray-400 uppercase tracking-wide mb-1.5" htmlFor="terminal-text-size">Text size</label>
+                    <select
+                      id="terminal-text-size"
+                      value={String(fontSize)}
+                      onChange={(e) => setFontSize(Math.max(11, Math.min(18, Number(e.target.value) || 13)))}
+                      className="w-full glass-field"
+                      aria-label="Terminal text size"
+                    >
+                      {FONT_SIZE_OPTIONS.map((n) => (
+                        <option key={n} value={String(n)} className="bg-neutral-900 text-white">
+                          {n}px{n === 13 ? ' (default)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[11px] text-gray-500 mt-1.5">Terminal + input text size.</p>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 pt-1">
+                    <div className="min-w-0">
+                      <p className="text-xs text-gray-200 font-mono truncate" title="[02:41:03 INFO]">[02:41:03 INFO]</p>
+                      <p className="text-[11px] text-gray-500 mt-0.5">Log timestamp prefix</p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={showLogPrefix}
+                      aria-label="Show log timestamp prefix"
+                      title={showLogPrefix ? 'Hide [02:41:03 INFO] prefix' : 'Show [02:41:03 INFO] prefix'}
+                      onClick={() => setShowLogPrefix((v) => !v)}
+                      className={`relative w-9 h-5 rounded-full transition shrink-0 ${showLogPrefix ? 'bg-green-600' : 'bg-neutral-700'}`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition ${showLogPrefix ? 'translate-x-4' : ''}`} />
+                    </button>
+                  </div>
+                  <div className="pt-2 border-t border-white/5 flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSettingsOpen(false)}
+                      className="px-3 py-1.5 text-sm text-gray-400 hover:text-white"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
         {pillFeedback !== '' && (
           <span className="text-xs text-emerald-300 px-1 whitespace-nowrap" role="status" aria-live="polite">{pillFeedback}</span>
         )}
