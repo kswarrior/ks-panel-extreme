@@ -562,7 +562,7 @@ const InstanceForm: React.FC = () => {
                     {imageOptions.length} runtime{imageOptions.length === 1 ? '' : 's'}
                   </span>
                 </div>
-                <div role="radiogroup" aria-label="Runtime image" className="space-y-1.5">
+                <div role="radiogroup" aria-label="Runtime image" className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
                   {imageOptions.map((o) => {
                     const selected = effectiveImageKey.toLowerCase() === o.name.toLowerCase();
                     return (
