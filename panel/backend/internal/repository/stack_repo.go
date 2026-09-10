@@ -588,7 +588,10 @@ func (r *StackRepository) ApplyAnnounce(stackID int64, in AnnounceInput) (pendin
 	}
 	// Sync the requested set: insert missing as pending, refresh the
 	// access_level on kept rows (granted state untouched), delete rows
-	// the app no longer asks for.
+	// the app no longer asks for. Every statement here runs on tx, never
+	// on the pool: the SQLite pool is MaxOpenConns(1), so a pool query
+	// from inside this transaction would deadlock holding the write lock
+	// and jam every other writer in the process.
 	keep := make(map[string]StackPermissionReq, len(needs))
 	for _, p := range needs {
 		keep[p.Capability] = p
@@ -613,20 +616,35 @@ func (r *StackRepository) ApplyAnnounce(stackID int64, in AnnounceInput) (pendin
 			return 0, err
 		}
 	}
-	existing, err := r.ListStackPermissions(stackID)
+	rows, err := tx.Query(
+		`SELECT capability FROM stack_permissions WHERE stack_id = ?`,
+		stackID,
+	)
 	if err != nil {
 		return 0, err
 	}
-	// ListStackPermissions opens its own queries on r.db — safe alongside
-	// the open tx since it only reads.
-	for _, p := range existing {
-		if _, ok := keep[p.Capability]; !ok {
-			if _, err := tx.Exec(
-				`DELETE FROM stack_permissions WHERE stack_id = ? AND capability = ?`,
-				stackID, p.Capability,
-			); err != nil {
-				return 0, err
-			}
+	var drop []string
+	for rows.Next() {
+		var cap string
+		if err := rows.Scan(&cap); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		if _, ok := keep[cap]; !ok {
+			drop = append(drop, cap)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return 0, err
+	}
+	rows.Close()
+	for _, cap := range drop {
+		if _, err := tx.Exec(
+			`DELETE FROM stack_permissions WHERE stack_id = ? AND capability = ?`,
+			stackID, cap,
+		); err != nil {
+			return 0, err
 		}
 	}
 	if err := tx.Commit(); err != nil {
