@@ -6,6 +6,7 @@ import FormPage from '@/shared/components/forms/FormPage';
 import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
 import GlassCard from '@/shared/components/ui/Card';
+import GlassModal from '@/shared/components/ui/Modal';
 import { SearchableSelect, type SearchableOption } from '@/shared/components/ui/SearchableSelect';
 import { glassFieldClass } from '@/shared/components/ui/Field';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
@@ -303,9 +304,9 @@ const InstanceForm: React.FC = () => {
     });
   }, [editor.env, effectiveImageKey, imageOptions.length]);
 
-  // Icon editor collapsed by default — header row shows the live preview +
-  // an "Icon" toggle that opens the sub-panel for SVG + colour editing.
-  const [showIconEditor, setShowIconEditor] = useState(false);
+  // Icon editor lives in a modal (Mods → Install Mod pattern). The General
+  // card only shows the live preview + a small edit button.
+  const [iconModalOpen, setIconModalOpen] = useState(false);
 
   if (loading) {
     return (
@@ -382,104 +383,47 @@ const InstanceForm: React.FC = () => {
               <p className="text-xs text-gray-500">Name, owner, node and template — everything the deployment runs on.</p>
             </div>
 
-            <div className="ks-card ks-form-card rounded-md p-3 space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="flex flex-col items-center gap-1 shrink-0" title="Icon preview">
-                  <span
-                    className="w-12 h-12 rounded-lg flex items-center justify-center border bg-white/[0.05] border-white/10"
-                    style={color ? { color } : undefined}
-                    aria-hidden="true"
-                  >
-                    {icon ? (
-                      <span
-                        className="w-6 h-6 block [&>svg]:w-6 [&>svg]:h-6 [&>svg]:block"
-                        dangerouslySetInnerHTML={{ __html: icon.replace(/<svg /, '<svg width="24" height="24" ') }}
-                      />
-                    ) : selectedTemplate ? (
-                      <KindIcon kind={kindKey(selectedTemplate.kind)} className="w-6 h-6" />
-                    ) : (
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" /><path d="m3.3 7 8.7 5 8.7-5" /><path d="M12 22V12" /></svg>
-                    )}
-                  </span>
-                  <span className="text-[11px] text-gray-500 max-w-[4.5rem] truncate">{(displayName.trim() || name.trim()) || 'Instance'}</span>
-                </div>
+            <div className="flex items-center gap-3">
+              <div className="relative shrink-0" title="Icon preview">
+                <span
+                  className="w-12 h-12 rounded-lg flex items-center justify-center border bg-white/[0.05] border-white/10"
+                  style={color ? { color } : undefined}
+                  aria-hidden="true"
+                >
+                  {icon ? (
+                    <span
+                      className="w-6 h-6 block [&>svg]:w-6 [&>svg]:h-6 [&>svg]:block"
+                      dangerouslySetInnerHTML={{ __html: icon.replace(/<svg /, '<svg width="24" height="24" ') }}
+                    />
+                  ) : selectedTemplate ? (
+                    <KindIcon kind={kindKey(selectedTemplate.kind)} className="w-6 h-6" />
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" /><path d="m3.3 7 8.7 5 8.7-5" /><path d="M12 22V12" /></svg>
+                  )}
+                </span>
                 <button
                   type="button"
-                  onClick={() => setShowIconEditor((v) => !v)}
-                  aria-expanded={showIconEditor}
-                  title={showIconEditor ? 'Hide icon editor' : 'Show icon editor'}
-                  className={`flex-1 min-w-0 flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-colors ${showIconEditor ? 'border-sky-400/60 bg-sky-500/10' : 'border-white/10 bg-white/5 hover:border-white/20'}`}
+                  onClick={() => setIconModalOpen(true)}
+                  title="Edit icon & colour"
+                  aria-label="Edit icon & colour"
+                  className="absolute -bottom-1.5 -right-1.5 w-6 h-6 rounded-full flex items-center justify-center border border-white/20 bg-neutral-800 hover:bg-neutral-700 text-gray-200 transition-colors"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0 text-gray-200" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21" /></svg>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-medium text-gray-100">Icon</span>
-                    <span className="block text-[11px] text-gray-500 truncate">Edit SVG &amp; colour</span>
-                  </span>
-                  <span
-                    role="switch"
-                    aria-checked={showIconEditor}
-                    className={`ks-toggle shrink-0 ${showIconEditor ? 'is-on' : ''}`}
-                    aria-hidden="true"
-                  >
-                    <span className="ks-toggle__thumb" />
-                  </span>
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`w-4 h-4 shrink-0 text-gray-400 transition-transform ${showIconEditor ? 'rotate-180' : ''}`} aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                 </button>
               </div>
-              {showIconEditor && (
-              <div className="ml-[3.75rem] space-y-3 border-l border-white/10 pl-3">
-              <div>
-                    <span className="block text-sm font-medium text-gray-200 mb-1">Icon</span>
-                    <div className="flex gap-2 overflow-x-auto ks-hscroll pb-2 -mx-0.5 px-0.5">
-                      {ICON_PRESETS.map((p) => (
-                        <button
-                          key={p.value}
-                          type="button"
-                          onClick={() => setIcon(p.svg)}
-                          className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors ${icon === p.svg ? 'border-sky-400/60 bg-sky-500/15' : 'border-white/10 bg-white/5 hover:border-white/20'}`}
-                          title={p.label}
-                        >
-                          {p.svg && (
-                            <span dangerouslySetInnerHTML={{ __html: p.svg.replace(/<svg /, '<svg width="16" height="16" ') }} />
-                          )}
-                          <span className="text-xs text-gray-300">{p.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <span className="block text-sm font-medium text-gray-200 mb-1">Colour</span>
-                    <div className="flex gap-2 overflow-x-auto ks-hscroll pb-2 -mx-0.5 px-0.5">
-                      {COLOR_SWATCHES.map((c) => (
-                        <button
-                          key={c.value}
-                          type="button"
-                          onClick={() => setColor(c.value)}
-                          className={`shrink-0 w-8 h-8 rounded-lg border transition-transform ${color === c.value && c.value ? 'border-white scale-105' : color === c.value && !c.value ? 'border-white/50' : 'border-white/10 hover:border-white/30'}`}
-                          style={{ backgroundColor: c.value || 'transparent' }}
-                          title={c.label}
-                        >
-                          {color === c.value && (
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" className="w-5 h-5 m-auto"><polyline points="20 6 9 17 4 12" /></svg>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-              <input
-                value={icon}
-                onChange={(e) => setIcon(e.target.value)}
-                className={glassFieldClass}
-                placeholder="Paste custom SVG or pick a preset above"
-              />
-              <input
-                type="color"
-                value={color || '#a78bfa'}
-                onChange={(e) => setColor(e.target.value)}
-                className="w-full h-10 rounded-lg border border-white/10 cursor-pointer"
-              />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm text-gray-200 font-medium truncate">{(displayName.trim() || name.trim()) || 'New instance'}</p>
+                <p className="text-xs text-gray-500 truncate">Icon &amp; colour shown on the instance card</p>
               </div>
-              )}
+              <button
+                type="button"
+                onClick={() => setIconModalOpen(true)}
+                title="Edit icon & colour"
+                className="ks-ghost-btn shrink-0 px-2.5 py-1.5 rounded-md text-xs border border-white/10 bg-white/5 text-white hover:bg-white/10 inline-flex items-center gap-1.5"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21" /></svg>
+                Icon
+              </button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -761,6 +705,90 @@ const InstanceForm: React.FC = () => {
 
       </div>
     </FormPage>
+
+      {/* ---- Icon & colour sub-page (Mods → Install Mod modal pattern) ---- */}
+      <GlassModal
+        open={iconModalOpen}
+        onClose={() => setIconModalOpen(false)}
+        title="Icon & colour"
+        maxWidth="max-w-lg"
+        footer={
+          <>
+            <button onClick={() => setIconModalOpen(false)} className="ks-btn-cancel ks-btn-ghost">Cancel</button>
+            <button onClick={() => setIconModalOpen(false)} className="ks-btn-form ks-btn-primary">Done</button>
+          </>
+        }
+      >
+        <div className="flex items-center gap-3">
+          <span
+            className="w-12 h-12 rounded-lg flex items-center justify-center border bg-white/[0.05] border-white/10 shrink-0"
+            style={color ? { color } : undefined}
+            aria-hidden="true"
+          >
+            {icon ? (
+              <span
+                className="w-6 h-6 block [&>svg]:w-6 [&>svg]:h-6 [&>svg]:block"
+                dangerouslySetInnerHTML={{ __html: icon.replace(/<svg /, '<svg width="24" height="24" ') }}
+              />
+            ) : selectedTemplate ? (
+              <KindIcon kind={kindKey(selectedTemplate.kind)} className="w-6 h-6" />
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" /><path d="m3.3 7 8.7 5 8.7-5" /><path d="M12 22V12" /></svg>
+            )}
+          </span>
+          <p className="text-xs text-gray-500">Live preview — pick a preset or paste custom SVG below.</p>
+        </div>
+        <div>
+          <span className="block text-sm font-medium text-gray-200 mb-1">Icon</span>
+          <div className="flex gap-2 overflow-x-auto ks-hscroll pb-2 -mx-0.5 px-0.5">
+            {ICON_PRESETS.map((p) => (
+              <button
+                key={p.value}
+                type="button"
+                onClick={() => setIcon(p.svg)}
+                className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors ${icon === p.svg ? 'border-sky-400/60 bg-sky-500/15' : 'border-white/10 bg-white/5 hover:border-white/20'}`}
+                title={p.label}
+              >
+                {p.svg && (
+                  <span dangerouslySetInnerHTML={{ __html: p.svg.replace(/<svg /, '<svg width="16" height="16" ') }} />
+                )}
+                <span className="text-xs text-gray-300">{p.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <span className="block text-sm font-medium text-gray-200 mb-1">Colour</span>
+          <div className="flex gap-2 overflow-x-auto ks-hscroll pb-2 -mx-0.5 px-0.5">
+            {COLOR_SWATCHES.map((c) => (
+              <button
+                key={c.value}
+                type="button"
+                onClick={() => setColor(c.value)}
+                className={`shrink-0 w-8 h-8 rounded-lg border transition-transform ${color === c.value && c.value ? 'border-white scale-105' : color === c.value && !c.value ? 'border-white/50' : 'border-white/10 hover:border-white/30'}`}
+                style={{ backgroundColor: c.value || 'transparent' }}
+                title={c.label}
+              >
+                {color === c.value && (
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" className="w-5 h-5 m-auto"><polyline points="20 6 9 17 4 12" /></svg>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+        <input
+          value={icon}
+          onChange={(e) => setIcon(e.target.value)}
+          className={glassFieldClass}
+          placeholder="Paste custom SVG or pick a preset above"
+        />
+        <input
+          type="color"
+          value={color || '#a78bfa'}
+          onChange={(e) => setColor(e.target.value)}
+          className="w-full h-10 rounded-lg border border-white/10 cursor-pointer"
+        />
+      </GlassModal>
     </>
   );
 };
