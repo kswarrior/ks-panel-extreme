@@ -5,6 +5,7 @@ import { confirmDialog } from '@/shared/stores/confirmStore';
 import { useThemeStore } from '@/shared/stores/themeStore';
 import type { Theme } from '@/features/themes/types/theme';
 import { rgbaAt } from '@/theme/colorUtils';
+import { getSharedPanelComponentContent } from '@/features/instance-pages/sharedPanelComponents';
 
 // BlockRow mirrors the BlockRow type used in the Instance Page Studio's
 // visual block editor.
@@ -284,16 +285,11 @@ function resolveComponentTokens(text: string, components: PageComponentDef[]): s
         return componentToHtml(comp);
       }
       // Panel-shared fallback: no import row needed.
-      try {
-        // Lazy require avoids a hard import cycle (shared registry is
-        // frontend-only and never touches CustomPageView).
-        const mod = require('@/features/instance-pages/sharedPanelComponents') as typeof import('@/features/instance-pages/sharedPanelComponents');
-        const sharedHtml = mod.getSharedPanelComponentContent(name);
-        if (sharedHtml) {
-          changed = true;
-          return sharedHtml;
-        }
-      } catch { /* registry unavailable — leave literal */ }
+      const sharedHtml = getSharedPanelComponentContent(name);
+      if (sharedHtml) {
+        changed = true;
+        return sharedHtml;
+      }
       return _match; // leave unknown token as-is
     });
     cur = next;
@@ -332,7 +328,9 @@ function resolveConfigTokens(text: string, configure?: PageConfigureVar[], confi
 
 function resolveAllTokens(text: string, components?: PageComponentDef[], configure?: PageConfigureVar[], config?: Record<string, string>): string {
   let cur = text;
-  if (components && components.length > 0) cur = resolveComponentTokens(cur, components);
+  // Always run component resolution: shared panel components resolve even
+  // when the page stores no local component rows (import-by-reference).
+  if (cur && cur.indexOf('{{component:') !== -1) cur = resolveComponentTokens(cur, components ?? []);
   if (configure || config) cur = resolveConfigTokens(cur, configure, config);
   // Components may contain config tokens too — second pass handles nested.
   if (configure || config) cur = resolveConfigTokens(cur, configure, config);
@@ -341,6 +339,7 @@ function resolveAllTokens(text: string, components?: PageComponentDef[], configu
 
 // componentToHtml converts a component definition to its HTML representation.
 // This is used when substituting {{component:name}} in HTML content.
+// Shared refs carry no source — the HTML comes from the panel registry.
 function componentToHtml(comp: PageComponentDef): string {
   switch (comp.type) {
     case 'html':
@@ -349,6 +348,10 @@ function componentToHtml(comp: PageComponentDef): string {
       return markdownToHtml(comp.content);
     case 'block':
       return blocksToHtml(comp.content);
+    case 'shared': {
+      const key = (comp.shared || comp.name || '').trim();
+      return getSharedPanelComponentContent(key);
+    }
     default:
       return comp.content;
   }

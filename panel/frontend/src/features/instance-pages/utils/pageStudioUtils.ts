@@ -7,6 +7,7 @@
 import type { PageActionDef, InstancePageSubPage, PageComponentDef, PageConfigureVar } from '@/features/instance-pages/types/instancePage';
 import { parseSubPages, parsePageComponents, parsePageConfigure } from '@/features/instance-pages/types/instancePage';
 import { activePageThemeCss } from '@/shared/components/ui/CustomPageView';
+import { getSharedPanelComponentContent } from '@/features/instance-pages/sharedPanelComponents';
 import type { ActionRow, SubPageRow, ComponentRow, ConfigureRow } from '@/features/instance-pages/types/pageStudio';
 
 // ---------------------------------------------------------------------------
@@ -358,11 +359,15 @@ export function renderPreview(contentType: string, content: string, components?:
   // React-like component substitution for static preview: resolve {{component:name}}
   // tokens so authors see the same composition they'd get on a live instance
   // (main or sub-page). Supports nested components via up to 5 passes.
-  if (components && components.length > 0) {
+  // Shared refs resolve from the panel registry; registry keys also resolve
+  // without an explicit import row (same as the live CustomPageView).
+  if (safeContent.indexOf('{{component:') !== -1) {
     const COMPONENT_TOKEN_RE = /\{\{\s*component:([A-Za-z0-9_][A-Za-z0-9_-]*)\s*\}\}/g;
-    const compMap = new Map(components.map((c) => [c.name, c]));
+    const compMap = new Map((components || []).map((c) => [c.name, c]));
     const compToPreviewHtml = (comp: PageComponentDef): string => {
       switch (comp.type) {
+        case 'shared':
+          return getSharedPanelComponentContent((comp as any).shared || comp.name);
         case 'html': return comp.content;
         case 'markdown': {
           // Lightweight markdown → html for preview (mirrors CustomPageView)
@@ -403,8 +408,10 @@ export function renderPreview(contentType: string, content: string, components?:
       prev = cur;
       cur = cur.replace(COMPONENT_TOKEN_RE, (_m: string, name: string) => {
         const comp = compMap.get(name);
-        if (!comp) return _m;
-        return compToPreviewHtml(comp);
+        if (comp) return compToPreviewHtml(comp);
+        const sharedHtml = getSharedPanelComponentContent(name);
+        if (sharedHtml) return sharedHtml;
+        return _m;
       });
     }
     safeContent = cur;
