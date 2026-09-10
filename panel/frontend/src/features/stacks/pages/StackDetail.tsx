@@ -69,6 +69,40 @@ function stepLabel(s: any, i: number): string {
   return s.action || s.command || s.url || s.path || (typeof s.content === 'string' && s.content.slice(0, 30)) || `step ${i + 1}`;
 }
 
+// ConnectionToggle is the on/off switch heading each App-proxy serving
+// mode. A real switch (not a checkbox): flipping it on reveals that
+// mode's options, flipping it off clears + persists that mode right away.
+function ConnectionToggle({ on, onFlip, disabled, label, hint }: {
+  on: boolean;
+  onFlip: (next: boolean) => void;
+  disabled?: boolean;
+  label: string;
+  hint?: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      disabled={disabled}
+      onClick={() => onFlip(!on)}
+      className="flex items-center gap-3 text-left w-full disabled:opacity-50"
+    >
+      <span className={`relative w-9 h-5 rounded-full transition-colors shrink-0 ${on ? 'bg-emerald-500' : 'bg-white/10'}`}>
+        <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${on ? 'left-[18px]' : 'left-0.5'}`} />
+      </span>
+      <span className="min-w-0">
+        <span className="block text-sm text-gray-100 truncate">{label}</span>
+        {hint && <span className="block text-[11px] text-gray-500">{hint}</span>}
+      </span>
+      <span className={`ml-auto text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border shrink-0 ${on ? 'border-emerald-700/40 bg-emerald-950/40 text-emerald-200' : 'border-white/10 bg-white/5 text-gray-500'}`}>
+        {on ? 'on' : 'off'}
+      </span>
+    </button>
+  );
+}
+
 // StackDetail — one stack, laid out like the template detail page: themed
 // header + stat grid, info sections (location / workflows / permissions),
 // the proxy + pairing editors.
@@ -598,7 +632,7 @@ const StackDetail: React.FC = () => {
     try {
       // Forward the current connection fields: the backend overwrites the
       // whole row, so omitting them would silently clear the proxy/remote
-      // mount on every name edit.
+      // mount and the serve port on every name edit.
       await updateStack(stack.id, {
         name: editName.trim(),
         category: editCategory,
@@ -611,6 +645,8 @@ const StackDetail: React.FC = () => {
         remoteAddress: remoteAddress.trim(),
         remoteUseTls: remoteUseTls,
         remoteSkipVerify: remoteSkipVerify,
+        servePort: servePort.trim() === '' ? 0 : Number(servePort),
+        serveAuth: serveAuth,
       });
       setEditOpen(false);
       await load();
@@ -880,12 +916,21 @@ const StackDetail: React.FC = () => {
       <GlassCard>
         <h2 className="text-sm font-medium text-gray-200 mb-1">App proxy</h2>
         <p className="text-xs text-gray-500 mb-3">
-          Float an externally-run Go app (a complete program you run yourself, e.g. a dashboard on{' '}
+          Serve the externally-run Go app (a complete program you run yourself, e.g. a dashboard on{' '}
           <code className="font-mono">127.0.0.1:6600</code> or another host like{' '}
-          <code className="font-mono">10.0.0.9:7700</code>) at <code className="font-mono">/&lt;root&gt;/</code> behind
-          the panel session — no API key needed, the app sees you via <code className="font-mono">X-Panel-User-*</code> headers.
+          <code className="font-mono">10.0.0.9:7700</code>) two independent ways — no API key needed, the app sees you via <code className="font-mono">X-Panel-User-*</code> headers.
           Works while the stack is active.
         </p>
+        <div className="rounded-lg border border-white/5 bg-white/[0.02] p-3">
+          <ConnectionToggle
+            on={pathOn}
+            onFlip={(v) => void togglePath(v)}
+            disabled={proxySaving || serveSaving}
+            label={`Serve under /${proxyRoot.trim() || '…'}`}
+            hint="Float the app at /<root>/ behind your panel session"
+          />
+          {pathOn && (
+          <div className="pt-3">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg">
           <label className="block">
             <span className="text-xs text-gray-400">Loopback port (empty = off, optional for remote)</span>
@@ -953,6 +998,51 @@ const StackDetail: React.FC = () => {
             {probeResult.reachable === 'yes' ? '● reachable' : `● unreachable${probeResult.note ? ` — ${probeResult.note}` : ''}`}
           </p>
         ) : null}
+          </div>
+          )}
+        </div>
+
+        <div className="rounded-lg border border-white/5 bg-white/[0.02] p-3 mt-3">
+          <ConnectionToggle
+            on={portOn}
+            onFlip={(v) => void toggleServe(v)}
+            disabled={proxySaving || serveSaving}
+            label="Open on its own port as /"
+            hint="The panel itself listens on 127.0.0.1:<port> (loopback only) and renders the whole app at the origin root"
+          />
+          {portOn && (
+          <div className="pt-3 space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg">
+              <label className="block">
+                <span className="text-xs text-gray-400">Port</span>
+                <input
+                  value={servePort}
+                  onChange={(e) => setServePort(e.target.value.replace(/[^0-9]/g, '').slice(0, 5))}
+                  placeholder="6901"
+                  inputMode="numeric"
+                  className="block w-full mt-1 bg-black/30 border border-white/10 rounded-md text-sm text-white px-3 py-1.5 font-mono focus:outline-none focus:border-white/40"
+                />
+              </label>
+              <label className="flex items-center gap-2 text-xs text-gray-300 sm:pt-5">
+                <input type="checkbox" checked={serveAuth} onChange={(e) => setServeAuth(e.target.checked)} className="w-4 h-4 accent-emerald-500" />
+                Require panel login
+              </label>
+            </div>
+            <div className="flex gap-2 flex-wrap items-center">
+              <button type="button" onClick={() => void saveServe()} disabled={serveSaving} className="text-xs px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white disabled:opacity-50">
+                {serveSaving ? 'Saving…' : 'Save port'}
+              </button>
+              {stack.serve_listening && stack.serve_port ? (
+                <a href={`http://127.0.0.1:${stack.serve_port}/`} className="text-xs px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white">
+                  Open :{stack.serve_port}/
+                </a>
+              ) : stack.serve_port ? (
+                <span className="text-[11px] font-mono text-amber-300">○ not listening — check the panel log</span>
+              ) : null}
+            </div>
+          </div>
+          )}
+        </div>
       </GlassCard>
 
       <GlassCard>
