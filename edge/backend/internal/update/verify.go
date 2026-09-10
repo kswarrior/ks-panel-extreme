@@ -48,7 +48,13 @@ func fetchEdgeManifest() (versionManifest, error) {
 	var m versionManifest
 	client := &http.Client{Timeout: 15 * time.Second}
 	url := fmt.Sprintf("%s?t=%d", ksedgeVersionURL, time.Now().Unix())
-	httpResp, err := client.Get(url)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return m, fmt.Errorf("could not reach update server: %w", err)
+	}
+	req.Header.Set("Cache-Control", "no-cache")
+	req.Header.Set("Pragma", "no-cache")
+	httpResp, err := client.Do(req)
 	if err != nil {
 		return m, fmt.Errorf("could not reach update server: %w", err)
 	}

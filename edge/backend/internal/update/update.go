@@ -270,7 +270,15 @@ func handleCheck(w http.ResponseWriter) {
 	}
 	client := &http.Client{Timeout: 15 * time.Second}
 	url := fmt.Sprintf("%s?t=%d", ksedgeVersionURL, time.Now().Unix())
-	httpResp, err := client.Get(url)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		resp.Error = "could not reach update server: " + err.Error()
+		writeJSON(w, resp)
+		return
+	}
+	req.Header.Set("Cache-Control", "no-cache")
+	req.Header.Set("Pragma", "no-cache")
+	httpResp, err := client.Do(req)
 	if err != nil {
 		resp.Error = "could not reach update server: " + err.Error()
 		writeJSON(w, resp)
