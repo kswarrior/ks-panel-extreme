@@ -50,6 +50,23 @@ type Stack struct {
 	// Migration 072.
 	ProxyPort    int    `json:"proxy_port"`
 	ProxyRootURL string `json:"proxy_root_url,omitempty"`
+	// RemoteAddress is the node-style dial address of the stack app when it
+	// runs on ANOTHER host (host:port or bare host, e.g. "10.0.0.9:7700").
+	// "" means same-host: the proxy dials 127.0.0.1:ProxyPort.
+	// RemoteUseTLS flips the proxy/probe between http:// and https://.
+	// RemoteSkipVerify skips TLS verify for self-signed remotes.
+	// Migration 076.
+	RemoteAddress    string `json:"remote_address,omitempty"`
+	RemoteUseTLS     bool   `json:"remote_use_tls"`
+	RemoteSkipVerify bool   `json:"remote_skip_verify"`
+	// TokenPrefix is the first 8 chars of the pairing token so the operator
+	// can recognise which token is configured (the raw token is returned
+	// only at create/rotate time, never again — mirrors nodes).
+	TokenPrefix string `json:"token_prefix,omitempty"`
+	// Status is "up" or "down" from heartbeat freshness. LastSeenAt is the
+	// UTC timestamp of the last heartbeat (nil = never connected).
+	Status     string     `json:"status"`
+	LastSeenAt *time.Time `json:"last_seen_at,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
