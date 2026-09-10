@@ -18,13 +18,13 @@ func TestEmbeddedLibraryShipsPages(t *testing.T) {
 	// Spot-check a canonical page that must always be present.
 	found := false
 	for _, n := range names {
-		if n == "home.json" {
+		if n == "minecraft-properties.json" {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Fatalf("embedded library must contain home.json, got %v", names)
+		t.Fatalf("embedded library must contain minecraft-properties.json, got %v", names)
 	}
 }
 
