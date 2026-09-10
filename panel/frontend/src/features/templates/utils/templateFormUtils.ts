@@ -1,6 +1,7 @@
 // TemplateForm utilities - extracted from TemplateForm.tsx
 
 import type { TemplateFormState, PortMapping, Mount, ResourceLimits, FeatureCaps, EnvVariable, InstallStep, TemplateAction, ActionStep, Label, Device, Healthcheck, Advanced, KvRuntime, MpRuntime, LxdRuntime, PageOverride, RestartPolicy, NetworkMode, LogLevel, InstallAction } from '../types/templateForm';
+import { parseSpecDocument, stringifySpecDocument } from './templateSpecYaml';
 import { parsePageActions, parsePageComponents, parsePageConfigure, parseSubPages, type InstancePage } from '@/features/instance-pages/types/instancePage';
 import { DEFAULT_INSTANCE_CONTROLS, isControlsCustom, resolveInstanceControls } from '@/features/instances/utils/instanceControls';
 // emptyForm is a runtime value (not a type) — it seeds every partial
