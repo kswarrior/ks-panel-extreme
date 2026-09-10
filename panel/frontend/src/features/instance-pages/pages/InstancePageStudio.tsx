@@ -4,6 +4,7 @@ import {
   getInstancePage,
   createInstancePage,
   updateInstancePage,
+  buildInstancePage,
   executePageAction,
   listInstances,
   type InstancePageAction,
@@ -45,6 +46,7 @@ import {
 import {
   PageStudioTabs,
   PageStudioContentSection,
+  PageStudioReactSection,
   PageStudioSubPagesSection,
   PageStudioActionsSection,
   PageStudioComponentsSection,
@@ -96,10 +98,14 @@ const InstancePageStudio: React.FC = () => {
     content_html: '',
     content_markdown: '',
     content_blocks: '',
+    source_tsx: '',
+    bundle_css: '',
     icon_svg: '',
     icon_color: '',
     actions: '',
   });
+  // React build state (POST /:id/build result surfaced on the React tab).
+  const [building, setBuilding] = useState(false);
 
   // Saved-action rows (edited on the Actions tab, persisted with the page).
   const [actions, setActions] = useState<ActionRow[]>([]);
@@ -187,8 +193,9 @@ const InstancePageStudio: React.FC = () => {
   const currentContent = useMemo(() => {
     if (page.content_type === 'html') return page.content_html ?? '';
     if (page.content_type === 'markdown') return page.content_markdown ?? '';
+    if (page.content_type === 'react') return (page as any).source_tsx ?? '';
     return page.content_blocks ?? '';
-  }, [page.content_type, page.content_html, page.content_markdown, page.content_blocks]);
+  }, [page.content_type, page.content_html, page.content_markdown, page.content_blocks, (page as any).source_tsx]);
 
   const actionDefs = useMemo(() => actionsToDefs(actions), [actions]);
 
@@ -206,7 +213,29 @@ const InstancePageStudio: React.FC = () => {
   const handleContentChange = (value: string) => {
     if (page.content_type === 'html') onChange('content_html', value);
     else if (page.content_type === 'markdown') onChange('content_markdown', value);
+    else if ((page.content_type as string) === 'react') onChange('source_tsx' as any, value as any);
     else onChange('content_blocks', value);
+  };
+
+  // Build the React bundle (validates Studio source server-side). Sends the
+  // draft source so authors can build without saving first.
+  const handleBuild = async () => {
+    if (!isEdit || pageId == null) { setError('Save the page first to build it.'); return; }
+    setBuilding(true);
+    setError('');
+    try {
+      const res = await buildInstancePage(pageId, {
+        source_tsx: (page as any).source_tsx ?? '',
+        bundle_css: (page as any).bundle_css ?? '',
+      });
+      setPage((p) => ({ ...p, build_status: res.build_status, build_log: res.build_log } as any));
+      setNotice(res.build_status === 'ok' ? 'Build ok — bundle stored. Re-link templates to ship it.' : `Build: ${res.build_log}`);
+    } catch (e: any) {
+      setPage((p) => ({ ...p, build_status: 'error' } as any));
+      setError(getErrorMessage(e, 'Build failed'));
+    } finally {
+      setBuilding(false);
+    }
   };
 
   const addAction = () => setActions((a) => [...a, blankAction()]);
@@ -326,12 +355,16 @@ const InstancePageStudio: React.FC = () => {
       html: page.content_html,
       markdown: page.content_markdown,
       blocks: page.content_blocks,
+      // React preview executes the draft source (build output equals source
+      // in v1) so authors see state without building first.
+      bundle: (page.content_type as string) === 'react' ? ((page as any).bundle_js || (page as any).source_tsx) : undefined,
+      bundleCss: (page.content_type as string) === 'react' ? ((page as any).bundle_css ?? '') : undefined,
       actions: actionDefs.length ? actionDefs : undefined,
       components: compDefs.length ? compDefs : undefined,
       configure: cfgDefs.length ? (cfgDefs as any) : undefined,
       config: Object.keys(cfgDefaults).length ? cfgDefaults : undefined,
     };
-  }, [editingSub, page.content_type, page.content_html, page.content_markdown, page.content_blocks, actionDefs, compDefs, cfgDefs, cfgDefaults]);
+  }, [editingSub, page.content_type, page.content_html, page.content_markdown, page.content_blocks, (page as any).source_tsx, (page as any).bundle_js, (page as any).bundle_css, actionDefs, compDefs, cfgDefs, cfgDefaults]);
 
   // Test-execute a saved action against the selected instance. The backend
   // only runs it when this page's slug is enabled in that instance's spec.
