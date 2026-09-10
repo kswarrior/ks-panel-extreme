@@ -339,6 +339,11 @@ go nodeSweepLoop(90*time.Second, time.Minute)
 
 	warnDuplicatePanelProcesses()
 
+	// Open the dedicated serve ports of active stacks (migration 077).
+	// Best-effort: bind failures are logged inside the reconciler and the
+	// detail page reports serve_listening=false — they never fail the boot.
+	handlers.ReconcileStackServePorts()
+
 	// Bind the TCP listener ourselves so we can wrap it with the
 	// DDoS-active gate (internal/security/ddoslistener.go). The wrapper
 	// inspects the live security state at the moment each connection

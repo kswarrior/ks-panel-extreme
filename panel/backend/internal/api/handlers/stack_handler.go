@@ -797,6 +797,8 @@ func ActivateStackHandler(w http.ResponseWriter, r *http.Request) {
 		Category: models.ActivityCategoryStack, Action: "activate", TargetID: &id,
 		Message: fmt.Sprintf("activated stack #%d", id),
 	})
+	// Activation may arm the dedicated serve port — sync the listener.
+	ReconcileStackServePort(id)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -830,6 +832,8 @@ func DeactivateStackHandler(w http.ResponseWriter, r *http.Request) {
 		Category: models.ActivityCategoryStack, Action: "deactivate", TargetID: &id,
 		Message: fmt.Sprintf("deactivated stack #%d", id),
 	})
+	// Inactive stacks never listen — drop the serve port if it had one.
+	ReconcileStackServePort(id)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -928,6 +932,8 @@ func ReinstallStackHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
+	// Reinstall deactivates — drop the serve listener until re-activation.
+	ReconcileStackServePort(id)
 	if err := repo.ResetStackGrants(id); err != nil {
 		log.Println("ReinstallStack reset grants error:", err)
 		http.Error(w, "server error", http.StatusInternalServerError)
