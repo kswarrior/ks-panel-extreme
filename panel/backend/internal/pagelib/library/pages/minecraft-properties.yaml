@@ -1,0 +1,525 @@
+# Server Properties — instance page (YAML authoring format).
+# Converted from minecraft-properties.json; edit this file, not JSON.
+# Multiline content uses `|` literal blocks (raw HTML/JS, no escaping);
+# actions/sub_pages/components/configure are native YAML lists.
+# See instance_pages/README.md for the field reference.
+name: Server Properties
+slug: mc-properties
+kind: custom
+category: minecraft
+description: 'Edit every server.properties key with the right editor (text, number, true/false, options, password) through saved instance-page actions. Stateful React page: auto-detects server.properties, mc/server.properties or /mc/server.properties, single flat card with all keys, global Apply/Cancel action pill (no per-row buttons, no category sections). Restart required.'
+content_type: react
+source_tsx: |
+  function Page() {
+    var el = React.createElement;
+    var bumpState = React.useState(0);
+    var bump = bumpState[1];
+    var R = React.useRef(null);
+    var mounted = React.useRef(true);
+    if (!R.current) {
+      R.current = {
+        loading: true, applyingAll: false, error: '', gate: false, missing: false,
+        activeAction: '', activePath: '', trying: '', tryingAction: '', lastErr: '',
+        values: {}, orig: {}, unknownOrder: [], busy: {},
+        q: '', seq: 0, applySeq: 0
+      };
+    }
+    var S = R.current;
+    function render() { if (mounted.current) bump(function (v) { return v + 1; }); }
+
+    var PATHS = [
+      { action: 'read_props', path: 'server.properties' },
+      { action: 'read_props_mc', path: 'mc/server.properties' },
+      { action: 'read_props_abs', path: '/mc/server.properties' }
+    ];
+    var ARG_RE = /^[A-Za-z0-9 ._/ :@+=,-]+$/;
+
+    var SCHEMA = [
+      { k: 'motd', label: 'MOTD', desc: 'Message of the day shown in the server list.', t: 'text', def: 'A Minecraft Server', cat: 'Server' },
+      { k: 'server-port', label: 'Server port', desc: 'TCP/UDP port clients connect to.', t: 'int', def: '25565', min: 1, max: 65535, cat: 'Network' },
+      { k: 'server-ip', label: 'Server IP', desc: 'Interface to bind to. Empty = all interfaces.', t: 'text', def: '', cat: 'Network', ph: '(empty = all interfaces)' },
+      { k: 'max-players', label: 'Max players', desc: 'Maximum simultaneous players.', t: 'int', def: '20', min: 1, max: 100000, cat: 'Server' },
+      { k: 'online-mode', label: 'Online mode', desc: 'Verify players with Mojang auth. Disable only for offline / proxy setups.', t: 'bool', def: 'true', cat: 'Server' },
+      { k: 'white-list', label: 'Whitelist', desc: 'Only whitelisted players may join.', t: 'bool', def: 'false', cat: 'Server' },
+      { k: 'enforce-whitelist', label: 'Enforce whitelist', desc: 'Kick non-whitelisted players when the whitelist is reloaded.', t: 'bool', def: 'false', cat: 'Server' },
+      { k: 'enforce-secure-profile', label: 'Enforce secure profile', desc: 'Require signed chat from clients (1.19+).', t: 'bool', def: 'true', cat: 'Server' },
+      { k: 'hide-online-players', label: 'Hide online players', desc: 'Hide the player list from server-list queries.', t: 'bool', def: 'false', cat: 'Server' },
+      { k: 'prevent-proxy-connections', label: 'Prevent proxy connections', desc: 'Kick players using a proxy/VPN (false by default).', t: 'bool', def: 'false', cat: 'Server' },
+      { k: 'op-permission-level', label: 'OP permission level', desc: 'Default permission level for /op (1-4).', t: 'int', def: '4', min: 1, max: 4, cat: 'Server' },
+      { k: 'function-permission-level', label: 'Function permission level', desc: 'Permission level for function execution (1-4).', t: 'int', def: '2', min: 1, max: 4, cat: 'Server' },
+      { k: 'player-idle-timeout', label: 'Player idle timeout', desc: 'Minutes before idle players are kicked. 0 = disabled.', t: 'int', def: '0', min: 0, max: 100000, cat: 'Server' },
+      { k: 'broadcast-console-to-ops', label: 'Broadcast console to ops', desc: 'Send console command output to online ops.', t: 'bool', def: 'true', cat: 'Server' },
+      { k: 'difficulty', label: 'Difficulty', desc: 'Game difficulty.', t: 'enum', def: 'easy', opts: ['peaceful', 'easy', 'normal', 'hard'], cat: 'Gameplay' },
+      { k: 'gamemode', label: 'Gamemode', desc: 'Default gamemode for new players.', t: 'enum', def: 'survival', opts: ['survival', 'creative', 'adventure', 'spectator'], cat: 'Gameplay' },
+      { k: 'hardcore', label: 'Hardcore', desc: 'Hardcore mode (ban on death, hardest difficulty).', t: 'bool', def: 'false', cat: 'Gameplay' },
+      { k: 'force-gamemode', label: 'Force gamemode', desc: 'Force players into the default gamemode on join.', t: 'bool', def: 'false', cat: 'Gameplay' },
+      { k: 'pvp', label: 'PvP', desc: 'Allow player-versus-player damage.', t: 'bool', def: 'true', cat: 'Gameplay' },
+      { k: 'allow-flight', label: 'Allow flight', desc: 'Allow cheats that enable flying (e.g. fly mods).', t: 'bool', def: 'false', cat: 'Gameplay' },
+      { k: 'enable-command-block', label: 'Command blocks', desc: 'Enable command blocks on the server.', t: 'bool', def: 'false', cat: 'Gameplay' },
+      { k: 'level-name', label: 'Level name', desc: 'World folder name.', t: 'text', def: 'world', cat: 'World' },
+      { k: 'level-seed', label: 'Level seed', desc: 'World generation seed. Empty = random.', t: 'text', def: '', cat: 'World', ph: '(empty = random)' },
+      { k: 'level-type', label: 'Level type', desc: 'World preset / generator type.', t: 'enum', def: 'minecraft:normal', opts: ['minecraft:normal', 'minecraft:flat', 'minecraft:large_biomes', 'minecraft:amplified', 'minecraft:single_biome_surface', 'default', 'flat', 'largeBiomes', 'amplified'], cat: 'World' },
+      { k: 'generate-structures', label: 'Generate structures', desc: 'Generate villages, temples, etc.', t: 'bool', def: 'true', cat: 'World' },
+      { k: 'generator-settings', label: 'Generator settings', desc: 'Superflat preset JSON (flat worlds). Usually empty.', t: 'text', def: '', cat: 'World', ph: '(empty)' },
+      { k: 'allow-nether', label: 'Allow Nether', desc: 'Enable the Nether dimension.', t: 'bool', def: 'true', cat: 'World' },
+      { k: 'max-world-size', label: 'Max world size', desc: 'World border diameter in blocks (1-29999984).', t: 'int', def: '29999984', min: 1, max: 29999984, cat: 'World' },
+      { k: 'spawn-protection', label: 'Spawn protection', desc: 'Radius (blocks) around spawn that non-ops cannot edit. 0 = disabled.', t: 'int', def: '16', min: 0, max: 100000, cat: 'World' },
+      { k: 'spawn-animals', label: 'Spawn animals', desc: 'Spawn passive animals.', t: 'bool', def: 'true', cat: 'Mobs' },
+      { k: 'spawn-monsters', label: 'Spawn monsters', desc: 'Spawn hostile mobs.', t: 'bool', def: 'true', cat: 'Mobs' },
+      { k: 'spawn-npcs', label: 'Spawn villagers', desc: 'Spawn villagers / NPCs.', t: 'bool', def: 'true', cat: 'Mobs' },
+      { k: 'view-distance', label: 'View distance', desc: 'Server-side view distance in chunks (2-32).', t: 'int', def: '10', min: 2, max: 32, cat: 'Performance' },
+      { k: 'simulation-distance', label: 'Simulation distance', desc: 'Tick distance in chunks (3-32).', t: 'int', def: '10', min: 3, max: 32, cat: 'Performance' },
+      { k: 'entity-broadcast-range-percentage', label: 'Entity broadcast %', desc: 'How far entities are visible, in percent (10-1000).', t: 'int', def: '100', min: 10, max: 1000, cat: 'Performance' },
+      { k: 'max-tick-time', label: 'Max tick time (ms)', desc: 'Watchdog: kill the server if one tick exceeds this. -1 disables.', t: 'int', def: '60000', min: -1, max: 100000000, cat: 'Performance' },
+      { k: 'network-compression-threshold', label: 'Compression threshold', desc: 'Compress packets above this size (bytes). -1 disables.', t: 'int', def: '256', min: -1, max: 1000000, cat: 'Performance' },
+      { k: 'max-chained-neighbor-updates', label: 'Max chained neighbor updates', desc: 'Cap for chained redstone neighbor updates.', t: 'int', def: '1000000', min: 0, max: 1000000000, cat: 'Performance' },
+      { k: 'sync-chunk-writes', label: 'Sync chunk writes', desc: 'Synchronous chunk I/O (safer, slower when enabled).', t: 'bool', def: 'true', cat: 'Performance' },
+      { k: 'use-native-transport', label: 'Native transport', desc: 'Use OS-optimised packet transport (epoll/kqueue on Linux).', t: 'bool', def: 'true', cat: 'Performance' },
+      { k: 'enable-query', label: 'Enable query', desc: 'Respond to GameSpy4 query requests.', t: 'bool', def: 'false', cat: 'Remote' },
+      { k: 'query.port', label: 'Query port', desc: 'Port for the GameSpy4 query listener.', t: 'int', def: '25565', min: 1, max: 65535, cat: 'Remote' },
+      { k: 'enable-status', label: 'Enable status', desc: 'Show this server in server lists / status requests.', t: 'bool', def: 'true', cat: 'Remote' },
+      { k: 'enable-rcon', label: 'Enable RCON', desc: 'Allow remote-console administration.', t: 'bool', def: 'false', cat: 'Remote' },
+      { k: 'rcon.port', label: 'RCON port', desc: 'Port for the RCON listener.', t: 'int', def: '25575', min: 1, max: 65535, cat: 'Remote' },
+      { k: 'rcon.password', label: 'RCON password', desc: 'Password for RCON. Empty = unset (RCON will not work).', t: 'password', def: '', cat: 'Remote', ph: '(empty = unset)' },
+      { k: 'broadcast-rcon-to-ops', label: 'Broadcast RCON to ops', desc: 'Send RCON command output to online ops.', t: 'bool', def: 'true', cat: 'Remote' },
+      { k: 'rate-limit', label: 'Rate limit', desc: 'Max packets per second per client. 0 = disabled.', t: 'int', def: '0', min: 0, max: 1000000, cat: 'Network' },
+      { k: 'require-resource-pack', label: 'Require resource pack', desc: 'Kick players who decline the server resource pack.', t: 'bool', def: 'false', cat: 'Packs' },
+      { k: 'resource-pack', label: 'Resource pack URL', desc: 'URL players download the pack from. Empty = none.', t: 'text', def: '', cat: 'Packs', ph: 'https://… (empty = none)' },
+      { k: 'resource-pack-sha1', label: 'Resource pack SHA1', desc: 'Expected SHA-1 of the pack file. Empty = skip check.', t: 'text', def: '', cat: 'Packs', ph: '(empty = skip check)' },
+      { k: 'resource-pack-prompt', label: 'Resource pack prompt', desc: 'Custom prompt shown with the pack request.', t: 'text', def: '', cat: 'Packs', ph: '(empty)' },
+      { k: 'initial-enabled-packs', label: 'Initially enabled packs', desc: 'Comma-separated datapack IDs enabled at world creation.', t: 'text', def: 'vanilla', cat: 'Packs' },
+      { k: 'initial-disabled-packs', label: 'Initially disabled packs', desc: 'Comma-separated datapack IDs left disabled.', t: 'text', def: '', cat: 'Packs', ph: '(empty)' },
+      { k: 'text-filtering-config', label: 'Text filtering config', desc: 'External chat-filter config. Empty = disabled.', t: 'text', def: '', cat: 'Advanced', ph: '(empty)' },
+      { k: 'enable-jmx-monitoring', label: 'JMX monitoring', desc: 'Expose JVM metrics over JMX.', t: 'bool', def: 'false', cat: 'Advanced' },
+      { k: 'debug', label: 'Debug', desc: 'Vanilla debug flag. Leave false.', t: 'bool', def: 'false', cat: 'Advanced' },
+      { k: 'log-ips', label: 'Log IPs', desc: 'Include player IPs in the server log.', t: 'bool', def: 'true', cat: 'Advanced' }
+    ];
+
+    var byKey = {};
+    SCHEMA.forEach(function (f) { byKey[f.k] = f; });
+
+    // Explicit field styling: never rely on bare UA defaults (that is what
+    // rendered white-on-white). Theme vars with dark fallbacks so inputs and
+    // selects stay readable in every panel theme.
+    var FIELD_STYLE = {
+      width: '100%',
+      boxSizing: 'border-box',
+      background: 'var(--ks-input-bg, rgba(0,0,0,0.4))',
+      border: '1px solid var(--ks-input-border, rgba(255,255,255,0.15))',
+      color: 'var(--ks-input-text, var(--ks-body, #e5e7eb))',
+      borderRadius: 'var(--ks-input-radius, 8px)',
+      padding: '8px 12px',
+      fontSize: '13px',
+      fontFamily: 'inherit',
+      outline: 'none',
+      colorScheme: 'dark'
+    };
+    var OPT_STYLE = { background: '#1f2937', color: '#e5e7eb' };
+
+    function say(m, t) { try { sdk.toast(m, t || 'info'); } catch (e) {} }
+    function storeGet() {
+      try {
+        if (sdk && sdk.storage && sdk.storage.get) return sdk.storage.get('mcprops:action:v2').catch(function () { return null; });
+      } catch (e) {}
+      return Promise.resolve(null);
+    }
+    function storeSet(v) {
+      try { if (sdk && sdk.storage && sdk.storage.set) sdk.storage.set('mcprops:action:v2', String(v)).catch(function () {}); } catch (e) {}
+    }
+    function act(name, args) {
+      return sdk.runAction(name, { args: args || [] }).then(function (r) {
+        if (r && r.ok === false) throw new Error(r.error || r.stderr || ('Action failed: ' + name));
+        if (r && r.error && !r.stdout && !r.stderr && r.data == null) throw new Error(r.error);
+        return r;
+      });
+    }
+    function isMissingErr(m) { return /404|not found|no such file|ENOENT|does not exist|missing/i.test(String(m || '')); }
+    function isGateErr(m) { return /page not enabled/i.test(String(m || '')); }
+    function argOk(s) { return typeof s === 'string' && s.length > 0 && s.length <= 200 && ARG_RE.test(s); }
+    function pathOf(action) {
+      for (var i = 0; i < PATHS.length; i++) if (PATHS[i].action === action) return PATHS[i].path;
+      return action;
+    }
+    function parseProps(text) {
+      var map = {}, lines = [];
+      String(text == null ? '' : text).split(/\r?\n/).forEach(function (ln) {
+        var m = ln.match(/^\s*([^#\s][^=\s]*)\s*=\s*(.*?)\s*$/);
+        if (m) {
+          if (map[m[1]] === undefined) map[m[1]] = m[2];
+          lines.push({ t: 'kv', k: m[1], v: m[2] });
+        } else if (/^\s*$/.test(ln)) {
+          lines.push({ t: 'blank', raw: ln });
+        } else {
+          lines.push({ t: 'comment', raw: ln });
+        }
+      });
+      return { map: map, lines: lines };
+    }
+    function readText(r) {
+      if (typeof r === 'string') return r;
+      if (r && typeof r.data === 'string') return r.data;
+      if (r && typeof r.content === 'string') return r.content;
+      if (r && typeof r.stdout === 'string' && r.stdout) return r.stdout;
+      if (r && typeof r.stderr === 'string' && r.stderr && !r.stdout) return r.stderr;
+      if (r && r.data != null && typeof r.data === 'object') {
+        if (typeof r.data.content === 'string') return r.data.content;
+        if (typeof r.data.stdout === 'string' && r.data.stdout) return r.data.stdout;
+        if (typeof r.data.text === 'string') return r.data.text;
+      }
+      if (r && r.data != null) { try { return JSON.stringify(r.data); } catch (e) { return String(r.data); } }
+      return '';
+    }
+    function orderedEntries(preferred) {
+      var out = [], seen = {};
+      [{ action: preferred, path: pathOf(preferred) }].concat(PATHS).forEach(function (e) {
+        if (e.action && !seen[e.action]) { seen[e.action] = true; out.push(e); }
+      });
+      return out;
+    }
+    function load(preferredAction) {
+      var seq = ++S.seq;
+      S.loading = true; S.error = ''; S.gate = false; S.missing = false;
+      S.trying = ''; S.tryingAction = ''; S.lastErr = ''; render();
+      setTimeout(function () {
+        if (R.current && R.current.seq === seq && R.current.loading) {
+          R.current.loading = false;
+          R.current.error = 'Load timed out — the instance may be stopped or the edge is unreachable. Press Reload.';
+          render();
+        }
+      }, 15000);
+      storeGet().then(function (stored) {
+        if (!R.current || R.current.seq !== seq) return;
+        var entries = orderedEntries(preferredAction || stored);
+        var missingCount = 0, lastErr = '';
+        function attempt(i) {
+          if (!R.current || R.current.seq !== seq) return;
+          if (i >= entries.length) {
+            if (missingCount === entries.length) {
+              var fb = entries[0] || PATHS[0];
+              S.activeAction = fb.action; S.activePath = fb.path; storeSet(fb.action);
+              applyFile('', true, fb);
+            } else {
+              S.loading = false;
+              S.error = lastErr || 'Could not read server.properties from any known location.';
+              render();
+            }
+            return;
+          }
+          var e = entries[i];
+          S.trying = e.path; S.tryingAction = e.action; render();
+          function onFail(err) {
+            if (!R.current || R.current.seq !== seq) return;
+            var msg = (err && err.message) || String(err);
+            if (isGateErr(msg)) {
+              S.loading = false; S.gate = true; S.error = msg;
+              render();
+              return;
+            }
+            if (isMissingErr(msg)) { missingCount++; }
+            else { lastErr = msg; S.lastErr = msg; }
+            attempt(i + 1);
+          }
+          var p;
+          try { p = act(e.action, []); }
+          catch (err) { onFail(err); return; }
+          p.then(function (r) {
+            if (!R.current || R.current.seq !== seq) return;
+            S.lastErr = '';
+            S.activeAction = e.action; S.activePath = e.path; storeSet(e.action);
+            applyFile(readText(r), false, e);
+          }, onFail);
+        }
+        attempt(0);
+      });
+    }
+    function applyFile(text, missing, entry) {
+      var p = parseProps(text);
+      S.missing = missing;
+      S.activeAction = entry.action; S.activePath = entry.path;
+      S.values = {}; S.orig = {}; S.unknownOrder = []; S.busy = {};
+      SCHEMA.forEach(function (f) {
+        var v = (p.map[f.k] !== undefined) ? p.map[f.k] : f.def;
+        S.values[f.k] = v; S.orig[f.k] = v;
+      });
+      Object.keys(p.map).forEach(function (k) {
+        if (!byKey[k]) { S.values[k] = p.map[k]; S.orig[k] = p.map[k]; S.unknownOrder.push(k); }
+      });
+      S.applySeq = (S.applySeq || 0) + 1;
+      S.applyingAll = false;
+      S.loading = false; S.error = ''; S.gate = false; render();
+    }
+    function isMod(k) { return String(S.values[k] == null ? '' : S.values[k]) !== String(S.orig[k] == null ? '' : S.orig[k]); }
+    function modKeys() { return Object.keys(S.values).filter(isMod); }
+    function fieldDef(k) {
+      if (byKey[k]) return byKey[k];
+      return { k: k, label: k, desc: 'Custom key from the file (not in the built-in schema).', t: 'text', def: '' };
+    }
+    function visibleDefs() {
+      var q = S.q.trim().toLowerCase();
+      var all = SCHEMA.concat(S.unknownOrder.map(fieldDef));
+      if (!q) return all;
+      return all.filter(function (f) {
+        return f.k.toLowerCase().indexOf(q) >= 0
+          || String(f.label).toLowerCase().indexOf(q) >= 0
+          || String(f.desc).toLowerCase().indexOf(q) >= 0;
+      });
+    }
+    function checkInt(f, v) {
+      if (f.t !== 'int') return null;
+      if (!/^-?\d+$/.test(String(v).trim())) return f.label + ': enter a whole number.';
+      var n = parseInt(String(v).trim(), 10);
+      if (f.min !== undefined && n < f.min) return f.label + ': minimum is ' + f.min + '.';
+      if (f.max !== undefined && n > f.max) return f.label + ': maximum is ' + f.max + '.';
+      return null;
+    }
+    function normVal(f, v) {
+      v = v == null ? '' : String(v);
+      if (f.t === 'int') v = v.trim();
+      return v;
+    }
+    function fieldProblem(f, v) {
+      v = v == null ? '' : String(v);
+      if (f.t === 'int') {
+        var bad = checkInt(f, v);
+        if (bad) return bad;
+      } else if (f.t === 'bool') {
+        if (v !== 'true' && v !== 'false') return f.label + ': pick true or false, then Apply.';
+      }
+      if (!argOk(f.k + '=' + v)) return f.label + ': unsupported characters or too long for the save action — edit this key through the Files page instead.';
+      return null;
+    }
+    function cancelAll() {
+      if (S.applyingAll) return;
+      Object.keys(S.values).forEach(function (k) { S.values[k] = S.orig[k]; });
+      S.busy = {};
+      S.error = '';
+      say('Pending changes discarded.', 'info');
+      render();
+    }
+    function applyAll() {
+      var keys = modKeys();
+      if (!keys.length || S.applyingAll) return;
+      if (!S.activePath) { say('No properties file selected yet — reload first.', 'error'); return; }
+      S.applyingAll = true; S.error = ''; var tok = ++S.applySeq; render();
+      var done = 0, failed = 0, skipped = 0;
+      function next(i) {
+        if (!R.current || !mounted.current || R.current.applySeq !== tok) return;
+        if (i >= keys.length) {
+          S.applyingAll = false;
+          var probs = failed + skipped;
+          S.error = probs ? (probs + ' of ' + keys.length + ' not applied (' + failed + ' failed, ' + skipped + ' rejected: unsupported characters or out of range).') : '';
+          say(probs ? ('Finished with ' + failed + ' failure(s), ' + skipped + ' skipped.') : ('Applied ' + done + ' change(s) — restart the server to take effect.'), probs ? 'error' : 'success');
+          render();
+          return;
+        }
+        var k = keys[i];
+        if (!isMod(k)) { next(i + 1); return; }
+        var f = fieldDef(k);
+        var v = normVal(f, S.values[k]);
+        S.values[k] = v;
+        if (checkInt(f, v) || !argOk(k + '=' + v)) { skipped++; next(i + 1); return; }
+        S.busy[k] = true; render();
+        act('set_prop', [S.activePath, k + '=' + v]).then(function () {
+          if (!R.current || !mounted.current || R.current.applySeq !== tok) return;
+          delete S.busy[k];
+          S.orig[k] = S.values[k];
+          S.missing = false;
+          done++;
+          next(i + 1);
+        }, function (e) {
+          if (!R.current || !mounted.current || R.current.applySeq !== tok) return;
+          delete S.busy[k];
+          failed++;
+          say('Apply failed for ' + k + ': ' + ((e && e.message) || String(e)), 'error');
+          next(i + 1);
+        });
+      }
+      next(0);
+    }
+    React.useEffect(function () {
+      mounted.current = true;
+      load();
+      function onKey(ev) {
+        if ((ev.ctrlKey || ev.metaKey) && String(ev.key).toLowerCase() === 's') {
+          ev.preventDefault();
+          if (R.current && modKeys().length && !R.current.applyingAll) applyAll();
+        }
+      }
+      document.addEventListener('keydown', onKey);
+      return function () {
+        mounted.current = false;
+        document.removeEventListener('keydown', onKey);
+      };
+    }, []);
+
+    function widget(f, v, dis) {
+      var key = f.k;
+      var common = {
+        'aria-label': f.label,
+        disabled: !!dis,
+        value: v == null ? '' : String(v),
+        style: FIELD_STYLE,
+        onChange: function (ev) { S.values[key] = ev.target.value; if (S.error) S.error = ''; render(); }
+      };
+      if (f.t === 'bool') {
+        var bv = common.value;
+        var bopts = [
+          el('option', { key: 't', value: 'true', style: OPT_STYLE }, 'true'),
+          el('option', { key: 'f', value: 'false', style: OPT_STYLE }, 'false')
+        ];
+        if (bv !== 'true' && bv !== 'false') {
+          bopts = [el('option', { key: '__custom', value: bv, style: OPT_STYLE }, String(bv) + ' (custom)')].concat(bopts);
+        }
+        return el('select', common, bopts);
+      }
+      if (f.t === 'enum') {
+        var opts = (f.opts || []).map(function (o) { return el('option', { key: String(o), value: String(o), style: OPT_STYLE }, String(o)); });
+        if ((f.opts || []).indexOf(String(v)) < 0) {
+          opts = [el('option', { key: '__custom', value: String(v), style: OPT_STYLE }, String(v) + ' (custom)')].concat(opts);
+        }
+        return el('select', common, opts);
+      }
+      if (f.t === 'int') {
+        return el('input', Object.assign({}, common, { type: 'text', inputMode: 'numeric', pattern: '-?[0-9]*', autoComplete: 'off' }));
+      }
+      if (f.t === 'password') {
+        return el('input', Object.assign({}, common, { type: 'password', placeholder: f.ph || '', autoComplete: 'new-password' }));
+      }
+      return el('input', Object.assign({}, common, { type: 'text', placeholder: f.ph || '' }));
+    }
+
+    function row(f, idx) {
+      var v = S.values[f.k];
+      var mod = isMod(f.k);
+      var busy = !!S.busy[f.k];
+      var lock = busy || S.applyingAll;
+      var prob = (mod && !S.applyingAll) ? fieldProblem(f, v) : null;
+      var kind = f.t === 'bool' ? 'true / false' : (f.t === 'enum' ? 'options' : (f.t === 'int' ? 'number' : (f.t === 'password' ? 'password' : 'text')));
+      var dotColor = busy ? 'var(--ks-info, #38bdf8)' : (mod ? 'var(--ks-warn, #fcd34d)' : 'var(--ks-ok, #34d399)');
+      var dotTitle = mod ? (busy ? 'applying…' : 'changed — not yet applied') : 'in sync with disk';
+      return el('div', {
+        key: f.k,
+        style: {
+          display: 'flex', gap: '10px', alignItems: 'flex-start',
+          padding: '12px 0', opacity: lock ? 0.7 : 1,
+          borderTop: idx === 0 ? 'none' : '1px solid var(--ks-card-border, rgba(255,255,255,0.08))'
+        }
+      },
+        el('span', { title: dotTitle, style: { flex: 'none', width: '8px', height: '8px', borderRadius: '9999px', marginTop: '6px', background: dotColor } }),
+        el('div', { style: { flex: 1, minWidth: 0 } },
+          el('div', { style: { display: 'flex', alignItems: 'baseline', gap: '8px', flexWrap: 'wrap' } },
+            el('span', { style: { fontSize: '13px', fontWeight: 600, color: 'var(--ks-heading, #fff)' } }, f.label),
+            el('span', { className: 'ks-mono ks-muted', style: { fontSize: '11px' } }, f.k),
+            el('span', { className: 'ks-muted', style: { fontSize: '10px' } }, kind),
+            mod ? el('span', { style: { fontSize: '10px', fontWeight: 700, color: 'var(--ks-warn, #fcd34d)' } }, '● modified') : null),
+          el('div', { className: 'ks-muted', style: { fontSize: '11px', margin: '2px 0 6px' } }, f.desc),
+          widget(f, v, lock),
+          prob ? el('div', { style: { fontSize: '11px', marginTop: '4px', color: 'var(--ks-bad, #fca5a5)' } }, prob) : null));
+    }
+
+    function body() {
+      if (S.loading) {
+        return el('div', { className: 'ks-card' },
+          el('p', { className: 'ks-muted', style: { fontSize: '13px', margin: 0 } }, 'Reading properties…'));
+      }
+      if (S.gate) {
+        return el('div', { className: 'ks-card' },
+          el('p', { style: { color: 'var(--ks-bad)', fontSize: '13px', margin: 0 } }, 'Page not enabled for this instance — link the Server Properties page to its template first.'));
+      }
+      if (S.error && !S.activePath) {
+        return el('div', { className: 'ks-card' },
+          el('p', { style: { color: 'var(--ks-bad)', fontSize: '13px', margin: '0 0 8px' } }, S.error),
+          el('button', { type: 'button', className: 'ks-btn ks-btn-sm', onClick: function () { load(); } }, 'Retry'));
+      }
+      var defs = visibleDefs();
+      if (!defs.length) {
+        return el('div', { className: 'ks-card' },
+          el('p', { className: 'ks-muted', style: { fontSize: '13px', margin: 0 } }, 'No keys match this filter.'));
+      }
+      // Single flat card: every key in one list, no category sections.
+      return el('div', { className: 'ks-card', style: { padding: '4px 16px 12px' } },
+        defs.map(function (f, i) { return row(f, i); }));
+    }
+
+    function actionPill() {
+      if (S.loading || S.gate || (S.error && !S.activePath)) return null;
+      var pending = modKeys().length;
+      return el('div', {
+        style: {
+          position: 'sticky', bottom: '12px', zIndex: 20,
+          display: 'flex', justifyContent: 'center',
+          marginTop: '14px', pointerEvents: 'none'
+        }
+      },
+        el('div', {
+          style: {
+            pointerEvents: 'auto', display: 'flex', alignItems: 'center', gap: '8px',
+            background: 'var(--ks-card-bg, rgba(17,24,39,0.92))',
+            border: '1px solid var(--ks-card-border, rgba(255,255,255,0.12))',
+            borderRadius: '9999px', padding: '8px 8px 8px 16px',
+            boxShadow: '0 8px 30px rgba(0,0,0,0.45)',
+            backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)'
+          }
+        },
+          el('span', { className: 'ks-muted', style: { fontSize: '12px', whiteSpace: 'nowrap' } },
+            S.applyingAll ? 'Applying…' : (pending ? (pending + ' pending change' + (pending === 1 ? '' : 's')) : 'No pending changes')),
+          el('button', {
+            type: 'button', className: 'ks-btn ks-btn-sm',
+            style: { borderRadius: '9999px' },
+            disabled: S.applyingAll || pending === 0,
+            title: 'Discard all pending edits',
+            onClick: cancelAll
+          }, 'Cancel'),
+          el('button', {
+            type: 'button', className: 'ks-btn ks-btn-sm',
+            style: { borderRadius: '9999px' },
+            disabled: S.applyingAll || pending === 0,
+            title: 'Apply every pending key (Ctrl/Cmd+S)',
+            onClick: applyAll
+          }, S.applyingAll ? 'Applying…' : ('Apply' + (pending ? ' (' + pending + ')' : '')))));
+    }
+
+    var pending = modKeys().length;
+    var blocked = S.gate || (!!S.error && !S.activePath);
+    return el('div', { className: 'ks-page' },
+      blocked ? null : el('div', { className: 'ks-row', style: { gap: '8px', marginBottom: '10px', flexWrap: 'wrap' } },
+        el('input', {
+          type: 'text', placeholder: 'filter keys…', 'aria-label': 'Filter keys',
+          value: S.q, onChange: function (ev) { S.q = ev.target.value; render(); },
+          style: Object.assign({}, FIELD_STYLE, { flex: 1, minWidth: '160px', maxWidth: '320px' })
+        }),
+        el('span', { className: 'ks-muted', style: { fontSize: '11px', marginLeft: 'auto' } },
+          pending ? pending + ' pending change' + (pending === 1 ? '' : 's') : 'no pending changes')),
+      (S.error && S.activePath && !S.loading && !S.gate) ? el('div', { className: 'ks-card', style: { marginBottom: '10px', borderColor: 'var(--ks-bad-line, rgba(185,28,28,0.5))' } },
+        el('p', { style: { color: 'var(--ks-bad, #fca5a5)', fontSize: '12px', margin: 0 } }, S.error)) : null,
+      body(),
+      actionPill());
+  }
+  return Page;
+bundle_css: '.ks-react-page input, .ks-react-page select, .ks-react-page textarea { background: var(--ks-input-bg, rgba(0,0,0,0.4)) !important; border: 1px solid var(--ks-input-border, rgba(255,255,255,0.15)) !important; color: var(--ks-input-text, var(--ks-body, #e5e7eb)) !important; color-scheme: dark; }.ks-react-page select option { background: #1f2937 !important; color: #e5e7eb !important; }.ks-react-page input::placeholder, .ks-react-page textarea::placeholder { color: var(--ks-input-placeholder, #6b7280) !important; opacity: 1; }.ks-react-page input:disabled, .ks-react-page select:disabled { opacity: 0.6; }'
+icon_svg: <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/>
+actions:
+- description: Read server.properties in the instance root.
+  name: read_props
+  path: server.properties
+  type: read_file
+- description: Read mc/server.properties as a fallback location.
+  name: read_props_mc
+  path: mc/server.properties
+  type: read_file
+- description: Read /mc/server.properties as a fallback location.
+  name: read_props_abs
+  path: /mc/server.properties
+  type: read_file
+- command: set -- {{args}}; F="$1"; KV="$2"; K="${KV%%=*}"; V="${KV#*=}"; [ -n "$F" ] && [ -n "$K" ] && [ "$KV" != "$K" ] && touch "$F" && awk -v k="$K" -v v="$V" 'BEGIN{d=0} /^\r?$|^[ \t]*#/ {print;next} {p=index($0,"="); if(p>0){kk=substr($0,1,p-1); gsub(/^[ \t]+|[ \t]+$/, "", kk); if(kk==k){print k"="v; d=1; next}}} {print} END{if(!d) print k"="v}' "$F" > "$F.tmp" && mv "$F.tmp" "$F" && echo "saved $K"
+  description: 'Set one server.properties key: runtime args are [file, key=value]. Preserves comments/order, appends missing keys.'
+  name: set_prop
+  open_args: true
+  timeout: 30
+  type: shell
+- command: set -- {{args}}; A=${1##*/}; [ -n "$A" ] && mkdir -p backups && for F in server.properties mc/server.properties /mc/server.properties; do if [ -f "$F" ]; then cp "$F" "backups/$A" && echo "saved-backups/$A-from-$F"; break; fi; done
+  description: Copy the active server.properties into backups/<name> (runtime filename, basename-jailed).
+  name: backup_props
+  open_args: true
+  timeout: 30
+  type: shell

@@ -2295,7 +2295,24 @@ func (r ImportInstancePageRequest) subPagesJSON() string {
 	return ""
 }
 
-// ImportInstancePageHandler imports an instance page from uploaded JSON.
+// decodeInstancePageBytes parses an instance-page definition in either the
+// legacy JSON encoding or the canonical YAML authoring format
+// (instance_pages/pages/*.yaml). YAML is normalized to the JSON wire shape
+// first so the request's string-or-array tolerant UnmarshalJSON applies to
+// both encodings identically.
+func decodeInstancePageBytes(data []byte, req *ImportInstancePageRequest) error {
+	normalized, err := pagelib.NormalizePageBytes(data)
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(normalized, req); err != nil {
+		return err
+	}
+	return nil
+}
+
+// ImportInstancePageHandler imports an instance page from an uploaded
+// JSON or YAML file.
 func ImportInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 	// Parse multipart form for file upload
 	err := r.ParseMultipartForm(10 << 20) // 10 MB max
@@ -2312,8 +2329,18 @@ func ImportInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 	defer file.Close()
 
 	var req ImportInstancePageRequest
-	if err := json.NewDecoder(file).Decode(&req); err != nil {
-		http.Error(w, "invalid JSON in file: "+err.Error(), http.StatusBadRequest)
+	// Cap the upload at 10 MiB (page content limits are far smaller anyway).
+	raw, err := io.ReadAll(io.LimitReader(file, (10 << 20) + 1))
+	if err != nil {
+		http.Error(w, "failed to read file: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	if int64(len(raw)) > (10 << 20) {
+		http.Error(w, "file exceeds 10 MiB", http.StatusRequestEntityTooLarge)
+		return
+	}
+	if err := decodeInstancePageBytes(raw, &req); err != nil {
+		http.Error(w, "invalid page file (need JSON or YAML): "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
