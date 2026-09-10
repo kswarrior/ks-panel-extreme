@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/example/kspanel/internal/repository"
+	"gopkg.in/yaml.v3"
 	_ "modernc.org/sqlite"
 )
 
@@ -226,13 +227,5 @@ func TestUploadTemplateFileJSONNormalizesToYAML(t *testing.T) {
 	install, ok := spec["install"].([]any)
 	if !ok || len(install) != 1 {
 		t.Fatalf("stored spec lost install steps: %s", tmpl.Spec)
-	}
-}
-
-func TestUploadTemplateFileJSONStillWorks(t *testing.T) {
-	templateUploadTestDB(t)
-	rr := postTemplateManifest(t, "minecraft.json", `{"name":"mc-json-up","kind":"docker","image":"eclipse-temurin:21-jre","spec":{"install":[{"action":"shell","command":"java -jar server.jar"}]}}`)
-	if rr.Code != http.StatusOK {
-		t.Fatalf("status %d, body: %s", rr.Code, rr.Body.String())
 	}
 }

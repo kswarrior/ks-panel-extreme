@@ -158,18 +158,22 @@ func TestMergeManifestImagesIntoSpec(t *testing.T) {
 }
 
 // TestBuiltinMinecraftImagesShape pins the canned minecraft template's
-// multi-image demo to the real validator + resolver: the exact JSON shape
+// multi-image demo to the real validator + resolver: the YAML shape
 // shipped in templates_builtin.go must validate and resolve both runtimes.
 func TestBuiltinMinecraftImagesShape(t *testing.T) {
-	raw := `{
-  "images": [
-    { "name": "Java 21", "image": "eclipse-temurin:21-jre", "description": "Eclipse Temurin 21 JRE (LTS, default)", "default": true },
-    { "name": "Java 17", "image": "eclipse-temurin:17-jre", "description": "Eclipse Temurin 17 JRE (older plugins)" }
-  ]
-}`
-	var spec map[string]any
-	if err := json.Unmarshal([]byte(raw), &spec); err != nil {
-		t.Fatalf("builtin spec is not JSON: %v", err)
+	raw := `
+images:
+  - name: Java 21
+    image: "eclipse-temurin:21-jre"
+    description: "Eclipse Temurin 21 JRE (LTS, default)"
+    default: true
+  - name: Java 17
+    image: "eclipse-temurin:17-jre"
+    description: "Eclipse Temurin 17 JRE (older plugins)"
+`
+	spec, err := specyaml.Parse(raw)
+	if err != nil {
+		t.Fatalf("builtin spec is not valid YAML: %v", err)
 	}
 	if err := validateTemplateSpec(spec); err != nil {
 		t.Fatalf("builtin minecraft images rejected: %v", err)
