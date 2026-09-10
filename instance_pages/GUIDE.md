@@ -225,7 +225,7 @@ var slugStartRe = regexp.MustCompile(`^[A-Za-z0-9]$`)
 var slugBodyRe  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 ```
 
-* `"."` — reserved Home page (`instance_pages/pages/home.json:1` renders at `/instances/:id`, not `/instances/:id/.`).
+* `"."` — reserved Home page (renders at `/instances/:id`, not `/instances/:id/.`).
 * Sub-page `path` is stricter: `validSubPagePath` (`instance_page_handler.go:318`) → `^[a-z0-9_-]+$`, lowercase only, ≤64.
 * Component `name`: `validComponentName` (`instance_page_handler.go:212`) → `^[A-Za-z0-9_][A-Za-z0-9_-]*$`, must start alnum/underscore, ≤64, unique per page.
 
@@ -246,9 +246,9 @@ Values are free-form — any `≤500` string passes validation — but staying w
   * `on*=` handlers, `javascript:`/`vbscript:`/`data:text/html` URLs, external `href` → `#`.
 * Also sanitized when linking to `template.spec.pages[].icon_svg` (`instance_page_handler.go:909`).
 * Real examples across the library:
-  * `getting-started.json:11` docs icon `<path d="M12 2L2 7l10 5 10-5-10-5z"/>`
-  * `home.json` house `<path d="M3 9.5 12 3l9 6.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"/>`
-  * `terminal.json:11` `<path d="m4 17 6-6-6-6"/><path d="M12 19h8"/>`
+  * `ports.yaml` docs icon `<path d="M12 2L2 7l10 5 10-5-10-5z"/>`
+  * `files.yaml` folder `<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2-2Z"/>`
+  * `terminal.yaml` `<path d="m4 17 6-6-6-6"/><path d="M12 19h8"/>`
 
 ---
 
@@ -588,8 +588,8 @@ KSPageSDK.navigate(`/instances/${KSPageSDK.instance.id}/files/edit?path=/etc/app
 }
 ```
 
-* `download_url` must point at `https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/<file>.json`.
-* Adding a new page: create `pages/<id>.json`, add entry to `marketplace.json` with matching `id`, run `rebuild.sh` (which embeds it), commit + push so raw URL serves it.
+* `download_url` must point at `https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/<file>.yaml` (legacy `.json` URLs still import).
+* Adding a new page: create `pages/<id>.yaml`, add entry to `marketplace.json` with matching `id`, run `rebuild.sh` (which embeds it), commit + push so raw URL serves it.
 * Read via `pagelib.ReadCatalog()` (`pagelib.go:117` disk first, embedded fallback). Frontend imports via `POST /api/instance-pages/import/marketplace {page_id}`.
 
 Shipped catalog currently lists 1 entry: `mc-properties` (`marketplace.json:1`). Add more pages via the Studio, then add a catalog entry per page.
@@ -732,7 +732,7 @@ HTML pages are opaque-origin iframes and **do not inherit** parent CSS. `customP
 .ks-card{background:var(--ks-card-bg); background-image:var(--ks-card-bg-layer); border:1px solid var(--ks-card-border); border-radius:.75rem; padding:1rem}
 ```
 
-**Panel class aliases that are theme-aware** (copy header from `instance_pages/pages/html-dashboard.json:8` or any `docker-manager.json:8`):
+**Panel class aliases that are theme-aware** (copy header from `instance_pages/pages/files.yaml` or `ports.yaml` `content_html`):
 
 `.ks-page` `.ks-card` `.glass` `.glass-strong` `.ks-row` `.ks-muted` `.ks-mono` `.ks-ok/.ks-bad/.ks-warn` `.ks-badge` `.ks-bar` `.ks-btn` `.ks-btn-blue/.ks-btn-red/.ks-btn-green` plus Tailwind-compatible tokens.
 
@@ -829,16 +829,16 @@ Corrupt `sub_pages`/`components`/`actions` in DB **degrade to `[]` on parse** (`
 
 ## 15) Backend Embedding & Resolution Order
 
-* `rebuild.sh:1078` `sync_pagelib()`:
+* `rebuild.sh:1194` `sync_pagelib()`:
   ```bash
   rm -rf panel/backend/internal/pagelib/library
   mkdir -p panel/backend/internal/pagelib/library/pages
   cp instance_pages/marketplace.json panel/backend/internal/pagelib/library/
-  cp instance_pages/pages/*.json      panel/backend/internal/pagelib/library/pages/
-  # top-level *.json fill gaps only (legacy)
+  cp instance_pages/pages/*.yaml      panel/backend/internal/pagelib/library/pages/
+  # legacy instance_pages/pages/*.json + top-level *.{yaml,yml,json} fill gaps only
   ```
 * `panel/backend/internal/pagelib/pagelib.go:23` `//go:embed all:library` → `embedded embed.FS`.
-* `pagelib.ListNames()` merges disk entries first then embedded. `pagelib.Read(name)` tries disk canonical → disk legacy → embedded with basename traversal guard.
+* `pagelib.ListNames()` merges disk entries first then embedded, deduped by stem (canonical `.yaml` wins over legacy `.json`). `pagelib.Read(name)` tries disk canonical → disk legacy → embedded with basename traversal guard; `name` must carry a `.yaml`/`.yml`/`.json` extension. `pagelib.NormalizePageBytes` folds YAML authoring files to the JSON wire shape every import path consumes.
 * `pagelib.ReadCatalog()` same priority.
 
 ---
@@ -972,8 +972,8 @@ Deploy: upload via Studio → link to template → deploy instance → visit `/i
 - [ ] `actions` each has `name` + `type`; `open_args` only when `{{args}}` present in `shell` command; tested via Preview → *Test* (`InstancePageStudio.tsx:332`).
 - [ ] `sub_pages` paths `^[a-z0-9_-]+$` and `components` names `^[A-Za-z0-9_][A-Za-z0-9_-]*$` unique.
 - [ ] `{{component:name}}` names match exactly (case-sensitive) and referenced page family defines them (sub-pages inherit parent).
-- [ ] File lives at `instance_pages/pages/<slug>.json` (canonical) and entry added to `marketplace.json` if it should appear in marketplace.
-- [ ] `rebuild.sh` run locally: `sync_pagelib` must see `<count> file(s)` (`rebuild.sh:1127`).
+- [ ] File lives at `instance_pages/pages/<slug>.yaml` (canonical; legacy `<slug>.json` still reads) and entry added to `marketplace.json` if it should appear in marketplace.
+- [ ] `rebuild.sh` run locally: `sync_pagelib` must see `<count> file(s)` (`rebuild.sh:1194`).
 - [ ] Import tested: Studio import, template link (`POST /:id/link`), instance deploy, `/instances/<id>/<slug>` + `isPageAllowed` + `KSPageSDK.runAction` live round-trip.
 - [ ] Limits respected: `actions` 64 KiB, `sub_pages`/`components` 512 KiB each, `content_*` 1 MiB each.
 
@@ -1003,9 +1003,9 @@ Deploy: upload via Studio → link to template → deploy instance → visit `/i
 instance_pages/
   README.md           # quick format reference
   GUIDE.md            # this file — exhaustive manual
-  marketplace.json    # catalog (pagelib.ReadCatalog) → version 1.0, pages[].download_url raw GitHub
+  marketplace.json    # catalog (pagelib.ReadCatalog) → version 3.0, pages[].download_url raw GitHub
   pages/
-    *.json            # library: home (slug "."), docker-manager, files, metrics, terminal, etc. (30 files)
+    *.yaml            # library (canonical authoring format): automation, env, files, minecraft-properties, ports, terminal
 
 panel/backend/
   internal/api/handlers/instance_page_handler.go  # DTO, validation, CRUD, link, execute, import, modules
@@ -1014,9 +1014,9 @@ panel/backend/
   internal/models/instance.go                     # InstancePage struct (Components string)
   internal/db/migrations/{mysql,postgres,sqlite}/032_…049_… # schema
   internal/api/server.go:467                      # route mounts + permission gates
-  internal/pagelib/{pagelib.go,pagelib_test.go,library/} # embed + disk→embed resolution
+  internal/pagelib/{pagelib.go,decode.go,pagelib_test.go,library/} # embed + disk→embed resolution + YAML normalize
   internal/pagelib/library/marketplace.json       # embedded copy (rebuild.sh syncs)
-  internal/pagelib/library/pages/*.json           # embedded copy (rebuild.sh syncs)
+  internal/pagelib/library/pages/*.yaml           # embedded copy (rebuild.sh syncs)
 
 panel/frontend/src/
   features/instance-pages/
