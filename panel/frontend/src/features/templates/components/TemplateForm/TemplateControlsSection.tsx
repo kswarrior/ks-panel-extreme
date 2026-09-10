@@ -236,7 +236,7 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
             hasConfig
             configOpen={openTabConfig === 'details'}
             onToggleConfig={() => toggleTabConfig('details')}
-            configLabel="Configure Details tab — tile shortcuts allowed or not"
+            configLabel="Configure Details tab — tile links allowed or not"
           >
             <MiniToggle checked={c.allow_external_id_copy} onChange={(v) => onUpdate({ allow_external_id_copy: v })} label="External ID copy" hint="Click the External ID tile to copy the driver-side ID" />
             <MiniToggle checked={c.allow_node_link} onChange={(v) => onUpdate({ allow_node_link: v })} label="Node link" hint="Click the Node tile to open its node" />
