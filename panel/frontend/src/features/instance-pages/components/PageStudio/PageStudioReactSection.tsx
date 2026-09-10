@@ -19,6 +19,7 @@ export interface PageStudioReactSectionProps {
   onBuild: () => void;
   building: boolean;
   canBuild: boolean;
+  onContentTypeChange: (t: 'html' | 'markdown' | 'blocks' | 'react') => void;
   sectionCls: string;
 }
 
@@ -43,6 +44,7 @@ export const PageStudioReactSection: React.FC<PageStudioReactSectionProps> = ({
   onBuild,
   building,
   canBuild,
+  onContentTypeChange,
   sectionCls,
 }) => {
   const statusTone =
@@ -53,7 +55,18 @@ export const PageStudioReactSection: React.FC<PageStudioReactSectionProps> = ({
     <div className={sectionCls}>
       <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
         <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400">Section B · React</h4>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <label className="text-xs text-gray-400">Content Type</label>
+          <select
+            value="react"
+            onChange={(e) => onContentTypeChange(e.target.value as any)}
+            className="bg-black/40 border border-white/10 rounded px-2 py-1 text-sm text-white"
+          >
+            <option value="html">HTML</option>
+            <option value="markdown">Markdown</option>
+            <option value="blocks">Visual Blocks</option>
+            <option value="react">React (stateful)</option>
+          </select>
           <span className={`text-xs ${statusTone}`} title={buildLog || 'Not built yet'}>
             {buildStatus === 'ok' ? 'Built ✓' : buildStatus === 'error' ? 'Build failed' : buildStatus === 'building' ? 'Building…' : 'Not built'}
           </span>

@@ -637,9 +637,9 @@ const InstancePageStudio: React.FC = () => {
           )}
 
           {/* ============================== CONTENT ============================== */}
-          {activeTab === 'editor' && !isBuiltin && (
+          {activeTab === 'editor' && !isBuiltin && contentType !== 'react' && (
             <PageStudioContentSection
-              contentType={contentType}
+              contentType={contentType as 'html' | 'markdown' | 'blocks'}
               onContentTypeChange={(t) => { onChange('content_type', t); setBlocksMode('visual'); }}
               currentContent={currentContent}
               onContentChange={handleContentChange}
@@ -654,6 +654,23 @@ const InstancePageStudio: React.FC = () => {
               onCopy={() => navigator.clipboard.writeText(currentContent)}
               onExport={exportJson}
               onImportClick={() => importFileRef.current?.click()}
+              sectionCls={sectionCls}
+            />
+          )}
+
+          {/* ============================== REACT ============================== */}
+          {activeTab === 'editor' && !isBuiltin && contentType === 'react' && (
+            <PageStudioReactSection
+              source={(page as any).source_tsx ?? ''}
+              onSourceChange={(v) => setPage((p) => ({ ...p, source_tsx: v } as any))}
+              css={(page as any).bundle_css ?? ''}
+              onCssChange={(v) => setPage((p) => ({ ...p, bundle_css: v } as any))}
+              buildStatus={(page as any).build_status ?? ''}
+              buildLog={(page as any).build_log ?? ''}
+              onBuild={handleBuild}
+              building={building}
+              canBuild={isEdit && pageId != null}
+              onContentTypeChange={(t) => { onChange('content_type', t); setBlocksMode('visual'); }}
               sectionCls={sectionCls}
             />
           )}
