@@ -50,7 +50,7 @@ repo/
       *.json           ← ONE JSON file per page (canonical library)
       home.json        ← reserved "." slug → instance index route
       files.json       ← example with sub_pages
-      docker-manager.json, metrics.json, terminal.json, ... (30 starters)
+      minecraft-properties.json (stateful React page; the library starts small — add more via Studio)
     *.json (top-level) ← legacy override — still read but new pages belong in pages/
 
 Build: rebuild.sh → sync_pagelib() copies marketplace.json + pages/*.json
@@ -556,7 +556,7 @@ KSPageSDK.navigate(`/instances/${KSPageSDK.instance.id}/files/edit?path=/etc/app
 * Adding a new page: create `pages/<id>.json`, add entry to `marketplace.json` with matching `id`, run `rebuild.sh` (which embeds it), commit + push so raw URL serves it.
 * Read via `pagelib.ReadCatalog()` (`pagelib.go:117` disk first, embedded fallback). Frontend imports via `POST /api/instance-pages/import/marketplace {page_id}`.
 
-Shipped catalog currently lists 30 entries incl. `home` (`.` slug) `docker-manager` `files` `terminal` `metrics` `minecraft-*` etc. (`marketplace.json:1`).
+Shipped catalog currently lists 1 entry: `mc-properties` (`marketplace.json:1`). Add more pages via the Studio, then add a catalog entry per page.
 
 ---
 

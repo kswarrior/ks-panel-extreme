@@ -73,3 +73,60 @@ func TestReadCatalog(t *testing.T) {
 		}
 	}
 }
+
+// TestLibraryPagesAreImportable keeps every embedded library page honest
+// against the API import gate (validateInstancePage): known content_type,
+// size caps, and react pages carrying validated source. A library file that
+// fails here would 400 on every import path (file/URL/marketplace/local).
+func TestLibraryPagesAreImportable(t *testing.T) {
+	validTypes := map[string]bool{"html": true, "markdown": true, "blocks": true, "react": true}
+	for _, name := range ListNames() {
+		data, ok := Read(name)
+		if !ok {
+			t.Errorf("ListNames returned unreadable %q", name)
+			continue
+		}
+		var p struct {
+			Name            string `json:"name"`
+			Slug            string `json:"slug"`
+			ContentType     string `json:"content_type"`
+			ContentHTML     string `json:"content_html"`
+			ContentMarkdown string `json:"content_markdown"`
+			ContentBlocks   string `json:"content_blocks"`
+			SourceTSX       string `json:"source_tsx"`
+			BundleCSS       string `json:"bundle_css"`
+		}
+		if err := json.Unmarshal(data, &p); err != nil {
+			t.Errorf("%s: invalid JSON: %v", name, err)
+			continue
+		}
+		if p.Name == "" || p.Slug == "" {
+			t.Errorf("%s: name and slug are required", name)
+		}
+		if !validTypes[p.ContentType] {
+			t.Errorf("%s: unknown content_type %q", name, p.ContentType)
+		}
+		for field, s := range map[string]string{
+			"content_html": p.ContentHTML, "content_markdown": p.ContentMarkdown,
+			"content_blocks": p.ContentBlocks, "bundle_css": p.BundleCSS,
+		} {
+			if len(s) > 1024*1024 {
+				t.Errorf("%s: %s exceeds 1MB", name, field)
+			}
+		}
+		if len(p.SourceTSX) > 512*1024 {
+			t.Errorf("%s: source_tsx exceeds 512KB", name)
+		}
+		if p.ContentType == "react" {
+			if strings.TrimSpace(p.SourceTSX) == "" {
+				t.Errorf("%s: react page without source_tsx", name)
+			}
+			lower := strings.ToLower(p.SourceTSX)
+			for _, denied := range []string{"eval(", "new function", "xmlhttprequest", "document.cookie", "localstorage", "sessionstorage", "child_process", "require("} {
+				if strings.Contains(lower, denied) {
+					t.Errorf("%s: source_tsx uses forbidden primitive %q", name, denied)
+				}
+			}
+		}
+	}
+}
