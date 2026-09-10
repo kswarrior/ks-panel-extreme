@@ -36,7 +36,7 @@ export interface InstanceControls {
   allow_edit_advanced: boolean;
   allow_reinstall: boolean;
   allow_destroy: boolean;
-  // More → Overview → Details shortcuts.
+  // More → Overview → Details tile links.
   allow_external_id_copy: boolean;
   allow_node_link: boolean;
   allow_template_link: boolean;
@@ -127,95 +127,6 @@ export function resolveInstanceControls(
     allow_external_id_copy: boolOr(c.allow_external_id_copy, d.allow_external_id_copy),
     allow_node_link: boolOr(c.allow_node_link, d.allow_node_link),
     allow_template_link: boolOr(c.allow_template_link, d.allow_template_link),
-    shortcuts: resolveShortcuts(c.shortcuts),
-  };
-}
-
-// shortcutSlug returns the normalized URL slug for a menu shortcut.
-export function shortcutSlug(controls: InstanceControls, key: ShortcutKey): string {
-  const s = controls?.shortcuts?.[key]?.slug;
-  if (typeof s === 'string' && s.trim() !== '') {
-    const norm = s.trim().replace(/^\/+|\/+$/g, '').trim();
-    if (norm !== '') return norm;
-  }
-  return DEFAULT_SHORTCUTS[key].slug;
-}
-
-// shortcutLabel returns the display name for a menu shortcut.
-export function shortcutLabel(controls: InstanceControls, key: ShortcutKey): string {
-  const s = controls?.shortcuts?.[key]?.label;
-  if (typeof s === 'string' && s.trim() !== '') return s.trim();
-  return DEFAULT_SHORTCUTS[key].label;
-}
-
-const SHORTCUT_FIELDS: (keyof InstanceShortcutConfig)[] = [
-  'show',
-  'slug',
-  'label',
-  'icon_svg',
-  'icon_color',
-  'show_sftp',
-  'files_home',
-  'files_jail',
-  'show_header',
-  'allow_edit',
-  'allow_shell',
-  'allow_power',
-  'allow_actions',
-  'max_timeout_sec',
-  'max_concurrent_runs',
-  'max_active_jobs',
-  'terminal_allow_multi',
-  'terminal_max',
-  'terminal_default_stop_on_exit',
-  'terminal_default_allow_input',
-  'terminal_default_timeout_s',
-  'terminal_input_mode',
-  'terminal_prompt',
-  'terminal_shortcuts_enabled',
-  'terminal_shortcuts',
-  'default_terminals',
-];
-
-export function isShortcutCustom(a: InstanceShortcutConfig, b: InstanceShortcutConfig): boolean {
-  // Arrays compare by reference — a configured list with identical content
-  // must still read as "not customised", so compare by value instead.
-  return SHORTCUT_FIELDS.some((k) => Array.isArray(a[k]) || Array.isArray(b[k])
-    ? JSON.stringify(a[k] ?? []) !== JSON.stringify(b[k] ?? [])
-    : a[k] !== b[k]);
-}
-
-// automationTimeoutCeiling resolves the template ceiling for per-job
-// timeouts: the configured max_timeout_sec, or 1800 when unset (0).
-// Mirrors the backend automationMaxTimeoutSec default.
-export const DEFAULT_AUTOMATION_MAX_TIMEOUT_SEC = 1800;
-
-export function automationTimeoutCeiling(controls: InstanceControls): number {
-  const v = controls?.shortcuts?.automation?.max_timeout_sec;
-  if (typeof v === 'number' && Number.isFinite(v) && v > 0) {
-    return Math.max(1, Math.min(DEFAULT_AUTOMATION_MAX_TIMEOUT_SEC, Math.floor(v)));
-  }
-  return DEFAULT_AUTOMATION_MAX_TIMEOUT_SEC;
-}
-
-// resolveCappedCount normalises one automation count cap (run-together /
-// active-jobs): unset/garbled/<=0 falls back (0 = uncapped), positives
-// clamp to 1..cap. Mirrors the backend automationNumberField.
-function resolveCappedCount(v: unknown, fallback: number, cap: number): number {
-  if (v === undefined || v === null || v === '') return fallback;
-  const n = typeof v === 'number' ? Math.floor(v) : parseInt(String(v), 10);
-  if (!Number.isFinite(n) || n <= 0) return fallback;
-  return Math.max(1, Math.min(cap, n));
-}
-
-// automationRunLimits resolves the template's run-together + active-jobs
-// caps (0 = uncapped). Mirrors AutomationConcurrentLimit /
-// AutomationMaxActiveJobs on the backend.
-export function automationRunLimits(controls: InstanceControls): { concurrent: number; active: number } {
-  const auto = controls?.shortcuts?.automation;
-  return {
-    concurrent: typeof auto?.max_concurrent_runs === 'number' && auto.max_concurrent_runs > 0 ? auto.max_concurrent_runs : 0,
-    active: typeof auto?.max_active_jobs === 'number' && auto.max_active_jobs > 0 ? auto.max_active_jobs : 0,
   };
 }
 
@@ -223,8 +134,5 @@ export function automationRunLimits(controls: InstanceControls): { concurrent: n
 // (used to decide if serializeSpec should persist it).
 export function isControlsCustom(c: InstanceControls): boolean {
   const d = DEFAULT_INSTANCE_CONTROLS;
-  if ((Object.keys(d) as (keyof InstanceControls)[]).some((k) => k !== 'shortcuts' && c[k] !== d[k])) {
-    return true;
-  }
-  return SHORTCUT_KEYS.some((k) => isShortcutCustom(c.shortcuts[k], d.shortcuts[k]));
+  return (Object.keys(d) as (keyof InstanceControls)[]).some((k) => c[k] !== d[k]);
 }
