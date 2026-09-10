@@ -1441,7 +1441,7 @@ const NodeForm: React.FC = () => {
 
           {tokenInfo.configJson && !tokenInfo.isLocalhost && !tokenInfo.isTunnel && (
             <div className="mt-3">
-              <p className="text-sm text-gray-300 mb-1">Config YAML for ksedge:</p>
+              <p className="text-sm text-gray-300 mb-1">Config TOML for ksedge:</p>
               <pre className="bg-black border border-white/10 rounded-md px-3 py-2 text-xs text-gray-200 overflow-x-auto max-h-60">
                 {tokenInfo.configJson}
               </pre>

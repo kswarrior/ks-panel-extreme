@@ -909,20 +909,6 @@ icon_svg: <path d="M12 2L2 7l10 5 10-5-10-5z"/>
 
 (Stored JSON shape: same keys, `content_markdown` as a JSON string.)
 
-```json
-{
-  "name": "Hello",
-  "slug": "hello",
-  "kind": "custom",
-  "category": "documentation",
-  "type": "docs",
-  "description": "Minimal working page",
-  "content_type": "markdown",
-  "content_markdown": "# Hello\n\nThis is a **working** page for instance `{{instance.name}}`.\n\n- Uses `markdown` content_type\n- Add actions + SDK later\n",
-  "icon_svg": "<path d=\"M12 2L2 7l10 5 10-5-10-5z\"/>"
-}
-```
-
 Deploy: upload via Studio → link to template → deploy instance → visit `/instances/<id>/hello`.
 
 ### 18.2 Interactive HTML Dashboard with Actions & `{{component:…}}`
@@ -947,7 +933,7 @@ Deploy: upload via Studio → link to template → deploy instance → visit `/i
 * Main route `/dashboard`, sub-page `/dashboard/edit` (inherits `{{component:site_header}}`).
 * Two actions tested in Studio Preview as well (bind instance → *Test*).
 
-### 18.3 File Operations + Docker + Runtime Args (like `docker-manager.json` / `minecraft-plugins.json`)
+### 18.3 File Operations + Docker + Runtime Args (stored JSON shape)
 
 ```json
 {
@@ -963,7 +949,7 @@ Deploy: upload via Studio → link to template → deploy instance → visit `/i
 }
 ```
 
-### 18.4 Visual Blocks Page with `action` Blocks (like `complete-example.json`)
+### 18.4 Visual Blocks Page with `action` Blocks (stored JSON shape)
 
 ```json
 {
