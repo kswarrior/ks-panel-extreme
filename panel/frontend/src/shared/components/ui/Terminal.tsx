@@ -709,6 +709,7 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
       if (fitRaf) window.cancelAnimationFrame(fitRaf);
       el.removeEventListener('click', focusTerm);
       el.removeEventListener('touchstart', handleTouchStart as EventListener);
+      el.removeEventListener('touchmove', handleTouchMove as EventListener);
       el.removeEventListener('touchend', handleTouchEnd as EventListener);
       el.removeEventListener('touchcancel', handleTouchCancel);
       el.removeEventListener('copy', handleCopyEvent as EventListener);
@@ -828,6 +829,7 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
             // stream's first line.
             tintBufRef.current = '';
             tintDecRef.current = null;
+            stripDecRef.current = null;
             // Reset scrollback so the freshly-attached shell starts blank.
             // Action-bound panes keep their scrollback: the parent streams
             // the running action's log lines into the same buffer, and a
@@ -851,9 +853,10 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
               const bytes = base64ToBytes(msg.data);
               if (bytes.length) {
                 // Startup panes render the MC-style tinted view; every
-                // other bridge stays byte-faithful.
+                // other bridge goes through the prefix filter (byte-
+                // faithful when the stamp toggle is ON).
                 if (endpointRef.current === 'startup') writeTinted(term, bytes);
-                else term.write(bytes);
+                else writeFiltered(term, bytes);
               }
             }
             break;
@@ -943,7 +946,7 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
   }, []);
 
   return (
-    <div className="relative">
+    <div className="relative ks-terminal-wrap">
       <div
         ref={containerRef}
         // Phone-first viewport fill: the fixed 24rem card left a tall dead
@@ -953,7 +956,11 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
         // header/tab/pill chrome (~15rem); sm keeps its 26rem floor the same
         // way. Desktop keeps the fixed 28rem that already looks right.
         // Height changes flow through the ResizeObserver below into fit().
+        // touchAction pan-y lets one-finger vertical swipes scroll the
+        // xterm scrollback natively on phones (tap still focuses via the
+        // handlers above).
         className="w-full h-[max(24rem,calc(100dvh-15rem))] sm:h-[max(26rem,calc(100dvh-15rem))] md:h-[28rem] rounded-lg overflow-hidden"
+        style={{ touchAction: 'pan-y' }}
       />
       {hasSel && (
         <button

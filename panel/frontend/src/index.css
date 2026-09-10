@@ -1460,3 +1460,44 @@ input[type="search"] {
   }
 }
 
+/* Instance terminal: touch scroll + slim scrollbar.
+   The xterm viewport is the actual scroller (overflow-y: scroll in
+   xterm.css). On phones one-finger swipes must scroll the scrollback
+   with momentum instead of getting stuck, and the always-visible
+   desktop scrollbar shrinks to a thin 4px rail so it never eats
+   terminal columns. */
+.ks-terminal-wrap .xterm-viewport {
+  touch-action: pan-y !important;
+  overscroll-behavior: contain !important;
+  -webkit-overflow-scrolling: touch !important;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}
+.ks-terminal-wrap .xterm-viewport::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.ks-terminal-wrap .xterm-viewport::-webkit-scrollbar-track {
+  background: transparent;
+}
+.ks-terminal-wrap .xterm-viewport::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+@media (max-width: 639px) {
+  .ks-terminal-wrap .xterm-viewport {
+    scrollbar-width: thin;
+  }
+  .ks-terminal-wrap .xterm-viewport::-webkit-scrollbar {
+    width: 4px !important;
+    height: 4px !important;
+  }
+  .ks-terminal-wrap .xterm-viewport::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.28);
+    border: none !important;
+    border-radius: 9999px;
+  }
+}
+
