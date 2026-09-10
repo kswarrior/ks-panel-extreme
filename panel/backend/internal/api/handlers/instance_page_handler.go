@@ -2085,6 +2085,10 @@ type ImportInstancePageRequest struct {
 	ContentHTML     string `json:"content_html"`
 	ContentMarkdown string `json:"content_markdown"`
 	ContentBlocks   string `json:"content_blocks"`
+	// SourceTSX carries the React author source on file/URL/local import.
+	SourceTSX string `json:"source_tsx"`
+	// BundleCSS carries optional React page CSS on import.
+	BundleCSS string `json:"bundle_css"`
 	IconSVG         string `json:"icon_svg"`
 	IconColor       string `json:"icon_color"`
 	Actions         string `json:"actions"`
@@ -3411,6 +3415,9 @@ func ResyncMarketplacePagesHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		// Keep the row's identity (slug may have been renamed locally, so
 		// preserve the stored slug); refresh everything else from the link.
+		// React source is build-owned local authoring — the marketplace
+		// catalog carries none in v1, so preserve the stored source instead
+		// of wiping it (the bundle stays until the next build).
 		if err := repo.Update(p.ID, repository.InstancePageInput{
 			Name:            dto.Name,
 			Slug:            p.Slug,
@@ -3422,6 +3429,7 @@ func ResyncMarketplacePagesHandler(w http.ResponseWriter, r *http.Request) {
 			ContentHTML:     dto.ContentHTML,
 			ContentMarkdown: dto.ContentMarkdown,
 			ContentBlocks:   dto.ContentBlocks,
+			SourceTSX:       p.SourceTSX,
 			IconSVG:         dto.IconSVG,
 		IconColor:       dto.IconColor,
 			Actions:         dto.Actions,
