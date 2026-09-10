@@ -772,6 +772,18 @@ const BRIDGE_METHODS = [
   // SPA navigation within the SAME instance (parent re-validates the target).
   'navigate',
   'storage.get', 'storage.set', 'storage.delete', 'storage.clear', 'storage.keys',
+  // Built-in parity wrappers (all instance-scoped fetchPanel calls executed
+  // host-side, so binary bodies and raw bytes survive the iframe boundary).
+  'statPath', 'renamePath', 'copyPath', 'chmodPath', 'archivePaths',
+  'extractArchive', 'searchFiles', 'uploadFromUrl', 'uploadFile', 'downloadFile',
+  'listPorts', 'savePorts',
+  'listAutomation', 'listAutomationRuns', 'runAutomationJob', 'deleteAutomationJob',
+  'createAutomationJob', 'updateAutomationJob', 'downloadAutomation', 'importAutomationURL',
+  'listSecrets', 'setSecret', 'deleteSecret', 'revealSecret', 'saveEnv',
+  'power', 'reinstall', 'updateIdentity',
+  'getMetrics', 'listProcesses', 'killProcess', 'listAudit',
+  'getSftp', 'enableSftp', 'rotateSftp', 'disableSftp', 'revealSftp',
+  'sendActionStdin', 'sendInstallStdin',
 ] as const;
 
 // safeInlineJson serialises a value for direct embedding inside a
@@ -1639,6 +1651,48 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
               case 'docker': return sdk.docker(list[0], list[1]);
               case 'kvm': return sdk.kvm(list[0], list[1]);
               case 'lxd': return sdk.lxd(list[0], list[1]);
+              // Built-in parity: direct sdk passthroughs (names already
+              // gated by the BRIDGE_METHODS allow-list above; every one is
+              // instance-scoped inside the SDK itself).
+              case 'statPath': return sdk.statPath(list[0]);
+              case 'renamePath': return sdk.renamePath(list[0], list[1]);
+              case 'copyPath': return sdk.copyPath(list[0], list[1]);
+              case 'chmodPath': return sdk.chmodPath(list[0], list[1]);
+              case 'archivePaths': return sdk.archivePaths(list[0], list[1], list[2]);
+              case 'extractArchive': return sdk.extractArchive(list[0], list[1]);
+              case 'searchFiles': return sdk.searchFiles(list[0], list[1], list[2]);
+              case 'uploadFromUrl': return sdk.uploadFromUrl(list[0], list[1]);
+              case 'uploadFile': return sdk.uploadFile(list[0], list[1], list[2]);
+              case 'downloadFile': return sdk.downloadFile(list[0]);
+              case 'listPorts': return sdk.listPorts();
+              case 'savePorts': return sdk.savePorts(list[0]);
+              case 'listAutomation': return sdk.listAutomation();
+              case 'listAutomationRuns': return sdk.listAutomationRuns(list[0]);
+              case 'runAutomationJob': return sdk.runAutomationJob(list[0]);
+              case 'deleteAutomationJob': return sdk.deleteAutomationJob(list[0]);
+              case 'createAutomationJob': return sdk.createAutomationJob(list[0]);
+              case 'updateAutomationJob': return sdk.updateAutomationJob(list[0], list[1]);
+              case 'downloadAutomation': return sdk.downloadAutomation(list[0]);
+              case 'importAutomationURL': return sdk.importAutomationURL(list[0]);
+              case 'listSecrets': return sdk.listSecrets();
+              case 'setSecret': return sdk.setSecret(list[0], list[1]);
+              case 'deleteSecret': return sdk.deleteSecret(list[0]);
+              case 'revealSecret': return sdk.revealSecret(list[0]);
+              case 'saveEnv': return sdk.saveEnv(list[0]);
+              case 'power': return sdk.power(list[0]);
+              case 'reinstall': return sdk.reinstall();
+              case 'updateIdentity': return sdk.updateIdentity(list[0]);
+              case 'getMetrics': return sdk.getMetrics();
+              case 'listProcesses': return sdk.listProcesses();
+              case 'killProcess': return sdk.killProcess(list[0], list[1]);
+              case 'listAudit': return sdk.listAudit(list[0]);
+              case 'getSftp': return sdk.getSftp();
+              case 'enableSftp': return sdk.enableSftp();
+              case 'rotateSftp': return sdk.rotateSftp();
+              case 'disableSftp': return sdk.disableSftp();
+              case 'revealSftp': return sdk.revealSftp();
+              case 'sendActionStdin': return sdk.sendActionStdin(list[0], list[1]);
+              case 'sendInstallStdin': return sdk.sendInstallStdin(list[0]);
               case 'toast': sdk.toast(list[0], list[1]); return { ok: true };
               case 'confirm': {
                 // Render the panel's themed ConfirmDialog in the HOST origin

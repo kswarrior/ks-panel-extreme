@@ -171,8 +171,135 @@ export interface CustomPageAPI {
   };
   
   // ==================== WEBSOCKET ====================
-  // Raw WebSocket for terminal/streaming
-  connectWS: (protocols?: string[]) => WebSocket;
+  // Panel terminal bridges for THIS instance (same JSON wire protocol on
+  // all three): 'terminal' (side shell, default), 'workflow' (live
+  // transcript of the running action/install bound to `terminal`), or
+  // 'startup' (instance main-process stdio). `opts.terminal` is the pane
+  // identity (same [a-z0-9_-] normalisation the panel uses everywhere);
+  // `opts.timeout` is the attach budget in seconds (empty = no limit).
+  connectWS: (protocols?: string[], endpoint?: PageWSEndpoint, opts?: PageWSOptions) => WebSocket;
+
+  // ==================== BUILT-IN PARITY (thin fetchPanel wrappers) =====
+  // Every method below calls an /api/instances/<own-id>/… endpoint, so the
+  // same instance scoping + permission gates apply as fetchPanel. They exist
+  // so custom pages can clone the built-in control pages (Files, Ports,
+  // Terminal, Automation, Env, SFTP, Overview) without hand-rolling URLs.
+
+  // ---- Files (full explorer parity) ----
+  statPath: (path: string) => Promise<{ name: string; size: number; mode: string; is_dir: boolean; mod_time: number }>;
+  renamePath: (from: string, to: string) => Promise<void>;
+  copyPath: (from: string, to: string) => Promise<void>;
+  chmodPath: (path: string, mode: string) => Promise<void>;
+  archivePaths: (dir: string, names: string[], destArchive: string) => Promise<{ ok: boolean; path: string; count: number }>;
+  extractArchive: (archivePath: string, destDir?: string) => Promise<void>;
+  searchFiles: (dir: string, query: string, limit?: number) => Promise<{ entries: Array<{ path: string; name: string; is_dir: boolean; size: number; mod_time: number }>; truncated: boolean }>;
+  uploadFromUrl: (dir: string, url: string) => Promise<void>;
+  // Binary-safe transfer (fetchPanel speaks text/JSON only): bytes ride as
+  // base64. uploadFile posts octet-stream; downloadFile resolves
+  // { name, base64, contentType } for the caller to decode or anchor-download.
+  uploadFile: (path: string, base64: string, contentType?: string) => Promise<void>;
+  downloadFile: (path: string) => Promise<{ name: string; base64: string; contentType: string }>;
+
+  // ---- Ports ----
+  listPorts: () => Promise<Array<{ id: number; host_port: number; container_port: number; protocol: string; ip: string }>>;
+  savePorts: (ports: Array<{ host: number; container: number; protocol: string; ip?: string }>) => Promise<void>;
+
+  // ---- Automation ----
+  listAutomation: () => Promise<any[]>;
+  listAutomationRuns: (limit?: number) => Promise<any[]>;
+  runAutomationJob: (jobId: number) => Promise<any>;
+  deleteAutomationJob: (jobId: number) => Promise<void>;
+  createAutomationJob: (payload: Record<string, unknown>) => Promise<{ id: number }>;
+  updateAutomationJob: (jobId: number, payload: Record<string, unknown>) => Promise<void>;
+  downloadAutomation: (jobId: number) => Promise<{ base64: string }>;
+  importAutomationURL: (url: string) => Promise<{ id: number }>;
+
+  // ---- Secrets / Env ----
+  listSecrets: () => Promise<Array<{ key: string }>>;
+  setSecret: (key: string, value: string) => Promise<void>;
+  deleteSecret: (key: string) => Promise<void>;
+  revealSecret: (key: string) => Promise<{ key: string; value: string }>;
+  // Env editor parity: replaces the instance env (recreates the workload,
+  // same as the built-in Env page — confirm first).
+  saveEnv: (env: Record<string, string>) => Promise<{ id: number; status: string; recreated: boolean }>;
+
+  // ---- Power / identity (Overview parity) ----
+  power: (action: 'start' | 'stop' | 'restart' | 'kill') => Promise<void>;
+  reinstall: () => Promise<{ id: number; status: string }>;
+  updateIdentity: (payload: { display_name: string; icon?: string; color?: string }) => Promise<void>;
+
+  // ---- Monitoring (Overview parity) ----
+  getMetrics: () => Promise<any>;
+  listProcesses: () => Promise<any[]>;
+  killProcess: (pid: number, signal?: string) => Promise<any>;
+  listAudit: (limit?: number) => Promise<any[]>;
+
+  // ---- SFTP ----
+  getSftp: () => Promise<any>;
+  enableSftp: () => Promise<any>;
+  rotateSftp: () => Promise<any>;
+  disableSftp: () => Promise<any>;
+  revealSftp: () => Promise<any>;
+
+  // ---- Workflow stdin (Terminal parity for bound panes) ----
+  sendActionStdin: (actionId: string, line: string) => Promise<any>;
+  sendInstallStdin: (line: string) => Promise<any>;
+}
+
+// Which panel bridge connectWS dials. Mirrors the Terminal component's
+// endpoint prop ('terminal' | 'startup' | 'workflow').
+export type PageWSEndpoint = 'terminal' | 'workflow' | 'startup';
+
+export interface PageWSOptions {
+  terminal?: string;
+  timeout?: number | string;
+}
+
+// buildPageWsUrl assembles the instance-scoped WS URL for one of the three
+// panel bridges. Pure (no window dependency beyond host/protocol) so the
+// iframe bridge in CustomPageView and unit checks share it. Unknown
+// endpoints fall back to 'terminal' (fail closed); terminal ids use the
+// panel-wide [a-z0-9_-] normalisation; timeout is digits-only.
+export function buildPageWsUrl(
+  host: string,
+  protocol: string,
+  instanceId: number,
+  endpoint?: unknown,
+  opts?: PageWSOptions,
+): string {
+  const route = endpoint === 'startup' ? 'startup' : endpoint === 'workflow' ? 'workflow' : 'terminal';
+  const base = `${protocol === 'https:' ? 'wss:' : 'ws:'}//${host}/api/instances/${instanceId}/${route}`;
+  const q: string[] = [];
+  const tid = String(opts?.terminal ?? '').trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, '').slice(0, 64);
+  if (tid) q.push(`terminal=${encodeURIComponent(tid)}`);
+  const t = String(opts?.timeout ?? '').trim().replace(/[^0-9]/g, '').slice(0, 6);
+  if (t && t !== '0') q.push(`timeout=${encodeURIComponent(t)}`);
+  return q.length > 0 ? `${base}?${q.join('&')}` : base;
+}
+
+// base64ToBytes decodes a base64 payload (no data: prefix) to bytes for
+// uploadFile. Rejects on invalid input instead of sending garbage.
+export function base64ToBytes(b64: string): Uint8Array {
+  const clean = String(b64 ?? '').replace(/\s+/g, '');
+  if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(clean) || clean.length % 4 !== 0) {
+    throw new Error('uploadFile: invalid base64 payload');
+  }
+  const bin = atob(clean);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+// bytesToBase64 encodes bytes (chunked — a single String.fromCharCode
+// spread over megabytes blows the call stack).
+export function bytesToBase64(buf: ArrayBuffer): string {
+  const bytes = new Uint8Array(buf);
+  const CHUNK = 0x8000;
+  let s = '';
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    s += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + CHUNK)) as number[]);
+  }
+  return btoa(s);
 }
 
 // Global SDK instance (set by CustomPageView)
@@ -417,9 +544,14 @@ export function createCustomPageSDK(
   async function fetchPanel<T = any>(path: string, init?: RequestInit): Promise<T> {
     // Fail closed: only paths under THIS instance's API surface are allowed.
     // A page can never use the SDK to reach another instance's data or any
-    // admin surface (users, nodes, settings, …).
+    // admin surface (users, nodes, settings, …). '' targets the instance
+    // root itself (needed by saveEnv, which PUTs the instance config).
     const prefix = `/api/instances/${instanceContext.id}`;
-    if (typeof path !== 'string' || path.length > 2048 || !path.startsWith('/')) {
+    if (typeof path !== 'string' || path.length > 2048) {
+      throw new Error('fetchPanel: invalid path');
+    }
+    if (path === '') return fetchJSON<T>(prefix, init);
+    if (!path.startsWith('/')) {
       throw new Error('fetchPanel: invalid path');
     }
     // Relative paths ("/processes", "/metrics?…") are auto-bound to this
@@ -465,11 +597,38 @@ export function createCustomPageSDK(
   
   // --- WebSocket ---
   // Markdown/blocks pages run in the panel's own origin, so they can open
-  // the authenticated terminal socket directly. HTML pages (sandboxed
-  // iframes) use the bridged connectWS installed by CustomPageView instead.
-  function connectWS(protocols?: string[]) {
-    const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/instances/${instanceContext.id}/terminal`;
-    return new WebSocket(wsUrl, protocols);
+  // the authenticated bridges directly. HTML pages (sandboxed iframes) use
+  // the bridged connectWS installed by CustomPageView instead (same
+  // endpoint/params contract, validated parent-side).
+  function connectWS(protocols?: string[], endpoint?: PageWSEndpoint, opts?: PageWSOptions) {
+    return new WebSocket(
+      buildPageWsUrl(window.location.host, window.location.protocol, instanceContext.id, endpoint, opts),
+      protocols,
+    );
+  }
+
+  // --- Built-in parity wrappers (all instance-scoped via fetchPanel) ---
+  const enc = encodeURIComponent;
+  // fetchBase64 reads raw bytes (binary-safe download). fetchJSON would
+  // reinterpret them as text and corrupt non-UTF8 payloads.
+  async function fetchBase64(url: string, options?: RequestInit): Promise<{ base64: string; contentType: string }> {
+    const res = await fetchWithTimeoutCsrf(url, options);
+    if (!res.ok) throw new Error(sanitizeHttpError(await res.text(), res.status));
+    return { base64: bytesToBase64(await res.arrayBuffer()), contentType: res.headers.get('content-type') || 'application/octet-stream' };
+  }
+
+  async function uploadFile(path: string, base64: string, contentType?: string): Promise<void> {
+    const bytes = base64ToBytes(base64);
+    await fetchJSON<void>(`${apiBase}/files?op=upload&path=${enc(path)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': contentType || 'application/octet-stream' },
+      body: bytes as unknown as BodyInit,
+    });
+  }
+
+  async function downloadFile(path: string): Promise<{ name: string; base64: string; contentType: string }> {
+    const r = await fetchBase64(`${apiBase}/files/read?path=${enc(path)}`);
+    return { name: String(path).split('/').pop() || 'download', ...r };
   }
   
   // --- Toast/Modal ---
@@ -557,10 +716,82 @@ export function createCustomPageSDK(
     // Storage
     storage,
     
-    // WebSocket
+    // WebSocket (terminal / workflow / startup bridges)
     connectWS,
+
+    // Files parity
+    statPath: (path) => fetchPanel(`/files?op=stat&path=${enc(path)}`),
+    renamePath: (from, to) => fetchPanel(`/files?op=rename&path=${enc(from)}&to=${enc(to)}`, { method: 'POST' }).then(() => undefined),
+    copyPath: (from, to) => fetchPanel(`/files?op=copy&path=${enc(from)}&to=${enc(to)}`, { method: 'POST' }).then(() => undefined),
+    chmodPath: (path, mode) => fetchPanel(`/files?op=chmod&path=${enc(path)}&mode=${enc(mode)}`, { method: 'POST' }).then(() => undefined),
+    archivePaths: (dir, names, destArchive) => fetchPanel(`/files?op=archive&path=${enc(dir)}&to=${enc(destArchive)}`, { method: 'POST', body: JSON.stringify({ names }) }),
+    extractArchive: (archivePath, destDir) => fetchPanel(`/files?op=extract&path=${enc(archivePath)}${destDir ? `&to=${enc(destDir)}` : ''}`, { method: 'POST' }).then(() => undefined),
+    searchFiles: (dir, query, limit = 100) => fetchPanel(`/files?op=search&path=${enc(dir)}&q=${enc(query)}&limit=${limit}`),
+    uploadFromUrl: (dir, url) => fetchPanel('/files/url', { method: 'POST', body: JSON.stringify({ url, path: dir.endsWith('/') ? dir : `${dir}/` }) }).then(() => undefined),
+    uploadFile,
+    downloadFile,
+
+    // Ports parity
+    listPorts: async () => {
+      const d: any = await fetchPanel('/ports');
+      if (Array.isArray(d)) return d;
+      if (d && Array.isArray(d.allocations)) return d.allocations;
+      return [];
+    },
+    savePorts: (ports) => fetchPanel('/ports', { method: 'PUT', body: JSON.stringify({ ports }) }).then(() => undefined),
+
+    // Automation parity
+    listAutomation: () => fetchPanel('/automation/'),
+    listAutomationRuns: (limit = 50) => fetchPanel(`/automation/runs?limit=${limit}`),
+    runAutomationJob: (jobId) => fetchPanel(`/automation/${jobId}/run`, { method: 'POST' }),
+    deleteAutomationJob: (jobId) => fetchPanel(`/automation/${jobId}`, { method: 'DELETE' }).then(() => undefined),
+    createAutomationJob: (payload) => fetchPanel('/automation/', { method: 'POST', body: JSON.stringify(payload) }),
+    updateAutomationJob: (jobId, payload) => fetchPanel(`/automation/${jobId}`, { method: 'PUT', body: JSON.stringify(payload) }).then(() => undefined),
+    downloadAutomation: (jobId) => fetchBase64(`${apiBase}/automation/${jobId}/download`).then((r) => ({ base64: r.base64 })),
+    importAutomationURL: (url) => fetchPanel('/automation/import/url', { method: 'POST', body: JSON.stringify({ url }) }),
+
+    // Secrets / Env parity
+    listSecrets: () => fetchPanel('/secrets/'),
+    setSecret: (key, value) => fetchPanel('/secrets/', { method: 'POST', body: JSON.stringify({ key, value }) }).then(() => undefined),
+    deleteSecret: (key) => fetchPanel(`/secrets/${enc(key)}`, { method: 'DELETE' }).then(() => undefined),
+    revealSecret: (key) => fetchPanel(`/secrets/${enc(key)}`),
+    saveEnv: (env) => fetchPanel('', { method: 'PUT', body: JSON.stringify({ config: { env } }) }),
+
+    // Power / identity parity
+    power: (action) => {
+      if (!['start', 'stop', 'restart', 'kill'].includes(action)) return Promise.reject(new Error(`power: unknown action "${action}"`));
+      return fetchPanel(`/${action}`, { method: 'POST' }).then(() => undefined);
+    },
+    reinstall: () => fetchPanel('/reinstall', { method: 'POST' }),
+    updateIdentity: (payload) => fetchPanel('/identity', { method: 'PUT', body: JSON.stringify(payload) }).then(() => undefined),
+
+    // Monitoring parity
+    getMetrics: () => fetchPanel('/metrics'),
+    listProcesses: async () => {
+      const d: any = await fetchPanel('/processes');
+      return Array.isArray(d) ? d : [];
+    },
+    killProcess: (pid, signal) => {
+      const qs = `pid=${enc(String(pid))}${signal ? `&signal=${enc(signal)}` : ''}`;
+      return fetchPanel(`/processes/kill?${qs}`, { method: 'POST' });
+    },
+    listAudit: async (limit = 100) => {
+      const d: any = await fetchPanel(`/audit?limit=${limit}`);
+      return Array.isArray(d) ? d : (Array.isArray(d?.rows) ? d.rows : []);
+    },
+
+    // SFTP parity
+    getSftp: () => fetchPanel('/sftp'),
+    enableSftp: () => fetchPanel('/sftp/enable', { method: 'POST' }),
+    rotateSftp: () => fetchPanel('/sftp/rotate', { method: 'POST' }),
+    disableSftp: () => fetchPanel('/sftp/disable', { method: 'POST' }),
+    revealSftp: () => fetchPanel('/sftp?reveal=1'),
+
+    // Workflow stdin parity (bound terminal panes)
+    sendActionStdin: (actionId, line) => fetchPanel(`/actions/${enc(actionId)}/stdin`, { method: 'POST', body: JSON.stringify({ data: line }) }),
+    sendInstallStdin: (line) => fetchPanel('/install/stdin', { method: 'POST', body: JSON.stringify({ data: line }) }),
   };
-  
+
   return sdk;
 }
 
