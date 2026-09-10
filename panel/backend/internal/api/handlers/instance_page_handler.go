@@ -134,13 +134,17 @@ func validateReactSource(src string) error {
 		return newErrString("source_tsx must not use import/export (React and sdk are already in scope)")
 	}
 	lower := strings.ToLower(src)
-	for _, denied := range []string{"eval(", "new function", "xmlhttprequest", "document.cookie", "localstorage", "sessionstorage", "child_process", "require("} {
+	for _, denied := range []string{"eval(", "new function", "__proto__", "xmlhttprequest", "document.cookie", "localstorage", "sessionstorage", "child_process", "require("} {
 		if strings.Contains(lower, denied) {
 			return newErrString("source_tsx uses a forbidden primitive: " + denied)
 		}
 	}
 	// Raw fetch() would leave the sandbox scope — pages must use sdk.fetchPanel.
-	if regexp.MustCompile(`(?m)(^|[^a-zA-Z0-9_.$])fetch\s*\(`).MatchString(src) {
+	// Strip the sanctioned sdk.fetchPanel call first, then flag any remaining
+	// fetch( — including window.fetch / self.fetch / globalThis.fetch, which the
+	// old `.`-exempted predecessor class let straight through.
+	noSDK := strings.ReplaceAll(src, "sdk.fetchPanel", "")
+	if regexp.MustCompile(`(?m)(^|[^a-zA-Z0-9_$])fetch\s*\(`).MatchString(noSDK) {
 		return newErrString("source_tsx must use sdk.fetchPanel instead of fetch()")
 	}
 	return nil
@@ -350,6 +354,16 @@ func validateSubPages(raw string) error {
 		// carry it but it stays capped like the main bundle.
 		if len(s.BundleJS) > maxInstancePageBundleBytes {
 			return newErrString(fmt.Sprintf("sub-page %q bundle too large (max 1MB)", s.Path))
+		}
+		// BundleJS executes verbatim in the renderer, so an import carrying a
+		// hand-written bundle must pass the same gate as author source — else a
+		// crafted file/URL/marketplace payload could smuggle eval()/fetch()
+		// past the build validator. Build-stamped bundles equal validated
+		// source, so they pass unchanged.
+		if strings.TrimSpace(s.BundleJS) != "" {
+			if err := validateReactSource(s.BundleJS); err != nil {
+				return newErrString(fmt.Sprintf("sub-page %q: invalid bundle_js: %s", s.Path, err.Error()))
+			}
 		}
 		if s.ContentType == "react" && strings.TrimSpace(s.SourceTSX) == "" {
 			return newErrString(fmt.Sprintf("sub-page %q: source_tsx is required for react pages", s.Path))
@@ -1391,13 +1405,6 @@ func ExecutePageActionHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify the page is enabled for this instance (using instance's own config)
-	// The instance's Config field contains the deploy-time snapshot (template.spec + overrides)
-	var spec map[string]any
-	if instance.Config != "" {
-		_ = json.Unmarshal([]byte(instance.Config), &spec)
-	}
-	enabledPages := getEnabledPages(spec)
 	pageRepo := repository.NewInstancePageRepository(con)
 	page, perr := pageRepo.Get(pageID)
 	if perr != nil || page == nil {
@@ -1405,28 +1412,26 @@ func ExecutePageActionHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pageAllowed := false
-	for _, p := range enabledPages {
-		if p == page.Slug {
-			pageAllowed = true
-			break
-		}
-	}
-	if !pageAllowed {
+	// Page-bound gate: the library page's slug must resolve against THIS
+	// instance's deploy-time config snapshot (EMPTY-BY-DEFAULT semantics, same
+	// precedence as the SPA's isPageAllowed: exact slug, legacy original_slug,
+	// or a nested "<parent>/<sub>" sub-page of an enabled parent row).
+	// Mirrors ExecuteCustomPageActionHandler.
+	row := findSpecPageRow(parseSpecRows(instance.Config), page.Slug)
+	if row == nil {
 		http.Error(w, "page not enabled for this instance", http.StatusForbidden)
 		return
 	}
 
-	// Security: the payload must exactly match one of the page's SAVED actions.
-	// The browser can only name a stored action — it can never invent new
-	// commands, override arguments, or reach a page whose actions don't include
-	// the requested command. Mirrors ExecuteCustomPageActionHandler.
-	var actionsRaw []map[string]any
-	if page.Actions != "" {
-		_ = json.Unmarshal([]byte(page.Actions), &actionsRaw)
-	}
+	// Security: the payload must exactly match one of the page family's SAVED
+	// actions from the instance spec (the deploy-time snapshot the instance
+	// consented to), never the library's live copy — editing the library must
+	// not widen what runs on already-deployed instances. The browser can only
+	// name a stored action — it can never invent new commands, override
+	// arguments, or reach a page whose actions don't include the requested
+	// command. Mirrors ExecuteCustomPageActionHandler.
 	var matched map[string]any
-	for _, def := range actionsRaw {
+	for _, def := range row.actions {
 		if savedActionMatches(def, req.Type, req.Command, req.Path, req.Content, req.Args, req.Env) {
 			matched = def
 			break
@@ -2103,30 +2108,6 @@ func findSpecModuleActions(specJSON, moduleID string) []map[string]any {
 		return defs
 	}
 	return nil
-}
-
-// getEnabledPages returns the list of enabled page slugs from the spec.
-// Uses EMPTY-BY-DEFAULT semantics matching the frontend: when the spec has
-// no pages array or empty pages array, returns empty list (no pages allowed).
-func getEnabledPages(spec map[string]any) []string {
-	pages, _ := spec["pages"].([]any)
-	if len(pages) == 0 {
-		return []string{} // EMPTY-BY-DEFAULT: no pages = empty list
-	}
-	var enabled []string
-	for _, p := range pages {
-		pm, ok := p.(map[string]any)
-		if !ok {
-			continue
-		}
-		if pm["enabled"] == false {
-			continue
-		}
-		if slug, ok := pm["slug"].(string); ok && slug != "" {
-			enabled = append(enabled, slug)
-		}
-	}
-	return enabled
 }
 
 // silence unused import guard for sql (kept for symmetry with other handlers)
