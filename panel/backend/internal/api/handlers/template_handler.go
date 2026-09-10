@@ -26,8 +26,10 @@ import (
 
 // ============================== TEMPLATES ==============================
 //
-// Templates are pure data — the panel validates the JSON blob is parseable,
+// Templates are pure data — the panel validates the YAML spec is parseable,
 // nothing more. The real interpretation happens in ksedge's matching driver.
+// Stored specs are canonical YAML (legacy JSON rows parse identically and
+// auto-migrate to YAML on the next save).
 
 type templateDTO struct {
 	Name        string `json:"name"`
@@ -1167,8 +1169,8 @@ func InstallTemplateFromURLHandler(w http.ResponseWriter, r *http.Request) {
 	icon := strings.TrimSpace(getString(manifest, "icon"))
 	color := strings.ToUpper(strings.TrimSpace(getString(manifest, "color")))
 	// Same dual-shape spec handling as the file-upload path: the download
-	// endpoint exports spec as a JSON-encoded STRING, hand-written
-	// manifests carry it as an OBJECT.
+	// endpoint used to export spec as a JSON-encoded STRING (legacy),
+	// hand-written manifests carry it as an OBJECT.
 	var spec string
 	if rawSpec, ok := manifest["spec"]; ok && rawSpec != nil {
 		if s, ok := rawSpec.(string); ok {
@@ -1199,24 +1201,21 @@ func InstallTemplateFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "color must be a #rrggbb hex value", http.StatusBadRequest)
 		return
 	}
-	if spec == "" {
-		spec = "{}"
+	if strings.TrimSpace(spec) == "" {
+		spec = "{}\n"
 	}
-	var specMap map[string]any
-	if err := json.Unmarshal([]byte(spec), &specMap); err != nil {
-		http.Error(w, "spec must be valid JSON: "+err.Error(), http.StatusBadRequest)
+	specMap, serr := specyaml.Parse(spec)
+	if serr != nil {
+		http.Error(w, "spec must be valid YAML/JSON: "+serr.Error(), http.StatusBadRequest)
 		return
 	}
 	// Same Ptero-egg compat shim as the file-upload path.
-	if mergeManifestImagesIntoSpec(specMap, manifest) {
-		if reb, merr := json.Marshal(specMap); merr == nil {
-			spec = string(reb)
-		}
-	}
+	mergeManifestImagesIntoSpec(specMap, manifest)
 	if err := validateTemplateSpec(specMap); err != nil {
 		http.Error(w, "spec validation failed: "+err.Error(), http.StatusBadRequest)
 		return
 	}
+	spec = specyaml.MustMarshal(specMap)
 
 	con, err := repository.OpenDB()
 	if err != nil {
@@ -1482,7 +1481,7 @@ func DeleteTemplateHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// DownloadTemplateHandler returns a template as a downloadable JSON file.
+// DownloadTemplateHandler returns a template as a downloadable YAML manifest.
 func DownloadTemplateHandler(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
@@ -1518,21 +1517,29 @@ func DownloadTemplateHandler(w http.ResponseWriter, r *http.Request) {
 		"description": tmpl.Description,
 		"kind":        tmpl.Kind,
 		"image":       tmpl.Image,
-		"spec":        tmpl.Spec,
 		"icon":        tmpl.Icon,
 		"color":       tmpl.Color,
 	}
+	// Spec is exported as a YAML OBJECT (not a string) so hand-written
+	// manifests and downloads share one shape. Stored specs are YAML;
+	// legacy JSON rows parse identically through the YAML parser.
+	specMap, serr := specyaml.Parse(tmpl.Spec)
+	if serr != nil {
+		http.Error(w, "stored spec is corrupt", http.StatusInternalServerError)
+		return
+	}
+	exportData["spec"] = specMap
 
-	jsonData, err := json.MarshalIndent(exportData, "", "  ")
+	yamlData, err := yaml.Marshal(exportData)
 	if err != nil {
 		http.Error(w, "failed to serialize template", http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", "application/yaml")
 	safeName := sanitizeDownloadFilename(tmpl.Name)
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.json\"", safeName))
-	w.Write(jsonData)
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.yaml\"", safeName))
+	w.Write(yamlData)
 }
 
 // sanitizeDownloadFilename strips header-breaking characters from the
