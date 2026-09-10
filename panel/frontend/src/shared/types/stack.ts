@@ -31,6 +31,17 @@ export interface Stack {
   // externally-run stack Go app (0/"" = proxy off). Mirrors models.Stack.
   proxy_port: number;
   proxy_root_url?: string;
+  // Node-style remote pairing (migration 076): dial address of the stack
+  // app on another host ("" = same-host loopback via proxy_port), TLS
+  // flags, token prefix label, heartbeat status. token is present only on
+  // create/rotate responses (returned once, never stored client-side).
+  remote_address?: string;
+  remote_use_tls: boolean;
+  remote_skip_verify: boolean;
+  token_prefix?: string;
+  token?: string;
+  status: string;
+  last_seen_at?: string;
   owner_name?: string;
   source?: StackSource;
   source_url?: string;
@@ -101,6 +112,20 @@ export interface StackActivateConflict {
   message: string;
   pending: number;
   permissions: StackPermission[];
+}
+
+export interface StackProbeResult {
+  stack_id: number;
+  reachable: string; // "yes" | "no"
+  note?: string;
+}
+
+export interface StackPairing {
+  stack_id: number;
+  slug: string;
+  panel_url: string;
+  token: string;
+  config: string;
 }
 
 export interface StackNavEntry {

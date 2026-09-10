@@ -8,6 +8,8 @@ import type {
   StackEngineStatus,
   StackPageEntry,
   StackPageContent,
+  StackProbeResult,
+  StackPairing,
 } from '@/shared/types/stack';
 
 // Admin Stacks API — /api/stacks collection (MANAGE_STACKS-gated) plus the
@@ -84,18 +86,40 @@ export async function downloadStack(id: number): Promise<Blob> {
 
 export async function updateStack(
   id: number,
-  payload: { name: string; category: string; version: string; description: string; icon: string; color?: string; spec?: unknown; proxyPort?: number; proxyRootUrl?: string },
+  payload: { name: string; category: string; version: string; description: string; icon: string; color?: string; spec?: unknown; proxyPort?: number; proxyRootUrl?: string; remoteAddress?: string; remoteUseTls?: boolean; remoteSkipVerify?: boolean },
 ): Promise<Stack> {
   const res = await client.put<Stack>(`/api/stacks/${id}`, payload);
   return res.data;
 }
 
 // stackAppUrl returns the panel-served URL of a stack's proxied Go app
-// (/<root>/), or '' when the proxy is off. Plain anchor href (outside the
-// Router) since the mount lives outside the SPA route tree.
-export function stackAppUrl(s: Pick<Stack, 'proxy_port' | 'proxy_root_url' | 'active'>): string {
-  if (!s.active || !s.proxy_port || !s.proxy_root_url) return '';
+// (/<root>/), or '' when the proxy is off. A remote stack (address set)
+// needs no loopback port; a same-host stack still needs one. Plain anchor
+// href (outside the Router) since the mount lives outside the SPA tree.
+export function stackAppUrl(s: Pick<Stack, 'proxy_port' | 'proxy_root_url' | 'remote_address' | 'active'>): string {
+  if (!s.active || !s.proxy_root_url) return '';
+  if (!s.proxy_port && !s.remote_address) return '';
   return `/${s.proxy_root_url}/`;
+}
+
+// ---- Node-style remote pairing -------------------------------------------
+// Pair a stack app running on another host (or the same host) with NO
+// manual API key: the panel mints a token (create/rotate, once), the app
+// heartbeats with it, Verify dials its /health.
+
+export async function rotateStackToken(id: number): Promise<{ token: string }> {
+  const res = await client.post<{ token: string }>(`/api/stacks/${id}/rotate-token`);
+  return res.data;
+}
+
+export async function probeStack(id: number): Promise<StackProbeResult> {
+  const res = await client.post<StackProbeResult>(`/api/stacks/${id}/probe`);
+  return res.data;
+}
+
+export async function getStackPairing(id: number): Promise<StackPairing> {
+  const res = await client.get<StackPairing>(`/api/stacks/${id}/pairing`);
+  return res.data;
 }
 
 export async function deleteStack(id: number, wipe = false): Promise<void> {

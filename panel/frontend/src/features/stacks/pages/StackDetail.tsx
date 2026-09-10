@@ -19,9 +19,13 @@ import {
   updateStack,
   downloadStack,
   stackAppUrl,
+  rotateStackToken,
+  probeStack,
+  getStackPairing,
   extractStackApiError,
 } from '@/features/stacks/api/stacks';
 import type { StackOpJob, StackOpName } from '@/features/stacks/api/stacks';
+import type { StackPairing, StackProbeResult } from '@/shared/types/stack';
 import { Stack, stackCapabilityMeta, stackSourceMeta, STACK_CATEGORIES } from '@/shared/types/stack';
 import StackFileManager from '@/features/stacks/components/StackFileManager';
 import StackOpModal from '@/features/stacks/components/StackOpModal';
@@ -95,6 +99,19 @@ const StackDetail: React.FC = () => {
   const [proxyPort, setProxyPort] = useState('');
   const [proxyRoot, setProxyRoot] = useState('');
   const [proxySaving, setProxySaving] = useState(false);
+  // Node-style remote pairing: the app may run on another host (address
+  // set) or the same host (empty = loopback via the proxy port above).
+  const [remoteAddress, setRemoteAddress] = useState('');
+  const [remoteUseTls, setRemoteUseTls] = useState(false);
+  const [remoteSkipVerify, setRemoteSkipVerify] = useState(false);
+  // Pairing snippet + Verify verdict (fetched on demand; the token is
+  // shown only here and never stored client-side).
+  const [pairing, setPairing] = useState<StackPairing | null>(null);
+  const [pairingOpen, setPairingOpen] = useState(false);
+  const [pairingLoading, setPairingLoading] = useState(false);
+  const [rotating, setRotating] = useState(false);
+  const [probing, setProbing] = useState(false);
+  const [probeResult, setProbeResult] = useState<StackProbeResult | null>(null);
   // Edit modal (name/version/category/description + icon/colour theme).
   const [editOpen, setEditOpen] = useState(false);
   const [editName, setEditName] = useState('');
