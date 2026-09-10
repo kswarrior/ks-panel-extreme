@@ -127,10 +127,16 @@ const TemplatePagesImportModal: React.FC<TemplatePagesImportModalProps> = ({
         icon_svg: p.icon_svg || '',
         icon_color: (p as any).icon_color || '',
         kind: 'custom',
-        content_type: (['html', 'markdown', 'blocks'].includes(p.content_type) ? p.content_type : 'markdown') as PageOverride['content_type'],
+        content_type: (['html', 'markdown', 'blocks', 'react'].includes(p.content_type) ? p.content_type : 'markdown') as PageOverride['content_type'],
         content_html: p.content_html || '',
         content_markdown: p.content_markdown || '',
         content_blocks: p.content_blocks || '',
+        // React snapshot MUST ride along like actions: dropping it here would
+        // deploy a react page with no bundle (renders the "no built bundle" card).
+        ...((p as any).source_tsx ? { source_tsx: (p as any).source_tsx } : {}),
+        ...((p as any).bundle_js ? { bundle_js: (p as any).bundle_js } : {}),
+        ...((p as any).bundle_css ? { bundle_css: (p as any).bundle_css } : {}),
+        ...((p as any).build_status ? { build_status: (p as any).build_status } : {}),
         // Saved actions MUST ride along: the runtime allow-list matches
         // against the spec row's actions, so dropping them here made every
         // action on the page fail with 403 once deployed.

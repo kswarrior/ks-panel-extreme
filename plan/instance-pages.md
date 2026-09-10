@@ -55,10 +55,15 @@ New file only + thin wiring, no edits to `modengine/`:
 ## V1 shipped notes (2026-09-10, migration 075)
 
 - No JSX in v1: author JS with `React.createElement`, entry `function Page() { … }` + `return Page;`.
-  Build validates (import allow-list `react/react-dom/KSPageSDK`, deny `eval/fetch/XHR/cookie/storage`) and stores
-  source as the bundle (`bundle_js == source_tsx`); a real JSX transform is the v2 upgrade.
+  Build validates (no import/export — `React` + `sdk` already in scope; deny `eval/fetch/XHR/cookie/storage`)
+  and stores source as the bundle (`bundle_js == source_tsx`); a real JSX transform is the v2 upgrade.
 - Host-rendered (like markdown/blocks), not iframe-isolated: authors hold `MANAGE_INSTANCE_PAGES`
   (same trust as template actions). `ReactModuleView` memoizes component identity on bundle+sdk
   fingerprint so hooks state survives theme switches — the HTML `srcDoc`-reload problem is gone.
-- Sub-pages stay `html|markdown|blocks` (react rejected in `validateSubPages`).
+- Sub-pages support `react` too (follow-up): entries carry `source_tsx` / `bundle_js` / `bundle_css`
+  inside the `sub_pages` JSON (no new columns — they ride the family row). One **Build** validates the
+  main source plus every React sub source and stamps each sub `bundle_js`; link copies all three keys
+  per sub into `template.spec.pages[].sub_pages`; Studio Sub-pages tab edits React source (+CSS) per sub;
+  template/instance form round-trips and library imports preserve the keys; renderer prefers `bundle_js`,
+  falls back to `source_tsx`.
 - Marketplace/resync carry source but never bundles (bundles are build-owned); re-link after build to ship.
