@@ -1541,6 +1541,22 @@ function buildSectionVars(theme: Theme): { vars: string } {
   --ks-formcard-radius: ${cd.form_border_radius === D.cards.form_border_radius ? 'var(--ks-card-radius)' : `${num(cd.form_border_radius, 5)}px`};
   --ks-formcard-padding: ${cd.form_padding === D.cards.form_padding ? 'var(--ks-card-padding)' : `${num(cd.form_padding, 15)}px`};
 
+  --ks-rowcard-bg: ${eqTok(cd.row_background, D.cards.row_background, 'var(--ks-card-bg)')};
+  --ks-rowcard-border: ${eqTok(cd.row_border_color, D.cards.row_border_color, 'var(--ks-card-border)')};
+  --ks-rowcard-hover: ${eqTok(cd.row_hover_border_color, D.cards.row_hover_border_color, 'var(--ks-card-hover-border)')};
+  --ks-rowcard-shadow: ${eqTok(cd.row_shadow, D.cards.row_shadow, 'var(--ks-card-shadow)')};
+  --ks-rowcard-radius: ${cd.row_border_radius === D.cards.row_border_radius ? 'var(--ks-card-radius)' : `${num(cd.row_border_radius, 5)}px`};
+  --ks-rowcard-blur: ${cd.row_backdrop_blur === D.cards.row_backdrop_blur ? 'var(--ks-card-blur)' : `${num(cd.row_backdrop_blur, 1)}px`};
+  --ks-rowcard-padding: ${cd.row_padding === D.cards.row_padding ? 'var(--ks-card-padding)' : `${num(cd.row_padding, 15)}px`};
+
+  --ks-pagecard-bg: ${eqTok(cd.page_background, D.cards.page_background, 'var(--ks-card-bg)')};
+  --ks-pagecard-border: ${eqTok(cd.page_border_color, D.cards.page_border_color, 'var(--ks-card-border)')};
+  --ks-pagecard-hover: ${eqTok(cd.page_hover_border_color, D.cards.page_hover_border_color, 'var(--ks-card-hover-border)')};
+  --ks-pagecard-shadow: ${eqTok(cd.page_shadow, D.cards.page_shadow, 'var(--ks-card-shadow)')};
+  --ks-pagecard-radius: ${cd.page_border_radius === D.cards.page_border_radius ? 'var(--ks-card-radius)' : `${num(cd.page_border_radius, 5)}px`};
+  --ks-pagecard-blur: ${cd.page_backdrop_blur === D.cards.page_backdrop_blur ? 'var(--ks-card-blur)' : `${num(cd.page_backdrop_blur, 1)}px`};
+  --ks-pagecard-padding: ${cd.page_padding === D.cards.page_padding ? 'var(--ks-card-padding)' : `${num(cd.page_padding, 15)}px`};
+
   /* ---------------- Theme Studio: Pill (top-right actions) ---------------- */
   --ks-pill-bg: ${eqTok((theme as any).pill?.background, D.pill.background, 'var(--ks-card-bg)')};
   --ks-pill-border: ${eqTok((theme as any).pill?.border_color, D.pill.border_color, 'var(--ks-card-border)')};
@@ -2244,6 +2260,34 @@ ${String(f.toggle_thumb_shadow || '').trim() ? `\n.ks-toggle .ks-toggle__thumb {
   border-radius: var(--ks-formcard-radius) !important;
   padding: var(--ks-formcard-padding) !important;
 }
+.ks-row-card {
+  background-color: var(--ks-rowcard-bg) !important;
+  background-image: var(--ks-card-bg-layer) !important;
+  background-size: var(--ks-card-bg-size);
+  background-position: var(--ks-card-bg-position);
+  background-repeat: var(--ks-card-bg-repeat);
+  border-color: var(--ks-rowcard-border) !important;
+  box-shadow: var(--ks-rowcard-shadow) !important;
+  border-radius: var(--ks-rowcard-radius) !important;
+  backdrop-filter: blur(var(--ks-rowcard-blur)) !important;
+  -webkit-backdrop-filter: blur(var(--ks-rowcard-blur)) !important;
+  padding: var(--ks-rowcard-padding) !important;
+}
+.ks-row-card:hover { border-color: var(--ks-rowcard-hover) !important; }
+.ks-page-card {
+  background-color: var(--ks-pagecard-bg) !important;
+  background-image: var(--ks-card-bg-layer) !important;
+  background-size: var(--ks-card-bg-size);
+  background-position: var(--ks-card-bg-position);
+  background-repeat: var(--ks-card-bg-repeat);
+  border-color: var(--ks-pagecard-border) !important;
+  box-shadow: var(--ks-pagecard-shadow) !important;
+  border-radius: var(--ks-pagecard-radius) !important;
+  backdrop-filter: blur(var(--ks-pagecard-blur)) !important;
+  -webkit-backdrop-filter: blur(var(--ks-pagecard-blur)) !important;
+  padding: var(--ks-pagecard-padding) !important;
+}
+.ks-page-card:hover { border-color: var(--ks-pagecard-hover) !important; }
 
 /* ------------------------------------------------------------------
    Theme Studio → Pill. The fixed top-right action cluster AND the phone

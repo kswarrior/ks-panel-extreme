@@ -438,9 +438,11 @@ export interface ThemeUtilities {
 }
 
 // ThemeCards styles the semantic card variants layered on top of the base
-// card look: list rows (.ks-list-card), stat strips (.ks-stat-card) and
-// form sections (.ks-form-card). Defaults inherit the base card appearance,
-// matching today's rendering.
+// card look: list rows (.ks-list-card), stat strips (.ks-stat-card),
+// form sections (.ks-form-card), per-entry rows (.ks-row-card: template
+// actions/env/install/steps, studio configure vars, block rows) and page
+// rows (.ks-page-card: template pages, studio sub-pages). Defaults inherit
+// the base card appearance, matching today's rendering.
 export interface ThemeCards {
   list_background: string;
   list_border_color: string;
@@ -460,6 +462,20 @@ export interface ThemeCards {
   form_shadow: string;
   form_border_radius: number;    // px
   form_padding: number;          // px
+  row_background: string;
+  row_border_color: string;
+  row_hover_border_color: string;
+  row_shadow: string;
+  row_border_radius: number;    // px
+  row_backdrop_blur: number;    // px
+  row_padding: number;          // px
+  page_background: string;
+  page_border_color: string;
+  page_hover_border_color: string;
+  page_shadow: string;
+  page_border_radius: number;    // px
+  page_backdrop_blur: number;    // px
+  page_padding: number;          // px
 }
 
 // Pill — the fixed pill clusters: top-right Actions (PageActionsPill),
