@@ -159,6 +159,13 @@ interface TerminalProps {
   // addition to the PTY stdin below. Lines blocked by validateInput never
   // reach here.
   onLine?: (line: string) => void;
+  // Operator display prefs (terminal page settings pill, persisted per
+  // browser in localStorage): fontSize resizes the xterm text (11-18,
+  // default 13); showLogPrefix=false strips the leading Minecraft-style
+  // "[02:41:03 INFO]" stamp from each output line (display-only, wire
+  // bytes + copy/download stay consistent with what is shown).
+  fontSize?: number;
+  showLogPrefix?: boolean;
 }
 
 // TerminalHandle exposes imperative actions the host page can wire to
@@ -180,7 +187,7 @@ export interface TerminalHandle {
   getContent: () => string;
 }
 
-const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStateChange, onTermRef, onTitleChange, terminalId, endpoint, timeoutS, readOnly, validateInput, onExit, onLine }, ref) => {
+const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStateChange, onTermRef, onTitleChange, terminalId, endpoint, timeoutS, readOnly, validateInput, onExit, onLine, fontSize, showLogPrefix }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -245,6 +252,24 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
   useEffect(() => {
     endpointRef.current = endpoint;
   }, [endpoint]);
+  // Live display prefs (settings pill): read through refs inside the
+  // streaming write path so toggling needs no WS reconnect.
+  const fontSizeRef = useRef(fontSize ?? 13);
+  useEffect(() => {
+    const n = Number(fontSize);
+    fontSizeRef.current = Number.isFinite(n) ? Math.max(11, Math.min(18, Math.floor(n))) : 13;
+    try {
+      const t = termRef.current;
+      if (t && t.options.fontSize !== fontSizeRef.current) {
+        t.options.fontSize = fontSizeRef.current;
+        fitRef.current?.fit();
+      }
+    } catch { /* noop */ }
+  }, [fontSize]);
+  const showLogPrefixRef = useRef(showLogPrefix !== false);
+  useEffect(() => {
+    showLogPrefixRef.current = showLogPrefix !== false;
+  }, [showLogPrefix]);
 
   // Bridge the imperative `reconnect()` to the parent's ref. We resolve it
   // lazily (no static dependency array) so the parent always picks up the
